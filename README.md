@@ -32,7 +32,6 @@ API地址：http://1.15.76.179/api?url="复制的抖音链接"
 
 ```text
 pip install -r requirements.txt
-
 ```
 
 - 运行main.py
