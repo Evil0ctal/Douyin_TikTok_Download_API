@@ -117,17 +117,17 @@ image_url: [
 
 - 主界面
 
-![](https://secure.wostatic.cn/static/4KsVFHdcKQ5FGrQSNAmYYG/home.png)
+![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/home.png)
 
 ---
 
 - 解析完成(单个/批量)
 
-![](https://secure.wostatic.cn/static/3fkMk8KvqRbpGfGikbGjxR/single_result.png)
+![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/single_result.png)
 
 ---
 
-![](https://secure.wostatic.cn/static/4xGXwj1kRDYXo6tNZ541Fw/multi_results.png)
+![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/multi_results.png)
 
 ---
 
@@ -135,9 +135,9 @@ image_url: [
 
 > 视频返回值
 
-![](https://secure.wostatic.cn/static/bPVbshyRbnD6eZn2LpGHgC/api.png)
+![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/api_video_result.png)
 
 > 图集返回值
 
-![](https://secure.wostatic.cn/static/2vKhRABMce9Mwib3bwQ521/api_image.png)
+![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/api_image_result.png)
 
