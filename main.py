@@ -113,26 +113,50 @@ def webapi():
         return jsonify(Result=False, Message=str(e), Data=None)
 
 
+def put_result(item):
+    video_info, type = get_video_info(item)
+    if type == 'video':
+        put_table([
+            ['类型', '内容'],
+            ['格式:', type],
+            ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True)],
+            ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
+            ['视频标题: ', video_info[2]],
+            ['作者昵称: ', video_info[3]],
+            ['作者抖音ID: ', video_info[4]]
+        ])
+    else:
+        put_table([
+            ['类型', '内容'],
+            ['格式:', type],
+        ])
+        for i in video_info[0]:
+            put_table([
+                ['图片直链: ', put_link('点击打开图片', i, new_window=True)]
+            ])
+        put_table([
+            ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
+            ['视频标题: ', video_info[2]],
+            ['作者昵称: ', video_info[3]],
+            ['作者抖音ID: ', video_info[4]]
+        ])
+
+
 @app.route("/")
 def main():
-    placeholder = "格式: 1.02 GIi:/电动车真环保吗？ https://v.douyin.com/RATN1fk/ 复制此链接，打开Dou音搜索，直接观看视频！"
-    kou_ling = input('请将抖音分享的口令粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder)
-    if kou_ling:
-        try:
-            video_info = get_video_info(kou_ling)
-            print(video_info)
-            put_table([
-                ['类型', '内容'],
-                ['无水印链接', put_link('点击打开视频', video_info[0], new_window=True)],
-                ['背景音乐链接', put_link('点击打开音频', video_info[1], new_window=True)],
-                ['视频标题', video_info[2]],
-                ['作者昵称', video_info[3]],
-                ['作者抖音ID', video_info[4]],
-            ])
-        except Exception as e:
-            # 异常捕获
-            error_msg()
-            error_log(e)
+    placeholder = "如需批量解析请使用英文逗号进行分隔！ \n格式: 1.02 GIi:/电动车真环保吗？ https://v.douyin.com/RATN1fk/ 复制此链接，打开Dou音搜索，直接观看视频！"
+    kou_ling = textarea('请将抖音分享的口令粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder)
+    try:
+        if ',' in kou_ling:
+            kou_ling = kou_ling.split(',')
+            for item in kou_ling:
+                put_result(item)
+        else:
+            put_result(kou_ling)
+    except Exception as e:
+        # 异常捕获
+        error_msg()
+        error_log(e)
 
 
 if __name__ == "__main__":
