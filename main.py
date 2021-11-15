@@ -2,10 +2,11 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2021/11/06
+# @Update: 2021/11/14
 # @Function:
-# Get the TikTok shared text entered by the user
-# And display it on the web page after being parsed in the background.
+# 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
+# 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
+
 
 from pywebio.input import *
 from pywebio.output import *
@@ -51,7 +52,8 @@ def error_log(e):
 def get_video_info(url):
     # 利用官方接口解析链接信息
     try:
-        r = requests.get(url=find_url(url)[0])
+        clean_url = find_url(url)[0]
+        r = requests.get(url=clean_url)
         key = re.findall('video/(\d+)?', str(r.url))[0]
         api_url = f'https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={key}'
         js = json.loads(requests.get(url=api_url, headers=headers).text)
@@ -66,11 +68,13 @@ def get_video_info(url):
             image_author = str(js['item_list'][0]['author']['nickname'])
             # 图集作者抖音号
             image_author_id = str(js['item_list'][0]['author']['short_id'])
+            # 原视频链接
+            original_url = clean_url
             # 去水印图集链接
             images_url = []
             for data in image_data:
                 images_url.append(data['url_list'][0])
-            image_info = [images_url, image_music, image_title, image_author, image_author_id]
+            image_info = [images_url, image_music, image_title, image_author, image_author_id, original_url]
             return image_info, 'image'
         # 报错后判断为视频
         except:
@@ -84,8 +88,10 @@ def get_video_info(url):
             video_author = str(js['item_list'][0]['author']['nickname'])
             # 视频作者抖音号
             video_author_id = str(js['item_list'][0]['author']['unique_id'])
+            # 原视频链接
+            original_url = clean_url
             # 返回包含数据的列表
-            video_info = [video_url, video_music, video_title, video_author, video_author_id]
+            video_info = [video_url, video_music, video_title, video_author, video_author_id, original_url]
             return video_info, 'video'
     except Exception as e:
         # 异常捕获
@@ -102,12 +108,12 @@ def webapi():
                 # 返回图集信息json
                 return jsonify(Type=type, image_url=response_data[0], image_music=response_data[1],
                                image_title=response_data[2], image_author=response_data[3],
-                               image_author_id=response_data[4])
+                               image_author_id=response_data[4], original_url=response_data[5])
             else:
                 # 返回视频信息json
                 return jsonify(Type=type, video_url=response_data[0], video_music=response_data[1],
                                video_title=response_data[2], video_author=response_data[3],
-                               video_author_id=response_data[4])
+                               video_author_id=response_data[4], original_url=response_data[5])
     except Exception as e:
         # 异常捕获
         return jsonify(Result=False, Message=str(e), Data=None)
@@ -123,7 +129,8 @@ def put_result(item):
             ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
             ['视频标题: ', video_info[2]],
             ['作者昵称: ', video_info[3]],
-            ['作者抖音ID: ', video_info[4]]
+            ['作者抖音ID: ', video_info[4]],
+            ['原视频链接: ', put_link('点击打开原视频', video_info[5], new_window=True)]
         ])
     else:
         put_table([
@@ -138,7 +145,8 @@ def put_result(item):
             ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
             ['视频标题: ', video_info[2]],
             ['作者昵称: ', video_info[3]],
-            ['作者抖音ID: ', video_info[4]]
+            ['作者抖音ID: ', video_info[4]],
+            ['原视频链接: ', put_link('点击打开原视频', video_info[5], new_window=True)]
         ])
 
 
