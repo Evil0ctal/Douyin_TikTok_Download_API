@@ -1,8 +1,8 @@
-# 🕵️‍♂️欢迎使用 `TikTokDownload_PyWebIO` 在线解析
+# 欢迎使用 `TikTokDownload_PyWebIO` (抖音在线解析)
 
-演示地址：[http://1.15.76.179/tiktok](http://1.15.76.179/tiktok)
+🚀演示地址：[http://34.226.191.55/tiktok](http://34.226.191.55/tiktok)
 
-API地址：http://1.15.76.179/api?url="复制的抖音链接"
+🛰API地址：[http://1.15.76.179/api?url=https://v.douyin.com/R9bQKx4/](http://1.15.76.179/api?url=https://v.douyin.com/R9bQKx4/)
 
 本项目基于 `PyWebIO`、`Requests`、`Flask`，利用Python实现在线批量解析抖音的无水印视频/图集。
 
@@ -89,7 +89,7 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 - 返回参数(视频/图集)
 
-```json
+```text
 {
 Type: "video",
 video_author: "花花花菜",
@@ -100,7 +100,7 @@ video_url: "https://v3-dy-o.zjcdn.com/93e3a68e365ae83f4ce2b2bb9c253489/6191c9c3/
 }
 ```
 
-```json
+```text
 {
 Type: "image",
 image_author: "三石壁纸(收徒)",
