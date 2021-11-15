@@ -70,12 +70,11 @@ http://localhost(服务器IP):80/tiktok
 - 批量网址(英文逗号隔开)
 
 ```text
+
 例子：
 https://v.douyin.com/RHnWEng/,https://v.douyin.com/RxWnxg/,https://v.douyin.com/RyfEng/
-
+同时支持批量解析口令(手动添加英文逗号以作分隔)
 ```
-
-                                                            同时支持批量解析口令
 
 ## 🛰️API使用
 
@@ -90,7 +89,7 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 - 返回参数(视频/图集)
 
-```text
+```json
 {
 Type: "video",
 video_author: "花花花菜",
@@ -101,7 +100,7 @@ video_url: "https://v3-dy-o.zjcdn.com/93e3a68e365ae83f4ce2b2bb9c253489/6191c9c3/
 }
 ```
 
-```text
+```json
 {
 Type: "image",
 image_author: "三石壁纸(收徒)",
