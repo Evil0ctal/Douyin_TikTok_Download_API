@@ -2,7 +2,7 @@
 
 🚀演示地址：[http://34.226.191.55/tiktok](http://34.226.191.55/tiktok)
 
-🛰API地址：[http://1.15.76.179/api?url=https://v.douyin.com/R9bQKx4/](http://1.15.76.179/api?url=https://v.douyin.com/R9bQKx4/)
+🛰API地址：[http://34.226.191.55/api?url=https://v.douyin.com/R9bQKx4/](http://34.226.191.55/api?url=https://v.douyin.com/R9bQKx4/)
 
 本项目基于 `PyWebIO`、`Requests`、`Flask`，利用Python实现在线批量解析抖音的无水印视频/图集。
 
