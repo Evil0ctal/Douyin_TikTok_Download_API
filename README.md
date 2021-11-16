@@ -100,7 +100,7 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 }
 ```
 
-```text
+```json
 {
 "Type": "image",
 "image_author": "三石壁纸(收徒)",
