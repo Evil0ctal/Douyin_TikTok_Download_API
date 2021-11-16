@@ -6,6 +6,8 @@
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
+
+
 from pywebio import config
 from pywebio.input import *
 from pywebio.output import *
@@ -42,6 +44,7 @@ def error_msg():
     # 输出一个毫无用处的信息
     put_text("无法解析输入内容，请检查输入内容及网络，如多次尝试仍失败，请移步GitHub提交issue。")
     put_link('Github: Evil0ctal', 'https://github.com/Evil0ctal/')
+    put_html("<br><hr>")
 
 
 def error_log(e):
@@ -53,11 +56,11 @@ def error_log(e):
 
 def loading():
     # 写一个进度条装装样子吧 :)
-    set_scope('bar', position=0)
+    set_scope('bar', position=3)
     with use_scope('bar'):
         put_processbar('bar')
-        for i in range(1, 10):
-            set_processbar('bar', i / 9)
+        for i in range(1, 6):
+            set_processbar('bar', i / 5)
             time.sleep(0.1)
 
 
@@ -169,25 +172,65 @@ def put_result(item):
         ])
 
 
+def popup_window():
+    with popup('更多信息'):
+        put_html('<h3>⚠️关于解析失败</h3>')
+        put_text('目前已知短时间大量访问抖音API可能触发其验证码。')
+        put_text('若多次解析失败后，请等待一段时间再尝试。')
+        put_link("下载本站错误日志", 'http://52.53.215.89:8888/down/oTi8UDPltRYn')
+        put_html('<hr>')
+        put_html('<h3>🌐视频/图集批量下载</h3>')
+        put_markdown('可以使用[IDM](https://www.zhihu.com/topic/19746283/hot)之类的工具对结果页面的链接进行嗅探。')
+        put_html('<hr>')
+        put_html('<h3>📣关于本项目</h3>')
+        put_markdown('本人技术有限，欢迎在[GitHub](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/pulls)提交pull请求。')
+        put_html('<hr>')
+        put_html('<h3>💖交个朋友</h3>')
+        put_markdown('微信：[Evil0ctal](https://mycyberpunk.com/)')
+
+
 @config(title=title, description=description)
 def main():
+    # scope_0 = set_scope('scope_0', position=0)
     placeholder = "如需批量解析请使用英文逗号进行分隔！ \n格式: 1.02 GIi:/电动车真环保吗？ https://v.douyin.com/RATN1fk/ 复制此链接，打开Dou音搜索，直接观看视频！"
-    kou_ling = textarea('请将抖音的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder)
-    try:
-        loading()
-        if ',' in kou_ling:
-            kou_ling = kou_ling.split(',')
-            for item in kou_ling:
-                put_result(item)
+    put_markdown("""<div align='center' ><font size='20'>😼欢迎使用抖音在线解析</font></div>""")
+    put_html('<hr>')
+    put_table([
+        ["Github:", put_link('Evil0ctal', 'https://github.com/Evil0ctal', new_window=True),
+         "提交反馈:", put_link('issues', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO/issues', new_window=True),
+         "API文档:", put_link('README', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8', new_window=True),
+         "访问次数:", put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg'),
+         "关于:", put_button("info", onclick=lambda: popup_window(), color='info')
+         ]])
+    kou_ling = textarea('请将抖音的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder, position=0)
+    if kou_ling:
+        # 解析开始时间
+        start = time.time()
+        try:
+            loading()
+            if ',' in kou_ling:
+                kou_ling = kou_ling.split(',')
+                for item in kou_ling:
+                    put_result(item)
                 clear('bar')
-        else:
-            put_result(kou_ling)
+                # 解析结束时间
+                end = time.time()
+                put_text('解析完成: 耗时: %.4f秒' % (end - start))
+            else:
+                put_result(kou_ling)
+                clear('bar')
+                # 解析结束时间
+                end = time.time()
+                put_html("<br><hr>")
+                put_text('解析完成: 耗时: %.4f秒' % (end - start))
+        except Exception as e:
+            # 异常捕获
             clear('bar')
-    except Exception as e:
-        # 异常捕获
-        clear('bar')
-        error_msg()
-        error_log(e)
+            error_msg()
+            end = time.time()
+            put_html("<br><hr>")
+            put_text('解析完成: 耗时: %.4f秒' % (end - start))
+            error_log(e)
 
 
 if __name__ == "__main__":
