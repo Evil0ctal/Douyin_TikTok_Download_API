@@ -1,8 +1,8 @@
 # 欢迎使用 `TikTokDownload_PyWebIO` (抖音在线解析)
 
-🚀演示地址：[http://34.226.191.55/tiktok](http://34.226.191.55/tiktok)
+🚀演示地址：[http://52.53.215.89/tiktok](http://52.53.215.89/tiktok)
 
-🛰API地址：[http://34.226.191.55/api?url=https://v.douyin.com/R9bQKx4/](http://34.226.191.55/api?url=https://v.douyin.com/R9bQKx4/)
+🛰API演示：[http://52.53.215.89/api?url=https://v.douyin.com/R9bQKx4/](http://52.53.215.89/api?url=https://v.douyin.com/R9bQKx4/)
 
 本项目基于 `PyWebIO`、`Requests`、`Flask`，利用Python实现在线批量解析抖音的无水印视频/图集。
 
@@ -51,20 +51,20 @@ http://localhost(服务器IP):80/tiktok
 - 分享口令
 
 ```text
-例子：8.79 vSy:/ %壁纸 %炫酷壁纸 %图集 每一张都是精选  [https://v.douyin.com/RH7Gvmr/](https://v.douyin.com/RH7Gvmr/) 复淛佌lian接，打开Dou音搜索，直接观kan视频！
+例子：8.79 vSy:/ %壁纸 %炫酷壁纸 %图集 每一张都是精选  https://v.douyin.com/RH7Gvmr/复淛佌lian接，打开Dou音搜索，直接观kan视频！
 ```
 
 - 短网址
 
 ```text
-例子：[https://v.douyin.com/RHnWEng/](https://v.douyin.com/RHnWEng/)
+例子：https://v.douyin.com/RHnWEng/
 ```
 
 - 正常网址
 
 ```text
 例子：
-[https://www.douyin.com/video/6997729432244866341&previous_page=video_detail](https://www.douyin.com/video/6997729432244866341?pre_vid=6906830623051205901&previous_page=video_detail)
+https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
 ```
 
 - 批量网址(英文逗号隔开)
@@ -89,25 +89,25 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 - 返回参数(视频/图集)
 
-```text
+```json
 {
-Type: "video",
-video_author: "花花花菜",
-video_author_id: "Wobukunxixi",
-video_music: "https://sf3-cdn-tos.douyinstatic.com/obj/ies-music/6906830659719383822.mp3",
-video_title: "~猫跟你都想了解",
-video_url: "https://v3-dy-o.zjcdn.com/93e3a68e365ae83f4ce2b2bb9c253489/6191c9c3/video/tos/cn/tos-cn-ve-15/083012c589c842e69f5267803eb8e3a5/?a=1128&br=2262&bt=2262&cd=0%7C0%7C0&ch=96&cr=0&cs=0&cv=1&dr=0&ds=3&er=&ft=StecAhgM6BMM8b8NDtPDWodpeaQ&l=202111150945070102121380392D1AC2F5&lr=all&mime_type=video_mp4&net=0&pl=0&qs=0&rc=ajh5aTRseW95eTMzNGkzM0ApNjk1OTU6OWVlN2Q7ODo0N2cpaHV2fWVuZDFwekBvbTJjMDVrbmBfLS1eLS9zczRhXi9iLmFgYGBfLy1iLi46Y29zYlxmK2BtYmJeYA%3D%3D&vl=&vr="
+"Type": "video",
+"video_author": "花花花菜",
+"video_author_id": "Wobukunxixi",
+"video_music": "https://sf3-cdn-tos.douyinstatic.com/obj/ies-music/6906830659719383822.mp3",
+"video_title": "~猫跟你都想了解",
+"video_url": "https://v3-dy-o.zjcdn.com/93e3a68e365ae83f4ce2b2bb9c253489/6191c9c3/video/tos/cn/tos-cn-ve-15/083012c589c842e69f5267803eb8e3a5/?a=1128&br=2262&bt=2262&cd=0%7C0%7C0&ch=96&cr=0&cs=0&cv=1&dr=0&ds=3&er=&ft=StecAhgM6BMM8b8NDtPDWodpeaQ&l=202111150945070102121380392D1AC2F5&lr=all&mime_type=video_mp4&net=0&pl=0&qs=0&rc=ajh5aTRseW95eTMzNGkzM0ApNjk1OTU6OWVlN2Q7ODo0N2cpaHV2fWVuZDFwekBvbTJjMDVrbmBfLS1eLS9zczRhXi9iLmFgYGBfLy1iLi46Y29zYlxmK2BtYmJeYA%3D%3D&vl=&vr="
 }
 ```
 
 ```text
 {
-Type: "image",
-image_author: "三石壁纸(收徒)",
-image_author_id: "782972562",
-image_music: "https://sf6-cdn-tos.douyinstatic.com/obj/tos-cn-ve-2774/635efafc32694ffbb73fbe60eca4a99d",
-image_title: "#壁纸 #炫酷壁纸 #图集 每一张都是精选",
-image_url: [
+"Type": "image",
+"image_author": "三石壁纸(收徒)",
+"image_author_id": "782972562",
+"image_music": "https://sf6-cdn-tos.douyinstatic.com/obj/tos-cn-ve-2774/635efafc32694ffbb73fbe60eca4a99d",
+"image_title": "#壁纸 #炫酷壁纸 #图集 每一张都是精选",
+"image_url": [
 "https://p3-sign.douyinpic.com/tos-cn-i-0813/4af91199ca154074a8a5a63c3c749c6f~noop.webp?x-expires=1639530000&x-signature=P446eJEt2yuyhf2yb58Be29UpBA%3D&from=4257465056&s=PackSourceEnum_DOUYIN_REFLOW&se=false&sh=&sc=&l=202111150954330102120702320620C75E&biz_tag=aweme_images"
 ]
 }
