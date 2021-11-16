@@ -70,7 +70,6 @@ https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
 - 批量网址(英文逗号隔开)
 
 ```text
-
 例子：
 https://v.douyin.com/RHnWEng/,https://v.douyin.com/RxWnxg/,https://v.douyin.com/RyfEng/
 同时支持批量解析口令(手动添加英文逗号以作分隔)
@@ -84,7 +83,6 @@ API可将请求参数转换为需要提取的无水印视频/图片直链，配�
 
 ```text
 http://localhost(服务器IP):80/api?url="复制的抖音链接"
-
 ```
 
 - 返回参数(视频/图集)
