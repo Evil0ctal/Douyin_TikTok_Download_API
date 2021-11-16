@@ -1,6 +1,6 @@
 # 欢迎使用 `TikTokDownload_PyWebIO` (抖音在线解析)
 
-🚀演示地址：[http://52.53.215.89/tiktok](http://52.53.215.89/tiktok)
+🚀演示地址：[http://52.53.215.89](http://52.53.215.89)
 
 🛰API演示：[http://52.53.215.89/api?url=https://v.douyin.com/R9bQKx4/](http://52.53.215.89/api?url=https://v.douyin.com/R9bQKx4/)
 
