@@ -228,7 +228,6 @@ def main():
             clear('bar')
             error_msg()
             end = time.time()
-            put_html("<br><hr>")
             put_text('解析完成: 耗时: %.4f秒' % (end - start))
             error_log(e)
 
