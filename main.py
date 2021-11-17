@@ -23,7 +23,9 @@ import json
 app = Flask(__name__)
 title = "抖音在线解析"
 description = "在线批量解析抖音的无水印视频/图集。"
-headers = {'user-agent': 'Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66'}
+headers = {
+    'user-agent': 'Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66'
+}
 
 
 def find_url(string):
@@ -42,9 +44,9 @@ def valid_check(kou_ling):
 
 def error_msg():
     # 输出一个毫无用处的信息
-    put_text("无法解析输入内容，请检查输入内容及网络，如多次尝试仍失败，请移步GitHub提交issue。")
-    put_link('Github: Evil0ctal', 'https://github.com/Evil0ctal/')
-    put_html("<br><hr>")
+    put_html("<hr>")
+    put_text("无法解析输入内容，请检查输入内容或稍后再试。如多次尝试仍失败，请点击反馈。")
+    put_html("<hr>")
 
 
 def error_log(e):
@@ -59,17 +61,17 @@ def loading():
     set_scope('bar', position=3)
     with use_scope('bar'):
         put_processbar('bar')
-        for i in range(1, 6):
-            set_processbar('bar', i / 5)
+        for i in range(1, 4):
+            set_processbar('bar', i / 3)
             time.sleep(0.1)
 
 
 @retry(stop_max_attempt_number=3)
-def get_video_info(url):
+def get_video_info(original_url):
     # 利用官方接口解析链接信息
     try:
         # 原视频链接
-        original_url = find_url(url)[0]
+        # original_url = find_url(url)[0]
         r = requests.get(url=original_url)
         key = re.findall('video/(\d+)?', str(r.url))[0]
         api_url = f'https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={key}'
@@ -192,37 +194,29 @@ def popup_window():
 @config(title=title, description=description)
 def main():
     # scope_0 = set_scope('scope_0', position=0)
-    placeholder = "如需批量解析请使用英文逗号进行分隔！ \n格式: 1.02 GIi:/电动车真环保吗？ https://v.douyin.com/RATN1fk/ 复制此链接，打开Dou音搜索，直接观看视频！"
+    placeholder = "如需批量解析请直接粘贴多个口令或链接无需使用符号分开。"
     put_markdown("""<div align='center' ><font size='20'>😼欢迎使用抖音在线解析</font></div>""")
     put_html('<hr>')
-    put_table([
-        ["Github:", put_link('Evil0ctal', 'https://github.com/Evil0ctal', new_window=True),
-         "提交反馈:", put_link('issues', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO/issues', new_window=True),
-         "API文档:", put_link('README', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8', new_window=True),
-         "访问次数:", put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg'),
-         "关于:", put_button("info", onclick=lambda: popup_window(), color='info')
-         ]])
+    put_row([put_link('GitHub', 'https://github.com/Evil0ctal', new_window=True),
+             put_link('反馈', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO/issues', new_window=True),
+             put_link('API文档', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8', new_window=True),
+             put_button("关于", onclick=lambda: popup_window(), link_style=True, small=True),
+             put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg', title='访问记录')
+             ])
     kou_ling = textarea('请将抖音的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder, position=0)
     if kou_ling:
+        url_lists = find_url(kou_ling)
         # 解析开始时间
         start = time.time()
         try:
             loading()
-            if ',' in kou_ling:
-                kou_ling = kou_ling.split(',')
-                for item in kou_ling:
-                    put_result(item)
-                clear('bar')
-                # 解析结束时间
-                end = time.time()
-                put_text('解析完成: 耗时: %.4f秒' % (end - start))
-            else:
-                put_result(kou_ling)
-                clear('bar')
-                # 解析结束时间
-                end = time.time()
-                put_html("<br><hr>")
-                put_text('解析完成: 耗时: %.4f秒' % (end - start))
+            for url in url_lists:
+                put_result(url)
+            clear('bar')
+            # 解析结束时间
+            end = time.time()
+            put_html("<br><hr>")
+            put_text('解析完成: 耗时: %.4f秒' % (end - start))
         except Exception as e:
             # 异常捕获
             clear('bar')
