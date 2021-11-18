@@ -1,8 +1,8 @@
 # 欢迎使用 `TikTokDownload_PyWebIO` (抖音在线解析)
 
-🚀演示地址：[http://52.53.215.89](http://52.53.215.89)
+🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
-🛰API演示：[http://52.53.215.89/api?url=https://v.douyin.com/R9bQKx4/](http://52.53.215.89/api?url=https://v.douyin.com/R9bQKx4/)
+🛰API演示：[https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/](https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/)
 
 本项目基于 `PyWebIO`、`Requests`、`Flask`，利用Python实现在线批量解析抖音的无水印视频/图集。
 
@@ -43,7 +43,7 @@ python3 main.py
 - 进入主页
 
 ```text
-http://localhost(服务器IP):80/tiktok
+http://localhost(服务器IP):80/
 ```
 
 ## 🗺️支持的格式：
@@ -67,12 +67,17 @@ http://localhost(服务器IP):80/tiktok
 https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
 ```
 
-- 批量网址(英文逗号隔开)
+- 批量网址(无需使用符合隔开)
 
 ```text
 例子：
-https://v.douyin.com/RHnWEng/,https://v.douyin.com/RxWnxg/,https://v.douyin.com/RyfEng/
-同时支持批量解析口令(手动添加英文逗号以作分隔)
+1.20 rEu:/ ~猫跟你都想了解  https://v.douyin.com/RCjCE1D/ 复制此链接，打开Dou音搜索，直接观看视频！
+5.17 dnq:/ 《黑猫警长》吃猫鼠也太强了，不仅把猫当食物，连鳄鱼也害怕它!  https://v.douyin.com/RCjVQwh/ 复制此链接，打开Dou音搜索，直接观看视频！
+8.43 and:/ 一家人不听道士的劝，搬进了鬼别墅，诡异的事情接连发生 %%恐怖  %%热门  %%电影解说   https://v.douyin.com/RCj5pyh/ 复制此链接，打开Dou音搜索，直接观看视频！
+3.84 FHI:/ 晚上好，蹦迪人，蹦迪魂，蹦迪都是人上人 能蹦几分是几分%%小姐姐蹦迪 %%美不美看大腿 @DOU+小助手  https://v.douyin.com/RCjqkow/ 复制此链接，打开Dou音搜索，直接观看视频！
+6.61 mQk:/ biu～%%爱心发射 %%日常%%宿舍%%变妆  https://v.douyin.com/RCj7VV9/ 复制此链接，打开Dou音搜索，直接观看视频！
+4.12 vse:/ 更该被人看到的古城超级英雄%%超级英雄无缝转场 %%复仇者联盟  https://v.douyin.com/RCjGAjG/ 复制此链接，打开Dou音搜索，直接观看视频！
+
 ```
 
 ## 🛰️API使用
@@ -115,7 +120,7 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 }
 ```
 
-### 🎉截图
+## 🎉截图
 
 - 主界面
 
