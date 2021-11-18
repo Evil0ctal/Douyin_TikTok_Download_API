@@ -34,7 +34,7 @@
 pip install -r requirements.txt
 ```
 
-- 运行main.py
+- [运行main.py](http://xn--main-k55ll68a.py)
 
 ```text
 python3 main.py
@@ -85,7 +85,9 @@ API可将请求参数转换为需要提取的无水印视频/图片直链，配�
 http://localhost(服务器IP):80/api?url="复制的抖音链接"
 ```
 
-- 返回参数(视频/图集)
+- 返回参数
+
+> 视频
 
 ```json
 {
@@ -97,6 +99,8 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 "video_url": "https://v3-dy-o.zjcdn.com/93e3a68e365ae83f4ce2b2bb9c253489/6191c9c3/video/tos/cn/tos-cn-ve-15/083012c589c842e69f5267803eb8e3a5/?a=1128&br=2262&bt=2262&cd=0%7C0%7C0&ch=96&cr=0&cs=0&cv=1&dr=0&ds=3&er=&ft=StecAhgM6BMM8b8NDtPDWodpeaQ&l=202111150945070102121380392D1AC2F5&lr=all&mime_type=video_mp4&net=0&pl=0&qs=0&rc=ajh5aTRseW95eTMzNGkzM0ApNjk1OTU6OWVlN2Q7ODo0N2cpaHV2fWVuZDFwekBvbTJjMDVrbmBfLS1eLS9zczRhXi9iLmFgYGBfLy1iLi46Y29zYlxmK2BtYmJeYA%3D%3D&vl=&vr="
 }
 ```
+
+> 图集
 
 ```json
 {
@@ -119,11 +123,15 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 ---
 
-- 解析完成(单个/批量)
+- 解析完成
+
+>  单个
 
 ![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/single_result.png)
 
 ---
+
+> 批量
 
 ![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/multi_results.png)
 
