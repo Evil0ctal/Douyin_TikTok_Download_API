@@ -8,7 +8,6 @@
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
 
 
-from TikTok_EN import *
 from pywebio import config, session
 from pywebio.input import *
 from pywebio.output import *
