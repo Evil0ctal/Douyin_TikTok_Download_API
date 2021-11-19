@@ -2,12 +2,13 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2021/11/14
+# @Update: 2021/11/19
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
 
 
+from TikTok_EN import *
 from pywebio import config, session
 from pywebio.input import *
 from pywebio.output import *
@@ -174,27 +175,59 @@ def put_result(item):
         ])
 
 
-def popup_window():
+def github_pop_window():
+    with popup("Github"):
+        put_html('<h3>⭐欢迎Star</h3>')
+        put_markdown('[TikTokDownloader_PyWebIO](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO)')
+
+
+def feedback_pop_window():
+    with popup("可以通过以下方式进行反馈"):
+        put_html('<h3>🎯Github</h3>')
+        put_markdown('提交：[issues](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)')
+        put_html('<hr>')
+        put_html('<h3>🤖WeChat</h3>')
+        put_markdown('微信：[Evil0ctal](https://mycyberpunk.com/)')
+        put_html('<hr>')
+
+
+def api_document_pop_window():
+    with popup("API文档"):
+        put_markdown("🛰️API使用")
+        put_markdown("API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。")
+        put_link('[中文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8', new_window=True)
+        put_html('<br>')
+        put_link('[英文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md#%EF%B8%8Fapi-usage', new_window=True)
+
+
+def about_popup_window():
     with popup('更多信息'):
         put_html('<h3>⚠️关于解析失败</h3>')
         put_text('目前已知短时间大量访问抖音API可能触发其验证码。')
         put_text('若多次解析失败后，请等待一段时间再尝试。')
-        put_link("下载本站错误日志", 'http://52.53.215.89:8888/down/oTi8UDPltRYn')
+        put_link("下载本站错误日志", 'http://52.53.215.89:8888/down/oTi8UDPltRYn', new_window=True)
         put_html('<hr>')
         put_html('<h3>🌐视频/图集批量下载</h3>')
         put_markdown('可以使用[IDM](https://www.zhihu.com/topic/19746283/hot)之类的工具对结果页面的链接进行嗅探。')
         put_html('<hr>')
         put_html('<h3>📣关于本项目</h3>')
-        put_markdown('本人技术有限，欢迎在[GitHub](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/pulls)提交pull请求。')
+        put_markdown('本人技术有限，欢迎在[GitHub](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/pulls)提交pull请求。')
         put_html('<hr>')
         put_html('<h3>💖交个朋友</h3>')
         put_markdown('微信：[Evil0ctal](https://mycyberpunk.com/)')
 
 
+def language_pop_window():
+    with popup('Select Language'):
+        put_link('[Chinese Language]', 'https://douyin.wtf')
+        put_html('<br>')
+        put_link('[English Language]', 'https://en.douyin.wtf')
+
+
 @config(title=title, description=description)
 def main():
     # 设置favicon
-    favicon_url = "https://raw.githubusercontent.com/Evil0ctal/TikTokDownload_PyWebIO/main/favicon/android-chrome-512x512.png"
+    favicon_url = "https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/favicon/android-chrome-512x512.png"
     session.run_js("""
     $('#favicon32,#favicon16').remove(); 
     $('head').append('<link rel="icon" type="image/png" href="%s">')
@@ -203,10 +236,11 @@ def main():
     session.run_js("""$('footer').remove()""")
     put_markdown("""<div align='center' ><font size='20'>😼欢迎使用抖音在线解析</font></div>""")
     put_html('<hr>')
-    put_row([put_link('GitHub', 'https://github.com/Evil0ctal', new_window=True),
-             put_link('反馈', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO/issues', new_window=True),
-             put_link('API文档', 'https://github.com/Evil0ctal/TikTokDownload_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8', new_window=True),
-             put_button("关于", onclick=lambda: popup_window(), link_style=True, small=True),
+    put_row([put_button("Github", onclick=lambda: github_pop_window(), link_style=True, small=True),
+             put_button("反馈", onclick=lambda: feedback_pop_window(), link_style=True, small=True),
+             put_button("API文档", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
+             put_button("关于", onclick=lambda: about_popup_window(), link_style=True, small=True),
+             put_button("Languages", onclick=lambda: language_pop_window(), link_style=True, small=True),
              put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg', title='访问记录')
              ])
     placeholder = "如需批量解析请直接粘贴多个口令或链接无需使用符号分开。"
