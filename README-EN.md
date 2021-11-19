@@ -19,7 +19,7 @@ It can be used to download videos/gallery that the author has forbidden to downl
 
 - Video/gallery analysis
 
-- Support sample analysis
+- Support batch analysis
 
 - Open API
 
