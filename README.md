@@ -133,7 +133,7 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 - 主界面
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/home.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home.png)
 
 ---
 
@@ -141,13 +141,13 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 >  单个
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/single_result.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result.png)
 
 ---
 
 > 批量
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/multi_results.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/multi_results.png)
 
 ---
 
@@ -155,9 +155,9 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 > 视频返回值
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/api_video_result.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_video_result.png)
 
 > 图集返回值
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/api_image_result.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_image_result.png)
 
