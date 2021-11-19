@@ -1,28 +1,37 @@
 # 欢迎使用 `TikTokDownload_PyWebIO` (抖音在线解析)
 
+ReadMe Language:  [[English](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/README-EN.md)]  [[简体中文](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/README.md)]
+
+> Note: Words "TikTok" in this readme file mentioned stands for  the Chinese version of TikTok.
+AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] , The US TikTok will be supported soon! (no gallery analysis function)
+
+## 👻介绍
+
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
 🛰API演示：[https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/](https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/)
 
-本项目基于 `PyWebIO`、`Requests`、`Flask`，利用Python实现在线批量解析抖音的无水印视频/图集。
+本项目使用 [PyWebIO](https://github.com/pywebio/PyWebIO)、[Requests](https://github.com/psf/requests)、[Flask](https://github.com/pallets/flask)，利用Python实现在线批量解析抖音的无水印视频/图集。
 
-可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
+可用于下载作者禁止下载的视频，同时可搭配[iOS快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本项目API实现应用内下载。
 
-## 💯已实现功能：
+## 💯已支持功能：
 
-- [ ] 视频/图集解析
+- 视频/图集解析
 
-- [ ] 支持批量解析
+- 支持批量解析
 
-- [ ] 开放API
+- 开放API
 
-- [ ] 将本项目部署至在线服务器
+- 将本项目部署至在线服务器
 
 ---
 
 ## 🤦‍♂️后续功能：
 
-- [ ] 搭配iOS快捷指令APP实现应用内下载(懒)
+- [ ] 搭配[iOS快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载 (懒，来个人帮忙写一下呗)
+
+- [ ] 添加对美区TikTok的支持(无图集解析)
 
 ---
 
@@ -34,10 +43,10 @@
 pip install -r requirements.txt
 ```
 
-- [运行main.py](http://xn--main-k55ll68a.py)
+- 运行TikTok.py
 
 ```text
-python3 main.py
+python3 TikTok.py
 ```
 
 - 进入主页
@@ -46,7 +55,7 @@ python3 main.py
 http://localhost(服务器IP):80/
 ```
 
-## 🗺️支持的格式：
+## 🗺️支持的提交格式：
 
 - 分享口令
 
