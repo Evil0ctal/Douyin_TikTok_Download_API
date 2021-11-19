@@ -1,6 +1,6 @@
-# 欢迎使用 `TikTokDownload_PyWebIO` (抖音在线解析)
+# 欢迎使用 `TikTokDownloader_PyWebIO` (抖音在线解析)
 
-ReadMe Language:  [[English](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/README-EN.md)]  [[简体中文](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/README.md)]
+ReadMe Language:  [[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md)]  [[简体中文](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
 
 > Note: Words "TikTok" in this readme file mentioned stands for  the Chinese version of TikTok.
 AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] , The US TikTok will be supported soon! (no gallery analysis function)
