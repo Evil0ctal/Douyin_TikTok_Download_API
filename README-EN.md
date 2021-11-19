@@ -1,15 +1,15 @@
 # Welcome to use `TikTokDownload_PyWebIO` (TikTok Online Downloader)
 
-ReadMe Language:  [[English](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/README-EN.md)]  [[简体中文](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/README.md)]
+ReadMe Language:  [[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md)]  [[简体中文](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
 
 > Note: Words "TikTok" in this readme file mentioned stands for  the Chinese version of TikTok.
 AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] , The US version of TikTok will be supported soon! (no gallery analysis function)
 
 ## 👻 Introduce
 
-🚀Demo: [https://douyin.wtf](https://douyin.wtf)
+🚀Demo: [https://en.douyin.wtf](https://en.douyin.wtf)
 
-🛰API demo: [https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/](https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/)
+🛰API demo: [https://en.douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/](https://en.douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/)
 
 This project uses [PyWebIO](https://github.com/pywebio/PyWebIO), [Requests](https://github.com/psf/requests), [Flask ](https://github.com/pallets/flask) as Python libraries to download TikTok's videos/gallery without watermark.
 
@@ -133,7 +133,7 @@ http://localhost(Server IP):80/api?url="Supported submission format"
 
 - Main
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/home.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home.png)
 
 ---
 
@@ -141,13 +141,13 @@ http://localhost(Server IP):80/api?url="Supported submission format"
 
 >  Single result
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/single_result.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result.png)
 
 ---
 
 > Multiple results
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/multi_results.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/multi_results.png)
 
 ---
 
@@ -155,9 +155,9 @@ http://localhost(Server IP):80/api?url="Supported submission format"
 
 > Video response
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/api_video_result.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_video_result.png)
 
 > Gallery response
 
-![](https://github.com/Evil0ctal/TikTokDownload_PyWebIO/blob/main/Screenshots/api_image_result.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_image_result.png)
 
