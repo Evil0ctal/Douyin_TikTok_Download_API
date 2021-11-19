@@ -8,7 +8,7 @@
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
 
 
-from pywebio import config
+from pywebio import config, session
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.platform.flask import webio_view
@@ -125,15 +125,15 @@ def webapi():
     try:
         post_content = request.args.get("url")
         if post_content:
-            response_data, type = get_video_info(post_content)
-            if type == 'image':
+            response_data, result_type = get_video_info(post_content)
+            if result_type == 'image':
                 # 返回图集信息json
-                return jsonify(Type=type, image_url=response_data[0], image_music=response_data[1],
+                return jsonify(Type=result_type, image_url=response_data[0], image_music=response_data[1],
                                image_title=response_data[2], image_author=response_data[3],
                                image_author_id=response_data[4], original_url=response_data[5])
             else:
                 # 返回视频信息json
-                return jsonify(Type=type, video_url=response_data[0], video_music=response_data[1],
+                return jsonify(Type=result_type, video_url=response_data[0], video_music=response_data[1],
                                video_title=response_data[2], video_author=response_data[3],
                                video_author_id=response_data[4], original_url=response_data[5])
     except Exception as e:
@@ -144,11 +144,11 @@ def webapi():
 
 def put_result(item):
     # 根据解析格式向前端输出表格
-    video_info, type = get_video_info(item)
-    if type == 'video':
+    video_info, result_type = get_video_info(item)
+    if result_type == 'video':
         put_table([
             ['类型', '内容'],
-            ['格式:', type],
+            ['格式:', result_type],
             ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True)],
             ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
             ['视频标题: ', video_info[2]],
@@ -159,7 +159,7 @@ def put_result(item):
     else:
         put_table([
             ['类型', '内容'],
-            ['格式:', type],
+            ['格式:', result_type],
         ])
         for i in video_info[0]:
             put_table([
@@ -193,8 +193,14 @@ def popup_window():
 
 @config(title=title, description=description)
 def main():
-    # scope_0 = set_scope('scope_0', position=0)
-    placeholder = "如需批量解析请直接粘贴多个口令或链接无需使用符号分开。"
+    # 设置favicon
+    favicon_url = "https://raw.githubusercontent.com/Evil0ctal/TikTokDownload_PyWebIO/main/favicon/android-chrome-512x512.png"
+    session.run_js("""
+    $('#favicon32,#favicon16').remove(); 
+    $('head').append('<link rel="icon" type="image/png" href="%s">')
+    """ % favicon_url)
+    # 修改footer
+    session.run_js("""$('footer').remove()""")
     put_markdown("""<div align='center' ><font size='20'>😼欢迎使用抖音在线解析</font></div>""")
     put_html('<hr>')
     put_row([put_link('GitHub', 'https://github.com/Evil0ctal', new_window=True),
@@ -203,6 +209,7 @@ def main():
              put_button("关于", onclick=lambda: popup_window(), link_style=True, small=True),
              put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg', title='访问记录')
              ])
+    placeholder = "如需批量解析请直接粘贴多个口令或链接无需使用符号分开。"
     kou_ling = textarea('请将抖音的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder, position=0)
     if kou_ling:
         url_lists = find_url(kou_ling)
