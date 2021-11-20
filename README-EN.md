@@ -1,4 +1,4 @@
-# Welcome to use `TikTokDownload_PyWebIO` (TikTok Online Downloader)
+# Welcome to use `TikTokDownloader_PyWebIO` (TikTok Online Downloader)
 
 ReadMe Language:  [[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md)]  [[简体中文](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
 
@@ -133,7 +133,7 @@ http://localhost(Server IP):80/api?url="Supported submission format"
 
 - Main
 
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home_en.png)
 
 ---
 
@@ -141,13 +141,13 @@ http://localhost(Server IP):80/api?url="Supported submission format"
 
 >  Single result
 
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result_en.png)
 
 ---
 
 > Multiple results
 
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/multi_results.png)
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/multi_results_en.png)
 
 ---
 
