@@ -203,12 +203,21 @@ def api_document_pop_window():
         put_link('[English document]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md#%EF%B8%8Fapi-usage', new_window=True)
 
 
+def error_log_popup_window():
+    with popup('Error logs'):
+        content = open(r'./logs.txt', 'rb').read()
+        put_file('Download logs.txt', content=content)
+        with open('./logs.txt', 'r') as f:
+            content = f.read()
+            put_text(str(content))
+
+
 def about_popup_window():
     with popup('More information'):
         put_html('<h3>⚠️About parsing failure</h3>')
         put_text('It is currently known that a large number of visits to the TikTok API in a short period of time may trigger its verification code.')
         put_text('If the analysis fails several times, please wait for a while and then try again.')
-        put_link("Download the error log of this site", 'http://18.144.82.183:8888/down/tvoFwscxmQkE')
+        put_button("Error logs", onclick=lambda: error_log_popup_window(), link_style=True, small=True)
         put_html('<hr>')
         put_html('<h3>🌐Video/Atlas batch download</h3>')
         put_markdown('You can use tools such as [IDM](https://www.internetdownloadmanager.com/) to sniff the links to the results page.')
