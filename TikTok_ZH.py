@@ -237,9 +237,9 @@ def main():
     put_html('<hr>')
     put_row([put_button("Github", onclick=lambda: github_pop_window(), link_style=True, small=True),
              put_button("反馈", onclick=lambda: feedback_pop_window(), link_style=True, small=True),
-             put_button("API文档", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
+             put_button("API", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
              put_button("关于", onclick=lambda: about_popup_window(), link_style=True, small=True),
-             put_button("Languages", onclick=lambda: language_pop_window(), link_style=True, small=True),
+             put_button("Language", onclick=lambda: language_pop_window(), link_style=True, small=True),
              put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg', title='访问记录')
              ])
     placeholder = "如需批量解析请直接粘贴多个口令或链接无需使用符号分开。"
