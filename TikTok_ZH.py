@@ -199,12 +199,21 @@ def api_document_pop_window():
         put_link('[英文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md#%EF%B8%8Fapi-usage', new_window=True)
 
 
+def error_log_popup_window():
+    with popup('错误日志'):
+        content = open(r'./logs.txt', 'rb').read()
+        put_file('logs.txt', content=content)
+        with open('./logs.txt', 'r') as f:
+            content = f.read()
+            put_text(str(content))
+
+
 def about_popup_window():
     with popup('更多信息'):
         put_html('<h3>⚠️关于解析失败</h3>')
         put_text('目前已知短时间大量访问抖音API可能触发其验证码。')
         put_text('若多次解析失败后，请等待一段时间再尝试。')
-        put_link("下载本站错误日志", 'http://52.53.215.89:8888/down/oTi8UDPltRYn', new_window=True)
+        put_button("错误日志", onclick=lambda: error_log_popup_window(), link_style=True, small=True)
         put_html('<hr>')
         put_html('<h3>🌐视频/图集批量下载</h3>')
         put_markdown('可以使用[IDM](https://www.zhihu.com/topic/19746283/hot)之类的工具对结果页面的链接进行嗅探。')
