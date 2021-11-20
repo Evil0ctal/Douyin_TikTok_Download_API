@@ -217,7 +217,7 @@ def about_popup_window():
 
 
 def language_pop_window():
-    with popup('Select Language'):
+    with popup('Select Site Language'):
         put_link('[Chinese Language]', 'https://douyin.wtf')
         put_html('<br>')
         put_link('[English Language]', 'https://en.douyin.wtf')
