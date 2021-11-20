@@ -241,9 +241,9 @@ def main():
     put_html('<hr>')
     put_row([put_button("Github", onclick=lambda: github_pop_window(), link_style=True, small=True),
              put_button("Feedback", onclick=lambda: feedback_pop_window(), link_style=True, small=True),
-             put_button("API doc", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
+             put_button("API", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
              put_button("About", onclick=lambda: about_popup_window(), link_style=True, small=True),
-             put_button("Languages", onclick=lambda: language_pop_window(), link_style=True, small=True),
+             put_button("Language", onclick=lambda: language_pop_window(), link_style=True, small=True),
              put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg', title='Browsing records')
              ])
     placeholder = "For batch analysis, please paste multiple passwords or links directly without using symbols to separate them."
