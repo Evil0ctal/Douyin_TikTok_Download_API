@@ -45,13 +45,13 @@ def valid_check(kou_ling):
 def error_do(e, func_name):
     # 输出一个毫无用处的信息
     put_html("<hr>")
-    put_error("There was an error happened.")
-    put_html('<h3>⚠️Detail</h3>')
+    put_error("程序出错.")
+    put_html('<h3>⚠详情</h3>')
     put_table([
-        ['Function', 'Reason'],
+        ['函数名', '原因'],
         [func_name, str(e)]])
     put_html("<hr>")
-    put_markdown('Please try again!\nIf multiple attempts still fail, please click [Feedback](https://github.com/Evil0ctal/Calibear_User/issues).')
+    put_markdown('请稍后尝试!\n如果多次尝试后仍失败,请点击[反馈](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues).')
     put_link('返回主页', '/')
     # 将错误记录在logs.txt中
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
