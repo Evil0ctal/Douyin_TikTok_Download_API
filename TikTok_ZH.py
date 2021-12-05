@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2021/11/19
+# @Update: 2021/12/04
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -42,18 +42,21 @@ def valid_check(kou_ling):
         return '抖音分享口令有误!'
 
 
-def error_msg():
+def error_do(e, func_name):
     # 输出一个毫无用处的信息
     put_html("<hr>")
-    put_text("无法解析输入内容，请检查输入内容或稍后再试。如多次尝试仍失败，请点击反馈。")
+    put_error("There was an error happened.")
+    put_html('<h3>⚠️Detail</h3>')
+    put_table([
+        ['Function', 'Reason'],
+        [func_name, str(e)]])
     put_html("<hr>")
-
-
-def error_log(e):
+    put_markdown('Please try again!\nIf multiple attempts still fail, please click [Feedback](https://github.com/Evil0ctal/Calibear_User/issues).')
+    put_link('返回主页', '/')
     # 将错误记录在logs.txt中
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     with open('logs.txt', 'a') as f:
-        f.write(date + ": " + str(e) + '\n')
+        f.write(date + " " + func_name + ': ' + str(e) + '\n')
 
 
 def loading():
@@ -116,7 +119,7 @@ def get_video_info(original_url):
             return video_info, 'video'
     except Exception as e:
         # 异常捕获
-        error_log(e)
+        error_do(e, 'get_video_info')
 
 
 @app.route("/api")
@@ -138,7 +141,7 @@ def webapi():
                                video_author_id=response_data[4], original_url=response_data[5])
     except Exception as e:
         # 异常捕获
-        error_log(e)
+        error_do(e, 'webapi')
         return jsonify(Message="解析失败", Reason=str(e), Result=False)
 
 
@@ -265,14 +268,14 @@ def main():
             # 解析结束时间
             end = time.time()
             put_html("<br><hr>")
-            put_text('解析完成: 耗时: %.4f秒' % (end - start))
+            put_link('返回主页', '/')
+            put_text('解析完成! 耗时: %.4f秒' % (end - start))
         except Exception as e:
             # 异常捕获
             clear('bar')
-            error_msg()
+            error_do(e, 'main')
             end = time.time()
-            put_text('解析完成: 耗时: %.4f秒' % (end - start))
-            error_log(e)
+            put_text('解析完成! 耗时: %.4f秒' % (end - start))
 
 
 if __name__ == "__main__":
