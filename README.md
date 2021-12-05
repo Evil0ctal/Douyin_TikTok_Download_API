@@ -168,3 +168,43 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_image_result.png)
 
+---
+
+## 💾部署
+
+> 最好将本项目部署至海外服务器，否则可能会出现奇怪的问题 
+
+如：项目部署在国内服务器，而人在美国，点击结果页面链接报错403 ，目测与抖音CDN有关系。
+
+> 使用宝塔Linux面板进行部署
+
+- 首先要去安全组开放80端口（默认80，可以在文件底部修改。）
+
+- 在宝塔应用商店内搜索python并安装项目管理器
+
+![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
+
+---
+
+- 创建一个项目名字随意
+
+- 路径选择你上传文件的路径
+
+- Python版本默认
+
+- 框架修改为`Flask`
+
+- 启动方式修改为`python`
+
+- 启动文件选择`TikTok_ZH.py`
+
+- 勾选安装模块依赖
+
+- 开机启动随意
+
+- 如果宝塔安装了`Nginx`请将其停止或修改代码端口
+
+![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
+
+
+
