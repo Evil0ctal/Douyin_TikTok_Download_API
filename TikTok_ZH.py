@@ -303,7 +303,7 @@ def feedback_pop_window():
 
 def api_document_pop_window():
     with popup("API文档"):
-        put_markdown("🛰️API使用")
+        put_markdown("💽API文档")
         put_markdown("API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。")
         put_link('[中文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8',
                  new_window=True)
@@ -311,6 +311,14 @@ def api_document_pop_window():
         put_link('[英文文档]',
                  'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md#%EF%B8%8Fapi-usage',
                  new_window=True)
+        put_html('<hr>')
+        put_markdown("🛰️API参考")
+        put_markdown('抖音/TikTok解析请求参数')
+        put_code('http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)"\n#返回JSON')
+        put_markdown('抖音/TikTok视频下载请求参数')
+        put_code('http://localhost(服务器IP):80/download_video?url="复制的抖音/TikTok链接"\n#返回mp4文件下载请求')
+        put_markdown('抖音视频/图集音频下载请求参数')
+        put_code('http://localhost(服务器IP):80/download_bgm?url="复制的抖音/TikTok链接"\n#返回mp3文件下载请求')
 
 
 def error_log_popup_window():
