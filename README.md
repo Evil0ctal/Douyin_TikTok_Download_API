@@ -101,15 +101,15 @@ https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
 
 API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。
 
-- 请求参数
+-  解析请求参数
 
 ```text
-http://localhost(服务器IP):80/api?url="复制的抖音链接"
+http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)"
 ```
 
 - 返回参数
 
-> 视频
+> 抖音视频
 
 ```json
 {
@@ -122,7 +122,7 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 }
 ```
 
-> 图集
+> 抖音图集
 
 ```json
 {
@@ -135,6 +135,78 @@ http://localhost(服务器IP):80/api?url="复制的抖音链接"
 "https://p3-sign.douyinpic.com/tos-cn-i-0813/4af91199ca154074a8a5a63c3c749c6f~noop.webp?x-expires=1639530000&x-signature=P446eJEt2yuyhf2yb58Be29UpBA%3D&from=4257465056&s=PackSourceEnum_DOUYIN_REFLOW&se=false&sh=&sc=&l=202111150954330102120702320620C75E&biz_tag=aweme_images"
 ]
 }
+```
+
+> TikTok视频
+
+```JSON
+{
+"status": "0",
+"detail": "7011878791655984385",
+"item": {
+"id": "7011878791655984385",
+"desc": "Inst: kikakim",
+"createTime": 1632580253,
+"aweme_id": "v10044g50000c57j52jc77u0ej5jo1i0",
+"video": {
+"height": 960,
+"width": 540,
+"duration": 8403,
+"ratio": "540p",
+"cover": "https://p16-sign-sg.tiktokcdn.com/aweme/300x400/tos-alisg-p-0037/0c9627223b534c0bb37ea5dc273f0934_1632580255.webp?x-expires=1639364400&x-signature=SQ7%2Bb6qIn3BGBwzNfFfEezds840%3D",
+"originCover": "https://p16-sign-sg.tiktokcdn.com/tos-alisg-p-0037/191cb32ef8cd444195b2667bec6392e3_1632580254~tplv-tiktokx-360p.webp?x-expires=1639364400&x-signature=sX5FS0udDbLAhY8z3zLJbmdfgJ8%3D",
+"dynamicCover": "https://p16-sign-sg.tiktokcdn.com/obj/tos-alisg-p-0037/a100209e62c8440f82c9d67cefc84c34_1632580255?x-expires=1639364400&x-signature=eGBMPkrjT7naLlcAL3ctI4L6EDE%3D",
+"downloadAddr": [
+"https://v21-us.tiktokcdn.com/video/tos/alisg/tos-alisg-pve-0037c001/93a4b3e85acf475fb9f128e7f350b390/?VExpiration=1639367621&VSignature=24f00da68268e6022c00324e93796f3a&a=1233&br=2478&bt=1239&cd=0%7C0%7C0&ch=0&cr=3&cs=0&cv=1&dr=0&ds=3&er=&ft=xo5uS4L-gbWInz7T&l=2021121221533301024402918420E6B78A&lr=all&mime_type=video_mp4&net=0&pl=0&qs=0&rc=MzRtbTM6ZjVtODMzODczNEApOmhoOGVpPDxmNzs7ZTQ5N2dmbDJicjRnMjRgLS1kMS1zczVhMmA2YzA2MjViL15jNGA6Yw%3D%3D&vl=&vr=",
+"https://v39-us.tiktokcdn.com/27db7c0c86bb37306f6332572d281071/61b6c3c5/video/tos/alisg/tos-alisg-pve-0037c001/93a4b3e85acf475fb9f128e7f350b390/?a=1233&br=2478&bt=1239&cd=0%7C0%7C0&ch=0&cr=3&cs=0&cv=1&dr=0&ds=3&er=&ft=xo5uS4L-gbWInz7T&l=2021121221533301024402918420E6B78A&lr=all&mime_type=video_mp4&net=0&pl=0&qs=0&rc=MzRtbTM6ZjVtODMzODczNEApOmhoOGVpPDxmNzs7ZTQ5N2dmbDJicjRnMjRgLS1kMS1zczVhMmA2YzA2MjViL15jNGA6Yw%3D%3D&vl=&vr=",
+"https://api-h2.tiktokv.com/aweme/v1/play/?video_id=v10044g50000c57j52jc77u0ej5jo1i0&line=0&ratio=540p&watermark=1&media_type=4&vr_type=0&improve_bitrate=0&logo_name=tiktok_end&quality_type=11&source=AWEME_DETAIL"
+],
+"playAddr": [
+"https://v21-us.tiktokcdn.com/video/tos/alisg/tos-alisg-pve-0037c001/3b18b46a17754413b83a77cf0717ae1d/?VExpiration=1639367621&VSignature=aa82efe17f53978d9e6f48bd88332a93&a=1233&br=3152&bt=1576&cd=0%7C0%7C0&ch=0&cr=3&cs=0&cv=1&dr=0&ds=6&er=&ft=xo5uS4L-gbWInz7T&l=2021121221533301024402918420E6B78A&lr=all&mime_type=video_mp4&net=0&pl=0&qs=0&rc=MzRtbTM6ZjVtODMzODczNEApMzY1OjNnZDxoN2U2ZzZmaWdmbDJicjRnMjRgLS1kMS1zczIvYmM0MmAvNC8zLzEzNC86Yw%3D%3D&vl=&vr=",
+"https://v39-us.tiktokcdn.com/162c80bf68e29735cf44ba0dc943c120/61b6c3c5/video/tos/alisg/tos-alisg-pve-0037c001/3b18b46a17754413b83a77cf0717ae1d/?a=1233&br=3152&bt=1576&cd=0%7C0%7C0&ch=0&cr=3&cs=0&cv=1&dr=0&ds=6&er=&ft=xo5uS4L-gbWInz7T&l=2021121221533301024402918420E6B78A&lr=all&mime_type=video_mp4&net=0&pl=0&qs=0&rc=MzRtbTM6ZjVtODMzODczNEApMzY1OjNnZDxoN2U2ZzZmaWdmbDJicjRnMjRgLS1kMS1zczIvYmM0MmAvNC8zLzEzNC86Yw%3D%3D&vl=&vr=",
+"https://api-h2.tiktokv.com/aweme/v1/play/?video_id=v10044g50000c57j52jc77u0ej5jo1i0&line=0&is_play_url=1&source=PackSourceEnum_AWEME_DETAIL&file_id=f2c736d432b642e792acd5077f2e3205"
+]
+},
+"author": {
+"id": "6785823001336415238",
+"uniqueId": "kikakiim",
+"nickname": "Kika Kim",
+"avatarThumb": "https://p16-sign-sg.tiktokcdn.com/aweme/100x100/tos-alisg-avt-0068/a4777fe51994e2ff798bdc9dd1100846.webp?x-expires=1639429200&x-signature=EWi0SqtiSc7L%2FTJTYlPEGYfwioI%3D",
+"avatarMedium": "https://p16-sign-sg.tiktokcdn.com/aweme/720x720/tos-alisg-avt-0068/a4777fe51994e2ff798bdc9dd1100846.webp?x-expires=1639429200&x-signature=ftaD2qCkJsrDIYz8ciuLgBjPJro%3D",
+"avatarLarger": "https://p16-sign-sg.tiktokcdn.com/aweme/1080x1080/tos-alisg-avt-0068/a4777fe51994e2ff798bdc9dd1100846.webp?x-expires=1639429200&x-signature=sK5THGKswR5gCyelU5fFllK%2FitU%3D",
+"signature": "null",
+"secUid": "MS4wLjABAAAAeH_XfG3mng5HdtOKKaKXj-breE3_2JkVUjlF5REet8fu3MeuaOCoRqNV06xcX_U4"
+},
+"music": {
+"id": 7009903590659608000,
+"title": "Squid Game - Green Light Red Light",
+"coverThumb": "https://p16-sign-sg.tiktokcdn.com/aweme/100x100/tiktok-obj/1663109139272706.webp?x-expires=1639429200&x-signature=GtMpaad2ZjRVTXMk3kYAnYI69V8%3D",
+"coverMedium": "https://p16-sign-sg.tiktokcdn.com/aweme/720x720/tiktok-obj/1663109139272706.webp?x-expires=1639429200&x-signature=N6gdevBk3HCrEr3BJHMFOS5EAEI%3D",
+"coverLarge": "https://p16-sign-sg.tiktokcdn.com/aweme/1080x1080/tiktok-obj/1663109139272706.webp?x-expires=1639429200&x-signature=CtgyNgvnLVwWzCkVDfFyCGD%2BXIA%3D",
+"authorName": "Yovinca Prafika"
+},
+"stats": {
+"commentCount": 5635,
+"diggCount": 1256180,
+"playCount": 20359757,
+"shareCount": 1919
+}
+}
+}
+```
+
+- 下载视频请求参数
+
+```text
+http://localhost(服务器IP):80/download_video?url="复制的抖音链接"
+#返回mp4文件
+```
+
+- 下载音频请求参数
+
+```text
+http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
+#返回mp3文件
 ```
 
 ## 🎉截图
