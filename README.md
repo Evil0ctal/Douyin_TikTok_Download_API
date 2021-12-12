@@ -11,7 +11,7 @@
 Language:  [[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md)]  [[简体中文](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
 
 > Note: Words "TikTok" in this readme file mentioned stands for  the Chinese version of TikTok.
-AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] , The US TikTok will be supported soon! (no gallery analysis function)
+AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] , The US TikTok is now supported! (no gallery analysis function)
 
 ## 👻介绍
 
@@ -25,15 +25,13 @@ AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] ,
 
 ## 💯已支持功能：
 
-- 视频/图集解析
-
-- 支持批量解析
-
-- 开放API
-
-- 将本项目部署至在线服务器
+- 支持抖音视频/图集解析
 
 - 支持海外TikTok视频解析(无图集解析)
+
+- 支持批量解析(支持抖音/TikTok混合解析)
+
+- 支持API调用
 
 ---
 
@@ -84,7 +82,14 @@ http://localhost(服务器IP):80/
 https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
 ```
 
-- 批量网址(无需使用符合隔开)
+- TikTok网址
+
+```text
+例子：
+https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
+```
+
+- 抖音/TikTok批量网址(无需使用符合隔开)
 
 ```text
 例子：
@@ -92,9 +97,10 @@ https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
 5.17 dnq:/ 《黑猫警长》吃猫鼠也太强了，不仅把猫当食物，连鳄鱼也害怕它!  https://v.douyin.com/RCjVQwh/ 复制此链接，打开Dou音搜索，直接观看视频！
 8.43 and:/ 一家人不听道士的劝，搬进了鬼别墅，诡异的事情接连发生 %%恐怖  %%热门  %%电影解说   https://v.douyin.com/RCj5pyh/ 复制此链接，打开Dou音搜索，直接观看视频！
 3.84 FHI:/ 晚上好，蹦迪人，蹦迪魂，蹦迪都是人上人 能蹦几分是几分%%小姐姐蹦迪 %%美不美看大腿 @DOU+小助手  https://v.douyin.com/RCjqkow/ 复制此链接，打开Dou音搜索，直接观看视频！
-6.61 mQk:/ biu～%%爱心发射 %%日常%%宿舍%%变妆  https://v.douyin.com/RCj7VV9/ 复制此链接，打开Dou音搜索，直接观看视频！
-4.12 vse:/ 更该被人看到的古城超级英雄%%超级英雄无缝转场 %%复仇者联盟  https://v.douyin.com/RCjGAjG/ 复制此链接，打开Dou音搜索，直接观看视频！
-
+https://www.tiktok.com/@elpanaarabe/video/7038818332270808325?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
+https://www.tiktok.com/@yuuuurinchi/video/7037047426296925442?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
+https://www.tiktok.com/@marlyestevess/video/7039426841836293382?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
+https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
 ```
 
 ## 🛰️API使用
@@ -209,42 +215,6 @@ http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
 #返回mp3文件
 ```
 
-## 🎉截图
-
-- 主界面
-
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home.png)
-
----
-
-- 解析完成
-
->  单个
-
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result.png)
-
----
-
-> 批量
-
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/multi_results.png)
-
----
-
-- API提交/返回
-
-> 视频返回值
-
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_video_result.png)
-
-> 图集返回值
-
-![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_image_result.png)
-
-> TikTok返回值
-
-![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
-
 ---
 
 ## 💾部署
@@ -282,6 +252,46 @@ http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
 - 如果宝塔安装了`Nginx`请将其停止或修改代码端口
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
+
+---
+
+## 🎉截图
+
+- 主界面
+
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home.png)
+
+---
+
+- 解析完成
+
+>  单个
+
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result.png)
+
+---
+
+> 批量
+
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/multi_results.png)
+
+---
+
+- API提交/返回
+
+> 视频返回值
+
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_video_result.png)
+
+> 图集返回值
+
+![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_image_result.png)
+
+> TikTok返回值
+
+![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
+
+---
 
 
 
