@@ -33,13 +33,13 @@ AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] ,
 
 - 将本项目部署至在线服务器
 
+- 支持海外TikTok视频解析(无图集解析)
+
 ---
 
 ## 🤦‍♂️后续功能：
 
 - [ ] 搭配[iOS快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载 (懒，来个人帮忙写一下呗)
-
-- [ ] 添加对美区TikTok的支持(无图集解析)
 
 ---
 
