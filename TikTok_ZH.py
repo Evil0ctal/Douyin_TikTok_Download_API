@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2021/12/04
+# @Update: 2021/12/12
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -12,13 +12,12 @@ from pywebio import config, session
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.platform.flask import webio_view
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from retrying import retry
 import time
 import requests
 import re
 import json
-
 
 app = Flask(__name__)
 title = "抖音在线解析"
@@ -45,7 +44,7 @@ def valid_check(kou_ling):
 def error_do(e, func_name):
     # 输出一个毫无用处的信息
     put_html("<hr>")
-    put_error("程序出错.")
+    put_error("出现了意料之外但是情理之中的错误，请检查输入值是否有效！")
     put_html('<h3>⚠详情</h3>')
     put_table([
         ['函数名', '原因'],
@@ -74,9 +73,10 @@ def get_video_info(original_url):
     # 利用官方接口解析链接信息
     try:
         # 原视频链接
-        # original_url = find_url(url)[0]
-        r = requests.get(url=original_url)
-        key = re.findall('video/(\d+)?', str(r.url))[0]
+        r = requests.get(url=original_url, allow_redirects=False)
+        # 2021/12/11 发现抖音做了限制，会自动重定向网址，不能用以前的方法获取视频ID了，但是还是可以从请求头中获取。
+        long_url = r.headers['Location']
+        key = re.findall('video/(\d+)?', long_url)[0]
         api_url = f'https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={key}'
         js = json.loads(requests.get(url=api_url, headers=headers).text)
         # 判断是否为图集
@@ -122,37 +122,101 @@ def get_video_info(original_url):
         error_do(e, 'get_video_info')
 
 
+@retry(stop_max_attempt_number=3)
+def get_video_info_tiktok(tiktok_url):
+    # 对TikTok视频进行解析（使用他人API）
+    api = "https://toolav.herokuapp.com/id/?video_id="
+    key = re.findall('video/(\d+)?', str(tiktok_url))[0]
+    # 构造请求
+    url = api + key
+    js = json.loads(requests.get(url=url, headers=headers).text)
+    try:
+        # 去水印后视频链接
+        video_url = str(js['item']['video']['playAddr'][0])
+        # 视频标题
+        video_title = str(js['item']['desc'])
+        # 视频作者昵称
+        video_author = str(js['item']['author']['nickname'])
+        # 视频作者抖音号
+        video_author_id = str(js['item']['author']['uniqueId'])
+        if video_author_id == "":
+            # 如果作者未修改过抖音号，应使用此值以避免无法获取其抖音ID
+            video_author_id = str(js['item_list'][0]['author']['short_id'])
+        # 返回包含数据的列表
+        video_info = [video_url, video_title, video_author, video_author_id, tiktok_url]
+        return video_info, js
+    except Exception as e:
+        # 异常捕获
+        error_do(e, 'get_video_info_tiktok')
+
+
 @app.route("/api")
 def webapi():
     # 创建一个Flask应用获取POST参数并返回结果
     try:
         post_content = request.args.get("url")
         if post_content:
-            response_data, result_type = get_video_info(post_content)
-            if result_type == 'image':
-                # 返回图集信息json
-                return jsonify(Type=result_type, image_url=response_data[0], image_music=response_data[1],
-                               image_title=response_data[2], image_author=response_data[3],
-                               image_author_id=response_data[4], original_url=response_data[5])
+            # 将API记录在API_logs.txt中
+            date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            with open('API_logs.txt', 'a') as f:
+                f.write(date + " : " + post_content + '\n')
+            # 校验是否为TikTok链接
+            if 'tiktok' in post_content:
+                video_info, js = get_video_info_tiktok(post_content)
+                return js
+            # 如果关键字不存在则判断为抖音链接
             else:
-                # 返回视频信息json
-                return jsonify(Type=result_type, video_url=response_data[0], video_music=response_data[1],
-                               video_title=response_data[2], video_author=response_data[3],
-                               video_author_id=response_data[4], original_url=response_data[5])
+                response_data, result_type = get_video_info(post_content)
+                if result_type == 'image':
+                    # 返回图集信息json
+                    return jsonify(Type=result_type, image_url=response_data[0], image_music=response_data[1],
+                                   image_title=response_data[2], image_author=response_data[3],
+                                   image_author_id=response_data[4], original_url=response_data[5])
+                else:
+                    # 返回视频信息json
+                    return jsonify(Type=result_type, video_url=response_data[0], video_music=response_data[1],
+                                   video_title=response_data[2], video_author=response_data[3],
+                                   video_author_id=response_data[4], original_url=response_data[5])
+
     except Exception as e:
         # 异常捕获
         error_do(e, 'webapi')
         return jsonify(Message="解析失败", Reason=str(e), Result=False)
 
 
+@app.route("/download", methods=["POST", "GET"])
+def download():
+    # 返回视频下载请求
+    input_url = request.args.get("url")
+    try:
+        if 'douyin' in input_url:
+            video_info, result_type = get_video_info(input_url)
+            video_url = video_info[0]
+        else:
+            video_info, js = get_video_info_tiktok(input_url)
+            video_url = video_info[0]
+        video_title = 'video_title'
+        video_mp4 = requests.get(video_url, headers).content
+        # 将video字节流封装成response对象
+        response = make_response(video_mp4)
+        # 添加响应头部信息
+        response.headers['Content-Type'] = "video/mp4"
+        # attachment表示以附件形式下载
+        response.headers['Content-Disposition'] = 'attachment; filename=' + video_title + '.mp4'
+        return response
+    except Exception as e:
+        error_do(e, download)
+
+
 def put_result(item):
     # 根据解析格式向前端输出表格
     video_info, result_type = get_video_info(item)
     if result_type == 'video':
+        download_url = '/download?url=' + video_info[5]
         put_table([
-            ['类型', '内容'],
+            ['类型', '内容', '下载链接'],
             ['格式:', result_type],
-            ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True)],
+            ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True), put_link('点击下载', download_url, new_window=True)],
             ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
             ['视频标题: ', video_info[2]],
             ['作者昵称: ', video_info[3]],
@@ -177,6 +241,19 @@ def put_result(item):
         ])
 
 
+def put_tiktok_result(item):
+    video_info, js = get_video_info_tiktok(item)
+    download_url = '/download?url=' + video_info[4]
+    put_table([
+        ['类型', '内容', '下载链接'],
+        ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True), put_link('点击下载', download_url, new_window=True)],
+        ['视频标题: ', video_info[1]],
+        ['作者昵称: ', video_info[2]],
+        ['作者抖音ID: ', video_info[3]],
+        ['原视频链接: ', put_link('点击打开原视频', video_info[4], new_window=True)]
+    ])
+
+
 def github_pop_window():
     with popup("Github"):
         put_html('<h3>⭐欢迎Star</h3>')
@@ -197,9 +274,12 @@ def api_document_pop_window():
     with popup("API文档"):
         put_markdown("🛰️API使用")
         put_markdown("API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。")
-        put_link('[中文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8', new_window=True)
+        put_link('[中文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8',
+                 new_window=True)
         put_html('<br>')
-        put_link('[英文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md#%EF%B8%8Fapi-usage', new_window=True)
+        put_link('[英文文档]',
+                 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md#%EF%B8%8Fapi-usage',
+                 new_window=True)
 
 
 def error_log_popup_window():
@@ -252,10 +332,12 @@ def main():
              put_button("API", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
              put_button("关于", onclick=lambda: about_popup_window(), link_style=True, small=True),
              put_button("Language", onclick=lambda: language_pop_window(), link_style=True, small=True),
-             put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg', title='访问记录')
+             put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg',
+                       title='访问记录')
              ])
-    placeholder = "如需批量解析请直接粘贴多个口令或链接无需使用符号分开。"
-    kou_ling = textarea('请将抖音的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder, position=0)
+    placeholder = "批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合。"
+    kou_ling = textarea('请将抖音或TikTok的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder,
+                        position=0)
     if kou_ling:
         url_lists = find_url(kou_ling)
         # 解析开始时间
@@ -263,7 +345,10 @@ def main():
         try:
             loading()
             for url in url_lists:
-                put_result(url)
+                if 'douyin' in url:
+                    put_result(url)
+                else:
+                    put_tiktok_result(url)
             clear('bar')
             # 解析结束时间
             end = time.time()
