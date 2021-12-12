@@ -78,6 +78,7 @@ def get_video_info(original_url):
         long_url = r.headers['Location']
         key = re.findall('video/(\d+)?', long_url)[0]
         api_url = f'https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={key}'
+        print("Sending request to: " + '\n' + api_url)
         js = json.loads(requests.get(url=api_url, headers=headers).text)
         # 判断是否为图集
         try:
@@ -129,6 +130,7 @@ def get_video_info_tiktok(tiktok_url):
     key = re.findall('video/(\d+)?', str(tiktok_url))[0]
     # 构造请求
     url = api + key
+    print("Sending request to: " + '\n' + url)
     js = json.loads(requests.get(url=url, headers=headers).text)
     try:
         # 去水印后视频链接
@@ -184,8 +186,8 @@ def webapi():
         return jsonify(Message="解析失败", Reason=str(e), Result=False)
 
 
-@app.route("/download", methods=["POST", "GET"])
-def download():
+@app.route("/download_video", methods=["POST", "GET"])
+def download_video_url():
     # 返回视频下载请求
     input_url = request.args.get("url")
     try:
@@ -205,25 +207,52 @@ def download():
         response.headers['Content-Disposition'] = 'attachment; filename=' + video_title + '.mp4'
         return response
     except Exception as e:
-        error_do(e, download)
+        error_do(e, 'download_video_url')
+
+
+@app.route("/download_bgm", methods=["POST", "GET"])
+def download_bgm_url():
+    # 返回视频下载请求
+    input_url = request.args.get("url")
+    try:
+        if 'douyin' in input_url:
+            video_info, result_type = get_video_info(input_url)
+            bgm_url = video_info[1]
+        else:
+            return 'Coming soon'
+        video_title = 'video_bgm'
+        video_bgm = requests.get(bgm_url, headers).content
+        # 将bgm字节流封装成response对象
+        response = make_response(video_bgm)
+        # 添加响应头部信息
+        response.headers['Content-Type'] = "video/mp3"
+        # attachment表示以附件形式下载
+        response.headers['Content-Disposition'] = 'attachment; filename=' + video_title + '.mp3'
+        return response
+    except Exception as e:
+        error_do(e, 'download_bgm_url')
 
 
 def put_result(item):
     # 根据解析格式向前端输出表格
     video_info, result_type = get_video_info(item)
     if result_type == 'video':
-        download_url = '/download?url=' + video_info[5]
+        download_video = '/download_video?url=' + video_info[5]
+        download_bgm = '/download_bgm?url=' + video_info[5]
         put_table([
-            ['类型', '内容', '下载链接'],
+            ['类型', '内容'],
             ['格式:', result_type],
-            ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True), put_link('点击下载', download_url, new_window=True)],
+            ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True)],
+            ['视频下载：', put_link('点击下载', download_video, new_window=True)],
             ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
+            ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
             ['视频标题: ', video_info[2]],
             ['作者昵称: ', video_info[3]],
             ['作者抖音ID: ', video_info[4]],
             ['原视频链接: ', put_link('点击打开原视频', video_info[5], new_window=True)]
         ])
     else:
+        download_bgm = '/download_bgm?url=' + video_info[5]
         put_table([
             ['类型', '内容'],
             ['格式:', result_type],
@@ -234,6 +263,7 @@ def put_result(item):
             ])
         put_table([
             ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
+            ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
             ['视频标题: ', video_info[2]],
             ['作者昵称: ', video_info[3]],
             ['作者抖音ID: ', video_info[4]],
@@ -243,10 +273,11 @@ def put_result(item):
 
 def put_tiktok_result(item):
     video_info, js = get_video_info_tiktok(item)
-    download_url = '/download?url=' + video_info[4]
+    download_video = '/download_video?url=' + video_info[4]
     put_table([
-        ['类型', '内容', '下载链接'],
-        ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True), put_link('点击下载', download_url, new_window=True)],
+        ['类型', '内容'],
+        ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True)],
+        ['视频下载：', put_link('点击下载', download_video, new_window=True)],
         ['视频标题: ', video_info[1]],
         ['作者昵称: ', video_info[2]],
         ['作者抖音ID: ', video_info[3]],
