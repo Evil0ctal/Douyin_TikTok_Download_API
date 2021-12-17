@@ -13,7 +13,6 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.platform.flask import webio_view
 from flask import Flask, request, jsonify, make_response
-from requests_toolbelt import MultipartEncoder
 from retrying import retry
 import time
 import requests
