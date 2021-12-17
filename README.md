@@ -119,6 +119,7 @@ http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文�
 
 ```json
 {
+"Status": "Success",
 "Type": "video",
 "video_author": "花花花菜",
 "video_author_id": "Wobukunxixi",
@@ -132,7 +133,8 @@ http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文�
 
 ```json
 {
-"Type": "image",
+"Status": "Success",
+"Type": "Image",
 "image_author": "三石壁纸(收徒)",
 "image_author_id": "782972562",
 "image_music": "https://sf6-cdn-tos.douyinstatic.com/obj/tos-cn-ve-2774/635efafc32694ffbb73fbe60eca4a99d",
