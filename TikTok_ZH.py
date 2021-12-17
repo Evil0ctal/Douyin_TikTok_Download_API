@@ -13,15 +13,17 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.platform.flask import webio_view
 from flask import Flask, request, jsonify, make_response
+from requests_toolbelt import MultipartEncoder
 from retrying import retry
 import time
 import requests
 import re
 import json
 
+
 app = Flask(__name__)
-title = "抖音在线解析"
-description = "在线批量解析抖音的无水印视频/图集。"
+title = "抖音/TikTok在线解析"
+description = "在线批量解析下载抖音/TikTok的无水印视频/图集。"
 headers = {
     'user-agent': 'Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66'
 }
@@ -35,8 +37,18 @@ def find_url(string):
 
 def valid_check(kou_ling):
     # 校验输入的内容
-    if find_url(kou_ling):
-        return None
+    url_list = find_url(kou_ling)
+    # 对每一个链接进行校验
+    if url_list:
+        for i in url_list:
+            if 'douyin' in i[:21]:
+                if i == url_list[-1]:
+                    return None
+            elif 'tiktok' in i[:21]:
+                if i == url_list[-1]:
+                    return None
+            else:
+                return '请确保输入链接均为有效的抖音/TikTok链接!'
     else:
         return '抖音分享口令有误!'
 
@@ -141,9 +153,6 @@ def get_video_info_tiktok(tiktok_url):
         video_author = str(js['item']['author']['nickname'])
         # 视频作者抖音号
         video_author_id = str(js['item']['author']['uniqueId'])
-        if video_author_id == "":
-            # 如果作者未修改过抖音号，应使用此值以避免无法获取其抖音ID
-            video_author_id = str(js['item_list'][0]['author']['short_id'])
         # 返回包含数据的列表
         video_info = [video_url, video_title, video_author, video_author_id, tiktok_url]
         return video_info, js
@@ -272,6 +281,7 @@ def put_result(item):
 
 
 def put_tiktok_result(item):
+    # 将TikTok结果显示在前端
     video_info, js = get_video_info_tiktok(item)
     download_video = '/download_video?url=' + video_info[4]
     put_table([
