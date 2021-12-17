@@ -16,4 +16,3 @@ ua-parser==0.10.0
 urllib3==1.26.7
 user-agents==2.2.0
 Werkzeug==2.0.2
-gunicorn==20.1.0
