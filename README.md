@@ -120,7 +120,7 @@ http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文�
 ```json
 {
 "Status": "Success",
-"Type": "video",
+"Type": "Video",
 "video_author": "花花花菜",
 "video_author_id": "Wobukunxixi",
 "video_music": "https://sf3-cdn-tos.douyinstatic.com/obj/ies-music/6906830659719383822.mp3",
