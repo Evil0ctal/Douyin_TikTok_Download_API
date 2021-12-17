@@ -1,1 +1,1 @@
-web: gunicorn TikTok_ZH:app
+web: python TikTok_ZH.py
