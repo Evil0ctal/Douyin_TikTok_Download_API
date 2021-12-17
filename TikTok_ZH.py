@@ -175,18 +175,20 @@ def webapi():
                 video_info, js = get_video_info_tiktok(post_content)
                 return js
             # 如果关键字不存在则判断为抖音链接
-            else:
+            elif 'douyin' in post_content:
                 response_data, result_type = get_video_info(post_content)
                 if result_type == 'image':
                     # 返回图集信息json
-                    return jsonify(Type=result_type, image_url=response_data[0], image_music=response_data[1],
+                    return jsonify(Status='Success', Type='Image', image_url=response_data[0], image_music=response_data[1],
                                    image_title=response_data[2], image_author=response_data[3],
                                    image_author_id=response_data[4], original_url=response_data[5])
                 else:
                     # 返回视频信息json
-                    return jsonify(Type=result_type, video_url=response_data[0], video_music=response_data[1],
+                    return jsonify(Status='Success', Type='Video', video_url=response_data[0], video_music=response_data[1],
                                    video_title=response_data[2], video_author=response_data[3],
                                    video_author_id=response_data[4], original_url=response_data[5])
+            else:
+                return jsonify(Status='Failed', Reason='Check the link!')
 
     except Exception as e:
         # 异常捕获
@@ -216,6 +218,7 @@ def download_video_url():
         return response
     except Exception as e:
         error_do(e, 'download_video_url')
+        return jsonify(Status='Failed', Reason='Check the link!')
 
 
 @app.route("/download_bgm", methods=["POST", "GET"])
@@ -239,6 +242,7 @@ def download_bgm_url():
         return response
     except Exception as e:
         error_do(e, 'download_bgm_url')
+        return jsonify(Status='Failed', Reason='Check the link!')
 
 
 def put_result(item):
