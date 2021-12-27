@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2021/12/12
+# @Update: 2021/12/26
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -13,6 +13,7 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.platform.flask import webio_view
 from flask import Flask, request, jsonify, make_response
+from tiktok_downloader import info_post, tikmate
 from retrying import retry
 import time
 import requests
@@ -40,10 +41,10 @@ def valid_check(kou_ling):
     # 对每一个链接进行校验
     if url_list:
         for i in url_list:
-            if 'douyin' in i[:21]:
+            if 'douyin.com' in i[:31]:
                 if i == url_list[-1]:
                     return None
-            elif 'tiktok' in i[:21]:
+            elif 'tiktok.com' in i[:31]:
                 if i == url_list[-1]:
                     return None
             else:
@@ -55,13 +56,13 @@ def valid_check(kou_ling):
 def error_do(e, func_name):
     # 输出一个毫无用处的信息
     put_html("<hr>")
-    put_error("出现了意料之外但是情理之中的错误，请检查输入值是否有效！")
+    put_error("出现了意料之的错误，请检查输入值是否有效！")
     put_html('<h3>⚠详情</h3>')
     put_table([
         ['函数名', '原因'],
         [func_name, str(e)]])
     put_html("<hr>")
-    put_markdown('请稍后尝试!\n如果多次尝试后仍失败,请点击[反馈](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues).')
+    put_markdown('大量解析TikTok可能导致其防火墙限流!\n请稍等1-2分钟后再次尝试!\n如果多次尝试后仍失败,请点击[反馈](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues).\n你可以在右上角的关于菜单中查看本站错误日志:)')
     put_link('返回主页', '/')
     # 将错误记录在logs.txt中
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -69,13 +70,14 @@ def error_do(e, func_name):
         f.write(date + " " + func_name + ': ' + str(e) + '\n')
 
 
-def loading():
+def loading(url_lists):
     # 写一个进度条装装样子吧 :)
+    total_len = len(url_lists)
     set_scope('bar', position=3)
     with use_scope('bar'):
         put_processbar('bar')
-        for i in range(1, 4):
-            set_processbar('bar', i / 3)
+        for i in range(1, total_len):
+            set_processbar('bar', i / (total_len-1))
             time.sleep(0.1)
 
 
@@ -110,7 +112,7 @@ def get_video_info(original_url):
             for data in image_data:
                 images_url.append(data['url_list'][0])
             image_info = [images_url, image_music, image_title, image_author, image_author_id, original_url]
-            return image_info, 'image'
+            return image_info, 'image', api_url
         # 报错后判断为视频
         except:
             # 去水印后视频链接
@@ -128,7 +130,7 @@ def get_video_info(original_url):
                 video_author_id = str(js['item_list'][0]['author']['short_id'])
             # 返回包含数据的列表
             video_info = [video_url, video_music, video_title, video_author, video_author_id, original_url]
-            return video_info, 'video'
+            return video_info, 'video', api_url
     except Exception as e:
         # 异常捕获
         error_do(e, 'get_video_info')
@@ -136,25 +138,11 @@ def get_video_info(original_url):
 
 @retry(stop_max_attempt_number=3)
 def get_video_info_tiktok(tiktok_url):
-    # 对TikTok视频进行解析（使用他人API）
-    api = "https://toolav.herokuapp.com/id/?video_id="
-    key = re.findall('video/(\d+)?', str(tiktok_url))[0]
-    # 构造请求
-    url = api + key
-    print("Sending request to: " + '\n' + url)
-    js = json.loads(requests.get(url=url, headers=headers).text)
+    # 对TikTok视频进行解析
     try:
-        # 去水印后视频链接
-        video_url = str(js['item']['video']['playAddr'][0])
-        # 视频标题
-        video_title = str(js['item']['desc'])
-        # 视频作者昵称
-        video_author = str(js['item']['author']['nickname'])
-        # 视频作者抖音号
-        video_author_id = str(js['item']['author']['uniqueId'])
-        # 返回包含数据的列表
-        video_info = [video_url, video_title, video_author, video_author_id, tiktok_url]
-        return video_info, js
+        video_info = info_post(tiktok_url).video
+        # print(video_info)
+        return video_info
     except Exception as e:
         # 异常捕获
         error_do(e, 'get_video_info_tiktok')
@@ -171,24 +159,32 @@ def webapi():
             with open('API_logs.txt', 'a') as f:
                 f.write(date + " : " + post_content + '\n')
             # 校验是否为TikTok链接
-            if 'tiktok' in post_content:
-                video_info, js = get_video_info_tiktok(post_content)
-                return js
+            if 'tiktok.com' in post_content:
+                try:
+                    js = get_video_info_tiktok(post_content)
+                    return js
+                except Exception:
+                    return jsonify(Status='Failed!', Reason='Check the link!')
             # 如果关键字不存在则判断为抖音链接
-            elif 'douyin' in post_content:
-                response_data, result_type = get_video_info(post_content)
-                if result_type == 'image':
-                    # 返回图集信息json
-                    return jsonify(Status='Success', Type='Image', image_url=response_data[0], image_music=response_data[1],
-                                   image_title=response_data[2], image_author=response_data[3],
-                                   image_author_id=response_data[4], original_url=response_data[5])
-                else:
-                    # 返回视频信息json
-                    return jsonify(Status='Success', Type='Video', video_url=response_data[0], video_music=response_data[1],
-                                   video_title=response_data[2], video_author=response_data[3],
-                                   video_author_id=response_data[4], original_url=response_data[5])
+            elif 'douyin.com' in post_content:
+                try:
+                    response_data, result_type, api_url = get_video_info(post_content)
+                    if result_type == 'image':
+                        # 返回图集信息json
+                        return jsonify(Status='Success', Type='Image', image_url=response_data[0],
+                                       image_music=response_data[1],
+                                       image_title=response_data[2], image_author=response_data[3],
+                                       image_author_id=response_data[4], original_url=response_data[5])
+                    else:
+                        # 返回视频信息json
+                        return jsonify(Status='Success', Type='Video', video_url=response_data[0],
+                                       video_music=response_data[1],
+                                       video_title=response_data[2], video_author=response_data[3],
+                                       video_author_id=response_data[4], original_url=response_data[5])
+                except:
+                    return jsonify(Status='Failed!', Reason='Check the link!')
             else:
-                return jsonify(Status='Failed', Reason='Check the link!')
+                return jsonify(Status='Failed!', Reason='Check the link!')
 
     except Exception as e:
         # 异常捕获
@@ -201,12 +197,14 @@ def download_video_url():
     # 返回视频下载请求
     input_url = request.args.get("url")
     try:
-        if 'douyin' in input_url:
-            video_info, result_type = get_video_info(input_url)
+        if 'douyin.com' in input_url:
+            video_info, result_type, api_url = get_video_info(input_url)
             video_url = video_info[0]
+        elif 'tiktok' in input_url:
+            download_url = find_url(tikmate().get_media(input_url)[1].json)[0]
+            return jsonify(Status='Success! Click to download!', No_WaterMark_Link=download_url)
         else:
-            video_info, js = get_video_info_tiktok(input_url)
-            video_url = video_info[0]
+            return jsonify(Status='Failed!', Reason='Check the link!')
         video_title = 'video_title'
         video_mp4 = requests.get(video_url, headers).content
         # 将video字节流封装成response对象
@@ -218,7 +216,7 @@ def download_video_url():
         return response
     except Exception as e:
         error_do(e, 'download_video_url')
-        return jsonify(Status='Failed', Reason='Check the link!')
+        return jsonify(Status='Failed!', Reason='Check the link!')
 
 
 @app.route("/download_bgm", methods=["POST", "GET"])
@@ -226,11 +224,11 @@ def download_bgm_url():
     # 返回视频下载请求
     input_url = request.args.get("url")
     try:
-        if 'douyin' in input_url:
-            video_info, result_type = get_video_info(input_url)
+        if 'douyin.com' in input_url:
+            video_info, result_type, api_url = get_video_info(input_url)
             bgm_url = video_info[1]
         else:
-            return 'Coming soon'
+            return jsonify(Status='Failed', Reason='Coming soon!')
         video_title = 'video_bgm'
         video_bgm = requests.get(bgm_url, headers).content
         # 将bgm字节流封装成response对象
@@ -242,12 +240,13 @@ def download_bgm_url():
         return response
     except Exception as e:
         error_do(e, 'download_bgm_url')
-        return jsonify(Status='Failed', Reason='Check the link!')
+        return jsonify(Status='Failed!', Reason='Check the link!')
 
 
 def put_result(item):
     # 根据解析格式向前端输出表格
-    video_info, result_type = get_video_info(item)
+    video_info, result_type, api_url = get_video_info(item)
+    short_api_url = '/api?url=' + item
     if result_type == 'video':
         download_video = '/download_video?url=' + video_info[5]
         download_bgm = '/download_bgm?url=' + video_info[5]
@@ -261,7 +260,9 @@ def put_result(item):
             ['视频标题: ', video_info[2]],
             ['作者昵称: ', video_info[3]],
             ['作者抖音ID: ', video_info[4]],
-            ['原视频链接: ', put_link('点击打开原视频', video_info[5], new_window=True)]
+            ['原视频链接: ', put_link('点击打开原视频', video_info[5], new_window=True)],
+            ['当前视频API链接: ', put_link('点击浏览API数据', api_url, new_window=True)],
+            ['当前视频精简API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
         ])
     else:
         download_bgm = '/download_bgm?url=' + video_info[5]
@@ -279,22 +280,31 @@ def put_result(item):
             ['视频标题: ', video_info[2]],
             ['作者昵称: ', video_info[3]],
             ['作者抖音ID: ', video_info[4]],
-            ['原视频链接: ', put_link('点击打开原视频', video_info[5], new_window=True)]
+            ['原视频链接: ', put_link('点击打开原视频', video_info[5], new_window=True)],
+            ['当前视频API链接: ', put_link('点击浏览API数据', api_url, new_window=True)],
+            ['当前视频精简API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
         ])
 
 
 def put_tiktok_result(item):
     # 将TikTok结果显示在前端
-    video_info, js = get_video_info_tiktok(item)
-    download_video = '/download_video?url=' + video_info[4]
+    video_info = get_video_info_tiktok(item)
+    download_url = find_url(tikmate().get_media(item)[1].json)[0]
+    api_url = '/api?url=' + item
     put_table([
         ['类型', '内容'],
-        ['视频直链: ', put_link('点击打开视频', video_info[0], new_window=True)],
-        ['视频下载：', put_link('点击下载', download_video, new_window=True)],
-        ['视频标题: ', video_info[1]],
-        ['作者昵称: ', video_info[2]],
-        ['作者抖音ID: ', video_info[3]],
-        ['原视频链接: ', put_link('点击打开原视频', video_info[4], new_window=True)]
+        ['视频直链(有水印): ', put_link('点击打开视频', video_info['video']['playAddr'], new_window=True)],
+        ['视频下载(无水印)：', put_link('点击下载', download_url, new_window=True)],
+        ['视频标题: ', video_info['desc']],
+        ['作者昵称: ', video_info['author']['nickname']],
+        ['作者抖音ID: ', video_info['author']['uniqueId']],
+        ['作者个性签名: ', video_info['author']['signature']],
+        ['粉丝数量: ', video_info['authorStats']['followerCount']],
+        ['关注他人数量: ', video_info['authorStats']['followingCount']],
+        ['获赞总量: ', video_info['authorStats']['heart']],
+        ['视频总量: ', video_info['authorStats']['videoCount']],
+        ['原视频链接: ', put_link('点击打开原视频', item, new_window=True)],
+        ['当前视频API链接: ', put_link('点击浏览API数据', api_url, new_window=True)]
     ])
 
 
@@ -395,9 +405,9 @@ def main():
         # 解析开始时间
         start = time.time()
         try:
-            loading()
+            loading(url_lists)
             for url in url_lists:
-                if 'douyin' in url:
+                if 'douyin.com' in url:
                     put_result(url)
                 else:
                     put_tiktok_result(url)
