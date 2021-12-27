@@ -49,10 +49,11 @@ AKA [[Douyin](https://www.douyin.com/)] or [[抖音](https://www.douyin.com/)] ,
 pip install -r requirements.txt
 ```
 
-- 运行TikTok.py
+- 运行TikTok_ZH.py (Python版本需3.9以上)
 
 ```text
-python3 TikTok.py
+python3 TikTok_ZH.py
+# python3 TikTok_EN.py - English interface
 ```
 
 - 进入主页
@@ -360,7 +361,7 @@ http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
 
 - 路径选择你上传文件的路径
 
-- Python版本默认
+- Python版本需要至少3.9以上(在左侧版本管理中自行安装)
 
 - 框架修改为`Flask`
 
@@ -372,7 +373,7 @@ http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
 
 - 开机启动随意
 
-- 如果宝塔安装了`Nginx`请将其停止或修改代码端口
+- 如果宝塔安装了`Nginx`等应用请将其停止或在`TikTok_ZH.py`底部修改端口(默认端口为80)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
