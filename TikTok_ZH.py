@@ -2,23 +2,24 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2021/12/26
+# @Update: 2022/01/01
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
-
 
 from pywebio import config, session
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.platform.flask import webio_view
-from flask import Flask, request, jsonify, make_response
-from tiktok_downloader import info_post, tikmate
 from retrying import retry
-import time
-import requests
+from werkzeug.urls import url_quote
+from tiktok_downloader import info_post, tikmate
+from flask import Flask, request, jsonify, make_response
 import re
 import json
+import time
+import requests
+import unicodedata
 
 
 app = Flask(__name__)
@@ -51,6 +52,14 @@ def valid_check(kou_ling):
                 return '请确保输入链接均为有效的抖音/TikTok链接!'
     else:
         return '抖音分享口令有误!'
+
+
+def clean_filename(string, author_name):
+    # 替换不能用于文件名的字符
+    rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
+    new_title = re.sub(rstr, "_", string)  # 替换为下划线
+    filename = 'douyin.wtf_抖音TikTok在线解析' + new_title + '_' + author_name
+    return filename
 
 
 def error_do(e, func_name):
@@ -115,8 +124,10 @@ def get_video_info(original_url):
             return image_info, 'image', api_url
         # 报错后判断为视频
         except:
-            # 去水印后视频链接
+            # 去水印后视频链接(2022年1月1日抖音APi获取到的URL会进行跳转，需要在Location中获取直链)
             video_url = str(js['item_list'][0]['video']['play_addr']['url_list'][0]).replace('playwm', 'play')
+            r = requests.get(url=video_url, headers=headers, allow_redirects=False)
+            video_url = r.headers['Location']
             # 视频背景音频
             video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
             # 视频标题
@@ -200,19 +211,35 @@ def download_video_url():
         if 'douyin.com' in input_url:
             video_info, result_type, api_url = get_video_info(input_url)
             video_url = video_info[0]
-        elif 'tiktok' in input_url:
+            # 视频标题
+            video_title = video_info[2]
+            # 作者昵称
+            author_name = video_info[3]
+            # 清理文件名
+            file_name = clean_filename(video_title, author_name)
+        elif 'tiktok.com' in input_url:
             download_url = find_url(tikmate().get_media(input_url)[1].json)[0]
             return jsonify(Status='Success! Click to download!', No_WaterMark_Link=download_url)
         else:
             return jsonify(Status='Failed!', Reason='Check the link!')
-        video_title = 'video_title'
+        # video_title = 'video_title'
         video_mp4 = requests.get(video_url, headers).content
         # 将video字节流封装成response对象
         response = make_response(video_mp4)
         # 添加响应头部信息
         response.headers['Content-Type'] = "video/mp4"
+        # 他妈的,费了我老大劲才解决文件中文名的问题
+        try:
+            filename = file_name.encode('latin-1')
+        except UnicodeEncodeError:
+            filenames = {
+                'filename': unicodedata.normalize('NFKD', file_name).encode('latin-1', 'ignore'),
+                'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp4'),
+            }
+        else:
+            filenames = {'filename': file_name}
         # attachment表示以附件形式下载
-        response.headers['Content-Disposition'] = 'attachment; filename=' + video_title + '.mp4'
+        response.headers.set('Content-Disposition', 'attachment', **filenames)
         return response
     except Exception as e:
         error_do(e, 'download_video_url')
@@ -227,6 +254,12 @@ def download_bgm_url():
         if 'douyin.com' in input_url:
             video_info, result_type, api_url = get_video_info(input_url)
             bgm_url = video_info[1]
+            # 视频标题
+            bgm_title = video_info[2]
+            # 作者昵称
+            author_name = video_info[3]
+            # 清理文件名
+            file_name = clean_filename(bgm_title, author_name)
         else:
             return jsonify(Status='Failed', Reason='Coming soon!')
         video_title = 'video_bgm'
@@ -235,8 +268,18 @@ def download_bgm_url():
         response = make_response(video_bgm)
         # 添加响应头部信息
         response.headers['Content-Type'] = "video/mp3"
+        # 他妈的,费了我老大劲才解决文件中文名的问题
+        try:
+            filename = file_name.encode('latin-1')
+        except UnicodeEncodeError:
+            filenames = {
+                'filename': unicodedata.normalize('NFKD', file_name).encode('latin-1', 'ignore'),
+                'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp3'),
+            }
+        else:
+            filenames = {'filename': file_name}
         # attachment表示以附件形式下载
-        response.headers['Content-Disposition'] = 'attachment; filename=' + video_title + '.mp3'
+        response.headers.set('Content-Disposition', 'attachment', **filenames)
         return response
     except Exception as e:
         error_do(e, 'download_bgm_url')
