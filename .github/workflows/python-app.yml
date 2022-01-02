@@ -27,4 +27,4 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: run server
       run: |
-        python TikTok_ZH.py
+        sudo python TikTok_ZH.py
