@@ -21,7 +21,6 @@ import time
 import requests
 import unicodedata
 
-
 app = Flask(__name__)
 title = "抖音/TikTok在线解析"
 description = "在线批量解析下载抖音/TikTok的无水印视频/图集。"
@@ -71,7 +70,8 @@ def error_do(e, func_name):
         ['函数名', '原因'],
         [func_name, str(e)]])
     put_html("<hr>")
-    put_markdown('大量解析TikTok可能导致其防火墙限流!\n请稍等1-2分钟后再次尝试!\n如果多次尝试后仍失败,请点击[反馈](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues).\n你可以在右上角的关于菜单中查看本站错误日志:)')
+    put_markdown(
+        '大量解析TikTok可能导致其防火墙限流!\n请稍等1-2分钟后再次尝试!\n如果多次尝试后仍失败,请点击[反馈](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues).\n你可以在右上角的关于菜单中查看本站错误日志:)')
     put_link('返回主页', '/')
     # 将错误记录在logs.txt中
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -86,7 +86,7 @@ def loading(url_lists):
     with use_scope('bar'):
         put_processbar('bar')
         for i in range(1, total_len):
-            set_processbar('bar', i / (total_len-1))
+            set_processbar('bar', i / (total_len - 1))
             time.sleep(0.1)
 
 
@@ -96,8 +96,12 @@ def get_video_info(original_url):
     try:
         # 原视频链接
         r = requests.get(url=original_url, allow_redirects=False)
-        # 2021/12/11 发现抖音做了限制，会自动重定向网址，不能用以前的方法获取视频ID了，但是还是可以从请求头中获取。
-        long_url = r.headers['Location']
+        try:
+            # 2021/12/11 发现抖音做了限制，会自动重定向网址，不能用以前的方法获取视频ID了，但是还是可以从请求头中获取。
+            long_url = r.headers['Location']
+        except:
+            # 报错后判断为长链接，直接截取视频id
+            long_url = original_url
         key = re.findall('video/(\d+)?', long_url)[0]
         api_url = f'https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={key}'
         print("Sending request to: " + '\n' + api_url)
@@ -441,7 +445,8 @@ def main():
                        title='访问记录')
              ])
     placeholder = "批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合。"
-    kou_ling = textarea('请将抖音或TikTok的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True, placeholder=placeholder,
+    kou_ling = textarea('请将抖音或TikTok的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True,
+                        placeholder=placeholder,
                         position=0)
     if kou_ling:
         url_lists = find_url(kou_ling)
