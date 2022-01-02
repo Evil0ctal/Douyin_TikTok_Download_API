@@ -4,7 +4,7 @@
 
 content:[API](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8)[screenshot](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E6%88%AA%E5%9B%BE)[deploy](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E9%83%A8%E7%BD%B2)
 
-Language:  \[[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
+Language:  \[[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
 
 > Note: Words "TikTok" in this readme file mentioned stands for  the Chinese version of TikTok.
 > AKA \[[dou in](https://www.douyin.com/)] or \[[Tik Tok](https://www.douyin.com/)] , The US TikTok is now supported! (no gallery analysis function)
@@ -25,7 +25,7 @@ Can be used to download videos that the author prohibits downloading, and can be
 
 -   Support overseas TikTok video analysis (no atlas analysis)
 
--   支持批量解析(支持抖音/TikTok混合解析)
+-   Support batch analysis (support Douyin/TikTok mixed analysis)
 
 -   Support API call
 
@@ -102,7 +102,7 @@ https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=
 
 ## 🛰️API usage
 
-The API can convert the request parameters into a non-watermarked video/picture direct link that needs to be extracted, and it can be downloaded in-app with the IOS shortcut.
+The API can convert the request parameters into the non-watermarked video/picture direct link that needs to be extracted, and it can be downloaded in-app with the IOS shortcut.
 
 -   Parse request parameters
 
@@ -357,7 +357,7 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 -   Path select the path of your uploaded file
 
--   The Python version needs to be at least 3.9 (install it yourself in the version management on the left)
+-   The Python version needs to be at least 3.9 or above (install it yourself in the version management on the left)
 
 -   The frame is modified to`Flask`
 
@@ -369,7 +369,7 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 -   Start up at will
 
--   If the pagoda is installed`Nginx`Wait for the application to stop it or`TikTok_ZH.py`Modify the port at the bottom (the default port is 80)
+-   If the pagoda is installed`Nginx`Wait for the application to stop or stop it`TikTok_ZH.py`Modify the port at the bottom (the default port is 80)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -397,7 +397,7 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 * * *
 
--   API提交/返回
+-   API submission/return
 
 > Video return value
 
