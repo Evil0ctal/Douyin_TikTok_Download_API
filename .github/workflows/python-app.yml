@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-        - 'pypy-3.9.9'
+        - 'pypy-3.9'
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
