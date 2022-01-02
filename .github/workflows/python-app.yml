@@ -11,19 +11,14 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        # in this example, there is a newer version already installed, 3.7.7, so the older version will be downloaded
+        python-version: ['3.9.9', '3.9']
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python 3.9.9
-      uses: actions/setup-python@v2
+    - uses: actions/setup-python@v2
       with:
-        python-version: "3.9.9"
-    - name: Install dependencies
-      run: |
-        sudo python -m pip install --upgrade pip
-        sudo pip install flake8 pytest
-        sudo pip install -r requirements.txt
-    - name: run server
-      run: sudo python3.9.9 TikTok_ZH.py
+        python-version: ${{ matrix.python-version }}
+    - run: sudo python TikTok_ZH.py
