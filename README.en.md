@@ -25,7 +25,7 @@ Can be used to download videos that the author prohibits downloading, and can be
 
 -   Support overseas TikTok video analysis (no atlas analysis)
 
--   Support batch analysis (support Douyin/TikTok mixed analysis)
+-   支持批量解析(支持抖音/TikTok混合解析)
 
 -   Support API call
 
@@ -102,7 +102,7 @@ https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=
 
 ## 🛰️API usage
 
-The API can convert the request parameters into the non-watermarked video/picture direct link that needs to be extracted, and it can be downloaded in-app with the IOS shortcut.
+The API can convert the request parameters into a non-watermarked video/picture direct link that needs to be extracted, and it can be downloaded in-app with the IOS shortcut.
 
 -   Parse request parameters
 
@@ -341,7 +341,7 @@ http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
 
 > It is best to deploy this project to an overseas server, otherwise strange problems may occur
 
-For example, the project is deployed on a domestic server, but the person is in the United States. Clicking on the result page link reports an error 403. The visual inspection is related to the Douyin CDN.
+For example: The project is deployed on a domestic server, but the person is in the United States. Clicking on the result page link reports an error 403. The visual inspection is related to the Douyin CDN.
 
 > Deploy using the Pagoda Linux panel
 
@@ -357,7 +357,7 @@ For example, the project is deployed on a domestic server, but the person is in 
 
 -   Path select the path of your uploaded file
 
--   The Python version needs to be at least 3.9 or above (install it yourself in the version management on the left)
+-   The Python version needs to be at least 3.9 (install it yourself in the version management on the left)
 
 -   The frame is modified to`Flask`
 
@@ -369,7 +369,7 @@ For example, the project is deployed on a domestic server, but the person is in 
 
 -   Start up at will
 
--   If the pagoda is installed`Nginx`Wait for the application to stop or stop it`TikTok_ZH.py`Modify the port at the bottom (the default port is 80)
+-   If the pagoda is installed`Nginx`Wait for the application to stop it or`TikTok_ZH.py`Modify the port at the bottom (the default port is 80)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -397,7 +397,7 @@ For example, the project is deployed on a domestic server, but the person is in 
 
 * * *
 
--   API submission/return
+-   API提交/返回
 
 > Video return value
 
