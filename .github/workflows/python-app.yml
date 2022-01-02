@@ -14,8 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Install pipenv
+      run: pipx install pipenv
     - uses: actions/setup-python@v2.3.1
       with:
-        python-version: '3.11.0-alpha.1'
+        python-version: '3.9.9'
+        cache: 'pipenv'
+        cache-dependency-path: |
+          server/app/Pipfile.lock
+          __test__/app/Pipfile.lock
+    - run: pipenv install
     - run: sudo pip install -r requirements.txt
     - run: sudo python TikTok_ZH.py
