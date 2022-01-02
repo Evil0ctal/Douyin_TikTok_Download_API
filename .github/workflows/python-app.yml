@@ -26,5 +26,4 @@ jobs:
         sudo pip install flake8 pytest
         sudo pip install -r requirements.txt
     - name: run server
-      run: |
-        sudo python TikTok_ZH.py
+      run: sudo python3.9.9 TikTok_ZH.py
