@@ -14,12 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # in this example, there is a newer version already installed, 3.7.7, so the older version will be downloaded
-        python-version: ['3.9.9']
+        python-version:
+        - 'pypy-3.9.9'
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - run: sudo pip install -r requirements.txt
-    - run: sudo python TikTok_ZH.py
+    - run: python TikTok_ZH.py
