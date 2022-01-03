@@ -1,6 +1,8 @@
 # welcome`TikTokDownloader_PyWebIO`(Vibrato online analysis)
 
-![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
+![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)
+[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)
+[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
 content:[API](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8)[screenshot](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E6%88%AA%E5%9B%BE)[deploy](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E9%83%A8%E7%BD%B2)
 
@@ -21,13 +23,13 @@ Can be used to download videos that the author prohibits downloading, and can be
 
 ## 💯Supported functions:
 
--   Support Douyin video/atlas analysis
+-   支持抖音视频/图集解析
 
 -   Support overseas TikTok video analysis (no atlas analysis)
 
 -   Support batch analysis (support Douyin/TikTok mixed analysis)
 
--   Support API call
+-   支持API调用
 
 * * *
 
@@ -375,7 +377,7 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 * * *
 
-## 🎉 Screenshot
+## 🎉截图
 
 -   Main interface
 
@@ -397,7 +399,7 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 * * *
 
--   API submission/return
+-   API提交/返回
 
 > Video return value
 
