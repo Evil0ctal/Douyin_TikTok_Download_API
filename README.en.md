@@ -63,7 +63,7 @@ http://localhost(服务器IP):80/
 -   share password
 
 ```text
-例子：8.79 vSy:/ %壁纸 %炫酷壁纸 %图集 每一张都是精选  https://v.douyin.com/RH7Gvmr/复淛佌lian接，打开Dou音搜索，直接观kan视频！
+例子：7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
 ```
 
 -   Short URL
@@ -72,39 +72,37 @@ http://localhost(服务器IP):80/
 例子：https://v.douyin.com/RHnWEng/
 ```
 
--   正常网址
+-   normal url
 
 ```text
 例子：
-https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
+https://www.douyin.com/video/6914948781100338440
 ```
 
 -   TikTok URL
 
 ```text
 例子：
-https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
+https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
 -   Douyin/TikTok bulk URLs (no need to separate them)
 
 ```text
 例子：
-1.20 rEu:/ ~猫跟你都想了解  https://v.douyin.com/RCjCE1D/ 复制此链接，打开Dou音搜索，直接观看视频！
-5.17 dnq:/ 《黑猫警长》吃猫鼠也太强了，不仅把猫当食物，连鳄鱼也害怕它!  https://v.douyin.com/RCjVQwh/ 复制此链接，打开Dou音搜索，直接观看视频！
-8.43 and:/ 一家人不听道士的劝，搬进了鬼别墅，诡异的事情接连发生 %%恐怖  %%热门  %%电影解说   https://v.douyin.com/RCj5pyh/ 复制此链接，打开Dou音搜索，直接观看视频！
-3.84 FHI:/ 晚上好，蹦迪人，蹦迪魂，蹦迪都是人上人 能蹦几分是几分%%小姐姐蹦迪 %%美不美看大腿 @DOU+小助手  https://v.douyin.com/RCjqkow/ 复制此链接，打开Dou音搜索，直接观看视频！
-https://www.tiktok.com/@elpanaarabe/video/7038818332270808325?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
-https://www.tiktok.com/@yuuuurinchi/video/7037047426296925442?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
-https://www.tiktok.com/@marlyestevess/video/7039426841836293382?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
-https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
+https://v.douyin.com/L5psQFx/
+https://v.douyin.com/L5psdyX/
+https://v.douyin.com/L5pbfdP/
+https://www.tiktok.com/@gamer/video/7054061777033628934
+https://www.tiktok.com/@off.anime_rei/video/7059609659690339586
+https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
 ## 🛰️API usage
 
 The API can convert the request parameters into a watermark-free video/picture straight link that needs to be extracted, and can be downloaded in-app with the IOS shortcut.
 
--   解析请求参数
+-   Parse request parameters
 
 ```text
 http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)"
