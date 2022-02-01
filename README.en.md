@@ -1,41 +1,39 @@
-# welcome`TikTokDownloader_PyWebIO`(Vibrato online analysis)
+# welcome`TikTokDownloader_PyWebIO`(Douyin online analysis)
 
-![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)
-[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)
-[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
+![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
 content:[API](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8)[screenshot](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E6%88%AA%E5%9B%BE)[deploy](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E9%83%A8%E7%BD%B2)
 
 Language:  \[[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
 
 > Note: Words "TikTok" in this readme file mentioned stands for  the Chinese version of TikTok.
-> AKA \[[dou in](https://www.douyin.com/)] or \[[Tik Tok](https://www.douyin.com/)] , The US TikTok is now supported! (no gallery analysis function)
+> AKA \[[douin](https://www.douyin.com/)] or \[[Tik Tok](https://www.douyin.com/)] , The US TikTok is now supported! (no gallery analysis function)
 
 ## 👻Introduction
 
-🚀Demonstration address:<https://douyin.wtf/>
+🚀Demo address:<https://douyin.wtf/>
 
 🛰API demo:<https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/>
 
-This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Requests](https://github.com/psf/requests)、[Flask](https://github.com/pallets/flask), Use Python to realize online batch analysis of Douyin's watermarkless video/atlas.
+This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Requests](https://github.com/psf/requests)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-Can be used to download videos that the author prohibits downloading, and can be used with[iOS Shortcut APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project's API to realize in-app download.
+It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
-## 💯Supported functions:
+## 💯 Supported features:
 
 -   支持抖音视频/图集解析
 
 -   Support overseas TikTok video analysis (no atlas analysis)
 
--   Support batch analysis (support Douyin/TikTok mixed analysis)
+-   Support batch parsing (support Douyin/TikTok hybrid parsing)
 
--   支持API调用
+-   Support API calls
 
 * * *
 
 ## 🤦‍♂️Follow-up features:
 
--   [ ] Collocation[iOS Shortcut APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download (lazy, let me write it personally)
+-   [ ] match[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app downloads (lazy, come and write for help)
 
 * * *
 
@@ -47,22 +45,22 @@ Can be used to download videos that the author prohibits downloading, and can be
 pip install -r requirements.txt
 ```
 
--   Run TikTok_ZH.py (Python version needs to be above 3.9)
+-   Run TikTok_ZH.py (Python version 3.9 or above)
 
 ```text
 python3 TikTok_ZH.py
 # python3 TikTok_EN.py - English interface
 ```
 
--   Go to the homepage
+-   go to homepage
 
 ```text
 http://localhost(服务器IP):80/
 ```
 
-## 🗺️Supported submission format:
+## 🗺️ Supported submission formats:
 
--   Share password
+-   share password
 
 ```text
 例子：8.79 vSy:/ %壁纸 %炫酷壁纸 %图集 每一张都是精选  https://v.douyin.com/RH7Gvmr/复淛佌lian接，打开Dou音搜索，直接观kan视频！
@@ -74,7 +72,7 @@ http://localhost(服务器IP):80/
 例子：https://v.douyin.com/RHnWEng/
 ```
 
--   Normal URL
+-   normal url
 
 ```text
 例子：
@@ -88,7 +86,7 @@ https://www.douyin.com/video/6997729432244866341&previous_page=video_detail
 https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=pc&sender_web_id=7040621362419451398&is_from_webapp=v1&is_copy_url=0
 ```
 
--   TikTok/TikTok batch URL (no need to use conformity separation)
+-   Douyin/TikTok bulk URLs (no need to separate them)
 
 ```text
 例子：
@@ -104,7 +102,7 @@ https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=
 
 ## 🛰️API usage
 
-The API can convert the request parameters into the non-watermarked video/picture direct link that needs to be extracted, and it can be downloaded in-app with the IOS shortcut.
+The API can convert the request parameters into a watermark-free video/picture straight link that needs to be extracted, and can be downloaded in-app with the IOS shortcut.
 
 -   Parse request parameters
 
@@ -112,9 +110,9 @@ The API can convert the request parameters into the non-watermarked video/pictur
 http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)"
 ```
 
--   Return parameter
+-   return parameter
 
-> Tik Tok Video
+> Douyin video
 
 ```json
 {
@@ -128,7 +126,7 @@ http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文�
 }
 ```
 
-> Tik Tok Atlas
+> Douyin Atlas
 
 ```json
 {
@@ -144,7 +142,7 @@ http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文�
 }
 ```
 
-> TikTok video
+> TikTok videos
 
 ```JSON
 {
@@ -343,11 +341,11 @@ http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
 
 > It is best to deploy this project to an overseas server, otherwise strange problems may occur
 
-For example: The project is deployed on a domestic server, but the person is in the United States. Clicking on the result page link reports an error 403. The visual inspection is related to the Douyin CDN.
+For example: the project is deployed on a domestic server, and the person is in the United States, click the link of the result page and report an error 403, which is visually related to Douyin CDN.
 
 > Deploy using the Pagoda Linux panel
 
--   First, go to the security group to open port 80 (default 80, which can be modified at the bottom of the file.)
+-   First go to the security group to open port 80 (default 80, which can be modified at the bottom of the file.)
 
 -   Search for python in the pagoda app store and install the project manager
 
@@ -355,29 +353,29 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 * * *
 
--   Create a project with any name
+-   Create a project with an arbitrary name
 
--   Path select the path of your uploaded file
+-   Path select the path where you upload the file
 
--   The Python version needs to be at least 3.9 or above (install it yourself in the version management on the left)
+-   The Python version needs to be at least 3.9 or above (install it by yourself in the version management on the left)
 
 -   The frame is modified to`Flask`
 
--   The startup mode is modified to`python`
+-   The startup method is changed to`python`
 
--   Start file selection`TikTok_ZH.py`
+-   Startup file selection`TikTok_ZH.py`
 
--   Check to install module dependencies
+-   Check install module dependencies
 
--   Start up at will
+-   Start at will
 
--   If the pagoda is installed`Nginx`Wait for the application to stop or stop it`TikTok_ZH.py`Modify the port at the bottom (the default port is 80)
+-   If the pagoda is installed`Nginx`wait for the application to stop it or`TikTok_ZH.py`Modify the port at the bottom (the default port is 80)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
 * * *
 
-## 🎉截图
+## 🎉 Screenshot
 
 -   Main interface
 
@@ -385,7 +383,7 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 * * *
 
--   Parsing is complete
+-   parsing complete
 
 > single
 
@@ -399,7 +397,7 @@ For example: The project is deployed on a domestic server, but the person is in 
 
 * * *
 
--   API提交/返回
+-   API submit/return
 
 > Video return value
 
