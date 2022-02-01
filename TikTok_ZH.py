@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/01/01
+# @Update: 2022/01/31
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -81,12 +81,11 @@ def error_do(e, func_name):
 
 def loading(url_lists):
     # 写一个进度条装装样子吧 :)
-    total_len = len(url_lists)
     set_scope('bar', position=3)
     with use_scope('bar'):
         put_processbar('bar')
-        for i in range(1, total_len):
-            set_processbar('bar', i / (total_len - 1))
+        for i in range(1, 4):
+            set_processbar('bar', i / 3)
             time.sleep(0.1)
 
 
