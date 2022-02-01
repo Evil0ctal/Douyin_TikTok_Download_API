@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/01/01
+# @Update: 2022/01/31
 # @Function:
 """
 @Function:
@@ -55,6 +55,8 @@ def valid_check(kou_ling):
                     return None
             else:
                 return 'Please make sure that the input links are all valid Douyin/TikTok links!'
+    elif kou_ling == 'wyn' or 'WYN':
+        return None
     else:
         return 'Douyin or TikTok share link is wrong!'
 
@@ -91,8 +93,8 @@ def loading(url_lists):
     set_scope('bar', position=3)
     with use_scope('bar'):
         put_processbar('bar')
-        for i in range(1, total_len):
-            set_processbar('bar', i / (total_len - 1))
+        for i in range(1, 4):
+            set_processbar('bar', i / 3)
             time.sleep(0.1)
 
 
@@ -161,12 +163,42 @@ def get_video_info(original_url):
 def get_video_info_tiktok(tiktok_url):
     # Analyze TikTok video
     try:
-        video_info = info_post(tiktok_url).video
-        # print(video_info)
+        tiktok_headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            "authority": "www.tiktok.com",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
+            "Host": "www.tiktok.com",
+            "User-Agent": "Mozilla/5.0  (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) coc_coc_browser/86.0.170 Chrome/80.0.3987.170 Safari/537.36",
+        }
+        html = requests.get(url=tiktok_url, headers=tiktok_headers)
+        res = re.search('<script id="sigi-persisted-data">(.*)</script><script', html.text).group(1)
+        resp = re.findall(r'^window\[\'SIGI_STATE\']=(.*)?;window', res)[0]
+        result = json.loads(resp)
+        author_id = result["ItemList"]["video"]["list"][0]
+        video_info = result["ItemModule"][author_id]
+        print("The author_id is: ", author_id)
+        print(video_info)
+        # The format is messy, please bear with it
         return video_info
     except Exception as e:
         # Exception capture
         error_do(e, 'get_video_info_tiktok')
+
+
+@retry(stop_max_attempt_number=3)
+def tiktok_nowm(tiktok_url):
+    # Use 3rd party API to get watermark-free video link (not guaranteed to be stable)
+    try:
+        api_url = "https://api.reiyuura.me/api/dl/tiktok?url="
+        no_water_mark = api_url + tiktok_url
+        res = requests.get(no_water_mark, headers=headers)
+        print(res)
+        result = json.loads(res.text)
+        nowm = result['result']['nowm']
+        return nowm
+    except Exception as e:
+        error_do(e, "tiktok_nwm")
 
 
 @app.route("/api")
@@ -343,21 +375,24 @@ def put_tiktok_result(item):
     # Display TikTok results on the front end
     video_info = get_video_info_tiktok(item)
     download_url = find_url(tikmate().get_media(item)[1].json)[0]
+    nowm = tiktok_nowm(item)
     api_url = '/api?url=' + item
     put_table([
         ['type', 'content'],
-        ['Video direct link (with watermark): ', put_link('Click to open the video', video_info['video']['playAddr'], new_window=True)],
-        ['Video download (no watermark)：', put_link('click to download', download_url, new_window=True)],
-        ['Video title: ', video_info['desc']],
-        ['Author nickname: ', video_info['author']['nickname']],
-        ['Author Douyin ID: ', video_info['author']['uniqueId']],
-        ['Author signature: ', video_info['author']['signature']],
+        ['video title: ', video_info['desc']],
+        ['Video direct link (with watermark): ', put_link('Click to open video', video_info['video']['playAddr'], new_window=True)],
+        ['Video direct link (no watermark): ', put_link('Click to open video', nowm, new_window=True)],
+        ['Video download (no watermark)：', put_link('Click to download', download_url, new_window=True)],
+        ['audio(name-author)：', video_info['music']['album'] + " - " + video_info['music']['authorName']],
+        ['Music link：', put_link('Click to play', video_info['music']['playUrl'], new_window=True)],
+        ['Author Nickname: ', video_info['author']],
+        ['Author ID: ', video_info['authorId']],
         ['Number of fans: ', video_info['authorStats']['followerCount']],
-        ['Follow others: ', video_info['authorStats']['followingCount']],
-        ['Total number of likes: ', video_info['authorStats']['heart']],
-        ['Total video amount: ', video_info['authorStats']['videoCount']],
+        ['Follow others amount: ', video_info['authorStats']['followingCount']],
+        ['Total likes get: ', video_info['authorStats']['heart']],
+        ['Total videos: ', video_info['authorStats']['videoCount']],
         ['Original video link: ', put_link('Click to open the original video', item, new_window=True)],
-        ['Current video API link: ', put_link('Click to browse API data', api_url, new_window=True)]
+        ['Current Video API Link: ', put_link('Click to browse API data', api_url, new_window=True)]
     ])
 
 
@@ -455,28 +490,42 @@ def main():
                         placeholder=placeholder,
                         position=0)
     if kou_ling:
-        url_lists = find_url(kou_ling)
-        # Analysis start time
-        start = time.time()
-        try:
-            loading(url_lists)
-            for url in url_lists:
-                if 'douyin.com' in url:
-                    put_result(url)
-                else:
-                    put_tiktok_result(url)
-            clear('bar')
-            # Analysis end time
-            end = time.time()
-            put_html("<br><hr>")
-            put_link('return to home page', '/')
-            put_text('Parsing is complete! time consuming: %.4fs' % (end - start))
-        except Exception as e:
-            # 异常捕获
-            clear('bar')
-            error_do(e, 'main')
-            end = time.time()
-            put_text('Parsing is complete! time consuming: %.4fs' % (end - start))
+        if 'wyn' or 'WYN' in kou_ling:
+            with popup('For WYN💖'):
+                put_text('常见朋友们发一些浪漫的文案。')
+                put_text('我想，')
+                put_text('浪慢的话我也会写，')
+                put_text('但是让谁来听呢？')
+                put_text('或者又能给谁看呢？')
+                put_text('我想，')
+                put_text('这大抵是安慰自己罢了...')
+                put_text('新年快乐🧨')
+                put_text('2022/02/01')
+                put_text('-Evil0ctal')
+                put_link('return to home page', '/')
+        else:
+            url_lists = find_url(kou_ling)
+            # Analysis start time
+            start = time.time()
+            try:
+                loading(url_lists)
+                for url in url_lists:
+                    if 'douyin.com' in url:
+                        put_result(url)
+                    else:
+                        put_tiktok_result(url)
+                clear('bar')
+                # Analysis end time
+                end = time.time()
+                put_html("<br><hr>")
+                put_link('return to home page', '/')
+                put_text('Parsing is complete! time consuming: %.4fs' % (end - start))
+            except Exception as e:
+                # exception catch
+                clear('bar')
+                error_do(e, 'main')
+                end = time.time()
+                put_text('Parsing is complete! time consuming: %.4fs' % (end - start))
 
 
 if __name__ == "__main__":
