@@ -49,6 +49,8 @@ def valid_check(kou_ling):
                     return None
             else:
                 return '请确保输入链接均为有效的抖音/TikTok链接!'
+    elif kou_ling == 'wyn':
+        return None
     else:
         return '抖音分享口令有误!'
 
@@ -481,28 +483,43 @@ def main():
                         placeholder=placeholder,
                         position=0)
     if kou_ling:
-        url_lists = find_url(kou_ling)
-        # 解析开始时间
-        start = time.time()
-        try:
-            loading(url_lists)
-            for url in url_lists:
-                if 'douyin.com' in url:
-                    put_result(url)
-                else:
-                    put_tiktok_result(url)
-            clear('bar')
-            # 解析结束时间
-            end = time.time()
-            put_html("<br><hr>")
-            put_link('返回主页', '/')
-            put_text('解析完成! 耗时: %.4f秒' % (end - start))
-        except Exception as e:
-            # 异常捕获
-            clear('bar')
-            error_do(e, 'main')
-            end = time.time()
-            put_text('解析完成! 耗时: %.4f秒' % (end - start))
+        if kou_ling == 'wyn':
+            # 好想你
+            with popup('给 WYN💖'):
+                put_text('常见朋友们发一些浪漫的文案。')
+                put_text('我想，')
+                put_text('浪慢的话我也会写，')
+                put_text('但是让谁来听呢？')
+                put_text('或者又能给谁看呢？')
+                put_text('我想，')
+                put_text('这大抵是安慰自己罢了...')
+                put_text('新年快乐🧨')
+                put_text('2022/02/01')
+                put_text('-Evil0ctal')
+                put_link('返回主页', '/')
+        else:
+            url_lists = find_url(kou_ling)
+            # 解析开始时间
+            start = time.time()
+            try:
+                loading(url_lists)
+                for url in url_lists:
+                    if 'douyin.com' in url:
+                        put_result(url)
+                    else:
+                        put_tiktok_result(url)
+                clear('bar')
+                # 解析结束时间
+                end = time.time()
+                put_html("<br><hr>")
+                put_link('返回主页', '/')
+                put_text('解析完成! 耗时: %.4f秒' % (end - start))
+            except Exception as e:
+                # 异常捕获
+                clear('bar')
+                error_do(e, 'main')
+                end = time.time()
+                put_text('解析完成! 耗时: %.4f秒' % (end - start))
 
 
 if __name__ == "__main__":
