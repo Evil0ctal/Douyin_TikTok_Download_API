@@ -72,7 +72,7 @@ http://localhost(服务器IP):80/
 例子：https://v.douyin.com/RHnWEng/
 ```
 
--   normal url
+-   正常网址
 
 ```text
 例子：
@@ -104,7 +104,7 @@ https://www.tiktok.com/@hoodvineunrated/video/7039805708220501294?sender_device=
 
 The API can convert the request parameters into a watermark-free video/picture straight link that needs to be extracted, and can be downloaded in-app with the IOS shortcut.
 
--   Parse request parameters
+-   解析请求参数
 
 ```text
 http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)"
