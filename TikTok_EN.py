@@ -55,7 +55,7 @@ def valid_check(kou_ling):
                     return None
             else:
                 return 'Please make sure that the input links are all valid Douyin/TikTok links!'
-    elif kou_ling == 'wyn' or 'WYN':
+    elif kou_ling == 'wyn':
         return None
     else:
         return 'Douyin or TikTok share link is wrong!'
@@ -490,7 +490,8 @@ def main():
                         placeholder=placeholder,
                         position=0)
     if kou_ling:
-        if 'wyn' or 'WYN' in kou_ling:
+        if kou_ling == 'wyn':
+            # really miss you
             with popup('For WYN💖'):
                 put_text('常见朋友们发一些浪漫的文案。')
                 put_text('我想，')
