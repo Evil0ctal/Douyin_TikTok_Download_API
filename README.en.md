@@ -21,7 +21,7 @@ It can be used to download videos that the author prohibits to download, and can
 
 ## 💯 Supported features:
 
--   支持抖音视频/图集解析
+-   Support Douyin video/atlas parsing
 
 -   Support overseas TikTok video analysis (no atlas analysis)
 
