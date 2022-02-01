@@ -155,12 +155,42 @@ def get_video_info(original_url):
 def get_video_info_tiktok(tiktok_url):
     # 对TikTok视频进行解析
     try:
-        video_info = info_post(tiktok_url).video
-        # print(video_info)
+        tiktok_headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            "authority": "www.tiktok.com",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
+            "Host": "www.tiktok.com",
+            "User-Agent": "Mozilla/5.0  (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) coc_coc_browser/86.0.170 Chrome/80.0.3987.170 Safari/537.36",
+        }
+        html = requests.get(url=tiktok_url, headers=tiktok_headers)
+        res = re.search('<script id="sigi-persisted-data">(.*)</script><script', html.text).group(1)
+        resp = re.findall(r'^window\[\'SIGI_STATE\']=(.*)?;window', res)[0]
+        result = json.loads(resp)
+        author_id = result["ItemList"]["video"]["list"][0]
+        video_info = result["ItemModule"][author_id]
+        print("The author_id is: ", author_id)
+        print(video_info)
+        # 格式很乱 要忍一下
         return video_info
     except Exception as e:
         # 异常捕获
         error_do(e, 'get_video_info_tiktok')
+
+
+@retry(stop_max_attempt_number=3)
+def tiktok_nowm(tiktok_url):
+    # 使用第三方API获取无水印视频链接（不保证稳定）
+    try:
+        api_url = "https://api.reiyuura.me/api/dl/tiktok?url="
+        no_water_mark = api_url + tiktok_url
+        res = requests.get(no_water_mark, headers=headers)
+        print(res)
+        result = json.loads(res.text)
+        nowm = result['result']['nowm']
+        return nowm
+    except Exception as e:
+        error_do(e, "tiktok_nwm")
 
 
 @app.route("/api")
@@ -336,16 +366,19 @@ def put_result(item):
 def put_tiktok_result(item):
     # 将TikTok结果显示在前端
     video_info = get_video_info_tiktok(item)
+    nowm = tiktok_nowm(item)
     download_url = find_url(tikmate().get_media(item)[1].json)[0]
     api_url = '/api?url=' + item
     put_table([
         ['类型', '内容'],
-        ['视频直链(有水印): ', put_link('点击打开视频', video_info['video']['playAddr'], new_window=True)],
-        ['视频下载(无水印)：', put_link('点击下载', download_url, new_window=True)],
         ['视频标题: ', video_info['desc']],
-        ['作者昵称: ', video_info['author']['nickname']],
-        ['作者抖音ID: ', video_info['author']['uniqueId']],
-        ['作者个性签名: ', video_info['author']['signature']],
+        ['视频直链(有水印): ', put_link('点击打开视频', video_info['video']['playAddr'], new_window=True)],
+        ['视频直链(无水印): ', put_link('点击打开视频', nowm, new_window=True)],
+        ['视频下载(无水印)：', put_link('点击下载', download_url, new_window=True)],
+        ['音频(名称-作者)：', video_info['music']['album'] + " - " + video_info['music']['authorName']],
+        ['音频播放：', put_link('点击播放', video_info['music']['playUrl'], new_window=True)],
+        ['作者昵称: ', video_info['author']],
+        ['作者ID: ', video_info['authorId']],
         ['粉丝数量: ', video_info['authorStats']['followerCount']],
         ['关注他人数量: ', video_info['authorStats']['followingCount']],
         ['获赞总量: ', video_info['authorStats']['heart']],
