@@ -148,178 +148,210 @@ http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文�
 
 ```JSON
 {
-  "author": {
-    "avatarLarger": "https://p19-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/ff448b093c20a2aa795fd4853717e020~c5_1080x1080.jpeg?x-expires=1640656800&x-signature=5Rh8sQDcLIC8JGjKOy9oSJkl7j8%3D",
-    "avatarMedium": "https://p16-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/ff448b093c20a2aa795fd4853717e020~c5_720x720.jpeg?x-expires=1640656800&x-signature=yxo2S9xC%2BIuwU03ewiatMm7%2FL%2Bg%3D",
-    "avatarThumb": "https://p16-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/ff448b093c20a2aa795fd4853717e020~c5_100x100.jpeg?x-expires=1640656800&x-signature=0wgx0hbDBPOZyfFg0Vb99N8nPbY%3D",
-    "commentSetting": 0,
-    "createTime": 1601316992,
-    "duetSetting": 0,
-    "ftc": false,
-    "id": "6877603649523090437",
-    "isADVirtual": false,
-    "nickname": "Marly Esteves",
-    "openFavorite": false,
-    "privateAccount": false,
-    "relation": 0,
-    "roomId": "",
-    "secUid": "MS4wLjABAAAAm8JPlXZV2ZZgmIlU4G9DrlTlUwGehheHwbYPrbPRABYE9WMm1vQeC-mDoSMI2C1V",
-    "secret": false,
-    "shortId": "",
-    "signature": "\ud83c\uddfa\ud83c\uddf8\ud83c\uddf2\ud83c\uddfd \ud83d\udcaa: gymnast\nBusiness inquiries: eric@undercurrent.net",
-    "stitchSetting": 0,
-    "uniqueId": "marlyestevess",
-    "verified": false
-  },
-  "authorStats": {
-    "diggCount": 8795,
-    "followerCount": 5700000,
-    "followingCount": 121,
-    "heart": 103800000,
-    "heartCount": 103800000,
-    "videoCount": 135
-  },
-  "challenges": [
-    {
-      "coverLarger": "",
-      "coverMedium": "",
-      "coverThumb": "",
-      "desc": "",
-      "id": "229207",
-      "isCommerce": false,
-      "profileLarger": "",
-      "profileMedium": "",
-      "profileThumb": "",
-      "title": "fyp"
-    },
-    {
-      "coverLarger": "",
-      "coverMedium": "",
-      "coverThumb": "",
-      "desc": "",
-      "id": "88764338",
-      "isCommerce": false,
-      "profileLarger": "",
-      "profileMedium": "",
-      "profileThumb": "",
-      "title": "foryoupage"
-    }
-  ],
-  "comments": [
-    
-  ],
-  "createTime": 1638994283,
-  "desc": "#fyp #foryoupage",
-  "digged": false,
-  "diversificationLabels": [
-    "Finger Dance & Basic Dance",
-    "Singing & Dancing",
-    "Talents"
-  ],
-  "duetDisplay": 0,
-  "duetEnabled": true,
-  "duetInfo": {
-    "duetFromId": "0"
-  },
-  "effectStickers": [
-    
-  ],
-  "forFriend": false,
-  "id": "7039426841836293382",
-  "indexEnabled": true,
-  "isActivityItem": false,
-  "isAd": false,
-  "itemCommentStatus": 0,
-  "itemMute": false,
-  "music": {
-    "album": "",
-    "authorName": "Nlvxa",
-    "coverLarge": "https://p77-sign-va.tiktokcdn.com/tos-maliva-avt-0068/1249927df0a2a373179340a78e394614~c5_1080x1080.jpeg?x-expires=1640656800&x-signature=wMVnPmJ%2Fc9tGihTB5gX1ZWIz2AQ%3D",
-    "coverMedium": "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/1249927df0a2a373179340a78e394614~c5_720x720.jpeg?x-expires=1640656800&x-signature=j3ph02svrNf8puHIQ0NSVHs2iEk%3D",
-    "coverThumb": "https://p77-sign-va.tiktokcdn.com/tos-maliva-avt-0068/1249927df0a2a373179340a78e394614~c5_100x100.jpeg?x-expires=1640656800&x-signature=l4CuW8jAzbHuZu3uD5tWkeFdZ2Q%3D",
-    "duration": 14,
-    "id": "7002377342848928518",
-    "original": true,
-    "playUrl": "https://sf16-ies-music-va.tiktokcdn.com/obj/musically-maliva-obj/7002377419353361157.mp3",
-    "scheduleSearchTime": 0,
-    "title": "som original"
-  },
-  "officalItem": false,
-  "originalItem": false,
-  "privateItem": false,
-  "scheduleTime": 0,
-  "secret": false,
-  "shareEnabled": true,
-  "showNotPass": false,
-  "stats": {
-    "commentCount": 21900,
-    "diggCount": 817800,
-    "playCount": 10600000,
-    "shareCount": 26100
-  },
-  "stickersOnItem": [
-    
-  ],
-  "stitchDisplay": 0,
-  "stitchEnabled": true,
-  "takeDown": 0,
-  "textExtra": [
-    {
-      "awemeId": "",
-      "end": 4,
-      "hashtagId": "229207",
-      "hashtagName": "fyp",
-      "isCommerce": false,
-      "secUid": "",
-      "start": 0,
-      "subType": 0,
-      "type": 1,
-      "userId": "",
-      "userUniqueId": ""
-    },
-    {
-      "awemeId": "",
-      "end": 16,
-      "hashtagId": "88764338",
-      "hashtagName": "foryoupage",
-      "isCommerce": false,
-      "secUid": "",
-      "start": 5,
-      "subType": 0,
-      "type": 1,
-      "userId": "",
-      "userUniqueId": ""
-    }
-  ],
-  "video": {
-    "bitrate": 1460722,
-    "codecType": "h264",
-    "cover": "https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/25f1c8cbe324485a9150ee2cde4392bf_1638994284?x-expires=1640592000&x-signature=B%2BOuvSjwDvGugndVSIR1MPMWwUU%3D",
-    "definition": "720p",
-    "downloadAddr": "https://v16-webapp.tiktok.com/b709d6e41ef1241937d71f90a61d936a/61c97cfc/video/tos/useast2a/tos-useast2a-ve-0068c004/43ecb1ef5ade498c8410dc445ab19e95/?a=1988&br=2852&bt=1426&cd=0%7C0%7C1&ch=0&cr=0&cs=0&cv=1&dr=0&ds=3&er=&ft=Yu12_FGgkag3-I&l=2021122702443001022308614803C088EC&lr=tiktok_m&mime_type=video_mp4&net=0&pl=0&qs=0&rc=M3VqZGc6ZjVrOTMzNzczM0ApNmRlZjdoZ2Q3NzRpNDQ5ZGdfZF41cjRfL2xgLS1kMTZzczNeLjA1YDBhYV5gYjYuLy46Yw%3D%3D&vl=&vr=",
-    "duration": 14,
-    "dynamicCover": "https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/d10c033594704158b6aca4322e58be14_1638994286?x-expires=1640592000&x-signature=WbcLzIP4FQxuIj822ZMggr%2Fil44%3D",
-    "encodeUserTag": "",
-    "encodedType": "normal",
-    "format": "mp4",
-    "height": 1024,
-    "id": "7039426841836293382",
-    "originCover": "https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/cc9f9229d57e47de90333cc69511678d_1638994284?x-expires=1640592000&x-signature=8LBqglI9RfwJpHRWABah6OJK2Io%3D",
-    "playAddr": "https://v16-webapp.tiktok.com/b709d6e41ef1241937d71f90a61d936a/61c97cfc/video/tos/useast2a/tos-useast2a-ve-0068c004/43ecb1ef5ade498c8410dc445ab19e95/?a=1988&br=2852&bt=1426&cd=0%7C0%7C1&ch=0&cr=0&cs=0&cv=1&dr=0&ds=3&er=&ft=Yu12_FGgkag3-I&l=2021122702443001022308614803C088EC&lr=tiktok_m&mime_type=video_mp4&net=0&pl=0&qs=0&rc=M3VqZGc6ZjVrOTMzNzczM0ApNmRlZjdoZ2Q3NzRpNDQ5ZGdfZF41cjRfL2xgLS1kMTZzczNeLjA1YDBhYV5gYjYuLy46Yw%3D%3D&vl=&vr=",
-    "ratio": "720p",
-    "reflowCover": "https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/efd46a8a5fd7d02b6b42c75abf5a421b?x-expires=1640592000&x-signature=MDgKJs4%2F7Em8jawsTUpm7oh4%2BIg%3D",
-    "shareCover": [
-      "",
-      "https://p16-sign-va.tiktokcdn.com/tos-maliva-p-0068/cc9f9229d57e47de90333cc69511678d_1638994284~tplv-tiktok-play.jpeg?x-expires=1640592000&x-signature=fNtmK8o0MzwJZMW2eSJBBKaxupk%3D",
-      "https://p16-sign-va.tiktokcdn.com/tos-maliva-p-0068/cc9f9229d57e47de90333cc69511678d_1638994284~tplv-tiktokx-share-play.jpeg?x-expires=1640592000&x-signature=kYe2uG8PPjjIcJ7TEg5xaPW9aj0%3D"
-    ],
-    "videoQuality": "normal",
-    "width": 576
-  },
-  "vl1": false,
-  "warnInfo": [
-    
-  ]
+   "author":"tvamii",
+   "authorId":"7019018029121455109",
+   "authorSecId":"MS4wLjABAAAAAdUMc4sCkhslVsCSHQfem65nh_Zz12rv15qGYzoCQ1n9UjndmhwvRS0kiZ17d8Ae",
+   "authorStats":{
+      "diggCount":243,
+      "followerCount":4959,
+      "followingCount":40,
+      "heart":116400,
+      "heartCount":116400,
+      "videoCount":20
+   },
+   "avatarThumb":"https://p16-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/b6fbb55d497f2958ee428da9b0ebfe0f~c5_100x100.jpeg?x-expires=1644134400&x-signature=%2BSJvWXv1fqhO6X30Duiod9SZggc%3D",
+   "challenges":[
+      {
+         "coverLarger":"",
+         "coverMedium":"",
+         "coverThumb":"",
+         "desc":"Mu\u00e9stranos tus mejores jugadas",
+         "id":"337014",
+         "isCommerce":false,
+         "profileLarger":"",
+         "profileMedium":"",
+         "profileThumb":"",
+         "title":"warzone"
+      },
+      {
+         "coverLarger":"",
+         "coverMedium":"",
+         "coverThumb":"",
+         "desc":"",
+         "id":"42578",
+         "isCommerce":false,
+         "profileLarger":"",
+         "profileMedium":"",
+         "profileThumb":"",
+         "title":"callofduty"
+      },
+      {
+         "coverLarger":"",
+         "coverMedium":"",
+         "coverThumb":"",
+         "desc":"",
+         "id":"229207",
+         "isCommerce":false,
+         "profileLarger":"",
+         "profileMedium":"",
+         "profileThumb":"",
+         "title":"fyp"
+      },
+      {
+         "coverLarger":"",
+         "coverMedium":"",
+         "coverThumb":"",
+         "desc":"",
+         "id":"1677192325085189",
+         "isCommerce":false,
+         "profileLarger":"",
+         "profileMedium":"",
+         "profileThumb":"",
+         "title":"rebirthisland"
+      }
+   ],
+   "comments":[
+      
+   ],
+   "createTime":"1640417086",
+   "desc":"Nothing better than rebirth island \ud83c\udfdd #warzone #callofduty #fyp #rebirthisland",
+   "digged":false,
+   "diversificationLabels":[
+      "Video Games",
+      "Games",
+      "Entertainment"
+   ],
+   "duetDisplay":0,
+   "duetEnabled":true,
+   "duetInfo":{
+      "duetFromId":"0"
+   },
+   "effectStickers":[
+      
+   ],
+   "forFriend":false,
+   "id":"7045537727743380782",
+   "indexEnabled":true,
+   "isActivityItem":false,
+   "isAd":false,
+   "itemCommentStatus":0,
+   "itemMute":false,
+   "music":{
+      "album":"",
+      "authorName":"MAKAN",
+      "coverLarge":"https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/2b77a1347866635e004f9a8671d2f8df~c5_1080x1080.jpeg?x-expires=1644134400&x-signature=65YBpjA0yGaQHEncDGu%2Bb6P9ixA%3D",
+      "coverMedium":"https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/2b77a1347866635e004f9a8671d2f8df~c5_720x720.jpeg?x-expires=1644134400&x-signature=7%2B5y9PghRZMJOm3raGlCmzPXzH0%3D",
+      "coverThumb":"https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/2b77a1347866635e004f9a8671d2f8df~c5_100x100.jpeg?x-expires=1644134400&x-signature=xw9yp1XUNNKNxJq%2BA7KG4FYI9Ew%3D",
+      "duration":36,
+      "id":"6995388223497259781",
+      "original":true,
+      "playUrl":"https://sf16-ies-music-va.tiktokcdn.com/obj/musically-maliva-obj/6995388366275611397.mp3",
+      "scheduleSearchTime":0,
+      "title":"son original"
+   },
+   "nickname":"Ami",
+   "officalItem":false,
+   "originalItem":false,
+   "privateItem":false,
+   "scheduleTime":0,
+   "secret":false,
+   "shareEnabled":true,
+   "showNotPass":false,
+   "stats":{
+      "commentCount":69,
+      "diggCount":56900,
+      "playCount":133000,
+      "shareCount":22
+   },
+   "stickersOnItem":[
+      
+   ],
+   "stitchDisplay":0,
+   "stitchEnabled":true,
+   "takeDown":0,
+   "textExtra":[
+      {
+         "awemeId":"",
+         "end":46,
+         "hashtagId":"337014",
+         "hashtagName":"warzone",
+         "isCommerce":false,
+         "secUid":"",
+         "start":38,
+         "subType":0,
+         "type":1,
+         "userId":"",
+         "userUniqueId":""
+      },
+      {
+         "awemeId":"",
+         "end":58,
+         "hashtagId":"42578",
+         "hashtagName":"callofduty",
+         "isCommerce":false,
+         "secUid":"",
+         "start":47,
+         "subType":0,
+         "type":1,
+         "userId":"",
+         "userUniqueId":""
+      },
+      {
+         "awemeId":"",
+         "end":63,
+         "hashtagId":"229207",
+         "hashtagName":"fyp",
+         "isCommerce":false,
+         "secUid":"",
+         "start":59,
+         "subType":0,
+         "type":1,
+         "userId":"",
+         "userUniqueId":""
+      },
+      {
+         "awemeId":"",
+         "end":78,
+         "hashtagId":"1677192325085189",
+         "hashtagName":"rebirthisland",
+         "isCommerce":false,
+         "secUid":"",
+         "start":64,
+         "subType":0,
+         "type":1,
+         "userId":"",
+         "userUniqueId":""
+      }
+   ],
+   "video":{
+      "bitrate":2530304,
+      "codecType":"h264",
+      "cover":"https://p16-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/bf17541f99cd47489050f740f2680e4e?x-expires=1644069600&x-signature=dZPl5WGnF8lwTgOoh0%2FyPp5RC7k%3D",
+      "definition":"720p",
+      "downloadAddr":"https://v16-webapp.tiktok.com/214ac5ed6ee8b0351c5487d6d45c0380/61fe8ece/video/tos/useast5/tos-useast5-ve-0068c003-tx/450dd55906664f5eb194d5b6212e6070/?a=1988&br=4942&bt=2471&cd=0%7C0%7C1%7C0&ch=0&cr=0&cs=0&cv=1&dr=0&ds=3&er=&ft=XOQ9-3E7nz7ThSm4xlXq&l=20220205085015010191055029051527A2&lr=tiktok_m&mime_type=video_mp4&net=0&pl=0&qs=0&rc=ajNnN2c6Zm5mOjMzZzczNEApZTtpNzo8OGU0NzplODM4aWcyL2lucjRfXzBgLS1kMS9zczUwYWE0NTA0XjIvXmM2NDY6Yw%3D%3D&vl=&vr=",
+      "duration":39,
+      "dynamicCover":"https://p16-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/db58dfc00c5b43898c2bbaedfbe9f079_1640417087?x-expires=1644069600&x-signature=HkCCUrMMsd9pZExtuywu6cNVVOw%3D",
+      "encodeUserTag":"",
+      "encodedType":"normal",
+      "format":"mp4",
+      "height":576,
+      "id":"7045537727743380782",
+      "originCover":"https://p16-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/035eb2303c2f4aa698a6cf2c200312d3_1640417087?x-expires=1644069600&x-signature=8CtiX%2F1iSTD07GOVFa32QpcAV44%3D",
+      "playAddr":"https://v16-webapp.tiktok.com/214ac5ed6ee8b0351c5487d6d45c0380/61fe8ece/video/tos/useast5/tos-useast5-ve-0068c003-tx/450dd55906664f5eb194d5b6212e6070/?a=1988&br=4942&bt=2471&cd=0%7C0%7C1%7C0&ch=0&cr=0&cs=0&cv=1&dr=0&ds=3&er=&ft=XOQ9-3E7nz7ThSm4xlXq&l=20220205085015010191055029051527A2&lr=tiktok_m&mime_type=video_mp4&net=0&pl=0&qs=0&rc=ajNnN2c6Zm5mOjMzZzczNEApZTtpNzo8OGU0NzplODM4aWcyL2lucjRfXzBgLS1kMS9zczUwYWE0NTA0XjIvXmM2NDY6Yw%3D%3D&vl=&vr=",
+      "ratio":"720p",
+      "reflowCover":"https://p16-sign.tiktokcdn-us.com/obj/tos-useast5-p-0068-tx/bf17541f99cd47489050f740f2680e4e?x-expires=1644069600&x-signature=dZPl5WGnF8lwTgOoh0%2FyPp5RC7k%3D",
+      "shareCover":[
+         "",
+         "https://p19-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/035eb2303c2f4aa698a6cf2c200312d3_1640417087~tplv-tiktok-play.jpeg?x-expires=1644652800&x-signature=ANH1qJpgs291tRRn0HCRHsxIUfo%3D",
+         "https://p19-sign.tiktokcdn-us.com/tos-useast5-p-0068-tx/035eb2303c2f4aa698a6cf2c200312d3_1640417087~tplv-tiktokx-share-play.jpeg?x-expires=1644652800&x-signature=pMxB2XKFsgWE2yEdBEoEUYdExL4%3D"
+      ],
+      "videoQuality":"normal",
+      "width":1024
+   },
+   "vl1":false,
+   "warnInfo":[
+      
+   ]
 }
 ```
 
