@@ -28,8 +28,8 @@ import requests
 import unicodedata
 
 app = Flask(__name__)
-title = "抖音/TikTok在线解析"
-description = "在线批量解析下载抖音/TikTok的无水印视频/图集。"
+title = "抖音/TikTok无水印在线解析"
+description = "支持在线批量解析下载无水印抖音/TikTok的无水印视频/图集。支持API调用，开源，免费，无广告。"
 headers = {
     'user-agent': 'Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66'
 }
@@ -337,8 +337,8 @@ def download_bgm_url():
             video_info = get_video_info_tiktok(input_url)
             bgm_url = video_info['music']['playUrl']
             # 视频标题
-            bgm_title = video_info['music']['album']
-            print('album: ', bgm_title)
+            bgm_title = video_info['music']['title']
+            print('title: ', bgm_title)
             # 作者昵称
             author_name = video_info['music']['authorName']
             print('authorName: ', author_name)
@@ -423,7 +423,7 @@ def put_tiktok_result(item):
         ['视频直链(有水印): ', put_link('点击打开视频', video_info['video']['playAddr'], new_window=True)],
         ['视频直链(无水印): ', put_link('点击打开视频', nwm, new_window=True)],
         ['视频下载(无水印)：', put_link('点击下载', download_url, new_window=True)],
-        ['音频(名称-作者)：', video_info['music']['album'] + " - " + video_info['music']['authorName']],
+        ['音频(名称-作者)：', video_info['music']['title'] + " - " + video_info['music']['authorName']],
         ['音频播放：', put_link('点击播放', video_info['music']['playUrl'], new_window=True)],
         ['作者昵称: ', video_info['author']],
         ['作者ID: ', video_info['authorId']],
@@ -459,8 +459,8 @@ def api_document_pop_window():
         put_link('[中文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8',
                  new_window=True)
         put_html('<br>')
-        put_link('[英文文档]',
-                 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README-EN.md#%EF%B8%8Fapi-usage',
+        put_link('[English doc]',
+                 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.en.md#%EF%B8%8Fapi-usage',
                  new_window=True)
         put_html('<hr>')
         put_markdown("🛰️API参考")
@@ -492,7 +492,7 @@ def about_popup_window():
         put_markdown('可以使用[IDM](https://www.zhihu.com/topic/19746283/hot)之类的工具对结果页面的链接进行嗅探。')
         put_html('<hr>')
         put_html('<h3>📣关于本项目</h3>')
-        put_markdown('本人技术有限，欢迎在[GitHub](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/pulls)提交pull请求。')
+        put_markdown('本人技术有限，欢迎PR! [GitHub](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/pulls)')
         put_html('<hr>')
         put_html('<h3>💖交个朋友</h3>')
         put_markdown('微信：[Evil0ctal](https://mycyberpunk.com/)')
@@ -515,7 +515,7 @@ def main():
     """ % favicon_url)
     # 修改footer
     session.run_js("""$('footer').remove()""")
-    put_markdown("""<div align='center' ><font size='20'>😼欢迎使用抖音在线解析</font></div>""")
+    put_markdown("""<div align='center' ><font size='20'>😼抖音/TikTok无水印在线解析</font></div>""")
     put_html('<hr>')
     put_row([put_button("Github", onclick=lambda: github_pop_window(), link_style=True, small=True),
              put_button("反馈", onclick=lambda: feedback_pop_window(), link_style=True, small=True),
@@ -570,5 +570,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # 初始化logs.txt
+    date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    with open('logs.txt', 'a') as f:
+        f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
     app.add_url_rule('/', 'webio_view', webio_view(main), methods=['GET', 'POST', 'OPTIONS'])
     app.run(host='0.0.0.0', port=80)
