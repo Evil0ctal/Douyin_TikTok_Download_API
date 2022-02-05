@@ -381,7 +381,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 * * *
 
--   解析完成
+-   parsing complete
 
 > single
 
