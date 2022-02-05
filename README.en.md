@@ -17,7 +17,7 @@ Language:  \[[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blo
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Requests](https://github.com/psf/requests)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本项目API实现应用内下载。
+It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
 ## 💯 Supported features:
 
@@ -395,7 +395,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 * * *
 
--   API submit/return
+-   API提交/返回
 
 > Video return value
 
