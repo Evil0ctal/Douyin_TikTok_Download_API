@@ -2,10 +2,17 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/01/31
+# @Update: 2022/02/04
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
+# API请求参考
+# 抖音/TikTok解析请求参数
+# http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)" - 返回JSON数据
+# 抖音/TikTok视频下载请求参数
+# http://localhost(服务器IP):80/download_video?url="复制的抖音/TikTok链接" - 返回mp4文件下载请求
+# 抖音视频/图集音频下载请求参数
+# http://localhost(服务器IP):80/download_bgm?url="复制的抖音/TikTok链接" - 返回mp3文件下载请求
 
 from pywebio import config, session
 from pywebio.input import *
@@ -13,7 +20,6 @@ from pywebio.output import *
 from pywebio.platform.flask import webio_view
 from retrying import retry
 from werkzeug.urls import url_quote
-from tiktok_downloader import info_post, tikmate
 from flask import Flask, request, jsonify, make_response
 import re
 import json
@@ -59,7 +65,7 @@ def clean_filename(string, author_name):
     # 替换不能用于文件名的字符
     rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
     new_title = re.sub(rstr, "_", string)  # 替换为下划线
-    filename = 'douyin.wtf_抖音TikTok在线解析' + new_title + '_' + author_name
+    filename = 'douyin.wtf_' + new_title + '_' + author_name
     return filename
 
 
@@ -108,7 +114,8 @@ def get_video_info(original_url):
         print("Sending request to: " + '\n' + api_url)
         js = json.loads(requests.get(url=api_url, headers=headers).text)
         # 判断是否为图集
-        try:
+        if js['item_list'][0]['images'] is not None:
+            print("Type = images")
             image_data = js['item_list'][0]['images']
             # 图集背景音频
             image_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
@@ -127,20 +134,30 @@ def get_video_info(original_url):
                 images_url.append(data['url_list'][0])
             image_info = [images_url, image_music, image_title, image_author, image_author_id, original_url]
             return image_info, 'image', api_url
-        # 报错后判断为视频
-        except:
+        else:
+            print("Type = video")
             # 去水印后视频链接(2022年1月1日抖音APi获取到的URL会进行跳转，需要在Location中获取直链)
             video_url = str(js['item_list'][0]['video']['play_addr']['url_list'][0]).replace('playwm', 'play')
             r = requests.get(url=video_url, headers=headers, allow_redirects=False)
             video_url = r.headers['Location']
+            print(video_url)
             # 视频背景音频
-            video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+            if js['item_list'][0]['music']['play_url']['url_list']:
+                print("Getting music from playlist")
+                video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                print(video_music)
+            else:
+                video_music = "None"
+            print(video_music)
             # 视频标题
             video_title = str(js['item_list'][0]['desc'])
+            print(video_title)
             # 视频作者昵称
             video_author = str(js['item_list'][0]['author']['nickname'])
+            print(video_author)
             # 视频作者抖音号
             video_author_id = str(js['item_list'][0]['author']['unique_id'])
+            print(video_author_id)
             if video_author_id == "":
                 # 如果作者未修改过抖音号，应使用此值以避免无法获取其抖音ID
                 video_author_id = str(js['item_list'][0]['author']['short_id'])
@@ -170,8 +187,8 @@ def get_video_info_tiktok(tiktok_url):
         result = json.loads(resp)
         author_id = result["ItemList"]["video"]["list"][0]
         video_info = result["ItemModule"][author_id]
-        print("The author_id is: ", author_id)
-        print(video_info)
+        # print("The author_id is: ", author_id)
+        # print(video_info)
         # 格式很乱 要忍一下
         return video_info
     except Exception as e:
@@ -180,16 +197,23 @@ def get_video_info_tiktok(tiktok_url):
 
 
 @retry(stop_max_attempt_number=3)
-def tiktok_nowm(tiktok_url):
+def tiktok_nwm(tiktok_url):
     # 使用第三方API获取无水印视频链接（不保证稳定）
     try:
-        api_url = "https://api.reiyuura.me/api/dl/tiktok?url="
-        no_water_mark = api_url + tiktok_url
-        res = requests.get(no_water_mark, headers=headers)
-        print(res)
-        result = json.loads(res.text)
-        nowm = result['result']['nowm']
-        return nowm
+        s = requests.Session()
+        api_url = "https://ttdownloader.com/req/"
+        source = s.get("https://ttdownloader.com/")
+        token = re.findall(r'value=\"([0-9a-z]+)\"', source.text)
+        result = s.post(
+            api_url,
+            data={'url': tiktok_url, 'format': '', 'token': token[0]}
+        )
+        nwm, wm, audio = re.findall(
+            r'(https?://.*?.php\?v\=.*?)\"', result.text
+        )
+        r = requests.get(nwm, allow_redirects=False)
+        true_link = r.headers['Location']
+        return true_link
     except Exception as e:
         error_do(e, "tiktok_nwm")
 
@@ -253,8 +277,16 @@ def download_video_url():
             # 清理文件名
             file_name = clean_filename(video_title, author_name)
         elif 'tiktok.com' in input_url:
-            download_url = find_url(tikmate().get_media(input_url)[1].json)[0]
-            return jsonify(Status='Success! Click to download!', No_WaterMark_Link=download_url)
+            video_info = get_video_info_tiktok(input_url)
+            nwm = tiktok_nwm(input_url)
+            # 无水印地址
+            video_url = nwm
+            # 视频标题
+            video_title = video_info['desc']
+            # 作者昵称
+            author_name = video_info['author']
+            # 清理文件名
+            file_name = clean_filename(video_title, author_name)
         else:
             return jsonify(Status='Failed!', Reason='Check the link!')
         # video_title = 'video_title'
@@ -272,7 +304,7 @@ def download_video_url():
                 'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp4'),
             }
         else:
-            filenames = {'filename': file_name}
+            filenames = {'filename': file_name + '.mp4'}
         # attachment表示以附件形式下载
         response.headers.set('Content-Disposition', 'attachment', **filenames)
         return response
@@ -288,16 +320,33 @@ def download_bgm_url():
     try:
         if 'douyin.com' in input_url:
             video_info, result_type, api_url = get_video_info(input_url)
-            bgm_url = video_info[1]
+            if video_info[1] == "None":
+                print('Failed')
+                return jsonify(Status='Failed', Reason='This link has no music to get!')
+            else:
+                print("Success")
+                # 音频链接
+                bgm_url = video_info[1]
+                # 视频标题
+                bgm_title = video_info[2]
+                # 作者昵称
+                author_name = video_info[3]
+                # 清理文件名
+                file_name = clean_filename(bgm_title, author_name)
+        elif 'tiktok.com' in input_url:
+            video_info = get_video_info_tiktok(input_url)
+            bgm_url = video_info['music']['playUrl']
             # 视频标题
-            bgm_title = video_info[2]
+            bgm_title = video_info['music']['album']
+            print('album: ', bgm_title)
             # 作者昵称
-            author_name = video_info[3]
+            author_name = video_info['music']['authorName']
+            print('authorName: ', author_name)
             # 清理文件名
             file_name = clean_filename(bgm_title, author_name)
+            print(file_name)
         else:
-            return jsonify(Status='Failed', Reason='Coming soon!')
-        video_title = 'video_bgm'
+            return jsonify(Status='Failed', Reason='Check the link!')
         video_bgm = requests.get(bgm_url, headers).content
         # 将bgm字节流封装成response对象
         response = make_response(video_bgm)
@@ -312,7 +361,7 @@ def download_bgm_url():
                 'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp3'),
             }
         else:
-            filenames = {'filename': file_name}
+            filenames = {'filename': file_name + '.mp3'}
         # attachment表示以附件形式下载
         response.headers.set('Content-Disposition', 'attachment', **filenames)
         return response
@@ -347,12 +396,6 @@ def put_result(item):
         put_table([
             ['类型', '内容'],
             ['格式:', result_type],
-        ])
-        for i in video_info[0]:
-            put_table([
-                ['图片直链: ', put_link('点击打开图片', i, new_window=True)]
-            ])
-        put_table([
             ['背景音乐直链: ', put_link('点击打开音频', video_info[1], new_window=True)],
             ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
             ['视频标题: ', video_info[2]],
@@ -362,19 +405,23 @@ def put_result(item):
             ['当前视频API链接: ', put_link('点击浏览API数据', api_url, new_window=True)],
             ['当前视频精简API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
         ])
+        for i in video_info[0]:
+            put_table([
+                ['图片直链: ', put_link('点击打开图片', i, new_window=True), put_image(i)]
+            ])
 
 
 def put_tiktok_result(item):
     # 将TikTok结果显示在前端
     video_info = get_video_info_tiktok(item)
-    nowm = tiktok_nowm(item)
-    download_url = find_url(tikmate().get_media(item)[1].json)[0]
+    nwm = tiktok_nwm(item)
+    download_url = '/download_video?url=' + item
     api_url = '/api?url=' + item
     put_table([
         ['类型', '内容'],
         ['视频标题: ', video_info['desc']],
         ['视频直链(有水印): ', put_link('点击打开视频', video_info['video']['playAddr'], new_window=True)],
-        ['视频直链(无水印): ', put_link('点击打开视频', nowm, new_window=True)],
+        ['视频直链(无水印): ', put_link('点击打开视频', nwm, new_window=True)],
         ['视频下载(无水印)：', put_link('点击下载', download_url, new_window=True)],
         ['音频(名称-作者)：', video_info['music']['album'] + " - " + video_info['music']['authorName']],
         ['音频播放：', put_link('点击播放', video_info['music']['playUrl'], new_window=True)],
