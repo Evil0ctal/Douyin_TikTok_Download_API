@@ -337,7 +337,7 @@ http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
 
 ## 💾Deploy
 
-> 最好将本项目部署至海外服务器，否则可能会出现奇怪的问题 
+> It is best to deploy this project to an overseas server, otherwise strange problems may occur
 
 For example: the project is deployed on a domestic server, and the person is in the United States, click the link of the result page and report an error 403, which is visually related to Douyin CDN.
 
@@ -381,7 +381,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 * * *
 
--   parsing complete
+-   解析完成
 
 > single
 
