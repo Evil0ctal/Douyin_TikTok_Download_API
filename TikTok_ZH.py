@@ -232,8 +232,19 @@ def webapi():
             # 校验是否为TikTok链接
             if 'tiktok.com' in post_content:
                 try:
-                    js = get_video_info_tiktok(post_content)
-                    return js
+                    video_info = get_video_info_tiktok(post_content)
+                    nwm_link = tiktok_nwm(post_content)
+                    # 返回TikTok信息json
+                    return jsonify(Status='Success', Type='Video', video_url=nwm_link,
+                                   video_music=video_info['music']['playUrl'],
+                                   video_title=video_info['desc'], video_author=video_info['author'],
+                                   video_author_id=video_info['authorId'], original_url=post_content,
+                                   music_title=video_info['music']['title'], music_author=video_info['music']['authorName'],
+                                   followerCount=video_info['authorStats']['followingCount'],
+                                   followingCount=video_info['authorStats']['followingCount'],
+                                   likes_recived=video_info['authorStats']['heart'],
+                                   video_count=video_info['authorStats']['videoCount'],
+                                   water_mark_url=video_info['video']['playAddr'])
                 except Exception:
                     return jsonify(Status='Failed!', Reason='Check the link!')
             # 如果关键字不存在则判断为抖音链接
