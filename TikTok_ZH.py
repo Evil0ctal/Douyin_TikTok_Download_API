@@ -97,6 +97,22 @@ def loading(url_lists):
             time.sleep(0.1)
 
 
+def get_tiktok_url(tiktok_link):
+    # 校验TikTok链接
+    if tiktok_link[:12] == "https://www.":
+        return tiktok_link
+    else:
+        try:
+            # 从请求头中获取原始链接
+            response = requests.get(url=tiktok_link, headers=headers, allow_redirects=False)
+            new_link = response.headers['Location']
+            response = requests.get(url=new_link, headers=headers, allow_redirects=False)
+            true_link = response.headers['Location'].split("?")[0]
+            return true_link
+        except Exception as e:
+            error_do(e, get_tiktok_url)
+
+
 @retry(stop_max_attempt_number=3)
 def get_video_info(original_url):
     # 利用官方接口解析链接信息
@@ -172,6 +188,7 @@ def get_video_info(original_url):
 @retry(stop_max_attempt_number=3)
 def get_video_info_tiktok(tiktok_url):
     # 对TikTok视频进行解析
+    tiktok_url = get_tiktok_url(tiktok_url)
     try:
         tiktok_headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -189,7 +206,7 @@ def get_video_info_tiktok(tiktok_url):
         video_info = result["ItemModule"][author_id]
         # print("The author_id is: ", author_id)
         # print(video_info)
-        # 格式很乱 要忍一下
+        # 从网页中获得的视频JSON 格式很乱 要忍一下
         return video_info
     except Exception as e:
         # 异常捕获
@@ -200,6 +217,7 @@ def get_video_info_tiktok(tiktok_url):
 def tiktok_nwm(tiktok_url):
     # 使用第三方API获取无水印视频链接（不保证稳定）
     try:
+        tiktok_url = get_tiktok_url(tiktok_url)
         s = requests.Session()
         api_url = "https://ttdownloader.com/req/"
         source = s.get("https://ttdownloader.com/")
