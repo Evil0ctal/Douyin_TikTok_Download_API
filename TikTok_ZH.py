@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/02/04
+# @Update: 2022/02/06
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -10,9 +10,9 @@
 # 抖音/TikTok解析请求参数
 # http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)" - 返回JSON数据
 # 抖音/TikTok视频下载请求参数
-# http://localhost(服务器IP):80/download_video?url="复制的抖音/TikTok链接" - 返回mp4文件下载请求
+# http://localhost(服务器IP):80/video?url="复制的抖音/TikTok链接" - 返回mp4文件下载请求
 # 抖音视频/图集音频下载请求参数
-# http://localhost(服务器IP):80/download_bgm?url="复制的抖音/TikTok链接" - 返回mp3文件下载请求
+# http://localhost(服务器IP):80/bgm?url="复制的抖音/TikTok链接" - 返回mp3文件下载请求
 
 from pywebio import config, session
 from pywebio.input import *
@@ -222,8 +222,9 @@ def tiktok_nwm(tiktok_url):
 def webapi():
     # 创建一个Flask应用获取POST参数并返回结果
     try:
-        post_content = request.args.get("url")
-        if post_content:
+        content = request.args.get("url")
+        if content:
+            post_content = find_url(content)[0]
             # 将API记录在API_logs.txt中
             date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             with open('API_logs.txt', 'a') as f:
@@ -262,10 +263,11 @@ def webapi():
         return jsonify(Message="解析失败", Reason=str(e), Result=False)
 
 
-@app.route("/download_video", methods=["POST", "GET"])
+@app.route("/video", methods=["POST", "GET"])
 def download_video_url():
     # 返回视频下载请求
-    input_url = request.args.get("url")
+    content = request.args.get("url")
+    input_url = find_url(content)[0]
     try:
         if 'douyin.com' in input_url:
             video_info, result_type, api_url = get_video_info(input_url)
@@ -313,18 +315,17 @@ def download_video_url():
         return jsonify(Status='Failed!', Reason='Check the link!')
 
 
-@app.route("/download_bgm", methods=["POST", "GET"])
+@app.route("/bgm", methods=["POST", "GET"])
 def download_bgm_url():
     # 返回视频下载请求
-    input_url = request.args.get("url")
+    content = request.args.get("url")
+    input_url = find_url(content)[0]
     try:
         if 'douyin.com' in input_url:
             video_info, result_type, api_url = get_video_info(input_url)
             if video_info[1] == "None":
-                print('Failed')
                 return jsonify(Status='Failed', Reason='This link has no music to get!')
             else:
-                print("Success")
                 # 音频链接
                 bgm_url = video_info[1]
                 # 视频标题
@@ -346,7 +347,7 @@ def download_bgm_url():
             file_name = clean_filename(bgm_title, author_name)
             print(file_name)
         else:
-            return jsonify(Status='Failed', Reason='Check the link!')
+            return jsonify(Status='Failed', Reason='This link has no music to get!')
         video_bgm = requests.get(bgm_url, headers).content
         # 将bgm字节流封装成response对象
         response = make_response(video_bgm)
@@ -375,8 +376,8 @@ def put_result(item):
     video_info, result_type, api_url = get_video_info(item)
     short_api_url = '/api?url=' + item
     if result_type == 'video':
-        download_video = '/download_video?url=' + video_info[5]
-        download_bgm = '/download_bgm?url=' + video_info[5]
+        download_video = '/video?url=' + video_info[5]
+        download_bgm = '/bgm?url=' + video_info[5]
         put_table([
             ['类型', '内容'],
             ['格式:', result_type],
@@ -392,7 +393,7 @@ def put_result(item):
             ['当前视频精简API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
         ])
     else:
-        download_bgm = '/download_bgm?url=' + video_info[5]
+        download_bgm = '/bgm?url=' + video_info[5]
         put_table([
             ['类型', '内容'],
             ['格式:', result_type],
@@ -415,7 +416,7 @@ def put_tiktok_result(item):
     # 将TikTok结果显示在前端
     video_info = get_video_info_tiktok(item)
     nwm = tiktok_nwm(item)
-    download_url = '/download_video?url=' + item
+    download_url = '/video?url=' + item
     api_url = '/api?url=' + item
     put_table([
         ['类型', '内容'],
@@ -467,9 +468,9 @@ def api_document_pop_window():
         put_markdown('抖音/TikTok解析请求参数')
         put_code('http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)"\n#返回JSON')
         put_markdown('抖音/TikTok视频下载请求参数')
-        put_code('http://localhost(服务器IP):80/download_video?url="复制的抖音/TikTok链接"\n#返回mp4文件下载请求')
+        put_code('http://localhost(服务器IP):80/video?url="复制的抖音/TikTok链接"\n#返回mp4文件下载请求')
         put_markdown('抖音视频/图集音频下载请求参数')
-        put_code('http://localhost(服务器IP):80/download_bgm?url="复制的抖音/TikTok链接"\n#返回mp3文件下载请求')
+        put_code('http://localhost(服务器IP):80/bgm?url="复制的抖音/TikTok链接"\n#返回mp3文件下载请求')
 
 
 def error_log_popup_window():
