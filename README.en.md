@@ -387,7 +387,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 -   Path select the path where you upload the file
 
--   Python version needs to be at least 3.9 or above (install it by yourself in the version management on the left)
+-   The Python version needs to be at least 3.9 or above (install it by yourself in the version management on the left)
 
 -   The frame is modified to`Flask`
 
