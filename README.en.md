@@ -90,9 +90,9 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 
 ```text
 例子：
-https://v.douyin.com/L5psQFx/
-https://v.douyin.com/L5psdyX/
-https://v.douyin.com/L5pbfdP/
+2.84 nqe:/ 骑白马的也可以是公主%%百万转场变身  https://v.douyin.com/L4FJNR3/ 复制此链接，打开Dou音搜索，直接观看视频！
+8.94 mDu:/ 让你在几秒钟之内记住我  https://v.douyin.com/L4NpDJ6/ 复制此链接，打开Dou音搜索，直接观看视频！
+9.94 LWz:/ ok我坦白交代 %%knowknow  https://v.douyin.com/L4NEvNn/ 复制此链接，打开Dou音搜索，直接观看视频！
 https://www.tiktok.com/@gamer/video/7054061777033628934
 https://www.tiktok.com/@off.anime_rei/video/7059609659690339586
 https://www.tiktok.com/@tvamii/video/7045537727743380782
@@ -105,7 +105,7 @@ The API can convert the request parameters into a watermark-free video/picture s
 -   Parse request parameters
 
 ```text
-http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文本/链接)"
+http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)口令/链接"
 ```
 
 -   return parameter
@@ -354,14 +354,14 @@ http://localhost(服务器IP):80/api?url="复制的(抖音/TikTok)的(分享文�
 -   Download video request parameters
 
 ```text
-http://localhost(服务器IP):80/download_video?url="复制的抖音链接"
+http://localhost(服务器IP):80/video?url="复制的(抖音/TikTok)口令/链接"
 #返回mp4文件
 ```
 
 -   Download audio request parameters
 
 ```text
-http://localhost(服务器IP):80/download_bgm?url="复制的抖音链接"
+http://localhost(服务器IP):80/bgm?url="复制的(抖音/TikTok)口令/链接"
 #返回mp3文件
 ```
 
@@ -387,7 +387,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 -   Path select the path where you upload the file
 
--   The Python version needs to be at least 3.9 or above (install it by yourself in the version management on the left)
+-   Python version needs to be at least 3.9 or above (install it by yourself in the version management on the left)
 
 -   The frame is modified to`Flask`
 
