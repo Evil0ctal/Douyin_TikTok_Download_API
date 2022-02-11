@@ -579,7 +579,7 @@ def main():
             # 解析开始时间
             start = time.time()
             try:
-                loading(url_lists)
+                loading()
                 for url in url_lists:
                     if 'douyin.com' in url:
                         put_result(url)
