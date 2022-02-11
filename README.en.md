@@ -60,7 +60,7 @@ python3 TikTok_ZH.py
 http://localhost(服务器IP):80/
 ```
 
-## 🗺️ Supported submission formats:
+## 🗺️支持的提交格式：
 
 -   Douyin share password (copy in APP)
 
@@ -204,7 +204,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 -   Create a project with an arbitrary name
 -   Path select the path where you upload the file
--   Python version needs to be at least 3.9 or above (install it by yourself in the version management on the left)
+-   The Python version needs to be at least 3.9 or above (install it by yourself in the version management on the left)
 -   The frame is modified to`Flask`
 -   The startup method is changed to`python`
 -   Startup file selection`TikTok_ZH.py`
