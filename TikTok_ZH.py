@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/02/06
+# @Update: 2022/02/10
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -69,7 +69,7 @@ def clean_filename(string, author_name):
     return filename
 
 
-def error_do(e, func_name):
+def error_do(e, func_name, input_value=''):
     # 输出一个毫无用处的信息
     put_html("<hr>")
     put_error("出现了意料之的错误，请检查输入值是否有效！")
@@ -84,10 +84,10 @@ def error_do(e, func_name):
     # 将错误记录在logs.txt中
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     with open('logs.txt', 'a') as f:
-        f.write(date + " " + func_name + ': ' + str(e) + '\n')
+        f.write(date + ":\n" + func_name + ': ' + str(e) + '\n' + "Input value: " + input_value + '\n')
 
 
-def loading(url_lists):
+def loading():
     # 写一个进度条装装样子吧 :)
     set_scope('bar', position=3)
     with use_scope('bar'):
@@ -110,7 +110,7 @@ def get_tiktok_url(tiktok_link):
             true_link = response.headers['Location'].split("?")[0]
             return true_link
         except Exception as e:
-            error_do(e, get_tiktok_url)
+            error_do(e, get_tiktok_url, tiktok_link)
 
 
 @retry(stop_max_attempt_number=3)
@@ -182,7 +182,7 @@ def get_video_info(original_url):
             return video_info, 'video', api_url
     except Exception as e:
         # 异常捕获
-        error_do(e, 'get_video_info')
+        error_do(e, 'get_video_info', original_url)
 
 
 @retry(stop_max_attempt_number=3)
@@ -210,7 +210,7 @@ def get_video_info_tiktok(tiktok_url):
         return video_info
     except Exception as e:
         # 异常捕获
-        error_do(e, 'get_video_info_tiktok')
+        error_do(e, 'get_video_info_tiktok', tiktok_url)
 
 
 @retry(stop_max_attempt_number=3)
@@ -233,7 +233,7 @@ def tiktok_nwm(tiktok_url):
         true_link = r.headers['Location']
         return true_link
     except Exception as e:
-        error_do(e, "tiktok_nwm")
+        error_do(e, "tiktok_nwm", tiktok_url)
 
 
 @app.route("/api")
