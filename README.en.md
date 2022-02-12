@@ -35,7 +35,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 
 ## 🤦‍♂️Follow-up features:
 
--   [ ] I do not know either : )
+-   [ ] Support input (Tik Tok/TikTok) author homepage link to achieve batch parsing
 
 * * *
 
