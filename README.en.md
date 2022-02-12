@@ -60,7 +60,7 @@ python3 TikTok_ZH.py
 http://localhost(服务器IP):80/
 ```
 
-## 🗺️支持的提交格式：
+## 🗺️ Supported submission formats:
 
 -   Douyin share password (copy in APP)
 
