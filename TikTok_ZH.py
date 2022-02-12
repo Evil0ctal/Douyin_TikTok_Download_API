@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/02/10
+# @Update: 2022/02/11
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -105,8 +105,6 @@ def get_tiktok_url(tiktok_link):
         try:
             # 从请求头中获取原始链接
             response = requests.get(url=tiktok_link, headers=headers, allow_redirects=False)
-            new_link = response.headers['Location']
-            response = requests.get(url=new_link, headers=headers, allow_redirects=False)
             true_link = response.headers['Location'].split("?")[0]
             return true_link
         except Exception as e:
@@ -555,7 +553,7 @@ def main():
              put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg',
                        title='访问记录')
              ])
-    placeholder = "批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合。"
+    placeholder = "批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合，暂时不支持作者主页链接批量解析。"
     kou_ling = textarea('请将抖音或TikTok的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True,
                         placeholder=placeholder,
                         position=0)
