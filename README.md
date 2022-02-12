@@ -39,7 +39,7 @@ Language:  [[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob
 
 ## 🤦‍♂️后续功能：
 
-- [ ] 我也不知道 : )
+- [ ] 支持输入(抖音/TikTok)作者主页链接实现批量解析
 
 ---
 
