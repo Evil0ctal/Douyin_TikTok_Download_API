@@ -106,6 +106,10 @@ def get_tiktok_url(tiktok_link):
             # 从请求头中获取原始链接
             response = requests.get(url=tiktok_link, headers=headers, allow_redirects=False)
             true_link = response.headers['Location'].split("?")[0]
+            # TikTok请求头返回的第二种链接类型
+            if '.html' in true_link:
+                response = requests.get(url=true_link, headers=headers, allow_redirects=False)
+                true_link = response.headers['Location'].split("?")[0]
             return true_link
         except Exception as e:
             error_do(e, get_tiktok_url, tiktok_link)
@@ -187,6 +191,7 @@ def get_video_info(original_url):
 def get_video_info_tiktok(tiktok_url):
     # 对TikTok视频进行解析
     tiktok_url = get_tiktok_url(tiktok_url)
+    print(tiktok_url)
     try:
         tiktok_headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
