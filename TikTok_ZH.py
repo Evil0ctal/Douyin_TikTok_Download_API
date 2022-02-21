@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/02/11
+# @Update: 2022/02/20
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -469,20 +469,15 @@ def put_tiktok_result(item):
     ])
 
 
-def github_pop_window():
-    with popup("Github"):
-        put_html('<h3>⭐欢迎Star</h3>')
-        put_markdown('[TikTokDownloader_PyWebIO](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO)')
-
-
-def feedback_pop_window():
-    with popup("可以通过以下方式进行反馈"):
-        put_html('<h3>🎯Github</h3>')
-        put_markdown('提交：[issues](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)')
-        put_html('<hr>')
-        put_html('<h3>🤖WeChat</h3>')
-        put_markdown('微信：[Evil0ctal](https://mycyberpunk.com/)')
-        put_html('<hr>')
+def ios_pop_window():
+    with popup("iOS快捷指令"):
+        put_text('快捷指令需要在抖音或TikTok的APP内，浏览你想要无水印保存的视频或图集。')
+        put_text('点击分享按钮，然后下拉找到 "抖音TikTok无水印下载" 这个选项。')
+        put_text('如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。')
+        put_text('该快捷指令会在你相册创建一个新的相薄方便你浏览保存到内容。')
+        put_html('<br>')
+        put_link('[点击获取快捷指令]', 'https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170',
+                 new_window=True)
 
 
 def api_document_pop_window():
@@ -505,8 +500,13 @@ def api_document_pop_window():
         put_code('http://localhost(服务器IP):80/bgm?url="复制的抖音/TikTok链接"\n#返回mp3文件下载请求')
 
 
-def error_log_popup_window():
+def log_popup_window():
     with popup('错误日志'):
+        put_html('<h3>⚠️关于解析失败</h3>')
+        put_text('目前已知短时间大量访问抖音或Tiktok可能触发其验证码。')
+        put_text('若多次解析失败后，请等待一段时间再尝试。')
+        put_html('<hr>')
+        put_text('请检查以下错误日志:')
         content = open(r'./logs.txt', 'rb').read()
         put_file('logs.txt', content=content)
         with open('./logs.txt', 'r') as f:
@@ -516,19 +516,22 @@ def error_log_popup_window():
 
 def about_popup_window():
     with popup('更多信息'):
-        put_html('<h3>⚠️关于解析失败</h3>')
-        put_text('目前已知短时间大量访问抖音API可能触发其验证码。')
-        put_text('若多次解析失败后，请等待一段时间再尝试。')
-        put_button("错误日志", onclick=lambda: error_log_popup_window(), link_style=True, small=True)
+        put_html('<h3>👀访问记录</h3>')
+        put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg',
+                  title='访问记录')
+        put_html('<hr>')
+        put_html('<h3>⭐Github</h3>')
+        put_markdown('[TikTokDownloader_PyWebIO](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO)')
+        put_html('<hr>')
+        put_html('<h3>🎯反馈</h3>')
+        put_markdown('提交：[issues](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)')
         put_html('<hr>')
         put_html('<h3>🌐视频/图集批量下载</h3>')
         put_markdown('可以使用[IDM](https://www.zhihu.com/topic/19746283/hot)之类的工具对结果页面的链接进行嗅探。')
         put_html('<hr>')
-        put_html('<h3>📣关于本项目</h3>')
-        put_markdown('本人技术有限，欢迎PR! [GitHub](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/pulls)')
-        put_html('<hr>')
-        put_html('<h3>💖交个朋友</h3>')
+        put_html('<h3>💖WeChat</h3>')
         put_markdown('微信：[Evil0ctal](https://mycyberpunk.com/)')
+        put_html('<hr>')
 
 
 def language_pop_window():
@@ -548,15 +551,14 @@ def main():
     """ % favicon_url)
     # 修改footer
     session.run_js("""$('footer').remove()""")
+    # 访问记录
+    view_amount = requests.get("https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg")
     put_markdown("""<div align='center' ><font size='20'>😼抖音/TikTok无水印在线解析</font></div>""")
     put_html('<hr>')
-    put_row([put_button("Github", onclick=lambda: github_pop_window(), link_style=True, small=True),
-             put_button("反馈", onclick=lambda: feedback_pop_window(), link_style=True, small=True),
+    put_row([put_button("快捷指令", onclick=lambda: ios_pop_window(), link_style=True, small=True),
              put_button("API", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
-             put_button("关于", onclick=lambda: about_popup_window(), link_style=True, small=True),
-             put_button("Language", onclick=lambda: language_pop_window(), link_style=True, small=True),
-             put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg',
-                       title='访问记录')
+             put_button("日志", onclick=lambda: log_popup_window(), link_style=True, small=True),
+             put_button("关于", onclick=lambda: about_popup_window(), link_style=True, small=True)
              ])
     placeholder = "批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合，暂时不支持作者主页链接批量解析。"
     kou_ling = textarea('请将抖音或TikTok的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True,
@@ -566,17 +568,9 @@ def main():
         if kou_ling == 'wyn':
             # 好想你
             with popup('给 WYN💖'):
-                put_text('常见朋友们发一些浪漫的文案。')
-                put_text('我想，')
-                put_text('浪慢的话我也会写，')
-                put_text('但是让谁来听呢？')
-                put_text('或者又能给谁看呢？')
-                put_text('我想，')
-                put_text('这大抵是安慰自己罢了...')
-                put_text('新年快乐🧨')
-                put_text('2022/02/01')
-                put_text('-Evil0ctal')
-                put_link('返回主页', '/')
+                put_text('我大约真的没有什么才华，只是因为有幸见着了你，于是这颗庸常的心中才凭空生出好些浪漫。')
+                put_text('真的好爱你呀！')
+                put_link('WYN&THB', 'https://www.wynthb.com/')
         else:
             url_lists = find_url(kou_ling)
             # 解析开始时间
