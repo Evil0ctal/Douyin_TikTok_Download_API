@@ -602,4 +602,4 @@ if __name__ == "__main__":
     with open('logs.txt', 'a') as f:
         f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
     app.add_url_rule('/', 'webio_view', webio_view(main), methods=['GET', 'POST', 'OPTIONS'])
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='0.0.0.0', port=5000)
