@@ -1,1 +1,1 @@
-web: python TikTok_ZH.py --port=$PORT
+web: sudo python TikTok_ZH.py --port=$PORT
