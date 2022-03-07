@@ -1,1 +1,1 @@
-web: sudo python TikTok_ZH.py --port=$PORT
+web: gunicorn flaskStarter:TikTok_ZH.py
