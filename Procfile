@@ -1,1 +1,1 @@
-web: gunicorn TikTok_ZH:app --port=5000
+web: gunicorn TikTok_ZH:app
