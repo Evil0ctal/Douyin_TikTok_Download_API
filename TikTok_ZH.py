@@ -604,7 +604,7 @@ if __name__ == "__main__":
     with open('logs.txt', 'a') as f:
         f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
     app.add_url_rule('/', 'webio_view', webio_view(main), methods=['GET', 'POST', 'OPTIONS'])
-    # 修复Heroku主页不能访问
+    # 修复Heroku主页不能访问，感谢@wanghaisheng
     # https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues/4
     if os.environ.get('PORT'):
         port = int(os.environ.get('PORT'))
