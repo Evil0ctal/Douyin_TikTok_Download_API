@@ -2,7 +2,7 @@
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
-content:[API](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8)[screenshot](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E6%88%AA%E5%9B%BE)[deploy](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E9%83%A8%E7%BD%B2)
+content:[API](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8)[截图](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E6%88%AA%E5%9B%BE)[deploy](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%E9%83%A8%E7%BD%B2)
 
 Language:  \[[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.md)]
 
@@ -19,15 +19,15 @@ Language:  \[[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blo
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Requests](https://github.com/psf/requests)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
+It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
 
-The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally.
+快捷指令需要在抖音或TikTok的APP内，选择你想要保存的视频，点击分享按钮，然后找到 "抖音TikTok无水印下载" 这个选项，如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。
 
 ## 💯 Supported features:
 
 -   Support Douyin video/atlas parsing
 -   Support overseas TikTok video analysis (no atlas analysis)
--   支持批量解析(支持抖音/TikTok混合解析)
+-   Support batch parsing (support Douyin/TikTok hybrid parsing)
 -   Support API calls
 -   support[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
 
