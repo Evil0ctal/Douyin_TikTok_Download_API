@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/02/20
+# @Update: 2022/03/06
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -22,6 +22,7 @@ from retrying import retry
 from werkzeug.urls import url_quote
 from flask import Flask, request, jsonify, make_response
 import re
+import os
 import json
 import time
 import requests
@@ -260,7 +261,8 @@ def webapi():
                                    video_music=video_info['music']['playUrl'],
                                    video_title=video_info['desc'], video_author=video_info['author'],
                                    video_author_id=video_info['authorId'], original_url=post_content,
-                                   music_title=video_info['music']['title'], music_author=video_info['music']['authorName'],
+                                   music_title=video_info['music']['title'],
+                                   music_author=video_info['music']['authorName'],
                                    followerCount=video_info['authorStats']['followingCount'],
                                    followingCount=video_info['authorStats']['followingCount'],
                                    likes_recived=video_info['authorStats']['heart'],
@@ -602,4 +604,10 @@ if __name__ == "__main__":
     with open('logs.txt', 'a') as f:
         f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
     app.add_url_rule('/', 'webio_view', webio_view(main), methods=['GET', 'POST', 'OPTIONS'])
-    app.run(host='0.0.0.0', port=5000)
+    # 修复Heroku主页不能访问
+    # https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues/4
+    if os.environ.get('PORT'):
+        port = int(os.environ.get('PORT'))
+    else:
+        port = 5000
+    app.run(host='0.0.0.0', port=port)
