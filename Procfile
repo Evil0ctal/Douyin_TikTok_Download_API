@@ -1,1 +1,1 @@
-web: gunicorn flaskStarter:TikTok_ZH.py
+web: gunicorn app:TikTok_ZH.py
