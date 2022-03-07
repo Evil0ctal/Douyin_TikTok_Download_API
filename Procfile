@@ -1,1 +1,1 @@
-web: python TikTok_ZH.py --port=$PORT
+web: gunicorn TikTok_ZH:app --port=5000
