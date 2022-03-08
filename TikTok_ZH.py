@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/03/06
+# @Update: 2022/03/07
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
@@ -161,11 +161,11 @@ def get_video_info(original_url):
             video_url = r.headers['Location']
             print(video_url)
             # 视频背景音频
-            if js['item_list'][0]['music']['play_url']['url_list']:
-                print("Getting music from playlist")
+            if 'play_url' in js:
                 video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                print(video_music)
+                print("Getting music from playlist" + '\n' + video_music)
             else:
+                print("Music not found")
                 video_music = "None"
             print(video_music)
             # 视频标题
@@ -575,6 +575,7 @@ def main():
                 put_link('WYN&THB', 'https://www.wynthb.com/')
         else:
             url_lists = find_url(kou_ling)
+            total_urls = len(url_lists)
             # 解析开始时间
             start = time.time()
             try:
@@ -589,6 +590,7 @@ def main():
                 end = time.time()
                 put_html("<br><hr>")
                 put_link('返回主页', '/')
+                put_text('总共收到' + str(total_urls) + '个链接')
                 put_text('解析完成! 耗时: %.4f秒' % (end - start))
             except Exception as e:
                 # 异常捕获
@@ -604,7 +606,7 @@ if __name__ == "__main__":
     with open('logs.txt', 'a') as f:
         f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
     app.add_url_rule('/', 'webio_view', webio_view(main), methods=['GET', 'POST', 'OPTIONS'])
-    # 修复Heroku主页不能访问，感谢@wanghaisheng
+    # 修复Heroku主页不能访问
     # https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues/4
     if os.environ.get('PORT'):
         port = int(os.environ.get('PORT'))
