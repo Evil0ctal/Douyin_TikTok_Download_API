@@ -199,7 +199,7 @@ http://localhost(服务器IP):80/bgm?url="复制的(抖音/TikTok)口令/链接"
 
 > 使用宝塔Linux面板进行部署
 
-- 首先要去安全组开放80端口（默认80，可以在文件底部修改。）
+- 首先要去安全组开放5000端口（默认5000，可以在文件底部修改。）
 - 在宝塔应用商店内搜索python并安装项目管理器
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
@@ -208,13 +208,13 @@ http://localhost(服务器IP):80/bgm?url="复制的(抖音/TikTok)口令/链接"
 
 - 创建一个项目名字随意
 - 路径选择你上传文件的路径
-- Python版本需要至少3.9以上(在左侧版本管理中自行安装)
+- Python版本需要至少3以上(在左侧版本管理中自行安装)
 - 框架修改为`Flask`
 - 启动方式修改为`python`
 - 启动文件选择`TikTok_ZH.py`
 - 勾选安装模块依赖
 - 开机启动随意
-- 如果宝塔安装了`Nginx`等应用请将其停止或在`TikTok_ZH.py`底部修改端口(默认端口为80)
+- 如果宝塔安装了`Nginx`等应用请将其停止或在`TikTok_ZH.py`底部修改端口(默认端口为5000)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
