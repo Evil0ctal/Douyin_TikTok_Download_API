@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/06
+# @Update: 2022/04/05
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -77,7 +77,7 @@ def error_do(reason, function, value):
     put_markdown('输入了错误的链接(暂不支持主页链接解析)')
     put_markdown('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)')
     put_markdown('你可以在右上角的关于菜单中查看本站错误日志。')
-    put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)')
+    put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
     put_html("<hr>")
     # 将错误记录在logs.txt中
     error_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -182,7 +182,7 @@ def ios_pop_window():
         put_text('如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。')
         put_text('该快捷指令会在你相册创建一个新的相薄方便你浏览保存到内容。')
         put_html('<br>')
-        put_link('[点击获取快捷指令]', 'https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b',
+        put_link('[点击获取快捷指令]', 'https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170',
                  new_window=True)
 
 
@@ -190,22 +190,22 @@ def api_document_pop_window():
     with popup("API文档"):
         put_markdown("💽API文档")
         put_markdown("API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。")
-        put_link('[中文文档]', 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8',
+        put_link('[中文文档]', 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8',
                  new_window=True)
         put_html('<br>')
         put_link('[English doc]',
-                 'https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/README.en.md#%EF%B8%8Fapi-usage',
+                 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md#%EF%B8%8Fapi-usage',
                  new_window=True)
         put_html('<hr>')
         put_markdown("🛰️API参考")
         put_markdown('抖音/TikTok解析请求参数')
-        put_code('http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)的(分享文本/链接)"\n#返回JSON')
+        put_code('https://api.douyin.wtf/api?url="复制的(抖音/TikTok)的(分享文本/链接)"\n#返回JSON')
         put_markdown('抖音/TikTok视频下载请求参数')
-        put_code('http://localhost(服务器IP):2333/video?url="复制的抖音/TikTok链接"\n'
+        put_code('https://api.douyin.wtf/video?url="复制的抖音/TikTok链接"\n'
                  '# 返回mp4文件下载请求\n'
                  '# 大量请求时很吃服务器内存，容易崩，慎用。')
         put_markdown('抖音视频/图集音频下载请求参数')
-        put_code('http://localhost(服务器IP):2333/music?url="复制的抖音/TikTok链接"\n'
+        put_code('https://api.douyin.wtf/music?url="复制的抖音/TikTok链接"\n'
                  '# 返回mp3文件下载请求\n'
                  '# 大量请求时很吃服务器内存，容易崩，慎用。')
 
@@ -217,7 +217,7 @@ def log_popup_window():
         put_markdown('输入了错误的链接(暂不支持主页链接解析)')
         put_markdown('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)')
         put_markdown('你可以在右上角的关于菜单中查看本站错误日志。')
-        put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)')
+        put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
         put_html('<hr>')
         put_text('点击logs.txt可下载日志:')
         content = open(r'./logs.txt', 'rb').read()
@@ -234,10 +234,10 @@ def about_popup_window():
                   title='访问记录')
         put_html('<hr>')
         put_html('<h3>⭐Github</h3>')
-        put_markdown('[TikTokDownloader_PyWebIO](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO)')
+        put_markdown('[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)')
         put_html('<hr>')
         put_html('<h3>🎯反馈</h3>')
-        put_markdown('提交：[issues](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)')
+        put_markdown('提交：[issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
         put_html('<hr>')
         put_html('<h3>🌐视频/图集批量下载</h3>')
         put_markdown('可以使用[IDM](https://www.zhihu.com/topic/19746283/hot)之类的工具对结果页面的链接进行嗅探。')
@@ -251,7 +251,7 @@ def about_popup_window():
 @config(title=title, description=description)
 def main():
     # 设置favicon
-    favicon_url = "https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/favicon/android-chrome-512x512.png"
+    favicon_url = "https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/favicon/android-chrome-512x512.png"
     session.run_js("""
     $('#favicon32,#favicon16').remove(); 
     $('head').append('<link rel="icon" type="image/png" href="%s">')
