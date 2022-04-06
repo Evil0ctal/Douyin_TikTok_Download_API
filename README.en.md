@@ -15,7 +15,7 @@ Language:  \[[English](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blo
 
 🛰API demo:<https://douyin.wtf/api?url=https://v.douyin.com/R9bQKx4/>
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170) 更新于2022/02/06
+💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170)Updated on 2022/02/06
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Requests](https://github.com/psf/requests)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
@@ -68,7 +68,7 @@ http://localhost(服务器IP):80/
 例子：7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
 ```
 
--   Douyin Short URL (Copy in APP)
+-   抖音短网址 (APP内复制)
 
 ```text
 例子：https://v.douyin.com/L4FJNR3/
