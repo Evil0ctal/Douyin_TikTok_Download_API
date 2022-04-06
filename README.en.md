@@ -47,7 +47,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 pip install -r requirements.txt
 ```
 
--   Run TikTok_ZH.py (Python version 3.9 or above)
+-   运行TikTok_ZH.py (Python版本需3.9以上)
 
 ```text
 python3 TikTok_ZH.py
@@ -226,7 +226,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 -   parsing complete
 
-> 单个
+> single
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result.png)
 
