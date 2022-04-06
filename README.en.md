@@ -303,8 +303,8 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 > Deploy using the Pagoda Linux panel
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified at the bottom of the file.)
--   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
+-   First go to the security group to open ports 5000 and 2333 (default 5000 for web, 2333 for API default, which can be modified at the bottom of the file.)
+-   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
