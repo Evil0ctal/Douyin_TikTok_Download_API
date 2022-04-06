@@ -29,12 +29,15 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
         │   ├── web_zh.py(网页入口)
         │   ├── scraper.py(解析库)
         │   └── logs.txt(错误日志)
-        └── API/
-            ├── web_api.py(API)
-            ├── scraper.py(解析库)
-            └── API_logs.txt(API调用日志)
+        ├── API/
+        │   ├── web_api.py(API)
+        │   ├── scraper.py(解析库)
+        │   └── API_logs.txt(API调用日志)
+        ├── TikTok_ZH.py(中文web界面旧代码不再维护,目前仍工作)
+        ├── TikTok_EN.py(英文web界面旧代码不再维护,未测试)
+        └── requirements.txt(旧代码不再维护)
 
-## 💯已支持功能：
+## 💯 Supported features:
 
 -   Support Douyin video/atlas parsing
 -   Support overseas TikTok video analysis (no atlas analysis)
@@ -279,7 +282,7 @@ http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链
 # 大量请求时很吃服务器内存，容易崩，慎用。
 ```
 
--   Download audio request parameters
+-   下载音频请求参数
 
 ```text
 http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链接"
