@@ -35,10 +35,13 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
     │   ├── web_zh.py(网页入口)
     │   ├── scraper.py(解析库)
     │   └── logs.txt(错误日志)
-    └── API/
-        ├── web_api.py(API)
-        ├── scraper.py(解析库)
-        └── API_logs.txt(API调用日志)
+    ├── API/
+    │   ├── web_api.py(API)
+    │   ├── scraper.py(解析库)
+    │   └── API_logs.txt(API调用日志)
+    ├── TikTok_ZH.py(中文web界面旧代码不再维护,目前仍工作)
+    ├── TikTok_EN.py(英文web界面旧代码不再维护,未测试)
+    └── requirements.txt(旧代码不再维护)
 ```
 
 ## 💯已支持功能：
