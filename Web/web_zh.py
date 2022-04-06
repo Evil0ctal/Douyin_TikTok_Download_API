@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/05
+# @Update: 2022/04/06
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -182,7 +182,7 @@ def ios_pop_window():
         put_text('如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。')
         put_text('该快捷指令会在你相册创建一个新的相薄方便你浏览保存到内容。')
         put_html('<br>')
-        put_link('[点击获取快捷指令]', 'https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170',
+        put_link('[点击获取快捷指令]', 'https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b',
                  new_window=True)
 
 
