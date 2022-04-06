@@ -17,7 +17,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 🛰API演示：[https://api.douyin.wtf/](https://douyin.wtf/)
 
-💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170) 更新于2022/02/06
+💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b) 更新于2022/04/06
 
 本项目使用 [PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask)，利用Python实现在线批量解析抖音的无水印视频/图集。
 
