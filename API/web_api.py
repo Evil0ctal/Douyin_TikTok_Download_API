@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/06
+# @Update: 2022/04/05
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -147,54 +147,57 @@ def download_music():
     # 用于返回视频下载请求(返回MP3文件下载请求，面对大量请求时非常吃服务器内存，容易崩，慎用。)
     api = Scraper()
     content = request.args.get("url")
-    post_content = find_url(content)[0]
-    try:
-        if 'douyin.com' in post_content:
-            # 获取视频信息
-            result = api.douyin(post_content)
-            bgm_url = result['video_music']
-            if bgm_url == "None":
-                return jsonify(Status='Failed', Reason='This link has no music to get!')
-            else:
+    if content == 'No BGM found':
+        return jsonify(status='failed', reason='No BGM found', function='download_music()', value=content)
+    else:
+        post_content = find_url(content)[0]
+        try:
+            if 'douyin.com' in post_content:
+                # 获取视频信息
+                result = api.douyin(post_content)
+                bgm_url = result['video_music']
+                if bgm_url == "None":
+                    return jsonify(Status='Failed', Reason='This link has no music to get!')
+                else:
+                    # 视频标题
+                    bgm_title = result['video_music_title']
+                    # 作者昵称
+                    author_name = result['video_music_author']
+                    # 清理文件名
+                    file_name = clean_filename(bgm_title, author_name)
+            elif 'tiktok.com' in post_content:
+                # 获取视频信息
+                result = api.douyin(post_content)
+                # BGM链接
+                bgm_url = result['video_music']
                 # 视频标题
                 bgm_title = result['video_music_title']
                 # 作者昵称
                 author_name = result['video_music_author']
                 # 清理文件名
                 file_name = clean_filename(bgm_title, author_name)
-        elif 'tiktok.com' in post_content:
-            # 获取视频信息
-            result = api.douyin(post_content)
-            # BGM链接
-            bgm_url = result['video_music']
-            # 视频标题
-            bgm_title = result['video_music_title']
-            # 作者昵称
-            author_name = result['video_music_author']
-            # 清理文件名
-            file_name = clean_filename(bgm_title, author_name)
-        else:
-            return jsonify(Status='Failed', Reason='This link has no music to get!')
-        video_bgm = requests.get(bgm_url, headers).content
-        # 将bgm字节流封装成response对象
-        response = make_response(video_bgm)
-        # 添加响应头部信息
-        response.headers['Content-Type'] = "video/mp3"
-        # 他妈的,费了我老大劲才解决文件中文名的问题
-        try:
-            filename = file_name.encode('latin-1')
-        except UnicodeEncodeError:
-            filenames = {
-                'filename': unicodedata.normalize('NFKD', file_name).encode('latin-1', 'ignore'),
-                'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp3'),
-            }
-        else:
-            filenames = {'filename': file_name + '.mp3'}
-        # attachment表示以附件形式下载
-        response.headers.set('Content-Disposition', 'attachment', **filenames)
-        return response
-    except Exception as e:
-        return jsonify(status='failed', reason=str(e), function='download_music()', value=content)
+            else:
+                return jsonify(Status='Failed', Reason='This link has no music to get!')
+            video_bgm = requests.get(bgm_url, headers).content
+            # 将bgm字节流封装成response对象
+            response = make_response(video_bgm)
+            # 添加响应头部信息
+            response.headers['Content-Type'] = "video/mp3"
+            # 他妈的,费了我老大劲才解决文件中文名的问题
+            try:
+                filename = file_name.encode('latin-1')
+            except UnicodeEncodeError:
+                filenames = {
+                    'filename': unicodedata.normalize('NFKD', file_name).encode('latin-1', 'ignore'),
+                    'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp3'),
+                }
+            else:
+                filenames = {'filename': file_name + '.mp3'}
+            # attachment表示以附件形式下载
+            response.headers.set('Content-Disposition', 'attachment', **filenames)
+            return response
+        except Exception as e:
+            return jsonify(status='failed', reason=str(e), function='download_music()', value=content)
 
 
 if __name__ == '__main__':
