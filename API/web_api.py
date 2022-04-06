@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/05
+# @Update: 2022/04/06
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -39,6 +39,19 @@ def clean_filename(string, author_name):
     return filename
 
 
+@app.route("/", methods=["POST", "GET"])
+def index():
+    # 显示基础信息
+    index_info = {'API status': 'Running',
+                  'GitHub': 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API',
+                  'Introduction': 'Free and open source Douyin/TikTok watermark-free video download tool, supports API calls.',
+                  'Web interface': 'https://douyin.wtf/',
+                  'Parsing Douyin/TikTok videos': 'https://api.douyin.wtf/api?url=[Douyin/TikTok url]',
+                  'Return Video MP4 File Download': 'https://api.douyin.wtf/video?url=[Douyin/TikTok url]',
+                  'Return Video MP3 File Download': 'https://api.douyin.wtf/music?url=[Douyin/TikTok url]'}
+    return jsonify(index_info)
+
+
 @app.route("/api", methods=["POST", "GET"])
 def webapi():
     # 创建一个Flask应用获取POST参数并返回结果
@@ -73,7 +86,6 @@ def webapi():
     else:
         # 返回错误信息
         return jsonify(status='failed', reason='url value cannot be empty')
-
 
 
 @app.route("/video", methods=["POST", "GET"])
