@@ -3,6 +3,7 @@
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
 # @Update: 2022/03/07
+# 不再维护该文件
 # @Function:
 # 基于 PyWebIO、Requests、Flask，可实现在线批量解析抖音的无水印视频/图集。
 # 可用于下载作者禁止下载的视频，同时可搭配iOS的快捷指令APP配合本项目API实现应用内下载。
