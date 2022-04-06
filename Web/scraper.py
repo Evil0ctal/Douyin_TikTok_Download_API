@@ -20,6 +20,7 @@ class Scraper:
     Scraper.douyin():抖音视频/图集解析，返回字典。
     Scraper.tiktok():TikTok视频解析，返回字典。
     """
+
     def __init__(self):
         self.headers = {
             'user-agent': 'Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66'
@@ -248,6 +249,7 @@ class Scraper:
             # 从请求头中获取原始链接
             response = requests.get(url=original_url, headers=headers, allow_redirects=False)
             true_link = response.headers['Location'].split("?")[0]
+            original_url = true_link
             # TikTok请求头返回的第二种链接类型
             if '.html' in true_link:
                 response = requests.get(url=true_link, headers=headers, allow_redirects=False)
@@ -361,7 +363,7 @@ class Scraper:
                           'video_comment_count': video_comment_count,
                           'video_digg_count': video_digg_count,
                           'video_play_count': video_play_count,
-                          'video_share_count':video_share_count,
+                          'video_share_count': video_share_count,
                           'video_author_followerCount': video_author_followerCount,
                           'video_author_followingCount': video_author_followingCount,
                           'video_author_heartCount': video_author_heartCount,
