@@ -47,7 +47,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 pip install -r requirements.txt
 ```
 
--   运行TikTok_ZH.py (Python版本需3.9以上)
+-   Run TikTok_ZH.py (Python version 3.9 or above)
 
 ```text
 python3 TikTok_ZH.py
