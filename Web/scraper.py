@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/05
+# @Update: 2022/04/06
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -78,20 +78,30 @@ class Scraper:
                 if album_author_id == "":
                     # 如果作者未修改过抖音号，应使用此值以避免无法获取其抖音ID
                     album_author_id = str(js['item_list'][0]['author']['short_id'])
-                # 图集BGM链接
-                if len(js['item_list'][0]['music']['play_url']['url_list']) > 0:
+                # 尝试获取图集BGM信息
+                try:
+                    # 图集BGM链接
                     album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                else:
-                    # 部分视频的API数据中没有BGM链接，返回None
-                    album_music = "None"
-                # 图集BGM标题
-                album_music_title = str(js['item_list'][0]['music']['title'])
-                # 图集BGM作者
-                album_music_author = str(js['item_list'][0]['music']['author'])
-                # 图集BGM ID
-                album_music_id = str(js['item_list'][0]['music']['id'])
-                # 图集BGM MID
-                album_music_mid = str(js['item_list'][0]['music']['mid'])
+                    # 图集BGM标题
+                    album_music_title = str(js['item_list'][0]['music']['title'])
+                    # 图集BGM作者
+                    album_music_author = str(js['item_list'][0]['music']['author'])
+                    # 图集BGM ID
+                    album_music_id = str(js['item_list'][0]['music']['id'])
+                    # 图集BGM MID
+                    album_music_mid = str(js['item_list'][0]['music']['mid'])
+                except:
+                    # 报错后代表无背景音乐
+                    # 图集BGM链接
+                    album_music = 'No BGM found'
+                    # 图集BGM标题
+                    album_music_title = 'No BGM found'
+                    # 图集BGM作者
+                    album_music_author = 'No BGM found'
+                    # 图集BGM ID
+                    album_music_id = 'No BGM found'
+                    # 图集BGM MID
+                    album_music_mid = 'No BGM found'
                 # 图集ID
                 album_aweme_id = str(js['item_list'][0]['statistics']['aweme_id'])
                 # 评论数量
@@ -162,24 +172,34 @@ class Scraper:
                 # 去水印后视频链接(2022年1月1日抖音APi获取到的URL会进行跳转，需要在Location中获取直链)
                 r = requests.get(url=nwm_video_url, headers=headers, allow_redirects=False)
                 video_url = r.headers['Location']
-                # 视频背景音频
-                if len(js['item_list'][0]['music']['play_url']['url_list']) > 0:
-                    video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                else:
-                    # 部分视频的API数据中没有BGM链接，返回None
-                    video_music = "None"
                 # 视频作者签名
                 video_author_signature = str(js['item_list'][0]['author']['signature'])
                 # 视频作者UID
                 video_author_uid = str(js['item_list'][0]['author']['uid'])
-                # 视频BGM标题
-                video_music_title = str(js['item_list'][0]['music']['title'])
-                # 视频BGM作者
-                video_music_author = str(js['item_list'][0]['music']['author'])
-                # 视频BGM ID
-                video_music_id = str(js['item_list'][0]['music']['id'])
-                # 视频BGM MID
-                video_music_mid = str(js['item_list'][0]['music']['mid'])
+                # 尝试获取视频背景音乐
+                try:
+                    # 视频BGM链接
+                    video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                    # 视频BGM标题
+                    video_music_title = str(js['item_list'][0]['music']['title'])
+                    # 视频BGM作者
+                    video_music_author = str(js['item_list'][0]['music']['author'])
+                    # 视频BGM ID
+                    video_music_id = str(js['item_list'][0]['music']['id'])
+                    # 视频BGM MID
+                    video_music_mid = str(js['item_list'][0]['music']['mid'])
+                except:
+                    # 出错代表无背景音乐
+                    # 视频BGM链接
+                    video_music = 'No BGM found'
+                    # 视频BGM标题
+                    video_music_title = 'No BGM found'
+                    # 视频BGM作者
+                    video_music_author = 'No BGM found'
+                    # 视频BGM ID
+                    video_music_id = 'No BGM found'
+                    # 视频BGM MID
+                    video_music_mid = 'No BGM found'
                 # 视频ID
                 video_aweme_id = str(js['item_list'][0]['statistics']['aweme_id'])
                 # 评论数量
@@ -385,6 +405,6 @@ if __name__ == '__main__':
     tiktok_date = scraper.tiktok(tiktok_url)
     print(tiktok_date)
     print('')
-    douyin_url = "https://www.douyin.com/video/7036277592986537252"
+    douyin_url = "https://www.douyin.com/video/7055581212840086817"
     douyin_date = scraper.douyin(douyin_url)
     print(douyin_date)
