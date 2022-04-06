@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/05
+# @Update: 2022/04/06
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -85,7 +85,7 @@ def webapi():
                 return jsonify(status='failed', reason=str(e), time=analyze_time, function='webapi()', value=content)
     else:
         # 返回错误信息
-        return jsonify(status='failed', reason='url value cannot be empty')
+        return jsonify(status='failed', reason='url value cannot be empty', function='api()', value=content)
 
 
 @app.route("/video", methods=["POST", "GET"])
@@ -93,62 +93,65 @@ def download_video():
     # 用于返回视频下载请求(返回MP4文件下载请求，面对大量请求时非常吃服务器内存，容易崩，慎用。)
     api = Scraper()
     content = request.args.get("url")
-    post_content = find_url(content)[0]
-    try:
-        if 'douyin.com' in post_content:
-            # 获取视频信息
-            result = api.douyin(post_content)
-            # 视频链接
-            video_url = result['nwm_video_url']
-            # 视频标题
-            video_title = result['video_title']
-            # 作者昵称
-            video_author = result['video_author']
-            # 清理文件名
-            file_name = clean_filename(video_title, video_author)
-        elif 'tiktok.com' in post_content:
-            # 获取视频信息
-            result = api.tiktok(post_content)
-            # 无水印地址
-            video_url = result['nwm_video_url']
-            # 视频标题
-            video_title = result['video_title']
-            # 作者昵称
-            video_author = result['video_author']
-            # 清理文件名
-            file_name = clean_filename(video_title, video_author)
-        else:
-            return jsonify(Status='Failed', Reason='Check submitted parameters!')
-        # 获取视频文件字节流
-        video_mp4 = requests.get(video_url, headers).content
-        # 将字节流封装成返回对象
-        response = make_response(video_mp4)
-        # 添加响应头部信息
-        response.headers['Content-Type'] = "video/mp4"
-        # 他妈的,费了我老大劲才解决文件中文名的问题
+    if content == '':
+        return jsonify(status='failed', reason='url value cannot be empty', function='download_music()', value=content)
+    else:
+        post_content = find_url(content)[0]
         try:
-            filename = file_name.encode('latin-1')
-        except UnicodeEncodeError:
-            filenames = {
-                'filename': unicodedata.normalize('NFKD', file_name).encode('latin-1', 'ignore'),
-                'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp4'),
-            }
-        else:
-            filenames = {'filename': file_name + '.mp4'}
-        # attachment表示以附件形式下载
-        response.headers.set('Content-Disposition', 'attachment', **filenames)
-        return response
-    except Exception as e:
-        return jsonify(status='failed', reason=str(e), function='download_video()', value=content)
-
+            if 'douyin.com' in post_content:
+                # 获取视频信息
+                result = api.douyin(post_content)
+                # 视频链接
+                video_url = result['nwm_video_url']
+                # 视频标题
+                video_title = result['video_title']
+                # 作者昵称
+                video_author = result['video_author']
+                # 清理文件名
+                file_name = clean_filename(video_title, video_author)
+            elif 'tiktok.com' in post_content:
+                # 获取视频信息
+                result = api.tiktok(post_content)
+                # 无水印地址
+                video_url = result['nwm_video_url']
+                # 视频标题
+                video_title = result['video_title']
+                # 作者昵称
+                video_author = result['video_author']
+                # 清理文件名
+                file_name = clean_filename(video_title, video_author)
+            else:
+                return jsonify(Status='Failed', Reason='Check submitted parameters!')
+            # 获取视频文件字节流
+            video_mp4 = requests.get(video_url, headers).content
+            # 将字节流封装成返回对象
+            response = make_response(video_mp4)
+            # 添加响应头部信息
+            response.headers['Content-Type'] = "video/mp4"
+            # 他妈的,费了我老大劲才解决文件中文名的问题
+            try:
+                filename = file_name.encode('latin-1')
+            except UnicodeEncodeError:
+                filenames = {
+                    'filename': unicodedata.normalize('NFKD', file_name).encode('latin-1', 'ignore'),
+                    'filename*': "UTF-8''{}".format(url_quote(file_name) + '.mp4'),
+                }
+            else:
+                filenames = {'filename': file_name + '.mp4'}
+            # attachment表示以附件形式下载
+            response.headers.set('Content-Disposition', 'attachment', **filenames)
+            return response
+        except Exception as e:
+            return jsonify(status='failed', reason=str(e), function='download_video()', value=content)
+                    
 
 @app.route("/music", methods=["POST", "GET"])
 def download_music():
     # 用于返回视频下载请求(返回MP3文件下载请求，面对大量请求时非常吃服务器内存，容易崩，慎用。)
     api = Scraper()
     content = request.args.get("url")
-    if content == 'No BGM found':
-        return jsonify(status='failed', reason='No BGM found', function='download_music()', value=content)
+    if content == '':
+        return jsonify(status='failed', reason='url value cannot be empty', function='download_music()', value=content)
     else:
         post_content = find_url(content)[0]
         try:
