@@ -15,7 +15,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
-🛰API演示：[https://api.douyin.wtf/](https://douyin.wtf/)
+🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
 
 💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b) 更新于2022/04/06
 
