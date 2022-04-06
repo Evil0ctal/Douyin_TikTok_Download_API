@@ -27,9 +27,9 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 
 -   Support Douyin video/atlas parsing
 -   Support overseas TikTok video analysis (no atlas analysis)
--   支持批量解析(支持抖音/TikTok混合解析)
+-   Support batch parsing (support Douyin/TikTok hybrid parsing)
 -   Support API calls
--   支持[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
+-   support[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
 
 * * *
 
