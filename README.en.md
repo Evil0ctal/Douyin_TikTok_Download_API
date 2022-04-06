@@ -13,7 +13,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:[https://api.douyin.wtf/](https://douyin.wtf/)
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170)Updated on 2022/02/06
+💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b)Updated on 2022/04/06
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
@@ -43,7 +43,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 -   Support overseas TikTok video analysis (no atlas analysis)
 -   Support batch parsing (support Douyin/TikTok hybrid parsing)
 -   Support API calls
--   support[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
+-   support[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
 
 * * *
 
@@ -148,7 +148,7 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 
 ## 🛰️API usage
 
-API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。
+The API can convert the request parameters into a watermark-free video/picture straight link that needs to be extracted, and can be downloaded in-app with the IOS shortcut.
 
 -   Parse request parameters
 
@@ -325,7 +325,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 * * *
 
-## 🎉截图
+## 🎉 Screenshot
 
 > Note:
 > The screenshots may not match the text due to update problems, please refer to the text description first.
