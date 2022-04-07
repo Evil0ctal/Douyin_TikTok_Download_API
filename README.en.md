@@ -5,19 +5,22 @@
 Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
 
 > Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. The code of this repository cannot be used for any commercial purpose. You can distribute or modify the code at will, but please mark the original author.
+
 > Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. The code in this repository cannot be used for any commercial purpose. You can distribute or modify the code at will, but please mark the original author.
 
 ## 👻Introduction
 
+> Due to malicious use, the two APIs /video and /music are temporarily closed. If necessary, please deploy it yourself. Other functions are still used normally on the demo site. Please save the video file manually before I think of a better solution. My chick only has 0.5G memory and one CPU core, it can't stand it ╥﹏╥...
+
 🚀Demo address:<https://douyin.wtf/>
 
-🛰API demo:<https://api.douyin.wtf/>(Temporarily close the /video and /music APIs due to malicious use, please save the video file manually until I don't think of a better solution.)
+🛰API demo:<https://api.douyin.wtf/>
 
 💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b)Updated on 2022/04/06
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
+It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally.
 
@@ -296,8 +299,8 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ## 💾Deploy
 
-> Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> 注：
+> 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
 
 > It is best to deploy this project to an overseas server, otherwise strange problems may occur.
 
@@ -305,8 +308,8 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 > Deploy using the Pagoda Linux panel
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified at the bottom of the file.)
--   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
+-   First go to the security group to open ports 5000 and 2333 (default 5000 for web, 2333 for API default, which can be modified at the bottom of the file.)
+-   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
