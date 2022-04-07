@@ -9,13 +9,16 @@
 Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  [[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
 
 > Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. The code of this repository cannot be used for any commercial purpose. You can distribute or modify the code at will, but please mark the original author.
+
 > 注: 此API适用于Douyin和TikTok，Douyin为中国区域的TikTok，此仓库的代码不得用于任何商业目的，你可以随意分发或修改代码，但请标注原作者。
 
 ## 👻介绍
 
+> 因恶意使用暂时关闭/video和/music这两个API，如需要请自行部署，其他功能在演示站上仍正常使用，在我没想到更好的解决方法之前请手动保存视频文件。我的小鸡只有0.5G内存一个CPU核心，顶不住了╥﹏╥...
+
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
-🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/) (因恶意使用暂时关闭/video和/music这两个API,在我没想到更好的解决方法之前请手动保存视频文件。)
+🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
 
 💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b) 更新于2022/04/06
 
