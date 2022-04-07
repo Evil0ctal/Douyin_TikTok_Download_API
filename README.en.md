@@ -11,13 +11,13 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🚀Demo address:<https://douyin.wtf/>
 
-🛰API demo:<https://api.douyin.wtf/>
+🛰API demo:<https://api.douyin.wtf/>(Temporarily close the /video and /music APIs due to malicious use, please save the video file manually until I don't think of a better solution.)
 
 💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b)Updated on 2022/04/06
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
+It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally.
 
@@ -77,17 +77,19 @@ python3 web_api.py
 
 -   call parsing library
 
-```text
+```python
 # 将scraper.py拷贝至你的项目目录(测试过的Python版本为3.8)
 # 在该项目中导入scraper.py 
 from scraper import Scraper
 api = Scraper()
-# 解析Douyin视频/图集(返回字典)
+# 解析Douyin视频/图集
 douyin_data = api.douyin('抖音分享口令/链接')
-print(douyin_data )
-# 解析TikTok视频/图集(返回字典)
+# 返回字典
+print(douyin_data)
+# 解析TikTok视频/图集
 tiktok_data = api.tiktok('TikTok分享口令/链接')
-print(tiktok_data )
+# 返回字典
+print(tiktok_data)
 ```
 
 -   Entrance
@@ -303,8 +305,8 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 > Deploy using the Pagoda Linux panel
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for web, 2333 for API default, which can be modified at the bottom of the file.)
--   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
+-   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified at the bottom of the file.)
+-   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -352,7 +354,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 
 -   API submit/return
 
-> 视频返回值
+> Video return value
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_video_result.png)
 
