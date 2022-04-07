@@ -15,7 +15,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
-🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
+🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/) (因恶意使用暂时关闭/video和/music这两个API,在我没想到更好的解决方法之前请手动保存视频文件。)
 
 💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b) 更新于2022/04/06
 
@@ -84,17 +84,19 @@ python3 web_api.py
 
 - 调用解析库
 
-```text
+```python
 # 将scraper.py拷贝至你的项目目录(测试过的Python版本为3.8)
 # 在该项目中导入scraper.py 
 from scraper import Scraper
 api = Scraper()
-# 解析Douyin视频/图集(返回字典)
+# 解析Douyin视频/图集
 douyin_data = api.douyin('抖音分享口令/链接')
-print(douyin_data )
-# 解析TikTok视频/图集(返回字典)
+# 返回字典
+print(douyin_data)
+# 解析TikTok视频/图集
 tiktok_data = api.tiktok('TikTok分享口令/链接')
-print(tiktok_data )
+# 返回字典
+print(tiktok_data)
 ```
 
 - 入口
