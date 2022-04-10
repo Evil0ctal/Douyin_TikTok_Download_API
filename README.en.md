@@ -4,9 +4,9 @@
 
 Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
 
-> Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. The code of this repository cannot be used for any commercial purpose. You can distribute or modify the code at will, but please mark the original author.
+> Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
-> Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. The code in this repository cannot be used for any commercial purpose. You can distribute or modify the code at will, but please mark the original author.
+> Note: This API is suitable for Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
 ## 👻Introduction
 
@@ -58,22 +58,36 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 
 ## 🧭How to use:
 
--   Install dependent libraries:
+-   Clone this repository:
 
-```text
-pip install -r requirements.txt
+```console
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+```
+
+-   Move to repository directory:
+
+```console
+cd Douyin_TikTok_Download_API
 ```
 
 -   Web page parsing
 
-```text
+```console
+# 移动至Web目录
+cd Web
+# 安装依赖库
+pip install -r requirements.txt
 # 运行web_zh.py (测试过的Python版本为3.8)
 python3 web_zh.py
 ```
 
 -   API
 
-```text
+```console
+# 移动至API目录
+cd API
+# 安装依赖库
+pip install -r requirements.txt
 # 运行web_api.py (测试过的Python版本为3.8)
 python3 web_api.py
 ```
@@ -299,8 +313,8 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ## 💾Deploy
 
-> 注：
-> 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
+> Note:
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server, otherwise strange problems may occur.
 
@@ -324,7 +338,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified at the bottom of the file.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified at the bottom of the file.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
