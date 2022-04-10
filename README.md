@@ -8,9 +8,9 @@
 
 Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  [[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
 
-> Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. The code of this repository cannot be used for any commercial purpose. You can distribute or modify the code at will, but please mark the original author.
+> Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
-> 注: 此API适用于Douyin和TikTok，Douyin为中国区域的TikTok，此仓库的代码不得用于任何商业目的，你可以随意分发或修改代码，但请标注原作者。
+> 注: 此API适用于Douyin和TikTok，Douyin为中国区域的TikTok，你可以随意分发或修改代码，但请标注原作者。
 
 ## 👻介绍
 
@@ -65,22 +65,36 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ## 🧭如何使用:
 
-- 安装依赖库：
+- 克隆本仓库：
 
-```text
-pip install -r requirements.txt
+```console
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+```
+
+- 移动至仓库目录：
+
+```console
+cd Douyin_TikTok_Download_API
 ```
 
 - 网页解析
 
-```text
+```console
+# 移动至Web目录
+cd Web
+# 安装依赖库
+pip install -r requirements.txt
 # 运行web_zh.py (测试过的Python版本为3.8)
 python3 web_zh.py
 ```
 
 - API
 
-```text
+```console
+# 移动至API目录
+cd API
+# 安装依赖库
+pip install -r requirements.txt
 # 运行web_api.py (测试过的Python版本为3.8)
 python3 web_api.py
 ```
