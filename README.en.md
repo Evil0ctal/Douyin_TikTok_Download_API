@@ -10,7 +10,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-> Due to malicious use, the two APIs /video and /music are temporarily closed. If necessary, please deploy it yourself. Other functions are still used normally on the demo site. Please save the video file manually before I think of a better solution. My chick only has 0.5G memory and one CPU core, it can't stand it ╥﹏╥...
+> 因恶意使用暂时关闭/video和/music这两个API，如需要请自行部署，其他功能在演示站上仍正常使用，在我没想到更好的解决方法之前请手动保存视频文件。我的小鸡只有0.5G内存一个CPU核心，顶不住了╥﹏╥...
 
 🚀Demo address:<https://douyin.wtf/>
 
@@ -56,7 +56,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 
 * * *
 
-## 🧭如何使用:
+## 🧭How to use:
 
 -   Clone this repository:
 
@@ -314,7 +314,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 ## 💾Deploy
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server, otherwise strange problems may occur.
 
@@ -323,7 +323,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 > Deploy using the Pagoda Linux panel
 
 -   First go to the security group to open ports 5000 and 2333 (default 5000 for web, 2333 for API default, which can be modified at the bottom of the file.)
--   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
+-   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -338,7 +338,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified at the bottom of the file.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified at the bottom of the file.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -347,7 +347,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 -   Main interface
 
