@@ -156,6 +156,7 @@ def video_download_window(result_dict):
                                 f.close()
                                 put_success('{}下载成功'.format(file_name))
                 except Exception as e:
+                    download_count += 1
                     put_error('视频下载失败，将跳过该视频。')
                     continue
             if download_count == total_amount:
