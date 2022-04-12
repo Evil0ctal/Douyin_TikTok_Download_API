@@ -105,12 +105,14 @@ def compress_file(tar_file, target_file):
     if os.path.isfile(target_file):
         with tarfile.open(tar_file, 'w') as tar:
             tar.add(target_file)
+            return 'finished'
     else:
         with tarfile.open(tar_file, 'w') as tar:
             for root, dirs, files in os.walk(target_file):
                 for single_file in files:
                     filepath = os.path.join(root, single_file)
                     tar.add(filepath)
+            return 'finished'
 
 
 def clean_file(path):
@@ -165,12 +167,13 @@ def video_download_window(result_dict):
                 output_path = save_path + '/output'
                 tarfile_name = download_time + '_total_' + str(total_amount) + '_videos.tar'
                 output_file = output_path + '/' + tarfile_name
+                put_info('正在压缩视频文件，请勿关闭当前弹窗，完成后会在下方显示按钮...')
                 # 判断目录是否存在
                 if not os.path.exists(output_path):
                     os.mkdir(output_path)
-                compress_file(tar_file=output_file, target_file=save_path)
-                tar = open(output_file, "rb").read()
-                put_file(tarfile_name, tar, '点击下载视频合集压缩包')
+                if compress_file(tar_file=output_file, target_file=save_path) == 'finished':
+                    tar = open(output_file, "rb").read()
+                    put_file(tarfile_name, tar, '点击下载视频合集压缩包')
     except Exception as e:
         print(str(e))
 
