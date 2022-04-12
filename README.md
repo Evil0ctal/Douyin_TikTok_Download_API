@@ -52,6 +52,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 - 支持抖音视频/图集解析
 - 支持海外TikTok视频解析(无图集解析)
 - 支持批量解析(支持抖音/TikTok混合解析)
+- 支持结果页批量下载无水印视频
 - 支持API调用
 - 支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
 
