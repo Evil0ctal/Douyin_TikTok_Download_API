@@ -12,6 +12,7 @@
 import os
 import re
 import time
+import tarfile
 import requests
 from scraper import Scraper
 from pywebio import config, session
@@ -49,15 +50,19 @@ def valid_check(kou_ling):
     url_list = find_url(kou_ling)
     # 对每一个链接进行校验
     if url_list:
-        for i in url_list:
-            if 'douyin.com' in i[:31]:
-                if i == url_list[-1]:
-                    return None
-            elif 'tiktok.com' in i[:31]:
-                if i == url_list[-1]:
-                    return None
-            else:
-                return '请确保输入链接均为有效的抖音/TikTok链接!'
+        total_urls = len(url_list)
+        if total_urls > 30:
+            return '为了避免资源占用过多请确保输入链接少于30个！'
+        else:
+            for i in url_list:
+                if 'douyin.com' in i[:31]:
+                    if i == url_list[-1]:
+                        return None
+                elif 'tiktok.com' in i[:31]:
+                    if i == url_list[-1]:
+                        return None
+                else:
+                    return '请确保输入链接均为有效的抖音/TikTok链接!'
     elif kou_ling == 'wyn':
         return None
     else:
@@ -85,6 +90,90 @@ def error_do(reason, function, value):
         f.write(error_date + ":\n" + function + ': ' + str(reason) + '\n' + "Input value: " + value + '\n')
 
 
+def clean_filename(string, author_name):
+    # 替换不能用于文件名的字符('/ \ : * ? " < > |')
+    rstr = r"[\/\\\:\*\?\"\<\>\|]"
+    # 将上述字符替换为下划线
+    new_title = re.sub(rstr, "_", string)
+    # 新文件名
+    filename = (author_name + '_' + new_title).replace('\n', '')
+    return filename
+
+
+def compress_file(tar_file, target_file):
+    # tar_file是输出压缩包名字以及目录("./output/mp4.tar")，target_file是要打包的目录或文件名("./files")
+    if os.path.isfile(target_file):
+        with tarfile.open(tar_file, 'w') as tar:
+            tar.add(target_file)
+    else:
+        with tarfile.open(tar_file, 'w') as tar:
+            for root, dirs, files in os.walk(target_file):
+                for single_file in files:
+                    filepath = os.path.join(root, single_file)
+                    tar.add(filepath)
+
+
+def clean_file(path):
+    # 清理下载文件夹
+    while True:
+        for root, dirs, files in os.walk(path, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+                # print("%s文件删除成功 %s" % (name, (time.strftime("%d/%m/%Y%H:%M:%S"))))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+                # print("%s子文件夹下文件删除成功 %s" % (name, (time.strftime("%d/%m/%Y%H:%M:%S"))))
+        # 每30分钟(1800秒)清理一次
+        time.sleep(1800)
+
+
+def video_download_window(result_dict):
+    try:
+        # result_dict = {'文件名': '链接'}
+        total_amount = len(result_dict)
+        download_time = (time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))
+        # 存储根目录
+        save_path = './web/saved_videos/' + (download_time + '_total_' + str(total_amount) + '_videos')
+        # 判断目录是否存在
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        # 弹出窗口
+        with popup("正在服务器后台下载视频(共{}个下载任务)".format(str(len(result_dict)))):
+            # 下载索引计数
+            download_count = 0
+            # 遍历字典的键和值
+            for file_name, url in result_dict.items():
+                try:
+                    download_count += 1
+                    put_info('正在下载第{}个视频:\n{}'.format(download_count, file_name))
+                    response = requests.get(url, headers=headers)
+                    data = response.content
+                    if data:
+                        file_path = '{}/{}.{}'.format(save_path, file_name, 'mp4')
+                        if not os.path.exists(file_path):
+                            with open(file_path, 'wb') as f:
+                                f.write(data)
+                                f.close()
+                                put_success('{}下载成功'.format(file_name))
+                except Exception as e:
+                    put_error('视频下载失败，将跳过该视频。')
+                    continue
+            if download_count == total_amount:
+                put_html('<hr>')
+                put_html('<h3>💾结果页视频合集下载完成</h3>')
+                output_path = save_path + '/output'
+                tarfile_name = download_time + '_total_' + str(total_amount) + '_videos.tar'
+                output_file = output_path + '/' + tarfile_name
+                # 判断目录是否存在
+                if not os.path.exists(output_path):
+                    os.mkdir(output_path)
+                compress_file(tar_file=output_file, target_file=save_path)
+                tar = open(output_file, "rb").read()
+                put_file(tarfile_name, tar, '点击下载视频合集压缩包')
+    except Exception as e:
+        print(str(e))
+
+
 def put_douyin_result(item):
     # 向前端输出表格
     api = Scraper()
@@ -110,12 +199,18 @@ def put_douyin_result(item):
                 ['当前视频API链接: ', put_link('点击浏览API数据', douyin_date['api_url'], new_window=True)],
                 ['当前视频精简API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
             ])
-            return 'success'
+            return {'status': 'success',
+                    'type': 'video',
+                    'video_title': douyin_date['video_title'],
+                    'video_author': douyin_date['video_author'],
+                    'nwm_video_url': douyin_date['nwm_video_url'],
+                    'video_music': douyin_date['video_music'],
+                    'original_url': douyin_date['original_url']}
         else:
             put_table([
                 ['类型', '内容'],
                 ['格式:', douyin_date['url_type']],
-                ['背景音乐直链: ', put_link('点击打开音频', douyin_date['url_type'], new_window=True)],
+                ['背景音乐直链: ', put_link('点击打开音频', douyin_date['album_music'], new_window=True)],
                 ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
                 ['视频标题: ', douyin_date['album_title']],
                 ['作者昵称: ', douyin_date['album_author']],
@@ -128,7 +223,13 @@ def put_douyin_result(item):
                 put_table([
                     ['图片直链: ', put_link('点击打开图片', i, new_window=True), put_image(i)]
                 ])
-            return 'success'
+            return {'status': 'success',
+                    'type': 'album',
+                    'album_title': douyin_date['album_title'],
+                    'video_author': douyin_date['video_author'],
+                    'album_list': douyin_date['album_list'],
+                    'album_music': douyin_date['album_music'],
+                    'original_url': douyin_date['original_url']}
     else:
         # {'status': 'failed', 'reason': e, 'function': 'API.tiktok()', 'value': original_url}
         reason = douyin_date['reason']
@@ -165,7 +266,13 @@ def put_tiktok_result(item):
             ['原视频链接: ', put_link('点击打开原视频', item, new_window=True)],
             ['当前视频API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
         ])
-        return 'success'
+        return {'status': 'success',
+                'type': 'video',
+                'video_title': tiktok_date['video_title'],
+                'video_author': tiktok_date['video_author'],
+                'nwm_video_url': tiktok_date['nwm_video_url'],
+                'video_music_url': tiktok_date['video_music_url'],
+                'original_url': item}
     else:
         # {'status': 'failed', 'reason': e, 'function': 'API.tiktok()', 'value': original_url}
         reason = tiktok_date['reason']
@@ -216,7 +323,6 @@ def log_popup_window():
         put_markdown('服务器可能被目标主机的防火墙限流(稍等片刻后再次尝试)')
         put_markdown('输入了错误的链接(暂不支持主页链接解析)')
         put_markdown('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)')
-        put_markdown('你可以在右上角的关于菜单中查看本站错误日志。')
         put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
         put_html('<hr>')
         put_text('点击logs.txt可下载日志:')
@@ -288,20 +394,42 @@ def main():
             # 成功/失败统计
             success_count = 0
             failed_count = 0
+            # 解析成功的url
+            success_list = []
+            # 解析失败的url
+            failed_list = []
+            # 成功解析的视频标题/视频直链
+            nwm_success_list = {}
             # 遍历链接
             for url in url_lists:
                 if 'douyin.com' in url:
-                    if put_douyin_result(url) == 'failed':
+                    result = put_douyin_result(url)
+                    if result == 'failed':
                         failed_count += 1
+                        # 将url添加到失败列表内
+                        failed_list.append(url)
                         continue
                     else:
                         success_count += 1
+                        # 将url添加到成功列表内
+                        success_list.append(url)
+                        if result['type'] == 'video':
+                            filename = clean_filename(string=result['video_title'], author_name=result['video_author'])
+                            nwm_success_list.update({filename: result['nwm_video_url']})
                 else:
-                    if put_tiktok_result(url) == 'failed':
+                    result = put_tiktok_result(url)
+                    if result == 'failed':
                         failed_count += 1
+                        # 将url添加到失败列表内
+                        failed_list.append(url)
                         continue
                     else:
                         success_count += 1
+                        # 将url添加到成功列表内
+                        success_list.append(url)
+                        if result['type'] == 'video':
+                            filename = clean_filename(string=result['video_title'], author_name=result['video_author'])
+                            nwm_success_list.update({filename: result['nwm_video_url']})
             clear('bar')
             # 解析结束时间
             end = time.time()
@@ -309,7 +437,11 @@ def main():
             put_text('总共收到' + str(total_urls) + '个链接')
             put_text('成功: ' + str(success_count) + ' ' + '失败: ' + str(failed_count))
             put_text('解析共耗时: %.4f秒' % (end - start))
+            put_button("下载结果页中的所有视频", onclick=lambda: video_download_window(nwm_success_list))
             put_link('返回主页', '/')
+            time.sleep(300)
+            # 清理文件夹
+            clean_file('./web/saved_videos')
 
 
 if __name__ == "__main__":
@@ -325,4 +457,3 @@ if __name__ == "__main__":
         # 在这里修改默认端口(记得在防火墙放行该端口)
         port = 5000
     app.run(host='0.0.0.0', port=port)
-
