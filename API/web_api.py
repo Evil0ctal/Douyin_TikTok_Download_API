@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/06
+# @Update: 2022/04/15
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -85,6 +85,15 @@ def webapi():
     else:
         # 返回错误信息
         return jsonify(status='failed', reason='url value cannot be empty', function='api()', value=content)
+
+
+@app.route("/ios", methods=["POST", "GET"])
+def ios_shortcut():
+    # 用于检查快捷指令更新
+    return jsonify(version='3.0',
+                   update='2022/04/15',
+                   link='https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639',
+                   note='为快捷指令增加了检查更新的功能')
 
 
 @app.route("/video", methods=["POST", "GET"])
