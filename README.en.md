@@ -140,7 +140,7 @@ http://localhost(服务器IP):2333/
 https://www.douyin.com/video/6914948781100338440
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -339,7 +339,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   如果宝塔运行了`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified at the bottom of the file.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified at the bottom of the file.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
