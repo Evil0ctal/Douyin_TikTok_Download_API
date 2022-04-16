@@ -16,7 +16,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/38df6ca6f54840e5af80b98bf52b9c3b)Updated on 2022/04/06
+💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)Updated on 2022/04/16
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
