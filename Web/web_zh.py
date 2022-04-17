@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/05
+# @Update: 2022/04/17
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -12,6 +12,7 @@
 import os
 import re
 import time
+import json
 import tarfile
 import requests
 from scraper import Scraper
@@ -288,13 +289,26 @@ def put_tiktok_result(item):
 
 def ios_pop_window():
     with popup("iOS快捷指令"):
+        try:
+            shortcut = json.loads(requests.get(url='https://api.douyin.wtf/ios', headers=headers).text)
+            shortcut_link = shortcut['link']
+            shortcut_note = shortcut['note']
+            shortcut_update = shortcut['update']
+            shortcut_version = shortcut['version']
+        except Exception as e:
+            shortcut_link = '无法获取快捷指令信息,请到Github上进行反馈。'
+            shortcut_note = '无法获取快捷指令信息,请到Github上进行反馈。'
+            shortcut_update = '无法获取快捷指令信息,请到Github上进行反馈。'
+            shortcut_version = '无法获取快捷指令信息,请到Github上进行反馈。'
         put_text('快捷指令需要在抖音或TikTok的APP内，浏览你想要无水印保存的视频或图集。')
-        put_text('点击分享按钮，然后下拉找到 "抖音TikTok无水印下载" 这个选项。')
+        put_text('然后点击右下角分享按钮，选择更多，然后下拉找到 "抖音TikTok无水印下载" 这个选项。')
         put_text('如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。')
-        put_text('该快捷指令会在你相册创建一个新的相薄方便你浏览保存到内容。')
-        put_html('<br>')
-        put_link('[点击获取快捷指令]', 'https://www.icloud.com/shortcuts/e8243369340548efa0d4c1888dd3c170',
-                 new_window=True)
+        put_text('该快捷指令会在你相册创建一个新的相薄方便你浏览保存的内容。')
+        put_html('<hr>')
+        put_text('最新快捷指令版本: {}'.format(shortcut_version))
+        put_text('快捷指令更新时间: {}'.format(shortcut_update))
+        put_text('快捷指令更新内容: {}'.format(shortcut_note))
+        put_link('[点击获取快捷指令]', shortcut_link, new_window=True)
 
 
 def api_document_pop_window():
