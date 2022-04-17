@@ -45,6 +45,7 @@ def index():
                   'GitHub': 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API',
                   'Introduction': 'Free and open source Douyin/TikTok watermark-free video download tool, supports API calls.',
                   'Web interface': 'https://douyin.wtf/',
+                  'iOS Shortcuts': 'https://api.douyin.wtf/ios',
                   'Parsing Douyin/TikTok videos': 'https://api.douyin.wtf/api?url=[Douyin/TikTok url]',
                   'Return Video MP4 File Download': 'https://api.douyin.wtf/video?url=[Douyin/TikTok url]',
                   'Return Video MP3 File Download': 'https://api.douyin.wtf/music?url=[Douyin/TikTok url]'}
