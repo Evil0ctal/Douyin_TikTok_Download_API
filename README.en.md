@@ -1,7 +1,6 @@
 # welcome`Douyin_TikTok_Download_API`(Douyin/TikTok no watermark parsing API)
 
-![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
+![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
 Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
 
@@ -21,7 +20,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本项目API实现应用内下载。
+It can be used to download videos that the author prohibits to download, and can be used with[iOS Shortcuts APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally.
 
@@ -58,7 +57,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 
 * * *
 
-## 🧭How to use:
+## 🧭如何使用:
 
 -   Clone this repository:
 
@@ -141,7 +140,7 @@ http://localhost(服务器IP):2333/
 https://www.douyin.com/video/6914948781100338440
 ```
 
--   TikTok短网址 (APP内复制)
+-   TikTok Short URL (In-App Copy)
 
 ```text
 例子：
@@ -177,7 +176,7 @@ The API can convert the request parameters into a watermark-free video/picture s
 http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链接"
 ```
 
--   return parameter
+-   返回参数
 
 > Douyin video
 
@@ -316,7 +315,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 ## 💾Deploy
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 > It is best to deploy this project to an overseas server, otherwise strange problems may occur.
 
@@ -349,7 +348,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 -   Main interface
 
