@@ -52,8 +52,10 @@ def valid_check(kou_ling):
     # 对每一个链接进行校验
     if url_list:
         total_urls = len(url_list)
-        if total_urls > 30:
-            return '为了避免资源占用过多请确保输入链接少于30个！'
+        # 最大接受提交URL的数量
+        max_urls = 10
+        if total_urls > max_urls:
+            return '为了避免资源占用过多请确保每次提交的链接少于10个，如需大量解析请自行部署。'
         else:
             for i in url_list:
                 if 'douyin.com' in i[:31]:
