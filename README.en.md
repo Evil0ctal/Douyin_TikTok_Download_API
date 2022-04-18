@@ -57,7 +57,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 
 * * *
 
-## 🧭如何使用:
+## 🧭How to use:
 
 -   Clone this repository:
 
@@ -176,7 +176,7 @@ The API can convert the request parameters into a watermark-free video/picture s
 http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链接"
 ```
 
--   返回参数
+-   return parameter
 
 > Douyin video
 
@@ -315,13 +315,13 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 ## 💾Deploy
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server, otherwise strange problems may occur.
 
 For example: the project is deployed on a domestic server, and the person is in the United States, click the link of the result page and report an error 403, which is visually related to Douyin CDN.
 
-> Deploy using the Pagoda Linux panel
+> 使用宝塔Linux面板进行部署
 
 -   First go to the security group to open ports 5000 and 2333 (default 5000 for web, 2333 for API default, which can be modified at the bottom of the file.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
@@ -348,7 +348,7 @@ For example: the project is deployed on a domestic server, and the person is in 
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 -   Main interface
 
