@@ -16,7 +16,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
+💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
@@ -176,7 +176,7 @@ The API can convert the request parameters into a watermark-free video/picture s
 http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链接"
 ```
 
--   返回参数
+-   return parameter
 
 > Douyin video
 
@@ -319,9 +319,9 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
-例子：
-项目部署在国内服务器，而人在美国，点击结果页面链接报错403 ，目测与抖音CDN有关系。
-项目部署在韩国服务器，解析TikTok报错 ，目测TikTok对某些地区或IP进行了限制。
+example:
+The project is deployed on a domestic server, and the person is in the United States. Clicking the link on the result page reports an error 403, which is visually related to the Douyin CDN.
+The project is deployed on a South Korean server, parsing TikTok errors, and visually TikTok restricts certain regions or IPs.
 
 > Use the pagoda Linux panel for deployment (the Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
@@ -349,8 +349,8 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ## 🎉 Screenshot
 
-> 注：
-> 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
+> Note:
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 -   Main interface
 
