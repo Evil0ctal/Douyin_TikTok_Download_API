@@ -1,4 +1,4 @@
-# welcome`Douyin_TikTok_Download_API`(Douyin/TikTok no watermark parsing API)
+# welcome`Douyin_TikTok_Download_API` (抖音/TikTok无水印解析API)
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
@@ -110,7 +110,7 @@ tiktok_data = api.tiktok('TikTok分享口令/链接')
 print(tiktok_data)
 ```
 
--   Entrance
+-   入口
 
 ```text
 网页入口:
@@ -334,10 +334,10 @@ For example: the project is deployed on a domestic server, and the person is in 
 -   Path select the path where you upload the file
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
 -   The frame is modified to`Flask`
--   The startup method is changed to`python`
+-   启动方式修改为`python`
 -   Web startup file selection`web_zh.py`
--   API startup file selection`web_api.py`
--   勾选安装模块依赖
+-   API启动文件选择`web_api.py`
+-   Check install module dependencies
 -   Start at will
 -   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified at the bottom of the file.
 
