@@ -14,45 +14,41 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ## 👻介绍
 
-> 因恶意使用暂时关闭/video和/music这两个API，如需要请自行部署，其他功能在演示站上仍正常使用，在我没想到更好的解决方法之前请手动保存视频文件。我的小鸡只有0.5G内存一个CPU核心，顶不住了╥﹏╥...
+> 因为演示站的机子配置很拉胯，动不动就CPU吃满然后进程结束(其实主要是我代码写的很拉胯)，出于稳定性的考虑，暂时关闭演示站的/video和/music这两个API，同时结果页面的批量下载功能也暂时不可用，如有需求请自行部署或本地运行，其他功能在演示站上仍正常使用，在我没想到更好的解决方法之前请右键手动保存视频文件，在跑演示站的两台的小鸡都只有0.5G内存和一个CPU核心，顶不住了╥﹏╥...
 
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
 🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
 
-💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动更新，安装一次即可。)
+💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
 
 本项目使用 [PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask)，利用Python实现在线批量解析抖音的无水印视频/图集。
 
-可用于下载作者禁止下载的视频，同时可搭配[iOS快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本项目API实现应用内下载。
+可用于下载作者禁止下载的视频，或者进行数据爬取等等，同时可搭配[iOS自带的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本项目API实现应用内下载。
 
-快捷指令需要在抖音或TikTok的APP内，选择你想要保存的视频，点击分享按钮，然后找到 "抖音TikTok无水印下载" 这个选项，如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。
+快捷指令需要在抖音或TikTok的APP内，选择你想要保存的视频，点击分享按钮，然后找到 "抖音TikTok无水印下载" 这个选项，如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用，下载成功的视频或图集会保存在一个专门的相册中以方便浏览。
 
 
 ## 💡项目文件结构
 
 ```
+# 请根据需要自行修改config.ini中的内容
 .
 └── Douyin_TikTok_Download_API/
-    ├── Web/
-    │   ├── web_zh.py(网页入口)
-    │   ├── scraper.py(解析库)
-    │   └── logs.txt(错误日志)
-    ├── API/
-    │   ├── web_api.py(API)
-    │   ├── scraper.py(解析库)
-    │   └── API_logs.txt(API调用日志)
-    ├── TikTok_ZH.py(中文web界面旧代码不再维护,目前仍工作)
-    ├── TikTok_EN.py(英文web界面旧代码不再维护,未测试)
-    └── requirements.txt(旧代码不再维护)
+    ├── web_zh.py(网页入口)
+    ├── web_api.py(API)
+    ├── scraper.py(解析库)
+    ├── config.ini(网页入口和API的配置文件，请自行修改该文件。)
+    ├── logs.txt(错误日志，自动生成。)
+    └── API_logs.txt(API调用日志，自动生成。)
 ```
 
 ## 💯已支持功能：
 
 - 支持抖音视频/图集解析
-- 支持海外TikTok视频解析(无图集解析)
+- 支持海外TikTok视频解析
 - 支持批量解析(支持抖音/TikTok混合解析)
-- 支持结果页批量下载无水印视频
+- 解析结果页批量下载无水印视频
 - 支持API调用
 - 支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
 
@@ -64,7 +60,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ---
 
-## 🧭如何使用:
+## 🧭运行说明(经过测试过的Python版本为3.8):
 
 - 克隆本仓库：
 
@@ -78,41 +74,45 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
 ```
 
+- 安装依赖库：
+
+```console
+pip install -r requirements.txt
+```
+
+- 修改config.ini(可选)：
+
+```console
+vim config.ini
+```
+
 - 网页解析
 
 ```console
-# 移动至Web目录
-cd Web
-# 安装依赖库
-pip install -r requirements.txt
-# 运行web_zh.py (测试过的Python版本为3.8)
+# 运行web_zh.py ()
 python3 web_zh.py
 ```
 
 - API
 
 ```console
-# 移动至API目录
-cd API
-# 安装依赖库
-pip install -r requirements.txt
-# 运行web_api.py (测试过的Python版本为3.8)
+# 运行web_api.py
 python3 web_api.py
 ```
 
 - 调用解析库
 
 ```python
-# 将scraper.py拷贝至你的项目目录(测试过的Python版本为3.8)
+# 将scraper.py拷贝至你的项目目录
 # 在该项目中导入scraper.py 
 from scraper import Scraper
 api = Scraper()
 # 解析Douyin视频/图集
-douyin_data = api.douyin('抖音分享口令/链接')
+douyin_data = api.douyin(input('在此输入抖音分享口令/链接：' ))
 # 返回字典
 print(douyin_data)
 # 解析TikTok视频/图集
-tiktok_data = api.tiktok('TikTok分享口令/链接')
+tiktok_data = api.tiktok(input('在此输入TikTok分享口令/链接：' ))
 # 返回字典
 print(tiktok_data)
 ```
@@ -306,7 +306,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 ```text
 http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链接"
 # 返回无水印mp4文件
-# 大量请求时很吃服务器内存，容易崩，慎用。
+# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 - 下载音频请求参数
@@ -314,7 +314,7 @@ http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链
 ```text
 http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链接"
 # 返回mp3文件
-# 大量请求时很吃服务器内存，容易崩，慎用。
+# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 ---
@@ -324,13 +324,15 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 > 注：
 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
 
-> 最好将本项目部署至海外服务器，否则可能会出现奇怪的问题。
+> 最好将本项目部署至海外服务器(优先选择美国地区的服务器)，否则可能会出现奇怪的问题。
 
-如：项目部署在国内服务器，而人在美国，点击结果页面链接报错403 ，目测与抖音CDN有关系。
+例子：
+项目部署在国内服务器，而人在美国，点击结果页面链接报错403 ，目测与抖音CDN有关系。
+项目部署在韩国服务器，解析TikTok报错 ，目测TikTok对某些地区或IP进行了限制。
 
-> 使用宝塔Linux面板进行部署
+> 使用宝塔Linux面板进行部署(中文宝塔要强制绑定手机号了，很流氓且无法绕过，建议使用宝塔国际版，谷歌搜索关键字aapanel自行安装，部署步骤相似。)
 
-- 首先要去安全组开放5000和2333端口（Web默认5000，API默认2333，可以在文件底部修改。）
+- 首先要去安全组开放5000和2333端口（Web默认5000，API默认2333，可以在文件config.ini中修改。）
 - 在宝塔应用商店内搜索python并安装项目管理器 (推荐使用1.9版本)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
@@ -346,7 +348,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 - API启动文件选择`web_api.py`
 - 勾选安装模块依赖
 - 开机启动随意
-- 如果宝塔运行了`Nginx`等其他服务时请自行判断端口是否被占用，运行端口可在文件底部修改。
+- 如果宝塔运行了`Nginx`等其他服务时请自行判断端口是否被占用，运行端口可在文件config.ini中修改。
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
