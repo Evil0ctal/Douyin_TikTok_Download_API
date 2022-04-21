@@ -1,4 +1,4 @@
-# welcome`Douyin_TikTok_Download_API` (抖音/TikTok无水印解析API)
+# welcome`Douyin_TikTok_Download_API`(Douyin/TikTok no watermark parsing API)
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
@@ -110,7 +110,7 @@ tiktok_data = api.tiktok('TikTok分享口令/链接')
 print(tiktok_data)
 ```
 
--   入口
+-   Entrance
 
 ```text
 网页入口:
@@ -140,7 +140,7 @@ http://localhost(服务器IP):2333/
 https://www.douyin.com/video/6914948781100338440
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -168,7 +168,7 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 
 ## 🛰️API usage
 
-The API can convert the request parameters into a watermark-free video/picture straight link that needs to be extracted, and can be downloaded in-app with the IOS shortcut.
+API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。
 
 -   Parse request parameters
 
@@ -334,9 +334,9 @@ For example: the project is deployed on a domestic server, and the person is in 
 -   Path select the path where you upload the file
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
 -   The frame is modified to`Flask`
--   启动方式修改为`python`
+-   The startup method is changed to`python`
 -   Web startup file selection`web_zh.py`
--   API启动文件选择`web_api.py`
+-   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
 -   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified at the bottom of the file.
