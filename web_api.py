@@ -64,7 +64,7 @@ def webapi():
     content = request.args.get("url")
     if content != '':
         post_content = find_url(content)[0]
-        if api_config['Allow_Logs']:
+        if api_config['Allow_Logs'] == 'True':
             # 将API记录在API_logs.txt中
             date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             with open('API_logs.txt', 'a') as f:
@@ -108,7 +108,7 @@ def download_video():
     # 用于返回视频下载请求(返回MP4文件下载请求，面对大量请求时非常吃服务器内存，容易崩，慎用。)
     # 将api_switch的值设定为False可关闭该API
     api_switch = api_config['Video_Download']
-    if api_switch:
+    if api_switch == 'True':
         api = Scraper()
         content = request.args.get("url")
         if content == '':
@@ -171,7 +171,7 @@ def download_music():
     # 用于返回视频下载请求(返回MP3文件下载请求，面对大量请求时非常吃服务器内存，容易崩，慎用。)
     # 将api_switch的值设定为False可关闭该API
     api_switch = api_config['Music_Download']
-    if api_switch:
+    if api_switch == 'True':
         api = Scraper()
         content = request.args.get("url")
         if content == '':
