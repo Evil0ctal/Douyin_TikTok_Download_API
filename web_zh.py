@@ -91,7 +91,7 @@ def error_do(reason, function, value):
     put_markdown('你可以在右上角的关于菜单中查看本站错误日志。')
     put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
     put_html("<hr>")
-    if web_config['Allow_Logs']:
+    if web_config['Allow_Logs'] == 'True':
         # 将错误记录在logs.txt中
         error_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         with open('logs.txt', 'a') as f:
@@ -463,7 +463,7 @@ def main():
             put_text('总共收到' + str(total_urls) + '个链接')
             put_text('成功: ' + str(success_count) + ' ' + '失败: ' + str(failed_count))
             put_text('解析共耗时: %.4f秒' % (end - start))
-            if web_config['Allow_Batch_Download']:
+            if web_config['Allow_Batch_Download'] == 'True':
                 put_button("下载结果页中的所有视频", onclick=lambda: video_download_window(nwm_success_list))
             put_link('返回主页', '/')
             time.sleep(300)
