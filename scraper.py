@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/21
+# @Update: 2022/04/22
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -33,7 +33,7 @@ class Scraper:
             "User-Agent": "Mozilla/5.0  (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) coc_coc_browser/86.0.170 Chrome/80.0.3987.170 Safari/537.36",
         }
 
-    @retry(stop=stop_after_attempt(3), wait=wait_random(min=0.2, max=2))
+    @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
     def douyin(self, original_url):
         """
         利用官方接口解析抖音链接信息
@@ -269,7 +269,7 @@ class Scraper:
             # 返回异常
             return {'status': 'failed', 'reason': e, 'function': 'Scraper.douyin()', 'value': original_url}
 
-    @retry(stop=stop_after_attempt(3), wait=wait_random(min=0.2, max=2))
+    @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
     def tiktok(self, original_url):
         """
         解析TikTok链接
@@ -300,12 +300,12 @@ class Scraper:
             # 从TikTok网页获取部分视频数据
             tiktok_headers = self.tiktok_headers
             html = requests.get(url=original_url, headers=tiktok_headers)
-            res = re.search('<script id="sigi-persisted-data">(.*)</script><script', html.text).group(1)
-            resp = re.findall(r'^window\[\'SIGI_STATE\']=(.*)?;window', res)[0]
-            result = json.loads(resp)
-            author_id = result["ItemList"]["video"]["list"][0]
+            # 正则检索网页中存在的JSON信息
+            resp = re.search('"ItemModule":{(.*)},"UserModule":', html.text).group(1)
+            resp_info = ('{"ItemModule":{' + resp + '}}')
+            result = json.loads(resp_info)
             # 从网页中获得的视频JSON数据
-            video_info = result["ItemModule"][author_id]
+            video_info = result["ItemModule"][video_id]
             # 从TikTok官方API获取部分视频数据
             tiktok_api_link = 'https://api.tiktokv.com/aweme/v1/multi/aweme/detail/?aweme_ids=%5B{}%5D'.format(video_id)
             print('正在请求API链接:{}'.format(tiktok_api_link))
