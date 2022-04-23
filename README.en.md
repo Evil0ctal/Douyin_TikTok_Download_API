@@ -2,7 +2,7 @@
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
-Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
+Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[traditional Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
 > Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
@@ -41,7 +41,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
 -   Support Douyin video/atlas parsing
 -   Support overseas TikTok video analysis
 -   Support batch parsing (support Douyin/TikTok hybrid parsing)
--   Parse the result page to download watermark-free videos in batches
+-   解析结果页批量下载无水印视频
 -   Support API calls
 -   support[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
 
@@ -82,7 +82,7 @@ vim config.ini
 -   Web page parsing
 
 ```console
-# 运行web_zh.py ()
+# 运行web_zh.py
 python3 web_zh.py
 ```
 
@@ -119,7 +119,7 @@ API入口:
 http://localhost(服务器IP):2333/
 ```
 
-## 🗺️ Supported submission formats:
+## 🗺️ Supported submission formats (including but not limited to the following examples):
 
 -   Douyin share password (copy in APP)
 
@@ -138,6 +138,13 @@ http://localhost(服务器IP):2333/
 ```text
 例子：
 https://www.douyin.com/video/6914948781100338440
+```
+
+-   Douyin discovery page URL (APP copy)
+
+```text
+例子：
+https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
 -   TikTok Short URL (In-App Copy)
@@ -299,7 +306,6 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 ```text
 http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链接"
 # 返回无水印mp4文件
-# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 -   Download audio request parameters
@@ -307,7 +313,6 @@ http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链
 ```text
 http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链接"
 # 返回mp3文件
-# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 * * *
