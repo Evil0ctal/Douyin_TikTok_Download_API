@@ -1,9 +1,8 @@
 # 歡迎使用`Douyin_TikTok_Download_API`(抖音/TikTok無水印解析API)
 
-![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)
-[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
+![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
-語言：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[簡體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
+語言：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[簡體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
 > 注：此API適用於抖音和抖音。抖音是中國的TikTok。您可以隨意分發或修改代碼，但請註明原作者。
 
@@ -39,7 +38,7 @@
 
 ## 💯已支持功能：
 
--   支持抖音視頻/圖集解析
+-   支持抖音视频/图集解析
 -   支持海外TikTok視頻解析
 -   支持批量解析(支持抖音/TikTok混合解析)
 -   解析結果頁批量下載無水印視頻
@@ -83,7 +82,7 @@ vim config.ini
 -   網頁解析
 
 ```console
-# 运行web_zh.py ()
+# 运行web_zh.py
 python3 web_zh.py
 ```
 
@@ -120,7 +119,7 @@ API入口:
 http://localhost(服务器IP):2333/
 ```
 
-## 🗺️支持的提交格式：
+## 🗺️支持的提交格式(包含但不僅限於以下例子)：
 
 -   抖音分享口令  (APP內復制)
 
@@ -139,6 +138,13 @@ http://localhost(服务器IP):2333/
 ```text
 例子：
 https://www.douyin.com/video/6914948781100338440
+```
+
+-   抖音發現頁網址 (APP複製)
+
+```text
+例子：
+https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
 -   TikTok短網址 (APP內復制)
@@ -300,7 +306,6 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 ```text
 http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链接"
 # 返回无水印mp4文件
-# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 -   下載音頻請求參數
@@ -308,7 +313,6 @@ http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链
 ```text
 http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链接"
 # 返回mp3文件
-# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 * * *
