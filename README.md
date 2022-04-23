@@ -6,7 +6,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)
 [![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
-Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  [[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
+Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  [[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  [[繁体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
 > Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
@@ -89,7 +89,7 @@ vim config.ini
 - 网页解析
 
 ```console
-# 运行web_zh.py ()
+# 运行web_zh.py
 python3 web_zh.py
 ```
 
@@ -126,7 +126,7 @@ API入口:
 http://localhost(服务器IP):2333/
 ```
 
-## 🗺️支持的提交格式：
+## 🗺️支持的提交格式(包含但不仅限于以下例子)：
 
 - 抖音分享口令  (APP内复制)
 
@@ -145,6 +145,13 @@ http://localhost(服务器IP):2333/
 ```text
 例子：
 https://www.douyin.com/video/6914948781100338440
+```
+
+- 抖音发现页网址 (APP复制)
+
+```text
+例子：
+https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
 - TikTok短网址 (APP内复制)
@@ -306,7 +313,6 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 ```text
 http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链接"
 # 返回无水印mp4文件
-# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 - 下载音频请求参数
@@ -314,7 +320,6 @@ http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链
 ```text
 http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链接"
 # 返回mp3文件
-# 大量请求时很吃服务器CPU，容易崩，慎用。
 ```
 
 ---
