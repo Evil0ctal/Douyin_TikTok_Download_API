@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/22
+# @Update: 2022/04/23
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -99,26 +99,18 @@ class Scraper:
                     try:
                         # 图集BGM链接
                         album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                        # 图集BGM标题
-                        album_music_title = str(js['item_list'][0]['music']['title'])
-                        # 图集BGM作者
-                        album_music_author = str(js['item_list'][0]['music']['author'])
-                        # 图集BGM ID
-                        album_music_id = str(js['item_list'][0]['music']['id'])
-                        # 图集BGM MID
-                        album_music_mid = str(js['item_list'][0]['music']['mid'])
                     except:
                         # 报错后代表无背景音乐
                         # 图集BGM链接
                         album_music = 'No BGM found'
-                        # 图集BGM标题
-                        album_music_title = 'No BGM found'
-                        # 图集BGM作者
-                        album_music_author = 'No BGM found'
-                        # 图集BGM ID
-                        album_music_id = 'No BGM found'
-                        # 图集BGM MID
-                        album_music_mid = 'No BGM found'
+                    # 图集BGM标题
+                    album_music_title = str(js['item_list'][0]['music']['title'])
+                    # 图集BGM作者
+                    album_music_author = str(js['item_list'][0]['music']['author'])
+                    # 图集BGM ID
+                    album_music_id = str(js['item_list'][0]['music']['id'])
+                    # 图集BGM MID
+                    album_music_mid = str(js['item_list'][0]['music']['mid'])
                     # 图集ID
                     album_aweme_id = str(js['item_list'][0]['statistics']['aweme_id'])
                     # 评论数量
@@ -198,26 +190,18 @@ class Scraper:
                     try:
                         # 视频BGM链接
                         video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                        # 视频BGM标题
-                        video_music_title = str(js['item_list'][0]['music']['title'])
-                        # 视频BGM作者
-                        video_music_author = str(js['item_list'][0]['music']['author'])
-                        # 视频BGM ID
-                        video_music_id = str(js['item_list'][0]['music']['id'])
-                        # 视频BGM MID
-                        video_music_mid = str(js['item_list'][0]['music']['mid'])
                     except:
                         # 出错代表无背景音乐
                         # 视频BGM链接
                         video_music = 'No BGM found'
-                        # 视频BGM标题
-                        video_music_title = 'No BGM found'
-                        # 视频BGM作者
-                        video_music_author = 'No BGM found'
-                        # 视频BGM ID
-                        video_music_id = 'No BGM found'
-                        # 视频BGM MID
-                        video_music_mid = 'No BGM found'
+                    # 视频BGM标题
+                    video_music_title = str(js['item_list'][0]['music']['title'])
+                    # 视频BGM作者
+                    video_music_author = str(js['item_list'][0]['music']['author'])
+                    # 视频BGM ID
+                    video_music_id = str(js['item_list'][0]['music']['id'])
+                    # 视频BGM MID
+                    video_music_mid = str(js['item_list'][0]['music']['mid'])
                     # 视频ID
                     video_aweme_id = str(js['item_list'][0]['statistics']['aweme_id'])
                     # 评论数量
