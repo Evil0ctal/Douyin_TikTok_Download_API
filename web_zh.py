@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/21
+# @Update: 2022/05/16
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -201,6 +201,7 @@ def put_douyin_result(item):
                 ['类型', '内容'],
                 ['格式:', douyin_date['url_type']],
                 ['视频直链: ', put_link('点击打开视频', douyin_date['nwm_video_url'], new_window=True)],
+                ['视频直链1080p: ', put_link('点击打开视频', douyin_date['nwm_video_url_1080p'], new_window=True)],
                 ['视频下载：', put_link('点击下载', download_video, new_window=True)],
                 ['背景音乐直链: ', put_link('点击打开音频', douyin_date['video_music'], new_window=True)],
                 ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
