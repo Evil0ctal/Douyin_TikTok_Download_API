@@ -18,7 +18,7 @@
 
 💾iOS快捷指令:[點擊獲取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(更新於2022/04/16，快捷指令可自動檢查更新，安裝一次即可。)
 
-本項目使用[PyWebIO](https://github.com/pywebio/PyWebIO)、[燒瓶](https://github.com/pallets/flask)，利用Python實現在線批量解析抖音的無水印視頻/圖集。
+本項目使用[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask)，利用Python實現在線批量解析抖音的無水印視頻/圖集。
 
 可用於下載作者禁止下載的視頻，或者進行數據爬取等等，同時可搭配[iOS自帶的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本項目API實現應用內下載。
 
@@ -51,7 +51,7 @@
 
 ## 🤦‍♂️後續功能：
 
--   [ ] 支持輸入(抖音/TikTok)作者主頁鏈接實現批量解析
+-   [ ] 支持输入(抖音/TikTok)作者主页链接实现批量解析
 
 * * *
 
@@ -142,7 +142,7 @@ http://localhost(服务器IP):2333/
 https://www.douyin.com/video/6914948781100338440
 ```
 
--   抖音發現頁網址 (APP複製)
+-   抖音发现页网址 (APP复制)
 
 ```text
 例子：
@@ -187,7 +187,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 
 -   返回參數
 
-> 抖音視頻
+> 抖音视频
 
 ```json
 {
@@ -310,7 +310,7 @@ http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链
 # 返回无水印mp4文件
 ```
 
--   下載音頻請求參數
+-   下载音频请求参数
 
 ```text
 http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链接"
