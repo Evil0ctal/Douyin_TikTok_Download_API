@@ -249,7 +249,7 @@ class Scraper:
                                   'api_url': api_url,
                                   'video_title': video_title,
                                   'nwm_video_url': video_url,
-                                  'wm_video_url_1080p': nwm_video_url_1080p,
+                                  'nwm_video_url_1080p': nwm_video_url_1080p,
                                   'wm_video_url': wm_video_url,
                                   'video_aweme_id': video_aweme_id,
                                   'video_author': video_author,
