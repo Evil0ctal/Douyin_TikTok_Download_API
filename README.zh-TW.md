@@ -1,6 +1,7 @@
 # 歡迎使用`Douyin_TikTok_Download_API`(抖音/TikTok無水印解析API)
 
-![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
+![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)
+[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
 語言：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[簡體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
@@ -41,7 +42,7 @@
 ## 💯已支持功能：
 
 -   支持抖音視頻/圖集解析
--   支持海外TikTok視頻解析
+-   支持海外TikTok视频解析
 -   支持批量解析(支持抖音/TikTok混合解析)
 -   解析結果頁批量下載無水印視頻
 -   支持API調用
@@ -346,7 +347,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 -   啟動方式修改為`python`
 -   Web啟動文件選擇`web_zh.py`
 -   API啟動文件選擇`web_api.py`
--   勾選安裝模塊依賴
+-   勾选安装模块依赖
 -   開機啟動隨意
 -   如果寶塔運行了`Nginx`等其他服務時請自行判斷端口是否被佔用，運行端口可在文件config.ini中修改。
 
