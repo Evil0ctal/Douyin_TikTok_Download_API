@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/23
+# @Update: 2022/05/16
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -96,21 +96,31 @@ class Scraper:
                         # 如果作者未修改过抖音号，应使用此值以避免无法获取其抖音ID
                         album_author_id = str(js['item_list'][0]['author']['short_id'])
                     # 尝试获取图集BGM信息
-                    try:
-                        # 图集BGM链接
-                        album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                    except:
-                        # 报错后代表无背景音乐
-                        # 图集BGM链接
-                        album_music = 'No BGM found'
-                    # 图集BGM标题
-                    album_music_title = str(js['item_list'][0]['music']['title'])
-                    # 图集BGM作者
-                    album_music_author = str(js['item_list'][0]['music']['author'])
-                    # 图集BGM ID
-                    album_music_id = str(js['item_list'][0]['music']['id'])
-                    # 图集BGM MID
-                    album_music_mid = str(js['item_list'][0]['music']['mid'])
+                    if 'music' in js:
+                        try:
+                            # 图集BGM链接
+                            album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                        except:
+                            # 报错后代表无背景音乐
+                            # 图集BGM链接
+                            album_music = 'No BGM found'
+                        # 图集BGM标题
+                        album_music_title = str(js['item_list'][0]['music']['title'])
+                        # 图集BGM作者
+                        album_music_author = str(js['item_list'][0]['music']['author'])
+                        # 图集BGM ID
+                        album_music_id = str(js['item_list'][0]['music']['id'])
+                        # 图集BGM MID
+                        album_music_mid = str(js['item_list'][0]['music']['mid'])
+                    else:
+                        # 图集BGM标题
+                        album_music_title = 'No BGM found'
+                        # 图集BGM作者
+                        album_music_author = 'No BGM found'
+                        # 图集BGM ID
+                        album_music_id = 'No BGM found'
+                        # 图集BGM MID
+                        album_music_mid = 'No BGM found'
                     # 图集ID
                     album_aweme_id = str(js['item_list'][0]['statistics']['aweme_id'])
                     # 评论数量
@@ -174,6 +184,10 @@ class Scraper:
                     if video_author_id == "":
                         # 如果作者未修改过抖音号，应使用此值以避免无法获取其抖音ID
                         video_author_id = str(js['item_list'][0]['author']['short_id'])
+                    # vid
+                    vid = str(js['item_list'][0]['video']['vid'])
+                    # 无水印1080p视频链接
+                    wm_video_url_1080p = "https://aweme.snssdk.com/aweme/v1/play/?video_id={}&radio=1080p&line=0".format(vid)
                     # 有水印视频链接
                     wm_video_url = str(js['item_list'][0]['video']['play_addr']['url_list'][0])
                     # 无水印视频链接 (在回执JSON中将关键字'playwm'替换为'play'即可获得无水印地址)
@@ -231,6 +245,7 @@ class Scraper:
                                   'api_url': api_url,
                                   'video_title': video_title,
                                   'nwm_video_url': video_url,
+                                  'wm_video_url_1080p': wm_video_url_1080p,
                                   'wm_video_url': wm_video_url,
                                   'video_aweme_id': video_aweme_id,
                                   'video_author': video_author,
