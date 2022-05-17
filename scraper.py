@@ -189,9 +189,9 @@ class Scraper:
                     # 无水印1080p视频链接
                     try:
                         r = requests.get("https://aweme.snssdk.com/aweme/v1/play/?video_id={}&radio=1080p&line=0".format(vid), headers=headers, allow_redirects=False)
-                        wm_video_url_1080p = r.headers['Location']
+                        nwm_video_url_1080p = r.headers['Location']
                     except:
-                        wm_video_url_1080p = "None"
+                        nwm_video_url_1080p = "None"
                     # 有水印视频链接
                     wm_video_url = str(js['item_list'][0]['video']['play_addr']['url_list'][0])
                     # 无水印视频链接 (在回执JSON中将关键字'playwm'替换为'play'即可获得无水印地址)
