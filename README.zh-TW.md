@@ -81,7 +81,7 @@ pip install -r requirements.txt
 vim config.ini
 ```
 
--   网页解析
+-   網頁解析
 
 ```console
 # 运行web_zh.py
@@ -340,7 +340,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 * * *
 
 -   創建一個項目名字隨意
--   路径选择你上传文件的路径
+-   路徑選擇你上傳文件的路徑
 -   Python版本需要至少3以上(在左側版本管理中自行安裝)
 -   框架修改為`Flask`
 -   啟動方式修改為`python`
