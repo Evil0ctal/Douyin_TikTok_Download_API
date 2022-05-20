@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/05/16
+# @Update: 2022/05/20
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -23,7 +23,8 @@ from pywebio.output import *
 from pywebio.platform.flask import webio_view
 from flask import Flask
 
-app = Flask(__name__)
+
+app = Flask(__name__, static_url_path='')
 app_config = configparser.ConfigParser()
 app_config.read('config.ini', encoding='utf-8')
 web_config = app_config['Web_ZH']
@@ -477,7 +478,12 @@ if __name__ == "__main__":
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     with open('logs.txt', 'a') as f:
         f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
-    app.add_url_rule('/', 'webio_view', webio_view(main, cdn=False), methods=['GET', 'POST', 'OPTIONS'])
+    # 判断是否使用CDN加载前端资源
+    if web_config['PyWebIO_CDN'] == 'True':
+        cdn = True
+    else:
+        cdn = False
+    app.add_url_rule('/', 'webio_view', webio_view(main, cdn=cdn), methods=['GET', 'POST', 'OPTIONS'])
     # 获取空闲端口
     if os.environ.get('PORT'):
         port = int(os.environ.get('PORT'))
