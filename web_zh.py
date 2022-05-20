@@ -477,7 +477,7 @@ if __name__ == "__main__":
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     with open('logs.txt', 'a') as f:
         f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
-    app.add_url_rule('/', 'webio_view', webio_view(main), methods=['GET', 'POST', 'OPTIONS'])
+    app.add_url_rule('/', 'webio_view', webio_view(main, cdn=False), methods=['GET', 'POST', 'OPTIONS'])
     # 获取空闲端口
     if os.environ.get('PORT'):
         port = int(os.environ.get('PORT'))
