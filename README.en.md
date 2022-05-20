@@ -20,9 +20,9 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
+It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
 
-The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally, and the successfully downloaded video or gallery will be saved in a special album for easy browsing.
+快捷指令需要在抖音或TikTok的APP内，选择你想要保存的视频，点击分享按钮，然后找到 "抖音TikTok无水印下载" 这个选项，如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用，下载成功的视频或图集会保存在一个专门的相册中以方便浏览。
 
 Note: After the Douyin APP is updated on 2022/04/29, click More Share to save the watermarked video or gallery. You can directly copy the link in the sharing option, and then run "Douyin TikTok No Watermark Download" in the shortcut APP, After clicking Run, paste the link into the pop-up window above.
 
@@ -149,7 +149,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok URL Shortening (In-App Copy)
+-   TikTok Short URL (In-App Copy)
 
 ```text
 例子：
@@ -330,7 +330,7 @@ example:
 The project is deployed on a domestic server, and the person is in the United States. Clicking the link on the result page reports an error 403, which is visually related to the Douyin CDN.
 The project is deployed on a South Korean server, parsing TikTok errors, and visually TikTok restricts certain regions or IPs.
 
-> Use the pagoda Linux panel for deployment (the Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
+> Use the pagoda Linux panel for deployment (Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the pagoda international version, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
 -   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
@@ -348,7 +348,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
