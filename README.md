@@ -28,8 +28,6 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 快捷指令需要在抖音或TikTok的APP内，选择你想要保存的视频，点击分享按钮，然后找到 "抖音TikTok无水印下载" 这个选项，如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用，下载成功的视频或图集会保存在一个专门的相册中以方便浏览。
 
-注：2022/04/29抖音APP更新之后点击更多分享会保存有水印视频或图集，可以直接在分享选项里复制链接，然后在快捷指令APP中运行"抖音TikTok无水印下载"，点击运行后，将链接粘贴至上方的弹窗中即可。
-
 
 ## 💡项目文件结构
 
@@ -37,6 +35,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 # 请根据需要自行修改config.ini中的内容
 .
 └── Douyin_TikTok_Download_API/
+    ├── /static(静态前端资源)
     ├── web_zh.py(网页入口)
     ├── web_api.py(API)
     ├── scraper.py(解析库)
