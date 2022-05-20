@@ -163,7 +163,7 @@ https://vm.tiktok.com/TTPdkQvKjP/
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
--   抖音/TikTok批量網址(無需使用符合隔開)
+-   抖音/TikTok批量网址(无需使用符合隔开)
 
 ```text
 例子：
