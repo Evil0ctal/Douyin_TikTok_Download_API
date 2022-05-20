@@ -163,7 +163,7 @@ https://vm.tiktok.com/TTPdkQvKjP/
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
--   抖音/TikTok批量网址(无需使用符合隔开)
+-   抖音/TikTok批量網址(無需使用符合隔開)
 
 ```text
 例子：
@@ -367,7 +367,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 -   解析完成
 
-> 單個
+> 单个
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/single_result.png)
 
