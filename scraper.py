@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/05/16
+# @Update: 2022/05/22
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -113,6 +113,8 @@ class Scraper:
                         # 图集BGM MID
                         album_music_mid = str(js['item_list'][0]['music']['mid'])
                     else:
+                        # 图集BGM为空
+                        album_music = 'No BGM found'
                         # 图集BGM标题
                         album_music_title = 'No BGM found'
                         # 图集BGM作者
