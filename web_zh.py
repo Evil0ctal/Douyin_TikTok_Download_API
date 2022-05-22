@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/05/20
+# @Update: 2022/05/22
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -240,7 +240,7 @@ def put_douyin_result(item):
             return {'status': 'success',
                     'type': 'album',
                     'album_title': douyin_date['album_title'],
-                    'video_author': douyin_date['video_author'],
+                    'album_author': douyin_date['album_author'],
                     'album_list': douyin_date['album_list'],
                     'album_music': douyin_date['album_music'],
                     'original_url': douyin_date['original_url']}
