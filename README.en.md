@@ -1,8 +1,8 @@
-# welcome`Douyin_TikTok_Download_API` (抖音/TikTok无水印解析API)
+# welcome`Douyin_TikTok_Download_API`(Douyin/TikTok no watermark parsing API)
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
-Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[traditional Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
+Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[traditional Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
 > Note: This API is applicable to Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
@@ -148,7 +148,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -329,7 +329,7 @@ example:
 The project is deployed on a domestic server, and the person is in the United States. Clicking the link on the result page reports an error 403, which is visually related to the Douyin CDN.
 The project is deployed on a South Korean server, parsing TikTok errors, and visually TikTok restricts certain regions or IPs.
 
-> Use the pagoda Linux panel for deployment (Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the pagoda international version, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
+> Use the pagoda Linux panel for deployment (the Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
 -   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
@@ -347,7 +347,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
