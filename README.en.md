@@ -10,7 +10,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-> Because the machine configuration of the demo station is very crotch, the CPU will be full and the process will end (in fact, my code is very crotch), for the sake of stability, temporarily close the two /video and /music of the demo station. At the same time, the batch download function of the result page is temporarily unavailable. If you need it, please deploy it yourself or run it locally. Other functions can still be used normally on the demo site. Before I think of a better solution, please right-click to manually save the video File, the two chicks running the demo station only have 0.5G memory and one CPU core, so they can't stand it ╥﹏╥...
+> Because the machine configuration of the demo station is very crotch, the CPU will be full and the process will end (in fact, my code is very crotch), for the sake of stability, temporarily close the demo station /video and /music two At the same time, the batch download function of the result page is temporarily unavailable. If you need it, please deploy it yourself or run it locally. Other functions can still be used normally on the demo site. Before I think of a better solution, please right-click to manually save the video File, the two chicks running the demo station only have 0.5G memory and one CPU core, so they can't stand it ╥﹏╥...
 
 🚀Demo address:<https://douyin.wtf/>
 
@@ -22,7 +22,7 @@ This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https:/
 
 It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
-The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally, and the successfully downloaded video or gallery will be saved in a special album for easy browsing.
+The shortcut command needs to be in the Douyin or TikTok APP, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally, and the successfully downloaded video or gallery will be saved in a special album for easy browsing.
 
 ## 💡Project file structure
 
@@ -331,7 +331,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 
 > Use the pagoda Linux panel for deployment (the Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
+-   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API, which can be modified in the file config.ini.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
