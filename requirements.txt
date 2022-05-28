@@ -7,7 +7,7 @@ idna==3.3
 itsdangerous==2.1.2
 Jinja2==3.1.1
 MarkupSafe==2.1.1
-pywebio==1.6.0
+pywebio==1.6.1
 requests==2.27.1
 retrying==1.3.3
 six==1.16.0
