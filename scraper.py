@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/05/22
+# @Update: 2022/06/03
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -285,7 +285,7 @@ class Scraper:
         # 开始时间
         start = time.time()
         # 校验TikTok链接
-        if original_url[:12] == "https://www.":
+        if '@' in original_url:
             original_url = original_url
             print("目标链接: ", original_url)
         else:
