@@ -10,17 +10,17 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-> Because the machine configuration of the demo station is very crotch, the CPU will be full and the process will end (in fact, my code is very crotch), for the sake of stability, temporarily close the two /video and /music of the demo station. At the same time, the batch download function of the result page is temporarily unavailable. If you need it, please deploy it yourself or run it locally. Other functions can still be used normally on the demo site. Before I think of a better solution, please right-click to manually save the video File, the two chicks running the demo station only have 0.5G memory and one CPU core, so they can't stand it ╥﹏╥...
+> 因为演示站的机子配置很拉胯，动不动就CPU吃满然后进程结束(其实主要是我代码写的很拉胯)，出于稳定性的考虑，暂时关闭演示站的/video和/music这两个API，同时结果页面的批量下载功能也暂时不可用，如有需求请自行部署或本地运行，其他功能在演示站上仍正常使用，在我没想到更好的解决方法之前请右键手动保存视频文件，在跑演示站的两台的小鸡都只有0.5G内存和一个CPU核心，顶不住了╥﹏╥...
 
 🚀Demo address:<https://douyin.wtf/>
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+💾iOS Shortcuts:[点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-可用于下载作者禁止下载的视频，或者进行数据爬取等等，同时可搭配[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
+It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally, and the successfully downloaded video or gallery will be saved in a special album for easy browsing.
 
@@ -329,10 +329,10 @@ example:
 The project is deployed on a domestic server, and the person is in the United States. Clicking the link on the result page reports an error 403, which is visually related to the Douyin CDN.
 The project is deployed on a South Korean server, parsing TikTok errors, and visually TikTok restricts certain regions or IPs.
 
-> Use the pagoda Linux panel for deployment (Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the pagoda international version, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
+> Use the pagoda Linux panel for deployment (the Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
--   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, default 2333 for API, which can be modified in the file config.ini.)
--   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
+-   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
+-   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
