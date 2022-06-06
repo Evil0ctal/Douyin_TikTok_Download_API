@@ -10,13 +10,13 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-> 因为演示站的机子配置很拉胯，动不动就CPU吃满然后进程结束(其实主要是我代码写的很拉胯)，出于稳定性的考虑，暂时关闭演示站的/video和/music这两个API，同时结果页面的批量下载功能也暂时不可用，如有需求请自行部署或本地运行，其他功能在演示站上仍正常使用，在我没想到更好的解决方法之前请右键手动保存视频文件，在跑演示站的两台的小鸡都只有0.5G内存和一个CPU核心，顶不住了╥﹏╥...
+> Because the machine configuration of the demo station is very crotch, the CPU will be full and the process will end (in fact, my code is very crotch), for the sake of stability, temporarily close the two /video and /music of the demo station. At the same time, the batch download function of the result page is temporarily unavailable. If you need it, please deploy it yourself or run it locally. Other functions can still be used normally on the demo site. Before I think of a better solution, please right-click to manually save the video File, the two chicks running the demo station only have 0.5G memory and one CPU core, so they can't stand it ╥﹏╥...
 
 🚀Demo address:<https://douyin.wtf/>
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts:[点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
