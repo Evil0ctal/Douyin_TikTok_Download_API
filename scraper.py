@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/06/03
+# @Update: 2022/06/05
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -190,7 +190,9 @@ class Scraper:
                     vid = str(js['item_list'][0]['video']['vid'])
                     # 无水印1080p视频链接
                     try:
-                        r = requests.get("https://aweme.snssdk.com/aweme/v1/play/?video_id={}&radio=1080p&line=0".format(vid), headers=headers, allow_redirects=False)
+                        r = requests.get(
+                            "https://aweme.snssdk.com/aweme/v1/play/?video_id={}&radio=1080p&line=0".format(vid),
+                            headers=headers, allow_redirects=False)
                         nwm_video_url_1080p = r.headers['Location']
                     except:
                         nwm_video_url_1080p = "None"
@@ -302,109 +304,192 @@ class Scraper:
             # 获取视频ID
             video_id = re.findall('video/(\d+)?', original_url)[0]
             print('获取到的TikTok视频ID是{}'.format(video_id))
-            # 从TikTok网页获取部分视频数据
-            tiktok_headers = self.tiktok_headers
-            html = requests.get(url=original_url, headers=tiktok_headers)
-            # 正则检索网页中存在的JSON信息
-            resp = re.search('"ItemModule":{(.*)},"UserModule":', html.text).group(1)
-            resp_info = ('{"ItemModule":{' + resp + '}}')
-            result = json.loads(resp_info)
-            # 从网页中获得的视频JSON数据
-            video_info = result["ItemModule"][video_id]
-            # 从TikTok官方API获取部分视频数据
-            tiktok_api_link = 'https://api.tiktokv.com/aweme/v1/multi/aweme/detail/?aweme_ids=%5B{}%5D'.format(video_id)
-            print('正在请求API链接:{}'.format(tiktok_api_link))
-            response = requests.get(url=tiktok_api_link, headers=headers).text
-            # 将API获取到的内容格式化为JSON
-            result = json.loads(response)
-            # 类型为视频
-            url_type = 'video'
-            # 无水印视频链接
-            nwm_video_url = result["aweme_details"][0]["video"]["play_addr"]["url_list"][0]
+            # 尝试从TikTok网页获取部分视频数据，失败后判断为图集
             try:
-                # 有水印视频链接
-                wm_video_url = result["aweme_details"][0]["video"]['download_addr']['url_list'][0]
-            except Exception:
-                # 有水印视频链接
-                wm_video_url = 'None'
-            # 视频标题
-            video_title = result["aweme_details"][0]["desc"]
-            # 视频作者昵称
-            video_author_nickname = result["aweme_details"][0]['author']["nickname"]
-            # 视频作者ID
-            video_author_id = result["aweme_details"][0]['author']["unique_id"]
-            # 上传时间戳
-            video_create_time = result["aweme_details"][0]['create_time']
-            # 视频ID
-            video_aweme_id = result["aweme_details"][0]['statistics']['aweme_id']
-            # 视频BGM标题
-            video_music_title = result["aweme_details"][0]['music']['title']
-            # 视频BGM作者
-            video_music_author = result["aweme_details"][0]['music']['author']
-            # 视频BGM ID
-            video_music_id = result["aweme_details"][0]['music']['id']
-            # 视频BGM链接
-            video_music_url = result["aweme_details"][0]['music']['play_url']['url_list'][0]
-            # 评论数量
-            video_comment_count = result["aweme_details"][0]['statistics']['comment_count']
-            # 获赞数量
-            video_digg_count = result["aweme_details"][0]['statistics']['digg_count']
-            # 播放次数
-            video_play_count = result["aweme_details"][0]['statistics']['play_count']
-            # 下载次数
-            video_download_count = result["aweme_details"][0]['statistics']['download_count']
-            # 分享次数
-            video_share_count = result["aweme_details"][0]['statistics']['share_count']
-            # 作者粉丝数量
-            video_author_followerCount = video_info['authorStats']['followerCount']
-            # 作者关注数量
-            video_author_followingCount = video_info['authorStats']['followingCount']
-            # 作者获赞数量
-            video_author_heartCount = video_info['authorStats']['heartCount']
-            # 作者视频数量
-            video_author_videoCount = video_info['authorStats']['videoCount']
-            # 作者已赞作品数量
-            video_author_diggCount = video_info['authorStats']['diggCount']
-            # 将话题保存在列表中
-            video_hashtags = []
-            for tag in video_info['challenges']:
-                video_hashtags.append(tag['title'])
-            # 结束时间
-            end = time.time()
-            # 解析时间
-            analyze_time = format((end - start), '.4f')
-            # 储存数据
-            video_date = {'status': 'success',
-                          'analyze_time': (analyze_time + 's'),
-                          'url_type': url_type,
-                          'api_url': tiktok_api_link,
-                          'original_url': original_url,
-                          'platform': 'tiktok',
-                          'video_title': video_title,
-                          'nwm_video_url': nwm_video_url,
-                          'wm_video_url': wm_video_url,
-                          'video_author_nickname': video_author_nickname,
-                          'video_author_id': video_author_id,
-                          'video_create_time': video_create_time,
-                          'video_aweme_id': video_aweme_id,
-                          'video_music_title': video_music_title,
-                          'video_music_author': video_music_author,
-                          'video_music_id': video_music_id,
-                          'video_music_url': video_music_url,
-                          'video_comment_count': video_comment_count,
-                          'video_digg_count': video_digg_count,
-                          'video_play_count': video_play_count,
-                          'video_share_count': video_share_count,
-                          'video_download_count': video_download_count,
-                          'video_author_followerCount': video_author_followerCount,
-                          'video_author_followingCount': video_author_followingCount,
-                          'video_author_heartCount': video_author_heartCount,
-                          'video_author_videoCount': video_author_videoCount,
-                          'video_author_diggCount': video_author_diggCount,
-                          'video_hashtags': video_hashtags
-                          }
-            # 返回包含数据的字典
-            return video_date
+                tiktok_headers = self.tiktok_headers
+                html = requests.get(url=original_url, headers=tiktok_headers)
+                # 正则检索网页中存在的JSON信息
+                resp = re.search('"ItemModule":{(.*)},"UserModule":', html.text).group(1)
+                resp_info = ('{"ItemModule":{' + resp + '}}')
+                result = json.loads(resp_info)
+                # 从网页中获得的视频JSON数据
+                video_info = result["ItemModule"][video_id]
+                # 从TikTok官方API获取部分视频数据
+                tiktok_api_link = 'https://api.tiktokv.com/aweme/v1/multi/aweme/detail/?aweme_ids=%5B{}%5D'.format(
+                    video_id)
+                print('正在请求API链接:{}'.format(tiktok_api_link))
+                response = requests.get(url=tiktok_api_link, headers=headers).text
+                # 将API获取到的内容格式化为JSON
+                result = json.loads(response)
+                # 类型为视频
+                url_type = 'video'
+                # 无水印视频链接
+                nwm_video_url = result["aweme_details"][0]["video"]["play_addr"]["url_list"][0]
+                try:
+                    # 有水印视频链接
+                    wm_video_url = result["aweme_details"][0]["video"]['download_addr']['url_list'][0]
+                except Exception:
+                    # 有水印视频链接
+                    wm_video_url = 'None'
+                # 视频标题
+                video_title = result["aweme_details"][0]["desc"]
+                # 视频作者昵称
+                video_author_nickname = result["aweme_details"][0]['author']["nickname"]
+                # 视频作者ID
+                video_author_id = result["aweme_details"][0]['author']["unique_id"]
+                # 上传时间戳
+                video_create_time = result["aweme_details"][0]['create_time']
+                # 视频ID
+                video_aweme_id = result["aweme_details"][0]['statistics']['aweme_id']
+                try:
+                    # 视频BGM标题
+                    video_music_title = result["aweme_details"][0]['music']['title']
+                    # 视频BGM作者
+                    video_music_author = result["aweme_details"][0]['music']['author']
+                    # 视频BGM ID
+                    video_music_id = result["aweme_details"][0]['music']['id']
+                    # 视频BGM链接
+                    video_music_url = result["aweme_details"][0]['music']['play_url']['url_list'][0]
+                except:
+                    video_music_title, video_music_author, video_music_id, video_music_url = "None", "None", "None", "None"
+                # 评论数量
+                video_comment_count = result["aweme_details"][0]['statistics']['comment_count']
+                # 获赞数量
+                video_digg_count = result["aweme_details"][0]['statistics']['digg_count']
+                # 播放次数
+                video_play_count = result["aweme_details"][0]['statistics']['play_count']
+                # 下载次数
+                video_download_count = result["aweme_details"][0]['statistics']['download_count']
+                # 分享次数
+                video_share_count = result["aweme_details"][0]['statistics']['share_count']
+                # 作者粉丝数量
+                video_author_followerCount = video_info['authorStats']['followerCount']
+                # 作者关注数量
+                video_author_followingCount = video_info['authorStats']['followingCount']
+                # 作者获赞数量
+                video_author_heartCount = video_info['authorStats']['heartCount']
+                # 作者视频数量
+                video_author_videoCount = video_info['authorStats']['videoCount']
+                # 作者已赞作品数量
+                video_author_diggCount = video_info['authorStats']['diggCount']
+                # 将话题保存在列表中
+                video_hashtags = []
+                for tag in video_info['challenges']:
+                    video_hashtags.append(tag['title'])
+                # 结束时间
+                end = time.time()
+                # 解析时间
+                analyze_time = format((end - start), '.4f')
+                # 储存数据
+                video_data = {'status': 'success',
+                              'analyze_time': (analyze_time + 's'),
+                              'url_type': url_type,
+                              'api_url': tiktok_api_link,
+                              'original_url': original_url,
+                              'platform': 'tiktok',
+                              'video_title': video_title,
+                              'nwm_video_url': nwm_video_url,
+                              'wm_video_url': wm_video_url,
+                              'video_author_nickname': video_author_nickname,
+                              'video_author_id': video_author_id,
+                              'video_create_time': video_create_time,
+                              'video_aweme_id': video_aweme_id,
+                              'video_music_title': video_music_title,
+                              'video_music_author': video_music_author,
+                              'video_music_id': video_music_id,
+                              'video_music_url': video_music_url,
+                              'video_comment_count': video_comment_count,
+                              'video_digg_count': video_digg_count,
+                              'video_play_count': video_play_count,
+                              'video_share_count': video_share_count,
+                              'video_download_count': video_download_count,
+                              'video_author_followerCount': video_author_followerCount,
+                              'video_author_followingCount': video_author_followingCount,
+                              'video_author_heartCount': video_author_heartCount,
+                              'video_author_videoCount': video_author_videoCount,
+                              'video_author_diggCount': video_author_diggCount,
+                              'video_hashtags': video_hashtags
+                              }
+                # 返回包含数据的字典
+                return video_data
+            except:
+                # 判断链接是图集链接
+                # https://www.tiktok.com/@tamm6636/video/7105440975878655278
+                video_id = re.findall('video/(\d+)?', original_url)[0]
+                print('视频ID为: {}'.format(video_id))
+                # 从TikTok官方API获取部分视频数据
+                tiktok_api_link = 'https://api.tiktokv.com/aweme/v1/multi/aweme/detail/?aweme_ids=%5B{}%5D'.format(
+                    video_id)
+                print('正在请求API链接:{}'.format(tiktok_api_link))
+                response = requests.get(url=tiktok_api_link, headers=headers).text
+                # 将API获取到的内容格式化为JSON
+                result = json.loads(response)
+                # 类型为视频
+                url_type = 'album'
+                # 视频标题
+                album_title = result["aweme_details"][0]["desc"]
+                # 视频作者昵称
+                album_author_nickname = result["aweme_details"][0]['author']["nickname"]
+                # 视频作者ID
+                album_author_id = result["aweme_details"][0]['author']["unique_id"]
+                # 上传时间戳
+                album_create_time = result["aweme_details"][0]['create_time']
+                # 视频ID
+                album_aweme_id = result["aweme_details"][0]['statistics']['aweme_id']
+                try:
+                    # 视频BGM标题
+                    album_music_title = result["aweme_details"][0]['music']['title']
+                    # 视频BGM作者
+                    album_music_author = result["aweme_details"][0]['music']['author']
+                    # 视频BGM ID
+                    album_music_id = result["aweme_details"][0]['music']['id']
+                    # 视频BGM链接
+                    album_music_url = result["aweme_details"][0]['music']['play_url']['url_list'][0]
+                except:
+                    album_music_title, album_music_author, album_music_id, album_music_url = "None", "None", "None", "None"
+                # 评论数量
+                album_comment_count = result["aweme_details"][0]['statistics']['comment_count']
+                # 获赞数量
+                album_digg_count = result["aweme_details"][0]['statistics']['digg_count']
+                # 播放次数
+                album_play_count = result["aweme_details"][0]['statistics']['play_count']
+                # 下载次数
+                album_download_count = result["aweme_details"][0]['statistics']['download_count']
+                # 分享次数
+                album_share_count = result["aweme_details"][0]['statistics']['share_count']
+                # 无水印图集
+                album_list = []
+                for i in result["aweme_details"][0]['image_post_info']['images'][0]['display_image']['url_list']:
+                    album_list.append(i)
+                # 结束时间
+                end = time.time()
+                # 解析时间
+                analyze_time = format((end - start), '.4f')
+                # 储存数据
+                album_data = {'status': 'success',
+                              'analyze_time': (analyze_time + 's'),
+                              'url_type': url_type,
+                              'api_url': tiktok_api_link,
+                              'original_url': original_url,
+                              'platform': 'tiktok',
+                              'album_title': album_title,
+                              'album_list': album_list,
+                              'album_author_nickname': album_author_nickname,
+                              'album_author_id': album_author_id,
+                              'album_create_time': album_create_time,
+                              'album_aweme_id': album_aweme_id,
+                              'album_music_title': album_music_title,
+                              'album_music_author': album_music_author,
+                              'album_music_id': album_music_id,
+                              'album_music_url': album_music_url,
+                              'album_comment_count': album_comment_count,
+                              'album_digg_count': album_digg_count,
+                              'album_play_count': album_play_count,
+                              'album_share_count': album_share_count,
+                              'album_download_count': album_download_count
+                              }
+                # 返回包含数据的字典
+                return album_data
         except Exception as e:
             # 异常捕获
             return {'status': 'failed', 'reason': e, 'function': 'Scraper.tiktok()', 'value': original_url}
@@ -425,5 +510,3 @@ if __name__ == '__main__':
                 print(tiktok_date)
         except Exception as e:
             print("Error: " + str(e))
-
-
