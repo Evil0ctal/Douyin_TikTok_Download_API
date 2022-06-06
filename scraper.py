@@ -459,8 +459,8 @@ class Scraper:
                 album_share_count = result["aweme_details"][0]['statistics']['share_count']
                 # 无水印图集
                 album_list = []
-                for i in result["aweme_details"][0]['image_post_info']['images'][0]['display_image']['url_list']:
-                    album_list.append(i)
+                for i in result["aweme_details"][0]['image_post_info']['images']:
+                    album_list.append(i['display_image']['url_list'][0])
                 # 结束时间
                 end = time.time()
                 # 解析时间
