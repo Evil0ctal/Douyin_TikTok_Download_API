@@ -56,7 +56,7 @@
 
 ## 🧭運行說明(經過測試過的Python版本為3.8):
 
--   克隆本倉庫：
+-   克隆本仓库：
 
 ```console
 git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
@@ -184,7 +184,7 @@ API可將請求參數轉換為需要提取的無水印視頻/圖片直鏈，配�
 http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链接"
 ```
 
--   返回參數
+-   返回参数
 
 > 抖音視頻
 
