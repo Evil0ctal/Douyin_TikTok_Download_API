@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/05/22
+# @Update: 2022/06/06
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -155,8 +155,7 @@ def video_download_window(result_dict):
             # 遍历字典的键和值
             for file_name, url in result_dict.items():
                 try:
-                    download_count += 1
-                    put_info('正在下载第{}个视频:\n{}'.format(download_count, file_name))
+                    put_info('正在下载第{}个视频:\n{}'.format(download_count+1, file_name))
                     response = requests.get(url, headers=headers)
                     data = response.content
                     if data:
@@ -166,6 +165,7 @@ def video_download_window(result_dict):
                                 f.write(data)
                                 f.close()
                                 put_success('{}下载成功'.format(file_name))
+                                download_count += 1
                 except Exception as e:
                     download_count += 1
                     put_error('视频下载失败，将跳过该视频。')
@@ -182,7 +182,7 @@ def video_download_window(result_dict):
                     os.mkdir(output_path)
                 if compress_file(tar_file=output_file, target_file=save_path) == 'finished':
                     tar = open(output_file, "rb").read()
-                    put_file(tarfile_name, tar, '点击下载视频合集压缩包')
+                    put_file(tarfile_name, tar, '点击下载视频合集压缩包(不包含图集)')
     except Exception as e:
         print(str(e))
 
@@ -257,42 +257,67 @@ def put_tiktok_result(item):
     # 将TikTok结果显示在前端
     api = Scraper()
     # TikTok数据
-    tiktok_date = api.tiktok(item)
-    if tiktok_date['status'] == 'success':
+    tiktok_data = api.tiktok(item)
+    if tiktok_data['status'] == 'success':
         # API链接
         short_api_url = 'https://api.douyin.wtf/api?url=' + item
         download_video = 'https://api.douyin.wtf/video?url=' + item
         download_bgm = 'https://api.douyin.wtf/music?url=' + item
-        put_table([
-            ['类型', '内容'],
-            ['视频标题: ', tiktok_date['video_title']],
-            ['视频直链(有水印): ', put_link('点击打开视频', tiktok_date['wm_video_url'], new_window=True)],
-            ['视频直链(无水印): ', put_link('点击打开视频', tiktok_date['nwm_video_url'], new_window=True)],
-            ['视频下载(无水印)：', put_link('点击下载', download_video, new_window=True)],
-            ['音频(名称-作者)：', tiktok_date['video_music_title'] + " - " + tiktok_date['video_music_author']],
-            ['音频播放：', put_link('点击播放', tiktok_date['video_music_url'], new_window=True)],
-            ['音频下载：', put_link('点击下载', download_bgm, new_window=True)],
-            ['作者昵称: ', tiktok_date['video_author_nickname']],
-            ['作者ID: ', tiktok_date['video_author_id']],
-            ['粉丝数量: ', tiktok_date['video_author_followerCount']],
-            ['关注他人数量: ', tiktok_date['video_author_followingCount']],
-            ['获赞总量: ', tiktok_date['video_author_heartCount']],
-            ['视频总量: ', tiktok_date['video_author_videoCount']],
-            ['原视频链接: ', put_link('点击打开原视频', item, new_window=True)],
-            ['当前视频API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
-        ])
-        return {'status': 'success',
-                'type': 'video',
-                'video_title': tiktok_date['video_title'],
-                'video_author': tiktok_date['video_author_nickname'],
-                'nwm_video_url': tiktok_date['nwm_video_url'],
-                'video_music_url': tiktok_date['video_music_url'],
-                'original_url': item}
+        if tiktok_data['url_type'] == 'video':
+            put_table([
+                ['类型', '内容'],
+                ['视频标题: ', tiktok_data['video_title']],
+                ['视频直链(有水印): ', put_link('点击打开视频', tiktok_data['wm_video_url'], new_window=True)],
+                ['视频直链(无水印): ', put_link('点击打开视频', tiktok_data['nwm_video_url'], new_window=True)],
+                ['视频下载(无水印)：', put_link('点击下载', download_video, new_window=True)],
+                ['音频(名称-作者)：', tiktok_data['video_music_title'] + " - " + tiktok_data['video_music_author']],
+                ['音频播放：', put_link('点击播放', tiktok_data['video_music_url'], new_window=True)],
+                ['音频下载：', put_link('点击下载', download_bgm, new_window=True)],
+                ['作者昵称: ', tiktok_data['video_author_nickname']],
+                ['作者ID: ', tiktok_data['video_author_id']],
+                ['粉丝数量: ', tiktok_data['video_author_followerCount']],
+                ['关注他人数量: ', tiktok_data['video_author_followingCount']],
+                ['获赞总量: ', tiktok_data['video_author_heartCount']],
+                ['视频总量: ', tiktok_data['video_author_videoCount']],
+                ['原视频链接: ', put_link('点击打开原视频', item, new_window=True)],
+                ['当前视频API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
+            ])
+            return {'status': 'success',
+                    'type': 'video',
+                    'video_title': tiktok_data['video_title'],
+                    'video_author': tiktok_data['video_author_nickname'],
+                    'nwm_video_url': tiktok_data['nwm_video_url'],
+                    'video_music_url': tiktok_data['video_music_url'],
+                    'original_url': item}
+        else:
+            put_table([
+                ['类型', '内容'],
+                ['格式:', tiktok_data['url_type']],
+                ['背景音乐直链: ', put_link('点击打开音频', tiktok_data['album_music_url'], new_window=True)],
+                ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
+                ['视频标题: ', tiktok_data['album_title']],
+                ['作者昵称: ', tiktok_data['album_author_nickname']],
+                ['作者ID: ', tiktok_data['album_author_id']],
+                ['原视频链接: ', put_link('点击打开原视频', tiktok_data['original_url'], new_window=True)],
+                ['当前视频API链接: ', put_link('点击浏览API数据', tiktok_data['api_url'], new_window=True)],
+                ['当前视频精简API链接: ', put_link('点击浏览API数据', 'short_api_url', new_window=True)]
+            ])
+            for i in tiktok_data['album_list']:
+                put_table([
+                    ['图片直链: ', put_link('点击打开图片', i, new_window=True), put_image(i)]
+                ])
+            return {'status': 'success',
+                    'type': 'album',
+                    'album_title': tiktok_data['album_title'],
+                    'album_author': tiktok_data['album_author_nickname'],
+                    'album_list': tiktok_data['album_list'],
+                    'album_music': tiktok_data['album_music_url'],
+                    'original_url': tiktok_data['original_url']}
     else:
         # {'status': 'failed', 'reason': e, 'function': 'API.tiktok()', 'value': original_url}
-        reason = tiktok_date['reason']
-        function = tiktok_date['function']
-        value = tiktok_date['value']
+        reason = tiktok_data['reason']
+        function = tiktok_data['function']
+        value = tiktok_data['value']
         error_do(reason, function, value)
         return 'failed'
 
