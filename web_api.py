@@ -136,7 +136,7 @@ def download_video():
                     # 视频标题
                     video_title = result['video_title']
                     # 作者昵称
-                    video_author = result['video_author']
+                    video_author = result['video_author_nickname']
                     # 清理文件名
                     file_name = clean_filename(video_title, video_author)
                 else:
@@ -195,9 +195,9 @@ def download_music():
                         file_name = clean_filename(bgm_title, author_name)
                 elif 'tiktok.com' in post_content:
                     # 获取视频信息
-                    result = api.douyin(post_content)
+                    result = api.tiktok(post_content)
                     # BGM链接
-                    bgm_url = result['video_music']
+                    bgm_url = result['video_music_url']
                     # 视频标题
                     bgm_title = result['video_music_title']
                     # 作者昵称
