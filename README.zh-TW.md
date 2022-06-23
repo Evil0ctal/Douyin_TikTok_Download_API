@@ -20,7 +20,7 @@
 
 本項目使用[PyWebIO](https://github.com/pywebio/PyWebIO)、[燒瓶](https://github.com/pallets/flask)，利用Python實現在線批量解析抖音的無水印視頻/圖集。
 
-可用於下載作者禁止下載的視頻，或者進行數據爬取等等，同時可搭配[iOS自帶的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本項目API實現應用內下載。
+可用於下載作者禁止下載的視頻，或者進行數據爬取等等，同時可搭配[iOS自带的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本項目API實現應用內下載。
 
 快捷指令需要在抖音或TikTok的APP內，選擇你想要保存的視頻，點擊分享按鈕，然後找到 "抖音TikTok無水印下載" 這個選項，如遇到通知詢問是否允許快捷指令訪問xxxx (域名或服務器)，需要點擊允許才可以正常使用，下載成功的視頻或圖集會保存在一個專門的相冊中以方便瀏覽。
 
@@ -33,7 +33,7 @@
         ├── web_zh.py(网页入口)
         ├── web_api.py(API)
         ├── scraper.py(解析库)
-        ├── config.ini(网页入口和API的配置文件，请自行修改该文件。)
+        ├── config.ini(所有项目的配置文件，如需请自行修改该文件。)
         ├── logs.txt(错误日志，自动生成。)
         └── API_logs.txt(API调用日志，自动生成。)
 
@@ -43,7 +43,8 @@
 -   支持海外TikTok視頻解析
 -   支持批量解析(支持抖音/TikTok混合解析)
 -   解析結果頁批量下載無水印視頻
--   支持API調用
+-   支持API调用
+-   支持使用代理解析
 -   支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)實現應用內下載無水印視頻/圖集
 
 * * *
