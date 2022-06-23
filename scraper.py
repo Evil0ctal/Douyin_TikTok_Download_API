@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/06/05
+# @Update: 2022/06/23
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -11,6 +11,7 @@
 import re
 import json
 import requests
+import configparser
 from tenacity import *
 
 
@@ -32,6 +33,23 @@ class Scraper:
             "Host": "www.tiktok.com",
             "User-Agent": "Mozilla/5.0  (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) coc_coc_browser/86.0.170 Chrome/80.0.3987.170 Safari/537.36",
         }
+        self.app_config = configparser.ConfigParser()
+        self.app_config.read('config.ini', encoding='utf-8')
+        self.api_config = self.app_config['Scraper']
+        # 判断是否使用代理
+        if self.api_config['Proxy_switch'] == 'True':
+            # 判断是否区别协议选择代理
+            if self.api_config['Use_different_protocols'] == 'False':
+                self.proxies = {
+                    'all': self.api_config['All']
+                }
+            else:
+                self.proxies = {
+                    'http': self.api_config['Http_proxy'],
+                    'https': self.api_config['Https_proxy'],
+                }
+        else:
+            self.proxies = None
 
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
     def douyin(self, original_url):
@@ -50,7 +68,7 @@ class Scraper:
                         'value': original_url}
             else:
                 # 原视频链接
-                r = requests.get(url=original_url, headers=headers, allow_redirects=False)
+                r = requests.get(url=original_url, headers=headers, allow_redirects=False, proxies=self.proxies)
                 try:
                     # 2021/12/11 发现抖音做了限制，会自动重定向网址，但是可以从回执头中获取
                     long_url = r.headers['Location']
@@ -76,7 +94,7 @@ class Scraper:
                 api_url = f'https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={key}'
                 print("正在请求抖音API链接: " + '\n' + api_url)
                 # 将回执以JSON格式处理
-                js = json.loads(requests.get(url=api_url, headers=headers).text)
+                js = json.loads(requests.get(url=api_url, headers=headers, proxies=self.proxies).text)
                 # 判断是否为图集
                 if js['item_list'][0]['images'] is not None:
                     print("类型 = 图集")
@@ -96,33 +114,21 @@ class Scraper:
                         # 如果作者未修改过抖音号，应使用此值以避免无法获取其抖音ID
                         album_author_id = str(js['item_list'][0]['author']['short_id'])
                     # 尝试获取图集BGM信息
-                    if 'music' in js:
-                        try:
+                    for key in js['item_list'][0]:
+                        if key == 'music':
                             # 图集BGM链接
                             album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                        except:
-                            # 报错后代表无背景音乐
+                            # 图集BGM标题
+                            album_music_title = str(js['item_list'][0]['music']['title'])
+                            # 图集BGM作者
+                            album_music_author = str(js['item_list'][0]['music']['author'])
+                            # 图集BGM ID
+                            album_music_id = str(js['item_list'][0]['music']['id'])
+                            # 图集BGM MID
+                            album_music_mid = str(js['item_list'][0]['music']['mid'])
+                        else:
                             # 图集BGM链接
-                            album_music = 'No BGM found'
-                        # 图集BGM标题
-                        album_music_title = str(js['item_list'][0]['music']['title'])
-                        # 图集BGM作者
-                        album_music_author = str(js['item_list'][0]['music']['author'])
-                        # 图集BGM ID
-                        album_music_id = str(js['item_list'][0]['music']['id'])
-                        # 图集BGM MID
-                        album_music_mid = str(js['item_list'][0]['music']['mid'])
-                    else:
-                        # 图集BGM为空
-                        album_music = 'No BGM found'
-                        # 图集BGM标题
-                        album_music_title = 'No BGM found'
-                        # 图集BGM作者
-                        album_music_author = 'No BGM found'
-                        # 图集BGM ID
-                        album_music_id = 'No BGM found'
-                        # 图集BGM MID
-                        album_music_mid = 'No BGM found'
+                            album_music = album_music_title = album_music_author = album_music_id = album_music_mid = 'No BGM found '
                     # 图集ID
                     album_aweme_id = str(js['item_list'][0]['statistics']['aweme_id'])
                     # 评论数量
@@ -192,7 +198,7 @@ class Scraper:
                     try:
                         r = requests.get(
                             "https://aweme.snssdk.com/aweme/v1/play/?video_id={}&radio=1080p&line=0".format(vid),
-                            headers=headers, allow_redirects=False)
+                            headers=headers, allow_redirects=False, proxies=self.proxies)
                         nwm_video_url_1080p = r.headers['Location']
                     except:
                         nwm_video_url_1080p = "None"
@@ -202,28 +208,27 @@ class Scraper:
                     nwm_video_url = str(js['item_list'][0]['video']['play_addr']['url_list'][0]).replace('playwm',
                                                                                                          'play')
                     # 去水印后视频链接(2022年1月1日抖音APi获取到的URL会进行跳转，需要在Location中获取直链)
-                    r = requests.get(url=nwm_video_url, headers=headers, allow_redirects=False)
+                    r = requests.get(url=nwm_video_url, headers=headers, allow_redirects=False, proxies=self.proxies)
                     video_url = r.headers['Location']
                     # 视频作者签名
                     video_author_signature = str(js['item_list'][0]['author']['signature'])
                     # 视频作者UID
                     video_author_uid = str(js['item_list'][0]['author']['uid'])
                     # 尝试获取视频背景音乐
-                    try:
-                        # 视频BGM链接
-                        video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
-                    except:
-                        # 出错代表无背景音乐
-                        # 视频BGM链接
-                        video_music = 'No BGM found'
-                    # 视频BGM标题
-                    video_music_title = str(js['item_list'][0]['music']['title'])
-                    # 视频BGM作者
-                    video_music_author = str(js['item_list'][0]['music']['author'])
-                    # 视频BGM ID
-                    video_music_id = str(js['item_list'][0]['music']['id'])
-                    # 视频BGM MID
-                    video_music_mid = str(js['item_list'][0]['music']['mid'])
+                    for key in js['item_list'][0]:
+                        if key == 'music':
+                            # 视频BGM链接
+                            video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                            # 视频BGM标题
+                            video_music_title = str(js['item_list'][0]['music']['title'])
+                            # 视频BGM作者
+                            video_music_author = str(js['item_list'][0]['music']['author'])
+                            # 视频BGM ID
+                            video_music_id = str(js['item_list'][0]['music']['id'])
+                            # 视频BGM MID
+                            video_music_mid = str(js['item_list'][0]['music']['mid'])
+                        else:
+                            video_music = video_music_title = video_music_author = video_music_id = video_music_mid = 'No BGM found'
                     # 视频ID
                     video_aweme_id = str(js['item_list'][0]['statistics']['aweme_id'])
                     # 评论数量
@@ -292,12 +297,12 @@ class Scraper:
             print("目标链接: ", original_url)
         else:
             # 从请求头中获取原始链接
-            response = requests.get(url=original_url, headers=headers, allow_redirects=False)
+            response = requests.get(url=original_url, headers=headers, allow_redirects=False, proxies=self.proxies)
             true_link = response.headers['Location'].split("?")[0]
             original_url = true_link
             # TikTok请求头返回的第二种链接类型
             if '.html' in true_link:
-                response = requests.get(url=true_link, headers=headers, allow_redirects=False)
+                response = requests.get(url=true_link, headers=headers, allow_redirects=False, proxies=self.proxies)
                 original_url = response.headers['Location'].split("?")[0]
                 print("目标链接: ", original_url)
         try:
@@ -307,7 +312,7 @@ class Scraper:
             # 尝试从TikTok网页获取部分视频数据，失败后判断为图集
             try:
                 tiktok_headers = self.tiktok_headers
-                html = requests.get(url=original_url, headers=tiktok_headers)
+                html = requests.get(url=original_url, headers=tiktok_headers, proxies=self.proxies)
                 # 正则检索网页中存在的JSON信息
                 resp = re.search('"ItemModule":{(.*)},"UserModule":', html.text).group(1)
                 resp_info = ('{"ItemModule":{' + resp + '}}')
@@ -318,7 +323,7 @@ class Scraper:
                 tiktok_api_link = 'https://api.tiktokv.com/aweme/v1/multi/aweme/detail/?aweme_ids=%5B{}%5D'.format(
                     video_id)
                 print('正在请求API链接:{}'.format(tiktok_api_link))
-                response = requests.get(url=tiktok_api_link, headers=headers).text
+                response = requests.get(url=tiktok_api_link, headers=headers, proxies=self.proxies).text
                 # 将API获取到的内容格式化为JSON
                 result = json.loads(response)
                 # 类型为视频
@@ -421,7 +426,7 @@ class Scraper:
                 tiktok_api_link = 'https://api.tiktokv.com/aweme/v1/multi/aweme/detail/?aweme_ids=%5B{}%5D'.format(
                     video_id)
                 print('正在请求API链接:{}'.format(tiktok_api_link))
-                response = requests.get(url=tiktok_api_link, headers=headers).text
+                response = requests.get(url=tiktok_api_link, headers=headers, proxies=self.proxies).text
                 # 将API获取到的内容格式化为JSON
                 result = json.loads(response)
                 # 类型为视频
