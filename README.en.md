@@ -16,11 +16,11 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本项目API实现应用内下载。
+It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally, and the successfully downloaded video or gallery will be saved in a special album for easy browsing.
 
@@ -389,7 +389,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_image_result.png)
 
-> TikTok return value
+> TikTok返回值
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
 
