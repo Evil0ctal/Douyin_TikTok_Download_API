@@ -187,7 +187,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 
 -   返回參數
 
-> 抖音視頻
+> 抖音视频
 
 ```json
 {
