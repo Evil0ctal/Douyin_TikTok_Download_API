@@ -16,7 +16,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
+💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
@@ -75,7 +75,7 @@ cd Douyin_TikTok_Download_API
 pip install -r requirements.txt
 ```
 
--   Modify config.ini (optional):
+-   修改config.ini(可选)：
 
 ```console
 vim config.ini
@@ -123,7 +123,7 @@ http://localhost(服务器IP):2333/
 
 ## 🗺️ Supported submission formats (including but not limited to the following examples):
 
--   Douyin share password (copy in APP)
+-   抖音分享口令  (APP内复制)
 
 ```text
 例子：7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
@@ -332,8 +332,8 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 
 > Use the pagoda Linux panel for deployment (Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the pagoda international version, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
--   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
+-   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API, which can be modified in the file config.ini.)
+-   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -348,7 +348,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -389,7 +389,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_image_result.png)
 
-> TikTok返回值
+> TikTok return value
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
 
