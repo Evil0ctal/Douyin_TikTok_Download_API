@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/06/23
+# @Update: 2022/06/27
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -311,14 +311,17 @@ class Scraper:
             print('获取到的TikTok视频ID是{}'.format(video_id))
             # 尝试从TikTok网页获取部分视频数据，失败后判断为图集
             try:
-                tiktok_headers = self.tiktok_headers
-                html = requests.get(url=original_url, headers=tiktok_headers, proxies=self.proxies)
-                # 正则检索网页中存在的JSON信息
-                resp = re.search('"ItemModule":{(.*)},"UserModule":', html.text).group(1)
-                resp_info = ('{"ItemModule":{' + resp + '}}')
-                result = json.loads(resp_info)
-                # 从网页中获得的视频JSON数据
-                video_info = result["ItemModule"][video_id]
+                try:
+                    tiktok_headers = self.tiktok_headers
+                    html = requests.get(url=original_url, headers=tiktok_headers, proxies=self.proxies)
+                    # 正则检索网页中存在的JSON信息
+                    resp = re.search('"ItemModule":{(.*)},"UserModule":', html.text).group(1)
+                    resp_info = ('{"ItemModule":{' + resp + '}}')
+                    result = json.loads(resp_info)
+                    # 从网页中获得的视频JSON数据
+                    video_info = result["ItemModule"][video_id]
+                except:
+                    video_info = None
                 # 从TikTok官方API获取部分视频数据
                 tiktok_api_link = 'https://api.tiktokv.com/aweme/v1/multi/aweme/detail/?aweme_ids=%5B{}%5D'.format(
                     video_id)
@@ -328,6 +331,7 @@ class Scraper:
                 result = json.loads(response)
                 # 类型为视频
                 url_type = 'video'
+                print('类型为视频')
                 # 无水印视频链接
                 nwm_video_url = result["aweme_details"][0]["video"]["play_addr"]["url_list"][0]
                 try:
@@ -367,20 +371,32 @@ class Scraper:
                 video_download_count = result["aweme_details"][0]['statistics']['download_count']
                 # 分享次数
                 video_share_count = result["aweme_details"][0]['statistics']['share_count']
-                # 作者粉丝数量
-                video_author_followerCount = video_info['authorStats']['followerCount']
-                # 作者关注数量
-                video_author_followingCount = video_info['authorStats']['followingCount']
-                # 作者获赞数量
-                video_author_heartCount = video_info['authorStats']['heartCount']
-                # 作者视频数量
-                video_author_videoCount = video_info['authorStats']['videoCount']
-                # 作者已赞作品数量
-                video_author_diggCount = video_info['authorStats']['diggCount']
                 # 将话题保存在列表中
                 video_hashtags = []
-                for tag in video_info['challenges']:
-                    video_hashtags.append(tag['title'])
+                for tag in result["aweme_details"][0]['text_extra']:
+                    video_hashtags.append(tag['hashtag_name'])
+                if video_info != None:
+                    # 作者粉丝数量
+                    video_author_followerCount = video_info['authorStats']['followerCount']
+                    # 作者关注数量
+                    video_author_followingCount = video_info['authorStats']['followingCount']
+                    # 作者获赞数量
+                    video_author_heartCount = video_info['authorStats']['heartCount']
+                    # 作者视频数量
+                    video_author_videoCount = video_info['authorStats']['videoCount']
+                    # 作者已赞作品数量
+                    video_author_diggCount = video_info['authorStats']['diggCount']
+                else:
+                    # 作者粉丝数量
+                    video_author_followerCount = 'None'
+                    # 作者关注数量
+                    video_author_followingCount = 'None'
+                    # 作者获赞数量
+                    video_author_heartCount = 'None'
+                    # 作者视频数量
+                    video_author_videoCount = 'None'
+                    # 作者已赞作品数量
+                    video_author_diggCount = 'None'
                 # 结束时间
                 end = time.time()
                 # 解析时间
@@ -429,8 +445,9 @@ class Scraper:
                 response = requests.get(url=tiktok_api_link, headers=headers, proxies=self.proxies).text
                 # 将API获取到的内容格式化为JSON
                 result = json.loads(response)
-                # 类型为视频
+                # 类型为图集
                 url_type = 'album'
+                print('类型为图集')
                 # 视频标题
                 album_title = result["aweme_details"][0]["desc"]
                 # 视频作者昵称
