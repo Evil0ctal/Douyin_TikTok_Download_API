@@ -75,7 +75,7 @@ cd Douyin_TikTok_Download_API
 pip install -r requirements.txt
 ```
 
--   修改config.ini(可选)：
+-   Modify config.ini (optional):
 
 ```console
 vim config.ini
@@ -123,7 +123,7 @@ http://localhost(服务器IP):2333/
 
 ## 🗺️ Supported submission formats (including but not limited to the following examples):
 
--   抖音分享口令  (APP内复制)
+-   Douyin share password (copy in APP)
 
 ```text
 例子：7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
@@ -332,8 +332,8 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 
 > Use the pagoda Linux panel for deployment (Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the pagoda international version, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
--   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API, which can be modified in the file config.ini.)
--   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
+-   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
+-   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
