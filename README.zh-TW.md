@@ -149,7 +149,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok短網址 (APP內復制)
+-   TikTok短网址 (APP内复制)
 
 ```text
 例子：
@@ -187,7 +187,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 
 -   返回參數
 
-> 抖音视频
+> 抖音視頻
 
 ```json
 {
