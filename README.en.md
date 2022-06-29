@@ -344,11 +344,11 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
 -   The frame is modified to`Flask`
 -   The startup method is changed to`python`
--   Web startup file selection`web_zh.py`
+-   Web启动文件选择`web_zh.py`
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
