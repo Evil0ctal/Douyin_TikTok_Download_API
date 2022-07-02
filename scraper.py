@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/06/29
+# @Update: 2022/07/01
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -83,7 +83,7 @@ class Scraper:
                 try:
                     # 第一种链接类型
                     # https://www.douyin.com/video/7086770907674348841
-                    key = re.findall('video/(\d+)?', long_url)[0]
+                    key = re.findall('/video/(\d+)?', long_url)[0]
                     print('视频ID为: {}'.format(key))
                 except Exception:
                     # 第二种链接类型
@@ -316,7 +316,7 @@ class Scraper:
                 print("目标链接: ", original_url)
         try:
             # 获取视频ID
-            video_id = re.findall('video/(\d+)?', original_url)[0]
+            video_id = re.findall('/video/(\d+)?', original_url)[0]
             print('获取到的TikTok视频ID是{}'.format(video_id))
             # 尝试从TikTok网页获取部分视频数据，失败后判断为图集
             try:
