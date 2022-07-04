@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/07/01
+# @Update: 2022/07/03
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -217,8 +217,11 @@ class Scraper:
                     # 尝试获取视频背景音乐
                     for key in js['item_list'][0]:
                         if key == 'music':
-                            # 视频BGM链接
-                            video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                            if len(js['item_list'][0]['music']['play_url']['url_list']) != 0:
+                                # 视频BGM链接
+                                video_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                            else:
+                                video_music = 'No BGM found'
                             # 视频BGM标题
                             video_music_title = str(js['item_list'][0]['music']['title'])
                             # 视频BGM作者
