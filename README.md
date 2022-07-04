@@ -22,6 +22,8 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
 
+📦️Tiktok/抖音下载器(桌面应用)：[TikDown](https://github.com/Tairraos/TikDown/)
+
 本项目使用 [PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask)，利用Python实现在线批量解析抖音的无水印视频/图集。
 
 可用于下载作者禁止下载的视频，或者进行数据爬取等等，同时可搭配[iOS自带的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)配合本项目API实现应用内下载。
