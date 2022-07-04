@@ -343,7 +343,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 -   創建一個項目名字隨意
 -   路徑選擇你上傳文件的路徑
--   Python版本需要至少3以上(在左侧版本管理中自行安装)
+-   Python版本需要至少3以上(在左側版本管理中自行安裝)
 -   框架修改為`Flask`
 -   啟動方式修改為`python`
 -   Web啟動文件選擇`web_zh.py`
@@ -383,7 +383,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 -   API提交/返回
 
-> 视频返回值
+> 視頻返回值
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/api_video_result.png)
 
