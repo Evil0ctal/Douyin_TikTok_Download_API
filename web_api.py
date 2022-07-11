@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/04/21
+# @Update: 2022/07/10
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -100,7 +100,9 @@ def ios_shortcut():
     return jsonify(version=api_config['iOS_Shortcut_Version'],
                    update=api_config['iOS_Shortcut_Update_Time'],
                    link=api_config['iOS_Shortcut_Link'],
-                   note=api_config['iOS_Shortcut_Update_Note'])
+                   link_en=api_config['iOS_Shortcut_Link_EN'],
+                   note=api_config['iOS_Shortcut_Update_Note'],
+                   note_en=api_config['iOS_Shortcut_Update_Note_EN'])
 
 
 @app.route("/video", methods=["POST", "GET"])
