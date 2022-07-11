@@ -10,13 +10,15 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-> Because the machine configuration of the demo station is very crotch, the CPU will be full and the process will end (in fact, my code is very crotch), for the sake of stability, temporarily close the two /video and /music of the demo station. At the same time, the batch download function of the result page is temporarily unavailable. If you need it, please deploy it yourself or run it locally. Other functions can still be used normally on the demo site. Before I think of a better solution, please right-click to manually save the video File, the two chicks running the demo station only have 0.5G memory and one CPU core, so they can't stand it ╥﹏╥...
+> For the sake of stability, the two functions of /video (returns mp4 files) and /music (returns mp3 files) of the demo station are temporarily closed, and the batch download function of the result page is also temporarily unavailable. If you need it, please deploy it yourself , other functions can still be used normally on the demo site. The API server guarantees normal operation 99% of the time, but does not guarantee 100% successful parsing. If parsing fails, please wait a minute or two and try again.
 
 🚀Demo address:<https://douyin.wtf/>
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts:[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+💾iOS Shortcuts (Chinese):[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+
+🌎iOS Shortcut(English):[Click to add](https://www.icloud.com/shortcuts/a7b3a3c8bc5c4f4ea352fe157a374881)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
 
 📦️Tiktok/Tiktok Downloader (Desktop Application):[TikDown](https://github.com/Tairraos/TikDown/)
 
@@ -35,7 +37,7 @@ The shortcut command needs to be in the Douyin or TikTok app, select the video y
         ├── web_zh.py(网页入口)
         ├── web_api.py(API)
         ├── scraper.py(解析库)
-        ├── config.ini(所有项目的配置文件，如需请自行修改该文件。)
+        ├── config.ini(所有项目的配置文件，包含端口及代理等，如需请自行修改该文件。)
         ├── logs.txt(错误日志，自动生成。)
         └── API_logs.txt(API调用日志，自动生成。)
 
@@ -324,7 +326,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 ## 💾Deploy
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -359,7 +361,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 -   Main interface
 
