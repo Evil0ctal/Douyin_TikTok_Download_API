@@ -14,13 +14,15 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ## 👻介绍
 
-> 因为演示站的机子配置很拉胯，动不动就CPU吃满然后进程结束(其实主要是我代码写的很拉胯)，出于稳定性的考虑，暂时关闭演示站的/video和/music这两个API，同时结果页面的批量下载功能也暂时不可用，如有需求请自行部署或本地运行，其他功能在演示站上仍正常使用，在我没想到更好的解决方法之前请右键手动保存视频文件，在跑演示站的两台的小鸡都只有0.5G内存和一个CPU核心，顶不住了╥﹏╥...
+> 出于稳定性的考虑，暂时关闭演示站的/video(返回mp4文件)和/music(返回mp3文件)这两个功能，同时结果页面的批量下载功能也暂时不可用，如有需求请自行部署，其他功能在演示站上仍正常使用，API服务器保证99%的时间正常运行，但不保证解析100%成功，如果解析失败请等一两分钟后重试。
 
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
 🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
 
-💾iOS快捷指令: [点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
+💾iOS快捷指令(中文): [点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
+
+🌎iOS Shortcut(English): [Click to add](https://www.icloud.com/shortcuts/a7b3a3c8bc5c4f4ea352fe157a374881) (Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
 
 📦️Tiktok/抖音下载器(桌面应用)：[TikDown](https://github.com/Tairraos/TikDown/)
 
@@ -41,7 +43,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
     ├── web_zh.py(网页入口)
     ├── web_api.py(API)
     ├── scraper.py(解析库)
-    ├── config.ini(所有项目的配置文件，如需请自行修改该文件。)
+    ├── config.ini(所有项目的配置文件，包含端口及代理等，如需请自行修改该文件。)
     ├── logs.txt(错误日志，自动生成。)
     └── API_logs.txt(API调用日志，自动生成。)
 ```
