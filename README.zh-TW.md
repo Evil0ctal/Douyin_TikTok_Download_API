@@ -16,9 +16,9 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文):[點擊獲取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(更新於2022/04/16，快捷指令可自動檢查更新，安裝一次即可。)
+💾iOS快捷指令(中文):[點擊獲取指令](https://www.icloud.com/shortcuts/25af5f6d9a9140e1a4e35c771313732f)(更新於2022/07/15，快捷指令可自動檢查更新，安裝一次即可。)
 
-🌎iOS快捷方式（英文）：[點擊添加](https://www.icloud.com/shortcuts/a7b3a3c8bc5c4f4ea352fe157a374881)（2022/04/16更新，快捷命令可以自動檢查更新，安裝一次即可。）
+🌎iOS快捷方式（英文）：[點擊添加](https://www.icloud.com/shortcuts/0d37a661c1044ce4a428a84c13113c30)（2022/07/15更新，快捷命令可以自動檢查更新，安裝一次即可。）
 
 📦️Tiktok/抖音下載器(桌面應用)：[抖音](https://github.com/Tairraos/TikDown/)
 
