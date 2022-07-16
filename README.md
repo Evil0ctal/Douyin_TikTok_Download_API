@@ -20,9 +20,9 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
 
-💾iOS快捷指令(中文): [点击获取指令](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639) (更新于2022/04/16，快捷指令可自动检查更新，安装一次即可。)
+💾iOS快捷指令(中文): [点击获取指令](https://www.icloud.com/shortcuts/25af5f6d9a9140e1a4e35c771313732f) (更新于2022/07/15，快捷指令可自动检查更新，安装一次即可。)
 
-🌎iOS Shortcut(English): [Click to add](https://www.icloud.com/shortcuts/a7b3a3c8bc5c4f4ea352fe157a374881) (Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+🌎iOS Shortcut(English): [Click to add](https://www.icloud.com/shortcuts/0d37a661c1044ce4a428a84c13113c30) (Updated on 2022/07/15, the shortcut command can automatically check for updates, just install it once.)
 
 📦️Tiktok/抖音下载器(桌面应用)：[TikDown](https://github.com/Tairraos/TikDown/)
 
