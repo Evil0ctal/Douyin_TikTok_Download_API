@@ -16,9 +16,9 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts (Chinese):[Click to get instructions](https://www.icloud.com/shortcuts/126820d2783748d1bdec95a223a02639)(Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+💾iOS Shortcuts (Chinese):[Click to get instructions](https://www.icloud.com/shortcuts/25af5f6d9a9140e1a4e35c771313732f)(Updated on 2022/07/15, the shortcut command can automatically check for updates, just install it once.)
 
-🌎iOS Shortcut(English):[Click to add](https://www.icloud.com/shortcuts/a7b3a3c8bc5c4f4ea352fe157a374881) (Updated on 2022/04/16, the shortcut command can automatically check for updates, just install it once.)
+🌎iOS Shortcut(English):[Click to add](https://www.icloud.com/shortcuts/0d37a661c1044ce4a428a84c13113c30)(Updated on 2022/07/15, the shortcut command can automatically check for updates, just install it once.)
 
 📦️Tiktok/Tiktok Downloader (Desktop Application):[TikDown](https://github.com/Tairraos/TikDown/)
 
@@ -323,10 +323,10 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 * * *
 
-## 💾部署
+## 💾Deploy
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -352,7 +352,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -361,7 +361,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 -   Main interface
 
