@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/07/10
+# @Update: 2022/07/18
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -63,7 +63,11 @@ def webapi():
     api = Scraper()
     content = request.args.get("url")
     if content != '':
-        post_content = find_url(content)[0]
+        try:
+            post_content = find_url(content)[0]     # 尝试找出提交值中的链接
+        except:
+            # 返回错误信息
+            return jsonify(status='failed', reason="Can not find valid Douyin/TikTok URL", function='webapi()', value=content)
         if api_config['Allow_Logs'] == 'True':
             # 将API记录在API_logs.txt中
             date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -91,7 +95,7 @@ def webapi():
             return jsonify(status='failed', reason=str(e), time=analyze_time, function='webapi()', value=content)
     else:
         # 返回错误信息
-        return jsonify(status='failed', reason='url value cannot be empty', function='api()', value=content)
+        return jsonify(status='failed', reason='url value cannot be empty', function='webapi()', value=content)
 
 
 @app.route("/ios", methods=["POST", "GET"])
