@@ -6,7 +6,7 @@
 
 > 注：此API適用於抖音和抖音。抖音是中國的TikTok。您可以隨意分發或修改代碼，但請註明原作者。
 
-> 注: 此API適用於Douyin和TikTok，Douyin為中國區域的TikTok，你可以隨意分發或修改代碼，但請標註原作者。
+> 注: 此API适用于Douyin和TikTok，Douyin为中国区域的TikTok，你可以随意分发或修改代码，但请标注原作者。
 
 ## 👻介紹
 
@@ -16,7 +16,7 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文):[點擊獲取指令](https://www.icloud.com/shortcuts/25af5f6d9a9140e1a4e35c771313732f) (更新于2022/07/15，快捷指令可自动检查更新，安装一次即可。)
+💾iOS快捷指令(中文):[點擊獲取指令](https://www.icloud.com/shortcuts/25af5f6d9a9140e1a4e35c771313732f)(更新於2022/07/15，快捷指令可自動檢查更新，安裝一次即可。)
 
 🌎iOS快捷方式（英文）：[點擊添加](https://www.icloud.com/shortcuts/0d37a661c1044ce4a428a84c13113c30)（2022/07/15更新，快捷命令可以自動檢查更新，安裝一次即可。）
 
@@ -266,7 +266,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 }
 ```
 
-> TikTok视频
+> TikTok視頻
 
 ```JSON
 {
@@ -349,7 +349,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 -   框架修改為`Flask`
 -   啟動方式修改為`python`
 -   Web啟動文件選擇`web_zh.py`
--   API启动文件选择`web_api.py`
+-   API啟動文件選擇`web_api.py`
 -   勾選安裝模塊依賴
 -   開機啟動隨意
 -   如果寶塔運行了`Nginx`等其他服務時請自行判斷端口是否被佔用，運行端口可在文件config.ini中修改。
