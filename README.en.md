@@ -16,15 +16,17 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts (Chinese):[Click to get instructions](https://www.icloud.com/shortcuts/25af5f6d9a9140e1a4e35c771313732f)(Updated on 2022/07/15, the shortcut command can automatically check for updates, just install it once.)
+💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once.)
 
-🌎iOS Shortcut(English):[Click to add](https://www.icloud.com/shortcuts/0d37a661c1044ce4a428a84c13113c30)(Updated on 2022/07/15, the shortcut command can automatically check for updates, just install it once.)
+🌎iOS Shortcut(English):[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)(Updated on 2022/07/18, this shortcut will automatically check for updates, only need to install it once.)
+
+🗂 Shortcut History Version:[Shortcuts release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
 
 📦️Tiktok/Tiktok Downloader (Desktop Application):[TikDown](https://github.com/Tairraos/TikDown/)
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
+It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally, and the successfully downloaded video or gallery will be saved in a special album for easy browsing.
 
@@ -334,7 +336,7 @@ example:
 The project is deployed on a domestic server, and the person is in the United States. Clicking the link on the result page reports an error 403, which is visually related to the Douyin CDN.
 The project is deployed on a South Korean server, parsing TikTok errors, and visually TikTok restricts certain regions or IPs.
 
-> Use the pagoda Linux panel for deployment (the Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
+> Use the pagoda Linux panel for deployment (Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the pagoda international version, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
 -   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
@@ -348,7 +350,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
 -   The frame is modified to`Flask`
 -   The startup method is changed to`python`
--   Web startup file selection`web_zh.py`
+-   Web启动文件选择`web_zh.py`
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
