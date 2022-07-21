@@ -6,7 +6,7 @@
 
 > 注：此API適用於抖音和抖音。抖音是中國的TikTok。您可以隨意分發或修改代碼，但請註明原作者。
 
-> 注: 此API适用于Douyin和TikTok，Douyin为中国区域的TikTok，你可以随意分发或修改代码，但请标注原作者。
+> 注: 此API適用於Douyin和TikTok，Douyin為中國區域的TikTok，你可以隨意分發或修改代碼，但請標註原作者。
 
 ## 👻介紹
 
@@ -16,9 +16,11 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文):[點擊獲取指令](https://www.icloud.com/shortcuts/25af5f6d9a9140e1a4e35c771313732f)(更新於2022/07/15，快捷指令可自動檢查更新，安裝一次即可。)
+💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。)
 
-🌎iOS快捷方式（英文）：[點擊添加](https://www.icloud.com/shortcuts/0d37a661c1044ce4a428a84c13113c30)（2022/07/15更新，快捷命令可以自動檢查更新，安裝一次即可。）
+🌎iOS快捷方式（英文）：[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（2022/07/18更新，這個快捷方式會自動檢查更新，只需要安裝一次。）
+
+🗂快捷指令歷史版本:[快捷方式發布](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
 
 📦️Tiktok/抖音下載器(桌面應用)：[抖音](https://github.com/Tairraos/TikDown/)
 
@@ -266,7 +268,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 }
 ```
 
-> TikTok視頻
+> TikTok视频
 
 ```JSON
 {
@@ -307,7 +309,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 }
 ```
 
--   下載視頻請求參數
+-   下载视频请求参数
 
 ```text
 http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链接"
