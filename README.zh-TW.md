@@ -8,6 +8,10 @@
 
 > 注: 此API適用於Douyin和TikTok，Douyin為中國區域的TikTok，你可以隨意分發或修改代碼，但請標註原作者。
 
+各位，本站自2021年11月以來至今一直提供免費的API服務，Azure的服務器開銷每個月基本上是15$，所以有能力的話請稍微贊助我一點吧（不是想恰飯，美國補牙太貴了沒錢了•﹏•），所以諸位要是有能力的話，可以贊助我海外服務器或者向我轉賬，我會將贊助名單放在項目自述文檔中，由衷的感謝大家的認可與支持，真的不是想恰飯，生活所迫，無奈之舉，望各位理解。
+
+我的微信：Evil0ctal
+
 ## 👻介紹
 
 > 出於穩定性的考慮，暫時關閉演示站的/video(返回mp4文件)和/music(返回mp3文件)這兩個功能，同時結果頁面的批量下載功能也暫時不可用，如有需求請自行部署，其他功能在演示站上仍正常使用，API服務器保證99%的時間正常運行，但不保證解析100%成功，如果解析失敗請等一兩分鐘後重試。
@@ -16,13 +20,13 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。)
+💾iOS快捷指令(中文): [點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。)
 
-🌎iOS快捷方式（英文）：[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（2022/07/18更新，這個快捷方式會自動檢查更新，只需要安裝一次。）
+🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（2022/07/18更新，此快捷方式會自動檢查更新，只需安裝一次。）
 
 🗂快捷指令歷史版本:[快捷方式發布](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
 
-📦️Tiktok/抖音下載器(桌面應用)：[抖音](https://github.com/Tairraos/TikDown/)
+📦️Tiktok/抖音下載器(桌面應用)：[TikDown](https://github.com/Tairraos/TikDown/)
 
 本項目使用[PyWebIO](https://github.com/pywebio/PyWebIO)、[燒瓶](https://github.com/pallets/flask)，利用Python實現在線批量解析抖音的無水印視頻/圖集。
 
@@ -268,7 +272,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 }
 ```
 
-> TikTok视频
+> TikTok視頻
 
 ```JSON
 {
@@ -309,7 +313,7 @@ http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链�
 }
 ```
 
--   下载视频请求参数
+-   下載視頻請求參數
 
 ```text
 http://localhost(服务器IP):2333/video?url="复制的(抖音/TikTok)口令/链接"
