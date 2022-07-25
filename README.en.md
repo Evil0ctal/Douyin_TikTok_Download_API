@@ -8,7 +8,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 > Note: This API is suitable for Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
-各位，本站自2021年11月以来至今一直提供免费的API服务，Azure的服务器开销每个月基本上是15$，所以有能力的话请稍微赞助我一点吧（不是想恰饭，美国补牙太贵了没钱了•﹏•），所以诸位要是有能力的话，可以赞助我海外服务器或者向我转账，我会将赞助名单放在项目自述文档中，由衷的感谢大家的认可与支持，真的不是想恰饭，生活所迫，无奈之举，望各位理解。
+Ladies and gentlemen, this site has been providing free API services since November 2021. The server cost of Azure is basically 15$ per month, so please sponsor me a little bit if you can (not just want to eat, the United States is too toothless) Expensive and no money•﹏•), so if you have the ability, you can sponsor my overseas server or transfer money to me, I will put the sponsorship list in the project readme file, and sincerely thank you for your recognition and support, really It's not just a meal, it's forced by life, it's a helpless move, I hope you understand.
 
 My WeChat: Evil0ctal
 
@@ -30,7 +30,7 @@ My WeChat: Evil0ctal
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
+It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find the option "Douyin TikTok without watermark download", if you encounter a notification asking whether to allow the shortcut command to access xxxx (domain name) or server), you need to click Allow to use it normally, and the successfully downloaded video or gallery will be saved in a special album for easy browsing.
 
@@ -159,7 +159,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok URL Shortening (In-App Copy)
+-   TikTok Short URL (In-App Copy)
 
 ```text
 例子：
@@ -185,7 +185,7 @@ https://www.tiktok.com/@off.anime_rei/video/7059609659690339586
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
-## 🛰️API使用
+## 🛰️API usage
 
 The API can convert the request parameters into a watermark-free video/picture straight link that needs to be extracted, and can be downloaded in-app with the IOS shortcut.
 
@@ -332,7 +332,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 ## 💾Deploy
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -340,7 +340,7 @@ example:
 The project is deployed on a domestic server, and the person is in the United States. Clicking the link on the result page reports an error 403, which is visually related to the Douyin CDN.
 The project is deployed on a South Korean server, parsing TikTok errors, and visually TikTok restricts certain regions or IPs.
 
-> Use the pagoda Linux panel for deployment (Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the pagoda international version, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
+> Use the pagoda Linux panel for deployment (the Chinese pagoda must be bound to the mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda, Google search keyword aapanel to install it yourself, and the deployment steps are similar.)
 
 -   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
@@ -358,7 +358,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -367,7 +367,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 -   Main interface
 
