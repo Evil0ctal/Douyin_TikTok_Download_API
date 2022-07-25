@@ -20,13 +20,13 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文): [點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。)
+💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。)
 
 🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（2022/07/18更新，此快捷方式會自動檢查更新，只需安裝一次。）
 
 🗂快捷指令歷史版本:[快捷方式發布](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
 
-📦️Tiktok/抖音下載器(桌面應用)：[TikDown](https://github.com/Tairraos/TikDown/)
+📦️Tiktok/抖音下載器(桌面應用)：[抖音](https://github.com/Tairraos/TikDown/)
 
 本項目使用[PyWebIO](https://github.com/pywebio/PyWebIO)、[燒瓶](https://github.com/pallets/flask)，利用Python實現在線批量解析抖音的無水印視頻/圖集。
 
