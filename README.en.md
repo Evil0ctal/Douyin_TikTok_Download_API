@@ -8,6 +8,10 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 > Note: This API is suitable for Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
+各位，本站自2021年11月以来至今一直提供免费的API服务，Azure的服务器开销每个月基本上是15$，所以有能力的话请稍微赞助我一点吧（不是想恰饭，美国补牙太贵了没钱了•﹏•），所以诸位要是有能力的话，可以赞助我海外服务器或者向我转账，我会将赞助名单放在项目自述文档中，由衷的感谢大家的认可与支持，真的不是想恰饭，生活所迫，无奈之举，望各位理解。
+
+My WeChat: Evil0ctal
+
 ## 👻Introduction
 
 > For the sake of stability, the two functions of /video (returns mp4 files) and /music (returns mp3 files) of the demo station are temporarily closed, and the batch download function of the result page is also temporarily unavailable. If you need it, please deploy it yourself , other functions can still be used normally on the demo site. The API server guarantees normal operation 99% of the time, but does not guarantee 100% successful parsing. If parsing fails, please wait a minute or two and try again.
@@ -155,7 +159,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -181,7 +185,7 @@ https://www.tiktok.com/@off.anime_rei/video/7059609659690339586
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
-## 🛰️API usage
+## 🛰️API使用
 
 The API can convert the request parameters into a watermark-free video/picture straight link that needs to be extracted, and can be downloaded in-app with the IOS shortcut.
 
@@ -328,7 +332,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 ## 💾Deploy
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -350,11 +354,11 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
 -   The frame is modified to`Flask`
 -   The startup method is changed to`python`
--   Web启动文件选择`web_zh.py`
+-   Web startup file selection`web_zh.py`
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -363,7 +367,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 -   Main interface
 
