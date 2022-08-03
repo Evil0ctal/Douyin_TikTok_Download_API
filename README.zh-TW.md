@@ -2,13 +2,15 @@
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
 
-語：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[簡體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
+語：  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[簡體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
 > 注：此API適用於抖音和抖音。抖音是中國的TikTok。您可以隨意分發或修改代碼，但請註明原作者。
 
 > 注: 此API適用於Douyin和TikTok，Douyin為中國區域的TikTok，你可以隨意分發或修改代碼，但請標註原作者。
 
 各位，本站自2021年11月以來至今一直提供免費的API服務，Azure的服務器開銷每個月基本上是15$，所以有能力的話請稍微贊助我一點吧（不是想恰飯，美國補牙太貴了沒錢了•﹏•），所以諸位要是有能力的話，可以贊助我海外服務器或者向我轉賬，我會將贊助名單放在項目自述文檔中，由衷的感謝大家的認可與支持，真的不是想恰飯，生活所迫，無奈之舉，望各位理解。
+
+服務器問題解決啦(薅羊毛每個月4$)，缺點是有點慢，API平均響應速度大概是1s，如果覺得太慢了可以嘗試自行部署一下哈。
 
 我的微信：Evil0ctal
 
