@@ -367,7 +367,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 -   API啟動文件選擇`web_api.py`
 -   勾選安裝模塊依賴
 -   開機啟動隨意
--   如果寶塔運行了`Nginx`等其他服务时请自行判断端口是否被占用，运行端口可在文件config.ini中修改。
+-   如果寶塔運行了`Nginx`等其他服務時請自行判斷端口是否被佔用，運行端口可在文件config.ini中修改。
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
