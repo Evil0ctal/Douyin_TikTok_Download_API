@@ -3,7 +3,7 @@ version: "3.7"
 services:
 
   # bot
-  douyintgbot:
+  douyin_tiktok_download_api:
     image: jwstar/douyin_tiktok_download_api
     network_mode: host
     container_name: douyin_tiktok_download_api
