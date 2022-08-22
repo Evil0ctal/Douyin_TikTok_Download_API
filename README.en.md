@@ -167,7 +167,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -351,7 +351,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > Deploy using the Pagoda Linux panel (
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
+-   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API, which can be modified in the file config.ini.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
@@ -382,7 +382,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to keep the container running in the background
+-   Run the command to let the container run in the background
 
 ```yaml
 docker compose up -d
