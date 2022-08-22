@@ -19,32 +19,55 @@ on:   # 配置触发workflow的事件
                   default: 'The Octoverse'       
       
 
-jobs:  # workflow中的job
+# 定义环境变量, 后面会使用
+# 定义 APP_NAME 用于 docker build-args
+# 定义 DOCKERHUB_REPO 标记 docker hub repo 名称
+env:
+  APP_NAME: douyin_tiktok_download_api
+  DOCKERHUB_REPO: jwstar/douyin_tiktok_download_api
 
-  push_to_registry:  # job的名字
-    name: Push Docker image to Docker Hub
-    runs-on: ubuntu-latest   # job运行的基础环境
-
-    steps:  # 一个job由一个或多个step组成
-      - name: Check out the repo
-        uses: actions/checkout@v2   # 官方的action，获取代码
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v1  # 三方的action操作， 执行docker login
+jobs:
+  main:
+    # 在 Ubuntu 上运行
+    runs-on: ubuntu-latest
+    steps:
+      # git checkout 代码
+      - name: Checkout
+        uses: actions/checkout@v2
+      # 设置 QEMU, 后面 docker buildx 依赖此.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      # 设置 Docker buildx, 方便构建 Multi platform 镜像
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      # 登录 docker hub
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}  # 配置dockerhub的认证，在Github项目主页 【Settings】 -> 【Secrets】 添加对应变量
+          # GitHub Repo => Settings => Secrets 增加 docker hub 登录密钥信息
+          # DOCKERHUB_USERNAME 是 docker hub 账号名.
+          # DOCKERHUB_TOKEN: docker hub => Account Setting => Security 创建.
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v3  # 抽取项目信息，主要是镜像的tag
+      # 通过 git 命令获取当前 tag 信息, 存入环境变量 APP_VERSION
+      - name: Generate App Version
+        run: echo APP_VERSION=`git describe --tags --always` >> $GITHUB_ENV
+      # 构建 Docker 并推送到 Docker hub
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2
         with:
-          images: jwstar/douyin_tiktok_download_api
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2 # docker build & push
-        with:
-          context: .
+          # 是否 docker push
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # 生成多平台镜像, see https://github.com/docker-library/bashbrew/blob/v0.1.1/architecture/oci-platform.go
+          platforms: |
+            linux/amd64
+            linux/arm64
+          # docker build arg, 注入 APP_NAME/APP_VERSION
+          build-args: |
+            APP_NAME=${{ env.APP_NAME }}
+            APP_VERSION=${{ env.APP_VERSION }}
+          # 生成两个 docker tag: ${APP_VERSION} 和 latest
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:latest
+            ${{ env.DOCKERHUB_REPO }}:${{ env.APP_VERSION }}
