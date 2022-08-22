@@ -24,7 +24,7 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
+💾iOS快捷指令(中文):[点击获取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。 )
 
 🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
