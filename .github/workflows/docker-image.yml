@@ -28,7 +28,7 @@ jobs:  # workflow中的job
         id: meta
         uses: docker/metadata-action@v3  # 抽取项目信息，主要是镜像的tag
         with:
-          images: jhao104/proxy_pool
+          images: jwstar/douyin_tiktok_download_api
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v2 # docker build & push
