@@ -181,7 +181,7 @@ https://vm.tiktok.com/TTPdkQvKjP/
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
--   抖音/TikTok批量网址(无需使用符合隔开)
+-   Douyin/TikTok bulk URLs (no need to separate them)
 
 ```text
 例子：
