@@ -1,0 +1,18 @@
+version: "3.7"
+
+services:
+
+  # bot
+  douyin_tiktok_download_api:
+    image: jwstar/douyin_tiktok_download_api
+    network_mode: host
+    container_name: douyin_tiktok_download_api
+    restart: always
+    volumes:
+      - ./config.ini:/app/config.ini
+    environment:
+      TZ: Asia/Shanghai
+    deploy:
+      resources:
+        limits:
+          cpus: '0.80'
