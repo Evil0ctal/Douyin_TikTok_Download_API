@@ -24,7 +24,7 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文):[点击获取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
+💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。 )
 
 🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
@@ -367,7 +367,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 -   API啟動文件選擇`web_api.py`
 -   勾選安裝模塊依賴
 -   開機啟動隨意
--   如果寶塔運行了`Nginx`等其他服務時請自行判斷端口是否被佔用，運行端口可在文件config.ini中修改。
+-   如果寶塔運行了`Nginx`等其他服务时请自行判断端口是否被占用，运行端口可在文件config.ini中修改。
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
