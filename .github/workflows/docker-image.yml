@@ -7,6 +7,17 @@ on:   # 配置触发workflow的事件
       - 'master'
     tags:       # tag更新时触发此workflow
       - '*'
+  workflow_dispatch:
+          inputs:
+              name:
+                  description: 'Person to greet'
+                  required: true
+                  default: 'Mona the Octocat'
+              home:
+                  description: 'location'
+                  required: false
+                  default: 'The Octoverse'       
+      
 
 jobs:  # workflow中的job
 
