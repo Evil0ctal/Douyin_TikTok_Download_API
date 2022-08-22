@@ -9,7 +9,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 > Note: This API is suitable for Douyin and TikTok. Douyin is TikTok in China. You can distribute or modify the code at will, but please mark the original author.
 
-Ladies and gentlemen, this site has been providing free API services since November 2021. The server cost of Azure is basically 15$ per month, so please sponsor me a little bit if you can (not just want to eat, the United States is too toothless) Expensive and no money•﹏•), so if you have the ability, you can sponsor my overseas server or transfer money to me, I will put the sponsorship list in the project readme file, and sincerely thank you for your recognition and support, really It's not because I want to have a meal, it's forced by life, and it's a helpless move. I hope you understand.
+Ladies and gentlemen, this site has been providing free API services since November 2021. The server cost of Azure is basically 15$ per month, so please sponsor me a little bit if you can (not just want to eat, the United States is too toothless) Expensive and no money•﹏•), so if you have the ability, you can sponsor my overseas server or transfer money to me, I will put the sponsorship list in the project readme file, and sincerely thank you for your recognition and support, really It's not just a meal, it's forced by life, it's a helpless move, I hope you understand.
 
 The server problem has been solved (the wool is 4$ per month). The disadvantage is that it is a bit slow. The average response speed of the API is about 1s. If you think it is too slow, you can try to deploy it yourself.
 
@@ -25,7 +25,7 @@ My WeChat: Evil0ctal
 🛰API demo:<https://api.douyin.wtf/>
 
 💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
-Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once. )
+Updated on 2022/07/18, the shortcut command can automatically check for updates, and you can install it once. )
 
 🌎iOS Shortcut(English):[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)(Updated on
 2022/07/18, this shortcut will automatically check for updates, only need to install it once.)
@@ -36,7 +36,7 @@ Updated on 2022/07/18, the shortcut command can automatically check for updates,
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
+It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find "Douyin TikTok No Watermark Download"
 This option, if you encounter a notification asking whether to allow shortcut commands to access xxxx (domain name or server), you need to click Allow before it can be used normally. The successfully downloaded video or gallery will be saved in a special album for easy browsing.
@@ -141,7 +141,7 @@ http://localhost(服务器IP):2333/
 
 ## 🗺️ Supported submission formats (including but not limited to the following examples):
 
--   抖音分享口令  (APP内复制)
+-   Douyin share password (copy in APP)
 
 ```text
 例子：7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
@@ -167,7 +167,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -340,7 +340,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 ## 💾Deployment (Method 1)
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -351,7 +351,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > Deploy using the Pagoda Linux panel (
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
+-   首先要去安全组开放5000和2333端口（Web默认5000，API默认2333，可以在文件config.ini中修改。）
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
@@ -367,7 +367,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -382,7 +382,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to keep the container running in the background
+-   Run the command to let the container run in the background
 
 ```yaml
 docker compose up -d
@@ -409,7 +409,7 @@ docker compose pull && docker compose down && docker compose up -d
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 -   Main interface
 
