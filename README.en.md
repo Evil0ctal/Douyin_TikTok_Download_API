@@ -86,7 +86,7 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
 ```
 
--   安装依赖库：
+-   Install dependent libraries:
 
 ```console
 pip install -r requirements.txt
@@ -130,7 +130,7 @@ tiktok_data = api.tiktok(input('在此输入TikTok分享口令/链接：'))
 print(tiktok_data)
 ```
 
--   入口
+-   Entrance
 
 ```text
 网页入口:
@@ -352,7 +352,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
 -   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, default 2333 for API, which can be modified in the file config.ini.)
--   在宝塔应用商店内搜索python并安装项目管理器 (推荐使用1.9版本)
+-   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
