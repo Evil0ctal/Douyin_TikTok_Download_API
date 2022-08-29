@@ -1,5 +1,5 @@
+[toc]
 # 欢迎使用 `Douyin_TikTok_Download_API` (抖音/TikTok无水印解析API)
-
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)
 [![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)
@@ -66,19 +66,14 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ---
 
-## 🤦‍♂️后续功能：
+## 🤦‍后续功能：
 
 - [ ] 支持输入(抖音/TikTok)作者主页链接实现批量解析
 
 ---
 
-## 🗃️Docker: 
-
-```console
-docker pull evil0ctal/douyin_tiktok_download_api:latest
-```
-
 ## 🧭运行说明(经过测试过的Python版本为3.8):
+> 🚨如果你要部署本项目，请参考部署方式([Docker部署](http://https://github.com/Evil0ctal/Douyin_TikTok_Download_API/edit/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"), [手动部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
 
 - 克隆本仓库：
 
@@ -136,7 +131,7 @@ tiktok_data = api.tiktok(input('在此输入TikTok分享口令/链接：'))
 print(tiktok_data)
 ```
 
-- 入口
+- 入口(端口可在config.ini文件中修改)
 
 ```text
 网页入口:
@@ -343,7 +338,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ---
 
-## 💾部署(方式一 手动部署)
+## 💾部署(方式一)
 
 > 注：
 > 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
@@ -377,39 +372,61 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
+- 如果有大量请求请使用进程守护启动防止进程关闭
+
 ---
 
 ## 💾部署(方式二 docker)
 
-- 安装docker
+- 安装docker(Ubuntu)
 
-```yaml
+```console
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
-- 留下config.int和docker-compose.yml文件即可
-- 运行命令,让容器在后台运行
+- 拉取docker镜像
 
-```yaml
-docker compose up -d
+```console
+docker pull evil0ctal/douyin_tiktok_download_api
 ```
 
-- 查看容器日志
+- 运行Web以及API服务的容器(可选1或2)
 
-```yaml
-docker logs -f douyin_tiktok_download_api
+>1.映射端口
+API入口: http://localhost:2333 Web入口: http://localhost:80
+```console
+# 映射容器的5000端口到本机80
+docker run -d -p 80:5000 -p 2333:2333 evil0ctal/douyin_tiktok_download_api
+```
+
+> 2.不映射端口
+API入口: http://localhost:2333 Web入口: http://localhost:5000
+```console
+docker run -d evil0ctal/douyin_tiktok_download_api
+```
+
+- 查看容器ID
+
+```console
+docker ps
+```
+
+- 停止容器
+
+```console
+docker stop  [容器ID]
 ```
 
 - 删除容器
 
-```yaml
-docker rm -f douyin_tiktok_download_api
+```console
+docker rm --force  [容器ID]
 ```
 
-- 更新
+- 更新镜像
 
-```yaml
-docker compose pull && docker compose down && docker compose up -d
+```console
+sudo docker pull evil0ctal/douyin_tiktok_download_api:latest
 ```
 
 ## 🎉截图
