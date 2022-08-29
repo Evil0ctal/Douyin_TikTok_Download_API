@@ -16,7 +16,7 @@
 
 🛰API演示：<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文): [點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
+💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。 )
 
 🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
@@ -66,7 +66,7 @@
 
 ## 🧭運行說明(經過測試過的Python版本為3.8):
 
-> 🚨如果你要部署本项目，请参考部署方式([Docker部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[手動部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
+> 🚨如果你要部署本項目，請參考部署方式([Docker部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[手動部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
 
 -   克隆本倉庫：
 
