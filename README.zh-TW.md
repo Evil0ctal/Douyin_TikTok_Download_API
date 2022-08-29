@@ -1,3 +1,5 @@
+[目錄]
+
 # 歡迎使用`Douyin_TikTok_Download_API`(抖音/TikTok無水印解析API)
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
@@ -19,7 +21,7 @@
 💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。 )
 
-🌎iOS快捷方式（英文）：[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
+🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
 2022/07/18，這個快捷方式會自動檢查更新，只需要安裝一次。）
 
 🗂快捷指令歷史版本:[快捷方式發布](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
@@ -58,19 +60,15 @@
 
 * * *
 
-## 🤦‍♂️後續功能：
+## 🤦‍後續功能：
 
 -   [ ] 支持輸入(抖音/TikTok)作者主頁鏈接實現批量解析
 
 * * *
 
-## 🗃️碼頭工人：
-
-```console
-docker pull evil0ctal/douyin_tiktok_download_api:latest
-```
-
 ## 🧭運行說明(經過測試過的Python版本為3.8):
+
+> 🚨如果你要部署本項目，請參考部署方式([Docker部署](http://https://github.com/Evil0ctal/Douyin_TikTok_Download_API/edit/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[手動部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
 
 -   克隆本倉庫：
 
@@ -128,7 +126,7 @@ tiktok_data = api.tiktok(input('在此输入TikTok分享口令/链接：'))
 print(tiktok_data)
 ```
 
--   入口
+-   入口(端口可在config.ini文件中修改)
 
 ```text
 网页入口:
@@ -335,7 +333,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 * * *
 
-## 💾部署(方式一 手動部署)
+## 💾部署(方式一)
 
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
@@ -369,39 +367,63 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
+-   如果有大量請求請使用進程守護啟動防止進程關閉
+
 * * *
 
 ## 💾部署(方式二 docker)
 
--   安裝docker
+-   安裝docker(Ubuntu)
 
-```yaml
+```console
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   留下config.int和docker-compose.yml文件即可
--   運行命令,讓容器在後台運行
+-   拉取docker鏡像
 
-```yaml
-docker compose up -d
+```console
+docker pull evil0ctal/douyin_tiktok_download_api
 ```
 
--   查看容器日誌
+-   運行Web以及API服務的容器(可選1或2)
 
-```yaml
-docker logs -f douyin_tiktok_download_api
+> 1.映射端口
+> API入口: http&#x3A;//localhost:2333 Web入口: http&#x3A;//localhost:80
+>
+> ```console
+> # 映射容器的5000端口到本机80
+> docker run -d -p 80:5000 -p 2333:2333 evil0ctal/douyin_tiktok_download_api
+> ```
+
+> 2.不映射端口
+> API入口: http&#x3A;//localhost:2333 Web入口: http&#x3A;//localhost:5000
+>
+> ```console
+> docker run -d evil0ctal/douyin_tiktok_download_api
+> ```
+
+-   查看容器ID
+
+```console
+docker ps
+```
+
+-   停止容器
+
+```console
+docker stop  [容器ID]
 ```
 
 -   刪除容器
 
-```yaml
-docker rm -f douyin_tiktok_download_api
+```console
+docker rm --force  [容器ID]
 ```
 
--   更新
+-   更新鏡像
 
-```yaml
-docker compose pull && docker compose down && docker compose up -d
+```console
+sudo docker pull evil0ctal/douyin_tiktok_download_api:latest
 ```
 
 ## 🎉截圖
