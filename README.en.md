@@ -1,3 +1,5 @@
+[toc]
+
 # welcome`Douyin_TikTok_Download_API`(Douyin/TikTok no watermark parsing API)
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
@@ -10,14 +12,14 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 ## 👻Introduction
 
 > For stability reasons, temporarily close /video (returns mp4 files) and /music (returns mp3 files) of the demo station
-> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% parsing. Success, if parsing fails please wait a minute or two and try again.
+> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% resolution. Success, if parsing fails please wait a minute or two and try again.
 
 🚀Demo address:<https://douyin.wtf/>
 
 🛰API demo:<https://api.douyin.wtf/>
 
 💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
-Updated on 2022/07/18, the shortcut command can automatically check for updates, and you can install it once. )
+Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once. )
 
 🌎iOS Shortcut(English):[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)(Updated on
 2022/07/18, this shortcut will automatically check for updates, only need to install it once.)
@@ -58,19 +60,15 @@ This option, if you encounter a notification asking whether to allow shortcut co
 
 * * *
 
-## 🤦‍♂️Follow-up features:
+## 🤦‍Follow-up features:
 
 -   [ ] Support input (Tik Tok/TikTok) author homepage link to achieve batch parsing
 
 * * *
 
-## 🗃️Docker:
-
-```console
-docker pull evil0ctal/douyin_tiktok_download_api:latest
-```
-
 ## 🧭 Running instructions (tested Python version is 3.8):
+
+> 🚨If you want to deploy this project, please refer to the deployment method ([Docker deployment](http://https://github.com/Evil0ctal/Douyin_TikTok_Download_API/edit/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[Manual deployment](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
 
 -   Clone this repository:
 
@@ -128,7 +126,7 @@ tiktok_data = api.tiktok(input('在此输入TikTok分享口令/链接：'))
 print(tiktok_data)
 ```
 
--   Entrance
+-   Entry (port can be modified in the config.ini file)
 
 ```text
 网页入口:
@@ -165,7 +163,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -201,7 +199,7 @@ The API can convert the request parameters into a watermark-free video/picture s
 http://localhost(服务器IP):2333/api?url="复制的(抖音/TikTok)口令/链接"
 ```
 
--   return parameter
+-   返回参数
 
 > Douyin video
 
@@ -335,7 +333,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 * * *
 
-## 💾Deployment (method 1 manual deployment)
+## 💾Deployment (Method 1)
 
 > Note:
 > The screenshots may not match the text due to update problems, please refer to the text description first.
@@ -349,7 +347,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > Deploy using the Pagoda Linux panel (
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
--   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API, which can be modified in the file config.ini.)
+-   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, default 2333 for API, which can be modified in the file config.ini.)
 -   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
@@ -365,49 +363,73 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
+
+-   If there are a lot of requests, use the process daemon start to prevent the process from closing
 
 * * *
 
 ## 💾Deployment (method 2 docker)
 
--   install docker
+-   Install docker (Ubuntu)
 
-```yaml
+```console
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   Just leave the config.int and docker-compose.yml files
--   Run the command to keep the container running in the background
+-   Pull the docker image
 
-```yaml
-docker compose up -d
+```console
+docker pull evil0ctal/douyin_tiktok_download_api
 ```
 
--   View container logs
+-   Containers for running web and API services (optional 1 or 2)
 
-```yaml
-docker logs -f douyin_tiktok_download_api
+> 1\. Mapping ports
+> API entry: http&#x3A;//localhost:2333 Web entry: http&#x3A;//localhost:80
+>
+> ```console
+> # 映射容器的5000端口到本机80
+> docker run -d -p 80:5000 -p 2333:2333 evil0ctal/douyin_tiktok_download_api
+> ```
+
+> 2\. Do not map ports
+> API entry: http&#x3A;//localhost:2333 Web entry: http&#x3A;//localhost:5000
+>
+> ```console
+> docker run -d evil0ctal/douyin_tiktok_download_api
+> ```
+
+-   View container ID
+
+```console
+docker ps
+```
+
+-   stop container
+
+```console
+docker stop  [容器ID]
 ```
 
 -   delete container
 
-```yaml
-docker rm -f douyin_tiktok_download_api
+```console
+docker rm --force  [容器ID]
 ```
 
--   renew
+-   update mirror
 
-```yaml
-docker compose pull && docker compose down && docker compose up -d
+```console
+sudo docker pull evil0ctal/douyin_tiktok_download_api:latest
 ```
 
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 -   Main interface
 
