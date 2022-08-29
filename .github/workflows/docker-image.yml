@@ -24,7 +24,7 @@ on:   # 配置触发workflow的事件
 # 定义 DOCKERHUB_REPO 标记 docker hub repo 名称
 env:
   APP_NAME: douyin_tiktok_download_api
-  DOCKERHUB_REPO: jwstar/douyin_tiktok_download_api
+  DOCKERHUB_REPO: evil0ctal/douyin_tiktok_download_api
 
 jobs:
   main:
