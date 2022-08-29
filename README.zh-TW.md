@@ -19,7 +19,7 @@
 💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。 )
 
-🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
+🌎iOS快捷方式（英文）：[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
 2022/07/18，這個快捷方式會自動檢查更新，只需要安裝一次。）
 
 🗂快捷指令歷史版本:[快捷方式發布](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
@@ -335,7 +335,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 * * *
 
-## 💾部署(方式一)
+## 💾部署(方式一 手動部署)
 
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
