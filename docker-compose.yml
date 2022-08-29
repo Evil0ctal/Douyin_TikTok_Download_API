@@ -4,7 +4,7 @@ services:
 
   # bot
   douyin_tiktok_download_api:
-    image: jwstar/douyin_tiktok_download_api
+    image: evil0ctal/douyin_tiktok_download_api
     network_mode: host
     container_name: douyin_tiktok_download_api
     restart: always
