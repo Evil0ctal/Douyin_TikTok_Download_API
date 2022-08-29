@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/07/18
+# @Update: 2022/08/29
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -39,7 +39,7 @@ def clean_filename(string, author_name):
     # 将上述字符替换为下划线
     new_title = re.sub(rstr, "_", string)
     # 新文件名
-    filename = ('douyin.wtf_' + new_title + '_' + author_name).replace('\n', '')
+    filename = (new_title + '_' + author_name).replace('\n', '')
     return filename
 
 
