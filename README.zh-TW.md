@@ -1,5 +1,3 @@
-[目錄]
-
 # 歡迎使用`Douyin_TikTok_Download_API`(抖音/TikTok無水印解析API)
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
@@ -68,7 +66,7 @@
 
 ## 🧭運行說明(經過測試過的Python版本為3.8):
 
-> 🚨如果你要部署本項目，請參考部署方式([Docker部署](http://https://github.com/Evil0ctal/Douyin_TikTok_Download_API/edit/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[手動部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
+> 🚨如果你要部署本項目，請參考部署方式([Docker部署](http://https://github.com/Evil0ctal/Douyin_TikTok_Download_API/edit/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-Docker "Docker部署"),[手動部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
 
 -   克隆本倉庫：
 
@@ -333,7 +331,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 * * *
 
-## 💾部署(方式一)
+## 💾部署(方式一 手動部署)
 
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
@@ -371,7 +369,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 * * *
 
-## 💾部署(方式二 docker)
+## 💾部署(方式二 Docker)
 
 -   安裝docker(Ubuntu)
 
