@@ -161,7 +161,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok短網址 (APP內復制)
+-   TikTok短网址 (APP内复制)
 
 ```text
 例子：
