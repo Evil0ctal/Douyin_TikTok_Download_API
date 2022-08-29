@@ -2,10 +2,11 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/08/08
+# @Update: 2022/08/28
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
+# input link, output dictionary.
 
 
 import re
@@ -17,8 +18,11 @@ from tenacity import *
 
 class Scraper:
     """
-    Scraper.douyin():抖音视频/图集解析，返回字典。
-    Scraper.tiktok():TikTok视频解析，返回字典。
+    Scraper.douyin(link):
+    输入参数为抖音视频/图集链接，完成解析后返回字典。
+    
+    Scraper.tiktok(link):
+    输入参数为TikTok视频/图集链接，完成解析后返回字典。
     """
 
     def __init__(self):
@@ -305,7 +309,6 @@ class Scraper:
         start = time.time()
         # 校验TikTok链接
         if '@' in original_url:
-            original_url = original_url
             print("目标链接: ", original_url)
         else:
             # 从请求头中获取原始链接
@@ -321,10 +324,10 @@ class Scraper:
             # 获取视频ID
             video_id = re.findall('/video/(\d+)?', original_url)[0]
             print('获取到的TikTok视频ID是{}'.format(video_id))
-            # 尝试从TikTok网页获取部分视频数据，失败后判断为图集
+            # 尝试从TikTok网页获取部分视频数据
             try:
                 tiktok_headers = self.tiktok_headers
-                html = requests.get(url=original_url, headers=tiktok_headers, proxies=self.proxies)
+                html = requests.get(url=original_url, headers=tiktok_headers, proxies=self.proxies, timeout=1)
                 # 正则检索网页中存在的JSON信息
                 resp = re.search('"ItemModule":{(.*)},"UserModule":', html.text).group(1)
                 resp_info = ('{"ItemModule":{' + resp + '}}')
@@ -343,7 +346,7 @@ class Scraper:
             if 'image_post_info' in response:
                 # 判断链接是图集链接
                 url_type = 'album'
-                print('类型为图集')
+                print('类型为图集/type album')
                 # 视频标题
                 album_title = result["aweme_detail"]["desc"]
                 # 视频作者昵称
@@ -411,7 +414,7 @@ class Scraper:
             else:
                 # 类型为视频
                 url_type = 'video'
-                print('类型为视频')
+                print('类型为视频/type video')
                 # 无水印视频链接
                 nwm_video_url = result["aweme_detail"]["video"]["play_addr"]["url_list"][0]
                 try:
