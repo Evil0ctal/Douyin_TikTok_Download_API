@@ -1,4 +1,3 @@
-[toc]
 # 欢迎使用 `Douyin_TikTok_Download_API` (抖音/TikTok无水印解析API)
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)
