@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/06/06
+# @Update: 2022/08/29
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -30,6 +30,8 @@ app_config.read('config.ini', encoding='utf-8')
 web_config = app_config['Web_ZH']
 title = web_config['Web_Title']
 description = web_config['Web_Description']
+api_config = app_config['Web_API']
+api_url = api_config['URL']
 headers = {
     'user-agent': 'Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66'
 }
@@ -60,7 +62,7 @@ def valid_check(kou_ling):
         # 最大接受提交URL的数量
         max_urls = web_config['Max_Take_URLs']
         if total_urls > int(max_urls):
-            return '为了避免资源占用过多请确保每次提交的链接少于10个，如需大量解析请自行部署。'
+            return '为了避免资源占用过多请确保每次提交的链接少于{}个，如需大量解析请自行部署。'.format(max_urls)
         else:
             for i in url_list:
                 if 'douyin.com' in i[:31]:
@@ -105,18 +107,18 @@ def clean_filename(string, author_name):
     # 将上述字符替换为下划线
     new_title = re.sub(rstr, "_", string)
     # 新文件名
-    filename = (author_name + '_' + new_title).replace('\n', '')
+    filename = (new_title + '_' + author_name).replace('\n', '')
     return filename
 
 
 def compress_file(tar_file, target_file):
     # tar_file是输出压缩包名字以及目录("./output/mp4.tar")，target_file是要打包的目录或文件名("./files")
     if os.path.isfile(target_file):
-        with tarfile.open(tar_file, 'w') as tar:
+        with tarfile.open(tar_file, 'w', encoding='utf-8') as tar:
             tar.add(target_file)
             return 'finished'
     else:
-        with tarfile.open(tar_file, 'w') as tar:
+        with tarfile.open(tar_file, 'w', encoding='utf-8') as tar:
             for root, dirs, files in os.walk(target_file):
                 for single_file in files:
                     filepath = os.path.join(root, single_file)
@@ -192,11 +194,11 @@ def put_douyin_result(item):
     api = Scraper()
     # 抖音数据
     douyin_date = api.douyin(item)
-    # API链接
-    short_api_url = 'https://api.douyin.wtf/api?url=' + item
-    download_video = 'https://api.douyin.wtf/video?url=' + item
-    download_bgm = 'https://api.douyin.wtf/music?url=' + item
     if douyin_date['status'] == 'success':
+        # API链接
+        short_api_url = api_url + '/api?url=' + item
+        download_video = api_url + '/video?url=' + item
+        download_bgm = api_url + '/music?url=' + item
         if douyin_date['url_type'] == 'video':
             put_table([
                 ['类型', '内容'],
@@ -260,9 +262,9 @@ def put_tiktok_result(item):
     tiktok_data = api.tiktok(item)
     if tiktok_data['status'] == 'success':
         # API链接
-        short_api_url = 'https://api.douyin.wtf/api?url=' + item
-        download_video = 'https://api.douyin.wtf/video?url=' + item
-        download_bgm = 'https://api.douyin.wtf/music?url=' + item
+        short_api_url = api_url + '/api?url=' + item
+        download_video = api_url + '/video?url=' + item
+        download_bgm = api_url + '/music?url=' + item
         if tiktok_data['url_type'] == 'video':
             put_table([
                 ['类型', '内容'],
