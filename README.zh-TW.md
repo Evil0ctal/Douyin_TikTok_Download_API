@@ -371,57 +371,35 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ## 💾部署(方式二 Docker)
 
--   安裝docker(Ubuntu)
+-   安裝docker
 
-```console
+```yaml
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   拉取docker鏡像
+-   留下config.int和docker-compose.yml文件即可
+-   運行命令,讓容器在後台運行
 
-```console
-docker pull evil0ctal/douyin_tiktok_download_api
+```yaml
+docker compose up -d
 ```
 
--   運行Web以及API服務的容器(可選1或2)
+-   查看容器日誌
 
-> 1.映射端口
-> API入口: http&#x3A;//localhost:2333 Web入口: http&#x3A;//localhost:80
->
-> ```console
-> # 映射容器的5000端口到本机80
-> docker run -d -p 80:5000 -p 2333:2333 evil0ctal/douyin_tiktok_download_api
-> ```
-
-> 2.不映射端口
-> API入口: http&#x3A;//localhost:2333 Web入口: http&#x3A;//localhost:5000
->
-> ```console
-> docker run -d evil0ctal/douyin_tiktok_download_api
-> ```
-
--   查看容器ID
-
-```console
-docker ps
-```
-
--   停止容器
-
-```console
-docker stop  [容器ID]
+```yaml
+docker logs -f douyin_tiktok_download_api
 ```
 
 -   刪除容器
 
-```console
-docker rm --force  [容器ID]
+```yaml
+docker rm -f douyin_tiktok_download_api
 ```
 
--   更新鏡像
+-   更新
 
-```console
-sudo docker pull evil0ctal/douyin_tiktok_download_api:latest
+```yaml
+docker compose pull && docker compose down && docker compose up -d
 ```
 
 ## 🎉截圖
