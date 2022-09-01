@@ -115,19 +115,24 @@ python3 web_api.py
 - 调用解析库
 
 ```python
-# 将scraper.py拷贝至你的项目目录
-# 在该项目中导入scraper.py 
-from scraper import Scraper
+# pip install DT-Scraper
+from DT_scraper.scraper import Scraper
 
 api = Scraper()
+
 # 解析Douyin视频/图集
-douyin_data = api.douyin(input('在此输入抖音分享口令/链接：'))
+douyin_data = api.douyin(input('Douyin video URL：'))
 # 返回字典
 print(douyin_data)
-# 解析TikTok视频/图集
-tiktok_data = api.tiktok(input('在此输入TikTok分享口令/链接：'))
-# 返回字典
+
+# Parsing TikTok Videos/Galleries
+tiktok_data = api.tiktok(input('TikTok video URL：'))
+# return dictionary
 print(tiktok_data)
+
+# 使用代理进行解析(Parse using a proxy)
+api.tiktok(input('TikTok video URL：'), proxies = {'all': 127.0.0.1:2333})
+
 ```
 
 - 入口(端口可在config.ini文件中修改)
