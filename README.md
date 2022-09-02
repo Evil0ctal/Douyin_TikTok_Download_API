@@ -59,6 +59,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 - 支持海外TikTok视频解析
 - 支持批量解析(支持抖音/TikTok混合解析)
 - 解析结果页批量下载无水印视频
+- 制作[pip包](https://pypi.org/project/DT-Scraper/)方便使用
 - 支持API调用
 - 支持使用代理解析
 - 支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
@@ -121,7 +122,7 @@ from DT_scraper.scraper import Scraper
 api = Scraper()
 
 # 解析Douyin视频/图集
-douyin_data = api.douyin(input('Douyin video URL：'))
+douyin_data = api.douyin(input('抖音视频链接：'))
 # 返回字典
 print(douyin_data)
 
