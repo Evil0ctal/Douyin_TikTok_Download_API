@@ -132,7 +132,7 @@ tiktok_data = api.tiktok(input('TikTok video URL：'))
 print(tiktok_data)
 
 # 使用代理进行解析(Parse using a proxy)
-api.tiktok(input('TikTok video URL：'), proxies = {'all': 127.0.0.1:2333})
+api.tiktok(input('TikTok video URL：'), proxies = {"all": "127.0.0.1:2333"})
 
 ```
 
