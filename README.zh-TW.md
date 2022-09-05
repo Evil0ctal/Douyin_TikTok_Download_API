@@ -147,7 +147,7 @@ http://localhost(服务器IP):2333/
 例子：7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
 ```
 
--   抖音短網址 (APP內復制)
+-   抖音短网址 (APP内复制)
 
 ```text
 例子：https://v.douyin.com/L4FJNR3/
@@ -181,7 +181,7 @@ https://vm.tiktok.com/TTPdkQvKjP/
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
--   抖音/TikTok批量网址(无需使用符合隔开)
+-   抖音/TikTok批量網址(無需使用符合隔開)
 
 ```text
 例子：
