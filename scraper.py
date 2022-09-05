@@ -129,7 +129,7 @@ class Scraper:
                     for key in js['item_list'][0]:
                         if key == 'music':
                             # 图集BGM链接
-                            album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                            album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0] if len(js['item_list'][0]['music']['play_url']['url_list']) > 0 else 'No BGM found')
                             # 图集BGM标题
                             album_music_title = str(js['item_list'][0]['music']['title'])
                             # 图集BGM作者
