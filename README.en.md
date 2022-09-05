@@ -17,7 +17,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 🛰API demo:<https://api.douyin.wtf/>
 
 💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
-Updated on 2022/07/18, the shortcut command can automatically check for updates, and you can install it once. )
+Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once. )
 
 🌎iOS Shortcut(English):[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)(Updated on
 2022/07/18, this shortcut will automatically check for updates, only need to install it once.)
@@ -93,7 +93,7 @@ pip install -r requirements.txt
 vim config.ini
 ```
 
--   网页解析
+-   Web page parsing
 
 ```console
 # 运行web_zh.py
@@ -367,7 +367,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`When waiting for other services, please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
