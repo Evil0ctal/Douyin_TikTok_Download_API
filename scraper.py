@@ -99,6 +99,14 @@ class Scraper:
                 print("正在请求抖音API链接: " + '\n' + api_url)
                 # 将回执以JSON格式处理
                 js = json.loads(requests.get(url=api_url, headers=headers, proxies=self.proxies).text)
+                aweme_id = str(js['item_list'][0]['aweme_id'])
+                share_url = re.sub("/\\?.*", "", js['item_list'][0]['share_url'])
+                if share_url is None:
+                    share_url = ("https://www.iesdouyin.com/share/video/" + aweme_id) if aweme_id is not None else original_url;
+                try:
+                    music_share_url = "https://www.iesdouyin.com/share/music/" + str(js['item_list'][0]['music']['mid'])
+                except:
+                    music_share_url = None
                 # 判断是否为图集
                 if js['item_list'][0]['images'] is not None:
                     print("类型 = 图集")
@@ -130,6 +138,7 @@ class Scraper:
                             album_music_id = str(js['item_list'][0]['music']['id'])
                             # 图集BGM MID
                             album_music_mid = str(js['item_list'][0]['music']['mid'])
+                            break;
                         else:
                             # 图集BGM链接
                             album_music = album_music_title = album_music_author = album_music_id = album_music_mid = 'No BGM found '
@@ -163,6 +172,8 @@ class Scraper:
                                   'url_type': url_type,
                                   'platform': 'douyin',
                                   'original_url': original_url,
+                                  'share_url': share_url,
+                                  'music_share_url': music_share_url,
                                   'api_url': api_url,
                                   'album_aweme_id': album_aweme_id,
                                   'album_title': album_title,
@@ -234,6 +245,7 @@ class Scraper:
                             video_music_id = str(js['item_list'][0]['music']['id'])
                             # 视频BGM MID
                             video_music_mid = str(js['item_list'][0]['music']['mid'])
+                            break;
                         else:
                             video_music = video_music_title = video_music_author = video_music_id = video_music_mid = 'No BGM found'
                     # 视频ID
@@ -268,6 +280,8 @@ class Scraper:
                                   'url_type': url_type,
                                   'platform': 'douyin',
                                   'original_url': original_url,
+                                  'share_url': share_url,
+                                  'music_share_url': music_share_url,
                                   'api_url': api_url,
                                   'video_title': video_title,
                                   'nwm_video_url': video_url,
