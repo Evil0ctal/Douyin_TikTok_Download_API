@@ -446,6 +446,10 @@ docker compose pull && docker compose down && docker compose up -d
 > 注：
 > 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
 
+<details><summary>点击展开截图</summary>
+
+<hr>
+
 - 主界面
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home.png)
@@ -481,3 +485,17 @@ docker compose pull && docker compose down && docker compose up -d
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
 
 ---
+
+</details>
+
+## :alembic: 技术栈
+
+* [PyWebIO](https://www.pyweb.io/) + [Flask](https://flask.palletsprojects.com/)
+
+## :scroll: 许可证
+
+MIT License
+
+---
+> GitHub [@Evil0ctal](https://github.com/Evil0ctal) &nbsp;&middot;&nbsp;
+> Email [Evil0ctal1985@gmail.com](Evil0ctal1985@gmail.com
