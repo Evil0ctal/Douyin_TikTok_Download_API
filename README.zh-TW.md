@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E8%BF%90%E8%A1%8C%E8%AF%B4%E6%98%8E%E7%BB%8F%E8%BF%87%E6%B5%8B%E8%AF%95%E8%BF%87%E7%9A%84python%E7%89%88%E6%9C%AC%E4%B8%BA38">运行说明</a> •
-  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/edit/main/README.md">API使用</a> •
+  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/#%EF%B8%8Fapi使用">API使用</a> •
   <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2">手动部署</a> •
   <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker">Docker部署</a> •
   <a href="https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api">Docker镜像</a> •
@@ -65,7 +65,7 @@
 
 ## 💯已支持功能：
 
--   支持抖音視頻/圖集解析
+-   支持抖音视频/图集解析
 -   支持海外TikTok視頻解析
 -   支持批量解析(支持抖音/TikTok混合解析)
 -   解析結果頁批量下載無水印視頻
@@ -198,7 +198,7 @@ https://vm.tiktok.com/TTPdkQvKjP/
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
--   抖音/TikTok批量網址(無需使用符合隔開)
+-   抖音/TikTok批量网址(无需使用符合隔开)
 
 ```text
 例子：
@@ -359,7 +359,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
 
-> 最好將本項目部署至海外服務器(優先選擇美國地區的服務器)，否則可能會出現奇怪的問題。
+> 最好将本项目部署至海外服务器(优先选择美国地区的服务器)，否则可能会出现奇怪的问题。
 
 例子：
 項目部署在國內服務器，而人在美國，點擊結果頁面鏈接報錯403 ，目測與抖音CDN有關係。
