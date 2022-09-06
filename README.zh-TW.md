@@ -65,7 +65,7 @@
 
 ## 💯已支持功能：
 
--   支持抖音视频/图集解析
+-   支持抖音視頻/圖集解析
 -   支持海外TikTok視頻解析
 -   支持批量解析(支持抖音/TikTok混合解析)
 -   解析結果頁批量下載無水印視頻
@@ -198,7 +198,7 @@ https://vm.tiktok.com/TTPdkQvKjP/
 https://www.tiktok.com/@tvamii/video/7045537727743380782
 ```
 
--   抖音/TikTok批量网址(无需使用符合隔开)
+-   抖音/TikTok批量網址(無需使用符合隔開)
 
 ```text
 例子：
@@ -359,7 +359,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
 
-> 最好将本项目部署至海外服务器(优先选择美国地区的服务器)，否则可能会出现奇怪的问题。
+> 最好將本項目部署至海外服務器(優先選擇美國地區的服務器)，否則可能會出現奇怪的問題。
 
 例子：
 項目部署在國內服務器，而人在美國，點擊結果頁面鏈接報錯403 ，目測與抖音CDN有關係。
@@ -369,7 +369,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 > 中文寶塔要強制綁定手機號了，很流氓且無法繞過，建議使用寶塔國際版，谷歌搜索關鍵字aapanel自行安裝，部署步驟相似。 )
 
 -   首先要去安全組開放5000和2333端口（Web默認5000，API默認2333，可以在文件config.ini中修改。）
--   在寶塔應用商店內搜索python並安裝項目管理器 (推薦使用1.9版本)
+-   在宝塔应用商店内搜索python并安装项目管理器 (推荐使用1.9版本)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
