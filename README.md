@@ -498,4 +498,4 @@ MIT License
 
 ---
 > GitHub [@Evil0ctal](https://github.com/Evil0ctal) &nbsp;&middot;&nbsp;
-> Email [Evil0ctal1985@gmail.com](Evil0ctal1985@gmail.com
+> Email Evil0ctal1985@gmail.com
