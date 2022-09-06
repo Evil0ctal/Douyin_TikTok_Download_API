@@ -13,7 +13,7 @@ import setuptools
 setup(
     name='DT_Scraper',  # 包的名字
     author='Evil0ctal',  # 作者
-    version='1.0.0',  # 版本号
+    version='1.0.1',  # 版本号
     license='MIT',
 
     description='Douyin/TikTok crawler and no watermark video download.',  # 描述
@@ -22,7 +22,7 @@ setup(
     url='https://github.com/Evil0ctal/Douyin_TikTok_Download_API',  # 可以写github上的地址，或者其他地址
     # 包内需要引用的文件夹
     # packages=setuptools.find_packages(exclude=['url2io',]),
-    packages=["DT_scraper"],
+    packages=["src/DT_scraper"],
     # keywords='NLP,tokenizing,Chinese word segementation',
     # package_dir={'jieba':'jieba'},
     # package_data={'jieba':['*.*','finalseg/*','analyse/*','posseg/*']},
