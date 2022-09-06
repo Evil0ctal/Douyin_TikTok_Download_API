@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/09/01
+# @Update: 2022/09/04
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -19,7 +19,7 @@ class Scraper:
     """
     Scraper.douyin(link):
     输入参数为抖音视频/图集链接，完成解析后返回字典。
-    
+
     Scraper.tiktok(link):
     输入参数为TikTok视频/图集链接，完成解析后返回字典。
     """
@@ -83,6 +83,15 @@ class Scraper:
                 print("正在请求抖音API链接: " + '\n' + api_url)
                 # 将回执以JSON格式处理
                 js = json.loads(requests.get(url=api_url, headers=headers, proxies=proxies).text)
+                aweme_id = str(js['item_list'][0]['aweme_id'])
+                share_url = re.sub("/\\?.*", "", js['item_list'][0]['share_url'])
+                if share_url is None:
+                    share_url = (
+                                "https://www.iesdouyin.com/share/video/" + aweme_id) if aweme_id is not None else original_url;
+                try:
+                    music_share_url = "https://www.iesdouyin.com/share/music/" + str(js['item_list'][0]['music']['mid'])
+                except:
+                    music_share_url = None
                 # 判断是否为图集
                 if js['item_list'][0]['images'] is not None:
                     print("类型 = 图集")
@@ -105,7 +114,8 @@ class Scraper:
                     for key in js['item_list'][0]:
                         if key == 'music':
                             # 图集BGM链接
-                            album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0])
+                            album_music = str(js['item_list'][0]['music']['play_url']['url_list'][0] if len(
+                                js['item_list'][0]['music']['play_url']['url_list']) > 0 else 'No BGM found')
                             # 图集BGM标题
                             album_music_title = str(js['item_list'][0]['music']['title'])
                             # 图集BGM作者
@@ -114,6 +124,7 @@ class Scraper:
                             album_music_id = str(js['item_list'][0]['music']['id'])
                             # 图集BGM MID
                             album_music_mid = str(js['item_list'][0]['music']['mid'])
+                            break;
                         else:
                             # 图集BGM链接
                             album_music = album_music_title = album_music_author = album_music_id = album_music_mid = 'No BGM found '
@@ -147,6 +158,8 @@ class Scraper:
                                   'url_type': url_type,
                                   'platform': 'douyin',
                                   'original_url': original_url,
+                                  'share_url': share_url,
+                                  'music_share_url': music_share_url,
                                   'api_url': api_url,
                                   'album_aweme_id': album_aweme_id,
                                   'album_title': album_title,
@@ -218,6 +231,7 @@ class Scraper:
                             video_music_id = str(js['item_list'][0]['music']['id'])
                             # 视频BGM MID
                             video_music_mid = str(js['item_list'][0]['music']['mid'])
+                            break;
                         else:
                             video_music = video_music_title = video_music_author = video_music_id = video_music_mid = 'No BGM found'
                     # 视频ID
@@ -252,6 +266,8 @@ class Scraper:
                                   'url_type': url_type,
                                   'platform': 'douyin',
                                   'original_url': original_url,
+                                  'share_url': share_url,
+                                  'music_share_url': music_share_url,
                                   'api_url': api_url,
                                   'video_title': video_title,
                                   'nwm_video_url': video_url,
@@ -289,6 +305,7 @@ class Scraper:
         :param original_url:TikTok链接
         :return:包含信息的字典
         """
+
         headers = self.headers
         # 开始时间
         start = time.time()
