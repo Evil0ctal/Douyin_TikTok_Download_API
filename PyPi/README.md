@@ -1,9 +1,28 @@
-# 欢迎使用 `Douyin_TikTok_Download_API` (抖音/TikTok无水印解析API)
+<h1 align="center">
+  <br>
+  <a href="https://douyin.wtf/" alt="logo" ><img src="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/logo/logo192.png" width="150"/></a>
+  <br>
+  Douyin_TikTok_Download_API(抖音/TikTok无水印解析API)
+  <br>
+</h1>
+
+<p align="center">
+  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E8%BF%90%E8%A1%8C%E8%AF%B4%E6%98%8E%E7%BB%8F%E8%BF%87%E6%B5%8B%E8%AF%95%E8%BF%87%E7%9A%84python%E7%89%88%E6%9C%AC%E4%B8%BA38">运行说明</a> •
+  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/#%EF%B8%8Fapi使用">API使用</a> •
+  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2">手动部署</a> •
+  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker">Docker部署</a> •
+  <a href="https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api">Docker镜像</a> •
+  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%EF%B8%8F-贡献者">贡献者</a>
+</p>
+
+<hr>
+
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)
 [![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)
 [![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)
 [![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)
+[![Docker Image size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api?style=flat-square)](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
 
 Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  [[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  [[繁体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
@@ -59,6 +78,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 - 支持海外TikTok视频解析
 - 支持批量解析(支持抖音/TikTok混合解析)
 - 解析结果页批量下载无水印视频
+- 制作[pip包](https://pypi.org/project/DT-Scraper/)方便使用
 - 支持API调用
 - 支持使用代理解析
 - 支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
@@ -115,19 +135,24 @@ python3 web_api.py
 - 调用解析库
 
 ```python
-# 将scraper.py拷贝至你的项目目录
-# 在该项目中导入scraper.py 
-from scraper import Scraper
+# pip install DT-Scraper
+from DT_scraper.scraper import Scraper
 
 api = Scraper()
+
 # 解析Douyin视频/图集
-douyin_data = api.douyin(input('在此输入抖音分享口令/链接：'))
+douyin_data = api.douyin(input('抖音视频链接：'))
 # 返回字典
 print(douyin_data)
-# 解析TikTok视频/图集
-tiktok_data = api.tiktok(input('在此输入TikTok分享口令/链接：'))
-# 返回字典
+
+# Parsing TikTok Videos/Galleries
+tiktok_data = api.tiktok(input('TikTok video URL：'))
+# return dictionary
 print(tiktok_data)
+
+# 使用代理进行解析(Parse using a proxy)
+api.tiktok(input('TikTok video URL：'), proxies = {"all": "127.0.0.1:2333"})
+
 ```
 
 - 入口(端口可在config.ini文件中修改)
@@ -408,10 +433,23 @@ docker rm -f douyin_tiktok_download_api
 docker compose pull && docker compose down && docker compose up -d
 ```
 
+## ❤️ 贡献者
+
+[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)
+[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)
+[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)
+[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)
+[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)
+[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
+
 ## 🎉截图
 
 > 注：
 > 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
+
+<details><summary>点击展开截图</summary>
+
+<hr>
 
 - 主界面
 
@@ -448,3 +486,17 @@ docker compose pull && docker compose down && docker compose up -d
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
 
 ---
+
+</details>
+
+## :alembic: 技术栈
+
+* [PyWebIO](https://www.pyweb.io/) + [Flask](https://flask.palletsprojects.com/)
+
+## :scroll: 许可证
+
+MIT License
+
+---
+> GitHub [@Evil0ctal](https://github.com/Evil0ctal) &nbsp;&middot;&nbsp;
+> Email Evil0ctal1985@gmail.com
