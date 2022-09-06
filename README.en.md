@@ -361,9 +361,9 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
-example:
-The project is deployed on a domestic server, and the person is in the United States. Clicking the link on the result page reports an error 403, which is visually related to the Douyin CDN.
-The project is deployed on a South Korean server, parsing TikTok errors, and visually TikTok restricts certain regions or IPs.
+例子：
+项目部署在国内服务器，而人在美国，点击结果页面链接报错403 ，目测与抖音CDN有关系。
+项目部署在韩国服务器，解析TikTok报错 ，目测TikTok对某些地区或IP进行了限制。
 
 > Deploy using the Pagoda Linux panel (
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
@@ -388,7 +388,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
--   If there are a lot of requests, use the process daemon start to prevent the process from closing
+-   如果有大量请求请使用进程守护启动防止进程关闭
 
 * * *
 
@@ -486,4 +486,5 @@ MY License
 
 * * *
 
-> GitHub[@Evil0ctal](https://github.com/Evil0ctal) · Email[Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
+> GitHub[@Evil0ctal](https://github.com/Evil0ctal) · 
+> Email [Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
