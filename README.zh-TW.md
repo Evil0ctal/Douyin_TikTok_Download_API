@@ -19,7 +19,7 @@
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)[![Docker Image size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api?style=flat-square)](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
 
-語：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
+語：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[簡體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
 > 注：此API適用於抖音和抖音。抖音是中國的TikTok。您可以在以下位置分發或修改代碼
 > 會，但請註明原作者。
@@ -50,7 +50,7 @@
 快捷指令需要在抖音或TikTok的APP內，選擇你想要保存的視頻，點擊分享按鈕，然後找到 "抖音TikTok無水印下載"
 這個選項，如遇到通知詢問是否允許快捷指令訪問xxxx (域名或服務器)，需要點擊允許才可以正常使用，下載成功的視頻或圖集會保存在一個專門的相冊中以方便瀏覽。
 
-## 💡项目文件结构
+## 💡項目文件結構
 
     # 请根据需要自行修改config.ini中的内容
     .
@@ -86,7 +86,7 @@
 
 > 🚨如果你要部署本項目，請參考部署方式([Docker部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[手動部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
 
--   克隆本仓库：
+-   克隆本倉庫：
 
 ```console
 git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
@@ -486,4 +486,4 @@ docker compose pull && docker compose down && docker compose up -d
 
 * * *
 
-> GitHub[@Evil0ctal](https://github.com/Evil0ctal) · 電子郵件[Evil0ctal1985@gmail.com]\([Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
+> GitHub[@Evil0ctal](https://github.com/Evil0ctal) · 電子郵件[Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
