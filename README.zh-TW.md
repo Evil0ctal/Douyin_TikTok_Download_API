@@ -19,7 +19,7 @@
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)[![Docker Image size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api?style=flat-square)](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
 
-語：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[簡體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
+語：  \[[英語](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]  \[[繁體中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-TW.md)]
 
 > 注：此API適用於抖音和抖音。抖音是中國的TikTok。您可以在以下位置分發或修改代碼
 > 會，但請註明原作者。
@@ -50,7 +50,7 @@
 快捷指令需要在抖音或TikTok的APP內，選擇你想要保存的視頻，點擊分享按鈕，然後找到 "抖音TikTok無水印下載"
 這個選項，如遇到通知詢問是否允許快捷指令訪問xxxx (域名或服務器)，需要點擊允許才可以正常使用，下載成功的視頻或圖集會保存在一個專門的相冊中以方便瀏覽。
 
-## 💡項目文件結構
+## 💡项目文件结构
 
     # 请根据需要自行修改config.ini中的内容
     .
@@ -434,6 +434,10 @@ docker compose pull && docker compose down && docker compose up -d
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
 
+<details><summary>点击展开截图</summary>
+
+<hr>
+
 -   主界面
 
 ![](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/Screenshots/home.png)
@@ -469,3 +473,17 @@ docker compose pull && docker compose down && docker compose up -d
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
 
 * * *
+
+</details>
+
+## :alembic: 技術棧
+
+-   [PyWebIO](https://www.pyweb.io/)+[燒瓶](https://flask.palletsprojects.com/)
+
+## :scroll: 許可證
+
+我的執照
+
+* * *
+
+> GitHub[@Evil0ctal](https://github.com/Evil0ctal) · 電子郵件[Evil0ctal1985@gmail.com]\([Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
