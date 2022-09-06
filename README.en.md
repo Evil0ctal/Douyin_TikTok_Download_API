@@ -65,7 +65,7 @@ This option, if you encounter a notification asking whether to allow shortcut co
 
 ## 💯 Supported features:
 
--   Support Douyin video/atlas parsing
+-   支持抖音视频/图集解析
 -   Support overseas TikTok video analysis
 -   Support batch parsing (support Douyin/TikTok hybrid parsing)
 -   Parse the result page to download watermark-free videos in batches
@@ -378,7 +378,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   Create a project with an arbitrary name
 -   Path select the path where you upload the file
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
--   框架修改为`Flask`
+-   The frame is modified to`Flask`
 -   The startup method is changed to`python`
 -   Web startup file selection`web_zh.py`
 -   API startup file selection`web_api.py`
@@ -400,7 +400,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   留下config.int和docker-compose.yml文件即可
+-   Just leave the config.int and docker-compose.yml files
 -   Run the command to let the container run in the background
 
 ```yaml
