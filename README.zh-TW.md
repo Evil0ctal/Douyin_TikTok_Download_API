@@ -388,7 +388,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
--   如果有大量请求请使用进程守护启动防止进程关闭
+-   如果有大量請求請使用進程守護啟動防止進程關閉
 
 * * *
 
@@ -429,7 +429,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 [![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
-## 🎉截图
+## 🎉截圖
 
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
