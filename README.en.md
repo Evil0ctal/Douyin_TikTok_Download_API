@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E8%BF%90%E8%A1%8C%E8%AF%B4%E6%98%8E%E7%BB%8F%E8%BF%87%E6%B5%8B%E8%AF%95%E8%BF%87%E7%9A%84python%E7%89%88%E6%9C%AC%E4%B8%BA38">运行说明</a> •
-  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/edit/main/README.md">API使用</a> •
+  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/#%EF%B8%8Fapi使用">API使用</a> •
   <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2">手动部署</a> •
   <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker">Docker部署</a> •
   <a href="https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api">Docker镜像</a> •
@@ -378,7 +378,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   Create a project with an arbitrary name
 -   Path select the path where you upload the file
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
--   The frame is modified to`Flask`
+-   框架修改为`Flask`
 -   The startup method is changed to`python`
 -   Web startup file selection`web_zh.py`
 -   API startup file selection`web_api.py`
@@ -400,7 +400,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   Just leave the config.int and docker-compose.yml files
+-   留下config.int和docker-compose.yml文件即可
 -   Run the command to let the container run in the background
 
 ```yaml
