@@ -33,7 +33,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS快捷指令(中文): [Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
+💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once. )
 
 🌎iOS Shortcut(English):[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)(Updated on
