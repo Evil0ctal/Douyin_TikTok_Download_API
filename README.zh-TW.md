@@ -369,7 +369,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 > 中文寶塔要強制綁定手機號了，很流氓且無法繞過，建議使用寶塔國際版，谷歌搜索關鍵字aapanel自行安裝，部署步驟相似。 )
 
 -   首先要去安全組開放5000和2333端口（Web默認5000，API默認2333，可以在文件config.ini中修改。）
--   在宝塔应用商店内搜索python并安装项目管理器 (推荐使用1.9版本)
+-   在寶塔應用商店內搜索python並安裝項目管理器 (推薦使用1.9版本)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -388,7 +388,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
--   如果有大量請求請使用進程守護啟動防止進程關閉
+-   如果有大量请求请使用进程守护启动防止进程关闭
 
 * * *
 
@@ -429,7 +429,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 [![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
-## 🎉截圖
+## 🎉截图
 
 > 注：
 > 截圖可能因更新問題與文字不符，一切請優先參照文字敘述。
