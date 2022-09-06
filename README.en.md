@@ -27,7 +27,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 ## 👻Introduction
 
 > For stability reasons, temporarily close /video (returns mp4 files) and /music (returns mp3 files) of the demo station
-> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% resolution. Success, if parsing fails please wait a minute or two and try again.
+> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% parsing. Success, if parsing fails please wait a minute or two and try again.
 
 🚀Demo address:<https://douyin.wtf/>
 
@@ -184,7 +184,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -401,7 +401,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to let the container run in the background
+-   Run the command to keep the container running in the background
 
 ```yaml
 docker compose up -d
@@ -433,6 +433,10 @@ docker compose pull && docker compose down && docker compose up -d
 
 > Note:
 > The screenshots may not match the text due to update problems. Please refer to the text description first.
+
+<details><summary>点击展开截图</summary>
+
+<hr>
 
 -   Main interface
 
@@ -469,3 +473,17 @@ docker compose pull && docker compose down && docker compose up -d
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/tiktok_API.png)
 
 * * *
+
+</details>
+
+## :alembic: technology stack
+
+-   [PyWebIO](https://www.pyweb.io/)+[Flask](https://flask.palletsprojects.com/)
+
+## :scroll:license
+
+MY License
+
+* * *
+
+> GitHub[@Evil0ctal](https://github.com/Evil0ctal) · Email[Evil0ctal1985@gmail.com]\([Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
