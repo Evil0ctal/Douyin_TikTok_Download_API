@@ -33,7 +33,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 🛰API demo:<https://api.douyin.wtf/>
 
-💾iOS Shortcuts (Chinese):[点击获取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
+💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once. )
 
 🌎iOS Shortcut(English):[Click to get](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)(Updated on
@@ -384,7 +384,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
--   If the pagoda runs`Nginx`等其他服务时请自行判断端口是否被占用，运行端口可在文件config.ini中修改。
+-   If the pagoda runs`Nginx`When waiting for other services, please judge whether the port is occupied. The running port can be modified in the file config.ini.
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -427,12 +427,12 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## ❤️ Contributors
 
-[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)
+[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 <details><summary>点击展开截图</summary>
 
