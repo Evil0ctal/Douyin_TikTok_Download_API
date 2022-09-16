@@ -98,7 +98,7 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
 ```
 
--   安裝依賴庫：
+-   安装依赖库：
 
 ```console
 pip install -r requirements.txt
