@@ -69,7 +69,7 @@
 -   支持海外TikTok視頻解析
 -   支持批量解析(支持抖音/TikTok混合解析)
 -   解析結果頁批量下載無水印視頻
--   製作[pip包](https://pypi.org/project/DT-Scraper/)方便使用
+-   制作[pip包](https://pypi.org/project/DT-Scraper/)方便使用
 -   支持API調用
 -   支持使用代理解析
 -   支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)實現應用內下載無水印視頻/圖集
@@ -98,7 +98,7 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
 ```
 
--   安装依赖库：
+-   安裝依賴庫：
 
 ```console
 pip install -r requirements.txt
@@ -383,7 +383,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 -   Web啟動文件選擇`web_zh.py`
 -   API啟動文件選擇`web_api.py`
 -   勾選安裝模塊依賴
--   開機啟動隨意
+-   开机启动随意
 -   如果寶塔運行了`Nginx`等其他服務時請自行判斷端口是否被佔用，運行端口可在文件config.ini中修改。
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
