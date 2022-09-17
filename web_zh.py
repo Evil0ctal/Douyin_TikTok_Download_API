@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/08/29
+# @Update: 2022/09/16
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -414,6 +414,7 @@ def main():
     # 设置favicon
     favicon_url = "https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/favicon/android-chrome-512x512.png"
     session.run_js("""
+    $('head').append('<meta name=referrer content=no-referrer>');
     $('#favicon32,#favicon16').remove(); 
     $('head').append('<link rel="icon" type="image/png" href="%s">')
     """ % favicon_url)
