@@ -11,6 +11,8 @@
 
 import re
 import json
+import time
+import random
 import requests
 import configparser
 from tenacity import *
@@ -356,12 +358,15 @@ class Scraper:
                 video_info = result["ItemModule"][video_id]
             except:
                 video_info = None
-            # 从TikTok官方API获取部分视频数据
-            tiktok_api_link = 'https://api-h2.tiktokv.com/aweme/v1/feed/?aweme_id={}&version_name=26.1.3&version_code=2613&build_number=26.1.3&manifest_version_code=2613&update_version_code=2613&openudid=9037d1de934864e9&uuid=8791152191855489&_rticket=1663558752000&ts=1663558752&device_brand=Google&device_type=Pixel%204&device_platform=android&resolution=1080*1920&dpi=420&os_version=10&os_api=29&carrier_region=US&sys_region=US%C2%AEion=US&app_name=trill&app_language=en&language=en&timezone_name=America/New_York&timezone_offset=-14400&channel=googleplay&ac=wifi&mcc_mnc=310260&is_my_cn=0&aid=1180&ssmix=a&as=a1qwert123&cp=cbfhckdckkde1'.format(
-                video_id)
+            # 准备API参数
+            openudid = ''.join(random.sample('0123456789abcdef',16))
+            uuid = ''.join(random.sample('01234567890123456',16))
+            ts = int(time.time())
+            # 构建API链接
+            tiktok_api_link = 'https://api-h2.tiktokv.com/aweme/v1/feed/?aweme_id={}&version_name=26.1.3&version_code=2613&build_number=26.1.3&manifest_version_code=2613&update_version_code=2613&openudid={}&uuid={}&_rticket={}&ts={}&device_brand=Google&device_type=Pixel%204&device_platform=android&resolution=1080*1920&dpi=420&os_version=10&os_api=29&carrier_region=US&sys_region=US%C2%AEion=US&app_name=trill&app_language=en&language=en&timezone_name=America/New_York&timezone_offset=-14400&channel=googleplay&ac=wifi&mcc_mnc=310260&is_my_cn=0&aid=1180&ssmix=a&as=a1qwert123&cp=cbfhckdckkde1'.format(
+                video_id, openudid, uuid, ts*1000, ts)
             print('正在请求API链接:{}'.format(tiktok_api_link))
             response = requests.get(url=tiktok_api_link, headers=self.tiktok_api_headers, proxies=self.proxies).text
-            # print(response)
             # 将API获取到的内容格式化为JSON
             result = json.loads(response)
             # print(result)
