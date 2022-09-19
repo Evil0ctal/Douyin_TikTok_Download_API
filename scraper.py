@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/09/16
+# @Update: 2022/09/18
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -36,6 +36,9 @@ class Scraper:
             "Connection": "keep-alive",
             "Host": "www.tiktok.com",
             "User-Agent": "Mozilla/5.0  (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) coc_coc_browser/86.0.170 Chrome/80.0.3987.170 Safari/537.36",
+        }
+        self.tiktok_api_headers = {
+            'user-agent': 'com.ss.android.ugc.trill/2613 (Linux; U; Android 10; en_US; Pixel 4; Build/QQ3A.200805.001; Cronet/58.0.2991.0)'
         }
         self.app_config = configparser.ConfigParser()
         self.app_config.read('config.ini', encoding='utf-8')
@@ -354,10 +357,11 @@ class Scraper:
             except:
                 video_info = None
             # 从TikTok官方API获取部分视频数据
-            tiktok_api_link = 'https://api-h2.tiktokv.com/aweme/v1/feed/?version_code=2613&aweme_id={}&device_type=Pixel%204'.format(
+            tiktok_api_link = 'https://api-h2.tiktokv.com/aweme/v1/feed/?aweme_id={}&version_name=26.1.3&version_code=2613&build_number=26.1.3&manifest_version_code=2613&update_version_code=2613&openudid=9037d1de934864e9&uuid=8791152191855489&_rticket=1663558752000&ts=1663558752&device_brand=Google&device_type=Pixel%204&device_platform=android&resolution=1080*1920&dpi=420&os_version=10&os_api=29&carrier_region=US&sys_region=US%C2%AEion=US&app_name=trill&app_language=en&language=en&timezone_name=America/New_York&timezone_offset=-14400&channel=googleplay&ac=wifi&mcc_mnc=310260&is_my_cn=0&aid=1180&ssmix=a&as=a1qwert123&cp=cbfhckdckkde1'.format(
                 video_id)
             print('正在请求API链接:{}'.format(tiktok_api_link))
-            response = requests.get(url=tiktok_api_link, headers=headers, proxies=self.proxies).text
+            response = requests.get(url=tiktok_api_link, headers=self.tiktok_api_headers, proxies=self.proxies).text
+            # print(response)
             # 将API获取到的内容格式化为JSON
             result = json.loads(response)
             # print(result)
