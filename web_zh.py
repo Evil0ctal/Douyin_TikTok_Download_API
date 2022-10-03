@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/09/16
+# @Update: 2022/10/02
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -21,6 +21,7 @@ from pywebio import config, session
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.platform.flask import webio_view
+from pywebio.session import info as session_info
 from flask import Flask
 
 
@@ -35,6 +36,11 @@ api_url = api_config['URL']
 headers = {
     'user-agent': 'Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66'
 }
+
+
+def t(chinese, eng):
+    """return English or Chinese text according to the user's browser language"""
+    return chinese if 'zh' in session_info.user_language else eng
 
 
 def loading():
@@ -62,7 +68,8 @@ def valid_check(kou_ling):
         # 最大接受提交URL的数量
         max_urls = web_config['Max_Take_URLs']
         if total_urls > int(max_urls):
-            return '为了避免资源占用过多请确保每次提交的链接少于{}个，如需大量解析请自行部署。'.format(max_urls)
+            warn_info = t('URL数量过多，只会处理前{}个URL。'.format(max_urls), 'Too many URLs, only the first {} URLs will be processed.'.format(max_urls))
+            return warn_info
         else:
             for i in url_list:
                 if 'douyin.com' in i[:31]:
@@ -72,27 +79,31 @@ def valid_check(kou_ling):
                     if i == url_list[-1]:
                         return None
                 else:
-                    return '请确保输入链接均为有效的抖音/TikTok链接!'
+                    warn_info = t('请确保输入链接均为有效的抖音/TikTok链接!', 'Please make sure that the input links are all valid Douyin/TikTok links!')
+                    return warn_info
     elif kou_ling == 'wyn':
         return None
     else:
-        return '抖音分享口令有误!'
+        warn_info = t('抖音/TikTok分享口令有误!', 'Douyin or TikTok share cotent!')
+        return warn_info
 
 
 def error_do(reason, function, value):
     # 输出一个毫无用处的信息
     put_html("<hr>")
-    put_error("发生了了意料之外的错误，输入值已被记录。")
-    put_html('<h3>⚠详情</h3>')
+    put_error(t("发生了了意料之外的错误，输入值已被记录。", "An unexpected error occurred, the input value has been recorded."))
+    put_html('<h3>⚠{}</h3>'.format(t('详情', 'Details')))
     put_table([
-        ['函数名', '原因', '输入值'],
+        [t('函数名', 'function name'), t('原因', 'reason'), t('输入值', 'input value')],
         [function, str(reason), value]])
-    put_markdown('可能的原因:')
-    put_markdown('服务器可能被目标主机的防火墙限流(稍等片刻后再次尝试)')
-    put_markdown('输入了错误的链接(暂不支持主页链接解析)')
-    put_markdown('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)')
-    put_markdown('你可以在右上角的关于菜单中查看本站错误日志。')
-    put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
+    put_markdown(t('可能的原因:', 'Possible reasons:'))
+    put_markdown(t('服务器可能被目标主机的防火墙限流(稍等片刻后再次尝试)', 'The server may be limited by the target host firewall (try again after a while)'))
+    put_markdown(t('输入了错误的链接(暂不支持主页链接解析)', 'Entered the wrong link (the home page link is not supported for parsing)'))
+    put_markdown(t('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)', 'The video has been deleted or blocked (what are you watching (⊙_⊙)?)'))
+    put_markdown(t('其他原因(请联系作者)', 'Other reasons (please contact the author)'))
+    put_html("<hr>")
+    put_markdown(t('你可以在右上角的关于菜单中查看本站错误日志。', 'You can view the error log of this site in the about menu in the upper right corner.'))
+    put_markdown('[{}](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)'.format(t('点击此处在GayHub上进行反馈', 'Click here to give feedback on GayHub')))
     put_html("<hr>")
     if web_config['Allow_Logs'] == 'True':
         # 将错误记录在logs.txt中
@@ -151,13 +162,13 @@ def video_download_window(result_dict):
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         # 弹出窗口
-        with popup("正在服务器后台下载视频(共{}个下载任务)".format(str(len(result_dict)))):
+        with popup(t("正在服务器后台下载视频(共{}个下载任务)", "Downloading videos in the background of the server.({} download tasks in total)").format(str(len(result_dict)))):
             # 下载索引计数
             download_count = 0
             # 遍历字典的键和值
             for file_name, url in result_dict.items():
                 try:
-                    put_info('正在下载第{}个视频:\n{}'.format(download_count+1, file_name))
+                    put_info(t('正在下载第{}个视频:\n{}', 'Downloading video {}:\n{}').format(download_count+1, file_name))
                     response = requests.get(url, headers=headers)
                     data = response.content
                     if data:
@@ -166,25 +177,25 @@ def video_download_window(result_dict):
                             with open(file_path, 'wb') as f:
                                 f.write(data)
                                 f.close()
-                                put_success('{}下载成功'.format(file_name))
+                                put_success(t('{}下载成功', '{}download successful').format(file_name))
                                 download_count += 1
                 except Exception as e:
                     download_count += 1
-                    put_error('视频下载失败，将跳过该视频。')
+                    put_error(t('视频下载失败，将跳过该视频。', 'Video download failed, this video will be skipped. '))
                     continue
             if download_count == total_amount:
                 put_html('<hr>')
-                put_html('<h3>💾结果页视频合集下载完成</h3>')
+                put_html('<h3>💾{}</h3>'.format(t('结果页视频合集下载完成', 'Result page video collection download complete')))
                 output_path = save_path + '/output'
                 tarfile_name = download_time + '_total_' + str(total_amount) + '_videos.tar'
                 output_file = output_path + '/' + tarfile_name
-                put_info('正在压缩视频文件，请勿关闭当前弹窗，完成后会在下方显示按钮...')
+                put_info(t('正在压缩视频文件，请勿关闭当前弹窗，完成后会在下方显示按钮...', 'Compressing video files, please do not close the current pop-up window, and a button will be displayed below after completion...'))
                 # 判断目录是否存在
                 if not os.path.exists(output_path):
                     os.mkdir(output_path)
                 if compress_file(tar_file=output_file, target_file=save_path) == 'finished':
                     tar = open(output_file, "rb").read()
-                    put_file(tarfile_name, tar, '点击下载视频合集压缩包(不包含图集)')
+                    put_file(tarfile_name, tar, t('点击下载视频合集压缩包(不包含图集)', 'Click to download video collection compression package (not including gallery)'))
     except Exception as e:
         print(str(e))
 
@@ -201,19 +212,19 @@ def put_douyin_result(item):
         download_bgm = api_url + '/music?url=' + item
         if douyin_date['url_type'] == 'video':
             put_table([
-                ['类型', '内容'],
-                ['格式:', douyin_date['url_type']],
-                ['视频直链: ', put_link('点击打开视频', douyin_date['nwm_video_url'], new_window=True)],
-                ['视频直链1080p: ', put_link('点击打开视频', douyin_date['nwm_video_url_1080p'], new_window=True)],
-                ['视频下载：', put_link('点击下载', download_video, new_window=True)],
-                ['背景音乐直链: ', put_link('点击打开音频', douyin_date['video_music'], new_window=True)],
-                ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
-                ['视频标题: ', douyin_date['video_title']],
-                ['作者昵称: ', douyin_date['video_author']],
-                ['作者抖音ID: ', douyin_date['video_author_id']],
-                ['原视频链接: ', put_link('点击打开原视频', item, new_window=True)],
-                ['当前视频API链接: ', put_link('点击浏览API数据', douyin_date['api_url'], new_window=True)],
-                ['当前视频精简API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
+                [t('类型', 'type'), t('内容', 'content')],
+                [t('格式:', 'format'), douyin_date['url_type']],
+                [t('视频直链: ', 'No watermark URL: '), put_link(t('点击打开视频', 'Click to open video'), douyin_date['nwm_video_url'], new_window=True)],
+                [t('视频直链1080p: ', 'No watermark URL 1080p: '), put_link(t('点击打开视频', 'Click to open video'), douyin_date['nwm_video_url_1080p'], new_window=True)],
+                [t('视频下载：', 'Video download: '), put_link(t('点击下载视频', 'Click to download video'), download_video, new_window=True)],
+                [t('背景音乐直链: ', 'Background music URL: '), put_link(t('点击打开音频', 'Click to open audio'), douyin_date['video_music'], new_window=True)],
+                [t('背景音乐下载：', 'Background music download: '), put_link(t('点击下载', 'Click to download'), download_bgm, new_window=True)],
+                [t('视频标题: ', 'Video title: '), douyin_date['video_title']],
+                [t('作者昵称: ', 'Author Nickname: '), douyin_date['video_author']],
+                [t('作者抖音ID: ', 'Author Douyin ID: '), douyin_date['video_author_id']],
+                [t('原视频链接: ', 'Original video link: '), put_link(t('点击打开原视频', 'Click to open the original video'), item, new_window=True)],
+                [t('当前视频API链接: ', 'Current video API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), douyin_date['api_url'], new_window=True)],
+                [t('当前视频精简API链接: ', 'Current video streamlining API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), short_api_url, new_window=True)]
             ])
             return {'status': 'success',
                     'type': 'video',
@@ -224,20 +235,20 @@ def put_douyin_result(item):
                     'original_url': douyin_date['original_url']}
         else:
             put_table([
-                ['类型', '内容'],
-                ['格式:', douyin_date['url_type']],
-                ['背景音乐直链: ', put_link('点击打开音频', douyin_date['album_music'], new_window=True)],
-                ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
-                ['视频标题: ', douyin_date['album_title']],
-                ['作者昵称: ', douyin_date['album_author']],
-                ['作者抖音ID: ', douyin_date['album_author_id']],
-                ['原视频链接: ', put_link('点击打开原视频', douyin_date['original_url'], new_window=True)],
-                ['当前视频API链接: ', put_link('点击浏览API数据', douyin_date['api_url'], new_window=True)],
-                ['当前视频精简API链接: ', put_link('点击浏览API数据', 'short_api_url', new_window=True)]
+                [t('类型', 'type'), t('内容', 'content')],
+                [t('格式:', 'format'), douyin_date['url_type']],
+                [t('背景音乐直链: ', 'Background music URL: '), put_link(t('点击打开音频', 'Click to open audio'), douyin_date['album_music'], new_window=True)],
+                [t('背景音乐下载：', 'Background music download: '), put_link(t('点击下载', 'Click to download'), download_bgm, new_window=True)],
+                [t('图集标题: ', 'Album video title: '), douyin_date['album_title']],
+                [t('作者昵称: ', 'Author Nickname: '), douyin_date['album_author']],
+                [t('作者抖音ID: ', 'Author Douyin ID: '), douyin_date['album_author_id']],
+                [t('原视频链接: ', 'Original video link: '), put_link(t('点击打开原视频', 'Click to open the original video'), douyin_date['original_url'], new_window=True)],
+                [t('当前视频API链接: ', 'Current video API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), douyin_date['api_url'], new_window=True)],
+                [t('当前视频精简API链接: ', 'Current video streamlining API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), short_api_url, new_window=True)]
             ])
             for i in douyin_date['album_list']:
                 put_table([
-                    ['图片直链: ', put_link('点击打开图片', i, new_window=True), put_image(i)]
+                    [t('图片直链: ', 'Picture link:'), put_link(t('点击打开图片', 'Click to open image'), i, new_window=True), put_image(i)]
                 ])
             return {'status': 'success',
                     'type': 'album',
@@ -267,22 +278,24 @@ def put_tiktok_result(item):
         download_bgm = api_url + '/music?url=' + item
         if tiktok_data['url_type'] == 'video':
             put_table([
-                ['类型', '内容'],
-                ['视频标题: ', tiktok_data['video_title']],
-                ['视频直链(有水印): ', put_link('点击打开视频', tiktok_data['wm_video_url'], new_window=True)],
-                ['视频直链(无水印): ', put_link('点击打开视频', tiktok_data['nwm_video_url'], new_window=True)],
-                ['视频下载(无水印)：', put_link('点击下载', download_video, new_window=True)],
-                ['音频(名称-作者)：', tiktok_data['video_music_title'] + " - " + tiktok_data['video_music_author']],
-                ['音频播放：', put_link('点击播放', tiktok_data['video_music_url'], new_window=True)],
-                ['音频下载：', put_link('点击下载', download_bgm, new_window=True)],
-                ['作者昵称: ', tiktok_data['video_author_nickname']],
-                ['作者ID: ', tiktok_data['video_author_id']],
-                ['粉丝数量: ', tiktok_data['video_author_followerCount']],
-                ['关注他人数量: ', tiktok_data['video_author_followingCount']],
-                ['获赞总量: ', tiktok_data['video_author_heartCount']],
-                ['视频总量: ', tiktok_data['video_author_videoCount']],
-                ['原视频链接: ', put_link('点击打开原视频', item, new_window=True)],
-                ['当前视频API链接: ', put_link('点击浏览API数据', short_api_url, new_window=True)]
+                [t('类型', 'type'), t('内容', 'content')],
+                [t('格式:', 'format'), tiktok_data['url_type']],
+                [t('视频标题: ', 'Video title: '), tiktok_data['video_title']],
+                [t('视频直链(有水印): ', 'Video direct link (with watermark): '), put_link(t('点击打开视频', 'Click to open video'), tiktok_data['wm_video_url'], new_window=True)],
+                [t('视频直链(无水印): ', 'Video direct link (no watermark): '), put_link(t('点击打开视频', 'Click to open video'), tiktok_data['nwm_video_url'], new_window=True)],
+                [t('视频下载(无水印)：', 'Video download (no watermark): '), put_link(t('点击下载', 'Click to download'), download_video, new_window=True)],
+                [t('音频(名称-作者)：', 'Audio (name-author): '), tiktok_data['video_music_title'] + " - " + tiktok_data['video_music_author']],
+                [t('音频链接：', 'Audio link: '), put_link(t('点击播放', 'Click to play'), tiktok_data['video_music_url'], new_window=True)],
+                [t('音频下载：', 'Audio download: '), put_link(t('点击下载', 'Click to download'), download_bgm, new_window=True)],
+                [t('作者昵称: ', 'Author Nickname: '), tiktok_data['video_author_nickname']],
+                [t('作者ID: ', 'Author ID: '), tiktok_data['video_author_id']],
+                [t('粉丝数量: ', 'Number of fans: '), tiktok_data['video_author_followerCount']],
+                [t('关注他人数量: ', 'Follow others: '), tiktok_data['video_author_followingCount']],
+                [t('获赞总量: ', 'Total likes: '), tiktok_data['video_author_heartCount']],
+                [t('视频总量: ', 'Total videos: '), tiktok_data['video_author_videoCount']],
+                [t('原视频链接: ', 'Original video link: '), put_link(t('点击打开原视频', 'Click to open the original video'), item, new_window=True)],
+                [t('当前视频API链接: ', 'Current video API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), tiktok_data['api_url'], new_window=True)],
+                [t('当前视频API链接: ', 'Current video API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), short_api_url, new_window=True)]
             ])
             return {'status': 'success',
                     'type': 'video',
@@ -293,20 +306,20 @@ def put_tiktok_result(item):
                     'original_url': item}
         else:
             put_table([
-                ['类型', '内容'],
-                ['格式:', tiktok_data['url_type']],
-                ['背景音乐直链: ', put_link('点击打开音频', tiktok_data['album_music_url'], new_window=True)],
-                ['背景音乐下载：', put_link('点击下载', download_bgm, new_window=True)],
-                ['视频标题: ', tiktok_data['album_title']],
-                ['作者昵称: ', tiktok_data['album_author_nickname']],
-                ['作者ID: ', tiktok_data['album_author_id']],
-                ['原视频链接: ', put_link('点击打开原视频', tiktok_data['original_url'], new_window=True)],
-                ['当前视频API链接: ', put_link('点击浏览API数据', tiktok_data['api_url'], new_window=True)],
-                ['当前视频精简API链接: ', put_link('点击浏览API数据', 'short_api_url', new_window=True)]
+                [t('类型', 'type'), t('内容', 'content')],
+                [t('格式:', 'format'), tiktok_data['url_type']],
+                [t('背景音乐直链: ', 'Background music URL: '), put_link(t('点击打开音频', 'Click to open audio'), tiktok_data['album_music_url'], new_window=True)],
+                [t('背景音乐下载：', 'Background music download: '), put_link(t('点击下载', 'Click to download'), download_bgm, new_window=True)],
+                [t('视频标题: ', 'Video title: '), tiktok_data['album_title']],
+                [t('作者昵称: ', 'Author Nickname: '), tiktok_data['album_author_nickname']],
+                [t('作者ID: ', 'Author ID: '), tiktok_data['album_author_id']],
+                [t('原视频链接: ', 'Original video link: '), put_link(t('点击打开原视频', 'Click to open the original video'), tiktok_data['original_url'], new_window=True)],
+                [t('当前视频API链接: ', 'Current video API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), tiktok_data['api_url'], new_window=True)],
+                [t('当前视频精简API链接: ', 'Current video streamlining API link: '), put_link(t('点击浏览API数据', 'Click to browse API data'), 'short_api_url', new_window=True)]
             ])
             for i in tiktok_data['album_list']:
                 put_table([
-                    ['图片直链: ', put_link('点击打开图片', i, new_window=True), put_image(i)]
+                    [t('图片直链: ', 'Picture link:'), put_link(t('点击打开图片', 'Click to open image'), i, new_window=True), put_image(i)]
                 ])
             return {'status': 'success',
                     'type': 'album',
@@ -325,33 +338,36 @@ def put_tiktok_result(item):
 
 
 def ios_pop_window():
-    with popup("iOS快捷指令"):
+    with popup(t("iOS快捷指令", "iOS Shortcut")):
         try:
             shortcut = json.loads(requests.get(url='https://api.douyin.wtf/ios', headers=headers).text)
-            shortcut_link = shortcut['link']
+            shortcut_link_zh = shortcut['link']
+            shortcut_link_en = shortcut['link_en']
             shortcut_note = shortcut['note']
             shortcut_update = shortcut['update']
             shortcut_version = shortcut['version']
         except Exception as e:
-            shortcut_link = '无法获取快捷指令信息,请到Github上进行反馈。'
-            shortcut_note = '无法获取快捷指令信息,请到Github上进行反馈。'
-            shortcut_update = '无法获取快捷指令信息,请到Github上进行反馈。'
-            shortcut_version = '无法获取快捷指令信息,请到Github上进行反馈。'
-        put_text('快捷指令需要在抖音或TikTok的APP内，浏览你想要无水印保存的视频或图集。')
-        put_text('然后点击右下角分享按钮，选择更多，然后下拉找到 "抖音TikTok无水印下载" 这个选项。')
-        put_text('如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。')
-        put_text('该快捷指令会在你相册创建一个新的相薄方便你浏览保存的内容。')
+            shortcut_link = t('无法获取快捷指令信息,请到Github上进行反馈。', 'Unable to get shortcut information, please provide feedback on Github.')
+            shortcut_note = t('无法获取快捷指令信息,请到Github上进行反馈。', 'Unable to get shortcut information, please provide feedback on Github.')
+            shortcut_update = t('无法获取快捷指令信息,请到Github上进行反馈。', 'Unable to get shortcut information, please provide feedback on Github.')
+            shortcut_version = t('无法获取快捷指令信息,请到Github上进行反馈。', 'Unable to get shortcut information, please provide feedback on Github.')
+        put_text(t('快捷指令需要在抖音或TikTok的APP内，浏览你想要无水印保存的视频或图集。', 'The shortcut needs to be used in the Douyin or TikTok app, browse the video or album you want to save without watermark.'))
+        put_text(t('然后点击右下角分享按钮，选择更多，然后下拉找到 "抖音TikTok无水印下载" 这个选项。', 'Then click the share button in the lower right corner, select more, and then scroll down to find the "Douyin TikTok No Watermark Download" option.'))
+        put_text(t('如遇到通知询问是否允许快捷指令访问xxxx (域名或服务器)，需要点击允许才可以正常使用。', 'If you are asked whether to allow the shortcut to access xxxx (domain name or server), you need to click Allow to use it normally.'))
+        put_text(t('该快捷指令会在你相册创建一个新的相薄方便你浏览保存的内容。', 'The shortcut will create a new album in your photo album to help you browse the saved content.'))
         put_html('<hr>')
-        put_text('最新快捷指令版本: {}'.format(shortcut_version))
-        put_text('快捷指令更新时间: {}'.format(shortcut_update))
-        put_text('快捷指令更新内容: {}'.format(shortcut_note))
-        put_link('[点击获取快捷指令]', shortcut_link, new_window=True)
+        put_text(t('最新快捷指令版本: {}', 'Latest shortcut version: {}').format(shortcut_version))
+        put_text(t('快捷指令更新时间: {}', 'Shortcut update time: {}').format(shortcut_update))
+        put_text(t('快捷指令更新内容: {}', 'Shortcut update content: {}').format(shortcut_note))
+        put_link('[点击获取快捷指令 - 中文]', shortcut_link_zh, new_window=True)
+        put_html('<br>')
+        put_link('[Click get Shortcut - English]', shortcut_link_en, new_window=True)
 
 
 def api_document_pop_window():
-    with popup("API文档"):
-        put_markdown("💽API文档")
-        put_markdown("API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。")
+    with popup(t("API文档", "API Document")):
+        put_markdown(t("💽API文档", "💽API Document"))
+        put_markdown(t("API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。", "API can convert the request parameters to the direct link of the watermark-free video/picture, which can be used with IOS shortcut to achieve download within the application."))
         put_link('[中文文档]', 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8',
                  new_window=True)
         put_html('<br>')
@@ -359,28 +375,24 @@ def api_document_pop_window():
                  'https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md#%EF%B8%8Fapi-usage',
                  new_window=True)
         put_html('<hr>')
-        put_markdown("🛰️API参考")
-        put_markdown('抖音/TikTok解析请求参数')
-        put_code('https://api.douyin.wtf/api?url="复制的(抖音/TikTok)的(分享文本/链接)"\n#返回JSON')
-        put_markdown('抖音/TikTok视频下载请求参数')
-        put_code('https://api.douyin.wtf/video?url="复制的抖音/TikTok链接"\n'
-                 '# 返回mp4文件下载请求\n'
-                 '# 大量请求时很吃服务器内存，容易崩，慎用。')
-        put_markdown('抖音视频/图集音频下载请求参数')
-        put_code('https://api.douyin.wtf/music?url="复制的抖音/TikTok链接"\n'
-                 '# 返回mp3文件下载请求\n'
-                 '# 大量请求时很吃服务器内存，容易崩，慎用。')
+        put_markdown(t("🛰️API参考", "🛰️API Reference"))
+        put_markdown(t('抖音/TikTok解析请求参数', 'Douyin/TikTok parsing request parameters'))
+        put_code('https://api.douyin.wtf/api?url="复制的抖音链接/TikTok URL"\n#Response JSON')
+        put_markdown(t('抖音/TikTok视频下载请求参数', 'Douyin/TikTok video download request parameters'))
+        put_code('https://api.douyin.wtf/video?url="复制的抖音链接/TikTok URL"\n# Response MP4 file')
+        put_markdown(t('抖音视频/图集音频下载请求参数', 'Douyin video/album audio download request parameters'))
+        put_code('https://api.douyin.wtf/music?url="复制的抖音链接/TikTok URL"\n# Response MP3 file')
 
 
 def log_popup_window():
-    with popup('错误日志'):
-        put_html('<h3>⚠️关于解析失败可能的原因</h3>')
-        put_markdown('服务器可能被目标主机的防火墙限流(稍等片刻后再次尝试)')
-        put_markdown('输入了错误的链接(暂不支持主页链接解析)')
-        put_markdown('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)')
-        put_markdown('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
+    with popup(t('错误日志', 'Error Log')):
+        put_html('<h3>⚠️{}</h3>'.format('关于解析失败可能的原因', 'About the possible reasons for parsing failure'))
+        put_markdown(t('服务器可能被目标主机的防火墙限流(稍等片刻后再次尝试)', 'The server may be limited by the target host firewall (try again after a while)'))
+        put_markdown(t('输入了错误的链接(暂不支持主页链接解析)', 'Entered the wrong link (not supported for home page link parsing)'))
+        put_markdown(t('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)', 'The video has been deleted or blocked (what are you watching(⊙_⊙)?)'))
+        put_markdown(t('[点击此处在GayHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)', '[Click here to feedback on GayHub](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)'))
         put_html('<hr>')
-        put_text('点击logs.txt可下载日志:')
+        put_text(t('点击logs.txt可下载日志:', 'Click logs.txt to download the log:'))
         content = open(r'./logs.txt', 'rb').read()
         put_file('logs.txt', content=content)
         with open('./logs.txt', 'r') as f:
@@ -389,23 +401,19 @@ def log_popup_window():
 
 
 def about_popup_window():
-    with popup('更多信息'):
-        put_html('<h3>👀访问记录</h3>')
+    with popup(t('更多信息', 'More Information')):
+        put_html('<h3>👀{}</h3>'.format(t('访问记录', 'Visit Record')))
         put_image('https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg',
                   title='访问记录')
         put_html('<hr>')
         put_html('<h3>⭐Github</h3>')
         put_markdown('[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)')
         put_html('<hr>')
-        put_html('<h3>🎯反馈</h3>')
-        put_markdown('提交：[issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)')
-        put_html('<hr>')
-        put_html('<h3>🌐视频/图集批量下载</h3>')
-        put_markdown('可以使用[IDM](https://www.zhihu.com/topic/19746283/hot)之类的工具对结果页面的链接进行嗅探。')
-        put_markdown('如果你有更好的想法欢迎PR')
+        put_html('<h3>🎯{}</h3>'.format(t('反馈', 'Feedback')))
+        put_markdown('{}：[issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)'.format(t('Bug反馈', 'Bug Feedback')))
         put_html('<hr>')
         put_html('<h3>💖WeChat</h3>')
-        put_markdown('微信：[Evil0ctal](https://mycyberpunk.com/)')
+        put_markdown('WeChat：[Evil0ctal](https://mycyberpunk.com/)')
         put_html('<hr>')
 
 
@@ -422,15 +430,15 @@ def main():
     session.run_js("""$('footer').remove()""")
     # 访问记录
     view_amount = requests.get("https://views.whatilearened.today/views/github/evil0ctal/TikTokDownload_PyWebIO.svg")
-    put_markdown("""<div align='center' ><font size='20'>😼抖音/TikTok无水印在线解析</font></div>""")
+    put_markdown("""<div align='center' ><font size='20'>😼{}</font></div>""".format(t('抖音/TikTok无水印在线解析', 'Douyin/TikTok online analysis without watermark')))
     put_html('<hr>')
-    put_row([put_button("快捷指令", onclick=lambda: ios_pop_window(), link_style=True, small=True),
+    put_row([put_button(t("iOS快捷指令", 'iOS Shortcuts'), onclick=lambda: ios_pop_window(), link_style=True, small=True),
              put_button("API", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
-             put_button("日志", onclick=lambda: log_popup_window(), link_style=True, small=True),
-             put_button("关于", onclick=lambda: about_popup_window(), link_style=True, small=True)
+             put_button(t("日志", "Log"), onclick=lambda: log_popup_window(), link_style=True, small=True),
+             put_button(t("关于", 'About'), onclick=lambda: about_popup_window(), link_style=True, small=True)
              ])
-    placeholder = "批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合，暂时不支持作者主页链接批量解析。"
-    kou_ling = textarea('请将抖音或TikTok的分享口令或网址粘贴于此', type=TEXT, validate=valid_check, required=True,
+    placeholder = t("批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合，暂时不支持作者主页链接批量解析。", "Batch parsing, please paste multiple passwords or links directly, no need to use symbols to separate, support for mixing Douyin and TikTok links, temporarily not support for author home page link batch parsing.")
+    kou_ling = textarea(t('请将抖音或TikTok的分享口令或网址粘贴于此', "Please paste the share password or URL of Douyin or TikTok here"), type=TEXT, validate=valid_check, required=True,
                         placeholder=placeholder,
                         position=0)
     if kou_ling:
@@ -490,12 +498,12 @@ def main():
             # 解析结束时间
             end = time.time()
             put_html("<br><hr>")
-            put_text('总共收到' + str(total_urls) + '个链接')
-            put_text('成功: ' + str(success_count) + ' ' + '失败: ' + str(failed_count))
-            put_text('解析共耗时: %.4f秒' % (end - start))
+            put_text(t('总共收到', "Total received") + str(total_urls) + t('个链接', 'URLs'))
+            put_text(t('成功: ', "Success: ") + str(success_count) + ' ' + t('失败: ', 'Failed: ') + str(failed_count))
+            put_text(t('解析共耗时: %.4f秒', 'Total parsing time: %.4f seconds') % (end - start))
             if web_config['Allow_Batch_Download'] == 'True':
-                put_button("下载结果页中的所有视频", onclick=lambda: video_download_window(nwm_success_list))
-            put_link('返回主页', '/')
+                put_button(t("下载结果页中的所有视频", "Download all videos in the results page"), onclick=lambda: video_download_window(nwm_success_list))
+            put_link(t('返回主页', 'Back to home'), '/')
             time.sleep(300)
             # 清理文件夹
             clean_file('./web/saved_videos')
@@ -505,7 +513,7 @@ if __name__ == "__main__":
     # 初始化logs.txt
     date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     with open('logs.txt', 'a') as f:
-        f.write("时间: " + date + " " + "程序重载完毕!" + '\n')
+        f.write("Time: " + date + " " + "Program reload completed!" + '\n')
     # 判断是否使用CDN加载前端资源
     if web_config['PyWebIO_CDN'] == 'True':
         cdn = True
