@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/09/18
+# @Update: 2022/10/07
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -379,7 +379,11 @@ class Scraper:
                 # 视频作者昵称
                 album_author_nickname = result["aweme_list"][0]['author']["nickname"]
                 # 视频作者ID
-                album_author_id = result["aweme_list"][0]['author']["unique_id"]
+                album_author_id = result["aweme_list"][0]['author']["sec_uid"]
+                # 视频作者SEC_UID
+                album_author_sec_uid = result["aweme_list"][0]['author']["unique_id"]
+                # 作者uid
+                album_author_uid = result["aweme_list"][0]['author']["uid"]
                 # 上传时间戳
                 album_create_time = result["aweme_list"][0]['create_time']
                 # 视频ID
@@ -424,6 +428,8 @@ class Scraper:
                               'album_list': album_list,
                               'album_author_nickname': album_author_nickname,
                               'album_author_id': album_author_id,
+                              'album_author_sec_uid': album_author_sec_uid,
+                              'album_author_uid': album_author_uid,
                               'album_create_time': album_create_time,
                               'album_aweme_id': album_aweme_id,
                               'album_music_title': album_music_title,
@@ -456,6 +462,10 @@ class Scraper:
                 video_author_nickname = result["aweme_list"][0]['author']["nickname"]
                 # 视频作者ID
                 video_author_id = result["aweme_list"][0]['author']["unique_id"]
+                # 视频作者SEC_UID
+                video_author_sec_uid = result["aweme_list"][0]['author']["sec_uid"]
+                # 视频作者UID
+                video_author_uid = result["aweme_list"][0]['author']["uid"]
                 # 上传时间戳
                 video_create_time = result["aweme_list"][0]['create_time']
                 # 视频ID
@@ -532,6 +542,8 @@ class Scraper:
                               'wm_video_url': wm_video_url,
                               'video_author_nickname': video_author_nickname,
                               'video_author_id': video_author_id,
+                              'video_author_sec_uid': video_author_sec_uid,
+                              'video_author_uid': video_author_uid,
                               'video_create_time': video_create_time,
                               'video_aweme_id': video_aweme_id,
                               'video_music_title': video_music_title,
