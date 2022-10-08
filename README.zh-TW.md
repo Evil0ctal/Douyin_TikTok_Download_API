@@ -413,7 +413,7 @@ docker compose up -d
 docker logs -f douyin_tiktok_download_api
 ```
 
--   删除容器
+-   刪除容器
 
 ```yaml
 docker rm -f douyin_tiktok_download_api
