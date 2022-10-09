@@ -27,7 +27,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 ## 👻Introduction
 
 > For stability reasons, temporarily close /video (returns mp4 files) and /music (returns mp3 files) of the demo station
-> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% parsing. Success, if parsing fails please wait a minute or two and try again.
+> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% resolution. Success, if parsing fails please wait a minute or two and try again.
 
 🚀Demo address:<https://douyin.wtf/>
 
@@ -184,7 +184,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok URL Shortening (In-App Copy)
+-   TikTok Short URL (In-App Copy)
 
 ```text
 例子：
@@ -369,7 +369,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
 -   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
--   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
+-   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -401,7 +401,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to keep the container running in the background
+-   Run the command to let the container run in the background
 
 ```yaml
 docker compose up -d
