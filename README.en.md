@@ -27,11 +27,15 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 ## 👻Introduction
 
 > For stability reasons, temporarily close /video (returns mp4 files) and /music (returns mp3 files) of the demo station
-> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% resolution. Success, if parsing fails please wait a minute or two and try again.
+> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% parsing. Success, if parsing fails please wait a minute or two and try again.
+
+API-V2 is used for testing purposes. It supports inputting Douyin/TikTok user homepage to crawl all video data of the author, including no watermark links, number of likes, etc. For details, please refer to the V2 document.
 
 🚀Demo address:<https://douyin.wtf/>
 
 🛰API demo:<https://api.douyin.wtf/>
+
+🧰API-V2：<https://api-v2.douyin.wtf/>
 
 💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once. )
@@ -184,7 +188,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok Short URL (In-App Copy)
+-   TikTok URL Shortening (In-App Copy)
 
 ```text
 例子：
@@ -368,7 +372,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > Deploy using the Pagoda Linux panel (
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
--   First go to the security group to open ports 5000 and 2333 (default 5000 for Web, 2333 for API default, which can be modified in the file config.ini.)
+-   First, go to the security group to open ports 5000 and 2333 (default 5000 for Web, default 2333 for API, which can be modified in the file config.ini.)
 -   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
@@ -427,7 +431,8 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## ❤️ Contributors
 
-[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
+[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)
+[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
 ## 🎉 Screenshot
 
