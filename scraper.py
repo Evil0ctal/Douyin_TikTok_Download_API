@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/10/07
+# @Update: 2022/10/08
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -379,9 +379,9 @@ class Scraper:
                 # 视频作者昵称
                 album_author_nickname = result["aweme_list"][0]['author']["nickname"]
                 # 视频作者ID
-                album_author_id = result["aweme_list"][0]['author']["sec_uid"]
+                album_author_id = result["aweme_list"][0]['author']["unique_id"]
                 # 视频作者SEC_UID
-                album_author_sec_uid = result["aweme_list"][0]['author']["unique_id"]
+                album_author_sec_uid = result["aweme_list"][0]['author']["sec_uid"]
                 # 作者uid
                 album_author_uid = result["aweme_list"][0]['author']["uid"]
                 # 上传时间戳
