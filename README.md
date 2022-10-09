@@ -40,7 +40,7 @@ API-V2用于测试用途，支持输入Douyin/TikTok用户主页爬取该作者�
 
 🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
 
-🧰API-V2：[https://api-v2.douyin.wtf/](https://api-v2.douyin.wtf/)
+🧰API-V2：[https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)
 
 💾iOS快捷指令(中文): [点击获取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97) (
 更新于2022/07/18，快捷指令可自动检查更新，安装一次即可。)
