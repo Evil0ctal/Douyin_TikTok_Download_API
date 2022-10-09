@@ -35,7 +35,7 @@ API-V2 is used for testing purposes. It supports inputting Douyin/TikTok user ho
 
 🛰API demo:<https://api.douyin.wtf/>
 
-🧰API-V2：<https://api-v2.douyin.wtf/>
+🧰API-V2：<https://api-v2.douyin.wtf/docs>
 
 💾iOS Shortcuts (Chinese):[Click to get](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 Updated on 2022/07/18, the shortcut command can automatically check for updates, just install it once. )
@@ -431,8 +431,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## ❤️ Contributors
 
-[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)
-[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
+[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
 ## 🎉 Screenshot
 
