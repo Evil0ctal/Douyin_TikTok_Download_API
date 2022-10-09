@@ -34,9 +34,13 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 > 出于稳定性的考虑，暂时关闭演示站的/video(返回mp4文件)和/music(返回mp3文件)
 > 这两个功能，同时结果页面的批量下载功能也暂时不可用，如有需求请自行部署，其他功能在演示站上仍正常使用，API服务器保证99%的时间正常运行，但不保证解析100%成功，如果解析失败请等一两分钟后重试。
 
+API-V2用于测试用途，支持输入Douyin/TikTok用户主页爬取该作者的所有视频数据，包括无水印链接，点赞数量等等信息，详细信息请查看V2文档。
+
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
 🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
+
+🧰API-V2：[https://api-v2.douyin.wtf/](https://api-v2.douyin.wtf/)
 
 💾iOS快捷指令(中文): [点击获取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97) (
 更新于2022/07/18，快捷指令可自动检查更新，安装一次即可。)
