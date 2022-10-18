@@ -40,8 +40,8 @@ API-V2用於測試用途，支持輸入Douyin/TikTok用戶主頁爬取該作者�
 💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
 更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。 )
 
-🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d) (Updated on
-2022/07/18, this shortcut will automatically check for updates, only need to install it once.)
+🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
+2022/07/18，這個快捷方式會自動檢查更新，只需要安裝一次。）
 
 🗂快捷指令歷史版本:[快捷方式發布](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
 
