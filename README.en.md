@@ -29,7 +29,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 > For stability reasons, temporarily close /video (returns mp4 files) and /music (returns mp3 files) of the demo station
 > These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% resolution. Success, if parsing fails please wait a minute or two and try again.
 
-API-V2 is used for testing purposes. It supports entering the Douyin/TikTok user homepage to crawl all the video data of the author, including the link without watermark, the number of likes, etc. For details, please refer to the V2 document.
+API-V2: For testing purposes, support inputting Douyin/TikTok user homepage to crawl all video data of the author (no watermark links, number of likes, etc.), input a single video to crawl all comment data, for details, please see For V2 documents, the response speed depends on the number of crawls. Please set the timeout value to a high value when using it.
 
 🚀Demo address:<https://douyin.wtf/>
 
@@ -60,7 +60,7 @@ This option, if you encounter a notification asking whether to allow shortcut co
     .
     └── Douyin_TikTok_Download_API/
         ├── /static(静态前端资源)
-        ├── web_zh.py(网页入口)
+        ├── web_app.py(网页入口)
         ├── web_api.py(API)
         ├── scraper.py(解析库)
         ├── config.ini(所有项目的配置文件，包含端口及代理等，如需请自行修改该文件。)
@@ -70,19 +70,22 @@ This option, if you encounter a notification asking whether to allow shortcut co
 ## 💯 Supported features:
 
 -   Support Douyin video/atlas parsing
--   Support overseas TikTok video analysis
+-   Support analysis of overseas TikTok videos/atlas
 -   Support batch parsing (support Douyin/TikTok hybrid parsing)
 -   Parse the result page to download watermark-free videos in batches
 -   make[pip package](https://pypi.org/project/DT-Scraper/)easy to use
 -   Support API calls
 -   Support using proxy resolution
 -   support[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
+-   Webpage Chinese / English automatic switching
+-   Parse all videos in the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
+-   Parse all comments in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
 * * *
 
 ## 🤦‍Follow-up features:
 
--   [ ] Support input (Tik Tok/TikTok) author homepage link to achieve batch parsing
+-   [ ] I don't know what it is, you bring it up.
 
 * * *
 
@@ -117,8 +120,8 @@ vim config.ini
 -   Web page parsing
 
 ```console
-# 运行web_zh.py
-python3 web_zh.py
+# 运行web_app.py
+python3 web_app.py
 ```
 
 -   API
@@ -384,7 +387,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   Python version needs to be at least 3 or more (install it yourself in the version management on the left)
 -   The frame is modified to`Flask`
 -   The startup method is changed to`python`
--   Web startup file selection`web_zh.py`
+-   Web startup file selection`web_app.py`
 -   API startup file selection`web_api.py`
 -   Check install module dependencies
 -   Start at will
