@@ -27,7 +27,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 ## 👻Introduction
 
 > For stability reasons, temporarily close /video (returns mp4 files) and /music (returns mp3 files) of the demo station
-> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% parsing. Success, if parsing fails please wait a minute or two and try again.
+> These two functions, and the batch download function of the result page are also temporarily unavailable. If you need it, please deploy it yourself. Other functions can still be used normally on the demo site. The API server guarantees 99% of the time to run normally, but does not guarantee 100% resolution. Success, if parsing fails please wait a minute or two and try again.
 
 API-V2: For testing purposes, support inputting Douyin/TikTok user homepage to crawl all video data of the author (no watermark links, number of likes, etc.), input a single video to crawl all comment data, for details, please see For V2 documents, the response speed depends on the number of crawls. Please set the timeout value to a high value when using it.
 
@@ -49,7 +49,7 @@ Updated on 2022/07/18, the shortcut command can automatically check for updates,
 
 This project uses[PyWebIO](https://github.com/pywebio/PyWebIO)、[Flask](https://github.com/pallets/flask), using Python to implement online batch parsing of Douyin's watermark-free video/atlas.
 
-It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download.
+It can be used to download videos that the author prohibits to download, or to perform data crawling, etc., and can be matched with[Shortcut APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download.
 
 The shortcut command needs to be in the Douyin or TikTok app, select the video you want to save, click the share button, and then find "Douyin TikTok No Watermark Download"
 This option, if you encounter a notification asking whether to allow shortcut commands to access xxxx (domain name or server), you need to click Allow before it can be used normally. The successfully downloaded video or gallery will be saved in a special album for easy browsing.
@@ -77,7 +77,7 @@ This option, if you encounter a notification asking whether to allow shortcut co
 -   Support API calls
 -   Support using proxy resolution
 -   support[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
--   Webpage Chinese / English automatic switch
+-   Webpage Chinese / English automatic switching
 -   Parse all videos in the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 -   Parse all comments in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
@@ -163,7 +163,7 @@ API入口:
 http://localhost(服务器IP):2333/
 ```
 
-## 🗺️支持的提交格式(包含但不仅限于以下例子)：
+## 🗺️ Supported submission formats (including but not limited to the following examples):
 
 -   Douyin share password (copy in APP)
 
@@ -191,7 +191,7 @@ https://www.douyin.com/video/6914948781100338440
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok URL Shortening (In-App Copy)
+-   TikTok Short URL (In-App Copy)
 
 ```text
 例子：
@@ -408,7 +408,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to keep the container running in the background
+-   Run the command to let the container run in the background
 
 ```yaml
 docker compose up -d
