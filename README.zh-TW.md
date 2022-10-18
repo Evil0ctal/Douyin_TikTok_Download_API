@@ -29,7 +29,7 @@
 > 出於穩定性的考慮，暫時關閉演示站的/video(返回mp4文件)和/music(返回mp3文件)
 > 這兩個功能，同時結果頁面的批量下載功能也暫時不可用，如有需求請自行部署，其他功能在演示站上仍正常使用，API服務器保證99%的時間正常運行，但不保證解析100%成功，如果解析失敗請等一兩分鐘後重試。
 
-API-V2用於測試用途，支持輸入Douyin/TikTok用戶主頁爬取該作者的所有視頻數據，包括無水印鏈接，點贊數量等等信息，詳細信息請查看V2文檔。
+API-V2： 用於測試用途，支持輸入Douyin/TikTok用戶主頁爬取該作者的所有視頻數據(無水印鏈接，點贊數量等等信息)，輸入單個視頻爬取所有評論數據，詳細信息請查看V2文檔，響應速度取決於爬取數量，使用時請將timeout值設高。
 
 🚀演示地址：<https://douyin.wtf/>
 
@@ -37,8 +37,8 @@ API-V2用於測試用途，支持輸入Douyin/TikTok用戶主頁爬取該作者�
 
 🧰API-V2：<https://api-v2.douyin.wtf/docs>
 
-💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)(
-更新於2022/07/18，快捷指令可自動檢查更新，安裝一次即可。 )
+💾iOS快捷指令(中文):[點擊獲取](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97) (
+更新于2022/07/18，快捷指令可自动检查更新，安装一次即可。)
 
 🌎iOS快捷方式（英文）：[點擊獲取](https://www.icloud.com/shortcuts/83548306bc0c4f8ea563108f79c73f8d)（更新於
 2022/07/18，這個快捷方式會自動檢查更新，只需要安裝一次。）
@@ -60,7 +60,7 @@ API-V2用於測試用途，支持輸入Douyin/TikTok用戶主頁爬取該作者�
     .
     └── Douyin_TikTok_Download_API/
         ├── /static(静态前端资源)
-        ├── web_zh.py(网页入口)
+        ├── web_app.py(网页入口)
         ├── web_api.py(API)
         ├── scraper.py(解析库)
         ├── config.ini(所有项目的配置文件，包含端口及代理等，如需请自行修改该文件。)
@@ -70,19 +70,22 @@ API-V2用於測試用途，支持輸入Douyin/TikTok用戶主頁爬取該作者�
 ## 💯已支持功能：
 
 -   支持抖音視頻/圖集解析
--   支持海外TikTok視頻解析
+-   支持海外TikTok視頻/圖集解析
 -   支持批量解析(支持抖音/TikTok混合解析)
 -   解析結果頁批量下載無水印視頻
 -   製作[pip包](https://pypi.org/project/DT-Scraper/)方便使用
 -   支持API調用
 -   支持使用代理解析
 -   支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)實現應用內下載無水印視頻/圖集
+-   網頁中文/英文自動切換
+-   解析作者主頁內所有視頻([API-V2](https://api-v2.douyin.wtf/docs)支持抖音/TikTok)
+-   解析視頻內所有評論信息([API-V2](https://api-v2.douyin.wtf/docs)支持抖音/TikTok)
 
 * * *
 
 ## 🤦‍後續功能：
 
--   [ ] 支持輸入(抖音/TikTok)作者主頁鏈接實現批量解析
+-   [ ] 我也不知道有啥，你來提吧。
 
 * * *
 
@@ -114,11 +117,11 @@ pip install -r requirements.txt
 vim config.ini
 ```
 
--   網頁解析
+-   网页解析
 
 ```console
-# 运行web_zh.py
-python3 web_zh.py
+# 运行web_app.py
+python3 web_app.py
 ```
 
 -   API
@@ -384,7 +387,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 -   Python版本需要至少3以上(在左側版本管理中自行安裝)
 -   框架修改為`Flask`
 -   啟動方式修改為`python`
--   Web啟動文件選擇`web_zh.py`
+-   Web啟動文件選擇`web_app.py`
 -   API啟動文件選擇`web_api.py`
 -   勾選安裝模塊依賴
 -   開機啟動隨意
