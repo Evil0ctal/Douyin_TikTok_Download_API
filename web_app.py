@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/10/02
+# @Update: 2022/10/17
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO、Flask, 将scraper.py返回的内容显示在网页上。
@@ -31,6 +31,7 @@ app_config.read('config.ini', encoding='utf-8')
 web_config = app_config['Web_ZH']
 title = web_config['Web_Title']
 description = web_config['Web_Description']
+keywords = web_config['Keywords']
 api_config = app_config['Web_API']
 api_url = api_config['URL']
 headers = {
@@ -98,7 +99,9 @@ def error_do(reason, function, value):
         [function, str(reason), value]])
     put_markdown(t('可能的原因:', 'Possible reasons:'))
     put_markdown(t('服务器可能被目标主机的防火墙限流(稍等片刻后再次尝试)', 'The server may be limited by the target host firewall (try again after a while)'))
-    put_markdown(t('输入了错误的链接(暂不支持主页链接解析)', 'Entered the wrong link (the home page link is not supported for parsing)'))
+    put_markdown(t('输入了错误的链接(API-V1暂不支持主页链接解析)', 'Entered the wrong link (the home page link is not supported for parsing with API-V1)'))
+    put_markdown(t('如果需要解析个人主页，请使用API-V2', 'If you need to parse the personal homepage, please use API-V2'))
+    put_markdown(t('API-V2 文档: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)', 'API-V2 Documentation: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)'))
     put_markdown(t('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)', 'The video has been deleted or blocked (what are you watching (⊙_⊙)?)'))
     put_markdown(t('其他原因(请联系作者)', 'Other reasons (please contact the author)'))
     put_html("<hr>")
@@ -366,7 +369,12 @@ def ios_pop_window():
 
 def api_document_pop_window():
     with popup(t("API文档", "API Document")):
-        put_markdown(t("💽API文档", "💽API Document"))
+        put_markdown(t("💾API-V2文档", "💾API-V2 Document"))
+        put_markdown(t('API-V2已经上线啦，支持更多功能，具体请查看接口文档。',
+                       'API-V2 has been launched and supports more functions. For details, please refer to the API documentation.'))
+        put_link('[API-V2 Docs]', 'https://api-v2.douyin.wtf/docs', new_window=True)
+        put_html('<hr>')
+        put_markdown(t("💽API-V1文档", "💽API-V1 Document"))
         put_markdown(t("API可将请求参数转换为需要提取的无水印视频/图片直链，配合IOS捷径可实现应用内下载。", "API can convert the request parameters to the direct link of the watermark-free video/picture, which can be used with IOS shortcut to achieve download within the application."))
         put_link('[中文文档]', 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%EF%B8%8Fapi%E4%BD%BF%E7%94%A8',
                  new_window=True)
@@ -426,6 +434,10 @@ def main():
     $('#favicon32,#favicon16').remove(); 
     $('head').append('<link rel="icon" type="image/png" href="%s">')
     """ % favicon_url)
+    # 设置Keywords
+    session.run_js("""
+        $('head').append('<meta name="keywords" content={}>')
+        """.format(keywords))
     # 修改footer
     session.run_js("""$('footer').remove()""")
     # 访问记录
