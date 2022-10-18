@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/08/29
+# @Update: 2022/10/17
 # @Function:
 # 创建一个接受提交参数的Flask应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -51,6 +51,8 @@ def index():
                   'Introduction': 'Free and open source Douyin/TikTok watermark-free video download tool, supports API calls.',
                   'Web interface': 'https://douyin.wtf/',
                   'iOS Shortcuts': 'https://api.douyin.wtf/ios',
+                  'API V1': 'https://api.douyin.wtf/',
+                  'API V2': 'https://api-v2.douyin.wtf/docs',
                   'Parsing Douyin/TikTok videos': 'https://api.douyin.wtf/api?url=[Douyin/TikTok url]',
                   'Return Video MP4 File Download': 'https://api.douyin.wtf/video?url=[Douyin/TikTok url]',
                   'Return Video MP3 File Download': 'https://api.douyin.wtf/music?url=[Douyin/TikTok url]'}
