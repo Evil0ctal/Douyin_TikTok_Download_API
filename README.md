@@ -34,7 +34,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 > 出于稳定性的考虑，暂时关闭演示站的/video(返回mp4文件)和/music(返回mp3文件)
 > 这两个功能，同时结果页面的批量下载功能也暂时不可用，如有需求请自行部署，其他功能在演示站上仍正常使用，API服务器保证99%的时间正常运行，但不保证解析100%成功，如果解析失败请等一两分钟后重试。
 
-API-V2用于测试用途，支持输入Douyin/TikTok用户主页爬取该作者的所有视频数据，包括无水印链接，点赞数量等等信息，详细信息请查看V2文档。
+API-V2： 用于测试用途，支持输入Douyin/TikTok用户主页爬取该作者的所有视频数据(无水印链接，点赞数量等等信息)，输入单个视频爬取所有评论数据，详细信息请查看V2文档，响应速度取决于爬取数量，使用时请将timeout值设高。
 
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
@@ -68,7 +68,7 @@ API-V2用于测试用途，支持输入Douyin/TikTok用户主页爬取该作者�
 .
 └── Douyin_TikTok_Download_API/
     ├── /static(静态前端资源)
-    ├── web_zh.py(网页入口)
+    ├── web_app.py(网页入口)
     ├── web_api.py(API)
     ├── scraper.py(解析库)
     ├── config.ini(所有项目的配置文件，包含端口及代理等，如需请自行修改该文件。)
@@ -79,19 +79,22 @@ API-V2用于测试用途，支持输入Douyin/TikTok用户主页爬取该作者�
 ## 💯已支持功能：
 
 - 支持抖音视频/图集解析
-- 支持海外TikTok视频解析
+- 支持海外TikTok视频/图集解析
 - 支持批量解析(支持抖音/TikTok混合解析)
 - 解析结果页批量下载无水印视频
 - 制作[pip包](https://pypi.org/project/DT-Scraper/)方便使用
 - 支持API调用
 - 支持使用代理解析
 - 支持[iOS快捷指令](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
+- 网页中文/英文自动切换
+- 解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
+- 解析视频内所有评论信息([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
 
 ---
 
 ## 🤦‍后续功能：
 
-- [ ] 支持输入(抖音/TikTok)作者主页链接实现批量解析
+- [ ] 我也不知道有啥，你来提吧。
 
 ---
 
@@ -125,8 +128,8 @@ vim config.ini
 - 网页解析
 
 ```console
-# 运行web_zh.py
-python3 web_zh.py
+# 运行web_app.py
+python3 web_app.py
 ```
 
 - API
@@ -392,7 +395,7 @@ http://localhost(服务器IP):2333/music?url="复制的(抖音/TikTok)口令/链
 - Python版本需要至少3以上(在左侧版本管理中自行安装)
 - 框架修改为`Flask`
 - 启动方式修改为`python`
-- Web启动文件选择`web_zh.py`
+- Web启动文件选择`web_app.py`
 - API启动文件选择`web_api.py`
 - 勾选安装模块依赖
 - 开机启动随意
