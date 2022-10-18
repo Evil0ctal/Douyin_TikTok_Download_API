@@ -73,7 +73,7 @@ This option, if you encounter a notification asking whether to allow shortcut co
 -   Support analysis of overseas TikTok videos/atlas
 -   Support batch parsing (support Douyin/TikTok hybrid parsing)
 -   Parse the result page to download watermark-free videos in batches
--   make[pip package](https://pypi.org/project/DT-Scraper/)easy to use
+-   制作[pip package](https://pypi.org/project/DT-Scraper/)easy to use
 -   Support API calls
 -   Support using proxy resolution
 -   support[iOS Shortcuts](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
@@ -436,7 +436,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 [![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
-## 🎉 Screenshot
+## 🎉截图
 
 > Note:
 > The screenshots may not match the text due to update problems. Please refer to the text description first.
