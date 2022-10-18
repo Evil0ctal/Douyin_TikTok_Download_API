@@ -1,3 +1,3 @@
 #!/bin/sh
-python  web_zh.py &
+python  web_app.py &
 python  web_api.py
