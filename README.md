@@ -19,7 +19,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ## 👻介绍
 
-本项目使用 [PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[Requests](https://requests.readthedocs.io/)，利用Python编写并实现可以在线批量解析下载抖音/TikTok的无水印视频/图片，部署你自己的解析|无水印API，调用scraper.py作为解析库等功能.....
+本项目使用 [PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[Requests](https://requests.readthedocs.io/)，利用Python编写并实现可以在线批量解析下载抖音|TikTok的无水印视频或图片，部署你自己的数据解析API，无水印下载，或在你的项目中调用scraper.py作为解析库等.....
 
 *一些简单的运用场景：*
 
@@ -32,20 +32,24 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 🍔Web APP: [https://douyin.wtf/](https://douyin.wtf/)
 
-🍟API-V1: [https://api.douyin.wtf/](https://api.douyin.wtf/)
+🍟API-V1: [https://api.douyin.wtf/docs](https://api.douyin.wtf/docs)
 
 🌭API-V2: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)
 
-💾iOS Shortcut(快捷指令): [issue#53](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
+💾iOS Shortcut(快捷指令): [Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
 
-🗂快捷指令历史版本: [Shortcuts release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/53)
+📦️桌面端下载器(仓库推荐)：
 
-📦️Tiktok/抖音下载器(桌面应用)：[Tairraos/TikDown](https://github.com/Tairraos/TikDown/)
+- [Tairraos/TikDown](https://github.com/Tairraos/TikDown/)
+
+- [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
+
+- [HFrost0/bilix](https://github.com/HFrost0/bilix)
 
 ## ⚗️技术栈
 
-* [web_app.py]("https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_app.py") - [PyWebIO](https://www.pyweb.io/)
-* [web_api.py]("https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_app.py") - [FastAPI](https://fastapi.tiangolo.com/)
+* [web_app.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_app.py) - [PyWebIO](https://www.pyweb.io/)
+* [web_api.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_api.py) - [FastAPI](https://fastapi.tiangolo.com/)
 * [scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py) - [Requests](https://requests.readthedocs.io/)
 
 > ***scraper.py:***
@@ -54,11 +58,13 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 > ***web_api.py:***
 
-- 获得参数并使用`Scraper()`类处理数据后以JSON形式返回，视频下载，
+- 获得请求参数并使用`Scraper()`类处理数据后以JSON形式返回，视频下载，配合iOS快捷指令实现快速调用。
 
 > ***web_app.py:***
 
-- 为`web_api.py`以及`scraper.py`制作的简易Web程序，将网页输入的值进行处理后使用`Scraper()`类处理并配合`web_api.py`的接口输出在网页上(类似前后端分离，参数大多可在`config.ini`中进行修改。)
+- 为`web_api.py`以及`scraper.py`制作的简易Web程序，将网页输入的值进行处理后使用`Scraper()`类处理并配合`web_api.py`的接口输出在网页上(类似前后端分离)
+
+***以上文件的参数大多可在[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)中进行修改***
 
 ## 💡项目文件结构
 
@@ -66,34 +72,30 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 # 请根据需要自行修改config.ini中的内容
 .
 └── Douyin_TikTok_Download_API/
-    ├── /static(PyWebIO静态前端资源)
+    ├── /static(PyWebIO静态资源)
     ├── web_app.py(网页APP)
     ├── web_api.py(API)
     ├── scraper.py(解析库)
     ├── config.ini(所有项目的配置文件，包含端口及代理等，如需请自行修改该文件。)
-    ├── logs.txt(web_错误日志，自动生成。)
-    └── API_logs.txt(API调用日志，自动生成。)
 ```
 
 ## 💯已支持功能：
 
-- 抖音（抖音海外版TikTok）视频/图片解析
-- Web APP批量解析(支持抖音/TikTok混合提交)
-- Web APP中文/英文自动切换
-- Web APP解析结果页批量下载无水印视频(V3.0.0暂时删除)
-- API调用
-- 制作[pip包](https://pypi.org/project/DT-Scraper/)方便使用
+- 抖音（抖音海外版: TikTok）视频/图片解析
+- 网页端批量解析(支持抖音/TikTok混合提交)
+- 网页端解析结果页批量下载无水印视频(V3.0.0暂时移除)
+- API调用获取链接数据
+- 制作[pip包](https://pypi.org/project/DT-Scraper/)方便快速导入你的项目
 - [[iOS快捷指令快速调用API]](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
-
 - 解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
-
 - 解析视频内所有评论信息([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
 
 ---
 
 ## 🤦‍后续功能：
 
-- [ ] 欢迎提出新的并将你的思路在issue中与我分享
+- [ ] 欢迎提出新的建议或将你的思路在issue中与我分享
+- [ ] 欢迎提交PR至[Development分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development) ♪(･ω･)ﾉ)
 
 ---
 
@@ -371,6 +373,5 @@ docker compose pull && docker compose down && docker compose up -d
 > Start: 2021/11/06
 > GitHub [@Evil0ctal](https://github.com/Evil0ctal)
 > Email Evil0ctal1985@gmail.com
-
 
 
