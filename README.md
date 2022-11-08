@@ -36,6 +36,8 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 API-V2： 用于测试用途，支持输入Douyin/TikTok用户主页爬取该作者的所有视频数据(无水印链接，点赞数量等等信息)，爬取用户主页内点赞过的所有视频(点赞列表需设置为公开)，输入单个视频爬取所有评论数据，详细信息请查看V2文档，响应速度取决于爬取数量，使用时请将timeout值设高。
 
+***2022年11月7日：艹！别打了！！别打了！！！API服务器被打死了，如果需要使用API服务请自行部署本项目，或者使用API-V2进行解析！***
+
 🚀演示地址：[https://douyin.wtf/](https://douyin.wtf/)
 
 🛰API演示：[https://api.douyin.wtf/](https://api.douyin.wtf/)
