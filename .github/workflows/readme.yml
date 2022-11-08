@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - master
+      - Dev
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,7 +19,3 @@ jobs:
         uses: dephraiim/translate-readme@main
         with:
           LANG: en
-      - name: Adding README - Chinese Traditional
-        uses: dephraiim/translate-readme@main
-        with:
-          LANG: zh-TW
