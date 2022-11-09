@@ -140,11 +140,8 @@ class Scraper:
                     print('获取原始链接失败！')
                     print(e)
                     return None
-            elif 'www.douyin' in url:
+            else:
                 print('该链接为原始链接,无需转换,原始链接为: {}'.format(url))
-                return url
-            elif 'live.douyin' in url:
-                print('该链接为直播链接,无需转换,原始链接为: {}'.format(url))
                 return url
         # 判断是否为TikTok分享链接/judge if it is a TikTok share link
         elif 'tiktok' in url:
@@ -201,10 +198,16 @@ class Scraper:
                 print('获取到的抖音视频ID为: {}'.format(key))
                 return key
             # 直播页
-            if 'live.douyin' in video_url:
+            elif 'live.douyin' in video_url:
                 # https://live.douyin.com/1000000000000000000
                 key = video_url.replace('https://live.douyin.com/', '')
                 print('获取到的抖音直播ID为: {}'.format(key))
+                return key
+            # note
+            elif 'note' in video_url:
+                # https://www.douyin.com/note/7086770907674348841
+                key = re.findall('/note/(\d+)?', video_url)[0]
+                print('获取到的抖音笔记ID为: {}'.format(key))
                 return key
         except Exception as e:
             print('获取抖音视频ID出错了:{}'.format(e))
@@ -269,7 +272,13 @@ class Scraper:
             # 转换链接/Convert link
             original_url = self.convert_share_urls(original_url)
             # 获取视频ID
-            video_id = re.findall('/video/(\d+)?', original_url)[0]
+            if '?' in original_url:
+                video_id = original_url.split('?')[0].split('/')[-1]
+            else:
+                video_id = original_url.split('/')[-1]
+            if '.html' in video_id:
+                video_id = video_id.replace('.html', '')
+            # video_id = re.findall('/video/(\d+)?', original_url)[0]
             print('获取到的TikTok视频ID是{}'.format(video_id))
             # 返回视频ID/Return video ID
             return video_id
@@ -319,10 +328,24 @@ class Scraper:
             if data:
                 print("获取视频数据成功，正在判断数据类型...")
                 url_type_code = data['aweme_type']
-                # 抖音类型代码例子 {'2': 'image', '4': 'video'} / TikTok type code example {'0': 'video', '150': 'image'}
+                """以下为抖音/TikTok类型代码/Type code for Douyin/TikTok"""
+                url_type_code_dict = {
+                    # 抖音/Douyin
+                    2: 'image',
+                    4: 'video',
+                    # TikTok
+                    0: 'video',
+                    51: 'video',
+                    55: 'video',
+                    58: 'video',
+                    61: 'video',
+                    150: 'image'
+                }
+                # 获取视频类型/Get video type
+                # 如果类型代码不存在,则默认为视频类型/If the type code does not exist, it is assumed to be a video type
                 print("数据类型代码: {}".format(url_type_code))
                 # 判断链接类型/Judge link type
-                url_type = 'video' if url_type_code == 4 or url_type_code == 0 else 'image'
+                url_type = url_type_code_dict.get(url_type_code, 'video')
                 print("数据类型: {}".format(url_type))
                 print("准备开始判断并处理数据...")
 
@@ -363,7 +386,7 @@ class Scraper:
                         'cover': data['video']['cover'],
                         'origin_cover': data['video']['origin_cover'],
                         'dynamic_cover': data['video']['dynamic_cover'] if url_type == 'video' else None
-                        },
+                    },
                     'hashtags': data['text_extra']
                 }
                 # 创建一个空变量，稍后使用.update()方法更新数据/Create an empty variable and use the .update() method to update the data
