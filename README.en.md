@@ -51,7 +51,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 
 > **_scraper.py:_**
 
--   Towards[Douyin|TikTok]的API提交请求并取回数据，处理后返回字典(dict)，支持异步。
+-   Towards[Douyin|TikTok]The API submits requests and retrieves data, returns a dictionary (dict) after processing, and supports asynchronous.
 
 > **_web_api.py:_**
 
@@ -109,7 +109,7 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
 ```
 
--   Install dependent libraries:
+-   安装依赖库：
 
 ```console
 pip install -r requirements.txt
@@ -237,8 +237,8 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 
 ## 💾Deployment (method 1 manual deployment)
 
-> 注：
-> 截图可能因更新问题与文字不符，一切请优先参照文字叙述。
+> Note:
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
