@@ -127,7 +127,7 @@ class Scraper:
                 print('正在通过抖音分享链接获取原始链接...')
                 try:
                     async with httpx.AsyncClient(proxies=self.proxies) as client:
-                        response = await client.get(url, headers=self.headers, follow_redirects=False)
+                        response = await client.get(url, headers=self.headers, follow_redirects=False, timeout=10)
                     if response.status_code == 302:
                         # 视频链接302重定向'Location'字段
                         # https://www.iesdouyin.com/share/video/7148345687535570206/
@@ -160,7 +160,7 @@ class Scraper:
                 print('正在通过TikTok分享链接获取原始链接...')
                 try:
                     async with httpx.AsyncClient(proxies=self.proxies) as client:
-                        response = await client.get(url, headers=self.headers, follow_redirects=False)
+                        response = await client.get(url, headers=self.headers, follow_redirects=False, timeout=10)
                     if response.status_code == 301:
                         # 视频链接302重定向'Location'字段
                         # https://www.tiktok.com/@tiktok/video/6950000000000000000
