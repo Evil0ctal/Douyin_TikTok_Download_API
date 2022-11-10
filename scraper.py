@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/11/06
-# @Version: 3.0.0
+# @Update: 2022/11/09
+# @Version: 3.1.0
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -11,8 +11,9 @@
 
 
 import re
+import httpx
+import asyncio
 import orjson
-import requests
 import traceback
 import configparser
 from tenacity import *
@@ -98,7 +99,7 @@ class Scraper:
 
     # 转换链接/convert url
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    def convert_share_urls(self, url: str) -> str or None:
+    async def convert_share_urls(self, url: str) -> str or None:
         """
         用于从短链接中获取长链接
         :return: 长链接
@@ -125,8 +126,8 @@ class Scraper:
             if 'v.douyin' in url:
                 print('正在通过抖音分享链接获取原始链接...')
                 try:
-                    response = requests.get(url, headers=self.headers, allow_redirects=False,
-                                            proxies=self.proxies)
+                    async with httpx.AsyncClient(proxies=self.proxies) as client:
+                        response = await client.get(url, headers=self.headers, follow_redirects=False)
                     if response.status_code == 302:
                         # 视频链接302重定向'Location'字段
                         # https://www.iesdouyin.com/share/video/7148345687535570206/
@@ -158,8 +159,8 @@ class Scraper:
             else:
                 print('正在通过TikTok分享链接获取原始链接...')
                 try:
-                    response = requests.get(url, headers=self.headers, allow_redirects=False,
-                                            proxies=self.proxies)
+                    async with httpx.AsyncClient(proxies=self.proxies) as client:
+                        response = await client.get(url, headers=self.headers, follow_redirects=False)
                     if response.status_code == 301:
                         # 视频链接302重定向'Location'字段
                         # https://www.tiktok.com/@tiktok/video/6950000000000000000
@@ -177,7 +178,7 @@ class Scraper:
     """__________________________________________⬇️Douyin methods(抖音方法)⬇️______________________________________"""
 
     # 获取抖音视频ID/Get Douyin video ID
-    def get_douyin_video_id(self, original_url: str) -> dict or None:
+    async def get_douyin_video_id(self, original_url: str) -> dict or None:
         """
         获取视频id
         :param original_url: 视频链接
@@ -185,7 +186,7 @@ class Scraper:
         """
         # 正则匹配出视频ID
         try:
-            video_url = self.convert_share_urls(original_url)
+            video_url = await self.convert_share_urls(original_url)
             # 链接类型:
             # 视频页 https://www.douyin.com/video/7086770907674348841
             if '/video/' in video_url:
@@ -215,7 +216,7 @@ class Scraper:
 
     # 获取单个抖音视频数据/Get single Douyin video data
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    def get_douyin_video_data(self, video_id: str) -> dict or None:
+    async def get_douyin_video_data(self, video_id: str) -> dict or None:
         """
         :param video_id: str - 抖音视频id
         :return:dict - 包含信息的字典
@@ -226,9 +227,10 @@ class Scraper:
             api_url = f"https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={video_id}"
             # 访问API/Access API
             print("正在获取视频数据API: {}".format(api_url))
-            response = requests.get(url=api_url, headers=self.headers, proxies=self.proxies, timeout=5).text
+            async with httpx.AsyncClient(proxies=self.proxies) as client:
+                response = await client.get(api_url, headers=self.headers, timeout=5)
             # 获取返回的json数据/Get the returned json data
-            data = orjson.loads(response)
+            data = orjson.loads(response.text)
             # 获取视频数据/Get video data
             video_data = data['item_list'][0]
             print('获取视频数据成功！')
@@ -240,16 +242,17 @@ class Scraper:
 
     # 获取单个抖音直播视频数据/Get single Douyin Live video data
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    def get_douyin_live_video_data(self, web_rid: str) -> dict or None:
+    async def get_douyin_live_video_data(self, web_rid: str) -> dict or None:
         print('正在获取抖音视频数据...')
         try:
             # 构造访问链接/Construct the access link
             api_url = f"https://live.douyin.com/webcast/web/enter/?aid=6383&web_rid={web_rid}"
             # 访问API/Access API
             print("正在获取视频数据API: {}".format(api_url))
-            response = requests.get(url=api_url, headers=self.douyin_cookies, proxies=self.proxies, timeout=5).text
+            async with httpx.AsyncClient(proxies=self.proxies) as client:
+                response = await client.get(api_url, headers=self.douyin_cookies, timeout=5)
             # 获取返回的json数据/Get the returned json data
-            data = orjson.loads(response)
+            data = orjson.loads(response.text)
             # 获取视频数据/Get video data
             video_data = data['data']
             print('获取视频数据成功！')
@@ -262,7 +265,7 @@ class Scraper:
     """__________________________________________⬇️TikTok methods(TikTok方法)⬇️______________________________________"""
 
     # 获取TikTok视频ID/Get TikTok video ID
-    def get_tiktok_video_id(self, original_url: str) -> str or None:
+    async def get_tiktok_video_id(self, original_url: str) -> str or None:
         """
         获取视频id
         :param original_url: 视频链接
@@ -270,7 +273,7 @@ class Scraper:
         """
         try:
             # 转换链接/Convert link
-            original_url = self.convert_share_urls(original_url)
+            original_url = await self.convert_share_urls(original_url)
             # 获取视频ID
             if '?' in original_url:
                 video_id = original_url.split('?')[0].split('/')[-1]
@@ -287,7 +290,7 @@ class Scraper:
             return None
 
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    def get_tiktok_video_data(self, video_id: str) -> dict or None:
+    async def get_tiktok_video_data(self, video_id: str) -> dict or None:
         """
         获取单个视频信息
         :param video_id: 视频id
@@ -297,8 +300,8 @@ class Scraper:
         try:
             api_url = f'https://api-h2.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&version_code=2613&aid=1180'
             print("正在获取视频数据API: {}".format(api_url))
-            response = requests.get(api_url, headers=self.tiktok_api_headers,
-                                    proxies=self.proxies)
+            async with httpx.AsyncClient(proxies=self.proxies) as client:
+                response = await client.get(api_url, headers=self.tiktok_api_headers, timeout=5)
             if response.content != '':
                 data = orjson.loads(response.text)
                 video_data = data['aweme_list'][0]
@@ -311,19 +314,21 @@ class Scraper:
     """__________________________________________⬇️Hybrid methods(混合方法)⬇️______________________________________"""
 
     # 自定义获取数据/Custom data acquisition
-    def hybrid_parsing(self, video_url: str) -> dict:
+    async def hybrid_parsing(self, video_url: str) -> dict:
         # URL平台判断/Judge URL platform
         url_platform = 'douyin' if 'douyin' in video_url else 'tiktok'
         print('当前链接平台为:{}'.format(url_platform))
         # 获取视频ID/Get video ID
         print("正在获取视频ID...")
-        video_id = self.get_douyin_video_id(video_url) if url_platform == 'douyin' else self.get_tiktok_video_id(
+        video_id = await self.get_douyin_video_id(
+            video_url) if url_platform == 'douyin' else await self.get_tiktok_video_id(
             video_url)
         if video_id:
             print("获取视频ID成功,视频ID为:{}".format(video_id))
             # 获取视频数据/Get video data
             print("正在获取视频数据...")
-            data = self.get_douyin_video_data(video_id) if url_platform == 'douyin' else self.get_tiktok_video_data(
+            data = await self.get_douyin_video_data(
+                video_id) if url_platform == 'douyin' else await self.get_tiktok_video_data(
                 video_id)
             if data:
                 print("获取视频数据成功，正在判断数据类型...")
@@ -508,32 +513,36 @@ class Scraper:
 """__________________________________________⬇️Test methods(测试方法)⬇️______________________________________"""
 
 
-# 测试/Test
-def main_test():
-    while True:
-        url = input("Enter your Douyin/TikTok url here to test: ")
-        if 'douyin.com' in url:
-            video_id = api.get_douyin_video_id(url)
-            if video_id:
-                video_data = api.get_douyin_video_data(video_id)
-                print(video_data)
-        else:
-            video_id = api.get_tiktok_video_id(url)
-            if video_id:
-                tiktok_data = api.get_tiktok_video_data(video_id)
-                print(tiktok_data)
+async def async_test(douyin_url: str = None, tiktok_url: str = None):
+    # 异步测试/Async test
 
+    print("正在测试异步转换URL方法...")
+    if douyin_url:
+        douyin_url = await api.convert_share_urls(douyin_url)
+    elif tiktok_url:
+        tiktok_url = await api.convert_share_urls(tiktok_url)
+    else:
+        douyin_url = await api.convert_share_urls('https://v.douyin.com/MtutjoY/')
+        tiktok_url = await api.convert_share_urls('https://www.tiktok.com/@tiktok/video/6825760761660357638')
 
-def hybrid_test():
-    while True:
-        url = input("Enter your Douyin/TikTok url here to test: ")
-        # 混合解析/Hybrid parsing
-        data = api.hybrid_parsing(url)
-        # 精简数据/Minimal data
-        minimal_data = api.hybrid_parsing_minimal(data)
+    print("正在测试异步获取抖音视频ID方法...")
+    douyin_id = await api.get_douyin_video_id(douyin_url)
+    print("正在测试异步获取抖音视频数据方法...")
+    douyin_data = await api.get_douyin_video_data(douyin_id)
+
+    print("正在测试异步获取TikTok视频ID方法...")
+    tiktok_id = await api.get_tiktok_video_id(tiktok_url)
+    print("正在测试异步获取TikTok视频数据方法...")
+    tiktok_data = await api.get_tiktok_video_data(tiktok_id)
+
+    print("正在测试异步混合解析方法...")
+    douyin_hybrid_data = await api.hybrid_parsing(douyin_url)
+    tiktok_hybrid_data = await api.hybrid_parsing(tiktok_url)
 
 
 if __name__ == '__main__':
     api = Scraper()
-    # 测试类
-    hybrid_test()
+    # 运行测试
+    douyin_url = 'https://v.douyin.com/MtutjoY/'
+    tiktok_url = 'https://www.tiktok.com/@tiktok/video/6825760761660357638'
+    asyncio.run(async_test(douyin_url=douyin_url, tiktok_url=tiktok_url))
