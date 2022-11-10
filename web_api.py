@@ -2,27 +2,29 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/11/06
-# @Version: 3.0.0
+# @Update: 2022/11/09
+# @Version: 3.1.0
 # @Function:
-# 创建一个接受提交参数的Flask应用程序。
+# 创建一个接受提交参数的FastAPi应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
 
 
-import configparser
-import json
 import os
-import threading
 import time
-import zipfile
-
-import requests
+import json
+import httpx
 import uvicorn
-from fastapi import FastAPI
+import zipfile
+import threading
+import configparser
+
+from fastapi import FastAPI, Request
 from fastapi.responses import ORJSONResponse, FileResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from pydantic import BaseModel
 from starlette.responses import RedirectResponse
-
 
 from scraper import Scraper
 
@@ -33,11 +35,13 @@ config.read('config.ini', encoding='utf-8')
 port = int(config["Web_API"]["Port"])
 # 域名
 domain = config["Web_API"]["Domain"]
+# 限制器/Limiter
+Rate_Limit = config["Web_API"]["Rate_Limit"]
 
 # 创建FastAPI实例
 title = "Douyin TikTok Download API(api.douyin.wtf)"
-version = '3.0.0'
-update_time = "2022/10/31"
+version = '3.1.0'
+update_time = "2022/11/09"
 description = """
 #### Description/说明
 <details>
@@ -101,6 +105,11 @@ app = FastAPI(
     openapi_tags=tags_metadata
 )
 
+# 创建Limiter对象
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 """ ________________________⬇️端点响应模型(Endpoints Response Model)⬇️________________________"""
 
 
@@ -109,6 +118,7 @@ class APIRoot(BaseModel):
     API_status: str
     Version: str = version
     Update_time: str = update_time
+    Request_Rate_Limit: str = Rate_Limit
     API_V1_Document: str
     API_V2_Document: str
     GitHub: str
@@ -196,7 +206,6 @@ async def api_logs(start_time, input_data, endpoint, error_data: dict = None):
         return 0
 
 
-
 """ ________________________⬇️Root端点(Root endpoint)⬇️________________________"""
 
 
@@ -210,6 +219,7 @@ async def root():
         "API_status": "Running",
         "Version": version,
         "Update_time": update_time,
+        "Request_Rate_Limit": Rate_Limit,
         "API_V1_Document": "https://api.douyin.wtf/docs",
         "API_V2_Document": "https://api-v2.douyin.wtf/docs",
         "GitHub": "https://github.com/Evil0ctal/Douyin_TikTok_Download_API",
@@ -223,7 +233,8 @@ async def root():
 # 混合解析端点,自动判断输入链接返回精简后的数据
 # Hybrid parsing endpoint, automatically determine the input link and return the simplified data.
 @app.get("/api", tags=["API"], response_model=API_Hybrid_Response)
-async def hybrid_parsing(url: str, minimal: bool = False):
+@limiter.limit(Rate_Limit)
+async def hybrid_parsing(request: Request, url: str, minimal: bool = False):
     """
         ## 用途/Usage
         - 获取[抖音|TikTok]单个视频数据，参数是视频链接或分享口令。
@@ -251,7 +262,7 @@ async def hybrid_parsing(url: str, minimal: bool = False):
     # 开始时间
     start_time = time.time()
     # 获取数据
-    data = api.hybrid_parsing(url)
+    data = await api.hybrid_parsing(url)
     # 是否精简
     if minimal:
         result = api.hybrid_parsing_minimal(data)
@@ -276,7 +287,8 @@ async def hybrid_parsing(url: str, minimal: bool = False):
 
 # 获取抖音单个视频数据/Get Douyin single video data
 @app.get("/douyin_video_data/", response_model=API_Video_Response, tags=["Douyin"])
-async def get_douyin_video_data(douyin_video_url: str = None, video_id: str = None):
+@limiter.limit(Rate_Limit)
+async def get_douyin_video_data(request: Request, douyin_video_url: str = None, video_id: str = None):
     """
     ## 用途/Usage
     - 获取抖音用户单个视频数据，参数是视频链接|分享口令
@@ -302,7 +314,7 @@ async def get_douyin_video_data(douyin_video_url: str = None, video_id: str = No
     """
     if video_id is None or video_id == '':
         # 获取视频ID
-        video_id = api.get_douyin_video_id(douyin_video_url)
+        video_id = await api.get_douyin_video_id(douyin_video_url)
         if video_id is None:
             result = {
                 "status": "failed",
@@ -315,7 +327,7 @@ async def get_douyin_video_data(douyin_video_url: str = None, video_id: str = No
         start_time = time.time()
         print('获取到的video_id数据:{}'.format(video_id))
         if video_id is not None:
-            video_data = api.get_douyin_video_data(video_id=video_id)
+            video_data = await api.get_douyin_video_data(video_id=video_id)
             if video_data is None:
                 result = {
                     "status": "failed",
@@ -359,7 +371,8 @@ async def get_douyin_video_data(douyin_video_url: str = None, video_id: str = No
 
 # 获取TikTok单个视频数据/Get TikTok single video data
 @app.get("/tiktok_video_data/", response_class=ORJSONResponse, response_model=API_Video_Response, tags=["TikTok"])
-async def get_tiktok_video_data(tiktok_video_url: str = None, video_id: str = None):
+@limiter.limit(Rate_Limit)
+async def get_tiktok_video_data(request: Request, tiktok_video_url: str = None, video_id: str = None):
     """
         ## 用途/Usage
         - 获取单个视频数据，参数是视频链接| 分享口令。
@@ -386,13 +399,13 @@ async def get_tiktok_video_data(tiktok_video_url: str = None, video_id: str = No
     # 开始时间
     start_time = time.time()
     if video_id is None or video_id == "":
-        video_id = api.get_tiktok_video_id(tiktok_video_url)
+        video_id = await api.get_tiktok_video_id(tiktok_video_url)
         if video_id is None:
             return ORJSONResponse({"status": "fail", "platform": "tiktok", "endpoint": "/tiktok_video_data/",
                                    "message": "获取视频ID失败/Get video ID failed"})
     if video_id is not None and video_id != '':
         print('开始解析单个TikTok视频数据')
-        video_data = api.get_tiktok_video_data(video_id)
+        video_data = await api.get_tiktok_video_data(video_id)
         # TikTok的API数据如果为空或者返回的数据中没有视频数据，就返回错误信息
         # If the TikTok API data is empty or there is no video data in the returned data, an error message is returned
         if video_data is None or video_data.get('aweme_id') != video_id:
@@ -452,7 +465,8 @@ async def Get_Shortcut():
 
 # 下载文件端点/Download file endpoint
 @app.get("/download", tags=["Download"])
-async def download_file_hybrid(url: str, prefix: bool = True, watermark: bool = False):
+@limiter.limit(Rate_Limit)
+async def download_file_hybrid(request: Request, url: str, prefix: bool = True, watermark: bool = False):
     """
         ## 用途/Usage
         ### [中文]
@@ -473,7 +487,7 @@ async def download_file_hybrid(url: str, prefix: bool = True, watermark: bool = 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
-    data = api.hybrid_parsing(url)
+    data = await api.hybrid_parsing(url)
     if data is None:
         return ORJSONResponse(data)
     else:
@@ -491,7 +505,8 @@ async def download_file_hybrid(url: str, prefix: bool = True, watermark: bool = 
             os.makedirs(root_path)
         if url_type == 'video':
             file_name = file_name_prefix + platform + '_' + aweme_id + '.mp4' if not watermark else file_name_prefix + platform + '_' + aweme_id + '_watermark' + '.mp4'
-            url = data.get('video_data').get('nwm_video_url_HQ') if not watermark else data.get('video_data').get('wm_video_url')
+            url = data.get('video_data').get('nwm_video_url_HQ') if not watermark else data.get('video_data').get(
+                'wm_video_url')
             print('url: ', url)
             file_path = root_path + "/" + file_name
             print('file_path: ', file_path)
@@ -501,16 +516,22 @@ async def download_file_hybrid(url: str, prefix: bool = True, watermark: bool = 
                 return FileResponse(path=file_path, media_type='video/mp4', filename=file_name)
             else:
                 if platform == 'douyin':
-                    r = requests.get(url=url, headers=headers, allow_redirects=False).headers
-                    cdn_url = r.get('location')
-                    r = requests.get(cdn_url).content
+                    async with httpx.AsyncClient() as client:
+                        r = await client.get(url=url, headers=headers, follow_redirects=False)
+                        r = r.headers
+                        cdn_url = r.get('location')
+                        r = await client.get(cdn_url)
+                        r = r.content
                 elif platform == 'tiktok':
-                    r = requests.get(url=url, headers=headers).content
+                    async with httpx.AsyncClient() as client:
+                        r = await client.get(url=url, headers=headers)
+                        r = r.content
                 with open(file_path, 'wb') as f:
                     f.write(r)
                 return FileResponse(path=file_path, media_type='video/mp4', filename=file_name)
         elif url_type == 'image':
-            url = data.get('image_data').get('no_watermark_image_list') if not watermark else data.get('image_data').get('watermark_image_list')
+            url = data.get('image_data').get('no_watermark_image_list') if not watermark else data.get(
+                'image_data').get('watermark_image_list')
             print('url: ', url)
             zip_file_name = file_name_prefix + platform + '_' + aweme_id + '_images.zip' if not watermark else file_name_prefix + platform + '_' + aweme_id + '_images_watermark.zip'
             zip_file_path = root_path + "/" + zip_file_name
@@ -522,13 +543,16 @@ async def download_file_hybrid(url: str, prefix: bool = True, watermark: bool = 
                 return FileResponse(path=zip_file_path, media_type='zip', filename=zip_file_name)
             file_path_list = []
             for i in url:
-                r = requests.get(url=i, headers=headers)
-                content_type = r.headers.get('content-type')
-                file_format = content_type.split('/')[1]
-                r = r.content
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(url=i, headers=headers)
+                    content_type = r.headers.get('content-type')
+                    file_format = content_type.split('/')[1]
+                    r = r.content
                 index = int(url.index(i))
-                file_name = file_name_prefix + platform + '_' + aweme_id + '_' + str(index + 1) + '.' + file_format if not watermark else \
-                    file_name_prefix + platform + '_' + aweme_id + '_' + str(index + 1) + '_watermark' + '.' + file_format
+                file_name = file_name_prefix + platform + '_' + aweme_id + '_' + str(
+                    index + 1) + '.' + file_format if not watermark else \
+                    file_name_prefix + platform + '_' + aweme_id + '_' + str(
+                        index + 1) + '_watermark' + '.' + file_format
                 file_path = root_path + "/" + file_name
                 file_path_list.append(file_path)
                 print('file_path: ', file_path)
