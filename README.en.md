@@ -103,7 +103,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 ```
 
--   移动至仓库目录：
+-   Move to repository directory:
 
 ```console
 cd Douyin_TikTok_Download_API
@@ -143,21 +143,20 @@ from DT_scraper.scraper import Scraper
 	
 api = Scraper()
 	
-async def async_test(url: str)):
-	# Asynchronous conversion URL method
+async def async_test(url: str):
 	if 'douyin' in url:
-		douyin_url = await api.convert_share_urls(douyin_url)
+		douyin_url = await api.convert_share_urls(url)
+		# Get Douyin ID and video data
+		douyin_id = await api.get_douyin_video_id(douyin_url)
+		douyin_data = await api.get_douyin_video_data(douyin_id)
 	elif 'tiktok' in url:
-		tiktok_url = await api.convert_share_urls(tiktok_url)
-	# Get Douyin video data
-	douyin_id = await api.get_douyin_video_id(douyin_url)
-	douyin_data = await api.get_douyin_video_data(douyin_id)
-	# Get TikTok video data
-	tiktok_id = await api.get_tiktok_video_id(tiktok_url)
-	tiktok_data = await api.get_tiktok_video_data(tiktok_id)
-	# Hybrid parsing
-	douyin_hybrid_data = await api.hybrid_parsing(douyin_url)
-	tiktok_hybrid_data = await api.hybrid_parsing(tiktok_url)
+		tiktok_url = await api.convert_share_urls(url)
+		# Get TikTok video data
+		tiktok_id = await api.get_tiktok_video_id(tiktok_url)
+		tiktok_data = await api.get_tiktok_video_data(tiktok_id)
+		
+	# Hybrid parsing(Any platform URL)
+	hybrid_data = await api.hybrid_parsing(url)
 	
 asyncio.run(async_test(url=input("Paste Douyin/TikTok share URL here: "))
 ```
@@ -238,7 +237,7 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 ## 💾Deployment (method 1 manual deployment)
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -312,7 +311,7 @@ docker compose pull && docker compose down && docker compose up -d
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 <details><summary>点击展开截图</summary>
 
@@ -356,9 +355,11 @@ docker compose pull && docker compose down && docker compose up -d
 
 </details>
 
-## 📜 Footnotes
+## 📜 Star History
 
-[MY License]("https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE")
+[![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
+
+[MY License](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
 
 > Start: 2021/11/06
-> GitHub[@Evil0ctal](https://github.com/Evil0ctal)Email[Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
+> GitHub:[@Evil0ctal](https://github.com/Evil0ctal)Contact:[Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
