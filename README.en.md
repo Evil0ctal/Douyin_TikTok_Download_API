@@ -19,7 +19,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of video or atlas without watermark, data crawling API, iOS shortcut command without watermark download and other functions through the Web terminal. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)作为解析库轻松爬取数据等.....
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of video or atlas without watermark, data crawling API, iOS shortcut command without watermark download and other functions through the Web terminal. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)As a parsing library to easily crawl data, etc...
 
 _Some simple application scenarios:_
 
@@ -77,7 +77,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 
 -   Douyin (Douyin overseas version: TikTok) video/picture analysis
 -   Batch parsing on the webpage (support Douyin/TikTok mixed submission)
--   Batch download of watermark-free videos on the web-side parsing result page (Temporarily removed for V3.0.0)
+-   Batch download of watermark-free videos on the parsing result page on the webpage (V3.0.0 temporarily removed)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/DT-Scraper/)Easily and quickly import your projects
 -   [\[iOS shortcut command to quickly call API\]](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
@@ -103,7 +103,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 ```
 
--   Move to repository directory:
+-   移动至仓库目录：
 
 ```console
 cd Douyin_TikTok_Download_API
