@@ -24,3 +24,5 @@ user-agents==2.2.0
 uvicorn==0.19.0
 watchfiles==0.18.0
 websockets==10.4
+slowapi~=0.1.6
+httpx~=0.23.0
