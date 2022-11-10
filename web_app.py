@@ -390,4 +390,4 @@ if __name__ == '__main__':
     # 判断是否使用CDN加载前端资源
     cdn = True if config['Web_APP']['PyWebIO_CDN'] == 'True' else False
     # 启动Web服务\Start Web service
-    start_server(main, port=port, debug=True, cdn=cdn)
+    start_server(main, port=port, debug=False, cdn=cdn)
