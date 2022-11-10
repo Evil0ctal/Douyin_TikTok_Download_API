@@ -65,14 +65,13 @@ _Download prohibited videos, perform data analysis, and download without waterma
 
 ## 💡Project file structure
 
-    # 请根据需要自行修改config.ini中的内容
     .
     └── Douyin_TikTok_Download_API/
-        ├── /static(PyWebIO静态资源)
-        ├── web_app.py(网页APP)
-        ├── web_api.py(API)
-        ├── scraper.py(解析库)
-        ├── config.ini(所有项目的配置文件，包含端口及代理等，如需请自行修改该文件。)
+        ├── /static -> (PyWebIO static resources)
+        ├── web_app.py -> (Web APP)
+        ├── web_api.py -> (API)
+        ├── scraper.py -> (Parsing library)
+        ├── config.ini -> (configuration file)
 
 ## 💯 Supported features:
 
@@ -141,27 +140,26 @@ python3 web_api.py
 ```python
 # pip install DT-Scraper
 from DT_scraper.scraper import Scraper
-
+	
 api = Scraper()
-
-async def async_test(url: str = input("Paste Douyin/TikTok share URL here: ")):
+	
+async def async_test(url: str)):
 	# Asynchronous conversion URL method
 	if 'douyin' in url:
 		douyin_url = await api.convert_share_urls(douyin_url)
 	elif 'tiktok' in url:
 		tiktok_url = await api.convert_share_urls(tiktok_url)
-		
-    # Get Douyin video data
-    douyin_id = await api.get_douyin_video_id(douyin_url)
-    douyin_data = await api.get_douyin_video_data(douyin_id)
-
-    # Get TikTok video data
-    tiktok_id = await api.get_tiktok_video_id(tiktok_url)
-    tiktok_data = await api.get_tiktok_video_data(tiktok_id)
-
-    # Hybrid parsing
-    douyin_hybrid_data = await api.hybrid_parsing(douyin_url)
-    tiktok_hybrid_data = await api.hybrid_parsing(tiktok_url)
+	# Get Douyin video data
+	douyin_id = await api.get_douyin_video_id(douyin_url)
+	douyin_data = await api.get_douyin_video_data(douyin_id)
+	# Get TikTok video data
+	tiktok_id = await api.get_tiktok_video_id(tiktok_url)
+	tiktok_data = await api.get_tiktok_video_data(tiktok_id)
+	# Hybrid parsing
+	douyin_hybrid_data = await api.hybrid_parsing(douyin_url)
+	tiktok_hybrid_data = await api.hybrid_parsing(tiktok_url)
+	
+asyncio.run(async_test(url=input("Paste Douyin/TikTok share URL here: "))
 ```
 
 -   Entry (port can be modified in the config.ini file)
