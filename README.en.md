@@ -19,7 +19,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of video or atlas without watermark, data crawling API, iOS shortcut command without watermark download and other functions through the Web terminal. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)As a parsing library to easily crawl data, etc...
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of video or atlas without watermark, data crawling API, iOS shortcut command without watermark download and other functions through the Web terminal. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)作为解析库轻松爬取数据等.....
 
 _Some simple application scenarios:_
 
@@ -109,7 +109,7 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
 ```
 
--   安装依赖库：
+-   Install dependent libraries:
 
 ```console
 pip install -r requirements.txt
@@ -250,7 +250,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
 -   First go to the security group to open ports 8080 and 8000 (default 8080 for Web, default 8000 for API, which can be modified in the file config.ini.)
--   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
+-   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -281,7 +281,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to keep the container running in the background
+-   Run the command to let the container run in the background
 
 ```yaml
 docker compose up -d
