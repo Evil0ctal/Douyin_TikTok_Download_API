@@ -19,12 +19,12 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ## 👻介绍
 
-本项目使用 [PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[Requests](https://requests.readthedocs.io/)，利用Python编写并实现可以在线批量解析下载抖音|TikTok的无水印视频或图片，部署你自己的数据解析API，无水印下载，或在你的项目中调用scraper.py作为解析库等.....
+本项目是基于 [PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/)，快速异步的[抖音](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)数据爬取工具，并通过Web端实现在线批量解析以及下载无水印视频或图集，数据爬取API，iOS快捷指令无水印下载等功能。你可以自己部署或改造本项目实现更多功能，也可以在你的项目中直接调用[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)或安装现有的[pip包](https://pypi.org/project/DT-Scraper/)作为解析库轻松爬取数据等.....
 
 *一些简单的运用场景：*
 
-*下载禁止下载的视频，进行数据爬取分析，iOS无水印下载（搭配[iOS自带的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)
-配合本项目API实现应用内|剪贴板下载）等.....*
+*下载禁止下载的视频，进行数据分析，iOS无水印下载（搭配[iOS自带的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)
+配合本项目API实现应用内下载或读取剪贴板下载）等.....*
 
 ## 🖥公共站点: 我很脆弱...请不要随意打我 ‎(·•᷄ࡇ•᷅ ）
 
@@ -41,24 +41,22 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 📦️桌面端下载器(仓库推荐)：
 
 - [Tairraos/TikDown](https://github.com/Tairraos/TikDown/)
-
 - [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
-
 - [HFrost0/bilix](https://github.com/HFrost0/bilix)
 
 ## ⚗️技术栈
 
 * [web_app.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_app.py) - [PyWebIO](https://www.pyweb.io/)
 * [web_api.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_api.py) - [FastAPI](https://fastapi.tiangolo.com/)
-* [scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py) - [Requests](https://requests.readthedocs.io/)
+* [scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py) - [HTTPX](https://www.python-httpx.org/)
 
 > ***scraper.py:***
 
-- 向[Douyin|TikTok]的API提交请求并取回数据，处理后返回字典(dict)。
+- 向[Douyin|TikTok]的API提交请求并取回数据，处理后返回字典(dict)，支持异步。
 
 > ***web_api.py:***
 
-- 获得请求参数并使用`Scraper()`类处理数据后以JSON形式返回，视频下载，配合iOS快捷指令实现快速调用。
+- 获得请求参数并使用`Scraper()`类处理数据后以JSON形式返回，视频下载，配合iOS快捷指令实现快速调用，支持异步。
 
 > ***web_app.py:***
 
@@ -149,19 +147,24 @@ from DT_scraper.scraper import Scraper
 
 api = Scraper()
 
-def main_test():
-	while True:
-		url = input("Enter your Douyin/TikTok url here to test: ")
-		if 'douyin.com' in url:
-			video_id = api.get_douyin_video_id(url)
-			if video_id:
-				video_data = api.get_douyin_video_data(video_id)
-				print(video_data)
-		else:
-			video_id = api.get_tiktok_video_id(url)
-			if video_id:
-				tiktok_data = api.get_tiktok_video_data(video_id)
-				print(tiktok_data)
+async def async_test(url: str = input("Paste Douyin/TikTok share URL here: ")):
+	# Asynchronous conversion URL method
+	if 'douyin' in url:
+		douyin_url = await api.convert_share_urls(douyin_url)
+	elif 'tiktok' in url:
+		tiktok_url = await api.convert_share_urls(tiktok_url)
+		
+    # Get Douyin video data
+    douyin_id = await api.get_douyin_video_id(douyin_url)
+    douyin_data = await api.get_douyin_video_data(douyin_id)
+
+    # Get TikTok video data
+    tiktok_id = await api.get_tiktok_video_id(tiktok_url)
+    tiktok_data = await api.get_tiktok_video_data(tiktok_id)
+
+    # Hybrid parsing
+    douyin_hybrid_data = await api.hybrid_parsing(douyin_url)
+    tiktok_hybrid_data = await api.hybrid_parsing(tiktok_url)
 ```
 
 - 入口(端口可在config.ini文件中修改)
@@ -233,10 +236,11 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 
 ***API-V1文档：***
 [http://localhost(服务器IP):8000/docs]("http://localhost:8000/docs")
+或
 [https://api.douyin.wtf/docs]("https://api.douyin.wtf/docs")
 
 ***API-V2文档：***
-[https://api.douyin.wtf/docs]("https://api-v2.douyin.wtf/docs")
+[https://api-v2.douyin.wtf/docs]("https://api-v2.douyin.wtf/docs")
 
 ---
 
