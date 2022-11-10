@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/11/09
+# @Update: 2022/11/10
 # @Version: 3.1.0
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
@@ -124,6 +124,9 @@ class Scraper:
             1. https://live.douyin.com/88815422890
             """
             if 'v.douyin' in url:
+                # 转换链接/convert url
+                # 例子/Example: https://v.douyin.com/rLyAJgf/8.74
+                url = re.compile(r'(https://v.douyin.com/)\w+', re.I).match(url).group()
                 print('正在通过抖音分享链接获取原始链接...')
                 try:
                     async with httpx.AsyncClient(proxies=self.proxies) as client:
@@ -281,7 +284,7 @@ class Scraper:
                 video_id = original_url.split('/')[-1]
             if '.html' in video_id:
                 video_id = video_id.replace('.html', '')
-            # video_id = re.findall('/video/(\d+)?', original_url)[0]
+            video_id = re.findall('/video/(\d+)', original_url)[0]
             print('获取到的TikTok视频ID是{}'.format(video_id))
             # 返回视频ID/Return video ID
             return video_id
@@ -516,15 +519,6 @@ class Scraper:
 async def async_test(douyin_url: str = None, tiktok_url: str = None):
     # 异步测试/Async test
 
-    print("正在测试异步转换URL方法...")
-    if douyin_url:
-        douyin_url = await api.convert_share_urls(douyin_url)
-    elif tiktok_url:
-        tiktok_url = await api.convert_share_urls(tiktok_url)
-    else:
-        douyin_url = await api.convert_share_urls('https://v.douyin.com/MtutjoY/')
-        tiktok_url = await api.convert_share_urls('https://www.tiktok.com/@tiktok/video/6825760761660357638')
-
     print("正在测试异步获取抖音视频ID方法...")
     douyin_id = await api.get_douyin_video_id(douyin_url)
     print("正在测试异步获取抖音视频数据方法...")
@@ -543,6 +537,6 @@ async def async_test(douyin_url: str = None, tiktok_url: str = None):
 if __name__ == '__main__':
     api = Scraper()
     # 运行测试
-    douyin_url = 'https://v.douyin.com/MtutjoY/'
-    tiktok_url = 'https://www.tiktok.com/@tiktok/video/6825760761660357638'
+    douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
+    tiktok_url = 'https://vm.tiktok.com/ZMFf3HPbB/'
     asyncio.run(async_test(douyin_url=douyin_url, tiktok_url=tiktok_url))
