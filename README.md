@@ -146,21 +146,20 @@ from DT_scraper.scraper import Scraper
 	
 api = Scraper()
 	
-async def async_test(url: str)):
-	# Asynchronous conversion URL method
+async def async_test(url: str):
 	if 'douyin' in url:
-		douyin_url = await api.convert_share_urls(douyin_url)
+		douyin_url = await api.convert_share_urls(url)
+		# Get Douyin ID and video data
+		douyin_id = await api.get_douyin_video_id(douyin_url)
+		douyin_data = await api.get_douyin_video_data(douyin_id)
 	elif 'tiktok' in url:
-		tiktok_url = await api.convert_share_urls(tiktok_url)
-	# Get Douyin video data
-	douyin_id = await api.get_douyin_video_id(douyin_url)
-	douyin_data = await api.get_douyin_video_data(douyin_id)
-	# Get TikTok video data
-	tiktok_id = await api.get_tiktok_video_id(tiktok_url)
-	tiktok_data = await api.get_tiktok_video_data(tiktok_id)
-	# Hybrid parsing
-	douyin_hybrid_data = await api.hybrid_parsing(douyin_url)
-	tiktok_hybrid_data = await api.hybrid_parsing(tiktok_url)
+		tiktok_url = await api.convert_share_urls(url)
+		# Get TikTok video data
+		tiktok_id = await api.get_tiktok_video_id(tiktok_url)
+		tiktok_data = await api.get_tiktok_video_data(tiktok_id)
+		
+	# Hybrid parsing(Any platform URL)
+	hybrid_data = await api.hybrid_parsing(url)
 	
 asyncio.run(async_test(url=input("Paste Douyin/TikTok share URL here: "))
 ```
@@ -368,12 +367,14 @@ docker compose pull && docker compose down && docker compose up -d
 
 </details>
 
-## 📜 脚注
+## 📜 Star历史
 
-[MIT License]("https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE")
+[![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
+
+[MIT License](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
 
 > Start: 2021/11/06
-> GitHub [@Evil0ctal](https://github.com/Evil0ctal)
-> Email Evil0ctal1985@gmail.com
+> GitHub: [@Evil0ctal](https://github.com/Evil0ctal)
+> Contact: Evil0ctal1985@gmail.com
 
 
