@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/11/06
+# @Update: 2022/11/09
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO，将scraper.py返回的内容显示在网页上。
@@ -16,7 +16,8 @@ from pywebio import *
 from pywebio import config as pywebio_config
 from pywebio.input import *
 from pywebio.output import *
-from pywebio.session import info as session_info
+from pywebio.session import info as session_info, run_asyncio_coroutine
+
 from scraper import Scraper
 
 config = configparser.ConfigParser()
@@ -198,7 +199,7 @@ web_description = config['Web_APP']['Web_Description']
 
 # 程序入口/Main interface
 @pywebio_config(title=web_title, description=web_description, theme='minty')
-def main():
+async def main():
     # 关键字信息
     keywords = config['Web_APP']['Keywords']
     # 设置favicon
@@ -227,12 +228,12 @@ def main():
     placeholder = t(
         "批量解析请直接粘贴多个口令或链接，无需使用符号分开，支持抖音和TikTok链接混合，暂时不支持作者主页链接批量解析。",
         "Batch parsing, please paste multiple passwords or links directly, no need to use symbols to separate, support for mixing Douyin and TikTok links, temporarily not support for author home page link batch parsing.")
-    input_data = textarea(t('请将抖音或TikTok的分享口令或网址粘贴于此',
-                            "Please paste the share code or URL of [Douyin|TikTok] here"),
-                          type=TEXT,
-                          validate=valid_check, required=True,
-                          placeholder=placeholder,
-                          position=0)
+    input_data = await textarea(t('请将抖音或TikTok的分享口令或网址粘贴于此',
+                                  "Please paste the share code or URL of [Douyin|TikTok] here"),
+                                type=TEXT,
+                                validate=valid_check, required=True,
+                                placeholder=placeholder,
+                                position=0)
     url_lists = find_url(input_data)
     # 解析开始时间
     start = time.time()
@@ -248,15 +249,17 @@ def main():
     # 输出一个提示条
     with use_scope('loading_text'):
         # 输出一个分行符
-        put_row([put_html('<hr>')])
-        put_warning(t('Server酱正收到你输入的链接啦！(◍•ᴗ•◍)\n请稍等片刻...',
-                      'ServerChan is receiving your input link! (◍•ᴗ•◍)\nPlease wait a moment...'))
+        put_row([put_html('<br>')])
+        put_warning(t('Server酱正收到你输入的链接啦！(◍•ᴗ•◍)\n正在努力处理中，请稍等片刻...',
+                      'ServerChan is receiving your input link! (◍•ᴗ•◍)\nEfforts are being made, please wait a moment...'))
+    # 结果页标题
+    put_scope('result_title')
     # 遍历链接列表
     for url in url_lists:
         # 链接编号
         url_index = url_lists.index(url) + 1
         # 解析
-        data = api.hybrid_parsing(video_url=url)
+        data = await run_asyncio_coroutine(api.hybrid_parsing(video_url=url))
         # 判断是否解析成功/失败
         status = True if data.get('status') == 'success' else False
         # 如果解析成功
@@ -271,12 +274,14 @@ def main():
                           [t(f'{url_type}描述', 'Description'), data.get('desc')],
                           [t('作者昵称', 'Author nickname'), data.get('author').get('nickname')],
                           [t('作者ID', 'Author ID'), data.get('author').get('unique_id')],
-                          [t('API链接', 'API URL'), put_link(t('点击查看', 'Click to view'),
-                                                             f"{config['Web_API']['Domain']}/api?url={url}&minimal=false",
-                                                             new_window=True)],
-                          [t('API链接-精简', 'API URL-Minimal'), put_link(t('点击查看', 'Click to view'),
-                                                                          f"{config['Web_API']['Domain']}/api?url={url}&minimal=true",
-                                                                          new_window=True)]
+                          [t('API链接', 'API URL'),
+                           put_link(t('点击查看', 'Click to view'),
+                                    f"{config['Web_API']['Domain']}/api?url={url}&minimal=false",
+                                    new_window=True)],
+                          [t('API链接-精简', 'API URL-Minimal'),
+                           put_link(t('点击查看', 'Click to view'),
+                                    f"{config['Web_API']['Domain']}/api?url={url}&minimal=true",
+                                    new_window=True)]
                           ]
             # 如果是视频/If it's video
             if url_type == t('视频', 'Video'):
@@ -309,14 +314,17 @@ def main():
                 # 添加图片信息
                 no_watermark_image_list = data.get('image_data').get('no_watermark_image_list')
                 for image in no_watermark_image_list:
-                    table_list.append([t('图片直链: ', 'Image URL:'),
-                                       put_link(t('点击打开图片', 'Click to open image'), image, new_window=True)])
                     table_list.append([t('图片预览(如格式可显示): ', 'Image preview (if the format can be displayed):'),
-                                       put_image(image, width='50%', height='50%')])
+                                       put_image(image, width='50%')])
+                    table_list.append([t('图片直链: ', 'Image URL:'),
+                                       put_link(t('⬆️点击打开图片⬆️', '⬆️Click to open image⬆️'), image,
+                                                new_window=True)])
             # 向网页输出表格/Put table on web page
             with use_scope(str(url_index)):
                 # 显示进度
-                put_info(t(f'正在解析第{url_index}/{url_count}个链接: ', f'Parsing the {url_index}/{url_count}th link: '), put_link(url, url, new_window=True), closable=True)
+                put_info(
+                    t(f'正在解析第{url_index}/{url_count}个链接: ', f'Parsing the {url_index}/{url_count}th link: '),
+                    put_link(url, url, new_window=True), closable=True)
                 put_table(table_list)
                 put_html('<hr>')
             scroll_to(str(url_index))
@@ -334,6 +342,10 @@ def main():
                 error_do(reason=error_msg, value=url)
             scroll_to(str(url_index))
     # 全部解析完成跳出for循环/All parsing completed, break out of for loop
+    with use_scope('result_title'):
+        put_row([put_html('<br>')])
+        put_markdown(t('## 📝解析结果:', '## 📝Parsing results:'))
+        put_row([put_html('<br>')])
     with use_scope('result'):
         # 清除进度条
         clear('loading_text')
@@ -378,4 +390,4 @@ if __name__ == '__main__':
     # 判断是否使用CDN加载前端资源
     cdn = True if config['Web_APP']['PyWebIO_CDN'] == 'True' else False
     # 启动Web服务\Start Web service
-    start_server(main, port=port, debug=False, cdn=cdn)
+    start_server(main, port=port, debug=True, cdn=cdn)
