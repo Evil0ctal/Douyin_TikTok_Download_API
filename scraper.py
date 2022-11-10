@@ -284,7 +284,10 @@ class Scraper:
                 video_id = original_url.split('/')[-1]
             if '.html' in video_id:
                 video_id = video_id.replace('.html', '')
-            video_id = re.findall('/video/(\d+)', original_url)[0]
+            elif '/video/' in video_id:
+                video_id = re.findall('/video/(\d+)', original_url)[0]
+            elif '/v/' in video_id:
+                video_id = re.findall('/v/(\d+)', original_url)[0]
             print('获取到的TikTok视频ID是{}'.format(video_id))
             # 返回视频ID/Return video ID
             return video_id
@@ -538,5 +541,5 @@ if __name__ == '__main__':
     api = Scraper()
     # 运行测试
     douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
-    tiktok_url = 'https://vm.tiktok.com/ZMFf3HPbB/'
+    tiktok_url = 'https://vm.tiktok.com/ZTRx423kK/'
     asyncio.run(async_test(douyin_url=douyin_url, tiktok_url=tiktok_url))
