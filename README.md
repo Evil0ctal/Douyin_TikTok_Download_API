@@ -19,7 +19,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 
 ## 👻介绍
 
-本项目是基于 [PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/)，快速异步的[抖音](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)数据爬取工具，并通过Web端实现在线批量解析以及下载无水印视频或图集，数据爬取API，iOS快捷指令无水印下载等功能。你可以自己部署或改造本项目实现更多功能，也可以在你的项目中直接调用[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)或安装现有的[pip包](https://pypi.org/project/DT-Scraper/)作为解析库轻松爬取数据等.....
+本项目是基于 [PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/)，快速异步的[抖音](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)数据爬取工具，并通过Web端实现在线批量解析以及下载无水印视频或图集，数据爬取API，iOS快捷指令无水印下载等功能。你可以自己部署或改造本项目实现更多功能，也可以在你的项目中直接调用[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)或安装现有的[pip包](https://pypi.org/project/douyin-tiktok-scraper/)作为解析库轻松爬取数据等.....
 
 *一些简单的运用场景：*
 
@@ -82,7 +82,7 @@ Language:  [[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/bl
 - 网页端批量解析(支持抖音/TikTok混合提交)
 - 网页端解析结果页批量下载无水印视频(V3.0.0暂时移除)
 - API调用获取链接数据
-- 制作[pip包](https://pypi.org/project/DT-Scraper/)方便快速导入你的项目
+- 制作[pip包](https://pypi.org/project/douyin-tiktok-scraper/)方便快速导入你的项目
 - [[iOS快捷指令快速调用API]](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
 - 解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
 - 解析视频内所有评论信息([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
@@ -142,27 +142,18 @@ python3 web_api.py
 
 ```python
 import asyncio
-# pip install DT-Scraper
-from DT_scraper.scraper import Scraper
-	
+# pip install douyin-tiktok-scraper
+from douyin_tiktok_scraper.scraper import Scraper
+
 api = Scraper()
-	
-async def async_test(url: str):
-	if 'douyin' in url:
-		douyin_url = await api.convert_share_urls(url)
-		# Get Douyin ID and video data
-		douyin_id = await api.get_douyin_video_id(douyin_url)
-		douyin_data = await api.get_douyin_video_data(douyin_id)
-	elif 'tiktok' in url:
-		tiktok_url = await api.convert_share_urls(url)
-		# Get TikTok video data
-		tiktok_id = await api.get_tiktok_video_id(tiktok_url)
-		tiktok_data = await api.get_tiktok_video_data(tiktok_id)
-		
-	# Hybrid parsing(Any platform URL)
-	hybrid_data = await api.hybrid_parsing(url)
-	
-asyncio.run(async_test(url=input("Paste Douyin/TikTok share URL here: "))
+
+async def async_test(url: str) -> dict:
+    # Hybrid parsing(Douyin/TikTok URL)
+    hybrid_data = await api.hybrid_parsing(url)
+    print(f"The hybrid parsing data is: {hybrid_data}")
+    return hybrid_data
+
+asyncio.run(async_test(url=input("Paste Douyin/TikTok share URL here: ")))
 ```
 
 - 入口(端口可在config.ini文件中修改)
@@ -239,6 +230,33 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 
 ***API-V2文档：***
 [https://api-v2.douyin.wtf/docs]("https://api-v2.douyin.wtf/docs")
+
+***API演示：***
+
+- 爬取视频数据(TikTok或Douyin混合解析)
+`https://api.douyin.wtf/api?url=[视频链接/Video URL]&minimal=false`
+
+- 下载视频/图集(TikTok或Douyin混合解析)
+`https://api.douyin.wtf/download?url=[视频链接/Video URL]&prefix=true&watermark=false`
+
+- 替换域名下载视频/图集
+```
+[抖音]
+原始链接:
+https://www.douyin.com/video/7159502929156705567
+替换域名:
+https://api.douyin.wtf/video/7159502929156705567
+# 返回无水印视频下载
+
+[TikTok]
+original link:
+https://www.tiktok.com/@evil0ctal/video/7156033831819037994
+Replace Domain:
+https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
+# Return No Watermark Video Download
+```
+
+***更多演示请查看文档内容......***
 
 ---
 
