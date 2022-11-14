@@ -19,7 +19,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of video or atlas without watermark, data crawling API, iOS shortcut command without watermark download and other functions through the Web terminal. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)As a parsing library to easily crawl data, etc...
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of video or atlas without watermark, data crawling API, iOS shortcut command without watermark download and other functions through the Web terminal. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)As a parsing library to easily crawl data, etc...
 
 _Some simple application scenarios:_
 
@@ -47,7 +47,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 
 -   [web_app.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_app.py)-[PyWebIO](https://www.pyweb.io/)
 -   [web_api.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/web_api.py)-[FastAPI](https://fastapi.tiangolo.com/)
--   [scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)-[HTTPX](https://www.python-httpx.org/)
+-   [scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)-[AIOHTTP](https://docs.aiohttp.org/)
 
 > **_scraper.py:_**
 
@@ -138,6 +138,7 @@ python3 web_api.py
 -   call parsing library
 
 ```python
+import asyncio
 # pip install DT-Scraper
 from DT_scraper.scraper import Scraper
 	
