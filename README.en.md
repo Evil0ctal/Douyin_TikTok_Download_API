@@ -15,9 +15,9 @@
 
 ![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)[![Docker Image size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api?style=flat-square)](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
 
-Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[简体中文](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
+Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
 
-## 👻介绍
+## 👻Introduction
 
 This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of video or atlas without watermark, data crawling API, iOS shortcut command without watermark download and other functions through the Web terminal. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)As a parsing library to easily crawl data, etc...
 
@@ -27,7 +27,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 
 ## 🖥Public Site: I'm vulnerable...please don't hit me at will ‎(·•᷄ࡇ•᷅ ）
 
-> **API-V2:**support input`Douyin|TikTok`The user's homepage crawls the author \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), please check the V2 document for details , the server response time may sometimes become longer, please`timeout`值设高.
+> **API-V2:**support input`Douyin|TikTok`The user's homepage crawls the author \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), please check the V2 document for details , the server response time may sometimes become longer, please`timeout`Set the value high.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -76,12 +76,12 @@ _Download prohibited videos, perform data analysis, and download without waterma
 ## 💯 Supported features:
 
 -   Douyin (Douyin overseas version: TikTok) video/picture analysis
--   Batch parsing on the webpage (support Douyin/TikTok mixed submission)
--   Batch download of watermark-free videos on the web-side parsing result page (Temporarily removed for V3.0.0)
+-   Batch parsing on the web page (support Douyin/TikTok mixed submission)
+-   Batch download of watermark-free videos on the parsing result page on the webpage (V3.0.0 temporarily removed)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/DT-Scraper/)Easily and quickly import your projects
 -   [\[iOS shortcut command to quickly call API\]](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
--   解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
+-   Parse all videos in the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 -   Parse all comments in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
 * * *
@@ -95,7 +95,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 
 ## 🧭 Running Instructions (Python version > 3.0):
 
-> 🚨If you want to deploy this project, please refer to the deployment method ([Docker部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[Manual deployment](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
+> 🚨If you want to deploy this project, please refer to the deployment method ([Docker deployment](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker "Docker部署"),[Manual deployment](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2 "手动部署"))
 
 -   Clone this repository:
 
@@ -237,7 +237,7 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 ## 💾Deployment (method 1 manual deployment)
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -248,8 +248,8 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > Deploy using the Pagoda Linux panel (
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
--   First, go to the security group to open ports 8080 and 8000 (default 8080 for Web, default 8000 for API, which can be modified in the file config.ini.)
--   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
+-   First go to the security group to open ports 8080 and 8000 (default 8080 for Web, default 8000 for API, which can be modified in the file config.ini.)
+-   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -265,7 +265,7 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 -   Check install module dependencies
 -   Start at will
 -   Please judge by yourself whether the port is occupied. The running port can be modified in the file config.ini.
--   If there are a lot of requests please use_进程守护_Start preventing process from closing
+-   If there are a lot of requests please use_process daemon_Start preventing process from closing
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_2.png)
 
@@ -280,7 +280,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to keep the container running in the background
+-   Run the command to let the container run in the background
 
 ```yaml
 docker compose up -d
@@ -311,7 +311,7 @@ docker compose pull && docker compose down && docker compose up -d
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems. Please refer to the text description first.
+> The screenshots may not match the text due to update problems, please refer to the text description first.
 
 <details><summary>点击展开截图</summary>
 
