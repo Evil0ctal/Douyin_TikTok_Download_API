@@ -276,16 +276,12 @@ class Scraper:
         try:
             # 转换链接/Convert link
             original_url = await self.convert_share_urls(original_url)
-            # 获取视频ID
-            if '?' in original_url:
-                video_id = original_url.split('?')[0].split('/')[-1]
-            else:
-                video_id = original_url.split('/')[-1]
-            if '.html' in video_id:
-                video_id = video_id.replace('.html', '')
-            elif '/video/' in video_id:
+            # 获取视频ID/Get video ID
+            if '.html' in original_url:
+                video_id = original_url.replace('.html', '')
+            elif '/video/' in original_url:
                 video_id = re.findall('/video/(\d+)', original_url)[0]
-            elif '/v/' in video_id:
+            elif '/v/' in original_url:
                 video_id = re.findall('/v/(\d+)', original_url)[0]
             print('获取到的TikTok视频ID是{}'.format(video_id))
             # 返回视频ID/Return video ID
@@ -545,5 +541,5 @@ if __name__ == '__main__':
     api = Scraper()
     # 运行测试
     douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
-    tiktok_url = 'https://vm.tiktok.com/ZTRx423kK/'
+    tiktok_url = 'https://vm.tiktok.com/ZMF59AGrF/'
     asyncio.run(async_test(douyin_url=douyin_url, tiktok_url=tiktok_url))
