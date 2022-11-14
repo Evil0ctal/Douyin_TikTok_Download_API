@@ -19,7 +19,7 @@ Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 
 ## 👻Introduction
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of watermark-free videos or atlases through the web terminal, data crawling API, iOS shortcut command without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/DT-Scraper/)As a parsing library to easily crawl data, etc...
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realize online batch parsing and download of watermark-free videos or atlases through the web terminal, data crawling API, iOS shortcut command without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library to easily crawl data, etc...
 
 _Some simple application scenarios:_
 
@@ -79,7 +79,7 @@ _Download prohibited videos, perform data analysis, and download without waterma
 -   Batch parsing on the webpage (support Douyin/TikTok mixed submission)
 -   Batch download of watermark-free videos on the web-side parsing result page (Temporarily removed for V3.0.0)
 -   API call to get link data
--   make[pip package](https://pypi.org/project/DT-Scraper/)Easily and quickly import your projects
+-   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [\[iOS shortcut command to quickly call API\]](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
 -   Parse all videos in the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 -   Parse all comments in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
@@ -139,27 +139,18 @@ python3 web_api.py
 
 ```python
 import asyncio
-# pip install DT-Scraper
-from DT_scraper.scraper import Scraper
-	
+# pip install douyin-tiktok-scraper
+from douyin_tiktok_scraper.scraper import Scraper
+
 api = Scraper()
-	
-async def async_test(url: str):
-	if 'douyin' in url:
-		douyin_url = await api.convert_share_urls(url)
-		# Get Douyin ID and video data
-		douyin_id = await api.get_douyin_video_id(douyin_url)
-		douyin_data = await api.get_douyin_video_data(douyin_id)
-	elif 'tiktok' in url:
-		tiktok_url = await api.convert_share_urls(url)
-		# Get TikTok video data
-		tiktok_id = await api.get_tiktok_video_id(tiktok_url)
-		tiktok_data = await api.get_tiktok_video_data(tiktok_id)
-		
-	# Hybrid parsing(Any platform URL)
-	hybrid_data = await api.hybrid_parsing(url)
-	
-asyncio.run(async_test(url=input("Paste Douyin/TikTok share URL here: "))
+
+async def async_test(url: str) -> dict:
+    # Hybrid parsing(Douyin/TikTok URL)
+    hybrid_data = await api.hybrid_parsing(url)
+    print(f"The hybrid parsing data is: {hybrid_data}")
+    return hybrid_data
+
+asyncio.run(async_test(url=input("Paste Douyin/TikTok share URL here: ")))
 ```
 
 -   Entry (port can be modified in the config.ini file)
@@ -232,6 +223,31 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 **_API-V1 Documentation:_**[http://localhost (server IP):8000/docs]("http://localhost:8000/docs")or[https://api.douyin.wtf/docs]("https://api.douyin.wtf/docs")
 
 **_API-V2 Documentation:_**[https://api-v2.douyin.wtf/docs]("https://api-v2.douyin.wtf/docs")
+
+**_API demo:_**
+
+-   Crawl video data (TikTok or Douyin mixed analysis)`https://api.douyin.wtf/api?url=[视频链接/Video URL]&minimal=false`
+
+-   Download video/photo gallery (TikTok or Douyin mixed analysis)`https://api.douyin.wtf/download?url=[视频链接/Video URL]&prefix=true&watermark=false`
+
+-   Replace the domain name to download videos/atlas
+
+
+    [抖音]
+    原始链接:
+    https://www.douyin.com/video/7159502929156705567
+    替换域名:
+    https://api.douyin.wtf/video/7159502929156705567
+    # 返回无水印视频下载
+
+    [TikTok]
+    original link:
+    https://www.tiktok.com/@evil0ctal/video/7156033831819037994
+    Replace Domain:
+    https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
+    # Return No Watermark Video Download
+
+**_Check out the documentation for more demos..._**
 
 * * *
 
