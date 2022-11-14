@@ -224,12 +224,12 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 > 也可以在web_api.py的代码中看到接口文档
 
 ***API-V1文档：***
-[http://localhost(服务器IP):8000/docs]("http://localhost:8000/docs")
+[http://localhost(服务器IP):8000/docs](http://localhost:8000/docs)
 或
-[https://api.douyin.wtf/docs]("https://api.douyin.wtf/docs")
+[https://api.douyin.wtf/docs](https://api.douyin.wtf/docs)
 
 ***API-V2文档：***
-[https://api-v2.douyin.wtf/docs]("https://api-v2.douyin.wtf/docs")
+[https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)
 
 ***API演示：***
 
