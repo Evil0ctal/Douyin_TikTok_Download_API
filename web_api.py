@@ -12,7 +12,8 @@
 import os
 import time
 import json
-import httpx
+
+import aiohttp
 import uvicorn
 import zipfile
 import threading
@@ -39,9 +40,9 @@ domain = config["Web_API"]["Domain"]
 Rate_Limit = config["Web_API"]["Rate_Limit"]
 
 # 创建FastAPI实例
-title = "Douyin TikTok Download API(api.douyin.wtf)"
+title = "Douyin TikTok Download/Scraper API-V1"
 version = '3.1.0'
-update_time = "2022/11/09"
+update_time = "2022/11/13"
 description = """
 #### Description/说明
 <details>
@@ -516,16 +517,16 @@ async def download_file_hybrid(request: Request, url: str, prefix: bool = True, 
                 return FileResponse(path=file_path, media_type='video/mp4', filename=file_name)
             else:
                 if platform == 'douyin':
-                    async with httpx.AsyncClient() as client:
-                        r = await client.get(url=url, headers=headers, follow_redirects=False)
-                        r = r.headers
-                        cdn_url = r.get('location')
-                        r = await client.get(cdn_url)
-                        r = r.content
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url=url, headers=headers, allow_redirects=False) as response:
+                            r = response.headers
+                            cdn_url = r.get('location')
+                            async with session.get(url=cdn_url) as res:
+                                r = await res.content.read()
                 elif platform == 'tiktok':
-                    async with httpx.AsyncClient() as client:
-                        r = await client.get(url=url, headers=headers)
-                        r = r.content
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url=url, headers=headers) as res:
+                            r = await res.content.read()
                 with open(file_path, 'wb') as f:
                     f.write(r)
                 return FileResponse(path=file_path, media_type='video/mp4', filename=file_name)
@@ -543,11 +544,11 @@ async def download_file_hybrid(request: Request, url: str, prefix: bool = True, 
                 return FileResponse(path=zip_file_path, media_type='zip', filename=zip_file_name)
             file_path_list = []
             for i in url:
-                async with httpx.AsyncClient() as client:
-                    r = await client.get(url=i, headers=headers)
-                    content_type = r.headers.get('content-type')
-                    file_format = content_type.split('/')[1]
-                    r = r.content
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url=i, headers=headers) as res:
+                        content_type = res.headers.get('content-type')
+                        file_format = content_type.split('/')[1]
+                        r = await res.content.read()
                 index = int(url.index(i))
                 file_name = file_name_prefix + platform + '_' + aweme_id + '_' + str(
                     index + 1) + '.' + file_format if not watermark else \
