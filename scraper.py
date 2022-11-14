@@ -11,6 +11,7 @@
 
 
 import re
+import os
 import aiohttp
 import platform
 import asyncio
@@ -65,20 +66,25 @@ class Scraper:
         self.tiktok_api_headers = {
             'User-Agent': 'com.ss.android.ugc.trill/2613 (Linux; U; Android 10; en_US; Pixel 4; Build/QQ3A.200805.001; Cronet/58.0.2991.0)'
         }
-        self.config = configparser.ConfigParser()
-        self.config.read('config.ini', encoding='utf-8')
-        # 判断是否使用代理
-        if self.config['Scraper']['Proxy_switch'] == 'True':
-            # 判断是否区别协议选择代理
-            if self.config['Scraper']['Use_different_protocols'] == 'False':
-                self.proxies = {
-                    'all': self.config['Scraper']['All']
-                }
+        # 判断配置文件是否存在/Check if the configuration file exists
+        if os.path.exists('config.ini'):
+            self.config = configparser.ConfigParser()
+            self.config.read('config.ini', encoding='utf-8')
+            # 判断是否使用代理
+            if self.config['Scraper']['Proxy_switch'] == 'True':
+                # 判断是否区别协议选择代理
+                if self.config['Scraper']['Use_different_protocols'] == 'False':
+                    self.proxies = {
+                        'all': self.config['Scraper']['All']
+                    }
+                else:
+                    self.proxies = {
+                        'http': self.config['Scraper']['Http_proxy'],
+                        'https': self.config['Scraper']['Https_proxy'],
+                    }
             else:
-                self.proxies = {
-                    'http': self.config['Scraper']['Http_proxy'],
-                    'https': self.config['Scraper']['Https_proxy'],
-                }
+                self.proxies = None
+        # 配置文件不存在则不使用代理/If the configuration file does not exist, do not use the proxy
         else:
             self.proxies = None
         # 针对Windows系统的异步事件规则/Asynchronous event rules for Windows systems
