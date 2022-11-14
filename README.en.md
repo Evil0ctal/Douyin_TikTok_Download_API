@@ -76,8 +76,8 @@ _Download prohibited videos, perform data analysis, and download without waterma
 ## 💯 Supported features:
 
 -   Douyin (Douyin overseas version: TikTok) video/picture analysis
--   Batch parsing on the web page (support Douyin/TikTok mixed submission)
--   Batch download of watermark-free videos on the parsing result page on the webpage (V3.0.0 temporarily removed)
+-   Batch parsing on the webpage (support Douyin/TikTok mixed submission)
+-   Batch download of watermark-free videos on the web-side parsing result page (Temporarily removed for V3.0.0)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/DT-Scraper/)Easily and quickly import your projects
 -   [\[iOS shortcut command to quickly call API\]](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download of video/atlas without watermark
@@ -237,7 +237,7 @@ https://www.tiktok.com/@tvamii/video/7045537727743380782
 ## 💾Deployment (method 1 manual deployment)
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 > It is best to deploy this project to an overseas server (preferably a server in the United States), otherwise strange problems may occur.
 
@@ -248,8 +248,8 @@ The project is deployed on a South Korean server, parsing TikTok errors, and vis
 > Deploy using the Pagoda Linux panel (
 > The Chinese pagoda is going to be bound to a mobile phone number, which is very rogue and cannot be bypassed. It is recommended to use the international version of the pagoda. Google search for the keyword aapanel to install it yourself, and the deployment steps are similar. )
 
--   First go to the security group to open ports 8080 and 8000 (default 8080 for Web, default 8000 for API, which can be modified in the file config.ini.)
--   Search for python in the Pagoda app store and install the project manager (version 1.9 is recommended)
+-   First, go to the security group to open ports 8080 and 8000 (default 8080 for Web, default 8000 for API, which can be modified in the file config.ini.)
+-   Search for python in the pagoda app store and install the project manager (version 1.9 is recommended)
 
 ![](https://raw.githubusercontent.com/Evil0ctal/TikTokDownloader_PyWebIO/main/Screenshots/BT_Linux_Panel_Deploy_1.png)
 
@@ -280,7 +280,7 @@ curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable 
 ```
 
 -   Just leave the config.int and docker-compose.yml files
--   Run the command to let the container run in the background
+-   Run the command to keep the container running in the background
 
 ```yaml
 docker compose up -d
@@ -311,7 +311,7 @@ docker compose pull && docker compose down && docker compose up -d
 ## 🎉 Screenshot
 
 > Note:
-> The screenshots may not match the text due to update problems, please refer to the text description first.
+> The screenshots may not match the text due to update problems. Please refer to the text description first.
 
 <details><summary>点击展开截图</summary>
 
