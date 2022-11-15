@@ -55,7 +55,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_api.py:_**
 
--   获得请求参数并使用`Scraper()`After the class processes the data, it returns in the form of JSON, video downloads, quick calls with iOS shortcut commands, and asynchronous support.
+-   Get request parameters and use`Scraper()`After the class processes the data, it returns in the form of JSON, video downloads, quick calls with iOS shortcut commands, and asynchronous support.
 
 > **_web_app.py:_**
 
@@ -89,7 +89,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 ## 🤦‍Following features:
 
 -   [ ] Welcome to make new suggestions or share your ideas with me in issue
--   [ ] Welcome to submit PR to[Development分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development)♪(･ω･)ﾉ)
+-   [ ] Welcome to submit PR to[Development branch](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development)♪(･ω･)ﾉ)
 
 * * *
 
