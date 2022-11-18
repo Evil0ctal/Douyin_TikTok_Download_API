@@ -8,7 +8,7 @@
 
 [English](./README.en.md)\|[Simplified Chinese](./README.md)
 
-[![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)[![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)[![GitHub Fork](https://img.shields.io/github/forks/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/network/members)![GitHub Repo size](https://img.shields.io/github/repo-size/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&color=3cb371)[![GitHub Repo Languages](https://img.shields.io/github/languages/top/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/search?l=python)[![PyPI](https://img.shields.io/pypi/v/douyin-tiktok-scraper?style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI](https://img.shields.io/pypi/dm/douyin-tiktok-scraper?style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)<br>[![API status](https://img.shields.io/website?down_color=lightgrey&down_message=API-V1%20offline&style=flat-square&up_color=blue&up_message=API-V1%20online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)[![API status](https://img.shields.io/website?down_color=lightgrey&down_message=API-V2%20offline&style=flat-square&up_color=blue&up_message=API-V2%20online&url=https%3A%2F%2Fapi-v2.douyin.wtf%2Fdocs)](https://api-v2.douyin.wtf/docs)
+[![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)[![GitHub Repo Languages](https://img.shields.io/github/languages/top/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/search?l=python)[![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)[![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)[![GitHub Fork](https://img.shields.io/github/forks/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/network/members)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)[![GitHub issues](https://img.shields.io/github/issues-closed/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues?q=is%3Aissue+is%3Aclosed)![GitHub Repo size](https://img.shields.io/github/repo-size/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&color=3cb371)<br>[![PyPI](https://img.shields.io/pypi/v/douyin-tiktok-scraper?style=flat-square&color=%23a8e6cf)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI](https://img.shields.io/pypi/wheel/douyin-tiktok-scraper?style=flat-square&color=%23dcedc1)](https://pypi.org/project/douyin-tiktok-scraper/#files)[![PyPI](https://img.shields.io/pypi/dd/douyin-tiktok-scraper?style=flat-square&color=%23ccff9b)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI](https://img.shields.io/pypi/dm/douyin-tiktok-scraper?style=flat-square&color=%23ffd3b6)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI](https://img.shields.io/pypi/pyversions/douyin-tiktok-scraper?color=%23ffaaa5&style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)<br>[![API-V1 status](https://img.shields.io/website?down_color=lightgrey&label=API-V1%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)[![API-V2 status](https://img.shields.io/website?down_color=lightgrey&label=API-V2%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi-v2.douyin.wtf%2Fdocs)](https://api-v2.douyin.wtf/docs)
 
 </div>
 
@@ -22,9 +22,9 @@ _Some simple application scenarios:_
 
 _Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public Site: I'm fragile...please don't hit me ‎(••᷄ࡇ•᷅ ）
+## 🖥Public site: I'm vulnerable...please don't hit me ‎(••᷄ࡇ•᷅ ）
 
-> **API-V2:**support input`Douyin|TikTok`Crawl the author from the user homepage \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
+> **API-V2:**support input`Douyin|TikTok`Crawl the author's homepage \[homepage video data (remove the watermark link, the list of liked videos (permissions must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -56,7 +56,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_app.py:_**
 
--   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the web page (similar to the separation of front and back ends)
+-   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the webpage (similar to the separation of front and back ends)
 
 **_Most of the parameters of the above files can be found in[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)make changes in_**
 
@@ -90,7 +90,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Call the parsing library:
+## 📦Calling the parsing library:
 
 > 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -167,7 +167,7 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 > 💡Tip: You can also view the interface documentation in the code comments of web_api.py
 
-**_API-V1 documentation:_**local:<http://localhost:8000/docs>online:<https://api.douyin.wtf/docs>
+**_API-V1文档：_**local:<http://localhost:8000/docs>online:<https://api.douyin.wtf/docs>
 
 **_API-V2 documentation:_**online:<https://api-v2.douyin.wtf/docs>
 
@@ -239,7 +239,7 @@ http://localhost:8000
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   留下config.int和docker-compose.yml文件即可
+-   Just leave the config.int and docker-compose.yml files
 -   Run the command to let the container run in the background
 
 ```yaml
@@ -296,7 +296,7 @@ Web main interface:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/b
 </details>
 <hr>
 
-## 📜 Star history
+## 📜 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
