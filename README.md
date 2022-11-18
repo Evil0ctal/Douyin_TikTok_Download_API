@@ -317,11 +317,15 @@ TikTok官方API:
 ***项目界面***
 
 <details><summary>🔎点击展开截图</summary>
+
 Web主界面:
+
 ![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/v3_screenshots/Home.png?raw=true)
 
 Web main interface:
+
 ![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/v3_screenshots/Home_en.png?raw=true)
+
 </details>
 <hr>
 
