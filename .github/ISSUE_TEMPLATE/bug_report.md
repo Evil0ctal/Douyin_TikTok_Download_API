@@ -1,38 +1,29 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
-assignees: ''
+about: Please describe your problem in as much detail as possible so that it can be
+  solved faster
+title: "[BUG]"
+labels: BUG
+assignees: Evil0ctal
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+***Platform where the error occurred?***
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+Such as: Douyin/TikTok
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+***The endpoint where the error occurred?***
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+Such as: API-V1/API-V2/Web APP
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+***Submitted input value?***
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+Such as: video link
 
-**Additional context**
-Add any other context about the problem here.
+***Have you tried again?***
+
+Such as: Yes, the error still exists after X time after the error occurred.
+
+***Have you checked the readme or interface documentation for this project?***
+
+Such as: Yes, and it is very sure that the problem is caused by the program.
