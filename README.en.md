@@ -20,11 +20,11 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public Site: I'm fragile...please don't hit me ‎(••᷄ࡇ•᷅ ）
+## 🖥Public site: I'm vulnerable...please don't hit me ‎(••᷄ࡇ•᷅ ）
 
-> **API-V2:**support input`Douyin|TikTok`Crawl the author from the user homepage \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
+> **API-V2:**support input`Douyin|TikTok`Crawl the author's homepage \[homepage video data (remove the watermark link, the list of liked videos (permissions must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -52,7 +52,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_api.py:_**
 
--   Get request parameters and use`Scraper()`After the class processes the data, it returns in the form of JSON, video downloads, quick calls with iOS shortcut commands, and asynchronous support.
+-   Get request parameters and use`Scraper()`The class processes the data and returns it in the form of JSON, video downloads, quick calls with iOS shortcuts, and asynchronous support.
 
 > **_web_app.py:_**
 
@@ -83,7 +83,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 🤦‍Following features:
+## 🤦‍Follow-up features:
 
 > 💡Welcome to make new suggestions or share your ideas with me in issue, or submit PR directly to[Development branch](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development)♪(･ω･)ﾉ)
 
@@ -95,7 +95,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## 📦Calling the parsing library:
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -201,7 +201,7 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
 -   First go to the security group to open ports 8080 (Web) and 8000 (API).
--   Search in the Pagoda panel app store`进程守护`or manually install`supervisord`：
+-   Search in the Pagoda panel app store`进程守护`or install manually`supervisord`：
 
 
     [宝塔面板]
@@ -303,7 +303,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star History
+## 📜 Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
