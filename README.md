@@ -103,8 +103,11 @@
 
 ## 🤦‍后续功能：
 
-- [ ] 欢迎提出新的建议或将你的思路在issue中与我分享
-- [ ] 欢迎提交PR至[Development分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development) ♪(･ω･)ﾉ)
+>💡欢迎提出新的建议或将你的思路在issue中与我分享，或直接提交PR至[Development分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development) ♪(･ω･)ﾉ)
+
+- [ ] 编写一个桌面端的下载器实现本地批量下载
+- [ ] API-V2添加对hash_tag页面的数据爬取 [#101](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/101)
+- [ ] 对其他短视频平台添加支持，如：抖音火山版，快手，西瓜视频，哔哩哔哩
 
 ---
 
