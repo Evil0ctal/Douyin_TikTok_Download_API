@@ -1,21 +1,16 @@
 <h1 align="center">
- Douyin_TikTok_Download_API(抖音/TikTok无水印解析API)
- <br><br>
  <a href="https://douyin.wtf/" alt="logo" ><img src="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/logo/logo192.png" width="120"/></a>
+ <br>
+ Douyin_TikTok_Download_API(抖音/TikTok无水印解析API)
 </h1>
-<p align="center">
- <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E8%BF%90%E8%A1%8C%E8%AF%B4%E6%98%8E%E7%BB%8F%E8%BF%87%E6%B5%8B%E8%AF%95%E8%BF%87%E7%9A%84python%E7%89%88%E6%9C%AC%E4%B8%BA38">📝运行说明</a> •
-  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/#%EF%B8%8Fapi使用">👽️API使用</a> •
-  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-%E6%89%8B%E5%8A%A8%E9%83%A8%E7%BD%B2">🔧手动部署</a> •
-  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker">🚧Docker部署</a> •
-  <a href="https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api">📦️Docker镜像</a> •
-  <a href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API#%EF%B8%8F-贡献者">🧑‍💻贡献者</a>
-</p>
-<br>
 
-![](https://views.whatilearened.today/views/github/Evil0ctal/TikTokDownloader_PyWebIO.svg)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/blob/main/LICENSE)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/issues)[![GitHub forks](https://img.shields.io/github/forks/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/network)[![GitHub stars](https://img.shields.io/github/stars/Evil0ctal/TikTokDownloader_PyWebIO)](https://github.com/Evil0ctal/TikTokDownloader_PyWebIO/stargazers)[![Docker Image size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api?style=flat-square)](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
+<div align="center">
 
-Language:  \[[English](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.en.md)]  \[[Simplified Chinese](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md)]
+[English](./README.en.md)\|[Simplified Chinese](./README.md)
+
+[![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)[![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)[![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)[![GitHub Fork](https://img.shields.io/github/forks/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/network/members)![GitHub Repo size](https://img.shields.io/github/repo-size/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&color=3cb371)[![GitHub Repo Languages](https://img.shields.io/github/languages/top/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/search?l=python)[![PyPI](https://img.shields.io/pypi/v/douyin-tiktok-scraper?style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI](https://img.shields.io/pypi/dm/douyin-tiktok-scraper?style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)<br>[![API status](https://img.shields.io/website?down_color=lightgrey&down_message=API-V1%20offline&style=flat-square&up_color=blue&up_message=API-V1%20online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)[![API status](https://img.shields.io/website?down_color=lightgrey&down_message=API-V2%20offline&style=flat-square&up_color=blue&up_message=API-V2%20online&url=https%3A%2F%2Fapi-v2.douyin.wtf%2Fdocs)](https://api-v2.douyin.wtf/docs)
+
+</div>
 
 ## 👻 Introduction
 
@@ -25,11 +20,11 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public site: I'm vulnerable...please don't hit me ‎(••᷄ࡇ•᷅ ）
+## 🖥Public Site: I'm fragile...please don't hit me ‎(••᷄ࡇ•᷅ ）
 
-> **API-V2:**support input`Douyin|TikTok`Crawl the author's homepage \[homepage video data (remove the watermark link, the list of liked videos (permissions must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
+> **API-V2:**support input`Douyin|TikTok`Crawl the author from the user homepage \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -57,11 +52,11 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_api.py:_**
 
--   Get request parameters and use`Scraper()`The class processes the data and returns it in the form of JSON, video downloads, quick calls with iOS shortcuts, and asynchronous support.
+-   Get request parameters and use`Scraper()`After the class processes the data, it returns in the form of JSON, video downloads, quick calls with iOS shortcut commands, and asynchronous support.
 
 > **_web_app.py:_**
 
--   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the webpage (similar to the separation of front and back ends)
+-   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the web page (similar to the separation of front and back ends)
 
 **_Most of the parameters of the above files can be found in[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)make changes in_**
 
@@ -95,9 +90,9 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
-> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -200,10 +195,10 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 ## 💻 Deployment (method 1 Linux)
 
-> 💡提示：最好将本项目部署至美国地区的服务器，否则可能会出现奇怪的BUG。
+> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
 -   First go to the security group to open ports 8080 (Web) and 8000 (API).
--   Search in the Pagoda panel app store`进程守护`or install manually`supervisord`：
+-   Search in the Pagoda panel app store`进程守护`or manually install`supervisord`：
 
 
     [宝塔面板]
@@ -244,7 +239,7 @@ http://localhost:8000
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   Just leave the config.int and docker-compose.yml files
+-   留下config.int和docker-compose.yml文件即可
 -   Run the command to let the container run in the background
 
 ```yaml
