@@ -22,7 +22,7 @@ _Some simple application scenarios:_
 
 _Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public site: I'm vulnerable...please don't hit me ‎(••᷄ࡇ•᷅ ）
+## 🖥Public Site: I'm fragile...please don't hit me ‎(••᷄ࡇ•᷅ ）
 
 > **API-V2:**support input`Douyin|TikTok`Crawl the author from the user homepage \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
 
@@ -83,10 +83,13 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 🤦‍Follow-up features:
+## 🤦‍Following features:
 
--   [ ] Welcome to make new suggestions or share your ideas with me in issue
--   [ ] Welcome to submit PR to[Development branch](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development)♪(･ω･)ﾉ)
+> 💡Welcome to make new suggestions or share your ideas with me in issue, or submit PR directly to[Development branch](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development)♪(･ω･)ﾉ)
+
+-   [ ] Write a desktop downloader to realize local batch download
+-   [ ] API-V2 adds data crawling for hash_tag pages[#101](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/101)
+-   [ ] Add support for other short video platforms, such as: Douyin Volcano, Kuaishou, Watermelon Video, Bilibili
 
 * * *
 
@@ -300,7 +303,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star history
+## 📜 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
