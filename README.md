@@ -22,9 +22,6 @@
 [![PyPI](https://img.shields.io/pypi/dd/douyin-tiktok-scraper?style=flat-square&color=%23ccff9b)](https://pypi.org/project/douyin-tiktok-scraper/)
 [![PyPI](https://img.shields.io/pypi/dm/douyin-tiktok-scraper?style=flat-square&color=%23ffd3b6)](https://pypi.org/project/douyin-tiktok-scraper/)
 [![PyPI](https://img.shields.io/pypi/pyversions/douyin-tiktok-scraper?color=%23ffaaa5&style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)
-<br>
-[![API-V1 status](https://img.shields.io/website?down_color=lightgrey&label=API-V1%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)
-[![API-V2 status](https://img.shields.io/website?down_color=lightgrey&label=API-V2%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi-v2.douyin.wtf%2Fdocs)](https://api-v2.douyin.wtf/docs)
 
 </div>
 
