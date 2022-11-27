@@ -21,7 +21,7 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
 
 ## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
 
@@ -78,7 +78,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 -   Batch download of videos without watermark on the analysis result page of the web page (V3.0.0 is temporarily removed, please deploy V2.X version by yourself)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
--   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
+-   [iOS shortcut commands quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
 -   Parse all videos on the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 -   Parse all comment information in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
@@ -155,7 +155,7 @@ https://www.tiktok.com/t/ZTR9nDNWq/
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 ```
 
--   抖音/TikTok批量网址(无需使用符合隔开)
+-   Douyin/TikTok bulk URLs (no need to use symbols to separate)
 
 ```text
 https://v.douyin.com/L4NpDJ6/
@@ -303,7 +303,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star History
+## 📜 Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
