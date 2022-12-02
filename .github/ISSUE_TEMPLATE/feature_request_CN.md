@@ -1,7 +1,7 @@
 ---
 name: 新功能需求
 about: 为本项目提出一个新需求或想法
-title: "[Feature request]"
+title: "[Feature request] 简短明了的描述问题"
 labels: enhancement
 assignees: Evil0ctal
 

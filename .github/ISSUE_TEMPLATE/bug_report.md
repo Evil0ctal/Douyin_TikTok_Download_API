@@ -2,8 +2,8 @@
 name: Bug report
 about: Please describe your problem in as much detail as possible so that it can be
   solved faster
-title: "[BUG]"
-labels: BUG
+title: "[BUG] Brief and clear description of the problem"
+labels: BUG, enhancement
 assignees: Evil0ctal
 
 ---

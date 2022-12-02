@@ -1,7 +1,7 @@
 ---
 name: Bug反馈
 about: 请尽量详细的描述你的问题以便更快的解决它
-title: "[BUG]"
+title: "[BUG] 简短明了的描述问题"
 labels: BUG
 assignees: Evil0ctal
 

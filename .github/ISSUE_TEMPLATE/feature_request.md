@@ -1,7 +1,7 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: "[Feature request]"
+title: "[Feature request] Brief and clear description of the problem"
 labels: enhancement
 assignees: Evil0ctal
 
