@@ -3,7 +3,7 @@
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
 # @Update: 2022/12/02
-# @Version: 3.1.1
+# @Version: 3.1.2
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -12,6 +12,7 @@
 
 import re
 import os
+import random
 import aiohttp
 import platform
 import asyncio
@@ -305,7 +306,8 @@ class Scraper:
         """
         print('正在获取TikTok视频数据...')
         try:
-            api_url = f'https://api.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&iid=6165993682518218889&device_id=6858675245898655468&aid=1180'
+            # 构造访问链接/Construct the access link
+            api_url = f'https://api.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&iid=6165993682518218889&device_id={random.randint(10*10*10, 9*10**10)}&aid=1180'
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=self.tiktok_api_headers, proxy=self.proxies, timeout=10) as response:
@@ -386,7 +388,7 @@ class Scraper:
                         else
                         {
                             "User-Agent": self.tiktok_api_headers["User-Agent"],
-                            "api_url": f"https://api.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&version_code=2613&aid=1180"
+                            "api_url": f'https://api.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&iid=6165993682518218889&device_id={random.randint(10*10*10, 9*10**10)}&aid=1180'
                         },
                     'desc': data["desc"],
                     'create_time': data['create_time'],
