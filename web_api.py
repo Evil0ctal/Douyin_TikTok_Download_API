@@ -41,8 +41,8 @@ Rate_Limit = config["Web_API"]["Rate_Limit"]
 
 # 创建FastAPI实例
 title = "Douyin TikTok Download/Scraper API-V1"
-version = '3.1.0'
-update_time = "2022/11/13"
+version = '3.1.1'
+update_time = "2022/12/02"
 description = """
 #### Description/说明
 <details>
@@ -120,6 +120,7 @@ class APIRoot(BaseModel):
     Version: str = version
     Update_time: str = update_time
     Request_Rate_Limit: str = Rate_Limit
+    Web_APP: str 
     API_V1_Document: str
     API_V2_Document: str
     GitHub: str
@@ -221,6 +222,7 @@ async def root():
         "Version": version,
         "Update_time": update_time,
         "Request_Rate_Limit": Rate_Limit,
+        "Web_APP": "https://www.douyin.wtf/",
         "API_V1_Document": "https://api.douyin.wtf/docs",
         "API_V2_Document": "https://api-v2.douyin.wtf/docs",
         "GitHub": "https://github.com/Evil0ctal/Douyin_TikTok_Download_API",
