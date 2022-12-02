@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/11/13
-# @Version: 3.1.0
+# @Update: 2022/12/02
+# @Version: 3.1.1
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -64,7 +64,7 @@ class Scraper:
             'Cookie': 'msToken=tsQyL2_m4XgtIij2GZfyu8XNXBfTGELdreF1jeIJTyktxMqf5MMIna8m1bv7zYz4pGLinNP2TvISbrzvFubLR8khwmAVLfImoWo3Ecnl_956MgOK9kOBdwM=; odin_tt=6db0a7d68fd2147ddaf4db0b911551e472d698d7b84a64a24cf07c49bdc5594b2fb7a42fd125332977218dd517a36ec3c658f84cebc6f806032eff34b36909607d5452f0f9d898810c369cd75fd5fb15; ttwid=1%7CfhiqLOzu_UksmD8_muF_TNvFyV909d0cw8CSRsmnbr0%7C1662368529%7C048a4e969ec3570e84a5faa3518aa7e16332cfc7fbcb789780135d33a34d94d2'
         }
         self.tiktok_api_headers = {
-            'User-Agent': 'com.ss.android.ugc.trill/2613 (Linux; U; Android 10; en_US; Pixel 4; Build/QQ3A.200805.001; Cronet/58.0.2991.0)'
+            'User-Agent': 'com.ss.android.ugc.trill/494+Mozilla/5.0+(Linux;+Android+12;+2112123G+Build/SKQ1.211006.001;+wv)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Version/4.0+Chrome/107.0.5304.105+Mobile+Safari/537.36'
         }
         # 判断配置文件是否存在/Check if the configuration file exists
         if os.path.exists('config.ini'):
@@ -305,7 +305,7 @@ class Scraper:
         """
         print('正在获取TikTok视频数据...')
         try:
-            api_url = f'https://api-h2.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&version_code=2613&aid=1180'
+            api_url = f'https://api.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&iid=6165993682518218889&device_id=6858675245898655468&aid=1180'
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=self.tiktok_api_headers, proxy=self.proxies, timeout=10) as response:
@@ -386,7 +386,7 @@ class Scraper:
                         else
                         {
                             "User-Agent": self.tiktok_api_headers["User-Agent"],
-                            "api_url": f"https://api-h2.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&version_code=2613&aid=1180"
+                            "api_url": f"https://api.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&version_code=2613&aid=1180"
                         },
                     'desc': data["desc"],
                     'create_time': data['create_time'],
@@ -547,5 +547,5 @@ if __name__ == '__main__':
     api = Scraper()
     # 运行测试
     douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
-    tiktok_url = 'https://vm.tiktok.com/ZMF59AGrF/'
+    tiktok_url = 'https://vt.tiktok.com/ZSRwWXtdr/'
     asyncio.run(async_test(douyin_url=douyin_url, tiktok_url=tiktok_url))
