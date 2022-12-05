@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/02
-# @Version: 3.1.2
+# @Update: 2022/12/04
+# @Version: 3.1.3
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -19,6 +19,8 @@ import asyncio
 import orjson
 import traceback
 import configparser
+
+from typing import Union
 from tenacity import *
 
 
@@ -26,25 +28,25 @@ class Scraper:
     """
     简介/Introduction
 
-    Scraper.get_url(text: str) -> str or None
+    Scraper.get_url(text: str) -> Union[str, None]
     用于检索出文本中的链接并返回/Used to retrieve the link in the text and return it.
 
-    Scraper.convert_share_urls(self, url: str) -> str or None\n
+    Scraper.convert_share_urls(self, url: str) -> Union[str, None]\n
     用于转换分享链接为原始链接/Convert share links to original links
 
-    Scraper.get_douyin_video_id(self, original_url: str) -> str or None\n
+    Scraper.get_douyin_video_id(self, original_url: str) -> Union[str, None]\n
     用于获取抖音视频ID/Get Douyin video ID
 
-    Scraper.get_douyin_video_data(self, video_id: str) -> dict or None\n
+    Scraper.get_douyin_video_data(self, video_id: str) -> Union[dict, None]\n
     用于获取抖音视频数据/Get Douyin video data
 
-    Scraper.get_douyin_live_video_data(self, original_url: str) -> str or None\n
+    Scraper.get_douyin_live_video_data(self, original_url: str) -> Union[str, None]\n
     用于获取抖音直播视频数据/Get Douyin live video data
 
-    Scraper.get_tiktok_video_id(self, original_url: str) -> str or None\n
+    Scraper.get_tiktok_video_id(self, original_url: str) -> Union[str, None]\n
     用于获取TikTok视频ID/Get TikTok video ID
 
-    Scraper.get_tiktok_video_data(self, video_id: str) -> dict or None\n
+    Scraper.get_tiktok_video_data(self, video_id: str) -> Union[dict, None]\n
     用于获取TikTok视频数据/Get TikTok video data
 
     Scraper.hybrid_parsing(self, video_url: str) -> dict\n
@@ -96,7 +98,7 @@ class Scraper:
 
     # 检索字符串中的链接
     @staticmethod
-    def get_url(text: str) -> str or None:
+    def get_url(text: str) -> Union[str, None]:
         try:
             # 从输入文字中提取索引链接存入列表/Extract index links from input text and store in list
             url = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text)
@@ -109,7 +111,7 @@ class Scraper:
 
     # 转换链接/convert url
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    async def convert_share_urls(self, url: str) -> str or None:
+    async def convert_share_urls(self, url: str) -> Union[str, None]:
         """
         用于将分享链接(短链接)转换为原始链接/Convert share links (short links) to original links
         :return: 原始链接/Original link
@@ -187,7 +189,7 @@ class Scraper:
     """__________________________________________⬇️Douyin methods(抖音方法)⬇️______________________________________"""
 
     # 获取抖音视频ID/Get Douyin video ID
-    async def get_douyin_video_id(self, original_url: str) -> dict or None:
+    async def get_douyin_video_id(self, original_url: str) -> Union[str, None]:
         """
         获取视频id
         :param original_url: 视频链接
@@ -225,7 +227,7 @@ class Scraper:
 
     # 获取单个抖音视频数据/Get single Douyin video data
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    async def get_douyin_video_data(self, video_id: str) -> dict or None:
+    async def get_douyin_video_data(self, video_id: str) -> Union[dict, None]:
         """
         :param video_id: str - 抖音视频id
         :return:dict - 包含信息的字典
@@ -250,7 +252,7 @@ class Scraper:
 
     # 获取单个抖音直播视频数据/Get single Douyin Live video data
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    async def get_douyin_live_video_data(self, web_rid: str) -> dict or None:
+    async def get_douyin_live_video_data(self, web_rid: str) -> Union[dict, None]:
         print('正在获取抖音视频数据...')
         try:
             # 构造访问链接/Construct the access link
@@ -274,7 +276,7 @@ class Scraper:
     """__________________________________________⬇️TikTok methods(TikTok方法)⬇️______________________________________"""
 
     # 获取TikTok视频ID/Get TikTok video ID
-    async def get_tiktok_video_id(self, original_url: str) -> str or None:
+    async def get_tiktok_video_id(self, original_url: str) -> Union[str, None]:
         """
         获取视频id
         :param original_url: 视频链接
@@ -298,7 +300,7 @@ class Scraper:
             return None
 
     @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
-    async def get_tiktok_video_data(self, video_id: str) -> dict or None:
+    async def get_tiktok_video_data(self, video_id: str) -> Union[dict, None]:
         """
         获取单个视频信息
         :param video_id: 视频id
