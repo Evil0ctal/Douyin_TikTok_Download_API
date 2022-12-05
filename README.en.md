@@ -7,7 +7,7 @@
 
 [English](./README.en.md)\|[Simplified Chinese](./README.md)
 
-🚀「Douyin_TikTok_Download_API」is an out-of-the-box high-performance asynchronous[Tik Tok](https://www.douyin.com)\|[TikTok](https://www.tiktok.com)A data crawling tool that supports API calls, online batch analysis and downloading.
+🚀「Douyin_TikTok_Download_API」is an out-of-the-box high-performance asynchronous[Tik Tok](https://www.douyin.com)\|[TikTok](https://www.tiktok.com)Data crawling tool, supports API call, online batch analysis and download.
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)[![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)[![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)[![GitHub Fork](https://img.shields.io/github/forks/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/network/members)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)[![GitHub closed issues](https://img.shields.io/github/issues-closed/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues?q=is%3Aissue+is%3Aclosed)![GitHub Repo size](https://img.shields.io/github/repo-size/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&color=3cb371)<br>[![PyPI v](https://img.shields.io/pypi/v/douyin-tiktok-scraper?style=flat-square&color=%23a8e6cf)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI wheel](https://img.shields.io/pypi/wheel/douyin-tiktok-scraper?style=flat-square&color=%23dcedc1)](https://pypi.org/project/douyin-tiktok-scraper/#files)[![PyPI dm](https://img.shields.io/pypi/dm/douyin-tiktok-scraper?style=flat-square&color=%23ffd3b6)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI pyversions](https://img.shields.io/pypi/pyversions/douyin-tiktok-scraper?color=%23ffaaa5&style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)<br>[![API-V1 status](https://img.shields.io/website?down_color=lightgrey&label=API-V1%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)[![API-V2 status](https://img.shields.io/website?down_color=lightgrey&label=API-V2%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi-v2.douyin.wtf%2Fdocs)](https://api-v2.douyin.wtf/docs)<br>[![爱发电](https://img.shields.io/badge/爱发电-evil0ctal-blue.svg?style=flat-square&color=ea4aaa&logo=github-sponsors)](https://afdian.net/@evil0ctal)[![Kofi](https://img.shields.io/badge/Kofi-evil0ctal-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/evil0ctal)[![Patreon](https://img.shields.io/badge/Patreon-evil0ctal-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/evil0ctal)
 
@@ -94,9 +94,9 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Call the parsing library:
+## 📦Calling the parsing library:
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
