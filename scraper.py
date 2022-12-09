@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/04
-# @Version: 3.1.3
+# @Update: 2022/12/09
+# @Version: 3.1.4
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -390,7 +390,7 @@ class Scraper:
                         else
                         {
                             "User-Agent": self.tiktok_api_headers["User-Agent"],
-                            "api_url": f'https://api.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&iid=6165993682518218889&device_id={random.randint(10*10*10, 9*10**10)}&aid=1180'
+                            "api_url": f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&iid=6165993682518218889&device_id={random.randint(10*10*10, 9*10**10)}&aid=1180'
                         },
                     'desc': data["desc"],
                     'create_time': data['create_time'],
