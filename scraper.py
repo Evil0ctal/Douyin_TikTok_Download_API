@@ -3,7 +3,7 @@
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
 # @Update: 2022/12/09
-# @Version: 3.1.4
+# @Version: 3.1.5
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -392,17 +392,17 @@ class Scraper:
                             "User-Agent": self.tiktok_api_headers["User-Agent"],
                             "api_url": f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&iid=6165993682518218889&device_id={random.randint(10*10*10, 9*10**10)}&aid=1180'
                         },
-                    'desc': data["desc"],
-                    'create_time': data['create_time'],
-                    'author': data['author'],
-                    'music': data['music'],
-                    'statistics': data['statistics'],
+                    'desc': data.get("desc"),
+                    'create_time': data.get("create_time"),
+                    'author': data.get("author"),
+                    'music': data.get("music"),
+                    'statistics': data.get("statistics"),
                     'cover_data': {
-                        'cover': data['video']['cover'],
-                        'origin_cover': data['video']['origin_cover'],
-                        'dynamic_cover': data['video']['dynamic_cover'] if url_type == 'video' else None
+                        'cover': data.get("video").get("cover"),
+                        'origin_cover': data.get("video").get("origin_cover"),
+                        'dynamic_cover': data.get("video").get("dynamic_cover")
                     },
-                    'hashtags': data['text_extra']
+                    'hashtags': data.get('text_extra'),
                 }
                 # 创建一个空变量，稍后使用.update()方法更新数据/Create an empty variable and use the .update() method to update the data
                 api_data = None
