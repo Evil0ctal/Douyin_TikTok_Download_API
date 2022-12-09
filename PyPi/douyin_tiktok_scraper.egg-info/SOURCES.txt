@@ -1,0 +1,10 @@
+LICENSE
+README.md
+setup.py
+douyin_tiktok_scraper/__init__.py
+douyin_tiktok_scraper/scraper.py
+douyin_tiktok_scraper.egg-info/PKG-INFO
+douyin_tiktok_scraper.egg-info/SOURCES.txt
+douyin_tiktok_scraper.egg-info/dependency_links.txt
+douyin_tiktok_scraper.egg-info/requires.txt
+douyin_tiktok_scraper.egg-info/top_level.txt
