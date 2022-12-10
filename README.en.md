@@ -25,7 +25,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
 
-> **API-V2:**support input`Douyin|TikTok`Crawl the author's homepage \[homepage video data (remove watermark link, like video list (permission must be public), video comment data, background music video list data, etc...), please refer to the V2 document for details , the server response time sometimes becomes longer, please set the`timeout`Set the value high.
+> **API-V2:**support input`Douyin|TikTok`The user's homepage crawls the author's \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), for details, please refer to API- V2 document, in addition, when comparing API-V2 to API-V1 when grabbing TikTok data, the speed of V-2 is V-1`5倍`。
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -37,9 +37,9 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 📦️Desktop downloader (recommended by warehouse):
 
--   [Tairraos/TikToon](https://github.com/Tairraos/TikDown/)
 -   [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
 -   [HFrost0/bilix](https://github.com/HFrost0/bilix)
+-   [Tairraos/TikDown - \[Needs update\]](https://github.com/Tairraos/TikDown/)
 
 ## ⚗️Technology stack
 
@@ -170,11 +170,17 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 > 💡Tip: You can also view the interface documentation in the code comments of web_api.py
 
-**_API-V1 documentation:_**local:<http://localhost:8000/docs>online:<https://api.douyin.wtf/docs>
+**_API-V1 documentation:_**
 
-**_API-V2 documentation:_**online:<https://api-v2.douyin.wtf/docs>
+local:<http://localhost:8000/docs>
 
-**_API demo:_**
+online:<https://api.douyin.wtf/docs>
+
+**_API-V2 documentation:_**
+
+online:<https://api-v2.douyin.wtf/docs>
+
+**_API-V1 Demo:_**
 
 -   Crawl video data (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api?url=[视频链接/Video URL]&minimal=false`
 -   Download video/photo gallery (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/download?url=[视频链接/Video URL]&prefix=true&watermark=false`
@@ -269,7 +275,8 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## ❤️ Contributors
 
-[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
+[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)
+[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
 ## 📸Screenshot
 
