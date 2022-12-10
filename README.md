@@ -44,7 +44,7 @@
 
 ## 🖥公共站点: 我很脆弱...请勿压测(·•᷄ࡇ•᷅ ）
 
-> **API-V2:** 支持输入`Douyin|TikTok`用户主页爬取该作者[主页视频数据(去水印链接, 已点赞视频列表(权限需为公开), 视频评论数据, 背景音乐视频列表数据, 等等...), 详细信息请查看V2文档, 服务器响应时间有时会变长, 使用时请将`timeout`值设高.
+> **API-V2:** 支持输入`Douyin|TikTok`用户主页爬取该作者[主页视频数据(去水印链接, 已点赞视频列表(权限需为公开), 视频评论数据, 背景音乐视频列表数据, 等等...), 详细信息请查看API-V2文档，此外API-V2对比API-V1在抓取TikTok数据时，V-2的速度是V-1的`5倍`。
 
 🍔Web APP: [https://douyin.wtf/](https://douyin.wtf/)
 
@@ -56,9 +56,9 @@
 
 📦️桌面端下载器(仓库推荐)：
 
-- [Tairraos/TikDown](https://github.com/Tairraos/TikDown/)
 - [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
 - [HFrost0/bilix](https://github.com/HFrost0/bilix)
+- [Tairraos/TikDown - [需更新]](https://github.com/Tairraos/TikDown/)
 
 ## ⚗️技术栈
 
@@ -192,13 +192,16 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 > 💡提示：也可以在web_api.py的代码注释中查看接口文档
 
 ***API-V1文档：***
+
 本地：[http://localhost:8000/docs](http://localhost:8000/docs)
+
 在线：[https://api.douyin.wtf/docs](https://api.douyin.wtf/docs)
 
 ***API-V2文档：***
+
 在线：[https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)
 
-***API演示：***
+***API-V1演示：***
 
 - 爬取视频数据(TikTok或Douyin混合解析)
   `https://api.douyin.wtf/api?url=[视频链接/Video URL]&minimal=false`
