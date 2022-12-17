@@ -84,11 +84,15 @@ def error_do(reason: str, value: str) -> None:
         t('点击此处在GitHub上进行反馈', 'Click here to give feedback on GitHub')))
     put_html("<hr>")
     if config['Web_APP']['Allow_Logs'] == 'True':
-        # 将错误记录在logs.txt中
-        error_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        print(f"{error_date}: 正在记录错误信息...")
-        with open('logs.txt', 'a') as f:
-            f.write(error_date + ":\n" + str(reason) + '\n' + "Input value: " + value + '\n')
+        # 如果douyin或tiktok在输入值中，则记录到日志文件/If douyin or tiktok is in the input value, record it to the log file
+        if 'douyin' in value or 'tiktok' in value:
+            # 将错误记录在logs.txt中
+            error_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            print(f"{error_date}: 正在记录错误信息...")
+            with open('logs.txt', 'a') as f:
+                f.write(error_date + ":\n" + str(reason) + '\n' + "Input value: " + value + '\n')
+        else:
+            print(t('输入值中没有douyin或tiktok，不记录到日志文件中', 'No douyin or tiktok in the input value, not recorded to the log file'))
 
 
 # iOS快捷指令弹窗/IOS shortcut pop-up
