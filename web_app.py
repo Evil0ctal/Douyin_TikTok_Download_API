@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/11/09
+# @Update: 2022/12/16
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO，将scraper.py返回的内容显示在网页上。
@@ -12,13 +12,13 @@ import os
 import re
 import time
 
+from scraper import Scraper
 from pywebio import *
 from pywebio import config as pywebio_config
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import info as session_info, run_asyncio_coroutine
 
-from scraper import Scraper
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8')
