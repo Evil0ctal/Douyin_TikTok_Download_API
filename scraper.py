@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/16
-# @Version: 3.1.6
+# @Update: 2022/12/19
+# @Version: 3.1.7
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -285,9 +285,7 @@ class Scraper:
             # 转换链接/Convert link
             original_url = await self.convert_share_urls(original_url)
             # 获取视频ID/Get video ID
-            if '.html' in original_url:
-                video_id = original_url.replace('.html', '')
-            elif '/video/' in original_url:
+            if '/video/' in original_url:
                 video_id = re.findall('/video/(\d+)', original_url)[0]
             elif '/v/' in original_url:
                 video_id = re.findall('/v/(\d+)', original_url)[0]
