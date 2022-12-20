@@ -43,7 +43,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## ⚗️Technology stack
 
--   [web_app.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/web_app.py) - [PyWebIO](https://www.pyweb.io/)
+-   [web_app.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/web_app.py)-[PyWebIO](https://www.pyweb.io/)
 -   [web_api.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/web_api.py)-[FastAPI](https://fastapi.tiangolo.com/)
 -   [scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/scraper.py)-[AIOHTTP](https://docs.aiohttp.org/)
 
