@@ -1,1 +1,1 @@
-web: python API/web_api.py --port=$PORT
+web: python ./web_app.py
