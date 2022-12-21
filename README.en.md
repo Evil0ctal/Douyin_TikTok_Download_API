@@ -57,7 +57,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_app.py:_**
 
--   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the web page (similar to the separation of front and back ends)
+-   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the webpage (similar to the separation of front and back ends)
 
 **_Most of the parameters of the above files can be found in[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)make changes in_**
 
@@ -71,7 +71,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
         ├── scraper.py -> (Parsing library)
         ├── config.ini -> (configuration file)
 
-## ✨功能：
+## ✨Features:
 
 -   Douyin (overseas version of Douyin: TikTok) video/picture analysis
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
@@ -79,7 +79,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
--   Parse all videos on the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
+-   解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 -   Parse all comment information in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
 * * *
@@ -125,7 +125,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok share URL here: ")))
 7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
 ```
 
--   抖音短网址 (APP内复制)
+-   Douyin short URL (copy in APP)
 
 ```text
 https://v.douyin.com/L4FJNR3/
@@ -207,7 +207,7 @@ online:<https://api-v2.douyin.wtf/docs>
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
 -   First go to the security group to open ports 8080 (Web) and 8000 (API).
--   Search in the Pagoda panel app store`进程守护`or manually install`supervisord`：
+-   Search in the Pagoda panel app store`进程守护`or install manually`supervisord`：
 
 
     [宝塔面板]
@@ -279,7 +279,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## 📸Screenshot
 
-**_API speed test (compared to official API)_**
+**_API速度测试(对比官方API)_**
 
 <details><summary>🔎点击展开截图</summary>
 
