@@ -21,7 +21,7 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
 
 ## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
 
@@ -53,7 +53,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_api.py:_**
 
--   Get request parameters and use`Scraper()`After the class processes the data, it returns in the form of JSON, video downloads, quick calls with iOS shortcut commands, and asynchronous support.
+-   Get request parameters and use`Scraper()`The class processes the data and returns it in the form of JSON, video downloads, quick calls with iOS shortcuts, and asynchronous support.
 
 > **_web_app.py:_**
 
@@ -94,7 +94,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
 > 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -206,9 +206,9 @@ online:<https://api-v2.douyin.wtf/docs>
 
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
-recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because of free.
+recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because it is free.
 
-Sign up with my invitation link, you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
+使用我的邀请链接注册，你可以获得$200的credit，当你在上面消费$25时，我也可以获得$25的奖励。
 
 My invite link:
 
@@ -224,7 +224,7 @@ My invite link:
 -   Execute with root privileges after the download is complete
 
 
-    sudo install.sh
+    sudo sh install.sh
 
 -   Automatically used after running the Bash script[config.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.py)to help you modify[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)
 
