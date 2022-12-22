@@ -21,9 +21,9 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
+## 🖥Public site: I'm fragile...don't stress test (••᷄ࡇ•᷅ ）
 
 > **API-V2:**support input`Douyin|TikTok`The user's homepage crawls the author's \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), for details, please refer to API- V2 document, in addition, when comparing API-V2 to API-V1 when grabbing TikTok data, the speed of V-2 is V-1`5倍`。
 
@@ -76,7 +76,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 -   Douyin (overseas version of Douyin: TikTok) video/picture analysis
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
 -   Batch download of videos without watermark on the analysis result page of the web page (V3.0.0 is temporarily removed, please deploy V2.X version by yourself)
--   API调用获取链接数据
+-   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
 -   Parse all videos on the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
@@ -166,7 +166,7 @@ https://www.tiktok.com/t/ZTR9nDNWq/
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 ```
 
-## 🛰️API文档
+## 🛰️API Documentation
 
 > 💡Tip: You can also view the interface documentation in the code comments of web_api.py
 
@@ -334,7 +334,7 @@ Web main interface:
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
-[MIT License](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
+[MY License](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
 
 > Start: 2021/11/06
 > GitHub:[@Evil0ctal](https://github.com/Evil0ctal)Contact:[Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
