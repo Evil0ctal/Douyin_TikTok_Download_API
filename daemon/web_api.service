@@ -1,0 +1,14 @@
+[Unit]
+Description=www/wwwroot/Douyin_TikTok_Download_API/web_api.py deamon
+After=rc-local.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/www/wwwroot/Douyin_TikTok_Download_API
+ExecStart=python3 web_api.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

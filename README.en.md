@@ -79,7 +79,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
--   解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
+-   Parse all videos on the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 -   Parse all comment information in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
 * * *
@@ -96,7 +96,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## 📦Calling the parsing library:
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -207,7 +207,7 @@ online:<https://api-v2.douyin.wtf/docs>
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
 -   First go to the security group to open ports 8080 (Web) and 8000 (API).
--   Search in the Pagoda panel app store`进程守护`or install manually`supervisord`：
+-   Search in the Pagoda panel app store`进程守护`or manually install`supervisord`：
 
 
     [宝塔面板]
@@ -279,7 +279,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## 📸Screenshot
 
-**_API速度测试(对比官方API)_**
+**_API speed test (compared to official API)_**
 
 <details><summary>🔎点击展开截图</summary>
 
@@ -309,7 +309,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star history
+## 📜 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
