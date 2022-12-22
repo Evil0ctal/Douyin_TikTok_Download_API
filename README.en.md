@@ -23,7 +23,7 @@ _Some simple application scenarios:_
 
 _Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
+## 🖥Public site: I'm fragile...don't stress test (••᷄ࡇ•᷅ ）
 
 > **API-V2:**support input`Douyin|TikTok`The user's homepage crawls the author's \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), for details, please refer to API- V2 document, in addition, when comparing API-V2 to API-V1 when grabbing TikTok data, the speed of V-2 is V-1`5倍`。
 
@@ -94,7 +94,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
 > 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -176,7 +176,7 @@ local:<http://localhost:8000/docs>
 
 online:<https://api.douyin.wtf/docs>
 
-**_API-V2 documentation:_**
+**_API-V2文档：_**
 
 online:<https://api-v2.douyin.wtf/docs>
 
@@ -200,7 +200,7 @@ online:<https://api-v2.douyin.wtf/docs>
     https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
     # Return No Watermark Video Download Response
 
-**_更多演示请查看文档内容......_**
+**_For more demos, please check the content of the document..._**
 
 ## 💻 Deployment (method 1 Linux)
 
@@ -285,7 +285,8 @@ docker compose pull && docker compose down && docker compose up -d
 
 Douyin official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API.png?raw=true)
 
-API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API_Douyin_wtf.png?raw=true)
+本项目API:
+![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API_Douyin_wtf.png?raw=true)
 
 TikTok official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API.png?raw=true)
 
