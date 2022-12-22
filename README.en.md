@@ -15,7 +15,7 @@
 
 ## 👻 Introduction
 
-> 🚨If you need to use a private server to run this project, please refer to the deployment method\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[manual deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
+> 🚨如需使用私有服务器运行本项目，请参考部署方式\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[manual deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
 
 This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)It is a data crawling tool, and realizes online batch analysis and download of video or atlas without watermark through the web terminal, data crawling API, iOS shortcut command without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc...
 
@@ -79,7 +79,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
--   Parse all videos on the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
+-   Parse all videos on the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
 -   Parse all comment information in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
 * * *
@@ -96,7 +96,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## 📦Calling the parsing library:
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -172,7 +172,7 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 **_API-V1 documentation:_**
 
-本地：<http://localhost:8000/docs>
+local:<http://localhost:8000/docs>
 
 online:<https://api.douyin.wtf/docs>
 
@@ -207,7 +207,7 @@ online:<https://api-v2.douyin.wtf/docs>
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
 -   First go to the security group to open ports 8080 (Web) and 8000 (API).
--   Search in the Pagoda panel app store`进程守护`or install manually`supervisord`：
+-   Search in the Pagoda panel app store`进程守护`or manually install`supervisord`：
 
 
     [宝塔面板]
@@ -309,7 +309,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star history
+## 📜 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
