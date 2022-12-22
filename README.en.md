@@ -21,9 +21,9 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public site: I'm fragile...don't stress test (••᷄ࡇ•᷅ ）
+## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
 
 > **API-V2:**support input`Douyin|TikTok`The user's homepage crawls the author's \[homepage video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), for details, please refer to API- V2 document, in addition, when comparing API-V2 to API-V1 when grabbing TikTok data, the speed of V-2 is V-1`5倍`。
 
@@ -96,7 +96,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## 📦Calling the parsing library:
 
-> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -207,7 +207,7 @@ online:<https://api-v2.douyin.wtf/docs>
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
 -   First go to the security group to open ports 8080 (Web) and 8000 (API).
--   Search in the Pagoda panel app store`进程守护`or manually install`supervisord`：
+-   Search in the Pagoda panel app store`进程守护`or install manually`supervisord`：
 
 
     [宝塔面板]
@@ -279,7 +279,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## 📸Screenshot
 
-**_API speed test (compared to official API)_**
+**_API速度测试(对比官方API)_**
 
 <details><summary>🔎点击展开截图</summary>
 
@@ -309,7 +309,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star History
+## 📜 Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
