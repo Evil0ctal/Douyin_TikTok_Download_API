@@ -6,7 +6,7 @@
 <div align="center">
 
 [English](./README.en.md) | [简体中文](./README.md)
- 
+
 🚀「Douyin_TikTok_Download_API」是一个开箱即用的高性能异步[抖音](https://www.douyin.com)|[TikTok](https://www.tiktok.com)数据爬取工具，支持API调用，在线批量解析及下载。
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
@@ -33,7 +33,7 @@
 
 ## 👻介绍
 
-> 🚨如需使用私有服务器运行本项目，请参考部署方式[[Docker部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker), [手动部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
+> 🚨如需使用私有服务器运行本项目，请参考部署方式[[Docker部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker), [一键部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
 
 本项目是基于 [PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/)，快速异步的[抖音](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)数据爬取工具，并通过Web端实现在线批量解析以及下载无水印视频或图集，数据爬取API，iOS快捷指令无水印下载等功能。你可以自己部署或改造本项目实现更多功能，也可以在你的项目中直接调用[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)或安装现有的[pip包](https://pypi.org/project/douyin-tiktok-scraper/)作为解析库轻松爬取数据等.....
 
@@ -230,37 +230,59 @@ https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
 
 > 💡提示：最好将本项目部署至美国地区的服务器，否则可能会出现奇怪的BUG。
 
-- 首先要去安全组开放8080(Web)和8000(API)端口。
-- 在宝塔面板应用商店内搜索`进程守护`或手动安装`supervisord`：
+推荐大家使用[Digitalocean](https://www.digitalocean.com/)的服务器，主要是因为免费。
+
+使用我的邀请链接注册，你可以获得$200的credit，当你在上面消费$25时，我也可以获得$25的奖励。
+
+我的邀请链接：
+
+[https://m.do.co/c/9f72a27dec35](https://m.do.co/c/9f72a27dec35)
+
+> 使用脚本一键部署本项目
+
+- 使用wget命令下载[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh)至服务器
 
 ```
-[宝塔面板]
-https://www.bt.cn/new/download.html
-[aapanel]
-https://www.aapanel.com/new/download.html
-[Supervisor]
-http://supervisord.org/installing.html
+wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh
 ```
 
-- 配置项目[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)文件
-- 安装依赖文件`pip install -r requirements.txt`
-- 设置`supervisord`守护进程
-- 启动命令:
+- 下载完成后使用root权限执行
+
+```
+sudo sh install.sh
+```
+
+- 运行Bash脚本后会自动使用[config.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.py)来帮助你修改[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)
 
 ```console
-[Web]
-python3 web_app.py
-[API]
-python3 web_api.py
+Please edit config.ini, all input must be numbers!
+Default API port: 8000
+If you want use different port input new API port here: 80
+Use new port for web_api.py: 80
+Default API rate limit: 10/minute
+If you want use different rate limit input new rate limit here: 60
+Use new rate limit: 60/minute
+Default App port: 80
+If you want use different port input new App port here: 8080
+Use new port: 8080
 ```
 
-- 程序入口:
+- 随后脚本会询问你要启动的服务
 
-```text
-[Web]
-http://localhost:8080
-[API]
-http://localhost:8000
+api：单独启动`web_api.py`
+
+web：单独启动`web_app.py`
+
+all：同时启动`web_api.py`和`web_app.py`
+
+```console
+Run API or Web? [api/web/all/quit] api
+Do you want to start the api service when system boot? [y/n] y
+Created symlink /etc/systemd/system/multi-user.target.wants/web_api.service → /etc/systemd/system/web_api.service.
+API service will start when system boot!
+Starting API...
+API is running! You can visit http://your_ip:port
+You can stop the api service by running: systemctl stop web_api.service
 ```
 
 ## 💽部署(方式二 Docker)

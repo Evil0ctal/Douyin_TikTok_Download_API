@@ -15,13 +15,13 @@
 
 ## 👻 Introduction
 
-> 🚨If you need to use a private server to run this project, please refer to the deployment method\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[manual deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
+> 🚨If you need to use a private server to run this project, please refer to the deployment method\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
 
 This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)It is a data crawling tool, and realizes online batch analysis and download of video or atlas without watermark through the web terminal, data crawling API, iOS shortcut command without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc...
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
 
 ## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
 
@@ -94,7 +94,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
 > 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -206,36 +206,57 @@ online:<https://api-v2.douyin.wtf/docs>
 
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
--   First go to the security group to open ports 8080 (Web) and 8000 (API).
--   Search in the Pagoda panel app store`进程守护`or install manually`supervisord`：
+recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because it is free.
+
+使用我的邀请链接注册，你可以获得$200的credit，当你在上面消费$25时，我也可以获得$25的奖励。
+
+My invite link:
+
+<https://m.do.co/c/9f72a27dec35>
+
+> Use the script to deploy this project with one click
+
+-   Download using wget command[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh)to server
 
 
-    [宝塔面板]
-    https://www.bt.cn/new/download.html
-    [aapanel]
-    https://www.aapanel.com/new/download.html
-    [Supervisor]
-    http://supervisord.org/installing.html
+    wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh
 
--   configuration items[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)document
--   Install dependencies`pip install -r requirements.txt`
--   set up`supervisord`daemon process
--   Start command:
+-   Execute with root privileges after the download is complete
+
+
+    sudo sh install.sh
+
+-   Automatically used after running the Bash script[config.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.py)to help you modify[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)
 
 ```console
-[Web]
-python3 web_app.py
-[API]
-python3 web_api.py
+Please edit config.ini, all input must be numbers!
+Default API port: 8000
+If you want use different port input new API port here: 80
+Use new port for web_api.py: 80
+Default API rate limit: 10/minute
+If you want use different rate limit input new rate limit here: 60
+Use new rate limit: 60/minute
+Default App port: 80
+If you want use different port input new App port here: 8080
+Use new port: 8080
 ```
 
--   Program entry:
+-   The script will then ask you which services you want to start
 
-```text
-[Web]
-http://localhost:8080
-[API]
-http://localhost:8000
+api: started separately`web_api.py`
+
+web: started separately`web_app.py`
+
+all: start at the same time`web_api.py`with`web_app.py`
+
+```console
+Run API or Web? [api/web/all/quit] api
+Do you want to start the api service when system boot? [y/n] y
+Created symlink /etc/systemd/system/multi-user.target.wants/web_api.service → /etc/systemd/system/web_api.service.
+API service will start when system boot!
+Starting API...
+API is running! You can visit http://your_ip:port
+You can stop the api service by running: systemctl stop web_api.service
 ```
 
 ## 💽Deployment (Method 2 Docker)
@@ -279,7 +300,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## 📸Screenshot
 
-**_API速度测试(对比官方API)_**
+**_API speed test (compared to official API)_**
 
 <details><summary>🔎点击展开截图</summary>
 
