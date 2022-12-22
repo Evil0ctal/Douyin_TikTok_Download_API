@@ -79,7 +79,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
--   解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
+-   Parse all videos on the author's homepage ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 -   Parse all comment information in the video ([API-V2](https://api-v2.douyin.wtf/docs)Support Douyin/TikTok)
 
 * * *
@@ -172,7 +172,7 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 **_API-V1 documentation:_**
 
-local:<http://localhost:8000/docs>
+本地：<http://localhost:8000/docs>
 
 online:<https://api.douyin.wtf/docs>
 
@@ -279,7 +279,7 @@ docker compose pull && docker compose down && docker compose up -d
 
 ## 📸Screenshot
 
-**_API速度测试(对比官方API)_**
+**_API speed test (compared to official API)_**
 
 <details><summary>🔎点击展开截图</summary>
 
