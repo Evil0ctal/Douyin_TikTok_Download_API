@@ -39,6 +39,7 @@ case $input in
         case $input in
             [yY])
           systemctl enable web_api.service
+          echo "API service will start when system boot!"
           ;;
             [nN]| *)
           echo "You can start the service by running: systemctl start web_api.service"
@@ -54,6 +55,7 @@ case $input in
         case $input in
             [yY])
           systemctl enable web_app.service
+          echo "Web service will start when system boot!"
           ;;
             [nN]| *)
           echo "You can start the service by running: systemctl start web_app.service"
@@ -72,16 +74,16 @@ case $input in
           systemctl enable web_api.service
           ;;
             [nN]| *)
-          echo "You can start them on boot by these commands:
-          systemctl enable web_app.service/web_api.service"
+          echo "You can start them on boot by these commands:"
+          echo  "systemctl enable (web_app.service||web_api.service)"
           ;;
         esac
         echo "Starting WEB and API Services..."
         systemctl start web_app.service
 		    systemctl start web_api.service
 		    echo "API and APP service are running!"
-		    echo "You can stop the api service by running following command:
-		    systemctl stop web_app.service/web_api.service"
+		    echo "You can stop the api service by running following command: "
+		    echo "systemctl stop (web_app.service||web_api.service)"
         ;;
     *)
         echo "Exiting without running anything..."
