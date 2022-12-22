@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/16
+# @Update: 2022/12/21
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO，将scraper.py返回的内容显示在网页上。
@@ -18,7 +18,6 @@ from pywebio import config as pywebio_config
 from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import info as session_info, run_asyncio_coroutine
-
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8')
@@ -73,8 +72,8 @@ def error_do(reason: str, value: str) -> None:
                    'Entered the wrong link (the home page link is not supported for parsing with API-V1)'))
     put_markdown(
         t('如果需要解析个人主页，请使用API-V2', 'If you need to parse the personal homepage, please use API-V2'))
-    put_markdown(t('API-V2 文档: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)',
-                   'API-V2 Documentation: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)'))
+    put_markdown(t('API-V2 文档: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)',
+                   'API-V2 Documentation: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)'))
     put_markdown(t('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)',
                    'The video has been deleted or blocked (what are you watching (⊙_⊙)?)'))
     put_markdown(t('其他原因(请联系作者)', 'Other reasons (please contact the author)'))
@@ -92,7 +91,8 @@ def error_do(reason: str, value: str) -> None:
             with open('logs.txt', 'a') as f:
                 f.write(error_date + ":\n" + str(reason) + '\n' + "Input value: " + value + '\n')
         else:
-            print(t('输入值中没有douyin或tiktok，不记录到日志文件中', 'No douyin or tiktok in the input value, not recorded to the log file'))
+            print(t('输入值中没有douyin或tiktok，不记录到日志文件中',
+                    'No douyin or tiktok in the input value, not recorded to the log file'))
 
 
 # iOS快捷指令弹窗/IOS shortcut pop-up
@@ -137,7 +137,7 @@ def api_document_pop_window():
         put_markdown(t("💾API-V2文档", "💾API-V2 Document"))
         put_markdown(t('API-V2 支持抖音和TikTok的更多接口， 如主页解析，视频解析，视频评论解析，个人点赞列表解析等...',
                        'API-V2 supports more interfaces of Douyin and TikTok, such as home page parsing, video parsing, video comment parsing, personal like list parsing, etc...'))
-        put_link('[API-V2 Docs]', 'https://api-v2.douyin.wtf/docs', new_window=True)
+        put_link('[API-V2 Docs]', 'https://api.tikhub.io/docs', new_window=True)
         put_html('<hr>')
         put_markdown(t("💽API-V1文档", "💽API-V1 Document"))
         put_markdown(t("API-V1 支持抖音和TikTok的单一视频解析，具体请查看接口文档。",
@@ -155,8 +155,8 @@ def log_popup_window():
                        'Entered the wrong link (the home page link is not supported for parsing with API-V1)'))
         put_markdown(
             t('如果需要解析个人主页，请使用API-V2', 'If you need to parse the personal homepage, please use API-V2'))
-        put_markdown(t('API-V2 文档: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)',
-                       'API-V2 Documentation: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)'))
+        put_markdown(t('API-V2 文档: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)',
+                       'API-V2 Documentation: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)'))
         put_markdown(t('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)',
                        'The video has been deleted or blocked (what are you watching (⊙_⊙)?)'))
         put_markdown(t('[点击此处在GitHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)',
@@ -194,37 +194,47 @@ def about_popup_window():
         put_html('<hr>')
 
 
-# 网站标题/Website title
-web_title = config['Web_APP']['Web_Title']
-
-# 网站描述/Website description
-web_description = config['Web_APP']['Web_Description']
-
-
 # 程序入口/Main interface
-@pywebio_config(title=web_title, description=web_description, theme='minty')
+@pywebio_config(theme='minty')
 async def main():
     # 关键字信息
     keywords = config['Web_APP']['Keywords']
+    # 网站描述
+    description = t(config['Web_APP']['Web_Description'], config['Web_APP']['Web_Description_English'])
+    # 网站标题/Website title
+    web_title = t(config['Web_APP']['Web_Title'], config['Web_APP']['Web_Title_English'])
     # 设置favicon
-    favicon_url = "https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/favicon/android-chrome-512x512.png"
+    favicon_url = "https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/logo/logo192.png"
+    # 添加<title>标签
+    session.run_js('document.title = "{}"'.format(web_title))
+    # 删除初始meta标签，包括title，description，keywords，favicon，以免与自定义的meta标签冲突。
     session.run_js("""
-    $('head').append('<meta name=referrer content=no-referrer>');
-    $('#favicon32,#favicon16').remove(); 
-    $('head').append('<link rel="icon" type="image/png" href="%s">')
-    """ % favicon_url)
-    # 设置Keywords
-    session.run_js("""
-        $('head').append('<meta name="keywords" content={}>')
-        """.format(keywords))
+    $('head meta[name="keywords"]').remove();
+    $('head meta[name="description"]').remove();
+    $('head meta[name="title"]').remove();
+    $('head link[rel="icon"]').remove();
+    """)
+    # 设置favicon,referrer,Keywords,Description,Author,Title
+    session.run_js(f"""
+        $('head').append('<link rel="icon" type="image/png" href="{favicon_url}">')
+        $('head').append('<meta name="title" content="{web_title}">')
+        $('head').append('<meta name=referrer content=no-referrer>');
+        $('head').append('<meta name="keywords" content="{keywords}">')
+        $('head').append('<meta name="description" content="{description}">')
+        $('head').append('<meta name="author" content="Evil0ctal">')
+        """)
     # 修改footer
     session.run_js("""$('footer').remove()""")
     # 网站标题/Website title
     title = t(config['Web_APP']['Web_Title'], config['Web_APP']['Web_Title_English'])
-    put_markdown("""<div align='center' ><font size='20'>😼{}</font></div>""".format(title))
-    put_html('<hr>')
+    put_html(f"""
+    <div align="center">
+    <a href="https://douyin.wtf/" alt="logo" ><img src="{favicon_url}" width="100"/></a>
+    <h1 align="center">{title}</h1>
+    </div>
+    """)
     put_row(
-        [put_button(t("iOS快捷指令", 'iOS Shortcuts'), onclick=lambda: ios_pop_window(), link_style=True, small=True),
+        [put_button(t("快捷指令", 'Shortcuts'), onclick=lambda: ios_pop_window(), link_style=True, small=True),
          put_button("API", onclick=lambda: api_document_pop_window(), link_style=True, small=True),
          put_button(t("日志", "Log"), onclick=lambda: log_popup_window(), link_style=True, small=True),
          put_button(t("关于", 'About'), onclick=lambda: about_popup_window(), link_style=True, small=True)
