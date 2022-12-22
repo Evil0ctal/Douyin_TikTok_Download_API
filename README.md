@@ -50,7 +50,7 @@
 
 🍟API-V1: [https://api.douyin.wtf/docs](https://api.douyin.wtf/docs)
 
-🌭API-V2: [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)
+🌭API-V2: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)
 
 💾iOS Shortcut(快捷指令): [Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
 
@@ -59,6 +59,12 @@
 - [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
 - [HFrost0/bilix](https://github.com/HFrost0/bilix)
 - [Tairraos/TikDown - [需更新]](https://github.com/Tairraos/TikDown/)
+
+🛸基于本项目的其他仓库
+
+- [TikHubIO/TikHub_API_PyPi](https://github.com/TikHubIO/TikHub_API_PyPi)
+
+- [Evil0ctal/Douyin_Tiktok_Scraper_PyPi](https://github.com/Evil0ctal/Douyin_Tiktok_Scraper_PyPi)
 
 ## ⚗️技术栈
 
