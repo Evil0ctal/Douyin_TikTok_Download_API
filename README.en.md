@@ -31,7 +31,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 🍟API-V1:<https://api.douyin.wtf/docs>
 
-🌭API-V2:<https://api-v2.douyin.wtf/docs>
+🌭API-V2:<https://api.tikhub.io/docs>
 
 💾iOS Shortcut:[Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
 
@@ -40,6 +40,12 @@ _Download prohibited videos for data analysis, download without watermark for iO
 -   [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
 -   [HFrost0/bilix](https://github.com/HFrost0/bilix)
 -   [Tairraos/TikDown - \[Needs update\]](https://github.com/Tairraos/TikDown/)
+
+🛸Other repositories based on this project
+
+-   [TikHubIO/TikHub_API_PyPi](https://github.com/TikHubIO/TikHub_API_PyPi)
+
+-   [Evil0ctal/Douyin_Tiktok_Scraper_PyPi](https://github.com/Evil0ctal/Douyin_Tiktok_Scraper_PyPi)
 
 ## ⚗️Technology stack
 
@@ -94,7 +100,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Call the parsing library:
+## 📦调用解析库:
 
 > 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -206,7 +212,7 @@ online:<https://api-v2.douyin.wtf/docs>
 
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
-recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because of free.
+recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because it is free.
 
 Sign up with my invitation link, you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
 
