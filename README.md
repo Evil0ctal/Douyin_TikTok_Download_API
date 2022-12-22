@@ -249,7 +249,7 @@ wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main
 - 下载完成后使用root权限执行
 
 ```
-sudo install.sh
+sudo sh install.sh
 ```
 
 - 运行Bash脚本后会自动使用[config.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.py)来帮助你修改[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)
