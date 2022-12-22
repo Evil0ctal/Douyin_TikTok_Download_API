@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/19
-# @Version: 3.1.7
+# @Update: 2022/12/22
+# @Version: 3.1.8
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -211,6 +211,7 @@ class Scraper:
             # 直播页
             elif 'live.douyin' in video_url:
                 # https://live.douyin.com/1000000000000000000
+                video_url = video_url.split('?')[0] if '?' in video_url else video_url
                 key = video_url.replace('https://live.douyin.com/', '')
                 print('获取到的抖音直播ID为: {}'.format(key))
                 return key
@@ -234,14 +235,18 @@ class Scraper:
         print('正在获取抖音视频数据...')
         try:
             # 构造访问链接/Construct the access link
+            """
+            旧API已失效(2022年12月21日)，请大家且用且珍惜。
             api_url = f"https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={video_id}"
+            """
+            api_url = f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}"
             # 访问API/Access API
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=self.headers, proxy=self.proxies, timeout=10) as response:
                     response = await response.json()
                     # 获取视频数据/Get video data
-                    video_data = response['item_list'][0]
+                    video_data = response['aweme_detail']
                     print('获取视频数据成功！')
                     # print("抖音API返回数据: {}".format(video_data))
                     return video_data
@@ -261,10 +266,9 @@ class Scraper:
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=self.douyin_cookies, proxy=self.proxies, timeout=10) as response:
                     response = await response.json()
-                    # 获取返回的json数据/Get the returned json data
-                    data = orjson.loads(response.text)
                     # 获取视频数据/Get video data
-                    video_data = data['data']
+                    video_data = response['data']
+                    print(video_data)
                     print('获取视频数据成功！')
                     # print("抖音API返回数据: {}".format(video_data))
                     return video_data
@@ -382,7 +386,7 @@ class Scraper:
                     'official_api_url':
                         {
                             "User-Agent": self.headers["User-Agent"],
-                            "api_url": f"https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={video_id}"
+                            "api_url": f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}"
                         } if url_platform == 'douyin'
                         else
                         {

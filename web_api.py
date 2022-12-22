@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/11/09
-# @Version: 3.1.0
+# @Update: 2022/12/22
+# @Version: 3.1.1
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -120,7 +120,7 @@ class APIRoot(BaseModel):
     Version: str = version
     Update_time: str = update_time
     Request_Rate_Limit: str = Rate_Limit
-    Web_APP: str 
+    Web_APP: str
     API_V1_Document: str
     API_V2_Document: str
     GitHub: str
@@ -363,6 +363,63 @@ async def get_douyin_video_data(request: Request, douyin_video_url: str = None, 
                 "platform": "douyin",
                 "endpoint": "/douyin_video_data/",
                 "message": "获取视频ID失败/Failed to get video ID",
+                "total_time": 0,
+                "aweme_list": []
+            }
+            return ORJSONResponse(result)
+
+
+@app.get("/douyin_live_video_data/", response_model=API_Video_Response, tags=["Douyin"])
+@limiter.limit(Rate_Limit)
+async def get_douyin_live_video_data(request: Request, douyin_live_video_url: str = None, web_rid: str = None):
+    if web_rid is None or web_rid == '':
+        # 获取视频ID
+        web_rid = await api.get_douyin_video_id(douyin_live_video_url)
+        if web_rid is None:
+            result = {
+                "status": "failed",
+                "platform": "douyin",
+                "message": "web_rid获取失败/Failed to get web_rid",
+            }
+            return ORJSONResponse(result)
+    if web_rid is not None and web_rid != '':
+        # 开始时间
+        start_time = time.time()
+        print('获取到的web_rid:{}'.format(web_rid))
+        if web_rid is not None:
+            video_data = await api.get_douyin_live_video_data(web_rid=web_rid)
+            if video_data is None:
+                result = {
+                    "status": "failed",
+                    "platform": "douyin",
+                    "endpoint": "/douyin_live_video_data/",
+                    "message": "直播视频API数据获取失败/Failed to get live video API data",
+                }
+                return ORJSONResponse(result)
+            # print('获取到的video_data:{}'.format(video_data))
+            # 记录API调用
+            await api_logs(start_time=start_time,
+                           input_data={'douyin_video_url': douyin_live_video_url, 'web_rid': web_rid},
+                           endpoint='douyin_live_video_data')
+            # 结束时间
+            total_time = float(format(time.time() - start_time, '.4f'))
+            # 返回数据
+            result = {
+                "status": "success",
+                "platform": "douyin",
+                "endpoint": "/douyin_live_video_data/",
+                "message": "获取直播视频数据成功/Got live video data successfully",
+                "total_time": total_time,
+                "aweme_list": [video_data]
+            }
+            return ORJSONResponse(result)
+        else:
+            print('获取抖音video_id失败')
+            result = {
+                "status": "failed",
+                "platform": "douyin",
+                "endpoint": "/douyin_live_video_data/",
+                "message": "获取直播视频ID失败/Failed to get live video ID",
                 "total_time": 0,
                 "aweme_list": []
             }
