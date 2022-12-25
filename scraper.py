@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/22
-# @Version: 3.1.8
+# @Update: 2022/12/25
+# @Version: 3.1.9
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -15,7 +15,6 @@ import os
 import aiohttp
 import platform
 import asyncio
-import orjson
 import traceback
 import configparser
 
@@ -239,7 +238,8 @@ class Scraper:
             旧API已失效(2022年12月21日)，请大家且用且珍惜。
             api_url = f"https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={video_id}"
             """
-            api_url = f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}"
+            # 从安卓apk中提取到的新API，目前可用，支持视频，图集，笔记的解析(2022年12月25日)
+            api_url = f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}&aid=1128&version_name=23.5.0&device_platform=android&os_version=2333&Github=Evil0ctal&words=F**K-U-ByteDance"
             # 访问API/Access API
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
