@@ -22,8 +22,8 @@
 [![PyPI dm](https://img.shields.io/pypi/dm/douyin-tiktok-scraper?style=flat-square&color=%23ffd3b6)](https://pypi.org/project/douyin-tiktok-scraper/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/douyin-tiktok-scraper?color=%23ffaaa5&style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)
 <br>
-[![API-V1 status](https://img.shields.io/website?down_color=lightgrey&label=API-V1%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)
-[![API-V2 status](https://img.shields.io/website?down_color=lightgrey&label=API-V2%20Status&down_message=API-V1%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi-v2.douyin.wtf%2Fdocs)](https://api-v2.douyin.wtf/docs)
+[![API status](https://img.shields.io/website?down_color=lightgrey&label=API%20Status&down_message=API%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)
+[![TikHub-API status](https://img.shields.io/website?down_color=lightgrey&label=TikHub-API%20Status&down_message=API%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.tikhub.io%2Fdocs)](https://api.tikhub.io/docs)
 <br>
 [![爱发电](https://img.shields.io/badge/爱发电-evil0ctal-blue.svg?style=flat-square&color=ea4aaa&logo=github-sponsors)](https://afdian.net/@evil0ctal)
 [![Kofi](https://img.shields.io/badge/Kofi-evil0ctal-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/evil0ctal)
@@ -44,13 +44,13 @@
 
 ## 🖥公共站点: 我很脆弱...请勿压测(·•᷄ࡇ•᷅ ）
 
-> **API-V2:** 支持输入`Douyin|TikTok`用户主页爬取该作者[主页视频数据(去水印链接, 已点赞视频列表(权限需为公开), 视频评论数据, 背景音乐视频列表数据, 等等...), 详细信息请查看API-V2文档，此外API-V2对比API-V1在抓取TikTok数据时，V-2的速度是V-1的`5倍`。
+> **TikHub-API:** 支持`Douyin|TikTok`用户主页爬取该作者[主页视频数据(去水印链接, 已点赞视频列表(权限需为公开), 视频评论数据, 背景音乐视频列表数据, 等等...), 详细信息请查看TikHub-API文档，此外TikHub-API对比本项目API在抓取TikTok数据时，TikHub-API速度更快。
 
 🍔Web APP: [https://douyin.wtf/](https://douyin.wtf/)
 
-🍟API-V1: [https://api.douyin.wtf/docs](https://api.douyin.wtf/docs)
+🍟API Document: [https://api.douyin.wtf/docs](https://api.douyin.wtf/docs)
 
-🌭API-V2: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)
+🌭TikHub API Document: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)
 
 💾iOS Shortcut(快捷指令): [Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
 
@@ -63,7 +63,6 @@
 🛸基于本项目的其他仓库
 
 - [TikHubIO/TikHub_API_PyPi](https://github.com/TikHubIO/TikHub_API_PyPi)
-
 - [Evil0ctal/Douyin_Tiktok_Scraper_PyPi](https://github.com/Evil0ctal/Douyin_Tiktok_Scraper_PyPi)
 
 ## ⚗️技术栈
@@ -95,28 +94,29 @@
     ├── web_app.py -> (Web APP)
     ├── web_api.py -> (API)
     ├── scraper.py -> (Parsing library)
-    ├── config.ini -> (configuration file)
+    ├── config.ini -> (Configuration file)
+    ├── install.sh -> (Installation bash script)
 ```
 
 ## ✨功能：
 
 - 抖音（抖音海外版: TikTok）视频/图片解析
 - 网页端批量解析(支持抖音/TikTok混合提交)
-- 网页端解析结果页批量下载无水印视频(V3.0.0暂时移除，请自行部署V2.X版本)
+- 网页端解析结果页批量下载无水印视频(V3.X以上版本移除，请自行部署V2.X版本)
 - API调用获取链接数据
 - 制作[pip包](https://pypi.org/project/douyin-tiktok-scraper/)方便快速导入你的项目
 - [iOS快捷指令快速调用API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)实现应用内下载无水印视频/图集
-- 解析作者主页内所有视频([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
-- 解析视频内所有评论信息([API-V2](https://api-v2.douyin.wtf/docs) 支持抖音/TikTok)
+- 解析作者主页内所有视频([TikHub-API](https://api.tikhub.io/docs) 支持抖音/TikTok)
+- 解析视频内所有评论信息([TikHub-API](https://api.tikhub.io/docs) 支持抖音/TikTok)
 
 ---
 
 ## 🤦‍待办清单：
 
-> 💡欢迎提出新的建议或将你的思路在issue中与我分享，或直接提交PR至[Development分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/Development) ♪(･ω･)ﾉ)
+> 💡欢迎提出建议或直接提交PR至此仓库 ♪(･ω･)ﾉ)
 
-- [ ] 编写一个桌面端的下载器实现本地批量下载
-- [ ] API-V2添加对hash_tag页面的数据爬取 [#101](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/101)
+- [ ] 编写一个桌面端的异步下载器实现本地批量下载
+- [ ] TikHub-API添加对hash_tag页面的数据爬取 [#101](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/101)
 - [ ] 对其他短视频平台添加支持，如：抖音火山版，快手，西瓜视频，哔哩哔哩
 
 ---
@@ -197,17 +197,17 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 > 💡提示：也可以在web_api.py的代码注释中查看接口文档
 
-***API-V1文档：***
+***API文档：***
 
 本地：[http://localhost:8000/docs](http://localhost:8000/docs)
 
 在线：[https://api.douyin.wtf/docs](https://api.douyin.wtf/docs)
 
-***API-V2文档：***
+***TikHub-API文档：***
 
-在线：[https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)
+在线：[https://api.tikhub.io/docs](https://api.tikhub.io/docs)
 
-***API-V1演示：***
+***API演示：***
 
 - 爬取视频数据(TikTok或Douyin混合解析)
   `https://api.douyin.wtf/api?url=[视频链接/Video URL]&minimal=false`
@@ -290,6 +290,23 @@ Starting API...
 API is running! You can visit http://your_ip:port
 You can stop the api service by running: systemctl stop web_api.service
 ```
+
+> 开启/停止服务
+
+- web服务：`systemctl start/stop web_app.service`
+
+- api服务：`systemctl start/stop web_api.service`
+
+> 开启/关闭开机自动运行
+
+- web服务：`systemctl enable/disable web_app.service`
+- api服务：`systemctl enable/disable web_api.service`
+
+> 更新项目
+
+- `cd /www/wwwroot`
+
+- `git pull https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git`
 
 ## 💽部署(方式二 Docker)
 
