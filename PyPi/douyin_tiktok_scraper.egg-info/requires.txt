@@ -1,3 +1,0 @@
-aiohttp
-orjson
-tenacity
