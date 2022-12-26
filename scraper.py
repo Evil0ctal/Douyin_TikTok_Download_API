@@ -386,7 +386,7 @@ class Scraper:
                     'official_api_url':
                         {
                             "User-Agent": self.headers["User-Agent"],
-                            "api_url": f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}"
+                            "api_url": f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}&aid=1128&version_name=23.5.0&device_platform=android&os_version=2333&Github=Evil0ctal&words=F**K-U-ByteDance"
                         } if url_platform == 'douyin'
                         else
                         {
