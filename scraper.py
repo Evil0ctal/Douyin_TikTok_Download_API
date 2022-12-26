@@ -239,7 +239,7 @@ class Scraper:
             api_url = f"https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={video_id}"
             """
             # 从安卓apk中提取到的新API，目前可用，支持视频，图集，笔记的解析(2022年12月25日)
-            api_url = f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}&aid=1128&version_name=23.5.0&device_platform=android&os_version=2333&Github=Evil0ctal&words=F**K-U-ByteDance"
+            api_url = f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}&aid=1128&version_name=23.5.0&device_platform=android&os_version=2333&Github=Evil0ctal&words=FXXK_U_ByteDance"
             # 访问API/Access API
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
@@ -349,6 +349,7 @@ class Scraper:
                     # 抖音/Douyin
                     2: 'image',
                     4: 'video',
+                    68: 'image',
                     # TikTok
                     0: 'video',
                     51: 'video',
@@ -386,7 +387,7 @@ class Scraper:
                     'official_api_url':
                         {
                             "User-Agent": self.headers["User-Agent"],
-                            "api_url": f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}&aid=1128&version_name=23.5.0&device_platform=android&os_version=2333&Github=Evil0ctal&words=F**K-U-ByteDance"
+                            "api_url": f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}&aid=1128&version_name=23.5.0&device_platform=android&os_version=2333&Github=Evil0ctal&words=FXXK_U_ByteDance"
                         } if url_platform == 'douyin'
                         else
                         {
