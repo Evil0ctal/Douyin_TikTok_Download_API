@@ -21,11 +21,11 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to realize in-app download or read clipboard download), etc....._
+_Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
 
 ## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
 
-> **Tikhub-Opi:**support`Douyin|TikTok`Crawl the author's homepage \[homepage video data (remove the watermark link, the list of liked videos (permissions must be public), video comment data, background music video list data, etc...), for details, please refer to TikHub- API documentation. In addition, TikHub-API is faster than this project's API when capturing TikTok data.
+> **Tikhub-Opi:**support`Douyin|TikTok`Crawl the author's home page video data (remove watermark link, liked video list (permissions need to be public), video comment data, background music video list data, etc...), for details, please check TikHub- API documentation. In addition, TikHub-API is faster than this project's API when capturing TikTok data.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -62,7 +62,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_app.py:_**
 
--   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the webpage (similar to the separation of front and back ends)
+-   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the web page (similar to the separation of front and back ends)
 
 **_Most of the parameters of the above files can be found in[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)make changes in_**
 
@@ -81,10 +81,10 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 -   Douyin (overseas version of Douyin: TikTok) video/picture analysis
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
--   Batch download of watermark-free videos from the analysis result page on the web page (removed in V3.X and later versions, please deploy V2.X version by yourself)
+-   Batch download of videos without watermark on the analysis result page of the web page (removed in V3.X and later versions, please deploy V2.X version by yourself)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
--   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
+-   [iOS shortcut commands quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
 -   Parse all videos on the author's homepage ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
 -   Parse all comment information in the video ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
 
@@ -100,11 +100,11 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
 > 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
-安装解析库：`pip install douyin-tiktok-scraper`
+Install the parsing library:`pip install douyin-tiktok-scraper`
 
 ```python
 import asyncio
@@ -212,7 +212,7 @@ online:<https://api.tikhub.io/docs>
 
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
-recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because of free.
+recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because it is free.
 
 Sign up with my invitation link, you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
 
@@ -284,9 +284,9 @@ You can stop the api service by running: systemctl stop web_api.service
 
 ## 💽Deployment (Method 2 Docker)
 
-> 💡Docker Image repo: [Docker Hub](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
+> 💡Docker Image repo:[Docker Hub](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
 
--   安装docker
+-   install docker
 
 ```yaml
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
@@ -353,7 +353,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star History
+## 📜 Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
