@@ -80,13 +80,13 @@ _Download prohibited videos for data analysis, download without watermark for iO
 ## ✨Features:
 
 -   Douyin (overseas version of Douyin: TikTok) video/picture analysis
--   网页端批量解析(支持抖音/TikTok混合提交)
+-   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
 -   Batch download of watermark-free videos from the analysis result page on the web page (removed in V3.X and later versions, please deploy V2.X version by yourself)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
--   Parse all videos on the author's homepage ([TikHub-API](https://api.tikhub.io/docs)Support Douyin/TikTok)
--   Parse all comment information in the video ([TikHub-API](https://api.tikhub.io/docs)Support Douyin/TikTok)
+-   Parse all videos on the author's homepage ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
+-   Parse all comment information in the video ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
 
 * * *
 
@@ -94,13 +94,13 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > 💡Suggestions or PRs are welcome to this repository ♪(･ω･)ﾉ)
 
--   [ ] Write an asynchronous downloader on the desktop to achieve local batch download
+-   [ ] Write an asynchronous downloader on the desktop to realize local batch download
 -   [ ] TikHub-API adds data crawling for hash_tag pages[#101](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/101)
 -   [ ] Add support for other short video platforms, such as: Douyin Volcano, Kuaishou, Watermelon Video, Bilibili
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
 > 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -131,7 +131,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok share URL here: ")))
 7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
 ```
 
--   抖音短网址 (APP内复制)
+-   Douyin short URL (copy in APP)
 
 ```text
 https://v.douyin.com/L4FJNR3/
