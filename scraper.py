@@ -379,7 +379,7 @@ class Scraper:
 
                 result_data = {
                     'status': 'success',
-                    'message': "更多接口请查看(More API see): https://api-v2.douyin.wtf/docs",
+                    'message': "更多接口请查看(More API see): https://api.tikhub.io/docs",
                     'type': url_type,
                     'platform': url_platform,
                     'aweme_id': video_id,

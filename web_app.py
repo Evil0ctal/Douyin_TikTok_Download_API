@@ -2,7 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/21
+# @Update: 2022/12/25
+# @Version: 3.0.1
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO，将scraper.py返回的内容显示在网页上。
@@ -71,9 +72,9 @@ def error_do(reason: str, value: str) -> None:
     put_markdown(t('输入了错误的链接(API-V1暂不支持主页链接解析)',
                    'Entered the wrong link (the home page link is not supported for parsing with API-V1)'))
     put_markdown(
-        t('如果需要解析个人主页，请使用API-V2', 'If you need to parse the personal homepage, please use API-V2'))
-    put_markdown(t('API-V2 文档: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)',
-                   'API-V2 Documentation: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)'))
+        t('如果需要解析个人主页，请使用TikHub_API', 'If you need to parse the personal homepage, please use TikHub_API'))
+    put_markdown(t('TikHub_API 文档: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)',
+                   'TikHub_API Documentation: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)'))
     put_markdown(t('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)',
                    'The video has been deleted or blocked (what are you watching (⊙_⊙)?)'))
     put_markdown(t('其他原因(请联系作者)', 'Other reasons (please contact the author)'))
@@ -134,10 +135,10 @@ def ios_pop_window():
 # API文档弹窗/API documentation pop-up
 def api_document_pop_window():
     with popup(t("API文档", "API Document")):
-        put_markdown(t("💾API-V2文档", "💾API-V2 Document"))
-        put_markdown(t('API-V2 支持抖音和TikTok的更多接口， 如主页解析，视频解析，视频评论解析，个人点赞列表解析等...',
-                       'API-V2 supports more interfaces of Douyin and TikTok, such as home page parsing, video parsing, video comment parsing, personal like list parsing, etc...'))
-        put_link('[API-V2 Docs]', 'https://api.tikhub.io/docs', new_window=True)
+        put_markdown(t("💾TikHub_API文档", "💾TikHub_API Document"))
+        put_markdown(t('TikHub_API 支持抖音和TikTok的更多接口， 如主页解析，视频解析，视频评论解析，个人点赞列表解析等...',
+                       'TikHub_API supports more interfaces of Douyin and TikTok, such as home page parsing, video parsing, video comment parsing, personal like list parsing, etc...'))
+        put_link('[TikHub_API Docs]', 'https://api.tikhub.io/docs', new_window=True)
         put_html('<hr>')
         put_markdown(t("💽API-V1文档", "💽API-V1 Document"))
         put_markdown(t("API-V1 支持抖音和TikTok的单一视频解析，具体请查看接口文档。",
@@ -154,9 +155,9 @@ def log_popup_window():
         put_markdown(t('输入了错误的链接(API-V1暂不支持主页链接解析)',
                        'Entered the wrong link (the home page link is not supported for parsing with API-V1)'))
         put_markdown(
-            t('如果需要解析个人主页，请使用API-V2', 'If you need to parse the personal homepage, please use API-V2'))
-        put_markdown(t('API-V2 文档: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)',
-                       'API-V2 Documentation: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)'))
+            t('如果需要解析个人主页，请使用TikHub_API', 'If you need to parse the personal homepage, please use TikHub_API'))
+        put_markdown(t('TikHub_API 文档: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)',
+                       'TikHub_API Documentation: [https://api.tikhub.io/docs](https://api.tikhub.io/docs)'))
         put_markdown(t('该视频已经被删除或屏蔽(你看的都是些啥(⊙_⊙)?)',
                        'The video has been deleted or blocked (what are you watching (⊙_⊙)?)'))
         put_markdown(t('[点击此处在GitHub上进行反馈](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)',

@@ -41,21 +41,21 @@ Rate_Limit = config["Web_API"]["Rate_Limit"]
 
 # 创建FastAPI实例
 title = "Douyin TikTok Download/Scraper API-V1"
-version = '3.1.1'
-update_time = "2022/12/02"
+version = '3.1.2'
+update_time = "2022/12/25"
 description = """
 #### Description/说明
 <details>
 <summary>点击展开/Click to expand</summary>
 > [中文/Chinese]
 - 爬取Douyin以及TikTok的数据并返回，更多功能正在开发中。
-- 如果需要更多接口，请查看[https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs)。
+- 如果需要更多接口，请查看[https://api.tikhub.io/docs](https://api.tikhub.io/docs)。
 - 本项目开源在[GitHub：Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)。
 - 全部端点数据均来自抖音以及TikTok的官方接口，如遇到问题或BUG或建议请在[issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)中反馈。
 - 本项目仅供学习交流使用，严禁用于违法用途，如有侵权请联系作者。
 > [英文/English]
 - Crawl the data of Douyin and TikTok and return it. More features are under development.
-- If you need more interfaces, please visit [https://api-v2.douyin.wtf/docs](https://api-v2.douyin.wtf/docs).
+- If you need more interfaces, please visit [https://api.tikhub.io/docs](https://api.tikhub.io/docs).
 - This project is open source on [GitHub: Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API).
 - All endpoint data comes from the official interface of Douyin and TikTok. If you have any questions or BUGs or suggestions, please feedback in [issues](
 - This project is for learning and communication only. It is strictly forbidden to be used for illegal purposes. If there is any infringement, please contact the author.
@@ -122,7 +122,7 @@ class APIRoot(BaseModel):
     Request_Rate_Limit: str = Rate_Limit
     Web_APP: str
     API_V1_Document: str
-    API_V2_Document: str
+    TikHub_API_Document: str
     GitHub: str
 
 
@@ -224,7 +224,7 @@ async def root():
         "Request_Rate_Limit": Rate_Limit,
         "Web_APP": "https://www.douyin.wtf/",
         "API_V1_Document": "https://api.douyin.wtf/docs",
-        "API_V2_Document": "https://api-v2.douyin.wtf/docs",
+        "TikHub_API_Document": "https://api.tikhub.io/docs",
         "GitHub": "https://github.com/Evil0ctal/Douyin_TikTok_Download_API",
     }
     return ORJSONResponse(data)
