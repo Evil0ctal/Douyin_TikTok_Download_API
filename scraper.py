@@ -310,7 +310,7 @@ class Scraper:
         print('正在获取TikTok视频数据...')
         try:
             # 构造访问链接/Construct the access link
-            api_url = f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&aid=1180'
+            api_url = f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&aid=1988'
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=self.tiktok_api_headers, proxy=self.proxies, timeout=10) as response:
@@ -392,7 +392,7 @@ class Scraper:
                         else
                         {
                             "User-Agent": self.tiktok_api_headers["User-Agent"],
-                            "api_url": f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&aid=1180'
+                            "api_url": f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}&aid=1988'
                         },
                     'desc': data.get("desc"),
                     'create_time': data.get("create_time"),
