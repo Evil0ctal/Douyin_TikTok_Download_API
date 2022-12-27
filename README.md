@@ -246,7 +246,7 @@ https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
 
 > 使用脚本一键部署本项目
 
-- 使用wget命令下载[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh)至服务器
+- 使用wget命令下载[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)至服务器
 
 ```
 wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh
@@ -294,7 +294,6 @@ You can stop the api service by running: systemctl stop web_api.service
 > 开启/停止服务
 
 - web服务：`systemctl start/stop web_app.service`
-
 - api服务：`systemctl start/stop web_api.service`
 
 > 开启/关闭开机自动运行
@@ -304,9 +303,8 @@ You can stop the api service by running: systemctl stop web_api.service
 
 > 更新项目
 
-- `cd /www/wwwroot`
-
-- `git pull https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git`
+- `cd /www/wwwroot/Douyin_TikTok_Download_API/bash`
+- `sudo sh update.sh`
 
 ## 💽部署(方式二 Docker)
 
