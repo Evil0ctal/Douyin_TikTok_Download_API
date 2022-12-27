@@ -23,7 +23,7 @@ _Some simple application scenarios:_
 
 _Download prohibited videos for data analysis, download without watermark for iOS (with[iOS built-in shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with this project API to realize in-app download or read clipboard download), etc....._
 
-## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
+## 🖥Public site: I'm fragile...don't stress test (••᷄ࡇ•᷅ ）
 
 > **Tikhub-Opi:**support`Douyin|TikTok`Crawl the author's home page video data (remove watermark link, liked video list (permissions need to be public), video comment data, background music video list data, etc...), for details, please check TikHub- API documentation. In addition, TikHub-API is faster than this project's API when capturing TikTok data.
 
@@ -81,7 +81,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 -   Douyin (overseas version of Douyin: TikTok) video/picture analysis
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
--   Batch download of watermark-free videos from the analysis result page on the web page (removed in V3.X and later versions, please deploy V2.X version by yourself)
+-   Batch download of non-watermarked videos from the analysis result page on the web page (removed in V3.X and later versions, please deploy V2.X version by yourself)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
@@ -94,15 +94,15 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > 💡Suggestions or PRs are welcome to this repository ♪(･ω･)ﾉ)
 
--   [ ] Write an asynchronous downloader on the desktop to achieve local batch download
+-   [ ] Write an asynchronous downloader on the desktop to realize local batch download
 -   [ ] TikHub-API adds data crawling for hash_tag pages[#101](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues/101)
 -   [ ] Add support for other short video platforms, such as: Douyin Volcano, Kuaishou, Watermelon Video, Bilibili
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
-> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -276,7 +276,7 @@ You can stop the api service by running: systemctl stop web_api.service
 -   web service:`systemctl enable/disable web_app.service`
 -   api service:`systemctl enable/disable web_api.service`
 
-> update project
+> update item
 
 -   `cd /www/wwwroot`
 
@@ -353,7 +353,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star History
+## 📜 Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
