@@ -196,32 +196,22 @@ def about_popup_window():
 
 
 # 程序入口/Main interface
-@pywebio_config(theme='minty')
+@pywebio_config(theme='minty', title='Douyin/TikTok online parsing and download without watermark | TikTok/抖音无水印在线解析下载', description='在线批量解析TikTok/抖音视频和图片，支持无水印下载，官方数据接口，稳定，开源，免费，无广告。| Online batch parsing of TikTok/Douyin videos and pictures, support for no watermark download, official data interface, stable, open source, free, no ads.')
 async def main():
-    # 关键字信息
-    keywords = config['Web_APP']['Keywords']
-    # 网站描述
-    description = t(config['Web_APP']['Web_Description'], config['Web_APP']['Web_Description_English'])
-    # 网站标题/Website title
-    web_title = t(config['Web_APP']['Web_Title'], config['Web_APP']['Web_Title_English'])
     # 设置favicon
     favicon_url = "https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/logo/logo192.png"
-    # 添加<title>标签
-    session.run_js('document.title = "{}"'.format(web_title))
-    # 删除初始meta标签，包括title，description，keywords，favicon，以免与自定义的meta标签冲突。
+    # 删除初始keywords, icon meta标签
     session.run_js("""
     $('head meta[name="keywords"]').remove();
-    $('head meta[name="description"]').remove();
-    $('head meta[name="title"]').remove();
     $('head link[rel="icon"]').remove();
     """)
+    # 关键字信息
+    keywords = config['Web_APP']['Keywords']
     # 设置favicon,referrer,Keywords,Description,Author,Title
     session.run_js(f"""
         $('head').append('<link rel="icon" type="image/png" href="{favicon_url}">')
-        $('head').append('<meta name="title" content="{web_title}">')
         $('head').append('<meta name=referrer content=no-referrer>');
         $('head').append('<meta name="keywords" content="{keywords}">')
-        $('head').append('<meta name="description" content="{description}">')
         $('head').append('<meta name="author" content="Evil0ctal">')
         """)
     # 修改footer
