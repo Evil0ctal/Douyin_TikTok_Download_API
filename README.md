@@ -249,7 +249,7 @@ https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
 - 使用wget命令下载[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)至服务器
 
 ```
-wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh
+wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh
 ```
 
 - 下载完成后使用root权限执行
