@@ -25,7 +25,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## 🖥Public site: I'm fragile...don't stress test (••᷄ࡇ•᷅ ）
 
-> **Tikhub-Opi:**support`Douyin|TikTok`Crawl the author's home page video data (remove watermark link, liked video list (permissions need to be public), video comment data, background music video list data, etc...), for details, please check TikHub- API documentation. In addition, TikHub-API is faster than this project's API when capturing TikTok data.
+> **Tikhub-Opi:**support`Douyin|TikTok`Crawl the author's home page video data (remove watermark link, liked video list (permission must be public), video comment data, background music video list data, etc...), for details, please check TikHub- API documentation. In addition, TikHub-API is faster than this project's API when capturing TikTok data.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -81,7 +81,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 -   Douyin (overseas version of Douyin: TikTok) video/picture analysis
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
--   Batch download of videos without watermark on the analysis result page of the web page (removed in V3.X and later versions, please deploy V2.X version by yourself)
+-   Batch download of non-watermarked videos from the analysis result page on the web page (removed in V3.X and later versions, please deploy V2.X version by yourself)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easily and quickly import your projects
 -   [iOS shortcut command to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Realize in-app download without watermark video/photo gallery
@@ -225,7 +225,7 @@ My invite link:
 -   Download using wget command[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)to server
 
 
-    wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install.sh
+    wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh
 
 -   Execute with root privileges after the download is complete
 
@@ -315,9 +315,10 @@ docker rm -f douyin_tiktok_download_api
 docker compose pull && docker compose down && docker compose up -d
 ```
 
-## ❤️ Contributors
+## ❤️ 贡献者
 
-[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
+[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)
+[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
 ## 📸Screenshot
 
