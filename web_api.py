@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/22
-# @Version: 3.1.1
+# @Update: 2023/01/12
+# @Version: 3.1.2
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -566,11 +566,11 @@ async def download_file_hybrid(request: Request, url: str, prefix: bool = True, 
         if url_type == 'video':
             file_name = file_name_prefix + platform + '_' + aweme_id + '.mp4' if not watermark else file_name_prefix + platform + '_' + aweme_id + '_watermark' + '.mp4'
             url = data.get('video_data').get('nwm_video_url_HQ') if not watermark else data.get('video_data').get(
-                'wm_video_url')
+                'wm_video_url_HQ')
             print('url: ', url)
             file_path = root_path + "/" + file_name
             print('file_path: ', file_path)
-            # 判断文件是否存在，存在就直接返回、
+            # 判断文件是否存在，存在就直接返回
             if os.path.exists(file_path):
                 print('文件已存在，直接返回')
                 return FileResponse(path=file_path, media_type='video/mp4', filename=file_name)
