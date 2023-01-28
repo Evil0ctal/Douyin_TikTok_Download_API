@@ -246,16 +246,10 @@ https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
 
 > 使用脚本一键部署本项目
 
-- 使用wget命令下载[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)至服务器
+- 使用wget命令下载[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)至服务器并运行
 
 ```
-wget https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh
-```
-
-- 下载完成后使用root权限执行
-
-```
-sudo sh install.sh
+wget -O install.sh https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh && sudo bash install.sh
 ```
 
 - 运行Bash脚本后会自动使用[config.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.py)来帮助你修改[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)
