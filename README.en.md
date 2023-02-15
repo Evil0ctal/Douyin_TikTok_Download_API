@@ -17,7 +17,7 @@
 
 > 🚨If you need to use a private server to run this project, please refer to the deployment method\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)It is a data crawling tool, and realizes online batch analysis and download of video or atlas without watermark through the web terminal, data crawling API, iOS shortcut command without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc...
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)It is a data crawling tool, and realizes online batch analysis and download of video or atlas without watermark through the web terminal, data crawling API, iOS shortcut command without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip包](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc...
 
 _Some simple application scenarios:_
 
@@ -25,7 +25,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 ## 🖥Public site: I'm vulnerable...don't stress test (••᷄ࡇ•᷅ ）
 
-> **Tikhub-Opi:**support`Douyin|TikTok`Crawl the author's homepage \[homepage video data (remove the watermark link, the list of liked videos (permissions must be public), video comment data, background music video list data, etc...), for details, please refer to TikHub- API documentation. In addition, TikHub-API is faster than this project's API when capturing TikTok data.
+> **Tikhub-Opi:**support`Douyin|TikTok`Crawl the author's home page video data (remove watermark link, liked video list (permissions need to be public), video comment data, background music video list data, etc...), for details, please check TikHub- API documentation. In addition, TikHub-API is faster than this project's API when capturing TikTok data.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -62,7 +62,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 > **_web_app.py:_**
 
--   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the webpage (similar to the separation of front and back ends)
+-   for`web_api.py`as well as`scraper.py`A simple web program made to process the value entered in the web page and then use it`Scraper()`class processing and matching`web_api.py`The interface output is on the web page (similar to the separation of front and back ends)
 
 **_Most of the parameters of the above files can be found in[config. ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)make changes in_**
 
@@ -100,7 +100,7 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 * * *
 
-## 📦Calling the parsing library:
+## 📦Call the parsing library:
 
 > 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -212,7 +212,7 @@ online:<https://api.tikhub.io/docs>
 
 > 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange bugs may appear.
 
-recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because of free.
+recommend everyone to use[Digitalocean](https://www.digitalocean.com/)The server, mainly because it is free.
 
 Sign up with my invitation link, you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
 
@@ -270,7 +270,7 @@ You can stop the api service by running: systemctl stop web_api.service
 -   web service:`systemctl enable/disable web_app.service`
 -   api service:`systemctl enable/disable web_api.service`
 
-> update project
+> update item
 
 -   `cd /www/wwwroot/Douyin_TikTok_Download_API/bash`
 -   `sudo sh update.sh`
@@ -346,7 +346,7 @@ Web main interface:
 </details>
 <hr>
 
-## 📜 Star history
+## 📜 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
