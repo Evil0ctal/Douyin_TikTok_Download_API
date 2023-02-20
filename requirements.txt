@@ -10,7 +10,7 @@ fastapi==0.92.0
 frozenlist==1.3.3
 h11==0.14.0
 idna==3.4
-limits==3.2.0
+limits
 multidict==6.0.4
 orjson==3.8.6
 pydantic==1.10.5
