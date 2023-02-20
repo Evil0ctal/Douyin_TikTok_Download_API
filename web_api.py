@@ -3,7 +3,7 @@
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
 # @Update: 2023/02/19
-# @Version: 3.1.3
+# @Version: 3.1.5
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -212,7 +212,7 @@ async def api_logs(start_time, input_data, endpoint, error_data: dict = None):
 
 
 # Root端点
-@app.get("/", response_model=APIRoot, tags=["Root"])
+@app.get("/", response_class=ORJSONResponse, response_model=APIRoot, tags=["Root"])
 async def root():
     """
     Root path info.
@@ -235,7 +235,7 @@ async def root():
 
 # 混合解析端点,自动判断输入链接返回精简后的数据
 # Hybrid parsing endpoint, automatically determine the input link and return the simplified data.
-@app.get("/api", tags=["API"], response_model=API_Hybrid_Response)
+@app.get("/api", tags=["API"], response_class=ORJSONResponse, response_model=API_Hybrid_Response)
 @limiter.limit(Rate_Limit)
 async def hybrid_parsing(request: Request, url: str, minimal: bool = False):
     """
@@ -289,7 +289,7 @@ async def hybrid_parsing(request: Request, url: str, minimal: bool = False):
 
 
 # 获取抖音单个视频数据/Get Douyin single video data
-@app.get("/douyin_video_data/", response_model=API_Video_Response, tags=["Douyin"])
+@app.get("/douyin_video_data/", response_class=ORJSONResponse, response_model=API_Video_Response, tags=["Douyin"])
 @limiter.limit(Rate_Limit)
 async def get_douyin_video_data(request: Request, douyin_video_url: str = None, video_id: str = None):
     """
@@ -369,7 +369,7 @@ async def get_douyin_video_data(request: Request, douyin_video_url: str = None, 
             return ORJSONResponse(result)
 
 
-@app.get("/douyin_live_video_data/", response_model=API_Video_Response, tags=["Douyin"])
+@app.get("/douyin_live_video_data/", response_class=ORJSONResponse, response_model=API_Video_Response, tags=["Douyin"])
 @limiter.limit(Rate_Limit)
 async def get_douyin_live_video_data(request: Request, douyin_live_video_url: str = None, web_rid: str = None):
     """
@@ -430,6 +430,45 @@ async def get_douyin_live_video_data(request: Request, douyin_live_video_url: st
                 "aweme_list": []
             }
             return ORJSONResponse(result)
+
+
+@app.get("/douyin_profile_videos/", response_class=ORJSONResponse, response_model=None, tags=["Douyin"])
+async def get_douyin_user_profile_videos(tikhub_token: str, douyin_user_url: str = None):
+    """
+    ## 用途/Usage
+    - 获取抖音用户主页数据，参数是用户链接|ID
+    - Get the data of a Douyin user profile, the parameter is the user link or ID.
+    ## 参数/Parameter
+    tikhub_token: https://api.tikhub.io/#/Authorization/login_for_access_token_user_login_post
+    """
+    response = await api.get_douyin_user_profile_videos(tikhub_token=tikhub_token, profile_url=douyin_user_url)
+    return response
+
+
+@app.get("/douyin_profile_liked_videos/", response_class=ORJSONResponse, response_model=None, tags=["Douyin"])
+async def get_douyin_user_profile_liked_videos(tikhub_token: str, douyin_user_url: str = None):
+    """
+    ## 用途/Usage
+    - 获取抖音用户喜欢的视频数据，参数是用户链接|ID
+    - Get the data of a Douyin user profile liked videos, the parameter is the user link or ID.
+    ## 参数/Parameter
+    tikhub_token: https://api.tikhub.io/#/Authorization/login_for_access_token_user_login_post
+    """
+    response = await api.get_douyin_profile_liked_data(tikhub_token=tikhub_token, profile_url=douyin_user_url)
+    return response
+
+
+@app.get("/douyin_video_comments/", response_class=ORJSONResponse, response_model=None, tags=["Douyin"])
+async def get_douyin_video_comments(tikhub_token: str, douyin_video_url: str = None):
+    """
+    ## 用途/Usage
+    - 获取抖音视频评论数据，参数是视频链接|分享口令
+    - Get the data of a Douyin video comments, the parameter is the video link.
+    ## 参数/Parameter
+    tikhub_token: https://api.tikhub.io/#/Authorization/login_for_access_token_user_login_post
+    """
+    response = await api.get_douyin_video_comments(tikhub_token=tikhub_token, video_url=douyin_video_url)
+    return response
 
 
 """ ________________________⬇️TikTok视频解析端点(TikTok video parsing endpoint)⬇️________________________"""
@@ -508,6 +547,34 @@ async def get_tiktok_video_data(request: Request, tiktok_video_url: str = None, 
             "message": "视频链接错误/Video link error"
         }
         return ORJSONResponse(result)
+
+
+# 获取TikTok用户视频数据/Get TikTok user video data
+@app.get("/tiktok_profile_videos/", response_class=ORJSONResponse, response_model=None, tags=["TikTok"])
+async def get_tiktok_profile_videos(tikhub_token: str, tiktok_video_url: str = None):
+    """
+    ## 用途/Usage
+    - 获取抖音用户主页数据，参数是用户链接|ID
+    - Get the data of a Douyin user profile, the parameter is the user link or ID.
+    ## 参数/Parameter
+    tikhub_token: https://api.tikhub.io/#/Authorization/login_for_access_token_user_login_post
+    """
+    response = await api.get_tiktok_user_profile_videos(tikhub_token=tikhub_token, tiktok_video_url=tiktok_video_url)
+    return response
+
+
+# 获取TikTok用户主页点赞视频数据/Get TikTok user profile liked video data
+@app.get("/tiktok_profile_liked_videos/", response_class=ORJSONResponse, response_model=None, tags=["TikTok"])
+async def get_tiktok_profile_liked_videos(tikhub_token: str, tiktok_video_url: str = None):
+    """
+    ## 用途/Usage
+    - 获取抖音用户主页点赞视频数据，参数是用户链接|ID
+    - Get the data of a Douyin user profile liked video, the parameter is the user link or ID.
+    ## 参数/Parameter
+    tikhub_token: https://api.tikhub.io/#/Authorization/login_for_access_token_user_login_post
+    """
+    response = await api.get_tiktok_user_profile_liked_videos(tikhub_token=tikhub_token, tiktok_video_url=tiktok_video_url)
+    return response
 
 
 """ ________________________⬇️iOS快捷指令更新端点(iOS Shortcut update endpoint)⬇️________________________"""

@@ -12,6 +12,7 @@
 
 import re
 import os
+import time
 import aiohttp
 import platform
 import asyncio
@@ -280,6 +281,53 @@ class Scraper:
             # return None
             raise e
 
+    # 获取单个抖音视频数据/Get single Douyin video data
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
+    async def get_douyin_user_profile_videos(self, profile_url: str, tikhub_token: str) -> Union[dict, None]:
+            try:
+                api_url = f"https://api.tikhub.io/douyin_profile_videos/?douyin_profile_url={profile_url}&cursor=0&count=20"
+                _headers = {"Authorization": f"Bearer {tikhub_token}"}
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(api_url, headers=_headers, proxy=self.proxies, timeout=10) as response:
+                        response = await response.json()
+                        return response
+            except Exception as e:
+                print('获取抖音视频数据失败！原因:{}'.format(e))
+                # return None
+                raise e
+
+
+    # 获取抖音主页点赞视频数据/Get Douyin profile like video data
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
+    async def get_douyin_profile_liked_data(self, profile_url: str, tikhub_token: str) -> Union[dict, None]:
+        try:
+            api_url = f"https://api.tikhub.io/douyin_profile_liked_videos/?douyin_profile_url={profile_url}&cursor=0&count=20"
+            _headers = {"Authorization": f"Bearer {tikhub_token}"}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=_headers, proxy=self.proxies, timeout=10) as response:
+                    response = await response.json()
+                    return response
+        except Exception as e:
+            print('获取抖音视频数据失败！原因:{}'.format(e))
+            # return None
+            raise e
+
+    # 获取抖音视频评论数据/Get Douyin video comment data
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
+    async def get_douyin_video_comments(self, video_url: str, tikhub_token: str) -> Union[dict, None]:
+        try:
+            api_url = f"https://api.tikhub.io/douyin_video_comments/?douyin_video_url={video_url}&cursor=0&count=20"
+            _headers = {"Authorization": f"Bearer {tikhub_token}"}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=_headers, proxy=self.proxies, timeout=10) as response:
+                    response = await response.json()
+                    return response
+        except Exception as e:
+            print('获取抖音视频数据失败！原因:{}'.format(e))
+            # return None
+            raise e
+
+
     """__________________________________________⬇️TikTok methods(TikTok方法)⬇️______________________________________"""
 
     # 获取TikTok视频ID/Get TikTok video ID
@@ -326,6 +374,35 @@ class Scraper:
             print('获取视频信息失败！原因:{}'.format(e))
             # return None
             raise e
+
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
+    async def get_tiktok_user_profile_videos(self, tiktok_video_url: str, tikhub_token: str) -> Union[dict, None]:
+        try:
+            api_url = f"https://api.tikhub.io/tiktok_profile_videos/?tiktok_video_url={tiktok_video_url}&cursor=0&count=20"
+            _headers = {"Authorization": f"Bearer {tikhub_token}"}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=_headers, proxy=self.proxies, timeout=10) as response:
+                    response = await response.json()
+                    return response
+        except Exception as e:
+            print('获取抖音视频数据失败！原因:{}'.format(e))
+            # return None
+            raise e
+
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
+    async def get_tiktok_user_profile_liked_videos(self, tiktok_video_url: str, tikhub_token: str) -> Union[dict, None]:
+        try:
+            api_url = f"https://api.tikhub.io/tiktok_profile_liked_videos/?tiktok_video_url={tiktok_video_url}&cursor=0&count=20"
+            _headers = {"Authorization": f"Bearer {tikhub_token}"}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=_headers, proxy=self.proxies, timeout=10) as response:
+                    response = await response.json()
+                    return response
+        except Exception as e:
+            print('获取抖音视频数据失败！原因:{}'.format(e))
+            # return None
+            raise e
+
 
 
     """__________________________________________⬇️Hybrid methods(混合方法)⬇️______________________________________"""
