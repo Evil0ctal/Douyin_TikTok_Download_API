@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/01/12
-# @Version: 3.1.2
+# @Update: 2023/02/19
+# @Version: 3.1.3
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -41,8 +41,8 @@ Rate_Limit = config["Web_API"]["Rate_Limit"]
 
 # 创建FastAPI实例
 title = "Douyin TikTok Download/Scraper API-V1"
-version = '3.1.2'
-update_time = "2022/12/25"
+version = '3.1.3'
+update_time = "2023/02/19"
 description = """
 #### Description/说明
 <details>
@@ -372,6 +372,12 @@ async def get_douyin_video_data(request: Request, douyin_video_url: str = None, 
 @app.get("/douyin_live_video_data/", response_model=API_Video_Response, tags=["Douyin"])
 @limiter.limit(Rate_Limit)
 async def get_douyin_live_video_data(request: Request, douyin_live_video_url: str = None, web_rid: str = None):
+    """
+    ## 用途/Usage
+    - 获取抖音直播视频数据，参数是视频链接|分享口令
+    - Get the data of a Douyin live video, the parameter is the video link.
+    ## 失效待修复/Waiting for repair
+    """
     if web_rid is None or web_rid == '':
         # 获取视频ID
         web_rid = await api.get_douyin_video_id(douyin_live_video_url)

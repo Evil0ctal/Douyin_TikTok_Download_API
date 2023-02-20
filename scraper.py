@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2022/12/25
-# @Version: 3.1.9
+# @Update: 2023/02/19
+# @Version: 3.2.0
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -108,7 +108,7 @@ class Scraper:
             return None
 
     # 转换链接/convert url
-    @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
     async def convert_share_urls(self, url: str) -> Union[str, None]:
         """
         用于将分享链接(短链接)转换为原始链接/Convert share links (short links) to original links
@@ -151,7 +151,8 @@ class Scraper:
                 except Exception as e:
                     print('获取原始链接失败！')
                     print(e)
-                    return None
+                    # return None
+                    raise e
             else:
                 print('该链接为原始链接,无需转换,原始链接为: {}'.format(url))
                 return url
@@ -225,7 +226,7 @@ class Scraper:
             return None
 
     # 获取单个抖音视频数据/Get single Douyin video data
-    @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
     async def get_douyin_video_data(self, video_id: str) -> Union[dict, None]:
         """
         :param video_id: str - 抖音视频id
@@ -252,10 +253,12 @@ class Scraper:
                     return video_data
         except Exception as e:
             print('获取抖音视频数据失败！原因:{}'.format(e))
-            return None
+            # return None
+            raise e
+
 
     # 获取单个抖音直播视频数据/Get single Douyin Live video data
-    @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
     async def get_douyin_live_video_data(self, web_rid: str) -> Union[dict, None]:
         print('正在获取抖音视频数据...')
         try:
@@ -274,7 +277,8 @@ class Scraper:
                     return video_data
         except Exception as e:
             print('获取抖音视频数据失败！原因:{}'.format(e))
-            return None
+            # return None
+            raise e
 
     """__________________________________________⬇️TikTok methods(TikTok方法)⬇️______________________________________"""
 
@@ -300,7 +304,7 @@ class Scraper:
             print('获取TikTok视频ID出错了:{}'.format(e))
             return None
 
-    @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=2))
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
     async def get_tiktok_video_data(self, video_id: str) -> Union[dict, None]:
         """
         获取单个视频信息
@@ -320,7 +324,9 @@ class Scraper:
                     return video_data
         except Exception as e:
             print('获取视频信息失败！原因:{}'.format(e))
-            return None
+            # return None
+            raise e
+
 
     """__________________________________________⬇️Hybrid methods(混合方法)⬇️______________________________________"""
 
@@ -525,24 +531,24 @@ class Scraper:
 """__________________________________________⬇️Test methods(测试方法)⬇️______________________________________"""
 
 
-async def async_test(douyin_url: str = None, tiktok_url: str = None) -> None:
+async def async_test(_douyin_url: str = None, _tiktok_url: str = None) -> None:
     # 异步测试/Async test
     start_time = time.time()
     print("正在进行异步测试...")
 
     print("正在测试异步获取抖音视频ID方法...")
-    douyin_id = await api.get_douyin_video_id(douyin_url)
+    douyin_id = await api.get_douyin_video_id(_douyin_url)
     print("正在测试异步获取抖音视频数据方法...")
     douyin_data = await api.get_douyin_video_data(douyin_id)
 
     print("正在测试异步获取TikTok视频ID方法...")
-    tiktok_id = await api.get_tiktok_video_id(tiktok_url)
+    tiktok_id = await api.get_tiktok_video_id(_tiktok_url)
     print("正在测试异步获取TikTok视频数据方法...")
     tiktok_data = await api.get_tiktok_video_data(tiktok_id)
 
     print("正在测试异步混合解析方法...")
-    douyin_hybrid_data = await api.hybrid_parsing(douyin_url)
-    tiktok_hybrid_data = await api.hybrid_parsing(tiktok_url)
+    douyin_hybrid_data = await api.hybrid_parsing(_douyin_url)
+    tiktok_hybrid_data = await api.hybrid_parsing(_tiktok_url)
 
     # 总耗时/Total time
     total_time = round(time.time() - start_time, 2)
@@ -554,4 +560,4 @@ if __name__ == '__main__':
     # 运行测试
     douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
     tiktok_url = 'https://vt.tiktok.com/ZSRwWXtdr/'
-    asyncio.run(async_test(douyin_url=douyin_url, tiktok_url=tiktok_url))
+    asyncio.run(async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url))
