@@ -285,11 +285,11 @@ You can stop the api service by running: systemctl stop web_api.service
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
--   Just leave the config.int and docker-compose.yml files
+-   Just leave the config.ini and docker-compose.yml files
 -   Run the command to let the container run in the background
 
 ```yaml
-docker compose up -d
+docker-compose up -d
 ```
 
 -   View container logs
@@ -307,7 +307,7 @@ docker rm -f douyin_tiktok_download_api
 -   renew
 
 ```yaml
-docker compose pull && docker compose down && docker compose up -d
+docker-compose pull && docker-compose down && docker-compose up -d
 ```
 
 ## ❤️ Contributors
