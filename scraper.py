@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/02/19
-# @Version: 3.2.0
+# @Update: 2023/03/06
+# @Version: 3.3.0
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
@@ -13,6 +13,8 @@
 import re
 import os
 import time
+import urllib.parse
+
 import aiohttp
 import platform
 import asyncio
@@ -20,6 +22,8 @@ import traceback
 import configparser
 
 from typing import Union
+
+import execjs
 from tenacity import *
 
 
@@ -63,6 +67,8 @@ class Scraper:
             'User-Agent': "Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66"
         }
         self.douyin_cookies = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+            "Referer": "https://www.douyin.com/",
             'Cookie': 'msToken=tsQyL2_m4XgtIij2GZfyu8XNXBfTGELdreF1jeIJTyktxMqf5MMIna8m1bv7zYz4pGLinNP2TvISbrzvFubLR8khwmAVLfImoWo3Ecnl_956MgOK9kOBdwM=; odin_tt=6db0a7d68fd2147ddaf4db0b911551e472d698d7b84a64a24cf07c49bdc5594b2fb7a42fd125332977218dd517a36ec3c658f84cebc6f806032eff34b36909607d5452f0f9d898810c369cd75fd5fb15; ttwid=1%7CfhiqLOzu_UksmD8_muF_TNvFyV909d0cw8CSRsmnbr0%7C1662368529%7C048a4e969ec3570e84a5faa3518aa7e16332cfc7fbcb789780135d33a34d94d2'
         }
         self.tiktok_api_headers = {
@@ -188,6 +194,22 @@ class Scraper:
 
     """__________________________________________⬇️Douyin methods(抖音方法)⬇️______________________________________"""
 
+    # 生成抖音X-Bogus签名/Generate Douyin X-Bogus signature
+    # 暂时不可用，欢迎PR/Temporarily unavailable, welcome PR
+    def generate_x_bogus(self, url: str) -> str:
+        """
+        生成抖音X-Bogus签名
+        :param url: 视频链接参数
+        :return: X-Bogus签名
+        """
+        # 调用JavaScript函数
+        query = urllib.parse.urlparse(url).query
+        xbogus = execjs.compile(open('./X-Bogus.js').read()).call('sign', query, self.douyin_cookies)
+        print('生成的X-Bogus签名为: {}'.format(xbogus))
+        new_url = url + "&X-Bogus=" + xbogus
+        print(new_url)
+        return new_url
+
     # 获取抖音视频ID/Get Douyin video ID
     async def get_douyin_video_id(self, original_url: str) -> Union[str, None]:
         """
@@ -239,16 +261,20 @@ class Scraper:
             """
             旧API已失效(2022年12月21日)，请大家且用且珍惜。
             api_url = f"https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids={video_id}"
-            """
+            
             # 从安卓apk中提取到的新API，目前可用，支持视频，图集，笔记的解析(2022年12月25日)
             api_url = f"https://www.iesdouyin.com/aweme/v1/web/aweme/detail/?aweme_id={video_id}&aid=1128&version_name=23.5.0&device_platform=android&os_version=2333&Github=Evil0ctal&words=FXXK_U_ByteDance"
+            """
+
+            # 先暂时使用这个API，后续会开源web端的API，我有可能会很忙来不及更新，欢迎大家PR(2023年3月6日)
+            api_url = f"https://api.tikhub.io/douyin_video_data/?video_id={video_id}"
             # 访问API/Access API
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=self.headers, proxy=self.proxies, timeout=10) as response:
                     response = await response.json()
                     # 获取视频数据/Get video data
-                    video_data = response['aweme_detail']
+                    video_data = response['aweme_list'][0]
                     print('获取视频数据成功！')
                     # print("抖音API返回数据: {}".format(video_data))
                     return video_data
@@ -256,7 +282,6 @@ class Scraper:
             print('获取抖音视频数据失败！原因:{}'.format(e))
             # return None
             raise e
-
 
     # 获取单个抖音直播视频数据/Get single Douyin Live video data
     @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
@@ -268,7 +293,8 @@ class Scraper:
             # 访问API/Access API
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers=self.douyin_cookies, proxy=self.proxies, timeout=10) as response:
+                async with session.get(api_url, headers=self.douyin_cookies, proxy=self.proxies,
+                                       timeout=10) as response:
                     response = await response.json()
                     # 获取视频数据/Get video data
                     video_data = response['data']
@@ -284,18 +310,17 @@ class Scraper:
     # 获取单个抖音视频数据/Get single Douyin video data
     @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
     async def get_douyin_user_profile_videos(self, profile_url: str, tikhub_token: str) -> Union[dict, None]:
-            try:
-                api_url = f"https://api.tikhub.io/douyin_profile_videos/?douyin_profile_url={profile_url}&cursor=0&count=20"
-                _headers = {"Authorization": f"Bearer {tikhub_token}"}
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(api_url, headers=_headers, proxy=self.proxies, timeout=10) as response:
-                        response = await response.json()
-                        return response
-            except Exception as e:
-                print('获取抖音视频数据失败！原因:{}'.format(e))
-                # return None
-                raise e
-
+        try:
+            api_url = f"https://api.tikhub.io/douyin_profile_videos/?douyin_profile_url={profile_url}&cursor=0&count=20"
+            _headers = {"Authorization": f"Bearer {tikhub_token}"}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, headers=_headers, proxy=self.proxies, timeout=10) as response:
+                    response = await response.json()
+                    return response
+        except Exception as e:
+            print('获取抖音视频数据失败！原因:{}'.format(e))
+            # return None
+            raise e
 
     # 获取抖音主页点赞视频数据/Get Douyin profile like video data
     @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
@@ -326,7 +351,6 @@ class Scraper:
             print('获取抖音视频数据失败！原因:{}'.format(e))
             # return None
             raise e
-
 
     """__________________________________________⬇️TikTok methods(TikTok方法)⬇️______________________________________"""
 
@@ -365,7 +389,8 @@ class Scraper:
             api_url = f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}'
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers=self.tiktok_api_headers, proxy=self.proxies, timeout=10) as response:
+                async with session.get(api_url, headers=self.tiktok_api_headers, proxy=self.proxies,
+                                       timeout=10) as response:
                     response = await response.json()
                     video_data = response['aweme_list'][0]
                     print('获取视频信息成功！')
@@ -402,8 +427,6 @@ class Scraper:
             print('获取抖音视频数据失败！原因:{}'.format(e))
             # return None
             raise e
-
-
 
     """__________________________________________⬇️Hybrid methods(混合方法)⬇️______________________________________"""
 
@@ -635,6 +658,8 @@ async def async_test(_douyin_url: str = None, _tiktok_url: str = None) -> None:
 if __name__ == '__main__':
     api = Scraper()
     # 运行测试
-    douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
-    tiktok_url = 'https://vt.tiktok.com/ZSRwWXtdr/'
-    asyncio.run(async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url))
+    params = "device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id=7153585499477757192&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1344&screen_height=756&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_version=110.0&browser_online=true&engine_name=Gecko&engine_version=109.0&os_name=Windows&os_version=10&cpu_core_num=16&device_memory=&platform=PC&webid=7158288523463362079"
+    api.generate_x_bogus(params)
+    # douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
+    # tiktok_url = 'https://vt.tiktok.com/ZSRwWXtdr/'
+    # asyncio.run(async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url))
