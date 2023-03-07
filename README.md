@@ -332,7 +332,7 @@ docker rm -f douyin_tiktok_download_api
 - 更新
 
 ```yaml
-docker-compose pull && docker compose down && docker compose up -d
+docker-compose pull && docker-compose down && docker-compose up -d
 ```
 
 ## ❤️ 贡献者
