@@ -310,11 +310,11 @@ You can stop the api service by running: systemctl stop web_api.service
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
 ```
 
-- 留下config.int和docker-compose.yml文件即可
+- 留下config.ini和docker-compose.yml文件即可
 - 运行命令,让容器在后台运行
 
 ```yaml
-docker compose up -d
+docker-compose up -d
 ```
 
 - 查看容器日志
@@ -332,7 +332,7 @@ docker rm -f douyin_tiktok_download_api
 - 更新
 
 ```yaml
-docker compose pull && docker compose down && docker compose up -d
+docker-compose pull && docker compose down && docker compose up -d
 ```
 
 ## ❤️ 贡献者
