@@ -12,6 +12,10 @@ echo 'installing  PIP3...'
 
 apt install python3-pip
 
+echo 'installing  NodeJS...'
+
+apt install nodejs
+
 echo 'Creating path: /www/wwwroot'
 
 mkdir -p /www/wwwroot
