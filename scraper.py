@@ -2,27 +2,26 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/03/06
+# @Update: 2023/03/08
 # @Version: 3.3.0
 # @Function:
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok数据并以字典形式返回。
 # input link, output dictionary.
-import random
+
+
 import re
 import os
 import time
-import urllib.parse
-
+import execjs
 import aiohttp
 import platform
 import asyncio
 import traceback
 import configparser
+import urllib.parse
 
 from typing import Union
-
-import execjs
 from tenacity import *
 
 
@@ -264,15 +263,12 @@ class Scraper:
 
     # 获取单个抖音视频数据/Get single Douyin video data
     @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
-    async def get_douyin_video_data(self, video_id: str, s_v_web_id: str = None) -> Union[dict, None]:
+    async def get_douyin_video_data(self, video_id: str) -> Union[dict, None]:
         """
         :param video_id: str - 抖音视频id
-        :param s_v_web_id: str - Example: "s_v_web_id=verify_leytkxgn_kvO5kOmO_SdMs_4t1o_B5ml_BUqtWM1mP6BF; "
         :return:dict - 包含信息的字典
         """
         print('正在获取抖音视频数据...')
-        if s_v_web_id:
-            self.douyin_api_headers['cookie'] = s_v_web_id
         try:
             # 构造访问链接/Construct the access link
             api_url = f"https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id={video_id}&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1344&screen_height=756&browser_language=zh-CN&browser_platform=Win32&browser_name=Evil0ctal&browser_version=110.0&browser_online=true&engine_name=Gecko&engine_version=109.0&os_name=Windows&os_version=10&cpu_core_num=128&device_memory=2333&platform=PC&webid=7158288523463362079"

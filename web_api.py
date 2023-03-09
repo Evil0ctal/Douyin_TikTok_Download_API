@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/02/19
+# @Update: 2023/03/08
 # @Version: 3.1.5
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
@@ -12,7 +12,6 @@
 import os
 import time
 import json
-
 import aiohttp
 import uvicorn
 import zipfile
@@ -291,7 +290,7 @@ async def hybrid_parsing(request: Request, url: str, minimal: bool = False):
 # 获取抖音单个视频数据/Get Douyin single video data
 @app.get("/douyin_video_data/", response_class=ORJSONResponse, response_model=API_Video_Response, tags=["Douyin"])
 @limiter.limit(Rate_Limit)
-async def get_douyin_video_data(request: Request, douyin_video_url: str = None, video_id: str = None, s_v_web_id: str = None):
+async def get_douyin_video_data(request: Request, douyin_video_url: str = None, video_id: str = None):
     """
     ## 用途/Usage
     - 获取抖音用户单个视频数据，参数是视频链接|分享口令
@@ -335,7 +334,7 @@ async def get_douyin_video_data(request: Request, douyin_video_url: str = None, 
         start_time = time.time()
         print('获取到的video_id数据:{}'.format(video_id))
         if video_id is not None:
-            video_data = await api.get_douyin_video_data(video_id=video_id, s_v_web_id=s_v_web_id)
+            video_data = await api.get_douyin_video_data(video_id=video_id)
             if video_data is None:
                 result = {
                     "status": "failed",
