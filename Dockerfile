@@ -5,6 +5,7 @@ MAINTAINER evil0ctal (https://hub.docker.com/repository/docker/evil0ctal/douyin_
 RUN apt-get update
 RUN apt-get -y install gcc
 RUN apt-get -y install nodejs
+RUN apt-get -y install npm
 RUN npm install -y md5
 COPY . /app
 RUN pip3 --no-cache-dir install --user -r /app/requirements.txt
