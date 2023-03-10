@@ -1,17 +1,18 @@
-# Credits
-# https://github.com/jw-star
-FROM python:3.10.5-slim-buster
-MAINTAINER evil0ctal (https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api/general)
-RUN apt-get update
-RUN apt-get -y install gcc
-RUN apt-get -y install nodejs
-RUN apt-get -y install npm
-RUN npm install -y md5
-COPY . /app
-RUN pip3 --no-cache-dir install --user -r /app/requirements.txt
-WORKDIR /app
-# -u print打印出来
+FROM ubuntu:jammy
+MAINTAINER jwstar
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN chmod +x start.sh
+RUN  apt-get -y update  \
+    && apt-get install -y --no-install-recommends \
+     python3.11 python3-pip python3.11-dev nodejs
+
+COPY . /app
+WORKDIR /app
+RUN pip3 --no-cache-dir install --user -r /app/requirements.txt
+
+
+RUN chmod +x start.sh && \
+    apt-get autoremove -y \
+    && apt-get remove -y python3-pip
 
 CMD ["./start.sh"]
