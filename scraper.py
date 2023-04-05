@@ -62,7 +62,7 @@ class Scraper:
     # 初始化/initialization
     def __init__(self):
         self.headers = {
-            'User-Agent': "Mozilla/5.0 (Linux; Android 8.0; Pixel 2 Build/OPD3.170816.012) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Mobile Safari/537.36 Edg/87.0.664.66"
+            'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
         }
         self.douyin_api_headers = {
             'accept-encoding': 'gzip, deflate, br',
