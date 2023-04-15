@@ -35,6 +35,8 @@ _Download prohibited videos for data analysis, download without watermark for iO
 
 💾iOS Shortcut:[Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
 
+🎉Chrome Plugin [README](./tools/README.md)
+
 📦️Desktop downloader (recommended by warehouse):
 
 -   [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
