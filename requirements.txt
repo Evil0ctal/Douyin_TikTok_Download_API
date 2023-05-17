@@ -22,7 +22,7 @@ pywebio==1.7.1
 six==1.16.0
 slowapi==0.1.7
 sniffio==1.3.0
-starlette==0.25.0
+starlette==0.27.0
 tenacity==8.2.1
 tornado==6.2
 typing_extensions==4.5.0
