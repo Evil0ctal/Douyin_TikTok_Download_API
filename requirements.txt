@@ -31,3 +31,4 @@ user-agents==2.2.0
 uvicorn==0.20.0
 wrapt==1.15.0
 yarl==1.8.2
+flask==2.2.2
