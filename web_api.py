@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/03/08
+# @Update: 2023/06/27
 # @Version: 3.1.5
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
