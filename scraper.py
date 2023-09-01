@@ -112,6 +112,15 @@ class Scraper:
         except Exception as e:
             print('Error in get_url:', e)
             return None
+        
+    @staticmethod
+    def relpath(file):   
+         """ Always locate to the correct relative path. """    
+         from sys import _getframe    
+         from pathlib import Path    
+         frame = _getframe(1)    
+         curr_file = Path(frame.f_code.co_filename)    
+         return str(curr_file.parent.joinpath(file).resolve())
 
     # 转换链接/convert url
     @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
@@ -218,7 +227,7 @@ class Scraper:
         """
         # 调用JavaScript函数
         query = urllib.parse.urlparse(url).query
-        xbogus = execjs.compile(open('./X-Bogus.js').read()).call('sign', query, self.headers['User-Agent'])
+        xbogus = execjs.compile(open(self.relpath('./X-Bogus.js')).read()).call('sign', query, self.headers['User-Agent'])
         print('生成的X-Bogus签名为: {}'.format(xbogus))
         new_url = url + "&X-Bogus=" + xbogus
         return new_url
