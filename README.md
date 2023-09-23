@@ -7,7 +7,7 @@
 
 [English](./README.en.md) | [简体中文](./README.md)
 
-🚀「Douyin_TikTok_Download_API」是一个开箱即用的高性能异步[抖音](https://www.douyin.com)|[TikTok](https://www.tiktok.com)数据爬取工具，支持API调用，在线批量解析及下载。
+🚀「Douyin_TikTok_Download_API」是一个开箱即用的高性能异步[抖音](https://www.douyin.com)|[TikTok](https://www.tiktok.com)|[Bilibili](https://www.bilibili.com)数据爬取工具，支持API调用，在线批量解析及下载。
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
@@ -101,6 +101,7 @@
 ## ✨功能：
 
 - 抖音（抖音海外版: TikTok）视频/图片解析
+- Bilibili视频解析
 - 网页端批量解析(支持抖音/TikTok混合提交)
 - 网页端解析结果页批量下载无水印视频(V3.X以上版本移除，请自行部署V2.X版本)
 - API调用获取链接数据
@@ -139,12 +140,18 @@ async def hybrid_parsing(url: str) -> dict:
     print(f"The hybrid parsing result:\n {result}")
     return result
 
-asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok share URL here: ")))
+asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL here: ")))
 ```
 
 ## 🗺️支持的提交格式：
 
 > 💡提示：包含但不仅限于以下例子，如果遇到链接解析失败请开启一个新 [issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+
+- Bilibili视频链接
+
+```text
+https://www.bilibili.com/video/BV1Th411x7ii/
+```
 
 - 抖音分享口令  (APP内复制)
 
