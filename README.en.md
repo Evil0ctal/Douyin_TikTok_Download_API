@@ -81,6 +81,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 -   Douyin (overseas version of Douyin: TikTok) video/picture analysis
 -   Bilibili video analysis
+-   Xigua video analysis
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
 -   Batch download of non-watermarked videos from the web parsing result page (removed for V3.X and above versions, please deploy V2.X version by yourself)
 -   API call to get link data
@@ -125,6 +126,13 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 ## 🗺️Supported submission formats:
 
 > 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+
+-   Xigua video link
+
+```text
+https://www.ixigua.com/7270448082586698281/
+https://m.ixigua.com/video/7274710134306112054/
+```
 
 -   Bilibili video link
 
