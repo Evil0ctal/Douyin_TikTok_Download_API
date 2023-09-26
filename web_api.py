@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/06/27
-# @Version: 3.1.5
+# @Update: 2023/09/25
+# @Version: 3.1.8
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
 # 将scraper.py返回的内容以JSON格式返回。
@@ -40,8 +40,8 @@ Rate_Limit = config["Web_API"]["Rate_Limit"]
 
 # 创建FastAPI实例
 title = "Douyin TikTok Download/Scraper API-V1"
-version = '3.1.3'
-update_time = "2023/02/19"
+version = '3.1.8'
+update_time = "2023/09/25"
 description = """
 #### Description/说明
 <details>

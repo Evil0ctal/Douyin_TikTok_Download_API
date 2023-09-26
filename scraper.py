@@ -2,8 +2,8 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/09/22
-# @Version: 3.4.0
+# @Update: 2023/09/25
+# @Version: 3.1.8
 # @Note:
 # Core code, valued at 1 bucks (๑•̀ㅂ•́)و✧
 # For scraping Douyin/TikTok/Bilibili data and returning it in dictionary form.
@@ -12,12 +12,13 @@
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok/Bilibili的数据并以字典形式返回。
 # 如果本项目对您有帮助，请给我一个star，谢谢！
-
+import random
 import re
 import os
 import time
 import execjs
 import aiohttp
+import httpx
 import platform
 import asyncio
 import traceback
@@ -40,6 +41,7 @@ class Scraper:
             'accept-encoding': 'gzip, deflate, br',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
             'referer': 'https://www.douyin.com/',
+            'cookie': 'ttwid=1%7C0YBAnAwiC5T3U5yJi8RVXEK3DOwF_2vpJ7kVJJZe8HU%7C1694528301%7Ca9d2d8a4164959a0d7a1f92fe29d37bb779753092ad24d4705a9543707327d49; __live_version__=%221.1.1.3713%22; odin_tt=7cc03fc9dcb682088842ab4494c2862765db476b30ae42ab083e10e8ceb34b88290d1360d16f7c499bac5925e6670a8df72a742a1ebee72ae6ba12fcea622efa; pwa2=%223%7C0%7C0%7C0%22; bd_ticket_guard_client_data=eyJiZC10aWNrZXQtZ3VhcmQtdmVyc2lvbiI6MiwiYmQtdGlja2V0LWd1YXJkLWl0ZXJhdGlvbi12ZXJzaW9uIjoxLCJiZC10aWNrZXQtZ3VhcmQtcmVlLXB1YmxpYy1rZXkiOiJCRXhuWUdqREVBa3ErdjRsT2l3anRIWi9HU2hRNXFseWdJMklLanIxM0orRHozYnA0M2pXc3M3N25CUzdnbE5tTXhHbWU3cldoSE9pdkJvVmNnT2JiWFU9IiwiYmQtdGlja2V0LWd1YXJkLXdlYi12ZXJzaW9uIjoxfQ==; n_mh=13KNPUKNEzoW3A4J-OLRxfal2zj1GbF-vJUFPs3WSIY; LOGIN_STATUS=0; store-region=us; store-region-src=uid; d_ticket=28acd5a9c6df4227b13582669694acded6ede; my_rd=1; MONITOR_WEB_ID=cf748a1e-9532-4d89-a1fc-13a5729f0942; publish_badge_show_info=%220%2C0%2C0%2C1695295934872%22; IsDouyinActive=true; home_can_add_dy_2_desktop=%220%22; strategyABtestKey=%221695695809.268%22; stream_recommend_feed_params=%22%7B%5C%22cookie_enabled%5C%22%3Atrue%2C%5C%22screen_width%5C%22%3A1344%2C%5C%22screen_height%5C%22%3A756%2C%5C%22browser_online%5C%22%3Atrue%2C%5C%22cpu_core_num%5C%22%3A16%2C%5C%22device_memory%5C%22%3A0%2C%5C%22downlink%5C%22%3A%5C%22%5C%22%2C%5C%22effective_type%5C%22%3A%5C%22%5C%22%2C%5C%22round_trip_time%5C%22%3A0%7D%22; VIDEO_FILTER_MEMO_SELECT=%7B%22expireTime%22%3A1695983681533%2C%22type%22%3A1%7D; volume_info=%7B%22isUserMute%22%3Afalse%2C%22isMute%22%3Atrue%2C%22volume%22%3A1%7D; passport_csrf_token=56f6961b57a8d08feb7db46160908a87; passport_csrf_token_default=56f6961b57a8d08feb7db46160908a87; s_v_web_id=verify_lmt3fhsw_K7nE3bgs_zkNT_4N3S_BeK7_5x7F8Bgu5fVy; FORCE_LOGIN=%7B%22videoConsumedRemainSeconds%22%3A180%7D; msToken=Z9-0y9elP0-Obz51QCWE2WH-JrZ-IHKgyHX6i0Fc7cNUBXQJFSIZjxemEKqgmm4EIxPVWfNPglnGQgzvANzOcW6OA3yzYv1W-plCkw-nP-OkNH00Ion2FohnZl4ySAc=; download_guide=%223%2F20230921%2F0%22; _bd_ticket_crypt_doamin=3; _bd_ticket_crypt_cookie=ddccf5fec8be44d560eb069c2f0bad6b; __security_server_data_status=1; SEARCH_RESULT_LIST_TYPE=%22single%22; xgplayer_user_id=362991673413; _tea_utm_cache_1243=undefined; douyin.com; device_web_cpu_core=16; device_web_memory_size=-1; architecture=amd64; webcast_local_quality=null; __ac_signature=_02B4Z6wo00f01OAvurgAAIDB.GwEB.TxAPDgH74AAF0f4YxOQt1lX7G.X.ym1.H9RXZ8GhgAMPpgMgVFfuGyJ0gwPNH6P21IVw3QQGVundxhs6atZTMMJQnum-pZ5gI-Y7bQVafwXlkIAKs699; tt_scid=WnohADMH48aNQjUPGqPJwRi3J2t3ShdUWylw0d7vHKM4J.wh4sR44Ccd5u5mIH7b7edc; msToken=tQwydd12h5Kq3jUn-FGOBneTMH8TjMOhkj5uQy1kcOogPeYFej3w8_sfGhxOLfRH_VJ1Tg8NDSCNfwch9EZNxHqIg5kgJhdAxtqNMtT8NRV1T_T76MmB3fcaOGNVz0g='
         }
         self.tiktok_api_headers = {
             'User-Agent': 'com.ss.android.ugc.trill/494+Mozilla/5.0+(Linux;+Android+12;+2112123G+Build/SKQ1.211006.001;+wv)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Version/4.0+Chrome/107.0.5304.105+Mobile+Safari/537.36'
