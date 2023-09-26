@@ -64,7 +64,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 -   for`web_api.py`as well as`scraper.py`A simple web program created to process the values ​​entered on the web page and use them`Scraper()`Class processing and cooperation`web_api.py`The interface output is on the web page (similar to front-end and back-end separation)
 
-**_Most of the parameters of the above files can be found in[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)Make changes in_**
+**_Most of the parameters of the above files can be found in[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)Modify in_**
 
 ## 💡Project file structure
 
@@ -104,7 +104,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 ## 📦Call the parsing library:
 
-> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -125,7 +125,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Watermelon video link
 
@@ -225,7 +225,7 @@ Online:<https://api.tikhub.io/docs>
 
 ## 💻Deployment (Method 1 Linux)
 
-> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
+> 💡Tip: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
 
 Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)servers, mainly because they are free.
 
@@ -325,7 +325,7 @@ docker rm -f douyin_tiktok_download_api
 docker-compose pull && docker-compose down && docker-compose up -d
 ```
 
-## ❤️ Contributor
+## ❤️Contributor
 
 [![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
