@@ -488,7 +488,7 @@ class Scraper:
         s = crc32(url_part.encode())
         json_url = "https://ib.365yg.com{}&s={}&nobase64=true".format(url_part, s)
         return json_url
-    # 获取西瓜视频ID/Get xigua video ID
+    # 获取西瓜视频ID/Get xigua video ID cspr
     async def get_ixigua_video_id(self, original_url: str) -> Union[str, None]:
         """
         获取视频id
