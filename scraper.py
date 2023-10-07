@@ -25,6 +25,7 @@ import traceback
 import configparser
 import urllib.parse
 import random
+import json
 
 from zlib import crc32
 from typing import Union
@@ -52,20 +53,37 @@ class Scraper:
             'User-Agent': 'com.ss.android.ugc.trill/494+Mozilla/5.0+(Linux;+Android+12;+2112123G+Build/SKQ1.211006.001;+wv)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Version/4.0+Chrome/107.0.5304.105+Mobile+Safari/537.36'
         }
         self.ixigua_api_headers = {
-                    'authority': 'ib.365yg.com',
-                    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                    'accept-language': 'zh-CN,zh;q=0.9',
-                    'cache-control': 'no-cache',
-                    'pragma': 'no-cache',
-                    'sec-ch-ua': '"Chromium";v="116", "Not)A;Brand";v="24", "Google Chrome";v="116"',
-                    'sec-ch-ua-mobile': '?0',
-                    'sec-ch-ua-platform': '"macOS"',
-                    'sec-fetch-dest': 'document',
-                    'sec-fetch-mode': 'navigate',
-                    'sec-fetch-site': 'none',
-                    'sec-fetch-user': '?1',
-                    'upgrade-insecure-requests': '1',
-                    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
+            'authority': 'ib.365yg.com',
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'accept-language': 'zh-CN,zh;q=0.9',
+            'cache-control': 'no-cache',
+            'pragma': 'no-cache',
+            'sec-ch-ua': '"Chromium";v="116", "Not)A;Brand";v="24", "Google Chrome";v="116"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'none',
+            'sec-fetch-user': '?1',
+            'upgrade-insecure-requests': '1',
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36'
+        }
+        self.kuaishou_api_headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Cookie': 'kpf=PC_WEB; clientid=3; did=web_c5627223fe1e796669894e6cb74f1461; _ga=GA1.1.1139357938.1696318390; didv=1696329758000; _ga_0P9YPW1GQ3=GS1.1.1696659232.14.0.1696659232.0.0.0; kpn=KUAISHOU_VISION',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+            'sec-ch-ua': '"Google Chrome";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"',
         }
         # 判断配置文件是否存在/Check if the configuration file exists
         if os.path.exists('config.ini'):
@@ -246,11 +264,44 @@ class Scraper:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(url, headers=self.ixigua_api_headers, proxy=self.proxies, allow_redirects=False,
                                                timeout=10) as response:
-                            print("asdfasdf",response.headers)
                             if response.status == 302:
                                 url = response.headers['Location'].split('?')[0] if '?' in response.headers[
                                     'Location'] else \
                                     response.headers['Location']
+                                print('获取原始链接成功, 原始链接为: {}'.format(url))
+                                return url
+                except Exception as e:
+                    print('获取原始链接失败！')
+                    print(e)
+                    # return None
+                    raise e
+            else:
+                print('该链接为原始链接,无需转换,原始链接为: {}'.format(url))
+                return url
+        # elif 'kuaishou.com' in url or 'v.kuaishou.com':
+        elif 'kuaishou.com' in url:
+            """
+            快手视频链接类型(不全)：
+            1. https://www.kuaishou.com/short-video/3xiqjrezhqjyzxw
+            2. https://v.kuaishou.com/75kDOJ 
+            快手用户链接类型(不全)：
+            1. https://www.kuaishou.com/profile/3xvgbyksme9f2p6
+            快手直播链接类型(不全)：
+            1.https://live.kuaishou.com/u/3xv5uz3ui6iga5w
+            2.https://v.kuaishou.com/5Ch22V
+            """
+            if 'v.kuaishou.com' in url:
+                print('正在通过快手分享链接获取原始链接...')
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url, headers=self.kuaishou_api_headers, proxy=self.proxies, allow_redirects=False,
+                                               timeout=10) as response:
+                            if response.status == 302:
+                                url = response.headers['Location'].split('?')[0] if '?' in response.headers[
+                                    'Location'] else \
+                                    response.headers['Location']
+                                # https://v.m.chenzhongtech.com/fw/photo/3xburnkmj3auazc # 视频
+                                # https://v.m.chenzhongtech.com/fw/live/3xi49whuspyupmq # 直播
                                 print('获取原始链接成功, 原始链接为: {}'.format(url))
                                 return url
                 except Exception as e:
@@ -480,7 +531,7 @@ class Scraper:
 
 
     """__________________________________________⬇️xigua methods(xigua方法)⬇️______________________________________"""
-    # 获取西瓜拿播放地址的接口
+    # 获取西瓜的播放地址的接口
     def get_xigua_json_url(self,video_id):
         # 获取json文件的地址
         r = str(random.random())[2:]
@@ -545,6 +596,63 @@ class Scraper:
         except Exception as e:
             raise ValueError(f'获取西瓜视频数据出错了:{e}')
 
+    """__________________________________________⬇️kuaishou methods(kuaishou方法)⬇️______________________________________"""
+
+    # 获取快手视频ID/Get xigua video ID cspr
+    async def get_kuaishou_video_id(self, original_url: str) -> Union[str, None]:
+        """
+        获取视频id
+        :param original_url: 视频链接
+        :return: 视频id
+        """
+        try:
+            # 转换链接/Convert link
+            original_url = await self.convert_share_urls(original_url)
+            # https://v.m.chenzhongtech.com/fw/photo/3xburnkmj3auazc # 视频
+            # https://v.m.chenzhongtech.com/fw/live/3xi49whuspyupmq # 直播
+            # https://c.kuaishou.com/fw/user/3xuw52inejca9tm # 作者主页
+            # 获取视频ID/Get video ID
+            if '/fw/photo/' in original_url:
+                video_id = re.findall('/fw/photo/(.*)', original_url)[0]
+            elif "short-video" in original_url:
+                video_id = re.findall('short-video/(.*)', original_url)[0]
+
+            # 返回视频ID/Return video ID
+            return video_id
+        except Exception as e:
+            raise ValueError(f'获取快手视频ID出错了:{e}')
+
+    @retry(stop=stop_after_attempt(4), wait=wait_fixed(7))
+    async def get_kuaishou_video_data(self, video_id: str) -> Union[dict, None]:
+        """
+        获取单个视频信息
+        :param video_id: 视频id
+        :return: 视频信息
+        """
+        print('正在获取快手视频数据...')
+        try:
+            # 构造访问链接/Construct the access link
+            video_url = f'https://www.kuaishou.com/short-video/{video_id}'
+            print("video_url",video_url)
+            print(f"正在获取视频数据API: {video_url}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(video_url, headers=self.kuaishou_api_headers, proxy=self.proxies,
+                                       timeout=10) as response:
+                    response = await response.text()
+                    video_data = re.findall('"photoH265Url":"(.*?)"',response)[0] # iud
+                    if video_data:
+                        video_data = video_data.encode().decode('raw_unicode-escape')
+                    video_data = {
+                        'status': 'success',
+                        'message': "更多接口请查看(More API see): https://api.tikhub.io/",
+                        'type': 'video',
+                        'platform': '快手',
+                        'video_url': video_data,
+                    }
+            return video_data
+        except Exception as e:
+            raise ValueError(f'获取快手视频数据出错了:{e}')
+
     """__________________________________________⬇️Hybrid methods(混合方法)⬇️______________________________________"""
 
     # 判断链接平台/Judge link platform
@@ -555,6 +663,8 @@ class Scraper:
             url_platform = 'bilibili'
         elif 'xigua' in video_url:
             url_platform = 'xigua'
+        elif 'kuaishou' in video_url:
+            url_platform = 'kuaishou'
         elif 'tiktok' in video_url:
             url_platform = 'tiktok'
         else:
@@ -568,7 +678,7 @@ class Scraper:
 
         # 如果不是指定平台抛出异常/If it is not the specified platform, an exception is thrown
         if not url_platform:
-            raise ValueError(f"链接**{video_url}**不是抖音、Bilibili、TikTok链接！")
+            raise ValueError(f"链接**{video_url}**不是抖音、Bilibili、西瓜、快手、TikTok链接！")
 
         print(f"正在解析**{url_platform}**视频链接...")
 
@@ -577,6 +687,7 @@ class Scraper:
             else await self.get_tiktok_video_id(video_url) if url_platform == 'tiktok' \
             else await self.get_bilibili_video_id(video_url) if url_platform == 'bilibili' \
             else await self.get_ixigua_video_id(video_url) if url_platform == 'xigua' \
+            else await self.get_kuaishou_video_id(video_url) if url_platform == 'kuaishou' \
             else None
 
         # 如果获取不到视频ID抛出异常/If the video ID cannot be obtained, an exception is thrown
@@ -589,6 +700,7 @@ class Scraper:
             else await self.get_tiktok_video_data(video_id) if url_platform == 'tiktok' \
             else await self.get_bilibili_video_data(video_id) if url_platform == 'bilibili' \
             else await self.get_ixigua_video_data(video_id) if url_platform == 'xigua' \
+            else await self.get_kuaishou_video_data(video_id) if url_platform == 'kuaishou' \
             else None
 
         if data:
@@ -600,6 +712,10 @@ class Scraper:
             # 如果是西瓜平台则返回视频数据/If it is a ixigua platform, return video data
             if url_platform == 'xigua':
                 print("获取西瓜视频数据成功！")
+                return data
+            # 如果是快说平台则返回视频数据/If it is a kuaishou platform, return video data
+            if url_platform == 'kuaishou':
+                print("获取快手视频数据成功！")
                 return data
 
             # 如果是抖音/TikTok平台则继续进行数据解析/If it is a Douyin/TikTok platform, continue to parse the data
@@ -780,10 +896,18 @@ class Scraper:
 """__________________________________________⬇️Test methods(测试方法)⬇️______________________________________"""
 
 
-async def async_test(_douyin_url: str = None, _tiktok_url: str = None, _bilibili_url: str = None, _ixigua_url: str = None) -> None:
+async def async_test(_douyin_url: str = None, _tiktok_url: str = None, _bilibili_url: str = None, _ixigua_url: str = None, _kuaishou_url: str = None) -> None:
     # 异步测试/Async test
     start_time = time.time()
     print("<异步测试/Async test>")
+
+    print('\n--------------------------------------------------')
+    print("正在测试异步获取快手视频ID方法...")
+    kuaishou_id = await api.get_kuaishou_video_id(_kuaishou_url)
+    print(f"快手视频ID: {kuaishou_id}")
+    print("正在测试异步获取快手视频数据方法...")
+    kuaishou_data = await api.get_kuaishou_video_data(kuaishou_id)
+    print(f"快手视频数据: {str(kuaishou_data)}")
 
     print('\n--------------------------------------------------')
     print("正在测试异步获取西瓜视频ID方法...")
@@ -816,14 +940,15 @@ async def async_test(_douyin_url: str = None, _tiktok_url: str = None, _bilibili
     print("正在测试异步获取TikTok视频数据方法...")
     tiktok_data = await api.get_tiktok_video_data(tiktok_id)
     print(f"TikTok视频数据: {str(tiktok_data)[:100]}")
-
+    #
     print('\n--------------------------------------------------')
     print("正在测试异步混合解析方法...")
     douyin_hybrid_data = await api.hybrid_parsing(_douyin_url)
     tiktok_hybrid_data = await api.hybrid_parsing(_tiktok_url)
     bilibili_hybrid_data = await api.hybrid_parsing(_bilibili_url)
     xigua_hybrid_data = await api.hybrid_parsing(_ixigua_url)
-    print(f"抖音、TikTok、哔哩哔哩、西瓜混合解析全部成功！")
+    kuaishou_hybrid_data = await api.hybrid_parsing(_kuaishou_url)
+    print(f"抖音、TikTok、哔哩哔哩、西瓜、快手快手混合解析全部成功！")
 
     print('\n--------------------------------------------------')
     # 总耗时/Total time
@@ -839,7 +964,8 @@ if __name__ == '__main__':
     douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
     tiktok_url = 'https://www.tiktok.com/@evil0ctal/video/7217027383390555438'
     bilibili_url = "https://www.bilibili.com/video/BV1Th411x7ii/"
-    ixigua_url = "https://www.ixigua.com/7270448082586698281"
-    # ixigua_url = "ttps://v.ixigua.com/ienrQ5bR/"  # convert_share_urls 这里有bug 如果抖音的口令解析的出来其他的都是none
-    asyncio.run(async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url, _bilibili_url=bilibili_url, _ixigua_url=ixigua_url))
+    ixigua_url = "https://www.ixigua.com/7270448082586698281" # 短链接 "https://v.ixigua.com/ienrQ5bR/"
+    kuaishou_url = "https://www.kuaishou.com/short-video/3xiqjrezhqjyzxw" # 短链接 https://v.kuaishou.com/75kDOJ
+
+    asyncio.run(async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url, _bilibili_url=bilibili_url, _ixigua_url=ixigua_url,_kuaishou_url=kuaishou_url))
 
