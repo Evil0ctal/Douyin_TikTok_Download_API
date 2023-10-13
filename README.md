@@ -103,6 +103,7 @@
 - 抖音（抖音海外版: TikTok）视频/图片解析
 - Bilibili视频解析
 - 西瓜视频解析
+- 快手视频解析
 - 网页端批量解析(支持抖音/TikTok混合提交)
 - 网页端解析结果页批量下载无水印视频(V3.X以上版本移除，请自行部署V2.X版本)
 - API调用获取链接数据
@@ -147,6 +148,13 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 ## 🗺️支持的提交格式：
 
 > 💡提示：包含但不仅限于以下例子，如果遇到链接解析失败请开启一个新 [issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+
+- 快手视频链接
+
+```text
+https://www.kuaishou.com/short-video/3xiqjrezhqjyzxw/
+https://v.kuaishou.com/75kDOJ/
+```
 
 - 西瓜视频链接
 
