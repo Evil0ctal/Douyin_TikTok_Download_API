@@ -659,7 +659,7 @@ class Scraper:
     async def judge_url_platform(self, video_url: str) -> str:
         if 'douyin' in video_url:
             url_platform = 'douyin'
-        elif 'bilibili' in video_url:
+        elif 'bilibili' in video_url or 'b23.tv' in video_url:
             url_platform = 'bilibili'
         elif 'xigua' in video_url:
             url_platform = 'xigua'
