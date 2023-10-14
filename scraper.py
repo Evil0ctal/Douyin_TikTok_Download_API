@@ -43,8 +43,8 @@ class Scraper:
         self.douyin_api_headers = {
             'accept-encoding': 'gzip, deflate, br',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
-            'referer': 'https://www.douyin.com/',
-            'cookie': 'ttwid=1%7C0YBAnAwiC5T3U5yJi8RVXEK3DOwF_2vpJ7kVJJZe8HU%7C1694528301%7Ca9d2d8a4164959a0d7a1f92fe29d37bb779753092ad24d4705a9543707327d49; __live_version__=%221.1.1.3713%22; odin_tt=7cc03fc9dcb682088842ab4494c2862765db476b30ae42ab083e10e8ceb34b88290d1360d16f7c499bac5925e6670a8df72a742a1ebee72ae6ba12fcea622efa; pwa2=%223%7C0%7C0%7C0%22; bd_ticket_guard_client_data=eyJiZC10aWNrZXQtZ3VhcmQtdmVyc2lvbiI6MiwiYmQtdGlja2V0LWd1YXJkLWl0ZXJhdGlvbi12ZXJzaW9uIjoxLCJiZC10aWNrZXQtZ3VhcmQtcmVlLXB1YmxpYy1rZXkiOiJCRXhuWUdqREVBa3ErdjRsT2l3anRIWi9HU2hRNXFseWdJMklLanIxM0orRHozYnA0M2pXc3M3N25CUzdnbE5tTXhHbWU3cldoSE9pdkJvVmNnT2JiWFU9IiwiYmQtdGlja2V0LWd1YXJkLXdlYi12ZXJzaW9uIjoxfQ==; n_mh=13KNPUKNEzoW3A4J-OLRxfal2zj1GbF-vJUFPs3WSIY; LOGIN_STATUS=0; store-region=us; store-region-src=uid; d_ticket=28acd5a9c6df4227b13582669694acded6ede; my_rd=1; MONITOR_WEB_ID=cf748a1e-9532-4d89-a1fc-13a5729f0942; publish_badge_show_info=%220%2C0%2C0%2C1695295934872%22; IsDouyinActive=true; home_can_add_dy_2_desktop=%220%22; strategyABtestKey=%221695695809.268%22; stream_recommend_feed_params=%22%7B%5C%22cookie_enabled%5C%22%3Atrue%2C%5C%22screen_width%5C%22%3A1344%2C%5C%22screen_height%5C%22%3A756%2C%5C%22browser_online%5C%22%3Atrue%2C%5C%22cpu_core_num%5C%22%3A16%2C%5C%22device_memory%5C%22%3A0%2C%5C%22downlink%5C%22%3A%5C%22%5C%22%2C%5C%22effective_type%5C%22%3A%5C%22%5C%22%2C%5C%22round_trip_time%5C%22%3A0%7D%22; VIDEO_FILTER_MEMO_SELECT=%7B%22expireTime%22%3A1695983681533%2C%22type%22%3A1%7D; volume_info=%7B%22isUserMute%22%3Afalse%2C%22isMute%22%3Atrue%2C%22volume%22%3A1%7D; passport_csrf_token=56f6961b57a8d08feb7db46160908a87; passport_csrf_token_default=56f6961b57a8d08feb7db46160908a87; s_v_web_id=verify_lmt3fhsw_K7nE3bgs_zkNT_4N3S_BeK7_5x7F8Bgu5fVy; FORCE_LOGIN=%7B%22videoConsumedRemainSeconds%22%3A180%7D; msToken=Z9-0y9elP0-Obz51QCWE2WH-JrZ-IHKgyHX6i0Fc7cNUBXQJFSIZjxemEKqgmm4EIxPVWfNPglnGQgzvANzOcW6OA3yzYv1W-plCkw-nP-OkNH00Ion2FohnZl4ySAc=; download_guide=%223%2F20230921%2F0%22; _bd_ticket_crypt_doamin=3; _bd_ticket_crypt_cookie=ddccf5fec8be44d560eb069c2f0bad6b; __security_server_data_status=1; SEARCH_RESULT_LIST_TYPE=%22single%22; xgplayer_user_id=362991673413; _tea_utm_cache_1243=undefined; douyin.com; device_web_cpu_core=16; device_web_memory_size=-1; architecture=amd64; webcast_local_quality=null; __ac_signature=_02B4Z6wo00f01OAvurgAAIDB.GwEB.TxAPDgH74AAF0f4YxOQt1lX7G.X.ym1.H9RXZ8GhgAMPpgMgVFfuGyJ0gwPNH6P21IVw3QQGVundxhs6atZTMMJQnum-pZ5gI-Y7bQVafwXlkIAKs699; tt_scid=WnohADMH48aNQjUPGqPJwRi3J2t3ShdUWylw0d7vHKM4J.wh4sR44Ccd5u5mIH7b7edc; msToken=tQwydd12h5Kq3jUn-FGOBneTMH8TjMOhkj5uQy1kcOogPeYFej3w8_sfGhxOLfRH_VJ1Tg8NDSCNfwch9EZNxHqIg5kgJhdAxtqNMtT8NRV1T_T76MmB3fcaOGNVz0g='
+            'Referer': 'https://www.douyin.com/',
+            'cookie': 's_v_web_id=verify_ln4g95yq_8yd5gq1d_ZOJz_4i0Z_8g5H_VnqOInAXfDjQ; ttwid=1%7CLOO5jA3xKFP2HUC4tFAnPpFGRifnKCdQ8kuwwY24h9Y%7C1695982617%7C032f9efe9aef7c1a3ec2fd13f460a3565f556fd68c6b227985c65747e3111a28; passport_csrf_token=476087cea19a0f2fef97fd384e922f80; passport_csrf_token_default=476087cea19a0f2fef97fd384e922f80; __ac_nonce=06529d73200a6acdd9289; __ac_signature=_02B4Z6wo00f01JsrSRgAAIDB2BvQeRHxXJSbG02AAEPnsyJBRv.Ek0Zo3rTJH9wE4R9g7KoeoPrwt65OLUSkHPTL-BDM5rxgepgijGI7BNe5hZ7zNiKIUK556QwDMuFLZa-fn2SNAlctY4Cxee; douyin.com; device_web_cpu_core=16; device_web_memory_size=-1; architecture=amd64; webcast_local_quality=null; IsDouyinActive=true; home_can_add_dy_2_desktop=%220%22; strategyABtestKey=%221697240884.429%22; stream_recommend_feed_params=%22%7B%5C%22cookie_enabled%5C%22%3Atrue%2C%5C%22screen_width%5C%22%3A1344%2C%5C%22screen_height%5C%22%3A756%2C%5C%22browser_online%5C%22%3Atrue%2C%5C%22cpu_core_num%5C%22%3A16%2C%5C%22device_memory%5C%22%3A0%2C%5C%22downlink%5C%22%3A%5C%22%5C%22%2C%5C%22effective_type%5C%22%3A%5C%22%5C%22%2C%5C%22round_trip_time%5C%22%3A0%7D%22; VIDEO_FILTER_MEMO_SELECT=%7B%22expireTime%22%3A1697845684695%2C%22type%22%3A1%7D; volume_info=%7B%22isUserMute%22%3Afalse%2C%22isMute%22%3Atrue%2C%22volume%22%3A0.5%7D; FORCE_LOGIN=%7B%22videoConsumedRemainSeconds%22%3A180%7D; csrf_session_id=6f34e666e71445c9d39d8d06a347a13f; bd_ticket_guard_client_data=eyJiZC10aWNrZXQtZ3VhcmQtdmVyc2lvbiI6MiwiYmQtdGlja2V0LWd1YXJkLWl0ZXJhdGlvbi12ZXJzaW9uIjoxLCJiZC10aWNrZXQtZ3VhcmQtcmVlLXB1YmxpYy1rZXkiOiJCTFFUdWdBbEg4Q1NxRENRdE9QdnN6K1pSOVBjdnBCOWg5dlp1VDhSRU1qSFFVNEVia2dOYnRHR0pBZFZ3c1hiak5EV01WTjBXd05CWEtSbTBWNDI4eHc9IiwiYmQtdGlja2V0LWd1YXJkLXdlYi12ZXJzaW9uIjoxfQ%3D%3D; msToken=O0WY2EiVqldmSETtrN2lLnKHeFHvy5xyKf0_Wj7xHUTTb6eMsV47NNy8TAvCw-BzjJu3EHLYLQ_F57RJI9TIIGxpl72LOqU3JKD2mSCNRK7bRdpj5OCMelAW7zA=; msToken=B1N9FM825TkvFbayDsDvZxM8r5suLrsfQbC93TciS0O9Iii8iJpAPd__FM2rpLUJi5xtMencSXLeNn8xmOS9q7bP0CUsrt9oVTL08YXLPRzZm0dHKLc9PGRlyEk=; tt_scid=CB3bLQLXQ7-hdquJoiVfLG426BLihcDygWOyFenygGFyeyJ3doSH1iYdwaR3kq0Ta886'
         }
         self.tiktok_api_headers = {
             'User-Agent': 'com.ss.android.ugc.trill/494+Mozilla/5.0+(Linux;+Android+12;+2112123G+Build/SKQ1.211006.001;+wv)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Version/4.0+Chrome/107.0.5304.105+Mobile+Safari/537.36'
@@ -262,7 +262,8 @@ class Scraper:
                 print('正在通过西瓜分享链接获取原始链接...')
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(url, headers=self.ixigua_api_headers, proxy=self.proxies, allow_redirects=False,
+                        async with session.get(url, headers=self.ixigua_api_headers, proxy=self.proxies,
+                                               allow_redirects=False,
                                                timeout=10) as response:
                             if response.status == 302:
                                 url = response.headers['Location'].split('?')[0] if '?' in response.headers[
@@ -294,7 +295,8 @@ class Scraper:
                 print('正在通过快手分享链接获取原始链接...')
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get(url, headers=self.kuaishou_api_headers, proxy=self.proxies, allow_redirects=False,
+                        async with session.get(url, headers=self.kuaishou_api_headers, proxy=self.proxies,
+                                               allow_redirects=False,
                                                timeout=10) as response:
                             if response.status == 302:
                                 url = response.headers['Location'].split('?')[0] if '?' in response.headers[
@@ -378,11 +380,12 @@ class Scraper:
         """
         try:
             # 构造访问链接/Construct the access link
-            api_url = f"https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id={video_id}&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1344&screen_height=756&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_version=110.0&browser_online=true&engine_name=Gecko&engine_version=109.0&os_name=Windows&os_version=10&cpu_core_num=16&device_memory=&platform=PC&webid=7158288523463362079&msToken=abL8SeUTPa9-EToD8qfC7toScSADxpg6yLh2dbNcpWHzE0bT04txM_4UwquIcRvkRb9IU8sifwgM1Kwf1Lsld81o9Irt2_yNyUbbQPSUO8EfVlZJ_78FckDFnwVBVUVK"
+            api_url = f"https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id={video_id}&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1344&screen_height=756&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_version=118.0&browser_online=true&engine_name=Gecko&engine_version=109.0&os_name=Windows&os_version=10&cpu_core_num=16&device_memory=&platform=PC&webid=7284189800734082615&msToken=B1N9FM825TkvFbayDsDvZxM8r5suLrsfQbC93TciS0O9Iii8iJpAPd__FM2rpLUJi5xtMencSXLeNn8xmOS9q7bP0CUsrt9oVTL08YXLPRzZm0dHKLc9PGRlyEk="
             api_url = self.generate_x_bogus_url(api_url)
             # 访问API/Access API
             print("正在请求抖音视频API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
+                self.douyin_api_headers['Referer'] = f'https://www.douyin.com/video/{video_id}'
                 async with session.get(api_url, headers=self.douyin_api_headers, proxy=self.proxies,
                                        timeout=10) as response:
                     response = await response.json()
@@ -529,16 +532,17 @@ class Scraper:
         except Exception as e:
             raise ValueError(f'获取BiliBili视频数据出错了:{e}')
 
-
     """__________________________________________⬇️xigua methods(xigua方法)⬇️______________________________________"""
+
     # 获取西瓜的播放地址的接口
-    def get_xigua_json_url(self,video_id):
+    def get_xigua_json_url(self, video_id):
         # 获取json文件的地址
         r = str(random.random())[2:]
         url_part = "/video/urls/v/1/toutiao/mp4/{}?r={}".format(video_id, r)
         s = crc32(url_part.encode())
         json_url = "https://ib.365yg.com{}&s={}&nobase64=true".format(url_part, s)
         return json_url
+
     # 获取西瓜视频ID/Get xigua video ID cspr
     async def get_ixigua_video_id(self, original_url: str) -> Union[str, None]:
         """
@@ -570,7 +574,7 @@ class Scraper:
         try:
             # 构造访问链接/Construct the access link
             video_url = f'https://m.ixigua.com/video/{video_id}?wid_try=1'
-            print("video_url",video_url)
+            print("video_url", video_url)
             async with aiohttp.ClientSession() as session:
                 async with session.get(video_url, headers=self.ixigua_api_headers, proxy=self.proxies,
                                        timeout=10) as response:
@@ -584,7 +588,7 @@ class Scraper:
                 async with session.get(play_url_api, headers=self.ixigua_api_headers, proxy=self.proxies,
                                        timeout=10) as response:
                     response = await response.json()
-                    video_data = response.get("data",{}).get("video_list",{}).get("video_3",{}).get("main_url","")
+                    video_data = response.get("data", {}).get("video_list", {}).get("video_3", {}).get("main_url", "")
                     video_data = {
                         'status': 'success',
                         'message': "更多接口请查看(More API see): https://api.tikhub.io/",
@@ -633,13 +637,13 @@ class Scraper:
         try:
             # 构造访问链接/Construct the access link
             video_url = f'https://www.kuaishou.com/short-video/{video_id}'
-            print("video_url",video_url)
+            print("video_url", video_url)
             print(f"正在获取视频数据API: {video_url}")
             async with aiohttp.ClientSession() as session:
                 async with session.get(video_url, headers=self.kuaishou_api_headers, proxy=self.proxies,
                                        timeout=10) as response:
                     response = await response.text()
-                    video_data = re.findall('"photoH265Url":"(.*?)"',response)[0] # iud
+                    video_data = re.findall('"photoH265Url":"(.*?)"', response)[0]  # iud
                     if video_data:
                         video_data = video_data.encode().decode('raw_unicode-escape')
                     video_data = {
@@ -896,7 +900,8 @@ class Scraper:
 """__________________________________________⬇️Test methods(测试方法)⬇️______________________________________"""
 
 
-async def async_test(_douyin_url: str = None, _tiktok_url: str = None, _bilibili_url: str = None, _ixigua_url: str = None, _kuaishou_url: str = None) -> None:
+async def async_test(_douyin_url: str = None, _tiktok_url: str = None, _bilibili_url: str = None,
+                     _ixigua_url: str = None, _kuaishou_url: str = None) -> None:
     # 异步测试/Async test
     start_time = time.time()
     print("<异步测试/Async test>")
@@ -964,8 +969,11 @@ if __name__ == '__main__':
     douyin_url = 'https://v.douyin.com/rLyrQxA/6.66'
     tiktok_url = 'https://www.tiktok.com/@evil0ctal/video/7217027383390555438'
     bilibili_url = "https://www.bilibili.com/video/BV1Th411x7ii/"
-    ixigua_url = "https://www.ixigua.com/7270448082586698281" # 短链接 "https://v.ixigua.com/ienrQ5bR/"
-    kuaishou_url = "https://www.kuaishou.com/short-video/3xiqjrezhqjyzxw" # 短链接 https://v.kuaishou.com/75kDOJ
+    ixigua_url = "https://www.ixigua.com/7270448082586698281"  # 短链接 "https://v.ixigua.com/ienrQ5bR/"
+    kuaishou_url = "https://www.kuaishou.com/short-video/3xiqjrezhqjyzxw"  # 短链接 https://v.kuaishou.com/75kDOJ
 
-    asyncio.run(async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url, _bilibili_url=bilibili_url, _ixigua_url=ixigua_url,_kuaishou_url=kuaishou_url))
+    # asyncio.run(
+    #     async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url, _bilibili_url=bilibili_url, _ixigua_url=ixigua_url,
+    #                _kuaishou_url=kuaishou_url))
 
+    asyncio.run(api.get_douyin_video_data('https://v.douyin.com/rLyrQxA/'))
