@@ -13,6 +13,10 @@
 
 </div>
 
+## 🔊 This project plans to be refactored in version V4.0.0.
+
+If you are interested, please add WeChat`Evil0ctal`Note: Github project reconstruction currently requires crawler/backend/full-stack development. If you don’t have the relevant technology stack, you can also join. The main idea is to create a group where everyone can communicate and learn from each other. Advertising is not allowed. As well as illegal stuff, purely for making friends and technical exchanges.
+
 ## 👻Introduction
 
 > 🚨If you need to use a private server to run this project, please refer to the deployment method\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
@@ -21,7 +25,7 @@ This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI
 
 _Some simple application scenarios:_
 
-_下载禁止下载的视频，进行数据分析，iOS无水印下载（搭配[iOS自带的快捷指令APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to achieve in-app downloads or read clipboard downloads), etc....._
+_Download prohibited videos, perform data analysis, download without watermark on iOS (with[Shortcut command APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to achieve in-app downloads or read clipboard downloads), etc....._
 
 ## 🖥Public site: I am very vulnerable...please do not stress test (·•᷄ࡇ•᷅ )
 
@@ -302,7 +306,7 @@ You can stop the api service by running: systemctl stop web_api.service
 
 > 💡Docker Image repo:[Docker Hub](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
 
--   安装docker
+-   Install docker
 
 ```yaml
 curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
