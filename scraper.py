@@ -44,7 +44,7 @@ class Scraper:
             'accept-encoding': 'gzip, deflate, br',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
             'Referer': 'https://www.douyin.com/',
-            'cookie': 's_v_web_id=verify_ln4g95yq_8yd5gq1d_ZOJz_4i0Z_8g5H_VnqOInAXfDjQ; ttwid=1%7CLOO5jA3xKFP2HUC4tFAnPpFGRifnKCdQ8kuwwY24h9Y%7C1695982617%7C032f9efe9aef7c1a3ec2fd13f460a3565f556fd68c6b227985c65747e3111a28; passport_csrf_token=476087cea19a0f2fef97fd384e922f80; passport_csrf_token_default=476087cea19a0f2fef97fd384e922f80; __ac_nonce=06529d73200a6acdd9289; __ac_signature=_02B4Z6wo00f01JsrSRgAAIDB2BvQeRHxXJSbG02AAEPnsyJBRv.Ek0Zo3rTJH9wE4R9g7KoeoPrwt65OLUSkHPTL-BDM5rxgepgijGI7BNe5hZ7zNiKIUK556QwDMuFLZa-fn2SNAlctY4Cxee; douyin.com; device_web_cpu_core=16; device_web_memory_size=-1; architecture=amd64; webcast_local_quality=null; IsDouyinActive=true; home_can_add_dy_2_desktop=%220%22; strategyABtestKey=%221697240884.429%22; stream_recommend_feed_params=%22%7B%5C%22cookie_enabled%5C%22%3Atrue%2C%5C%22screen_width%5C%22%3A1344%2C%5C%22screen_height%5C%22%3A756%2C%5C%22browser_online%5C%22%3Atrue%2C%5C%22cpu_core_num%5C%22%3A16%2C%5C%22device_memory%5C%22%3A0%2C%5C%22downlink%5C%22%3A%5C%22%5C%22%2C%5C%22effective_type%5C%22%3A%5C%22%5C%22%2C%5C%22round_trip_time%5C%22%3A0%7D%22; VIDEO_FILTER_MEMO_SELECT=%7B%22expireTime%22%3A1697845684695%2C%22type%22%3A1%7D; volume_info=%7B%22isUserMute%22%3Afalse%2C%22isMute%22%3Atrue%2C%22volume%22%3A0.5%7D; FORCE_LOGIN=%7B%22videoConsumedRemainSeconds%22%3A180%7D; csrf_session_id=6f34e666e71445c9d39d8d06a347a13f; bd_ticket_guard_client_data=eyJiZC10aWNrZXQtZ3VhcmQtdmVyc2lvbiI6MiwiYmQtdGlja2V0LWd1YXJkLWl0ZXJhdGlvbi12ZXJzaW9uIjoxLCJiZC10aWNrZXQtZ3VhcmQtcmVlLXB1YmxpYy1rZXkiOiJCTFFUdWdBbEg4Q1NxRENRdE9QdnN6K1pSOVBjdnBCOWg5dlp1VDhSRU1qSFFVNEVia2dOYnRHR0pBZFZ3c1hiak5EV01WTjBXd05CWEtSbTBWNDI4eHc9IiwiYmQtdGlja2V0LWd1YXJkLXdlYi12ZXJzaW9uIjoxfQ%3D%3D; msToken=O0WY2EiVqldmSETtrN2lLnKHeFHvy5xyKf0_Wj7xHUTTb6eMsV47NNy8TAvCw-BzjJu3EHLYLQ_F57RJI9TIIGxpl72LOqU3JKD2mSCNRK7bRdpj5OCMelAW7zA=; msToken=B1N9FM825TkvFbayDsDvZxM8r5suLrsfQbC93TciS0O9Iii8iJpAPd__FM2rpLUJi5xtMencSXLeNn8xmOS9q7bP0CUsrt9oVTL08YXLPRzZm0dHKLc9PGRlyEk=; tt_scid=CB3bLQLXQ7-hdquJoiVfLG426BLihcDygWOyFenygGFyeyJ3doSH1iYdwaR3kq0Ta886'
+            'cookie': ''
         }
         self.tiktok_api_headers = {
             'User-Agent': 'com.ss.android.ugc.trill/494+Mozilla/5.0+(Linux;+Android+12;+2112123G+Build/SKQ1.211006.001;+wv)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Version/4.0+Chrome/107.0.5304.105+Mobile+Safari/537.36'
@@ -87,8 +87,10 @@ class Scraper:
         }
         # 判断配置文件是否存在/Check if the configuration file exists
         if os.path.exists('config.ini'):
-            self.config = configparser.ConfigParser()
+            self.config = configparser.RawConfigParser()
             self.config.read('config.ini', encoding='utf-8')
+            if not self.config['Scraper']['DouYinCookies'] is None:
+                self.douyin_api_headers['Cookie'] = str(self.config['Scraper']['DouYinCookies'])
             # 判断是否使用代理
             if self.config['Scraper']['Proxy_switch'] == 'True':
                 # 判断是否区别协议选择代理
