@@ -14,7 +14,7 @@ h11==0.14.0
 idna==3.4
 limits==2.8.0
 multidict==6.0.4
-orjson==3.8.6
+orjson==3.9.15
 packaging==22.0
 pydantic==1.10.5
 PyExecJS==1.5.1
