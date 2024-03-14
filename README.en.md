@@ -15,7 +15,7 @@
 
 ## 🔊 This project plans to be refactored in version V4.0.0.
 
-If you are interested, please add WeChat`Evil0ctal`Note: Github project reconstruction currently requires crawler/backend/full-stack development. If you don’t have the relevant technology stack, you can also join. The main idea is to create a group where everyone can communicate and learn from each other. Advertising is not allowed. As well as illegal stuff, purely for making friends and technical exchanges.
+If you are interested, please add WeChat`Evil0ctal`Note: Github project reconstruction currently requires crawler/back-end/full-stack development. If you don’t have the relevant technology stack, you can also come in. The main idea is to create a group where everyone can communicate and learn from each other. Advertising is not allowed. As well as illegal stuff, purely for making friends and technical exchanges.
 
 ## 👻Introduction
 
@@ -66,9 +66,9 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 > **_web_app.py:_**
 
--   for`web_api.py`as well as`scraper.py`A simple web program created to process the values ​​entered on the web page and use them`Scraper()`Class processing and cooperation`web_api.py`The interface output is on the web page (similar to front-end and back-end separation)
+-   for`web_api.py`as well as`scraper.py`A simple web program created to process the values ​​entered on the web page and then use them`Scraper()`Class processing and cooperation`web_api.py`The interface output is on the web page (similar to front-end and back-end separation)
 
-**_Most of the parameters of the above files can be found in[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)Make changes in_**
+**_Most of the parameters of the above files can be found in[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)Modify in_**
 
 ## 💡Project file structure
 
@@ -237,7 +237,7 @@ Online:<https://api.tikhub.io/docs>
 
 ## 💻Deployment (Method 1 Linux)
 
-> 💡Tip: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
+> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may appear.
 
 Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)servers, mainly because they are free.
 
