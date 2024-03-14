@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/09/25
+# @Update: 2024/03/14
 # @Version: 3.1.8
 # @Note:
 # Core code, valued at 1 bucks (๑•̀ㅂ•́)و✧
