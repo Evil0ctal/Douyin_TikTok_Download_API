@@ -394,7 +394,7 @@ class Scraper:
                     # 获取视频数据/Get video data
                     video_data = response['aweme_detail']
                     # print('获取视频数据成功！')
-                    # print("抖音API返回数据: {}".format(video_data))
+                    print("抖音API返回数据: {}".format(video_data))
                     return video_data
         except Exception as e:
             raise ValueError(f"获取抖音视频数据出错了: {e}")
@@ -456,7 +456,7 @@ class Scraper:
         # print('正在获取TikTok视频数据...')
         try:
             # 构造访问链接/Construct the access link
-            api_url = f'https://api16-normal-c-useast1a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}'
+            api_url = f'https://api22-normal-c-useast2a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}'
             print("正在获取视频数据API: {}".format(api_url))
             async with aiohttp.ClientSession() as session:
                 async with session.get(api_url, headers=self.tiktok_api_headers, proxy=self.proxies,
@@ -978,4 +978,8 @@ if __name__ == '__main__':
     #     async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url, _bilibili_url=bilibili_url, _ixigua_url=ixigua_url,
     #                _kuaishou_url=kuaishou_url))
 
-    asyncio.run(api.get_douyin_video_data('https://v.douyin.com/rLyrQxA/'))
+    tiktok_id = asyncio.run(api.get_tiktok_video_id(tiktok_url))
+
+    tiktok_data = asyncio.run(api.get_tiktok_video_data(tiktok_id))
+
+    print(tiktok_data)
