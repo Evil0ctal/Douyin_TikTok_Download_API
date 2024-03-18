@@ -34,6 +34,8 @@
 ## 🔊 本项目计划在V4.0.0版本进行重构。
 感兴趣的给请加微信`Evil0ctal`备注github项目重构，目前需要有爬虫/后端/全栈开发，如果你不具备相关技术栈也可以进来，主要是想着拉一个群然后大家可以在群里互相交流学习，不允许发广告以及违法的东西，纯粹交朋友和技术交流。
 
+Discord: [TikHub Discord](https://discord.com/invite/aMEAS8Xsvz)
+
 ## 👻介绍
 
 > 🚨如需使用私有服务器运行本项目，请参考部署方式[[Docker部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker), [一键部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
