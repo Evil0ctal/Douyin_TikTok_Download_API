@@ -1,0 +1,109 @@
+# -*- encoding: utf-8 -*-
+# @Author: https://github.com/Evil0ctal/
+# @Time: 2021/11/06
+# @Update: 2024/03/25
+# @Function:
+# 项目的配置文件/Config file of the project
+# 去看看我们的另外一个项目吧，一个YAML文件的多态键值路径映射解析器：https://github.com/PKVPM/PKVPM
+# Check out our other project, a polymorphic key-value path mapping parser for YAML files:
+
+Scraper:  # scraper.py
+  # 是否使用代理(如果部署在IP受限国家需要开启默认为False关闭，请自行收集代理，下面代理仅作为示例不保证可用性)
+  # Whether to use proxy (if deployed in a country with IP restrictions, it needs to be turned on by default, False is closed. Please collect proxies yourself. The following proxies are only for reference and do not guarantee availability)
+  Proxy_switch: false
+
+  # 是否根据不同协议(http/https)使用不同代理，设置为True时修改Http_proxy/Https_proxy这两个变量的值
+  # Whether to use different proxies for different protocols (http/https). When set to True, modify the values of the two variables Http_proxy/Https_proxy
+  Use_different_protocols: false
+
+  # http/https协议都使用以下代理(Use_different_protocols为False时生效)
+  # Both http/https protocols use the following proxy (effective when Use_different_protocols is False)
+  All: "45.167.124.5:9992"
+
+  # http协议使用以下代理(Use_different_protocols为True时生效)
+  # The http protocol uses the following proxy (effective when Use_different_protocols is True)
+  Http_proxy: "http://45.167.124.5:9992"
+
+  # https协议使用以下代理(Use_different_protocols为True时生效)
+  # The https protocol uses the following proxy (effective when Use_different_protocols is True)
+  Https_proxy: "https://45.167.124.5:9992"
+
+  # 抖音cookies配置项
+  # odin_tt=xxx;sessionid_ss=xxx;ttwid=xxx;passport_csrf_token=xxx;msToken=xxx;
+  DouYinCookies: __ac_nonce=06601efc9000687edabfb; __ac_signature=_02B4Z6wo00f01DY5d.gAAIDCmbcjj5Gs2Wg2CXNAAGuWde; ttwid=1%7CE0Fz_BrMgjzSm3__CbFk_z_YxJTZvuoIynWz56Jr2gw%7C1711402953%7C0bae07e4ed08cc7062e5025b43028917c0f101ce950429d713bdfc98ce8900e4; douyin.com; device_web_cpu_core=16; device_web_memory_size=-1; architecture=amd64; IsDouyinActive=true; home_can_add_dy_2_desktop=%220%22; dy_swidth=1344; dy_sheight=756; stream_recommend_feed_params=%22%7B%5C%22cookie_enabled%5C%22%3Atrue%2C%5C%22screen_width%5C%22%3A1344%2C%5C%22screen_height%5C%22%3A756%2C%5C%22browser_online%5C%22%3Atrue%2C%5C%22cpu_core_num%5C%22%3A16%2C%5C%22device_memory%5C%22%3A0%2C%5C%22downlink%5C%22%3A%5C%22%5C%22%2C%5C%22effective_type%5C%22%3A%5C%22%5C%22%2C%5C%22round_trip_time%5C%22%3A0%7D%22; strategyABtestKey=%221711402955.353%22; volume_info=%7B%22isUserMute%22%3Afalse%2C%22isMute%22%3Atrue%2C%22volume%22%3A0.5%7D; stream_player_status_params=%22%7B%5C%22is_auto_play%5C%22%3A0%2C%5C%22is_full_screen%5C%22%3A0%2C%5C%22is_full_webscreen%5C%22%3A0%2C%5C%22is_mute%5C%22%3A1%2C%5C%22is_speed%5C%22%3A1%2C%5C%22is_visible%5C%22%3A1%7D%22; passport_csrf_token=6cbad4aeddb5063d2da49dba0f0001a4; passport_csrf_token_default=6cbad4aeddb5063d2da49dba0f0001a4; msToken=Vnmw2WIIMakoPHjKeN_pdZQUaL3Pqe2Bkc5voIdZJlfpQQTmmYIi2Oy8V8VhGn9VoYyx9G2EoNLUubHK_OSaTL3-W4LTM7DTTwkNhZVAMJ7BVBWW85jPHqXCAjFn; FORCE_LOGIN=%7B%22videoConsumedRemainSeconds%22%3A180%7D; odin_tt=fff2328d744fdd887dfe8236d1343072c7d667d877a05e9fbf0c4dea2cf6cd0fb24cc994eb844d91502053a9fb48b5cf1f37be4285cfeab319cac618493b1cc78a21c68b7e2b6af04f08d1f3417b5617; csrf_session_id=120d8aacffb06addd01cb40859003c8e; bd_ticket_guard_client_data=eyJiZC10aWNrZXQtZ3VhcmQtdmVyc2lvbiI6MiwiYmQtdGlja2V0LWd1YXJkLWl0ZXJhdGlvbi12ZXJzaW9uIjoxLCJiZC10aWNrZXQtZ3VhcmQtcmVlLXB1YmxpYy1rZXkiOiJCUE8vYUdEdlNsRE1ZYTBpRXVrQTk0aVppQ2t0Y2NwcWs3NGh2aitjN2NFZ1I5alZTQXdRTFNvL2tza3U3R1JJMUtLc0xJakROam91WDBZcm9XdytVTDQ9IiwiYmQtdGlja2V0LWd1YXJkLXdlYi12ZXJzaW9uIjoxfQ%3D%3D; bd_ticket_guard_client_web_domain=2; msToken=O6EKBamnejH7dsEfHq4JRyU3rYJv__HW7Bz7OPeOD-AjZMtNe31tPGkhM0Ez06aM_J0uy0OjAGvflkpOukOAYUerarzl5OSuwKFddmm6JL40dUcahW_TBmSgNOOJ
+
+Web_API:  # web_api.py
+  # API链接 如：http://127.0.0.1:2333 或 http://api.douyin.wtf (末尾不要留斜杠)
+  # API link, such as: http://127.0.0.1:2333 or http://api.douyin.wtf (no slash at the end)
+  Domain: "http://api.douyin.wtf"
+
+  # 限制API的请求次数/Limited API requests
+  Rate_Limit: "10/minute"
+
+  # API默认运行端口/Default port of API
+  Port: 8000
+
+  # 默认下载目录/Default download directory
+  Download_Path: "./download"
+
+  # 是否开启下载[tag = Download]功能(默认开启，关闭后无法下载)/Whether to enable the download [tag = Download] function (default open, closed after download)
+  Download_Switch: true
+
+  # 是否自动清理下载目录/Whether to automatically clean up the download directory
+  Download_Path_Clean_Switch: true
+
+  # 下载文件夹自动删除时间(单位：秒)/Download folder automatic deletion time (unit: seconds)
+  Download_Path_Clean_Timer: 3600
+
+  # 默认下载文件名前缀/Default download file name prefix
+  File_Name_Prefix: "api.douyin.wtf_"
+
+  # 是否记录API调用日志/Whether to record API call logs
+  Allow_Logs: true
+
+  # 快捷指令版本/Shortcut version
+  iOS_Shortcut_Version: "6.0"
+
+  # 快捷指令Link(Chinese_Language)
+  iOS_Shortcut_Link: "https://www.icloud.com/shortcuts/4465d514869e4ca585074d40328f3e0e"
+
+  # Shortcut Link(English_Language)
+  iOS_Shortcut_Link_EN: "https://www.icloud.com/shortcuts/58e3a2cbac784a6782f1031c6b1dd9f8"
+
+  # 快捷指令更新时间/Shortcut update time
+  iOS_Shortcut_Update_Time: "2022/11/06"
+
+  # 快捷指令更新记录/Shortcut update log
+  iOS_Shortcut_Update_Note: "重新适配https://api.douyin.wtf(API-V1 3.0.0版本)"
+
+  # iOS shortcut update note
+  iOS_Shortcut_Update_Note_EN: "Re-adapt https://api.douyin.wtf (API-V1 3.0.0 version)"
+
+Web_APP:  # web_app.py
+  # 网页默认运行端口/Web default running port
+  Port: 80
+
+  # PyWebIO是否使用CDN来获取前端的静态资源(防止CDN被墙导致无法正常显示)
+  # Whether PyWebIO uses CDN to obtain static resources of the front end (to prevent CDN from being blocked and displayed normally)
+  PyWebIO_CDN: true
+
+  # 最大接受提交URL的数量/Maximum number of URLs accepted for submission
+  Max_Take_URLs: 200
+
+  # 是否记录错误日志/Whether to record error logs
+  Allow_Logs: true
+
+  # 网页标题
+  Web_Title: "TikTok/抖音无水印在线解析下载"
+
+  # Web Title English
+  Web_Title_English: "Douyin/TikTok online parsing and download without watermark"
+
+  # 网页描述
+  Web_Description: "在线批量解析TikTok/抖音视频和图片，支持无水印下载，官方数据接口，稳定，开源，免费，无广告。"
+
+  # Web Description English
+  Web_Description_English: "Online batch parsing of TikTok/Douyin videos and pictures, support for no watermark download, official data interface, stable, open source, free, no ads."
+
+  # 网页关键词/Keywords of the web page
+  Keywords: "抖音,tiktok,水印,无水印,no-watermark,抖音去水印,tiktok no watermark,在线,online,api,快捷指令,shortcut,下载,解析,parsing,tiktok api,抖音api,抖音去水印在线,tiktok去水印在线,downloader,下载器,free api,免费api"

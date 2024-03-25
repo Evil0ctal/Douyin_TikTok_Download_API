@@ -9,7 +9,7 @@ services:
     container_name: douyin_tiktok_download_api
     restart: always
     volumes:
-      - ./config.ini:/app/config.ini
+      - ./config.yml:/app/config.yml
     environment:
       TZ: Asia/Shanghai
     deploy:

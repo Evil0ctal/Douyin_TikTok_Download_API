@@ -30,7 +30,7 @@ cd Douyin_TikTok_Download_API/ || exit
 
 pip install -r requirements.txt
 
-echo 'Please edit config.ini, all input must be numbers!'
+echo 'Please edit config.yml, all input must be numbers!'
 
 python3 config.py
 

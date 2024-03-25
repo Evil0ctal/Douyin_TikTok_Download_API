@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/09/25
+# @Update: 2024/03/25
 # @Version: 3.1.8
 # @Function:
 # 创建一个接受提交参数的FastAPi应用程序。
@@ -16,7 +16,7 @@ import aiohttp
 import uvicorn
 import zipfile
 import threading
-import configparser
+import yaml
 
 from fastapi import FastAPI, Request
 from fastapi.responses import ORJSONResponse, FileResponse
@@ -29,8 +29,8 @@ from starlette.responses import RedirectResponse
 from scraper import Scraper
 
 # 读取配置文件
-config = configparser.ConfigParser()
-config.read('config.ini', encoding='utf-8')
+with open('config.yml', 'r', encoding='utf-8') as yaml_file:
+    config = yaml.safe_load(yaml_file)
 # 运行端口
 port = int(config["Web_API"]["Port"])
 # 域名

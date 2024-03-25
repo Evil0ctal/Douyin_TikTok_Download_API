@@ -2,13 +2,13 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2023/09/25
+# @Update: 2024/03/25
 # @Version: 3.1.8
 # @Function:
 # 用于在线批量解析Douyin/TikTok的无水印视频/图集。
 # 基于 PyWebIO，将scraper.py返回的内容显示在网页上。
 
-import configparser
+import yaml
 import os
 import re
 import time
@@ -20,8 +20,9 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.session import info as session_info, run_asyncio_coroutine
 
-config = configparser.ConfigParser()
-config.read('config.ini', encoding='utf-8')
+# 读取配置文件
+with open('config.yml', 'r', encoding='utf-8') as yaml_file:
+    config = yaml.safe_load(yaml_file)
 
 # 创建一个Scraper类的实例/Create an instance of the Scraper class
 api = Scraper()

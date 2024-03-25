@@ -2,7 +2,7 @@
 # -*- encoding: utf-8 -*-
 # @Author: https://github.com/Evil0ctal/
 # @Time: 2021/11/06
-# @Update: 2024/03/14
+# @Update: 2024/03/25
 # @Version: 3.1.8
 # @Note:
 # Core code, valued at 1 bucks (๑•̀ㅂ•́)و✧
@@ -12,7 +12,6 @@
 # 核心代码，估值1块(๑•̀ㅂ•́)و✧
 # 用于爬取Douyin/TikTok/Bilibili/xigua的数据并以字典形式返回。
 # 如果本项目对您有帮助，请给我一个star，谢谢！
-import random
 import re
 import os
 import time
@@ -22,14 +21,17 @@ import httpx
 import platform
 import asyncio
 import traceback
-import configparser
+import yaml
 import urllib.parse
 import random
-import json
 
 from zlib import crc32
 from typing import Union
 from tenacity import *
+
+# 读取配置文件
+with open('config.yml', 'r', encoding='utf-8') as yaml_file:
+    config = yaml.safe_load(yaml_file)
 
 
 class Scraper:
@@ -44,10 +46,11 @@ class Scraper:
             'accept-encoding': 'gzip, deflate, br',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
             'Referer': 'https://www.douyin.com/',
-            'cookie': ''
+            # 如果抖音接口不返回数据，可能是因为cookie过期，需要更新cookie/If the Douyin interface does not return data, it may be because the cookie has expired and needs to be updated
+            'cookie': config['Scraper']['DouYinCookies']
         }
         self.tiktok_api_headers = {
-            'User-Agent': 'com.ss.android.ugc.trill/494+Mozilla/5.0+(Linux;+Android+12;+2112123G+Build/SKQ1.211006.001;+wv)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Version/4.0+Chrome/107.0.5304.105+Mobile+Safari/537.36'
+            'User-Agent': "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
         }
         self.bilibili_api_headers = {
             'User-Agent': 'com.ss.android.ugc.trill/494+Mozilla/5.0+(Linux;+Android+12;+2112123G+Build/SKQ1.211006.001;+wv)+AppleWebKit/537.36+(KHTML,+like+Gecko)+Version/4.0+Chrome/107.0.5304.105+Mobile+Safari/537.36'
@@ -86,9 +89,8 @@ class Scraper:
             'sec-ch-ua-platform': '"macOS"',
         }
         # 判断配置文件是否存在/Check if the configuration file exists
-        if os.path.exists('config.ini'):
-            self.config = configparser.RawConfigParser()
-            self.config.read('config.ini', encoding='utf-8')
+        if os.path.exists('config.yml'):
+            self.config = config
             if not self.config['Scraper']['DouYinCookies'] is None:
                 self.douyin_api_headers['Cookie'] = str(self.config['Scraper']['DouYinCookies'])
             # 判断是否使用代理
@@ -319,22 +321,6 @@ class Scraper:
 
     """__________________________________________⬇️Douyin methods(抖音方法)⬇️______________________________________"""
 
-    # 生成抖音X-Bogus签名/Generate Douyin X-Bogus signature
-    # 下面的代码不能保证稳定性，随时可能失效/ The code below cannot guarantee stability and may fail at any time
-    def generate_x_bogus_url(self, url: str) -> str:
-        """
-        生成抖音X-Bogus签名
-        :param url: 视频链接
-        :return: 包含X-Bogus签名的URL
-        """
-        # 调用JavaScript函数
-        query = urllib.parse.urlparse(url).query
-        xbogus = execjs.compile(open(self.relpath('./X-Bogus.js')).read()).call('sign', query,
-                                                                                self.headers['User-Agent'])
-        # print('生成的X-Bogus签名为: {}'.format(xbogus))
-        new_url = url + "&X-Bogus=" + xbogus
-        return new_url
-
     # 获取抖音视频ID/Get Douyin video ID
     async def get_douyin_video_id(self, original_url: str) -> Union[str, None]:
         """
@@ -382,20 +368,51 @@ class Scraper:
         """
         try:
             # 构造访问链接/Construct the access link
-            api_url = f"https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id={video_id}&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1344&screen_height=756&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_version=118.0&browser_online=true&engine_name=Gecko&engine_version=109.0&os_name=Windows&os_version=10&cpu_core_num=16&device_memory=&platform=PC&webid=7284189800734082615&msToken=B1N9FM825TkvFbayDsDvZxM8r5suLrsfQbC93TciS0O9Iii8iJpAPd__FM2rpLUJi5xtMencSXLeNn8xmOS9q7bP0CUsrt9oVTL08YXLPRzZm0dHKLc9PGRlyEk="
-            api_url = self.generate_x_bogus_url(api_url)
+            # parameters provided by https://github.com/Johnserf-Seed
+            domain = "https://www.douyin.com"
+            endpoint = "/aweme/v1/web/aweme/detail/"
+            query_body = {
+                "aweme_id": video_id,
+                "device_platform": "webapp",
+                "aid": "6383",
+                "channel": "channel_pc_web",
+                "pc_client_type": 1,
+                "version_code": "170400",
+                "version_name": "17.4.0",
+                "cookie_enabled": "true",
+                "screen_width": 1920,
+                "screen_height": 1080,
+                "browser_language": "zh-CN",
+                "browser_platform": "Win32",
+                "browser_name": "Edge",
+                "browser_version": "117.0.2045.47",
+                "browser_online": "true",
+                "engine_name": "Blink",
+                "engine_version": "117.0.0.0",
+                "os_name": "Windows",
+                "os_version": "10",
+                "cpu_core_num": 12,
+                "device_memory": 8,
+                "platform": "PC",
+                "downlink": 10,
+                "effective_type": "4g",
+                "round_trip_time": 100,
+                "msToken": "Hello From Evil0ctal!"
+            }
+            # 将参数编码为 URL 查询字符串
+            query_string = urllib.parse.urlencode(query_body, quote_via=urllib.parse.quote)
+            api_url = urllib.parse.urljoin(domain, endpoint) + "?" + query_string
+            api_url = self.generate_x_bogus_url(api_url, self.douyin_api_headers)
             # 访问API/Access API
             print("正在请求抖音视频API: {}".format(api_url))
-            async with aiohttp.ClientSession() as session:
-                self.douyin_api_headers['Referer'] = f'https://www.douyin.com/video/{video_id}'
-                async with session.get(api_url, headers=self.douyin_api_headers, proxy=self.proxies,
-                                       timeout=10) as response:
-                    response = await response.json()
-                    # 获取视频数据/Get video data
-                    video_data = response['aweme_detail']
-                    # print('获取视频数据成功！')
-                    print("抖音API返回数据: {}".format(video_data))
-                    return video_data
+            # 使用httpx请求
+            async with httpx.AsyncClient() as client:
+                response = await client.get(api_url, headers=self.douyin_api_headers, timeout=10)
+                response = response.json()
+                print(response)
+                # 获取视频数据/Get video data
+                video_data = response["aweme_detail"]
+                return video_data
         except Exception as e:
             raise ValueError(f"获取抖音视频数据出错了: {e}")
 
@@ -456,19 +473,28 @@ class Scraper:
         # print('正在获取TikTok视频数据...')
         try:
             # 构造访问链接/Construct the access link
-            api_url = f'https://api22-normal-c-useast2a.tiktokv.com/aweme/v1/feed/?aweme_id={video_id}'
-            print("正在获取视频数据API: {}".format(api_url))
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers=self.tiktok_api_headers, proxy=self.proxies,
-                                       timeout=10) as response:
-                    response = await response.json()
-                    video_data = response['aweme_list'][0]
-                    # print('获取视频信息成功！')
-                    return video_data
+            # params provided by https://github.com/sheldygg
+            params = {
+                "iid": "7318518857994389254",
+                "device_id": "7318517321748022790",
+                "channel": "googleplay",
+                "app_name": "musical_ly",
+                "version_code": "300904",
+                "device_platform": "android",
+                "device_type": "ASUS_Z01QD",
+                "os_version": "9",
+                "aweme_id": video_id
+            }
+            api_url = f"https://api22-normal-c-alisg.tiktokv.com/aweme/v1/feed/"
+            # 使用httpx请求
+            async with httpx.AsyncClient() as client:
+                response = await client.get(api_url, params=params, headers=self.tiktok_api_headers, timeout=10)
+                response = response.json()
+                # 获取视频数据/Get video data
+                video_data = response["aweme_list"][0]
+                return video_data
         except Exception as e:
-            print('获取视频信息失败！原因:{}'.format(e))
-            # return None
-            raise e
+            raise ValueError(f"获取TikTok视频数据出错了: {e}")
 
     """__________________________________________⬇️bilibili methods(Bilibili方法)⬇️______________________________________"""
 
@@ -978,8 +1004,14 @@ if __name__ == '__main__':
     #     async_test(_douyin_url=douyin_url, _tiktok_url=tiktok_url, _bilibili_url=bilibili_url, _ixigua_url=ixigua_url,
     #                _kuaishou_url=kuaishou_url))
 
-    tiktok_id = asyncio.run(api.get_tiktok_video_id(tiktok_url))
+    # tiktok_id = asyncio.run(api.get_tiktok_video_id(tiktok_url))
+    #
+    # tiktok_data = asyncio.run(api.get_tiktok_video_data(tiktok_id))
+    #
+    # print(tiktok_data)
 
-    tiktok_data = asyncio.run(api.get_tiktok_video_data(tiktok_id))
+    douyin_id = asyncio.run(api.get_douyin_video_id(douyin_url))
 
-    print(tiktok_data)
+    douyin_data = asyncio.run(api.get_douyin_video_data(douyin_id))
+
+    print(douyin_data)
