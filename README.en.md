@@ -17,13 +17,15 @@
 
 If you are interested, please add WeChat`Evil0ctal`Note: Github project reconstruction currently requires crawler/backend/full-stack development. If you don’t have the relevant technology stack, you can also join. The main idea is to create a group where everyone can communicate and learn from each other. Advertising is not allowed. As well as illegal stuff, purely for making friends and technical exchanges.
 
+Discord:[Tikhub discord](https://discord.com/invite/aMEAS8Xsvz)
+
 ## 👻Introduction
 
 > 🚨If you need to use a private server to run this project, please refer to the deployment method\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)/[Bilibili](https://www.bilibili.com)Data crawling tool, and realizes online batch parsing and downloading of videos or photo albums without watermarks, data crawling API, iOS shortcut commands without watermark downloads through the Web, etc. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[AIOHTTP](https://docs.aiohttp.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)/[Bilibili](https://www.bilibili.com)Data crawling tool, and realizes online batch parsing and downloading of videos or photo albums without watermarks, data crawling API, and iOS shortcut commands without watermark downloads through the Web. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
 
-_Some simple application scenarios:_
+_Some simple usage scenarios:_
 
 _Download prohibited videos, perform data analysis, download without watermark on iOS (with[Shortcut command APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to achieve in-app downloads or read clipboard downloads), etc....._
 
@@ -68,7 +70,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 -   for`web_api.py`as well as`scraper.py`A simple web program created to process the values ​​entered on the web page and then use them`Scraper()`Class processing and cooperation`web_api.py`The interface output is on the web page (similar to front-end and back-end separation)
 
-**_Most of the parameters of the above files can be found in[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)Make changes in_**
+**_Most of the parameters of the above files can be found in[config.ini](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/config.ini)Modify in_**
 
 ## 💡Project file structure
 
@@ -88,7 +90,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 -   Watermelon video analysis
 -   Kuaishou video analysis
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
--   Batch download of non-watermarked videos from the web parsing result page (removed for V3.X and above versions, please deploy V2.X version by yourself)
+-   Batch download of watermark-free videos from the web parsing result page (removed for V3.X and above versions, please deploy V2.X version by yourself)
 -   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
 -   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
@@ -109,7 +111,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 ## 📦Call the parsing library:
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -233,11 +235,11 @@ Online:<https://api.tikhub.io/docs>
     https://api.douyin.wtf/@evil0ctal/video/7156033831819037994
     # Return No Watermark Video Download Response
 
-**_For more demonstrations, please view the document content..._**
+**_For more demonstrations, please see the documentation..._**
 
 ## 💻Deployment (Method 1 Linux)
 
-> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may appear.
+> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
 
 Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)servers, mainly because they are free.
 
@@ -337,7 +339,7 @@ docker rm -f douyin_tiktok_download_api
 docker-compose pull && docker-compose down && docker-compose up -d
 ```
 
-## ❤️Contributor
+## ❤️ Contributor
 
 [![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
