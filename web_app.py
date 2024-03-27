@@ -84,7 +84,7 @@ def error_do(reason: str, value: str) -> None:
     put_markdown('[{}](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)'.format(
         t('点击此处在GitHub上进行反馈', 'Click here to give feedback on GitHub')))
     put_html("<hr>")
-    if config['Web_APP']['Allow_Logs'] == 'True':
+    if config['Web_APP']['Allow_Logs']:
         # 如果douyin或tiktok在输入值中，则记录到日志文件/If douyin or tiktok is in the input value, record it to the log file
         if 'douyin' in value or 'tiktok' in value:
             # 将错误记录在logs.txt中

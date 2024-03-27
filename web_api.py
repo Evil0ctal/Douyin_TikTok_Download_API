@@ -186,7 +186,7 @@ class API_Hybrid_Minimal_Response(BaseModel):
 
 # 记录API请求日志
 async def api_logs(start_time, input_data, endpoint, error_data: dict = None):
-    if config["Web_API"]["Allow_Logs"] == "True":
+    if config["Web_API"]["Allow_Logs"]:
         time_now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         total_time = float(format(time.time() - start_time, '.4f'))
         file_name = "API_logs.json"
@@ -616,9 +616,9 @@ async def download_file_hybrid(request: Request, url: str, prefix: bool = True, 
         - watermark: bool -> [True/False] 是否添加水印/Whether to add a watermark
         """
     # 是否开启此端点/Whether to enable this endpoint
-    if config["Web_API"]["Download_Switch"] != "True":
+    if not config["Web_API"]["Download_Switch"]:
         return ORJSONResponse({"status": "endpoint closed",
-                               "message": "此端点已关闭请在配置文件中开启/This endpoint is closed, please enable it in the configuration file"})
+                               "message": "下载视频端点已关闭请在配置文件中开启/Download video endpoint is closed, please enable it in the configuration file"})
     # 开始时间
     start_time = time.time()
     headers = {
@@ -734,7 +734,7 @@ async def download_douyin_video(aweme_id: str, prefix: bool = True, watermark: b
     - watermark: bool -> [True/False] 是否添加水印/Whether to add a watermark
     """
     # 是否开启此端点/Whether to enable this endpoint
-    if config["Web_API"]["Download_Switch"] != "True":
+    if not config["Web_API"]["Download_Switch"]:
         return ORJSONResponse({"status": "endpoint closed",
                                "message": "此端点已关闭请在配置文件中开启/This endpoint is closed, please enable it in the configuration file"})
     video_url = f"https://www.douyin.com/video/{aweme_id}"
@@ -759,7 +759,7 @@ async def download_douyin_video(aweme_id: str, prefix: bool = True, watermark: b
     - watermark: bool -> [True/False] 是否添加水印/Whether to add a watermark
     """
     # 是否开启此端点/Whether to enable this endpoint
-    if config["Web_API"]["Download_Switch"] != "True":
+    if not config["Web_API"]["Download_Switch"]:
         return ORJSONResponse({"status": "endpoint closed",
                                "message": "此端点已关闭请在配置文件中开启/This endpoint is closed, please enable it in the configuration file"})
     video_url = f"https://www.douyin.com/video/{aweme_id}"
@@ -784,7 +784,7 @@ async def download_douyin_discover(modal_id: str, prefix: bool = True, watermark
     - watermark: bool -> [True/False] 是否添加水印/Whether to add a watermark
     """
     # 是否开启此端点/Whether to enable this endpoint
-    if config["Web_API"]["Download_Switch"] != "True":
+    if not config["Web_API"]["Download_Switch"]:
         return ORJSONResponse({"status": "endpoint closed",
                                "message": "此端点已关闭请在配置文件中开启/This endpoint is closed, please enable it in the configuration file"})
     video_url = f"https://www.douyin.com/discover?modal_id={modal_id}"
@@ -810,7 +810,7 @@ async def download_tiktok_video(user_id: str, aweme_id: str, prefix: bool = True
         - watermark: bool -> [True/False] 是否添加水印/Whether to add a watermark
         """
     # 是否开启此端点/Whether to enable this endpoint
-    if config["Web_API"]["Download_Switch"] != "True":
+    if not config["Web_API"]["Download_Switch"]:
         return ORJSONResponse({"status": "endpoint closed",
                                "message": "此端点已关闭请在配置文件中开启/This endpoint is closed, please enable it in the configuration file"})
     video_url = f"https://www.tiktok.com/{user_id}/video/{aweme_id}"
@@ -849,7 +849,7 @@ def cleanup_path():
 async def startup_event():
     # 创建一个清理下载目录定时器线程并启动
     # Create a timer thread to clean up the download directory and start it
-    download_path_clean_switches = True if config["Web_API"]["Download_Path_Clean_Switch"] == "True" else False
+    download_path_clean_switches = True if config["Web_API"]["Download_Path_Clean_Switch"] else False
     if download_path_clean_switches:
         # 启动清理线程/Start cleaning thread
         thread_1 = threading.Thread(target=cleanup_path)

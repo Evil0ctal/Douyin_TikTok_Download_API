@@ -94,9 +94,9 @@ class Scraper:
             if not self.config['Scraper']['DouYinCookies'] is None:
                 self.douyin_api_headers['Cookie'] = str(self.config['Scraper']['DouYinCookies'])
             # 判断是否使用代理
-            if self.config['Scraper']['Proxy_switch'] == 'True':
+            if self.config['Scraper']['Proxy_switch']:
                 # 判断是否区别协议选择代理
-                if self.config['Scraper']['Use_different_protocols'] == 'False':
+                if not self.config['Scraper']['Use_different_protocols']:
                     self.proxies = {
                         'all': self.config['Scraper']['All']
                     }
@@ -492,6 +492,10 @@ class Scraper:
                 response = response.json()
                 # 获取视频数据/Get video data
                 video_data = response["aweme_list"][0]
+                # 获取video_id判断原视频是否被删除/Get video_id to determine if the original video has been deleted
+                aweme_id = video_data["aweme_id"]
+                if video_id != aweme_id:
+                    raise ValueError("Video not found")
                 return video_data
         except Exception as e:
             raise ValueError(f"获取TikTok视频数据出错了: {e}")
