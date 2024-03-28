@@ -355,6 +355,12 @@ class Scraper:
                 key = re.findall('/note/(\d+)?', video_url)[0]
                 # print('获取到的抖音笔记ID为: {}'.format(key))
                 return key
+            # 个人主页    
+            elif "user" in video_url:
+                # https://www.douyin.com/user/MS4wLjABAAAA6MgkojtAI7ZEK-vcJIly157umW6ANrtsAvk9QUar98XntKAYsFHO3WxCFLUYFWYI?modal_id=7222522822483103010
+                key = re.findall("modal_id=(\d+)", video_url)[0]
+                print("获取到的抖音用户ID为: {}".format(key))
+                return key
         except Exception as e:
             print('获取抖音视频ID出错了:{}'.format(e))
             return None
