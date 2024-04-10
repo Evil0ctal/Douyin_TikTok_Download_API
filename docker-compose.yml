@@ -5,13 +5,16 @@ services:
   # bot
   douyin_tiktok_download_api:
     image: evil0ctal/douyin_tiktok_download_api
-    network_mode: host
+    network_mode: host # mac 网卡不支持 host 模式，请使用 bridge 
     container_name: douyin_tiktok_download_api
     restart: always
     volumes:
       - ./config.yml:/app/config.yml
     environment:
       TZ: Asia/Shanghai
+    # ports:  mac 网卡不支持 host 模式，使用 bridge 请取消此注释用于映射端口
+      # - "80:80"
+      # - "8000:8000"
     deploy:
       resources:
         limits:
