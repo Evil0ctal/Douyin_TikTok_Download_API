@@ -36,6 +36,8 @@
 
 Discord: [TikHub Discord](https://discord.com/invite/aMEAS8Xsvz)
 
+Free Douyin/TikTok API: [TikHub Beta API](https://beta.tikhub.io/)
+
 ## 👻介绍
 
 > 🚨如需使用私有服务器运行本项目，请参考部署方式[[Docker部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker), [一键部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
