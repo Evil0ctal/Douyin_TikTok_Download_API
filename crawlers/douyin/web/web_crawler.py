@@ -327,7 +327,6 @@ class DouyinWebCrawler:
         # print(result)
 
         # 获取用户喜欢作品数据
-        # 这个账号有点东西，晚点看一下 https://www.douyin.com/user/MS4wLjABAAAAW9FWcqS7RdQAWPd2AA5fL_ilmqsIFUCQ_Iym6Yh9_cUa6ZRqVLjVQSUjlHrfXY1Y
         # sec_user_id = "MS4wLjABAAAAW9FWcqS7RdQAWPd2AA5fL_ilmqsIFUCQ_Iym6Yh9_cUa6ZRqVLjVQSUjlHrfXY1Y"
         # max_cursor = 0
         # count = 10

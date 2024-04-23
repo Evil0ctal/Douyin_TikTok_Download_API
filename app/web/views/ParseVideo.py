@@ -20,7 +20,7 @@ with open(config_path, 'r', encoding='utf-8') as file:
 
 
 # 网站域名/Website domain
-domain = config['Domain']
+domain = config['Web']['Domain']
 
 
 # 校验输入值/Validate input value
@@ -35,7 +35,7 @@ def valid_check(input_data: str):
         return warn_info
     else:
         # 最大接受提交URL的数量/Maximum number of URLs accepted
-        max_urls = config['Max_Take_URLs']
+        max_urls = config['Web']['Max_Take_URLs']
         if total_urls > int(max_urls):
             warn_info = ViewsUtils.t(f'输入的链接太多啦，当前只会处理输入的前{max_urls}个链接！',
                                      f'Too many links input, only the first {max_urls} links will be processed!')

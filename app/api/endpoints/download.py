@@ -33,7 +33,7 @@ async def fetch_data(url: str):
 async def download_file_hybrid(request: Request,
                                url: str, prefix: bool = True, with_watermark: bool = False):
     # 是否开启此端点/Whether to enable this endpoint
-    if not config["Download_Switch"]:
+    if not config["API"]["Download_Switch"]:
         code = 400
         message = "Download endpoint is disabled."
         return ErrorResponseModel(code=code, message=message, router=request.url.path, params=dict(request.query_params))
@@ -50,8 +50,8 @@ async def download_file_hybrid(request: Request,
         data_type = data.get('type')
         platform = data.get('platform')
         aweme_id = data.get('aweme_id')
-        file_prefix = config.get("Download_File_Prefix") if prefix else ''
-        download_path = os.path.join(config.get("Download_Path"), f"{platform}_{data_type}")
+        file_prefix = config.get("API").get("Download_File_Prefix") if prefix else ''
+        download_path = os.path.join(config.get("API").get("Download_Path"), f"{platform}_{data_type}")
 
         # 确保目录存在/Ensure the directory exists
         os.makedirs(download_path, exist_ok=True)

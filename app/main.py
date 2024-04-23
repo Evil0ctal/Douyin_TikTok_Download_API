@@ -42,6 +42,23 @@ from app.api.router import router as api_router
 from app.web.app import MainView
 from pywebio.platform.fastapi import asgi_app
 
+# OS
+import os
+
+# YAML
+import yaml
+
+# Load Config
+
+# 读取上级再上级目录的配置文件
+config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.yaml')
+with open(config_path, 'r', encoding='utf-8') as file:
+    config = yaml.safe_load(file)
+
+
+Host_IP = config['API']['Host_IP']
+Host_Port = config['API']['Host_Port']
+
 # API Tags
 tags_metadata = [
     {
@@ -70,9 +87,9 @@ tags_metadata = [
     },
 ]
 
-version = 'V4.0.0'
-update_time = '2024-04-20'
-environment = 'development'
+version = config['API']['Version']
+update_time = config['API']['Update_Time']
+environment = config['API']['Environment']
 
 description = f"""
 ### [中文]
@@ -119,4 +136,4 @@ webapp = asgi_app(lambda: MainView().main_view())
 app.mount("/", webapp)
 
 if __name__ == '__main__':
-    uvicorn.run(app, host="0.0.0.0", port=80)
+    uvicorn.run(app, host=Host_IP, port=Host_Port)

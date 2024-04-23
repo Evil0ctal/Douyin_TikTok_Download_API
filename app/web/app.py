@@ -20,12 +20,12 @@ config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__fil
 with open(config_path, 'r', encoding='utf-8') as file:
     _config = yaml.safe_load(file)
 
-pywebio_config(theme=_config['PyWebIO_Theme'],
-               title=_config['Tab_Title'],
-               description=_config['Description'],
+pywebio_config(theme=_config['Web']['PyWebIO_Theme'],
+               title=_config['Web']['Tab_Title'],
+               description=_config['Web']['Description'],
                js_file=[
                    # 整一个看板娘，二次元浓度++
-                   _config['Live2D_JS'] if _config['Live2D_Enable'] else None,
+                   _config['Web']['Live2D_JS'] if _config['Web']['Live2D_Enable'] else None,
                ])
 
 
@@ -38,7 +38,7 @@ class MainView:
         # 左侧导航栏/Left navbar
         with use_scope('main'):
             # 设置favicon/Set favicon
-            favicon_url = _config['Favicon']
+            favicon_url = _config['Web']['Favicon']
             session.run_js(f"""
                             $('head').append('<link rel="icon" type="image/png" href="{favicon_url}">')
                             """)
@@ -89,4 +89,4 @@ class MainView:
             elif select_options == options[1]:
                 put_markdown(self.utils.t('暂未开放，敬请期待~', 'Not yet open, please look forward to it~'))
             elif select_options == options[2]:
-                a() if _config['Easter_Egg'] else put_markdown(self.utils.t('没有小彩蛋哦~', 'No Easter Egg~'))
+                a() if _config['Web']['Easter_Egg'] else put_markdown(self.utils.t('没有小彩蛋哦~', 'No Easter Egg~'))

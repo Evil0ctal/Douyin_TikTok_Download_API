@@ -1,15 +1,16 @@
 version: "3.9"
 
 services:
-
-  # bot
   douyin_tiktok_download_api:
     image: evil0ctal/douyin_tiktok_download_api
     network_mode: host
     container_name: douyin_tiktok_download_api
     restart: always
     volumes:
-      - ./config.yaml:/crawlers/douyin/web/config.yaml:/crawlers/tiktok/web/config.yaml:/crawlers/tiktok/app/config.yaml
+      - ./config.yaml
+      - ./crawlers/douyin/web/config.yaml
+      - ./crawlers/tiktok/web/config.yaml
+      - ./crawlers/tiktok/app/config.yaml
     environment:
       TZ: Asia/Shanghai
     deploy:
