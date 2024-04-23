@@ -7,7 +7,7 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/www/wwwroot/Douyin_TikTok_Download_API
-ExecStart=python3 start.py
+ExecStart=/www/wwwroot/Douyin_TikTok_Download_API/venv/bin/python3 start.py
 Restart=always
 
 [Install]
