@@ -25,7 +25,7 @@
 -   Add parsing of user homepage.
 -   iOS shortcuts need to be updated to be compatible with the latest API responses and paths.
 -   Desktop downloaders or browser plug-ins can be developed if necessary.
--   解决爬虫Cookie风控问题。
+-   Solve the problem of crawler cookie risk control.
 
 > Change
 
