@@ -24,13 +24,7 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 
 cd Douyin_TikTok_Download_API/ || exit
 
-apt install python3.11-venv
-
-python3 -m venv venv
-
-source venv/bin/activate
-
-pip install -r requirements.txt
+pip install -r requirements.txt --break-system-packages
 
 echo 'Add Douyin_TikTok_Download_API to system service'
 
