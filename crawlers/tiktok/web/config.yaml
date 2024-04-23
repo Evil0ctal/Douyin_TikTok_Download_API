@@ -1,0 +1,26 @@
+TokenManager:
+  tiktok:
+    headers:
+      User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36
+      Referer: https://www.tiktok.com/
+      Cookie: tt_csrf_token=swzFbctS-d01xfNEDqKXaPXo2rCgRD9G0eGE; ak_bmsc=FCF8615A4E6BE10A1DD7459465B8BB16~000000000000000000000000000000~YAAQ5OIsF7olH8+OAQAAzCrl+Bd8Fp6TmQBkH2R4pvEPzVfNCvW23aFkf/Y0mVUFcZKNWkK3HNchrpk8cOzoB+oPTpg2cdLX3jXanz4KPVPEL/j/63yZ2/dMIY85Szp9osCX08pO2uUNQ2+wrynmtOO17GbOiEwz88WU+vwmbiLHh3kXYgL05mhk7QPcCbkwmrjrO8MK6eIv61PY2w9hCySeBpDjEymEZaE1//YthsBzKjiin5XEcy02P8Gyjm4JPwCT51ibYMs+MInRSeGeqDe50R14dnnMEplkXpEyvgBc56jfvIC2hLFwodY3/WST+xJBJ/wlXnPQtz4xm2qxPe6GybqqND0ebbC50QEORTU0RVTNcIZLptBmXaMCq3fTUzQakV0Enyae8w==; tt_chain_token=Hd8IafgFe6cvSObNkafaVA==; bm_sv=642D5E006DE69E254946C4A763D9A4FD~YAAQ5OIsF7slH8+OAQAA/ivl+Bc2q1mDEH+wpeYc83apdrOw3IjVn0joPM3aB0QNcF10Gz972bawwuIGWkZiGdNzpshINZ0pD2Pv3Z0dylnaTc4uVwwcjIT7JJyJIxJFs8pN7zmUM4mSj+F6QbgpX9eOO/WemqDW25TUhrS6kLm886MiRaejnoCUcAt4Gt8FGmmpdNBKTLY0EqsLeWhU5++CqzCmJ/CWT9bUrFC3hI2yf54OEru5yP28bLKYPLmj~1; tiktok_webapp_theme=light; ttwid=1%7CV7vzUo1jsQihIMKHnZpNNp9rCrGHcC4bUw4VWm5SSOQ%7C1713572754%7Ca28c6b6eb3c4b597a1111b123a5b45e305626f37f249e9bc56d02bb6be651909; passport_csrf_token=8ed81b4c85a7c20332ec9265d7057fc1; passport_csrf_token_default=8ed81b4c85a7c20332ec9265d7057fc1; perf_feed_cache={%22expireTimestamp%22:1713744000000%2C%22itemIds%22:[%227350454864071150890%22%2C%227342421363656789291%22%2C%227341080338803821866%22]}; msToken=kd_x8QL-A4Z1FfvqdPF--bXF06lUvRkB5Q41QEr-kXiaV30qUXhT9iy5cIiRggNDA1B5vyaPkwPKQwQX4oZHAW2A0C_u23wyNLjdW3p8WfKTfOSCoNLPP5NkM9LCBUXKXvoMIEVU_EvSN-A-bQ==; msToken=pJU9vxWWaHLsaRwF5O3JdwuldPan_W6Zx0TcL3wMMQE1Ni2B76ukBfVfHb_TKnwgAoKAYT7uXB5JiY1TG8bxEAPYJBrIs78KFI6ZU5l79GWsCZHXkDlB7tpMf_jfSAFOYjxBAFy_4XWaGVzBRg==
+
+    proxies:
+      http:
+      https:
+
+    msToken:
+      url: https://mssdk-sg.tiktok.com/web/common?msToken=1Ab-7YxR9lUHSem0PraI_XzdKmpHb6j50L8AaXLAd2aWTdoJCYLfX_67rVQFE4UwwHVHmyG_NfIipqrlLT3kCXps-5PYlNAqtdwEg7TrDyTAfCKyBrOLmhMUjB55oW8SPZ4_EkNxNFUdV7MquA==
+      magic: 538969122
+      version: 1
+      dataType: 8
+      strData: 3BvqYbNXLLOcZehvxZVbjpAu7vq82RoWmFSJHLFwzDwJIZevE0AeilQfP55LridxmdGGjknoksqIsLqlMHMif0IFK/Br7JWqxOHnYuMwVCnttFc0Y4MFvdVWM5FECiEulJC0Dc+eeVsNSrFnAc9K7fazqdglyJgGLSfXIJmgyCvvQ4pg0u5HBVVugLSWs242X42fjoWymaUCLZJQo6vi6WLyuV7l5IC3Mg+lelr5xBQD6Q7hBIFEw8zzxJ1n2DyA4xLbOHTQdKvEtsK7XzyWwjpRnojPTbBl69Zosnuru+lOBIl+tFu/+hCQ1m0jYZwTP4rVE75L3Du6+KZ5v/9TyFYjq7y3y9bGLP4d7yQueJbF90G1yrZ6htElrZ2vqZKDrIqBVbmOZr/nph12k2JKrITtN0R/pMsp0sJ4gesQnXxcD/pLOFAINHk7umgbe6LzJ7+TLUdGuO4M7xiEg/jCqhjgJX1izZ4NPoBDp35zRxj6Y6OrcstlTN/cv5sz663+Nco/mEwhGq2VwrL4gAIAPycndIsb48dPdtngmLqNDNN0ZyVRjgqVIDXXrxigXCkR9CH89Dlrrb7QQqWVgRXz9/k5ihEM43BR3sd3mMU/XgFLN1Aoxf6GzzdxP2QPBI75/ZoHoAmu54v8gTmA3ntCGlEF0zgaFGTdpkGdb+oZgyQM4pw1aAyxmFINXkpD3IKKoGev9kD9gTFnhiQMGCMemhZS7ZYdbuGu0Cb+lQKaL/QTt80FMyGmW8kzVy9xW/ja9BcdEJYRoaufuFRkBFG5ay8x4WHLR6hEapXqQial/cREbLL4sQytpjtmnndFqvT7xN5DhgsLY2Z7451MJhD6NJXKNrMafGZSbItzQWY=
+      User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36
+
+    ttwid:
+      url: https://www.tiktok.com/ttwid/check/
+      data: '{"aid":1988,"service":"www.tiktok.com","union":false,"unionHost":"","needFid":false,"fid":"","migrate_priority":0}'
+      cookie: ttwid=1%7CovVQu2St-HXSHAdEfZ7tljPe151SZ88AbrlTirlaC6w%7C1701072604%7C49b17849da69bafc3638e794f3f26b30fe9677c5253e65a2a5f615489846ce02
+
+    odin_tt:
+      url: https://www.tiktok.com/passport/web/account/info/?aid=1459&app_language=zh-Hans&app_name=tiktok_web&browser_language=zh-CN&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F119.0.0.0%20Safari%2F537.36&channel=tiktok_web&cookie_enabled=true&device_id=7306060721837852167&root_referer=https%3A%2F%2Fwww.tiktok.com%2Flogin%2F
