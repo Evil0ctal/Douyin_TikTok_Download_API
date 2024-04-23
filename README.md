@@ -76,6 +76,7 @@ Free Douyin/TikTok API: [TikHub Beta API](https://beta.tikhub.io/)
 
 ## 🖥演示站点: 我很脆弱...请勿压测(·•᷄ࡇ•᷅ ）
 
+> 😾演示站点的在线下载功能被我关掉了，有人下的视频巨大无比直接给我服务器干崩了，自己在网页解析结果里右键保存吧...
 
 🍔Web APP: [https://douyin.wtf/](https://douyin.wtf/)
 
