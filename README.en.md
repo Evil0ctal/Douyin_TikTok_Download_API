@@ -89,7 +89,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 -   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
+**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
 
 ## 💡Project file structure
 
@@ -313,8 +313,7 @@ API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/
 
 TikTok official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API.png?raw=true)
 
-本项目API:
-![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API_Douyin_wtf.png?raw=true)
+API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API_Douyin_wtf.png?raw=true)
 
 </details>
 <hr>
