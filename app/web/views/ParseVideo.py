@@ -154,11 +154,11 @@ def parse_video():
                                            data.get('video_data').get('nwm_video_url_HQ'), new_window=True)])
             table_list.insert(6, [ViewsUtils.t('视频下载-水印', 'Video Download-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/download?url={url}&prefix=true&watermark=true",
+                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=true",
                                            new_window=True)])
             table_list.insert(7, [ViewsUtils.t('视频下载-无水印', 'Video Download-No-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/download?url={url}&prefix=true&watermark=false",
+                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=false",
                                            new_window=True)])
             # 添加视频信息
             table_list.insert(0, [put_video(data.get('video_data').get('nwm_video_url_HQ'), poster=None, loop=True, width='50%')])
@@ -167,11 +167,11 @@ def parse_video():
             # 添加图片下载链接
             table_list.insert(4, [ViewsUtils.t('图片打包下载-水印', 'Download images ZIP-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/download?url={url}&prefix=true&watermark=true",
+                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=true",
                                            new_window=True)])
             table_list.insert(5, [ViewsUtils.t('图片打包下载-无水印', 'Download images ZIP-No-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/download?url={url}&prefix=true&watermark=false",
+                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=false",
                                            new_window=True)])
             # 添加图片信息
             no_watermark_image_list = data.get('image_data').get('no_watermark_image_list')
