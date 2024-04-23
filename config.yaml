@@ -1,0 +1,31 @@
+iOS_Shortcut:
+  iOS_Shortcut_Version: 6.0
+  iOS_Shortcut_Update_Time: 2024/04/22
+  iOS_Shortcut_Link: https://www.icloud.com/shortcuts/4465d514869e4ca585074d40328f3e0e
+  iOS_Shortcut_Link_EN: https://www.icloud.com/shortcuts/58e3a2cbac784a6782f1031c6b1dd9f8
+  iOS_Shortcut_Update_Note: 重新适配https://api.douyin.wtf(API-V1 3.0.0版本)
+  iOS_Shortcut_Update_Note_EN: Re-adapt https://api.douyin.wtf (API-V1 3.0.0 version)
+
+Domain: https://douyin.wtf
+
+Tab_Title: Douyin_TikTok_Download_API
+
+Description: Douyin_TikTok_Download_API is a free open-source API service for Douyin/TikTok. It provides a simple, fast, and stable API for developers to develop applications based on Douyin/TikTok.
+
+Favicon: https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/logo/logo192.png
+
+PyWebIO_Theme: minty
+
+Live2D_Enable: true
+Live2D_JS: https://fastly.jsdelivr.net/gh/TikHubIO/TikHub_live2d@latest/autoload.js
+
+Easter_Egg: true
+
+Max_Take_URLs: 30
+
+Download_Switch: true
+
+Download_File_Prefix: douyin.wtf_
+
+# 默认下载目录/Default download directory
+Download_Path: "./download"

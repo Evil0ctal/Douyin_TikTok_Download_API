@@ -130,3 +130,4 @@ dmypy.json
 
 # pycharm
 .idea
+/app/api/endpoints/download/
