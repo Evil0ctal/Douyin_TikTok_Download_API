@@ -78,7 +78,7 @@ description = f"""
 ### [中文]
 
 #### 关于
-- **Github**: [Douyin_TikTok_Download_API]("https://github.com/Evil0ctal/Douyin_TikTok_Download_API")
+- **Github**: [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)
 - **版本**: `{version}`
 - **更新时间**: `{update_time}`
 - **环境**: `{environment}`
@@ -91,7 +91,7 @@ description = f"""
 ### [English]
 
 #### About
-- **Github**: [Douyin_TikTok_Download_API]("https://github.com/Evil0ctal/Douyin_TikTok_Download_API")
+- **Github**: [Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)
 - **Version**: `{version}`
 - **Last Updated**: `{update_time}`
 - **Environment**: `{environment}`
