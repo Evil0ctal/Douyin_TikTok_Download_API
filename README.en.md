@@ -32,7 +32,7 @@
 -   Run Pywebio as a sub-APP of FastAPI.
 -   Rewritten the interfaces of Douyin and TikTok, thank you[@johnserf-seed](https://github.com/Johnserf-Seed)
 -   The file download endpoint has been rewritten and now uses asynchronous file IO.
--   Annotations and demonstration values ​​were added to all endpoints.
+-   对所有端点进行了注解和演示值的添加。
 -   Organize the project file structure.
 
 > Remark
@@ -171,7 +171,7 @@ https://m.ixigua.com/video/7274710134306112054/
 https://www.bilibili.com/video/BV1Th411x7ii/
 ```
 
--   Douyin sharing password (copy in APP)
+-   抖音分享口令  (APP内复制)
 
 ```text
 7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
