@@ -119,13 +119,16 @@ description = f"""
 - If you need a more stable and feature-rich API service, you can use the paid API service: [TikHub API](https://beta.tikhub.io)
 """
 
+docs_url = config['API']['Docs_URL']
+redoc_url = config['API']['Redoc_URL']
+
 app = FastAPI(
     title="Douyin TikTok Download API",
     description=description,
     version=version,
     openapi_tags=tags_metadata,
-    docs_url='/docs',  # 文档路径
-    redoc_url='/redoc',  # redoc文档路径
+    docs_url=docs_url,  # 文档路径
+    redoc_url=redoc_url,  # redoc文档路径
 )
 
 # API router
