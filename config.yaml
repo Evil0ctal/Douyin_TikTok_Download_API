@@ -1,5 +1,8 @@
 # Web
 Web:
+  # APP Switch
+  PyWebIO_Enable: true    # Enable APP | 启用APP
+
   # APP Information
   Domain: https://douyin.wtf    # Web domain | Web域名
 

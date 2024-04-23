@@ -132,8 +132,9 @@ app = FastAPI(
 app.include_router(api_router, prefix="/api")
 
 # PyWebIO APP
-webapp = asgi_app(lambda: MainView().main_view())
-app.mount("/", webapp)
+if config['Web']['PyWebIO_Enable']:
+    webapp = asgi_app(lambda: MainView().main_view())
+    app.mount("/", webapp)
 
 if __name__ == '__main__':
     uvicorn.run(app, host=Host_IP, port=Host_Port)
