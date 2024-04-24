@@ -57,7 +57,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 ## 🖥Demo site: I am very vulnerable...please do not stress test (·•᷄ࡇ•᷅ )
 
-> 😾I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed my server. Just right-click on the web page parsing result and save it...
+> 😾I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed my server. I just right-clicked on the webpage parsing result and saved it...
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -91,7 +91,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 -   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
+**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
 
 ## 💡Project file structure
 
