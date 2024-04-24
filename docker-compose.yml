@@ -1,18 +1,22 @@
-version: "3.9"
+version: "3.9"  # Docker Compose 文件版本
 
-services:
-  douyin_tiktok_download_api:
-    image: evil0ctal/douyin_tiktok_download_api
-    network_mode: host
-    container_name: douyin_tiktok_download_api
-    restart: always
-    volumes:
-      - ./config.yaml
-      - ./crawlers/douyin/web/config.yaml
-      - ./crawlers/tiktok/web/config.yaml
-      - ./crawlers/tiktok/app/config.yaml
-    environment:
-      TZ: Asia/Shanghai
+services:  # 定义服务列表
+  douyin_tiktok_download_api:  # 服务名称
+    image: evil0ctal/douyin_tiktok_download_api  # 使用的 Docker 镜像
+    network_mode: host  # 使用主机网络模式
+    container_name: douyin_tiktok_download_api  # 容器名称
+    restart: always  # 容器退出后总是重启
+    volumes:  # 挂载卷配置
+      - ./path/config.yaml:/crawlers/douyin/web/config.yaml
+      - ./path/config.yaml:/crawlers/tiktok/web/config.yaml
+      - ./path/config.yaml:/crawlers/tiktok/app/config.yaml
+    environment:  # 环境变量配置
+      TZ: Asia/Shanghai  # 设置时区为亚洲/上海
+      PUID: 1026  # 设置容器内部的用户 ID
+      PGID: 100  # 设置容器内部的用户组 ID
+    ports:
+      - 8000:80
+    privileged: true  # 设置特权模式以便容器内部可以执行特权操作
     deploy:
       resources:
         limits:
