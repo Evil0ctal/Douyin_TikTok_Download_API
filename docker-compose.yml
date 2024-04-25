@@ -15,7 +15,7 @@ services:  # 定义服务列表
       PUID: 1026  # 设置容器内部的用户 ID
       PGID: 100  # 设置容器内部的用户组 ID
     ports:
-      - 8000:80
+      - "80:80"
     privileged: true  # 设置特权模式以便容器内部可以执行特权操作
     deploy:
       resources:
