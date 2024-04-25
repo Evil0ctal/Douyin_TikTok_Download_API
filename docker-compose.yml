@@ -14,7 +14,7 @@ services:
       PUID: 1026
       PGID: 100
     ports:
-      - "80:80"
+      - 80:80
     privileged: true
     deploy:
       resources:
