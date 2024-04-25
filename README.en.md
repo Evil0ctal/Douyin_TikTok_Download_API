@@ -51,7 +51,7 @@ Free Douyin/TikTok API:[Tikhub Beta Opi](https://beta.tikhub.io/)
 
 This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realizes online batch parsing and downloading of videos or photo albums without watermarks, data crawling API, and iOS shortcut command without watermark downloads through the Web. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
 
-_一些简单的运用场景：_
+_Some simple application scenarios:_
 
 _Download prohibited videos, perform data analysis, download without watermark on iOS (with[Shortcut command APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to achieve in-app downloads or read clipboard downloads), etc....._
 
@@ -93,7 +93,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 **_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
 
-## 💡项目文件结构
+## 💡Project file structure
 
     ./Douyin_TikTok_Download_API
         ├─app
@@ -118,11 +118,11 @@ _Download prohibited videos, perform data analysis, download without watermark o
 -   TikTok WebMost APIs
 -   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
 -   Download videos or photo albums online.
--   API调用获取链接数据
+-   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
 -   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
 -   Analyze all videos on the author's homepage ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
--   Parse all comment information in the video ([TikHub-API](https://api.tikhub.io/docs)Support Douyin/TikTok)
+-   Parse all comment information in the video ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
 
 * * *
 
