@@ -81,28 +81,28 @@ class TokenManager:
 
                 return msToken
 
-            except httpx.RequestError as exc:
-                # 捕获所有与 httpx 请求相关的异常情况 (Captures all httpx request-related exceptions)
-                raise APIConnectionError("请求端点失败，请检查当前网络环境。 链接：{0}，代理：{1}，异常类名：{2}，异常详细信息：{3}"
-                                         .format(cls.token_conf["url"], cls.proxies, cls.__name__, exc)
-                                         )
+            # except httpx.RequestError as exc:
+            #     # 捕获所有与 httpx 请求相关的异常情况 (Captures all httpx request-related exceptions)
+            #     raise APIConnectionError("请求端点失败，请检查当前网络环境。 链接：{0}，代理：{1}，异常类名：{2}，异常详细信息：{3}"
+            #                              .format(cls.token_conf["url"], cls.proxies, cls.__name__, exc)
+            #                              )
+            #
+            # except httpx.HTTPStatusError as e:
+            #     # 捕获 httpx 的状态代码错误 (captures specific status code errors from httpx)
+            #     if response.status_code == 401:
+            #         raise APIUnauthorizedError("参数验证失败，请更新 F2 配置文件中的 {0}，以匹配 {1} 新规则"
+            #                                    .format("msToken", "tiktok")
+            #                                    )
+            #
+            #     elif response.status_code == 404:
+            #         raise APINotFoundError("{0} 无法找到API端点".format("msToken"))
+            #     else:
+            #         raise APIResponseError("链接：{0}，状态码 {1}：{2} ".format(
+            #             e.response.url, e.response.status_code, e.response.text
+            #         )
+            #         )
 
-            except httpx.HTTPStatusError as e:
-                # 捕获 httpx 的状态代码错误 (captures specific status code errors from httpx)
-                if response.status_code == 401:
-                    raise APIUnauthorizedError("参数验证失败，请更新 F2 配置文件中的 {0}，以匹配 {1} 新规则"
-                                               .format("msToken", "tiktok")
-                                               )
-
-                elif response.status_code == 404:
-                    raise APINotFoundError("{0} 无法找到API端点".format("msToken"))
-                else:
-                    raise APIResponseError("链接：{0}，状态码 {1}：{2} ".format(
-                        e.response.url, e.response.status_code, e.response.text
-                    )
-                    )
-
-            except APIError as e:
+            except Exception as e:
                 # 返回虚假的msToken (Return a fake msToken)
                 logger.error("msToken API错误：{0}".format(e))
                 logger.info("生成虚假的msToken")
