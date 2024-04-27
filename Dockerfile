@@ -24,9 +24,13 @@ RUN pip3 install -i https://mirrors.aliyun.com/pypi/simple/ -U pip \
     && pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
     && pip3 install virtualenv
 
-# Create and activate virtual environment
-# Using a virtual environment prevents conflicts between the app's dependencies and the system
-RUN python3.11 -m virtualenv venv
+# Check virtualenv is installed
+RUN which virtualenv
+
+# Create and activate virtual environment using the virtualenv command
+RUN virtualenv venv -p python3.11
+
+# Set the virtual environment path
 ENV PATH="/app/venv/bin:$PATH"
 
 # Install dependencies in the virtual environment
