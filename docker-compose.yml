@@ -6,7 +6,7 @@ services:  # 定义服务列表
     network_mode: host  # 使用主机网络模式
     container_name: douyin_tiktok_download_api  # 容器名称
     restart: always  # 容器退出后总是重启
-    volumes:  # 挂载卷配置
+    volumes: # 挂载卷配置
       - ./douyin_tiktok_download_api/douyin_web/config.yaml:/crawlers/douyin/web/config.yaml
       - ./douyin_tiktok_download_api/tiktok_web/config.yaml:/crawlers/tiktok/web/config.yaml
       - ./douyin_tiktok_download_api/tiktok_app/config.yaml:/crawlers/tiktok/app/config.yaml

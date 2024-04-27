@@ -260,7 +260,7 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 > 💡提示：最好将本项目部署至美国地区的服务器，否则可能会出现奇怪的BUG。
 
-推荐大家使用[Digitalocean](https://www.digitalocean.com/)的服务器，主要是因为免费。
+推荐大家使用[Digitalocean](https://www.digitalocean.com/)的服务器，因为可以白嫖。
 
 使用我的邀请链接注册，你可以获得$200的credit，当你在上面消费$25时，我也可以获得$25的奖励。
 
@@ -270,6 +270,8 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 > 使用脚本一键部署本项目
 
+- 本项目提供了一键部署脚本，可以在服务器上快速部署本项目。
+- 脚本是在Ubuntu 20.04 LTS上测试的，其他系统可能会有问题，如果有问题请自行解决。
 - 使用wget命令下载[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)至服务器并运行
 
 ```
@@ -278,59 +280,102 @@ wget -O install.sh https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Dow
 
 > 开启/停止服务
 
-- `systemctl start/stop Douyin_TikTok_Download_API.service`
+- 使用以下命令来控制服务的运行或停止：
+  - `sudo systemctl start Douyin_TikTok_Download_API.service`
+  - `sudo systemctl stop Douyin_TikTok_Download_API.service`
 
 > 开启/关闭开机自动运行
 
-- `systemctl enable/disable Douyin_TikTok_Download_API.service`
+- 使用以下命令来设置服务开机自动运行或取消开机自动运行：
+  - `sudo systemctl enable Douyin_TikTok_Download_API.service`
+  - `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
 > 更新项目
 
+- 项目更新时，确保更新脚本在虚拟环境中执行，更新所有依赖。进入项目bash目录并运行update.sh：
 - `cd /www/wwwroot/Douyin_TikTok_Download_API/bash && sudo bash update.sh`
 
 ## 💽部署(方式二 Docker)
 
-> 💡Docker Image repo: [Docker Hub](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
+> 💡提示：Docker部署是最简单的部署方式，适合不熟悉Linux的用户，这种方法适合保证环境一致性、隔离性和快速设置。
+> 请使用能正常访问Douyin或TikTok的服务器，否则可能会出现奇怪的BUG。
 
-- 安装docker
+### 准备工作
 
-```yaml
-curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
+开始之前，请确保您的系统已安装Docker。如果还未安装Docker，可以从[Docker官方网站](https://www.docker.com/products/docker-desktop/)下载并安装。
+
+### 步骤1：拉取Docker镜像
+
+首先，从Docker Hub拉取最新的Douyin_TikTok_Download_API镜像。
+
+```bash
+docker pull evil0ctal/douyin_tiktok_download_api:latest
 ```
 
-- 留下config.ini和docker-compose.yml文件即可
-- 运行命令,让容器在后台运行
+如果需要，可以替换`latest`为你需要部署的具体版本标签。
 
-```yaml
-docker-compose up -d
+### 步骤2：运行Docker容器
+
+拉取镜像后，您可以从此镜像启动一个容器。以下是运行容器的命令，包括基本配置：
+
+```bash
+docker run -d --name douyin_tiktok_api -p 80:80 evil0ctal/douyin_tiktok_download_api
 ```
 
-- 查看容器日志
+这个命令的每个部分作用如下：
 
-```yaml
-docker logs -f douyin_tiktok_download_api
+* `-d`：在后台运行容器（分离模式）。
+* `--name douyin_tiktok_api `：将容器命名为`douyin_tiktok_api `。
+* `-p 80:80`：将主机上的80端口映射到容器的80端口。根据您的配置或端口可用性调整端口号。
+* `evil0ctal/douyin_tiktok_download_api`：要使用的Docker镜像名称。
+
+### 步骤3：验证容器是否运行
+
+使用以下命令检查您的容器是否正在运行：
+
+```bash
+docker ps
 ```
 
-- 删除容器
+这将列出所有活动容器。查找`douyin_tiktok_api `以确认其正常运行。
 
-```yaml
-docker rm -f douyin_tiktok_download_api
+### 步骤4：访问应用程序
+
+容器运行后，您应该能够通过`http://localhost`或API客户端访问Douyin_TikTok_Download_API。如果配置了不同的端口或从远程位置访问，请调整URL。
+
+### 可选：自定义Docker命令
+
+对于更高级的部署，您可能希望自定义Docker命令，包括环境变量、持久数据的卷挂载或其他Docker参数。这是一个示例：
+
+```bash
+docker run -d --name douyin_tiktok_api -p 80:80 \
+  -v /path/to/your/data:/data \
+  -e MY_ENV_VAR=my_value \
+  evil0ctal/douyin_tiktok_download_api
 ```
 
-- 更新
+* `-v /path/to/your/data:/data`：将主机上的`/path/to/your/data`目录挂载到容器的`/data`目录，用于持久化或共享数据。
+* `-e MY_ENV_VAR=my_value`：在容器内设置环境变量`MY_ENV_VAR`，其值为`my_value`。
 
-```yaml
-docker-compose pull && docker-compose down && docker-compose up -d
+### 配置文件修改
+
+项目的大部分配置可以在以下几个目录中的`config.yaml`文件进行修改：
+
+* `/crawlers/douyin/web/config.yaml`
+* `/crawlers/tiktok/web/config.yaml`
+* `/crawlers/tiktok/app/config.yaml`
+
+### 步骤5：停止并移除容器
+
+需要停止和移除容器时，使用以下命令：
+
+```bash
+# Stop
+docker stop douyin_tiktok_api 
+
+# Remove
+docker rm douyin_tiktok_api 
 ```
-
-## ❤️ 贡献者
-
-[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)
-[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)
-[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)
-[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)
-[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)
-[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
 ## 📸截图
 
@@ -372,8 +417,8 @@ Web main interface:
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
-[MIT License](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
+[Apache-2.0 license](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
 
 > Start: 2021/11/06
+
 > GitHub: [@Evil0ctal](https://github.com/Evil0ctal)
-> Contact: Evil0ctal1985@gmail.com

@@ -1,38 +1,52 @@
 #!/bin/bash
 
-echo 'installing  Git...'
+# Set script to exit on any errors.
+set -e
 
-apt-get install git
+echo 'Updating package lists...'
+sudo apt-get update
 
-echo 'installing  Python3...'
+echo 'Installing Git...'
+sudo apt-get install -y git
 
-apt install python3
+echo 'Installing Python3...'
+sudo apt install -y python3
 
-echo 'installing  PIP3...'
+echo 'Installing PIP3...'
+sudo apt install -y python3-pip
 
-apt install python3-pip
+echo 'Installing Virtualenv...'
+sudo pip3 install virtualenv
 
 echo 'Creating path: /www/wwwroot'
-
-mkdir -p /www/wwwroot
+sudo mkdir -p /www/wwwroot
 
 cd /www/wwwroot || exit
 
 echo 'Cloning Douyin_TikTok_Download_API.git from Github!'
-
-git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+sudo git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 
 cd Douyin_TikTok_Download_API/ || exit
 
-sudo pip install -r requirements.txt --break-system-packages
+echo 'Creating a virtual environment'
+virtualenv venv
 
-echo 'Add Douyin_TikTok_Download_API to system service'
+echo 'Activating the virtual environment'
+source venv/bin/activate
 
-cp /www/wwwroot/Douyin_TikTok_Download_API/daemon/* /etc/systemd/system/
+echo 'Installing dependencies from requirements.txt'
+pip install -r requirements.txt
 
-systemctl enable Douyin_TikTok_Download_API.service
+echo 'Deactivating the virtual environment'
+deactivate
+
+echo 'Adding Douyin_TikTok_Download_API to system service'
+sudo cp daemon/* /etc/systemd/system/
+
+echo 'Enabling Douyin_TikTok_Download_API service'
+sudo systemctl enable Douyin_TikTok_Download_API.service
 
 echo 'Starting Douyin_TikTok_Download_API service'
+sudo systemctl start Douyin_TikTok_Download_API.service
 
-systemctl start Douyin_TikTok_Download_API.service
-
+echo 'Douyin_TikTok_Download_API installation complete!'

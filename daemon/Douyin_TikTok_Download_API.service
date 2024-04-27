@@ -1,13 +1,13 @@
 [Unit]
-Description=Douyin_TikTok_Download_API deamon
-After=rc-local.service
+Description=Douyin_TikTok_Download_API daemon
+After=network.target
 
 [Service]
 Type=simple
 User=root
 Group=root
 WorkingDirectory=/www/wwwroot/Douyin_TikTok_Download_API
-ExecStart=python3 start.py
+ExecStart=/www/wwwroot/Douyin_TikTok_Download_API/venv/bin/python3 start.py
 Restart=always
 
 [Install]

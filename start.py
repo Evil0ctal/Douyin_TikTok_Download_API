@@ -34,7 +34,7 @@
 # ==============================================================================
 
 
-from app.main import app, Host_IP, Host_Port
+from app.main import Host_IP, Host_Port
 import uvicorn
 
 if __name__ == '__main__':
