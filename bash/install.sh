@@ -15,8 +15,8 @@ sudo apt install -y python3
 echo 'Installing PIP3...'
 sudo apt install -y python3-pip
 
-echo 'Installing Virtualenv...'
-sudo apt install -y python3-virtualenv
+echo 'Installing python3-venv...'
+sudo apt install -y python3-venv
 
 echo 'Creating path: /www/wwwroot'
 sudo mkdir -p /www/wwwroot
