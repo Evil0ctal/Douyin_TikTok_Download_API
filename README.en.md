@@ -31,7 +31,7 @@
 
 -   Run Pywebio as a sub-APP of FastAPI.
 -   Rewritten the interfaces of Douyin and TikTok, thank you[@johnserf-seed](https://github.com/Johnserf-Seed)
--   The file download endpoint has been rewritten and now uses asynchronous file IO.
+-   重写了文件下载的端点，现在使用异步文件IO。
 -   Annotations and demonstration values ​​were added to all endpoints.
 -   Organize the project file structure.
 
@@ -128,7 +128,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 ## 📦Call the parsing library (to be updated):
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -149,7 +149,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Kuaishou video link
 
@@ -235,9 +235,9 @@ Online:<https://api.douyin.wtf/docs>
 
 ## 💻Deployment (Method 1 Linux)
 
-> 💡Tip: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
+> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
 
-Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)servers, mainly because they are free.
+Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)server, because you can have sex for free.
 
 Use my invitation link to sign up and you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
 
@@ -247,6 +247,8 @@ My invitation link:
 
 > Use script to deploy this project with one click
 
+-   This project provides a one-click deployment script that can quickly deploy this project on the server.
+-   The script was tested on Ubuntu 20.04 LTS. Other systems may have problems. If there are any problems, please solve them yourself.
 -   Download using wget command[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)to the server and run
 
 
@@ -254,54 +256,102 @@ My invitation link:
 
 > Start/stop service
 
--   `systemctl start/stop Douyin_TikTok_Download_API.service`
+-   Use the following commands to control running or stopping the service:
+    -   `sudo systemctl start Douyin_TikTok_Download_API.service`
+    -   `sudo systemctl stop Douyin_TikTok_Download_API.service`
 
 > Turn on/off automatic operation at startup
 
--   `systemctl enable/disable Douyin_TikTok_Download_API.service`
+-   Use the following command to set the service to run automatically at boot or cancel automatic run at boot:
+    -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
+    -   `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
 > Update project
 
+-   When the project is updated, ensure that the update script is executed in the virtual environment and all dependencies are updated. Enter the project bash directory and run update.sh:
 -   `cd /www/wwwroot/Douyin_TikTok_Download_API/bash && sudo bash update.sh`
 
 ## 💽Deployment (Method 2 Docker)
 
-> 💡Docker Image repo:[Docker Hub](https://hub.docker.com/repository/docker/evil0ctal/douyin_tiktok_download_api)
+> 💡Tip: Docker deployment is the simplest deployment method and is suitable for users who are not familiar with Linux. This method is suitable for ensuring environment consistency, isolation and quick setup.
+> Please use a server that can normally access Douyin or TikTok, otherwise strange BUG may occur.
 
--   Install docker
+### Preparation
 
-```yaml
-curl -fsSL get.docker.com -o get-docker.sh&&sh get-docker.sh &&systemctl enable docker&&systemctl start docker
+Before you begin, make sure Docker is installed on your system. If you haven't installed Docker yet, you can install it from[Docker official website](https://www.docker.com/products/docker-desktop/)Download and install.
+
+### Step 1: Pull the Docker image
+
+First, pull the latest Douyin_TikTok_Download_API image from Docker Hub.
+
+```bash
+docker pull evil0ctal/douyin_tiktok_download_api:latest
 ```
 
--   Just leave the config.ini and docker-compose.yml files
--   Run the command to let the container run in the background
+Can be replaced if needed`latest`Label the specific version you need to deploy.
 
-```yaml
-docker-compose up -d
+### Step 2: Run the Docker container
+
+After pulling the image, you can start a container from this image. Here are the commands to run the container, including basic configuration:
+
+```bash
+docker run -d --name douyin_tiktok_api -p 80:80 evil0ctal/douyin_tiktok_download_api
 ```
 
--   View container logs
+Each part of this command does the following:
 
-```yaml
-docker logs -f douyin_tiktok_download_api
+-   `-d`: Run the container in the background (detached mode).
+-   `--name douyin_tiktok_api `: Name the container`douyin_tiktok_api `。
+-   `-p 80:80`: Map port 80 on the host to port 80 of the container. Adjust the port number based on your configuration or port availability.
+-   `evil0ctal/douyin_tiktok_download_api`: The name of the Docker image to use.
+
+### Step 3: Verify the container is running
+
+Check if your container is running using the following command:
+
+```bash
+docker ps
 ```
 
--   Delete container
+This will list all active containers. Find`douyin_tiktok_api `to confirm that it is functioning properly.
 
-```yaml
-docker rm -f douyin_tiktok_download_api
+### Step 4: Access the App
+
+Once the container is running, you should be able to pass`http://localhost`Or API client access Douyin_TikTok_Download_API. Adjust the URL if a different port is configured or accessed from a remote location.
+
+### 可选：自定义Docker命令
+
+For more advanced deployments, you may wish to customize Docker commands to include environment variables, volume mounts for persistent data, or other Docker parameters. Here is an example:
+
+```bash
+docker run -d --name douyin_tiktok_api -p 80:80 \
+  -v /path/to/your/data:/data \
+  -e MY_ENV_VAR=my_value \
+  evil0ctal/douyin_tiktok_download_api
 ```
 
--   renew
+-   `-v /path/to/your/data:/data`: Change the`/path/to/your/data`Directory mounted to the container`/data`Directory for persisting or sharing data.
+-   `-e MY_ENV_VAR=my_value`: Set environment variables within the container`MY_ENV_VAR`, whose value is`my_value`。
 
-```yaml
-docker-compose pull && docker-compose down && docker-compose up -d
+### Configuration file modification
+
+Most of the configuration of the project can be found in the following directories:`config.yaml`File modification:
+
+-   `/crawlers/douyin/web/config.yaml`
+-   `/crawlers/tiktok/web/config.yaml`
+-   `/crawlers/tiktok/app/config.yaml`
+
+### Step 5: Stop and remove the container
+
+When you need to stop and remove a container, use the following commands:
+
+```bash
+# Stop
+docker stop douyin_tiktok_api 
+
+# Remove
+docker rm douyin_tiktok_api 
 ```
-
-## ❤️ Contributor
-
-[![](https://github.com/Evil0ctal.png?size=50)](https://github.com/Evil0ctal)[![](https://github.com/jw-star.png?size=50)](https://github.com/jw-star)[![](https://github.com/Jeffrey-deng.png?size=50)](https://github.com/Jeffrey-deng)[![](https://github.com/chris-ss.png?size=50)](https://github.com/chris-ss)[![](https://github.com/weixuan00.png?size=50)](https://github.com/weixuan00)[![](https://github.com/Tairraos.png?size=50)](https://github.com/Tairraos)
 
 ## 📸Screenshot
 
@@ -339,7 +389,8 @@ Web main interface:
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
-[MY License](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
+[Apache-2.0 license](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/LICENSE)
 
 > Start: 2021/11/06
-> GitHub:[@Evil0ctal](https://github.com/Evil0ctal)Contact:[Evil0ctal1985@gmail.com](mailto:Evil0ctal1985@gmail.com)
+
+> GitHub:[@Evil0ctal](https://github.com/Evil0ctal)
