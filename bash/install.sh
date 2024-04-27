@@ -16,20 +16,20 @@ echo 'Installing PIP3...'
 sudo apt install -y python3-pip
 
 echo 'Installing Virtualenv...'
-sudo pip3 install virtualenv
+sudo apt install python3-virtualenv
 
 echo 'Creating path: /www/wwwroot'
 sudo mkdir -p /www/wwwroot
 
-cd /www/wwwroot || exit
+cd /www/wwwroot || { echo "Failed to change directory to /www/wwwroot"; exit 1; }
 
 echo 'Cloning Douyin_TikTok_Download_API.git from Github!'
 sudo git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 
-cd Douyin_TikTok_Download_API/ || exit
+cd Douyin_TikTok_Download_API/ || { echo "Failed to change directory to Douyin_TikTok_Download_API"; exit 1; }
 
 echo 'Creating a virtual environment'
-virtualenv venv
+python3 -m venv venv
 
 echo 'Activating the virtual environment'
 source venv/bin/activate
