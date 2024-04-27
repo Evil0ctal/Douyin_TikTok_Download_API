@@ -1,5 +1,5 @@
 <div align="center">
-<a href="https://douyin.wtf/" alt="logo" ><img src="./logo/logo192.png" width="120"/></a>
+<a href="https://douyin.wtf/" alt="logo" ><img src="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/logo/logo192.png" width="120"/></a>
 </div>
 <h1 align="center">Douyin_TikTok_Download_API(抖音/TikTok API)</h1>
 
@@ -31,7 +31,7 @@
 
 -   Run Pywebio as a sub-APP of FastAPI.
 -   Rewritten the interfaces of Douyin and TikTok, thank you[@johnserf-seed](https://github.com/Johnserf-Seed)
--   重写了文件下载的端点，现在使用异步文件IO。
+-   The file download endpoint has been rewritten and now uses asynchronous file IO.
 -   Annotations and demonstration values ​​were added to all endpoints.
 -   Organize the project file structure.
 
@@ -319,7 +319,7 @@ This will list all active containers. Find`douyin_tiktok_api `to confirm that it
 
 Once the container is running, you should be able to pass`http://localhost`Or API client access Douyin_TikTok_Download_API. Adjust the URL if a different port is configured or accessed from a remote location.
 
-### 可选：自定义Docker命令
+### Optional: Custom Docker commands
 
 For more advanced deployments, you may wish to customize Docker commands to include environment variables, volume mounts for persistent data, or other Docker parameters. Here is an example:
 
