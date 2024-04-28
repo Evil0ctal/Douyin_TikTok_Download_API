@@ -19,10 +19,6 @@ with open(config_path, 'r', encoding='utf-8') as file:
     config = yaml.safe_load(file)
 
 
-# 网站域名/Website domain
-domain = config['Web']['Domain']
-
-
 # 校验输入值/Validate input value
 def valid_check(input_data: str):
     # 检索出所有链接并返回列表/Retrieve all links and return a list
@@ -135,11 +131,11 @@ def parse_video():
             [ViewsUtils.t('API链接', 'API URL'),
              put_link(
                  ViewsUtils.t('点击查看', 'Click to view'),
-                 f"{domain}/api/hybrid/video_data?url={url}&minimal=false",
+                 f"/api/hybrid/video_data?url={url}&minimal=false",
                  new_window=True)],
             [ViewsUtils.t('API链接-精简', 'API URL-Minimal'),
              put_link(ViewsUtils.t('点击查看', 'Click to view'),
-                      f"{domain}/api/hybrid/video_data?url={url}&minimal=true",
+                      f"/api/hybrid/video_data?url={url}&minimal=true",
                       new_window=True)]
 
         ]
@@ -154,11 +150,11 @@ def parse_video():
                                            data.get('video_data').get('nwm_video_url_HQ'), new_window=True)])
             table_list.insert(6, [ViewsUtils.t('视频下载-水印', 'Video Download-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=true",
+                                           f"/api/download?url={url}&prefix=true&with_watermark=true",
                                            new_window=True)])
             table_list.insert(7, [ViewsUtils.t('视频下载-无水印', 'Video Download-No-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=false",
+                                           f"/api/download?url={url}&prefix=true&with_watermark=false",
                                            new_window=True)])
             # 添加视频信息
             table_list.insert(0, [put_video(data.get('video_data').get('nwm_video_url_HQ'), poster=None, loop=True, width='50%')])
@@ -167,11 +163,11 @@ def parse_video():
             # 添加图片下载链接
             table_list.insert(4, [ViewsUtils.t('图片打包下载-水印', 'Download images ZIP-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=true",
+                                           f"/api/download?url={url}&prefix=true&with_watermark=true",
                                            new_window=True)])
             table_list.insert(5, [ViewsUtils.t('图片打包下载-无水印', 'Download images ZIP-No-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
-                                           f"{domain}/api/download?url={url}&prefix=true&with_watermark=false",
+                                           f"/api/download?url={url}&prefix=true&with_watermark=false",
                                            new_window=True)])
             # 添加图片信息
             no_watermark_image_list = data.get('image_data').get('no_watermark_image_list')
