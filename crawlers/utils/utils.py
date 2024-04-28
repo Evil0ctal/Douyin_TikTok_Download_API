@@ -44,7 +44,7 @@ import importlib_resources
 from pydantic import BaseModel
 
 from urllib.parse import quote, urlencode  # URL编码
-from typing import Union, Any
+from typing import Union, List, Any
 from pathlib import Path
 
 # 生成一个 16 字节的随机字节串 (Generate a random byte string of 16 bytes)
@@ -172,7 +172,7 @@ def split_dict_cookie(cookie_dict: dict) -> str:
     return "; ".join(f"{key}={value}" for key, value in cookie_dict.items())
 
 
-def extract_valid_urls(inputs: Union[str, list[str]]) -> Union[str, list[str], None]:
+def extract_valid_urls(inputs: Union[str, List[str]]) -> Union[str, List[str], None]:
     """从输入中提取有效的URL (Extract valid URLs from input)
 
     Args:
