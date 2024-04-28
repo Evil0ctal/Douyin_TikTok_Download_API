@@ -55,9 +55,19 @@ _Some simple application scenarios:_
 
 _Download prohibited videos, perform data analysis, download without watermark on iOS (with[Shortcut command APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to achieve in-app downloads or read clipboard downloads), etc....._
 
+#### ⚠️Note:
+
+-   You need to solve crawler cookie risk control issues by yourself, otherwise the interface may become unusable.
+    -   Douyin web cookie (obtain and replace the cookie in the configuration file below):
+    -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/douyin/web/config.yaml#L7>
+    -   TikTok web-side cookies (obtain and replace the cookies in the configuration file below):
+    -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/tiktok/web/config.yaml#L6>
+-   I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed my server. I just right-clicked on the web page parsing result and saved it...
+-   The cookies of the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please obtain the cookies yourself.
+
 ## 🖥Demo site: I am very vulnerable...please do not stress test (·•᷄ࡇ•᷅ )
 
-> 😾I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed my server. I just right-clicked on the webpage parsing result and saved it...
+> 😾The online download function of the demo site is closed.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -89,9 +99,9 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
+**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
 
 ## 💡Project file structure
 
@@ -112,21 +122,63 @@ _Download prohibited videos, perform data analysis, download without watermark o
             │  └─web
             └─utils
 
-## ✨Features:
+## ✨Supported functions:
 
--   Douyin Web Most API
--   TikTok WebMost APIs
--   Batch analysis on the web page (supports Douyin/TikTok mixed submission)
+-   Batch parsing on the web page (supports Douyin/TikTok mixed parsing)
 -   Download videos or photo albums online.
--   API call to get link data
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
 -   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
--   Analyze all videos on the author's homepage ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
--   Parse all comment information in the video ([Tikhub-opy](https://api.tikhub.io/docs)Support Douyin/TikTok)
+-   Complete API documentation ([Demo/Demonstration](https://api.douyin.wtf/docs))
+-   Rich API interface:
+
+    -   Douyin web version API
+        -   [x] Video data analysis
+        -   [x] Get user homepage work data
+        -   [x] Obtain the data of works liked by the user's homepage
+        -   [x] Obtain the data of collected works on the user's homepage
+        -   [x] Get user homepage information
+        -   [x] Get user collection work data
+        -   [x] Get user live stream data
+        -   [x] Get the live streaming data of a specified user
+        -   [x] Get the ranking of users who give gifts in the live broadcast room
+        -   [x] Get single video comment data
+        -   [x] Get the comment reply data of the specified video
+        -   [x] Generate msToken
+        -   [x] Generate verify_fp
+        -   [x] Generate s_v_web_id
+        -   [x] Generate X-Bogus parameters using interface URL
+        -   [x] Extract a single user id
+        -   [x] Extract list user id
+        -   [x] Extract a single work id
+        -   [x] Extract list work id
+        -   [x] Extract live broadcast room number from list
+        -   [x] Extract live broadcast room number from list
+
+    -   TikTok web version API
+        -   [x] Video data analysis
+        -   [x] Get user homepage work data
+        -   [x] Obtain the data of works liked by the user's homepage
+        -   [x] Get user homepage information
+        -   [x] Get user homepage fan data
+        -   [x] Get user homepage follow data
+        -   [x] Get user homepage collection work data
+        -   [x] Get user homepage collection data
+        -   [x] Get user homepage playlist data
+        -   [x] Get single video comment data
+        -   [x] Get the comment reply data of the specified video
+        -   [x] Generate msToken
+        -   [x] Generate ttwid
+        -   [x] Generate X-Bogus parameters using interface URL
+        -   [x] Extract a single user sec_user_id
+        -   [x] Extract list user sec_user_id
+        -   [x] Extract a single work id
+        -   [x] Extract list work id
+        -   [x] Get user unique_id
+        -   [x] Get list unique_id
 
 * * *
 
-## 📦Call the parsing library (to be updated):
+## 📦Call the parsing library (obsolete and needs to be updated):
 
 > 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
@@ -149,27 +201,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
-
--   Kuaishou video link
-
-```text
-https://www.kuaishou.com/short-video/3xiqjrezhqjyzxw/
-https://v.kuaishou.com/75kDOJ/
-```
-
--   Watermelon video link
-
-```text
-https://www.ixigua.com/7270448082586698281/
-https://m.ixigua.com/video/7274710134306112054/
-```
-
--   Bilibili video link
-
-```text
-https://www.bilibili.com/video/BV1Th411x7ii/
-```
+> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Douyin sharing password (copy in APP)
 
@@ -222,16 +254,16 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 **_API documentation:_**
 
-local:[http://localhost:8000/docs](http://localhost:80/docs)
+local:<http://localhost/docs>
 
-Online:<https://api.douyin.wtf/docs>
+在线：<https://api.douyin.wtf/docs>
 
 **_API demo:_**
 
 -   Crawl video data (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/hybrid/video_data?url=[视频链接/Video URL]&minimal=false`
 -   Download videos/photo albums (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
-**_For more demonstrations, please see the documentation..._**
+**_For more demonstrations, please view the document content..._**
 
 ## 💻Deployment (Method 1 Linux)
 
@@ -262,7 +294,7 @@ My invitation link:
 
 > Turn on/off automatic operation at startup
 
--   Use the following commands to set the service to run automatically at boot or cancel automatic run at boot:
+-   Use the following command to set the service to run automatically at boot or cancel automatic run at boot:
     -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
     -   `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
@@ -343,7 +375,7 @@ Most of the configuration of the project can be found in the following directori
 
 ### Step 5: Stop and remove the container
 
-When you need to stop and remove containers, use the following commands:
+When you need to stop and remove a container, use the following commands:
 
 ```bash
 # Stop
