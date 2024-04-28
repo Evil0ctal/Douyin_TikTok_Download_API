@@ -99,9 +99,9 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
+**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
 
 ## 💡Project file structure
 
@@ -138,7 +138,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
         -   [x] Obtain the data of collected works on the user's homepage
         -   [x] Get user homepage information
         -   [x] Get user collection work data
-        -   [x] Get user live stream data
+        -   [x] Get user live streaming data
         -   [x] Get the live streaming data of a specified user
         -   [x] Get the ranking of users who give gifts in the live broadcast room
         -   [x] Get single video comment data
@@ -159,7 +159,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
         -   [x] Get user homepage work data
         -   [x] Obtain the data of works liked by the user's homepage
         -   [x] Get user homepage information
-        -   [x] Get user homepage fan data
+        -   [x] Get fan data on user homepage
         -   [x] Get user homepage follow data
         -   [x] Get user homepage collection work data
         -   [x] Get user homepage collection data
@@ -201,7 +201,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Douyin sharing password (copy in APP)
 
@@ -294,7 +294,7 @@ My invitation link:
 
 > Turn on/off automatic operation at startup
 
--   Use the following command to set the service to run automatically at boot or cancel automatic run at boot:
+-   Use the following commands to set the service to run automatically at boot or cancel automatic run at boot:
     -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
     -   `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
@@ -375,7 +375,7 @@ Most of the configuration of the project can be found in the following directori
 
 ### Step 5: Stop and remove the container
 
-When you need to stop and remove a container, use the following commands:
+When you need to stop and remove containers, use the following commands:
 
 ```bash
 # Stop
@@ -406,7 +406,7 @@ API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/
 
 <details><summary>🔎点击展开截图</summary>
 
-Web主界面:
+Web main interface:
 
 ![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/v3_screenshots/Home.png?raw=true)
 
