@@ -34,6 +34,9 @@ python3 -m venv venv
 echo 'Activating the virtual environment'
 source venv/bin/activate
 
+echo 'Configuring pip to use a faster PyPI mirror'
+pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+
 echo 'Installing dependencies from requirements.txt'
 pip install -r requirements.txt
 
