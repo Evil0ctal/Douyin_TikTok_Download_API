@@ -14,7 +14,7 @@ importlib_resources==6.4.0
 lz4==4.3.3
 markdown-it-py==3.0.0
 mdurl==0.1.2
-numpy==1.24.4
+numpy
 pycryptodomex==3.20.0
 pydantic==2.7.0
 pydantic_core==2.18.1
