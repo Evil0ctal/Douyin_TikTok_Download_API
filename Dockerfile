@@ -19,22 +19,12 @@ WORKDIR /app
 # Copy the application source code to the container
 COPY . /app
 
-# Install virtualenv
+# Install pip and set the PyPI mirror (Aliyun)
 RUN pip3 install -i https://mirrors.aliyun.com/pypi/simple/ -U pip \
-    && pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
-    && pip3 install virtualenv
+    && pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
-# Check virtualenv is installed
-RUN which virtualenv
-
-# Create and activate virtual environment using the virtualenv command
-RUN virtualenv venv -p python3.11
-
-# Set the virtual environment path
-ENV PATH="/app/venv/bin:$PATH"
-
-# Install dependencies in the virtual environment
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies directly
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Make the start script executable
 RUN chmod +x start.sh

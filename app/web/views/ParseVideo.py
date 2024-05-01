@@ -61,10 +61,13 @@ def error_do(reason: str, value: str) -> None:
                               "- The video has been deleted or the link is incorrect."))
     put_markdown(ViewsUtils.t("- 接口风控，请求过于频繁。",
                               "- Interface risk control, request too frequent.")),
+    put_markdown(ViewsUtils.t("- 没有使用有效的Cookie，如果你部署后没有替换相应的Cookie，可能会导致解析失败。",
+                              "- No valid Cookie is used. If you do not replace the corresponding Cookie after deployment, it may cause parsing failure."))
     put_markdown(ViewsUtils.t("> 寻求帮助:", "> Seek help:"))
     put_markdown(ViewsUtils.t(
         "- 你可以尝试再次解析，或者尝试自行部署项目，然后替换`./app/crawlers/平台文件夹/config.yaml`中的`cookie`值。",
         "- You can try to parse again, or try to deploy the project by yourself, and then replace the `cookie` value in `./app/crawlers/platform folder/config.yaml`."))
+
     put_markdown(
         "- GitHub Issue: [Evil0ctal/Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)")
     put_html("<hr>")
@@ -157,7 +160,8 @@ def parse_video():
                                            f"/api/download?url={url}&prefix=true&with_watermark=false",
                                            new_window=True)])
             # 添加视频信息
-            table_list.insert(0, [put_video(data.get('video_data').get('nwm_video_url_HQ'), poster=None, loop=True, width='50%')])
+            table_list.insert(0, [
+                put_video(data.get('video_data').get('nwm_video_url_HQ'), poster=None, loop=True, width='50%')])
         # 如果是图片/If it's image
         elif url_type == ViewsUtils.t('图片', 'Image'):
             # 添加图片下载链接

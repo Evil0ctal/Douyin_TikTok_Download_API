@@ -79,7 +79,7 @@ class LogManager(metaclass=Singleton):
         if getattr(self, "_initialized", False):  # 防止重复初始化
             return
 
-        self.logger = logging.getLogger("TikHub_Crawlers")
+        self.logger = logging.getLogger("Douyin_TikTok_Download_API_Crawlers")
         self.logger.setLevel(logging.INFO)
         self.log_dir = None
         self._initialized = True
@@ -145,7 +145,7 @@ class LogManager(metaclass=Singleton):
 
 
 def log_setup(log_to_console=True):
-    logger = logging.getLogger("TikHub_Crawlers")
+    logger = logging.getLogger("Douyin_TikTok_Download_API_Crawlers")
     if logger.hasHandlers():
         # logger已经被设置，不做任何操作
         return logger

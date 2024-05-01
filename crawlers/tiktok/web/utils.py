@@ -104,8 +104,10 @@ class TokenManager:
 
             except Exception as e:
                 # 返回虚假的msToken (Return a fake msToken)
-                logger.error("msToken API错误：{0}".format(e))
-                logger.info("生成虚假的msToken")
+                logger.error("生成TikTok msToken API错误：{0}".format(e))
+                logger.info("当前网络无法正常访问TikTok服务器，已经使用虚假msToken以继续运行。")
+                logger.info("并且TikTok相关API大概率无法正常使用，请在(/tiktok/web/config.yaml)中更新代理。")
+                logger.info("如果你不需要使用TikTok相关API，请忽略此消息。")
                 return cls.gen_false_msToken()
 
     @classmethod
