@@ -35,6 +35,8 @@
 
 import asyncio  # 异步I/O
 import time  # 时间操作
+
+import httpx
 import yaml  # 配置文件
 import os  # 系统操作
 
@@ -237,6 +239,19 @@ class DouyinWebCrawler:
 
     "-------------------------------------------------------utils接口列表-------------------------------------------------------"
 
+    # 获取抖音Web的游客Cookie
+    async def fetch_douyin_web_guest_cookie(self, user_agent: str):
+        headers = {
+            'User-Agent': user_agent,
+            'Cookie': ''
+        }
+        async with httpx.AsyncClient() as client:
+            domain = "https://beta.tikhub.io"
+            uri = "/api/v1/douyin/web/fetch_douyin_web_guest_cookie"
+            url = f"{domain}{uri}?user_agent={user_agent}"
+            response = await client.get(url, headers=headers)
+            return response.json().get("data")
+
     # 生成真实msToken
     async def gen_real_msToken(self, ):
         result = {
@@ -397,6 +412,11 @@ class DouyinWebCrawler:
         # print(result)
 
         """-------------------------------------------------------utils接口列表-------------------------------------------------------"""
+
+        # 获取抖音Web的游客Cookie
+        # user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
+        # result = await self.fetch_douyin_web_guest_cookie(user_agent)
+        # print(result)
 
         # 生成真实msToken
         # result = await self.gen_real_msToken()
