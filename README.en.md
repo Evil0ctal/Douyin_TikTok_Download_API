@@ -13,41 +13,9 @@
 
 </div>
 
-## 🔊 V4.0.0 version refactoring
-
-> ALL:
-
--   Removed outdated bilibili code and needs someone to rewrite it.
--   Someone in the group wants to add the analysis of Kuaishou and Xigua videos.
--   The readme is outdated and needs to be rewritten.
--   Make PyPi package
--   The config.yaml file needs to be trimmed.
--   Add parsing of user homepage.
--   iOS shortcuts need to be updated to be compatible with the latest API responses and paths.
--   Desktop downloaders or browser plug-ins can be developed if necessary.
--   Solve the problem of crawler cookie risk control.
-
-> Change
-
--   Run Pywebio as a sub-APP of FastAPI.
--   Rewritten the interfaces of Douyin and TikTok, thank you[@johnserf-seed](https://github.com/Johnserf-Seed)
--   The file download endpoint has been rewritten and now uses asynchronous file IO.
--   对所有端点进行了注解和演示值的添加。
--   Organize the project file structure.
-
-> Remark
-
-If you are interested in writing this project together, please add us on WeChat`Evil0ctal`Note: Github project reconstruction, everyone can communicate and learn from each other in the group. Advertising and illegal things are not allowed. It is purely for making friends and technical exchanges.
-
-> Private interface service
-
-Discord:[Tikhub discord](https://discord.com/invite/aMEAS8Xsvz)
-
-Free Douyin/TikTok API:[Tikhub Beta Opi](https://beta.tikhub.io/)
-
 ## 👻Introduction
 
-> 🚨If you need to use a private server to run this project, please refer to the deployment method\[[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)]
+> 🚨If you need to use a private server to run this project, please refer to:[Deployment preparations](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB),[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
 
 This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realizes online batch analysis and downloading of videos or photo albums without watermarks through the Web, data crawling API, iOS shortcut command without watermark downloads and other functions. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
 
@@ -55,19 +23,20 @@ _Some simple application scenarios:_
 
 _Download prohibited videos, perform data analysis, download without watermark on iOS (with[Shortcut command APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to achieve in-app downloads or read clipboard downloads), etc....._
 
-#### ⚠️Note:
+## 🔊 V4 version notes
 
--   You need to solve crawler cookie risk control issues by yourself, otherwise the interface may become unusable.
-    -   Douyin web cookie (obtain and replace the cookie in the configuration file below):
-    -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/douyin/web/config.yaml#L7>
-    -   TikTok web-side cookies (obtain and replace the cookies in the configuration file below):
-    -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/tiktok/web/config.yaml#L6>
--   I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed my server. I just right-clicked on the web page parsing result and saved it...
--   The cookies of the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please obtain the cookies yourself.
+-   If you are interested in writing this project together, please add us on WeChat`Evil0ctal`Note: Github project reconstruction, everyone can communicate and learn from each other in the group. Advertising and illegal things are not allowed. It is purely for making friends and technical exchanges.
+-   used in this project`X-Bogus`The algorithm can still call Douyin and TikTok APIs normally.`A-Bogus`The algorithm will not be open source for the time being.
+-   Due to Douyin's risk control, after deploying this project, please**Obtain the cookie of Douyin website in the browser and replace it in config.yaml.**
+-   Please read the document below before raising an issue. Solutions to most problems will be included in the document.
+-   This project is completely free, but when using it, please comply with:[Apache-2.0 license](https://github.com/Evil0ctal/Douyin_TikTok_Download_API?tab=Apache-2.0-1-ov-file#readme)
+-   This project has a closed source branch version, which contains more interfaces and services. Please see the information below for details.
+-   Discord:[Tikhub discord](https://discord.com/invite/aMEAS8Xsvz)
+-   Free Douyin/TikTok API:[Tikhub Beta Opi](https://beta.tikhub.io/)
 
 ## 🖥Demo site: I am very vulnerable...please do not stress test (·•᷄ࡇ•᷅ )
 
-> 😾The online download function of the demo site is closed.
+> 😾The online download function of the demo site has been turned off, and due to cookie reasons, the availability of Douyin's parsing and API services cannot be guaranteed on the Demo site.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -264,6 +233,17 @@ Online:<https://api.douyin.wtf/docs>
 -   Download videos/photo albums (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
 **_For more demonstrations, please see the documentation..._**
+
+## ⚠️Preparation work before deployment (please read carefully):
+
+-   You need to solve crawler cookie risk control issues by yourself, otherwise the interface may become unusable.
+    -   Douyin web cookie (obtain and replace the cookie in the configuration file below):
+    -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/douyin/web/config.yaml#L7>
+    -   TikTok web-side cookies (obtain and replace the cookies in the configuration file below):
+    -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/tiktok/web/config.yaml#L6>
+-   I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed the server. You can right-click on the web parsing results page to save the video...
+-   The cookies of the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please obtain the cookies yourself.
+-   here is one**Video tutorial**You can refer to:**_<https://www.bilibili.com/video/BV1vE421j7NR/>_**
 
 ## 💻Deployment (Method 1 Linux)
 
