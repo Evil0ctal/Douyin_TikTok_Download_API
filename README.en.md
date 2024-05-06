@@ -278,7 +278,7 @@ My invitation link:
     -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
     -   `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
-> Update project
+> 更新项目
 
 -   When the project is updated, ensure that the update script is executed in the virtual environment and all dependencies are updated. Enter the project bash directory and run update.sh:
 -   `cd /www/wwwroot/Douyin_TikTok_Download_API/bash && sudo bash update.sh`
