@@ -348,10 +348,10 @@ class TikTokWebCrawler:
         # print(response)
 
         # 获取用户的个人信息
-        # secUid = "MS4wLjABAAAAfDPs6wbpBcMMb85xkvDGdyyyVAUS2YoVCT9P6WQ1bpuwEuPhL9eFtTmGvxw1lT2C"
-        # uniqueId = "c4shjaz"
-        # response = await self.fetch_user_profile(secUid, uniqueId)
-        # print(response)
+        secUid = "MS4wLjABAAAAfDPs6wbpBcMMb85xkvDGdyyyVAUS2YoVCT9P6WQ1bpuwEuPhL9eFtTmGvxw1lT2C"
+        uniqueId = "c4shjaz"
+        response = await self.fetch_user_profile(secUid, uniqueId)
+        print(response)
 
         # 获取用户的作品列表
         # secUid = "MS4wLjABAAAAfDPs6wbpBcMMb85xkvDGdyyyVAUS2YoVCT9P6WQ1bpuwEuPhL9eFtTmGvxw1lT2C"
