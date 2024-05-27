@@ -55,7 +55,7 @@ async def fetch_one_video(request: Request,
             response_model=ResponseModel,
             summary="获取用户的个人信息/Get user profile")
 async def fetch_user_profile(request: Request,
-                             uniqueId: str = Query(example="tiktok", description="用户uniqueId/User uniqueId"),
+                             uniqueId: str = Query(default="tiktok", description="用户uniqueId/User uniqueId"),
                              secUid: str = Query(default="", description="用户secUid/User secUid"),):
     """
     # [中文]
