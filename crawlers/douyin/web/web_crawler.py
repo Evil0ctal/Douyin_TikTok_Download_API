@@ -34,16 +34,23 @@
 
 
 import asyncio  # 异步I/O
+import os  # 系统操作
 import time  # 时间操作
+from urllib.parse import urlencode, quote  # URL编码
 
 import httpx
 import yaml  # 配置文件
-import os  # 系统操作
 
 # 基础爬虫客户端和抖音API端点
 from crawlers.base_crawler import BaseCrawler
 from crawlers.douyin.web.endpoints import DouyinAPIEndpoints
-
+# 抖音接口数据请求模型
+from crawlers.douyin.web.models import (
+    BaseRequestModel, LiveRoomRanking, PostComments,
+    PostCommentsReply, PostDetail,
+    UserProfile, UserCollection, UserLike, UserLive,
+    UserLive2, UserMix, UserPost
+)
 # 抖音应用的工具类
 from crawlers.douyin.web.utils import (AwemeIdFetcher,  # Aweme ID获取
                                        BogusManager,  # XBogus管理
@@ -53,14 +60,6 @@ from crawlers.douyin.web.utils import (AwemeIdFetcher,  # Aweme ID获取
                                        WebCastIdFetcher,  # 直播ID获取
                                        extract_valid_urls  # URL提取
                                        )
-
-# 抖音接口数据请求模型
-from crawlers.douyin.web.models import (
-    BaseRequestModel, LiveRoomRanking, PostComments,
-    PostCommentsReply, PostDanmaku, PostDetail,
-    UserProfile, UserCollection, UserLike, UserLive,
-    UserLive2, UserMix, UserPost
-)
 
 # 配置文件路径
 path = os.path.abspath(os.path.dirname(__file__))
@@ -98,9 +97,17 @@ class DouyinWebCrawler:
             # 创建一个作品详情的BaseModel参数
             params = PostDetail(aweme_id=aweme_id)
             # 生成一个作品详情的带有加密参数的Endpoint
-            endpoint = BogusManager.xb_model_2_endpoint(
-                DouyinAPIEndpoints.POST_DETAIL, params.dict(), kwargs["headers"]["User-Agent"]
-            )
+            # 2024年6月12日22:41:44 由于XBogus加密已经失效，所以不再使用XBogus加密参数，转移至a_bogus加密参数。
+            # endpoint = BogusManager.xb_model_2_endpoint(
+            #     DouyinAPIEndpoints.POST_DETAIL, params.dict(), kwargs["headers"]["User-Agent"]
+            # )
+
+            # 生成一个作品详情的带有a_bogus加密参数的Endpoint
+            params_dict = params.dict()
+            params_dict["msToken"] = ''
+            a_bogus = BogusManager.ab_model_2_endpoint(params_dict, kwargs["headers"]["User-Agent"])
+            endpoint = f"{DouyinAPIEndpoints.POST_DETAIL}?{urlencode(params_dict)}&a_bogus={a_bogus}"
+
             response = await crawler.fetch_get_json(endpoint)
         return response
 
@@ -239,19 +246,6 @@ class DouyinWebCrawler:
 
     "-------------------------------------------------------utils接口列表-------------------------------------------------------"
 
-    # 获取抖音Web的游客Cookie
-    async def fetch_douyin_web_guest_cookie(self, user_agent: str):
-        headers = {
-            'User-Agent': user_agent,
-            'Cookie': ''
-        }
-        async with httpx.AsyncClient() as client:
-            domain = "https://beta.tikhub.io"
-            uri = "/api/v1/douyin/web/fetch_douyin_web_guest_cookie"
-            url = f"{domain}{uri}?user_agent={user_agent}"
-            response = await client.get(url, headers=headers)
-            return response.json().get("data")
-
     # 生成真实msToken
     async def gen_real_msToken(self, ):
         result = {
@@ -286,6 +280,21 @@ class DouyinWebCrawler:
         result = {
             "url": url,
             "x_bogus": url.split("&X-Bogus=")[1],
+            "user_agent": user_agent
+        }
+        return result
+
+    # 使用接口地址生成Ab参数
+    async def get_a_bogus(self, url: str, user_agent: str):
+        endpoint = url.split("?")[0]
+        # 将URL参数转换为dict
+        params = dict([i.split("=") for i in url.split("?")[1].split("&")])
+        # 去除URL中的msToken参数
+        params["msToken"] = ""
+        a_bogus = BogusManager.ab_model_2_endpoint(params, user_agent)
+        result = {
+            "url": f"{endpoint}?{urlencode(params)}&a_bogus={a_bogus}",
+            "a_bogus": a_bogus,
             "user_agent": user_agent
         }
         return result

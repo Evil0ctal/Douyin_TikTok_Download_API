@@ -19,10 +19,10 @@ with open(config_path, 'r', encoding='utf-8') as file:
     config = yaml.safe_load(file)
 
 
-async def fetch_data(url: str):
+async def fetch_data(url: str, headers: dict = None):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    } if headers is None else headers.get('headers')
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers=headers)
         response.raise_for_status()  # 确保响应是成功的
@@ -68,7 +68,7 @@ async def download_file_hybrid(request: Request,
                 return FileResponse(path=file_path, media_type='video/mp4', filename=file_name)
 
             # 获取视频文件
-            response = await fetch_data(url)
+            response = await fetch_data(url) if platform == 'douyin' else await fetch_data(url, headers=await HybridCrawler.TikTokWebCrawler.get_tiktok_headers())
 
             # 保存文件
             async with aiofiles.open(file_path, 'wb') as out_file:
@@ -115,6 +115,7 @@ async def download_file_hybrid(request: Request,
 
     # 异常处理/Exception handling
     except Exception as e:
+        print(e)
         code = 400
         return ErrorResponseModel(code=code, message=str(e), router=request.url.path, params=dict(request.query_params))
 

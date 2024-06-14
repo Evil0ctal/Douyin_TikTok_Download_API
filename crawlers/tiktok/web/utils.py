@@ -430,15 +430,17 @@ class SecUserIdFetcher:
 class AwemeIdFetcher:
     # https://www.tiktok.com/@scarlettjonesuk/video/7255716763118226715
     # https://www.tiktok.com/@scarlettjonesuk/video/7255716763118226715?is_from_webapp=1&sender_device=pc&web_id=7306060721837852167
+    # https://www.tiktok.com/@zoyapea5/photo/7370061866879454469
 
     # 预编译正则表达式
-    _TIKTOK_AWEMEID_PARREN = re.compile(r"video/(\d*)")
-    _TIKTOK_NOTFOUND_PARREN = re.compile(r"notfound")
+    _TIKTOK_AWEMEID_PATTERN = re.compile(r"video/(\d+)")
+    _TIKTOK_PHOTOID_PATTERN = re.compile(r"photo/(\d+)")
+    _TIKTOK_NOTFOUND_PATTERN = re.compile(r"notfound")
 
     @classmethod
     async def get_aweme_id(cls, url: str) -> str:
         """
-        获取TikTok作品aweme_id
+        获取TikTok作品aweme_id或photo_id
         Args:
             url: 作品链接
         Return:
@@ -453,11 +455,27 @@ class AwemeIdFetcher:
         url = extract_valid_urls(url)
 
         if url is None:
-            raise (
-                APINotFoundError("输入的URL不合法。类名：{0}".format(cls.__name__))
-            )
+            raise APINotFoundError("输入的URL不合法。类名：{0}".format(cls.__name__))
 
-        transport = httpx.AsyncHTTPTransport(retries=5)
+        # 处理不是短连接的情况
+        if "tiktok" and "@" in url:
+            print(f"输入的URL无需重定向: {url}")
+            video_match = cls._TIKTOK_AWEMEID_PATTERN.search(url)
+            photo_match = cls._TIKTOK_PHOTOID_PATTERN.search(url)
+
+            if not video_match and not photo_match:
+                raise APIResponseError("未在响应中找到 aweme_id 或 photo_id")
+
+            aweme_id = video_match.group(1) if video_match else photo_match.group(1)
+
+            if aweme_id is None:
+                raise RuntimeError("获取 aweme_id 或 photo_id 失败，{0}".format(url))
+
+            return aweme_id
+
+        # 处理短连接的情况，根据重定向后的链接获取aweme_id
+        print(f"输入的URL需要重定向: {url}")
+        transport = httpx.AsyncHTTPTransport(retries=10)
         async with httpx.AsyncClient(
                 transport=transport, proxies=TokenManager.proxies, timeout=10
         ) as client:
@@ -465,32 +483,28 @@ class AwemeIdFetcher:
                 response = await client.get(url, follow_redirects=True)
 
                 if response.status_code in {200, 444}:
-                    if cls._TIKTOK_NOTFOUND_PARREN.search(str(response.url)):
+                    if cls._TIKTOK_NOTFOUND_PATTERN.search(str(response.url)):
                         raise APINotFoundError("页面不可用，可能是由于区域限制（代理）造成的。类名: {0}"
                                                .format(cls.__name__)
                                                )
 
-                    match = cls._TIKTOK_AWEMEID_PARREN.search(str(response.url))
-                    if not match:
-                        raise APIResponseError(
-                            "未在响应中找到 {0}".format("aweme_id")
-                        )
+                    video_match = cls._TIKTOK_AWEMEID_PATTERN.search(str(response.url))
+                    photo_match = cls._TIKTOK_PHOTOID_PATTERN.search(str(response.url))
 
-                    aweme_id = match.group(1)
+                    if not video_match and not photo_match:
+                        raise APIResponseError("未在响应中找到 aweme_id 或 photo_id")
+
+                    aweme_id = video_match.group(1) if video_match else photo_match.group(1)
 
                     if aweme_id is None:
-                        raise RuntimeError(
-                            "获取 {0} 失败，{1}".format("aweme_id", response.url)
-                        )
+                        raise RuntimeError("获取 aweme_id 或 photo_id 失败，{0}".format(response.url))
 
                     return aweme_id
                 else:
-                    raise ConnectionError(
-                        "接口状态码异常 {0}，请检查重试".format(response.status_code)
-                    )
+                    raise ConnectionError("接口状态码异常 {0}，请检查重试".format(response.status_code))
 
             except httpx.RequestError as exc:
-                # 捕获所有与 httpx 请求相关的异常情况 (Captures all httpx request-related exceptions)
+                # 捕获所有与 httpx 请求相关的异常情况
                 raise APIConnectionError("请求端点失败，请检查当前网络环境。 链接：{0}，代理：{1}，异常类名：{2}，异常详细信息：{3}"
                                          .format(url, TokenManager.proxies, cls.__name__, exc)
                                          )

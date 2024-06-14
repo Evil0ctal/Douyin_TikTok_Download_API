@@ -31,27 +31,25 @@
 # - https://github.com/Johnserf-Seed
 #
 # ==============================================================================
-
-
-import re
+import asyncio
 import json
+import os
+import random
+import re
 import time
+import urllib
+from pathlib import Path
+from typing import Union
+from urllib.parse import urlencode, quote
+
+import execjs
 import httpx
 import qrcode
-import random
-import asyncio
 import yaml
 
-from typing import Union
-from pathlib import Path
+from crawlers.douyin.web.xbogus import XBogus as XB
+from crawlers.douyin.web.abogus import ABogus as AB
 
-from crawlers.utils.logger import logger
-from crawlers.utils.utils import (
-    gen_random_str,
-    get_timestamp,
-    extract_valid_urls,
-    split_filename,
-)
 from crawlers.utils.api_exceptions import (
     APIError,
     APIConnectionError,
@@ -60,11 +58,13 @@ from crawlers.utils.api_exceptions import (
     APIUnauthorizedError,
     APINotFoundError,
 )
-
-from crawlers.douyin.web.xbogus import XBogus as XB
-
-from urllib.parse import quote
-import os
+from crawlers.utils.logger import logger
+from crawlers.utils.utils import (
+    gen_random_str,
+    get_timestamp,
+    extract_valid_urls,
+    split_filename,
+)
 
 # 配置文件路径
 # Read the configuration file
@@ -234,6 +234,8 @@ class VerifyFpManager:
 
 
 class BogusManager:
+
+    # 字符串方法生成X-Bogus参数
     @classmethod
     def xb_str_2_endpoint(cls, endpoint: str, user_agent: str) -> str:
         try:
@@ -243,6 +245,7 @@ class BogusManager:
 
         return final_endpoint[0]
 
+    # 字典方法生成X-Bogus参数
     @classmethod
     def xb_model_2_endpoint(cls, base_endpoint: str, params: dict, user_agent: str) -> str:
         if not isinstance(params, dict):
@@ -261,6 +264,44 @@ class BogusManager:
         final_endpoint = f"{base_endpoint}{separator}{param_str}&X-Bogus={xb_value[1]}"
 
         return final_endpoint
+
+    # 字符串方法生成A-Bogus参数
+    # TODO: 未完成测试，暂时不提交至主分支。
+    @classmethod
+    def ab_str_2_endpoint_js_ver(cls, endpoint: str, user_agent: str) -> str:
+        try:
+            # 获取请求参数
+            endpoint_query_params = urllib.parse.urlparse(endpoint).query
+            # 确定A-Bogus JS文件路径
+            js_path = os.path.dirname(os.path.abspath(__file__))
+            a_bogus_js_path = os.path.join(js_path, 'a_bogus.js')
+            with open(a_bogus_js_path, 'r', encoding='utf-8') as file:
+                js_code = file.read()
+            # 此处需要使用Node环境
+            # - 安装Node.js
+            # - 安装execjs库
+            # - 安装NPM依赖
+            # - npm install jsdom
+            node_runtime = execjs.get('Node')
+            context = node_runtime.compile(js_code)
+            arg = [0, 1, 0, endpoint_query_params, "", user_agent]
+            a_bougus = quote(context.call('get_a_bogus', arg), safe='')
+            return a_bougus
+        except Exception as e:
+            raise RuntimeError("生成A-Bogus失败: {0})".format(e))
+
+    # 字典方法生成A-Bogus参数，感谢 @JoeanAmier 提供的纯Python版本算法。
+    @classmethod
+    def ab_model_2_endpoint(cls, params: dict, user_agent: str) -> str:
+        if not isinstance(params, dict):
+            raise TypeError("参数必须是字典类型")
+
+        try:
+            ab_value = AB().get_value(params, user_agent)
+        except Exception as e:
+            raise RuntimeError("生成A-Bogus失败: {0})".format(e))
+
+        return quote(ab_value, safe='')
 
 
 class SecUserIdFetcher:

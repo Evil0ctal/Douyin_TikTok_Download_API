@@ -103,7 +103,7 @@ description = f"""
 #### 备注
 - 本项目仅供学习交流使用，不得用于违法用途，否则后果自负。
 - 如果你不想自己部署，可以直接使用我们的在线API服务：[Douyin_TikTok_Download_API](https://douyin.wtf/docs)
-- 如果你需要更稳定以及更多功能的API服务，可以使用付费API服务：[TikHub API](https://beta.tikhub.io/)
+- 如果你需要更稳定以及更多功能的API服务，可以使用付费API服务：[TikHub API](https://api.tikhub.io/)
 
 ### [English]
 
@@ -116,7 +116,7 @@ description = f"""
 #### Note
 - This project is for learning and communication only, and shall not be used for illegal purposes, otherwise the consequences shall be borne by yourself.
 - If you do not want to deploy it yourself, you can directly use our online API service: [Douyin_TikTok_Download_API](https://douyin.wtf/docs)
-- If you need a more stable and feature-rich API service, you can use the paid API service: [TikHub API](https://beta.tikhub.io)
+- If you need a more stable and feature-rich API service, you can use the paid API service: [TikHub API](https://api.tikhub.io)
 """
 
 docs_url = config['API']['Docs_URL']
