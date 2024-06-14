@@ -17,7 +17,7 @@
 
 > 🚨If you need to use a private server to run this project, please refer to:[Deployment preparations](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB),[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realizes online batch parsing and downloading of videos or photo albums without watermarks, data crawling API, and iOS shortcut command without watermark downloads through the Web. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realizes online batch parsing and downloading of videos or photo albums without watermarks, data crawling API, and iOS shortcut commands without watermark downloads through the Web. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
 
 _Some simple application scenarios:_
 
@@ -33,13 +33,13 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 ## 🔖TikHub.io API
 
-[TikHub.io](https://beta-web.tikhub.io/en-us/users/signin)It is an API platform that provides various public data interfaces including Douyin and TikTok. If you want to support[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)For project development, we strongly recommend that you choose[TikHub.io](https://beta-web.tikhub.io/en-us/users/signin)。
+[TikHub.io](https://api.tikhub.io/)It is an API platform that provides various public data interfaces including Douyin and TikTok. If you want to support[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)For project development, we strongly recommend that you choose[TikHub.io](https://api.tikhub.io/)。
 
 #### Features:
 
 > 📦 Ready to use right out of the box
 
-Eliminate cumbersome usage processes and use the encapsulated SDK for rapid development, making calls easier. All API interfaces are written in accordance with OpenAPI specifications and come with sample parameters.
+Simplify the use process and use the packaged SDK to quickly carry out development work. All API interfaces are designed based on RESTful architecture and are described and documented using OpenAPI specifications, with sample parameters included to ensure easier calling.
 
 > 💰 Cost advantage
 
@@ -55,6 +55,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 #### Link:
 
+-   Github:[TikHub Github](https://github.com/TikHubIO)
 -   Discord:[Tikhub discord](https://discord.com/invite/aMEAS8Xsvz)
 -   Register:[TikHub signup](https://beta-web.tikhub.io/en-us/users/signup)
 -   API Docs:[Cheers to my father, Dex](https://api.tikhub.io/)
@@ -93,7 +94,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
 
 **_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
 
@@ -118,7 +119,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 ## ✨Supported functions:
 
--   Batch parsing on the web page (supports Douyin/TikTok mixed parsing)
+-   Batch analysis on the web page (supports Douyin/TikTok mixed analysis)
 -   Download videos or photo albums online.
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
 -   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
@@ -258,7 +259,7 @@ Online:<https://api.douyin.wtf/docs>
 -   Crawl video data (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/hybrid/video_data?url=[视频链接/Video URL]&minimal=false`
 -   Download videos/photo albums (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
-**_For more demonstrations, please see the documentation..._**
+**_For more demonstrations, please view the document content..._**
 
 ## ⚠️Preparation work before deployment (please read carefully):
 
@@ -374,7 +375,7 @@ docker run -d --name douyin_tiktok_api -p 80:80 \
 
 ### Configuration file modification
 
-Most of the configuration of the project can be found in the following directories:`config.yaml`File modification:
+Most of the project configuration can be found in the following directories:`config.yaml`File modification:
 
 -   `/crawlers/douyin/web/config.yaml`
 -   `/crawlers/tiktok/web/config.yaml`
@@ -382,7 +383,7 @@ Most of the configuration of the project can be found in the following directori
 
 ### Step 5: Stop and remove the container
 
-When you need to stop and remove containers, use the following commands:
+When you need to stop and remove a container, use the following commands:
 
 ```bash
 # Stop
