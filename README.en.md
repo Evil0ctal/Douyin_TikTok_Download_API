@@ -68,9 +68,9 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
+**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
 
 ## 💡Project file structure
 
@@ -93,7 +93,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 ## ✨Supported functions:
 
--   Batch analysis on the web page (supports Douyin/TikTok mixed analysis)
+-   Batch parsing on the web page (supports Douyin/TikTok mixed parsing)
 -   Download videos or photo albums online.
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
 -   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
@@ -128,7 +128,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
         -   [x] Get user homepage work data
         -   [x] Obtain the data of works liked by the user's homepage
         -   [x] Get user homepage information
-        -   [x] Get fan data on user homepage
+        -   [x] Get user homepage fan data
         -   [x] Get user homepage follow data
         -   [x] Get user homepage collection work data
         -   [x] Get user homepage collection data
@@ -149,7 +149,7 @@ _Download prohibited videos, perform data analysis, download without watermark o
 
 ## 📦Call the parsing library (obsolete and needs to be updated):
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -274,7 +274,7 @@ My invitation link:
 
 > Turn on/off automatic operation at startup
 
--   Use the following command to set the service to run automatically at boot or cancel automatic run at boot:
+-   Use the following commands to set the service to run automatically at boot or cancel automatic run at boot:
     -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
     -   `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
@@ -290,7 +290,7 @@ My invitation link:
 
 ### Preparation
 
-Before you begin, make sure Docker is installed on your system. If you haven't installed Docker yet, you can install it from[Docker official website](https://www.docker.com/products/docker-desktop/)Download and install.
+开始之前，请确保您的系统已安装Docker。如果还未安装Docker，可以从[Docker official website](https://www.docker.com/products/docker-desktop/)Download and install.
 
 ### Step 1: Pull the Docker image
 
@@ -347,7 +347,7 @@ docker run -d --name douyin_tiktok_api -p 80:80 \
 
 ### Configuration file modification
 
-Most of the project configuration can be found in the following directories:`config.yaml`File modification:
+Most of the configuration of the project can be found in the following directories:`config.yaml`File modification:
 
 -   `/crawlers/douyin/web/config.yaml`
 -   `/crawlers/tiktok/web/config.yaml`
