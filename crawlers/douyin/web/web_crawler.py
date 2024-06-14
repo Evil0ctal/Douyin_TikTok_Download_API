@@ -37,8 +37,6 @@ import asyncio  # 异步I/O
 import os  # 系统操作
 import time  # 时间操作
 from urllib.parse import urlencode, quote  # URL编码
-
-import httpx
 import yaml  # 配置文件
 
 # 基础爬虫客户端和抖音API端点
@@ -117,9 +115,17 @@ class DouyinWebCrawler:
         base_crawler = BaseCrawler(proxies=kwargs["proxies"], crawler_headers=kwargs["headers"])
         async with base_crawler as crawler:
             params = UserPost(sec_user_id=sec_user_id, max_cursor=max_cursor, count=count)
-            endpoint = BogusManager.xb_model_2_endpoint(
-                DouyinAPIEndpoints.USER_POST, params.dict(), kwargs["headers"]["User-Agent"]
-            )
+            # endpoint = BogusManager.xb_model_2_endpoint(
+            #     DouyinAPIEndpoints.USER_POST, params.dict(), kwargs["headers"]["User-Agent"]
+            # )
+            # response = await crawler.fetch_get_json(endpoint)
+
+            # 生成一个用户发布作品数据的带有a_bogus加密参数的Endpoint
+            params_dict = params.dict()
+            params_dict["msToken"] = ''
+            a_bogus = BogusManager.ab_model_2_endpoint(params_dict, kwargs["headers"]["User-Agent"])
+            endpoint = f"{DouyinAPIEndpoints.USER_POST}?{urlencode(params_dict)}&a_bogus={a_bogus}"
+
             response = await crawler.fetch_get_json(endpoint)
         return response
 
@@ -129,9 +135,16 @@ class DouyinWebCrawler:
         base_crawler = BaseCrawler(proxies=kwargs["proxies"], crawler_headers=kwargs["headers"])
         async with base_crawler as crawler:
             params = UserLike(sec_user_id=sec_user_id, max_cursor=max_cursor, count=count)
-            endpoint = BogusManager.xb_model_2_endpoint(
-                DouyinAPIEndpoints.USER_FAVORITE_A, params.dict(), kwargs["headers"]["User-Agent"]
-            )
+            # endpoint = BogusManager.xb_model_2_endpoint(
+            #     DouyinAPIEndpoints.USER_FAVORITE_A, params.dict(), kwargs["headers"]["User-Agent"]
+            # )
+            # response = await crawler.fetch_get_json(endpoint)
+
+            params_dict = params.dict()
+            params_dict["msToken"] = ''
+            a_bogus = BogusManager.ab_model_2_endpoint(params_dict, kwargs["headers"]["User-Agent"])
+            endpoint = f"{DouyinAPIEndpoints.USER_FAVORITE_A}?{urlencode(params_dict)}&a_bogus={a_bogus}"
+
             response = await crawler.fetch_get_json(endpoint)
         return response
 
@@ -339,7 +352,7 @@ class DouyinWebCrawler:
         """-------------------------------------------------------handler接口列表-------------------------------------------------------"""
 
         # 获取单一视频信息
-        # aweme_id = "7345492945006595379"
+        # aweme_id = "7372484719365098803"
         # result = await self.fetch_one_video(aweme_id)
         # print(result)
 

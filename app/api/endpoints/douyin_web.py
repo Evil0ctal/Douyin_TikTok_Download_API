@@ -13,7 +13,7 @@ DouyinWebCrawler = DouyinWebCrawler()
 # 获取单个作品数据
 @router.get("/fetch_one_video", response_model=ResponseModel, summary="获取单个作品数据/Get single video data")
 async def fetch_one_video(request: Request,
-                          aweme_id: str = Query(example="7345492945006595379", description="作品id/Video id")):
+                          aweme_id: str = Query(example="7372484719365098803", description="作品id/Video id")):
     """
     # [中文]
     ### 用途:
@@ -32,7 +32,7 @@ async def fetch_one_video(request: Request,
     - Video data
 
     # [示例/Example]
-    aweme_id = "7345492945006595379"
+    aweme_id = "7372484719365098803"
     """
     try:
         data = await DouyinWebCrawler.fetch_one_video(aweme_id)
@@ -470,7 +470,7 @@ async def handler_user_profile(request: Request,
             response_model=ResponseModel,
             summary="获取单个视频评论数据/Get single video comments data")
 async def fetch_video_comments(request: Request,
-                               aweme_id: str = Query(example="7345492945006595379", description="作品id/Video id"),
+                               aweme_id: str = Query(example="7372484719365098803", description="作品id/Video id"),
                                cursor: int = Query(default=0, description="游标/Cursor"),
                                count: int = Query(default=20, description="数量/Number")):
     """
@@ -495,7 +495,7 @@ async def fetch_video_comments(request: Request,
     - Comments data
 
     # [示例/Example]
-    aweme_id = "7345492945006595379"
+    aweme_id = "7372484719365098803"
     cursor = 0
     count = 20
     """
@@ -740,7 +740,7 @@ async def generate_x_bogus(request: Request,
             summary="使用接口网址生成A-Bogus参数/Generate A-Bogus parameter using API URL")
 async def generate_a_bogus(request: Request,
                            url: str = Query(
-                               example="https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_online=true&engine_name=Gecko&os_name=Windows&os_version=10&platform=PC&screen_width=1920&screen_height=1080&browser_version=124.0&engine_version=122.0.0.0&cpu_core_num=12&device_memory=8&aweme_id=7345492945006595379"),
+                               example="https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_online=true&engine_name=Gecko&os_name=Windows&os_version=10&platform=PC&screen_width=1920&screen_height=1080&browser_version=124.0&engine_version=122.0.0.0&cpu_core_num=12&device_memory=8&aweme_id=7372484719365098803"),
                            user_agent: str = Query(
                                example="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36")):
     """
@@ -759,7 +759,7 @@ async def generate_a_bogus(request: Request,
     - user_agent: User agent, temporarily does not support customization, just use the default value.
 
     # [示例/Example]
-    url = "https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_online=true&engine_name=Gecko&os_name=Windows&os_version=10&platform=PC&screen_width=1920&screen_height=1080&browser_version=124.0&engine_version=122.0.0.0&cpu_core_num=12&device_memory=8&aweme_id=7345492945006595379"
+    url = "https://www.douyin.com/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383&channel=channel_pc_web&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&browser_language=zh-CN&browser_platform=Win32&browser_name=Firefox&browser_online=true&engine_name=Gecko&os_name=Windows&os_version=10&platform=PC&screen_width=1920&screen_height=1080&browser_version=124.0&engine_version=122.0.0.0&cpu_core_num=12&device_memory=8&aweme_id=7372484719365098803"
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36"
     """
     try:

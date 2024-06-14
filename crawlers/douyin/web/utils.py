@@ -116,38 +116,38 @@ class TokenManager:
 
                 msToken = str(httpx.Cookies(response.cookies).get("msToken"))
                 if len(msToken) not in [120, 128]:
-                    raise APIResponseError("{0} 内容不符合要求".format("msToken"))
+                    raise APIResponseError("响应内容：{0}， Douyin msToken API 的响应内容不符合要求。".format(msToken))
 
                 return msToken
 
-            except httpx.RequestError as exc:
-                # 捕获所有与 httpx 请求相关的异常情况 (Captures all httpx request-related exceptions)
-                raise APIConnectionError(
-                    "请求端点失败，请检查当前网络环境。 链接：{0}，代理：{1}，异常类名：{2}，异常详细信息：{3}"
-                    .format(cls.token_conf["url"], cls.proxies, cls.__name__, exc)
-                )
+            # except httpx.RequestError as exc:
+            #     # 捕获所有与 httpx 请求相关的异常情况 (Captures all httpx request-related exceptions)
+            #     raise APIConnectionError(
+            #         "请求端点失败，请检查当前网络环境。 链接：{0}，代理：{1}，异常类名：{2}，异常详细信息：{3}"
+            #         .format(cls.token_conf["url"], cls.proxies, cls.__name__, exc)
+            #     )
+            #
+            # except httpx.HTTPStatusError as e:
+            #     # 捕获 httpx 的状态代码错误 (captures specific status code errors from httpx)
+            #     if e.response.status_code == 401:
+            #         raise APIUnauthorizedError(
+            #             "参数验证失败，请更新 Douyin_TikTok_Download_API 配置文件中的 {0}，以匹配 {1} 新规则"
+            #             .format("msToken", "douyin")
+            #         )
+            #
+            #     elif e.response.status_code == 404:
+            #         raise APINotFoundError("{0} 无法找到API端点".format("msToken"))
+            #     else:
+            #         raise APIResponseError(
+            #             "链接：{0}，状态码 {1}：{2} ".format(
+            #                 e.response.url, e.response.status_code, e.response.text
+            #             )
+            #         )
 
-            except httpx.HTTPStatusError as e:
-                # 捕获 httpx 的状态代码错误 (captures specific status code errors from httpx)
-                if e.response.status_code == 401:
-                    raise APIUnauthorizedError(
-                        "参数验证失败，请更新 F2 配置文件中的 {0}，以匹配 {1} 新规则"
-                        .format("msToken", "douyin")
-                    )
-
-                elif e.response.status_code == 404:
-                    raise APINotFoundError("{0} 无法找到API端点".format("msToken"))
-                else:
-                    raise APIResponseError(
-                        "链接：{0}，状态码 {1}：{2} ".format(
-                            e.response.url, e.response.status_code, e.response.text
-                        )
-                    )
-
-            except APIError as e:
+            except Exception as e:
                 # 返回虚假的msToken (Return a fake msToken)
-                logger.error("msToken API错误：{0}".format(e))
-                logger.info("生成虚假的msToken")
+                logger.error("请求Douyin msToken API时发生错误：{0}".format(e))
+                logger.info("将使用本地生成的虚假msToken参数，以继续请求。")
                 return cls.gen_false_msToken()
 
     @classmethod
@@ -184,7 +184,7 @@ class TokenManager:
                 # 捕获 httpx 的状态代码错误 (captures specific status code errors from httpx)
                 if e.response.status_code == 401:
                     raise APIUnauthorizedError(
-                        "参数验证失败，请更新 F2 配置文件中的 {0}，以匹配 {1} 新规则"
+                        "参数验证失败，请更新 Douyin_TikTok_Download_API 配置文件中的 {0}，以匹配 {1} 新规则"
                         .format("ttwid", "douyin")
                     )
 
