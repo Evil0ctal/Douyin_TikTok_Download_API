@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import Union
 from urllib.parse import urlencode, quote
 
-import execjs
+# import execjs
 import httpx
 import qrcode
 import yaml
@@ -267,28 +267,28 @@ class BogusManager:
 
     # 字符串方法生成A-Bogus参数
     # TODO: 未完成测试，暂时不提交至主分支。
-    @classmethod
-    def ab_str_2_endpoint_js_ver(cls, endpoint: str, user_agent: str) -> str:
-        try:
-            # 获取请求参数
-            endpoint_query_params = urllib.parse.urlparse(endpoint).query
-            # 确定A-Bogus JS文件路径
-            js_path = os.path.dirname(os.path.abspath(__file__))
-            a_bogus_js_path = os.path.join(js_path, 'a_bogus.js')
-            with open(a_bogus_js_path, 'r', encoding='utf-8') as file:
-                js_code = file.read()
-            # 此处需要使用Node环境
-            # - 安装Node.js
-            # - 安装execjs库
-            # - 安装NPM依赖
-            # - npm install jsdom
-            node_runtime = execjs.get('Node')
-            context = node_runtime.compile(js_code)
-            arg = [0, 1, 0, endpoint_query_params, "", user_agent]
-            a_bougus = quote(context.call('get_a_bogus', arg), safe='')
-            return a_bougus
-        except Exception as e:
-            raise RuntimeError("生成A-Bogus失败: {0})".format(e))
+    # @classmethod
+    # def ab_str_2_endpoint_js_ver(cls, endpoint: str, user_agent: str) -> str:
+    #     try:
+    #         # 获取请求参数
+    #         endpoint_query_params = urllib.parse.urlparse(endpoint).query
+    #         # 确定A-Bogus JS文件路径
+    #         js_path = os.path.dirname(os.path.abspath(__file__))
+    #         a_bogus_js_path = os.path.join(js_path, 'a_bogus.js')
+    #         with open(a_bogus_js_path, 'r', encoding='utf-8') as file:
+    #             js_code = file.read()
+    #         # 此处需要使用Node环境
+    #         # - 安装Node.js
+    #         # - 安装execjs库
+    #         # - 安装NPM依赖
+    #         # - npm install jsdom
+    #         node_runtime = execjs.get('Node')
+    #         context = node_runtime.compile(js_code)
+    #         arg = [0, 1, 0, endpoint_query_params, "", user_agent]
+    #         a_bougus = quote(context.call('get_a_bogus', arg), safe='')
+    #         return a_bougus
+    #     except Exception as e:
+    #         raise RuntimeError("生成A-Bogus失败: {0})".format(e))
 
     # 字典方法生成A-Bogus参数，感谢 @JoeanAmier 提供的纯Python版本算法。
     @classmethod
