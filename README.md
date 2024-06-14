@@ -286,7 +286,7 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 
 ## ⚠️部署前的准备工作(请仔细阅读)：
 
-- 你需要自行解决爬虫Cookie风控问题，否则可能会导致接口无法使用。
+- 你需要自行解决爬虫Cookie风控问题，否则可能会导致接口无法使用，修改完配置文件后需要重启服务才能生效，并且最好使用已经登录过的账号的Cookie。
   - 抖音网页端Cookie（自行获取并替换下面配置文件中的Cookie）：
   - https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/douyin/web/config.yaml#L7
   - TikTok网页端Cookie（自行获取并替换下面配置文件中的Cookie）：
