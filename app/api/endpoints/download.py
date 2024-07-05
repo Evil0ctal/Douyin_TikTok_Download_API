@@ -103,8 +103,8 @@ async def download_file_hybrid(request: Request,
                 return FileResponse(path=file_path, media_type='video/mp4', filename=file_name)
 
             # 获取视频文件
-            response = await fetch_data(url) if platform == 'douyin' else await fetch_data(url,
-                                                                                           headers=await HybridCrawler.TikTokWebCrawler.get_tiktok_headers())
+            __headers = await HybridCrawler.TikTokWebCrawler.get_tiktok_headers() if platform == 'tiktok' else await HybridCrawler.DouyinWebCrawler.get_douyin_headers()
+            response = await fetch_data(url, headers=__headers)
 
             # 保存文件
             async with aiofiles.open(file_path, 'wb') as out_file:

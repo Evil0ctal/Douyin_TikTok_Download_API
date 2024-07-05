@@ -30,8 +30,8 @@ API:
   Redoc_URL: /redoc    # API documentation URL | API文档URL
 
   # API Information
-  Version: V4.0.3    # API version | API版本
-  Update_Time: 2024/06/14    # API update time | API更新时间
+  Version: V4.0.4    # API version | API版本
+  Update_Time: 2024/07/05    # API update time | API更新时间
   Environment: Demo    # API environment | API环境
 
   # Download Configuration
@@ -44,9 +44,9 @@ API:
 
 # iOS Shortcut
 iOS_Shortcut:
-  iOS_Shortcut_Version: 6.0
-  iOS_Shortcut_Update_Time: 2024/04/22
-  iOS_Shortcut_Link: https://www.icloud.com/shortcuts/4465d514869e4ca585074d40328f3e0e
-  iOS_Shortcut_Link_EN: https://www.icloud.com/shortcuts/58e3a2cbac784a6782f1031c6b1dd9f8
-  iOS_Shortcut_Update_Note: 重新适配https://api.douyin.wtf(API-V1 3.0.0版本)
-  iOS_Shortcut_Update_Note_EN: Re-adapt https://api.douyin.wtf (API-V1 3.0.0 version)
+  iOS_Shortcut_Version: 7.0
+  iOS_Shortcut_Update_Time: 2024/07/05
+  iOS_Shortcut_Link: https://www.icloud.com/shortcuts/06f891a026df40cfa967a907feaea632
+  iOS_Shortcut_Link_EN: https://www.icloud.com/shortcuts/06f891a026df40cfa967a907feaea632
+  iOS_Shortcut_Update_Note: 重构了快捷指令以兼容TikHub API。
+  iOS_Shortcut_Update_Note_EN: Refactored the shortcut to be compatible with the TikHub API.

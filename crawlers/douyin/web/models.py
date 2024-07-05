@@ -27,6 +27,7 @@ class BaseRequestModel(BaseModel):
     cpu_core_num: int = 12
     device_memory: int = 8
     platform: str = "PC"
+    # webid: str = "7388296161008862738"
     # downlink: int = 10
     # effective_type: str = "4g"
     # round_trip_time: int = 100
