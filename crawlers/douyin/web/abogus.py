@@ -59,8 +59,7 @@ class ABogus:
         self.size = 0
         self.reg = self.__reg[:]
         # self.ua_code = self.generate_ua_code(user_agent)
-        # Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
-        # like Gecko) Chrome/90.0.4430.212 Safari/537.36
+        # Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36
         self.ua_code = [
             76,
             98,
