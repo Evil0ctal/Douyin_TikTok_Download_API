@@ -297,7 +297,7 @@ class BogusManager:
             raise TypeError("参数必须是字典类型")
 
         try:
-            ab_value = AB().get_value(params, user_agent)
+            ab_value = AB().get_value(params, )
         except Exception as e:
             raise RuntimeError("生成A-Bogus失败: {0})".format(e))
 
