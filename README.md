@@ -91,6 +91,8 @@ TikHub的部分源代码会开源在Github上，并且会赞助一些开源项�
 
 💾iOS Shortcut(快捷指令): [Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
 
+🎉Chrome Plugin (浏览器插件) [README](./tools/README.md)
+
 📦️桌面端下载器(仓库推荐)：
 
 - [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)

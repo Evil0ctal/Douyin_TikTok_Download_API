@@ -72,6 +72,8 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 💾iOS Shortcut (shortcut command):[Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
 
+🎉Chrome Plugin [README](./tools/README.md)
+
 📦️Desktop downloader (recommended by warehouse):
 
 -   [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
