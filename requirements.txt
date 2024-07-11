@@ -2,7 +2,7 @@ aiofiles==23.2.1
 annotated-types==0.6.0
 anyio==4.3.0
 browser-cookie3==0.19.1
-certifi==2024.2.2
+certifi==2024.7.4
 click==8.1.7
 colorama==0.4.6
 fastapi==0.110.2
