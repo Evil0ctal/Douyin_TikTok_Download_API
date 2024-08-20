@@ -125,7 +125,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 -   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
 -   Complete API documentation ([Demo/Demonstration](https://api.douyin.wtf/docs))
 -   Rich API interface:
-    -   Douyin web version API
+    - Douyin web version API
 
         -   [x] Video data analysis
         -   [x] Get user homepage work data
@@ -149,7 +149,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Extract list work id
         -   [x] Extract live broadcast room number from list
         -   [x] Extract live broadcast room number from list
-    -   TikTok web version API
+    - TikTok web version API
 
         -   [x] Video data analysis
         -   [x] Get user homepage work data
@@ -171,7 +171,18 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Extract list work id
         -   [x] Get user unique_id
         -   [x] Get list unique_id
-
+    - Bilibili web version API
+        - [x] Get single video data
+        - [x] Get user homepage video data
+        - [x] Get user collection folders
+        - [x] Gets video data from a collection folder
+        - [x] Get information of specified user
+        - [x] Get comprehensive popular video information
+        - [x] Get comments on the specified video
+        - [x] Get reply to the specified comment
+        - [x] Get dynamic information of specified user
+        - [x] Get information of specified live room
+        - [x] Get a list of all live areas
 * * *
 
 ## 📦Call the parsing library (obsolete and needs to be updated):
