@@ -31,6 +31,33 @@
 
 </div>
 
+## 赞助商
+
+这些赞助商已付费放置在这里，**Douyin_TikTok_Download_API** 项目将永远免费且开源。如果您希望成为该项目的赞助商，请查看我的 [GitHub 赞助商页面](https://github.com/sponsors/evil0ctal)。
+
+<div align="center">
+  <hr>
+<br>
+    <a href="https://www.tikhub.io/" target="_blank">
+        <img src="https://tikhub.io/wp-content/uploads/2024/06/cropped-Logo_TikHub-60-300x300px.png" width="100" alt="TikHub.io API Marketplace">
+        <b></b>
+        <div>
+         <b>TikHub.io API:</b> is the leading API provider for scraping Douyin, Xiaohongshu, TikTok, Instagram, Youtube, and more. <br> Trusted by the major influencer marketing and social media listening platforms.
+        </div>
+    </a>
+    <br/>
+  <a href="https://www.sadcaptcha.com?ref=eviloctal" target="_blank">
+    <img src="https://sadcaptcha.b-cdn.net/tiktok3d.webp" width="100" alt="TikTok Captcha Solver">
+    <img src="https://sadcaptcha.b-cdn.net/tiktokrotate.webp" width="100" alt="TikTok Captcha Solver">
+    <img src="https://sadcaptcha.b-cdn.net/tiktokpuzzle.webp" width="100" alt="TikTok Captcha Solver">
+    <img src="https://sadcaptcha.b-cdn.net/tiktokicon.webp" width="100" alt="TikTok Captcha Solver">
+    <br/>
+    <div>
+         <b>TikTok Captcha Solver: </b> Bypass any TikTok captcha in just two lines of code.<br> Scale your TikTok automation and get unblocked with SadCaptcha.
+    </div>
+  </a>
+</div>
+
 ## 👻介绍
 
 > 🚨如需使用私有服务器运行本项目，请参考：[部署准备工作](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB), [Docker部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker), [一键部署](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
