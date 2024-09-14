@@ -69,6 +69,7 @@ class TikTokAPPCrawler:
                 "User-Agent": tiktok_config["headers"]["User-Agent"],
                 "Referer": tiktok_config["headers"]["Referer"],
                 "Cookie": tiktok_config["headers"]["Cookie"],
+                "x-ladon": "Hello From Evil0ctal!",
             },
             "proxies": {"http://": None, "https://": None},
         }
@@ -77,7 +78,7 @@ class TikTokAPPCrawler:
     """-------------------------------------------------------handler接口列表-------------------------------------------------------"""
 
     # 获取单个作品数据
-    @deprecated("TikTok APP fetch_one_video is deprecated and will be removed in a future release. Use Web API instead. | TikTok APP fetch_one_video 已弃用，将在将来的版本中删除。请改用Web API。")
+    # @deprecated("TikTok APP fetch_one_video is deprecated and will be removed in a future release. Use Web API instead. | TikTok APP fetch_one_video 已弃用，将在将来的版本中删除。请改用Web API。")
     async def fetch_one_video(self, aweme_id: str):
         # 获取TikTok的实时Cookie
         kwargs = await self.get_tiktok_headers()

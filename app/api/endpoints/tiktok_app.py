@@ -10,8 +10,7 @@ TikTokAPPCrawler = TikTokAPPCrawler()
 # 获取单个作品数据
 @router.get("/fetch_one_video",
             response_model=ResponseModel,
-            summary="获取单个作品数据/Get single video data",
-            deprecated=True
+            summary="获取单个作品数据/Get single video data"
             )
 async def fetch_one_video(request: Request,
                           aweme_id: str = Query(example="7350810998023949599", description="作品id/Video id")):

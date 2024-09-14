@@ -57,10 +57,14 @@ class HybridCrawler:
         elif "tiktok" in url:
             platform = "tiktok"
             aweme_id = await self.TikTokWebCrawler.get_aweme_id(url)
-            data = await self.TikTokWebCrawler.fetch_one_video(aweme_id)
-            data = data.get("itemInfo").get("itemStruct")
+
+            # 2024-09-14: Switch to TikTokAPPCrawler instead of TikTokWebCrawler
+            # data = await self.TikTokWebCrawler.fetch_one_video(aweme_id)
+            # data = data.get("itemInfo").get("itemStruct")
+
+            data = await self.TikTokAPPCrawler.fetch_one_video(aweme_id)
             # $.imagePost exists if aweme_type is photo
-            aweme_type = 150 if data.get("imagePost") else 1
+            aweme_type = data.get("aweme_type")
         else:
             raise ValueError("hybrid_parsing_single_video: Cannot judge the video source from the URL.")
 
@@ -85,6 +89,7 @@ class HybridCrawler:
         }
         # 判断链接类型/Judge link type
         url_type = url_type_code_dict.get(aweme_type, 'video')
+        # print(f"url_type: {url_type}")
 
         """
         以下为(视频||图片)数据处理的四个方法,如果你需要自定义数据处理请在这里修改.
@@ -158,14 +163,17 @@ class HybridCrawler:
             # TikTok视频数据处理/TikTok video data processing
             if url_type == 'video':
                 # 将信息储存在字典中/Store information in a dictionary
-                wm_video = data['video']['downloadAddr']
+                # wm_video = data['video']['downloadAddr']
+                wm_video = data['video']['download_addr']['url_list'][0]
                 api_data = {
                     'video_data':
                         {
                             'wm_video_url': wm_video,
                             'wm_video_url_HQ': wm_video,
-                            'nwm_video_url': data['video']['playAddr'],
-                            'nwm_video_url_HQ': data['video']['bitrateInfo'][0]['PlayAddr']['UrlList'][0]
+                            # 'nwm_video_url': data['video']['playAddr'],
+                            'nwm_video_url': data['video']['play_addr']['url_list'][0],
+                            # 'nwm_video_url_HQ': data['video']['bitrateInfo'][0]['PlayAddr']['UrlList'][0]
+                            'nwm_video_url_HQ': data['video']['bit_rate'][0]['play_addr']['url_list'][0]
                         }
                 }
             # TikTok图片数据处理/TikTok image data processing
@@ -174,9 +182,9 @@ class HybridCrawler:
                 no_watermark_image_list = []
                 # 有水印图片列表/With watermark image list
                 watermark_image_list = []
-                for i in data['imagePost']['images']:
-                    no_watermark_image_list.append(i['imageURL']['urlList'][0])
-                    # watermark_image_list.append(i['owner_watermark_image']['url_list'][0])
+                for i in data['image_post_info']['images']:
+                    no_watermark_image_list.append(i['display_image']['url_list'][0])
+                    watermark_image_list.append(i['owner_watermark_image']['url_list'][0])
                 api_data = {
                     'image_data':
                         {
@@ -191,7 +199,7 @@ class HybridCrawler:
     async def main(self):
         # 测试混合解析单一视频接口/Test hybrid parsing single video endpoint
         # url = "https://v.douyin.com/L4FJNR3/"
-        url = "https://www.tiktok.com/@evil0ctal/video/7156033831819037994"
+        url = "https://www.tiktok.com/@taylorswift/video/7359655005701311786"
         # url = "https://www.tiktok.com/@minecraft/photo/7369296852669205791"
         minimal = True
         result = await self.hybrid_parsing_single_video(url, minimal=minimal)
