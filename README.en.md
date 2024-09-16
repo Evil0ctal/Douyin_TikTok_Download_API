@@ -121,7 +121,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
 
 **_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
 
@@ -148,7 +148,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 ## ✨Supported functions:
 
--   Batch analysis on the web page (supports Douyin/TikTok mixed analysis)
+-   Batch parsing on the web page (supports Douyin/TikTok mixed parsing)
 -   Download videos or photo albums online.
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
 -   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
@@ -184,7 +184,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Get user homepage work data
         -   [x] Obtain the data of works liked by the user's homepage
         -   [x] Get user homepage information
-        -   [x] Get user home page fan data
+        -   [x] Get fan data on user homepage
         -   [x] Get user homepage follow data
         -   [x] Get user homepage collection work data
         -   [x] Get user homepage collection data
@@ -197,13 +197,13 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Extract a single user sec_user_id
         -   [x] Extract list user sec_user_id
         -   [x] Extract a single work id
-        -   [x] 提取列表作品id
+        -   [x] Extract list work id
         -   [x] Get user unique_id
         -   [x] Get list unique_id
     -   Bilibili web version API
         -   [x] Get individual video details
         -   [x] Obtain user-published video work data
-        -   [x] Get all favorites information of the user
+        -   [x] Get all the user's favorites information
         -   [x] Get video data in specified favorites
         -   [x] Get information about a specified user
         -   [x] Get comprehensive popular video information
@@ -217,7 +217,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 ## 📦Call the parsing library (obsolete and needs to be updated):
 
-> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -238,7 +238,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Douyin sharing password (copy in APP)
 
@@ -300,7 +300,7 @@ Online:<https://api.douyin.wtf/docs>
 -   Crawl video data (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/hybrid/video_data?url=[视频链接/Video URL]&minimal=false`
 -   Download videos/photo albums (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
-**_For more demonstrations, please view the document content..._**
+**_For more demonstrations, please see the documentation..._**
 
 ## ⚠️Preparation work before deployment (please read carefully):
 
@@ -341,7 +341,7 @@ My invitation link:
     -   `sudo systemctl start Douyin_TikTok_Download_API.service`
     -   `sudo systemctl stop Douyin_TikTok_Download_API.service`
 
-> Turn on/off automatic operation at startup
+> 开启/关闭开机自动运行
 
 -   Use the following commands to set the service to run automatically at boot or cancel automatic run at boot:
     -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
@@ -416,7 +416,7 @@ docker run -d --name douyin_tiktok_api -p 80:80 \
 
 ### Configuration file modification
 
-Most of the configuration of the project can be found in the following directories:`config.yaml`File modification:
+Most of the project configuration can be found in the following directories:`config.yaml`File modification:
 
 -   `/crawlers/douyin/web/config.yaml`
 -   `/crawlers/tiktok/web/config.yaml`
