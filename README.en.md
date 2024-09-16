@@ -184,7 +184,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Get user homepage work data
         -   [x] Obtain the data of works liked by the user's homepage
         -   [x] Get user homepage information
-        -   [x] Get fan data on user homepage
+        -   [x] Get user homepage fan data
         -   [x] Get user homepage follow data
         -   [x] Get user homepage collection work data
         -   [x] Get user homepage collection data
@@ -238,7 +238,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Douyin sharing password (copy in APP)
 
@@ -300,7 +300,7 @@ Online:<https://api.douyin.wtf/docs>
 -   Crawl video data (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/hybrid/video_data?url=[视频链接/Video URL]&minimal=false`
 -   Download videos/photo albums (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
-**_For more demonstrations, please see the documentation..._**
+**_For more demonstrations, please view the document content..._**
 
 ## ⚠️Preparation work before deployment (please read carefully):
 
@@ -316,7 +316,7 @@ Online:<https://api.douyin.wtf/docs>
 
 ## 💻Deployment (Method 1 Linux)
 
-> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
+> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may appear.
 
 Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)server, because you can have sex for free.
 
@@ -341,9 +341,9 @@ My invitation link:
     -   `sudo systemctl start Douyin_TikTok_Download_API.service`
     -   `sudo systemctl stop Douyin_TikTok_Download_API.service`
 
-> 开启/关闭开机自动运行
+> Turn on/off automatic operation at startup
 
--   Use the following commands to set the service to run automatically at boot or cancel automatic run at boot:
+-   Use the following command to set the service to run automatically at boot or cancel automatic run at boot:
     -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
     -   `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
@@ -416,7 +416,7 @@ docker run -d --name douyin_tiktok_api -p 80:80 \
 
 ### Configuration file modification
 
-Most of the project configuration can be found in the following directories:`config.yaml`File modification:
+Most of the configuration of the project can be found in the following directories:`config.yaml`File modification:
 
 -   `/crawlers/douyin/web/config.yaml`
 -   `/crawlers/tiktok/web/config.yaml`
