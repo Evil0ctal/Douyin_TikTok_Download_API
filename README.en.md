@@ -15,7 +15,7 @@
 
 ## Sponsor
 
-These sponsors have paid to be placed here,**Douyin_TikTok_Download_API**The project will always be free and open source. If you would like to become a sponsor of this project, please check out my[GitHub Sponsor Page](https://github.com/sponsors/evil0ctal)。
+这些赞助商已付费放置在这里，**Douyin_TikTok_Download_API**The project will always be free and open source. If you would like to become a sponsor of this project, please check out my[GitHub Sponsor Page](https://github.com/sponsors/evil0ctal)。
 
 <div align="center">
   <hr>
