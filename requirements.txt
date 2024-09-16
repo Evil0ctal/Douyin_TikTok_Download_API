@@ -35,3 +35,4 @@ user-agents==2.2.0
 uvicorn==0.29.0
 websockets==12.0
 gmssl==3.2.2
+tenacity~=9.0.0
