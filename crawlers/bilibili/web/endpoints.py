@@ -11,8 +11,11 @@ class BilibiliAPIEndpoints:
     # 作品信息 (Post Detail)
     POST_DETAIL = f"{BILIAPI_DOMAIN}/x/web-interface/view"
 
-    # 用户播放列表 (用于爬取用户所有视频数据)
-    USER_POST = f"{BILIAPI_DOMAIN}/x/v2/medialist/resource/list"
+    # 作品视频流
+    VIDEO_PLAYURL = f"{BILIAPI_DOMAIN}/x/player/wbi/playurl"
+
+    # 用户发布视频作品数据
+    USER_POST = f"{BILIAPI_DOMAIN}/x/space/wbi/arc/search"
 
     # 收藏夹列表
     COLLECT_FOLDERS = f"{BILIAPI_DOMAIN}/x/v3/fav/folder/created/list-all"
@@ -35,8 +38,14 @@ class BilibiliAPIEndpoints:
     # 视频评论
     VIDEO_COMMENTS = f"{BILIAPI_DOMAIN}/x/v2/reply"
 
+    # 用户动态
+    USER_DYNAMIC = f"{BILIAPI_DOMAIN}/x/polymer/web-dynamic/v1/feed/space"
+
     # 评论的回复
     COMMENT_REPLY = f"{BILIAPI_DOMAIN}/x/v2/reply/reply"
+
+    # 视频分p信息
+    VIDEO_PARTS = f"{BILIAPI_DOMAIN}/x/player/pagelist"
 
     # 直播间信息
     LIVEROOM_DETAIL = f"{LIVE_DOMAIN}/room/v1/Room/get_info"
@@ -46,5 +55,8 @@ class BilibiliAPIEndpoints:
 
     # 直播间视频流
     LIVE_VIDEOS = f"{LIVE_DOMAIN}/room/v1/Room/playUrl"
+
+    # 正在直播的主播
+    LIVE_STREAMER = f"{LIVE_DOMAIN}/xlive/web-interface/v1/second/getList"
 
 
