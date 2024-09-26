@@ -1,3 +1,37 @@
+# ==============================================================================
+# Copyright (C) 2021 Evil0ctal
+#
+# This file is part of the Douyin_TikTok_Download_API project.
+#
+# This project is licensed under the Apache License 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at:
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+# 　　　　 　　  ＿＿
+# 　　　 　　 ／＞　　フ
+# 　　　 　　| 　_　 _ l
+# 　 　　 　／` ミ＿xノ
+# 　　 　 /　　　 　 |       Feed me Stars ⭐ ️
+# 　　　 /　 ヽ　　 ﾉ
+# 　 　 │　　|　|　|
+# 　／￣|　　 |　|　|
+# 　| (￣ヽ＿_ヽ_)__)
+# 　＼二つ
+# ==============================================================================
+#
+# Contributor Link:
+#
+# - https://github.com/Koyomi781
+#
+# ==============================================================================
+
 import asyncio  # 异步I/O
 import os  # 系统操作
 import time  # 时间操作
@@ -10,7 +44,6 @@ from crawlers.bilibili.web.endpoints import BilibiliAPIEndpoints
 from crawlers.bilibili.web.utils import EndpointGenerator, bv2av, ResponseAnalyzer
 # 数据请求模型
 from crawlers.bilibili.web.models import UserPostVideos, UserProfile, ComPopular, UserDynamic, PlayUrl
-
 
 # 配置文件路径
 path = os.path.abspath(os.path.dirname(__file__))
@@ -27,17 +60,18 @@ class BilibiliWebCrawler:
         bili_config = config['TokenManager']['bilibili']
         kwargs = {
             "headers": {
-                    "accept-language": bili_config["headers"]["accept-language"],
-                    "origin": bili_config["headers"]["origin"],
-                    "referer": bili_config["headers"]["referer"],
-                    "user-agent": bili_config["headers"]["user-agent"],
-                    "cookie": bili_config["headers"]["cookie"],
+                "accept-language": bili_config["headers"]["accept-language"],
+                "origin": bili_config["headers"]["origin"],
+                "referer": bili_config["headers"]["referer"],
+                "user-agent": bili_config["headers"]["user-agent"],
+                "cookie": bili_config["headers"]["cookie"],
             },
             "proxies": {"http://": bili_config["proxies"]["http"], "https://": bili_config["proxies"]["https"]},
         }
         return kwargs
 
     "-------------------------------------------------------handler接口列表-------------------------------------------------------"
+
     # 获取单个视频详情信息
     async def fetch_one_video(self, bv_id: str) -> dict:
         # 获取请求头信息
@@ -116,8 +150,8 @@ class BilibiliWebCrawler:
         base_crawler = BaseCrawler(proxies=kwargs["proxies"], crawler_headers=kwargs["headers"])
         # 发送请求，获取请求响应结果
         async with base_crawler as crawler:
-                endpoint = f"{BilibiliAPIEndpoints.COLLECT_VIDEOS}?media_id={folder_id}&pn={pn}&ps=20&keyword=&order=mtime&type=0&tid=0&platform=web"
-                response = await crawler.fetch_get_json(endpoint)
+            endpoint = f"{BilibiliAPIEndpoints.COLLECT_VIDEOS}?media_id={folder_id}&pn={pn}&ps=20&keyword=&order=mtime&type=0&tid=0&platform=web"
+            response = await crawler.fetch_get_json(endpoint)
         return response
 
     # 获取指定用户的信息
@@ -256,6 +290,7 @@ class BilibiliWebCrawler:
         return response
 
     "-------------------------------------------------------utils接口列表-------------------------------------------------------"
+
     # 通过bv号获得视频aid号
     async def bv_to_aid(self, bv_id: str) -> int:
         aid = await bv2av(bv_id=bv_id)
@@ -288,9 +323,10 @@ class BilibiliWebCrawler:
         return response
 
     "-------------------------------------------------------main-------------------------------------------------------"
-    async def main(self):
 
-        "-------------------------------------------------------handler接口列表-------------------------------------------------------"
+    async def main(self):
+        """-------------------------------------------------------handler接口列表-------------------------------------------------------"""
+
         # 获取单个作品数据
         # bv_id = 'BV1M1421t7hT'
         # result = await self.fetch_one_video(bv_id=bv_id)
@@ -383,7 +419,6 @@ class BilibiliWebCrawler:
         # 获取所有直播分区列表
         # result = await self.fetch_all_live_areas()
         # print(result)
-
 
 
 if __name__ == '__main__':
