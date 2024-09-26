@@ -184,21 +184,3 @@ def get_wrid(e):
     n = None
     i = twords_to_bytes(o(e, n))
     return tbytes_to_hex(i)
-
-# def test():
-#     e = "dm_cover_img_str=QU5HTEUgKE5WSURJQSwgTlZJRElBIEdlRm9yY2UgUlRYIDMwNTAgTGFwdG9wIEdQVSAoMHgwMDAwMjVBMikgRGlyZWN0M0QxMSB2c181XzAgcHNfNV8wLCBEM0QxMSlHb29nbGUgSW5jLiAoTlZJRElBKQ&dm_img_inter=%7B%22ds%22%3A%5B%5D%2C%22wh%22%3A%5B3697%2C5674%2C33%5D%2C%22of%22%3A%5B222%2C444%2C222%5D%7D&dm_img_list=%5B%5D&dm_img_str=V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ&mid=3546666038725258&platform=web&token=&web_location=1550101&wts=1723867512ea1db124af3c7062474693fa704f4ff8"
-#     n = None
-#     x = o(e, n)
-#     i = twords_to_bytes(x)
-#     return tbytes_to_hex(i)
-
-# if __name__ == '__main__':
-#     # test()
-#     encode_query = "dm_cover_img_str=QU5HTEUgKE5WSURJQSwgTlZJRElBIEdlRm9yY2UgUlRYIDMwNTAgTGFwdG9wIEdQVSAoMHgwMDAwMjVBMikgRGlyZWN0M0QxMSB2c181XzAgcHNfNV8wLCBEM0QxMSlHb29nbGUgSW5jLiAoTlZJRElBKQ&dm_img_inter=%7B%22ds%22%3A%5B%5D%2C%22wh%22%3A%5B3697%2C5674%2C33%5D%2C%22of%22%3A%5B222%2C444%2C222%5D%7D&dm_img_list=%5B%5D&dm_img_str=V2ViR0wgMS4wIChPcGVuR0wgRVMgMi4wIENocm9taXVtKQ&mid=3546666038725258&platform=web&token=&web_location=1550101&wts=1723867512ea1db124af3c7062474693fa704f4ff8"
-#     wrid1 = main(encode_query)
-#     print(wrid1)
-#
-#     js1 = open('./wrid.js', 'r', encoding='utf-8').read()
-#     wrid2 = execjs.compile(js1).call('main', encode_query)
-#     print(wrid2)
-

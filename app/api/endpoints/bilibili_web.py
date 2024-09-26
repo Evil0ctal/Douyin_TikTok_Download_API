@@ -46,6 +46,48 @@ async def fetch_one_video(request: Request,
         raise HTTPException(status_code=status_code, detail=detail.dict())
 
 
+# 获取视频流地址
+@router.get("/fetch_video_playurl", response_model=ResponseModel, summary="获取视频流地址/Get video playurl")
+async def fetch_one_video(request: Request,
+                          bv_id: str = Query(example="BV1y7411Q7Eq", description="作品id/Video id"),
+                          cid:str = Query(example="171776208", description="作品cid/Video cid")):
+    """
+    # [中文]
+    ### 用途:
+    - 获取视频流地址
+    ### 参数:
+    - bv_id: 作品id
+    - cid: 作品cid
+    ### 返回:
+    - 视频流地址
+
+    # [English]
+    ### Purpose:
+    - Get video playurl
+    ### Parameters:
+    - bv_id: Video id
+    - cid: Video cid
+    ### Return:
+    - Video playurl
+
+    # [示例/Example]
+    bv_id = "BV1y7411Q7Eq"
+    cid = "171776208"
+    """
+    try:
+        data = await BilibiliWebCrawler.fetch_video_playurl(bv_id, cid)
+        return ResponseModel(code=200,
+                             router=request.url.path,
+                             data=data)
+    except Exception as e:
+        status_code = 400
+        detail = ErrorResponseModel(code=status_code,
+                                    router=request.url.path,
+                                    params=dict(request.query_params),
+                                    )
+        raise HTTPException(status_code=status_code, detail=detail.dict())
+
+
 # 获取用户发布视频作品数据
 @router.get("/fetch_user_post_videos", response_model=ResponseModel,
             summary="获取用户主页作品数据/Get user homepage video data")
@@ -385,6 +427,44 @@ async def fetch_collect_folders(request: Request,
         raise HTTPException(status_code=status_code, detail=detail.dict())
 
 
+# 获取视频实时弹幕
+@router.get("/fetch_video_danmaku", response_model=ResponseModel, summary="获取视频实时弹幕/Get Video Danmaku")
+async def fetch_one_video(request: Request,
+                          cid: str = Query(example="1639235405", description="作品cid/Video cid")):
+    """
+    # [中文]
+    ### 用途:
+    - 获取视频实时弹幕
+    ### 参数:
+    - cid: 作品cid
+    ### 返回:
+    - 视频实时弹幕
+
+    # [English]
+    ### Purpose:
+    - Get Video Danmaku
+    ### Parameters:
+    - cid: Video cid
+    ### Return:
+    - Video Danmaku
+
+    # [示例/Example]
+    cid = "1639235405"
+    """
+    try:
+        data = await BilibiliWebCrawler.fetch_video_danmaku(cid)
+        return ResponseModel(code=200,
+                             router=request.url.path,
+                             data=data)
+    except Exception as e:
+        status_code = 400
+        detail = ErrorResponseModel(code=status_code,
+                                    router=request.url.path,
+                                    params=dict(request.query_params),
+                                    )
+        raise HTTPException(status_code=status_code, detail=detail.dict())
+
+
 # 获取指定直播间信息
 @router.get("/fetch_live_room_detail", response_model=ResponseModel,
             summary="获取指定直播间信息/Get information of specified live room")
@@ -424,43 +504,86 @@ async def fetch_collect_folders(request: Request,
         raise HTTPException(status_code=status_code, detail=detail.dict())
 
 
-# # 获取指定直播间视频流
-# @router.get("/fetch_live_videos", response_model=ResponseModel,
-#             summary="获取直播间视频流/Get live video data of specified room")
-# async def fetch_collect_folders(request: Request,
-#                                 room_id: str = Query(example="22816111", description="直播间ID/Live room ID")):
-#     """
-#     # [中文]
-#     ### 用途:
-#     - 获取指定直播间视频流
-#     ### 参数:
-#     - room_id: 直播间ID
-#     ### 返回:
-#     - 指定直播间视频流
-#
-#     # [English]
-#     ### Purpose:
-#     - Get live video data of specified room
-#     ### Parameters:
-#     - room_id: Live room ID
-#     ### Return:
-#     - live video data of specified room
-#
-#     # [示例/Example]
-#     room_id = "22816111"
-#     """
-#     try:
-#         data = await BilibiliWebCrawler.fetch_live_videos(room_id)
-#         return ResponseModel(code=200,
-#                              router=request.url.path,
-#                              data=data)
-#     except Exception as e:
-#         status_code = 400
-#         detail = ErrorResponseModel(code=status_code,
-#                                     router=request.url.path,
-#                                     params=dict(request.query_params),
-#                                     )
-#         raise HTTPException(status_code=status_code, detail=detail.dict())
+# 获取指定直播间视频流
+@router.get("/fetch_live_videos", response_model=ResponseModel,
+            summary="获取直播间视频流/Get live video data of specified room")
+async def fetch_collect_folders(request: Request,
+                                room_id: str = Query(example="1815229528", description="直播间ID/Live room ID")):
+    """
+    # [中文]
+    ### 用途:
+    - 获取指定直播间视频流
+    ### 参数:
+    - room_id: 直播间ID
+    ### 返回:
+    - 指定直播间视频流
+
+    # [English]
+    ### Purpose:
+    - Get live video data of specified room
+    ### Parameters:
+    - room_id: Live room ID
+    ### Return:
+    - live video data of specified room
+
+    # [示例/Example]
+    room_id = "1815229528"
+    """
+    try:
+        data = await BilibiliWebCrawler.fetch_live_videos(room_id)
+        return ResponseModel(code=200,
+                             router=request.url.path,
+                             data=data)
+    except Exception as e:
+        status_code = 400
+        detail = ErrorResponseModel(code=status_code,
+                                    router=request.url.path,
+                                    params=dict(request.query_params),
+                                    )
+        raise HTTPException(status_code=status_code, detail=detail.dict())
+
+
+# 获取指定分区正在直播的主播
+@router.get("/fetch_live_streamers", response_model=ResponseModel,
+            summary="获取指定分区正在直播的主播/Get live streamers of specified live area")
+async def fetch_collect_folders(request: Request,
+                                area_id: str = Query(example="9", description="直播分区id/Live area ID"),
+                                pn: int = Query(default=1, description="页码/Page number")):
+    """
+    # [中文]
+    ### 用途:
+    - 获取指定分区正在直播的主播
+    ### 参数:
+    - area_id: 直播分区id
+    - pn: 页码
+    ### 返回:
+    - 指定分区正在直播的主播
+
+    # [English]
+    ### Purpose:
+    - Get live streamers of specified live area
+    ### Parameters:
+    - area_id: Live area ID
+    - pn: Page number
+    ### Return:
+    - live streamers of specified live area
+
+    # [示例/Example]
+    area_id = "9"
+    pn = 1
+    """
+    try:
+        data = await BilibiliWebCrawler.fetch_live_streamers(area_id, pn)
+        return ResponseModel(code=200,
+                             router=request.url.path,
+                             data=data)
+    except Exception as e:
+        status_code = 400
+        detail = ErrorResponseModel(code=status_code,
+                                    router=request.url.path,
+                                    params=dict(request.query_params),
+                                    )
+        raise HTTPException(status_code=status_code, detail=detail.dict())
 
 
 # 获取所有直播分区列表
@@ -486,6 +609,82 @@ async def fetch_collect_folders(request: Request,):
     """
     try:
         data = await BilibiliWebCrawler.fetch_all_live_areas()
+        return ResponseModel(code=200,
+                             router=request.url.path,
+                             data=data)
+    except Exception as e:
+        status_code = 400
+        detail = ErrorResponseModel(code=status_code,
+                                    router=request.url.path,
+                                    params=dict(request.query_params),
+                                    )
+        raise HTTPException(status_code=status_code, detail=detail.dict())
+
+
+# 通过bv号获得视频aid号
+@router.get("/bv_to_aid", response_model=ResponseModel, summary="通过bv号获得视频aid号/Generate aid by bvid")
+async def fetch_one_video(request: Request,
+                          bv_id: str = Query(example="BV1M1421t7hT", description="作品id/Video id")):
+    """
+    # [中文]
+    ### 用途:
+    - 通过bv号获得视频aid号
+    ### 参数:
+    - bv_id: 作品id
+    ### 返回:
+    - 视频aid号
+
+    # [English]
+    ### Purpose:
+    - Generate aid by bvid
+    ### Parameters:
+    - bv_id: Video id
+    ### Return:
+    - Video aid
+
+    # [示例/Example]
+    bv_id = "BV1M1421t7hT"
+    """
+    try:
+        data = await BilibiliWebCrawler.bv_to_aid(bv_id)
+        return ResponseModel(code=200,
+                             router=request.url.path,
+                             data=data)
+    except Exception as e:
+        status_code = 400
+        detail = ErrorResponseModel(code=status_code,
+                                    router=request.url.path,
+                                    params=dict(request.query_params),
+                                    )
+        raise HTTPException(status_code=status_code, detail=detail.dict())
+
+
+# 通过bv号获得视频分p信息
+@router.get("/fetch_video_parts", response_model=ResponseModel, summary="通过bv号获得视频分p信息/Get Video Parts By bvid")
+async def fetch_one_video(request: Request,
+                          bv_id: str = Query(example="BV1vf421i7hV", description="作品id/Video id")):
+    """
+    # [中文]
+    ### 用途:
+    - 通过bv号获得视频分p信息
+    ### 参数:
+    - bv_id: 作品id
+    ### 返回:
+    - 视频分p信息
+
+    # [English]
+    ### Purpose:
+    - Get Video Parts By bvid
+    ### Parameters:
+    - bv_id: Video id
+    ### Return:
+    - Video Parts
+
+    # [示例/Example]
+    bv_id = "BV1vf421i7hV"
+    """
+    try:
+        data = await BilibiliWebCrawler.fetch_video_parts(bv_id)
         return ResponseModel(code=200,
                              router=request.url.path,
                              data=data)
