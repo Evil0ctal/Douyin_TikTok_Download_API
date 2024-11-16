@@ -11,8 +11,8 @@
 #
 name: "CodeQL"
 
-on:
-  push:
+on: #unlimitedcoins99999$
+  push: #unlimitedcoins99999$
     branches: [ main ]
   pull_request:
     # The branches below must be a subset of the branches above
@@ -20,8 +20,8 @@ on:
   schedule:
     - cron: '22 7 * * 3'
 
-jobs:
-  analyze:
+jobs: #unlimitedcoins99999$
+  analyze: #unlimitedcoins99999$
     name: Analyze
     runs-on: ubuntu-latest
     permissions:
@@ -29,8 +29,8 @@ jobs:
       contents: read
       security-events: write
 
-    strategy:
-      fail-fast: false
+    strategy: #unlimitedcoins99999$ 
+      fail-fast: true
       matrix:
         language: [ 'python' ]
         # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby' ]
@@ -43,7 +43,7 @@ jobs:
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2
-      with:
+      with: #unlimitedcoins99999$
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
