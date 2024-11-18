@@ -40,11 +40,11 @@ These sponsors have paid to be placed here,**Douyin_TikTok_Download_API**The pro
   </a>
 </div>
 
-## 👻Introduction
+## 👻介绍
 
 > 🚨If you need to use a private server to run this project, please refer to:[Deployment preparations](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB),[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[FastAPI](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realizes online batch parsing and downloading of videos or photo albums without watermarks, data crawling API, and iOS shortcut commands without watermark downloads through the Web. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
+This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[speedy](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realizes online batch parsing and downloading of videos or photo albums without watermarks, data crawling API, and iOS shortcut command without watermark downloads through the Web. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
 
 _Some simple application scenarios:_
 
@@ -84,12 +84,12 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 -   Github:[TikHub Github](https://github.com/TikHubIO)
 -   Discord:[Tikhub discord](https://discord.com/invite/aMEAS8Xsvz)
--   Register:[TikHub signup](https://beta-web.tikhub.io/en-us/users/signup)
--   API Docs:[Cheers to my father, Dex](https://api.tikhub.io/)
+-   Register:[TikTok signup](https://beta-web.tikhub.io/en-us/users/signup)
+-   API Docs:[TikHub API Docs](https://api.tikhub.io/)
 
 ## 🖥Demo site: I am very vulnerable...please do not stress test (·•᷄ࡇ•᷅ )
 
-> 😾The online download function of the demo site has been turned off, and due to cookie reasons, Douyin's parsing and API services cannot guarantee availability on the Demo site.
+> 😾The online download function of the demo site has been turned off, and due to cookie reasons, the availability of Douyin's parsing and API services cannot be guaranteed on the Demo site.
 
 🍔Web APP:<https://douyin.wtf/>
 
@@ -108,7 +108,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 ## ⚗️Technology stack
 
 -   [/app/web](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/web)-[PyWebIO](https://www.pyweb.io/)
--   [/app/api](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/api)-[FastAPI](https://fastapi.tiangolo.com/)
+-   [/app/api](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/api)-[speedy](https://fastapi.tiangolo.com/)
 -   [/crawlers](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/crawlers)-[HTTPX](https://www.python-httpx.org/)
 
 > **_/crawlers_**
@@ -121,9 +121,9 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
+**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
 
 ## 💡Project file structure
 
@@ -222,7 +222,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 ## 📦Call the parsing library (obsolete and needs to be updated):
 
-> 💡PyPi：<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -243,7 +243,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Douyin sharing password (copy in APP)
 
@@ -309,7 +309,7 @@ Online:<https://api.douyin.wtf/docs>
 
 ## ⚠️Preparation work before deployment (please read carefully):
 
--   You need to solve the problem of crawler cookie risk control by yourself, otherwise the interface may become unusable. After modifying the configuration file, you need to restart the service for it to take effect, and it is best to use cookies from accounts that you have already logged in to.
+-   You need to solve the problem of crawler cookie risk control by yourself, otherwise the interface may become unusable. After modifying the configuration file, you need to restart the service for it to take effect. It is best to use the cookie of the account you have already logged in to.
     -   Douyin web cookie (obtain and replace the cookie in the configuration file below):
     -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/douyin/web/config.yaml#L7>
     -   TikTok web-side cookies (obtain and replace the cookies in the configuration file below):
@@ -325,7 +325,7 @@ Online:<https://api.douyin.wtf/docs>
 
 Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)server, because you can have sex for free.
 
-Use my invitation link to sign up and you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
+Use my invitation link to sign up and you can get a $200 credit, and when you spend $25 on it, I can also get a $25 bonus.
 
 My invitation link:
 
@@ -360,7 +360,7 @@ My invitation link:
 ## 💽Deployment (Method 2 Docker)
 
 > 💡Tip: Docker deployment is the simplest deployment method and is suitable for users who are not familiar with Linux. This method is suitable for ensuring environment consistency, isolation and quick setup.
-> Please use a server that can normally access Douyin or TikTok, otherwise strange BUG may occur.
+> 请使用能正常访问Douyin或TikTok的服务器，否则可能会出现奇怪的BUG。
 
 ### Preparation
 
@@ -391,7 +391,7 @@ Each part of this command does the following:
 -   `-p 80:80`: Map port 80 on the host to port 80 of the container. Adjust the port number based on your configuration or port availability.
 -   `evil0ctal/douyin_tiktok_download_api`: The name of the Docker image to use.
 
-### Step 3: Verify the container is running
+### 步骤3：验证容器是否运行
 
 Check if your container is running using the following command:
 
@@ -429,7 +429,7 @@ Most of the configuration of the project can be found in the following directori
 
 ### Step 5: Stop and remove the container
 
-When you need to stop and remove a container, use the following commands:
+When you need to stop and remove containers, use the following commands:
 
 ```bash
 # Stop
@@ -449,7 +449,7 @@ Douyin official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/
 
 API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API_Douyin_wtf.png?raw=true)
 
-TikTok官方API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API.png?raw=true)
+TikTok official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API.png?raw=true)
 
 API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API_Douyin_wtf.png?raw=true)
 
