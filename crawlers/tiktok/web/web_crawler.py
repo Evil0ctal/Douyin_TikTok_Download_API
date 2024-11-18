@@ -89,7 +89,8 @@ class TikTokWebCrawler:
                 "Referer": tiktok_config["headers"]["Referer"],
                 "Cookie": tiktok_config["headers"]["Cookie"],
             },
-            "proxies": {"http://": None, "https://": None},
+            "proxies": {"http://": tiktok_config["proxies"]["http"],
+                        "https://": tiktok_config["proxies"]["https"]}
         }
         return kwargs
 
@@ -133,7 +134,7 @@ class TikTokWebCrawler:
         kwargs = await self.get_tiktok_headers()
         # proxies = {"http://": 'http://43.159.29.191:24144', "https://": 'http://43.159.29.191:24144'}
         # 创建一个基础爬虫
-        base_crawler = BaseCrawler(proxies=None, crawler_headers=kwargs["headers"])
+        base_crawler = BaseCrawler(proxies=kwargs["proxies"], crawler_headers=kwargs["headers"])
         async with base_crawler as crawler:
             # 创建一个用户作品的BaseModel参数
             params = UserPost(secUid=secUid, cursor=cursor, count=count, coverFormat=coverFormat)
@@ -216,7 +217,7 @@ class TikTokWebCrawler:
         kwargs = await self.get_tiktok_headers()
         # proxies = {"http://": 'http://43.159.18.174:25263', "https://": 'http://43.159.18.174:25263'}
         # 创建一个基础爬虫
-        base_crawler = BaseCrawler(proxies=None, crawler_headers=kwargs["headers"])
+        base_crawler = BaseCrawler(proxies=kwargs["proxies"], crawler_headers=kwargs["headers"])
         async with base_crawler as crawler:
             # 创建一个作品评论的BaseModel参数
             params = PostComment(aweme_id=aweme_id, cursor=cursor, count=count, current_region=current_region)

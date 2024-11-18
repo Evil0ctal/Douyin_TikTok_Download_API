@@ -74,7 +74,8 @@ class TikTokAPPCrawler:
                 "Cookie": tiktok_config["headers"]["Cookie"],
                 "x-ladon": "Hello From Evil0ctal!",
             },
-            "proxies": {"http://": None, "https://": None},
+            "proxies": {"http://": tiktok_config["proxies"]["http"],
+                        "https://": tiktok_config["proxies"]["https"]}
         }
         return kwargs
 
