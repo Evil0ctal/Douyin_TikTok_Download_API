@@ -63,7 +63,8 @@ from crawlers.tiktok.web.models import (
     PostComment,
     PostCommentReply,
     UserFans,
-    UserFollow
+    UserFollow,
+    SearchVideo
 )
 
 
@@ -339,6 +340,22 @@ class TikTokWebCrawler:
 
         # 对于URL列表
         return await SecUserIdFetcher.get_all_uniqueid(urls)
+    
+    async def get_search_video(self, keyword: str, count: int = 30, offset: int = 0):
+        # 获取TikTok的实时Cookie
+        kwargs = await self.get_tiktok_headers()
+        # 创建一个基础爬虫
+        base_crawler = BaseCrawler(proxies=kwargs["proxies"], crawler_headers=kwargs["headers"])
+        async with base_crawler as crawler:
+            # 创建一个搜索作品的BaseModel参数
+            params = SearchVideo(keyword=keyword, count=count, offset=offset, from_page='search')
+            # 生成一个搜索作品的带有加密参数的Endpoint
+            endpoint = BogusManager.model_2_endpoint(
+                TikTokAPIEndpoints.SEARCH_VIDEO, params.dict(), kwargs["headers"]["User-Agent"]
+            )
+            print(endpoint)
+            response = await crawler.fetch_get_json(endpoint)
+        return response
 
     """-------------------------------------------------------main接口列表-------------------------------------------------------"""
 

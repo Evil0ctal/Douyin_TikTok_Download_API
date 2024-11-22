@@ -22,7 +22,7 @@ class BaseRequestModel(BaseModel):
     )
     channel: str = "tiktok_web"
     cookie_enabled: str = "true"
-    device_id: int = 7380187414842836523
+    device_id: int = 7419152830202889736
     device_platform: str = "web_pc"
     focus_state: str = "true"
     from_page: str = "user"
@@ -31,14 +31,14 @@ class BaseRequestModel(BaseModel):
     is_page_visible: str = "true"
     language: str = "en"
     os: str = "windows"
-    priority_region: str = "US"
+    priority_region: str = "VN"
     referer: str = ""
-    region: str = "US"  # SG JP KR...
+    region: str = "VN"  # SG JP KR...
     root_referer: str = quote("https://www.tiktok.com/", safe="")
     screen_height: int = 1080
     screen_width: int = 1920
     webcast_language: str = "en"
-    tz_name: str = quote("America/Tijuana", safe="")
+    tz_name: str = quote("Asia/Saigon", safe="")
     # verifyFp: str = VerifyFpManager.gen_verify_fp()
     msToken: str = TokenManager.gen_real_msToken()
 
@@ -119,3 +119,9 @@ class UserFollow(BaseRequestModel):
     maxCursor: int = 0
     minCursor: int = 0
     scene: int = 21
+
+class SearchVideo(BaseRequestModel):
+    keyword: str
+    # cursor: int = 0
+    count: int = 30
+    offset: int = 0
