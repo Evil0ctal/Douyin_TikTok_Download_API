@@ -18,29 +18,27 @@
 These sponsors have paid to be placed here,**Douyin_TikTok_Download_API**The project will always be free and open source. If you would like to become a sponsor of this project, please check out my[GitHub Sponsor Page](https://github.com/sponsors/evil0ctal)。
 
 <div align="center">
-  <hr>
-<br>
     <a href="https://www.tikhub.io/" target="_blank">
-        <img src="https://tikhub.io/wp-content/uploads/2024/06/cropped-Logo_TikHub-60-300x300px.png" width="100" alt="TikHub.io API Marketplace">
-        <b></b>
-        <div>
-         <b>TikHub.io API:</b> is the leading API provider for scraping Douyin, Xiaohongshu, TikTok, Instagram, Youtube, and more. <br> Trusted by the major influencer marketing and social media listening platforms.
-        </div>
+        <img src="https://tikhub.io/wp-content/uploads/2024/11/Main-Logo.webp" width="100" alt="TikHub.io - Global Social Data & API Marketplace">
     </a>
-    <br/>
-  <a href="https://www.sadcaptcha.com?ref=eviloctal" target="_blank">
-    <img src="https://sadcaptcha.b-cdn.net/tiktok3d.webp" width="100" alt="TikTok Captcha Solver">
-    <img src="https://sadcaptcha.b-cdn.net/tiktokrotate.webp" width="100" alt="TikTok Captcha Solver">
-    <img src="https://sadcaptcha.b-cdn.net/tiktokpuzzle.webp" width="100" alt="TikTok Captcha Solver">
-    <img src="https://sadcaptcha.b-cdn.net/tiktokicon.webp" width="100" alt="TikTok Captcha Solver">
-    <br/>
     <div>
-         <b>TikTok Captcha Solver: </b> Bypass any TikTok captcha in just two lines of code.<br> Scale your TikTok automation and get unblocked with SadCaptcha.
+        <h2><b>TikHub.io</b></h2>
+        <p>Your Ultimate Social Media Data & API Marketplace</p>
+        <p>
+            Professional data solutions for Douyin, Xiaohongshu, TikTok, Instagram, YouTube, 
+            Twitter, and more.<br>
+            Real-time Data | Flexible APIs | Seamless Integration | Competitive Pricing with Discounts
+        </p>
+        <p>
+            <b>Discover TikHub.io Marketplace</b><br>
+            Buy and sell custom APIs, services, and social media solutions.<br>
+            Join a thriving ecosystem of developers, businesses, and content creators.
+        </p>
+        <p><em>Trusted by leading global influencer marketing and social media intelligence platforms</em></p>
     </div>
-  </a>
 </div>
 
-## 👻介绍
+## 👻Introduction
 
 > 🚨If you need to use a private server to run this project, please refer to:[Deployment preparations](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB),[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
 
@@ -121,9 +119,9 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and then use them`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
+**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Make changes in_**
 
 ## 💡Project file structure
 
@@ -151,7 +149,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
 -   Batch parsing on the web page (supports Douyin/TikTok mixed parsing)
 -   Download videos or photo albums online.
 -   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
--   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
+-   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve downloading of watermark-free videos/photo albums within the application
 -   Complete API documentation ([Demo/Demonstration](https://api.douyin.wtf/docs))
 -   Rich API interface:
     -   Douyin web version API
@@ -162,7 +160,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Obtain the data of collected works on the user's homepage
         -   [x] Get user homepage information
         -   [x] Get user collection work data
-        -   [x] Get user live stream data
+        -   [x] Get user live streaming data
         -   [x] Get the live streaming data of a specified user
         -   [x] Get the ranking of users who give gifts in the live broadcast room
         -   [x] Get single video comment data
@@ -184,7 +182,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Get user homepage work data
         -   [x] Obtain the data of works liked by the user's homepage
         -   [x] Get user homepage information
-        -   [x] Get user home page fan data
+        -   [x] Get fan data on user homepage
         -   [x] Get user homepage follow data
         -   [x] Get user homepage collection work data
         -   [x] Get user homepage collection data
@@ -204,7 +202,7 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
         -   [x] Get individual video details
         -   [x] Get video stream address
         -   [x] Obtain user-published video work data
-        -   [x] Get all favorites information of the user
+        -   [x] Get all the user's favorites information
         -   [x] Get video data in specified favorites
         -   [x] Get information about a specified user
         -   [x] Get comprehensive popular video information
@@ -243,7 +241,7 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡Tip: Including but not limited to the following examples, if you encounter link parsing failure, please open a new one[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
 -   Douyin sharing password (copy in APP)
 
@@ -309,7 +307,7 @@ Online:<https://api.douyin.wtf/docs>
 
 ## ⚠️Preparation work before deployment (please read carefully):
 
--   You need to solve the problem of crawler cookie risk control by yourself, otherwise the interface may become unusable. After modifying the configuration file, you need to restart the service for it to take effect. It is best to use the cookie of the account you have already logged in to.
+-   You need to solve the problem of crawler cookie risk control by yourself, otherwise the interface may become unusable. After modifying the configuration file, you need to restart the service for it to take effect, and it is best to use cookies from accounts that you have already logged in to.
     -   Douyin web cookie (obtain and replace the cookie in the configuration file below):
     -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/douyin/web/config.yaml#L7>
     -   TikTok web-side cookies (obtain and replace the cookies in the configuration file below):
@@ -325,7 +323,7 @@ Online:<https://api.douyin.wtf/docs>
 
 Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)server, because you can have sex for free.
 
-Use my invitation link to sign up and you can get a $200 credit, and when you spend $25 on it, I can also get a $25 bonus.
+Use my invitation link to sign up and you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
 
 My invitation link:
 
@@ -360,7 +358,7 @@ My invitation link:
 ## 💽Deployment (Method 2 Docker)
 
 > 💡Tip: Docker deployment is the simplest deployment method and is suitable for users who are not familiar with Linux. This method is suitable for ensuring environment consistency, isolation and quick setup.
-> 请使用能正常访问Douyin或TikTok的服务器，否则可能会出现奇怪的BUG。
+> Please use a server that can normally access Douyin or TikTok, otherwise strange BUG may occur.
 
 ### Preparation
 
@@ -391,7 +389,7 @@ Each part of this command does the following:
 -   `-p 80:80`: Map port 80 on the host to port 80 of the container. Adjust the port number based on your configuration or port availability.
 -   `evil0ctal/douyin_tiktok_download_api`: The name of the Docker image to use.
 
-### 步骤3：验证容器是否运行
+### Step 3: Verify the container is running
 
 Check if your container is running using the following command:
 
