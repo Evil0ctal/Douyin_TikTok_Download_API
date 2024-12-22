@@ -206,7 +206,7 @@ class HybridCrawler:
         # 测试混合解析单一视频接口/Test hybrid parsing single video endpoint
         # url = "https://v.douyin.com/L4FJNR3/"
         # url = "https://www.tiktok.com/@taylorswift/video/7359655005701311786"
-        # url = "https://www.tiktok.com/@flukegk83/video/7360734489271700753"
+        url = "https://www.tiktok.com/@flukegk83/video/7360734489271700753"
         # url = "https://www.tiktok.com/@minecraft/photo/7369296852669205791"
         minimal = True
         result = await self.hybrid_parsing_single_video(url, minimal=minimal)
