@@ -36,27 +36,26 @@
 这些赞助商已付费放置在这里，**Douyin_TikTok_Download_API** 项目将永远免费且开源。如果您希望成为该项目的赞助商，请查看我的 [GitHub 赞助商页面](https://github.com/sponsors/evil0ctal)。
 
 <div align="center">
-  <hr>
-<br>
     <a href="https://www.tikhub.io/" target="_blank">
-        <img src="https://tikhub.io/wp-content/uploads/2024/06/cropped-Logo_TikHub-60-300x300px.png" width="100" alt="TikHub.io API Marketplace">
-        <b></b>
-        <div>
-         <b>TikHub.io API:</b> is the leading API provider for scraping Douyin, Xiaohongshu, TikTok, Instagram, Youtube, and more. <br> Trusted by the major influencer marketing and social media listening platforms.
-        </div>
+        <img src="https://tikhub.io/wp-content/uploads/2024/11/Main-Logo.webp" width="100" alt="TikHub.io - Global Social Data & API Marketplace">
     </a>
-    <br/>
-  <a href="https://www.sadcaptcha.com?ref=eviloctal" target="_blank">
-    <img src="https://sadcaptcha.b-cdn.net/tiktok3d.webp" width="100" alt="TikTok Captcha Solver">
-    <img src="https://sadcaptcha.b-cdn.net/tiktokrotate.webp" width="100" alt="TikTok Captcha Solver">
-    <img src="https://sadcaptcha.b-cdn.net/tiktokpuzzle.webp" width="100" alt="TikTok Captcha Solver">
-    <img src="https://sadcaptcha.b-cdn.net/tiktokicon.webp" width="100" alt="TikTok Captcha Solver">
-    <br/>
     <div>
-         <b>TikTok Captcha Solver: </b> Bypass any TikTok captcha in just two lines of code.<br> Scale your TikTok automation and get unblocked with SadCaptcha.
+        <h2><b>TikHub.io</b></h2>
+        <p>Your Ultimate Social Media Data & API Marketplace</p>
+        <p>
+            Professional data solutions for Douyin, Xiaohongshu, TikTok, Instagram, YouTube, 
+            Twitter, and more.<br>
+            Real-time Data | Flexible APIs | Seamless Integration | Competitive Pricing with Discounts
+        </p>
+        <p>
+            <b>Discover TikHub.io Marketplace</b><br>
+            Buy and sell custom APIs, services, and social media solutions.<br>
+            Join a thriving ecosystem of developers, businesses, and content creators.
+        </p>
+        <p><em>Trusted by leading global influencer marketing and social media intelligence platforms</em></p>
     </div>
-  </a>
 </div>
+
 
 ## 👻介绍
 

@@ -145,12 +145,15 @@ def parse_video():
         # 如果是视频/If it's video
         if url_type == ViewsUtils.t('视频', 'Video'):
             # 添加视频信息
-            table_list.insert(4, [ViewsUtils.t('视频链接-水印', 'Video URL-Watermark'),
-                                  put_link(ViewsUtils.t('点击查看', 'Click to view'),
-                                           data.get('video_data').get('wm_video_url_HQ'), new_window=True)])
-            table_list.insert(5, [ViewsUtils.t('视频链接-无水印', 'Video URL-No Watermark'),
-                                  put_link(ViewsUtils.t('点击查看', 'Click to view'),
-                                           data.get('video_data').get('nwm_video_url_HQ'), new_window=True)])
+            wm_video_url_HQ = data.get('video_data').get('wm_video_url_HQ')
+            nwm_video_url_HQ = data.get('video_data').get('nwm_video_url_HQ')
+            if wm_video_url_HQ and nwm_video_url_HQ:
+                table_list.insert(4, [ViewsUtils.t('视频链接-水印', 'Video URL-Watermark'),
+                                      put_link(ViewsUtils.t('点击查看', 'Click to view'),
+                                               wm_video_url_HQ, new_window=True)])
+                table_list.insert(5, [ViewsUtils.t('视频链接-无水印', 'Video URL-No Watermark'),
+                                      put_link(ViewsUtils.t('点击查看', 'Click to view'),
+                                               nwm_video_url_HQ, new_window=True)])
             table_list.insert(6, [ViewsUtils.t('视频下载-水印', 'Video Download-Watermark'),
                                   put_link(ViewsUtils.t('点击下载', 'Click to download'),
                                            f"/api/download?url={url}&prefix=true&with_watermark=true",

@@ -164,7 +164,13 @@ class HybridCrawler:
             if url_type == 'video':
                 # 将信息储存在字典中/Store information in a dictionary
                 # wm_video = data['video']['downloadAddr']
-                wm_video = data['video']['download_addr']['url_list'][0]
+                # wm_video = data['video']['download_addr']['url_list'][0]
+                wm_video = (
+                    data.get('video', {})
+                    .get('download_addr', {})
+                    .get('url_list', [None])[0]
+                )
+
                 api_data = {
                     'video_data':
                         {
@@ -199,7 +205,8 @@ class HybridCrawler:
     async def main(self):
         # 测试混合解析单一视频接口/Test hybrid parsing single video endpoint
         # url = "https://v.douyin.com/L4FJNR3/"
-        url = "https://www.tiktok.com/@taylorswift/video/7359655005701311786"
+        # url = "https://www.tiktok.com/@taylorswift/video/7359655005701311786"
+        url = "https://www.tiktok.com/@flukegk83/video/7360734489271700753"
         # url = "https://www.tiktok.com/@minecraft/photo/7369296852669205791"
         minimal = True
         result = await self.hybrid_parsing_single_video(url, minimal=minimal)
