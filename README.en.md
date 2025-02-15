@@ -7,15 +7,15 @@
 
 [English](./README.en.md)\|[Simplified Chinese](./README.md)
 
-🚀"Douyin_TikTok_Download_API" is a high-performance asynchronous API that can be used out of the box[Tik Tok](https://www.douyin.com)\|[TikTok](https://www.tiktok.com)\|[Bilibili](https://www.bilibili.com)Data crawling tool supports API calling, online batch analysis and downloading.
+🚀 "Douyin_TikTok_Download_API" is a high-performance asynchronous out-of-the-box[Tik Tok](https://www.douyin.com)\|[Tiktok](https://www.tiktok.com)\|[Biliable](https://www.bilibili.com)Data crawling tool, supports API calls, online batch analysis and download.
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)[![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)[![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)[![GitHub Fork](https://img.shields.io/github/forks/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/network/members)[![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)[![GitHub closed issues](https://img.shields.io/github/issues-closed/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues?q=is%3Aissue+is%3Aclosed)![GitHub Repo size](https://img.shields.io/github/repo-size/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&color=3cb371)<br>[![PyPI v](https://img.shields.io/pypi/v/douyin-tiktok-scraper?style=flat-square&color=%23a8e6cf)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI wheel](https://img.shields.io/pypi/wheel/douyin-tiktok-scraper?style=flat-square&color=%23dcedc1)](https://pypi.org/project/douyin-tiktok-scraper/#files)[![PyPI dm](https://img.shields.io/pypi/dm/douyin-tiktok-scraper?style=flat-square&color=%23ffd3b6)](https://pypi.org/project/douyin-tiktok-scraper/)[![PyPI pyversions](https://img.shields.io/pypi/pyversions/douyin-tiktok-scraper?color=%23ffaaa5&style=flat-square)](https://pypi.org/project/douyin-tiktok-scraper/)<br>[![API status](https://img.shields.io/website?down_color=lightgrey&label=API%20Status&down_message=API%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.douyin.wtf%2Fdocs)](https://api.douyin.wtf/docs)[![TikHub-API status](https://img.shields.io/website?down_color=lightgrey&label=TikHub-API%20Status&down_message=API%20offline&style=flat-square&up_color=%23dfb9ff&up_message=online&url=https%3A%2F%2Fapi.tikhub.io%2Fdocs)](https://api.tikhub.io/docs)<br>[![爱发电](https://img.shields.io/badge/爱发电-evil0ctal-blue.svg?style=flat-square&color=ea4aaa&logo=github-sponsors)](https://afdian.net/@evil0ctal)[![Kofi](https://img.shields.io/badge/Kofi-evil0ctal-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/evil0ctal)[![Patreon](https://img.shields.io/badge/Patreon-evil0ctal-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/evil0ctal)
 
 </div>
 
-## Sponsor
+## Sponsors
 
-These sponsors have paid to be placed here,**Douyin_TikTok_Download_API**The project will always be free and open source. If you would like to become a sponsor of this project, please check out my[GitHub Sponsor Page](https://github.com/sponsors/evil0ctal)。
+These sponsors have paid to place them here,**Doinan_tics_download_api**The project will always be free and open source. If you wish to be a sponsor of this project, please check out my[GitHub Sponsor Page](https://github.com/sponsors/evil0ctal)。
 
 <div align="center">
     <a href="https://www.tikhub.io/" target="_blank">
@@ -38,90 +38,90 @@ These sponsors have paid to be placed here,**Douyin_TikTok_Download_API**The pro
     </div>
 </div>
 
-## 👻Introduction
+## 👻 Introduction
 
-> 🚨If you need to use a private server to run this project, please refer to:[Deployment preparations](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB),[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
+> 🚨If you want to use a private server to run this project, please refer to:[Deployment preparations](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB),[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
 
-This project is based on[PyWebIO](https://github.com/pywebio/PyWebIO)，[speedy](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast and asynchronous[Tik Tok](https://www.douyin.com/)/[TikTok](https://www.tiktok.com/)Data crawling tool, and realizes online batch analysis and downloading of videos or photo albums without watermarks through the Web, data crawling API, iOS shortcut command without watermark downloads and other functions. You can deploy or modify this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)or install an existing[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, it is easy to crawl data, etc.....
+This project is based on[Pydebio](https://github.com/pywebio/PyWebIO)，[Fasting](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[Tiktok](https://www.tiktok.com/)Data crawling tool, and online batch analysis and downloading of watermark-free videos or picture albums through the web, data crawling API, iOS shortcuts without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)Or install an existing one[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, easy to crawl data, etc....
 
 _Some simple application scenarios:_
 
-_Download prohibited videos, perform data analysis, download without watermark on iOS (with[Shortcut command APP that comes with iOS](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Cooperate with the API of this project to achieve in-app downloads or read clipboard downloads), etc....._
+_Download videos that are prohibited from being downloaded, perform data analysis, and download without watermark on iOS (with[iOS's shortcut command APP](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)In conjunction with this project API, it can realize in-app download or read clipboard download, etc...._
 
 ## 🔊 V4 version notes
 
--   If you are interested in writing this project together, please add us on WeChat`Evil0ctal`Note: Github project reconstruction, everyone can communicate and learn from each other in the group. Advertising and illegal things are not allowed. It is purely for making friends and technical exchanges.
--   This project uses`X-Bogus`Algorithms and`A_Bogus`The algorithm requests the Web API of Douyin and TikTok.
--   Due to Douyin's risk control, after deploying this project, please**Obtain the cookie of Douyin website in the browser and replace it in config.yaml.**
--   Please read the document below before raising an issue. Solutions to most problems will be included in the document.
--   This project is completely free, but when using it, please comply with:[Apache-2.0 license](https://github.com/Evil0ctal/Douyin_TikTok_Download_API?tab=Apache-2.0-1-ov-file#readme)
+-   If you are interested in writing this project, please add WeChat.`Evil0ctal`Note: Github project reconstruction, everyone can communicate and learn from each other in the group, and do not allow advertisements or illegal things to be made purely friends and technical communication.
+-   This project uses`X-Bogus`Algorithm and`A_Bogus`The algorithm requests the web APIs of TikTok and TikTok.
+-   Due to Douyin's risk control, please go to**Get the Douyin website cookies in the browser and replace them in config.yaml.**
+-   Please read the document below before asking for an issue, and most solutions to the problem will be included in the document.
+-   This project is completely free, but please follow it when using it:[Apache-2.0 license](https://github.com/Evil0ctal/Douyin_TikTok_Download_API?tab=Apache-2.0-1-ov-file#readme)
 
 ## 🔖TikHub.io API
 
-[TikHub.io](https://api.tikhub.io/)It is an API platform that provides various public data interfaces including Douyin and TikTok. If you want to support[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)For project development, we strongly recommend that you choose[TikHub.io](https://api.tikhub.io/)。
+[TikHub.io](https://api.tikhub.io/)It is an API platform that provides various public data interfaces including Douyin and TikTok. If you want to support it[Doinan_tics_download_api](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)We strongly recommend that you choose the project development[TikHub.io](https://api.tikhub.io/)。
 
 #### Features:
 
-> 📦 Ready to use right out of the box
+> 📦 Out of the box
 
-Simplify the use process and use the packaged SDK to quickly carry out development work. All API interfaces are designed based on RESTful architecture and are described and documented using OpenAPI specifications, with sample parameters included to ensure easier calling.
+Simplify the usage process and quickly carry out development work using the encapsulated SDK. All API interfaces are designed according to the RESTful architecture and are described and documented using the OpenAPI specification, with example parameters to ensure that calls are easier.
 
-> 💰 Cost advantage
+> 💰 Cost Advantage
 
-There are no preset package restrictions and no monthly usage thresholds. All consumption is billed immediately based on actual usage, and tiered billing is performed based on the user's daily requests. At the same time, free quota can be obtained through daily sign-in in the user backend. , and these free credits will not expire.
+There is no preset package limit, no monthly usage threshold, all consumption is billed instantly based on the actual usage, and the user's daily request volume is charged step by step. At the same time, you can check in in the user's background by checking in every day. , and these free amounts will not expire.
 
-> ⚡️ Fast support
+> ⚡️ Quick support
 
-We have a large Discord community server, where administrators and other users will quickly reply to you and help you quickly solve current problems.
+We have a huge Discord community server where administrators and other users will quickly reply to you to help you quickly resolve current issues.
 
-> 🎉Embrace open source
+> 🎉 Embrace open source
 
-Part of TikHub's source code will be open sourced on Github, and it will sponsor authors of some open source projects.
+Some of the source code of TikHub will be open sourced on Github and will sponsor some open source projects.
 
 #### Link:
 
--   Github:[TikHub Github](https://github.com/TikHubIO)
--   Discord:[Tikhub discord](https://discord.com/invite/aMEAS8Xsvz)
--   Register:[TikTok signup](https://beta-web.tikhub.io/en-us/users/signup)
--   API Docs:[TikHub API Docs](https://api.tikhub.io/)
+-   Githubub:[TIKHOB GITUB](https://github.com/TikHubIO)
+-   Discord:[Tachub](https://discord.com/invite/aMEAS8Xsvz)
+-   Register:[TikHub singnup](https://beta-web.tikhub.io/en-us/users/signup)
+-   API Docs:[TickHub API Docs](https://api.tikhub.io/)
 
-## 🖥Demo site: I am very vulnerable...please do not stress test (·•᷄ࡇ•᷅ )
+## 🖥 Demo site: I am very fragile... Please do not press test (·•᷄ࡇ•᷅ )
 
-> 😾The online download function of the demo site has been turned off, and due to cookie reasons, Douyin's parsing and API services cannot guarantee availability on the Demo site.
+> 😾The online download function of the demo site has been turned off, and Douyin's parsing and API services cannot be guaranteed for availability on the Demo site due to cookies.
 
 🍔Web APP:<https://douyin.wtf/>
 
 🍟API Document:<https://douyin.wtf/docs>
 
-🌭TikHub API Document:<https://api.tikhub.io/docs>
+🌭tikub APU Docuration:<https://api.tikhub.io/docs>
 
-💾iOS Shortcut (shortcut command):[Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
+💾 iOS Shortcut:[Shortcut release](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/104?sort=top)
 
-📦️Desktop downloader (recommended by warehouse):
+📦️Desktop downloader (recommended warehouse):
 
--   [Johnserf-Seed/TikTokDownload](https://github.com/Johnserf-Seed/TikTokDownload)
+-   [Johnserf-Seed/Tiktokdownload](https://github.com/Johnserf-Seed/TikTokDownload)
 -   [HFrost0/bilix](https://github.com/HFrost0/bilix)
--   [Tairraos/TikDown - \[needs update\]](https://github.com/Tairraos/TikDown/)
+-   [Tairraos/TikDown - \[Updated required\]](https://github.com/Tairraos/TikDown/)
 
-## ⚗️Technology stack
+## ⚗️Technology Stack
 
--   [/app/web](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/web)-[PyWebIO](https://www.pyweb.io/)
--   [/app/api](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/api)-[speedy](https://fastapi.tiangolo.com/)
+-   [/app/web](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/web)-[Pydebio](https://www.pyweb.io/)
+-   [/app/api](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/api)-[Fasting](https://fastapi.tiangolo.com/)
 -   [/crawlers](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/crawlers)-[HTTPX](https://www.python-httpx.org/)
 
 > **_/crawlers_**
 
--   Submit requests to APIs on different platforms and retrieve data. After processing, a dictionary (dict) is returned, and asynchronous support is supported.
+-   Submit requests to APIs of different platforms and retrieve data, and return dictionary (dict) after processing, supports asynchronousness.
 
 > **_/app/api_**
 
--   Get request parameters and use`Crawlers`The related classes process the data and return it in JSON form, download the video, and cooperate with iOS shortcut commands to achieve fast calling and support asynchronous.
+-   Obtain the request parameters and use`Crawlers`After processing data, the related classes return in JSON form, download videos, and implement fast calls with iOS shortcuts, and support asynchronous.
 
 > **_/app/web_**
 
--   use`PyWebIO`A simple web program created to process the values ​​entered on the web page and use them`Crawlers`The related class processing interface outputs related data on the web page.
+-   use`PyWebIO`A simple web program created, process the value entered on the web page and use it`Crawlers`The related class processing interface outputs related data on the web page.
 
-**_Most of the parameters of the above files can be found in the corresponding`config.yaml`Modify in_**
+**_Most of the parameters of the above files can be in the corresponding`config.yaml`Make modifications in_**
 
 ## 💡Project file structure
 
@@ -144,83 +144,83 @@ Part of TikHub's source code will be open sourced on Github, and it will sponsor
       │  └─web
       └─utils
 
-## ✨Supported functions:
+## ✨Support functions:
 
--   Batch parsing on the web page (supports Douyin/TikTok mixed parsing)
--   Download videos or photo albums online.
--   make[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Conveniently and quickly import your projects
--   [iOS shortcut commands to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Achieve in-app download of watermark-free videos/photo albums
--   Complete API documentation ([Demo/Demonstration](https://api.douyin.wtf/docs))
--   Rich API interface:
-    -   Douyin web version API
+-   Batch analysis on the web side (supports Douyin/TikTok hybrid analysis)
+-   Download videos or albums online.
+-   Production[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easy and quick import of your project
+-   [iOS shortcuts to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Implement watermark-free video/picture collection in-app download
+-   Complete API documentation ([Demo/Demo](https://api.douyin.wtf/docs))
+-   Rich API interfaces:
+    -   TikTok web version API
 
         -   [x] Video data analysis
-        -   [x] Get user homepage work data
-        -   [x] Obtain the data of works liked by the user's homepage
-        -   [x] Obtain the data of collected works on the user's homepage
+        -   [x] Obtain user's homepage work data
+        -   [x] Obtain data on the user's homepage liked works
+        -   [x] Obtain data on the user's homepage collection of works
         -   [x] Get user homepage information
-        -   [x] Get user collection work data
-        -   [x] Get user live stream data
-        -   [x] Get the live streaming data of a specified user
-        -   [x] Get the ranking of users who give gifts in the live broadcast room
-        -   [x] Get single video comment data
-        -   [x] Get the comment reply data of the specified video
+        -   [x] Obtain user compiled works data
+        -   [x] Obtain user live streaming data
+        -   [x] Get live streaming data for the specified user
+        -   [x] Get the ranking of gift-giving users in the live broadcast room
+        -   [x] Get individual video comment data
+        -   [x] Get comments and response data for specified videos
         -   [x] Generate msToken
-        -   [x] Generate verify_fp
+        -   [x] Generate verification_fp
         -   [x] Generate s_v_web_id
         -   [x] Generate X-Bogus parameters using interface URL
         -   [x] Generate A_Bogus parameters using interface URL
         -   [x] Extract a single user id
         -   [x] Extract list user id
-        -   [x] Extract a single work id
+        -   [x] Extract individual works id
         -   [x] Extract list work id
-        -   [x] Extract live broadcast room number from list
-        -   [x] Extract live broadcast room number from list
+        -   [x] Extract list live broadcast room number
+        -   [x] Extract list live broadcast room number
     -   TikTok web version API
 
         -   [x] Video data analysis
-        -   [x] Get user homepage work data
-        -   [x] Obtain the data of works liked by the user's homepage
+        -   [x] Obtain user's homepage work data
+        -   [x] Obtain data on the user's homepage liked works
         -   [x] Get user homepage information
-        -   [x] Get fan data on user homepage
-        -   [x] Get user homepage follow data
-        -   [x] Get user homepage collection work data
-        -   [x] Get user homepage collection data
+        -   [x] Get the user's homepage fan data
+        -   [x] Get user's homepage follow data
+        -   [x] Obtain data on the collection of works by users on the homepage
+        -   [x] Get user home page search data
         -   [x] Get user homepage playlist data
-        -   [x] Get single video comment data
-        -   [x] Get the comment reply data of the specified video
+        -   [x] Get individual video comment data
+        -   [x] Get comments and response data for specified videos
         -   [x] Generate msToken
         -   [x] Generate ttwid
         -   [x] Generate X-Bogus parameters using interface URL
-        -   [x] Extract a single user sec_user_id
+        -   [x] Extract individual user sec_user_id
         -   [x] Extract list user sec_user_id
-        -   [x] Extract a single work id
+        -   [x] Extract individual works id
         -   [x] Extract list work id
         -   [x] Get user unique_id
-        -   [x] Get list unique_id
+        -   [x] Get the list unique_id
     -   Bilibili web version API
         -   [x] Get individual video details
-        -   [x] Get video stream address
-        -   [x] Obtain user-published video work data
-        -   [x] Get all the user's favorites information
-        -   [x] Get video data in specified favorites
-        -   [x] Get information about a specified user
+        -   [x] Get the video streaming address
+        -   [x] Obtain data on video works published by users
+        -   [x] Get all user favorites information
+        -   [x] Get video data in the specified favorites
+        -   [x] Get information about the specified user
         -   [x] Get comprehensive popular video information
-        -   [x] Get comments for specified video
-        -   [x] Get the reply to the specified comment under the video
-        -   [x] Get the specified user's news
-        -   [x] Get real-time video barrages
-        -   [x] Get specified live broadcast room information
-        -   [x] Get live room video stream
-        -   [x] Get the anchors who are live broadcasting in the specified partition
-        -   [x] Get a list of all live broadcast partitions
-        -   [x] Obtain video sub-p information through bv number
+        -   [x] Get comments for the specified video
+        -   [x] Get a reply to the specified comment under the video
+        -   [x] Get the specified user dynamics
+        -   [x] Get real-time video barrage
+        -   [x] Get information about the specified live broadcast room
+        -   [x] Get live video streaming
+        -   [x] Get the anchor who is currently broadcasting in the specified partition
+        -   [x] Get a list of all live partitions
+        -   [x] Obtain video score information through bv number
 
 * * *
 
-## 📦Call the parsing library (obsolete and needs to be updated):
+## 📦 Call the parsing library (deprecated and needs to be updated):
 
-> 💡PyPi:<https://pypi.org/project/douyin-tiktok-scraper/>
+> 💡PIPI ：<https://pypi.org/project/douyin-tiktok-scraper/>
 
 Install the parsing library:`pip install douyin-tiktok-scraper`
 
@@ -241,45 +241,45 @@ asyncio.run(hybrid_parsing(url=input("Paste Douyin/TikTok/Bilibili share URL her
 
 ## 🗺️Supported submission formats:
 
-> 💡Tip: Including but not limited to the following examples. If you encounter link parsing failure, please open a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
+> 💡 Tip: Includes but is not limited to the following examples. If you encounter link resolution failure, please enable a new one.[issue](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 
--   Douyin sharing password (copy in APP)
+-   TikTok Sharing Password (Copy within the APP)
 
 ```text
 7.43 pda:/ 让你在几秒钟之内记住我  https://v.douyin.com/L5pbfdP/ 复制此链接，打开Dou音搜索，直接观看视频！
 ```
 
--   Douyin short URL (copy within APP)
+-   TikTok short URL (copy within the APP)
 
 ```text
 https://v.douyin.com/L4FJNR3/
 ```
 
--   Douyin normal URL (copy from web version)
+-   Douyin Normal URL (web version copy)
 
 ```text
 https://www.douyin.com/video/6914948781100338440
 ```
 
--   Douyin discovery page URL (APP copy)
+-   TikTok Discovery Page URL (APP Copy)
 
 ```text
 https://www.douyin.com/discover?modal_id=7069543727328398622
 ```
 
--   TikTok short URL (copy within APP)
+-   TikTok短网址 (APP内复制)
 
 ```text
 https://www.tiktok.com/t/ZTR9nDNWq/
 ```
 
--   TikTok normal URL (copy from web version)
+-   TikTok normal website address (web version copy)
 
 ```text
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 ```
 
--   Douyin/TikTok batch URL (no need to use matching separation)
+-   TikTok batch URL (no need to use matching separation)
 
 ```text
 https://v.douyin.com/L4NpDJ6/
@@ -290,7 +290,7 @@ https://www.tiktok.com/t/ZTR9nDNWq/
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 ```
 
-## 🛰️API documentation
+## 🛰️API Documentation
 
 **_API documentation:_**
 
@@ -298,71 +298,71 @@ local:<http://localhost/docs>
 
 Online:<https://api.douyin.wtf/docs>
 
-**_API demo:_**
+**_API Demo:_**
 
--   Crawl video data (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/hybrid/video_data?url=[视频链接/Video URL]&minimal=false`
--   Download videos/photo albums (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
+-   Crawl video data (TikTok or Douyin mixed analysis)`https://api.douyin.wtf/api/hybrid/video_data?url=[视频链接/Video URL]&minimal=false`
+-   Download video/picture album (TikTok or Douyin mixed analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
-**_For more demonstrations, please see the documentation..._**
+**_For more demonstrations, please check the document content..._**
 
-## ⚠️Preparation work before deployment (please read carefully):
+## ⚠️Preparation before deployment (please read carefully):
 
--   You need to solve the problem of crawler cookie risk control by yourself, otherwise the interface may become unusable. After modifying the configuration file, you need to restart the service for it to take effect, and it is best to use cookies from accounts that you have already logged in to.
-    -   Douyin web cookie (obtain and replace the cookie in the configuration file below):
+-   You need to solve the risk control problem of crawler cookies by yourself, otherwise the interface may be unavailable. After modifying the configuration file, you need to restart the service before it takes effect. It is best to use cookies from the account you have logged in.
+    -   Douyin web cookies (acquire and replace cookies in the following configuration files):
     -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/douyin/web/config.yaml#L7>
-    -   TikTok web-side cookies (obtain and replace the cookies in the configuration file below):
+    -   TikTok web cookies (acquire and replace cookies in the following configuration files):
     -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/tiktok/web/config.yaml#L6>
--   I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed the server. You can right-click on the web page parsing results page to save the video...
--   The cookies of the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please obtain the cookies yourself.
--   If you need to directly access the video link returned by TikTok Web API, an HTTP 403 error will occur. Please use the API in this project.`/api/download`The interface downloads TikTok videos. This interface has been manually closed in the demo site, and you need to deploy this project by yourself.
--   here is one**Video tutorial**You can refer to:**_<https://www.bilibili.com/video/BV1vE421j7NR/>_**
+-   I turned off the online download function of the demonstration site. Someone downloaded a huge video and it crashed directly on my server. You can right-click to save the video on the web parsing result page...
+-   The cookies on the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please get the cookies yourself.
+-   HTTP 403 error occurs if you need to access the video link returned by TikTok Web API. Please use the API in this project`/api/download`The interface downloads TikTok videos. This interface has been manually closed in the demonstration site, and you need to deploy this project yourself.
+-   There is one here**Video tutorial**You can refer to:**_<https://www.bilibili.com/video/BV1vE421j7NR/>_**
 
 ## 💻Deployment (Method 1 Linux)
 
-> 💡Tips: It is best to deploy this project to a server in the United States, otherwise strange BUGs may occur.
+> 💡Tip: It is best to deploy this project to a server in the United States, otherwise strange bugs may occur.
 
-Recommended for everyone to use[Digitalocean](https://www.digitalocean.com/)server, because you can have sex for free.
+Recommended to use[DigitalOcean](https://www.digitalocean.com/)server, because it can be free.
 
-Use my invitation link to sign up and you can get a $200 credit, and when you spend $25 on it, I can also get a $25 reward.
+Sign up with my invitation link and you can get a credit of $200, and I can get a reward of $25 when you spend $25 on it.
 
 My invitation link:
 
 <https://m.do.co/c/9f72a27dec35>
 
-> Use script to deploy this project with one click
+> Use scripts to deploy this project in one click
 
--   This project provides a one-click deployment script that can quickly deploy this project on the server.
--   The script was tested on Ubuntu 20.04 LTS. Other systems may have problems. If there are any problems, please solve them yourself.
--   Download using wget command[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)to the server and run
+-   This project provides one-click deployment scripts to quickly deploy the project on the server.
+-   The script was tested on Ubuntu 20.04 LTS, and other systems may have problems. If there are any problems, please solve them yourself.
+-   Download using wget command[install.sh](https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh)Go to the server and run
 
 
     wget -O install.sh https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/bash/install.sh && sudo bash install.sh
 
-> Start/stop service
+> Turn on/stop service
 
--   Use the following commands to control running or stopping the service:
+-   Use the following command to control the operation or stop of the service:
     -   `sudo systemctl start Douyin_TikTok_Download_API.service`
     -   `sudo systemctl stop Douyin_TikTok_Download_API.service`
 
-> Turn on/off automatic operation at startup
+> Turn on/off automatically
 
--   Use the following commands to set the service to run automatically at boot or cancel automatic run at boot:
+-   Use the following command to set the service to automatically run on or cancel the automatic run on:
     -   `sudo systemctl enable Douyin_TikTok_Download_API.service`
     -   `sudo systemctl disable Douyin_TikTok_Download_API.service`
 
-> Update project
+> Update the project
 
--   When the project is updated, ensure that the update script is executed in the virtual environment and all dependencies are updated. Enter the project bash directory and run update.sh:
+-   When the project is updated, make sure that the update script is executed in the virtual environment and update all dependencies. Enter the project bash directory and run update.sh:
 -   `cd /www/wwwroot/Douyin_TikTok_Download_API/bash && sudo bash update.sh`
 
 ## 💽Deployment (Method 2 Docker)
 
-> 💡Tip: Docker deployment is the simplest deployment method and is suitable for users who are not familiar with Linux. This method is suitable for ensuring environment consistency, isolation and quick setup.
-> Please use a server that can normally access Douyin or TikTok, otherwise strange BUG may occur.
+> 💡 Tip: Docker deployment is the easiest way to deploy, suitable for users who are not familiar with Linux. This method is suitable for ensuring environmental consistency, isolation and quick settings.
+> Please use a server that can access Douyin or TikTok normally, otherwise strange bugs may occur.
 
 ### Preparation
 
-Before you begin, make sure Docker is installed on your system. If you haven't installed Docker yet, you can install it from[Docker official website](https://www.docker.com/products/docker-desktop/)Download and install.
+Before you begin, make sure your system has Docker installed. If Docker is not installed, you can[Docker official website](https://www.docker.com/products/docker-desktop/)Download and install.
 
 ### Step 1: Pull the Docker image
 
@@ -372,40 +372,40 @@ First, pull the latest Douyin_TikTok_Download_API image from Docker Hub.
 docker pull evil0ctal/douyin_tiktok_download_api:latest
 ```
 
-Can be replaced if needed`latest`Label the specific version you need to deploy.
+If necessary, you can replace it`latest`Tags for the specific version you need to deploy.
 
 ### Step 2: Run the Docker container
 
-After pulling the image, you can start a container from this image. Here are the commands to run the container, including basic configuration:
+After pulling the image, you can start a container from this image. The following are the commands to run the container, including the basic configuration:
 
 ```bash
 docker run -d --name douyin_tiktok_api -p 80:80 evil0ctal/douyin_tiktok_download_api
 ```
 
-Each part of this command does the following:
+Each part of this command works as follows:
 
--   `-d`: Run the container in the background (detached mode).
+-   `-d`: Run containers in the background (separated mode).
 -   `--name douyin_tiktok_api `: Name the container`douyin_tiktok_api `。
--   `-p 80:80`: Map port 80 on the host to port 80 of the container. Adjust the port number based on your configuration or port availability.
--   `evil0ctal/douyin_tiktok_download_api`: The name of the Docker image to use.
+-   `-p 80:80`: Map port 80 on the host to port 80 of the container. Adjust the port number according to your configuration or port availability.
+-   `evil0ctal/douyin_tiktok_download_api`: The name of the Docker image to be used.
 
-### Step 3: Verify the container is running
+### Step 3: Verify that the container is running
 
-Check if your container is running using the following command:
+Use the following command to check if your container is running:
 
 ```bash
 docker ps
 ```
 
-This will list all active containers. Find`douyin_tiktok_api `to confirm that it is functioning properly.
+This lists all active containers. Find`douyin_tiktok_api `to confirm its normal operation.
 
-### Step 4: Access the App
+### Step 4: Access the application
 
-Once the container is running, you should be able to pass`http://localhost`Or API client access Douyin_TikTok_Download_API. Adjust the URL if a different port is configured or accessed from a remote location.
+After the container runs, you should be able to pass`http://localhost`Or the API client access Douyin_TikTok_Download_API. If you have a different port configured or accessed from a remote location, adjust the URL.
 
 ### Optional: Custom Docker commands
 
-For more advanced deployments, you may wish to customize Docker commands to include environment variables, volume mounts for persistent data, or other Docker parameters. Here is an example:
+For more advanced deployments, you may want to customize Docker commands, including environment variables, volume mounts for persistent data, or other Docker parameters. Here is an example:
 
 ```bash
 docker run -d --name douyin_tiktok_api -p 80:80 \
@@ -414,12 +414,12 @@ docker run -d --name douyin_tiktok_api -p 80:80 \
   evil0ctal/douyin_tiktok_download_api
 ```
 
--   `-v /path/to/your/data:/data`: Change the`/path/to/your/data`Directory mounted to the container`/data`Directory for persisting or sharing data.
--   `-e MY_ENV_VAR=my_value`: Set environment variables within the container`MY_ENV_VAR`, whose value is`my_value`。
+-   `-v /path/to/your/data:/data`: Turn on the host`/path/to/your/data`The directory mounted to the container`/data`Directory, used to persist or share data.
+-   `-e MY_ENV_VAR=my_value`: Set environment variables in the container`MY_ENV_VAR`, its value is`my_value`。
 
 ### Configuration file modification
 
-Most of the configuration of the project can be found in the following directories:`config.yaml`File modification:
+Most of the configurations of the project can be found in the following directories`config.yaml`Modify the file:
 
 -   `/crawlers/douyin/web/config.yaml`
 -   `/crawlers/tiktok/web/config.yaml`
@@ -427,7 +427,7 @@ Most of the configuration of the project can be found in the following directori
 
 ### Step 5: Stop and remove the container
 
-When you need to stop and remove a container, use the following commands:
+When you need to stop and remove the container, use the following command:
 
 ```bash
 # Stop
@@ -439,17 +439,17 @@ docker rm douyin_tiktok_api
 
 ## 📸Screenshot
 
-**_API speed test (compared to official API)_**
+**_API speed test (compare the official API)_**
 
 <details><summary>🔎点击展开截图</summary>
 
-Douyin official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API.png?raw=true)
+TikTok official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API.png?raw=true)
 
-API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API_Douyin_wtf.png?raw=true)
+This project API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/Douyin_API_Douyin_wtf.png?raw=true)
 
 TikTok official API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API.png?raw=true)
 
-API of this project:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API_Douyin_wtf.png?raw=true)
+This project API:![](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/Screenshots/benchmarks/TikTok_API_Douyin_wtf.png?raw=true)
 
 </details>
 <hr>
@@ -477,4 +477,4 @@ Web main interface:
 
 > Start: 2021/11/06
 
-> GitHub:[@Evil0ctal](https://github.com/Evil0ctal)
+> Githubub:[@Evil0ctal](https://github.com/Evil0ctal)
