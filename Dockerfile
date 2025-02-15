@@ -7,11 +7,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Update the package list and install Python and pip
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3-pip \
-    python3.11-dev \
-    && apt-get clean \
+    python3.11 python3-pip \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip to the latest version
+RUN pip3 install -U pip
 
 # Set a working directory
 WORKDIR /app
