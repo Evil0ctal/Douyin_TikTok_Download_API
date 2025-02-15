@@ -1,5 +1,5 @@
 # Use the official Ubuntu base image
-FROM ubuntu:jammy
+FROM ubuntu:22.04
 LABEL maintainer="Evil0ctal"
 
 # Set non-interactive frontend (useful for Docker builds)
