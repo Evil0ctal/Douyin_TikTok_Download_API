@@ -1,33 +1,26 @@
-# Use the official Ubuntu base image
-FROM ubuntu:22.04
+# 使用官方 Python 3.11 的轻量版镜像
+FROM python:3.11-slim
+
 LABEL maintainer="Evil0ctal"
 
-# Set non-interactive frontend (useful for Docker builds)
+# 设置非交互模式，避免 Docker 构建时的交互问题
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update the package list and install Python and pip
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3-pip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip to the latest version
-RUN pip3 install -U pip
-
-# Set a working directory
+# 设置工作目录
 WORKDIR /app
 
-# Copy the application source code to the container
+# 复制应用代码到容器
 COPY . /app
 
-# Install pip and set the PyPI mirror (Aliyun)
-RUN pip3 install -i https://mirrors.aliyun.com/pypi/simple/ -U pip \
-    && pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+# 使用 Aliyun 镜像源加速 pip
+RUN pip install -i https://mirrors.aliyun.com/pypi/simple/ -U pip \
+    && pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
-# Install dependencies directly
-RUN pip3 install --no-cache-dir -r requirements.txt
+# 安装依赖
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Make the start script executable
+# 确保启动脚本可执行
 RUN chmod +x start.sh
 
-# Command to run on container start
+# 设置容器启动命令
 CMD ["./start.sh"]
