@@ -115,7 +115,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 
 > **_/app/api_**
 
--   Obtain the request parameters and use`Crawlers`After processing data, the related classes return in JSON form, download videos, and implement fast calls with iOS shortcuts, and support asynchronous.
+-   Obtain the request parameters and use`Crawlers`After processing data, the related classes return in JSON form, download videos, and implement quick calls with iOS shortcuts, and support asynchronous.
 
 > **_/app/web_**
 
@@ -149,7 +149,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 -   Batch analysis on the web side (supports Douyin/TikTok hybrid analysis)
 -   Download videos or albums online.
 -   Production[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easy and quick import of your project
--   [iOS shortcuts to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Implement watermark-free video/picture collection in-app download
+-   [iOS shortcuts to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Implement in-app download of watermark videos/pictures
 -   Complete API documentation ([Demo/Demo](https://api.douyin.wtf/docs))
 -   Rich API interfaces:
     -   TikTok web version API
@@ -185,7 +185,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
         -   [x] Get the user's homepage fan data
         -   [x] Get user's homepage follow data
         -   [x] Obtain data on the collection of works by users on the homepage
-        -   [x] Get user home page search data
+        -   [x] Get search data for users' homepage
         -   [x] Get user homepage playlist data
         -   [x] Get individual video comment data
         -   [x] Get comments and response data for specified videos
