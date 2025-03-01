@@ -50,8 +50,8 @@ _Download videos that are prohibited from being downloaded, perform data analysi
 
 ## 🔊 V4 version notes
 
--   If you are interested in writing this project, please add WeChat.`Evil0ctal`Note: Github project reconstruction, everyone can communicate and learn from each other in the group, and do not allow advertisements or illegal things to be made purely friends and technical communication.
--   This project uses`X-Bogus`Algorithm and`A_Bogus`The algorithm requests the web APIs of TikTok and TikTok.
+-   If you are interested in writing this project, please add WeChat`Evil0ctal`Note: Github project reconstruction, everyone can communicate and learn from each other in the group, and do not allow advertisements or illegal things to be made purely friends and technical communication.
+-   This project uses`X-Bogus`Algorithm and`A_Bogus`The algorithm requests TikTok and TikTok's Web API.
 -   Due to Douyin's risk control, please go to**Get the Douyin website cookies in the browser and replace them in config.yaml.**
 -   Please read the document below before asking for an issue, and most solutions to the problem will be included in the document.
 -   This project is completely free, but please follow it when using it:[Apache-2.0 license](https://github.com/Evil0ctal/Douyin_TikTok_Download_API?tab=Apache-2.0-1-ov-file#readme)
@@ -64,11 +64,11 @@ _Download videos that are prohibited from being downloaded, perform data analysi
 
 > 📦 Out of the box
 
-Simplify the usage process and quickly carry out development work using the encapsulated SDK. All API interfaces are designed according to the RESTful architecture and are described and documented using the OpenAPI specification, with example parameters to ensure that calls are easier.
+Simplify the usage process and quickly carry out development work using the encapsulated SDK. All API interfaces are designed according to the RESTful architecture and are described and documented using the OpenAPI specification, accompanied by example parameters to ensure that calls are easier.
 
 > 💰 Cost Advantage
 
-There is no preset package limit, no monthly usage threshold, all consumption is billed instantly based on the actual usage, and the user's daily request volume is charged step by step. At the same time, you can check in in the user's background by checking in every day. , and these free amounts will not expire.
+There is no preset package limit, no monthly usage threshold, all consumption is billed instantly based on the actual usage, and is billed step by step based on the user's daily request volume. At the same time, you can check in in the user's background through daily check-in, and these free amounts will not expire.
 
 > ⚡️ Quick support
 
@@ -101,7 +101,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 
 -   [Johnserf-Seed/Tiktokdownload](https://github.com/Johnserf-Seed/TikTokDownload)
 -   [HFrost0/bilix](https://github.com/HFrost0/bilix)
--   [Tairraos/TikDown - \[Updated required\]](https://github.com/Tairraos/TikDown/)
+-   [Tairraos/TikDown - \[Updated to be\]](https://github.com/Tairraos/TikDown/)
 
 ## ⚗️Technology Stack
 
@@ -115,7 +115,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 
 > **_/app/api_**
 
--   Obtain the request parameters and use`Crawlers`After processing data, the related classes return in JSON form, download videos, and implement quick calls with iOS shortcuts, and support asynchronous.
+-   Obtain the request parameters and use`Crawlers`After processing data, the related classes return in JSON form, download videos, and implement fast calls with iOS shortcuts, and support asynchronous.
 
 > **_/app/web_**
 
@@ -149,7 +149,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 -   Batch analysis on the web side (supports Douyin/TikTok hybrid analysis)
 -   Download videos or albums online.
 -   Production[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easy and quick import of your project
--   [iOS shortcuts to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Implement in-app download of watermark videos/pictures
+-   [iOS shortcuts to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Implement watermark-free videos/pictures in-app download
 -   Complete API documentation ([Demo/Demo](https://api.douyin.wtf/docs))
 -   Rich API interfaces:
     -   TikTok web version API
@@ -157,7 +157,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
         -   [x] Video data analysis
         -   [x] Obtain user's homepage work data
         -   [x] Obtain data on the user's homepage liked works
-        -   [x] Obtain data on the user's homepage collection of works
+        -   [x] 获取用户主页收藏作品数据
         -   [x] Get user homepage information
         -   [x] Obtain user compiled works data
         -   [x] Obtain user live streaming data
@@ -314,7 +314,7 @@ Online:<https://api.douyin.wtf/docs>
     -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/tiktok/web/config.yaml#L6>
 -   I turned off the online download function of the demonstration site. Someone downloaded a huge video and it crashed directly on my server. You can right-click to save the video on the web parsing result page...
 -   The cookies on the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please get the cookies yourself.
--   HTTP 403 error occurs if you need to access the video link returned by TikTok Web API. Please use the API in this project`/api/download`The interface downloads TikTok videos. This interface has been manually closed in the demonstration site, and you need to deploy this project yourself.
+-   HTTP 403 error will occur if you need to access the video link returned by TikTok Web API. Please use the API in this project`/api/download`The interface downloads TikTok videos. This interface has been manually closed in the demonstration site, and you need to deploy this project yourself.
 -   There is one here**Video tutorial**You can refer to:**_<https://www.bilibili.com/video/BV1vE421j7NR/>_**
 
 ## 💻Deployment (Method 1 Linux)
