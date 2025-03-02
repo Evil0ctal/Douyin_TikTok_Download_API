@@ -28,11 +28,10 @@ async def fetch_data(url: str, headers: dict = None):
         return response
 
 # 下载视频专用
-async def fetch_data_stream(url: str, headers: dict = None, file_path: str = None):
+async def fetch_data_stream(url: str, request:Request , headers: dict = None, file_path: str = None):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     } if headers is None else headers.get('headers')
-
     async with httpx.AsyncClient() as client:
         # 启用流式请求
         async with client.stream("GET", url, headers=headers) as response:
@@ -41,8 +40,12 @@ async def fetch_data_stream(url: str, headers: dict = None, file_path: str = Non
             # 流式保存文件
             async with aiofiles.open(file_path, 'wb') as out_file:
                 async for chunk in response.aiter_bytes():
+                    if await request.is_disconnected():
+                        print("客户端断开连接，清理未完成的文件")
+                        await out_file.close()
+                        os.remove(file_path)
+                        return False
                     await out_file.write(chunk)
-
             return True
 
 @router.get("/download", summary="在线下载抖音|TikTok视频/图片/Online download Douyin|TikTok video/image")
@@ -122,10 +125,10 @@ async def download_file_hybrid(request: Request,
             __headers = await HybridCrawler.TikTokWebCrawler.get_tiktok_headers() if platform == 'tiktok' else await HybridCrawler.DouyinWebCrawler.get_douyin_headers()
             # response = await fetch_data(url, headers=__headers)
 
-            is_successful = await fetch_data_stream(url, headers=__headers, file_path=file_path)
-            if not is_successful:
+            success = await fetch_data_stream(url, request, headers=__headers, file_path=file_path)
+            if not success:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=500,
                     detail="An error occurred while fetching data"
                 )
 
