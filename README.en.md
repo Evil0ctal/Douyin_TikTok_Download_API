@@ -157,7 +157,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
         -   [x] Video data analysis
         -   [x] Obtain user's homepage work data
         -   [x] Obtain data on the user's homepage liked works
-        -   [x] 获取用户主页收藏作品数据
+        -   [x] Obtain data on the user's homepage collection of works
         -   [x] Get user homepage information
         -   [x] Obtain user compiled works data
         -   [x] Obtain user live streaming data
