@@ -1,0 +1,26 @@
+name: Build Docker Image
+# 触发条件：当有代码推送到仓库时触发
+on: push
+
+jobs:
+  build:
+    # 使用的运行环境
+    runs-on: ubuntu-latest
+    steps:
+      # 步骤 1：检出代码
+      - uses: actions/checkout@v4
+      # 步骤 2：构建并保存镜像
+      - name: Build and push
+        run: |
+          # 构建 Docker 镜像，-t 指定镜像的标签
+          docker build -t douyin_tiktok_api .
+          # 将构建好的镜像保存为 tar 文件并压缩
+          docker save douyin_tiktok_api | gzip > douyin_tiktok_api.tar.gz
+      # 步骤 3：上传构建产物
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          # 构建产物的名称
+          name: douyin_tiktok_api
+          # 构建产物的路径
+          path: douyin_tiktok_api.tar.gz
