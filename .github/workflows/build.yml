@@ -18,7 +18,7 @@ jobs:
           docker save douyin_tiktok_api | gzip > douyin_tiktok_api.tar.gz
       # 步骤 3：上传构建产物
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           # 构建产物的名称
           name: douyin_tiktok_api
