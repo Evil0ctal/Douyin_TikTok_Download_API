@@ -49,11 +49,47 @@ class UserProfile(BaseRequestModel):
     uniqueId: str
 
 
-class UserPost(BaseRequestModel):
+class UserPost(BaseModel):
+    WebIdLastTime: str = "1714385892"
+    aid: str = "1988"
+    app_language: str = "zh-Hans"
+    app_name: str = "tiktok_web"
+    browser_language: str = "zh-CN"
+    browser_name: str = "Mozilla"
+    browser_online: str = "true"
+    browser_platform: str = "Win32"
+    browser_version: str = "5.0%20%28Windows%29"
+    channel: str = "tiktok_web"
+    cookie_enabled: str = "true"
+    count: int = 20
     coverFormat: int = 2
-    count: int = 35
     cursor: int = 0
+    data_collection_enabled: str = "true"
+    device_id: str = "7380187414842836523"
+    device_platform: str = "web_pc"
+    focus_state: str = "true"
+    from_page: str = "user"
+    history_len: str = "3"
+    is_fullscreen: str = "false"
+    is_page_visible: str = "true"
+    language: str = "zh-Hans"
+    locate_item_id: str = "7480776736817319186"
+    needPinnedItemIds: str = "true"
+    odinId: str = "7404669909585003563"
+    os: str = "windows"
+    # 0：默认排序，1：热门排序，2：最旧排序
+    post_item_list_request_type: int = 0
+    priority_region: str = "US"
+    referer: str = ""
+    region: str = "US"
+    screen_height: str = "827"
+    screen_width: str = "1323"
     secUid: str
+    tz_name: str = "America%2FLos_Angeles"
+    user_is_login: str = "true"
+    webcast_language: str = "zh-Hans"
+    msToken: str = "SXtP7K0MMFlQmzpuWfZoxAlAaKqt-2p8oAbOHFBw-k3TA2g4jE_FXrFKf3i38lR-xNh_bV1_qfTPRnj4PXbkBfrVD2iAazeUkASIASHT0pu-Bx2_POx7O3nBBHZe2SI7CPsanerdclxHht1hcoUTlg%3D%3D"
+    _signature: str = "_02B4Z6wo000017oyWOQAAIDD9xNhTSnfaDu6MFxAAIlj23"
 
 
 class UserLike(BaseRequestModel):

@@ -344,9 +344,9 @@ class TikTokWebCrawler:
 
     async def main(self):
         # 获取单个作品数据
-        item_id = "7369296852669205791"
-        response = await self.fetch_one_video(item_id)
-        print(response)
+        # item_id = "7369296852669205791"
+        # response = await self.fetch_one_video(item_id)
+        # print(response)
 
         # 获取用户的个人信息
         # secUid = "MS4wLjABAAAAfDPs6wbpBcMMb85xkvDGdyyyVAUS2YoVCT9P6WQ1bpuwEuPhL9eFtTmGvxw1lT2C"
