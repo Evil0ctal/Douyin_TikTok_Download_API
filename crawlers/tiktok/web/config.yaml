@@ -3,6 +3,8 @@ TokenManager:
     headers:
       User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36
       Referer: https://www.tiktok.com/
+      # 你唯一需要修改的地方就是这里的Cookie，然后保存后重启程序即可。
+        # The only place you need to modify is the Cookie here, and then save and restart the program.
       Cookie: tt_csrf_token=bwnaRGd9-B-0ce8ntqw9jtGzAdvzTRKNpBl0; ak_bmsc=75A1956756DE42FD14ED069AAE7A8780~000000000000000000000000000000~YAAQXCw+F8jpmBGQAQAAIfGsFBj+ZEGzR/ZeiuPpMtItu0QQUQRmjBX2kADliy6QA9rZSfrxRUZc9zuRrI4/xbIrAwA/nkdguGpa+v3QSn/1sk5uP2aqLVm0eYB/SGNafa2h2QvIPbLNiSCRhgq1GalZJL4+udqDnyBRJWE74nin74bZwrVDvCX1s8M2hWqZ9/jTkdm4sfwON9MdJIEtjAPlddQ4gxoqjPoWhfnrm24dhPT4OjL1B8QP1mgurj7zJGspqD53VcjkAl65gHVxp3dwZ5WbPYpqrh9j8wo2u/Wh6uhX+0HWmkv5yVZyTyYQTl3/ilPp9G4CuIUi84gaPLjNYea9AEnphNX0ywzDa6/yegfqyE6r3wqBBDCrR1xRM98YEB4A5PV7pw==; tt_chain_token=ljZFLdRDfyfDflXMg5XGpg==; tiktok_webapp_theme_auto_dark_ab=1; tiktok_webapp_theme=dark; perf_feed_cache={%22expireTimestamp%22:1718503200000%2C%22itemIds%22:[%227348816520216186158%22%2C%227356022137678810410%22%2C%227349561209340857630%22]}; s_v_web_id=verify_lxe3l432_JnDE5WWo_URef_4WrS_88IM_fd1CqEXZs4dZ; passport_csrf_token=af197f073ed95f4dc2636f24d55566a6; passport_csrf_token_default=af197f073ed95f4dc2636f24d55566a6; ttwid=1%7CuNT4GcgvvOjH8rTETh9d9xti_QDJjlcnSK2V7djIpuc%7C1718333954%7Cf81b989a495aedff91302da4d0a3ab6055dea486fb203a4326b37d5a5346ad0c; msToken=1Mhpyi8MlaZjM6bbLDVUhCj_6C0kEO_1_Nb62ByXLg7wy_vLnBxdMFpKclhf4HYnEjCghk2Gq47ZM5jPj3L1yFxQUZvq4oPLo1b2Wfe_33RE94uIxdiR-eSueWbcYDDgOj1Pn9Wyid5Uf5fzBQ7xxFA=; bm_sv=9ADBA7BE06EC41817F117E2279F1410C~YAAQXCw+F8bsmBGQAQAAzSewFBg2fP3Zd0aky2x7S13D97O64xi8EXhoKORBnPQyCHlh0iSlh63FFjoy6peDWaF3lkWaTly3Z7I7WvWk1GCntnYzpJaSCE5EO2OL38zPWpHcgGWuekluvptHXsheedNEefN4SUHVMt4jJynWNeTKrao0RmNLkH4zGs7QO6+MPCt94QFvNfLjBRr0wVcXlN/hx9m6kcvCyzsBBqEnpugoYvZ0SMA+INsKI5PDfQz1~1; msToken=449_l3kdcLmnEHdDP0uACa5EcPVL1NbpjyVv8yah61EwxIPZRDlGwpGIkpIjH0Tk-CDtoKwFrDdP1v2AOpwmdoIz5oQzPEXCdyfGzcVXCHbwMX1fwPxMHpea5yFPUYEDlNWaCFlgLnejRdWeN5sB_lE=
 
     proxies:
@@ -10,6 +12,8 @@ TokenManager:
       https:
 
     msToken:
+        # 不要修改下面的内容。
+        # Do not modify the content below.
       url: https://mssdk.tiktokw.us/web/report?msToken=1Ab-7YxR9lUHSem0PraI_XzdKmpHb6j50L8AaXLAd2aWTdoJCYLfX_67rVQFE4UwwHVHmyG_NfIipqrlLT3kCXps-5PYlNAqtdwEg7TrDyTAfCKyBrOLmhMUjB55oW8SPZ4_EkNxNFUdV7MquA==
       magic: 538969122
       version: 1
@@ -18,6 +22,8 @@ TokenManager:
       User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36
 
     ttwid:
+        # 不要修改下面的内容。
+        # Do not modify the content below.
       url: https://www.tiktok.com/ttwid/check/
       data: '{"aid":1988,"service":"www.tiktok.com","union":false,"unionHost":"","needFid":false,"fid":"","migrate_priority":0}'
       cookie: tt_csrf_token=YmksDB6a-h4cT2fF7JpORI2O9UBMCWjsntIc; ttwid=1%7C0FVb9fFc-sjDG2UdJwdC1AirqYozQ0xfbAS4N72vN2Y%7C1713886256%7C78a9d83445b82b73ca8d4e0cf024ea6cdf1329b7f3866c826b0a69a300ebce46; ak_bmsc=51B1D53481A3A4E4D0CEFF2BCF622DA2~000000000000000000000000000000~YAAQ7uIsF6c4j+SOAQAAANmUCxfRGVXZ4D9xnO97l1yDw0OWyomnVkNY7IUKaggUja0kQzFQ+WG4xaxBcPt0AN0n26KeHXGGKgHYpHPUMUBHGHQGDtE4RLyy7U+LPbSJCqVaSDiPuzxHht0YUIbWogvrFmBfkP4ohcmjkZxWtEI9qQ4Whaobb2CFHGdKNt0zlVNBjJQ3uYRAvUe12zSBynQB18y6QhE8goneRkCEw9VIeft2pFIwNQ8tkWWEjDt6wHNaqeND7eASg5WLzYskWbTt6bPAOhSNRLJ38HZrOB5QNg+xxN5uuCSYmjMXCl8SkvQr91pInmOng+V898FLLBQtefs95whvbpfE0mKwBk5Cz2TkkHcUJa/IoC0CLmNqoEk3AtKxpw/J; tt_chain_token=46Xkv2ukMzyJ2e7XU7y0AQ==; bm_sv=A2E67B998DE8E6A4F1C2C02485467446~YAAQ7uIsF6g4j+SOAQAABdqUCxf1J/K4dYG0k7bbw2m5rFujdlSqMoCKDubu4R602nFvbY6zWC5puJczBv3IXwJJRpQxxR03wDCMVlKTCqjQvgDs8BoCuoNQxfY2fdS+F3bKut2lxXPQ2qctqz4kHBrgspJArHn/zu/IuKCIeSzmV4KcyxW6Zvw3/xMRA0MeHgyuHsTRBS+VrFk8Ju2NbJWWC8uSHbLCM/dhFT7/ktw8RE30r24XpQmhLpVTsUSC~1; tiktok_webapp_theme=light; msToken=ySXERzKCE0QUG0cCg6TWLw3wfEB-6kh6kAfuzhzjcQvmV1jBFloSgIsT9xk-QXFVdI99U1Fqb9mhUpIOldoDkjdZwskB8rvt66MHZaHnvBRZRtOKtTYsWT8osDyQXDVZWdPkvyE598h9; passport_csrf_token=1a47d95ebf68fc3648b0018ee75afc9f; passport_csrf_token_default=1a47d95ebf68fc3648b0018ee75afc9f; perf_feed_cache={%22expireTimestamp%22:1714057200000%2C%22itemIds%22:[%227346425092966206766%22%2C%227353812964207594795%22%2C%227343343741916171563%22]}; msToken=yWwG-ITrCnjJbx5ltBa9FTXdCImOJrl-wtQJSQH3afeEumWZcbo_qcrF6F7-NjYcrG6JVxtJiOU208REZeCSgXEZrrs5_65K741fQ7PSzCGOhz6vUyycq3Xvj4Mu-S0kJ6SqyltHnpJp
