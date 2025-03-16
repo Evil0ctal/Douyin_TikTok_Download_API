@@ -73,7 +73,7 @@ class UserPost(BaseModel):
     is_fullscreen: str = "false"
     is_page_visible: str = "true"
     language: str = "zh-Hans"
-    locate_item_id: str = "7480776736817319186"
+    locate_item_id: str = ""
     needPinnedItemIds: str = "true"
     odinId: str = "7404669909585003563"
     os: str = "windows"
