@@ -30,8 +30,8 @@ API:
   Redoc_URL: /redoc    # API documentation URL | API文档URL
 
   # API Information
-  Version: V4.1.0    # API version | API版本
-  Update_Time: 2025/02/15    # API update time | API更新时间
+  Version: V4.1.2    # API version | API版本
+  Update_Time: 2025/03/16    # API update time | API更新时间
   Environment: Demo    # API environment | API环境
 
   # Download Configuration
