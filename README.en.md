@@ -42,7 +42,7 @@ These sponsors have paid to place them here,**Doinan_tics_download_api**The proj
 
 > 🚨If you want to use a private server to run this project, please refer to:[Deployment preparations](./README.md#%EF%B8%8F%E9%83%A8%E7%BD%B2%E5%89%8D%E7%9A%84%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C%E8%AF%B7%E4%BB%94%E7%BB%86%E9%98%85%E8%AF%BB),[Docker deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%BA%8C-docker),[One-click deployment](./README.md#%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F%E4%B8%80-linux)
 
-This project is based on[Pydebio](https://github.com/pywebio/PyWebIO)，[Fasting](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[Tiktok](https://www.tiktok.com/)Data crawling tool, and online batch analysis and downloading of watermark-free videos or picture albums through the web, data crawling API, iOS shortcuts without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)或安装现有的[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, easy to crawl data, etc....
+This project is based on[Pydebio](https://github.com/pywebio/PyWebIO)，[Fasting](https://fastapi.tiangolo.com/)，[HTTPX](https://www.python-httpx.org/), fast asynchronous[Tik Tok](https://www.douyin.com/)/[Tiktok](https://www.tiktok.com/)Data crawling tool, and online batch analysis and downloading of watermark-free videos or picture albums through the web, data crawling API, iOS shortcuts without watermark download and other functions. You can deploy or transform this project yourself to achieve more functions, or you can call it directly in your project[scraper.py](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/Stable/scraper.py)Or install an existing one[pip package](https://pypi.org/project/douyin-tiktok-scraper/)As a parsing library, easy to crawl data, etc....
 
 _Some simple application scenarios:_
 
@@ -64,7 +64,7 @@ _Download videos that are prohibited from being downloaded, perform data analysi
 
 > 📦 Out of the box
 
-Simplify the usage process and quickly carry out development work using the encapsulated SDK. All API interfaces are designed according to the RESTful architecture and are described and documented using the OpenAPI specification, with example parameters to ensure that calls are easier.
+Simplify the usage process and quickly carry out development work using the encapsulated SDK. All API interfaces are designed according to the RESTful architecture and are described and documented using the OpenAPI specification, accompanied by example parameters to ensure that calls are easier.
 
 > 💰 Cost Advantage
 
@@ -107,7 +107,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 
 -   [/app/web](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/web)-[Pydebio](https://www.pyweb.io/)
 -   [/app/api](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/app/api)-[Fasting](https://fastapi.tiangolo.com/)
--   [/crawlers](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/crawlers) - [HTTPX](https://www.python-httpx.org/)
+-   [/crawlers](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/crawlers)-[HTTPX](https://www.python-httpx.org/)
 
 > **_/crawlers_**
 
@@ -222,7 +222,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 
 > 💡PIPI ：<https://pypi.org/project/douyin-tiktok-scraper/>
 
-安装解析库：`pip install douyin-tiktok-scraper`
+Install the parsing library:`pip install douyin-tiktok-scraper`
 
 ```python
 import asyncio
