@@ -23,6 +23,7 @@ class BaseRequestModel(BaseModel):
     channel: str = "tiktok_web"
     cookie_enabled: str = "true"
     device_id: int = 7380187414842836523
+    odinId: int = 7404669909585003563
     device_platform: str = "web_pc"
     focus_state: str = "true"
     from_page: str = "user"
