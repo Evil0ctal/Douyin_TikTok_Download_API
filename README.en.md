@@ -15,7 +15,7 @@
 
 ## Sponsors
 
-These sponsors have paid to place them here,**Doinan_tics_download_api**The project will always be free and open source. If you wish to be a sponsor of this project, please check out my[GitHub 赞助商页面](https://github.com/sponsors/evil0ctal)。
+These sponsors have paid to place them here,**Doinan_tics_download_api**The project will always be free and open source. If you wish to be a sponsor of this project, please check out my[GitHub Sponsor Page](https://github.com/sponsors/evil0ctal)。
 
 <div align="center">
     <a href="https://www.tikhub.io/" target="_blank">
@@ -148,7 +148,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
 
 -   Batch analysis on the web side (supports Douyin/TikTok hybrid analysis)
 -   Download videos or albums online.
--   Production[pip package](https://pypi.org/project/douyin-tiktok-scraper/)Easy and quick import of your project
+-   Production[pip package](https://pypi.org/project/douyin-tiktok-scraper/)方便快速导入你的项目
 -   [iOS shortcuts to quickly call API](https://apps.apple.com/cn/app/%E5%BF%AB%E6%8D%B7%E6%8C%87%E4%BB%A4/id915249334)Implement watermark-free videos/pictures in-app download
 -   Complete API documentation ([Demo/Demo](https://api.douyin.wtf/docs))
 -   Rich API interfaces:
@@ -184,7 +184,7 @@ Some of the source code of TikHub will be open sourced on Github and will sponso
         -   [x] Get user homepage information
         -   [x] Get the user's homepage fan data
         -   [x] Get user's homepage follow data
-        -   [x] Obtain data on the collection of works by users on the homepage
+        -   [x] 获取用户主页合辑作品数据
         -   [x] Get search data for users' homepage
         -   [x] Get user homepage playlist data
         -   [x] Get individual video comment data
@@ -313,7 +313,7 @@ Online:<https://api.douyin.wtf/docs>
     -   TikTok web cookies (acquire and replace cookies in the following configuration files):
     -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/tiktok/web/config.yaml#L6>
 -   I turned off the online download function of the demonstration site. Someone downloaded a huge video and it crashed directly on my server. You can right-click to save the video on the web parsing result page...
--   演示站点的Cookie是我自己的，不保证长期有效，只起到演示作用，自己部署的话请自行获取Cookie。
+-   The cookies on the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please get the cookies yourself.
 -   HTTP 403 error will occur if you need to access the video link returned by TikTok Web API. Please use the API in this project`/api/download`The interface downloads TikTok videos. This interface has been manually closed in the demonstration site, and you need to deploy this project yourself.
 -   There is one here**Video tutorial**You can refer to:**_<https://www.bilibili.com/video/BV1vE421j7NR/>_**
 
@@ -397,7 +397,7 @@ Use the following command to check if your container is running:
 docker ps
 ```
 
-This lists all active containers. Find`douyin_tiktok_api `to confirm its normal operation.
+这将列出所有活动容器。查找`douyin_tiktok_api `to confirm its normal operation.
 
 ### Step 4: Access the application
 
