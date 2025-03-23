@@ -406,6 +406,7 @@ class SecUserIdFetcher:
 class AwemeIdFetcher:
     # 预编译正则表达式
     _DOUYIN_VIDEO_URL_PATTERN = re.compile(r"video/([^/?]*)")
+    _DOUYIN_VIDEO_URL_PATTERN_NEW = re.compile(r"[?&]vid=(\d+)")
     _DOUYIN_NOTE_URL_PATTERN = re.compile(r"note/([^/?]*)")
     _DOUYIN_DISCOVER_URL_PATTERN = re.compile(r"modal_id=([0-9]+)")
 
@@ -418,62 +419,44 @@ class AwemeIdFetcher:
             url (str): 输入的url (Input url)
 
         Returns:
-            str: 匹配到的aweme_id (Matched aweme_id)。
+            str: 匹配到的aweme_id (Matched aweme_id)
         """
 
         if not isinstance(url, str):
             raise TypeError("参数必须是字符串类型")
 
-        # 提取有效URL
-        url = extract_valid_urls(url)
-
-        if url is None:
-            raise (
-                APINotFoundError("输入的URL不合法。类名：{0}".format(cls.__name__))
-            )
-
         # 重定向到完整链接
         transport = httpx.AsyncHTTPTransport(retries=5)
         async with httpx.AsyncClient(
-                transport=transport, proxies=TokenManager.proxies, timeout=10
+                transport=transport, proxy=None, timeout=10
         ) as client:
             try:
                 response = await client.get(url, follow_redirects=True)
                 response.raise_for_status()
 
-                video_pattern = cls._DOUYIN_VIDEO_URL_PATTERN
-                note_pattern = cls._DOUYIN_NOTE_URL_PATTERN
-                discover_pattern = cls._DOUYIN_DISCOVER_URL_PATTERN
+                response_url = str(response.url)
 
-                # 2024-4-22
-                # 嵌套如果超过3层需要修改此处代码 (If the nesting exceeds 3 layers, you need to modify this code)
-                match = video_pattern.search(str(response.url))
-                if video_pattern.search(str(response.url)):
-                    aweme_id = match.group(1)
-                else:
-                    match = note_pattern.search(str(response.url))
+                # 按顺序尝试匹配视频ID
+                for pattern in [
+                    cls._DOUYIN_VIDEO_URL_PATTERN,
+                    cls._DOUYIN_VIDEO_URL_PATTERN_NEW,
+                    cls._DOUYIN_NOTE_URL_PATTERN,
+                    cls._DOUYIN_DISCOVER_URL_PATTERN
+                ]:
+                    match = pattern.search(response_url)
                     if match:
-                        aweme_id = match.group(1)
-                    else:
-                        match = discover_pattern.search(str(response.url))
-                        if match:
-                            aweme_id = match.group(1)
-                        else:
-                            raise APIResponseError(
-                                "未在响应的地址中找到aweme_id，检查链接是否为作品页"
-                            )
-                return aweme_id
+                        return match.group(1)
+
+                raise APIResponseError("未在响应的地址中找到 aweme_id，检查链接是否为作品页")
 
             except httpx.RequestError as exc:
-                # 捕获所有与 httpx 请求相关的异常情况 (Captures all httpx request-related exceptions)
-                raise APIConnectionError("请求端点失败，请检查当前网络环境。 链接：{0}，代理：{1}，异常类名：{2}，异常详细信息：{3}"
-                                         .format(url, TokenManager.proxies, cls.__name__, exc)
-                                         )
+                raise APIConnectionError(
+                    f"请求端点失败，请检查当前网络环境。链接：{url}，代理：{TokenManager.proxies}，异常类名：{cls.__name__}，异常详细信息：{exc}"
+                )
 
             except httpx.HTTPStatusError as e:
-                raise APIResponseError("链接：{0}，状态码 {1}：{2} ".format(
-                    e.response.url, e.response.status_code, e.response.text
-                )
+                raise APIResponseError(
+                    f"链接：{e.response.url}，状态码 {e.response.status_code}：{e.response.text}"
                 )
 
     @classmethod
