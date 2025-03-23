@@ -15,7 +15,7 @@
 
 ## Sponsors
 
-These sponsors have paid to place them here,**Doinan_tics_download_api**The project will always be free and open source. If you wish to be a sponsor of this project, please check out my[GitHub Sponsor Page](https://github.com/sponsors/evil0ctal)。
+These sponsors have paid to place them here,**Doinan_tics_download_api**The project will always be free and open source. If you wish to be a sponsor of this project, please check out my[GitHub 赞助商页面](https://github.com/sponsors/evil0ctal)。
 
 <div align="center">
     <a href="https://www.tikhub.io/" target="_blank">
@@ -313,7 +313,7 @@ Online:<https://api.douyin.wtf/docs>
     -   TikTok web cookies (acquire and replace cookies in the following configuration files):
     -   <https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/30e56e5a7f97f87d60b1045befb1f6db147f8590/crawlers/tiktok/web/config.yaml#L6>
 -   I turned off the online download function of the demonstration site. Someone downloaded a huge video and it crashed directly on my server. You can right-click to save the video on the web parsing result page...
--   The cookies on the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please get the cookies yourself.
+-   演示站点的Cookie是我自己的，不保证长期有效，只起到演示作用，自己部署的话请自行获取Cookie。
 -   HTTP 403 error will occur if you need to access the video link returned by TikTok Web API. Please use the API in this project`/api/download`The interface downloads TikTok videos. This interface has been manually closed in the demonstration site, and you need to deploy this project yourself.
 -   There is one here**Video tutorial**You can refer to:**_<https://www.bilibili.com/video/BV1vE421j7NR/>_**
 
