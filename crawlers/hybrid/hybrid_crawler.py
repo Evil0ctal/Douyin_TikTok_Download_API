@@ -34,11 +34,13 @@
 import asyncio
 import re
 import httpx
+from typing import Optional
 
 from crawlers.douyin.web.web_crawler import DouyinWebCrawler  # 导入抖音Web爬虫
 from crawlers.tiktok.web.web_crawler import TikTokWebCrawler  # 导入TikTok Web爬虫
 from crawlers.tiktok.app.app_crawler import TikTokAPPCrawler  # 导入TikTok App爬虫
 from crawlers.bilibili.web.web_crawler import BilibiliWebCrawler  # 导入Bilibili Web爬虫
+from crawlers.xquik.xquik_crawler import XquikCrawler  # 导入 Xquik X 帖子客户端
 
 
 class HybridCrawler:
@@ -47,6 +49,7 @@ class HybridCrawler:
         self.TikTokWebCrawler = TikTokWebCrawler()
         self.TikTokAPPCrawler = TikTokAPPCrawler()
         self.BilibiliWebCrawler = BilibiliWebCrawler()
+        self.XquikCrawler = XquikCrawler()
 
     async def get_bilibili_bv_id(self, url: str) -> str:
         """
@@ -66,7 +69,22 @@ class HybridCrawler:
         else:
             raise ValueError(f"Cannot extract BV ID from URL: {url}")
 
-    async def hybrid_parsing_single_video(self, url: str, minimal: bool = False):
+    async def hybrid_parsing_single_video(
+            self,
+            url: str,
+            minimal: bool = False,
+            xquik_api_key: Optional[str] = None,
+    ):
+        # 解析 X 帖子/Parse X post
+        if self.XquikCrawler.supports(url):
+            data = await self.XquikCrawler.fetch_tweet(
+                url,
+                api_key=xquik_api_key,
+            )
+            if not minimal:
+                return data
+            return self.XquikCrawler.to_minimal(data)
+
         # 解析抖音视频/Parse Douyin video
         if "douyin" in url:
             platform = "douyin"

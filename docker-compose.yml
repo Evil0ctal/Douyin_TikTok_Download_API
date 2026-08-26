@@ -14,4 +14,5 @@ services:  # 定义服务列表
       TZ: Asia/Shanghai  # 设置时区为亚洲/上海
       PUID: 1026  # 设置容器内部的用户 ID
       PGID: 100  # 设置容器内部的用户组 ID
+      XQUIK_API_KEY: ${XQUIK_API_KEY:-}  # 可信部署的混合 X 查询密钥
     privileged: true  # 设置特权模式以便容器内部可以执行特权操作

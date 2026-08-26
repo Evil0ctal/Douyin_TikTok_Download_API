@@ -1,6 +1,8 @@
 import asyncio
 
-from fastapi import APIRouter, Body, Query, Request, HTTPException  # 导入FastAPI组件
+from typing import Optional
+
+from fastapi import APIRouter, Body, Header, Query, Request, HTTPException  # 导入FastAPI组件
 
 from app.api.models.APIResponseModel import ResponseModel, ErrorResponseModel  # 导入响应模型
 
@@ -16,30 +18,41 @@ router = APIRouter()
             summary="混合解析单一视频接口/Hybrid parsing single video endpoint")
 async def hybrid_parsing_single_video(request: Request,
                                       url: str = Query(example="https://v.douyin.com/L4FJNR3/"),
-                                      minimal: bool = Query(default=False)):
+                                      minimal: bool = Query(default=False),
+                                      x_api_key: Optional[str] = Header(
+                                          default=None,
+                                          alias="x-api-key",
+                                          description="Xquik API key for X URLs",
+                                      )):
     """
     # [中文]
     ### 用途:
-    - 该接口用于解析抖音/TikTok单一视频的数据。
+    - 该接口用于解析抖音、TikTok、Bilibili 视频或 X 帖子数据。
     ### 参数:
     - `url`: 视频链接、分享链接、分享文本。
+    - `x-api-key`: 解析 X 链接时使用的可选 Xquik API 密钥。
     ### 返回:
-    - `data`: 视频数据。
+    - `data`: 平台数据。
 
     # [English]
     ### Purpose:
-    - This endpoint is used to parse data of a single Douyin/TikTok video.
+    - Parse one Douyin, TikTok, or Bilibili video, or one X post.
     ### Parameters:
-    - `url`: Video link, share link, or share text.
+    - `url`: Video link, share link, share text, or X status URL.
+    - `x-api-key`: Optional Xquik API key for X URLs.
     ### Returns:
-    - `data`: Video data.
+    - `data`: Platform data.
 
     # [Example]
     url = "https://v.douyin.com/L4FJNR3/"
     """
     try:
         # 解析视频/Parse video
-        data = await HybridCrawler.hybrid_parsing_single_video(url=url, minimal=minimal)
+        data = await HybridCrawler.hybrid_parsing_single_video(
+            url=url,
+            minimal=minimal,
+            xquik_api_key=x_api_key,
+        )
         # 返回数据/Return data
         return ResponseModel(code=200,
                              router=request.url.path,

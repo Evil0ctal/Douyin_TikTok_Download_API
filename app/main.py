@@ -82,6 +82,10 @@ tags_metadata = [
         "description": "**(Bilibili-Web-API数据接口/Bilibili-Web-API data endpoints)**",
     },
     {
+        "name": "Xquik-X-API",
+        "description": "**(X 帖子数据接口/X post data endpoints through Xquik)**",
+    },
+    {
         "name": "iOS-Shortcut",
         "description": "**(iOS快捷指令数据接口/iOS-Shortcut data endpoints)**",
     },

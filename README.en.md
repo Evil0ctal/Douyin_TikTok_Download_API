@@ -145,6 +145,7 @@ By checking in every day, you can get free quota. You can use my registration in
       ├─tiktok
       │  ├─app
       │  └─web
+      ├─xquik
       └─utils
 
 ## ✨Supported functions:
@@ -218,6 +219,9 @@ By checking in every day, you can get free quota. You can use my registration in
         -   [x] Get the anchors who are live broadcasting in the specified partition
         -   [x] Get a list of all live broadcast partitions
         -   [x] Obtain video sub-p information through bv number
+    -   X post API through Xquik
+        -   [x] Get post text, author, metrics, and media by post ID
+        -   [x] Parse `x.com` and `twitter.com` status URLs through the Hybrid API
 
 * * *
 
@@ -282,6 +286,12 @@ https://www.tiktok.com/t/ZTR9nDNWq/
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 ```
 
+-   X post URL
+
+```text
+https://x.com/example/status/1893456789012345678
+```
+
 -   Douyin/TikTok batch URL (no need to use matching separation)
 
 ```text
@@ -306,6 +316,15 @@ Online:<https://api.douyin.wtf/docs>
 -   Crawl video data (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/hybrid/video_data?url=[视频链接/Video URL]&minimal=false`
 -   Download videos/photo albums (TikTok or Douyin hybrid analysis)`https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
+The X post endpoint requires callers to provide their own Xquik API key:
+
+```bash
+curl http://localhost/api/x/tweets/1893456789012345678 \
+  -H "x-api-key: xq_YOUR_KEY_HERE"
+```
+
+You can also pass the same header and an X status URL to `/api/hybrid/video_data`. Trusted private deployments may use the `XQUIK_API_KEY` environment variable instead. Public deployments should not share a server key. The integration only reads post data. It does not perform account actions. See the [Xquik Get Tweet API](https://docs.xquik.com/api-reference/x/get-tweet) for authentication, billing, and response details.
+
 **_For more demonstrations, please see the documentation..._**
 
 ## ⚠️Preparation work before deployment (please read carefully):
@@ -318,7 +337,10 @@ Online:<https://api.douyin.wtf/docs>
 -   I turned off the online download function of the demo site. The video someone downloaded was so huge that it crashed the server. You can right-click on the web page parsing results page to save the video...
 -   The cookies of the demo site are my own and are not guaranteed to be valid for a long time. They only serve as a demonstration. If you deploy it yourself, please obtain the cookies yourself.
 -   If you need to directly access the video link returned by TikTok Web API, an HTTP 403 error will occur. Please use the API in this project.`/api/download`The interface downloads TikTok videos. This interface has been manually closed in the demo site, and you need to deploy this project by yourself.
+-   The X post endpoint accepts the caller's `x-api-key` header. Trusted private deployments may also set `XQUIK_API_KEY` for Hybrid API requests. Never put keys in source, URLs, or logs. Docker Compose reads the same host variable.
 -   here is one**Video tutorial**You can refer to:**_<https://www.bilibili.com/video/BV1vE421j7NR/>_**
+
+Xquik is an independent third-party service. Not affiliated with X Corp. "Twitter" and "X" are trademarks of X Corp.
 
 ## 💻Deployment (Method 1 Linux)
 

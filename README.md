@@ -166,6 +166,7 @@ TikHub的部分源代码会开源在Github上，并且会赞助一些开源项�
   ├─tiktok
   │  ├─app
   │  └─web
+  ├─xquik
   └─utils
 ```
 
@@ -240,6 +241,9 @@ TikHub的部分源代码会开源在Github上，并且会赞助一些开源项�
     - [x] 获取指定分区正在直播的主播
     - [x] 获取所有直播分区列表
     - [x] 通过bv号获得视频分p信息
+  - X 帖子 API（由 Xquik 提供）
+    - [x] 通过帖子 ID 获取正文、作者、互动数据与媒体附件
+    - [x] 在混合解析接口中处理 `x.com` 与 `twitter.com` 状态链接
 ---
 
 ## 📦调用解析库（已废弃需要更新）:
@@ -303,6 +307,12 @@ https://www.tiktok.com/t/ZTR9nDNWq/
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 ```
 
+- X 帖子网址
+
+```text
+https://x.com/example/status/1893456789012345678
+```
+
 - 抖音/TikTok批量网址(无需使用符合隔开)
 
 ```text
@@ -329,6 +339,15 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 - 下载视频/图集(TikTok或Douyin混合解析)
   `https://api.douyin.wtf/api/download?url=[视频链接/Video URL]&prefix=true&with_watermark=false`
 
+X 帖子接口要求调用者通过 `x-api-key` 请求头提供自己的 Xquik API 密钥：
+
+```bash
+curl http://localhost/api/x/tweets/1893456789012345678 \
+  -H "x-api-key: xq_YOUR_KEY_HERE"
+```
+
+也可以把相同请求头和 X 状态链接传给 `/api/hybrid/video_data`。可信的私有部署可改用 `XQUIK_API_KEY` 环境变量。公共部署不应共享服务端密钥。接口只读取帖子数据，不会代表用户执行写操作。查看 [Xquik 获取帖子接口](https://docs.xquik.com/api-reference/x/get-tweet) 的认证、计费与响应说明。
+
 ***更多演示请查看文档内容......***
 
 ## ⚠️部署前的准备工作(请仔细阅读)：
@@ -341,7 +360,10 @@ https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 - 演示站点的在线下载功能被我关掉了，有人下的视频巨大无比直接给我服务器干崩了，你可以在网页解析结果页面右键保存视频...
 - 演示站点的Cookie是我自己的，不保证长期有效，只起到演示作用，自己部署的话请自行获取Cookie。
 - 需要TikTok Web API返回的视频链接直接访问会发生HTTP 403错误，请使用本项目API中的`/api/download`接口对TikTok 视频进行下载，这个接口在演示站点中已经被手动关闭了，需要你自行部署本项目。
+- X 帖子接口接受调用者的 `x-api-key` 请求头。可信的私有部署也可设置 `XQUIK_API_KEY`，供混合解析使用。不要将密钥写入仓库、URL 或日志。Docker Compose 会读取同名宿主机变量。
 - 这里有一个**视频教程**可以参考：***[https://www.bilibili.com/video/BV1vE421j7NR/](https://www.bilibili.com/video/BV1vE421j7NR/)***
+
+Xquik is an independent third-party service. Not affiliated with X Corp. "Twitter" and "X" are trademarks of X Corp.
 
 ## 💻部署(方式一 Linux)
 
