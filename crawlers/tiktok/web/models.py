@@ -1,6 +1,7 @@
 from typing import Any
-from pydantic import BaseModel
 from urllib.parse import quote, unquote
+
+from pydantic import BaseModel
 
 from crawlers.tiktok.web.utils import TokenManager
 from crawlers.utils.utils import get_timestamp
@@ -106,6 +107,16 @@ class UserCollect(BaseRequestModel):
     count: int = 30
     cursor: int = 0
     secUid: str
+
+
+class UserCollectionList(BaseRequestModel):
+    cookie: str = ""
+    count: int = 30
+    cursor: int = 0
+    secUid: str
+    coverFormat: int = 2
+    needPinnedItemIds: str = "true"
+    publicOnly: str = "false"
 
 
 class UserPlayList(BaseRequestModel):

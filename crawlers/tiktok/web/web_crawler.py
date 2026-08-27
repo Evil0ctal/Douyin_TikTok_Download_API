@@ -58,6 +58,7 @@ from crawlers.tiktok.web.models import (
     UserLike,
     UserMix,
     UserCollect,
+    UserCollectionList,
     PostDetail,
     UserPlayList,
     PostComment,
@@ -175,6 +176,28 @@ class TikTokWebCrawler:
             # 生成一个用户收藏的带有加密参数的Endpoint
             endpoint = BogusManager.model_2_endpoint(
                 TikTokAPIEndpoints.USER_COLLECT, params.dict(), kwargs["headers"]["User-Agent"]
+            )
+            response = await crawler.fetch_get_json(endpoint)
+        return response
+
+    # Get user collection lists / 获取收藏列表
+    async def fetch_user_collection_list(
+        self, cookie: str, secUid: str, cursor: int = 0, count: int = 30, coverFormat: int = 2, needPinnedItemIds: str = "false", publicOnly: str = "false"
+    ):
+        kwargs = await self.get_tiktok_headers()
+        kwargs["headers"]["Cookie"] = cookie
+
+        base_crawler = BaseCrawler(
+            proxies=kwargs["proxies"], crawler_headers=kwargs["headers"]
+        )
+        async with base_crawler as crawler:
+            params = UserCollectionList(
+                cookie=cookie, secUid=secUid, cursor=cursor, count=count, coverFormat=coverFormat, needPinnedItemIds=needPinnedItemIds, publicOnly=publicOnly
+            )
+            endpoint = BogusManager.model_2_endpoint(
+                TikTokAPIEndpoints.USER_COLLECTION_LIST,
+                params.dict(),
+                kwargs["headers"]["User-Agent"],
             )
             response = await crawler.fetch_get_json(endpoint)
         return response

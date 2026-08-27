@@ -262,6 +262,57 @@ async def fetch_user_collect(request: Request,
                                     )
         raise HTTPException(status_code=status_code, detail=detail.dict())
 
+@router.get("/fetch_user_collection_list",
+            response_model=ResponseModel,
+            summary="获取收藏列表/Get user favorite lists")
+async def fetch_user_collection_list(request: Request,
+                             cookie: str = Query(example="Your_Cookie", description="用户cookie/User cookie"),
+                             secUid: str = Query(example="Your_SecUid", description="用户secUid/User secUid"),
+                             cursor: int = Query(default=0, description="翻页游标/Page cursor"),
+                             count: int = Query(default=30, description="每页数量/Number per page"),
+                             coverFormat: int = Query(default=2, description="封面格式/Cover format"),
+                             needPinnedItemIds: str = Query(default="false", description="需要置顶项ID/Need pinned item ids"),
+                             publicOnly: str = Query(default="false", description="仅公开项目/Only public items")
+):
+    """
+    # [English]
+    ### Purpose:
+    - Get user favorite lists
+    - Note: This interface can currently only get your own favorites list, you need to provide your account cookie.
+    ### Parameters:
+    - cookie: User cookie
+    - secUid: User secUid
+    - cursor: Page cursor
+    - count: Number per page
+    - coverFormat: Cover format
+    - needPinnedItemIds: Need pinned item ids
+    - publicOnly: Public only
+    ### Return:
+    - User favorites
+
+    # [示例/Example]
+    cookie = "Your_Cookie"
+    secUid = "Your_SecUid"
+    cursor = 0
+    count = 30
+    coverFormat = 2
+    needPinnedItemIds = "false"
+    publicOnly = "false"
+    """
+    try:
+        data = await TikTokWebCrawler.fetch_user_collection_list(cookie, secUid, cursor, count, coverFormat, needPinnedItemIds, publicOnly)
+        return ResponseModel(code=200,
+                             router=request.url.path,
+                             data=data)
+    except Exception as e:
+        status_code = 400
+        detail = ErrorResponseModel(code=status_code,
+                                    router=request.url.path,
+                                    params=dict(request.query_params),
+                                    )
+        raise HTTPException(status_code=status_code, detail=detail.dict())
+
+
 
 # 获取用户的播放列表
 @router.get("/fetch_user_play_list",
