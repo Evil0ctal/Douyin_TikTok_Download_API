@@ -214,7 +214,9 @@ async def fetch_user_collect(request: Request,
                              secUid: str = Query(example="Your_SecUid", description="用户secUid/User secUid"),
                              cursor: int = Query(default=0, description="翻页游标/Page cursor"),
                              count: int = Query(default=30, description="每页数量/Number per page"),
-                             coverFormat: int = Query(default=2, description="封面格式/Cover format")):
+                             coverFormat: int = Query(default=2, description="封面格式/Cover format"),
+                             collectionId: str | None = Query(default=None, description="收藏夹ID/Collection ID"),
+):
     """
     # [中文]
     ### 用途:
@@ -223,6 +225,7 @@ async def fetch_user_collect(request: Request,
     ### 参数:
     - cookie: 用户cookie
     - secUid: 用户secUid
+    - collectionId: 收藏夹ID
     - cursor: 翻页游标
     - count: 每页数量
     - coverFormat: 封面格式
@@ -236,6 +239,7 @@ async def fetch_user_collect(request: Request,
     ### Parameters:
     - cookie: User cookie
     - secUid: User secUid
+    - collectionId: Collection ID
     - cursor: Page cursor
     - count: Number per page
     - coverFormat: Cover format
@@ -245,12 +249,13 @@ async def fetch_user_collect(request: Request,
     # [示例/Example]
     cookie = "Your_Cookie"
     secUid = "Your_SecUid"
+    collectionId = None
     cursor = 0
     count = 30
     coverFormat = 2
     """
     try:
-        data = await TikTokWebCrawler.fetch_user_collect(cookie, secUid, cursor, count, coverFormat)
+        data = await TikTokWebCrawler.fetch_user_collect(cookie, secUid, cursor, count, coverFormat, collectionId)
         return ResponseModel(code=200,
                              router=request.url.path,
                              data=data)

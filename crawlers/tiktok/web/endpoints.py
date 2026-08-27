@@ -27,6 +27,9 @@ class TikTokAPIEndpoints:
     # 用户收藏 (User Collect)
     USER_COLLECT = f"{TIKTOK_DOMAIN}/api/user/collect/item_list/"
 
+    # 用户收藏详情 (User Collect specific)
+    USER_COLLECT_SPECIFIC = f"{TIKTOK_DOMAIN}/api/collection/item_list/"
+
     # 用户收藏列表 (User Collection List)
     USER_COLLECTION_LIST = f"{TIKTOK_DOMAIN}/api/user/collection_list/"
 

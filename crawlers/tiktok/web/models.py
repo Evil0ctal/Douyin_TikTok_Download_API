@@ -107,6 +107,8 @@ class UserCollect(BaseRequestModel):
     count: int = 30
     cursor: int = 0
     secUid: str
+    collectionId: str | None = None
+    sourceType: int = 113
 
 
 class UserCollectionList(BaseRequestModel):
