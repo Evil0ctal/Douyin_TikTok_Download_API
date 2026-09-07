@@ -50,6 +50,7 @@ from dtk.transport.base import (
     TransportFailure,
     TransportIdentity,
 )
+from dtk.transport.base import RequestSpec as TransportRequestSpec
 
 log = get_logger(__name__)
 
@@ -144,11 +145,12 @@ class FetchService:
             response = await self._transport.request(
                 TransportIdentity(
                     id=identity.id,
+                    platform=identity.platform,
                     cookies=identity.cookies,
                     fingerprint=identity.fingerprint,
                     proxy_url=identity.proxy_url,
                 ),
-                {**spec, "params": merged},
+                _to_transport_spec(spec, merged, endpoint),
                 self._timeout,
             )
             outcome = _classify(adapter, response)
@@ -298,6 +300,31 @@ class FetchService:
                 error_code=error_code,
             )
         )
+
+
+def _to_transport_spec(
+    spec: dict[str, Any], params: dict[str, Any], endpoint: str
+) -> TransportRequestSpec:
+    """Bridge the platform's request description onto the transport's.
+
+    Two deliberately different shapes meet here. ``dtk.platforms`` emits a plain
+    TypedDict so platform packages stay free of transport types, while the
+    transport takes a dataclass that also carries the logical endpoint name for
+    scheduling and log correlation. Converting at this seam is the orchestration
+    layer's job; letting either side learn the other's type is what turns two
+    independent modules into one tangled one.
+    """
+    body = spec.get("body")
+    return TransportRequestSpec(
+        url=spec["url"],
+        method=str(spec.get("method") or "GET"),
+        params={k: str(v) for k, v in params.items() if v is not None},
+        headers=dict(spec.get("headers") or {}),
+        json_body=body if body else None,
+        # The logical name, never the signed URL: that carries tokens and would
+        # make every log line unique and uncorrelatable.
+        endpoint=endpoint,
+    )
 
 
 def _classify(adapter: PlatformAdapter, response: RawResponse) -> Outcome:
