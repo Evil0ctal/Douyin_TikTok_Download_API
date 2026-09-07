@@ -1,0 +1,37 @@
+# Test-only orchestration. Always run through:
+#   docker compose -p dtk-test -f docker/compose.test.yml <cmd>
+# and tear down with `down -v` so no stray containers or volumes survive.
+name: dtk-test
+
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_DB: dtk_test
+      POSTGRES_USER: dtk
+      POSTGRES_PASSWORD: dtk_test_password
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dtk -d dtk_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    labels:
+      dtk.role: test-fixture
+
+  redis:
+    image: redis:8-alpine
+    command: redis-server --save "" --appendonly no
+    ports:
+      - "127.0.0.1:56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    labels:
+      dtk.role: test-fixture

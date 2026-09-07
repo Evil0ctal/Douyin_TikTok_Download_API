@@ -1,0 +1,86 @@
+[project]
+name = "dtk"
+version = "5.0.0.dev0"
+description = "Self-hosted Douyin / TikTok data API with an identity pool, scheduler, MCP and web console"
+requires-python = ">=3.12,<3.14"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Evil0ctal" }]
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.13",
+    "redis[hiredis]>=5.2",
+    "wreq>=0.12,<1.0",
+    "httpx>=0.28",
+    "structlog>=24.4",
+    "cryptography>=43.0",
+    "argon2-cffi>=23.1",
+    "typer>=0.12",
+    "rich>=13.7",
+    "mcp>=1.1",
+    "python-multipart>=0.0.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+    "types-redis",
+]
+
+[project.scripts]
+dtk = "dtk.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dtk"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF"]
+# N818 wants an Error suffix on every exception. Our domain exceptions are
+# named after their stable error code (UpstreamChanged, SecretKeyMissing) so
+# the name matches the wire contract; the base class carries the suffix.
+ignore = ["E501", "B008", "N818", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dtk"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: requires PostgreSQL and Redis",
+    "live: hits the real platform; never runs in CI gating",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["src/dtk"]
+omit = ["*/migrations/*"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["dtk"]
+mypy_path = "src"
+ignore_missing_imports = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["dtk.platforms.*", "dtk.models.*", "dtk.scheduler.*"]
+disallow_untyped_defs = true
