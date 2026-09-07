@@ -182,7 +182,7 @@ async def test_scheduler_rotates_across_identities(redis_client):
     )
     seen = set()
     for _ in range(5):
-        lease = await sched.acquire("douyin.content.detail", Platform.DOUYIN)
+        lease = await sched.acquire("douyin.content_detail", Platform.DOUYIN)
         seen.add(lease.identity_id)
         await sched.release(lease, Outcome.OK)
     assert len(seen) >= 4, f"poor rotation, only used {seen}"
@@ -198,7 +198,7 @@ async def test_scheduler_prefers_healthy_over_recently_failed(redis_client):
         SchedulerConfig(max_wait_seconds=5.0),
         clock=AdvancingClock(step=0.0),
     )
-    lease = await sched.acquire("douyin.content.detail", Platform.DOUYIN)
+    lease = await sched.acquire("douyin.content_detail", Platform.DOUYIN)
     assert lease.identity_id == "identity-2"
 
 
@@ -207,7 +207,7 @@ async def test_scheduler_falls_back_to_degraded_only_when_empty(redis_client):
     sched = Scheduler(
         ListSource(degraded), SchedulerConfig(max_wait_seconds=5.0), clock=AdvancingClock(step=0.0)
     )
-    lease = await sched.acquire("douyin.content.detail", Platform.DOUYIN)
+    lease = await sched.acquire("douyin.content_detail", Platform.DOUYIN)
     assert lease.identity_id == "identity-9"
 
 
@@ -220,7 +220,7 @@ async def test_empty_pool_raises_pool_exhausted_with_retry_after(redis_client):
         clock=AdvancingClock(step=0.1),
     )
     with pytest.raises(IdentityPoolExhausted) as exc:
-        await sched.acquire("douyin.content.detail", Platform.DOUYIN)
+        await sched.acquire("douyin.content_detail", Platform.DOUYIN)
     assert exc.value.retry_after and exc.value.retry_after > 0
     assert exc.value.details["reject_reason"]
 
@@ -229,14 +229,14 @@ async def test_open_circuit_fails_fast_without_waiting(redis_client):
     from dtk.core.errors import EndpointCircuitOpen
 
     cfg = SchedulerConfig(max_wait_seconds=30.0)
-    await circuit.trip("douyin.author.posts", cfg.circuit, "test", now=NOW)
+    await circuit.trip("douyin.author_posts", cfg.circuit, "test", now=NOW)
     sched = Scheduler(ListSource([make_candidate(1)]), cfg, clock=AdvancingClock(step=0.0))
 
     # Consume the single half-open probe so the next call is genuinely blocked.
-    await circuit.allow_probe("douyin.author.posts", cfg.circuit)
+    await circuit.allow_probe("douyin.author_posts", cfg.circuit)
 
     loop = asyncio.get_running_loop()
     started = loop.time()
     with pytest.raises(EndpointCircuitOpen):
-        await sched.acquire("douyin.author.posts", Platform.DOUYIN)
+        await sched.acquire("douyin.author_posts", Platform.DOUYIN)
     assert loop.time() - started < 1.0, "an open circuit must not wait out max_wait_seconds"

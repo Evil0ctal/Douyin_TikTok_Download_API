@@ -190,9 +190,7 @@ def test_manifest_never_carries_the_master_key(tmp_path: Path) -> None:
 
 
 def test_wrong_key_is_reported_as_a_key_mismatch() -> None:
-    manifest = backup.build_manifest(
-        contents={}, include_identities=False, secret_key=SECRET
-    )
+    manifest = backup.build_manifest(contents={}, include_identities=False, secret_key=SECRET)
 
     backup.verify_secret_key(manifest, SECRET)
     with pytest.raises(backup.SecretKeyMismatch) as raised:
@@ -202,9 +200,7 @@ def test_wrong_key_is_reported_as_a_key_mismatch() -> None:
 
 
 def test_unsupported_schema_version_is_refused() -> None:
-    manifest = backup.build_manifest(
-        contents={}, include_identities=False, secret_key=SECRET
-    )
+    manifest = backup.build_manifest(contents={}, include_identities=False, secret_key=SECRET)
     future = backup.Manifest(
         schema_version=backup.BACKUP_SCHEMA_VERSION + 1,
         created_at=manifest.created_at,

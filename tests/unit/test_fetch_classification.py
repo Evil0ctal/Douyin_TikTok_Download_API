@@ -159,7 +159,7 @@ class TestTransportSpecSeam:
         from dtk.services.fetch import _to_transport_spec
         from dtk.transport.base import RequestSpec as TransportRequestSpec
 
-        out = _to_transport_spec(self._spec(), {"aweme_id": "1"}, "douyin.content.detail")
+        out = _to_transport_spec(self._spec(), {"aweme_id": "1"}, "douyin.content_detail")
         assert isinstance(out, TransportRequestSpec)
         assert out.method == "GET"
         assert out.url.endswith("/aweme/detail/")
@@ -170,9 +170,9 @@ class TestTransportSpecSeam:
         from dtk.services.fetch import _to_transport_spec
 
         out = _to_transport_spec(
-            self._spec(), {"aweme_id": "1", "a_bogus": "SECRET"}, "douyin.content.detail"
+            self._spec(), {"aweme_id": "1", "a_bogus": "SECRET"}, "douyin.content_detail"
         )
-        assert out.endpoint == "douyin.content.detail"
+        assert out.endpoint == "douyin.content_detail"
         assert "a_bogus" not in (out.endpoint or "")
 
     def test_signed_params_replace_the_originals(self):

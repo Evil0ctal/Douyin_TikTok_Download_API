@@ -1,5 +1,11 @@
 """Per-endpoint scheduling policy.
 
+Endpoint names here MUST match the keys the platform adapters register. They are
+one namespace shared by the scheduler, the worker registry, MCP routing, the CLI
+and request_log, and a mismatch does not raise - it silently falls through to
+DEFAULT_POLICY, so every tuned quota and risk weight would quietly stop applying.
+`tests/unit/test_policy_coverage.py` fails if the two ever drift apart.
+
 Quota is keyed on ``(identity, endpoint)`` rather than on the identity alone.
 Without the endpoint dimension one identity can spend its entire budget on the
 single most sensitive call, which reads as "this visitor only ever does one
@@ -33,20 +39,16 @@ class EndpointPolicy:
 _POLICIES: dict[str, EndpointPolicy] = {
     p.endpoint: p
     for p in [
-        EndpointPolicy("douyin.content.detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
-        EndpointPolicy("douyin.author.profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
-        EndpointPolicy("douyin.author.posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
-        EndpointPolicy("douyin.content.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
-        EndpointPolicy(
-            "douyin.content.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.5
-        ),
-        EndpointPolicy("tiktok.content.detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
-        EndpointPolicy("tiktok.author.profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
-        EndpointPolicy("tiktok.author.posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
-        EndpointPolicy("tiktok.content.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
-        EndpointPolicy(
-            "tiktok.content.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.5
-        ),
+        EndpointPolicy("douyin.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
+        EndpointPolicy("douyin.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        EndpointPolicy("douyin.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy("douyin.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("douyin.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("tiktok.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
+        EndpointPolicy("tiktok.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        EndpointPolicy("tiktok.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy("tiktok.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("tiktok.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
     ]
 }
 
