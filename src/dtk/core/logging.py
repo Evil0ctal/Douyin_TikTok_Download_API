@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import re
 import sys
+from collections.abc import MutableMapping
 from typing import Any
 
 import structlog
@@ -50,7 +51,7 @@ def _truncate_params(text: str) -> str:
     return _PARAM_RE.sub(lambda m: f"{m.group(1)}={m.group(2)[:6]}...", text)
 
 
-def redact(_logger: Any, _name: str, event: dict[str, Any]) -> dict[str, Any]:
+def redact(_logger: Any, _name: str, event: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
     for key in list(event.keys()):
         if key.lower() in SENSITIVE_KEYS:
             event[key] = _MASK

@@ -58,11 +58,14 @@ class SchedulerConfig:
     #: not enough: a stalled or non-monotonic clock would spin here forever.
     max_attempts: int = 64
     health_prior: float = 0.8
-    #: Recency is compared to this granularity. Ordering on the exact timestamp
-    #: makes every candidate distinct, so the random tie-break is never reached
-    #: and concurrent callers walk the identical list in lockstep. Rounding first
-    #: creates the ties that let them diverge, while an identity idle far longer
-    #: than one quantum still sorts ahead.
+    #: Recency is compared to this granularity. On the exact timestamp every
+    #: candidate is distinct, so the random tie-break is never reached; rounding
+    #: creates the ties that let concurrent callers diverge, while an identity
+    #: idle far longer than one quantum still sorts ahead.
+    #:
+    #: Measured fairness is not sensitive to this value - see the note in
+    #: tests/integration/test_scheduler_fairness.py - so it is a knob, not a
+    #: tuned constant. Set it to 0 for strict least-recently-used ordering.
     lru_quantum_seconds: float = 0.5
     circuit: circuit.CircuitConfig = field(default_factory=circuit.CircuitConfig)
 
@@ -114,9 +117,12 @@ class Scheduler:
         down one shared order. Rounding creates the ties the jitter needs, while
         an identity idle far longer than a quantum still sorts ahead.
 
-        Measured over 600 concurrent requests across 12 identities: exact
-        ordering gave a 26..74 spread (96% of the mean), per-call seeds alone
-        33..66, and both together brings it near even.
+        Both changes are kept because neither can make ordering worse and the
+        second is required for the first to have any effect at all. Neither is
+        claimed to improve fairness: measured against a uniform random baseline
+        the resulting spread is no better than chance, and quantizing recency
+        does not beat leaving it exact. See the note in
+        tests/integration/test_scheduler_fairness.py for the numbers.
         """
         prior = self._config.health_prior
         quantum = self._config.lru_quantum_seconds

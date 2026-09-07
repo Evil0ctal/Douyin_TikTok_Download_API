@@ -364,7 +364,10 @@ async def test_aclose_does_not_orphan_a_client_created_afterwards() -> None:
     """After aclose the notifier owns whatever client it creates next."""
     borrowed = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
     notifier = notify.Notifier(
-        [], redis=FakeRedis(), clock=Clock(), client=borrowed  # type: ignore[arg-type]
+        [],
+        redis=FakeRedis(),
+        clock=Clock(),
+        client=borrowed,  # type: ignore[arg-type]
     )
 
     await notifier.aclose()

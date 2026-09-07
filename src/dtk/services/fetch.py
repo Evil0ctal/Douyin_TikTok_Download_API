@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -39,6 +39,7 @@ from dtk.core.types import Outcome, Platform
 from dtk.db.models import RequestLog
 from dtk.identity.pool import IdentityPool, LiveIdentity
 from dtk.platforms import PlatformAdapter, get_adapter
+from dtk.platforms.base import RequestSpec as PlatformRequestSpec
 from dtk.scheduler.leases import Lease
 from dtk.scheduler.policies import policy_for
 from dtk.scheduler.scheduler import Scheduler
@@ -303,7 +304,7 @@ class FetchService:
 
 
 def _to_transport_spec(
-    spec: dict[str, Any], params: dict[str, Any], endpoint: str
+    spec: PlatformRequestSpec | Mapping[str, Any], params: dict[str, Any], endpoint: str
 ) -> TransportRequestSpec:
     """Bridge the platform's request description onto the transport's.
 

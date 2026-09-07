@@ -109,9 +109,7 @@ def include_object(
         return False
     # The aggregates and the view over them are created by hand-written DDL, so
     # autogenerate must neither propose creating nor dropping them.
-    return not (
-        type_ == "table" and name in {*models.CONTINUOUS_AGGREGATES, *models.DERIVED_VIEWS}
-    )
+    return not (type_ == "table" and name in {*models.CONTINUOUS_AGGREGATES, *models.DERIVED_VIEWS})
 
 
 def run_migrations_offline() -> None:

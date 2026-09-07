@@ -20,7 +20,6 @@ import httpx
 
 from dtk.core.errors import InvalidUrl, UnsupportedContent
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform
 from dtk.urls import MAX_REDIRECTS, ResourceKind, UrlKind, is_allowed_host, resolve
 
 log = get_logger(__name__)
@@ -95,7 +94,9 @@ async def resolve_link(url: str, fetcher: Any) -> UrlKind:
 
 def to_call(identified: UrlKind) -> tuple[str, dict[str, Any]]:
     """Map an identified link onto ``(endpoint_name, canonical_params)``."""
-    platform: Platform = identified.platform  # narrowed by resolve_link
+    platform = identified.platform
+    if platform is None:  # pragma: no cover - resolve_link already refused this
+        raise InvalidUrl("the link carries no platform", details={"url": identified.original})
     capability = _ENDPOINT_BY_RESOURCE[identified.resource]
     param = _PARAM_BY_RESOURCE[identified.resource]
     return f"{platform.value}.{capability}", {param: identified.resource_id}

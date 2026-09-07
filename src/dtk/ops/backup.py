@@ -505,9 +505,7 @@ async def create_backup(
     return BackupInfo(path=target, size_bytes=target.stat().st_size, manifest=manifest)
 
 
-def _pack_archive(
-    target: Path, manifest: Manifest, staging: Path, selected: Sequence[str]
-) -> None:
+def _pack_archive(target: Path, manifest: Manifest, staging: Path, selected: Sequence[str]) -> None:
     """Write the finished archive from the staged JSON-lines files."""
     with tarfile.open(target, "w:gz") as archive:
         _add_bytes(archive, MANIFEST_NAME, _manifest_bytes(manifest))

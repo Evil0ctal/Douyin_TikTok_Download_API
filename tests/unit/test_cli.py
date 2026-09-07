@@ -871,9 +871,7 @@ class TestRuntime:
         printed = capsys.readouterr()
         assert "s3cr3t" not in printed.out + printed.err
 
-    def test_network_errors_become_exit_one(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_network_errors_become_exit_one(self, capsys: pytest.CaptureFixture[str]) -> None:
         """httpx errors are not OSError; short-link expansion runs on httpx."""
         import httpx
 
@@ -902,18 +900,14 @@ class TestRuntime:
 
 class TestOutput:
     def test_pairs_scrub_free_text_values(self, capsys: pytest.CaptureFixture[str]) -> None:
-        output.print_pairs(
-            [("detail", "GET https://x/y?msToken=SUPERSECRETMSTOKENVALUE failed")]
-        )
+        output.print_pairs([("detail", "GET https://x/y?msToken=SUPERSECRETMSTOKENVALUE failed")])
         assert "SUPERSECRETMSTOKENVALUE" not in capsys.readouterr().out
 
     def test_pairs_scrub_a_dsn_password(self, capsys: pytest.CaptureFixture[str]) -> None:
         output.print_pairs([("dsn", "postgresql+asyncpg://dtk:s3cr3t@db:5432/dtk")])
         assert "s3cr3t" not in capsys.readouterr().out
 
-    def test_square_brackets_survive_rendering(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_square_brackets_survive_rendering(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Upstream text is data, not rich markup; the extra name must survive."""
         output.print_pairs([("detail", "install httpx[socks]")])
         assert "httpx[socks]" in capsys.readouterr().out.replace("\n", "").replace(" ", "")

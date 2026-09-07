@@ -90,7 +90,9 @@ def run[T](factory: Callable[[], Coroutine[Any, Any, T]]) -> T:
         # httpx errors are not OSError. Short-link expansion, browser-rpc and
         # the proxy probes all run on httpx, so without this a `dtk fetch` on a
         # box with no egress prints a traceback instead of exiting 1.
-        output.fail(f"{type(exc).__name__}: {exc}", hint="check egress, and the proxy if one is set")
+        output.fail(
+            f"{type(exc).__name__}: {exc}", hint="check egress, and the proxy if one is set"
+        )
     except OSError as exc:
         output.fail(f"cannot reach a dependency: {exc}")
 

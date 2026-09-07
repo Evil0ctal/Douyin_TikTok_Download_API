@@ -301,7 +301,9 @@ class IdentityPool:
                 cooldown_until=datetime.now(UTC) + timedelta(seconds=seconds),
             )
         )
-        count = result.rowcount or 0
+        # rowcount lives on CursorResult; execute() is typed as returning the
+        # narrower Result, which does not declare it.
+        count = getattr(result, "rowcount", 0) or 0
         if count:
             log.warning("identity.proxy_cooldown", proxy_id=str(proxy_id), affected=count)
         return count
@@ -336,7 +338,7 @@ class IdentityPool:
             .where(IdentityRow.platform == platform.value)
             .group_by(IdentityRow.state)
         )
-        return dict(rows.all())
+        return {str(state): int(count) for state, count in rows.all()}
 
 
 __all__ = ["IdentityPool", "LiveIdentity"]

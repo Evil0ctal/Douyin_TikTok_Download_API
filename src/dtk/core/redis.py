@@ -26,7 +26,7 @@ def init_redis(url: str, *, max_connections: int = 64, pool_timeout: float = 10.
     opposite of what backpressure should do.
     """
     global _client
-    pool = BlockingConnectionPool.from_url(
+    pool: BlockingConnectionPool = BlockingConnectionPool.from_url(
         url,
         max_connections=max_connections,
         timeout=pool_timeout,
@@ -58,7 +58,9 @@ async def run_script(name: str, source: str, keys: list[str], args: list[Any]) -
 async def close_redis() -> None:
     global _client
     if _client is not None:
-        await _client.aclose()
+        # redis-py renamed close() to aclose() in 5.x; the bundled type stubs
+        # still describe the old name, so this is resolved at runtime.
+        await _client.aclose()  # type: ignore[attr-defined]
     _client = None
     _scripts.clear()
 

@@ -30,6 +30,7 @@ from dtk.core.db import dispose_engine, init_engine
 from dtk.core.errors import HTTP_STATUS, DtkError, ErrorCode
 from dtk.core.logging import configure, get_logger
 from dtk.core.redis import close_redis, init_redis
+from dtk.core.types import DEFAULT_LANGUAGE, Language
 
 log = get_logger(__name__)
 
@@ -109,6 +110,17 @@ def create_app(settings: BootstrapSettings | None = None) -> FastAPI:
     return app
 
 
+def _language_of(request: Request) -> Language:
+    """The response language, defaulting when the middleware has not run yet.
+
+    An error raised before ContextMiddleware sets it - a malformed request line,
+    say - still has to produce a localized envelope rather than crash on a
+    missing attribute.
+    """
+    value = getattr(request.state, "language", None)
+    return value if isinstance(value, Language) else DEFAULT_LANGUAGE
+
+
 def _install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DtkError)
     async def _domain_error(request: Request, exc: DtkError) -> JSONResponse:
@@ -121,7 +133,7 @@ def _install_error_handlers(app: FastAPI) -> None:
         return envelope.failure(
             ErrorCode.INVALID_PARAM,
             getattr(request.state, "request_id", "unknown"),
-            language=getattr(request.state, "language", None) or "en",
+            language=_language_of(request),
             details={"fields": exc.errors()[:10]},
         )
 
@@ -136,7 +148,7 @@ def _install_error_handlers(app: FastAPI) -> None:
         return envelope.failure(
             code,
             getattr(request.state, "request_id", "unknown"),
-            language=getattr(request.state, "language", None) or "en",
+            language=_language_of(request),
             status_code=exc.status_code or HTTP_STATUS[code],
         )
 
@@ -148,7 +160,7 @@ def _install_error_handlers(app: FastAPI) -> None:
         return envelope.failure(
             ErrorCode.INTERNAL,
             getattr(request.state, "request_id", "unknown"),
-            language=getattr(request.state, "language", None) or "en",
+            language=_language_of(request),
         )
 
 

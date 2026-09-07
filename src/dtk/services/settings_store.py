@@ -21,7 +21,7 @@ import contextlib
 import json
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from dtk.core.config import RUNTIME_SETTINGS, Config, Scope, coerce
@@ -113,7 +113,7 @@ async def set_value(key: str, value: Any, *, updated_by=None) -> Any:
 async def reset_value(key: str) -> None:
     """Drop an override so the key falls back to its code default."""
     async with session_scope() as session:
-        await session.execute(Setting.__table__.delete().where(Setting.key == key))
+        await session.execute(delete(Setting).where(Setting.key == key))
         version = await _bump_version(session)
     await _announce(version)
     log.info("config.reset", key=key, version=version)
@@ -183,7 +183,7 @@ async def _watch(app) -> None:
     finally:
         with contextlib.suppress(Exception):
             await pubsub.unsubscribe(CHANNEL)
-            await pubsub.aclose()
+            await pubsub.aclose()  # type: ignore[attr-defined]
 
 
 async def start_watcher(app) -> None:
