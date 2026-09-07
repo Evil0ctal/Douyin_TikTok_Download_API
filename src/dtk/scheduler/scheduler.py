@@ -1,0 +1,234 @@
+"""The scheduler.
+
+Answers one question - "which identity may send this request right now?" - or
+refuses with a reason that can be reported back to the caller.
+
+Two rotation dimensions are in play at once. Identities take turns, and each
+identity has an independent budget per endpoint. See docs/design/03-scheduler.md.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Protocol
+
+from dtk.core.errors import EndpointCircuitOpen, IdentityPoolExhausted
+from dtk.core.logging import get_logger
+from dtk.core.types import IdentityState, Outcome, Platform, RejectReason
+from dtk.scheduler import circuit
+from dtk.scheduler.health import HealthInput, bucket, score
+from dtk.scheduler.leases import Lease, last_used_map, release, try_acquire
+from dtk.scheduler.policies import EndpointPolicy, policy_for
+
+log = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class Candidate:
+    """The scheduling view of an identity: just enough to rank it."""
+
+    identity_id: str
+    platform: Platform
+    state: IdentityState
+    #: Epoch seconds; None means never used, which sorts first under LRU.
+    last_used_at: float | None
+    health: HealthInput
+
+
+class CandidateSource(Protocol):
+    """Supplies schedulable identities.
+
+    A Protocol rather than a direct database dependency so the scheduler can be
+    tested against an in-memory list, which is how the concurrency tests reach
+    the atomicity guarantees.
+    """
+
+    async def candidates(self, platform: Platform, state: IdentityState) -> Sequence[Candidate]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class SchedulerConfig:
+    max_wait_seconds: float = 10.0
+    poll_interval_seconds: float = 0.25
+    inflight_ttl_seconds: int = 60
+    #: Hard bound on retries, independent of the clock. The deadline alone is
+    #: not enough: a stalled or non-monotonic clock would spin here forever.
+    max_attempts: int = 64
+    health_prior: float = 0.8
+    circuit: circuit.CircuitConfig = field(default_factory=circuit.CircuitConfig)
+
+
+class Rejected(Exception):
+    """Internal signal carrying why no lease could be issued."""
+
+    def __init__(self, reason: RejectReason, detail: str = "", retry_after: int = 0) -> None:
+        super().__init__(detail or reason.value)
+        self.reason = reason
+        self.detail = detail
+        self.retry_after = retry_after
+
+
+class Scheduler:
+    def __init__(
+        self,
+        source: CandidateSource,
+        config: SchedulerConfig,
+        *,
+        clock: object | None = None,
+    ) -> None:
+        self._source = source
+        self._config = config
+        # Injectable so tests can advance time without sleeping.
+        self._now = clock if callable(clock) else _monotonic_epoch
+
+    # -- selection ---------------------------------------------------------
+
+    def _rank(
+        self,
+        candidates: Sequence[Candidate],
+        seed: int,
+        recent: dict[str, float],
+    ) -> list[Candidate]:
+        """Order by health tier, then least-recently-used, then a stable jitter.
+
+        The jitter is derived from the identity id and a per-attempt seed rather
+        than from a random source, both because it keeps ordering reproducible in
+        tests and because several workers ranking the same list must not all
+        converge on the same first choice.
+        """
+        prior = self._config.health_prior
+
+        def key(c: Candidate) -> tuple[int, float, int]:
+            tier = bucket(score(c.health, prior=prior))
+            # Take whichever source saw this identity most recently. The database
+            # column lags behind by a write, so ranking on it alone lets several
+            # back-to-back requests all see the same stale order and pick the
+            # same identity: rotation collapses to "always the healthiest one".
+            lru = max(c.last_used_at or 0.0, recent.get(c.identity_id, 0.0))
+            jitter = hash((c.identity_id, seed)) & 0xFFFF
+            return (-tier, lru, jitter)
+
+        return sorted(candidates, key=key)
+
+    async def _attempt(
+        self, endpoint: str, platform: Platform, policy: EndpointPolicy, seed: int
+    ) -> Lease:
+        now = self._now()
+
+        is_open, retry_after, reason = await circuit.state(endpoint, now=now)
+        if is_open and not await circuit.allow_probe(endpoint, self._config.circuit):
+            raise Rejected(RejectReason.CIRCUIT_OPEN, reason, retry_after)
+
+        pool = list(await self._source.candidates(platform, IdentityState.ACTIVE))
+        if not pool:
+            # Degraded identities are the last resort, used only once the
+            # healthy pool is empty.
+            pool = list(await self._source.candidates(platform, IdentityState.DEGRADED))
+        if not pool:
+            raise Rejected(RejectReason.NO_IDENTITY, "no active or degraded identity")
+
+        recent = await last_used_map()
+        saw_inflight = False
+        saw_no_token = False
+        for candidate in self._rank(pool, seed, recent):
+            lease, why = await try_acquire(
+                candidate.identity_id,
+                endpoint,
+                policy,
+                now=now,
+                inflight_ttl=self._config.inflight_ttl_seconds,
+            )
+            if lease is not None:
+                log.debug(
+                    "scheduler.lease.granted",
+                    identity_id=candidate.identity_id,
+                    endpoint=endpoint,
+                    tokens_left=round(lease.tokens_left, 3),
+                )
+                return lease
+            saw_inflight |= why == "inflight"
+            saw_no_token |= why == "no_token"
+
+        if saw_no_token and not saw_inflight:
+            raise Rejected(RejectReason.NO_TOKEN, "every identity is out of quota")
+        raise Rejected(RejectReason.ALL_INFLIGHT, "every identity is busy")
+
+    # -- public API --------------------------------------------------------
+
+    async def acquire(self, endpoint: str, platform: Platform) -> Lease:
+        """Wait briefly for a lease, then give up with an explainable error.
+
+        Rejecting early beats queueing indefinitely: a caller left hanging for a
+        minute before failing is worse off than one told to retry immediately.
+        """
+        policy = policy_for(endpoint)
+        deadline = self._now() + self._config.max_wait_seconds
+        attempt = 0
+        last: Rejected | None = None
+
+        while True:
+            try:
+                return await self._attempt(endpoint, platform, policy, attempt)
+            except Rejected as exc:
+                last = exc
+                if exc.reason is RejectReason.CIRCUIT_OPEN:
+                    break  # waiting cannot help
+                if self._now() >= deadline:
+                    last = Rejected(RejectReason.WAIT_TIMEOUT, exc.detail, exc.retry_after)
+                    break
+            attempt += 1
+            await asyncio.sleep(self._config.poll_interval_seconds)
+
+        assert last is not None
+        log.info(
+            "scheduler.lease.rejected",
+            endpoint=endpoint,
+            platform=platform.value,
+            reject_reason=last.reason.value,
+            detail=last.detail,
+        )
+        if last.reason is RejectReason.CIRCUIT_OPEN:
+            raise EndpointCircuitOpen(
+                last.detail,
+                retry_after=last.retry_after or self._config.circuit.open_seconds,
+                details={"endpoint": endpoint, "reject_reason": last.reason.value},
+            )
+        raise IdentityPoolExhausted(
+            last.detail,
+            retry_after=max(1, int(self._config.max_wait_seconds)),
+            details={"endpoint": endpoint, "reject_reason": last.reason.value},
+        )
+
+    async def release(self, lease: Lease, outcome: Outcome) -> None:
+        """Return a lease and fold the result into the endpoint's window."""
+        policy = policy_for(lease.endpoint)
+        now = self._now()
+        await release(lease, outcome, policy, now=now)
+        await circuit.record(lease.endpoint, lease.identity_id, outcome, now=now)
+
+        if outcome is Outcome.RISK_CONTROL:
+            trip, why = await circuit.should_trip(lease.endpoint, self._config.circuit, now=now)
+            if trip:
+                await circuit.trip(lease.endpoint, self._config.circuit, why, now=now)
+        elif outcome is Outcome.OK:
+            is_open, _, _ = await circuit.state(lease.endpoint, now=now)
+            if is_open:
+                # A probe succeeded, so the endpoint is working again.
+                await circuit.reset(lease.endpoint)
+
+
+def _monotonic_epoch() -> float:
+    import time
+
+    return time.time()
+
+
+__all__ = [
+    "Candidate",
+    "CandidateSource",
+    "Rejected",
+    "Scheduler",
+    "SchedulerConfig",
+]

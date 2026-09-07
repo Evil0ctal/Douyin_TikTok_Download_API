@@ -10,18 +10,30 @@ from __future__ import annotations
 
 from typing import Any
 
-from redis.asyncio import Redis
+from redis.asyncio import BlockingConnectionPool, Redis
 from redis.commands.core import AsyncScript
 
 _client: Redis | None = None
 _scripts: dict[str, AsyncScript] = {}
 
 
-def init_redis(url: str, *, max_connections: int = 32) -> Redis:
+def init_redis(url: str, *, max_connections: int = 64, pool_timeout: float = 10.0) -> Redis:
+    """Create the shared client.
+
+    A blocking pool is used deliberately. The default pool raises
+    ``MaxConnectionsError`` the moment it is exhausted, which turns a burst of
+    concurrent scheduling into hard failures rather than brief waits - the
+    opposite of what backpressure should do.
+    """
     global _client
-    _client = Redis.from_url(
-        url, max_connections=max_connections, decode_responses=True, health_check_interval=30
+    pool = BlockingConnectionPool.from_url(
+        url,
+        max_connections=max_connections,
+        timeout=pool_timeout,
+        decode_responses=True,
+        health_check_interval=30,
     )
+    _client = Redis(connection_pool=pool)
     _scripts.clear()
     return _client
 
