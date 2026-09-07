@@ -76,6 +76,11 @@ class SettingSpec:
         self.default = default
         self.scope = scope
         self.type_ = type_
+        #: A note for whoever reads this file. The text a user reads comes from
+        #: the catalogue key settings.description.<key> in both languages, so
+        #: that adding a setting and translating it are one habit rather than
+        #: two; this stays as the fallback for a setting nobody has written a
+        #: catalogue entry for yet. tests/unit/test_i18n.py asserts the coverage.
         self.description = description
         #: Permitted values for a string setting, or None if it is free-form.
         #: Enforced on write, because a rejected value naming the valid ones is

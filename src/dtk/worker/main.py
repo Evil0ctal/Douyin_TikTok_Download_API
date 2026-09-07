@@ -110,11 +110,14 @@ class TaskStore(Protocol):
 def serialize_error(exc: BaseException) -> dict[str, Any]:
     """Render an exception into the stored ``tasks.error`` payload.
 
-    The shape matches :mod:`dtk.api.envelope` so the API layer can hand it
-    straight back: a stable ``code``, an English message for logs and the CLI,
-    and the details needed to re-render the message in the caller's language.
-    ``retryable`` is spelled out because an agent reading the task result should
-    not have to carry the non-retryable table around.
+    The shape matches :mod:`dtk.api.envelope`: a stable ``code``, an English
+    message for logs and the CLI, and the arguments that message was built
+    from. ``retry_after`` stays beside ``details`` rather than inside it for
+    exactly that reason - ``envelope.failure`` folds the two together the same
+    way, and ``dtk.api.routes.tasks`` re-renders the sentence from them in
+    whatever language the caller asked for, because the worker has no caller to
+    ask. ``retryable`` is spelled out because an agent reading the task result
+    should not have to carry the non-retryable table around.
     """
     if isinstance(exc, DtkError):
         payload: dict[str, Any] = {

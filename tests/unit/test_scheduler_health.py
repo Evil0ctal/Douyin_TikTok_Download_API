@@ -1,9 +1,16 @@
-"""Health scoring and backoff. Pure functions, no services required."""
+"""Health scoring, backoff and circuit trip reasons. No services required."""
 
 from __future__ import annotations
 
 import pytest
 
+from dtk.scheduler.circuit import (
+    REASON_KEY_PREFIX,
+    RISK_ACROSS_IDENTITIES,
+    CircuitState,
+    TripReason,
+    parse_reason,
+)
 from dtk.scheduler.health import (
     DEFAULT_PRIOR,
     HEALTH_BUCKETS,
@@ -74,3 +81,55 @@ def test_bucket_boundaries():
     assert bucket(1.0) == HEALTH_BUCKETS - 1
     assert bucket(0.999) == HEALTH_BUCKETS - 1
     assert 0 <= bucket(0.5) < HEALTH_BUCKETS
+
+
+# -- circuit trip reasons --------------------------------------------------
+
+TRIPPED = TripReason(RISK_ACROSS_IDENTITIES, {"risk_rate": 0.8333, "samples": 40, "identities": 5})
+
+
+def test_trip_reason_survives_the_round_trip_through_redis():
+    """The stored form is the contract between two processes, not a display string."""
+    parsed = parse_reason(TRIPPED.encode())
+    assert parsed is not None
+    assert parsed.code == RISK_ACROSS_IDENTITIES
+    assert parsed.args == {"risk_rate": 0.8333, "samples": 40.0, "identities": 5.0}
+
+
+def test_trip_reason_names_its_catalogue_key():
+    assert TRIPPED.key == f"{REASON_KEY_PREFIX}{RISK_ACROSS_IDENTITIES}"
+
+
+def test_template_args_are_percent_and_whole_numbers():
+    """The rendered sentence must not say "40.0 requests" or "0.8333%"."""
+    assert TRIPPED.template_args() == {"risk_rate": "83", "samples": 40, "identities": 5}
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "risk rate 0.83 over 40 samples across 5 identities",
+        "",
+        "code:",
+        "code:Not A Code;risk_rate=0.9",
+    ],
+)
+def test_unstructured_reasons_parse_to_nothing_rather_than_raising(stored):
+    """A value written by the previous build outlives the deploy by minutes."""
+    assert parse_reason(stored) is None
+
+
+def test_legacy_reason_is_shown_as_stored():
+    legacy = "risk rate 0.83 over 40 samples across 5 identities"
+    state = CircuitState(True, 120, parse_reason(legacy), legacy)
+    assert state.message() == legacy
+
+
+def test_closed_circuit_has_no_reason_to_show():
+    assert CircuitState(False, 0).message() == ""
+
+
+def test_malformed_arguments_are_dropped_not_fatal():
+    parsed = parse_reason("code:risk_across_identities;risk_rate=nope;samples=40;identities")
+    assert parsed is not None
+    assert parsed.args == {"samples": 40.0}

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-language-source="build">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -19,8 +19,16 @@
             ? window.matchMedia('(prefers-color-scheme: dark)').matches
             : mode === 'dark'
           document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+          // An explicit choice outranks whatever the server negotiated, and has
+          // to win before first paint or the shell renders in the wrong
+          // language for a frame. The source marker is what tells src/lib/
+          // language.ts whether the lang attribute is a real signal or just the
+          // value baked into this file at build time.
           var lang = localStorage.getItem('dtk.language')
-          if (lang === 'zh' || lang === 'en') document.documentElement.setAttribute('lang', lang)
+          if (lang === 'zh' || lang === 'en') {
+            document.documentElement.setAttribute('lang', lang)
+            document.documentElement.setAttribute('data-language-source', 'stored')
+          }
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'dark')
         }

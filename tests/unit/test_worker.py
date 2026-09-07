@@ -18,10 +18,19 @@ from typing import Any
 
 import pytest
 
+from dtk.api.routes.tasks import _localized_error, _view_payload
 from dtk.core.config import Config
-from dtk.core.errors import DtkError, ErrorCode, InvalidParam, UpstreamRiskControl
-from dtk.core.types import IdentityState, Outcome, Platform, Scope
+from dtk.core.errors import (
+    DtkError,
+    ErrorCode,
+    InvalidParam,
+    RateLimited,
+    UpstreamChanged,
+    UpstreamRiskControl,
+)
+from dtk.core.types import IdentityState, Language, Outcome, Platform, Scope, TaskState
 from dtk.services.fetch import FetchResult
+from dtk.services.tasks import TaskView
 from dtk.worker import maintenance as maintenance_module
 from dtk.worker import registry
 from dtk.worker.loop import PeriodicLoop
@@ -415,6 +424,83 @@ def test_unexpected_errors_never_leak_their_message() -> None:
     assert payload["code"] == ErrorCode.INTERNAL.value
     assert "postgres://" not in json.dumps(payload)
     assert payload["details"] == {"error": "RuntimeError"}
+
+
+# --------------------------------------------------------------------------
+# error localization at the API boundary
+# --------------------------------------------------------------------------
+#
+# The worker stores one English sentence because it has no caller to ask. What
+# makes that acceptable is that everything needed to say it again in another
+# language is stored beside it, and that dtk.api.routes.tasks actually does so.
+
+
+def test_a_stored_error_is_re_rendered_in_the_callers_language() -> None:
+    stored = serialize_error(RateLimited("request rate limit exceeded", retry_after=60))
+    english = _localized_error(stored, Language.EN)
+    chinese = _localized_error(stored, Language.ZH)
+
+    assert english is not None and chinese is not None
+    assert english["code"] == chinese["code"] == ErrorCode.RATE_LIMITED.value
+    assert english["message"] != chinese["message"]
+    # The stored sentence is for the worker log; neither caller sees it.
+    assert english["message"] != stored["message"]
+    # retry_after lives beside details, not in it, so folding it into the
+    # template arguments is the only thing that puts the number on screen.
+    assert "60" in english["message"]
+    assert "60" in chinese["message"]
+
+
+def test_stored_details_reach_the_rendered_message() -> None:
+    stored = serialize_error(UpstreamChanged("aweme_detail.author"))
+    rendered = _localized_error(stored, Language.ZH)
+
+    assert rendered is not None
+    assert rendered["details"] == {"path": "aweme_detail.author"}
+    assert "aweme_detail.author" in rendered["message"]
+
+
+def test_re_rendering_keeps_the_rest_of_the_stored_payload() -> None:
+    stored = serialize_error(InvalidParam("bad", details={"field": "count"}))
+    rendered = _localized_error(stored, Language.ZH)
+
+    assert rendered is not None
+    assert rendered["retryable"] is False
+    assert rendered["details"] == {"field": "count"}
+    # An unfilled placeholder reads as a broken product, not as a missing word.
+    assert "{" not in rendered["message"]
+
+
+def test_a_code_this_process_does_not_know_still_renders() -> None:
+    rendered = _localized_error({"code": "FROM_A_NEWER_WORKER", "message": "raw"}, Language.EN)
+
+    assert rendered is not None
+    assert rendered["code"] == ErrorCode.INTERNAL.value
+    assert rendered["message"] != "raw"
+
+
+def test_a_failed_task_with_no_stored_error_renders_nothing() -> None:
+    assert _localized_error(None, Language.EN) is None
+
+
+def test_the_task_payload_carries_the_localized_error() -> None:
+    """The regression: the wire payload used to hand back view.error verbatim."""
+    stored = serialize_error(RateLimited("request rate limit exceeded", retry_after=30))
+    view = TaskView(
+        id=uuid.uuid4(),
+        state=TaskState.FAILED,
+        endpoint="douyin.comments",
+        result=None,
+        error=stored,
+        created_at=datetime.now(UTC),
+        finished_at=datetime.now(UTC),
+    )
+
+    payload = _view_payload(view, Language.ZH)
+
+    assert payload["error"]["code"] == ErrorCode.RATE_LIMITED.value
+    assert payload["error"]["message"] != stored["message"]
+    assert "30" in payload["error"]["message"]
 
 
 # --------------------------------------------------------------------------

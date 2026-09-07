@@ -15,6 +15,15 @@ and print one report (docs/design/15-operations.md):
 
 Step 6 is also the last step of the setup wizard; both call the same code.
 
+**A step reports a code, not a sentence.** ``StepCode`` is the contract and
+the prose is rendered from ``diagnose.reason.<code>`` per reader - the same
+split :mod:`dtk.api.envelope` makes between an ``ErrorCode`` and its message.
+The CLI and the logs get English; a request gets the language it negotiated,
+and :func:`localize_report` re-renders a report stored before anyone's language
+was known. Evidence - a driver's error, an exception's text, the per-step
+``details`` - stays English: it is what a maintainer searches for
+(docs/design/14-i18n.md).
+
 **The report is redacted on the way out.** Its entire purpose is to be pasted
 into an issue, so proxy passwords, cookies, API keys and signature parameters
 are masked by the renderer rather than by whoever is pasting it.
@@ -24,10 +33,11 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from functools import partial
 from typing import Any, Final
 
 import httpx
@@ -37,7 +47,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from dtk import __version__
 from dtk.core.crypto import Cipher
 from dtk.core.logging import get_logger
-from dtk.core.types import IdentityState, Platform
+from dtk.core.types import DEFAULT_LANGUAGE, IdentityState, Language, Platform
+from dtk.i18n.catalog import t
 from dtk.identity.minting.client import BrowserRpcClient
 from dtk.ops._sql import safe_execute, safe_scalar
 from dtk.ops.health import ComponentHealth, check_browser_rpc, check_postgres, check_redis
@@ -150,7 +161,13 @@ def redact_value(value: Any, key: str | None = None) -> Any:
         return {name: redact_value(item, str(name)) for name, item in value.items()}
     if isinstance(value, list | tuple):
         return [redact_value(item) for item in value]
-    return value
+    if isinstance(value, bool | int | float) or value is None:
+        return value
+    # Anything else reaches the report through its __str__, and an upstream
+    # driver error object is exactly the kind of thing that carries a session
+    # cookie in its text. Returning it untouched would let that text out of a
+    # report whose entire purpose is to be pasted in public.
+    return redact(str(value))
 
 
 class StepStatus(StrEnum):
@@ -160,15 +177,97 @@ class StepStatus(StrEnum):
     SKIP = "skip"
 
 
+class StepCode(StrEnum):
+    """What a step found, as a stable identifier.
+
+    One member per outcome a step can reach, so a console can branch on a
+    finding without matching on prose.
+    """
+
+    COMPONENTS_UNREACHABLE = "components_unreachable"
+    COMPONENTS_BROWSER_RPC_DOWN = "components_browser_rpc_down"
+    COMPONENTS_OK = "components_ok"
+
+    EGRESS_UNREACHABLE = "egress_unreachable"
+    EGRESS_PARTIAL = "egress_partial"
+    EGRESS_OK = "egress_ok"
+
+    PROXIES_NO_SESSION = "proxies_no_session"
+    PROXIES_UNREADABLE = "proxies_unreadable"
+    PROXIES_NONE = "proxies_none"
+    PROXIES_ALL_FAILED = "proxies_all_failed"
+    PROXIES_PARTIAL = "proxies_partial"
+    PROXIES_OK = "proxies_ok"
+
+    POOL_NO_SESSION = "pool_no_session"
+    POOL_UNREADABLE = "pool_unreadable"
+    POOL_EMPTY = "pool_empty"
+    POOL_BELOW_MINIMUM = "pool_below_minimum"
+    POOL_OK = "pool_ok"
+
+    SIGNING_NO_REGISTRY = "signing_no_registry"
+    SIGNING_NO_BROWSER_RPC = "signing_no_browser_rpc"
+    SIGNING_MISMATCH = "signing_mismatch"
+    SIGNING_OK = "signing_ok"
+
+    SMOKE_NOT_CONFIGURED = "smoke_not_configured"
+    SMOKE_FAILED = "smoke_failed"
+    SMOKE_OK = "smoke_ok"
+
+    STEP_CRASHED = "step_crashed"
+
+
+#: Catalogue namespaces. The code is the key's last segment, so a new finding
+#: needs one member above and two entries in the locale files.
+REASON_KEY_PREFIX: Final[str] = "diagnose.reason."
+ACTION_KEY_PREFIX: Final[str] = "diagnose.action."
+
+#: Codes that also carry advice. Everything else is either a pass or a step
+#: skipped because a dependency is absent - states with nothing to suggest, and
+#: inventing a sentence for them would only pad the report.
+ACTIONABLE_CODES: Final[frozenset[str]] = frozenset(
+    code.value
+    for code in (
+        StepCode.COMPONENTS_UNREACHABLE,
+        StepCode.COMPONENTS_BROWSER_RPC_DOWN,
+        StepCode.EGRESS_UNREACHABLE,
+        StepCode.EGRESS_PARTIAL,
+        StepCode.PROXIES_NONE,
+        StepCode.PROXIES_ALL_FAILED,
+        StepCode.PROXIES_PARTIAL,
+        StepCode.POOL_EMPTY,
+        StepCode.POOL_BELOW_MINIMUM,
+        StepCode.SIGNING_NO_BROWSER_RPC,
+        StepCode.SIGNING_MISMATCH,
+        StepCode.SMOKE_FAILED,
+        StepCode.STEP_CRASHED,
+    )
+)
+
+
+def reason_key(code: StepCode | str) -> str:
+    """Catalogue key for the sentence a code stands for."""
+    return f"{REASON_KEY_PREFIX}{code}"
+
+
+def action_key(code: StepCode | str) -> str:
+    """Catalogue key for the advice a code carries."""
+    return f"{ACTION_KEY_PREFIX}{code}"
+
+
 @dataclass(frozen=True, slots=True)
 class StepResult:
-    """One step: what it checked, how it went, and what to do about it."""
+    """One step: what it checked, how it went, and what to do about it.
+
+    ``code`` and ``args`` are the finding; the sentences come from them on the
+    way out. ``reason`` and ``action`` are the English rendering, for the CLI.
+    """
 
     number: int
     step: str
     status: StepStatus
-    reason: str
-    action: str | None = None
+    code: StepCode
+    args: dict[str, Any] = field(default_factory=dict)
     details: dict[str, Any] = field(default_factory=dict)
     duration_ms: float | None = None
 
@@ -176,13 +275,38 @@ class StepResult:
     def ok(self) -> bool:
         return self.status in (StepStatus.PASS, StepStatus.SKIP)
 
-    def as_dict(self) -> dict[str, Any]:
+    @property
+    def action_code(self) -> StepCode | None:
+        return self.code if self.code.value in ACTIONABLE_CODES else None
+
+    @property
+    def reason(self) -> str:
+        return self.localized_reason(DEFAULT_LANGUAGE)
+
+    @property
+    def action(self) -> str | None:
+        return self.localized_action(DEFAULT_LANGUAGE)
+
+    def localized_reason(self, language: Language | str = DEFAULT_LANGUAGE) -> str:
+        return t(reason_key(self.code), language, **self.args)
+
+    def localized_action(self, language: Language | str = DEFAULT_LANGUAGE) -> str | None:
+        code = self.action_code
+        return None if code is None else t(action_key(code), language, **self.args)
+
+    def as_dict(self, language: Language | str = DEFAULT_LANGUAGE) -> dict[str, Any]:
+        action = self.localized_action(language)
         return {
             "number": self.number,
             "step": self.step,
             "status": self.status.value,
-            "reason": redact(self.reason),
-            "action": redact(self.action) if self.action else None,
+            "code": self.code.value,
+            "action_code": self.action_code.value if self.action_code else None,
+            # The arguments ride along so a stored report can be rendered again
+            # in another language; they hold user data, so they are redacted.
+            "args": redact_value(self.args),
+            "reason": redact(self.localized_reason(language)),
+            "action": redact(action) if action else None,
             "details": redact_value(self.details),
             "duration_ms": self.duration_ms,
         }
@@ -205,33 +329,48 @@ class DiagnosticReport:
     def failures(self) -> tuple[StepResult, ...]:
         return tuple(step for step in self.steps if step.status is StepStatus.FAIL)
 
-    def as_dict(self) -> dict[str, Any]:
-        return {
+    def as_dict(self, language: Language | str = DEFAULT_LANGUAGE) -> dict[str, Any]:
+        """The wire shape, redacted, with the prose in one language.
+
+        ``text`` is included so the console shows and copies exactly what the
+        server rendered rather than reassembling the report itself.
+        """
+        payload: dict[str, Any] = {
             "version": self.version,
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat(),
             "passed": self.passed,
-            "steps": [step.as_dict() for step in self.steps],
+            "steps": [step.as_dict(language) for step in self.steps],
         }
+        payload["text"] = _render_text(payload)
+        return payload
 
-    def render_text(self) -> str:
+    def render_text(self, language: Language | str = DEFAULT_LANGUAGE) -> str:
         """Plain-text report, redacted. Safe to paste in public."""
-        lines = [
-            f"dtk diagnostics {self.version}",
-            f"started  {self.started_at.isoformat()}",
-            f"finished {self.finished_at.isoformat()}",
-            f"verdict  {'PASS' if self.passed else 'FAIL'}",
-            "",
-        ]
-        for step in self.steps:
-            lines.append(f"[{step.status.value.upper():4}] {step.number}. {step.step}")
-            lines.append(f"       {redact(step.reason)}")
-            if step.action:
-                lines.append(f"       action: {redact(step.action)}")
-            for key, value in step.details.items():
-                lines.append(f"       {key}: {redact(str(redact_value(value, key)))}")
-            lines.append("")
-        return "\n".join(lines).rstrip() + "\n"
+        return str(self.as_dict(language)["text"])
+
+
+def localize_report(
+    payload: Mapping[str, Any], language: Language | str = DEFAULT_LANGUAGE
+) -> dict[str, Any]:
+    """Re-render a stored report's prose in one language.
+
+    The console runs the self-check as a background task, so the worker writes
+    the report as JSON and a later request reads it back - the first moment
+    anyone's language is known. Codes and arguments survive that round trip, so
+    the sentences are rebuilt here rather than frozen when the check ran.
+    """
+    steps = payload.get("steps")
+    if not isinstance(steps, list):
+        # Not a report this function recognizes. Handing it back untouched
+        # beats a 500 from the endpoint that exists to explain what is broken.
+        return dict(payload)
+    localized: dict[str, Any] = {
+        **payload,
+        "steps": [_localize_step(step, language) for step in steps],
+    }
+    localized["text"] = _render_text(localized)
+    return localized
 
 
 SmokeRunner = Callable[[str], Awaitable[Any]]
@@ -265,7 +404,7 @@ class DiagnoseContext:
 
 async def check_components(ctx: DiagnoseContext) -> StepResult:
     """Step 1: can this process reach postgres, redis and browser-rpc."""
-    started = time.perf_counter()
+    result = _step(1, "components")
     components: list[ComponentHealth] = [
         await check_postgres(ctx.engine),
         await check_redis(ctx.redis),
@@ -276,35 +415,27 @@ async def check_components(ctx: DiagnoseContext) -> StepResult:
     rpc = next(c for c in components if c.name == "browser_rpc")
 
     if broken:
-        return _result(
-            1,
-            "components",
+        # Names only. Why each one is down is already in the details, and a
+        # probe's own wording is evidence that must not be translated.
+        return result(
             StepStatus.FAIL,
-            "unreachable: " + ", ".join(f"{c.name} ({c.detail})" for c in broken),
-            "Check that the postgres and redis containers are running and that "
-            "DTK_DATABASE_URL and DTK_REDIS_URL point at them.",
-            details,
-            started,
+            StepCode.COMPONENTS_UNREACHABLE,
+            args={"components": ", ".join(c.name for c in broken)},
+            details=details,
         )
     if not rpc.ok:
-        return _result(
-            1,
-            "components",
+        return result(
             StepStatus.WARN,
-            f"postgres and redis are reachable; browser-rpc is not ({rpc.detail})",
-            "Minting and the signing fallback are unavailable. Start the browser "
-            "container, or import cookies manually and stay on the native signer.",
-            details,
-            started,
+            StepCode.COMPONENTS_BROWSER_RPC_DOWN,
+            args={"detail": rpc.detail},
+            details=details,
         )
-    return _result(
-        1, "components", StepStatus.PASS, "all components reachable", None, details, started
-    )
+    return result(StepStatus.PASS, StepCode.COMPONENTS_OK, details=details)
 
 
 async def check_egress(ctx: DiagnoseContext) -> StepResult:
     """Step 2: direct reachability of the platform domains, without a proxy."""
-    started = time.perf_counter()
+    result = _step(2, "egress")
     details: dict[str, Any] = {}
     reachable = 0
     async with _client(ctx) as client:
@@ -318,44 +449,22 @@ async def check_egress(ctx: DiagnoseContext) -> StepResult:
             reachable += 1
 
     if reachable == 0:
-        return _result(
-            2,
-            "egress",
-            StepStatus.FAIL,
-            "no platform domain could be reached directly",
-            "This machine has no usable route to the platforms. Check DNS, the "
-            "host firewall, and whether outbound traffic needs a proxy.",
-            details,
-            started,
-        )
+        return result(StepStatus.FAIL, StepCode.EGRESS_UNREACHABLE, details=details)
     if reachable < len(ctx.egress_targets):
-        return _result(
-            2,
-            "egress",
+        return result(
             StepStatus.WARN,
-            f"{reachable} of {len(ctx.egress_targets)} platform domains reachable",
-            "Requests for the unreachable platform will depend entirely on a working proxy.",
-            details,
-            started,
+            StepCode.EGRESS_PARTIAL,
+            args={"reachable": reachable, "total": len(ctx.egress_targets)},
+            details=details,
         )
-    return _result(
-        2, "egress", StepStatus.PASS, "all platform domains reachable", None, details, started
-    )
+    return result(StepStatus.PASS, StepCode.EGRESS_OK, details=details)
 
 
 async def check_proxies(ctx: DiagnoseContext) -> StepResult:
     """Step 3: probe every proxy for reachability, exit IP and GeoIP."""
-    started = time.perf_counter()
+    result = _step(3, "proxies")
     if ctx.session is None or ctx.cipher is None:
-        return _result(
-            3,
-            "proxies",
-            StepStatus.SKIP,
-            "no database session or cipher available to read the proxy list",
-            None,
-            {},
-            started,
-        )
+        return result(StepStatus.SKIP, StepCode.PROXIES_NO_SESSION)
 
     rows = await safe_execute(
         ctx.session,
@@ -364,26 +473,9 @@ async def check_proxies(ctx: DiagnoseContext) -> StepResult:
         event="ops.diagnose.proxy_list_failed",
     )
     if rows is None:
-        return _result(
-            3,
-            "proxies",
-            StepStatus.SKIP,
-            "the proxy list could not be read; see the component step",
-            None,
-            {},
-            started,
-        )
+        return result(StepStatus.SKIP, StepCode.PROXIES_UNREADABLE)
     if not rows:
-        return _result(
-            3,
-            "proxies",
-            StepStatus.WARN,
-            "no proxies configured",
-            "Every identity will share this machine's egress IP. That is fine "
-            "for a first look and a correlation risk for a busy pool.",
-            {},
-            started,
-        )
+        return result(StepStatus.WARN, StepCode.PROXIES_NONE)
 
     details: dict[str, Any] = {}
     working = 0
@@ -406,39 +498,27 @@ async def check_proxies(ctx: DiagnoseContext) -> StepResult:
         }
 
     if working == 0:
-        return _result(
-            3,
-            "proxies",
+        return result(
             StepStatus.FAIL,
-            f"none of the {len(rows)} configured proxies answered",
-            "Check the proxy credentials and whether the provider still allows "
-            "this machine's IP. Identities bound to a dead proxy cannot recover.",
-            details,
-            started,
+            StepCode.PROXIES_ALL_FAILED,
+            args={"total": len(rows)},
+            details=details,
         )
     if working < len(rows):
-        return _result(
-            3,
-            "proxies",
+        return result(
             StepStatus.WARN,
-            f"{working} of {len(rows)} proxies answered",
-            "Retire or replace the proxies that failed; their identities will "
-            "keep failing until you do.",
-            details,
-            started,
+            StepCode.PROXIES_PARTIAL,
+            args={"working": working, "total": len(rows)},
+            details=details,
         )
-    return _result(
-        3, "proxies", StepStatus.PASS, f"all {working} proxies answered", None, details, started
-    )
+    return result(StepStatus.PASS, StepCode.PROXIES_OK, args={"working": working}, details=details)
 
 
 async def check_pool(ctx: DiagnoseContext) -> StepResult:
     """Step 4: usable identities, and how long since the oldest one worked."""
-    started = time.perf_counter()
+    result = _step(4, "pool")
     if ctx.session is None:
-        return _result(
-            4, "pool", StepStatus.SKIP, "no database session available", None, {}, started
-        )
+        return result(StepStatus.SKIP, StepCode.POOL_NO_SESSION)
 
     counts: dict[str, int] = {state.value: 0 for state in IdentityState}
     rows = await safe_execute(
@@ -447,15 +527,7 @@ async def check_pool(ctx: DiagnoseContext) -> StepResult:
         event="ops.diagnose.pool_counts_failed",
     )
     if rows is None:
-        return _result(
-            4,
-            "pool",
-            StepStatus.SKIP,
-            "the identity table could not be read; see the component step",
-            None,
-            {},
-            started,
-        )
+        return result(StepStatus.SKIP, StepCode.POOL_UNREADABLE)
     for state, count in rows:
         counts[str(state)] = int(count)
 
@@ -475,56 +547,24 @@ async def check_pool(ctx: DiagnoseContext) -> StepResult:
 
     active = counts.get(IdentityState.ACTIVE.value, 0)
     if active == 0:
-        return _result(
-            4,
-            "pool",
-            StepStatus.FAIL,
-            "no active identity",
-            "Mint identities, or import a cookie jar. Until the pool has one "
-            "usable identity every request is rejected or queued.",
-            details,
-            started,
-        )
+        return result(StepStatus.FAIL, StepCode.POOL_EMPTY, details=details)
     if active < ctx.min_active:
-        return _result(
-            4,
-            "pool",
+        return result(
             StepStatus.WARN,
-            f"{active} active identities, below the low-water mark of {ctx.min_active}",
-            "Mint more identities, or lower pool.min_size if this is deliberate.",
-            details,
-            started,
+            StepCode.POOL_BELOW_MINIMUM,
+            args={"active": active, "minimum": ctx.min_active},
+            details=details,
         )
-    return _result(
-        4, "pool", StepStatus.PASS, f"{active} active identities", None, details, started
-    )
+    return result(StepStatus.PASS, StepCode.POOL_OK, args={"active": active}, details=details)
 
 
 async def check_signing(ctx: DiagnoseContext) -> StepResult:
     """Step 5: native signatures against browser-rpc, per platform."""
-    started = time.perf_counter()
+    result = _step(5, "signing")
     if ctx.registry is None:
-        return _result(
-            5,
-            "signing",
-            StepStatus.SKIP,
-            "no signer registry supplied",
-            None,
-            {},
-            started,
-        )
+        return result(StepStatus.SKIP, StepCode.SIGNING_NO_REGISTRY)
     if ctx.rpc is None or not ctx.rpc.configured:
-        return _result(
-            5,
-            "signing",
-            StepStatus.SKIP,
-            "browser-rpc is not configured, so there is no second signer to "
-            "compare the native algorithm against",
-            "Configure DTK_BROWSER_RPC_URL to enable the shadow comparison that "
-            "detects a stale signing algorithm before the risk rate does.",
-            {},
-            started,
-        )
+        return result(StepStatus.SKIP, StepCode.SIGNING_NO_BROWSER_RPC)
 
     fingerprint = StaticFingerprint(user_agent=PROBE_USER_AGENT)
     details: dict[str, Any] = {}
@@ -536,67 +576,44 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
         except Exception as exc:
             details[platform.value] = f"comparison failed: {type(exc).__name__}: {exc}"
             continue
-        result = ctx.registry.shadow_result(platform, spec.endpoint)
-        if result is not None and not result.compared:
-            details[platform.value] = f"not compared: {result.detail}"
+        shadow = ctx.registry.shadow_result(platform, spec.endpoint)
+        if shadow is not None and not shadow.compared:
+            details[platform.value] = f"not compared: {shadow.detail}"
             continue
         details[platform.value] = (
-            "match" if agreed else f"mismatch: {result.detail if result else ''}"
+            "match" if agreed else f"mismatch: {shadow.detail if shadow else ''}"
         )
         if not agreed:
             mismatched.append(platform.value)
 
     if mismatched:
-        return _result(
-            5,
-            "signing",
+        return result(
             StepStatus.FAIL,
-            f"native signing disagrees with the browser for {', '.join(mismatched)}",
-            "The native algorithm has drifted from the platform's. Those "
-            "platforms now sign through browser-rpc; open an issue with this "
-            "report so the algorithm can be updated.",
-            details,
-            started,
+            StepCode.SIGNING_MISMATCH,
+            args={"platforms": ", ".join(mismatched)},
+            details=details,
         )
-    return _result(
-        5, "signing", StepStatus.PASS, "native and browser signatures agree", None, details, started
-    )
+    return result(StepStatus.PASS, StepCode.SIGNING_OK, details=details)
 
 
 async def check_smoke(ctx: DiagnoseContext) -> StepResult:
     """Step 6: one public link through the whole pipeline."""
-    started = time.perf_counter()
+    result = _step(6, "smoke")
     if ctx.smoke is None or not ctx.smoke_url:
-        return _result(
-            6,
-            "smoke",
-            StepStatus.SKIP,
-            "no smoke test link configured",
-            None,
-            {},
-            started,
-        )
+        return result(StepStatus.SKIP, StepCode.SMOKE_NOT_CONFIGURED)
     try:
         outcome = await ctx.smoke(ctx.smoke_url)
     except Exception as exc:
-        return _result(
-            6,
-            "smoke",
+        return result(
             StepStatus.FAIL,
-            f"end-to-end fetch failed: {type(exc).__name__}: {exc}",
-            "Read the failing step above first; a smoke failure is usually a "
-            "symptom of the proxy, pool or signing step, not its own fault.",
-            {"url": ctx.smoke_url},
-            started,
+            StepCode.SMOKE_FAILED,
+            args={"error": f"{type(exc).__name__}: {exc}"},
+            details={"url": ctx.smoke_url},
         )
-    return _result(
-        6,
-        "smoke",
+    return result(
         StepStatus.PASS,
-        "end-to-end fetch succeeded",
-        None,
-        {"url": ctx.smoke_url, "result": _summarize(outcome)},
-        started,
+        StepCode.SMOKE_OK,
+        details={"url": ctx.smoke_url, "result": _summarize(outcome)},
     )
 
 
@@ -626,8 +643,8 @@ async def run_diagnostics(ctx: DiagnoseContext | None = None) -> DiagnosticRepor
                     number=number,
                     step=step.__name__.removeprefix("check_"),
                     status=StepStatus.FAIL,
-                    reason=f"the check itself failed: {type(exc).__name__}: {exc}",
-                    action="This is a bug in dtk. Please report it with this report attached.",
+                    code=StepCode.STEP_CRASHED,
+                    args={"error": f"{type(exc).__name__}: {exc}"},
                 )
             )
     report = DiagnosticReport(
@@ -645,24 +662,75 @@ async def run_diagnostics(ctx: DiagnoseContext | None = None) -> DiagnosticRepor
 # ---------------------------------------------------------------------------
 
 
+def _step(number: int, name: str) -> partial[StepResult]:
+    """Bind a step's identity and start its clock.
+
+    Every branch of a check returns the same step under a different finding, so
+    its number, name and start are stated once instead of at every exit.
+    """
+    return partial(_result, number, name, started=time.perf_counter())
+
+
 def _result(
     number: int,
     step: str,
     status: StepStatus,
-    reason: str,
-    action: str | None,
-    details: dict[str, Any],
+    code: StepCode,
+    *,
+    args: dict[str, Any] | None = None,
+    details: dict[str, Any] | None = None,
     started: float,
 ) -> StepResult:
     return StepResult(
         number=number,
         step=step,
         status=status,
-        reason=reason,
-        action=action,
-        details=details,
+        code=code,
+        args=args or {},
+        details=details or {},
         duration_ms=round((time.perf_counter() - started) * 1000, 2),
     )
+
+
+def _localize_step(step: Any, language: Language | str) -> Any:
+    """Rewrite one stored step's prose. Anything unrecognized passes through."""
+    if not isinstance(step, Mapping):
+        return step
+    code = step.get("code")
+    if not isinstance(code, str) or not code:
+        return dict(step)
+    raw_args = step.get("args")
+    args = dict(raw_args) if isinstance(raw_args, Mapping) else {}
+    localized = dict(step)
+    localized["reason"] = redact(t(reason_key(code), language, **args))
+    if code in ACTIONABLE_CODES:
+        localized["action"] = redact(t(action_key(code), language, **args))
+    return localized
+
+
+def _render_text(payload: Mapping[str, Any]) -> str:
+    """Lay out an already-rendered, already-redacted report as plain text."""
+    lines = [
+        f"dtk diagnostics {payload.get('version', '')}",
+        f"started  {payload.get('started_at', '')}",
+        f"finished {payload.get('finished_at', '')}",
+        f"verdict  {'PASS' if payload.get('passed') else 'FAIL'}",
+        "",
+    ]
+    for step in payload.get("steps") or []:
+        status = str(step.get("status", "")).upper()
+        lines.append(f"[{status:4}] {step.get('number')}. {step.get('step')}")
+        lines.append(f"       {step.get('reason', '')}")
+        if step.get("action"):
+            lines.append(f"       action: {step['action']}")
+        for key, value in (step.get("details") or {}).items():
+            # The payload is already redacted, but a nested structure only
+            # becomes one string here. Re-running the pattern pass over the
+            # rendered form costs nothing and is the last point at which
+            # anything can be caught before this text is pasted somewhere.
+            lines.append(f"       {key}: {redact(str(value))}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 class _ClientHolder:
@@ -719,23 +787,30 @@ def _summarize(outcome: Any) -> str:
 
 
 __all__ = [
+    "ACTIONABLE_CODES",
+    "ACTION_KEY_PREFIX",
     "DEFAULT_EGRESS_TARGETS",
     "DEFAULT_PROXY_PROBE_URL",
     "MASK",
+    "REASON_KEY_PREFIX",
     "SENSITIVE_DETAIL_KEYS",
     "SIGNING_PROBE_URLS",
     "STEPS",
     "DiagnoseContext",
     "DiagnosticReport",
     "SmokeRunner",
+    "StepCode",
     "StepResult",
     "StepStatus",
+    "action_key",
     "check_components",
     "check_egress",
     "check_pool",
     "check_proxies",
     "check_signing",
     "check_smoke",
+    "localize_report",
+    "reason_key",
     "redact",
     "redact_value",
     "run_diagnostics",

@@ -305,3 +305,208 @@ def test_every_constrained_setting_has_its_choices_explained(language: str) -> N
             assert choice in explained[key], (
                 f"{language}: settings.choice.{key}.{choice} is missing"
             )
+
+
+# --------------------------------------------------------------------------
+# The console's language seed
+#
+# src/dtk/api/console.py rewrites one marker in index.html to hand the SPA the
+# language it negotiated for that request. If the marker is ever renamed in the
+# frontend, the rewrite silently does nothing: the console still loads, still
+# works, and just quietly ignores Accept-Language forever. That is a feature
+# that would be lost without a single failing anything, so it is asserted here.
+# --------------------------------------------------------------------------
+
+INDEX_HTML = REPO / "web" / "index.html"
+
+
+def test_index_html_carries_the_marker_the_server_rewrites() -> None:
+    from dtk.api.console import LANGUAGE_MARKER
+
+    html = INDEX_HTML.read_text(encoding="utf-8")
+    assert LANGUAGE_MARKER in html, (
+        f"web/index.html no longer contains {LANGUAGE_MARKER!r}, so "
+        "console.localize() cannot seed the negotiated language and the console "
+        "will silently fall back to navigator.language."
+    )
+    assert 'lang="en"' in html, "the document element must ship a lang the server can replace"
+
+
+def test_the_console_only_trusts_a_lang_it_negotiated() -> None:
+    """Both halves of the contract, asserted against the actual sources."""
+    from dtk.api.console import LANGUAGE_MARKER
+
+    language_ts = (WEB / "lib" / "language.ts").read_text(encoding="utf-8")
+    assert "data-language-source" in language_ts, (
+        "language.ts must gate on the source marker; reading lang unconditionally "
+        "would pin every dev server to the value baked into index.html"
+    )
+    assert "'negotiated'" in language_ts
+
+    console_py = (SRC / "api" / "console.py").read_text(encoding="utf-8")
+    assert '"negotiated"' in console_py
+    assert LANGUAGE_MARKER in console_py
+
+
+# --------------------------------------------------------------------------
+# Language reachability on the dead-end screens
+#
+# Every console surface is rendered inside the shell, which carries the language
+# switcher in its top bar - except two, which replace the shell entirely: the
+# gate's fatal-network panel and the root error boundary's fallback. Those are
+# precisely the screens a user cannot navigate away from, so losing the switcher
+# there means losing it for good. Neither renders TopBar, and nothing else would
+# fail if the controls were dropped.
+# --------------------------------------------------------------------------
+
+#: Full-viewport surfaces that must offer the language switcher themselves.
+DEAD_END_SCREENS = [
+    ("App.tsx", "the setup gate's fatal network panel"),
+    ("pages/Login.tsx", "the login page"),
+    ("pages/Setup.tsx", "the first-run wizard"),
+    ("components/ErrorBoundary.tsx", "the root error boundary's fallback"),
+]
+
+
+@pytest.mark.parametrize("relative, described", DEAD_END_SCREENS)
+def test_shell_less_screens_carry_the_language_switcher(relative: str, described: str) -> None:
+    source = (WEB / relative).read_text(encoding="utf-8")
+    assert "<LanguageSwitcher />" in source, (
+        f"{described} ({relative}) renders without the shell's top bar, so it must "
+        "render LanguageSwitcher itself or the user is stranded in one language"
+    )
+    assert "<ThemeToggle />" in source, f"{described} ({relative}) is missing ThemeToggle"
+
+
+def test_the_root_boundary_asks_for_the_full_screen_fallback() -> None:
+    """The switcher only appears on the boundary's full-screen variant.
+
+    The same component also guards the routed page inside the shell, where the
+    top bar already offers both controls; only the root usage replaces it.
+    """
+    app = (WEB / "App.tsx").read_text(encoding="utf-8")
+    assert "<ErrorBoundary fullScreen>" in app, (
+        "the boundary wrapping <Gate /> must opt into the full-screen fallback; "
+        "without it a render crash leaves no way to change language"
+    )
+
+
+# --------------------------------------------------------------------------
+# How the console applies a language
+#
+# Four things here fail silently rather than loudly: a ?lang= link the console
+# ignores, a <html lang> that stays English while the page is Chinese, a title
+# frozen at build time, and a cache still holding text the server rendered in
+# the previous language. None of them break a render, so none of them break a
+# test unless one is written for them.
+# --------------------------------------------------------------------------
+
+CONSOLE_LANGUAGE_TS = WEB / "lib" / "language.ts"
+
+
+def test_the_console_resolves_the_lang_query_parameter() -> None:
+    source = CONSOLE_LANGUAGE_TS.read_text(encoding="utf-8")
+    assert "QUERY_PARAM = 'lang'" in source and "URLSearchParams" in source, (
+        "language.ts must resolve ?lang=. The API and /docs honour it "
+        "(dtk/i18n/negotiate.py), and a link that re-languages two of the three "
+        "surfaces is more confusing than one that re-languages none."
+    )
+
+
+def test_a_lang_link_does_not_overwrite_the_stored_preference() -> None:
+    """A link says what this visit is, not what the reader prefers from now on.
+
+    So the value from the URL is kept for the tab that opened it - long enough to
+    survive the router dropping the query string - and never written to the
+    persistent preference, which belongs to the switcher alone.
+    """
+    source = CONSOLE_LANGUAGE_TS.read_text(encoding="utf-8")
+    assert "sessionStorage" in source, "the ?lang= override must be scoped to the tab"
+    writes = source.count("writeStored(")
+    assert writes == 1, (
+        f"language.ts writes the persistent preference {writes} times; only the "
+        "explicit switch in setLanguage() may do that, or one shared link "
+        "re-languages every later session on that machine"
+    )
+
+
+def test_the_resolved_language_reaches_the_document_element() -> None:
+    """<html lang> is what screen readers and :lang() rules read."""
+    source = CONSOLE_LANGUAGE_TS.read_text(encoding="utf-8")
+    assert "export function initLanguage" in source, (
+        "the detected language must be stamped onto <html>; index.html ships "
+        'lang="en" and the server rewrites it only for documents it served, so '
+        "an auto-detected Chinese console would announce itself as English"
+    )
+    assert (WEB / "main.tsx").read_text(encoding="utf-8").count("initLanguage()") == 1
+
+
+def test_the_document_title_follows_the_route_and_the_language() -> None:
+    """index.html's <title> is a build-time constant; the SPA owns it after boot."""
+    main_tsx = (WEB / "main.tsx").read_text(encoding="utf-8")
+    assert "document.title" in main_tsx
+    assert "languageChanged" in main_tsx, "the title must be rebuilt on a language switch"
+    assert "popstate" in main_tsx, "and on a navigation, which is client-side here"
+
+
+def test_a_language_switch_expires_the_cache_it_invalidated() -> None:
+    query_ts = (WEB / "lib" / "query.ts").read_text(encoding="utf-8")
+    assert "subscribeLanguage" in query_ts, (
+        "nothing else expires the cache on a language switch, so server-rendered "
+        "text stays on screen in the old language until the next poll"
+    )
+    assert ".clear()" not in query_ts, (
+        "clearing the whole cache on every switch throws away rows that read the "
+        "same in both languages; invalidate what the server actually renders"
+    )
+
+
+#: Route modules whose GET body the console caches and the server writes in the
+#: caller's language. Each one is a prefix in LANGUAGE_SENSITIVE_PATHS
+#: (web/src/lib/query.ts).
+LOCALIZED_ROUTES_THE_CONSOLE_CACHES = {
+    "api/routes/admin/health.py",  # the circuit breaker's reason sentence
+    "api/routes/admin/settings.py",  # setting descriptions
+    "api/routes/openapi.py",  # the document /docs renders
+    "api/routes/tasks.py",  # a stored task error, re-rendered per reader
+}
+
+#: Handlers that localize something the console never holds in its query cache:
+#: a mutation's response, the failure envelope every route shares, and a feed the
+#: console does not call at all.
+LOCALIZED_ROUTES_OUTSIDE_THE_CACHE = {
+    "api/routes/admin/identities.py",
+    "api/routes/operations.py",
+    "api/routes/ios.py",
+}
+
+
+def test_every_endpoint_that_renders_text_is_known_to_the_console_cache() -> None:
+    """The list the console invalidates against has to keep up with the API.
+
+    A route that starts writing prose in the caller's language is invisible from
+    the console side - the response keeps its shape, so a switch simply leaves
+    the old sentences on screen until something else refetches.
+    """
+    localizing = {
+        p.relative_to(SRC).as_posix()
+        for p in _python_sources(SRC / "api" / "routes")
+        if any(
+            marker in p.read_text(encoding="utf-8")
+            for marker in ("language(request)", "state.language", "resolve_language")
+        )
+    }
+    unaccounted = sorted(
+        localizing - LOCALIZED_ROUTES_THE_CONSOLE_CACHES - LOCALIZED_ROUTES_OUTSIDE_THE_CACHE
+    )
+    assert not unaccounted, (
+        f"these routes now render text in the caller's language: {unaccounted}. If the "
+        "console caches that GET, add its path to LANGUAGE_SENSITIVE_PATHS in "
+        "web/src/lib/query.ts and list it in LOCALIZED_ROUTES_THE_CONSOLE_CACHES; "
+        "otherwise list it in LOCALIZED_ROUTES_OUTSIDE_THE_CACHE and say why."
+    )
+    gone = sorted(LOCALIZED_ROUTES_THE_CONSOLE_CACHES - localizing)
+    assert not gone, (
+        f"{gone} no longer localize anything, so the console is expiring their "
+        "responses on every language switch for nothing"
+    )

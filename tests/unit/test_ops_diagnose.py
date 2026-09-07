@@ -4,6 +4,10 @@ A diagnostic report exists to be pasted into a public issue. Every test that
 touches rendering therefore asserts on what is *absent* from the output: a
 proxy password, a cookie, an API key or a signature parameter that survives
 into the report is a credential leak with a friendly UI in front of it.
+
+A step's finding is a code and its arguments, so that is what the assertions
+here name. The sentence is a catalogue lookup made per reader, and asserting on
+one would only pin down the English wording of the day.
 """
 
 from __future__ import annotations
@@ -14,8 +18,9 @@ import httpx
 import pytest
 
 from dtk.core.crypto import Cipher
+from dtk.core.types import Language
 from dtk.ops import diagnose
-from dtk.ops.diagnose import DiagnoseContext, StepStatus
+from dtk.ops.diagnose import DiagnoseContext, StepCode, StepStatus, redact_value
 
 SECRET = "c" * 48
 PROXY_ID = "22222222-2222-2222-2222-222222222222"
@@ -116,21 +121,26 @@ def test_redaction_keeps_the_identifying_half() -> None:
     assert "TQm9xVeryLongSecretValue" not in key
 
 
-def test_report_text_is_redacted() -> None:
-    step = diagnose.StepResult(
-        number=3,
-        step="proxies",
-        status=StepStatus.FAIL,
-        reason="proxy http://alice:hunter2@proxy.example.com:8080 refused the probe",
-        action="rotate the credentials for dtk_a1b2c3d4_TQm9xVeryLongSecretValue",
-        details=LEAKY_DETAILS,
-    )
-    report = diagnose.DiagnosticReport(
+def _report(step: diagnose.StepResult) -> diagnose.DiagnosticReport:
+    return diagnose.DiagnosticReport(
         version="5.0.0",
         started_at=diagnose.datetime.now(diagnose.UTC),
         finished_at=diagnose.datetime.now(diagnose.UTC),
         steps=(step,),
     )
+
+
+def test_report_text_is_redacted() -> None:
+    """Arguments carry upstream text, so they are a leak path of their own."""
+    step = diagnose.StepResult(
+        number=6,
+        step="smoke",
+        status=StepStatus.FAIL,
+        code=StepCode.SMOKE_FAILED,
+        args={"error": "ProxyError: http://alice:hunter2@proxy.example.com:8080 refused"},
+        details=LEAKY_DETAILS,
+    )
+    report = _report(step)
 
     rendered = report.render_text()
     serialized = str(report.as_dict())
@@ -138,8 +148,90 @@ def test_report_text_is_redacted() -> None:
     for secret in SECRETS:
         assert secret not in rendered
         assert secret not in serialized
-    assert "proxies" in rendered
+    assert "smoke" in rendered
     assert "FAIL" in rendered
+    # The code is the half of the report a maintainer searches for.
+    assert "smoke_failed" in serialized
+
+
+# --------------------------------------------------------------------------
+# codes, arguments and the language they are rendered in
+# --------------------------------------------------------------------------
+
+
+def _recording_t(seen: list[tuple[str, Any, dict[str, Any]]]) -> Any:
+    def fake_t(key: str, language: Any = Language.EN, /, **args: Any) -> str:
+        seen.append((key, language, args))
+        return f"[{language}] {key}"
+
+    return fake_t
+
+
+def test_prose_is_looked_up_per_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One finding, one code, two sentences - chosen by the caller's language."""
+    seen: list[tuple[str, Any, dict[str, Any]]] = []
+    monkeypatch.setattr(diagnose, "t", _recording_t(seen))
+    step = diagnose.StepResult(
+        number=4,
+        step="pool",
+        status=StepStatus.WARN,
+        code=StepCode.POOL_BELOW_MINIMUM,
+        args={"active": 1, "minimum": 3},
+    )
+
+    payload = step.as_dict(Language.ZH)
+
+    assert payload["code"] == "pool_below_minimum"
+    assert payload["action_code"] == "pool_below_minimum"
+    assert payload["args"] == {"active": 1, "minimum": 3}
+    assert {key for key, _language, _args in seen} == {
+        "diagnose.reason.pool_below_minimum",
+        "diagnose.action.pool_below_minimum",
+    }
+    assert all(language is Language.ZH for _key, language, _args in seen)
+    assert all(args == {"active": 1, "minimum": 3} for _key, _language, args in seen)
+
+
+def test_a_code_without_advice_renders_no_action() -> None:
+    """A pass or a skip has nothing to suggest; an empty sentence is worse."""
+    step = diagnose.StepResult(
+        number=2, step="egress", status=StepStatus.PASS, code=StepCode.EGRESS_OK
+    )
+
+    assert step.action_code is None
+    assert step.action is None
+    assert step.as_dict(Language.ZH)["action"] is None
+
+
+def test_the_cli_and_the_logs_stay_english() -> None:
+    step = diagnose.StepResult(
+        number=4, step="pool", status=StepStatus.FAIL, code=StepCode.POOL_EMPTY
+    )
+
+    assert step.reason == step.localized_reason(Language.EN)
+    assert step.action == step.localized_action(Language.EN)
+
+
+def test_a_stored_report_can_be_rendered_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The worker stores the report; the reader's language arrives afterwards."""
+    monkeypatch.setattr(diagnose, "t", _recording_t([]))
+    stored = _report(
+        diagnose.StepResult(number=4, step="pool", status=StepStatus.FAIL, code=StepCode.POOL_EMPTY)
+    ).as_dict()
+
+    localized = diagnose.localize_report(stored, Language.ZH)
+
+    assert localized["steps"][0]["code"] == "pool_empty"
+    assert localized["steps"][0]["reason"] == "[zh] diagnose.reason.pool_empty"
+    assert localized["steps"][0]["action"] == "[zh] diagnose.action.pool_empty"
+    assert "[zh] diagnose.reason.pool_empty" in localized["text"]
+    # The stored payload is the worker's; re-rendering must not rewrite it.
+    assert stored["steps"][0]["reason"] == "[en] diagnose.reason.pool_empty"
+
+
+def test_localizing_an_unrecognized_payload_changes_nothing() -> None:
+    """The endpoint that explains a broken install must not break on one."""
+    assert diagnose.localize_report({"version": "5.0.0"}, Language.ZH) == {"version": "5.0.0"}
 
 
 # --------------------------------------------------------------------------
@@ -151,7 +243,9 @@ async def test_components_step_fails_without_a_database() -> None:
     result = await diagnose.check_components(DiagnoseContext())
 
     assert result.status is StepStatus.FAIL
-    assert result.action is not None
+    assert result.code is StepCode.COMPONENTS_UNREACHABLE
+    assert result.action_code is StepCode.COMPONENTS_UNREACHABLE
+    assert result.args["components"] == "postgres, redis"
     assert "postgres" in result.details
 
 
@@ -195,7 +289,7 @@ async def test_proxy_step_warns_when_none_are_configured() -> None:
     result = await diagnose.check_proxies(ctx)
 
     assert result.status is StepStatus.WARN
-    assert "no proxies" in result.reason
+    assert result.code is StepCode.PROXIES_NONE
 
 
 async def test_proxy_step_never_prints_the_proxy_url(
@@ -295,7 +389,9 @@ async def test_smoke_step_reports_a_failed_fetch() -> None:
     )
 
     assert result.status is StepStatus.FAIL
-    assert "IDENTITY_POOL_EXHAUSTED" in result.reason
+    assert result.code is StepCode.SMOKE_FAILED
+    # The upstream text is evidence: it rides along as an argument, untranslated.
+    assert "IDENTITY_POOL_EXHAUSTED" in result.args["error"]
 
 
 async def test_smoke_step_passes() -> None:
@@ -329,7 +425,7 @@ async def test_run_produces_all_six_steps_in_order() -> None:
         "smoke",
     ]
     assert report.passed is False  # no database in a unit test
-    assert all(step.reason for step in report.steps)
+    assert all(isinstance(step.code, StepCode) for step in report.steps)
     assert report.render_text().endswith("\n")
 
 
@@ -341,4 +437,28 @@ async def test_a_crashing_step_becomes_a_failed_step(monkeypatch: pytest.MonkeyP
     report = await diagnose.run_diagnostics(DiagnoseContext())
 
     assert report.steps[0].status is StepStatus.FAIL
-    assert "ZeroDivisionError" in report.steps[0].reason
+    assert report.steps[0].code is StepCode.STEP_CRASHED
+    assert "ZeroDivisionError" in report.steps[0].args["error"]
+
+
+def test_an_object_that_only_leaks_through_its_str_is_still_redacted():
+    """The regression this guards was real, and it was introduced by a refactor.
+
+    ``redact_value`` recognises strings, dicts and lists. Everything else used
+    to be returned untouched, which was safe only because the old text renderer
+    wrapped the whole thing in ``redact(str(...))`` again. Rendering from an
+    already-redacted payload dropped that second pass, and an upstream driver
+    error - the single most likely detail value to carry a live session - went
+    out verbatim in a report whose whole purpose is to be pasted in public.
+    """
+
+    class UpstreamError:
+        def __str__(self) -> str:
+            return "connect failed for sessionid=deadbeefcafebabe0123456789"  # SYNTHETIC
+
+    assert "deadbeef" not in str(redact_value(UpstreamError(), "note"))
+    # Scalars are left alone: they are not a leak, and stringifying them would
+    # turn a JSON number into a JSON string on the wire.
+    assert redact_value(42, "n") == 42
+    assert redact_value(None, "n") is None
+    assert redact_value(True, "n") is True

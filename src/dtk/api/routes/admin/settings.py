@@ -25,9 +25,11 @@ from dtk.api.routes.support import audit, has_scope, iso, ok, read_admin
 from dtk.core.config import RUNTIME_SETTINGS, SENSITIVE_KEYS, Scope, coerce
 from dtk.core.errors import ForbiddenScope, InvalidParam, NotFound
 from dtk.core.logging import get_logger
+from dtk.core.types import DEFAULT_LANGUAGE, UserRole
 from dtk.core.types import Scope as KeyScope
-from dtk.core.types import UserRole
 from dtk.db.models import Setting
+from dtk.i18n.catalog import has as catalog_has
+from dtk.i18n.catalog import t as translate
 from dtk.services import settings_store
 
 log = get_logger(__name__)
@@ -45,6 +47,21 @@ def _source(key: str, stored: Setting | None) -> str:
     if _env_name(key) in os.environ:
         return "environment"
     return "default"
+
+
+def _description(key: str, spec: Any, language: Any) -> str:
+    """The setting's help text in the caller's language.
+
+    The registry's own ``description`` is a note for whoever reads config.py; the
+    text a user reads lives in the catalogue with everything else the server
+    renders. Falling back to the registry rather than to the humanized key means
+    a setting added without a catalogue entry still explains itself in English
+    instead of showing "Max wait seconds" back to the reader.
+    """
+    catalog_key = f"settings.description.{key}"
+    if catalog_has(catalog_key, DEFAULT_LANGUAGE):
+        return translate(catalog_key, language)
+    return spec.description
 
 
 async def _reload(request: Request) -> None:
@@ -75,7 +92,7 @@ async def list_settings(request: Request, principal: Principal = Depends(read_ad
                 # console renders a choice instead of a free-text box that can
                 # be saved with a typo the server will then reject.
                 "choices": list(spec.choices) if spec.choices else None,
-                "description": spec.description,
+                "description": _description(key, spec, request.state.language),
                 "sensitive": spec.scope is Scope.SENSITIVE,
                 "source": _source(key, stored),
                 "env_var": _env_name(key),

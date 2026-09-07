@@ -61,6 +61,66 @@
     },
     "footer": "Sent by your dtk instance. Alert channels are configured in the console."
   },
+  "settings": {
+    "description": {
+      "sched": {
+        "max_wait_seconds": "How long a request waits for a free identity before it degrades into a background task.",
+        "queue_max": "Maximum requests allowed to queue for an identity. Beyond this the API rejects immediately with Retry-After.",
+        "cooldown_base_seconds": "How long an identity rests after its first risk-control hit. Each consecutive hit doubles it.",
+        "cooldown_max_seconds": "Cooldown ceiling. An identity that reaches it is marked degraded instead of cooling again.",
+        "circuit_risk_threshold": "Risk-control rate above which an endpoint is tripped, between 0 and 1.",
+        "circuit_min_samples": "Minimum requests observed before an endpoint may trip, so a short burst of failures cannot open the circuit.",
+        "circuit_min_identities": "How many distinct identities must be failing before an endpoint trips. This separates a broken endpoint from a single broken identity."
+      },
+      "pool": {
+        "target_size": "How many identities the pool tries to keep per platform.",
+        "min_size": "Low-water mark per platform. Dropping below it raises an alert and triggers minting.",
+        "safe_qps_per_identity": "Sustained request rate a single identity is allowed. Deliberately conservative: throughput comes from more identities, not from pushing one harder.",
+        "health_prior": "Assumed success rate for an identity with no history yet, between 0 and 1. It decides how eagerly a freshly minted identity is scheduled."
+      },
+      "signing": {
+        "mode": "Which signer produces the request signature: the browser, the in-process algorithms, or automatic switching between them.",
+        "fallback_enabled": "Whether the signer this mode does not prefer may still be used when the preferred one is unavailable. Turning it off is how you find out which signer is actually carrying the traffic.",
+        "rpc_timeout_seconds": "Ceiling for a single browser-rpc signing call."
+      },
+      "cache": {
+        "content_ttl": "How long a parsed video detail stays reusable before it is fetched again.",
+        "author_ttl": "How long a parsed user profile stays reusable.",
+        "list_ttl": "How long a parsed list page stays reusable. Lists change more often than a single item, so this is usually the shortest of the three."
+      },
+      "snapshot": {
+        "min_interval_seconds": "Deduplication window for the content history. A second snapshot of the same item inside this window is skipped rather than stored."
+      },
+      "retention": {
+        "request_log_days": "How long per-request log rows are kept before they are dropped. Content snapshots are never deleted automatically.",
+        "identity_events_days": "How long identity state changes are kept. Long enough to explain why an identity was retired.",
+        "task_days": "How long finished task rows are kept.",
+        "task_result_hours": "How long a task's result payload is kept. Shorter than the task row itself, because the payload is the bulky part."
+      },
+      "api": {
+        "default_language": "Language used when a request specifies none. A request may always override it with ?lang= or an Accept-Language header.",
+        "default_rate_limit_per_min": "Requests per minute allowed for one API key. Abuse protection, not billing.",
+        "max_wait_seconds": "Largest value a caller may pass to ?wait=. It bounds how long one request can hold a connection open.",
+        "mcp_tool_timeout": "How long one MCP tool call may run before it is cancelled."
+      },
+      "security": {
+        "url_allowlist": "Extra hostnames accepted for parsing. The built-in platform list always applies; this only widens it, and every entry widens the SSRF surface.",
+        "cors_allow_origins": "Browser origins allowed to call this API. Empty means same-origin only. '*' would hand your API keys to any site the user visits.",
+        "cors_allow_credentials": "Whether cross-origin requests may carry cookies. Only meaningful with an explicit origin list; it cannot be combined with '*'.",
+        "enable_download_proxy": "Server-side media relay. Off by default: an open relay gets found and abused.",
+        "download_proxy_max_bytes": "Largest file the media relay will pass through. It bounds what one request can cost you in bandwidth.",
+        "enable_task_webhook": "Whether a task may call back to a caller-supplied URL. That URL is an SSRF vector, so this is off by default."
+      },
+      "notify": {
+        "enabled": "Master switch for outgoing alerts. Off means alerts are still recorded but nothing is sent.",
+        "channels": "Where alerts are delivered: a list of channel descriptors, each with a type, a url and a language.",
+        "language": "Language for alert text, for channels that do not specify their own."
+      },
+      "system": {
+        "check_updates": "Whether this instance may contact the project to check for a newer release. It makes an outbound request, so it is opt-in."
+      }
+    }
+  },
   "openapi": {
     "description": "Self-hosted data API for Douyin and TikTok. Submit a link, get normalized content back. Errors carry a stable code plus a message in the requested language; append ?lang=zh for Chinese.",
     "tag": {
@@ -98,6 +158,71 @@
     },
     "response": {
       "error": "The request failed. The code field is stable and machine-readable; the message field is localized."
+    }
+  },
+  "circuit": {
+    "reason": {
+      "risk_across_identities": "Risk control hit {risk_rate}% of the last {samples} requests, across {identities} identities"
+    }
+  },
+  "diagnose": {
+    "reason": {
+      "components_unreachable": "unreachable: {components}",
+      "components_browser_rpc_down": "postgres and redis are reachable; browser-rpc is not ({detail})",
+      "components_ok": "all components reachable",
+      "egress_unreachable": "no platform domain could be reached directly",
+      "egress_partial": "{reachable} of {total} platform domains reachable",
+      "egress_ok": "all platform domains reachable",
+      "proxies_no_session": "no database session or cipher available to read the proxy list",
+      "proxies_unreadable": "the proxy list could not be read; see the component step",
+      "proxies_none": "no proxies configured",
+      "proxies_all_failed": "none of the {total} configured proxies answered",
+      "proxies_partial": "{working} of {total} proxies answered",
+      "proxies_ok": "all {working} proxies answered",
+      "pool_no_session": "no database session available",
+      "pool_unreadable": "the identity table could not be read; see the component step",
+      "pool_empty": "no active identity",
+      "pool_below_minimum": "{active} active identities, below the low-water mark of {minimum}",
+      "pool_ok": "{active} active identities",
+      "signing_no_registry": "no signer registry supplied",
+      "signing_no_browser_rpc": "browser-rpc is not configured, so there is no second signer to compare the native algorithm against",
+      "signing_mismatch": "native signing disagrees with the browser for {platforms}",
+      "signing_ok": "native and browser signatures agree",
+      "smoke_not_configured": "no smoke test link configured",
+      "smoke_failed": "end-to-end fetch failed: {error}",
+      "smoke_ok": "end-to-end fetch succeeded",
+      "step_crashed": "the check itself failed: {error}"
+    },
+    "action": {
+      "components_unreachable": "Check that the postgres and redis containers are running and that DTK_DATABASE_URL and DTK_REDIS_URL point at them.",
+      "components_browser_rpc_down": "Minting and the signing fallback are unavailable. Start the browser container, or import cookies manually and stay on the native signer.",
+      "egress_unreachable": "This machine has no usable route to the platforms. Check DNS, the host firewall, and whether outbound traffic needs a proxy.",
+      "egress_partial": "Requests for the unreachable platform will depend entirely on a working proxy.",
+      "proxies_none": "Every identity will share this machine's egress IP. That is fine for a first look and a correlation risk for a busy pool.",
+      "proxies_all_failed": "Check the proxy credentials and whether the provider still allows this machine's IP. Identities bound to a dead proxy cannot recover.",
+      "proxies_partial": "Retire or replace the proxies that failed; their identities will keep failing until you do.",
+      "pool_empty": "Mint identities, or import a cookie jar. Until the pool has one usable identity every request is rejected or queued.",
+      "pool_below_minimum": "Mint more identities, or lower pool.min_size if this is deliberate.",
+      "signing_no_browser_rpc": "Configure DTK_BROWSER_RPC_URL to enable the shadow comparison that detects a stale signing algorithm before the risk rate does.",
+      "signing_mismatch": "The native algorithm has drifted from the platform's. Those platforms now sign through browser-rpc; open an issue with this report so the algorithm can be updated.",
+      "smoke_failed": "Read the failing step above first; a smoke failure is usually a symptom of the proxy, pool or signing step, not its own fault.",
+      "step_crashed": "This is a bug in dtk. Please report it with this report attached."
+    }
+  },
+  "health": {
+    "detail": {
+      "timeout": "no answer after {seconds} seconds",
+      "not_configured": "not configured"
+    }
+  },
+  "identity": {
+    "import": {
+      "warning": {
+        "no_cookies": "No cookies could be parsed from the pasted text.",
+        "logged_in_session": "This cookie set carries a logged-in session, which is as good as the account password. Use a dedicated account rather than your main one.",
+        "unknown_browser": "The browser could not be inferred from the User-Agent, so no TLS profile can be matched. Supply the exact User-Agent these cookies were copied from.",
+        "no_useful_cookies": "None of the optional cookies are present, so this identity will be weak. Any of {optional} would strengthen it."
+      }
     }
   }
 }

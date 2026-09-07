@@ -21,6 +21,14 @@ Three checks with three different jobs (docs/design/15-operations.md):
     browser-rpc next to the wreq emulation profile major, side by side, so the
     version drift described in docs/design/04-transport-signing.md stays visible
     instead of being discovered from a rising risk-control rate weeks later.
+
+A failed probe explains itself in one of two ways, and which one it picks
+decides whether a reader ever sees it in their own language. A sentence this
+module writes carries a ``detail_code`` and is rendered from ``health.detail.*``
+per reader. Text this module only relays - a driver's connection error, the RPC
+service's own wording - is evidence, and evidence is never translated
+(docs/design/14-i18n.md): rewording asyncpg's message costs the one string a
+maintainer can search for.
 """
 
 from __future__ import annotations
@@ -40,8 +48,9 @@ from dtk import __version__
 from dtk.core.db import get_engine
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import BrowserFamily, IdentityState, Platform
+from dtk.core.types import DEFAULT_LANGUAGE, BrowserFamily, IdentityState, Language, Platform
 from dtk.db.models import HYPERTABLES, TABLE_NAMES
+from dtk.i18n.catalog import t
 from dtk.identity.minting.client import BrowserRpcClient, RpcHealth
 from dtk.ops._sql import safe_execute, safe_scalar
 from dtk.transport.emulation import DriftBand, emulation_drift, known_majors
@@ -65,6 +74,18 @@ PROBE_TIMEOUT_SECONDS = 3.0
 POSTGRES = "postgres"
 REDIS = "redis"
 BROWSER_RPC = "browser_rpc"
+
+#: Catalogue namespace for the detail sentences this module writes.
+DETAIL_KEY_PREFIX = "health.detail."
+
+#: Stable codes for those sentences. The code is the contract a client branches
+#: on; only the sentence is translated.
+DETAIL_TIMEOUT = "timeout"
+DETAIL_NOT_CONFIGURED = "not_configured"
+
+#: Relayed upstream text is truncated: a driver's full traceback in a status
+#: payload is noise, and the first line is what identifies the fault.
+EVIDENCE_LENGTH = 200
 
 #: Component names a readiness verdict depends on. browser_rpc is deliberately
 #: absent; see the module docstring.
@@ -109,18 +130,38 @@ def wreq_profile_major(family: BrowserFamily = BrowserFamily.CHROME) -> int | No
 
 @dataclass(frozen=True, slots=True)
 class ComponentHealth:
-    """One dependency probe."""
+    """One dependency probe.
+
+    ``detail_code`` and ``evidence`` are exclusive: a probe either explains
+    itself in a sentence this module owns, or it hands over what the driver
+    said. See the module docstring for why the second is left alone.
+    """
 
     name: str
     ok: bool
     latency_ms: float | None = None
-    detail: str | None = None
+    detail_code: str | None = None
+    detail_args: dict[str, Any] = field(default_factory=dict)
+    evidence: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
 
-    def as_dict(self) -> dict[str, Any]:
+    @property
+    def detail(self) -> str | None:
+        """English detail, for the CLI and the pasteable diagnostics report."""
+        return self.localized_detail(DEFAULT_LANGUAGE)
+
+    def localized_detail(self, language: Language | str = DEFAULT_LANGUAGE) -> str | None:
+        if self.detail_code is None:
+            return self.evidence
+        return t(f"{DETAIL_KEY_PREFIX}{self.detail_code}", language, **self.detail_args)
+
+    def as_dict(self, language: Language | str = DEFAULT_LANGUAGE) -> dict[str, Any]:
         body: dict[str, Any] = {"ok": self.ok, "latency_ms": self.latency_ms}
-        if self.detail is not None:
-            body["detail"] = self.detail
+        detail = self.localized_detail(language)
+        if detail is not None:
+            body["detail"] = detail
+        if self.detail_code is not None:
+            body["detail_code"] = self.detail_code
         body.update(self.extra)
         return body
 
@@ -153,10 +194,10 @@ class ReadinessReport:
     def component(self, name: str) -> ComponentHealth | None:
         return next((c for c in self.components if c.name == name), None)
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self, language: Language | str = DEFAULT_LANGUAGE) -> dict[str, Any]:
         return {
             "ready": self.ready,
-            "components": {c.name: c.as_dict() for c in self.components},
+            "components": {c.name: c.as_dict(language) for c in self.components},
         }
 
 
@@ -189,13 +230,14 @@ class StatusReport:
     pool_by_platform: dict[str, dict[str, int]]
     storage: StorageStats
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self, language: Language | str = DEFAULT_LANGUAGE) -> dict[str, Any]:
+        """Serialize for one reader; component details render in ``language``."""
         return {
             "version": self.version,
             "commit": self.commit,
             "uptime_seconds": self.uptime_seconds,
             "started_at": self.started_at.isoformat(),
-            "components": {c.name: c.as_dict() for c in self.components},
+            "components": {c.name: c.as_dict(language) for c in self.components},
             "pool": dict(self.pool),
             "pool_by_platform": {k: dict(v) for k, v in self.pool_by_platform.items()},
             "storage": self.storage.as_dict(),
@@ -231,9 +273,9 @@ async def check_postgres(
         target = engine or get_engine()
         await asyncio.wait_for(_select_one(target), timeout)
     except TimeoutError:
-        return ComponentHealth(POSTGRES, ok=False, detail=_timed_out(timeout))
+        return _timed_out(POSTGRES, timeout)
     except Exception as exc:
-        return ComponentHealth(POSTGRES, ok=False, detail=str(exc)[:200])
+        return _relayed(POSTGRES, exc)
     return ComponentHealth(POSTGRES, ok=True, latency_ms=_elapsed_ms(started))
 
 
@@ -246,9 +288,9 @@ async def check_redis(
         target = client or get_redis()
         await asyncio.wait_for(target.ping(), timeout)
     except TimeoutError:
-        return ComponentHealth(REDIS, ok=False, detail=_timed_out(timeout))
+        return _timed_out(REDIS, timeout)
     except Exception as exc:
-        return ComponentHealth(REDIS, ok=False, detail=str(exc)[:200])
+        return _relayed(REDIS, exc)
     return ComponentHealth(REDIS, ok=True, latency_ms=_elapsed_ms(started))
 
 
@@ -270,15 +312,17 @@ async def check_browser_rpc(
         "version_drift": None,
     }
     if client is None or not client.configured:
-        return ComponentHealth(BROWSER_RPC, ok=False, detail="not configured", extra=extra)
+        return ComponentHealth(
+            BROWSER_RPC, ok=False, detail_code=DETAIL_NOT_CONFIGURED, extra=extra
+        )
 
     started = time.perf_counter()
     try:
         health: RpcHealth = await asyncio.wait_for(client.health(), timeout)
     except TimeoutError:
-        return ComponentHealth(BROWSER_RPC, ok=False, detail=_timed_out(timeout), extra=extra)
+        return _timed_out(BROWSER_RPC, timeout, extra)
     except Exception as exc:
-        return ComponentHealth(BROWSER_RPC, ok=False, detail=str(exc)[:200], extra=extra)
+        return _relayed(BROWSER_RPC, exc, extra)
 
     extra["warm_contexts"] = health.warm_contexts if health.available else None
     extra["chromium_major"] = health.chromium_major
@@ -289,7 +333,7 @@ async def check_browser_rpc(
         BROWSER_RPC,
         ok=health.available,
         latency_ms=_elapsed_ms(started),
-        detail=health.detail or None,
+        evidence=health.detail or None,
         extra=extra,
     )
 
@@ -393,8 +437,20 @@ def _drift_band(chromium_major: int, profile_major: int) -> DriftBand:
     return emulation_drift(chromium_major, profile_major)
 
 
-def _timed_out(timeout: float) -> str:
-    return f"no answer within {timeout:g}s"
+def _timed_out(name: str, timeout: float, extra: dict[str, Any] | None = None) -> ComponentHealth:
+    """A deadline this module set, so the sentence is this module's to write."""
+    return ComponentHealth(
+        name,
+        ok=False,
+        detail_code=DETAIL_TIMEOUT,
+        detail_args={"seconds": f"{timeout:g}"},
+        extra=extra or {},
+    )
+
+
+def _relayed(name: str, exc: Exception, extra: dict[str, Any] | None = None) -> ComponentHealth:
+    """A driver's own words, kept verbatim so they stay searchable."""
+    return ComponentHealth(name, ok=False, evidence=str(exc)[:EVIDENCE_LENGTH], extra=extra or {})
 
 
 def _elapsed_ms(started: float) -> float:
@@ -423,6 +479,10 @@ async def _request_log_rows(session: AsyncSession) -> int | None:
 __all__ = [
     "BROWSER_RPC",
     "COMMIT_ENV_VARS",
+    "DETAIL_KEY_PREFIX",
+    "DETAIL_NOT_CONFIGURED",
+    "DETAIL_TIMEOUT",
+    "EVIDENCE_LENGTH",
     "POSTGRES",
     "PROBE_TIMEOUT_SECONDS",
     "REDIS",

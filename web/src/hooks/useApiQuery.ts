@@ -38,6 +38,10 @@ export function useApiQuery<T>({
     queryFn: ({ signal }) => apiGet<T>(path, { params, signal }),
     ...(poll ? { refetchInterval: poll } : {}),
     ...options,
+    // The endpoint behind the entry. Query keys are page-authored and say
+    // nothing about the wire, so this is what lets lib/query.ts expire only the
+    // responses the server renders per language.
+    meta: { ...options.meta, path },
   })
 }
 

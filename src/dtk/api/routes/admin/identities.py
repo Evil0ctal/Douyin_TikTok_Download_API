@@ -28,15 +28,17 @@ from dtk.api.routes.support import (
     MAX_ADMIN_PAGE_SIZE,
     audit,
     iso,
+    language,
     manage_pool,
     ok,
     read_admin,
 )
 from dtk.core.errors import InvalidParam, NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import IdentitySource, IdentityState, Platform
+from dtk.core.types import IdentitySource, IdentityState, Language, Platform
 from dtk.db.models import Identity
-from dtk.identity.importing import build_report
+from dtk.i18n.catalog import t
+from dtk.identity.importing import ImportReport, build_report
 from dtk.identity.pool import IdentityPool
 
 log = get_logger(__name__)
@@ -72,6 +74,17 @@ def _row(identity: Identity) -> dict[str, Any]:
             "timezone": fingerprint.get("timezone"),
         },
     }
+
+
+def _warnings(report: ImportReport, lang: Language) -> list[str]:
+    """The preview's warnings as sentences the caller can read.
+
+    The one about the paste carrying a live session is the warning that most
+    needs to land, so it cannot be the one string on this page still in English.
+    The codes travel beside the sentences: a console styling the security
+    warning differently must not have to match on prose (doc 14).
+    """
+    return [t(warning.key, lang, **warning.args) for warning in report.warnings]
 
 
 @router.get("", summary="List identities with state and health")
@@ -145,6 +158,7 @@ async def import_identity(
         language=body.language,
         timezone=body.timezone,
     )
+    warnings = _warnings(report, language(request))
     summary: dict[str, Any] = {
         "detected_format": report.detected_format.value,
         "cookie_names": sorted(report.cookies),
@@ -152,7 +166,8 @@ async def import_identity(
         "authenticated": report.authenticated,
         "expires_at": iso(report.expires_at),
         "missing_required": list(report.missing_required),
-        "warnings": list(report.warnings),
+        "warnings": warnings,
+        "warning_codes": [warning.code.value for warning in report.warnings],
         "usable": report.usable,
         "browser_family": (
             report.fingerprint.browser_family.value if report.fingerprint.browser_family else None
@@ -167,7 +182,8 @@ async def import_identity(
             "this cookie set cannot be used as an identity",
             details={
                 "missing_required": list(report.missing_required),
-                "warnings": list(report.warnings),
+                "warnings": warnings,
+                "warning_codes": [warning.code.value for warning in report.warnings],
             },
         )
 

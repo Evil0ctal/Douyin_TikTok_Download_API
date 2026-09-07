@@ -19,7 +19,13 @@ import {
 import { useApiQuery, useFormatters } from '@/hooks'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
-import { OUTCOMES, type AuditLogRow, type Outcome, type RequestLogRow } from '@/lib/types'
+import {
+  OUTCOMES,
+  REJECT_REASONS,
+  type AuditLogRow,
+  type Outcome,
+  type RequestLogRow,
+} from '@/lib/types'
 
 /**
  * Request log and audit trail.
@@ -72,6 +78,20 @@ const DEFAULT_AUDIT_FILTERS: AuditFilters = { action: '', limit: '100' }
 interface AuditRow extends AuditLogRow {
   api_key_id?: string | null
   user_agent?: string | null
+}
+
+const KNOWN_REJECT_REASONS: ReadonlySet<string> = new Set(REJECT_REASONS)
+
+/**
+ * The scheduler stores a wire code (RejectReason in src/dtk/core/types.py). One
+ * this build has no copy for is shown exactly as it arrived: an untranslated
+ * reason is still the thing to quote in an issue, a missing-key stub is not.
+ */
+function RejectReasonCell({ value }: { value: string | null | undefined }) {
+  const { t } = useTranslation('console')
+  if (!value) return <span className="u-muted">—</span>
+  if (!KNOWN_REJECT_REASONS.has(value)) return <span className="u-mono">{value}</span>
+  return <>{t(`logs.rejectReason.${value}`)}</>
 }
 
 function asRows<T>(payload: unknown): T[] {
@@ -217,9 +237,8 @@ export default function Logs() {
       {
         id: 'rejectReason',
         header: t('logs.field.rejectReason'),
-        mono: true,
         defaultHidden: true,
-        cell: (row) => row.reject_reason ?? <span className="u-muted">—</span>,
+        cell: (row) => <RejectReasonCell value={row.reject_reason} />,
         sortValue: (row) => row.reject_reason ?? null,
       },
       {
@@ -603,8 +622,8 @@ export default function Logs() {
                 {openRequest.signer ?? '—'}
               </dd>
               <dt className="u-xs u-muted">{t('logs.field.rejectReason')}</dt>
-              <dd className="u-mono" style={{ margin: 0 }}>
-                {openRequest.reject_reason ?? '—'}
+              <dd style={{ margin: 0 }}>
+                <RejectReasonCell value={openRequest.reject_reason} />
               </dd>
               <dt className="u-xs u-muted">{t('console:field.cacheHit')}</dt>
               <dd className="u-mono" style={{ margin: 0 }}>

@@ -83,7 +83,10 @@ interface ComponentRow {
   name: string
   health: 'healthy' | 'unhealthy' | 'unknown'
   latencyMs: number | null
+  /** Whatever the server said, verbatim; it is already in the request's language. */
   detail: string | null
+  /** Absent rather than broken, and the only part of the cell the console phrases. */
+  notConfigured: boolean
   warmContexts: number | null
 }
 
@@ -96,6 +99,16 @@ interface ReleaseInfo {
   tag: string
   publishedAt: string | null
   url: string
+}
+
+/**
+ * A failed update check is kept as its copy key and arguments rather than as the
+ * sentence it rendered to. The banner outlives a language switch, and a frozen
+ * string would be the one line on the page that stays in the old language.
+ */
+interface ReleaseError {
+  key: string
+  args?: Record<string, number | string>
 }
 
 /** "v5.0.0" and "5.0.0" are the same release; anything else is treated as newer. */
@@ -115,7 +128,8 @@ function toComponentRows(components: Record<string, RawComponent>): ComponentRow
           : // A component that reports "configured: false" is absent, not broken.
             'unknown',
     latencyMs: typeof raw.latency_ms === 'number' ? raw.latency_ms : null,
-    detail: raw.error ?? raw.detail ?? (raw.configured === false ? 'not configured' : null),
+    detail: raw.error ?? raw.detail ?? null,
+    notConfigured: raw.configured === false,
     warmContexts: typeof raw.warm_contexts === 'number' ? raw.warm_contexts : null,
   }))
 }
@@ -240,7 +254,7 @@ export default function System() {
   })
 
   const [release, setRelease] = useState<ReleaseInfo | null>(null)
-  const [releaseError, setReleaseError] = useState<string | null>(null)
+  const [releaseError, setReleaseError] = useState<ReleaseError | null>(null)
   const [checking, setChecking] = useState(false)
 
   const role = session.data?.role ?? null
@@ -282,7 +296,7 @@ export default function System() {
     try {
       const response = await fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } })
       if (!response.ok) {
-        setReleaseError(t('system.updates.httpError', { status: response.status }))
+        setReleaseError({ key: 'system.updates.httpError', args: { status: response.status } })
         return
       }
       const payload = (await response.json()) as {
@@ -296,7 +310,7 @@ export default function System() {
         url: payload.html_url ?? RELEASES_PAGE,
       })
     } catch {
-      setReleaseError(t('system.updates.networkError'))
+      setReleaseError({ key: 'system.updates.networkError' })
     } finally {
       setChecking(false)
     }
@@ -334,6 +348,8 @@ export default function System() {
           <span className="u-secondary">{t('system.warmContexts', { count: row.warmContexts })}</span>
         ) : row.detail ? (
           <span className="u-mono u-muted">{row.detail}</span>
+        ) : row.notConfigured ? (
+          <span className="u-muted">{t('system.notConfigured')}</span>
         ) : (
           <span className="u-muted">—</span>
         ),
@@ -565,7 +581,7 @@ export default function System() {
               </div>
               {releaseError ? (
                 <Banner tone="caution" icon={<AlertIcon size={14} />}>
-                  {releaseError}
+                  {t(releaseError.key, releaseError.args)}
                 </Banner>
               ) : release ? (
                 <Banner

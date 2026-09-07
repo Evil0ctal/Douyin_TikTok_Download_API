@@ -74,7 +74,17 @@ interface Draft {
   expiresInDays: string
 }
 
-type DraftErrors = Partial<Record<'name' | 'scopes' | 'rateLimit', string>>
+/**
+ * A validation failure is kept as its copy key and arguments, never as the
+ * sentence it rendered to. The form stays open across a language switch, and a
+ * frozen string would leave the errors alone on the page in the old language.
+ */
+interface DraftError {
+  key: string
+  args?: Record<string, number | string>
+}
+
+type DraftErrors = Partial<Record<'name' | 'scopes' | 'rateLimit', DraftError>>
 
 const EMPTY_DRAFT: Draft = { name: '', scopes: [], rateLimit: '', expiresInDays: '0' }
 
@@ -153,18 +163,18 @@ export default function ApiKeys() {
   const submit = (): void => {
     const nextErrors: DraftErrors = {}
     const name = draft.name.trim()
-    if (!name) nextErrors.name = t('apiKeys.nameRequired')
-    if (draft.scopes.length === 0) nextErrors.scopes = t('apiKeys.scopesRequired')
+    if (!name) nextErrors.name = { key: 'apiKeys.nameRequired' }
+    if (draft.scopes.length === 0) nextErrors.scopes = { key: 'apiKeys.scopesRequired' }
 
     let rateLimit: number | null = null
     const rawRate = draft.rateLimit.trim()
     if (rawRate) {
       const parsed = Number(rawRate)
       if (!Number.isInteger(parsed) || parsed < MIN_RATE_LIMIT || parsed > MAX_RATE_LIMIT) {
-        nextErrors.rateLimit = t('apiKeys.rateLimitInvalid', {
-          min: MIN_RATE_LIMIT,
-          max: MAX_RATE_LIMIT,
-        })
+        nextErrors.rateLimit = {
+          key: 'apiKeys.rateLimitInvalid',
+          args: { min: MIN_RATE_LIMIT, max: MAX_RATE_LIMIT },
+        }
       } else {
         rateLimit = parsed
       }
@@ -181,6 +191,9 @@ export default function ApiKeys() {
       expires_at: days > 0 ? new Date(Date.now() + days * DAY_MS).toISOString() : null,
     })
   }
+
+  const errorText = (error: DraftError | undefined): string | undefined =>
+    error ? t(error.key, error.args) : undefined
 
   const toggleScope = (scope: Scope): void => {
     setDraft((current) => ({
@@ -415,7 +428,7 @@ export default function ApiKeys() {
             description={t('apiKeys.nameHint')}
             required
             value={draft.name}
-            error={errors.name}
+            error={errorText(errors.name)}
             maxLength={128}
             autoComplete="off"
             onChange={(event) => {
@@ -464,7 +477,7 @@ export default function ApiKeys() {
                 role="alert"
                 style={{ color: 'var(--danger)', margin: 'var(--space-2) 0 0' }}
               >
-                {errors.scopes}
+                {errorText(errors.scopes)}
               </p>
             ) : null}
           </fieldset>
@@ -479,7 +492,7 @@ export default function ApiKeys() {
             showOptional
             mono
             value={draft.rateLimit}
-            error={errors.rateLimit}
+            error={errorText(errors.rateLimit)}
             placeholder={t('apiKeys.rateLimitPlaceholder')}
             onChange={(event) => {
               setDraft((current) => ({ ...current, rateLimit: event.target.value }))

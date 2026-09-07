@@ -6,9 +6,11 @@
  * (docs/design/07-frontend.md).
  */
 
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, type Query } from '@tanstack/react-query'
 
 import { isApiError } from './api'
+import { paths } from './endpoints'
+import { subscribeLanguage } from './language'
 
 /** Poll intervals. Pass one as refetchInterval; do not invent new cadences. */
 export const POLL = {
@@ -22,8 +24,44 @@ export const POLL = {
 
 const MAX_RETRIES = 2
 
+/**
+ * Endpoints whose body is written in the caller's language, by path prefix.
+ *
+ * Very little of the API is prose: rows are data and codes are stable
+ * identifiers, and both read the same in either language. What the server
+ * actually renders is the settings catalogue, the circuit breaker's reason
+ * sentence, a task's stored error and the OpenAPI document - the handlers that
+ * ask for `language(request)`. Refetching the rest on a switch would cost every
+ * open page a round trip and change nothing on screen.
+ */
+export const LANGUAGE_SENSITIVE_PATHS: readonly string[] = [
+  paths.settings.list,
+  paths.endpointsHealth,
+  paths.tasks.root,
+  paths.docs.openapi,
+]
+
+function isLanguageSensitive(query: Query): boolean {
+  // A failed query is holding a sentence the server localized when it failed,
+  // and an error panel is the most visible place for a stale one. There is no
+  // good data to throw away either: the entry is an error.
+  if (query.state.status === 'error') return true
+  const path = query.meta?.path
+  return typeof path === 'string' && LANGUAGE_SENSITIVE_PATHS.some((p) => path.startsWith(p))
+}
+
+/**
+ * Expire what the language changed the meaning of, and nothing else.
+ *
+ * useApiQuery records the endpoint each entry came from, which is what makes
+ * this selective: query keys are page-authored and say nothing about the wire.
+ */
+export function invalidateLanguageSensitiveQueries(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ predicate: isLanguageSensitive })
+}
+
 export function createQueryClient(): QueryClient {
-  return new QueryClient({
+  const client = new QueryClient({
     defaultOptions: {
       queries: {
         retry: (failureCount, error) => {
@@ -50,6 +88,15 @@ export function createQueryClient(): QueryClient {
       },
     },
   })
+
+  // Wired here rather than in a component: the client owns the cache, it
+  // outlives every page, and a switch made on a screen that renders no query
+  // still has to reach the pages behind it.
+  subscribeLanguage(() => {
+    void invalidateLanguageSensitiveQueries(client)
+  })
+
+  return client
 }
 
 /** Query-key helper so keys stay consistent across pages. */

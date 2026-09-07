@@ -344,7 +344,17 @@
       "duplicates": "{count} 行重复",
       "withCredentials": "含账号密码",
       "done": "已导入 {count} 个代理",
-      "result": "成功 {created} 个，拒绝 {rejected} 个。"
+      "result": "成功 {created} 个，拒绝 {rejected} 个。",
+      "reason": {
+        "unparsable": "无法识别的代理格式",
+        "empty": "空行",
+        "scheme_not_supported": "不支持的协议",
+        "malformed_authority": "主机与端口无法解析",
+        "missing_host": "缺少主机",
+        "missing_port": "缺少端口",
+        "port_not_a_number": "端口不是数字",
+        "port_out_of_range": "端口必须在 1 到 65535 之间"
+      }
     },
     "line": {
       "unparsable": "无法识别的代理格式",
@@ -603,7 +613,8 @@
       "networkError": "请求没有完成。当前部署可能没有外网访问权限。",
       "saved": "已保存",
       "saveFailed": "保存更新检查设置失败"
-    }
+    },
+    "notConfigured": "未配置"
   },
   "diagnose": {
     "redacted": "报告在离开服务端之前已经脱敏：代理密码、cookie 与 API Key 一律掩码。可以直接粘贴到公开 issue 里。",
@@ -1007,7 +1018,15 @@
     "auditDescription": "记录谁改了什么。与请求日志分开存放，避免被日常流量淹没。",
     "auditEmptyTitle": "暂无审计记录",
     "auditEmptyDescription": "管理操作发生后会出现在这里。",
-    "auditDetailTitle": "审计记录"
+    "auditDetailTitle": "审计记录",
+    "rejectReason": {
+      "circuit_open": "端点处于熔断中",
+      "no_identity": "没有可用或降级的身份",
+      "no_token": "所有身份配额均已用尽",
+      "all_inflight": "所有身份都在处理请求",
+      "queue_full": "等待队列已满",
+      "wait_timeout": "等待身份超时"
+    }
   },
   "docs": {
     "specTitle": "文档",

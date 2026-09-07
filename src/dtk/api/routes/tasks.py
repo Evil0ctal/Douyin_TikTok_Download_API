@@ -24,12 +24,13 @@ from fastapi.responses import StreamingResponse
 from dtk.api.deps import Principal
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.operations import unwrap
-from dtk.api.routes.support import authenticated, iso, ok
+from dtk.api.routes.support import authenticated, iso, language, ok
 from dtk.core.db import session_scope
-from dtk.core.errors import TaskNotFound
+from dtk.core.errors import ErrorCode, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import TaskState
+from dtk.core.types import Language, TaskState
+from dtk.i18n.messages import render
 from dtk.services import tasks as task_service
 
 log = get_logger(__name__)
@@ -48,7 +49,36 @@ SSE_TICK_SECONDS = 5
 TERMINAL = (TaskState.DONE, TaskState.FAILED)
 
 
-def _view_payload(view: task_service.TaskView, *, include_result: bool = True) -> dict[str, Any]:
+def _localized_error(error: dict[str, Any] | None, language: Language) -> dict[str, Any] | None:
+    """Re-render a stored task error in the caller's language.
+
+    :func:`dtk.worker.main.serialize_error` writes an English sentence for the
+    worker log and the CLI; what actually travels is the code beside it and the
+    arguments it was raised with. Rendering here rather than at write time is
+    what lets one failed task answer a Chinese console and an English agent,
+    and the arguments are assembled exactly as :func:`dtk.api.envelope.failure`
+    assembles them - ``retry_after`` folded in among the details, because that
+    number is the entire content of "retry in {retry_after} seconds".
+    """
+    if not error:
+        return None
+    try:
+        code = ErrorCode(str(error.get("code")))
+    except ValueError:
+        # A code from a worker newer than this process is still a failure, just
+        # not one this contract can describe; INTERNAL at least renders.
+        code = ErrorCode.INTERNAL
+    details = error.get("details")
+    args: dict[str, Any] = dict(details) if isinstance(details, dict) else {}
+    retry_after = error.get("retry_after")
+    if retry_after is not None:
+        args["retry_after"] = retry_after
+    return {**error, "code": code.value, "message": render(code, language, **args)}
+
+
+def _view_payload(
+    view: task_service.TaskView, language: Language, *, include_result: bool = True
+) -> dict[str, Any]:
     """The wire shape of a task.
 
     ``data`` rather than ``result`` because that is what doc 06 documents, and
@@ -68,7 +98,7 @@ def _view_payload(view: task_service.TaskView, *, include_result: bool = True) -
         if meta:
             payload["result_meta"] = meta
     if view.state is TaskState.FAILED:
-        payload["error"] = view.error
+        payload["error"] = _localized_error(view.error, language)
     return payload
 
 
@@ -89,7 +119,7 @@ async def get_task(
         # The row outlives its payload by design; say so rather than handing
         # back a success with nothing in it.
         raise TaskNotFound("this task finished but its result has expired")
-    return ok(request, _view_payload(view))
+    return ok(request, _view_payload(view, language(request)))
 
 
 @router.get("/{task_id}/events", summary="Stream a task's progress")
@@ -108,6 +138,11 @@ async def task_events(
     # an event stream that says nothing.
     await task_service.get(request.state.db, task_id)
 
+    # Bound before the stream opens, like the session below: the negotiated
+    # language belongs to the request, and the request is over by the time the
+    # body is produced.
+    caller_language = language(request)
+
     async def stream() -> AsyncIterator[bytes]:
         redis = get_redis()
         signal_key = task_service.SIGNAL_KEY.format(task_id=task_id)
@@ -122,14 +157,22 @@ async def task_events(
                     try:
                         view = await task_service.get(session, task_id)
                     except TaskNotFound:
-                        yield _event("error", {"code": "TASK_NOT_FOUND"})
+                        yield _event(
+                            "error",
+                            {
+                                "code": ErrorCode.TASK_NOT_FOUND.value,
+                                "message": render(ErrorCode.TASK_NOT_FOUND, caller_language),
+                            },
+                        )
                         return
                 if view.state.value != last_state:
                     last_state = view.state.value
                     silent = 0.0
-                    yield _event("state", _view_payload(view, include_result=False))
+                    yield _event(
+                        "state", _view_payload(view, caller_language, include_result=False)
+                    )
                 if view.state in TERMINAL:
-                    yield _event("result", _view_payload(view))
+                    yield _event("result", _view_payload(view, caller_language))
                     yield _event("end", {"task_id": str(task_id)})
                     return
                 if silent >= SSE_HEARTBEAT_SECONDS:

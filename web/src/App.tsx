@@ -8,9 +8,11 @@ import {
   Drawer,
   ErrorBoundary,
   ErrorState,
+  LanguageSwitcher,
   PageHeader,
   Sidebar,
   Skeleton,
+  ThemeToggle,
   ToastProvider,
   TopBar,
 } from '@/components'
@@ -164,6 +166,7 @@ function Shell() {
  * operator out of the pages that would explain it.
  */
 function Gate() {
+  const { t } = useTranslation('common')
   const [location, navigate] = useLocation()
   const status = useSetupStatus()
 
@@ -188,9 +191,19 @@ function Gate() {
   }
 
   if (status.isError && status.error.kind === 'network') {
+    // No shell renders behind this, so the switchers come along: an operator who
+    // cannot reach the API is stuck on this panel, and it is the last place to
+    // strand them in a language they do not read.
     return (
       <div className={styles.centered}>
-        <div className={styles.centeredPanel}>
+        <div className={cn(styles.centeredPanel, 'u-stack')}>
+          <div className="u-row-between">
+            <span className="u-mono u-secondary">{t('app.name')}</span>
+            <span className="u-row">
+              <LanguageSwitcher />
+              <ThemeToggle />
+            </span>
+          </div>
           <ErrorState
             error={status.error}
             onRetry={() => {
@@ -229,7 +242,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <ErrorBoundary>
+        <ErrorBoundary fullScreen>
           <Gate />
         </ErrorBoundary>
       </ToastProvider>

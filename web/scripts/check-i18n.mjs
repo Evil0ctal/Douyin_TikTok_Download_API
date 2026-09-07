@@ -108,10 +108,40 @@ if (existsSync(errorsPy)) {
   console.warn(`check-i18n: ${errorsPy} not found, skipping error-code coverage`)
 }
 
+// 4: language names in the switcher are endonyms, identical in every catalogue.
+// A reader who cannot read the current language is scanning the picker for the
+// name of their own; translating that name is what hides it from them.
+{
+  const seen = new Map()
+  for (const language of LANGUAGES) {
+    const catalog = catalogs.get(`${language}:common`)
+    for (const named of LANGUAGES) {
+      const key = `language.${named}`
+      const value = catalog.get(key)
+      if (value === undefined) {
+        problems.push(`${language}/common.json is missing ${key}`)
+        continue
+      }
+      const previous = seen.get(key)
+      if (previous === undefined) {
+        seen.set(key, { value, from: language })
+      } else if (previous.value !== value) {
+        problems.push(
+          `${key} differs between catalogues (${previous.from}: ${JSON.stringify(previous.value)}, ` +
+            `${language}: ${JSON.stringify(value)}). Language names are endonyms and must be identical.`,
+        )
+      }
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error('i18n check failed:')
   for (const problem of problems) console.error(`  - ${problem}`)
   process.exit(1)
 }
 
-console.log('i18n check passed: en/zh key sets match, ICU parses, all error codes covered')
+console.log(
+  'i18n check passed: en/zh key sets match, ICU parses, all error codes covered, ' +
+    'language names are endonyms',
+)

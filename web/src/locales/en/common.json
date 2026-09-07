@@ -2,7 +2,8 @@
   "app": {
     "name": "dtk",
     "console": "Console",
-    "tagline": "Self-hosted Douyin and TikTok data API"
+    "tagline": "Self-hosted Douyin and TikTok data API",
+    "documentTitle": "{page} · dtk console"
   },
   "action": {
     "save": "Save",
@@ -124,7 +125,7 @@
   "language": {
     "label": "Language",
     "en": "English",
-    "zh": "Chinese"
+    "zh": "中文"
   },
   "nav": {
     "primary": "Primary navigation",
@@ -184,5 +185,8 @@
   "empty": {
     "title": "Nothing to show",
     "description": "There is no data here yet."
+  },
+  "task": {
+    "failed": "Task {taskId} failed."
   }
 }

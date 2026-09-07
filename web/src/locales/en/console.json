@@ -344,7 +344,17 @@
       "duplicates": "{count, plural, one {# duplicate} other {# duplicates}}",
       "withCredentials": "with credentials",
       "done": "{count, plural, one {# proxy imported} other {# proxies imported}}",
-      "result": "Imported {created}, rejected {rejected}."
+      "result": "Imported {created}, rejected {rejected}.",
+      "reason": {
+        "unparsable": "Not a recognised proxy line",
+        "empty": "Empty line",
+        "scheme_not_supported": "Unsupported scheme",
+        "malformed_authority": "Host and port cannot be read",
+        "missing_host": "Missing host",
+        "missing_port": "Missing port",
+        "port_not_a_number": "Port is not a number",
+        "port_out_of_range": "Port must be between 1 and 65535"
+      }
     },
     "line": {
       "unparsable": "Not a recognised proxy line",
@@ -603,7 +613,8 @@
       "networkError": "The request did not complete. This deployment may have no outbound access.",
       "saved": "Saved",
       "saveFailed": "Could not save the update-check setting"
-    }
+    },
+    "notConfigured": "Not configured"
   },
   "diagnose": {
     "redacted": "The report is redacted before it leaves the server: proxy passwords, cookies and API keys are masked. It is safe to paste into a public issue.",
@@ -1007,7 +1018,15 @@
     "auditDescription": "Who changed what. Kept apart from the request log so it is never buried by ordinary traffic.",
     "auditEmptyTitle": "No audit entries",
     "auditEmptyDescription": "Administrative actions appear here as they happen.",
-    "auditDetailTitle": "Audit entry"
+    "auditDetailTitle": "Audit entry",
+    "rejectReason": {
+      "circuit_open": "Endpoint circuit is open",
+      "no_identity": "No active or degraded identity",
+      "no_token": "Every identity is out of quota",
+      "all_inflight": "Every identity is busy",
+      "queue_full": "The wait queue is full",
+      "wait_timeout": "Gave up waiting for an identity"
+    }
   },
   "docs": {
     "specTitle": "Document",

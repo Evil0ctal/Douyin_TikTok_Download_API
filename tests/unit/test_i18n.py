@@ -648,3 +648,48 @@ def test_error_locale_files_use_error_code_names_as_keys():
     for language in SUPPORTED_LANGUAGES:
         path = LOCALES / f"errors.{language.value}.json"
         assert set(json.loads(path.read_text(encoding="utf-8"))) == known, path
+
+
+# --------------------------------------------------------------------------
+# Settings help text
+#
+# The registry declares a setting; the catalogue explains it. Nothing in the
+# type system connects the two, so a setting added without a catalogue entry
+# silently falls back to the registry's English note - which is how ten of the
+# original settings reached the console with no description at all, and the
+# other twenty-six reached the Chinese console in English.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("language", [lang.value for lang in Language])
+def test_every_setting_is_explained_in_every_language(language: str) -> None:
+    from dtk.core.config import RUNTIME_SETTINGS
+    from dtk.i18n.catalog import has
+
+    missing = [
+        key for key in sorted(RUNTIME_SETTINGS) if not has(f"settings.description.{key}", language)
+    ]
+    assert not missing, (
+        f"{language}: settings with no catalogue description: {missing}. Add "
+        f"settings.description.<key> to src/dtk/i18n/locales/{language}.json; the "
+        "registry's own description is a note to developers, not the text a user reads."
+    )
+
+
+def test_a_setting_description_is_prose_rather_than_the_key_echoed_back() -> None:
+    """The fallback chain must never surface a humanized key as help text."""
+    from dtk.core.config import RUNTIME_SETTINGS
+    from dtk.i18n.catalog import humanize, t
+
+    for key in sorted(RUNTIME_SETTINGS):
+        for language in Language:
+            text = t(f"settings.description.{key}", language)
+            assert text != humanize(f"settings.description.{key}"), (
+                f"{language.value}: {key} renders as its own key rather than an explanation"
+            )
+            assert text.strip(), f"{language.value}: {key} has an empty description"
+            # A minimum length was tried here and removed. It failed on the
+            # Chinese text for retention.task_days, which says in 14 characters
+            # exactly what its 47-character English counterpart says. Counting
+            # characters to judge whether prose is substantial is an English
+            # assumption, and this file is the last place that should carry one.

@@ -2,7 +2,8 @@
   "app": {
     "name": "dtk",
     "console": "控制台",
-    "tagline": "自部署的抖音与 TikTok 数据接口"
+    "tagline": "自部署的抖音与 TikTok 数据接口",
+    "documentTitle": "{page} · dtk 控制台"
   },
   "action": {
     "save": "保存",
@@ -184,5 +185,8 @@
   "empty": {
     "title": "暂无内容",
     "description": "这里还没有数据。"
+  },
+  "task": {
+    "failed": "任务 {taskId} 执行失败。"
   }
 }

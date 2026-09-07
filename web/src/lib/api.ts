@@ -8,6 +8,7 @@
  * (docs/design/06-api-auth-mcp.md).
  */
 
+import { i18next } from './i18n'
 import { currentLanguage } from './language'
 import { paths } from './endpoints'
 import type { TaskState } from './types'
@@ -147,6 +148,9 @@ export interface ApiErrorInit {
   retryAfter?: number | null
   details?: Record<string, unknown> | null
   cause?: unknown
+  /** Catalogue key for a message the console wrote itself; see ApiError.localized. */
+  messageKey?: string
+  messageArgs?: Record<string, unknown>
 }
 
 export class ApiError extends Error {
@@ -158,6 +162,8 @@ export class ApiError extends Error {
   readonly requestId: string | null
   readonly retryAfter: number | null
   readonly details: Record<string, unknown>
+  /** Set when the message is the console's own copy rather than the server's. */
+  readonly messageKey: string | null
 
   constructor(code: ErrorCode, message: string, init: ApiErrorInit = {}) {
     super(message)
@@ -169,7 +175,35 @@ export class ApiError extends Error {
     this.requestId = init.requestId ?? null
     this.retryAfter = init.retryAfter ?? null
     this.details = init.details ?? {}
+    this.messageKey = init.messageKey ?? null
     if (init.cause !== undefined) this.cause = init.cause
+    if (init.messageKey) {
+      const key = init.messageKey
+      const args = init.messageArgs ?? {}
+      // Looked up on every read rather than once here: a failure can sit on
+      // screen across a language switch, and a sentence baked in at throw time
+      // would be the only thing left in the language it was thrown in.
+      Object.defineProperty(this, 'message', {
+        get: () => i18next.t(key, args),
+        configurable: true,
+        enumerable: false,
+      })
+    }
+  }
+
+  /**
+   * A failure the console phrased itself, carried as a catalogue key.
+   *
+   * Errors the API returns are already in the negotiated language, so their
+   * message is used as it arrives. Anything thrown on this side has no such
+   * message and must be looked up instead of hardcoded in English.
+   */
+  static localized(
+    code: ErrorCode,
+    messageKey: string,
+    init: Omit<ApiErrorInit, 'messageKey'> = {},
+  ): ApiError {
+    return new ApiError(code, '', { ...init, messageKey })
   }
 
   /** The narrowable payload; useful for exhaustive handling per code. */
@@ -547,12 +581,15 @@ export async function waitForTask<T>(
       if (task.state === 'failed') {
         throw task.error
           ? toApiError(task.error, 200, taskId)
-          : new ApiError('INTERNAL', `Task ${taskId} failed.`, { details: { task_id: taskId } })
+          : ApiError.localized('INTERNAL', 'common:task.failed', {
+              messageArgs: { taskId },
+              details: { task_id: taskId },
+            })
       }
     }
 
     if (Date.now() >= deadline) {
-      throw new ApiError('INTERNAL', `Task ${taskId} is still running.`, {
+      throw ApiError.localized('INTERNAL', 'errors:generic.taskTimeout', {
         kind: 'timeout',
         details: { task_id: taskId, state: task?.state ?? 'queued' },
       })

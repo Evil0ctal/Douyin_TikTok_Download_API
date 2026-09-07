@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import text
 
 from dtk.api.deps import Principal
-from dtk.api.routes.support import ok, read_admin
+from dtk.api.routes.support import language, ok, read_admin
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.platforms import get_adapter
@@ -69,20 +69,26 @@ async def endpoint_health(request: Request, principal: Principal = Depends(read_
     is exactly as invisible as one that was never called.
     """
     now = time.time()
+    lang = language(request)
     rows: list[dict[str, Any]] = []
     for platform_name in available_platforms():
         adapter = get_adapter(platform_name)
         for name in adapter.endpoints.names():
             stats = await circuit.stats(name, now=now)
-            is_open, retry_after, reason = await circuit.state(name, now=now)
+            state = await circuit.status(name, now=now)
             policy = policy_for(name)
             rows.append(
                 {
                     "endpoint": name,
                     "platform": platform_name,
-                    "circuit_open": is_open,
-                    "retry_after": retry_after or None,
-                    "reason": reason or None,
+                    "circuit_open": state.is_open,
+                    "retry_after": state.retry_after or None,
+                    # The sentence is for reading and changes with the
+                    # language; the code is the half worth keying a rule or a
+                    # runbook off, so both go out.
+                    "reason": state.message(lang) or None,
+                    "reason_code": state.reason.code if state.reason else None,
+                    "reason_args": dict(state.reason.args) if state.reason else None,
                     "window_seconds": circuit.WINDOW_SECONDS,
                     "samples": stats.total,
                     "success_rate": round(stats.success_rate, 4) if stats.total else None,

@@ -15,9 +15,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from types import MappingProxyType
 from urllib.parse import unquote
 
 from dtk.core.logging import get_logger
@@ -51,6 +53,41 @@ USEFUL: frozenset[str] = frozenset(
     {"odin_tt", "s_v_web_id", "msToken", "passport_csrf_token", "tt_csrf_token", "__ac_nonce"}
 )
 
+#: Catalogue namespace the warning codes below render through.
+WARNING_KEY_PREFIX: str = "identity.import.warning."
+
+
+class WarningCode(StrEnum):
+    """What the preview has to tell the user, as a stable identifier.
+
+    Append only, and never translated: the sentence is rendered at the API
+    boundary, so a console that wants to shout about a live session must be able
+    to recognise one without matching on English (doc 14).
+    """
+
+    NO_COOKIES = "no_cookies"
+    LOGGED_IN_SESSION = "logged_in_session"
+    UNKNOWN_BROWSER = "unknown_browser"
+    NO_USEFUL_COOKIES = "no_useful_cookies"
+
+
+@dataclass(frozen=True, slots=True)
+class CookieWarning:
+    """One warning: a code, plus whatever its sentence interpolates.
+
+    Arguments come from this module's own constants and from nothing else.
+    Nothing read out of the paste - not a value, not a name - may become one: a
+    warning is rendered into a response and, unlike the jar itself, is the sort
+    of string that ends up pasted into a bug report (doc 08).
+    """
+
+    code: WarningCode
+    args: Mapping[str, str | int] = MappingProxyType({})
+
+    @property
+    def key(self) -> str:
+        return f"{WARNING_KEY_PREFIX}{self.code.value}"
+
 
 @dataclass(frozen=True, slots=True)
 class ImportReport:
@@ -63,7 +100,7 @@ class ImportReport:
     fingerprint: Fingerprint
     expires_at: datetime | None
     missing_required: tuple[str, ...]
-    warnings: tuple[str, ...] = field(default_factory=tuple)
+    warnings: tuple[CookieWarning, ...] = field(default_factory=tuple)
 
     @property
     def usable(self) -> bool:
@@ -237,24 +274,24 @@ def build_report(
     authenticated = bool(SESSION_MARKERS & cookies.keys())
     family, major = infer_browser(user_agent)
 
-    warnings: list[str] = []
+    warnings: list[CookieWarning] = []
     if not cookies:
-        warnings.append("no cookies could be parsed from the pasted text")
+        warnings.append(CookieWarning(WarningCode.NO_COOKIES))
     if authenticated:
-        warnings.append(
-            "this cookie set contains a logged-in session and is equivalent to the "
-            "account password; prefer a dedicated account over a primary one"
-        )
+        warnings.append(CookieWarning(WarningCode.LOGGED_IN_SESSION))
     if family is None:
         # Doc 02 requires refusing rather than defaulting: a mismatched
         # fingerprint is more dangerous than having no identity at all.
-        warnings.append(
-            "the browser could not be inferred from the User-Agent, so no TLS "
-            "profile can be matched; supply the exact User-Agent used to obtain "
-            "these cookies"
-        )
+        warnings.append(CookieWarning(WarningCode.UNKNOWN_BROWSER))
     if not USEFUL & cookies.keys() and not authenticated:
-        warnings.append("none of the optional cookies are present; this identity will be weak")
+        # The list is an argument rather than part of the sentence so that
+        # adding a cookie to USEFUL does not mean editing every locale file.
+        warnings.append(
+            CookieWarning(
+                WarningCode.NO_USEFUL_COOKIES,
+                MappingProxyType({"optional": ", ".join(sorted(USEFUL))}),
+            )
+        )
 
     missing = tuple(c for c in REQUIRED.get(platform, ()) if c not in cookies)
 
@@ -284,8 +321,11 @@ __all__ = [
     "REQUIRED",
     "SESSION_MARKERS",
     "USEFUL",
+    "WARNING_KEY_PREFIX",
     "CookieFormat",
+    "CookieWarning",
     "ImportReport",
+    "WarningCode",
     "build_report",
     "detect_format",
     "infer_browser",

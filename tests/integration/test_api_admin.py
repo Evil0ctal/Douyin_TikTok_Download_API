@@ -281,6 +281,39 @@ async def test_a_rejected_import_line_never_echoes_its_password(client: Any) -> 
     assert "sup3r" not in response.text
 
 
+async def test_import_rejection_codes_are_the_set_the_console_translates(client: Any) -> None:
+    """The reason vocabulary is a contract with the console, so it is pinned here.
+
+    Each code has a ``proxy.line.*`` entry in the console catalogue. A code
+    added to the parser without one reaches an operator as raw snake_case,
+    which is the whole reason these are asserted rather than left implicit.
+    """
+    await signed_in(client)
+    response = await client.post(
+        "/api/v1/admin/proxies/import",
+        json={
+            "text": "\n".join(
+                [
+                    "ftp://10.0.0.1:8080",
+                    "http://:8080",
+                    "10.0.0.2",
+                    "http://10.0.0.3:0",
+                    "http://10.0.0.4:99999",
+                ]
+            )
+        },
+    )
+    assert response.status_code == 200
+    data = envelope(response)["data"]
+    assert [entry["error"] for entry in data["rejected"]] == [
+        "scheme_not_supported",
+        "missing_host",
+        "missing_port",
+        "port_out_of_range",
+        "malformed_authority",
+    ]
+
+
 # --------------------------------------------------------------------------
 # API keys
 # --------------------------------------------------------------------------

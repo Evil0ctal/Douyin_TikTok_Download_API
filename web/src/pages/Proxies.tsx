@@ -171,6 +171,24 @@ interface ImportReport {
   counts: { created: number; rejected: number }
 }
 
+/**
+ * Why the server's parser refused a line, as wire codes
+ * (src/dtk/api/routes/admin/proxy_urls.py). ProxyLineProblem above is this
+ * page's own reading of a line; these arrive from the server and are the ones
+ * that count. A code this build has no copy for is shown exactly as it came:
+ * the paste still has to be correctable from what is on screen.
+ */
+const IMPORT_REJECTIONS: ReadonlySet<string> = new Set([
+  'unparsable',
+  'empty',
+  'scheme_not_supported',
+  'malformed_authority',
+  'missing_host',
+  'missing_port',
+  'port_not_a_number',
+  'port_out_of_range',
+])
+
 /** What a proxy probe reports (mirrors ProxyProbe in src/dtk/cli/probes.py). */
 interface ProxyProbeResult {
   ok?: boolean
@@ -888,10 +906,13 @@ function ImportReportView({ report }: { report: ImportReport }) {
         })}
       </p>
       {report.rejected.length > 0 ? (
-        <ul className="u-stack-sm u-xs u-mono" style={{ paddingInlineStart: 'var(--space-4)' }}>
+        <ul className="u-stack-sm u-xs" style={{ paddingInlineStart: 'var(--space-4)' }}>
           {report.rejected.map((entry, index) => (
             <li key={`${entry.line}-${String(index)}`} style={{ color: 'var(--caution)' }}>
-              {entry.line} · {entry.error}
+              <span className="u-mono">{entry.line}</span>{' · '}
+              {IMPORT_REJECTIONS.has(entry.error)
+                ? t(`console:proxy.import.reason.${entry.error}`)
+                : entry.error}
             </li>
           ))}
         </ul>

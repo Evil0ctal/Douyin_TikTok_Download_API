@@ -15,7 +15,8 @@ from typing import Any
 import pytest
 
 from dtk import __version__
-from dtk.core.types import IdentityState
+from dtk.core.types import IdentityState, Language
+from dtk.i18n.catalog import t
 from dtk.identity.minting.client import RpcHealth
 from dtk.ops import health
 
@@ -135,7 +136,8 @@ async def test_readiness_fails_while_liveness_still_passes() -> None:
     assert report.ready is False
     postgres = report.component(health.POSTGRES)
     assert postgres is not None and postgres.ok is False
-    assert "connection refused" in (postgres.detail or "")
+    assert postgres.detail_code is None
+    assert "connection refused" in (postgres.evidence or "")
     assert health.liveness().status == "alive"
 
 
@@ -183,7 +185,7 @@ async def test_browser_rpc_still_reports_the_local_profile_when_down() -> None:
     component = await health.check_browser_rpc(None)
 
     assert component.ok is False
-    assert component.detail == "not configured"
+    assert component.detail_code == health.DETAIL_NOT_CONFIGURED
     assert component.extra["chromium_major"] is None
     assert component.extra["wreq_profile_major"] == health.wreq_profile_major()
 
@@ -235,9 +237,69 @@ async def test_a_wedged_dependency_fails_the_probe_instead_of_hanging() -> None:
     postgres = await health.check_postgres(HangingEngine(), timeout=0.05)  # type: ignore[arg-type]
 
     assert redis.ok is False
-    assert "no answer" in (redis.detail or "")
+    assert redis.detail_code == health.DETAIL_TIMEOUT
+    assert redis.detail_args == {"seconds": "0.05"}
     assert postgres.ok is False
-    assert "no answer" in (postgres.detail or "")
+    assert postgres.detail_code == health.DETAIL_TIMEOUT
+
+
+# --------------------------------------------------------------------------
+# detail: sentences this module writes, evidence it only relays
+# --------------------------------------------------------------------------
+
+
+async def test_a_written_detail_travels_as_a_code_and_arguments() -> None:
+    """A deadline this module set is this module's sentence to write.
+
+    The catalogue key may not be on disk yet, so the code and the arguments are
+    the durable assertion; the wording is the translators' business.
+    """
+    component = await health.check_redis(HangingRedis(), timeout=0.05)  # type: ignore[arg-type]
+
+    assert component.detail_code == health.DETAIL_TIMEOUT
+    assert component.detail_args == {"seconds": "0.05"}
+    assert component.evidence is None
+    assert component.as_dict(Language.ZH)["detail_code"] == health.DETAIL_TIMEOUT
+
+
+async def test_a_written_detail_renders_through_the_catalogue() -> None:
+    """Pins the key namespace, not the sentence behind it."""
+    component = await health.check_browser_rpc(None)
+
+    for language in (Language.EN, Language.ZH):
+        expected = t(f"health.detail.{health.DETAIL_NOT_CONFIGURED}", language)
+        assert component.localized_detail(language) == expected
+        assert component.as_dict(language)["detail"] == expected
+
+
+async def test_driver_text_is_relayed_verbatim_in_every_language() -> None:
+    """asyncpg's wording is the search term a maintainer pastes into an issue."""
+    component = await health.check_postgres(
+        FakeEngine(RuntimeError("connection refused: 127.0.0.1:5432"))
+    )
+    body = component.as_dict(Language.ZH)
+
+    assert component.detail_code is None
+    assert component.evidence == "connection refused: 127.0.0.1:5432"
+    assert body["detail"] == component.evidence
+    assert "detail_code" not in body
+
+
+async def test_browser_rpc_relays_the_services_own_wording() -> None:
+    rpc = FakeRpc(RpcHealth(available=False, detail="connect timeout to browser-rpc"))
+
+    component = await health.check_browser_rpc(rpc)
+
+    assert component.detail_code is None
+    assert component.evidence == "connect timeout to browser-rpc"
+
+
+async def test_relayed_text_is_capped() -> None:
+    """A driver traceback in a status payload is noise, not detail."""
+    component = await health.check_redis(FakeRedis(RuntimeError("boom " * 200)))
+
+    assert component.evidence is not None
+    assert len(component.evidence) == health.EVIDENCE_LENGTH
 
 
 # --------------------------------------------------------------------------
@@ -303,6 +365,23 @@ async def test_system_status_has_the_documented_shape() -> None:
     assert body["storage"]["db_size_bytes"] == 1234567890
     assert body["storage"]["request_log_rows"] == 892341
     assert body["storage"]["table_bytes"]["users"] == 8192
+
+
+async def test_the_status_payload_names_the_detail_code() -> None:
+    """The console branches on the code; only the sentence follows the reader."""
+    session = FakeSession({"FROM identities": [], "pg_database_size": [(1,)]})
+
+    report = await health.system_status(
+        session,  # type: ignore[arg-type]
+        engine=FakeEngine(),
+        redis=FakeRedis(),
+        rpc=None,
+    )
+    body = report.as_dict(Language.ZH)
+
+    browser_rpc = body["components"]["browser_rpc"]
+    assert browser_rpc["detail_code"] == health.DETAIL_NOT_CONFIGURED
+    assert browser_rpc["detail"] == t(f"health.detail.{health.DETAIL_NOT_CONFIGURED}", Language.ZH)
 
 
 async def test_request_log_rows_falls_back_to_an_exact_count() -> None:

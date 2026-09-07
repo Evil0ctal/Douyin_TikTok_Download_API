@@ -13,11 +13,14 @@ See docs/design/03-scheduler.md.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis, run_script
-from dtk.core.types import Outcome
+from dtk.core.types import DEFAULT_LANGUAGE, Language, Outcome
+from dtk.i18n.catalog import t
 
 log = get_logger(__name__)
 
@@ -28,6 +31,18 @@ PROBE_KEY = "sched:probe:{endpoint}"
 
 #: Rolling observation window used for the trip decision.
 WINDOW_SECONDS = 300
+
+#: Catalogue namespace for trip reasons.
+REASON_KEY_PREFIX = "circuit.reason."
+
+#: The one reason a trip can have today. New codes are appended, never renamed:
+#: a code that changes meaning silently invalidates every translation of it.
+RISK_ACROSS_IDENTITIES = "risk_across_identities"
+
+#: Marks a stored reason as the structured form. A value written before reasons
+#: were structured carries no marker and is English prose.
+_REASON_MARKER = "code:"
+_CODE_RE = re.compile(r"^[a-z0-9_]+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +69,92 @@ class EndpointStats:
     @property
     def success_rate(self) -> float:
         return self.ok / self.total if self.total else 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class TripReason:
+    """Why an endpoint tripped: a stable code and the numbers behind it.
+
+    A sentence stored in Redis can only ever be read back in the language it
+    was written in, and the console shows this one in its landing-page alert.
+    Storing the code instead lets the reader's language decide the wording,
+    and the numbers travel alongside so the wording can still name them.
+    """
+
+    code: str
+    args: Mapping[str, float] = field(default_factory=dict)
+
+    @property
+    def key(self) -> str:
+        return f"{REASON_KEY_PREFIX}{self.code}"
+
+    def template_args(self) -> dict[str, object]:
+        """Catalogue arguments for :attr:`key`.
+
+        The rate is stored as a fraction, matching every other rate in the
+        health payload, but every message in this product talks in percent.
+        Whole numbers lose their ``.0`` so a count reads as a count.
+        """
+        args: dict[str, object] = {
+            name: int(value) if float(value).is_integer() else value
+            for name, value in self.args.items()
+        }
+        rate = self.args.get("risk_rate")
+        if rate is not None:
+            args["risk_rate"] = f"{rate * 100:.0f}"
+        return args
+
+    def encode(self) -> str:
+        parts = [f"{_REASON_MARKER}{self.code}"]
+        parts += [f"{name}={value:g}" for name, value in self.args.items()]
+        return ";".join(parts)
+
+
+def parse_reason(raw: str) -> TripReason | None:
+    """Structured form of a stored reason, or ``None`` for anything else.
+
+    ``None`` covers both an empty value and the free English text an older
+    build wrote. Neither can raise here: the circuit key outlives a deploy by
+    up to ``open_seconds + 60``, and a reader that crashed on the previous
+    build's value would blank the console for exactly as long.
+    """
+    if not raw.startswith(_REASON_MARKER):
+        return None
+    code, _, tail = raw[len(_REASON_MARKER) :].partition(";")
+    if not _CODE_RE.match(code):
+        return None
+    args: dict[str, float] = {}
+    for item in tail.split(";"):
+        name, sep, value = item.partition("=")
+        if not sep:
+            continue
+        try:
+            args[name] = float(value)
+        except ValueError:
+            continue
+    return TripReason(code, args)
+
+
+@dataclass(frozen=True, slots=True)
+class CircuitState:
+    is_open: bool
+    retry_after: int
+    #: ``None`` when nothing is stored, or when the stored value predates
+    #: structured reasons.
+    reason: TripReason | None = None
+    #: Exactly what was stored, so a legacy value stays readable.
+    raw_reason: str = ""
+
+    def message(self, language: Language | str = DEFAULT_LANGUAGE) -> str:
+        """The reason as a sentence, empty when there is no reason at all.
+
+        A legacy value is handed back verbatim rather than dropped: it is
+        already English prose, and during the few minutes it survives an
+        upgrade its numbers are the ones an operator is looking for.
+        """
+        if self.reason is None:
+            return self.raw_reason
+        return t(self.reason.key, language, **self.reason.template_args())
 
 
 # Record one observation and trim the window in a single round trip. Members are
@@ -111,6 +212,13 @@ async def stats(endpoint: str, *, now: float) -> EndpointStats:
 
 
 async def should_trip(endpoint: str, cfg: CircuitConfig, *, now: float) -> tuple[bool, str]:
+    """Decide, and say why.
+
+    Only the tripping branch returns text anyone reads, as an encoded
+    :class:`TripReason`; the caller discards the string whenever the decision
+    is ``False``, so the three declining branches stay plain English notes for
+    whoever is reading this function.
+    """
     s = await stats(endpoint, now=now)
     if s.total < cfg.min_samples:
         return False, f"insufficient samples ({s.total}<{cfg.min_samples})"
@@ -122,13 +230,18 @@ async def should_trip(endpoint: str, cfg: CircuitConfig, *, now: float) -> tuple
             f"only {s.distinct_risk_identities} identity(ies) affected "
             f"(<{cfg.min_identities}); treating as identity-local"
         )
-    return True, (
-        f"risk rate {s.risk_rate:.2f} over {s.total} samples "
-        f"across {s.distinct_risk_identities} identities"
-    )
+    return True, TripReason(
+        RISK_ACROSS_IDENTITIES,
+        {
+            "risk_rate": round(s.risk_rate, 4),
+            "samples": s.total,
+            "identities": s.distinct_risk_identities,
+        },
+    ).encode()
 
 
 async def trip(endpoint: str, cfg: CircuitConfig, reason: str, *, now: float) -> None:
+    """Open the circuit. ``reason`` is an encoded :class:`TripReason`."""
     await get_redis().set(
         CIRCUIT_KEY.format(endpoint=endpoint),
         f"{now + cfg.open_seconds:.6f}|{reason}",
@@ -139,20 +252,32 @@ async def trip(endpoint: str, cfg: CircuitConfig, reason: str, *, now: float) ->
     )
 
 
-async def state(endpoint: str, *, now: float) -> tuple[bool, int, str]:
-    """Return ``(is_open, retry_after_seconds, reason)``."""
+async def status(endpoint: str, *, now: float) -> CircuitState:
+    """Circuit state with the trip reason left structured."""
     raw = await get_redis().get(CIRCUIT_KEY.format(endpoint=endpoint))
     if not raw:
-        return False, 0, ""
+        return CircuitState(False, 0)
     text = raw.decode() if isinstance(raw, bytes) else raw
     open_until_s, _, reason = text.partition("|")
     try:
         open_until = float(open_until_s)
     except ValueError:
-        return False, 0, ""
+        return CircuitState(False, 0)
+    parsed = parse_reason(reason)
     if now >= open_until:
-        return False, 0, reason
-    return True, max(1, int(open_until - now)), reason
+        return CircuitState(False, 0, parsed, reason)
+    return CircuitState(True, max(1, int(open_until - now)), parsed, reason)
+
+
+async def state(endpoint: str, *, now: float) -> tuple[bool, int, str]:
+    """Return ``(is_open, retry_after_seconds, reason)`` with the reason in English.
+
+    For callers with no requester to render for - the scheduler's rejection
+    detail and the MCP tool prose, both English-only. A caller that knows the
+    language reads :func:`status` and renders the reason itself.
+    """
+    current = await status(endpoint, now=now)
+    return current.is_open, current.retry_after, current.message()
 
 
 async def allow_probe(endpoint: str, cfg: CircuitConfig) -> bool:
@@ -176,16 +301,22 @@ async def reset(endpoint: str) -> None:
 
 
 __all__ = [
+    "REASON_KEY_PREFIX",
+    "RISK_ACROSS_IDENTITIES",
     "SEQ_KEY",
     "WINDOW_KEY",
     "WINDOW_SECONDS",
     "CircuitConfig",
+    "CircuitState",
     "EndpointStats",
+    "TripReason",
     "allow_probe",
+    "parse_reason",
     "record",
     "reset",
     "should_trip",
     "state",
     "stats",
+    "status",
     "trip",
 ]

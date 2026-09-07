@@ -61,6 +61,66 @@
     },
     "footer": "本消息由你的 dtk 实例发出，告警通道可在控制台配置。"
   },
+  "settings": {
+    "description": {
+      "sched": {
+        "max_wait_seconds": "一个请求最多等待多久才能拿到空闲身份；超时后转为后台任务。",
+        "queue_max": "等待身份的请求队列上限。超出后接口直接拒绝并返回 Retry-After。",
+        "cooldown_base_seconds": "身份第一次被风控后的冷却时长；连续命中会逐次翻倍。",
+        "cooldown_max_seconds": "冷却时长上限。达到上限的身份会被标记为降级，而不是继续冷却。",
+        "circuit_risk_threshold": "触发接口熔断的风控率阈值，取值 0 到 1。",
+        "circuit_min_samples": "熔断前必须观察到的最少请求数，避免几次偶发失败就把接口熔断。",
+        "circuit_min_identities": "熔断前必须有多少个不同身份同时失败。这条用于区分「接口坏了」和「某一个身份坏了」。"
+      },
+      "pool": {
+        "target_size": "身份池为每个平台维持的目标身份数量。",
+        "min_size": "每个平台的身份数下限。低于此值会告警并触发自动补充。",
+        "safe_qps_per_identity": "单个身份允许的稳态请求速率。刻意设得保守——吞吐靠增加身份换取，而不是把单个身份推向风险区。",
+        "health_prior": "尚无历史记录的身份所假定的成功率，取值 0 到 1。它决定新身份被调度的积极程度。"
+      },
+      "signing": {
+        "mode": "由谁生成请求签名：浏览器、内置纯算法，或两者之间自动切换。",
+        "fallback_enabled": "当前模式不偏好的那个签名器，在首选不可用时是否仍可使用。关掉它，才能知道当前到底是谁在扛流量。",
+        "rpc_timeout_seconds": "单次 browser-rpc 签名调用的超时上限。"
+      },
+      "cache": {
+        "content_ttl": "解析后的视频详情可复用多久，超时后重新抓取。",
+        "author_ttl": "解析后的用户主页信息可复用多久。",
+        "list_ttl": "解析后的列表页可复用多久。列表比单条内容变化更快，所以通常是三者中最短的。"
+      },
+      "snapshot": {
+        "min_interval_seconds": "内容历史的去重窗口。同一条内容在窗口内的第二次快照会被跳过而不入库。"
+      },
+      "retention": {
+        "request_log_days": "单条请求日志保留多少天后删除。内容快照永远不会被自动删除。",
+        "identity_events_days": "身份状态变更记录保留多少天。要足够长，以便回答某个身份为什么被淘汰。",
+        "task_days": "已完成的任务记录保留多少天。",
+        "task_result_hours": "任务结果内容保留多少小时。比任务记录本身短，因为结果才是占空间的部分。"
+      },
+      "api": {
+        "default_language": "请求未指定语言时使用的默认语言。单个请求始终可以用 ?lang= 或 Accept-Language 头覆盖它。",
+        "default_rate_limit_per_min": "单个 API Key 每分钟允许的请求数。用途是防滥用，不是计费。",
+        "max_wait_seconds": "调用方能传给 ?wait= 的最大值。它限制单个请求能占用连接多久。",
+        "mcp_tool_timeout": "单次 MCP 工具调用允许运行多久，超时后取消。"
+      },
+      "security": {
+        "url_allowlist": "额外允许解析的主机名。内置的平台列表始终生效，这里只做扩充——每加一条都会扩大 SSRF 攻击面。",
+        "cors_allow_origins": "允许调用本接口的浏览器来源。留空表示仅同源。填 '*' 等于把你的 API Key 交给用户访问的任何网站。",
+        "cors_allow_credentials": "跨域请求是否允许携带 Cookie。只有在明确列出来源时才有意义，不能与 '*' 同时使用。",
+        "enable_download_proxy": "服务端媒体中转。默认关闭——开放的中转很快会被发现并滥用。",
+        "download_proxy_max_bytes": "媒体中转允许透传的最大文件体积。它限制单个请求最多消耗多少带宽。",
+        "enable_task_webhook": "任务是否可以回调调用方提供的 URL。该 URL 是 SSRF 攻击面，因此默认关闭。"
+      },
+      "notify": {
+        "enabled": "告警发送总开关。关闭后告警仍会记录，但不会发出。",
+        "channels": "告警的投递目标：一个通道描述列表，每项包含 type、url 与 language 三个字段。",
+        "language": "告警文本使用的语言；未单独指定语言的通道会使用它。"
+      },
+      "system": {
+        "check_updates": "本实例是否可以联网检查新版本。这会发出外部请求，因此需要你主动开启。"
+      }
+    }
+  },
   "openapi": {
     "description": "自部署的抖音 / TikTok 数据接口。提交链接即可获得归一化后的内容。错误响应同时包含稳定错误码与按语言渲染的消息，追加 ?lang=zh 可获取中文。",
     "tag": {
@@ -98,6 +158,71 @@
     },
     "response": {
       "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"
+    }
+  },
+  "circuit": {
+    "reason": {
+      "risk_across_identities": "最近 {samples} 次请求中有 {risk_rate}% 触发风控，涉及 {identities} 个身份"
+    }
+  },
+  "diagnose": {
+    "reason": {
+      "components_unreachable": "无法连接：{components}",
+      "components_browser_rpc_down": "postgres 与 redis 可以连接，但 browser-rpc 不可用（{detail}）",
+      "components_ok": "所有组件均可连接",
+      "egress_unreachable": "无法直连任何平台域名",
+      "egress_partial": "{total} 个平台域名中有 {reachable} 个可以连接",
+      "egress_ok": "所有平台域名均可连接",
+      "proxies_no_session": "没有可用的数据库会话或加密器，无法读取代理列表",
+      "proxies_unreadable": "读取代理列表失败，请看组件检查那一步",
+      "proxies_none": "未配置任何代理",
+      "proxies_all_failed": "已配置的 {total} 个代理全都没有响应",
+      "proxies_partial": "{total} 个代理中有 {working} 个响应",
+      "proxies_ok": "{working} 个代理全部响应正常",
+      "pool_no_session": "没有可用的数据库会话",
+      "pool_unreadable": "读取身份表失败，请看组件检查那一步",
+      "pool_empty": "没有处于活跃状态的身份",
+      "pool_below_minimum": "活跃身份 {active} 个，低于下限 {minimum} 个",
+      "pool_ok": "活跃身份 {active} 个",
+      "signing_no_registry": "未提供签名器注册表",
+      "signing_no_browser_rpc": "未配置 browser-rpc，没有第二个签名器可以和原生算法对照",
+      "signing_mismatch": "在 {platforms} 上，原生签名与浏览器签名结果不一致",
+      "signing_ok": "原生签名与浏览器签名一致",
+      "smoke_not_configured": "未配置冒烟测试链接",
+      "smoke_failed": "端到端抓取失败：{error}",
+      "smoke_ok": "端到端抓取成功",
+      "step_crashed": "检查本身出错了：{error}"
+    },
+    "action": {
+      "components_unreachable": "请确认 postgres 与 redis 容器正在运行，并检查 DTK_DATABASE_URL、DTK_REDIS_URL 是否指向它们。",
+      "components_browser_rpc_down": "身份铸造和签名回退都不可用。请启动浏览器容器，或者手动导入 Cookie 并继续使用原生签名器。",
+      "egress_unreachable": "这台机器没有通往平台的可用线路。请检查 DNS、主机防火墙，以及出站流量是否必须走代理。",
+      "egress_partial": "访问不通的那个平台将完全依赖可用的代理。",
+      "proxies_none": "所有身份都会共用这台机器的出口 IP。初次试用没有问题，但身份池一忙就会带来关联风险。",
+      "proxies_all_failed": "请检查代理的账号密码，以及服务商是否仍然放行这台机器的 IP。绑在失效代理上的身份无法自行恢复。",
+      "proxies_partial": "请停用或更换失败的代理，否则绑在上面的身份会一直失败。",
+      "pool_empty": "请铸造身份或导入 Cookie。身份池里一个可用身份都没有时，所有请求都会被拒绝或排队。",
+      "pool_below_minimum": "请再铸造一些身份；如果这是有意为之，也可以调低 pool.min_size。",
+      "signing_no_browser_rpc": "配置 DTK_BROWSER_RPC_URL 即可启用影子比对，在风控率上升之前就发现失效的签名算法。",
+      "signing_mismatch": "原生算法已经和平台的实现产生偏差。这些平台目前改由 browser-rpc 签名；请附上这份报告提交 issue，以便更新算法。",
+      "smoke_failed": "请先看上面失败的步骤；冒烟测试失败通常是代理、身份池或签名环节的连带结果，而不是它本身的问题。",
+      "step_crashed": "这是 dtk 的缺陷。请附上这份报告反馈给我们。"
+    }
+  },
+  "health": {
+    "detail": {
+      "timeout": "{seconds} 秒内无响应",
+      "not_configured": "未配置"
+    }
+  },
+  "identity": {
+    "import": {
+      "warning": {
+        "no_cookies": "无法从粘贴的内容里解析出任何 cookie。",
+        "logged_in_session": "这份 cookie 带着已登录的会话，作用等同于账号密码。请使用专门的小号，不要用常用账号。",
+        "unknown_browser": "无法从 User-Agent 判断浏览器，也就没有可以匹配的 TLS 指纹。请填写复制这些 cookie 时所用的完整 User-Agent。",
+        "no_useful_cookies": "可选 cookie 一个都没有，这个身份会很脆弱。补上 {optional} 里的任意一个都会好很多。"
+      }
     }
   }
 }
