@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local config & secrets
+# Cookies and tokens are per-deployment; never commit them.
+.env
+.env.*
+!.env.example
+*.local.yaml
+*.local.yml
+
+# Runtime output
+logs/
+*.log
+downloads/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
