@@ -99,8 +99,27 @@ async def app():
     await asyncio.to_thread(upgrade, settings.database_url)
 
     application = create_app(settings)
-    async with application.router.lifespan_context(application):
+
+    # The lifespan is entered and exited inside ONE task on purpose. The mounted
+    # MCP server chains an anyio task group onto it, and an anyio cancel scope
+    # may only be closed by the task that opened it; a module-scoped async
+    # generator fixture does not guarantee that, and the teardown then raises
+    # "Attempted to exit cancel scope in a different task".
+    ready = asyncio.Event()
+    finish = asyncio.Event()
+
+    async def run_lifespan() -> None:
+        async with application.router.lifespan_context(application):
+            ready.set()
+            await finish.wait()
+
+    runner = asyncio.create_task(run_lifespan())
+    await ready.wait()
+    try:
         yield application
+    finally:
+        finish.set()
+        await runner
 
 
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
