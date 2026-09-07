@@ -369,3 +369,39 @@ def test_a_malformed_data_line_names_the_table_and_line(tmp_path: Path) -> None:
     with pytest.raises(backup.BackupError) as raised:
         backup.read_table(path, "users")
     assert "users.jsonl line 1" in str(raised.value)
+
+
+async def test_the_settings_counter_bump_survives_a_missing_singleton_row(
+    tmp_path: Path,
+) -> None:
+    """A bare UPDATE touches nothing when the row is absent, and says so.
+
+    The counter is what makes running processes reload restored settings; a
+    statement that silently matches no row would leave them on the old
+    configuration with nothing to show for it.
+    """
+    info = await backup.create_backup(
+        FakeSession(sample_rows()), output=tmp_path, secret_key=SECRET
+    )
+    target = FakeSession()
+
+    report = await backup.restore_backup(target, info.path, secret_key=SECRET)
+
+    assert report.restored["settings"] == 1
+    bump = next(s for s in target.statements if "settings_version" in s)
+    assert "INSERT INTO settings_version" in bump
+    assert "ON CONFLICT" in bump
+
+
+def test_a_hand_edited_key_check_is_a_mismatch_not_a_crash() -> None:
+    """compare_digest raises TypeError on a non-ASCII string."""
+    manifest = backup.Manifest(
+        schema_version=backup.BACKUP_SCHEMA_VERSION,
+        created_at=CREATED,
+        dtk_version="5.0.0",
+        include_identities=False,
+        key_check="not-a-hex-digest-\u30ad\u30fc",
+    )
+
+    with pytest.raises(backup.SecretKeyMismatch):
+        backup.verify_secret_key(manifest, SECRET)

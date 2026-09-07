@@ -1,23 +1,23 @@
-"""Notification triggers, deduplication, payload shapes and URL validation.
+"""Notification triggers, deduplication and dispatch.
 
 The deduplication tests drive a fake clock rather than sleeping: the windows in
 doc 15 run from fifteen minutes to a day, so wall-clock testing is not an
 option, and a window that silently stopped working would only be discovered by
-a user whose phone stopped ringing.
+a user whose phone stopped ringing. Per-channel payload shapes live in
+``test_ops_channels.py``.
 """
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import httpx
 import pytest
 
-from dtk.core.errors import InvalidParam
 from dtk.core.types import Language
-from dtk.ops import notify
-from dtk.ops.notify import ChannelType, NotifyEvent, Severity
+from dtk.ops import channels, notify
+from dtk.ops.channels import ChannelType
+from dtk.ops.notify import NotifyEvent, Severity
 
 
 class FakeRedis:
@@ -86,10 +86,10 @@ class StubConfig:
         return self._values.get(key)
 
 
-def make_notifier(channels: list[Any], clock: Clock) -> tuple[notify.Notifier, FakeRedis]:
+def make_notifier(targets: list[Any], clock: Clock) -> tuple[notify.Notifier, FakeRedis]:
     redis = FakeRedis()
     notifier = notify.Notifier(
-        channels,
+        targets,
         redis=redis,  # type: ignore[arg-type]
         clock=clock,
         client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200))),
@@ -235,97 +235,8 @@ def test_missing_template_arguments_do_not_leak_braces() -> None:
 
 
 # --------------------------------------------------------------------------
-# per-channel payloads
+# dispatch
 # --------------------------------------------------------------------------
-
-
-@pytest.fixture
-def message() -> notify.Message:
-    return notify.render(
-        NotifyEvent.PROXY_UNHEALTHY, Language.EN, proxy="residential-1", failures=3
-    )
-
-
-def test_webhook_payload_is_a_documented_envelope(message: notify.Message) -> None:
-    channel = notify.WebhookChannel(name="hook", url="https://hooks.example.com/dtk")
-    prepared = channel.request(message)
-
-    assert prepared.url == "https://hooks.example.com/dtk"
-    assert prepared.headers["Content-Type"] == "application/json"
-    assert prepared.payload["source"] == "dtk"
-    assert prepared.payload["event"] == "proxy_unhealthy"
-    assert prepared.payload["severity"] == "warning"
-    assert prepared.payload["details"]["proxy"] == "residential-1"
-    json.dumps(prepared.payload)
-
-
-def test_bark_payload_maps_severity_to_a_push_level(message: notify.Message) -> None:
-    channel = notify.BarkChannel(name="bark", url="https://api.day.app/devicekey")
-    prepared = channel.request(message)
-
-    assert prepared.payload["level"] == "active"
-    assert prepared.payload["group"] == "dtk"
-    assert prepared.payload["body"] == message.body
-
-    error = notify.render(NotifyEvent.POOL_EMPTY, Language.EN, platform="douyin")
-    assert channel.request(error).payload["level"] == "timeSensitive"
-
-
-def test_wecom_payload_is_markdown(message: notify.Message) -> None:
-    channel = notify.WeComChannel(name="wecom", url="https://qyapi.weixin.qq.com/cgi-bin/webhook")
-    prepared = channel.request(message)
-
-    assert prepared.payload["msgtype"] == "markdown"
-    assert prepared.payload["markdown"]["content"].startswith("### ")
-
-
-def test_dingtalk_payload_is_signed_when_a_secret_is_configured(
-    message: notify.Message,
-) -> None:
-    plain = notify.DingTalkChannel(
-        name="ding", url="https://oapi.dingtalk.com/robot/send?access_token=x"
-    )
-    signed = notify.DingTalkChannel(
-        name="ding",
-        url="https://oapi.dingtalk.com/robot/send?access_token=x",
-        options={"secret": "SECxxxx"},
-    )
-
-    assert "sign=" not in plain.request(message).url
-    signed_url = signed.request(message).url
-    assert "timestamp=" in signed_url and "sign=" in signed_url
-    assert signed.request(message).payload["msgtype"] == "markdown"
-
-
-def test_telegram_payload_carries_the_chat_id(message: notify.Message) -> None:
-    channel = notify.TelegramChannel(
-        name="tg",
-        url=notify.TELEGRAM_API.format(token="123:abc"),
-        options={"chat_id": "-100200"},
-    )
-    prepared = channel.request(message)
-
-    assert prepared.url.endswith("/sendMessage")
-    assert prepared.payload["chat_id"] == "-100200"
-    assert message.body in prepared.payload["text"]
-
-
-def test_smtp_builds_a_plain_text_email(message: notify.Message) -> None:
-    channel = notify.SmtpChannel(
-        name="mail",
-        url="",
-        options={
-            "host": "smtp.example.com",
-            "sender": "dtk@example.com",
-            "recipients": ["ops@example.com", "oncall@example.com"],
-        },
-    )
-    mail = channel.build_email(message)
-
-    assert mail["From"] == "dtk@example.com"
-    assert mail["To"] == "ops@example.com, oncall@example.com"
-    assert mail["Subject"] == message.subject
-    assert message.body in mail.get_content()
 
 
 async def test_http_channel_posts_and_retries_once(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -336,7 +247,7 @@ async def test_http_channel_posts_and_retries_once(monkeypatch: pytest.MonkeyPat
         calls.append(request)
         return httpx.Response(503 if len(calls) == 1 else 200)
 
-    channel = notify.WebhookChannel(name="hook", url="https://hooks.example.com/dtk")
+    channel = channels.WebhookChannel(name="hook", url="https://hooks.example.com/dtk")
     notifier = notify.Notifier(
         [channel],
         redis=FakeRedis(),  # type: ignore[arg-type]
@@ -368,92 +279,8 @@ async def test_a_failing_channel_is_reported_not_raised(
 
 
 # --------------------------------------------------------------------------
-# outbound URL validation
+# configuration
 # --------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "url",
-    [
-        "http://hooks.example.com/dtk",
-        "https://127.0.0.1/dtk",
-        "https://localhost/dtk",
-        "https://10.0.0.5/dtk",
-        "https://192.168.1.10:8443/dtk",
-        "https://169.254.169.254/latest/meta-data",
-        "https://[::1]/dtk",
-        "https://user:pass@hooks.example.com/dtk",
-        "https://intranet/dtk",
-        "ftp://hooks.example.com/dtk",
-        "",
-        "not a url",
-    ],
-)
-def test_unsafe_outbound_urls_are_refused(url: str) -> None:
-    with pytest.raises(InvalidParam):
-        notify.validate_outbound_url(url)
-
-
-@pytest.mark.parametrize(
-    "url",
-    [
-        "https://hooks.example.com/dtk",
-        "https://api.day.app/abcdef",
-        "https://bark.example.com:8443/abcdef",
-        "https://oapi.dingtalk.com/robot/send?access_token=x",
-    ],
-)
-def test_public_https_targets_are_accepted(url: str) -> None:
-    assert notify.validate_outbound_url(url) == url
-
-
-def test_smtp_host_is_validated_too() -> None:
-    with pytest.raises(InvalidParam):
-        notify.validate_outbound_host("127.0.0.1")
-    assert notify.validate_outbound_host("smtp.example.com") == "smtp.example.com"
-
-
-# --------------------------------------------------------------------------
-# building channels from settings
-# --------------------------------------------------------------------------
-
-
-def test_telegram_channel_builds_its_api_url() -> None:
-    channel = notify.build_channel(
-        {"type": "telegram", "token": "123:abc", "chat_id": "-100", "language": "zh"}
-    )
-
-    assert channel.type is ChannelType.TELEGRAM
-    assert channel.language is Language.ZH
-    assert channel.url == notify.TELEGRAM_API.format(token="123:abc")
-
-
-@pytest.mark.parametrize(
-    "descriptor",
-    [
-        {"type": "telegram", "chat_id": "-100"},
-        {"type": "telegram", "token": "123:abc"},
-        {"type": "smtp", "host": "smtp.example.com"},
-        {"type": "smtp", "host": "smtp.example.com", "sender": "a@example.com"},
-        {"type": "carrier-pigeon", "url": "https://example.com"},
-        {"type": "webhook", "url": "http://example.com"},
-    ],
-)
-def test_incomplete_channel_descriptors_are_refused(descriptor: dict[str, Any]) -> None:
-    with pytest.raises(InvalidParam):
-        notify.build_channel(descriptor)
-
-
-def test_one_bad_channel_does_not_silence_the_others() -> None:
-    channels = notify.build_channels(
-        [
-            {"type": "webhook", "url": "http://insecure.example.com"},
-            {"type": "webhook", "name": "good", "url": "https://hooks.example.com/dtk"},
-            {"type": "webhook", "name": "off", "url": "https://x.example.com", "enabled": False},
-        ]
-    )
-
-    assert [c.name for c in channels] == ["good"]
 
 
 def test_notifier_from_config_inherits_the_default_language() -> None:
@@ -494,3 +321,56 @@ async def test_a_disabled_notifier_sends_nothing() -> None:
 
     assert delivery.suppressed is True
     assert channel.received == []
+
+
+async def test_an_alert_that_reached_nobody_is_not_suppressed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The window suppresses delivered alerts, not failed ones.
+
+    Holding the mark after every channel refused would turn one bad minute of
+    network into up to a day of silence about a pool that is still empty.
+    """
+    monkeypatch.setattr(notify, "RETRY_BACKOFF_SECONDS", 0.0)
+    broken = FailingChannel()
+    notifier, _redis = make_notifier([broken], Clock())
+
+    first = await notifier.notify(NotifyEvent.POOL_EMPTY, platform="douyin")
+    second = await notifier.notify(NotifyEvent.POOL_EMPTY, platform="douyin")
+
+    assert first.delivered is False
+    assert second.suppressed is False
+    assert broken.attempts == 2 * notify.MAX_ATTEMPTS
+    await notifier.aclose()
+
+
+def test_a_failure_reason_never_repeats_the_channel_url() -> None:
+    """A Telegram bot token lives in the URL, so exception text cannot carry it."""
+    channel = channels.TelegramChannel(
+        name="tg",
+        url=channels.TELEGRAM_API.format(token="123:SUPERSECRETTOKENVALUE"),
+        options={"chat_id": "-1"},
+    )
+    exc = httpx.ConnectError(f"failed to connect to {channel.url}")
+
+    reason = notify.failure_reason(channel, exc)
+
+    assert "SUPERSECRETTOKENVALUE" not in reason
+    assert "telegram" in reason
+    assert reason.startswith("ConnectError")
+
+
+async def test_aclose_does_not_orphan_a_client_created_afterwards() -> None:
+    """After aclose the notifier owns whatever client it creates next."""
+    borrowed = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+    notifier = notify.Notifier(
+        [], redis=FakeRedis(), clock=Clock(), client=borrowed  # type: ignore[arg-type]
+    )
+
+    await notifier.aclose()
+    assert borrowed.is_closed is False
+
+    created = await notifier._http()
+    await notifier.aclose()
+    assert created.is_closed is True
+    await borrowed.aclose()

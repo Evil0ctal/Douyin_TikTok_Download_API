@@ -1,0 +1,20 @@
+{
+  "version": "7.0",
+  "updated_at": "2024-07-05",
+  "link": {
+    "en": "https://www.icloud.com/shortcuts/06f891a026df40cfa967a907feaea632",
+    "zh": "https://www.icloud.com/shortcuts/06f891a026df40cfa967a907feaea632"
+  },
+  "notes": {
+    "en": [
+      "Copy a Douyin or TikTok share link, then run the shortcut to save the video without a watermark.",
+      "Point the shortcut at your own instance: it calls POST /api/v1/parse?wait=15 with your API key.",
+      "The shortcut cannot poll, so it relies on the long-polling wait parameter; raise api.max_wait_seconds if your pool is busy."
+    ],
+    "zh": [
+      "复制抖音或 TikTok 的分享链接后运行快捷指令，即可保存无水印视频。",
+      "把快捷指令指向你自己的实例：它会带上你的 API Key 调用 POST /api/v1/parse?wait=15。",
+      "快捷指令无法轮询，因此依赖长轮询参数；身份池繁忙时可以调大 api.max_wait_seconds。"
+    ]
+  }
+}

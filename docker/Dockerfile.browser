@@ -1,0 +1,162 @@
+# syntax=docker/dockerfile:1
+#
+# browser-rpc: the resident headless browser (docs/design/04-transport-signing.md).
+#
+# The backend is pinned, not tagged. At least three GitHub organizations publish
+# repositories called cloakbrowser with identical descriptions, so "the latest
+# cloakbrowser" does not identify any particular piece of software. This image
+# installs one repository at one commit and stamps the pair into the image, where
+# /rpc/health reports it.
+#
+#   CLOAKBROWSER_COMMIT=<40-char sha> \
+#     docker compose -p dtk -f docker/compose.yml --profile browser build browser-rpc
+#
+# Built without that argument, the image contains the service and the fake
+# backend but no browser. It then refuses to mint unless DTK_BROWSER_BACKEND=fake
+# is set explicitly: falling back to synthetic identities on its own would fill
+# the pool with cookies no platform accepts, and everything downstream would keep
+# reporting success.
+
+ARG PYTHON_VERSION=3.12.8
+# Override with a digest-pinned image that already carries CloakBrowser, e.g.
+#   BROWSER_BASE_IMAGE=ghcr.io/<org>/cloakbrowser@sha256:<digest>
+ARG BROWSER_BASE_IMAGE=python:${PYTHON_VERSION}-slim-bookworm
+
+FROM ${BROWSER_BASE_IMAGE} AS runtime
+
+ARG CLOAKBROWSER_REPO=https://github.com/CloakHQ/cloakbrowser
+ARG CLOAKBROWSER_COMMIT=""
+# The command that fetches the browser binaries after the Python package is
+# installed. It is an argument because it belongs to the pinned revision, not to
+# this file; verify it against the revision you pin (see docker/README.md).
+ARG CLOAKBROWSER_INSTALL_CMD="python -m cloakbrowser install chromium"
+
+ARG DTK_UID=10001
+ARG DTK_GID=10001
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/srv
+
+# The browser binaries must not land under /tmp. Compose mounts a 256MB tmpfs
+# over /tmp at runtime, which would hide a Chromium installed there at build
+# time and could not hold it anyway - the container would come up, answer
+# /rpc/health, and fail every mint with "executable doesn't exist".
+#
+# PLAYWRIGHT_BROWSERS_PATH is the documented override; HOME and XDG_CACHE_HOME
+# are pointed at the same persistent place for the duration of the build in case
+# the pinned revision derives its install directory from those instead. Both are
+# moved back to /tmp below, which is where the *runtime* user needs to write.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
+    HOME=/opt/browser-build \
+    XDG_CACHE_HOME=/opt/browser-build/.cache
+
+# Chromium's shared-library and font dependencies. The CJK fonts are not
+# cosmetic: a browser that cannot render the platform's own script measures text
+# differently from every real visitor, and font metrics are a fingerprint.
+RUN if [ -n "${CLOAKBROWSER_COMMIT}" ]; then \
+      apt-get update && apt-get install --no-install-recommends -y \
+        ca-certificates \
+        fonts-liberation \
+        fonts-noto-color-emoji \
+        fonts-noto-cjk \
+        libasound2 \
+        libatk-bridge2.0-0 \
+        libatk1.0-0 \
+        libatspi2.0-0 \
+        libcairo2 \
+        libcups2 \
+        libdbus-1-3 \
+        libdrm2 \
+        libexpat1 \
+        libgbm1 \
+        libglib2.0-0 \
+        libnspr4 \
+        libnss3 \
+        libpango-1.0-0 \
+        libx11-6 \
+        libxcb1 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxext6 \
+        libxfixes3 \
+        libxkbcommon0 \
+        libxrandr2 \
+        xdg-utils \
+        git \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+WORKDIR /srv
+
+COPY docker/browser_rpc/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+
+# The browser backend, pinned. Two separate steps so a failure names which one
+# went wrong: fetching the package, or fetching the browser it drives.
+RUN if [ -n "${CLOAKBROWSER_COMMIT}" ]; then \
+      pip install --no-cache-dir "cloakbrowser @ git+${CLOAKBROWSER_REPO}@${CLOAKBROWSER_COMMIT}" \
+      && sh -c "${CLOAKBROWSER_INSTALL_CMD}" \
+      && test -d /opt/ms-playwright \
+      && test -n "$(ls -A /opt/ms-playwright)"; \
+    else \
+      echo "browser-rpc: built without CLOAKBROWSER_COMMIT; only the fake backend is available" >&2; \
+    fi
+
+# The install ran as root; the service runs as uid 10001 on a read-only root
+# filesystem, so the binaries have to be world-readable and world-traversable.
+# The `test -d` above is what turns "the pinned revision installs somewhere
+# else" into a build failure instead of a container that mints nothing.
+RUN if [ -d /opt/ms-playwright ]; then chmod -R a+rX /opt/ms-playwright; fi
+
+# Back to /tmp for the runtime: that tmpfs is the only writable path the
+# container has. PLAYWRIGHT_BROWSERS_PATH deliberately stays where the browser
+# actually is.
+ENV HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache
+
+COPY docker/browser_rpc /srv/browser_rpc
+
+RUN groupadd --system --gid "${DTK_GID}" dtk \
+ && useradd --system --uid "${DTK_UID}" --gid "${DTK_GID}" \
+            --home-dir /srv --shell /usr/sbin/nologin dtk \
+ && chown -R root:root /srv
+
+# Profile parent, owned by the runtime user. Compose mounts a tmpfs over it so
+# single-use mint profiles never reach a disk; creating it here keeps a plain
+# `docker run` of this image working too.
+RUN mkdir -p /profiles \
+ && chown "${DTK_UID}:${DTK_GID}" /profiles \
+ && chmod 0700 /profiles
+
+# Reported by /rpc/health, so "which browser is this" is answerable from the
+# running system rather than from build history.
+ENV DTK_BROWSER_BACKEND_PIN="${CLOAKBROWSER_REPO}@${CLOAKBROWSER_COMMIT}" \
+    DTK_BROWSER_BIND_HOST=0.0.0.0 \
+    DTK_BROWSER_BIND_PORT=9000 \
+    DTK_BROWSER_PROFILE_ROOT=/profiles
+
+USER dtk
+
+EXPOSE 9000
+
+# Internal service, so the probe is loopback only. Compose repeats it because a
+# compose-level check is what gates `up --wait`.
+#
+# The body is read, not just the status: /rpc/health answers 200 even when the
+# browser backend failed to start - that is deliberate, so the operator gets a
+# reason in the log instead of a restart loop - and a probe that stopped at the
+# status code would call an image built without CLOAKBROWSER_COMMIT healthy.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import json, sys, urllib.request; \
+r = urllib.request.urlopen('http://127.0.0.1:9000/rpc/health', timeout=5); \
+sys.exit(0 if r.status == 200 and json.load(r).get('status') == 'ok' else 1)"
+
+ENTRYPOINT ["python", "-m", "browser_rpc"]
+
+LABEL org.opencontainers.image.title="dtk browser-rpc" \
+      org.opencontainers.image.description="Headless browser RPC for dtk: identity minting and signature fallback" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.source="https://github.com/Evil0ctal/Douyin_TikTok_Download_API"

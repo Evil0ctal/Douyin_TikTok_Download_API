@@ -1,0 +1,68 @@
+{
+  "title": "初始化 dtk",
+  "subtitle": "四步完成，然后就可以开始使用控制台。",
+  "tokenBanner": {
+    "title": "需要初始化令牌",
+    "description": "令牌已打印在容器日志中。执行 docker compose logs api 取得后粘贴到此处。",
+    "label": "初始化令牌",
+    "hint": "令牌在 api 容器启动 24 小时后失效。"
+  },
+  "step": {
+    "admin": {
+      "title": "创建管理员",
+      "description": "该账号拥有全部权限，包括修改敏感配置。"
+    },
+    "proxy": {
+      "title": "配置代理",
+      "description": "可选。不配置时所有身份共用服务器的出口地址。"
+    },
+    "mint": {
+      "title": "铸造首个身份",
+      "description": "身份携带发起上游请求所需的指纹与 cookie。"
+    },
+    "smoke": {
+      "title": "冒烟测试",
+      "description": "用一条真实公开链接跑通完整流程，部署当场就知道能不能用。"
+    }
+  },
+  "admin": {
+    "username": "用户名",
+    "password": "密码",
+    "confirmPassword": "确认密码",
+    "passwordHint": "至少 12 位。本项目没有邮件找回密码，只能通过 CLI 重置。",
+    "mismatch": "两次输入的密码不一致。",
+    "submit": "创建管理员"
+  },
+  "proxy": {
+    "label": "代理列表",
+    "placeholder": "每行一个代理",
+    "formats": "支持格式：host:port、host:port:user:pass、user:pass@host:port、scheme://user:pass@host:port",
+    "skip": "暂时跳过",
+    "submit": "添加并探测"
+  },
+  "mint": {
+    "platform": "平台",
+    "submit": "开始铸造",
+    "running": "正在铸造，需要几秒钟。",
+    "success": "身份已就绪。",
+    "skip": "暂时跳过"
+  },
+  "smoke": {
+    "url": "测试链接",
+    "urlHint": "任意受支持平台的公开作品链接。",
+    "submit": "运行冒烟测试",
+    "running": "正在跑完整链路。",
+    "success": "端到端请求成功。",
+    "failed": "冒烟测试失败。诊断页可以定位是哪一步出的问题。"
+  },
+  "done": {
+    "title": "初始化完成",
+    "description": "现在可以进入控制台。",
+    "action": "进入总览"
+  },
+  "alreadyInitialized": {
+    "title": "已完成初始化",
+    "description": "该实例已存在管理员账号。",
+    "action": "去登录"
+  }
+}

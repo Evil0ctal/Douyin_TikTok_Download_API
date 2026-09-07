@@ -9,6 +9,7 @@ database access explode rather than merely asserting on the returned payload.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -200,6 +201,43 @@ def test_commit_is_none_outside_a_build(monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setenv("DTK_COMMIT", "abc1234def5678901")
     assert health.commit() == "abc1234def56"
+
+
+class HangingRedis:
+    """Accepts the PING and never answers, like a wedged server."""
+
+    async def ping(self) -> bool:
+        await asyncio.sleep(3600)
+        return True
+
+
+class HangingEngine:
+    def connect(self) -> Any:
+        class _Never:
+            async def __aenter__(self) -> Any:
+                await asyncio.sleep(3600)
+                return FakeConnection()
+
+            async def __aexit__(self, *_exc: object) -> None:
+                return None
+
+        return _Never()
+
+
+async def test_a_wedged_dependency_fails_the_probe_instead_of_hanging() -> None:
+    """PROBE_TIMEOUT_SECONDS has to be enforced, not merely declared.
+
+    A dependency that accepts the connection and never answers is the exact
+    case readiness exists for; waiting on it forever gives the orchestrator the
+    one answer it cannot act on.
+    """
+    redis = await health.check_redis(HangingRedis(), timeout=0.05)  # type: ignore[arg-type]
+    postgres = await health.check_postgres(HangingEngine(), timeout=0.05)  # type: ignore[arg-type]
+
+    assert redis.ok is False
+    assert "no answer" in (redis.detail or "")
+    assert postgres.ok is False
+    assert "no answer" in (postgres.detail or "")
 
 
 # --------------------------------------------------------------------------

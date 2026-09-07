@@ -1,0 +1,1017 @@
+{
+  "nav": {
+    "group": {
+      "monitor": "监控",
+      "pool": "资源池",
+      "tools": "工具",
+      "access": "访问控制",
+      "operations": "运维"
+    },
+    "overview": "总览",
+    "identities": "身份池",
+    "proxies": "代理",
+    "apiKeys": "API Key",
+    "playground": "调试台",
+    "parseTool": "解析工具",
+    "apiDocs": "接口文档",
+    "logs": "日志",
+    "settings": "设置",
+    "notifications": "通知",
+    "system": "系统信息",
+    "diagnose": "诊断",
+    "backup": "备份",
+    "users": "用户"
+  },
+  "page": {
+    "overview": {
+      "title": "总览",
+      "description": "身份池健康度、各接口成功率与风控率、近期请求量。"
+    },
+    "identities": {
+      "title": "身份池",
+      "description": "铸造、导入、测试与退休用于发起请求的身份。"
+    },
+    "proxies": {
+      "title": "代理",
+      "description": "出口地址、连通性与 GeoIP 探测结果。"
+    },
+    "apiKeys": {
+      "title": "API Key",
+      "description": "Key、scope 与配额。密钥仅在创建时显示一次。"
+    },
+    "playground": {
+      "title": "调试台",
+      "description": "调用接口并同时查看归一化结果与原始响应。"
+    },
+    "parseTool": {
+      "title": "解析工具",
+      "description": "粘贴一批链接，批量解析并导出结果。"
+    },
+    "logs": {
+      "title": "日志",
+      "description": "请求日志与审计日志，可按 request_id、接口与结果检索。"
+    },
+    "apiDocs": {
+      "title": "接口文档",
+      "description": "按当前界面语言渲染的 Swagger UI。"
+    },
+    "settings": {
+      "title": "设置",
+      "description": "分组展示配置项，并标注每一项的来源。"
+    },
+    "notifications": {
+      "title": "通知",
+      "description": "告警通道、触发条件与测试推送。"
+    },
+    "system": {
+      "title": "系统信息",
+      "description": "版本、组件连通性、版本漂移与磁盘占用。"
+    },
+    "diagnose": {
+      "title": "诊断",
+      "description": "一键六步自检，输出可导出的脱敏报告。"
+    },
+    "backup": {
+      "title": "备份",
+      "description": "创建与恢复备份。身份默认不导出。"
+    },
+    "users": {
+      "title": "用户",
+      "description": "账号与角色、修改自己的密码、会话管理。"
+    },
+    "setup": {
+      "title": "初始化",
+      "description": "创建首个管理员并验证部署是否可用。"
+    },
+    "login": {
+      "title": "登录",
+      "description": "登录控制台。"
+    },
+    "notFound": {
+      "title": "页面不存在",
+      "description": "控制台中没有这个路由。",
+      "action": "返回总览"
+    }
+  },
+  "shell": {
+    "environment": "环境",
+    "account": "账号",
+    "accountMenu": "账号菜单",
+    "signedInAs": "已登录：{username}",
+    "notSignedIn": "未登录",
+    "rateLimit": "限额：剩余 {remaining} / {limit}",
+    "breadcrumb": "面包屑导航"
+  },
+  "pool": {
+    "summary": "{count} 个身份可用",
+    "active": "可用",
+    "cooling": "冷却中",
+    "degraded": "降级",
+    "retired": "已退休",
+    "minting": "铸造中"
+  },
+  "field": {
+    "identity": "身份",
+    "identityId": "身份 ID",
+    "platform": "平台",
+    "endpoint": "接口",
+    "proxy": "代理",
+    "state": "状态",
+    "outcome": "结果",
+    "requestId": "请求 ID",
+    "taskId": "任务 ID",
+    "errorCode": "错误码",
+    "duration": "耗时",
+    "httpStatus": "HTTP 状态",
+    "createdAt": "创建时间",
+    "lastUsedAt": "最近使用",
+    "lastCheckAt": "最近探测",
+    "cooldownUntil": "冷却结束",
+    "consecutiveFails": "连续失败",
+    "source": "来源",
+    "authenticated": "登录态",
+    "scopes": "权限范围",
+    "rateLimit": "限额",
+    "expiresAt": "过期时间",
+    "role": "角色",
+    "username": "用户名",
+    "country": "国家/地区",
+    "latency": "延迟",
+    "cacheHit": "命中缓存",
+    "signer": "签名方式"
+  },
+  "metric": {
+    "successRate": "成功率",
+    "riskRate": "风控率",
+    "requests": "请求量",
+    "activeIdentities": "可用身份",
+    "openCircuits": "熔断接口",
+    "avgDuration": "平均耗时"
+  },
+  "login": {
+    "subtitle": "使用初始化时创建的管理员账号登录。",
+    "password": "密码",
+    "recoveryHint": "本项目不支持邮件找回密码，只能在运行 api 容器的宿主机上用 CLI 重置。",
+    "error": {
+      "invalid": "用户名或密码不正确。",
+      "rateLimited": "尝试次数过多，请在 {seconds} 秒后重试。",
+      "network": "无法连接 API，请确认 api 容器正在运行。",
+      "timeout": "API 未在超时前响应，请重试。",
+      "generic": "登录失败，请重试。"
+    }
+  },
+  "setupWizard": {
+    "stepsLabel": "初始化步骤",
+    "tokenFromUrl": "已从打开的链接中读取令牌。",
+    "admin": {
+      "usernameRule": "3 到 64 个字符：字母、数字、点、短横或下划线，且以字母或数字开头。",
+      "passwordRule": "至少 {length} 个字符。",
+      "tokenRule": "请粘贴容器日志中打印的初始化令牌。",
+      "failed": "创建管理员失败",
+      "attemptsLeft": "该令牌作废前还剩 {count} 次尝试机会"
+    },
+    "smoke": {
+      "contentId": "作品 ID",
+      "skip": "跳过测试并完成",
+      "diagnoseHint": "诊断页会逐步跑同样的检查，并指出是哪一步出的问题。"
+    }
+  },
+  "overview": {
+    "circuit": "熔断",
+    "samples": "样本数",
+    "riskIdentities": "命中身份数",
+    "reopen": "恢复剩余",
+    "allEndpoints": "全部接口",
+    "range": {
+      "label": "时间范围",
+      "1h": "最近 1 小时",
+      "6h": "最近 6 小时",
+      "24h": "最近 24 小时",
+      "7d": "最近 7 天"
+    },
+    "fresh": {
+      "title": "还没有请求",
+      "description": "这个部署还没有服务过任何请求。先铸造一个身份，再用真实链接试一次。",
+      "action": "去身份池"
+    },
+    "endpointCount": "共 {count} 个接口",
+    "poolDistribution": "身份池状态分布",
+    "poolHint": "各平台全部身份，按状态统计。",
+    "rates": "成功率与风控率",
+    "ratesHint": "每个时间桶内的请求占比。图表按本地时区显示，服务端存的是 UTC。",
+    "volume": "请求量",
+    "volumeHint": "每个时间桶的请求数，来自请求日志。",
+    "endpoints": "接口健康度",
+    "noEndpoints": "没有已声明的接口",
+    "noEndpointsHint": "平台适配器没有报告任何接口，这是部署问题，不是数据为空。",
+    "noIdentities": "身份池为空",
+    "noIdentitiesHint": "发起流量前先铸造或导入一个身份。",
+    "alert": {
+      "poolEmpty": "没有可用身份",
+      "poolEmptyHint": "身份池恢复前，请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝。",
+      "degraded": "{count} 个身份处于降级状态",
+      "degradedHint": "降级身份仍会承接流量，但失败率高于其它身份。"
+    },
+    "byEndpoint": "各接口成功率",
+    "byEndpointHint": "本时间范围内请求量最高的接口，最多六条。在上方选择单个接口可单独查看。"
+  },
+  "identity": {
+    "column": {
+      "health": "健康度",
+      "cooldown": "冷却剩余",
+      "minted": "铸造时间"
+    },
+    "noProxy": "服务器出口",
+    "source": {
+      "minted": "铸造",
+      "imported": "导入"
+    },
+    "failCount": "{count} 次失败",
+    "retire": "退休",
+    "retired": "已退休 {count} 个身份",
+    "bulkRetire": "批量退休",
+    "retireDialog": {
+      "title": "确认退休 {count} 个身份？",
+      "description": "退休会清除已存储的 cookie。统计数据保留，凭证不再保留，且无法恢复。"
+    },
+    "empty": {
+      "title": "还没有身份",
+      "description": "可以铸造游客身份，也可以导入登录态 cookie。"
+    },
+    "filter": {
+      "allPlatforms": "全部平台",
+      "allStates": "全部状态"
+    },
+    "mint": {
+      "action": "铸造",
+      "title": "铸造身份",
+      "description": "铸造会通过代理驱动真实浏览器，每个需要几秒钟。",
+      "count": "数量",
+      "proxyHint": "身份会绑定在铸造时使用的代理上，之后不再更换。",
+      "anyProxy": "由调度器选择",
+      "done": "已铸造 {count} 个身份",
+      "failed": "铸造失败"
+    },
+    "import": {
+      "action": "导入 cookie",
+      "title": "导入登录态 cookie",
+      "description": "四种格式都可以直接粘贴。保存前会先展示解析结果。",
+      "cookies": "Cookie",
+      "formats": "支持：请求头、扩展导出的 JSON、Netscape cookies.txt，或每行一个 key=value。",
+      "userAgent": "User agent",
+      "userAgentHint": "填写同一个浏览器会话的 UA，指纹才能与 cookie 匹配。",
+      "proxyHint": "选择该账号平时登录所用的出口。",
+      "submit": "保存身份",
+      "stored": "身份已导入。",
+      "failed": "导入失败",
+      "acknowledge": "我已知晓这串 cookie 等价于账号密码。",
+      "expiryNotice": "预计在 {date} 过期，到期前会发送通知提醒续期。",
+      "risk": {
+        "title": "这是一份凭证",
+        "equivalence": "登录态 cookie 等价于账号密码：拿到它的人就能以该账号的身份操作。",
+        "storage": "它会加密存储，任何接口都不会返回明文，但本实例的管理员可以使用它。",
+        "dedicated": "请使用专门准备的账号，不要用主账号。"
+      },
+      "format": "格式",
+      "browser": "浏览器",
+      "loggedIn": "登录态",
+      "count": "Cookie 数",
+      "missing": "缺少必需的 cookie：",
+      "maskNote": "取值由服务端掩码处理，控制台从不接收明文。",
+      "usableHint": "这组 cookie 是否可以作为身份使用。",
+      "role": {
+        "required": "必需",
+        "session": "登录态",
+        "useful": "有帮助",
+        "other": "其它"
+      }
+    },
+    "test": {
+      "title": "身份测试",
+      "rule": "规则",
+      "businessErrorNote": "业务错误算通过：平台正常响应了，只是内容已不存在。",
+      "idle": "还没有结果。"
+    }
+  },
+  "proxy": {
+    "column": {
+      "label": "备注",
+      "address": "地址",
+      "geo": "出口地区",
+      "identities": "身份数",
+      "id": "代理 ID",
+      "timezone": "时区"
+    },
+    "undecryptable": "无法解密",
+    "geoHint": "两位国家/地区代码，探测后会自动填写。",
+    "exitIp": "出口地址",
+    "created": "代理已添加。",
+    "updated": "代理已更新。",
+    "deleted": "已删除 {count} 个代理",
+    "empty": {
+      "title": "还没有代理",
+      "description": "不配置代理时，所有身份共用服务器自身的出口地址。"
+    },
+    "add": {
+      "action": "添加代理",
+      "title": "添加代理",
+      "description": "凭证在写入时即加密，不会再返回给控制台。"
+    },
+    "edit": {
+      "title": "编辑代理",
+      "urlOptional": "地址留空表示保留原有地址。"
+    },
+    "delete": {
+      "title": "确认删除 {count} 个代理？",
+      "description": "绑定在被删代理上的身份会被退休：身份不能改用其它出口发出请求。"
+    },
+    "bulk": {
+      "enable": "标记为可用",
+      "disable": "标记为不可用",
+      "delete": "删除所选",
+      "enabled": "已将 {count} 个代理标记为可用",
+      "disabled": "已将 {count} 个代理标记为不可用"
+    },
+    "import": {
+      "action": "批量导入",
+      "title": "导入代理",
+      "description": "粘贴列表即可，逐行识别格式，导入成功的会立刻探测。",
+      "labelField": "本批备注",
+      "labelHint": "会应用到本次导入的每一个代理。",
+      "pasteHint": "每行粘贴一个代理，可以先看解析结果。",
+      "parsed": "已解析 {count} 行",
+      "unparsed": "{count} 行无法识别",
+      "duplicates": "{count} 行重复",
+      "withCredentials": "含账号密码",
+      "done": "已导入 {count} 个代理",
+      "result": "成功 {created} 个，拒绝 {rejected} 个。"
+    },
+    "line": {
+      "unparsable": "无法识别的代理格式",
+      "scheme": "不支持的协议",
+      "port": "端口缺失或不合法",
+      "host": "缺少主机"
+    },
+    "test": {
+      "title": "代理探测",
+      "failed": "探测失败"
+    }
+  },
+  "settings": {
+    "version": "settings v{version}",
+    "precedence": "优先级：数据库覆盖 > .env 种子值 > 代码默认值。一个键一旦落库，改 .env 就不再生效，除非把这一行重置。",
+    "precedenceCount": "当前有 {count} 个键覆盖了 .env 中的同名值",
+    "readOnly": "当前角色只能查看配置，不能修改。",
+    "source": {
+      "database": "数据库覆盖",
+      "databaseHint": "存在 settings 表中。以此值为准，重置之前 .env 中的同名值不生效。",
+      "environment": ".env 种子值",
+      "environmentHint": "启动时从环境变量读取。因为没有数据库覆盖，所以它生效。",
+      "default": "代码默认值",
+      "defaultHint": "内置默认值。数据库与环境变量都没有设置这个键。"
+    },
+    "sensitive": {
+      "tag": "敏感项",
+      "adminOnly": "敏感项仅管理员可以修改。"
+    },
+    "invalid": {
+      "integer": "请输入整数。",
+      "number": "请输入数字。",
+      "json": "不是合法的 JSON。"
+    },
+    "hint": {
+      "onePerLine": "每行一条。",
+      "json": "JSON 值。"
+    },
+    "row": {
+      "default": "默认值：{value}",
+      "updated": "修改于 {when}",
+      "reset": "重置为继承值",
+      "alreadyInherited": "当前已是继承值，没有可移除的覆盖。"
+    },
+    "toast": {
+      "saved": "已保存 {key}",
+      "saveFailed": "保存 {key} 失败",
+      "reset": "{key} 已重置为继承值",
+      "resetFailed": "重置 {key} 失败"
+    },
+    "confirm": {
+      "saveTitle": "修改敏感配置",
+      "resetTitle": "重置敏感配置",
+      "description": "输入键名 {key} 以确认。",
+      "warning": "这一项会扩大攻击面。域名白名单是本服务唯一的 SSRF 防线，CORS 来源决定哪些站点可以持有你的 API Key，下载代理会让这台服务器变成中转。",
+      "audit": "本次修改会连同你的账号与修改前的值一起写入审计日志。"
+    },
+    "empty": {
+      "title": "没有可显示的配置",
+      "description": "服务端返回的配置表为空。"
+    },
+    "group": {
+      "sched": "调度",
+      "pool": "身份池",
+      "cache": "缓存",
+      "snapshot": "快照",
+      "retention": "保留期",
+      "api": "接口",
+      "security": "安全",
+      "notify": "通知",
+      "system": "系统",
+      "other": "其它"
+    },
+    "groupHint": {
+      "sched": "等待、排队、冷却，以及接口熔断的阈值。",
+      "pool": "水位线与单身份的保守请求速率。",
+      "cache": "解析结果可复用的时长。",
+      "snapshot": "写入内容历史时的去重窗口。",
+      "retention": "日志、事件与任务的保留时长。内容快照永不自动删除。",
+      "api": "防滥用限额、长轮询上限与默认响应语言。",
+      "security": "这一组全部是敏感项：白名单、CORS 与下载代理。",
+      "notify": "总开关、通道与默认告警语言。",
+      "system": "实例级行为，包含默认关闭的更新检查。",
+      "other": "没有独立分组的配置项。"
+    }
+  },
+  "notifications": {
+    "dedupExplainer": "每个触发条件都带一个去重窗口：同一条告警在窗口内只发一次，窗口关闭前一律抑制。没有它，一次熔断会按请求条数刷屏，用户第一件事就是关掉通知。告警可信是因为它足够少。",
+    "severity": {
+      "error": "错误",
+      "warning": "警告"
+    },
+    "action": {
+      "testAll": "发送测试告警",
+      "add": "新增通道"
+    },
+    "delivery": {
+      "title": "投递",
+      "description": "总开关，以及通道未单独指定时使用的语言。",
+      "enabled": "发送告警",
+      "enabledHint": "关闭时触发条件仍会命中并记录，但不投递。",
+      "language": "默认告警语言",
+      "languageHint": "告警按接收者的语言渲染，不是按控制台操作者的语言。"
+    },
+    "channels": {
+      "title": "通道",
+      "description": "告警的投递目标。Webhook 目标必须是 https，且不能解析到私有地址。"
+    },
+    "triggers": {
+      "title": "触发条件与去重窗口",
+      "description": "事件集合是固定的。不做限定时，通道会收到全部事件。"
+    },
+    "column": {
+      "name": "名称",
+      "type": "类型",
+      "target": "目标",
+      "language": "语言",
+      "events": "事件",
+      "status": "状态",
+      "event": "事件",
+      "severity": "级别",
+      "dedup": "去重窗口",
+      "scope": "去重维度",
+      "subscribers": "订阅通道",
+      "description": "含义"
+    },
+    "empty": {
+      "title": "还没有通道",
+      "description": "没有通道时，告警只停留在控制台。加一个通道，故障才能在没人看这个页面时找到你。"
+    },
+    "editor": {
+      "title": "通道",
+      "description": "凭证存放在服务端，之后不会再完整显示。"
+    },
+    "field": {
+      "type": "类型",
+      "typeHint": "决定 payload 模板。该值是稳定标识，不做翻译。",
+      "name": "名称",
+      "nameHint": "用于在测试与审计记录中标识这个通道。",
+      "url": "URL",
+      "urlHint": "仅支持 https。回环、私有与链路本地地址会被拒绝。",
+      "group": "Bark 分组",
+      "groupHint": "在设备上把这些通知归为一组。",
+      "secret": "签名密钥",
+      "secretHint": "可选。机器人使用加签而非关键词校验时填写。",
+      "token": "Bot token",
+      "chatId": "Chat id",
+      "host": "SMTP 主机",
+      "port": "端口",
+      "sender": "发件人",
+      "recipients": "收件人",
+      "recipientsHint": "多个地址用逗号分隔。",
+      "username": "SMTP 用户名",
+      "password": "SMTP 密码",
+      "ssl": "隐式 TLS",
+      "starttls": "STARTTLS",
+      "language": "语言",
+      "languageHint": "该通道按这个语言渲染告警。",
+      "languageInherit": "使用默认语言",
+      "events": "事件",
+      "eventsHint": "取消勾选此通道不需要接收的事件。每个事件的去重窗口是固定的，显示在旁边。",
+      "enabled": "启用",
+      "enabledHint": "禁用的通道会保留配置但跳过投递。"
+    },
+    "error": {
+      "nameTaken": "已有同名通道。",
+      "nameRequired": "请为通道取一个名称。",
+      "urlHttps": "URL 必须以 https:// 开头",
+      "required": "此项必填。"
+    },
+    "event": {
+      "dedupHint": "每 {window} 一次，按 {scope} 区分",
+      "scopeGlobal": "全实例"
+    },
+    "eventText": {
+      "endpoint_circuit_open": "某个接口触发熔断，正在拒绝请求。",
+      "pool_empty": "某平台没有可用身份，请求进入排队或直接失败。",
+      "pool_below_min": "身份池低于水位线，正在铸造补充。",
+      "proxy_unhealthy": "某个代理探测失败，已被移出轮转。",
+      "signature_stale": "本地签名与浏览器结果不再一致，算法已经漂移。",
+      "cookie_expiring": "某个登录态 cookie 即将过期，需要续期。",
+      "backup_failed": "一次备份任务没有完成。"
+    },
+    "toast": {
+      "saved": "已保存",
+      "saveFailed": "保存通知配置失败",
+      "testSent": "测试告警已发送",
+      "testFailed": "测试告警发送失败",
+      "channelSaved": "通道 {name} 已保存",
+      "channelDeleted": "通道 {name} 已删除"
+    },
+    "confirm": {
+      "deleteTitle": "删除这个通道？",
+      "deleteDescription": "{name} 将立即停止接收告警。"
+    }
+  },
+  "system": {
+    "column": {
+      "component": "组件",
+      "health": "状态",
+      "latency": "延迟",
+      "detail": "详情",
+      "table": "表",
+      "rows": "行数",
+      "rowsCompact": "行数（简写）"
+    },
+    "warmContexts": "{count} 个预热上下文",
+    "metric": {
+      "version": "版本",
+      "settingsVersion": "settings v{version}",
+      "uptime": "运行时长",
+      "activeIdentities": "可用身份",
+      "dbSize": "数据库大小"
+    },
+    "components": {
+      "title": "组件",
+      "description": "连通性与往返耗时由服务端测得，不是由当前浏览器测得。",
+      "emptyTitle": "没有组件信息",
+      "emptyDescription": "状态接口没有返回组件数据。"
+    },
+    "drift": {
+      "title": "Chromium 与 wreq 指纹",
+      "description": "产出签名的浏览器与复现指纹的客户端，主版本必须一致。",
+      "chromium": "Chromium 主版本",
+      "wreq": "wreq 指纹主版本",
+      "warning": "版本漂移：Chromium 为 {chromium}，wreq 指纹对应 {wreq}。签名照样能产出，但指纹已经和产出它的浏览器对不上。请固定浏览器镜像或更新指纹。",
+      "unknown": "没有拿到主版本。browser-rpc 未配置，或者还没有上报版本。",
+      "aligned": "两者同为主版本 {major}，无漂移。"
+    },
+    "storage": {
+      "title": "磁盘占用",
+      "description": "各表行数为估算值。数据库大小：{size}。",
+      "emptyTitle": "没有表级数据",
+      "emptyDescription": "服务端无法读取存储统计。"
+    },
+    "updates": {
+      "title": "检查更新",
+      "description": "默认关闭。不开启就不会有任何数据离开这台机器。",
+      "outbound": "这项检查会从你的浏览器向 github.com 发起一次外网请求。不允许外连的部署环境请保持关闭。",
+      "toggle": "允许检查更新",
+      "toggleHint": "作为运行配置存储，重启后依然有效。",
+      "check": "立即检查",
+      "latest": "最新版本：{tag}",
+      "upToDate": "已是最新版本 {tag}",
+      "openReleases": "打开发布页",
+      "httpError": "GitHub 返回 HTTP {status}。",
+      "networkError": "请求没有完成。当前部署可能没有外网访问权限。",
+      "saved": "已保存",
+      "saveFailed": "保存更新检查设置失败"
+    }
+  },
+  "diagnose": {
+    "redacted": "报告在离开服务端之前已经脱敏：代理密码、cookie 与 API Key 一律掩码。可以直接粘贴到公开 issue 里。",
+    "suggestedAction": "建议动作：",
+    "stepRunning": "正在执行。",
+    "stepPending": "等待前面的步骤完成。",
+    "status": {
+      "pass": "通过",
+      "warn": "警告",
+      "fail": "失败",
+      "skip": "已跳过",
+      "running": "执行中",
+      "pending": "等待中",
+      "idle": "未执行"
+    },
+    "step": {
+      "components": "postgres、redis 与 browser-rpc 是否可达。",
+      "egress": "本机能否直连平台域名。",
+      "proxies": "逐个探测代理的连通性、出口 IP 与 GeoIP。",
+      "pool": "有多少可用身份，以及最老的身份多久没成功过。",
+      "signing": "本地纯算法与浏览器产出的签名是否一致。",
+      "smoke": "用一条固定的公开链接跑完整流程。"
+    },
+    "action": {
+      "run": "开始自检",
+      "rerun": "重新自检"
+    },
+    "options": {
+      "title": "执行范围",
+      "description": "六个步骤按顺序执行，每步都有独立超时，卡住的依赖不会拖住其余步骤。",
+      "smoke": "包含端到端冒烟测试",
+      "smokeHint": "第 6 步会用一条固定的公开链接走完整链路。关闭它可以让整个自检只在本地进行。"
+    },
+    "steps": {
+      "title": "步骤",
+      "finished": "完成于 {when}，结论 {verdict}",
+      "running": "执行中。每一步完成后立即回报。",
+      "idle": "本次会话还没有执行过自检。"
+    },
+    "verdict": {
+      "pass": "PASS",
+      "fail": "FAIL"
+    },
+    "report": {
+      "title": "报告",
+      "description": "纯文本，已脱敏，可直接粘贴到 issue。",
+      "copy": "复制报告",
+      "waiting": "自检完成后会显示报告。",
+      "empty": "执行一次自检以生成报告。"
+    },
+    "toast": {
+      "startFailed": "启动自检失败",
+      "copied": "报告已复制"
+    }
+  },
+  "backup": {
+    "keyExplainer": "凭证以密文导出，备份包不含主密钥。因此恢复时必须提供创建它的那把 DTK_SECRET_KEY；密钥不同则代理地址与 cookie 都无法解密。",
+    "adminOnly": "创建与恢复备份仅管理员可以操作。",
+    "restoreDone": "已恢复 {name}。请刷新控制台，让各页面读取新数据。",
+    "identities": {
+      "included": "含身份",
+      "excluded": "不含身份"
+    },
+    "column": {
+      "file": "备份包",
+      "created": "创建时间",
+      "version": "创建版本",
+      "identities": "身份",
+      "rows": "行数",
+      "size": "大小",
+      "keyCheck": "密钥校验"
+    },
+    "action": {
+      "create": "创建备份",
+      "restore": "恢复"
+    },
+    "create": {
+      "title": "创建备份",
+      "description": "settings、代理、内容快照、用户与 API Key 始终包含在内。请求日志与身份事件不包含：它们描述的是已经结束的运行过程。",
+      "includeIdentities": "包含身份",
+      "includeIdentitiesHint": "默认关闭。身份与某个代理、某个出口地址绑定，换机之后不应继续使用。",
+      "includeIdentitiesWarning": "备份包会以密文携带登录态 cookie。换一台机器出口 IP 就变了，从新出口使用这些身份正是最容易触发风控的做法。只在出口不变时恢复它们。",
+      "hint": "备份包写在服务端，与其它备份放在一起。"
+    },
+    "list": {
+      "title": "备份列表",
+      "description": "服务端可见的备份，按时间倒序。"
+    },
+    "empty": {
+      "title": "还没有备份",
+      "description": "内容快照是几个月积累出来的，平台删掉之后再也拿不回来。现在就创建第一个备份包。"
+    },
+    "confirm": {
+      "title": "恢复这个备份包？",
+      "description": "输入文件名以确认。",
+      "warning": "恢复会用备份包覆盖当前数据库，两边都存在的行会被备份中的版本替换。",
+      "keyReminder": "当前实例必须持有创建该备份包时的同一把 DTK_SECRET_KEY。"
+    },
+    "keyMismatch": {
+      "title": "主密钥不匹配",
+      "body": "这个备份包是用另一把 DTK_SECRET_KEY 创建的，本次没有恢复任何数据。继续恢复会让所有代理地址与 cookie 无法解密，因此服务端直接拒绝，而不是恢复到一半。",
+      "action": "请改用原来的密钥恢复，或者从一个全新实例开始，重新导入能够重建的数据。"
+    },
+    "toast": {
+      "created": "备份已创建",
+      "createFailed": "备份失败",
+      "restored": "已恢复 {name}",
+      "restoreFailed": "恢复失败"
+    }
+  },
+  "users": {
+    "you": "当前账号",
+    "adminOnly": "账号管理仅管理员可用。修改自己的密码与查看会话在下方。",
+    "cannotDeleteSelf": "不能删除当前登录的账号。",
+    "action": {
+      "create": "新增用户",
+      "changeRole": "修改角色"
+    },
+    "column": {
+      "id": "用户 id",
+      "lastLogin": "最近登录",
+      "session": "会话",
+      "lastSeen": "最近活跃",
+      "ip": "地址",
+      "userAgent": "客户端"
+    },
+    "list": {
+      "title": "账号",
+      "description": "角色变更在下一次请求即生效，没有缓存需要等待。"
+    },
+    "empty": {
+      "title": "没有账号",
+      "description": "每个实例至少有一个管理员。"
+    },
+    "matrix": {
+      "title": "各角色的权限",
+      "description": "三个角色，不做用户组，也不做细粒度权限：自部署实例的用户数是个位数，一屏能看完的规则才会被真正遵守。",
+      "capability": "权限"
+    },
+    "capability": {
+      "read": "查看总览、日志与诊断结果",
+      "pool": "管理身份池与代理",
+      "keys": "创建与撤销 API Key",
+      "diagnose": "执行自检",
+      "settings": "修改运行配置",
+      "sensitive": "修改敏感配置：白名单、CORS、下载代理",
+      "users": "管理账号与角色",
+      "backup": "创建与恢复备份"
+    },
+    "password": {
+      "title": "修改自己的密码",
+      "description": "修改密码会登出其它所有设备，因为改密码的常见原因就是它可能泄露了。",
+      "current": "当前密码",
+      "next": "新密码",
+      "repeat": "重复新密码",
+      "rule": "至少 {min} 个字符。",
+      "tooShort": "至少需要 {min} 个字符。",
+      "mismatch": "两次输入不一致。",
+      "required": "请输入当前密码。",
+      "submit": "修改密码",
+      "revokes": "其它会话会被登出。",
+      "changed": "密码已修改",
+      "changedHint": "其它设备已被登出。",
+      "failed": "修改密码失败"
+    },
+    "sessions": {
+      "title": "我的会话",
+      "description": "每个已登录设备一行。会话用令牌的摘要标识，令牌本身不会出现在这里。",
+      "current": "当前设备",
+      "signOutOthers": "登出其它设备",
+      "signedOutOthers": "已登出其它设备",
+      "signOutFailed": "登出其它设备失败",
+      "emptyTitle": "没有其它会话",
+      "emptyDescription": "当前只有这一台设备登录。"
+    },
+    "create": {
+      "title": "新增用户",
+      "description": "先给够用的最小角色，之后可以再提升。",
+      "usernameHint": "字母、数字、点、短横线与下划线，至少 3 个字符。",
+      "usernameInvalid": "至少需要 3 个字符。",
+      "password": "初始密码",
+      "roleHint": "上面的权限表说明了每个角色能做什么。"
+    },
+    "confirm": {
+      "deleteTitle": "删除这个账号？",
+      "deleteDescription": "输入 {username} 以确认。",
+      "deleteWarning": "账号及其打开的所有会话都会被移除。最后一个管理员无法删除。",
+      "signOutTitle": "登出其它设备？",
+      "signOutDescription": "除当前会话外的所有会话会立即失效。"
+    },
+    "toast": {
+      "created": "已创建用户 {username}",
+      "createFailed": "创建用户失败",
+      "roleChanged": "{username} 的角色已改为 {role}",
+      "roleFailed": "修改角色失败",
+      "deleted": "已删除用户 {username}",
+      "deleteFailed": "删除用户失败"
+    }
+  },
+  "apiKeys": {
+    "create": "创建密钥",
+    "createTitle": "创建 API Key",
+    "createDescription": "完整密钥只在创建后显示一次，关闭对话框前请先保存。",
+    "createFailed": "创建密钥失败",
+    "createdTitle": "密钥已创建",
+    "createdDescription": "请立即复制。服务端只保留前缀与密钥的哈希值。",
+    "createdWarning": "包括管理员在内，没有人能再次读取这个值。一旦丢失，只能撤销后重新创建。",
+    "createdKeyLabel": "完整密钥",
+    "createdAck": "我已妥善保存该密钥",
+    "createdDone": "完成",
+    "activeCount": "{count} 个可用密钥",
+    "field": {
+      "name": "名称",
+      "prefix": "前缀"
+    },
+    "nameHint": "取一个在审计日志里能认出来的名字，例如使用它的脚本或主机。",
+    "nameRequired": "请填写名称。",
+    "scopesHint": "密钥只能访问这里勾选的接口组。身份管理与 cookie 导入始终需要 identity:manage。",
+    "scopesRequired": "至少选择一个 scope。",
+    "scope": {
+      "douyinRead": "读取抖音数据",
+      "tiktokRead": "读取 TikTok 数据",
+      "identityManage": "管理身份池",
+      "admin": "完整管理权限"
+    },
+    "scopeHint": {
+      "douyinRead": "抖音的作品、作者、评论与解析接口。",
+      "tiktokRead": "TikTok 的同类接口。",
+      "identityManage": "铸造、导入、测试与退休身份。普通读取密钥绝不应该拥有它。",
+      "admin": "包含配置与用户在内的全部权限，请谨慎授予。"
+    },
+    "rateLimitHint": "每分钟请求数。这是防滥用限额，不是计费额度：本项目没有套餐、用量计量或结算。它存在的唯一目的，是防止写错的脚本把整个身份池打穿。留空则沿用实例默认值。",
+    "rateLimitInvalid": "请输入 {min} 到 {max} 之间的整数，或者留空。",
+    "rateLimitPlaceholder": "60",
+    "rateLimitDefault": "实例默认值",
+    "rateLimitValue": "{value}/分钟",
+    "expiry": "有效期",
+    "expiryHint": "到期后密钥自动失效，可以限制无人察觉的泄露造成的损失。",
+    "expiryNever": "永不过期",
+    "expiryDays": "{count} 天",
+    "notBillingTitle": "关于这些密钥",
+    "notBillingBody": "密钥用于程序、脚本与 Agent 的鉴权。控制台自身使用会话 Cookie，不需要密钥。",
+    "noteScopes": "每次请求都会校验 scope，即使密钥属于管理员也一样。",
+    "notePrefix": "只有前缀以明文存储，密钥本身以 sha256 哈希保存，因此本页可以列出密钥，但永远无法显示原文。",
+    "noteRevoke": "撤销在下一次请求时即刻生效，不需要等待任何缓存过期。",
+    "revoke": "撤销",
+    "revokeTitle": "撤销该密钥？",
+    "revokeDescription": "使用 {name} 的调用会在下一次请求时返回 UNAUTHENTICATED。该操作不可撤销。",
+    "revokedToast": "密钥已撤销",
+    "revokeFailed": "撤销密钥失败",
+    "emptyTitle": "还没有 API Key",
+    "emptyDescription": "建议为每个脚本或 Agent 单独创建，这样泄露时只撤销其中一个即可，不影响其它调用方。"
+  },
+  "playground": {
+    "endpointLabel": "接口",
+    "endpoint": {
+      "parse": "解析任意链接",
+      "video": "作品详情",
+      "comments": "作品评论",
+      "replies": "评论回复",
+      "user": "作者资料",
+      "posts": "作者作品列表"
+    },
+    "param": {
+      "url": "作品或主页链接，也可以直接粘贴分享文案。",
+      "aweme_id": "作品 ID，与链接二选一。",
+      "sec_user_id": "作者稳定 ID，与链接二选一。",
+      "comment_id": "要查看回复的那条评论。",
+      "cursor": "上一页返回的不透明游标，首页留空。",
+      "count": "每页条数，最多 50。",
+      "include_raw": "同时返回未经处理的平台原始响应。",
+      "wait": "服务端在同一连接上等待结果的秒数，超时则改为返回 task_id。"
+    },
+    "required": "必填。",
+    "oneOfRequired": "以下字段任填其一。",
+    "notANumber": "请输入数字。",
+    "outOfRange": "请输入 {min} 到 {max} 之间的值。",
+    "send": "发起请求",
+    "taskState": "任务",
+    "requestTitle": "请求",
+    "requestDescription": "控制台使用你的会话 Cookie 调用；脚本则使用 API Key。",
+    "contextTitle": "接口与身份池",
+    "contextDescription": "每隔数秒轮询一次，请求失败的那一刻看到的就是当前状态。",
+    "circuitLabel": "熔断状态",
+    "circuitAggregate": "{total} 个接口中有 {open} 个处于熔断。",
+    "healthUnavailable": "无法获取接口健康度。",
+    "samples": "样本数",
+    "retryAfter": "{seconds} 后重试。",
+    "poolLabel": "身份池",
+    "poolUnavailable": "无法获取身份池状态。",
+    "poolEmptyHint": "当前没有可用身份，在恢复之前请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝。",
+    "poolInline": "可用 {active} · 冷却 {cooling} · 降级 {degraded}",
+    "failureTitle": "这次调用为什么失败",
+    "failureDescription": "错误码、承载本次请求的身份、熔断状态与身份池现状，集中在一处。",
+    "servedBy": "承载身份",
+    "servedByPending": "请求日志还没有写入这一条。",
+    "servedByUnknown": "没有返回 request_id，说明请求没有进入调度器。",
+    "noRequestId": "未返回",
+    "normalizedTitle": "归一化结果",
+    "normalizedDescription": "所有调用方看到的稳定契约。",
+    "rawTitle": "原始响应",
+    "rawDescription": "平台自身返回的数据；解析器出问题时，它就是证据。",
+    "rawMissing": "本次调用没有请求原始响应。",
+    "rawEnable": "带上原始响应重新请求",
+    "serverDuration": "服务端耗时",
+    "snippetTitle": "可直接复制的调用示例",
+    "snippetDescription": "由上方表单实时生成，把占位符换成你自己的 API Key 即可。",
+    "snippetNote": "控制台使用会话 Cookie 鉴权；在浏览器之外请使用 Authorization: Bearer 或 X-API-Key。",
+    "snippet": {
+      "curl": "curl",
+      "python": "Python",
+      "javascript": "JavaScript"
+    },
+    "emptyTitle": "还没有发起调用",
+    "emptyDescription": "发起一次请求后，归一化结果与平台原始响应会并排显示在这里。"
+  },
+  "parse": {
+    "inputTitle": "链接",
+    "inputDescription": "每行一条，也可以用空格分隔。App 的分享文案可以原样粘贴。",
+    "inputLabel": "粘贴链接",
+    "inputHint": "单次最多 {max} 条，按每批 {chunk} 条提交。",
+    "tooMany": "链接过多：请控制在 {max} 条以内。",
+    "detected": "已识别 {count} 条链接 · 去重 {duplicates} 条",
+    "submit": "解析 {count} 条链接",
+    "submitFailed": "批量提交失败",
+    "notSubmitted": "服务端在建立任务之前就拒绝了这条链接。",
+    "taskFailed": "任务失败。",
+    "taskGone": "任务结果在读取之前已经过期。",
+    "trackingNote": "提交是一次批量请求；跟踪按条进行，每一行都可以单独重试。",
+    "emptyTitle": "暂无结果",
+    "emptyDescription": "在上方粘贴链接并解析，每条任务完成后会逐行出现在这里。",
+    "field": {
+      "url": "链接",
+      "title": "标题",
+      "author": "作者",
+      "kind": "类型",
+      "contentId": "作品 ID",
+      "plays": "播放",
+      "diggs": "点赞",
+      "comments": "评论",
+      "shares": "分享",
+      "publishedAt": "发布时间"
+    },
+    "exportCsv": "导出 CSV",
+    "exportJson": "导出 JSON",
+    "retryFailed": "重试失败项（{count}）",
+    "retryNotAllowed": "该错误不可恢复，重试只会白白消耗身份。",
+    "previewTitle": "预览",
+    "previewEmpty": "没有可预览的内容。",
+    "rawTitle": "结果数据",
+    "imageAlt": "图片 {index}",
+    "downloadTitle": "下载",
+    "downloadDescription": "文件由平台 CDN 直接传给浏览器，服务端不中转任何媒体流量。",
+    "downloadVideo": "视频",
+    "downloadCover": "封面",
+    "downloadImage": "图片 {index}",
+    "noVideo": "该结果没有视频流。",
+    "noCover": "没有封面图。",
+    "noImage": "没有图片。",
+    "mirrorCount": "{count} 个备用直链",
+    "mirrorTrying": "正在尝试第 {index} / {total} 个直链",
+    "mirrorDone": "已从第 {index} 个直链保存",
+    "mirrorBlocked": "被 CDN 拦截",
+    "downloadBlockedTitle": "浏览器无法直接取回该文件",
+    "downloadBlockedBody": "{count} 个直链全部拒绝跨域读取，这是 CORS 或防盗链限制，而不是链接失效。已在新标签页打开第一个直链：可以从那里另存为，或者开启可选的服务端下载代理。",
+    "downloadNote": "下载被拦截通常不代表文件失效：打开链接后在新标签页另存即可。"
+  },
+  "logs": {
+    "tab": {
+      "requests": "请求日志",
+      "audit": "审计日志"
+    },
+    "live": "实时刷新",
+    "liveHint": "每隔数秒刷新一次。仔细看某一行时可以先关掉。",
+    "filtersTitle": "检索",
+    "filtersDescription": "所有条件都是可选的，留空表示不限。",
+    "range": "时间范围",
+    "rangeOption": {
+      "15": "最近 15 分钟",
+      "60": "最近 1 小时",
+      "360": "最近 6 小时",
+      "1440": "最近 24 小时",
+      "10080": "最近 7 天",
+      "43200": "最近 30 天"
+    },
+    "limit": "返回条数",
+    "field": {
+      "rejectReason": "拒绝原因",
+      "action": "操作",
+      "actor": "操作者",
+      "target": "对象",
+      "ip": "来源地址"
+    },
+    "byApiKey": "API Key",
+    "bySystem": "系统",
+    "emptyTitle": "该时间范围内没有请求",
+    "emptyDescription": "可以扩大时间范围，或清除某个筛选条件。",
+    "detailTitle": "请求详情",
+    "detailRaw": "原始记录",
+    "auditTitle": "审计检索",
+    "auditDescription": "记录谁改了什么。与请求日志分开存放，避免被日常流量淹没。",
+    "auditEmptyTitle": "暂无审计记录",
+    "auditEmptyDescription": "管理操作发生后会出现在这里。",
+    "auditDetailTitle": "审计记录"
+  },
+  "docs": {
+    "specTitle": "文档",
+    "specDescription": "由当前运行的实例生成，语言与控制台设置一致。",
+    "specUrl": "文档地址",
+    "operationCount": "{paths} 个路径 · {operations} 个操作",
+    "language": "语言",
+    "openSwagger": "打开 Swagger UI",
+    "openRedoc": "打开 ReDoc",
+    "openSpec": "打开原始文档",
+    "assetsFailedTitle": "Swagger UI 加载失败",
+    "assetsFailed": "无法从 CDN 获取 Swagger UI 资源。离线部署时这是预期行为：原始文档与服务端渲染的页面仍然可用。",
+    "emptyTitle": "文档中没有任何接口",
+    "emptyDescription": "这属于部署问题而不是数据为空：api 容器没有注册任何路由。"
+  }
+}

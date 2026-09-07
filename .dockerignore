@@ -1,0 +1,68 @@
+# The build context is the repository root (docker/compose.yml sets it), so
+# every pattern here is anchored to that root.
+#
+# Two reasons to keep this list tight: a smaller context makes builds faster,
+# and anything that never enters the context can never end up baked into a
+# published image. The .env rules are the second kind - they are a security
+# control, not an optimization.
+
+# --- credentials and local configuration ---------------------------------
+.env
+.env.*
+*.local.yaml
+*.local.yml
+secrets/
+
+# --- version control and CI ----------------------------------------------
+.git
+.gitattributes
+.gitignore
+.github
+
+# --- Python build and tooling artifacts ----------------------------------
+.venv
+venv
+env
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+build
+dist
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+
+# --- node ----------------------------------------------------------------
+# The console is built inside the image; a host-built dist or a host
+# node_modules would make the image depend on whatever the developer had
+# installed locally.
+**/node_modules
+web/dist
+web/.vite
+
+# --- tests, docs and salvage ---------------------------------------------
+# The runtime needs none of these. vendor_salvage in particular holds V4 code
+# kept for reference, including files that once carried real cookies.
+tests
+docs
+vendor_salvage
+todo
+Screenshots
+logo
+docker/browser_rpc/tests
+docker/compose.test.yml
+
+# --- editors and OS ------------------------------------------------------
+.idea
+.vscode
+.claude
+**/.DS_Store
+*.swp
+
+# --- runtime output ------------------------------------------------------
+logs
+downloads
+*.log

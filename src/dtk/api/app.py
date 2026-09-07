@@ -157,5 +157,10 @@ def _install_routes(app: FastAPI) -> None:
 
     register_routes(app)
 
+    # Last, because its catch-all would otherwise shadow every API route.
+    from dtk.api import console
+
+    console.install(app)
+
 
 __all__ = ["DESCRIPTION", "create_app", "lifespan"]

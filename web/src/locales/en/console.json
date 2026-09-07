@@ -1,0 +1,1017 @@
+{
+  "nav": {
+    "group": {
+      "monitor": "Monitor",
+      "pool": "Pool",
+      "tools": "Tools",
+      "access": "Access",
+      "operations": "Operations"
+    },
+    "overview": "Overview",
+    "identities": "Identities",
+    "proxies": "Proxies",
+    "apiKeys": "API keys",
+    "playground": "Playground",
+    "parseTool": "Parse tool",
+    "apiDocs": "API docs",
+    "logs": "Logs",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "system": "System",
+    "diagnose": "Diagnose",
+    "backup": "Backup",
+    "users": "Users"
+  },
+  "page": {
+    "overview": {
+      "title": "Overview",
+      "description": "Pool health, endpoint success and risk rates, and recent traffic."
+    },
+    "identities": {
+      "title": "Identities",
+      "description": "Mint, import, test and retire the identities requests are served from."
+    },
+    "proxies": {
+      "title": "Proxies",
+      "description": "Egress addresses, reachability and GeoIP for every proxy."
+    },
+    "apiKeys": {
+      "title": "API keys",
+      "description": "Keys, scopes and rate limits. A secret is shown once at creation."
+    },
+    "playground": {
+      "title": "Playground",
+      "description": "Call an endpoint and compare the normalized result with the raw response."
+    },
+    "parseTool": {
+      "title": "Parse tool",
+      "description": "Paste a batch of links, parse them and export the results."
+    },
+    "logs": {
+      "title": "Logs",
+      "description": "Request log and audit trail, searchable by request id, endpoint and outcome."
+    },
+    "apiDocs": {
+      "title": "API docs",
+      "description": "Swagger UI rendered in the current interface language."
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Configuration by group, each value labelled with where it comes from."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Alert channels, trigger conditions and test deliveries."
+    },
+    "system": {
+      "title": "System",
+      "description": "Version, component reachability, version drift and disk usage."
+    },
+    "diagnose": {
+      "title": "Diagnose",
+      "description": "Six-step self check with an exportable, redacted report."
+    },
+    "backup": {
+      "title": "Backup",
+      "description": "Create and restore backups. Identities are excluded by default."
+    },
+    "users": {
+      "title": "Users",
+      "description": "Accounts, roles, your own password and active sessions."
+    },
+    "setup": {
+      "title": "Setup",
+      "description": "Create the first administrator and verify the deployment."
+    },
+    "login": {
+      "title": "Sign in",
+      "description": "Sign in to the console."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "That route does not exist in this console.",
+      "action": "Back to overview"
+    }
+  },
+  "shell": {
+    "environment": "Environment",
+    "account": "Account",
+    "accountMenu": "Account menu",
+    "signedInAs": "Signed in as {username}",
+    "notSignedIn": "Not signed in",
+    "rateLimit": "Rate limit: {remaining} of {limit} left",
+    "breadcrumb": "Breadcrumb"
+  },
+  "pool": {
+    "summary": "{count, plural, one {# identity active} other {# identities active}}",
+    "active": "Active",
+    "cooling": "Cooling",
+    "degraded": "Degraded",
+    "retired": "Retired",
+    "minting": "Minting"
+  },
+  "field": {
+    "identity": "Identity",
+    "identityId": "Identity id",
+    "platform": "Platform",
+    "endpoint": "Endpoint",
+    "proxy": "Proxy",
+    "state": "State",
+    "outcome": "Outcome",
+    "requestId": "Request id",
+    "taskId": "Task id",
+    "errorCode": "Error code",
+    "duration": "Duration",
+    "httpStatus": "HTTP status",
+    "createdAt": "Created",
+    "lastUsedAt": "Last used",
+    "lastCheckAt": "Last checked",
+    "cooldownUntil": "Cooldown ends",
+    "consecutiveFails": "Consecutive failures",
+    "source": "Source",
+    "authenticated": "Logged in",
+    "scopes": "Scopes",
+    "rateLimit": "Rate limit",
+    "expiresAt": "Expires",
+    "role": "Role",
+    "username": "Username",
+    "country": "Country",
+    "latency": "Latency",
+    "cacheHit": "Cached",
+    "signer": "Signer"
+  },
+  "metric": {
+    "successRate": "Success rate",
+    "riskRate": "Risk-control rate",
+    "requests": "Requests",
+    "activeIdentities": "Active identities",
+    "openCircuits": "Open circuits",
+    "avgDuration": "Average duration"
+  },
+  "login": {
+    "subtitle": "Sign in with the administrator account created during setup.",
+    "password": "Password",
+    "recoveryHint": "No password can be reset by email. Recovery is a CLI command on the host that runs the api container.",
+    "error": {
+      "invalid": "Incorrect username or password.",
+      "rateLimited": "Too many attempts. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+      "network": "Cannot reach the API. Check that the api container is running.",
+      "timeout": "The API did not answer in time. Try again.",
+      "generic": "Sign in failed. Try again."
+    }
+  },
+  "setupWizard": {
+    "stepsLabel": "Setup steps",
+    "tokenFromUrl": "Token read from the link you opened.",
+    "admin": {
+      "usernameRule": "3 to 64 characters: letters, digits, dot, dash or underscore, starting with a letter or a digit.",
+      "passwordRule": "Use at least {length} characters.",
+      "tokenRule": "Paste the setup token printed in the container log.",
+      "failed": "Could not create the administrator",
+      "attemptsLeft": "{count, plural, one {# attempt left before this token is invalidated} other {# attempts left before this token is invalidated}}"
+    },
+    "smoke": {
+      "contentId": "Content id",
+      "skip": "Finish without testing",
+      "diagnoseHint": "The diagnose page runs these same steps one at a time and names the one that broke."
+    }
+  },
+  "overview": {
+    "circuit": "Circuit",
+    "samples": "Samples",
+    "riskIdentities": "Identities hit",
+    "reopen": "Reopens in",
+    "allEndpoints": "All endpoints",
+    "range": {
+      "label": "Time range",
+      "1h": "Last hour",
+      "6h": "Last 6 hours",
+      "24h": "Last 24 hours",
+      "7d": "Last 7 days"
+    },
+    "fresh": {
+      "title": "No traffic yet",
+      "description": "This deployment has not served a request. Mint an identity, then try a real link.",
+      "action": "Go to identities"
+    },
+    "endpointCount": "{count, plural, one {# endpoint declared} other {# endpoints declared}}",
+    "poolDistribution": "Pool state distribution",
+    "poolHint": "Every identity, by state, across platforms.",
+    "rates": "Success and risk-control rate",
+    "ratesHint": "Share of requests per bucket. Times are local; the server stores UTC.",
+    "volume": "Request volume",
+    "volumeHint": "Requests per bucket, from the request log.",
+    "endpoints": "Endpoint health",
+    "noEndpoints": "No endpoints declared",
+    "noEndpointsHint": "The platform adapters report no endpoints, which is a deployment problem rather than an empty database.",
+    "noIdentities": "The pool is empty",
+    "noIdentitiesHint": "Mint or import an identity before sending traffic.",
+    "alert": {
+      "poolEmpty": "No active identity",
+      "poolEmptyHint": "Requests are rejected with IDENTITY_POOL_EXHAUSTED until the pool recovers.",
+      "degraded": "{count, plural, one {# degraded identity} other {# degraded identities}}",
+      "degradedHint": "Degraded identities still serve traffic, but they fail more often than the rest."
+    },
+    "byEndpoint": "Success rate by endpoint",
+    "byEndpointHint": "The busiest endpoints in this window, up to six. Pick one above to see it on its own."
+  },
+  "identity": {
+    "column": {
+      "health": "Health",
+      "cooldown": "Cooldown left",
+      "minted": "Minted"
+    },
+    "noProxy": "Server egress",
+    "source": {
+      "minted": "Minted",
+      "imported": "Imported"
+    },
+    "failCount": "{count, plural, one {# failure} other {# failures}}",
+    "retire": "Retire",
+    "retired": "{count, plural, one {# identity retired} other {# identities retired}}",
+    "bulkRetire": "Retire selected",
+    "retireDialog": {
+      "title": "Retire {count, plural, one {# identity} other {# identities}}?",
+      "description": "Retiring wipes the stored cookies. The statistics stay, the credential does not, and it cannot be brought back."
+    },
+    "empty": {
+      "title": "No identities yet",
+      "description": "Mint a guest identity, or import a logged-in cookie jar."
+    },
+    "filter": {
+      "allPlatforms": "All platforms",
+      "allStates": "All states"
+    },
+    "mint": {
+      "action": "Mint",
+      "title": "Mint identities",
+      "description": "Minting drives a real browser through the proxy and takes a few seconds each.",
+      "count": "How many",
+      "proxyHint": "An identity stays bound to the proxy it was minted behind.",
+      "anyProxy": "Let the scheduler choose",
+      "done": "{count, plural, one {# identity minted} other {# identities minted}}",
+      "failed": "Minting failed"
+    },
+    "import": {
+      "action": "Import cookies",
+      "title": "Import a logged-in cookie jar",
+      "description": "Paste in any of the four formats. What was understood is shown before anything is stored.",
+      "cookies": "Cookies",
+      "formats": "Accepted: a request header, an extension JSON export, a Netscape cookies.txt, or one key=value per line.",
+      "userAgent": "User agent",
+      "userAgentHint": "From the same browser session, so the fingerprint matches the cookies.",
+      "proxyHint": "Pick the egress this account normally signs in from.",
+      "submit": "Store identity",
+      "stored": "Identity imported.",
+      "failed": "Import failed",
+      "acknowledge": "I understand this cookie set is equivalent to the account password.",
+      "expiryNotice": "This session is expected to expire on {date}. A notification goes out before it does.",
+      "risk": {
+        "title": "This is a credential",
+        "equivalence": "A logged-in cookie set is equivalent to the account password: whoever holds it can act as that account.",
+        "storage": "It is stored encrypted and no endpoint ever returns it, but an administrator of this instance can use it.",
+        "dedicated": "Use an account kept for this purpose, never your main one."
+      },
+      "format": "Format",
+      "browser": "Browser",
+      "loggedIn": "Logged in",
+      "count": "Cookies",
+      "missing": "Missing required cookies:",
+      "maskNote": "Values are masked by the server; the console never receives them.",
+      "usableHint": "Whether this cookie set can be used as an identity.",
+      "role": {
+        "required": "required",
+        "session": "session",
+        "useful": "useful",
+        "other": "other"
+      }
+    },
+    "test": {
+      "title": "Identity test",
+      "rule": "Rule",
+      "businessErrorNote": "A business error counts as a pass: the platform answered, the content is simply gone.",
+      "idle": "No result yet."
+    }
+  },
+  "proxy": {
+    "column": {
+      "label": "Label",
+      "address": "Address",
+      "geo": "Exit",
+      "identities": "Identities",
+      "id": "Proxy id",
+      "timezone": "Time zone"
+    },
+    "undecryptable": "Cannot decrypt",
+    "geoHint": "Two-letter country code. A probe fills this in.",
+    "exitIp": "Exit address",
+    "created": "Proxy added.",
+    "updated": "Proxy updated.",
+    "deleted": "{count, plural, one {# proxy deleted} other {# proxies deleted}}",
+    "empty": {
+      "title": "No proxies",
+      "description": "Without one, every identity shares the server's own egress address."
+    },
+    "add": {
+      "action": "Add proxy",
+      "title": "Add a proxy",
+      "description": "Credentials are encrypted on arrival and are never returned to the console."
+    },
+    "edit": {
+      "title": "Edit proxy",
+      "urlOptional": "Leave the address empty to keep the stored one."
+    },
+    "delete": {
+      "title": "Delete {count, plural, one {# proxy} other {# proxies}}?",
+      "description": "Identities bound to a deleted proxy are retired: an identity must never go out through a different egress."
+    },
+    "bulk": {
+      "enable": "Mark healthy",
+      "disable": "Mark unhealthy",
+      "delete": "Delete selected",
+      "enabled": "{count, plural, one {# proxy marked healthy} other {# proxies marked healthy}}",
+      "disabled": "{count, plural, one {# proxy marked unhealthy} other {# proxies marked unhealthy}}"
+    },
+    "import": {
+      "action": "Bulk import",
+      "title": "Import proxies",
+      "description": "Paste a list. Each line's format is detected, and every accepted proxy is probed right away.",
+      "labelField": "Label for this batch",
+      "labelHint": "Applied to every proxy in this import.",
+      "pasteHint": "Paste one proxy per line to see how each one is read.",
+      "parsed": "{count, plural, one {# line parsed} other {# lines parsed}}",
+      "unparsed": "{count, plural, one {# line not understood} other {# lines not understood}}",
+      "duplicates": "{count, plural, one {# duplicate} other {# duplicates}}",
+      "withCredentials": "with credentials",
+      "done": "{count, plural, one {# proxy imported} other {# proxies imported}}",
+      "result": "Imported {created}, rejected {rejected}."
+    },
+    "line": {
+      "unparsable": "Not a recognised proxy line",
+      "scheme": "Unsupported scheme",
+      "port": "Missing or invalid port",
+      "host": "Missing host"
+    },
+    "test": {
+      "title": "Proxy probe",
+      "failed": "Probe failed"
+    }
+  },
+  "settings": {
+    "version": "settings v{version}",
+    "precedence": "Order of precedence: database override, then the .env seed, then the code default. Once a key is stored here, editing .env changes nothing until the row is reset.",
+    "precedenceCount": "{count, plural, one {# key currently overrides its .env value} other {# keys currently override their .env value}}",
+    "readOnly": "Your role can read settings but not change them.",
+    "source": {
+      "database": "Database override",
+      "databaseHint": "Stored in the settings table. This value wins, and the .env entry is ignored until you reset the row.",
+      "environment": ".env seed",
+      "environmentHint": "Read from the environment at startup. It applies because no database override exists.",
+      "default": "Code default",
+      "defaultHint": "Built-in default. Neither the database nor the environment sets this key."
+    },
+    "sensitive": {
+      "tag": "Sensitive",
+      "adminOnly": "Only an administrator can change a sensitive key."
+    },
+    "invalid": {
+      "integer": "Enter a whole number.",
+      "number": "Enter a number.",
+      "json": "This is not valid JSON."
+    },
+    "hint": {
+      "onePerLine": "One entry per line.",
+      "json": "JSON value."
+    },
+    "row": {
+      "default": "Default: {value}",
+      "updated": "Changed {when}",
+      "reset": "Reset to inherited",
+      "alreadyInherited": "Already inherited; there is no override to remove."
+    },
+    "toast": {
+      "saved": "{key} saved",
+      "saveFailed": "Could not save {key}",
+      "reset": "{key} reset to its inherited value",
+      "resetFailed": "Could not reset {key}"
+    },
+    "confirm": {
+      "saveTitle": "Change a sensitive setting",
+      "resetTitle": "Reset a sensitive setting",
+      "description": "Type the key {key} to confirm.",
+      "warning": "This key widens the attack surface. The URL allowlist is the only SSRF defence this service has, the CORS origins decide which sites may hold your API keys, and the download proxy turns this server into a relay.",
+      "audit": "The change is written to the audit log with your account and the previous value."
+    },
+    "empty": {
+      "title": "No settings to show",
+      "description": "The server returned an empty registry."
+    },
+    "group": {
+      "sched": "Scheduler",
+      "pool": "Identity pool",
+      "cache": "Cache",
+      "snapshot": "Snapshots",
+      "retention": "Retention",
+      "api": "API",
+      "security": "Security",
+      "notify": "Notifications",
+      "system": "System",
+      "other": "Other"
+    },
+    "groupHint": {
+      "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
+      "pool": "Water marks and the conservative per-identity request rate.",
+      "cache": "How long a parsed result stays reusable.",
+      "snapshot": "Deduplication window for writes to the content history.",
+      "retention": "How long logs, events and tasks are kept. Content snapshots are never deleted automatically.",
+      "api": "Abuse limits, the long-poll ceiling and the default response language.",
+      "security": "Every key here is sensitive: allowlists, CORS and the download proxy.",
+      "notify": "Delivery switch, channels and the default alert language.",
+      "system": "Instance behaviour, including the opt-in update check.",
+      "other": "Keys with no group of their own."
+    }
+  },
+  "notifications": {
+    "dedupExplainer": "Every trigger carries a deduplication window: the same alert goes out once per window and is suppressed until it closes. Without that, one open circuit sends a notification per request, and the first thing anyone does is switch alerting off. Alerting is trustworthy because it is rare.",
+    "severity": {
+      "error": "Error",
+      "warning": "Warning"
+    },
+    "action": {
+      "testAll": "Send test alert",
+      "add": "Add channel"
+    },
+    "delivery": {
+      "title": "Delivery",
+      "description": "The global switch, and the language used when a channel does not set its own.",
+      "enabled": "Send alerts",
+      "enabledHint": "While this is off, triggers still fire and are recorded, but nothing is delivered.",
+      "language": "Default alert language",
+      "languageHint": "An alert is rendered for whoever receives it, not for the console operator."
+    },
+    "channels": {
+      "title": "Channels",
+      "description": "Where alerts are delivered. A webhook target must be https and must not resolve to a private address."
+    },
+    "triggers": {
+      "title": "Triggers and deduplication windows",
+      "description": "The event set is fixed. A channel receives every event unless you narrow it."
+    },
+    "column": {
+      "name": "Name",
+      "type": "Type",
+      "target": "Target",
+      "language": "Language",
+      "events": "Events",
+      "status": "Status",
+      "event": "Event",
+      "severity": "Severity",
+      "dedup": "Dedup window",
+      "scope": "Scope",
+      "subscribers": "Channels",
+      "description": "What it means"
+    },
+    "empty": {
+      "title": "No channels yet",
+      "description": "Alerts stay inside the console until a channel exists. Add one so an incident reaches you when nobody is looking at this page."
+    },
+    "editor": {
+      "title": "Channel",
+      "description": "Credentials are stored on the server and are never shown in full again."
+    },
+    "field": {
+      "type": "Type",
+      "typeHint": "Picks the payload template. The value is a stable identifier and is not translated.",
+      "name": "Name",
+      "nameHint": "Identifies this channel in tests and audit entries.",
+      "url": "URL",
+      "urlHint": "https only. Loopback, private and link-local addresses are refused.",
+      "group": "Bark group",
+      "groupHint": "Groups these notifications together on the device.",
+      "secret": "Signing secret",
+      "secretHint": "Optional. Set it when the bot is secured by a signature rather than a keyword.",
+      "token": "Bot token",
+      "chatId": "Chat id",
+      "host": "SMTP host",
+      "port": "Port",
+      "sender": "From",
+      "recipients": "Recipients",
+      "recipientsHint": "Separate addresses with a comma.",
+      "username": "SMTP username",
+      "password": "SMTP password",
+      "ssl": "Implicit TLS",
+      "starttls": "STARTTLS",
+      "language": "Language",
+      "languageHint": "This channel renders its alerts in this language.",
+      "languageInherit": "Use the default",
+      "events": "Events",
+      "eventsHint": "Clear what this channel should not receive. The deduplication window of each event is fixed and shown beside it.",
+      "enabled": "Enabled",
+      "enabledHint": "A disabled channel is kept but skipped."
+    },
+    "error": {
+      "nameTaken": "Another channel already uses this name.",
+      "nameRequired": "Give the channel a name.",
+      "urlHttps": "The URL must start with https://",
+      "required": "This field is required."
+    },
+    "event": {
+      "dedupHint": "Once per {window}, per {scope}",
+      "scopeGlobal": "instance"
+    },
+    "eventText": {
+      "endpoint_circuit_open": "An endpoint tripped its circuit and is refusing requests.",
+      "pool_empty": "No identity is available for a platform; requests queue or fail.",
+      "pool_below_min": "The pool fell under its low-water mark and is minting.",
+      "proxy_unhealthy": "A proxy failed its probe and was taken out of rotation.",
+      "signature_stale": "The local signature stopped matching the browser result; the algorithm has drifted.",
+      "cookie_expiring": "A logged-in cookie jar is close to expiry and needs renewing.",
+      "backup_failed": "A backup run did not finish."
+    },
+    "toast": {
+      "saved": "Saved",
+      "saveFailed": "Could not save the notification settings",
+      "testSent": "Test alert sent",
+      "testFailed": "The test alert failed",
+      "channelSaved": "Channel {name} saved",
+      "channelDeleted": "Channel {name} removed"
+    },
+    "confirm": {
+      "deleteTitle": "Remove this channel?",
+      "deleteDescription": "{name} stops receiving alerts immediately."
+    }
+  },
+  "system": {
+    "column": {
+      "component": "Component",
+      "health": "State",
+      "latency": "Latency",
+      "detail": "Detail",
+      "table": "Table",
+      "rows": "Rows",
+      "rowsCompact": "Rows, short"
+    },
+    "warmContexts": "{count, plural, one {# warm context} other {# warm contexts}}",
+    "metric": {
+      "version": "Version",
+      "settingsVersion": "settings v{version}",
+      "uptime": "Uptime",
+      "activeIdentities": "Active identities",
+      "dbSize": "Database size"
+    },
+    "components": {
+      "title": "Components",
+      "description": "Reachability and round-trip time as measured by the server, not by this browser.",
+      "emptyTitle": "No components reported",
+      "emptyDescription": "The status endpoint returned no component block."
+    },
+    "drift": {
+      "title": "Chromium and wreq profile",
+      "description": "The browser that produces signatures and the client that replays fingerprints have to agree on a major version.",
+      "chromium": "Chromium major",
+      "wreq": "wreq profile major",
+      "warning": "Version drift: Chromium is on {chromium} while the wreq profile targets {wreq}. Signatures are still produced, but the fingerprint no longer matches the browser that made them. Pin the browser image or update the profile.",
+      "unknown": "No majors reported. The browser RPC is either not configured or not reporting its versions yet.",
+      "aligned": "Both on major {major}. No drift."
+    },
+    "storage": {
+      "title": "Storage",
+      "description": "Row estimates per table. Database size: {size}.",
+      "emptyTitle": "No table sizes",
+      "emptyDescription": "The server could not read storage statistics."
+    },
+    "updates": {
+      "title": "Update check",
+      "description": "Off by default. Nothing leaves this machine unless you turn it on.",
+      "outbound": "This check is an outbound request from your browser to github.com. A deployment without egress should leave it off.",
+      "toggle": "Allow the update check",
+      "toggleHint": "Stored as a runtime setting, so the choice survives a restart.",
+      "check": "Check now",
+      "latest": "Latest release: {tag}",
+      "upToDate": "You are on the latest release, {tag}",
+      "openReleases": "Open the releases page",
+      "httpError": "GitHub answered with HTTP {status}.",
+      "networkError": "The request did not complete. This deployment may have no outbound access.",
+      "saved": "Saved",
+      "saveFailed": "Could not save the update-check setting"
+    }
+  },
+  "diagnose": {
+    "redacted": "The report is redacted before it leaves the server: proxy passwords, cookies and API keys are masked. It is safe to paste into a public issue.",
+    "suggestedAction": "Suggested action:",
+    "stepRunning": "Running now.",
+    "stepPending": "Waiting for the steps before it.",
+    "status": {
+      "pass": "Pass",
+      "warn": "Warning",
+      "fail": "Fail",
+      "skip": "Skipped",
+      "running": "Running",
+      "pending": "Waiting",
+      "idle": "Not run"
+    },
+    "step": {
+      "components": "Postgres, Redis and the browser RPC answer.",
+      "egress": "This host reaches the platform domains directly.",
+      "proxies": "Every proxy dials, and reports its exit address and country.",
+      "pool": "How many identities are usable, and how long since the oldest one succeeded.",
+      "signing": "The local algorithm and the browser produce the same signature.",
+      "smoke": "One fixed public link is fetched end to end."
+    },
+    "action": {
+      "run": "Run self check",
+      "rerun": "Run again"
+    },
+    "options": {
+      "title": "What to run",
+      "description": "All six steps run in order. Each has its own timeout, so a hung dependency cannot stall the rest.",
+      "smoke": "Include the end-to-end fetch",
+      "smokeHint": "Step 6 pulls one fixed public link through the whole pipeline. Turn it off to keep the run entirely local."
+    },
+    "steps": {
+      "title": "Steps",
+      "finished": "Finished {when}, verdict {verdict}",
+      "running": "Running. Each step reports as it finishes.",
+      "idle": "Nothing has run yet in this session."
+    },
+    "verdict": {
+      "pass": "PASS",
+      "fail": "FAIL"
+    },
+    "report": {
+      "title": "Report",
+      "description": "Plain text, already redacted, ready to paste into an issue.",
+      "copy": "Copy report",
+      "waiting": "The report appears when the run finishes.",
+      "empty": "Run the self check to produce a report."
+    },
+    "toast": {
+      "startFailed": "Could not start the self check",
+      "copied": "Report copied"
+    }
+  },
+  "backup": {
+    "keyExplainer": "Credentials are exported as ciphertext and the archive never contains the master key. A restore therefore needs the same DTK_SECRET_KEY that created it; under a different key the proxy URLs and cookie jars cannot be decrypted.",
+    "adminOnly": "Only an administrator can create or restore a backup.",
+    "restoreDone": "Restored {name}. Reload the console so every page reads the new data.",
+    "identities": {
+      "included": "With identities",
+      "excluded": "No identities"
+    },
+    "column": {
+      "file": "Archive",
+      "created": "Created",
+      "version": "Built by",
+      "identities": "Identities",
+      "rows": "Rows",
+      "size": "Size",
+      "keyCheck": "Key check"
+    },
+    "action": {
+      "create": "Create backup",
+      "restore": "Restore"
+    },
+    "create": {
+      "title": "Create a backup",
+      "description": "Settings, proxies, content snapshots, users and API keys are always included. Request logs and identity events are not: they describe a run that is over.",
+      "includeIdentities": "Include identities",
+      "includeIdentitiesHint": "Off by default. An identity is bound to one proxy and one egress address, so it should not be reused after a move.",
+      "includeIdentitiesWarning": "The archive will carry logged-in cookie jars as ciphertext. On another machine the exit address differs, and using these identities from it is exactly what gets them risk-controlled. Restore them only onto the same egress.",
+      "hint": "The archive is written on the server, beside the other backups."
+    },
+    "list": {
+      "title": "Archives",
+      "description": "Backups the server can see, newest first."
+    },
+    "empty": {
+      "title": "No backups yet",
+      "description": "Content snapshots accumulate over months and cannot be fetched again once the platform drops them. Create the first archive now."
+    },
+    "confirm": {
+      "title": "Restore this archive?",
+      "description": "Type the file name to confirm.",
+      "warning": "A restore writes the archive over the current database. Rows present in both are replaced by the archived version.",
+      "keyReminder": "This instance must hold the same DTK_SECRET_KEY that created the archive."
+    },
+    "keyMismatch": {
+      "title": "The master key does not match",
+      "body": "This archive was created under a different DTK_SECRET_KEY, so nothing was restored. Going ahead would leave every proxy URL and cookie jar undecryptable, and the server refused rather than half-restoring.",
+      "action": "Restore with the original key, or start from a fresh instance and re-import what you can."
+    },
+    "toast": {
+      "created": "Backup created",
+      "createFailed": "The backup failed",
+      "restored": "Restored {name}",
+      "restoreFailed": "The restore failed"
+    }
+  },
+  "users": {
+    "you": "you",
+    "adminOnly": "Only an administrator can manage accounts. Your own password and sessions are below.",
+    "cannotDeleteSelf": "You cannot delete the account you are signed in with.",
+    "action": {
+      "create": "Add user",
+      "changeRole": "Change role"
+    },
+    "column": {
+      "id": "User id",
+      "lastLogin": "Last sign-in",
+      "session": "Session",
+      "lastSeen": "Last seen",
+      "ip": "Address",
+      "userAgent": "Client"
+    },
+    "list": {
+      "title": "Accounts",
+      "description": "A role change takes effect on the next request; there is no cache to wait for."
+    },
+    "empty": {
+      "title": "No accounts",
+      "description": "Every instance has at least one administrator."
+    },
+    "matrix": {
+      "title": "What each role can do",
+      "description": "Three roles, no groups and no per-object permissions: a self-hosted instance has a handful of users, and a rule set that fits on one screen is one people actually follow.",
+      "capability": "Capability"
+    },
+    "capability": {
+      "read": "Read the overview, logs and diagnostics",
+      "pool": "Manage identities and proxies",
+      "keys": "Create and revoke API keys",
+      "diagnose": "Run the self check",
+      "settings": "Change runtime settings",
+      "sensitive": "Change sensitive settings: allowlist, CORS, download proxy",
+      "users": "Manage accounts and roles",
+      "backup": "Create and restore backups"
+    },
+    "password": {
+      "title": "Your password",
+      "description": "Changing it signs out every other device, because the usual reason to change a password is that it may have leaked.",
+      "current": "Current password",
+      "next": "New password",
+      "repeat": "Repeat new password",
+      "rule": "At least {min} characters.",
+      "tooShort": "Use at least {min} characters.",
+      "mismatch": "The two entries do not match.",
+      "required": "Enter your current password.",
+      "submit": "Change password",
+      "revokes": "Other sessions are signed out.",
+      "changed": "Password changed",
+      "changedHint": "Other devices have been signed out.",
+      "failed": "Could not change the password"
+    },
+    "sessions": {
+      "title": "Your sessions",
+      "description": "One row per signed-in device. A session is identified by a digest of its token, never by the token itself.",
+      "current": "this device",
+      "signOutOthers": "Sign out other devices",
+      "signedOutOthers": "Other devices signed out",
+      "signOutFailed": "Could not sign the other devices out",
+      "emptyTitle": "No other sessions",
+      "emptyDescription": "This is the only signed-in device."
+    },
+    "create": {
+      "title": "Add a user",
+      "description": "Give the smallest role that lets the person do their work; it can be raised later.",
+      "usernameHint": "Letters, digits, dot, dash and underscore. Three characters or more.",
+      "usernameInvalid": "Use at least three characters.",
+      "password": "Initial password",
+      "roleHint": "The capability matrix above explains each role."
+    },
+    "confirm": {
+      "deleteTitle": "Delete this account?",
+      "deleteDescription": "Type {username} to confirm.",
+      "deleteWarning": "The account and every session it opened are removed. The last administrator cannot be deleted.",
+      "signOutTitle": "Sign out other devices?",
+      "signOutDescription": "Every session except this one is revoked immediately."
+    },
+    "toast": {
+      "created": "User {username} created",
+      "createFailed": "Could not create the user",
+      "roleChanged": "{username} is now {role}",
+      "roleFailed": "Could not change the role",
+      "deleted": "User {username} deleted",
+      "deleteFailed": "Could not delete the user"
+    }
+  },
+  "apiKeys": {
+    "create": "Create key",
+    "createTitle": "Create an API key",
+    "createDescription": "The full key is shown once, right after it is created. Store it before closing the dialog.",
+    "createFailed": "Could not create the key",
+    "createdTitle": "Key created",
+    "createdDescription": "Copy it now. The server keeps only the prefix and a hash of the secret.",
+    "createdWarning": "Nobody, administrators included, can read this value again. If it is lost, revoke the key and create another one.",
+    "createdKeyLabel": "Full key",
+    "createdAck": "I have stored this key somewhere safe",
+    "createdDone": "Done",
+    "activeCount": "{count, plural, one {# active key} other {# active keys}}",
+    "field": {
+      "name": "Name",
+      "prefix": "Prefix"
+    },
+    "nameHint": "Something recognisable in the audit log, such as the script or host that will use it.",
+    "nameRequired": "Give the key a name.",
+    "scopesHint": "A key reaches only the endpoint groups ticked here. Identity management and cookie import always require identity:manage.",
+    "scopesRequired": "Pick at least one scope.",
+    "scope": {
+      "douyinRead": "Read Douyin data",
+      "tiktokRead": "Read TikTok data",
+      "identityManage": "Manage the identity pool",
+      "admin": "Full administrative access"
+    },
+    "scopeHint": {
+      "douyinRead": "Post, author, comment and parse endpoints for Douyin.",
+      "tiktokRead": "The same endpoints for TikTok.",
+      "identityManage": "Mint, import, test and retire identities. An ordinary read key must never carry this.",
+      "admin": "Everything, settings and users included. Grant it sparingly."
+    },
+    "rateLimitHint": "Requests per minute. This is abuse protection, not a billing quota: the project has no plans, metering or usage settlement. It exists so one runaway script cannot drain the identity pool. Leave empty to inherit the instance default.",
+    "rateLimitInvalid": "Enter a whole number between {min} and {max}, or leave it empty.",
+    "rateLimitPlaceholder": "60",
+    "rateLimitDefault": "Instance default",
+    "rateLimitValue": "{value}/min",
+    "expiry": "Expiry",
+    "expiryHint": "An expired key stops working on its own, which limits the damage of a leak nobody noticed.",
+    "expiryNever": "Never expires",
+    "expiryDays": "{count, plural, one {# day} other {# days}}",
+    "notBillingTitle": "About these keys",
+    "notBillingBody": "Keys authenticate programs, scripts and agents. The console itself uses a session cookie and needs no key.",
+    "noteScopes": "Scopes are checked on every request, even when the key belongs to an administrator.",
+    "notePrefix": "Only the prefix is stored in clear. The secret is kept as a sha256 hash, so this page can list keys but never reveal one.",
+    "noteRevoke": "Revocation takes effect on the next request; there is no cache to wait out.",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke this key?",
+    "revokeDescription": "Calls made with {name} start failing with UNAUTHENTICATED on the next request. This cannot be undone.",
+    "revokedToast": "Key revoked",
+    "revokeFailed": "Could not revoke the key",
+    "emptyTitle": "No API keys yet",
+    "emptyDescription": "Create one per script or agent, so a single leak can be revoked without disturbing anything else."
+  },
+  "playground": {
+    "endpointLabel": "Endpoint",
+    "endpoint": {
+      "parse": "Parse any link",
+      "video": "Post detail",
+      "comments": "Post comments",
+      "replies": "Comment replies",
+      "user": "Author profile",
+      "posts": "Author posts"
+    },
+    "param": {
+      "url": "A post or profile link, or the share text around one.",
+      "aweme_id": "Post id. Provide this or a link.",
+      "sec_user_id": "Stable author id. Provide this or a link.",
+      "comment_id": "The comment whose replies you want.",
+      "cursor": "Opaque cursor from the previous page. Leave empty for the first page.",
+      "count": "Items per page, up to 50.",
+      "include_raw": "Also return the untouched platform payload.",
+      "wait": "Seconds the server may hold the connection before answering with a task id instead."
+    },
+    "required": "Required.",
+    "oneOfRequired": "Fill in one of these.",
+    "notANumber": "Enter a number.",
+    "outOfRange": "Enter a value between {min} and {max}.",
+    "send": "Send",
+    "taskState": "Task",
+    "requestTitle": "Request",
+    "requestDescription": "The console calls with your session cookie; a script would use an API key.",
+    "contextTitle": "Endpoint and pool",
+    "contextDescription": "Polled every few seconds, so it is current at the moment a call fails.",
+    "circuitLabel": "Circuit",
+    "circuitAggregate": "{open} of {total} endpoints are tripped.",
+    "healthUnavailable": "Endpoint health is unavailable.",
+    "samples": "Samples",
+    "retryAfter": "Retry after {seconds}.",
+    "poolLabel": "Identity pool",
+    "poolUnavailable": "Pool state is unavailable.",
+    "poolEmptyHint": "No identity is active. Requests are rejected with IDENTITY_POOL_EXHAUSTED until one recovers.",
+    "poolInline": "active {active} · cooling {cooling} · degraded {degraded}",
+    "failureTitle": "Why this call failed",
+    "failureDescription": "The stable code, the identity that served it, the circuit and the pool, in one place.",
+    "servedBy": "Served by",
+    "servedByPending": "The request log has not caught up yet.",
+    "servedByUnknown": "No request id came back, so the call never reached the scheduler.",
+    "noRequestId": "Not reported",
+    "normalizedTitle": "Normalized result",
+    "normalizedDescription": "The stable contract every client sees.",
+    "rawTitle": "Raw response",
+    "rawDescription": "The platform payload, kept because it is the evidence when a parser breaks.",
+    "rawMissing": "This call did not ask for the raw payload.",
+    "rawEnable": "Include the raw payload and run again",
+    "serverDuration": "Server",
+    "snippetTitle": "Copy-ready call",
+    "snippetDescription": "Generated from the form above. Replace the placeholder with one of your API keys.",
+    "snippetNote": "The console authenticates with a session cookie. Outside the browser use Authorization: Bearer or X-API-Key.",
+    "snippet": {
+      "curl": "curl",
+      "python": "Python",
+      "javascript": "JavaScript"
+    },
+    "emptyTitle": "No call yet",
+    "emptyDescription": "Send a request and the normalized result and the raw platform payload appear here, side by side."
+  },
+  "parse": {
+    "inputTitle": "Links",
+    "inputDescription": "One per line, or several separated by spaces. Share text from the app is accepted as is.",
+    "inputLabel": "Paste links",
+    "inputHint": "Up to {max} links per run, submitted in batches of {chunk}.",
+    "tooMany": "Too many links: keep it under {max}.",
+    "detected": "{count, plural, one {# link} other {# links}} ready · {duplicates, plural, one {# duplicate removed} other {# duplicates removed}}",
+    "submit": "Parse {count, plural, one {# link} other {# links}}",
+    "submitFailed": "Could not submit the batch",
+    "notSubmitted": "The server rejected this link before it became a task.",
+    "taskFailed": "The task failed.",
+    "taskGone": "The task expired before its result was read.",
+    "trackingNote": "Submission is one request; tracking is per link, and every row can be retried on its own.",
+    "emptyTitle": "No results yet",
+    "emptyDescription": "Paste links above and parse them. Rows appear here as each task finishes.",
+    "field": {
+      "url": "Link",
+      "title": "Title",
+      "author": "Author",
+      "kind": "Kind",
+      "contentId": "Content id",
+      "plays": "Plays",
+      "diggs": "Likes",
+      "comments": "Comments",
+      "shares": "Shares",
+      "publishedAt": "Published"
+    },
+    "exportCsv": "Export CSV",
+    "exportJson": "Export JSON",
+    "retryFailed": "Retry failed ({count})",
+    "retryNotAllowed": "This error is permanent; retrying it only burns identities.",
+    "previewTitle": "Preview",
+    "previewEmpty": "Nothing to preview.",
+    "rawTitle": "Result payload",
+    "imageAlt": "Image {index}",
+    "downloadTitle": "Download",
+    "downloadDescription": "Files go straight from the platform CDN to your browser. The server never relays media.",
+    "downloadVideo": "Video",
+    "downloadCover": "Cover",
+    "downloadImage": "Image {index}",
+    "noVideo": "No video stream in this result.",
+    "noCover": "No cover image.",
+    "noImage": "No image.",
+    "mirrorCount": "{count, plural, one {# mirror} other {# mirrors}}",
+    "mirrorTrying": "Trying mirror {index} of {total}",
+    "mirrorDone": "Saved from mirror {index}",
+    "mirrorBlocked": "Blocked by the CDN",
+    "downloadBlockedTitle": "The browser could not fetch the file",
+    "downloadBlockedBody": "All {count} mirrors refused a cross-origin read, which is CORS or hotlink protection rather than a broken link. The first mirror was opened in a new tab: save it from there, or enable the optional server-side download proxy.",
+    "downloadNote": "A blocked download rarely means a dead file. Open the link and save it from the new tab instead."
+  },
+  "logs": {
+    "tab": {
+      "requests": "Request log",
+      "audit": "Audit log"
+    },
+    "live": "Live",
+    "liveHint": "Refreshes every few seconds. Turn it off while reading a row.",
+    "filtersTitle": "Search",
+    "filtersDescription": "Every field is optional; an empty one matches everything.",
+    "range": "Time range",
+    "rangeOption": {
+      "15": "Last 15 minutes",
+      "60": "Last hour",
+      "360": "Last 6 hours",
+      "1440": "Last 24 hours",
+      "10080": "Last 7 days",
+      "43200": "Last 30 days"
+    },
+    "limit": "Rows",
+    "field": {
+      "rejectReason": "Reject reason",
+      "action": "Action",
+      "actor": "Who",
+      "target": "Target",
+      "ip": "Source address"
+    },
+    "byApiKey": "API key",
+    "bySystem": "System",
+    "emptyTitle": "No requests in this window",
+    "emptyDescription": "Widen the time range, or clear a filter.",
+    "detailTitle": "Request detail",
+    "detailRaw": "Row",
+    "auditTitle": "Audit search",
+    "auditDescription": "Who changed what. Kept apart from the request log so it is never buried by ordinary traffic.",
+    "auditEmptyTitle": "No audit entries",
+    "auditEmptyDescription": "Administrative actions appear here as they happen.",
+    "auditDetailTitle": "Audit entry"
+  },
+  "docs": {
+    "specTitle": "Document",
+    "specDescription": "Generated by the running instance, in the language this console is set to.",
+    "specUrl": "Spec",
+    "operationCount": "{paths} paths · {operations} operations",
+    "language": "Language",
+    "openSwagger": "Open Swagger UI",
+    "openRedoc": "Open ReDoc",
+    "openSpec": "Open the raw document",
+    "assetsFailedTitle": "Swagger UI did not load",
+    "assetsFailed": "The Swagger UI assets could not be fetched from the CDN. On an air-gapped deployment that is expected: the raw document and the server-rendered page still work.",
+    "emptyTitle": "The document declares no operations",
+    "emptyDescription": "That is a deployment problem rather than an empty database: the api container registered no routes."
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "app": {
+    "name": "dtk",
+    "console": "Console",
+    "tagline": "Self-hosted Douyin and TikTok data API"
+  },
+  "action": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "add": "Add",
+    "remove": "Remove",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Copy failed",
+    "export": "Export",
+    "import": "Import",
+    "test": "Test",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "apply": "Apply",
+    "reset": "Reset",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "view": "View",
+    "details": "Details",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "selectAll": "Select all",
+    "deselectAll": "Clear selection",
+    "more": "More",
+    "done": "Done",
+    "open": "Open",
+    "download": "Download",
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "state": {
+    "identity": {
+      "minting": "Minting",
+      "active": "Active",
+      "cooling": "Cooling",
+      "degraded": "Degraded",
+      "retired": "Retired"
+    },
+    "task": {
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "outcome": {
+      "ok": "Success",
+      "business_error": "No content",
+      "risk_control": "Risk control",
+      "network_error": "Network error"
+    },
+    "circuit": {
+      "closed": "Closed",
+      "half_open": "Half open",
+      "open": "Open"
+    },
+    "health": {
+      "healthy": "Healthy",
+      "unhealthy": "Unhealthy",
+      "unknown": "Unknown"
+    },
+    "key": {
+      "active": "Active",
+      "revoked": "Revoked",
+      "expired": "Expired"
+    },
+    "role": {
+      "admin": "Admin",
+      "operator": "Operator",
+      "viewer": "Viewer"
+    },
+    "unknown": "Unknown"
+  },
+  "table": {
+    "columns": "Columns",
+    "columnsHint": "Choose which columns to show",
+    "density": "Density",
+    "densityCompact": "Compact",
+    "densityComfortable": "Comfortable",
+    "sortAscending": "Sorted ascending",
+    "sortDescending": "Sorted descending",
+    "sortNone": "Not sorted",
+    "selected": "{count, plural, one {# row selected} other {# rows selected}}",
+    "rowCount": "{count, plural, one {# row} other {# rows}}",
+    "loading": "Loading rows",
+    "emptyTitle": "Nothing here yet",
+    "emptyDescription": "No records match the current filters."
+  },
+  "pagination": {
+    "loadMore": "Load more",
+    "noMore": "End of results",
+    "page": "Page {page}",
+    "perPage": "Per page"
+  },
+  "time": {
+    "never": "Never",
+    "localTimeZone": "Times shown in {zone}",
+    "utcNote": "Stored in UTC, shown in local time",
+    "duration": "Duration",
+    "timestamp": "Timestamp"
+  },
+  "theme": {
+    "label": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "system": "System",
+    "toggle": "Switch theme"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "zh": "Chinese"
+  },
+  "nav": {
+    "primary": "Primary navigation",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "openMenu": "Open navigation",
+    "closeMenu": "Close navigation",
+    "skipToContent": "Skip to content"
+  },
+  "field": {
+    "required": "Required",
+    "optional": "Optional",
+    "searchPlaceholder": "Search"
+  },
+  "value": {
+    "yes": "Yes",
+    "no": "No",
+    "none": "None",
+    "all": "All",
+    "missing": "Not reported",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "loading": "Loading",
+  "toast": {
+    "dismiss": "Dismiss",
+    "dismissAll": "Dismiss all",
+    "region": "Notifications"
+  },
+  "dialog": {
+    "close": "Close dialog",
+    "confirmTitle": "Are you sure?",
+    "typeToConfirm": "Type {phrase} to confirm"
+  },
+  "secret": {
+    "masked": "Masked value",
+    "cannotReveal": "The full value is never sent to the console and cannot be revealed here.",
+    "shownOnce": "Shown once. Copy it now; it cannot be retrieved later."
+  },
+  "id": {
+    "copy": "Copy id",
+    "copied": "Id copied",
+    "full": "Full value"
+  },
+  "code": {
+    "copy": "Copy JSON",
+    "expand": "Show all",
+    "collapse": "Show less",
+    "lines": "{count, plural, one {# line} other {# lines}}"
+  },
+  "chart": {
+    "noData": "No data for this range",
+    "legend": "Series",
+    "toggleSeries": "Toggle series",
+    "timeZoneNote": "Local time ({zone})"
+  },
+  "empty": {
+    "title": "Nothing to show",
+    "description": "There is no data here yet."
+  }
+}

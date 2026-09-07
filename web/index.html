@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="dtk console" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>dtk console</title>
+    <script>
+      // Applied before first paint so the shell never flashes the wrong theme.
+      // Mirrors the resolution order in src/lib/theme.ts.
+      (function () {
+        try {
+          var stored = localStorage.getItem('dtk.theme')
+          var mode = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+          var dark = mode === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            : mode === 'dark'
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+          var lang = localStorage.getItem('dtk.language')
+          if (lang === 'zh' || lang === 'en') document.documentElement.setAttribute('lang', lang)
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark')
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

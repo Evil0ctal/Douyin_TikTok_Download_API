@@ -39,10 +39,17 @@ $COMPOSE config -q && pass "compose file parses" || { fail "compose file is inva
 
 step "Generating .env"
 if [[ ! -f .env ]]; then
+  pg_pass=$(openssl rand -hex 16)
+  redis_pass=$(openssl rand -hex 16)
   {
     echo "DTK_SECRET_KEY=$(openssl rand -base64 48 | tr -d '\n')"
-    echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
-    echo "REDIS_PASSWORD=$(openssl rand -hex 16)"
+    echo "POSTGRES_PASSWORD=${pg_pass}"
+    echo "REDIS_PASSWORD=${redis_pass}"
+    # The connection URLs repeat the passwords. They are written here rather
+    # than assembled by hand because getting them out of step with the two
+    # variables above is a silent failure - see docker/README.md.
+    echo "DTK_DATABASE_URL=postgresql+asyncpg://dtk:${pg_pass}@postgres:5432/dtk"
+    echo "DTK_REDIS_URL=redis://:${redis_pass}@redis:6379/0"
   } > .env
   pass "generated .env with random secrets"
 else

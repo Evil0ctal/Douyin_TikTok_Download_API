@@ -1,0 +1,18 @@
+# Runtime dependencies of the browser-rpc image.
+#
+# Pinned exactly, and kept in step with the versions uv.lock resolves for the
+# application image: two services that speak the same JSON should not disagree
+# about how it is parsed.
+#
+# CloakBrowser is deliberately absent. It is installed by Dockerfile.browser
+# from a pinned repository and commit, because several GitHub organizations
+# publish identically described cloakbrowser packages
+# (docs/design/04-transport-signing.md).
+
+fastapi==0.141.1
+uvicorn==0.52.4
+pydantic==2.13.5
+httpx==0.28.1
+# SOCKS support for the exit-IP probe. Without it a socks5:// proxy makes the
+# probe fail, the mint still runs and the geo alignment falls back to the hint.
+socksio==1.0.0

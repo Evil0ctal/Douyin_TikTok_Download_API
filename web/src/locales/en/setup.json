@@ -1,0 +1,68 @@
+{
+  "title": "Set up dtk",
+  "subtitle": "Four steps, then the console is yours.",
+  "tokenBanner": {
+    "title": "Setup token required",
+    "description": "The token was printed to the container log. Run docker compose logs api and paste it here.",
+    "label": "Setup token",
+    "hint": "The token expires 24 hours after the api container starts."
+  },
+  "step": {
+    "admin": {
+      "title": "Create an administrator",
+      "description": "This account can do everything, including changing sensitive settings."
+    },
+    "proxy": {
+      "title": "Add a proxy",
+      "description": "Optional. Without one, every identity shares the server egress address."
+    },
+    "mint": {
+      "title": "Mint the first identity",
+      "description": "Identities carry the fingerprint and cookies used for upstream requests."
+    },
+    "smoke": {
+      "title": "Smoke test",
+      "description": "Parse one real public link end to end, so you know it works before you rely on it."
+    }
+  },
+  "admin": {
+    "username": "Username",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "passwordHint": "At least 12 characters. There is no password reset by email; recovery is a CLI command.",
+    "mismatch": "The two passwords do not match.",
+    "submit": "Create administrator"
+  },
+  "proxy": {
+    "label": "Proxy list",
+    "placeholder": "One proxy per line",
+    "formats": "Accepted formats: host:port, host:port:user:pass, user:pass@host:port, scheme://user:pass@host:port",
+    "skip": "Skip for now",
+    "submit": "Add and test"
+  },
+  "mint": {
+    "platform": "Platform",
+    "submit": "Mint identity",
+    "running": "Minting. This takes a few seconds.",
+    "success": "Identity ready.",
+    "skip": "Skip for now"
+  },
+  "smoke": {
+    "url": "Test link",
+    "urlHint": "Any public video link on a supported platform.",
+    "submit": "Run smoke test",
+    "running": "Running the full pipeline.",
+    "success": "End to end request succeeded.",
+    "failed": "The smoke test failed. The diagnose page explains which step broke."
+  },
+  "done": {
+    "title": "Setup complete",
+    "description": "Open the console.",
+    "action": "Go to overview"
+  },
+  "alreadyInitialized": {
+    "title": "Already initialized",
+    "description": "This instance already has an administrator.",
+    "action": "Sign in"
+  }
+}

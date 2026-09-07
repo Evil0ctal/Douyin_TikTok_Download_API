@@ -1,0 +1,188 @@
+{
+  "app": {
+    "name": "dtk",
+    "console": "控制台",
+    "tagline": "自部署的抖音与 TikTok 数据接口"
+  },
+  "action": {
+    "save": "保存",
+    "cancel": "取消",
+    "close": "关闭",
+    "confirm": "确认",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "add": "新增",
+    "remove": "移除",
+    "retry": "重试",
+    "refresh": "刷新",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyFailed": "复制失败",
+    "export": "导出",
+    "import": "导入",
+    "test": "测试",
+    "search": "搜索",
+    "filter": "筛选",
+    "clear": "清空",
+    "apply": "应用",
+    "reset": "重置",
+    "back": "上一步",
+    "next": "下一步",
+    "submit": "提交",
+    "previous": "上一页",
+    "view": "查看",
+    "details": "详情",
+    "expand": "展开",
+    "collapse": "收起",
+    "selectAll": "全选",
+    "deselectAll": "取消选择",
+    "more": "更多",
+    "done": "完成",
+    "open": "打开",
+    "download": "下载",
+    "signIn": "登录",
+    "signOut": "退出登录"
+  },
+  "state": {
+    "identity": {
+      "minting": "铸造中",
+      "active": "可用",
+      "cooling": "冷却中",
+      "degraded": "降级",
+      "retired": "已退休"
+    },
+    "task": {
+      "queued": "排队中",
+      "running": "执行中",
+      "done": "已完成",
+      "failed": "失败"
+    },
+    "outcome": {
+      "ok": "成功",
+      "business_error": "内容不存在",
+      "risk_control": "风控命中",
+      "network_error": "网络错误"
+    },
+    "circuit": {
+      "closed": "正常",
+      "half_open": "半开",
+      "open": "熔断中"
+    },
+    "health": {
+      "healthy": "健康",
+      "unhealthy": "不可用",
+      "unknown": "未知"
+    },
+    "key": {
+      "active": "生效中",
+      "revoked": "已撤销",
+      "expired": "已过期"
+    },
+    "role": {
+      "admin": "管理员",
+      "operator": "运维",
+      "viewer": "只读"
+    },
+    "unknown": "未知"
+  },
+  "table": {
+    "columns": "列",
+    "columnsHint": "选择需要显示的列",
+    "density": "密度",
+    "densityCompact": "紧凑",
+    "densityComfortable": "宽松",
+    "sortAscending": "升序排列",
+    "sortDescending": "降序排列",
+    "sortNone": "未排序",
+    "selected": "已选择 {count} 行",
+    "rowCount": "共 {count} 行",
+    "loading": "正在加载数据",
+    "emptyTitle": "暂无数据",
+    "emptyDescription": "没有符合当前筛选条件的记录。"
+  },
+  "pagination": {
+    "loadMore": "加载更多",
+    "noMore": "没有更多了",
+    "page": "第 {page} 页",
+    "perPage": "每页"
+  },
+  "time": {
+    "never": "从未",
+    "localTimeZone": "时间按 {zone} 显示",
+    "utcNote": "服务端存 UTC，此处按本地时区显示",
+    "duration": "耗时",
+    "timestamp": "时间"
+  },
+  "theme": {
+    "label": "主题",
+    "dark": "暗色",
+    "light": "亮色",
+    "system": "跟随系统",
+    "toggle": "切换主题"
+  },
+  "language": {
+    "label": "语言",
+    "en": "English",
+    "zh": "中文"
+  },
+  "nav": {
+    "primary": "主导航",
+    "collapse": "收起侧边栏",
+    "expand": "展开侧边栏",
+    "openMenu": "打开导航",
+    "closeMenu": "关闭导航",
+    "skipToContent": "跳到主内容"
+  },
+  "field": {
+    "required": "必填",
+    "optional": "选填",
+    "searchPlaceholder": "搜索"
+  },
+  "value": {
+    "yes": "是",
+    "no": "否",
+    "none": "无",
+    "all": "全部",
+    "missing": "未提供",
+    "enabled": "已启用",
+    "disabled": "已禁用"
+  },
+  "loading": "加载中",
+  "toast": {
+    "dismiss": "关闭",
+    "dismissAll": "全部关闭",
+    "region": "通知"
+  },
+  "dialog": {
+    "close": "关闭对话框",
+    "confirmTitle": "确认执行？",
+    "typeToConfirm": "输入 {phrase} 以确认"
+  },
+  "secret": {
+    "masked": "已掩码",
+    "cannotReveal": "完整内容不会下发到控制台，此处无法查看原文。",
+    "shownOnce": "仅显示一次，请立即复制，之后无法再次查看。"
+  },
+  "id": {
+    "copy": "复制 ID",
+    "copied": "已复制 ID",
+    "full": "完整内容"
+  },
+  "code": {
+    "copy": "复制 JSON",
+    "expand": "展开全部",
+    "collapse": "收起",
+    "lines": "{count} 行"
+  },
+  "chart": {
+    "noData": "该时间范围内暂无数据",
+    "legend": "序列",
+    "toggleSeries": "显示或隐藏该序列",
+    "timeZoneNote": "本地时间（{zone}）"
+  },
+  "empty": {
+    "title": "暂无内容",
+    "description": "这里还没有数据。"
+  }
+}

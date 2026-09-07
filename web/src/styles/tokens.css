@@ -1,0 +1,172 @@
+/*
+ * Design tokens - docs/design/12-design-system.md.
+ *
+ * This file is the ONLY place in the console where a literal colour value may
+ * appear. Components reference semantic tokens (var(--color-danger)), never a
+ * scale step and never a hex value; eslint enforces that.
+ *
+ * Both themes are complete implementations, not a base plus a filter. The
+ * default block below is the dark theme so a document that never receives a
+ * data-theme attribute (JS disabled, first paint of a cached shell) still
+ * renders correctly.
+ */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Neutrals. Never pure black: it smears on OLED and flattens every layer.
+     The dark base carries a slight cool cast. */
+  --bg-base: #0b0d10;
+  --bg-raised: #12151a;
+  --bg-overlay: #171b21;
+  --bg-inset: #080a0c;
+  --border-subtle: #21262e;
+  --border: #2c333d;
+  --border-strong: #3d4652;
+  --text: #e4e9f0;
+  --text-secondary: #a3aebd;
+  --text-muted: #7a8697;
+
+  /* Accent: teal-cyan. Chosen because it collides with no status colour, so a
+     primary button never reads as a success message. */
+  --accent: #4cc9d9;
+  --accent-hover: #6fd8e5;
+  --accent-subtle: #4cc9d91a;
+  --accent-text: #0b0d10;
+
+  /* Status. One mapping for the whole console: badges, charts, logs. */
+  --success: #3fb950;
+  --warning: #d29922;
+  --caution: #db8b3a;
+  --danger: #f0616d;
+  --neutral: #7a8697;
+
+  /* Layering on dark comes from background lightness plus borders. Shadows are
+     nearly invisible here, so only overlays get one. */
+  --shadow-sm: none;
+  --shadow: 0 4px 16px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 16px 48px rgb(0 0 0 / 0.55);
+
+  /* Categorical series for multi-identity / multi-endpoint comparisons.
+     Hue rotation starting from the accent; every entry clears 3:1 on --bg-base. */
+  --series-1: #4cc9d9;
+  --series-2: #7fb2f0;
+  --series-3: #a78bfa;
+  --series-4: #e879b9;
+  --series-5: #e8a33d;
+  --series-6: #6fcf97;
+
+  --backdrop: rgb(4 6 8 / 0.66);
+  --skeleton-base: #171b21;
+  --skeleton-sheen: #212731;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-base: #fbfcfd;
+  --bg-raised: #ffffff;
+  --bg-overlay: #ffffff;
+  --bg-inset: #f4f6f9;
+  --border-subtle: #e8ecf1;
+  --border: #d6dde6;
+  --border-strong: #b9c4d1;
+  --text: #101720;
+  --text-secondary: #4a5768;
+  --text-muted: #68758a;
+
+  --accent: #0e7c8c;
+  --accent-hover: #0a6373;
+  --accent-subtle: #0e7c8c14;
+  --accent-text: #ffffff;
+
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --caution: #bc4c00;
+  --danger: #cf222e;
+  --neutral: #68758a;
+
+  --shadow-sm: 0 1px 2px rgb(16 23 32 / 0.06);
+  --shadow: 0 4px 12px rgb(16 23 32 / 0.08);
+  --shadow-lg: 0 12px 32px rgb(16 23 32 / 0.12);
+
+  --series-1: #0e7c8c;
+  --series-2: #2563c9;
+  --series-3: #6d3fd1;
+  --series-4: #b03a86;
+  --series-5: #96601a;
+  --series-6: #1f7a4d;
+
+  --backdrop: rgb(16 23 32 / 0.35);
+  --skeleton-base: #eef1f5;
+  --skeleton-sheen: #e2e7ee;
+}
+
+/* Theme-independent tokens. */
+:root {
+  /* Type. The CJK fallbacks are mandatory: without them Windows lands on SimSun
+     and the whole console looks broken to half its users. */
+  --font-sans:
+    'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'SF Mono', 'SFMono-Regular', 'Cascadia Code', 'Roboto Mono', ui-monospace,
+    Menlo, Consolas, 'PingFang SC', 'Microsoft YaHei', monospace;
+
+  /* size / line-height pairs from the spec */
+  --text-xs: 11px;
+  --leading-xs: 16px;
+  --text-sm: 13px; /* the console workhorse: tables and forms */
+  --leading-sm: 20px;
+  --text-base: 14px;
+  --leading-base: 22px;
+  --text-lg: 16px;
+  --leading-lg: 24px;
+  --text-xl: 20px;
+  --leading-xl: 28px;
+  --text-2xl: 28px;
+  --leading-2xl: 36px;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --radius-full: 999px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-1: 120ms; /* hover, focus */
+  --duration-2: 180ms; /* disclosure, overlays */
+  --duration-flash: 900ms; /* one-shot highlight when a status actually changes */
+
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 56px;
+  --topbar-height: 48px;
+  --content-max: 1440px;
+  --row-height-compact: 32px;
+  --row-height-comfortable: 44px;
+
+  --z-sticky: 20;
+  --z-drawer: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --z-tooltip: 70;
+
+  --breakpoint-sm: 768px;
+  --breakpoint-lg: 1280px;
+}

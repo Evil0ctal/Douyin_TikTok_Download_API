@@ -1,0 +1,320 @@
+/* Buttons, inputs and the field wrapper. Colours come only from tokens. */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  position: relative;
+  transition:
+    background-color var(--duration-1) var(--ease),
+    border-color var(--duration-1) var(--ease),
+    color var(--duration-1) var(--ease);
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.sm {
+  height: 26px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.md {
+  height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.lg {
+  height: 40px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-base);
+}
+
+.iconOnly.sm {
+  width: 26px;
+  padding: 0;
+}
+
+.iconOnly.md {
+  width: 32px;
+  padding: 0;
+}
+
+.iconOnly.lg {
+  width: 40px;
+  padding: 0;
+}
+
+/* Variants */
+.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.secondary {
+  background: var(--bg-raised);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-overlay);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.block {
+  width: 100%;
+}
+
+/* Loading keeps the label in flow so the button cannot change width mid-action. */
+.inner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.loadingLabel {
+  visibility: hidden;
+}
+
+.spinnerOverlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* Fields --------------------------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.required {
+  color: var(--danger);
+}
+
+.optional {
+  color: var(--text-muted);
+  font-weight: var(--weight-normal);
+}
+
+.description {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+/* Errors are text plus aria-describedby, never a red border alone. */
+.error {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--danger);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.control {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  padding: 0 var(--space-2);
+  height: 32px;
+  transition:
+    border-color var(--duration-1) var(--ease),
+    background-color var(--duration-1) var(--ease);
+}
+
+.control:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.controlInvalid {
+  border-color: var(--danger);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.textarea {
+  height: auto;
+  min-height: 88px;
+  padding: var(--space-2);
+  resize: vertical;
+  font-family: var(--font-mono);
+}
+
+.selectWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.select {
+  appearance: none;
+  padding-right: var(--space-5);
+  cursor: pointer;
+}
+
+.selectChevron {
+  position: absolute;
+  right: var(--space-2);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Checkbox and switch -------------------------------------------------------- */
+
+.checkboxRow {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.checkboxRow input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.checkboxBox {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-top: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+  transition:
+    background-color var(--duration-1) var(--ease),
+    border-color var(--duration-1) var(--ease);
+}
+
+.checkboxRow input:checked + .checkboxBox,
+.checkboxRow input:indeterminate + .checkboxBox {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.checkboxRow input:focus-visible + .checkboxBox {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.checkboxRow input:disabled + .checkboxBox {
+  opacity: 0.5;
+}
+
+.checkboxLabel {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.switchTrack {
+  width: 30px;
+  height: 18px;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  border: 1px solid var(--border-strong);
+  position: relative;
+  transition:
+    background-color var(--duration-1) var(--ease),
+    border-color var(--duration-1) var(--ease);
+}
+
+.switchThumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  transition: transform var(--duration-1) var(--ease);
+}
+
+.checkboxRow input:checked + .switchTrack {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.checkboxRow input:checked + .switchTrack .switchThumb {
+  transform: translateX(12px);
+}
+
+.checkboxRow input:focus-visible + .switchTrack {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

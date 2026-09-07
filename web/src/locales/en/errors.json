@@ -1,0 +1,68 @@
+{
+  "title": "Request failed",
+  "code": {
+    "INVALID_URL": "The URL was not recognized as a supported Douyin or TikTok link.",
+    "UNSUPPORTED_CONTENT": "That content type is not supported yet.",
+    "INVALID_PARAM": "One or more request parameters are invalid.",
+    "UNAUTHENTICATED": "Sign in again to continue.",
+    "FORBIDDEN_SCOPE": "This key or account lacks the scope required by this endpoint.",
+    "NOT_FOUND": "The requested resource does not exist.",
+    "CONTENT_PRIVATE": "This content is private or has been removed by its author.",
+    "RATE_LIMITED": "Too many requests. Back off and try again shortly.",
+    "IDENTITY_POOL_EXHAUSTED": "No identity is available right now; the pool is recovering.",
+    "ENDPOINT_CIRCUIT_OPEN": "This endpoint is paused after repeated failures.",
+    "UPSTREAM_RISK_CONTROL": "The platform flagged the request as automated traffic.",
+    "UPSTREAM_CHANGED": "The platform response no longer matches the expected structure.",
+    "SIGNING_FAILED": "Request signing failed; the signing algorithm may be out of date.",
+    "TASK_NOT_FOUND": "No task exists with that id, or its result has already expired.",
+    "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
+    "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
+    "INTERNAL": "An unexpected internal error occurred."
+  },
+  "hint": {
+    "INVALID_URL": "Check the link and paste it again. Retrying will not help.",
+    "UNSUPPORTED_CONTENT": "Nothing to retry here; this type is not implemented.",
+    "INVALID_PARAM": "Correct the highlighted fields and submit again.",
+    "UNAUTHENTICATED": "Your session may have expired. Sign in and retry.",
+    "FORBIDDEN_SCOPE": "Grant the required scope, or use a key that already has it.",
+    "NOT_FOUND": "The content is gone. This is not a system fault.",
+    "CONTENT_PRIVATE": "Only the author can make this content public again.",
+    "RATE_LIMITED": "Wait for the window to reset, then retry.",
+    "IDENTITY_POOL_EXHAUSTED": "Check the identity pool: mint more, or wait for cooldowns to end.",
+    "ENDPOINT_CIRCUIT_OPEN": "Wait for the circuit to reopen, or use another endpoint.",
+    "UPSTREAM_RISK_CONTROL": "The identity was cooled down. Retry later or add proxies.",
+    "UPSTREAM_CHANGED": "This is a bug in dtk, not in your deployment. Please report it with the request id.",
+    "SIGNING_FAILED": "Check browser-rpc reachability on the System page, then retry.",
+    "TASK_NOT_FOUND": "Submit the request again.",
+    "SETUP_ALREADY_DONE": "Sign in instead.",
+    "SETUP_TOKEN_INVALID": "Restart the api container to print a fresh token in the logs.",
+    "INTERNAL": "Report the issue with the request id and check the server logs."
+  },
+  "generic": {
+    "network": "Cannot reach the API. Check that the service is running and reachable.",
+    "timeout": "The request timed out before the server replied.",
+    "taskTimeout": "The task is still running. It will finish in the background.",
+    "aborted": "The request was cancelled.",
+    "malformed": "The API returned a response the console could not read.",
+    "unknown": "Something went wrong."
+  },
+  "retry": {
+    "retryable": "Safe to retry",
+    "nonRetryable": "Do not retry"
+  },
+  "boundary": {
+    "title": "This page crashed",
+    "description": "The console hit an unexpected error while rendering. Reloading usually clears it.",
+    "action": "Reload the console",
+    "details": "Error details"
+  },
+  "label": {
+    "requestId": "Request id",
+    "code": "Error code",
+    "reportHint": "Include the request id when reporting this issue."
+  },
+  "loadFailed": {
+    "title": "Could not load this data",
+    "description": "The request failed. Retry, or check the System page for component health."
+  }
+}

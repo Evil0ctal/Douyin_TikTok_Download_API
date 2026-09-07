@@ -1,0 +1,349 @@
+# Production orchestration for a single host.
+#
+#   see docker/README.md      write .env with random secrets
+#   docker compose -p dtk -f docker/compose.yml up -d
+#   docker compose -p dtk -f docker/compose.yml logs api    # setup token
+#
+# Only `api` publishes a port, bound to loopback. postgres and redis sit on an
+# internal network with no route off the host at all. Everything the containers
+# need beyond that comes from ../.env, which docker/README.md shows how to write
+# and which is never committed (docs/design/08-security.md,
+# docs/design/09-deployment.md).
+#
+# Note on ../.env: compose resolves `env_file` paths relative to this file, so
+# service variables come from the repository root .env even though the project
+# directory is docker/. Interpolation in *this* file (the published address
+# below) does not: it reads docker/.env or the shell. Publish elsewhere with
+#     DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
+# or point compose at the root file with COMPOSE_ENV_FILES=.env.
+name: dtk
+
+x-app-image: &app-image
+  image: dtk-app:${DTK_IMAGE_TAG:-dev}
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+    args:
+      # Bump together with the runtime pin in pyproject.toml.
+      PYTHON_VERSION: "3.12.8"
+
+x-app-env: &app-env
+  env_file:
+    # Missing on a fresh clone; the entrypoint then refuses to start with an
+    # actionable message instead of compose failing with a file-not-found.
+    - path: ../.env
+      required: false
+
+x-app-hardening: &app-hardening
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-app: &app
+  <<: [*app-image, *app-env, *app-hardening]
+
+services:
+  # ----------------------------------------------------------------------
+  # Data stores. Internal network only: neither of them has any business
+  # reaching the internet, and nothing outside the compose project reaches them.
+  # ----------------------------------------------------------------------
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      # POSTGRES_PASSWORD comes from ../.env. The master key does not: the
+      # database has no use for the key that encrypts its own contents, so it is
+      # blanked out here even though the shared env file carries it.
+      DTK_SECRET_KEY: ""
+      POSTGRES_DB: dtk
+      POSTGRES_USER: dtk
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      # PGDATA for the timescaledb-ha image. Mounting the usual
+      # /var/lib/postgresql/data instead would leave the real data directory
+      # inside the container and lose the database on the first rebuild.
+      - postgres-data:/home/postgres/pgdata/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dtk -d dtk"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:8-alpine
+    # The image's entrypoint only drops privileges when its first argument is
+    # literally `redis-server`, and the password has to come from the container's
+    # environment (see the command below), so the drop is done here instead.
+    # Without this, redis would run as root.
+    user: redis
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      DTK_SECRET_KEY: ""
+    # $$ escapes compose interpolation, so REDIS_PASSWORD is expanded by the
+    # shell inside the container from the env file rather than being written
+    # into the resolved compose config.
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$$REDIS_PASSWORD" ]; then
+          echo "redis: REDIS_PASSWORD is empty; write .env first (see docker/README.md)" >&2
+          exit 1
+        fi
+        exec redis-server \
+          --requirepass "$$REDIS_PASSWORD" \
+          --appendonly yes \
+          --save 60 1 \
+          --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    networks:
+      - data
+    healthcheck:
+      # The queue lives here, so an unauthenticated PONG is not good enough:
+      # authenticate the probe the same way the application does.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ----------------------------------------------------------------------
+  # Schema. A one-shot task rather than something api and worker each attempt:
+  # concurrent CREATE TABLE races are how a first boot corrupts itself, and no
+  # user should have to remember to run migrations after a pull.
+  # ----------------------------------------------------------------------
+  migrate:
+    <<: *app
+    command: ["migrate"]
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    # A one-shot container has no healthcheck: its exit status is its health,
+    # which is what service_completed_successfully below reads.
+
+  # ----------------------------------------------------------------------
+  # Application. Same image, different first argument.
+  # ----------------------------------------------------------------------
+  api:
+    <<: *app
+    command: ["api"]
+    environment:
+      # Listens on every interface *inside* the container; exposure is decided
+      # by the published address below, not by this value.
+      DTK_BIND_HOST: "0.0.0.0"
+      DTK_BIND_PORT: "8000"
+      DTK_CONSOLE_DIR: /app/web/dist
+    ports:
+      # Loopback by default. Serving the outside world is an explicit act, and
+      # it is on the operator to put TLS in front of it.
+      - "${DTK_BIND_HOST:-127.0.0.1}:${DTK_BIND_PORT:-8000}:8000"
+    networks:
+      - data
+      - edge
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # Readiness, not liveness: `up --wait` should return when the API can
+      # actually serve, and a reverse proxy wants the same signal. browser-rpc
+      # is an optional dependency and must not appear in it.
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import sys, urllib.request
+          with urllib.request.urlopen("http://127.0.0.1:8000/readyz", timeout=3) as r:
+              sys.exit(0 if r.status == 200 else 1)
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    networks:
+      - data
+      - edge
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # The worker has no port to probe. This asserts that the interpreter runs
+      # and that the path to Redis - where leases, budgets and the queue live -
+      # is open; a worker that cannot reach Redis does no work at all.
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import os, socket, sys, urllib.parse
+          url = urllib.parse.urlparse(os.environ.get("DTK_REDIS_URL", "redis://redis:6379/0"))
+          socket.create_connection((url.hostname or "redis", url.port or 6379), 5).close()
+          sys.exit(0)
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    # Long enough for an in-flight upstream request to finish and release its
+    # identity lease instead of leaving it to expire by TTL.
+    stop_grace_period: 45s
+    # Scale with: docker compose -p dtk -f docker/compose.yml up -d --scale worker=N
+    # Throughput is bounded by the identity pool, not by this number.
+
+  # ----------------------------------------------------------------------
+  # Headless browser RPC. Optional by design: a deployment that imports its
+  # cookies by hand does not need the heaviest container in the stack.
+  #
+  #   docker compose -p dtk -f docker/compose.yml --profile browser up -d
+  #
+  # Set DTK_BROWSER_RPC_URL=http://browser-rpc:9000 in ../.env to let api and
+  # worker use it. Left unset they run manual-import only, which is the correct
+  # degraded mode rather than an error.
+  # ----------------------------------------------------------------------
+  browser-rpc:
+    profiles:
+      - browser
+    image: dtk-browser-rpc:${DTK_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.browser
+      args:
+        # Pin the backend to one repository and one commit. Several GitHub orgs
+        # publish identically described CloakBrowser repositories, so a floating
+        # tag is not a version (docs/design/04-transport-signing.md).
+        CLOAKBROWSER_REPO: ${CLOAKBROWSER_REPO:-https://github.com/CloakHQ/cloakbrowser}
+        CLOAKBROWSER_COMMIT: ${CLOAKBROWSER_COMMIT:-}
+    # Same env file as the rest of the stack, for the same reason: every
+    # DTK_BROWSER_* knob the README documents - the backend name above all - has
+    # to be settable in one place. `environment:` wins over `env_file:`, so only
+    # what the container's own topology fixes is repeated below.
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      # This container holds no credentials and never talks to the database, so
+      # the master key that arrives with the shared env file is blanked here.
+      DTK_SECRET_KEY: ""
+      # Fixed by the container, not by the operator: the bind address has to
+      # match `expose` and the healthcheck, and the profile root has to match
+      # the tmpfs mounted below.
+      DTK_BROWSER_BIND_HOST: "0.0.0.0"
+      DTK_BROWSER_BIND_PORT: "9000"
+      DTK_BROWSER_PROFILE_ROOT: /profiles
+      #
+      # Everything else - DTK_BROWSER_BACKEND, WARM_CONTEXTS,
+      # WARM_REFRESH_SECONDS, MAX_CONCURRENT_MINTS, SIGN_PROXY_URL,
+      # GEO_PROBE_URL, DEFAULT_COUNTRY - is deliberately absent so ../.env can
+      # set it. The service defaults already match what this file used to pin
+      # (cloak, 1, 1800, 2, unset), and backend selection stays explicit: there
+      # is no fallback between backends, so an unset value means "cloak", never
+      # "whatever starts".
+    expose:
+      - "9000"
+    networks:
+      # Reaches the internet through the identity's proxy; never touches the
+      # database network.
+      - edge
+    read_only: true
+    tmpfs:
+      # Browser profiles live in RAM: a mint profile is single-use, and a tmpfs
+      # makes that structural rather than a promise about cleanup code.
+      - /tmp:size=256m,mode=1777
+      - /profiles:size=512m,mode=0700,uid=10001,gid=10001
+    # Chromium needs shared memory for its renderers; the 64MB default makes
+    # pages crash under load in ways that look like platform blocks.
+    shm_size: 1gb
+    # Chromium's own sandbox needs to create user namespaces. Granting one
+    # capability is the lesser evil against running the browser with
+    # --no-sandbox, which removes the renderer boundary entirely.
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    # Chromium leaves zombies behind; PID 1 has to reap them.
+    init: true
+    healthcheck:
+      # A 200 is not enough here: the service answers /rpc/health even when the
+      # browser backend failed to start, precisely so the operator gets a reason
+      # instead of a restart loop. The reason lives in the body, so the probe
+      # reads it - otherwise an image built without CLOAKBROWSER_COMMIT reports
+      # itself healthy and mints nothing.
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import json, sys, urllib.request
+          with urllib.request.urlopen("http://127.0.0.1:9000/rpc/health", timeout=5) as r:
+              body = json.load(r)
+          sys.exit(0 if r.status == 200 and body.get("status") == "ok" else 1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  # No gateway: postgres and redis cannot reach anything off this host.
+  data:
+    internal: true
+  edge: {}
+
+volumes:
+  postgres-data:
+  redis-data:

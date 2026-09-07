@@ -1,0 +1,68 @@
+{
+  "title": "请求失败",
+  "code": {
+    "INVALID_URL": "无法识别该链接，请确认是受支持的抖音或 TikTok 链接。",
+    "UNSUPPORTED_CONTENT": "暂不支持该内容类型。",
+    "INVALID_PARAM": "请求参数不合法。",
+    "UNAUTHENTICATED": "登录状态已失效，请重新登录。",
+    "FORBIDDEN_SCOPE": "当前 Key 或账号缺少调用此接口所需的权限范围。",
+    "NOT_FOUND": "请求的资源不存在。",
+    "CONTENT_PRIVATE": "该内容为私密或已被作者删除。",
+    "RATE_LIMITED": "请求过于频繁，请稍后重试。",
+    "IDENTITY_POOL_EXHAUSTED": "当前无可用身份，身份池正在恢复。",
+    "ENDPOINT_CIRCUIT_OPEN": "该接口因连续失败已临时熔断。",
+    "UPSTREAM_RISK_CONTROL": "平台判定该请求为自动化流量。",
+    "UPSTREAM_CHANGED": "平台返回结构与解析器预期不符。",
+    "SIGNING_FAILED": "请求签名失败，签名算法可能已失效。",
+    "TASK_NOT_FOUND": "任务不存在，或结果已过期。",
+    "SETUP_ALREADY_DONE": "本实例已完成初始化。",
+    "SETUP_TOKEN_INVALID": "初始化令牌无效或已过期。",
+    "INTERNAL": "服务器内部错误。"
+  },
+  "hint": {
+    "INVALID_URL": "请检查链接后重新粘贴，重试无效。",
+    "UNSUPPORTED_CONTENT": "该类型尚未实现，无需重试。",
+    "INVALID_PARAM": "请修正标注的字段后重新提交。",
+    "UNAUTHENTICATED": "会话可能已过期，请重新登录后重试。",
+    "FORBIDDEN_SCOPE": "请为该 Key 添加所需 scope，或改用已有权限的 Key。",
+    "NOT_FOUND": "内容已不存在，这不是系统故障。",
+    "CONTENT_PRIVATE": "只有作者本人可以重新公开该内容。",
+    "RATE_LIMITED": "等待限流窗口重置后再重试。",
+    "IDENTITY_POOL_EXHAUSTED": "请查看身份池：可手动铸造，或等待冷却结束。",
+    "ENDPOINT_CIRCUIT_OPEN": "等待熔断恢复，或改用其它接口。",
+    "UPSTREAM_RISK_CONTROL": "相关身份已进入冷却，请稍后重试或补充代理。",
+    "UPSTREAM_CHANGED": "这是 dtk 的缺陷而非部署问题，请附上 request_id 反馈。",
+    "SIGNING_FAILED": "请在系统信息页检查 browser-rpc 连通性后重试。",
+    "TASK_NOT_FOUND": "请重新提交该请求。",
+    "SETUP_ALREADY_DONE": "请直接登录。",
+    "SETUP_TOKEN_INVALID": "重启 api 容器可在日志中生成新的令牌。",
+    "INTERNAL": "请附上 request_id 反馈，并查看服务端日志。"
+  },
+  "generic": {
+    "network": "无法连接到接口服务，请确认服务已启动且网络可达。",
+    "timeout": "请求超时，服务端未在预期时间内响应。",
+    "taskTimeout": "任务仍在执行中，将在后台继续完成。",
+    "aborted": "请求已取消。",
+    "malformed": "接口返回了控制台无法解析的响应。",
+    "unknown": "发生了未知错误。"
+  },
+  "retry": {
+    "retryable": "可以重试",
+    "nonRetryable": "不要重试"
+  },
+  "boundary": {
+    "title": "页面渲染出错",
+    "description": "控制台在渲染时遇到意外错误，刷新通常可以恢复。",
+    "action": "重新加载控制台",
+    "details": "错误详情"
+  },
+  "label": {
+    "requestId": "请求 ID",
+    "code": "错误码",
+    "reportHint": "反馈问题时请附上 request_id。"
+  },
+  "loadFailed": {
+    "title": "数据加载失败",
+    "description": "请求未成功。可以重试，或到系统信息页查看各组件健康状态。"
+  }
+}

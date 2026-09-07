@@ -1,0 +1,118 @@
+/*
+ * A deliberately small global utility layer. Page-level styling should prefer
+ * these plus the components in src/components; anything richer belongs in a
+ * page-local CSS module.
+ */
+
+.u-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.u-stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.u-stack-lg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.u-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.u-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.u-wrap {
+  flex-wrap: wrap;
+}
+
+.u-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.u-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.u-grid-metrics {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.u-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.u-muted {
+  color: var(--text-muted);
+}
+
+.u-secondary {
+  color: var(--text-secondary);
+}
+
+.u-xs {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.u-lg {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.u-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.u-scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.u-nowrap {
+  white-space: nowrap;
+}
+
+.u-right {
+  text-align: right;
+}
+
+/* Visually hidden but still announced by screen readers. */
+.u-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.u-flash {
+  animation: dtk-flash var(--duration-flash) var(--ease) 1;
+}

@@ -14,6 +14,7 @@ Two properties are load bearing enough to be asserted directly:
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -256,8 +257,32 @@ class TestArgumentValidation:
         with pytest.raises(ToolError) as caught:
             await tools.list_user_posts("tiktok", "@charlidamelio", None, None)
         message = str(caught.value)
-        assert "secUid" in message
+        assert routing.SEC_UID_PREFIX in message
         assert "get_user" in message
+
+    async def test_a_douyin_handle_gets_advice_it_can_follow(self):
+        """The refusal has to name a next step that exists.
+
+        get_user *is* the profile endpoint, so telling its caller to "call
+        get_user first" is a loop, and Douyin has no handle-to-id tool at all.
+        parse_url on a profile link is the one route that resolves a handle.
+        """
+        tasks = FakeTasks()
+        tools = ToolSet(make_context(tasks))
+        with pytest.raises(ToolError) as caught:
+            await tools.get_user("douyin", "@someone")
+        message = str(caught.value)
+        assert "parse_url" in message
+        assert "call get_user" not in message
+        assert tasks.submitted == []
+
+    async def test_an_endpoint_name_is_not_capitalized_into_a_different_name(self):
+        """The message names an endpoint the agent may echo back."""
+        tools = ToolSet(make_context())
+        with pytest.raises(ToolError) as caught:
+            await tools.list_user_posts("tiktok", "@charlidamelio", None, None)
+        assert "tiktok.author_posts" in str(caught.value)
+        assert "Tiktok.author_posts" not in str(caught.value)
 
     async def test_tiktok_profile_accepts_a_handle(self):
         tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"uid": "123"}))
@@ -267,17 +292,33 @@ class TestArgumentValidation:
         assert endpoint == "tiktok.author_profile"
         assert params == {"unique_id": "charlidamelio"}
 
-    async def test_identifier_is_translated_per_platform(self):
-        """One vocabulary for the agent, each platform's own spelling below."""
+    async def test_one_vocabulary_covers_both_platforms(self):
+        """The agent says content_id; the worker registry knows both spellings.
+
+        The queued parameters are the registry's canonical names, so a task
+        submitted here resolves exactly as one submitted from REST does.
+        """
         tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {}))
         tools = ToolSet(make_context(tasks))
         await tools.get_video("douyin", "7100000000000000000")
         await tools.get_video("tiktok", "7100000000000000000")
-        assert tasks.submitted[0] == (
-            "douyin.content_detail",
-            {"aweme_id": "7100000000000000000"},
-        )
-        assert tasks.submitted[1] == ("tiktok.content_detail", {"item_id": "7100000000000000000"})
+        assert tasks.submitted == [
+            ("douyin.content_detail", {"content_id": "7100000000000000000"}),
+            ("tiktok.content_detail", {"content_id": "7100000000000000000"}),
+        ]
+
+    async def test_queued_parameters_are_what_the_worker_resolves(self):
+        """The contract that keeps MCP and the worker from drifting apart."""
+        from dtk.core.config import Config as RuntimeConfig
+        from dtk.worker import registry
+
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {}))
+        tools = ToolSet(make_context(tasks))
+        await tools.list_user_posts("douyin", DOUYIN_SEC_UID, "17000000000", 10)
+        endpoint, params = tasks.submitted[0]
+        call = registry.resolve(endpoint, params, RuntimeConfig.defaults())
+        assert call.params["sec_user_id"] == DOUYIN_SEC_UID
+        assert call.params["count"] == 10
 
     async def test_absent_paging_arguments_are_omitted_not_zeroed(self):
         """Doc 11: an absent value is None, never 0 or an empty string."""
@@ -285,7 +326,7 @@ class TestArgumentValidation:
         tools = ToolSet(make_context(tasks))
         await tools.list_user_posts("douyin", DOUYIN_SEC_UID, None, None)
         _endpoint, params = tasks.submitted[0]
-        assert params == {"sec_user_id": DOUYIN_SEC_UID}
+        assert params == {"author_id": DOUYIN_SEC_UID}
 
     async def test_cursor_and_count_are_passed_through(self):
         tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {}))
@@ -308,13 +349,14 @@ class TestArgumentValidation:
 
 
 class TestParseUrl:
-    async def test_a_recognized_post_url_becomes_a_detail_call(self):
+    async def test_a_recognized_url_goes_through_the_shared_parse_endpoint(self):
+        """The same task REST submits, so a link behaves identically either way."""
         tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"content_id": "7100"}))
         tools = ToolSet(make_context(tasks))
         result = await tools.parse_url("https://www.douyin.com/video/7100000000000000000")
         assert tasks.submitted[0] == (
-            "douyin.content_detail",
-            {"aweme_id": "7100000000000000000"},
+            routing.PARSE_ENDPOINT,
+            {"url": "https://www.douyin.com/video/7100000000000000000"},
         )
         assert result["platform"] == "douyin"
         assert result["resource"] == "video"
@@ -334,7 +376,10 @@ class TestParseUrl:
         tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {}))
         tools = ToolSet(make_context(tasks))
         await tools.parse_url("check this out https://www.douyin.com/video/7100000000000000000 !")
-        assert tasks.submitted[0][0] == "douyin.content_detail"
+        assert tasks.submitted[0] == (
+            routing.PARSE_ENDPOINT,
+            {"url": "https://www.douyin.com/video/7100000000000000000"},
+        )
 
     async def test_a_foreign_url_is_refused_without_a_request(self):
         tasks = FakeTasks()
@@ -350,6 +395,19 @@ class TestParseUrl:
         with pytest.raises(ToolError) as caught:
             await tools.parse_url("https://live.douyin.com/123456789")
         assert "UNSUPPORTED_CONTENT" in str(caught.value)
+
+    async def test_an_allowed_host_that_points_at_nothing_costs_no_quota(self):
+        """A feed or a settings page passes the allowlist but is not a resource.
+
+        Queueing it would spend an identity's quota to discover there is nothing
+        to fetch, and the agent would learn that only after the wait.
+        """
+        tasks = FakeTasks()
+        tools = ToolSet(make_context(tasks))
+        with pytest.raises(ToolError) as caught:
+            await tools.parse_url("https://www.douyin.com/discover")
+        assert "UNSUPPORTED_CONTENT" in str(caught.value)
+        assert tasks.submitted == []
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +476,27 @@ class TestBlocking:
         with pytest.raises(ToolError) as caught:
             await tools.get_task_result(TASK_ID)
         assert "TASK_NOT_FOUND" in str(caught.value)
+
+    async def test_an_evicted_result_is_not_reported_as_an_empty_answer(self):
+        """The row outlives its payload; ``GET /api/v1/tasks/{id}`` says so too.
+
+        Returning ok with an empty body would tell the agent the post has no
+        data, which is the one answer that is certainly wrong.
+        """
+        evicted = TaskOutcome(TASK_ID, TaskState.DONE, None, None, "douyin.content_detail")
+        tools = ToolSet(make_context(FakeTasks(lookup=evicted)))
+        with pytest.raises(ToolError) as caught:
+            await tools.get_task_result(TASK_ID)
+        message = str(caught.value)
+        assert "TASK_NOT_FOUND" in message
+        assert "no longer stored" in message
+        assert "once more" in message
+
+    async def test_an_evicted_result_from_the_blocking_path_is_refused_too(self):
+        evicted = TaskOutcome(TASK_ID, TaskState.DONE, None, None, "douyin.content_detail")
+        tools = ToolSet(make_context(FakeTasks(wait=evicted)))
+        with pytest.raises(ToolError):
+            await tools.get_video("douyin", "7100000000000000000")
 
 
 # ---------------------------------------------------------------------------
@@ -496,6 +575,26 @@ class TestErrorProse:
             await tools.get_video("douyin", "7100000000000000000")
         assert "INTERNAL" in str(caught.value)
 
+    async def test_an_outage_is_a_sentence_and_leaks_nothing(self):
+        """A Redis or database failure is not a domain error, and still must not
+        reach the model as a bare crash - nor as the exception's own text, which
+        can name a host, a query or a header."""
+
+        class Broken:
+            async def snapshot(self):
+                raise RuntimeError("connection to postgres://dtk:hunter2@db failed")
+
+            async def endpoint(self, endpoint: str):
+                raise RuntimeError("redis down")
+
+        tools = ToolSet(make_context(pool=Broken()))
+        with pytest.raises(ToolError) as caught:
+            await tools.pool_status()
+        message = str(caught.value)
+        assert "INTERNAL" in message
+        assert "hunter2" not in message
+        assert "postgres" not in message
+
     async def test_health_is_not_looked_up_for_an_input_error(self):
         """A deleted video says nothing about the endpoint's health."""
         failure = TaskOutcome(TASK_ID, TaskState.FAILED, None, {"code": "NOT_FOUND"})
@@ -561,18 +660,103 @@ class TestReporting:
 
 
 # ---------------------------------------------------------------------------
+# Per-platform scope
+# ---------------------------------------------------------------------------
+
+
+class Refuse:
+    """An authorizer that allows one platform, like a single-platform key."""
+
+    def __init__(self, allowed: Platform) -> None:
+        self.allowed = allowed
+        self.asked: list[Platform] = []
+
+    def __call__(self, platform: Platform, caller: Any) -> None:
+        from dtk.core.errors import ForbiddenScope
+
+        self.asked.append(platform)
+        if platform is not self.allowed:
+            raise ForbiddenScope(
+                "this credential lacks the scope required for this platform",
+                details={"required": [f"{platform.value}:read"]},
+            )
+
+
+def _scoped(allowed: Platform, tasks: FakeTasks | None = None, history: FakeHistory | None = None):
+    guard = Refuse(allowed)
+    return ToolSet(replace(make_context(tasks, history=history), authorize=guard)), guard
+
+
+class TestPlatformScope:
+    """The transport can only see that a key reads *something*.
+
+    Which platform a call touches is inside the JSON-RPC body, so the tools
+    check it themselves; without that, a key scoped to one platform reads the
+    other one through MCP while REST refuses it.
+    """
+
+    async def test_a_refused_platform_never_reaches_the_queue(self):
+        tasks = FakeTasks()
+        tools, guard = _scoped(Platform.TIKTOK, tasks)
+        with pytest.raises(ToolError) as caught:
+            await tools.get_video("douyin", "7100000000000000000")
+        assert "FORBIDDEN_SCOPE" in str(caught.value)
+        assert guard.asked == [Platform.DOUYIN]
+        assert tasks.submitted == []
+
+    async def test_the_granted_platform_still_works(self):
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {}))
+        tools, _guard = _scoped(Platform.TIKTOK, tasks)
+        result = await tools.get_video("tiktok", "7100000000000000000")
+        assert result["status"] == "ok"
+
+    async def test_a_link_is_checked_against_the_platform_it_resolves_to(self):
+        tasks = FakeTasks()
+        tools, _guard = _scoped(Platform.TIKTOK, tasks)
+        with pytest.raises(ToolError) as caught:
+            await tools.parse_url("https://www.douyin.com/video/7100000000000000000")
+        assert "FORBIDDEN_SCOPE" in str(caught.value)
+        assert tasks.submitted == []
+
+    async def test_stored_history_is_scoped_like_a_live_read(self):
+        history = FakeHistory()
+        tools, _guard = _scoped(Platform.TIKTOK, history=history)
+        with pytest.raises(ToolError):
+            await tools.get_content_history("douyin", "7100", None)
+        assert history.calls == []
+
+    async def test_a_task_id_is_not_a_way_around_the_scope_check(self):
+        """Collecting a result has to be guarded like the call that queued it."""
+        finished = TaskOutcome(TASK_ID, TaskState.DONE, {"x": 1}, None, "douyin.content_detail")
+        tools, guard = _scoped(Platform.TIKTOK, FakeTasks(lookup=finished))
+        with pytest.raises(ToolError) as caught:
+            await tools.get_task_result(TASK_ID)
+        assert "FORBIDDEN_SCOPE" in str(caught.value)
+        assert guard.asked == [Platform.DOUYIN]
+
+    async def test_stdio_has_no_transport_identity_and_is_not_restricted(self):
+        """The default authorizer: a local agent owns the process already."""
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {}))
+        tools = ToolSet(make_context(tasks))
+        assert (await tools.get_video("douyin", "7100000000000000000"))["status"] == "ok"
+
+
+# ---------------------------------------------------------------------------
 # HTTP transport
 # ---------------------------------------------------------------------------
 
 
-def _mounted_app(tasks: FakeTasks | None = None):
+def _mounted_app(tasks: FakeTasks | None = None, *, real_scopes: bool = False):
     from fastapi import FastAPI
 
-    from dtk.mcp.http import mount
+    from dtk.mcp.http import authorize_platform, mount
 
     app = FastAPI()
     app.state.config = Config.defaults()
-    mount(app, context=make_context(tasks))
+    context = make_context(tasks)
+    if real_scopes:
+        context = replace(context, authorize=authorize_platform)
+    mount(app, context=context)
     return app
 
 
@@ -664,3 +848,32 @@ class TestHttpTransport:
         assert response.status_code == 200
         assert "dtk" in response.text
         assert "get_task_result" in response.text  # the server instructions
+
+    def test_a_key_scoped_to_one_platform_cannot_read_the_other(self, monkeypatch):
+        """The real bypass this guards: ``_authenticate`` sees only headers, and
+        the platform is in the body. The key here holds douyin:read only."""
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch)
+        with TestClient(_mounted_app(real_scopes=True)) as client:
+            allowed = _rpc(
+                client,
+                "tools/call",
+                {
+                    "name": "get_video",
+                    "arguments": {"platform": "douyin", "content_id": "7100000000000000000"},
+                },
+            )
+            refused = _rpc(
+                client,
+                "tools/call",
+                {
+                    "name": "get_video",
+                    "arguments": {"platform": "tiktok", "content_id": "7100000000000000000"},
+                },
+            )
+        assert allowed.status_code == 200
+        assert "FORBIDDEN_SCOPE" not in allowed.text
+        assert refused.status_code == 200
+        assert '"isError":true' in refused.text.replace(" ", "")
+        assert "FORBIDDEN_SCOPE" in refused.text

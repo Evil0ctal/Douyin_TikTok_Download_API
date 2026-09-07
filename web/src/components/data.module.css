@@ -1,0 +1,530 @@
+/* Status badges, ids, secrets, code blocks, tables and charts. */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-2) 1px var(--space-1);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.badgeSm {
+  font-size: var(--text-xs);
+  padding: 0 var(--space-1);
+}
+
+.badgeIcon {
+  flex: none;
+  display: inline-flex;
+}
+
+.badgeValue {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.toneSuccess {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+}
+
+.toneWarning {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 28%, transparent);
+}
+
+.toneCaution {
+  color: var(--caution);
+  background: color-mix(in srgb, var(--caution) 12%, transparent);
+  border-color: color-mix(in srgb, var(--caution) 28%, transparent);
+}
+
+.toneDanger {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+.toneNeutral {
+  color: var(--neutral);
+  background: color-mix(in srgb, var(--neutral) 12%, transparent);
+  border-color: color-mix(in srgb, var(--neutral) 28%, transparent);
+}
+
+/* BUSINESS_ERROR and friends: a deleted video is not a system fault. */
+.toneMuted {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: var(--border-subtle);
+}
+
+.toneAccent {
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Copyable id ---------------------------------------------------------------- */
+
+.copyable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  max-width: 100%;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-1) var(--ease),
+    border-color var(--duration-1) var(--ease),
+    color var(--duration-1) var(--ease);
+}
+
+.copyable:hover {
+  background: var(--bg-inset);
+  border-color: var(--border-subtle);
+  color: var(--text);
+}
+
+.copyableText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copyableIcon {
+  flex: none;
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity var(--duration-1) var(--ease);
+}
+
+.copyable:hover .copyableIcon,
+.copyable:focus-visible .copyableIcon {
+  opacity: 1;
+}
+
+.copyableCopied {
+  color: var(--success);
+  opacity: 1;
+}
+
+/* Masked secret -------------------------------------------------------------- */
+
+.secret {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  max-width: 100%;
+}
+
+.secretLock {
+  color: var(--text-muted);
+  flex: none;
+}
+
+.secretValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.secretOnce {
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+/* Code block ----------------------------------------------------------------- */
+
+.codeBlock {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.codeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-raised);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.codeActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.codeScroll {
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 18px;
+  tab-size: 2;
+}
+
+.codeCollapsed {
+  max-height: 220px;
+}
+
+.codeLine {
+  white-space: pre;
+}
+
+.jsonKey {
+  color: var(--accent);
+}
+
+.jsonString {
+  color: var(--success);
+}
+
+.jsonNumber {
+  color: var(--caution);
+}
+
+.jsonBoolean {
+  color: var(--series-3);
+}
+
+.jsonNull {
+  color: var(--text-muted);
+}
+
+.jsonPunct {
+  color: var(--text-secondary);
+}
+
+/* Data table ----------------------------------------------------------------- */
+
+.tableWrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.toolbarGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.toolbarCount {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.scroller {
+  overflow: auto;
+  max-width: 100%;
+}
+
+.table {
+  width: 100%;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.headCell {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-xs);
+  text-align: left;
+  white-space: nowrap;
+  padding: 0 var(--space-3);
+  height: 30px;
+}
+
+.headCellRight {
+  text-align: right;
+}
+
+.headButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  font: inherit;
+  width: 100%;
+  height: 30px;
+  cursor: pointer;
+}
+
+.headButtonRight {
+  justify-content: flex-end;
+}
+
+.sortIcon {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.sortActive {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.row {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.row:hover {
+  background: var(--bg-raised);
+}
+
+.rowClickable {
+  cursor: pointer;
+}
+
+/* A clickable row is focusable, so it needs the same visible ring as everything
+   else. The offset is negative rather than the global positive one: an outline
+   drawn outside a table row is clipped by the scroller. */
+.rowClickable:focus-visible,
+.cardRowClickable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.rowSelected {
+  background: var(--accent-subtle);
+}
+
+.cell {
+  padding: 0 var(--space-3);
+  height: var(--row-height-compact);
+  color: var(--text);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comfortable .cell {
+  height: var(--row-height-comfortable);
+}
+
+.cellRight {
+  text-align: right;
+}
+
+.cellMono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.selectCell {
+  width: 32px;
+  padding-left: var(--space-3);
+}
+
+.flashRow {
+  animation: dtk-flash var(--duration-flash) var(--ease) 1;
+}
+
+.stateCell {
+  padding: 0;
+}
+
+/* Card fallback under 768px: a 12-column table is unreadable on a phone. */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.cardRow {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cardRowClickable {
+  cursor: pointer;
+}
+
+.cardField {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.cardFieldLabel {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  flex: none;
+}
+
+.cardFieldValue {
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Chart ---------------------------------------------------------------------- */
+
+.chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.chartSvg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.chartGrid {
+  stroke: var(--border-subtle);
+  stroke-width: 1;
+}
+
+.chartAxisLabel {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.chartLine {
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chartArea {
+  opacity: 0.1;
+}
+
+.chartLegend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.legendItemOff {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.legendSwatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.chartCursor {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  min-width: 128px;
+  z-index: var(--z-tooltip);
+}
+
+.tooltipTime {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-1);
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tooltipValue {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.chartFooter {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
