@@ -4,7 +4,7 @@ COMPOSE_TEST := docker compose -p dtk-test -f docker/compose.test.yml
 COMPOSE      := docker compose -p dtk -f docker/compose.yml
 
 .PHONY: help install fmt lint type test test-unit test-integration \
-        fixtures-up fixtures-down fixtures-logs up down logs clean
+        fixtures-up fixtures-down fixtures-logs up down logs clean smoke
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -50,5 +50,9 @@ down:
 logs:
 	$(COMPOSE) logs -f
 
+smoke:  ## Full-stack end-to-end check (brings the stack up and tears it down)
+	./scripts/smoke.sh
+
 clean: fixtures-down  ## Remove every dtk container, network and volume
 	-$(COMPOSE) down -v --remove-orphans
+	-docker compose -p dtk-smoke -f docker/compose.yml down -v --remove-orphans
