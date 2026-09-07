@@ -16,7 +16,8 @@ import pytest
 from browser_rpc.backends import build_backend
 from browser_rpc.backends.base import MintPlan
 from browser_rpc.backends.cloak import (
-    SIGN_SNIPPETS,
+    CAPTURE_INIT_SCRIPT,
+    SIGN_SCRIPT,
     CloakBackend,
     browser_family_of,
     browser_major_of,
@@ -63,11 +64,35 @@ class TestCloakSeam:
         assert "CLOAKBROWSER_COMMIT" in message
         assert "DTK_BROWSER_BACKEND=fake" in message
 
-    def test_every_platform_has_signing_snippets(self) -> None:
-        # Adding a platform without adding its entry points would fail at
-        # runtime, on the fallback path, in production.
-        for platform in Platform:
-            assert SIGN_SNIPPETS[platform], platform.value
+    def test_the_signing_scripts_encode_what_the_live_analysis_found(self) -> None:
+        """The scripts are data, so their shape is what there is to assert.
+
+        Verified against both live sites on 2026-09-07: neither platform exposes
+        a signing function. Both patch fetch and XMLHttpRequest and sign in the
+        transport layer, and the SDK bundles contain no ``a_bogus`` literal at
+        all because the names are built at runtime inside a bytecode VM. The
+        earlier version of this file called ``byted_acrawler.sign`` and
+        ``window.generateABogus``; neither exists on either site.
+        """
+        # The capture shim has to take the natives before the SDK replaces them,
+        # or it ends up above the patch and only ever sees the unsigned URL.
+        assert "const nativeFetch = window.fetch" in CAPTURE_INIT_SCRIPT
+        assert "XMLHttpRequest.prototype.open" in CAPTURE_INIT_SCRIPT
+        assert "AbortError" in CAPTURE_INIT_SCRIPT, (
+            "the captured request must be stopped; a signature should not cost an upstream call"
+        )
+
+        # The signer returns whatever the SDK added rather than a fixed list.
+        # Douyin currently adds a_bogus / verifyFp / fp / uifid / timestamp /
+        # x-secsdk-web-signature and TikTok X-Gnarly / X-Dynosaur / msToken;
+        # both sets have changed before.
+        assert "searchParams" in SIGN_SCRIPT
+        assert "before.has(k)" in SIGN_SCRIPT
+        for hardcoded in ("a_bogus", "X-Bogus", "X-Gnarly", "_signature"):
+            assert hardcoded not in SIGN_SCRIPT, (
+                f"{hardcoded} is hardcoded; the script must return whatever the "
+                "SDK appends, or the next added parameter is silently dropped"
+            )
 
     @pytest.mark.parametrize(
         ("user_agent", "family"),
@@ -117,6 +142,15 @@ class StubContext:
 
 
 class StubPage:
+    def __init__(self) -> None:
+        # Recorded so a test can assert the capture shim was installed at all;
+        # without it the signer sits above the SDK's patch and only ever sees
+        # the unsigned URL.
+        self.init_scripts: list[str] = []
+
+    async def add_init_script(self, script: str) -> None:
+        self.init_scripts.append(script)
+
     async def goto(self, url: str, **_: object) -> None:
         self.url = url
 

@@ -11,7 +11,7 @@ and nowhere else in the service:
     1. `_load_driver()`      the import, and the only place the name appears
     2. `_launch_context()`   how a context is opened with proxy, locale and zone
     3. `_read_fingerprint()` how the page reports what it claims to be
-    4. `SIGN_SNIPPETS`       the page globals that produce a signature
+    4. `SIGN_SCRIPT`         asks the page's SDK to sign one request
 
 Replacing the backend means writing a module with `start`, `close`, `info`,
 `mint` and `open_signing_context` (see `backends/base.py`) and adding it to the
@@ -29,7 +29,7 @@ Live verification
 -----------------
 Two things here can only be confirmed against a real page, per
 docs/design/16-salvage-and-debug.md: the driver's exact entry point, and the
-signing globals in `SIGN_SNIPPETS`. Both are one edit each - that is the whole
+signing flow in `SIGN_SCRIPT`. Both are one edit each - that is the whole
 reason they are isolated in this file. `docker/README.md` records the procedure.
 """
 
@@ -98,53 +98,87 @@ COOKIE_SCRIPT = """() => Object.fromEntries(
     })
 )"""
 
-#: Signing entry points, tried in order until one returns a non-null object.
+#: Injected before any page script runs, so it sits BENEATH the platform SDK.
 #:
-#: Each snippet is a complete JavaScript function taking {url, query, userAgent}
-#: and returning either null (this entry point is not present in the page that
-#: loaded) or an object whose keys are the wire names in
-#: `dtk.signing.rpc.RESPONSE_FIELDS`. When a platform moves its signing code,
-#: this table is what changes - which is why the snippets are data and not code.
-SIGN_SNIPPETS: Mapping[Platform, tuple[str, ...]] = {
-    Platform.DOUYIN: (
-        """(input) => {
-  const acrawler = window.byted_acrawler;
-  if (!acrawler || typeof acrawler.frontierSign !== 'function') return null;
-  const target = input.query ? `${input.url}?${input.query}` : input.url;
-  const signed = acrawler.frontierSign({ url: target, userAgent: input.userAgent });
-  if (!signed) return null;
-  return {
-    a_bogus: signed['a_bogus'] || signed['A-Bogus'] || null,
-    x_bogus: signed['X-Bogus'] || signed['x_bogus'] || null,
+#: Both platforms sign by patching ``window.fetch`` and ``XMLHttpRequest``
+#: rather than by exposing a signing function - verified in a live browser on
+#: 2026-09-07: on douyin.com and tiktok.com all of fetch, XHR.open, XHR.send and
+#: XHR.setRequestHeader are non-native, while ``window.byted_acrawler`` exposes
+#: no ``sign`` at all and the SDK bundles contain no ``a_bogus`` string, because
+#: the names are built at runtime inside a bytecode VM (``_$webrt_*``).
+#:
+#: So there is nothing to call. The only reliable way to obtain a signature is
+#: to hand the SDK a request and observe what it produces. Capturing the natives
+#: first means our recorder runs *under* the SDK's patch: the SDK rewrites the
+#: URL, hands it down to what it believes is the browser, and we read it there
+#: and abort - so a signature costs no upstream request.
+#: NOTE ON POOLING: a signing context cannot be shared between identities.
+#: `verifyFp` is the browser's `s_v_web_id` cookie and `uifid` is its `UIFID`
+#: cookie, both verified live on 2026-09-07, so a signature minted in one
+#: context is only coherent alongside that context's cookies. Warm contexts are
+#: therefore keyed per identity, not per platform.
+CAPTURE_INIT_SCRIPT = """
+(() => {
+  const nativeFetch = window.fetch;
+  const nativeOpen = XMLHttpRequest.prototype.open;
+  const state = { capture: false, url: null };
+  window.__dtkSign = state;
+
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url);
+    if (state.capture) {
+      state.url = url;
+      // Never reaches the network: the SDK has already done its work by now.
+      return Promise.reject(new DOMException('dtk-capture', 'AbortError'));
+    }
+    return nativeFetch.apply(this, arguments);
   };
-}""",
-        """(input) => {
-  if (typeof window.generateABogus !== 'function') return null;
-  const value = window.generateABogus(input.query, input.userAgent);
-  return value ? { a_bogus: String(value) } : null;
-}""",
-    ),
-    Platform.TIKTOK: (
-        """(input) => {
-  const acrawler = window.byted_acrawler;
-  if (!acrawler || typeof acrawler.sign !== 'function') return null;
-  const target = input.query ? `${input.url}?${input.query}` : input.url;
-  const signed = acrawler.sign({ url: target, userAgent: input.userAgent });
-  if (!signed) return null;
-  if (typeof signed === 'string') return { x_bogus: signed };
-  return {
-    x_bogus: signed['X-Bogus'] || signed['x_bogus'] || null,
-    signature: signed['_signature'] || signed['signature'] || null,
+
+  XMLHttpRequest.prototype.open = function (method, url) {
+    if (state.capture) {
+      state.url = url;
+      throw new DOMException('dtk-capture', 'AbortError');
+    }
+    return nativeOpen.apply(this, arguments);
   };
-}""",
-        """(input) => {
-  if (typeof window.generateSignature !== 'function') return null;
+})();
+"""
+
+#: Asks the SDK to sign one request and returns whatever it added to the query.
+#:
+#: The parameter names are deliberately NOT hardcoded: whatever the SDK appends
+#: is what gets returned. Douyin currently adds a_bogus, verifyFp, fp, uifid,
+#: timestamp and x-secsdk-web-signature; TikTok adds X-Gnarly, X-Dynosaur,
+#: msToken and a vestigial one-character X-Bogus. Those sets have changed before
+#: and will change again, and a table of expected names would silently drop
+#: whatever was added next.
+SIGN_SCRIPT = """
+async (input) => {
+  const state = window.__dtkSign;
+  if (!state) return { error: 'capture shim not installed' };
+
   const target = input.query ? `${input.url}?${input.query}` : input.url;
-  const value = window.generateSignature(target);
-  return value ? { signature: String(value) } : null;
-}""",
-    ),
+  const before = new Set([...new URL(target).searchParams.keys()]);
+
+  state.capture = true;
+  state.url = null;
+  try {
+    await window.fetch(target, { method: input.method || 'GET' });
+  } catch (e) {
+    // AbortError is the expected path: the shim stopped it.
+  } finally {
+    state.capture = false;
+  }
+
+  if (!state.url) return { error: 'the SDK did not dispatch a request' };
+  const signed = new URL(state.url, location.origin);
+  const added = {};
+  for (const [k, v] of signed.searchParams) {
+    if (!before.has(k)) added[k] = v;
+  }
+  return Object.keys(added).length ? { params: added } : { error: 'the SDK added nothing' };
 }
+"""
 
 USER_AGENT_MAJOR_RE = re.compile(r"(?:Chrome|CriOS|Firefox|Version)/(\d+)")
 
@@ -202,38 +236,50 @@ class CloakSigningContext:
         return self._platform
 
     async def sign(self, plan: SignPlan) -> dict[str, str]:
+        """Ask the page's own SDK to sign one request and return what it added.
+
+        There is no signing function to call. Both platforms patch fetch and
+        XMLHttpRequest and sign in the transport layer, so the request is the
+        only interface. The capture shim installed before page scripts sits
+        beneath that patch, which is what lets a signature be taken without the
+        request actually leaving the browser.
+        """
         if self._closed:
             raise BackendFailure("signing context is closed")
 
-        payload = {"url": plan.url, "query": plan.query, "userAgent": plan.user_agent or ""}
-        signed: dict[str, str] = {}
+        payload = {
+            "url": plan.url,
+            "query": plan.query,
+            "method": getattr(plan, "method", "GET") or "GET",
+            "userAgent": plan.user_agent or "",
+        }
+        try:
+            result = await self._page.evaluate(SIGN_SCRIPT, payload)
+        except Exception as exc:
+            raise BackendFailure(f"signing script failed: {exc}") from exc
 
-        for index, snippet in enumerate(SIGN_SNIPPETS[self._platform]):
-            try:
-                result = await self._page.evaluate(snippet, payload)
-            except Exception as exc:
-                logger.warning(
-                    "backend.cloak.snippet_failed platform=%s index=%d error=%s",
-                    self._platform.value,
-                    index,
-                    exc,
-                )
-                continue
-            collected = _string_fields(result)
-            if collected:
-                signed.update(collected)
-                break
-
-        if not signed:
+        if not isinstance(result, dict) or result.get("error"):
+            reason = (
+                (result or {}).get("error", "no result")
+                if isinstance(result, dict)
+                else "no result"
+            )
             raise BackendFailure(
-                f"no signing entry point produced a value for {self._platform.value}; "
-                "the platform has most likely moved its signing code "
-                "(update SIGN_SNIPPETS in backends/cloak.py)"
+                f"the {self._platform.value} SDK produced no signature ({reason}). "
+                "Either the page had not finished loading its security bundle, or "
+                "the platform changed how it signs; re-run the live analysis in "
+                "docs/design/04-transport-signing.md before editing this file."
             )
 
+        signed = _string_fields(result.get("params"))
+        if not signed:
+            raise BackendFailure(f"the {self._platform.value} SDK added no parameters")
+
+        # Douyin no longer sends msToken in the query; TikTok's comes from the
+        # SDK itself. Only fill it in when the SDK did not, and never overwrite.
         token = await self._ms_token()
         if token:
-            signed.setdefault("ms_token", token)
+            signed.setdefault("msToken", token)
         return signed
 
     async def _ms_token(self) -> str | None:
@@ -373,7 +419,10 @@ class CloakBackend:
     @staticmethod
     async def _page_of(context: Any) -> Any:
         pages = getattr(context, "pages", None) or []
-        return pages[0] if pages else await context.new_page()
+        page = pages[0] if pages else await context.new_page()
+        # Before any page script, so the recorder is underneath the SDK's patch.
+        await page.add_init_script(CAPTURE_INIT_SCRIPT)
+        return page
 
     async def _read_fingerprint(self, page: Any) -> dict[str, str]:
         """SEAM 3: ask the page what it claims to be."""
@@ -506,8 +555,9 @@ def build(settings: Settings) -> CloakBackend:
 
 __all__ = [
     "BACKEND_NAME",
+    "CAPTURE_INIT_SCRIPT",
     "CHROMIUM_ARGS",
-    "SIGN_SNIPPETS",
+    "SIGN_SCRIPT",
     "CloakBackend",
     "CloakSigningContext",
     "browser_family_of",

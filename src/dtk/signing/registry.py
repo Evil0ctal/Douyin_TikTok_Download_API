@@ -208,8 +208,29 @@ DEFAULT_COMPARATORS: Mapping[str, SignatureComparator] = {
 
 @dataclass(frozen=True, slots=True)
 class RegistryPolicy:
-    """Thresholds; defaults follow docs/design/03-scheduler.md."""
+    """Thresholds; defaults follow docs/design/03-scheduler.md.
 
+    ``prefer_rpc`` defaults to True because the native signers are known stale.
+
+    Verified in a live browser on 2026-09-07 (docs/design/04-transport-signing.md):
+    Douyin currently sends a 184-character ``a_bogus`` alongside ``verifyFp``,
+    ``fp``, ``uifid``, ``timestamp`` and ``x-secsdk-web-signature``, and sends no
+    ``msToken`` and no ``X-Bogus`` at all; TikTok signs with ``X-Gnarly`` and
+    ``X-Dynosaur`` and has reduced ``X-Bogus`` to a single vestigial character.
+    The implementations inherited from V4 produce neither shape.
+
+    The golden vectors in tests/unit/test_signing_golden.py still pass: they
+    prove the port is faithful to V4, which is a different claim from V4 still
+    being correct. It is not.
+
+    So the ordering in decision D6 - native first, RPC as fallback - is inverted
+    here on evidence. The native path stays because it is the only thing that
+    works with no browser at all, and because whoever next reverse-engineers the
+    current algorithm will want somewhere to put it.
+    """
+
+    #: Try the RPC signer first and fall back to native, rather than the reverse.
+    prefer_rpc: bool = True
     risk_threshold: float = 0.6
     risk_min_samples: int = 20
     risk_cache_seconds: float = 5.0
