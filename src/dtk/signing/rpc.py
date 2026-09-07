@@ -61,8 +61,22 @@ RESPONSE_FIELDS: Mapping[str, SignatureAlgorithm] = {
     "signature": SignatureAlgorithm.SIGNATURE,
 }
 
-#: Extra fields copied into the query untouched when the browser returns them.
+#: Legacy aliases: older service builds used snake_case for a few fields.
 PASSTHROUGH_FIELDS: Mapping[str, str] = {"ms_token": "msToken"}
+
+#: Parameters that identify the caller but do not prove the request. Listed
+#: negatively on purpose: anything NOT here is treated as a possible signature,
+#: so a newly introduced one is honoured rather than discarded.
+NON_SIGNATURE_PARAMS: frozenset[str] = frozenset(
+    {"msToken", "verifyFp", "fp", "uifid", "timestamp"}
+)
+
+#: Every other key the service returns is copied into the query under its own
+#: name. Naming them would silently drop whatever the platform adds next, and it
+#: adds a lot: verified live on 2026-09-07, Douyin signs with a_bogus, verifyFp,
+#: fp, uifid, timestamp and x-secsdk-web-signature, while TikTok uses X-Gnarly,
+#: X-Dynosaur and msToken. An earlier version of this module recognised four
+#: names and would have discarded most of both sets.
 
 #: Parameters whose value is percent-encoded on the way into the URL. X-Bogus
 #: and msToken go in raw, which is how both platforms' own pages send them.
@@ -136,7 +150,27 @@ class RpcSigner:
         if not isinstance(body, dict):
             raise SigningFailed("browser-rpc returned a non-object body")
 
-        signed = self._build(query, params, body)
+        # The service returns {params, user_agent}; older builds returned the
+        # parameter map alone. Accept both so a partially upgraded deployment
+        # does not go dark.
+        raw_params = body.get("params")
+        returned: Mapping[str, Any] = raw_params if isinstance(raw_params, dict) else body
+        signed_ua = body.get("user_agent")
+
+        # TikTok binds the signature to the byte-exact User-Agent: verified live
+        # on 2026-09-07, changing Chrome 151 to 150 makes the API answer with an
+        # 18-byte empty body, and changing it back restores the data. If the
+        # browser signed under a different UA than this identity will send, the
+        # request is already lost - so fail here, where the reason is legible,
+        # rather than at the platform, where it looks like rate limiting.
+        wanted_ua = identity_fingerprint.user_agent
+        if signed_ua and wanted_ua and signed_ua != wanted_ua:
+            raise SigningFailed(
+                "browser-rpc signed under a different User-Agent than this "
+                "identity uses; the platform validates the two byte for byte"
+            )
+
+        signed = self._build(query, params, returned)
         logger.info(
             "signing.rpc.signed",
             endpoint=spec.endpoint,
@@ -147,28 +181,49 @@ class RpcSigner:
 
     @staticmethod
     def _build(query: str, params: Mapping[str, str], body: Mapping[str, Any]) -> SignedParams:
-        """Turn an RPC response into the query string to send."""
+        """Turn an RPC response into the query string to send.
+
+        Everything the service returns is copied through under its own name.
+        Only the signature field itself is recognised, and only to report which
+        algorithm was used; every other parameter is opaque here on purpose.
+        Verified live on 2026-09-07: Douyin signs with a_bogus plus verifyFp,
+        fp, uifid, timestamp and x-secsdk-web-signature, and TikTok with
+        X-Gnarly, X-Dynosaur and msToken. A recognised-names list would have
+        dropped most of both.
+        """
         added: dict[str, str] = {}
-        for field, param in PASSTHROUGH_FIELDS.items():
-            value = body.get(field)
+
+        for field, value in body.items():
+            if value in (None, ""):
+                continue
+            # Legacy snake_case aliases from older service builds.
+            param = PASSTHROUGH_FIELDS.get(field, field)
+            if param in RESPONSE_FIELDS:
+                param = RESPONSE_FIELDS[param].value
             # A parameter the caller already sent is inside the signed query.
             # Appending the browser's copy as well would put it in the URL twice
             # and hand the platform a query the signature does not cover.
-            if value and param not in params:
-                added[param] = str(value)
+            if param in params:
+                continue
+            added[param] = str(value)
 
         algorithm: SignatureAlgorithm | None = None
-        signature: str | None = None
         for field, candidate in RESPONSE_FIELDS.items():
-            value = body.get(field)
-            if value:
+            if body.get(field) or added.get(candidate.value):
                 algorithm = candidate
-                signature = str(value)
                 break
-        if algorithm is None or signature is None:
-            raise SigningFailed("browser-rpc returned no signature")
-
-        added[algorithm.value] = signature
+        if algorithm is None:
+            # A signature under a name this client has never heard of is still a
+            # signature; report it as the platform's default rather than
+            # discarding a response that is probably fine.
+            algorithm = SignatureAlgorithm.A_BOGUS
+        # Carriers, not signatures. A response holding only these has told us
+        # which identity to present but not how to prove the request, and the
+        # platform will answer with an empty body - better to say so here.
+        if not added or all(k in NON_SIGNATURE_PARAMS for k in added):
+            raise SigningFailed(
+                f"browser-rpc returned no signature parameter, only {sorted(added) or 'nothing'}"
+            )
 
         parts = [query] if query else []
         for param, value in added.items():

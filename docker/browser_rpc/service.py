@@ -255,6 +255,22 @@ class BrowserRpcService:
 
     # -- signing ----------------------------------------------------------
 
+    def user_agent_for(self, platform: Platform, requested: str | None) -> str:
+        """The User-Agent a signature for this platform was computed under.
+
+        Returned to the caller because TikTok binds the signature to the exact
+        UA string - a one-digit Chrome version change is enough for the API to
+        answer with an empty body - so the caller has to send under precisely
+        this value rather than under whatever it believes the identity uses.
+        """
+        if requested:
+            return requested
+        # Fall back to whatever the warm context reports. An empty string is
+        # honest here: the caller can then see that no UA was pinned, rather
+        # than being handed a plausible-looking default it never signed under.
+        slot = getattr(self, "_warm", {}).get(platform) if hasattr(self, "_warm") else None
+        return str(getattr(slot, "user_agent", "") or "")
+
     async def sign(
         self,
         platform: Platform,

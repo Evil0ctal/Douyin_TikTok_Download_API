@@ -76,8 +76,8 @@ class TestSignEndpoint:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["a_bogus"]
-        assert body["ms_token"]
+        assert body["params"]["a_bogus"]
+        assert body["params"]["ms_token"]
 
     async def test_builds_a_query_when_the_caller_sends_only_params(
         self, client: httpx.AsyncClient
@@ -93,7 +93,12 @@ class TestSignEndpoint:
             },
         )
         assert response.status_code == 200
-        assert response.json()["x_bogus"]
+        body = response.json()
+        # The response carries the parameters under "params" and, beside them,
+        # the User-Agent they were signed under - TikTok validates the two byte
+        # for byte, so a caller that cannot see the UA cannot honour it.
+        assert body["params"], "no signature parameters returned"
+        assert "user_agent" in body
 
     async def test_rejects_a_url_off_the_allowlist(self, client: httpx.AsyncClient) -> None:
         response = await client.post(

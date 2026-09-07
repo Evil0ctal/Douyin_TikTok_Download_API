@@ -801,7 +801,7 @@ async def test_rpc_signer_posts_the_exact_query_and_maps_the_response() -> None:
     assert signed.params["a_bogus"] == "sig+with/chars"
     assert signed.query == (
         "device_platform=webapp&aid=6383&aweme_id=7345492945006595379"
-        "&msToken=abc&a_bogus=sig%2Bwith%2Fchars"
+        "&a_bogus=sig%2Bwith%2Fchars&msToken=abc"
     )
 
 
@@ -1609,3 +1609,73 @@ async def test_rpc_health_rejects_a_body_that_is_not_an_object() -> None:
         health = await RpcSigner(client, "http://rpc").health()
     assert health.healthy is False
     assert health.detail == "health endpoint returned a non-object body"
+
+
+class TestLiveContract:
+    """Encodes what the platforms actually do, measured on 2026-09-07.
+
+    These are not opinions about how signing ought to work; each one is a
+    behaviour observed in a real browser against the live sites, written down so
+    a future refactor that quietly breaks it fails here instead of in production.
+    """
+
+    def test_every_returned_parameter_is_carried_through(self):
+        """Douyin adds six parameters and TikTok three, and neither set is the
+        one this module used to recognise.
+
+        An earlier version mapped four fixed names and would have dropped
+        verifyFp, fp, uifid, timestamp, x-secsdk-web-signature, X-Gnarly and
+        X-Dynosaur - which is every parameter that makes the request work.
+        """
+        from dtk.signing.rpc import RpcSigner
+
+        douyin_response = {
+            "a_bogus": "A" * 184,
+            "verifyFp": "verify_synthetic_0000",
+            "fp": "verify_synthetic_0000",
+            "uifid": "f" * 320,
+            "timestamp": "1788816533",
+            "x-secsdk-web-signature": "d" * 32,
+        }
+        signed = RpcSigner._build("aid=6383", {"aid": "6383"}, douyin_response)
+        for name in douyin_response:
+            assert name in signed.params, f"{name} was dropped"
+
+        tiktok_response = {
+            "X-Gnarly": "G" * 332,
+            "X-Dynosaur": "D" * 444,
+            "msToken": "m" * 172,
+            "X-Bogus": "1",
+        }
+        signed = RpcSigner._build("aid=1988", {"aid": "1988"}, tiktok_response)
+        for name in tiktok_response:
+            assert name in signed.params, f"{name} was dropped"
+
+    def test_a_response_carrying_only_identity_is_refused(self):
+        """verifyFp and friends say who is asking, not that the request is
+        signed. The platform answers an unsigned request with an empty body, so
+        failing here keeps the reason legible."""
+        from dtk.core.errors import SigningFailed
+        from dtk.signing.rpc import RpcSigner
+
+        with pytest.raises(SigningFailed):
+            RpcSigner._build(
+                "aid=6383",
+                {"aid": "6383"},
+                {"verifyFp": "v", "fp": "v", "uifid": "u", "timestamp": "1"},
+            )
+
+    def test_x_bogus_is_no_longer_treated_as_the_signature(self):
+        """TikTok reduced X-Bogus to a single character and signs with X-Gnarly.
+
+        A response carrying both must not be reported as X-Bogus-signed, and the
+        vestigial value must still be forwarded, because the platform still
+        expects the parameter to be present.
+        """
+        from dtk.signing.rpc import RpcSigner
+
+        signed = RpcSigner._build(
+            "aid=1988", {"aid": "1988"}, {"X-Bogus": "1", "X-Gnarly": "G" * 332}
+        )
+        assert signed.params["X-Bogus"] == "1"
+        assert signed.params["X-Gnarly"] == "G" * 332

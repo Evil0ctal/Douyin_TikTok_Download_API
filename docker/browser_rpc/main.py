@@ -25,7 +25,13 @@ from browser_rpc import __version__
 from browser_rpc.backends import build_backend
 from browser_rpc.backends.base import BrowserBackend
 from browser_rpc.errors import RpcError
-from browser_rpc.models import HealthResponse, MintRequest, MintResponse, SignRequest
+from browser_rpc.models import (
+    HealthResponse,
+    MintRequest,
+    MintResponse,
+    SignRequest,
+    SignResponse,
+)
 from browser_rpc.service import BrowserRpcService
 from browser_rpc.settings import Settings
 from browser_rpc.validation import parse_platform
@@ -103,20 +109,25 @@ def create_app(
             locale=outcome.geo.locale,
         )
 
-    @app.post("/rpc/sign")
-    async def sign(payload: SignRequest) -> dict[str, str]:
+    @app.post("/rpc/sign", response_model=SignResponse)
+    async def sign(payload: SignRequest) -> SignResponse:
         platform = parse_platform(payload.platform)
         params = {str(k): str(v) for k, v in payload.params.items() if v is not None}
         # The caller's own query string wins: it is the byte sequence the
         # signature has to cover, and re-encoding a parameter map here would
         # reorder or re-escape it.
         query = payload.query if payload.query is not None else urlencode(params)
-        return await service.sign(
+        signed = await service.sign(
             platform,
             payload.url,
             query,
             params=params,
             user_agent=payload.user_agent,
+        )
+        # Echo the UA the signature was computed under so the caller can assert
+        # it is the one it will actually send. TikTok rejects any mismatch.
+        return SignResponse(
+            params=signed, user_agent=service.user_agent_for(platform, payload.user_agent)
         )
 
     @app.get("/rpc/health", response_model=HealthResponse)

@@ -73,6 +73,23 @@ class SignRequest(BaseModel):
     user_agent: str | None = None
 
 
+class SignResponse(BaseModel):
+    """POST /rpc/sign.
+
+    ``user_agent`` is not decoration. Verified live on 2026-09-07: TikTok binds
+    the signature to the byte-exact User-Agent - changing Chrome 151 to 150 is
+    enough for the API to return an 18-byte empty body, and changing it back
+    restores the data. So the caller must send the request under exactly the UA
+    the signature was computed with, and returning it here is what lets the
+    caller check rather than assume.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    params: dict[str, str]
+    user_agent: str
+
+
 class HealthResponse(BaseModel):
     """GET /rpc/health.
 
