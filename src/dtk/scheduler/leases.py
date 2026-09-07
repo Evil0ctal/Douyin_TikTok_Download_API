@@ -41,6 +41,14 @@ BUCKET_TTL_SECONDS = 24 * 3600
 #
 # The bucket refills lazily from the elapsed time rather than from a background
 # timer: one less loop to keep alive, and no global stall if that loop wedges.
+#
+# The lock is taken with SET NX rather than EXISTS-then-SET. Both are safe inside
+# a Lua script, but NX states the requirement in one indivisible operation
+# instead of two statements that only add up to the requirement, and it is the
+# primitive Redis documents for exactly this. Under a heavily loaded machine an
+# earlier EXISTS/SET form produced occasional over-granting that could not be
+# reproduced afterwards and was never fully explained; using the stronger
+# primitive removes the class of question rather than the symptom.
 ACQUIRE_LUA = """
 local inflight_key  = KEYS[1]
 local bucket_key    = KEYS[2]
@@ -54,7 +62,10 @@ local lease_id     = ARGV[5]
 local bucket_ttl   = tonumber(ARGV[6])
 local identity_id  = ARGV[7]
 
-if redis.call('EXISTS', inflight_key) == 1 then
+-- SET NX is the whole lock. Testing EXISTS and then SET is two statements
+-- describing one intent, and the pair only reads as safe because Lua happens to
+-- be atomic; NX states the requirement directly and cannot be separated.
+if redis.call('SET', inflight_key, lease_id, 'NX', 'EX', inflight_ttl) == false then
   return {0, 'inflight', '0'}
 end
 
@@ -71,13 +82,15 @@ tokens = math.min(capacity, tokens + elapsed * refill_rate)
 if tokens < 1 then
   redis.call('HMSET', bucket_key, 'tokens', tostring(tokens), 'last_refill', tostring(now))
   redis.call('EXPIRE', bucket_key, bucket_ttl)
+  -- The lock was taken before the budget was known, so hand it straight back;
+  -- leaving it held would starve this identity until the TTL expired.
+  redis.call('DEL', inflight_key)
   return {0, 'no_token', tostring(tokens)}
 end
 
 tokens = tokens - 1
 redis.call('HMSET', bucket_key, 'tokens', tostring(tokens), 'last_refill', tostring(now))
 redis.call('EXPIRE', bucket_key, bucket_ttl)
-redis.call('SET', inflight_key, lease_id, 'EX', inflight_ttl)
 redis.call('ZADD', last_used_key, now, identity_id)
 return {1, 'ok', tostring(tokens)}
 """

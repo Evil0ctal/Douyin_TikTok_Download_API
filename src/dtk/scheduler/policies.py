@@ -66,6 +66,22 @@ def register_policy(policy: EndpointPolicy) -> None:
     _POLICIES[policy.endpoint] = policy
 
 
+def snapshot_policies() -> dict[str, EndpointPolicy]:
+    """Copy the current table.
+
+    Paired with :func:`restore_policies` so a caller that registers a policy -
+    a test, or a settings reload that later fails - can put the table back. The
+    registry is process-global mutable state, and leaving it modified made one
+    test's endpoint look like dead configuration to another.
+    """
+    return dict(_POLICIES)
+
+
+def restore_policies(saved: dict[str, EndpointPolicy]) -> None:
+    _POLICIES.clear()
+    _POLICIES.update(saved)
+
+
 def known_endpoints(platform: Platform | None = None) -> list[str]:
     if platform is None:
         return sorted(_POLICIES)
@@ -78,4 +94,6 @@ __all__ = [
     "known_endpoints",
     "policy_for",
     "register_policy",
+    "restore_policies",
+    "snapshot_policies",
 ]
