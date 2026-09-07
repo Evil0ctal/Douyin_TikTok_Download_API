@@ -35,3 +35,14 @@ downloads/
 .idea/
 .vscode/
 .DS_Store
+
+# 本地 AI 协作产物：留在工作区，不入库
+docs/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.claude/
+.cursor/
+.cursorrules
+.aider*
+.github/copilot-instructions.md
