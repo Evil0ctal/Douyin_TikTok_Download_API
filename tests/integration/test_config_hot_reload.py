@@ -7,11 +7,15 @@ and observable, and an invalid stored value must degrade rather than crash.
 
 from __future__ import annotations
 
+from typing import get_args
+
 import pytest
 
 from dtk.core.config import RUNTIME_SETTINGS, Config, Scope, coerce
+from dtk.core.types import Platform
 
-# These exercise pure validation logic, so no event loop and no services.
+# Mostly pure validation logic, so no services; the signing-mode class below
+# marks its own coroutines rather than putting the whole module on a loop.
 pytestmark = [pytest.mark.integration]
 
 
@@ -80,3 +84,66 @@ class TestSnapshot:
     def test_unknown_key_raises_rather_than_returning_none(self):
         with pytest.raises(KeyError):
             Config.defaults().get("nope")
+
+
+class TestSigningModeReachesTheSigner:
+    """The console's signing page is only true if a change reaches the worker.
+
+    The worker holds one long-lived registry, so a mode captured at construction
+    would leave the page reporting a value no request uses until the process is
+    restarted - and a restart is the last thing anyone wants at the moment a
+    signer has gone stale. These assert the wiring end to end, from the settings
+    snapshot to the signer the registry actually hands back.
+    """
+
+    @staticmethod
+    def _registry(config_holder):
+        from dtk.signing.registry import SignerRegistry
+        from dtk.worker.runtime import _signing_policy
+
+        class Stub:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+            async def sign(self, spec, identity_fingerprint):  # pragma: no cover - unused
+                raise AssertionError("selection is what is under test, not signing")
+
+            async def health(self):
+                from dtk.signing.base import SignerHealth
+
+                return SignerHealth(signer=self.name, healthy=True)
+
+        native, rpc = Stub("native"), Stub("browser")
+        registry = SignerRegistry(
+            {Platform.DOUYIN: native},
+            rpc,
+            policy=_signing_policy(lambda: config_holder[0]),
+        )
+        return registry, native, rpc
+
+    @pytest.mark.asyncio
+    async def test_changing_the_mode_changes_the_signer_without_rebuilding(self):
+        holder = [Config.defaults()]
+        registry, native, rpc = self._registry(holder)
+        key = (Platform.DOUYIN, "/aweme/v1/web/aweme/detail/")
+
+        assert await registry._select(key) is rpc, "rpc is the shipped default"
+
+        # Exactly what settings_store does on a console write: build a new
+        # snapshot and swap the reference. No registry is rebuilt.
+        holder[0] = Config({**holder[0].as_dict(), "signing.mode": "native"}, version=1)
+        assert await registry._select(key) is native
+
+        holder[0] = Config({**holder[0].as_dict(), "signing.mode": "rpc"}, version=2)
+        assert await registry._select(key) is rpc
+
+    @pytest.mark.asyncio
+    async def test_the_console_cannot_store_a_mode_the_registry_would_ignore(self):
+        """The picker's options and the accepted values are one list, not two."""
+        from dtk.signing.registry import SigningMode
+
+        accepted = set(get_args(SigningMode))
+        assert set(RUNTIME_SETTINGS["signing.mode"].choices or ()) == accepted
+
+        with pytest.raises(ValueError, match="must be one of"):
+            coerce("signing.mode", "browser")

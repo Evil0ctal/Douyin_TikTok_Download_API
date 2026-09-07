@@ -17,7 +17,8 @@ import signal
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
@@ -38,6 +39,9 @@ log = get_logger(__name__)
 
 #: Ceiling for a browser-rpc call. Minting is the slow one; the signing
 #: fallback has its own, shorter per-request timeout.
+if TYPE_CHECKING:  # imported lazily at runtime to keep worker startup light
+    from dtk.signing.registry import RegistryPolicy
+
 RPC_TIMEOUT_SECONDS = 90.0
 
 
@@ -100,9 +104,20 @@ class WorkerRuntime:
 
 
 async def build_runtime(
-    settings: BootstrapSettings, config: Config
+    settings: BootstrapSettings, config: Config | Callable[[], Config]
 ) -> WorkerRuntime:  # pragma: no cover - wiring, exercised by running the process
-    """Assemble the worker process: fetch pipeline plus the background loops."""
+    """Assemble the worker process: fetch pipeline plus the background loops.
+
+    ``config`` may be a snapshot or a live source. :func:`run` passes a live one
+    so that a console edit reaches this process without a restart; a test may
+    pass a plain :class:`Config` and get the old fixed behaviour.
+
+    Not everything below is live even so. The values read through ``current``
+    are frozen into objects that take them once at construction - the
+    scheduler's wait and health prior, the cooldown bounds, the notifier's
+    channels - and those still need a restart. The ones passed as
+    ``config_source`` follow the database.
+    """
     from dtk.identity.minting import BrowserRpcClient
     from dtk.ops.notify import notifier_from_config
     from dtk.scheduler.scheduler import Scheduler, SchedulerConfig
@@ -114,13 +129,16 @@ async def build_runtime(
     from dtk.worker.pool_filler import FillerConfig, PoolFiller
     from dtk.worker.proxy_prober import HttpxProbeClient, ProberConfig, ProxyProber
 
+    config_source: Callable[[], Config] = config if callable(config) else (lambda: config)
+    current = config_source()
+
     cipher = Cipher(settings.secret_key)
     pool = IdentityPool(cipher)
     scheduler = Scheduler(
         PoolCandidates(pool),
         SchedulerConfig(
-            max_wait_seconds=float(config.get("sched.max_wait_seconds")),
-            health_prior=float(config.get("pool.health_prior")),
+            max_wait_seconds=float(current.get("sched.max_wait_seconds")),
+            health_prior=float(current.get("pool.health_prior")),
         ),
     )
     transport = WreqTransport()
@@ -134,10 +152,17 @@ async def build_runtime(
     if settings.browser_rpc_url:
         rpc_http = httpx.AsyncClient(timeout=RPC_TIMEOUT_SECONDS)
         rpc_client = BrowserRpcClient(settings.browser_rpc_url, client=rpc_http)
-        rpc_signer = RpcSigner(rpc_http, settings.browser_rpc_url)
+        rpc_signer = RpcSigner(
+            rpc_http,
+            settings.browser_rpc_url,
+            timeout=lambda: float(config_source().get("signing.rpc_timeout_seconds")),
+        )
 
     signers: dict[Platform, NativeSigner] = native_signers()
-    signer_registry = SignerRegistry(signers, rpc_signer)
+    # The policy is a callable, not a value: signing.mode is the setting an
+    # operator reaches for when a signer goes stale, which is exactly the moment
+    # a restart-to-apply would cost the most.
+    signer_registry = SignerRegistry(signers, rpc_signer, policy=_signing_policy(config_source))
 
     async def sign(
         platform: Platform, url: str, params: dict[str, Any], fingerprint: Fingerprint
@@ -155,8 +180,8 @@ async def build_runtime(
         transport=transport,
         sign=sign,
         proxy_resolver=ProxyResolver(cipher),
-        cooldown_base=int(config.get("sched.cooldown_base_seconds")),
-        cooldown_max=int(config.get("sched.cooldown_max_seconds")),
+        cooldown_base=int(current.get("sched.cooldown_base_seconds")),
+        cooldown_max=int(current.get("sched.cooldown_max_seconds")),
     )
 
     # One options object for both halves: the attempt counter's lifetime is a
@@ -166,13 +191,13 @@ async def build_runtime(
     worker = TaskWorker(
         fetch=fetch,
         store=DatabaseTaskStore(attempt_ttl_seconds=worker_options.attempt_ttl_seconds),
-        config=lambda: config,
+        config=config_source,
         options=worker_options,
     )
 
     # One notifier for every background job, so doc 15's deduplication windows
     # are shared rather than re-implemented per job.
-    notifier = notifier_from_config(config, redis=get_redis())
+    notifier = notifier_from_config(current, redis=get_redis())
 
     filler_options = FillerConfig()
     prober_options = ProberConfig()
@@ -181,7 +206,7 @@ async def build_runtime(
         pool=pool,
         rpc=rpc_client,
         cipher=cipher,
-        config=lambda: config,
+        config=config_source,
         options=filler_options,
         alerter=notifier,
     )
@@ -194,7 +219,7 @@ async def build_runtime(
     )
     maintenance = Maintenance(
         cipher=cipher,
-        config=lambda: config,
+        config=config_source,
         options=maintenance_options,
         alerter=notifier,
     )
@@ -211,17 +236,41 @@ async def build_runtime(
     return WorkerRuntime(worker=worker, loops=loops, closers=closers)
 
 
+def _signing_policy(config_source: Callable[[], Config]) -> Callable[[], RegistryPolicy]:
+    """Read signing.* out of the live configuration on every use."""
+    from dtk.signing.registry import RegistryPolicy, SigningMode
+
+    def policy() -> RegistryPolicy:
+        config = config_source()
+        return RegistryPolicy(
+            mode=cast("SigningMode", config.get("signing.mode")),
+            fallback_enabled=bool(config.get("signing.fallback_enabled")),
+        )
+
+    return policy
+
+
 @contextlib.asynccontextmanager
 async def _process_scope(
     settings: BootstrapSettings,
-) -> AsyncIterator[Config]:  # pragma: no cover - process wiring
+) -> AsyncIterator[Callable[[], Config]]:  # pragma: no cover - process wiring
     configure(level=settings.log_level, json_output=settings.log_json)
     init_engine(settings.database_url)
     init_redis(settings.redis_url)
-    from dtk.services.settings_store import load_config
+    from dtk.services.settings_store import load_config, start_watcher, stop_watcher
 
+    # The API and the MCP server both watch for configuration changes; the
+    # worker did not, so every setting the console exposes was inert in the one
+    # process that actually issues the requests until it was restarted. The
+    # watcher wants an object with ``.state.config`` and nothing more.
+    holder = SimpleNamespace(state=SimpleNamespace(config=Config.defaults()))
     try:
-        yield await load_config()
+        holder.state.config = await load_config()
+        await start_watcher(holder)
+        try:
+            yield lambda: cast("Config", holder.state.config)
+        finally:
+            await stop_watcher(holder)
     finally:
         await close_redis()
         await dispose_engine()
@@ -230,8 +279,8 @@ async def _process_scope(
 async def run(settings: BootstrapSettings | None = None) -> None:  # pragma: no cover - entry point
     """Run one worker process until SIGTERM or SIGINT."""
     settings = settings or BootstrapSettings()
-    async with _process_scope(settings) as config:
-        runtime = await build_runtime(settings, config)
+    async with _process_scope(settings) as config_source:
+        runtime = await build_runtime(settings, config_source)
         _install_signal_handlers(runtime)
         background = [asyncio.create_task(loop.run(), name=loop.name) for loop in runtime.loops]
         try:

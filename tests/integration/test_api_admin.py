@@ -363,6 +363,35 @@ async def test_settings_report_where_each_value_comes_from(client: Any) -> None:
     assert by_key["cache.content_ttl"]["sensitive"] is False
 
 
+async def test_a_constrained_setting_ships_its_options_and_refuses_the_rest(
+    client: Any,
+) -> None:
+    """The signing mode is a choice, so the console gets the list to choose from.
+
+    Without this the page renders a free-text box and an operator has to know
+    that the three accepted spellings are rpc, native and auto. The rejection
+    below is the other half: the server names the valid values rather than
+    storing a typo that would fall back to a default at read time.
+    """
+    await signed_in(client)
+    body = envelope(await client.get("/api/v1/admin/settings"))["data"]
+    by_key = {item["key"]: item for item in body["settings"]}
+
+    assert by_key["signing.mode"]["choices"] == ["rpc", "native", "auto"]
+    assert by_key["signing.mode"]["value"] == "rpc"
+    # An ordinary setting has none, so the console keeps rendering a text box.
+    assert by_key["cache.content_ttl"]["choices"] is None
+
+    accepted = await client.put("/api/v1/admin/settings/signing.mode", json={"value": "native"})
+    assert envelope(accepted)["data"]["value"] == "native"
+
+    rejected = await client.put("/api/v1/admin/settings/signing.mode", json={"value": "browser"})
+    assert error_code(rejected) == "INVALID_PARAM"
+    # The message is translated, so the valid values travel in the details or
+    # the operator is left guessing at a spelling they can see in a picker.
+    assert envelope(rejected)["error"]["details"]["choices"] == ["rpc", "native", "auto"]
+
+
 async def test_updating_a_runtime_setting_takes_effect_immediately(client: Any) -> None:
     await signed_in(client)
     response = await client.put("/api/v1/admin/settings/api.max_wait_seconds", json={"value": 5})

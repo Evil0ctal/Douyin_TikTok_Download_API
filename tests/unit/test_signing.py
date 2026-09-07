@@ -32,12 +32,14 @@ import random
 import re
 import string
 from collections.abc import Mapping
+from dataclasses import replace
 from types import SimpleNamespace
 from urllib.parse import parse_qs, quote, urlencode
 
 import httpx
 import pytest
 
+from dtk.core.config import RUNTIME_SETTINGS
 from dtk.core.errors import SigningFailed, UpstreamChanged
 from dtk.core.types import Outcome, Platform
 from dtk.signing.base import (
@@ -98,6 +100,7 @@ from dtk.signing.registry import (
     RegistryPolicy,
     RiskSample,
     SignerRegistry,
+    SigningMode,
     SlidingRiskWindow,
 )
 from dtk.signing.rpc import RpcSigner
@@ -1030,14 +1033,23 @@ def build_registry(
     rpc: FakeSigner | None = None,
     clock: FakeClock | None = None,
     policy: RegistryPolicy | None = None,
+    mode: SigningMode = "auto",
     alerts: list[tuple[str, Mapping[str, object]]] | None = None,
 ) -> tuple[SignerRegistry, FakeSigner, FakeSigner | None, FakeClock]:
+    """A registry in ``auto`` mode unless the caller says otherwise.
+
+    Most tests below exercise the risk-driven crossover from native to the
+    browser, and that behaviour *is* the auto mode. The shipped default is
+    ``rpc`` - the native algorithms are stale - and is covered explicitly in the
+    mode tests rather than left to be inherited here, so that changing the
+    default cannot silently rewrite what these tests mean.
+    """
     clock = clock or FakeClock()
     native = native or FakeSigner(SIGNER_NATIVE, value="native-sig")
     registry = SignerRegistry(
         {Platform.DOUYIN: native},
         rpc,
-        policy=policy or RegistryPolicy(),
+        policy=replace(policy or RegistryPolicy(), mode=mode),
         clock=clock,
         on_alert=(lambda event, context: alerts.append((event, context)))
         if alerts is not None
@@ -1055,12 +1067,92 @@ def push_risk(registry: SignerRegistry, count: int, risky: int) -> None:
         )
 
 
-async def test_registry_uses_the_native_signer_by_default() -> None:
-    registry, native, rpc, _ = build_registry(rpc=FakeSigner(SIGNER_BROWSER))
+async def test_auto_mode_starts_on_the_native_signer() -> None:
+    """Named for the mode, not for "the default": the default is rpc."""
+    registry, native, rpc, _ = build_registry(rpc=FakeSigner(SIGNER_BROWSER), mode="auto")
     signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT)
     assert signed.signer == SIGNER_NATIVE
     assert native.calls == 1
     assert rpc is not None and rpc.calls == 0
+
+
+# --------------------------------------------------------------------------
+# registry: signing.mode
+#
+# The mode is an operator-facing setting, so each value is pinned to a test.
+# Before this existed the registry carried a `prefer_rpc` flag that nothing
+# read: the selector always tried native first, while the field and its
+# docstring said the opposite. A setting the console can change has to be a
+# setting the selector obeys, and that is what these assert.
+# --------------------------------------------------------------------------
+
+
+async def test_rpc_mode_is_the_shipped_default() -> None:
+    """The default has to be rpc: the native algorithms no longer verify live."""
+    assert RegistryPolicy().mode == "rpc"
+    assert RUNTIME_SETTINGS["signing.mode"].default == "rpc"
+
+
+async def test_rpc_mode_goes_to_the_browser_even_with_a_healthy_native_signer() -> None:
+    registry, native, rpc, _ = build_registry(rpc=FakeSigner(SIGNER_BROWSER), mode="rpc")
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_BROWSER
+    assert native.calls == 0
+    assert rpc is not None and rpc.calls == 1
+
+
+async def test_rpc_mode_never_crosses_to_native_on_risk_alone() -> None:
+    """Risk moves auto to the browser; in rpc mode it is already there."""
+    registry, native, _, _ = build_registry(rpc=FakeSigner(SIGNER_BROWSER), mode="rpc")
+    push_risk(registry, 25, 20)
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_BROWSER
+    assert native.calls == 0
+
+
+async def test_native_mode_stays_native_however_bad_the_risk_rate_gets() -> None:
+    """The escape hatch for a deployment with no browser, and for bisecting."""
+    rpc = FakeSigner(SIGNER_BROWSER)
+    registry, native, _, _ = build_registry(rpc=rpc, mode="native")
+    push_risk(registry, 25, 25)  # every single sample risk-controlled
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+    assert native.calls == 1
+    assert rpc.calls == 0
+
+
+async def test_rpc_mode_falls_back_to_native_when_the_browser_is_unhealthy() -> None:
+    rpc = FakeSigner(SIGNER_BROWSER, healthy=False)
+    registry, native, _, _ = build_registry(rpc=rpc, mode="rpc")
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+    assert native.calls == 1
+
+
+async def test_disabling_fallback_pins_the_mode_to_one_signer() -> None:
+    """A stale signer has to be able to fail loudly.
+
+    With fallback on, a signer that stopped working looks healthy because its
+    traffic quietly moves to the other one - which is how the native signers
+    went on passing their own tests while producing signatures no platform
+    accepts. Turning fallback off is how an operator finds out which signer is
+    actually carrying the traffic.
+    """
+    rpc = FakeSigner(SIGNER_BROWSER, healthy=False)
+    registry, native, _, _ = build_registry(
+        rpc=rpc, policy=RegistryPolicy(fallback_enabled=False), mode="rpc"
+    )
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_BROWSER
+    assert native.calls == 0, "fallback was disabled but native was used anyway"
+
+
+async def test_rpc_mode_without_a_browser_configured_says_so() -> None:
+    """The two ways this can go wrong get two different messages."""
+    registry, _, _, _ = build_registry(mode="rpc")
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+
+    strict, _, _, _ = build_registry(policy=RegistryPolicy(fallback_enabled=False), mode="rpc")
+    with pytest.raises(SigningFailed, match="browser-rpc is not configured"):
+        await strict.sign(DOUYIN_SPEC, FINGERPRINT)
+
+    with pytest.raises(SigningFailed, match="no signer available"):
+        await strict.sign(TIKTOK_SPEC, FINGERPRINT, platform=Platform.TIKTOK)
 
 
 async def test_registry_switches_an_endpoint_to_rpc_when_risk_spikes() -> None:
@@ -1074,10 +1166,18 @@ async def test_registry_switches_an_endpoint_to_rpc_when_risk_spikes() -> None:
     assert signed.signer == SIGNER_BROWSER
     assert rpc.calls == 1
     assert native.calls == 0
+    # The alert names the signer taking over and why, because "fallback
+    # engaged" on its own leaves an operator to guess between a stale algorithm,
+    # an unhealthy browser and a platform with no native signer at all.
     assert alerts == [
         (
             "signing.fallback.engaged",
-            {"platform": "douyin", "endpoint": DOUYIN_SPEC.endpoint},
+            {
+                "platform": "douyin",
+                "endpoint": DOUYIN_SPEC.endpoint,
+                "signer": SIGNER_BROWSER,
+                "reason": "the endpoint's risk rate suggests the signature is being rejected",
+            },
         )
     ]
     assert list(registry.fallback_endpoints()) == [(Platform.DOUYIN, DOUYIN_SPEC.endpoint)]
@@ -1169,7 +1269,11 @@ async def test_registry_accepts_an_injected_risk_source() -> None:
 
     rpc = FakeSigner(SIGNER_BROWSER)
     registry = SignerRegistry(
-        {Platform.DOUYIN: FakeSigner(SIGNER_NATIVE)}, rpc, risk_rate=risk_rate, clock=FakeClock()
+        {Platform.DOUYIN: FakeSigner(SIGNER_NATIVE)},
+        rpc,
+        policy=RegistryPolicy(mode="auto"),
+        risk_rate=risk_rate,
+        clock=FakeClock(),
     )
     registry.observe(Platform.DOUYIN, DOUYIN_SPEC.endpoint, Outcome.OK)  # ignored
     signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT)

@@ -409,6 +409,7 @@
     "group": {
       "sched": "Scheduler",
       "pool": "Identity pool",
+      "signing": "Signing",
       "cache": "Cache",
       "snapshot": "Snapshots",
       "retention": "Retention",
@@ -421,6 +422,7 @@
     "groupHint": {
       "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
       "pool": "Water marks and the conservative per-identity request rate.",
+      "signing": "Which signer produces the request signature. The in-process algorithms no longer match what either platform sends, so the browser is the working default.",
       "cache": "How long a parsed result stays reusable.",
       "snapshot": "Deduplication window for writes to the content history.",
       "retention": "How long logs, events and tasks are kept. Content snapshots are never deleted automatically.",
@@ -429,6 +431,13 @@
       "notify": "Delivery switch, channels and the default alert language.",
       "system": "Instance behaviour, including the opt-in update check.",
       "other": "Keys with no group of their own."
+    },
+    "choice": {
+      "signing.mode": {
+        "rpc": "Browser (recommended) - runs the platform's own script",
+        "native": "In-process algorithms - no browser needed",
+        "auto": "In-process, switching to the browser when signatures start failing"
+      }
     }
   },
   "notifications": {

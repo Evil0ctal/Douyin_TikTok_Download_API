@@ -71,6 +71,10 @@ async def list_settings(request: Request, principal: Principal = Depends(read_ad
                 "default": spec.default,
                 "scope": spec.scope.value,
                 "type": spec.type_.__name__,
+                # Present only for a setting with a fixed set of values, so the
+                # console renders a choice instead of a free-text box that can
+                # be saved with a typo the server will then reject.
+                "choices": list(spec.choices) if spec.choices else None,
                 "description": spec.description,
                 "sensitive": spec.scope is Scope.SENSITIVE,
                 "source": _source(key, stored),
@@ -97,9 +101,18 @@ async def update_setting(
     try:
         value = coerce(key, body.value)
     except (ValueError, TypeError) as exc:
+        # The message is replaced by a translated one for the caller's language,
+        # so anything the operator needs in order to fix the value has to travel
+        # in the details. For a constrained setting that means the valid values
+        # themselves: "invalid" plus the Python type name would leave someone
+        # guessing at the spelling of a mode they can see in a picker.
         raise InvalidParam(
             f"invalid value for {key}: {exc}",
-            details={"field": "value", "expected": spec.type_.__name__},
+            details={
+                "field": "value",
+                "expected": spec.type_.__name__,
+                **({"choices": list(spec.choices)} if spec.choices else {}),
+            },
         ) from exc
 
     previous = request.app.state.config.get(key)

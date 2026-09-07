@@ -28,7 +28,7 @@ is exercised by tests against a stub transport.
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import quote
 
@@ -97,7 +97,7 @@ class RpcSigner:
         *,
         platform: Platform | None = None,
         algorithm: SignatureAlgorithm | None = None,
-        timeout: float = 10.0,
+        timeout: float | Callable[[], float] = 10.0,
     ) -> None:
         self._client = client
         self.base_url = base_url.rstrip("/")
@@ -108,7 +108,14 @@ class RpcSigner:
         #: encoding: which signature the browser actually returns is up to the
         #: browser, and is read back off the response.
         self.algorithm = algorithm
-        self.timeout = timeout
+        # Resolved per call, so signing.rpc_timeout_seconds takes effect in a
+        # running worker instead of only at the next restart.
+        self._timeout: Callable[[], float] = timeout if callable(timeout) else (lambda: timeout)
+
+    @property
+    def timeout(self) -> float:
+        """The ceiling in force right now, for one signing or health call."""
+        return self._timeout()
 
     async def sign(
         self, spec: RequestSpec, identity_fingerprint: SigningFingerprint

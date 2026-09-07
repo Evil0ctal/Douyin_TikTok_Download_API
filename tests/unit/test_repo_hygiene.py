@@ -233,3 +233,75 @@ class TestConsoleHygiene:
                 f"{en_file.name}: only in en {sorted(en_keys - zh_keys)[:8]}, "
                 f"only in zh {sorted(zh_keys - en_keys)[:8]}"
             )
+
+
+# --------------------------------------------------------------------------
+# The settings registry and the console that renders it
+#
+# The console builds its groups from a hardcoded list while the server enumerates
+# RUNTIME_SETTINGS, so a new setting appears in the UI on its own - silently
+# filed under "Other" with an untranslated heading. That is the same silent
+# fallthrough that made every tuned endpoint quota inert once (see
+# tests/unit/test_policy_coverage.py); one prefix is a namespace shared by the
+# registry, the console and both locale files, and nothing else joins them up.
+# --------------------------------------------------------------------------
+
+CONSOLE_SETTINGS = WEB / "pages" / "Settings.tsx"
+
+
+def _console_groups() -> list[str]:
+    source = CONSOLE_SETTINGS.read_text(encoding="utf-8")
+    block = re.search(r"const GROUP_ORDER = \[(.*?)\] as const", source, re.S)
+    assert block is not None, "GROUP_ORDER is no longer declared the way this test reads it"
+    return re.findall(r"'([^']+)'", block.group(1))
+
+
+def _setting_groups() -> set[str]:
+    from dtk.core.config import RUNTIME_SETTINGS
+
+    return {key.split(".")[0] for key in RUNTIME_SETTINGS}
+
+
+def test_every_setting_group_has_a_console_group() -> None:
+    missing = sorted(_setting_groups() - set(_console_groups()))
+    assert not missing, (
+        f"settings groups with no console group: {missing}. They will render under "
+        f"'Other' with no heading of their own; add them to GROUP_ORDER in "
+        f"{CONSOLE_SETTINGS.relative_to(REPO)}."
+    )
+
+
+def test_no_console_group_is_left_without_settings() -> None:
+    """The other direction: a group whose settings were renamed away."""
+    stale = sorted(set(_console_groups()) - _setting_groups())
+    assert not stale, f"console groups no setting uses any more: {stale}"
+
+
+@pytest.mark.parametrize("language", ["en", "zh"])
+def test_every_console_group_is_named_in_both_languages(language: str) -> None:
+    console = json.loads(
+        (REPO / "web" / "src" / "locales" / language / "console.json").read_text(encoding="utf-8")
+    )
+    settings = console["settings"]
+    for group in _console_groups():
+        assert group in settings["group"], f"{language}: settings.group.{group} is missing"
+        assert group in settings["groupHint"], f"{language}: settings.groupHint.{group} is missing"
+
+
+@pytest.mark.parametrize("language", ["en", "zh"])
+def test_every_constrained_setting_has_its_choices_explained(language: str) -> None:
+    """A picker whose options are bare keys makes the reader guess what they do."""
+    from dtk.core.config import RUNTIME_SETTINGS
+
+    console = json.loads(
+        (REPO / "web" / "src" / "locales" / language / "console.json").read_text(encoding="utf-8")
+    )
+    explained = console["settings"].get("choice", {})
+    for key, spec in sorted(RUNTIME_SETTINGS.items()):
+        if not spec.choices:
+            continue
+        assert key in explained, f"{language}: settings.choice.{key} is missing"
+        for choice in spec.choices:
+            assert choice in explained[key], (
+                f"{language}: settings.choice.{key}.{choice} is missing"
+            )

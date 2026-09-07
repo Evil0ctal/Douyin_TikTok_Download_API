@@ -51,7 +51,7 @@ from collections import deque
 from collections.abc import Callable, Iterable, Mapping, MutableMapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from dtk.core.errors import DtkError, SigningFailed
 from dtk.core.logging import get_logger
@@ -206,11 +206,23 @@ DEFAULT_COMPARATORS: Mapping[str, SignatureComparator] = {
 }
 
 
+#: How the registry picks between the two signers. Surfaced as ``signing.mode``
+#: in the console.
+#:
+#: ``rpc``    - always ask the browser. Currently the only mode that produces a
+#:              signature either platform accepts.
+#: ``native`` - always run the in-process algorithms, and never reach for a
+#:              browser. The mode for a deployment with no browser-rpc service.
+#: ``auto``   - start native and switch an endpoint to the browser once its risk
+#:              rate says the native signature is being rejected.
+SigningMode = Literal["rpc", "native", "auto"]
+
+
 @dataclass(frozen=True, slots=True)
 class RegistryPolicy:
     """Thresholds; defaults follow docs/design/03-scheduler.md.
 
-    ``prefer_rpc`` defaults to True because the native signers are known stale.
+    ``mode`` defaults to ``rpc`` because the native signers are known stale.
 
     Verified in a live browser on 2026-09-07 (docs/design/04-transport-signing.md):
     Douyin currently sends a 184-character ``a_bogus`` alongside ``verifyFp``,
@@ -229,8 +241,15 @@ class RegistryPolicy:
     current algorithm will want somewhere to put it.
     """
 
-    #: Try the RPC signer first and fall back to native, rather than the reverse.
-    prefer_rpc: bool = True
+    mode: SigningMode = "rpc"
+    #: Whether the mode's non-preferred signer may be used when the preferred
+    #: one is unavailable. Turning it off is a diagnostic: with fallback on, a
+    #: signer that has stopped working looks healthy because its traffic quietly
+    #: moves to the other one, which is exactly how the native signers stayed
+    #: "fine" while producing signatures no platform accepts. In ``auto`` the
+    #: risk-driven switch *is* the fallback, so turning it off pins auto to
+    #: native.
+    fallback_enabled: bool = True
     risk_threshold: float = 0.6
     risk_min_samples: int = 20
     risk_cache_seconds: float = 5.0
@@ -260,7 +279,7 @@ class SignerRegistry:
         native: Mapping[Platform, Signer],
         rpc: Signer | None = None,
         *,
-        policy: RegistryPolicy | None = None,
+        policy: RegistryPolicy | Callable[[], RegistryPolicy] | None = None,
         risk_rate: RiskRateSource | None = None,
         comparators: Mapping[str, SignatureComparator] | None = None,
         clock: Callable[[], float] = time.monotonic,
@@ -268,7 +287,14 @@ class SignerRegistry:
     ) -> None:
         self._native = dict(native)
         self._rpc = rpc
-        self.policy = policy or RegistryPolicy()
+        # A callable rather than a value, so that changing signing.mode in the
+        # console reaches a long-lived worker without restarting it. A frozen
+        # snapshot here would make the console page a lie: it would report the
+        # new mode while every request kept using the old one.
+        fixed = policy if isinstance(policy, RegistryPolicy) else None
+        self._policy: Callable[[], RegistryPolicy] = (
+            policy if callable(policy) else (lambda snapshot=fixed or RegistryPolicy(): snapshot)  # type: ignore[misc]
+        )
         self._window = SlidingRiskWindow(clock=clock)
         self._risk_rate: RiskRateSource = risk_rate or self._window
         self._owns_window = risk_rate is None
@@ -282,6 +308,11 @@ class SignerRegistry:
         self._health: tuple[float, SignerHealth] | None = None
         self._last_shadow: dict[EndpointKey, ShadowResult] = {}
         self._shadow_seen: dict[EndpointKey, float] = {}
+
+    @property
+    def policy(self) -> RegistryPolicy:
+        """The thresholds in force right now, re-read on every use."""
+        return self._policy()
 
     # -- selection ---------------------------------------------------------
 
@@ -309,29 +340,91 @@ class SignerRegistry:
             return await self._rpc.sign(spec, identity_fingerprint)
 
     async def _select(self, key: EndpointKey) -> Signer:
-        platform, endpoint = key
+        """Pick a signer for this endpoint, per ``policy.mode``.
+
+        Every crossing to the mode's non-preferred signer is announced once per
+        endpoint and carries the reason, because a silent crossing is how a
+        broken signer goes on looking healthy: its traffic moves to the other
+        one and the success rate never dips.
+        """
+        platform, _endpoint = key
         native = self._native.get(platform)
+        native_usable = native is not None and platform not in self._native_disabled
+        may_cross = self.policy.fallback_enabled
 
-        if native is None or platform in self._native_disabled:
-            if self._rpc is None:
+        if self.policy.mode == "rpc":
+            if self._rpc is not None:
+                if native_usable and may_cross and not await self._rpc_healthy():
+                    assert native is not None
+                    return self._cross(key, native, "browser-rpc is unhealthy")
+                # An unhealthy RPC with nowhere to fall back to is still handed
+                # the request: its own error says what is wrong with it, where a
+                # synthetic "no signer available" would throw that away.
+                return self._prefer(key, self._rpc)
+            if not native_usable:
                 raise SigningFailed(f"no signer available for {platform.value}")
-            return self._rpc
-
-        if self._rpc is not None and await self._at_risk(key) and await self._rpc_healthy():
-            if key not in self._fallback:
-                self._fallback.add(key)
-                logger.warning(
-                    "signing.fallback.engaged", platform=platform.value, endpoint=endpoint
+            if not may_cross:
+                raise SigningFailed(
+                    "signing.mode is rpc but browser-rpc is not configured, and "
+                    "signing.fallback_enabled forbids using the native signer"
                 )
-                self._alert(
-                    "signing.fallback.engaged", {"platform": platform.value, "endpoint": endpoint}
-                )
-            return self._rpc
+            assert native is not None
+            return self._cross(key, native, "browser-rpc is not configured")
 
+        if not native_usable:
+            if self._rpc is None or not may_cross:
+                raise SigningFailed(f"no signer available for {platform.value}")
+            return self._cross(key, self._rpc, f"no native signer for {platform.value}")
+        assert native is not None
+
+        if (
+            self.policy.mode == "auto"
+            and self._rpc is not None
+            and may_cross
+            and await self._at_risk(key)
+            and await self._rpc_healthy()
+        ):
+            return self._cross(
+                key, self._rpc, "the endpoint's risk rate suggests the signature is being rejected"
+            )
+
+        return self._prefer(key, native)
+
+    def _cross(self, key: EndpointKey, signer: Signer, why: str) -> Signer:
+        """Use the mode's non-preferred signer, announcing the first time."""
+        if key not in self._fallback:
+            self._fallback.add(key)
+            platform, endpoint = key
+            logger.warning(
+                "signing.fallback.engaged",
+                platform=platform.value,
+                endpoint=endpoint,
+                signer=signer.name,
+                reason=why,
+            )
+            self._alert(
+                "signing.fallback.engaged",
+                {
+                    "platform": platform.value,
+                    "endpoint": endpoint,
+                    "signer": signer.name,
+                    "reason": why,
+                },
+            )
+        return signer
+
+    def _prefer(self, key: EndpointKey, signer: Signer) -> Signer:
+        """Use the mode's preferred signer, announcing a return to it."""
         if key in self._fallback:
             self._fallback.discard(key)
-            logger.info("signing.fallback.released", platform=platform.value, endpoint=endpoint)
-        return native
+            platform, endpoint = key
+            logger.info(
+                "signing.fallback.released",
+                platform=platform.value,
+                endpoint=endpoint,
+                signer=signer.name,
+            )
+        return signer
 
     async def _at_risk(self, key: EndpointKey) -> bool:
         cached = self._risk_cache.get(key)

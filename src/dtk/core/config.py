@@ -61,14 +61,27 @@ class BootstrapSettings(BaseSettings):
 class SettingSpec:
     """Declaration of one runtime setting."""
 
-    __slots__ = ("default", "description", "key", "scope", "type_")
+    __slots__ = ("choices", "default", "description", "key", "scope", "type_")
 
-    def __init__(self, key: str, default: Any, scope: Scope, type_: type, description: str) -> None:
+    def __init__(
+        self,
+        key: str,
+        default: Any,
+        scope: Scope,
+        type_: type,
+        description: str,
+        choices: tuple[str, ...] | None = None,
+    ) -> None:
         self.key = key
         self.default = default
         self.scope = scope
         self.type_ = type_
         self.description = description
+        #: Permitted values for a string setting, or None if it is free-form.
+        #: Enforced on write, because a rejected value naming the valid ones is
+        #: far more useful than a stored typo that silently falls back to the
+        #: default every time it is read.
+        self.choices = choices
 
 
 #: The runtime setting registry. Anything not listed here cannot be stored in
@@ -207,6 +220,38 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "List of {type, url, language} channel descriptors",
         ),
         SettingSpec("notify.language", "en", Scope.RUNTIME, str, ""),
+        # --- signing ---------------------------------------------------------
+        # Which signer to try first. Measured against both live sites on
+        # 2026-09-07, the ported V4 algorithms no longer produce what the
+        # platforms send: Douyin has moved to a 184-character a_bogus and
+        # dropped X-Bogus entirely, TikTok signs with X-Gnarly. So "rpc" is the
+        # working default, and "native" stays selectable for whoever next
+        # reverse-engineers the current algorithm.
+        # See docs/design/04-transport-signing.md.
+        SettingSpec(
+            "signing.mode",
+            "rpc",
+            Scope.RUNTIME,
+            str,
+            "Which signer to prefer: rpc drives a real browser, native runs the "
+            "in-process algorithms, auto tries rpc then falls back to native.",
+            choices=("rpc", "native", "auto"),
+        ),
+        SettingSpec(
+            "signing.fallback_enabled",
+            True,
+            Scope.RUNTIME,
+            bool,
+            "Whether the other signer may be tried when the preferred one fails. "
+            "Turn it off to find out which signer is actually carrying traffic.",
+        ),
+        SettingSpec(
+            "signing.rpc_timeout_seconds",
+            15,
+            Scope.RUNTIME,
+            int,
+            "Ceiling for one browser-rpc signing call.",
+        ),
         # --- misc -----------------------------------------------------------
         SettingSpec(
             "system.check_updates",
@@ -261,6 +306,11 @@ def coerce(key: str, value: Any) -> Any:
     spec = RUNTIME_SETTINGS.get(key)
     if spec is None:
         raise KeyError(f"unknown setting: {key}")
+    if spec.choices is not None:
+        text = str(value).strip().lower()
+        if text not in spec.choices:
+            raise ValueError(f"{key} must be one of {', '.join(spec.choices)}; got {value!r}")
+        return text
     if spec.type_ is bool:
         if isinstance(value, str):
             return value.strip().lower() in {"1", "true", "yes", "on"}

@@ -14,6 +14,7 @@ import {
   MinusIcon,
   PageHeader,
   RefreshIcon,
+  Select,
   ServerIcon,
   Skeleton,
   Switch,
@@ -49,6 +50,8 @@ interface SettingRow {
   scope: string
   type: string
   description: string
+  /** Present only for a setting whose value is one of a fixed set. */
+  choices: string[] | null
   sensitive: boolean
   source: string
   env_var: string
@@ -61,12 +64,13 @@ interface SettingsResponse {
   settings: SettingRow[]
 }
 
-type EditorKind = 'bool' | 'int' | 'float' | 'str' | 'list' | 'json'
+type EditorKind = 'bool' | 'choice' | 'int' | 'float' | 'str' | 'list' | 'json'
 
 /** Group order follows the registry in src/dtk/core/config.py, not the alphabet. */
 const GROUP_ORDER = [
   'sched',
   'pool',
+  'signing',
   'cache',
   'snapshot',
   'retention',
@@ -84,6 +88,10 @@ function groupOf(key: string): string {
 }
 
 function editorKind(row: SettingRow): EditorKind {
+  // A fixed set of values outranks the declared type: offering the three
+  // signing modes as a picker is the difference between choosing one and
+  // guessing at its spelling, and the server rejects a typo either way.
+  if (row.choices && row.choices.length > 0) return 'choice'
   switch (row.type) {
     case 'bool':
       return 'bool'
@@ -337,7 +345,24 @@ function SettingEditor({ row, canWrite, canWriteSensitive, onSaved }: RowProps) 
           : undefined
 
   const control =
-    kind === 'bool' ? (
+    kind === 'choice' ? (
+      <Select
+        value={shown}
+        aria-label={row.key}
+        disabled={locked || save.isPending}
+        // Values are configuration keys, so they are shown verbatim; only the
+        // explanation beside them is translated.
+        options={(row.choices ?? []).map((choice) => ({
+          value: choice,
+          label: t(`settings.choice.${row.key}.${choice}`, { defaultValue: choice }),
+        }))}
+        onChange={(event) => {
+          setTouched(true)
+          setDraft(event.target.value)
+          setInvalid(null)
+        }}
+      />
+    ) : kind === 'bool' ? (
       <Switch
         checked={shown === 'true'}
         disabled={locked || save.isPending}
