@@ -46,3 +46,12 @@ GEMINI.md
 .cursorrules
 .aider*
 .github/copilot-instructions.md
+
+# Working copies of V4 sources, taken with `git show main:<path>` while porting.
+# Fully reproducible from the main branch, so they are not carried here; the
+# salvage list lives in docs/design/16-salvage-and-debug.md.
+vendor_salvage/
+
+# Node
+node_modules/
+dist/
