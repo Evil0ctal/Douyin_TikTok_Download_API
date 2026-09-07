@@ -1,0 +1,103 @@
+{
+  "common": {
+    "unknown": "未知",
+    "never": "从未",
+    "all_platforms": "全部平台"
+  },
+  "state": {
+    "identity": {
+      "minting": "铸造中",
+      "active": "可用",
+      "cooling": "冷却中",
+      "degraded": "降级",
+      "retired": "已退役"
+    },
+    "task": {
+      "queued": "排队中",
+      "running": "执行中",
+      "done": "已完成",
+      "failed": "已失败"
+    }
+  },
+  "outcome": {
+    "ok": "成功",
+    "business_error": "业务错误",
+    "risk_control": "风控拦截",
+    "network_error": "网络错误"
+  },
+  "notify": {
+    "severity": {
+      "error": "错误",
+      "warning": "警告",
+      "info": "提示"
+    },
+    "endpoint_circuit_open": {
+      "title": "接口已熔断",
+      "body": "{platform} {endpoint} 已熔断：最近 {samples} 次请求中有 {risk_rate}% 命中风控，预计 {retry_after} 秒后重新探测。"
+    },
+    "pool_empty": {
+      "title": "身份池已枯竭",
+      "body": "{platform} 已无可用身份，请求将排队或被拒绝，直到身份池恢复。"
+    },
+    "pool_below_min": {
+      "title": "身份池低于水位线",
+      "body": "{platform} 当前可用身份 {active} 个，低于配置的最小值 {minimum} 个。"
+    },
+    "proxy_unhealthy": {
+      "title": "代理不可用",
+      "body": "代理 {proxy} 连续 {failures} 次探测失败，已移出轮转。"
+    },
+    "signature_stale": {
+      "title": "签名算法可能已失效",
+      "body": "{endpoint} 的本地签名与浏览器结果不一致，影子比对不一致率为 {mismatch_rate}%。"
+    },
+    "cookie_expiring": {
+      "title": "登录态 cookie 即将过期",
+      "body": "身份 {identity_id} 将在 {days} 天后过期，请重新导入以维持登录态身份池。"
+    },
+    "backup_failed": {
+      "title": "备份失败",
+      "body": "计划备份未能完成：{reason}。"
+    },
+    "footer": "本消息由你的 dtk 实例发出，告警通道可在控制台配置。"
+  },
+  "openapi": {
+    "description": "自部署的抖音 / TikTok 数据接口。提交链接即可获得归一化后的内容。错误响应同时包含稳定错误码与按语言渲染的消息，追加 ?lang=zh 可获取中文。",
+    "tag": {
+      "parse": "通用入口：传入任意受支持的链接。",
+      "douyin": "抖音接口。",
+      "tiktok": "TikTok 接口。",
+      "tasks": "异步任务的提交、轮询与事件推送。",
+      "identity": "身份池查看与维护。",
+      "system": "健康检查、版本与诊断。",
+      "admin": "实例管理，需要 admin 权限范围。"
+    },
+    "op": {
+      "parse": {
+        "summary": "解析任意受支持的链接",
+        "description": "自动识别链接所属平台与内容类型，返回归一化记录。附加 ?wait= 可阻塞等待结果，无需轮询任务。"
+      },
+      "task_get": {
+        "summary": "查询任务",
+        "description": "返回任务状态，完成后附带结果。结果会过期，任务不存在时请重新提交。"
+      },
+      "ios_shortcut": {
+        "summary": "iOS 快捷指令版本信息",
+        "description": "配套 iOS 快捷指令的版本号、下载链接与更新说明，按请求语言渲染。"
+      },
+      "health": {
+        "summary": "实例健康状态",
+        "description": "报告数据库、缓存、浏览器 RPC 与身份池的健康状况，可供监控系统轮询。"
+      }
+    },
+    "param": {
+      "lang": "人类可读文本的响应语言，可选 en 或 zh，其余值一律回退英文。",
+      "wait": "等待任务完成的秒数，超时则返回 202 与 task_id。",
+      "cursor": "上一页返回的游标，首页请留空。",
+      "count": "每页条数。"
+    },
+    "response": {
+      "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"
+    }
+  }
+}

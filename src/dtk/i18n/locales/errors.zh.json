@@ -1,0 +1,19 @@
+{
+  "INVALID_URL": "无法识别该链接，请确认是受支持的抖音或 TikTok 链接。",
+  "UNSUPPORTED_CONTENT": "暂不支持该内容类型。",
+  "INVALID_PARAM": "请求参数不合法。",
+  "UNAUTHENTICATED": "需要有效的 API Key，请在 X-API-Key 请求头中提供。",
+  "FORBIDDEN_SCOPE": "该 API Key 缺少调用此接口所需的权限范围。",
+  "NOT_FOUND": "请求的资源不存在。",
+  "CONTENT_PRIVATE": "该内容为私密或已被作者删除。",
+  "RATE_LIMITED": "请求过于频繁，请在 {retry_after} 秒后重试。",
+  "IDENTITY_POOL_EXHAUSTED": "当前无可用身份，预计 {retry_after} 秒后恢复。",
+  "ENDPOINT_CIRCUIT_OPEN": "该接口因连续失败已临时熔断，预计 {retry_after} 秒后恢复。",
+  "UPSTREAM_RISK_CONTROL": "平台判定该请求为自动化流量，相关身份已进入冷却。",
+  "UPSTREAM_CHANGED": "平台返回结构已变化，缺失字段：{path}，请反馈该问题。",
+  "SIGNING_FAILED": "请求签名失败，签名算法可能已失效。",
+  "TASK_NOT_FOUND": "任务不存在，或结果已过期。",
+  "SETUP_ALREADY_DONE": "本实例已完成初始化。",
+  "SETUP_TOKEN_INVALID": "初始化令牌无效或已过期。",
+  "INTERNAL": "服务器内部错误，请查看服务端日志。"
+}

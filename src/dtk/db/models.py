@@ -55,8 +55,20 @@ HYPERTABLES: Final[dict[str, str]] = {
     "content_snapshots": "7 days",
 }
 
-#: Continuous aggregates created by the first migration.
-CONTINUOUS_AGGREGATES: Final[tuple[str, ...]] = ("identity_health_5m", "endpoint_health_5m")
+#: Continuous aggregates created by the first migration, exactly as they appear
+#: in ``timescaledb_information.continuous_aggregates``. ``endpoint_health_5m``
+#: is deliberately not in this tuple: ``count(DISTINCT identity_id)`` is not
+#: partializable, so doc 05's endpoint view is materialized one level lower as
+#: ``endpoint_identity_health_5m`` and rolled up by a plain view.
+CONTINUOUS_AGGREGATES: Final[tuple[str, ...]] = (
+    "identity_health_5m",
+    "endpoint_identity_health_5m",
+)
+
+#: Plain views layered on the aggregates above. Kept apart from
+#: CONTINUOUS_AGGREGATES so a health check does not look for them in the
+#: TimescaleDB catalog, where they will never appear.
+DERIVED_VIEWS: Final[tuple[str, ...]] = ("endpoint_health_5m",)
 
 #: Retention, in days, applied as a TimescaleDB policy. ``content_snapshots`` is
 #: absent on purpose: it is user data and only the user may delete it.
@@ -459,6 +471,7 @@ TASK_STATE_VALUES: Final[tuple[str, ...]] = tuple(s.value for s in TaskState)
 
 __all__ = [
     "CONTINUOUS_AGGREGATES",
+    "DERIVED_VIEWS",
     "HYPERTABLES",
     "IDENTITY_SOURCE_VALUES",
     "IDENTITY_STATE_VALUES",

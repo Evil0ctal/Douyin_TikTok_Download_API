@@ -1,0 +1,103 @@
+{
+  "common": {
+    "unknown": "unknown",
+    "never": "never",
+    "all_platforms": "all platforms"
+  },
+  "state": {
+    "identity": {
+      "minting": "Minting",
+      "active": "Active",
+      "cooling": "Cooling",
+      "degraded": "Degraded",
+      "retired": "Retired"
+    },
+    "task": {
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    }
+  },
+  "outcome": {
+    "ok": "Success",
+    "business_error": "Business error",
+    "risk_control": "Risk control",
+    "network_error": "Network error"
+  },
+  "notify": {
+    "severity": {
+      "error": "Error",
+      "warning": "Warning",
+      "info": "Info"
+    },
+    "endpoint_circuit_open": {
+      "title": "Endpoint circuit opened",
+      "body": "{platform} {endpoint} tripped: {risk_rate}% of the last {samples} requests hit risk control. It will be probed again in {retry_after} seconds."
+    },
+    "pool_empty": {
+      "title": "Identity pool empty",
+      "body": "No active identity is left for {platform}. Requests are queued or rejected until the pool recovers."
+    },
+    "pool_below_min": {
+      "title": "Identity pool below its low-water mark",
+      "body": "{platform} has {active} active identities, below the configured minimum of {minimum}."
+    },
+    "proxy_unhealthy": {
+      "title": "Proxy unreachable",
+      "body": "Proxy {proxy} failed {failures} consecutive probes and was taken out of rotation."
+    },
+    "signature_stale": {
+      "title": "Signing algorithm may be stale",
+      "body": "Local signing disagreed with the browser for {endpoint}. Shadow comparison mismatch rate is {mismatch_rate}%."
+    },
+    "cookie_expiring": {
+      "title": "Session cookie expiring",
+      "body": "Identity {identity_id} expires in {days} days. Re-import it to keep the logged-in pool intact."
+    },
+    "backup_failed": {
+      "title": "Backup failed",
+      "body": "The scheduled backup did not complete: {reason}."
+    },
+    "footer": "Sent by your dtk instance. Alert channels are configured in the console."
+  },
+  "openapi": {
+    "description": "Self-hosted data API for Douyin and TikTok. Submit a link, get normalized content back. Errors carry a stable code plus a message in the requested language; append ?lang=zh for Chinese.",
+    "tag": {
+      "parse": "Platform-agnostic entry point: hand it any supported link.",
+      "douyin": "Douyin endpoints.",
+      "tiktok": "TikTok endpoints.",
+      "tasks": "Asynchronous task submission, polling and events.",
+      "identity": "Identity pool inspection and maintenance.",
+      "system": "Health, version and diagnostics.",
+      "admin": "Instance administration; requires the admin scope."
+    },
+    "op": {
+      "parse": {
+        "summary": "Parse any supported link",
+        "description": "Detects the platform and content kind from the URL, then returns the normalized record. Add ?wait= to block for a result instead of polling the task."
+      },
+      "task_get": {
+        "summary": "Fetch a task",
+        "description": "Returns the task state and, once it is done, its result. Results expire; re-submit if the task is gone."
+      },
+      "ios_shortcut": {
+        "summary": "iOS Shortcut release information",
+        "description": "Version, download link and release notes for the companion iOS Shortcut, rendered in the requested language."
+      },
+      "health": {
+        "summary": "Instance health",
+        "description": "Reports database, cache, browser RPC and identity pool health. Safe to poll from an uptime monitor."
+      }
+    },
+    "param": {
+      "lang": "Response language for human-readable text. One of en or zh; anything else falls back to en.",
+      "wait": "Seconds to wait for the task before returning 202 with a task id.",
+      "cursor": "Opaque cursor from the previous page; omit for the first page.",
+      "count": "Items per page."
+    },
+    "response": {
+      "error": "The request failed. The code field is stable and machine-readable; the message field is localized."
+    }
+  }
+}

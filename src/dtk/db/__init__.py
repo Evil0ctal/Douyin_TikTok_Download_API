@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dtk.db.models import (
     CONTINUOUS_AGGREGATES,
+    DERIVED_VIEWS,
     HYPERTABLES,
     RETENTION_DAYS,
     TABLE_NAMES,
@@ -44,6 +45,7 @@ from dtk.db.repositories import (
 
 __all__ = [
     "CONTINUOUS_AGGREGATES",
+    "DERIVED_VIEWS",
     "HYPERTABLES",
     "RETENTION_DAYS",
     "TABLE_NAMES",

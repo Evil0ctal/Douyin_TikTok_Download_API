@@ -1,0 +1,8 @@
+{
+  "status_code": 10000,
+  "status_msg": "",
+  "verify_center_decision_conf": "{\"verify_center_decision\":\"verify_hit\",\"decision_conf\":{\"subtype\":\"slide\",\"fp\":\"synthetic\"}}",
+  "log_pb": {
+    "impr_id": "20240520000000000000000000000000000001"
+  }
+}

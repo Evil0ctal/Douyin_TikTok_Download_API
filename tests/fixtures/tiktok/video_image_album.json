@@ -1,0 +1,196 @@
+{
+  "itemInfo": {
+    "itemStruct": {
+      "id": "7100000000000000002",
+      "desc": "Six frames from the market, all shot on film #filmphotography #market",
+      "createTime": 1716300000,
+      "video": {
+        "id": "7100000000000000001",
+        "height": 1024,
+        "width": 576,
+        "duration": 0,
+        "ratio": "540p",
+        "cover": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/synthetic-album-01-cover~tplv-photomode.jpeg",
+        "originCover": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/synthetic-album-01-origin-cover~tplv-photomode.jpeg",
+        "dynamicCover": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/synthetic-album-01-dynamic-cover~tplv-photomode.webp",
+        "playAddr": "",
+        "downloadAddr": "",
+        "shareCover": [],
+        "format": "mp4",
+        "bitrate": 1043057,
+        "encodedType": "normal",
+        "videoQuality": "normal",
+        "codecType": "h264",
+        "definition": "540p",
+        "bitrateInfo": [],
+        "volumeInfo": {
+          "Loudness": -14.5,
+          "Peak": 0.9
+        }
+      },
+      "author": {
+        "id": "6900000000000000001",
+        "uniqueId": "synthetic.creator",
+        "nickname": "Synthetic Creator",
+        "avatarLarger": "https://p16-sign-va.example-cdn.invalid/tos-maliva-avt/synthetic-author-01~c5_1080x1080.jpeg",
+        "avatarMedium": "https://p16-sign-va.example-cdn.invalid/tos-maliva-avt/synthetic-author-01~c5_720x720.jpeg",
+        "avatarThumb": "https://p16-sign-va.example-cdn.invalid/tos-maliva-avt/synthetic-author-01~c5_100x100.jpeg",
+        "signature": "Fixture account for tests. Not a real person.",
+        "verified": false,
+        "secUid": "MS4wLjABAAAA_SYNTHETIC_TIKTOK_AUTHOR_0001",
+        "secret": false,
+        "ftc": false,
+        "relation": 0,
+        "openFavorite": false,
+        "commentSetting": 0,
+        "duetSetting": 0,
+        "stitchSetting": 0,
+        "privateAccount": false,
+        "downloadSetting": 0,
+        "isADVirtual": false,
+        "roomId": "",
+        "isEmbedBanned": false
+      },
+      "music": {
+        "id": "6900000000000000102",
+        "title": "original sound - synthetic.creator",
+        "playUrl": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-synthetic-music-2.mp3",
+        "coverLarge": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-synthetic-music-cover-2~1080x1080.jpeg",
+        "coverMedium": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-synthetic-music-cover-2~720x720.jpeg",
+        "coverThumb": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-synthetic-music-cover-2~100x100.jpeg",
+        "authorName": "Synthetic Creator",
+        "original": true,
+        "duration": 21,
+        "album": ""
+      },
+      "challenges": [],
+      "stats": {
+        "collectCount": 612,
+        "commentCount": 93,
+        "diggCount": 4821,
+        "playCount": 88210,
+        "shareCount": 88
+      },
+      "statsV2": {
+        "collectCount": "612",
+        "commentCount": "93",
+        "diggCount": "4821",
+        "playCount": "88210",
+        "shareCount": "88",
+        "repostCount": "0"
+      },
+      "authorStats": {
+        "followerCount": 128400,
+        "followingCount": 42,
+        "heart": 3894512,
+        "heartCount": 3894512,
+        "videoCount": 213,
+        "diggCount": 1820,
+        "friendCount": 12
+      },
+      "textExtra": [
+        {
+          "awemeId": "",
+          "start": 44,
+          "end": 60,
+          "hashtagId": "1600000000000000003",
+          "hashtagName": "filmphotography",
+          "type": 1,
+          "subType": 0,
+          "isCommerce": false
+        },
+        {
+          "awemeId": "",
+          "start": 61,
+          "end": 68,
+          "hashtagId": "1600000000000000004",
+          "hashtagName": "market",
+          "type": 1,
+          "subType": 0,
+          "isCommerce": false
+        }
+      ],
+      "imagePost": {
+        "images": [
+          {
+            "imageURL": {
+              "urlList": [
+                "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-1~tplv-photomode-image.jpeg",
+                "https://p19-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-1~tplv-photomode-image.jpeg"
+              ]
+            },
+            "imageWidth": 1080,
+            "imageHeight": 1440
+          },
+          {
+            "imageURL": {
+              "urlList": [
+                "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-2~tplv-photomode-image.jpeg",
+                "https://p19-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-2~tplv-photomode-image.jpeg"
+              ]
+            },
+            "imageWidth": 1080,
+            "imageHeight": 1440
+          },
+          {
+            "imageURL": {
+              "urlList": [
+                "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-3~tplv-photomode-image.jpeg",
+                "https://p19-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-3~tplv-photomode-image.jpeg"
+              ]
+            },
+            "imageWidth": 1080,
+            "imageHeight": 1440
+          }
+        ],
+        "cover": {
+          "imageURL": {
+            "urlList": [
+              "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-cover~tplv-photomode-image.jpeg"
+            ]
+          },
+          "imageWidth": 1080,
+          "imageHeight": 1440
+        },
+        "shareCover": {
+          "imageURL": {
+            "urlList": [
+              "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/synthetic-photo-share~tplv-photomode-image.jpeg"
+            ]
+          },
+          "imageWidth": 1080,
+          "imageHeight": 1440
+        },
+        "title": ""
+      },
+      "duetInfo": {
+        "duetFromId": "0"
+      },
+      "originalItem": false,
+      "officalItem": false,
+      "secret": false,
+      "forFriend": false,
+      "digged": false,
+      "itemCommentStatus": 0,
+      "takeDown": 0,
+      "privateItem": false,
+      "duetEnabled": false,
+      "stitchEnabled": false,
+      "shareEnabled": true,
+      "isAd": false,
+      "collected": false,
+      "locationCreated": "US",
+      "itemMute": false
+    }
+  },
+  "shareMeta": {
+    "desc": "Six frames from the market, all shot on film #filmphotography #market",
+    "title": "Synthetic Creator on TikTok"
+  },
+  "statusCode": 0,
+  "status_code": 0,
+  "statusMsg": "",
+  "log_pb": {
+    "impr_id": "20240520000000000000000000000000000002"
+  }
+}

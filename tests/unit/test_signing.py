@@ -914,7 +914,8 @@ async def test_native_signer_reports_an_unsignable_query_as_a_signing_failure() 
 async def test_native_signer_reports_an_unencodable_user_agent_as_a_signing_failure() -> None:
     signer = NativeSigner(Platform.TIKTOK, fill_ms_token=False)
     with pytest.raises(SigningFailed, match="could not be computed"):
-        await signer.sign(TIKTOK_SPEC, StaticFingerprint(user_agent="Mozilla/5.0 \u4e2d"))
+        # Latin Extended-A: outside ISO-8859-1, which is what X-Bogus encodes to.
+        await signer.sign(TIKTOK_SPEC, StaticFingerprint(user_agent="Mozilla/5.0 \u0100"))
 
 
 async def test_registry_falls_back_when_the_algorithm_rejects_the_input() -> None:

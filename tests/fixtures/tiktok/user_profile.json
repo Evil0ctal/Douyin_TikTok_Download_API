@@ -1,0 +1,54 @@
+{
+  "userInfo": {
+    "user": {
+      "id": "6900000000000000001",
+      "uniqueId": "synthetic.creator",
+      "nickname": "Synthetic Creator",
+      "avatarLarger": "https://p16-sign-va.example-cdn.invalid/tos-maliva-avt/synthetic-author-01~c5_1080x1080.jpeg",
+      "avatarMedium": "https://p16-sign-va.example-cdn.invalid/tos-maliva-avt/synthetic-author-01~c5_720x720.jpeg",
+      "avatarThumb": "https://p16-sign-va.example-cdn.invalid/tos-maliva-avt/synthetic-author-01~c5_100x100.jpeg",
+      "signature": "Fixture account for tests. Not a real person.",
+      "verified": false,
+      "secUid": "MS4wLjABAAAA_SYNTHETIC_TIKTOK_AUTHOR_0001",
+      "secret": false,
+      "ftc": false,
+      "relation": 0,
+      "openFavorite": false,
+      "commentSetting": 0,
+      "duetSetting": 0,
+      "stitchSetting": 0,
+      "privateAccount": false,
+      "downloadSetting": 0,
+      "isADVirtual": false,
+      "roomId": "",
+      "isEmbedBanned": false
+    },
+    "stats": {
+      "followerCount": 128400,
+      "followingCount": 42,
+      "heart": 3894512,
+      "heartCount": 3894512,
+      "videoCount": 213,
+      "diggCount": 1820,
+      "friendCount": 12
+    },
+    "statsV2": {
+      "followerCount": "128400",
+      "followingCount": "42",
+      "heart": "3894512",
+      "heartCount": "3894512",
+      "videoCount": "213",
+      "diggCount": "1820",
+      "friendCount": "12"
+    }
+  },
+  "shareMeta": {
+    "desc": "Fixture account for tests. Not a real person.",
+    "title": "Synthetic Creator on TikTok"
+  },
+  "statusCode": 0,
+  "status_code": 0,
+  "log_pb": {
+    "impr_id": "20240520000000000000000000000000000002"
+  }
+}

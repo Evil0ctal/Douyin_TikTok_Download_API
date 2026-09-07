@@ -1,0 +1,28 @@
+{
+  "count": {
+    "scale": [
+      { "threshold": 1000000000, "suffix": "B" },
+      { "threshold": 1000000, "suffix": "M" },
+      { "threshold": 1000, "suffix": "K" }
+    ],
+    "group_separator": ",",
+    "suffix_separator": ""
+  },
+  "relative": {
+    "now": "just now",
+    "past": "{value} {unit} ago",
+    "future": "in {value} {unit}"
+  },
+  "duration": {
+    "pattern": "{value} {unit}"
+  },
+  "units": {
+    "second": { "one": "second", "other": "seconds" },
+    "minute": { "one": "minute", "other": "minutes" },
+    "hour": { "one": "hour", "other": "hours" },
+    "day": { "one": "day", "other": "days" },
+    "week": { "one": "week", "other": "weeks" },
+    "month": { "one": "month", "other": "months" },
+    "year": { "one": "year", "other": "years" }
+  }
+}

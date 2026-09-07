@@ -1,0 +1,19 @@
+{
+  "INVALID_URL": "The URL was not recognized as a supported Douyin or TikTok link.",
+  "UNSUPPORTED_CONTENT": "That content type is not supported yet.",
+  "INVALID_PARAM": "One or more request parameters are invalid.",
+  "UNAUTHENTICATED": "A valid API key is required; send it in the X-API-Key header.",
+  "FORBIDDEN_SCOPE": "This API key lacks the scope required by this endpoint.",
+  "NOT_FOUND": "The requested resource does not exist.",
+  "CONTENT_PRIVATE": "This content is private or has been removed by its author.",
+  "RATE_LIMITED": "Too many requests; retry in {retry_after} seconds.",
+  "IDENTITY_POOL_EXHAUSTED": "No identity is available; the pool is expected to recover in {retry_after} seconds.",
+  "ENDPOINT_CIRCUIT_OPEN": "This endpoint is paused after repeated failures; it will be retried in {retry_after} seconds.",
+  "UPSTREAM_RISK_CONTROL": "The platform flagged the request as automated traffic; the identity has been cooled down.",
+  "UPSTREAM_CHANGED": "The platform response no longer matches the expected structure at {path}; please report this.",
+  "SIGNING_FAILED": "Request signing failed; the signing algorithm may be out of date.",
+  "TASK_NOT_FOUND": "No task exists with that id, or its result has already expired.",
+  "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
+  "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
+  "INTERNAL": "An unexpected internal error occurred; check the server logs for details."
+}

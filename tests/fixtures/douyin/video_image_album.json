@@ -1,0 +1,213 @@
+{
+  "status_code": 0,
+  "aweme_detail": {
+    "aweme_id": "7000000000000000002",
+    "desc": "Six frames from the market\nAll shot on film #filmphotography #market",
+    "create_time": 1716300000,
+    "aweme_type": 68,
+    "media_type": 2,
+    "duration": 0,
+    "region": "CN",
+    "is_top": 0,
+    "share_url": "https://www.iesdouyin.com/share/note/7000000000000000002/",
+    "author": {
+      "uid": "1000000000000000001",
+      "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+      "short_id": "88881111",
+      "unique_id": "synthetic_creator",
+      "nickname": "Synthetic Creator",
+      "signature": "Fixture account for tests. Not a real person.",
+      "avatar_larger": {
+        "uri": "douyin-avatar/synthetic-author-01",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/1080x1080/douyin-avatar/synthetic-author-01.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/1080x1080/douyin-avatar/synthetic-author-01.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "avatar_medium": {
+        "uri": "douyin-avatar/synthetic-author-01",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/720x720/douyin-avatar/synthetic-author-01.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/720x720/douyin-avatar/synthetic-author-01.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "avatar_thumb": {
+        "uri": "douyin-avatar/synthetic-author-01",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "custom_verify": "",
+      "enterprise_verify_reason": "",
+      "verification_type": 1,
+      "is_gov_media_vip": false,
+      "is_ad_fake": false,
+      "ip_location": "Synthetic Region",
+      "secret": 0,
+      "user_age": -1,
+      "follower_count": 128400,
+      "following_count": 42,
+      "aweme_count": 213,
+      "total_favorited": 3894512,
+      "favoriting_count": 1820
+    },
+    "statistics": {
+      "aweme_id": "7000000000000000002",
+      "admire_count": 0,
+      "comment_count": 93,
+      "digg_count": 4821,
+      "collect_count": 612,
+      "play_count": 0,
+      "share_count": 88
+    },
+    "status": {
+      "aweme_id": "7000000000000000002",
+      "is_delete": false,
+      "allow_share": true,
+      "is_prohibited": false,
+      "private_status": 0,
+      "in_reviewing": false,
+      "reviewed": 1,
+      "review_result": {
+        "review_status": 0
+      }
+    },
+    "video": {
+      "cover": {
+        "uri": "tos-cn-p-0015/synthetic-album-01-cover",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-album-01-cover.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-album-01-cover.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "origin_cover": {
+        "uri": "tos-cn-p-0015/synthetic-album-01-origin-cover",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-album-01-origin-cover.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-album-01-origin-cover.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "dynamic_cover": {
+        "uri": "tos-cn-p-0015/synthetic-album-01-dynamic-cover",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-album-01-dynamic-cover.webp",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-album-01-dynamic-cover.webp"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "width": 1080,
+      "height": 1920,
+      "ratio": "1080p",
+      "format": "mp4",
+      "is_h265": 0,
+      "duration": 0
+    },
+    "images": [
+      {
+        "uri": "tos-cn-i-0813/synthetic-album-1",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-1.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-1.jpeg"
+        ],
+        "download_url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-1.jpeg?download=1",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-1.jpeg?download=1"
+        ],
+        "width": 1440,
+        "height": 1920,
+        "mask_url_list": [],
+        "video": null
+      },
+      {
+        "uri": "tos-cn-i-0813/synthetic-album-2",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-2.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-2.jpeg"
+        ],
+        "download_url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-2.jpeg?download=1",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-2.jpeg?download=1"
+        ],
+        "width": 1440,
+        "height": 1920,
+        "mask_url_list": [],
+        "video": null
+      },
+      {
+        "uri": "tos-cn-i-0813/synthetic-album-3",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-3.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-3.jpeg"
+        ],
+        "download_url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-3.jpeg?download=1",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-i-0813/synthetic-album-3.jpeg?download=1"
+        ],
+        "width": 1440,
+        "height": 1920,
+        "mask_url_list": [],
+        "video": null
+      }
+    ],
+    "music": {
+      "id": 6800000000000000002,
+      "id_str": "6800000000000000002",
+      "title": "original sound - Synthetic Creator",
+      "author": "Synthetic Creator",
+      "duration": 15,
+      "play_url": {
+        "uri": "https://sf-web.example-cdn.invalid/obj/synthetic-music-02.mp3",
+        "url_list": [
+          "https://sf-web.example-cdn.invalid/obj/synthetic-music-02.mp3"
+        ]
+      },
+      "cover_large": {
+        "uri": "synthetic-music-cover-02",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/1080x1080/synthetic-music-cover-02.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/1080x1080/synthetic-music-cover-02.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "owner_nickname": "Synthetic Creator",
+      "is_original": true,
+      "status": 1
+    },
+    "text_extra": [
+      {
+        "start": 45,
+        "end": 61,
+        "type": 1,
+        "hashtag_name": "filmphotography",
+        "hashtag_id": "1600000000000000003",
+        "is_commerce": false
+      },
+      {
+        "start": 62,
+        "end": 69,
+        "type": 1,
+        "hashtag_name": "market",
+        "hashtag_id": "1600000000000000004",
+        "is_commerce": false
+      }
+    ],
+    "poi_info": null,
+    "images_music": null
+  },
+  "log_pb": {
+    "impr_id": "20240520000000000000000000000000000001"
+  }
+}

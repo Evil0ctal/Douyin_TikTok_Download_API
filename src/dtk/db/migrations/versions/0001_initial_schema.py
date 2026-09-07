@@ -68,15 +68,20 @@ SNAPSHOT_SEGMENT_BY = "platform, content_id"
 SNAPSHOT_ORDER_BY = "ts DESC"
 
 #: Refresh policy window shared by both aggregates. The end offset is two
-#: buckets so a bucket is only materialized once it can no longer receive rows;
-#: everything newer than that is still answered by real-time aggregation.
+#: buckets so a bucket is only materialized once it can no longer receive rows.
+#: Everything newer than that is answered by real-time aggregation, which is
+#: why both views set ``timescaledb.materialized_only = false`` explicitly:
+#: since TimescaleDB 2.13 a new continuous aggregate is materialized-only by
+#: default, and leaving it at the default would make the scheduler's
+#: circuit-breaker inputs (doc 03, third condition) up to end_offset +
+#: schedule_interval stale.
 CAGG_START_OFFSET = "2 hours"
 CAGG_END_OFFSET = "10 minutes"
 CAGG_SCHEDULE = "5 minutes"
 
 IDENTITY_HEALTH_5M = """
 CREATE MATERIALIZED VIEW identity_health_5m
-WITH (timescaledb.continuous) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT time_bucket('5 minutes', ts) AS bucket,
        identity_id,
        count(*)                                         AS total,
@@ -91,7 +96,7 @@ WITH NO DATA
 
 ENDPOINT_IDENTITY_HEALTH_5M = """
 CREATE MATERIALIZED VIEW endpoint_identity_health_5m
-WITH (timescaledb.continuous) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT time_bucket('5 minutes', ts) AS bucket,
        platform, endpoint, identity_id,
        count(*)                                         AS total,
@@ -113,6 +118,18 @@ SELECT bucket,
 FROM endpoint_identity_health_5m
 GROUP BY bucket, platform, endpoint
 """
+
+
+#: The continuous aggregates, in creation order, mirroring
+#: dtk.db.models.CONTINUOUS_AGGREGATES. endpoint_health_5m is not one of them:
+#: it is the plain view below, rolling up the per-identity aggregate.
+CAGGS: dict[str, str] = {
+    "identity_health_5m": IDENTITY_HEALTH_5M,
+    "endpoint_identity_health_5m": ENDPOINT_IDENTITY_HEALTH_5M,
+}
+
+#: Plain views over the aggregates, mirroring dtk.db.models.DERIVED_VIEWS.
+DERIVED_VIEWS: dict[str, str] = {"endpoint_health_5m": ENDPOINT_HEALTH_5M}
 
 
 def _offline() -> bool:
@@ -477,15 +494,15 @@ def _create_continuous_aggregates() -> None:
     holds).
     """
     with op.get_context().autocommit_block():
-        if not _cagg_exists("identity_health_5m"):
-            op.execute(IDENTITY_HEALTH_5M)
-        if not _cagg_exists("endpoint_identity_health_5m"):
-            op.execute(ENDPOINT_IDENTITY_HEALTH_5M)
-        # Plain view, so CREATE OR REPLACE is enough; see the module docstring
+        for name, ddl in CAGGS.items():
+            if not _cagg_exists(name):
+                op.execute(ddl)
+        # Plain views, so CREATE OR REPLACE is enough; see the module docstring
         # for why identities_used cannot be materialized directly.
-        op.execute(ENDPOINT_HEALTH_5M)
+        for ddl in DERIVED_VIEWS.values():
+            op.execute(ddl)
 
-        for cagg in ("identity_health_5m", "endpoint_identity_health_5m"):
+        for cagg in CAGGS:
             op.execute(
                 f"""
                 SELECT add_continuous_aggregate_policy(
@@ -558,10 +575,13 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     with op.get_context().autocommit_block():
-        op.execute("DROP VIEW IF EXISTS endpoint_health_5m")
-        op.execute("DROP MATERIALIZED VIEW IF EXISTS endpoint_identity_health_5m CASCADE")
-        op.execute("DROP MATERIALIZED VIEW IF EXISTS endpoint_health_5m CASCADE")
-        op.execute("DROP MATERIALIZED VIEW IF EXISTS identity_health_5m CASCADE")
+        # Plain views first, and as plain views: DROP MATERIALIZED VIEW against
+        # an ordinary view raises "is not a materialized view", and IF EXISTS
+        # does not suppress a wrong-relkind error.
+        for name in DERIVED_VIEWS:
+            op.execute(f"DROP VIEW IF EXISTS {name}")
+        for name in reversed(list(CAGGS)):
+            op.execute(f"DROP MATERIALIZED VIEW IF EXISTS {name} CASCADE")
 
     # Policies and chunks are dropped along with their hypertable.
     for table in ("content_snapshots", "identity_events", "request_log"):

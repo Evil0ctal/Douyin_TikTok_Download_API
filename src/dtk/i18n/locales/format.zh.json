@@ -1,0 +1,27 @@
+{
+  "count": {
+    "scale": [
+      { "threshold": 100000000, "suffix": "亿" },
+      { "threshold": 10000, "suffix": "万" }
+    ],
+    "group_separator": ",",
+    "suffix_separator": ""
+  },
+  "relative": {
+    "now": "刚刚",
+    "past": "{value}{unit}前",
+    "future": "{value}{unit}后"
+  },
+  "duration": {
+    "pattern": "{value}{unit}"
+  },
+  "units": {
+    "second": { "one": "秒", "other": "秒" },
+    "minute": { "one": "分钟", "other": "分钟" },
+    "hour": { "one": "小时", "other": "小时" },
+    "day": { "one": "天", "other": "天" },
+    "week": { "one": "周", "other": "周" },
+    "month": { "one": "个月", "other": "个月" },
+    "year": { "one": "年", "other": "年" }
+  }
+}

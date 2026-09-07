@@ -1,0 +1,267 @@
+{
+  "status_code": 0,
+  "aweme_detail": {
+    "aweme_id": "7000000000000000005",
+    "desc": "Day 12 of the road trip 🌅🚗\nWe drove 480km before breakfast and the coffee was still better than the stuff at home ☕️\nFull vlog is up on the channel 👇\n#roadtrip #vanlife #sunrise #coffee #travel #dayinthelife",
+    "create_time": 1716500000,
+    "aweme_type": 0,
+    "media_type": 4,
+    "duration": 183000,
+    "author": {
+      "uid": "1000000000000000001",
+      "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+      "short_id": "88881111",
+      "unique_id": "synthetic_creator",
+      "nickname": "Synthetic Creator",
+      "signature": "Fixture account for tests. Not a real person.",
+      "avatar_larger": {
+        "uri": "douyin-avatar/synthetic-author-01",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/1080x1080/douyin-avatar/synthetic-author-01.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/1080x1080/douyin-avatar/synthetic-author-01.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "avatar_medium": {
+        "uri": "douyin-avatar/synthetic-author-01",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/720x720/douyin-avatar/synthetic-author-01.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/720x720/douyin-avatar/synthetic-author-01.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "avatar_thumb": {
+        "uri": "douyin-avatar/synthetic-author-01",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "custom_verify": "",
+      "enterprise_verify_reason": "",
+      "verification_type": 1,
+      "is_gov_media_vip": false,
+      "is_ad_fake": false,
+      "ip_location": "Synthetic Region",
+      "secret": 0,
+      "user_age": -1,
+      "follower_count": 128400,
+      "following_count": 42,
+      "aweme_count": 213,
+      "total_favorited": 3894512,
+      "favoriting_count": 1820
+    },
+    "statistics": {
+      "aweme_id": "7000000000000000005",
+      "admire_count": 0,
+      "comment_count": 17,
+      "digg_count": 903,
+      "collect_count": 44,
+      "play_count": 0,
+      "share_count": 12
+    },
+    "status": {
+      "aweme_id": "7000000000000000005",
+      "is_delete": false,
+      "allow_share": true,
+      "is_prohibited": false,
+      "private_status": 0,
+      "in_reviewing": false,
+      "reviewed": 1,
+      "review_result": {
+        "review_status": 0
+      }
+    },
+    "video": {
+      "cover": {
+        "uri": "tos-cn-p-0015/synthetic-longdesc-01-cover",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-longdesc-01-cover.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-longdesc-01-cover.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "origin_cover": {
+        "uri": "tos-cn-p-0015/synthetic-longdesc-01-origin-cover",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-longdesc-01-origin-cover.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-longdesc-01-origin-cover.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "dynamic_cover": {
+        "uri": "tos-cn-p-0015/synthetic-longdesc-01-dynamic-cover",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-longdesc-01-dynamic-cover.webp",
+          "https://p9-pc-sign.example-cdn.invalid/tos-cn-p-0015/synthetic-longdesc-01-dynamic-cover.webp"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "width": 1080,
+      "height": 1920,
+      "ratio": "1080p",
+      "format": "mp4",
+      "is_h265": 0,
+      "duration": 183000,
+      "play_addr": {
+        "uri": "v0300fg10000synthetic-longdesc-01",
+        "url_list": [
+          "https://v3-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?ratio=1080p&a=6383",
+          "https://v26-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?ratio=1080p&a=6383"
+        ],
+        "width": 1080,
+        "height": 1920,
+        "data_size": 4183220,
+        "file_hash": "0f1e2d3c4b5a6978",
+        "file_cs": "c:0-0"
+      },
+      "play_addr_h264": {
+        "uri": "v0300fg10000synthetic-longdesc-01",
+        "url_list": [
+          "https://v3-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?ratio=1080p&a=6383&h264=1",
+          "https://v26-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?ratio=1080p&a=6383&h264=1"
+        ],
+        "width": 1080,
+        "height": 1920,
+        "data_size": 4183220
+      },
+      "download_addr": {
+        "uri": "v0300fg10000synthetic-longdesc-01",
+        "url_list": [
+          "https://v3-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?ratio=1080p&a=6383&watermark=1",
+          "https://v26-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?ratio=1080p&a=6383&watermark=1"
+        ],
+        "width": 1080,
+        "height": 1920,
+        "data_size": 4519880
+      },
+      "bit_rate": [
+        {
+          "gear_name": "normal_1080_0",
+          "quality_type": 1,
+          "bit_rate": 2185330,
+          "is_h265": 0,
+          "format": "mp4",
+          "play_addr": {
+            "uri": "v0300fg10000synthetic-longdesc-01",
+            "url_list": [
+              "https://v3-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?br=1080&a=6383",
+              "https://v26-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?br=1080&a=6383"
+            ],
+            "width": 1080,
+            "height": 1920,
+            "data_size": 4183220
+          }
+        },
+        {
+          "gear_name": "normal_720_0",
+          "quality_type": 10,
+          "bit_rate": 1120450,
+          "is_h265": 1,
+          "format": "mp4",
+          "play_addr": {
+            "uri": "v0300fg10000synthetic-longdesc-01",
+            "url_list": [
+              "https://v3-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?br=720&a=6383",
+              "https://v26-web.example-cdn.invalid/video/tos/cn/synthetic-longdesc-01/?br=720&a=6383"
+            ],
+            "width": 720,
+            "height": 1280,
+            "data_size": 2143010
+          }
+        }
+      ]
+    },
+    "images": null,
+    "music": {
+      "id": 6800000000000000004,
+      "id_str": "6800000000000000004",
+      "title": "original sound - Synthetic Creator",
+      "author": "Synthetic Creator",
+      "duration": 15,
+      "play_url": {
+        "uri": "https://sf-web.example-cdn.invalid/obj/synthetic-music-04.mp3",
+        "url_list": [
+          "https://sf-web.example-cdn.invalid/obj/synthetic-music-04.mp3"
+        ]
+      },
+      "cover_large": {
+        "uri": "synthetic-music-cover-04",
+        "url_list": [
+          "https://p3-pc-sign.example-cdn.invalid/aweme/1080x1080/synthetic-music-cover-04.jpeg",
+          "https://p9-pc-sign.example-cdn.invalid/aweme/1080x1080/synthetic-music-cover-04.jpeg"
+        ],
+        "width": 720,
+        "height": 720
+      },
+      "owner_nickname": "Synthetic Creator",
+      "is_original": true,
+      "status": 1
+    },
+    "text_extra": [
+      {
+        "start": 150,
+        "end": 159,
+        "type": 1,
+        "hashtag_name": "roadtrip",
+        "hashtag_id": "1600000000000000100",
+        "is_commerce": false
+      },
+      {
+        "start": 160,
+        "end": 168,
+        "type": 1,
+        "hashtag_name": "vanlife",
+        "hashtag_id": "1600000000000000101",
+        "is_commerce": false
+      },
+      {
+        "start": 169,
+        "end": 177,
+        "type": 1,
+        "hashtag_name": "sunrise",
+        "hashtag_id": "1600000000000000102",
+        "is_commerce": false
+      },
+      {
+        "start": 178,
+        "end": 185,
+        "type": 1,
+        "hashtag_name": "coffee",
+        "hashtag_id": "1600000000000000103",
+        "is_commerce": false
+      },
+      {
+        "start": 186,
+        "end": 193,
+        "type": 1,
+        "hashtag_name": "travel",
+        "hashtag_id": "1600000000000000104",
+        "is_commerce": false
+      },
+      {
+        "start": 194,
+        "end": 207,
+        "type": 1,
+        "hashtag_name": "dayinthelife",
+        "hashtag_id": "1600000000000000105",
+        "is_commerce": false
+      }
+    ],
+    "poi_info": {
+      "poi_id": "6600000000000000002",
+      "poi_name": "Synthetic Desert Highway",
+      "type_code": "0102"
+    }
+  },
+  "log_pb": {
+    "impr_id": "20240520000000000000000000000000000001"
+  }
+}
