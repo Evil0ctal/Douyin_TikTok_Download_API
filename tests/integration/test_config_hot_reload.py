@@ -129,15 +129,15 @@ class TestSigningModeReachesTheSigner:
         registry, native, rpc = self._registry(holder)
         key = (Platform.DOUYIN, "/aweme/v1/web/aweme/detail/")
 
-        assert await registry._select(key) is rpc, "rpc is the shipped default"
+        assert await registry._select(key) is native, "native is the shipped default"
 
         # Exactly what settings_store does on a console write: build a new
         # snapshot and swap the reference. No registry is rebuilt.
-        holder[0] = Config({**holder[0].as_dict(), "signing.mode": "native"}, version=1)
-        assert await registry._select(key) is native
-
-        holder[0] = Config({**holder[0].as_dict(), "signing.mode": "rpc"}, version=2)
+        holder[0] = Config({**holder[0].as_dict(), "signing.mode": "rpc"}, version=1)
         assert await registry._select(key) is rpc
+
+        holder[0] = Config({**holder[0].as_dict(), "signing.mode": "native"}, version=2)
+        assert await registry._select(key) is native
 
     @pytest.mark.asyncio
     async def test_the_console_cannot_store_a_mode_the_registry_would_ignore(self):

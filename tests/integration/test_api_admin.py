@@ -104,7 +104,15 @@ async def test_identity_import_stores_and_never_returns_the_cookie(client: Any) 
     assert len(rows) == 1
     assert rows[0]["platform"] == Platform.DOUYIN.value
     assert rows[0]["authenticated"] is True
-    assert "cookie" not in listed.text.lower()
+    # Every value from the imported jar, by value rather than by the word
+    # "cookie": the listing legitimately names the session cookie it is looking
+    # for ("uifid_temp") in its verdict, and a substring check on the word
+    # cannot tell that apart from a leaked credential. What must never appear is
+    # any part of the jar itself.
+    body = listed.text.lower()
+    for secret in ("deadbeefcafebabe0123", "abcdefghijklmnop", "0123456789abcdef"):
+        assert secret not in body
+    assert "cookies_encrypted" not in body
     assert "deadbeefcafebabe0123" not in listed.text
 
     assert "identity.imported" in await audit_actions()
@@ -413,12 +421,14 @@ async def test_a_constrained_setting_ships_its_options_and_refuses_the_rest(
     by_key = {item["key"]: item for item in body["settings"]}
 
     assert by_key["signing.mode"]["choices"] == ["rpc", "native", "auto"]
-    assert by_key["signing.mode"]["value"] == "rpc"
+    # native is the shipped default now that the in-process signers match what
+    # both platforms actually send; rpc is the fallback, not the norm.
+    assert by_key["signing.mode"]["value"] == "native"
     # An ordinary setting has none, so the console keeps rendering a text box.
     assert by_key["cache.content_ttl"]["choices"] is None
 
-    accepted = await client.put("/api/v1/admin/settings/signing.mode", json={"value": "native"})
-    assert envelope(accepted)["data"]["value"] == "native"
+    accepted = await client.put("/api/v1/admin/settings/signing.mode", json={"value": "rpc"})
+    assert envelope(accepted)["data"]["value"] == "rpc"
 
     rejected = await client.put("/api/v1/admin/settings/signing.mode", json={"value": "browser"})
     assert error_code(rejected) == "INVALID_PARAM"
