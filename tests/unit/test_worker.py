@@ -30,6 +30,8 @@ from dtk.core.errors import (
     UpstreamRiskControl,
 )
 from dtk.core.types import IdentityState, Language, Outcome, Platform, Scope, TaskState
+from dtk.platforms import get_adapter
+from dtk.platforms.tiktok.params import DEVICE_ID_DIGITS
 from dtk.services.fetch import FetchResult
 from dtk.services.tasks import TaskView
 from dtk.worker import maintenance as maintenance_module
@@ -1327,3 +1329,49 @@ def test_the_socket_outlives_the_longest_blocking_command() -> None:
         f"socket_timeout {SOCKET_TIMEOUT_SECONDS}s does not outlast a "
         f"{longest_block}s blocking command; every idle poll will raise"
     )
+
+
+class TestTikTokDeviceId:
+    """`device_id` is required, and its absence is silent.
+
+    Measured against live TikTok on 2026-09-08. Without this parameter every
+    endpoint answers 200 with an EMPTY BODY and the header `tt_orcas_res: 1` -
+    no status code, no message. Every TikTok call this project made was
+    returning nothing for exactly this reason, and it survived a long hunt
+    through signatures, cookies, TLS profiles and identity pools because an
+    empty 200 reads as risk control.
+
+    Adding only `device_id` took /api/item/detail/ from 0 bytes to a full
+    itemStruct; adding only `odinId` or only `WebIdLastTime` left it gated.
+    """
+
+    def test_every_tiktok_request_carries_a_device_id(self) -> None:
+        adapter = get_adapter(Platform.TIKTOK)
+        for endpoint, params in (
+            ("tiktok.content_detail", {"item_id": "7218694761253735723"}),
+            ("tiktok.author_profile", {"unique_id": "owlcitymusic"}),
+            ("tiktok.comments", {"aweme_id": "7218694761253735723"}),
+            ("tiktok.author_posts", {"sec_uid": "MS4wLjABAAAA"}),
+        ):
+            built = adapter.build_request(endpoint, **params)
+            device_id = built["params"].get("device_id")
+            assert device_id, f"{endpoint} sends no device_id"
+            assert device_id.isdigit(), f"{endpoint} device_id is not numeric: {device_id!r}"
+            assert len(device_id) == DEVICE_ID_DIGITS, (
+                f"{endpoint} device_id is {len(device_id)} digits"
+            )
+            assert not device_id.startswith("0"), "a leading zero is not a plausible device id"
+
+    def test_two_requests_do_not_share_one_device_id(self) -> None:
+        """Sharing one value across identities would link them to each other.
+
+        Per-call is a compromise - a real device id is stable for the life of a
+        browser - but the alternative available at this layer is one constant
+        for every identity, which is worse. See params.DEVICE_ID_DIGITS.
+        """
+        adapter = get_adapter(Platform.TIKTOK)
+        seen = {
+            adapter.build_request("tiktok.content_detail", item_id="7")["params"]["device_id"]
+            for _ in range(20)
+        }
+        assert len(seen) > 1, "device_id is constant across requests"

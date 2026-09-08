@@ -19,6 +19,7 @@ Differences from V4, for the same reasons as the Douyin module:
 
 from __future__ import annotations
 
+import random
 from typing import Final
 
 from dtk.core.errors import InvalidParam
@@ -56,6 +57,38 @@ DEFAULT_PAGE_SIZE: Final = 30
 #: TikTok's cover format selector: 2 asks for WebP covers.
 COVER_FORMAT: Final = "2"
 
+#: `device_id` is not optional, and its absence does not look like an error.
+#:
+#: Measured on 2026-09-08. Without it TikTok answers 200 with an EMPTY BODY and
+#: the header `tt_orcas_res: 1` - no status code, no message, nothing that reads
+#: as "you forgot a parameter". Every TikTok endpoint this project calls was
+#: silently returning nothing for exactly this reason, and it survived a long
+#: hunt through signatures, cookies, TLS profiles and identity pools because an
+#: empty 200 looks like risk control.
+#:
+#: One parameter lifts it. Adding only `device_id` to an otherwise unchanged
+#: request took /api/item/detail/ from 0 bytes to a full itemStruct, while
+#: adding only `odinId` or only `WebIdLastTime` left it gated. The value does
+#: not have to be a real one: a random 19-digit number works exactly as well as
+#: the one the browser had been issued.
+#:
+#: It is generated per call rather than per identity, which is a compromise
+#: worth naming: a real device id is stable for the life of a browser, so an
+#: identity whose device changes every request is not perfectly plausible. The
+#: alternative available at this layer - one value shared by every identity -
+#: would be worse, because it would link them to each other. Making it properly
+#: per-identity needs the identity to reach the parameter builder, which it does
+#: not today.
+DEVICE_ID_DIGITS: Final = 19
+
+
+def _device_id(rng: random.Random | None = None) -> str:
+    """A well-formed TikTok web device id. See DEVICE_ID_DIGITS for why it exists."""
+    source = rng or random
+    first = source.randint(1, 9)
+    rest = "".join(str(source.randint(0, 9)) for _ in range(DEVICE_ID_DIGITS - 1))
+    return f"{first}{rest}"
+
 
 def base_params(profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     """The parameters every TikTok web API call carries."""
@@ -70,6 +103,7 @@ def base_params(profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
         "browser_version": profile.browser_version,
         "channel": CHANNEL,
         "cookie_enabled": "true",
+        "device_id": _device_id(),
         "device_platform": "web_pc",
         "focus_state": "true",
         "from_page": "user",
