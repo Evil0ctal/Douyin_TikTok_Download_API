@@ -221,8 +221,12 @@ class NativeSigner:
           among the business parameters would sign a query TikTok never sends.
           It is taken from the caller's own value first - the shadow comparison
           pins one so both signers sign identical bytes - then from the
-          identity's jar, then invented, then left empty, which is what the SDK
-          itself emits when it has no token.
+          identity's jar, and otherwise left EMPTY. It is never invented, unlike
+          every other platform here: TikTok verifies the token when one is
+          present but accepts its absence, so a fabricated value turns a request
+          that would have worked into one that cannot. Measured on one identity,
+          2026-09-08: real token 2545 bytes, no token 2541 bytes, fabricated
+          token of the same length 0 bytes and ``tt_orcas_res: 1``.
         * ``X-Bogus`` is the constant ``1``. The real 16-character X-Bogus only
           exists on websocket handshakes, so computing one here would send a
           parameter set TikTok's own page never sends.
@@ -230,8 +234,6 @@ class NativeSigner:
         token = params.pop(MS_TOKEN_PARAM, "") or tiktok_sign.pick_ms_token(
             session.cookies if session is not None else None
         )
-        if not token and self.fill_ms_token:
-            token = gen_false_ms_token(TIKTOK_MS_TOKEN_LENGTH, rng=self._rng)
         query, added = tiktok_sign.sign(
             list(params.items()), user_agent, ms_token=token, rng=self._rng
         )

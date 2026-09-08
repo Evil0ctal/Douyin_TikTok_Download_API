@@ -86,7 +86,6 @@ from dtk.signing.native.tokens import (
     DOUYIN_MS_TOKEN_LENGTH,
     DOUYIN_TTWID,
     MS_TOKEN_ALPHABET,
-    TIKTOK_MS_TOKEN_LENGTH,
     VERIFY_FP_ALPHABET,
     MsTokenSpec,
     gen_false_ms_token,
@@ -774,6 +773,41 @@ async def test_native_signer_fills_a_missing_ms_token_only() -> None:
     )
     assert MS_TOKEN_PARAM not in without.params
     assert MS_TOKEN_PARAM not in parse_qs(without.query)
+
+
+async def test_native_signer_never_invents_a_tiktok_ms_token() -> None:
+    """On TikTok a fabricated token is strictly worse than no token.
+
+    Douyin accepts an invented msToken, so the signer fills one in. TikTok
+    verifies the token when one is present and accepts its absence, which makes
+    the same convenience actively harmful: it turns a request that would have
+    been answered into one that cannot be. Measured on one identity, 2026-09-08 -
+    the identity's own token 2545 bytes, no token 2541 bytes, a fabricated token
+    of the same length 0 bytes and `tt_orcas_res: 1`.
+
+    `fill_ms_token` therefore has to stay a Douyin-only behaviour even when it is
+    left on, which is what this pins.
+    """
+    signed = await NativeSigner(Platform.TIKTOK, rng=random.Random(5)).sign(
+        TIKTOK_SPEC, FINGERPRINT
+    )
+    assert signed.params[MS_TOKEN_PARAM] == ""
+    assert f"&{MS_TOKEN_PARAM}=&" in signed.query
+
+    # The same signer, same flag, still fills Douyin's in.
+    douyin = await NativeSigner(Platform.DOUYIN, rng=random.Random(5)).sign(
+        DOUYIN_SPEC, FINGERPRINT
+    )
+    assert douyin.params[MS_TOKEN_PARAM]
+
+
+async def test_a_tiktok_ms_token_still_comes_from_the_identity_jar() -> None:
+    """Not inventing one must not stop it using the real one."""
+    signer = NativeSigner(Platform.TIKTOK)
+    signed = await signer.sign(
+        TIKTOK_SPEC, FINGERPRINT, SigningSession(cookies={MS_TOKEN_PARAM: "from-the-jar"})
+    )
+    assert signed.params[MS_TOKEN_PARAM] == "from-the-jar"
 
 
 async def test_native_signer_uses_the_fingerprint_user_agent() -> None:
@@ -2865,12 +2899,26 @@ class TestNativeSignerOnTikTok:
         assert signed.params["msToken"] == "PINNED"
         assert "msToken=PINNED" in signed.query
 
-    async def test_without_a_jar_it_invents_one_only_when_asked(self):
+    async def test_without_a_jar_it_sends_no_token_rather_than_inventing_one(self):
+        """An empty msToken is answered; an invented one is not.
+
+        This asserted the opposite until 2026-09-08, when the two cases were
+        measured against the platform instead of against each other: on one
+        identity the real token returned 2545 bytes, no token 2541, and a
+        fabricated token of the same length 0 bytes with `tt_orcas_res: 1`.
+        TikTok verifies the token if a request carries one, so filling the gap
+        is what breaks the request.
+
+        `fill_ms_token` is left at its default here on purpose - the point is
+        that the flag no longer reaches this platform at all.
+        """
         signed = await self._sign({"aid": "1988"}, fill_ms_token=False)
         assert signed.params["msToken"] == ""
         assert "&msToken=&" in signed.query
-        filled = await self._sign({"aid": "1988"})
-        assert len(filled.params["msToken"]) == TIKTOK_MS_TOKEN_LENGTH + 2
+
+        default_flag = await self._sign({"aid": "1988"})
+        assert default_flag.params["msToken"] == ""
+        assert "&msToken=&" in default_flag.query
 
     async def test_it_no_longer_computes_a_sixteen_character_x_bogus(self):
         signed = await self._sign({"aid": "1988"})

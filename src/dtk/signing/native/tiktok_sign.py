@@ -651,11 +651,17 @@ def sign(
     returned query is the exact byte sequence to send - re-encoding it breaks
     the seal.
 
-    ``ms_token`` goes in verbatim, empty included. It is the identity's session
-    token, and TikTok does not appear to gate on it (the same signed URL returned
-    a full payload with the signing page's own jar, with an unrelated identity's
-    jar, and with no msToken at all), but it is inside the sealed bytes, so what
-    is signed and what is sent must be the same string.
+    ``ms_token`` goes in verbatim, empty included, and must never be fabricated.
+    TikTok verifies the token when one is present and accepts its absence, so an
+    invented value is strictly worse than none. Measured on one identity,
+    2026-09-08: the identity's own token returned 2545 bytes, no token at all
+    2541 bytes, and a fabricated token of the same length 0 bytes with
+    ``tt_orcas_res: 1``. The same asymmetry explains why an identity minted with
+    the 128-character bootstrap token is permanently refused - it holds a real
+    token that is not the one it was issued.
+
+    It is inside the sealed bytes, so what is signed and what is sent must be the
+    same string.
     """
     source = rng or random.Random()
     stamp = int(time.time()) if timestamp is None else int(timestamp)
