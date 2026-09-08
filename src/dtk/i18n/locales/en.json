@@ -59,7 +59,11 @@
       "title": "Backup failed",
       "body": "The scheduled backup did not complete: {reason}."
     },
-    "footer": "Sent by your dtk instance. Alert channels are configured in the console."
+    "footer": "Sent by your dtk instance. Alert channels are configured in the console.",
+    "test": {
+      "title": "Test alert",
+      "body": "This is a test alert from your dtk instance, sent to the {channel} channel because someone asked for it in the console. Nothing is wrong and no action is needed."
+    }
   },
   "settings": {
     "description": {

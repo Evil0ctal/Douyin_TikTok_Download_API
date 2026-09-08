@@ -19,9 +19,9 @@ from argon2 import PasswordHasher
 from rich.text import Text
 
 from dtk.cli import output, runtime
-from dtk.cli.masking import short_id
 from dtk.core.types import UserRole
 from dtk.db.repositories import UserRepository
+from dtk.ops.masking import short_id
 
 #: OWASP Password Storage Cheat Sheet, argon2id: 19 MiB, two iterations, one
 #: lane. Changing these does not invalidate existing hashes - the parameters are

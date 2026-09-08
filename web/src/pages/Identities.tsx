@@ -55,7 +55,7 @@ interface ImportResponse {
   report: CookieReport
 }
 
-/** One identity probe (mirrors IdentityProbe in src/dtk/cli/probes.py). */
+/** One identity probe (mirrors IdentityProbe in src/dtk/ops/probes.py). */
 interface IdentityProbeResult {
   ok?: boolean
   outcome?: Outcome | null

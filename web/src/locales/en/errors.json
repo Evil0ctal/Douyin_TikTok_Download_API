@@ -17,7 +17,8 @@
     "TASK_NOT_FOUND": "No task exists with that id, or its result has already expired.",
     "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
     "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
-    "INTERNAL": "An unexpected internal error occurred."
+    "INTERNAL": "An unexpected internal error occurred.",
+    "NOT_CONFIGURED": "Not configured"
   },
   "hint": {
     "INVALID_URL": "Check the link and paste it again. Retrying will not help.",
@@ -36,7 +37,8 @@
     "TASK_NOT_FOUND": "Submit the request again.",
     "SETUP_ALREADY_DONE": "Sign in instead.",
     "SETUP_TOKEN_INVALID": "Restart the api container to print a fresh token in the logs.",
-    "INTERNAL": "Report the issue with the request id and check the server logs."
+    "INTERNAL": "Report the issue with the request id and check the server logs.",
+    "NOT_CONFIGURED": "This instance does not have that component set up. It is a deployment setting, not a temporary failure, so retrying will not help."
   },
   "generic": {
     "network": "Cannot reach the API. Check that the service is running and reachable.",

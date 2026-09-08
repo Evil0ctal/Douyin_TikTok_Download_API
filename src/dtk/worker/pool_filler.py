@@ -43,6 +43,9 @@ log = get_logger(__name__)
 #: One mint at a time across every worker replica.
 MINT_LOCK_KEY = "worker:mint:lock"
 
+#: Beat for polling the cross-process mint lock when a caller can wait.
+REMOTE_LOCK_POLL_SECONDS: float = 0.5
+
 #: Compare-and-delete, so a lock that already expired and was taken by another
 #: replica is not released by the previous holder.
 _UNLOCK_LUA = """
@@ -75,6 +78,8 @@ class FillResult:
     identity_id: uuid.UUID | None = None
     minted: bool = False
     reason: str = "idle"
+    #: The egress the identity was bound to for life; None is the direct one.
+    proxy_id: uuid.UUID | None = None
 
 
 class PoolFiller:
@@ -188,30 +193,74 @@ class PoolFiller:
             await raise_alert(self._alerter, event, **args)
         return worst[1] if worst else None
 
-    async def top_up_once(self, platform: Platform) -> FillResult:
+    async def top_up_once(
+        self,
+        platform: Platform,
+        *,
+        proxy_id: uuid.UUID | None = None,
+        wait_seconds: float = 0.0,
+        shared_backoff: bool = True,
+    ) -> FillResult:
         """Mint exactly one identity for ``platform``.
 
         Serialized twice: an in-process lock for this worker's own loops and a
         Redis lock for the other replicas.
+
+        ``proxy_id`` pins the egress rather than letting the survey pick one.
+        Only the console's Mint button passes it; the periodic sweep has no
+        opinion about which proxy an identity ends up behind.
+
+        The two callers want opposite things when the lock is taken, which is
+        what ``wait_seconds`` selects. The sweep runs every minute, so failing
+        fast costs it nothing and holding a slot would cost it something. A
+        person who pressed Mint is waiting on a task, and the console submits
+        one task per identity requested - so failing fast turned a request for
+        five identities into one mint and four "too many requests" toasts.
+
+        ``shared_backoff`` is the same split on the way out. A failure during
+        the sweep should slow the sweep down; ten button presses against a
+        browser that is down should not silence automatic refill for an hour,
+        which is where the shared counter takes it.
         """
         if not self.enabled:
             return FillResult(platform=platform, reason="disabled")
-        if self._local_lock.locked():
+        if not await self._take_local_lock(wait_seconds):
             return FillResult(platform=platform, reason="busy")
 
-        async with self._local_lock:
+        try:
             token = uuid.uuid4().hex
-            if not await self._acquire_remote(token):
+            if not await self._acquire_remote(token, wait_seconds=wait_seconds):
                 return FillResult(platform=platform, reason="locked")
             try:
-                return await self._mint(platform)
+                return await self._mint(platform, proxy_id=proxy_id, shared_backoff=shared_backoff)
             finally:
                 await self._release_remote(token)
+        finally:
+            self._local_lock.release()
 
-    async def _mint(self, platform: Platform) -> FillResult:
+    async def _take_local_lock(self, wait_seconds: float) -> bool:
+        """Acquire this process's mint lock, waiting at most ``wait_seconds``."""
+        if wait_seconds <= 0:
+            if self._local_lock.locked():
+                return False
+            await self._local_lock.acquire()
+            return True
+        try:
+            await asyncio.wait_for(self._local_lock.acquire(), timeout=wait_seconds)
+        except TimeoutError:
+            return False
+        return True
+
+    async def _mint(
+        self,
+        platform: Platform,
+        *,
+        proxy_id: uuid.UUID | None = None,
+        shared_backoff: bool = True,
+    ) -> FillResult:
         assert self._rpc is not None  # guarded by `enabled`
         async with self._session_factory() as session:
-            proxy, reason = await self._pick_proxy(session, platform)
+            proxy, reason = await self._pick_proxy(session, platform, proxy_id=proxy_id)
             if reason is not None:
                 log.info("worker.mint.skipped", platform=platform.value, reason=reason)
                 return FillResult(platform=platform, reason=reason)
@@ -244,11 +293,13 @@ class PoolFiller:
                     proxy_id=proxy.id if proxy is not None else None,
                 )
             except BrowserRpcUnavailable as exc:
-                return self._failed(platform, "rpc_unavailable", exc)
+                return self._failed(platform, "rpc_unavailable", exc, shared_backoff=shared_backoff)
             except ValueError as exc:
                 # A fingerprint with no inferable browser. Doc 02: refuse it
                 # rather than pair a default UA with an unknown TLS profile.
-                return self._failed(platform, "unusable_fingerprint", exc)
+                return self._failed(
+                    platform, "unusable_fingerprint", exc, shared_backoff=shared_backoff
+                )
 
         self._failures = 0
         self._blocked_until = 0.0
@@ -258,9 +309,31 @@ class PoolFiller:
             identity_id=str(identity_id),
             proxy_id=str(proxy.id) if proxy is not None else None,
         )
-        return FillResult(platform=platform, identity_id=identity_id, minted=True, reason="minted")
+        return FillResult(
+            platform=platform,
+            identity_id=identity_id,
+            minted=True,
+            reason="minted",
+            proxy_id=proxy.id if proxy is not None else None,
+        )
 
-    def _failed(self, platform: Platform, reason: str, exc: Exception) -> FillResult:
+    def _failed(
+        self, platform: Platform, reason: str, exc: Exception, *, shared_backoff: bool = True
+    ) -> FillResult:
+        if not shared_backoff:
+            # A hand-triggered mint that failed says nothing new about the
+            # sweep's health, and letting it drive the shared counter means a
+            # burst of console presses against a down browser escalates the
+            # automatic backoff to its ceiling and stops refill for an hour.
+            log.warning(
+                "worker.mint.failed",
+                platform=platform.value,
+                reason=reason,
+                manual=True,
+                error=str(exc)[:200],
+            )
+            return FillResult(platform=platform, reason=reason)
+
         self._failures += 1
         delay = min(
             self._options.backoff_initial_seconds * (2 ** (self._failures - 1)),
@@ -279,17 +352,26 @@ class PoolFiller:
 
     # -- proxies -----------------------------------------------------------
 
-    async def _pick_proxy(self, session: Any, platform: Platform) -> tuple[Any, str | None]:
+    async def _pick_proxy(
+        self, session: Any, platform: Platform, *, proxy_id: uuid.UUID | None = None
+    ) -> tuple[Any, str | None]:
         """Choose an egress no live identity of this platform already uses.
 
         Two identities behind one exit address is the recombination doc 02
         forbids, so when every proxy is taken this job waits rather than
         doubling up. A deployment with no proxies at all mints on the direct
         egress, which is what a user without proxies asked for.
+
+        A named ``proxy_id`` overrides that search rather than being checked
+        against it: the operator chose this exit deliberately, and a one-proxy
+        install could otherwise never mint its second identity.
         """
         from dtk.db.repositories import ProxyRepository
 
         proxies = ProxyRepository(session)
+        if proxy_id is not None:
+            named = await proxies.get(proxy_id)
+            return (named, None) if named is not None else (None, "proxy_not_found")
         free = await proxies.list_unbound(platform)
         if free:
             return free[0], None
@@ -307,17 +389,25 @@ class PoolFiller:
 
     # -- cross-process lock ------------------------------------------------
 
-    async def _acquire_remote(self, token: str) -> bool:
+    async def _acquire_remote(self, token: str, *, wait_seconds: float = 0.0) -> bool:
         if not self._distributed_lock:
             return True
         from dtk.core.redis import get_redis
 
+        deadline = self._now() + max(wait_seconds, 0.0)
         try:
-            return bool(
-                await get_redis().set(
-                    MINT_LOCK_KEY, token, ex=self._options.lock_ttl_seconds, nx=True
+            while True:
+                taken = bool(
+                    await get_redis().set(
+                        MINT_LOCK_KEY, token, ex=self._options.lock_ttl_seconds, nx=True
+                    )
                 )
-            )
+                if taken or self._now() >= deadline:
+                    return taken
+                # Polling rather than a blocking lock: SET NX is the only
+                # primitive every Redis deployment here agrees on, and a mint
+                # takes seconds, so a half-second beat is far below the wait.
+                await asyncio.sleep(min(REMOTE_LOCK_POLL_SECONDS, max(deadline - self._now(), 0.0)))
         except Exception as exc:
             # Without the lock this cannot promise one mint at a time, so it
             # declines to mint rather than risking a burst.

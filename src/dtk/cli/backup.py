@@ -22,6 +22,7 @@ import typer
 
 from dtk.cli import output, runtime
 from dtk.ops.backup import (
+    DEFAULT_BACKUP_DIR,
     BackupError,
     BackupInfo,
     RestoreReport,
@@ -31,10 +32,6 @@ from dtk.ops.backup import (
     read_manifest,
     restore_backup,
 )
-
-#: Where archives go when no path is given. Relative, so a container that binds
-#: a volume at ./backups gets them on the host without extra configuration.
-DEFAULT_BACKUP_DIR = Path("backups")
 
 app = typer.Typer(no_args_is_help=True, help="Create, inspect and restore backups.")
 

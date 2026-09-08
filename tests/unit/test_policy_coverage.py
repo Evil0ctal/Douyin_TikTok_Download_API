@@ -62,3 +62,53 @@ def test_list_endpoints_are_throttled_harder_than_detail_lookups():
         posts = policy_for(f"{platform}.author_posts")
         assert posts.refill_per_sec < detail.refill_per_sec
         assert posts.risk_weight > detail.risk_weight
+
+
+# --------------------------------------------------------------------------
+# The other endpoint namespace
+#
+# The console submits six jobs that are not platform reads. They travel as task
+# endpoints through the same field, so the same silent-failure shape applies -
+# and it fired: the worker had only the platform registry, so every one of these
+# failed with "unknown endpoint" while the console showed a spinner and then a
+# generic error. Nothing connected the enum the routes submit to the table the
+# worker dispatches on, which is what these assert.
+# --------------------------------------------------------------------------
+
+
+def test_every_maintenance_endpoint_the_routes_submit_has_a_handler():
+    from dtk.api.routes.operations import Maintenance
+    from dtk.worker.ops import ENDPOINTS
+
+    submitted = {member.value for member in Maintenance}
+    missing = sorted(submitted - ENDPOINTS)
+    assert not missing, (
+        f"the console submits {missing} but the worker has no handler; each will "
+        "fail with 'unknown endpoint' after the user waits for it"
+    )
+
+
+def test_no_handler_exists_for_an_endpoint_nothing_submits():
+    """The other direction: a handler left behind by a renamed operation."""
+    from dtk.api.routes.operations import Maintenance
+    from dtk.worker.ops import ENDPOINTS
+
+    submitted = {member.value for member in Maintenance}
+    orphaned = sorted(ENDPOINTS - submitted)
+    assert not orphaned, f"handlers no route submits any more: {orphaned}"
+
+
+def test_the_two_dispatch_tables_do_not_overlap():
+    """A name in both would be ambiguous, and the worker checks one of them first."""
+    from dtk.worker import registry
+    from dtk.worker.ops import ENDPOINTS
+
+    overlap = sorted(ENDPOINTS & set(registry.ENDPOINTS))
+    assert not overlap, f"claimed by both the platform registry and maintenance: {overlap}"
+
+
+def test_the_handler_table_matches_the_declared_endpoint_set():
+    """ENDPOINTS is what the worker asks; the table is what actually runs."""
+    from dtk.worker.ops import ENDPOINTS, _handlers
+
+    assert set(_handlers()) == ENDPOINTS

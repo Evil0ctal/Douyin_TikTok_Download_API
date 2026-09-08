@@ -17,7 +17,25 @@ _client: Redis | None = None
 _scripts: dict[str, AsyncScript] = {}
 
 
-def init_redis(url: str, *, max_connections: int = 64, pool_timeout: float = 10.0) -> Redis:
+#: Longest a blocking Redis command in this codebase waits, plus room.
+#:
+#: redis-py 8 changed the default socket_timeout from None to 5 seconds, which
+#: is exactly what ``tasks.claim`` passes to BLPOP. The read then times out at
+#: the same instant the command is due to return empty, so every idle poll
+#: raised instead of returning None: the worker logged "Timeout reading from
+#: redis" every few seconds and picked tasks up late. The socket has to be
+#: allowed to outlast the command it is carrying, and the value is set here
+#: rather than inherited so the next library default cannot move it back.
+SOCKET_TIMEOUT_SECONDS: float = 30.0
+
+
+def init_redis(
+    url: str,
+    *,
+    max_connections: int = 64,
+    pool_timeout: float = 10.0,
+    socket_timeout: float = SOCKET_TIMEOUT_SECONDS,
+) -> Redis:
     """Create the shared client.
 
     A blocking pool is used deliberately. The default pool raises
@@ -30,6 +48,7 @@ def init_redis(url: str, *, max_connections: int = 64, pool_timeout: float = 10.
         url,
         max_connections=max_connections,
         timeout=pool_timeout,
+        socket_timeout=socket_timeout,
         decode_responses=True,
         health_check_interval=30,
     )
@@ -65,4 +84,11 @@ async def close_redis() -> None:
     _scripts.clear()
 
 
-__all__ = ["close_redis", "get_redis", "init_redis", "register_script", "run_script"]
+__all__ = [
+    "SOCKET_TIMEOUT_SECONDS",
+    "close_redis",
+    "get_redis",
+    "init_redis",
+    "register_script",
+    "run_script",
+]

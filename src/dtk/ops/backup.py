@@ -65,6 +65,30 @@ DATA_DIR: Final[str] = "data"
 ARCHIVE_SUFFIX: Final[str] = ".tar.gz"
 FILENAME_PREFIX: Final[str] = "dtk-backup-"
 
+
+#: Where archives go when no path is given. Relative, so a container that binds
+#: a volume at ./backups gets them on the host without extra configuration.
+#: It lives here rather than beside one caller because every writer and every
+#: reader has to agree on it: an archive the CLI's ``backup list`` cannot find
+#: is not a backup.
+def default_backup_dir() -> Path:
+    """Where archives live, from DTK_BACKUP_DIR.
+
+    Read per call rather than frozen at import: the container sets it to a
+    mounted volume because the image itself is read-only, and a module-level
+    constant would bake in whatever the environment looked like when the first
+    import happened - which, for a test that patches the environment, is the
+    wrong answer.
+    """
+    from dtk.core.config import BootstrapSettings
+
+    return Path(BootstrapSettings().backup_dir)
+
+
+#: The checkout default. Callers that must honour DTK_BACKUP_DIR use
+#: :func:`default_backup_dir` instead.
+DEFAULT_BACKUP_DIR: Final[Path] = Path("backups")
+
 #: Domain-separated label for the key check, so the value in a manifest can
 #: never be replayed as any other HMAC this project computes.
 _KEY_CHECK_LABEL: Final[bytes] = b"dtk.backup.key-check.v1"
@@ -637,6 +661,7 @@ def _member_bytes(archive: tarfile.TarFile, name: str) -> bytes | None:
 __all__ = [
     "ARCHIVE_SUFFIX",
     "BACKUP_SCHEMA_VERSION",
+    "DEFAULT_BACKUP_DIR",
     "DEFAULT_TABLES",
     "EXCLUDED_TABLES",
     "MANIFEST_NAME",
@@ -654,6 +679,7 @@ __all__ = [
     "check_schema_version",
     "create_backup",
     "decode_row",
+    "default_backup_dir",
     "default_filename",
     "encode_row",
     "iter_table",

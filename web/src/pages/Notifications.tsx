@@ -579,6 +579,15 @@ function ChannelEditor({ open, draft, existingNames, saving, onChange, onClose, 
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/** Wire shape of the notify.test task result. Status is a code, never translated. */
+interface TestResult {
+  channel?: string | null
+  status?: 'sent' | 'partial' | 'failed' | 'disabled'
+  sent?: boolean
+  delivered?: string[]
+  failed?: Record<string, string>
+}
+
 export default function Notifications() {
   const { t } = useTranslation(['console', 'common'])
   const toast = useToast()
@@ -640,16 +649,35 @@ export default function Notifications() {
     )
   }
 
-  const sendTest = useApiMutation<unknown, string | null>(
+  const sendTest = useApiMutation<TestResult | null, string | null>(
     async (channel) => {
       const accepted = await apiPost<{ task_id?: string }>(paths.notifications.test, { channel })
-      if (accepted?.task_id) return waitForTask(accepted.task_id, { timeoutMs: 60_000 })
-      return accepted
+      if (accepted?.task_id) {
+        return waitForTask<TestResult>(accepted.task_id, { timeoutMs: 60_000 })
+      }
+      return null
     },
     {
-      onSuccess: () => {
+      // A task that finished is not a delivery that worked. The worker reports
+      // an attempted-and-refused channel as a DONE task carrying status
+      // "failed", so treating every completion as success told the operator the
+      // channel was fine - which is the one thing this button exists to answer.
+      onSuccess: (result) => {
         setTesting(null)
-        toast.success(t('notifications.toast.testSent'))
+        const failed = result?.failed ?? {}
+        const names = Object.keys(failed)
+        if (result?.status === 'disabled') {
+          toast.info(t('notifications.toast.testDisabled'))
+        } else if (names.length > 0) {
+          toast.error(
+            t('notifications.toast.testRefused', {
+              channels: names.join(', '),
+              reason: failed[names[0] as keyof typeof failed] ?? '',
+            }),
+          )
+        } else {
+          toast.success(t('notifications.toast.testSent'))
+        }
       },
       onError: (error) => {
         setTesting(null)

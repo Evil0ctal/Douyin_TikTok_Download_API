@@ -28,6 +28,7 @@ class ErrorCode(StrEnum):
     TASK_NOT_FOUND = "TASK_NOT_FOUND"
     SETUP_ALREADY_DONE = "SETUP_ALREADY_DONE"
     SETUP_TOKEN_INVALID = "SETUP_TOKEN_INVALID"
+    NOT_CONFIGURED = "NOT_CONFIGURED"
     INTERNAL = "INTERNAL"
 
 
@@ -50,6 +51,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.TASK_NOT_FOUND: 404,
     ErrorCode.SETUP_ALREADY_DONE: 409,
     ErrorCode.SETUP_TOKEN_INVALID: 403,
+    ErrorCode.NOT_CONFIGURED: 501,
     ErrorCode.INTERNAL: 500,
 }
 
@@ -67,6 +69,10 @@ NON_RETRYABLE: frozenset[ErrorCode] = frozenset(
         ErrorCode.UPSTREAM_CHANGED,
         ErrorCode.SETUP_ALREADY_DONE,
         ErrorCode.SETUP_TOKEN_INVALID,
+        # A capability this deployment simply does not have. Retrying is
+        # never the answer: no amount of waiting installs a browser
+        # container or writes an alert channel into the settings.
+        ErrorCode.NOT_CONFIGURED,
     }
 )
 
@@ -124,6 +130,9 @@ TaskNotFound = _err("TaskNotFound", ErrorCode.TASK_NOT_FOUND)
 SetupAlreadyDone = _err("SetupAlreadyDone", ErrorCode.SETUP_ALREADY_DONE)
 SetupTokenInvalid = _err("SetupTokenInvalid", ErrorCode.SETUP_TOKEN_INVALID)
 Internal = _err("Internal", ErrorCode.INTERNAL)
+#: An optional component was never set up. Distinct from Internal, which
+#: promises the caller that trying again might work.
+NotConfigured = _err("NotConfigured", ErrorCode.NOT_CONFIGURED)
 
 
 class UpstreamChanged(DtkError):
@@ -153,6 +162,7 @@ __all__ = [
     "Internal",
     "InvalidParam",
     "InvalidUrl",
+    "NotConfigured",
     "NotFound",
     "RateLimited",
     "SetupAlreadyDone",

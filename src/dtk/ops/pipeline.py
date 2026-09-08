@@ -1,12 +1,12 @@
-"""One upstream call, assembled by hand for the CLI.
+"""One upstream call, assembled by hand.
 
-``dtk fetch`` and ``dtk identity test`` deliberately do not go through the
-scheduler. The point of both commands is to answer "is the endpoint dead?"
-during an incident, and doc 15 spells out what that means: no login, no
-authentication, no rate limiting. Borrowing a lease would also make the probe
-change the very pool state the operator is trying to read - a blocked probe
-would cool an identity that the console then reports as cooling for reasons
-nobody can reconstruct.
+``dtk fetch``, ``dtk identity test`` and the console's identity probe
+deliberately do not go through the scheduler. The point of all three is to
+answer "is the endpoint dead?" during an incident, and doc 15 spells out what
+that means: no login, no authentication, no rate limiting. Borrowing a lease
+would also make the probe change the very pool state the operator is trying to
+read - a blocked probe would cool an identity that the console then reports as
+cooling for reasons nobody can reconstruct.
 
 So the identity is chosen explicitly, the request is signed and sent once, and
 nothing is written back. What this path does share with the service layer is
@@ -29,17 +29,21 @@ from typing import Any, Final
 
 import httpx
 
+from dtk.core.config import Config
 from dtk.core.crypto import Cipher
 from dtk.core.errors import (
     IdentityPoolExhausted,
+    Internal,
     InvalidParam,
     NotFound,
     UnsupportedContent,
 )
-from dtk.core.types import IdentityState, Platform
+from dtk.core.types import IdentityState, Outcome, Platform
 from dtk.db.models import Proxy
 from dtk.db.repositories import IdentityRepository
 from dtk.identity.pool import IdentityPool, LiveIdentity
+from dtk.ops.masking import short_id
+from dtk.ops.probes import probe_identity
 from dtk.platforms import get_adapter
 from dtk.signing import RequestSpec as SigningRequest
 from dtk.signing import SignerRegistry, StaticFingerprint, native_signers
@@ -55,7 +59,7 @@ EXPAND_TIMEOUT_SECONDS: Final = 10.0
 REQUEST_TIMEOUT_SECONDS: Final = 25.0
 
 #: A short link cannot be recognized before it is followed, so expansion is the
-#: one part of the CLI probe that issues an unsigned, identity-less request.
+#: one part of this path that issues an unsigned, identity-less request.
 _EXPAND_HEADERS: Final[dict[str, str]] = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -180,15 +184,22 @@ async def proxy_url_for(session: Any, cipher: Cipher, proxy_id: uuid.UUID | None
 async def pick_identity(
     session: Any,
     cipher: Cipher,
-    platform: Platform,
+    platform: Platform | None = None,
     *,
     identity_id: str | None = None,
+    pool: IdentityPool | None = None,
 ) -> LiveIdentity:
     """Load a usable identity, either the one named or the least recently used.
 
     Least recently used rather than healthiest: a probe should reach for the
     identity the scheduler would have reached for next, not for the best one in
     the pool.
+
+    ``platform`` only chooses which pool to draw from, so a caller that names an
+    identity may omit it - the console's probe is handed an id and nothing else,
+    and the row is what says which platform it belongs to. ``pool`` is likewise
+    an accommodation for a caller that already owns one, so a job runs on the
+    same collaborator as the loops around it.
     """
     repo = IdentityRepository(session)
     if identity_id is not None:
@@ -197,6 +208,8 @@ async def pick_identity(
             raise NotFound(f"no identity with id {identity_id}")
         if row.state == IdentityState.RETIRED.value:
             raise InvalidParam(f"identity {identity_id} is retired; its cookies were wiped")
+    elif platform is None:
+        raise InvalidParam("pick an identity by id or by platform; neither was given")
     else:
         rows = await repo.list_by_state(
             platform=platform,
@@ -211,7 +224,7 @@ async def pick_identity(
         row = rows[0]
 
     proxy_url = await proxy_url_for(session, cipher, row.proxy_id)
-    identity = await IdentityPool(cipher).load(session, str(row.id), proxy_url=proxy_url)
+    identity = await (pool or IdentityPool(cipher)).load(session, str(row.id), proxy_url=proxy_url)
     if identity is None:
         raise NotFound(f"identity {row.id} could not be loaded")
     return identity
@@ -338,6 +351,48 @@ async def call_endpoint(
     )
 
 
+async def smoke(
+    url: str,
+    *,
+    session: Any,
+    cipher: Cipher,
+    config: Config,
+    transport: Any,
+    signers: SignerRegistry,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """One public link through resolve, sign, fetch and classify.
+
+    The last step of the setup wizard and of both diagnoses, so it lives beside
+    the pieces it assembles rather than in either caller. ``dtk diagnose`` opens
+    a signing stack for it and the worker passes the one it already runs on;
+    that is the whole difference between the two.
+
+    Raises rather than reporting. :func:`dtk.ops.diagnose.check_smoke` turns the
+    exception into a failed step with the reason attached, and a result object
+    saying "not ok" would put that decision back on every caller.
+    """
+    target = await resolve_target(url)
+    call = registry.resolve(target.endpoint, target.params, config)
+    identity = await pick_identity(session, cipher, target.platform)
+    probe = await probe_identity(transport, signers, identity, call, timeout=timeout)
+    if not probe.ok:
+        # INTERNAL for the same reason `TransportFailure` carries it: an
+        # unusable answer here is a fault in our own egress path, not in the
+        # link the operator handed over. `detail` is already scrubbed.
+        raise Internal(
+            f"{probe.outcome.value if probe.outcome else 'no answer'}: "
+            f"{probe.detail or probe.rule or 'no detail'}"
+        )
+    return {
+        "endpoint": target.endpoint,
+        "identity": short_id(identity.id),
+        "outcome": (probe.outcome or Outcome.OK).value,
+        "http_status": probe.status,
+        "latency_ms": probe.latency_ms,
+    }
+
+
 __all__ = [
     "EXPAND_TIMEOUT_SECONDS",
     "REQUEST_TIMEOUT_SECONDS",
@@ -351,5 +406,6 @@ __all__ = [
     "resolve_target",
     "signing_stack",
     "signing_view",
+    "smoke",
     "target_for",
 ]

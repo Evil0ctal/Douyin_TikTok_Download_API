@@ -76,6 +76,21 @@ def _localized_error(error: dict[str, Any] | None, language: Language) -> dict[s
     return {**error, "code": code.value, "message": render(code, language, **args)}
 
 
+def _localized_data(endpoint: str, data: Any, language: Language) -> Any:
+    """Re-render a stored result's prose in the reader's language.
+
+    The worker produces a result long before anyone's language is known - the
+    console polls for it afterwards - so a job whose output is prose stores
+    codes and arguments and the sentence is built here. Only the self check
+    needs it today; the other maintenance jobs return codes and numbers.
+    """
+    if endpoint != "diagnose" or not isinstance(data, dict):
+        return data
+    from dtk.ops.diagnose import localize_report
+
+    return localize_report(data, language)
+
+
 def _view_payload(
     view: task_service.TaskView, language: Language, *, include_result: bool = True
 ) -> dict[str, Any]:
@@ -94,7 +109,7 @@ def _view_payload(
     }
     if include_result and view.state is TaskState.DONE:
         data, meta = unwrap(view.result)
-        payload["data"] = data
+        payload["data"] = _localized_data(view.endpoint, data, language)
         if meta:
             payload["result_meta"] = meta
     if view.state is TaskState.FAILED:

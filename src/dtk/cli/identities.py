@@ -16,11 +16,12 @@ from typing import Annotated
 
 import typer
 
-from dtk.cli import output, pipeline, probes, runtime
-from dtk.cli.masking import mask_cookies, mask_url, short_id
+from dtk.cli import output, runtime
 from dtk.core.types import IdentitySource, IdentityState, Platform
 from dtk.db.repositories import IdentityRepository, ProxyRepository
 from dtk.identity import BrowserRpcClient, BrowserRpcUnavailable, IdentityPool
+from dtk.ops import pipeline, probes
+from dtk.ops.masking import mask_cookies, mask_url, short_id
 from dtk.worker.registry import resolve
 
 app = typer.Typer(no_args_is_help=True, help="Inspect, mint, retire and probe pool identities.")

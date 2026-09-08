@@ -34,6 +34,7 @@ from dtk.identity.pool import IdentityPool
 from dtk.services.fetch import FetchService
 from dtk.worker.loop import PeriodicLoop
 from dtk.worker.main import DatabaseTaskStore, SessionFactory, TaskWorker, WorkerOptions
+from dtk.worker.ops import OperationDeps, OperationRunner
 
 log = get_logger(__name__)
 
@@ -184,17 +185,6 @@ async def build_runtime(
         cooldown_max=int(current.get("sched.cooldown_max_seconds")),
     )
 
-    # One options object for both halves: the attempt counter's lifetime is a
-    # worker setting, and a store built with its own default would quietly
-    # ignore whatever the worker was configured with.
-    worker_options = WorkerOptions()
-    worker = TaskWorker(
-        fetch=fetch,
-        store=DatabaseTaskStore(attempt_ttl_seconds=worker_options.attempt_ttl_seconds),
-        config=config_source,
-        options=worker_options,
-    )
-
     # One notifier for every background job, so doc 15's deduplication windows
     # are shared rather than re-implemented per job.
     notifier = notifier_from_config(current, redis=get_redis())
@@ -222,6 +212,38 @@ async def build_runtime(
         config=config_source,
         options=maintenance_options,
         alerter=notifier,
+    )
+
+    # The console's maintenance jobs run on the same collaborators as the loops
+    # above rather than on a second set: a job that minted through its own
+    # filler would survey a pool the periodic sweep does not know about, and two
+    # browser-rpc clients would double the connections to one browser.
+    operations = OperationRunner(
+        OperationDeps(
+            config=config_source,
+            cipher=cipher,
+            secret_key=settings.secret_key,
+            pool=pool,
+            transport=transport,
+            signers=signer_registry,
+            filler=filler,
+            prober=prober,
+            notifier=notifier,
+            rpc=rpc_client,
+        ),
+        session_factory=session_scope,
+    )
+
+    # One options object for both halves: the attempt counter's lifetime is a
+    # worker setting, and a store built with its own default would quietly
+    # ignore whatever the worker was configured with.
+    worker_options = WorkerOptions()
+    worker = TaskWorker(
+        fetch=fetch,
+        store=DatabaseTaskStore(attempt_ttl_seconds=worker_options.attempt_ttl_seconds),
+        config=config_source,
+        options=worker_options,
+        operations=operations,
     )
 
     loops = [

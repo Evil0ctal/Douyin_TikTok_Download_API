@@ -16,12 +16,17 @@ from typing import Annotated, Any
 
 import typer
 
-from dtk.cli import output, pipeline, probes, runtime
-from dtk.cli.masking import short_id
-from dtk.core.types import Outcome, Platform
+from dtk.cli import output, runtime
+from dtk.core.types import Platform
 from dtk.identity import BrowserRpcClient
-from dtk.ops.diagnose import DiagnoseContext, DiagnosticReport, StepStatus, run_diagnostics
-from dtk.worker.registry import resolve
+from dtk.ops import pipeline, probes
+from dtk.ops.diagnose import (
+    DiagnoseContext,
+    DiagnosticReport,
+    SmokeRunner,
+    StepStatus,
+    run_diagnostics,
+)
 
 _STATUS_STYLE = {
     StepStatus.PASS: "pass",
@@ -108,32 +113,24 @@ def diagnose(
     output.ok("all steps passed")
 
 
-def _smoke_runner(ctx: runtime.Context):
-    """One public link through resolve, sign, fetch and parse.
+def _smoke_runner(ctx: runtime.Context) -> SmokeRunner:
+    """The end-to-end step, on a signing stack opened for the call.
 
-    Raises on anything other than a usable answer: the ops step turns an
-    exception into a failed step with the reason attached.
+    The run itself is :func:`dtk.ops.pipeline.smoke`, shared with the worker.
+    What the CLI adds is the stack: it holds no long-lived transport, so one is
+    built and closed around the single request.
     """
 
     async def run(url: str) -> dict[str, Any]:
-        target = await pipeline.resolve_target(url)
-        call = resolve(target.endpoint, target.params, ctx.config)
-        identity = await pipeline.pick_identity(ctx.session, ctx.cipher, target.platform)
         async with pipeline.signing_stack(ctx.settings.browser_rpc_url) as (transport, signers):
-            probe = await probes.probe_identity(transport, signers, identity, call)
-
-        if not probe.ok:
-            raise RuntimeError(
-                f"{probe.outcome.value if probe.outcome else 'no answer'}: "
-                f"{probe.detail or probe.rule or 'no detail'}"
+            return await pipeline.smoke(
+                url,
+                session=ctx.session,
+                cipher=ctx.cipher,
+                config=ctx.config,
+                transport=transport,
+                signers=signers,
             )
-        return {
-            "endpoint": target.endpoint,
-            "identity": short_id(identity.id),
-            "outcome": (probe.outcome or Outcome.OK).value,
-            "http_status": probe.status,
-            "latency_ms": probe.latency_ms,
-        }
 
     return run
 

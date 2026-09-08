@@ -10,7 +10,7 @@ Keeping ``1`` and ``2`` apart is what lets a deploy script tell "the tool is
 being called wrong" from "the system is broken", which is the only reason the
 distinction is worth enforcing by hand.
 
-Everything printed here goes through dtk.cli.masking first.
+Everything printed here goes through dtk.ops.masking first.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from rich.json import JSON
 from rich.table import Table
 from rich.text import Text
 
-from dtk.cli.masking import scrub
+from dtk.ops.masking import scrub
 
 EXIT_OK = 0
 EXIT_FAILURE = 1

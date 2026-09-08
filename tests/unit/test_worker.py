@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import json
 import uuid
 from dataclasses import dataclass, field
@@ -1303,3 +1304,26 @@ def test_dtk_errors_carry_a_stable_code() -> None:
     # Guards the assumption serialize_error makes about the error hierarchy.
     assert issubclass(InvalidParam, DtkError)
     assert ErrorCode.INVALID_PARAM.value == "INVALID_PARAM"
+
+
+def test_the_socket_outlives_the_longest_blocking_command() -> None:
+    """A dependency default that moved under us, pinned so it cannot move again.
+
+    redis-py 8 changed the default socket_timeout from None to 5 seconds, and
+    `tasks.claim` passes exactly 5 to BLPOP. The read then expired at the same
+    moment the command was due to return empty, so every idle poll raised: the
+    worker logged a Redis timeout every few seconds and only picked tasks up on
+    a later attempt. The socket must be allowed to outlast the command.
+    """
+    from dtk.core.redis import SOCKET_TIMEOUT_SECONDS
+    from dtk.services.tasks import claim
+    from dtk.worker.main import WorkerOptions
+
+    longest_block = max(
+        WorkerOptions().claim_timeout_seconds,
+        inspect.signature(claim).parameters["timeout"].default,
+    )
+    assert longest_block < SOCKET_TIMEOUT_SECONDS, (
+        f"socket_timeout {SOCKET_TIMEOUT_SECONDS}s does not outlast a "
+        f"{longest_block}s blocking command; every idle poll will raise"
+    )

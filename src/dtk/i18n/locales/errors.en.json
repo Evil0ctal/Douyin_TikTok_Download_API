@@ -15,5 +15,6 @@
   "TASK_NOT_FOUND": "No task exists with that id, or its result has already expired.",
   "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
   "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
-  "INTERNAL": "An unexpected internal error occurred; check the server logs for details."
+  "INTERNAL": "An unexpected internal error occurred; check the server logs for details.",
+  "NOT_CONFIGURED": "This feature is not configured on this instance."
 }

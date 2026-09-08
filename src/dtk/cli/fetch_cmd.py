@@ -16,10 +16,11 @@ from typing import Annotated, Any
 
 import typer
 
-from dtk.cli import output, pipeline, runtime
-from dtk.cli.masking import mask_url, short_id
+from dtk.cli import output, runtime
 from dtk.core.errors import DtkError, UpstreamChanged
 from dtk.core.types import Outcome
+from dtk.ops import pipeline
+from dtk.ops.masking import mask_url, short_id
 from dtk.worker.registry import resolve
 
 

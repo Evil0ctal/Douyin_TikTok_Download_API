@@ -11,7 +11,8 @@ notifications off, which leaves them worse off than before. Every trigger
 therefore has a window and a scope - per endpoint, per proxy, per identity, per
 platform - and a second alert inside that window is suppressed. The windows are
 the ones in doc 15 and are not tunable per install: they are part of what makes
-the alerts trustworthy.
+the alerts trustworthy. The one message with no window is the test an operator
+sends by hand, which repeats only as often as someone presses the button.
 
 Notifications render in the language configured on the receiving channel, not
 the system default (docs/design/14-i18n.md), and they share the ``notify.*``
@@ -38,12 +39,14 @@ from typing import TYPE_CHECKING, Any, Final
 import httpx
 from redis.asyncio import Redis
 
+from dtk.core.errors import NotConfigured, NotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.core.types import DEFAULT_LANGUAGE, Language
 from dtk.i18n.catalog import t
 from dtk.i18n.negotiate import coerce_language
 from dtk.ops.channels import SEND_TIMEOUT_SECONDS, RetryableDelivery, build_channels
+from dtk.ops.masking import scrub
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from dtk.ops.channels import Channel
@@ -66,7 +69,10 @@ class Severity(StrEnum):
 
 
 class NotifyEvent(StrEnum):
-    """Alertable events. The value is also the ``notify.<event>`` catalog key."""
+    """Alertable events, plus the one an operator raises by hand.
+
+    The value is also the ``notify.<event>`` catalog key.
+    """
 
     ENDPOINT_CIRCUIT_OPEN = "endpoint_circuit_open"
     POOL_EMPTY = "pool_empty"
@@ -75,6 +81,9 @@ class NotifyEvent(StrEnum):
     SIGNATURE_STALE = "signature_stale"
     COOKIE_EXPIRING = "cookie_expiring"
     BACKUP_FAILED = "backup_failed"
+    #: Nothing detects this one: it is the console's Test button, pressed to
+    #: prove a channel is reachable before an incident depends on it.
+    TEST = "test"
 
 
 MINUTE: Final[int] = 60
@@ -95,7 +104,8 @@ class TriggerSpec:
     scope_fields: tuple[str, ...] = ()
 
 
-#: The trigger table from docs/design/15-operations.md, verbatim.
+#: The trigger table from docs/design/15-operations.md, verbatim, with the
+#: manual test appended.
 TRIGGERS: Final[Mapping[NotifyEvent, TriggerSpec]] = {
     NotifyEvent.ENDPOINT_CIRCUIT_OPEN: TriggerSpec(Severity.ERROR, 30 * MINUTE, ("endpoint",)),
     NotifyEvent.POOL_EMPTY: TriggerSpec(Severity.ERROR, 15 * MINUTE, ("platform",)),
@@ -104,6 +114,11 @@ TRIGGERS: Final[Mapping[NotifyEvent, TriggerSpec]] = {
     NotifyEvent.SIGNATURE_STALE: TriggerSpec(Severity.ERROR, 24 * HOUR, ("endpoint",)),
     NotifyEvent.COOKIE_EXPIRING: TriggerSpec(Severity.WARNING, 24 * HOUR, ("identity_id",)),
     NotifyEvent.BACKUP_FAILED: TriggerSpec(Severity.ERROR, 24 * HOUR, ()),
+    # A test arrives one deliberate press at a time, so there is no storm to
+    # damp. :meth:`Notifier.send_test` does not consult the deduplicator at
+    # all; the zero window is here so this table cannot be read as promising a
+    # suppression that never happens.
+    NotifyEvent.TEST: TriggerSpec(Severity.INFO, 0, ()),
 }
 
 
@@ -259,7 +274,9 @@ class Delivery:
     event: NotifyEvent
     severity: Severity
     suppressed: bool
-    dedup_key: str
+    #: The window this delivery claimed. Empty when none was claimed, which is
+    #: how a test reports itself.
+    dedup_key: str = ""
     sent: tuple[str, ...] = ()
     failed: dict[str, str] = field(default_factory=dict)
 
@@ -284,18 +301,25 @@ MAX_REASON_LENGTH: Final[int] = 300
 
 
 def failure_reason(channel: Channel, exc: BaseException) -> str:
-    """Describe a delivery failure without repeating the channel's URL.
+    """Describe a delivery failure without repeating the channel's credentials.
 
     A Telegram bot token lives in the path of the URL and a DingTalk access
     token in its query, so any exception text that quotes the request URL is a
-    credential in a log line and in ``Delivery.failed``. The target is named by
-    channel instead, which is the part an operator actually needs.
+    credential - in a log line, and now also in a stored task result that the
+    console renders.
+
+    Two passes, because neither alone is enough. Replacing the channel's own URL
+    names the target the way an operator thinks of it, but it only matches what
+    was stored: DingTalk signs at request time and appends
+    ``&timestamp=...&sign=...``, so the literal swap took the access token and
+    left the HMAC. And an SMTP channel has no URL at all, which made the whole
+    step a no-op for it. So the pattern pass runs unconditionally afterwards.
     """
     reason = f"{type(exc).__name__}: {exc}"
     url = str(getattr(channel, "url", "") or "")
     if url:
         reason = reason.replace(url, f"<{channel.type.value} target>")
-    return reason[:MAX_REASON_LENGTH]
+    return scrub(reason)[:MAX_REASON_LENGTH]
 
 
 class Notifier:
@@ -350,21 +374,15 @@ class Notifier:
 
         sent_at = datetime.fromtimestamp(self._clock(), UTC)
         rendered: dict[Language, Message] = {}
-        client = await self._http()
-        sent: list[str] = []
-        failed: dict[str, str] = {}
-
+        prepared: list[tuple[Channel, Message]] = []
         for channel in self._channels:
             message = rendered.get(channel.language)
             if message is None:
                 message = render(event, channel.language, sent_at=sent_at, **args)
                 rendered[channel.language] = message
-            error = await self._deliver(channel, message, client)
-            if error is None:
-                sent.append(channel.name)
-            else:
-                failed[channel.name] = error
+            prepared.append((channel, message))
 
+        sent, failed = await self._deliver_all(prepared)
         if not sent and failed:
             # The window exists to stop a storm of *delivered* alerts. Holding
             # it after an alert reached nobody would turn one refused
@@ -384,9 +402,89 @@ class Notifier:
             severity=spec.severity,
             suppressed=False,
             dedup_key=key,
-            sent=tuple(sent),
+            sent=sent,
             failed=failed,
         )
+
+    async def send_test(self, channel: str | None = None) -> Delivery:
+        """Deliver a test alert now, to one channel or to every channel.
+
+        Deliberately not routed through :meth:`notify`. The window there exists
+        to stop a repeating condition from paging every minute, and it would
+        answer the second press of the console's Test button with silence -
+        reporting a channel that works as one that does not, which is the exact
+        doubt the button exists to remove. A test claims no window and reads
+        none, so a real alert's suppression is neither started nor consumed by
+        proving the channel first.
+        """
+        targets = self._select(channel)
+        if not targets:
+            # Two different problems with two different next steps: a fresh
+            # install has nothing to test and needs to add a channel, while a
+            # named channel that is absent is a stale console tab or a typo.
+            # One code for both sent every new operator looking for a channel
+            # they had never created.
+            if not self._channels:
+                raise NotConfigured(
+                    "no notification channel is configured",
+                    details={"channel": channel},
+                )
+            raise NotFound(
+                "no notification channel to test",
+                details={"channel": channel, "known": [c.name for c in self._channels]},
+            )
+        if not self._enabled:
+            # Alerting is switched off. Delivering anyway would prove a channel
+            # that is not going to be used and leave the operator believing
+            # alerts are on their way.
+            return Delivery(NotifyEvent.TEST, Severity.INFO, suppressed=True)
+
+        sent_at = datetime.fromtimestamp(self._clock(), UTC)
+        # Rendered per channel rather than per language: the body names the
+        # channel it was sent to, so an operator holding two phones knows which
+        # button produced which push.
+        prepared = [
+            (
+                target,
+                render(NotifyEvent.TEST, target.language, sent_at=sent_at, channel=target.name),
+            )
+            for target in targets
+        ]
+        sent, failed = await self._deliver_all(prepared)
+        log.info(
+            "ops.notify.test_dispatched",
+            channel=channel or "*",
+            sent=len(sent),
+            failed=len(failed),
+        )
+        return Delivery(
+            event=NotifyEvent.TEST,
+            severity=Severity.INFO,
+            suppressed=False,
+            sent=sent,
+            failed=failed,
+        )
+
+    def _select(self, channel: str | None) -> tuple[Channel, ...]:
+        """The channels a request names. ``None`` means every one of them."""
+        if channel is None:
+            return self._channels
+        return tuple(target for target in self._channels if target.name == channel)
+
+    async def _deliver_all(
+        self, prepared: Sequence[tuple[Channel, Message]]
+    ) -> tuple[tuple[str, ...], dict[str, str]]:
+        """Send every prepared message, collecting names and failure reasons."""
+        client = await self._http()
+        sent: list[str] = []
+        failed: dict[str, str] = {}
+        for channel, message in prepared:
+            error = await self._deliver(channel, message, client)
+            if error is None:
+                sent.append(channel.name)
+            else:
+                failed[channel.name] = error
+        return tuple(sent), failed
 
     async def _deliver(
         self, channel: Channel, message: Message, client: httpx.AsyncClient

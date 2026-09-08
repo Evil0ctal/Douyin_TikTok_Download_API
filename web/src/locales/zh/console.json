@@ -553,7 +553,9 @@
       "testSent": "测试告警已发送",
       "testFailed": "测试告警发送失败",
       "channelSaved": "通道 {name} 已保存",
-      "channelDeleted": "通道 {name} 已删除"
+      "channelDeleted": "通道 {name} 已删除",
+      "testDisabled": "告警总开关处于关闭状态，未发送任何内容。打开 notify.enabled 后再测试投递。",
+      "testRefused": "{channels} 拒绝了测试告警：{reason}"
     },
     "confirm": {
       "deleteTitle": "删除这个通道？",

@@ -1,14 +1,14 @@
-"""Connectivity probes shared by the CLI commands and the diagnostics report.
+"""Connectivity probes shared by the CLI, the console and the diagnostics report.
 
 Two questions come up in every "I deployed it but I get no data" report, and
 each is one probe here: does this proxy carry traffic and where does it come
 out, and does this identity still get a real answer. ``dtk proxy test``,
-``dtk identity test`` and the smoke step of ``dtk diagnose`` are three
-presentations of the same two functions.
+``dtk identity test``, the console's per-row probe buttons and the smoke step of
+``dtk diagnose`` are presentations of the same two functions.
 
-The wider six-step diagnosis lives in :mod:`dtk.ops.diagnose`, which the console
-shares; these are the pieces the CLI needs on their own, plus the exit-address
-lookup that ``dtk proxy test`` writes back onto the proxy row.
+The wider six-step diagnosis lives in :mod:`dtk.ops.diagnose`; these are the
+pieces a caller needs on their own, plus the exit-address lookup that
+``dtk proxy test`` writes back onto the proxy row.
 
 Every probe returns a result object instead of raising: a diagnosis has to keep
 going after a failed step, and the failure itself is the interesting output.
@@ -23,10 +23,10 @@ from typing import Any, Final
 
 import httpx
 
-from dtk.cli.masking import scrub
 from dtk.core.logging import get_logger
 from dtk.core.types import Outcome, Platform
 from dtk.identity.pool import LiveIdentity
+from dtk.ops.masking import scrub
 
 log = get_logger(__name__)
 
@@ -128,7 +128,7 @@ async def probe_identity(
     A business error counts as a pass. The question is whether the platform
     still talks to this identity, and "that post is gone" is an answer.
     """
-    from dtk.cli.pipeline import call_endpoint
+    from dtk.ops.pipeline import call_endpoint
     from dtk.transport.base import TransportFailure
 
     started = time.perf_counter()

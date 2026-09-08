@@ -553,7 +553,9 @@
       "testSent": "Test alert sent",
       "testFailed": "The test alert failed",
       "channelSaved": "Channel {name} saved",
-      "channelDeleted": "Channel {name} removed"
+      "channelDeleted": "Channel {name} removed",
+      "testDisabled": "Alerts are switched off, so nothing was sent. Turn notify.enabled on to test delivery.",
+      "testRefused": "{channels} refused the test alert: {reason}"
     },
     "confirm": {
       "deleteTitle": "Remove this channel?",

@@ -427,7 +427,16 @@ async def check_components(ctx: DiagnoseContext) -> StepResult:
         return result(
             StepStatus.WARN,
             StepCode.COMPONENTS_BROWSER_RPC_DOWN,
-            args={"detail": rpc.detail},
+            # The code, not the sentence. rpc.detail is already rendered, in
+            # English, at the moment the check ran - and the report is read
+            # later, by someone whose language nobody knew yet. Storing the code
+            # is what let the rest of this step be translated; a rendered
+            # fragment would sit in English inside a Chinese sentence.
+            args=(
+                {"detail_code": rpc.detail_code}
+                if rpc.detail_code
+                else {"detail": rpc.evidence or ""}
+            ),
             details=details,
         )
     return result(StepStatus.PASS, StepCode.COMPONENTS_OK, details=details)
@@ -701,11 +710,33 @@ def _localize_step(step: Any, language: Language | str) -> Any:
         return dict(step)
     raw_args = step.get("args")
     args = dict(raw_args) if isinstance(raw_args, Mapping) else {}
+    args = _render_nested(args, language)
     localized = dict(step)
     localized["reason"] = redact(t(reason_key(code), language, **args))
     if code in ACTIONABLE_CODES:
         localized["action"] = redact(t(action_key(code), language, **args))
     return localized
+
+
+def _render_nested(args: dict[str, Any], language: Language | str) -> dict[str, Any]:
+    """Resolve an argument that is itself a code rather than a sentence.
+
+    One step quotes another module's finding - the components step reports why
+    browser-rpc is down, and health.py owns that vocabulary. Storing the code
+    and rendering it here keeps the whole sentence in one language; storing
+    health.py's already-rendered English would leave a fragment of it inside
+    every other translation.
+    """
+    code = args.pop("detail_code", None)
+    if not isinstance(code, str) or not code:
+        # Left exactly as stored. Filling in a default here would hide a
+        # genuinely missing argument in some other step, which interpolate()
+        # otherwise reports as a warning and a visible marker.
+        return args
+    from dtk.ops.health import DETAIL_KEY_PREFIX
+
+    args["detail"] = t(f"{DETAIL_KEY_PREFIX}{code}", language)
+    return args
 
 
 def _render_text(payload: Mapping[str, Any]) -> str:

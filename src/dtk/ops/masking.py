@@ -1,10 +1,10 @@
-"""Masking helpers for terminal output.
+"""Masking helpers for anything an operator will read.
 
-The CLI is the one place credentials are routinely within reach: it decrypts
-proxy URLs to probe them, loads cookie jars to test an identity, and prints
+The probe paths are where credentials are routinely within reach: they decrypt
+proxy URLs to test them, load cookie jars to test an identity, and report
 whatever the database holds. Every one of those values passes through here
-before it reaches a terminal, a log file, or a diagnostic report that a user
-will paste into an issue.
+before it reaches a terminal, a log file, a stored task result rendered in the
+console, or a diagnostic report that a user will paste into an issue.
 
 Pure functions, no IO: the unit tests cover the masking rules directly rather
 than by scraping rendered tables.
@@ -38,6 +38,24 @@ _PARAM_RE = re.compile(
     r"=([^&\s;\"']{6,})",
     re.IGNORECASE,
 )
+
+
+#: Credentials that ride in a webhook URL. Separate from _PARAM_RE because the
+#: providers, not the platforms, choose these names.
+#:
+#: ``sign`` is here for a reason that is easy to miss: DingTalk appends
+#: ``&timestamp=<ms>&sign=<base64 HMAC>`` at request time, so scrubbing the
+#: channel's stored URL removes the access token and leaves the signature. The
+#: signature is the secret's check value with its plaintext structure known, so
+#: it is disclosure, not noise.
+_WEBHOOK_PARAM_RE = re.compile(
+    r"\b(access_token|sign|signature|token|key|secret|api_key|apikey|webhook)"
+    r"=([^&\s;\"']{4,})",
+    re.IGNORECASE,
+)
+
+#: Telegram puts its bot token in the path rather than the query.
+_BOT_TOKEN_RE = re.compile(r"/bot[0-9]{5,}:[A-Za-z0-9_-]{10,}", re.IGNORECASE)
 
 
 def mask_secret(value: str | None, *, keep: int = 4) -> str:
@@ -146,11 +164,17 @@ def short_id(value: uuid.UUID | str | None, *, length: int = 8) -> str:
 def scrub(text: str) -> str:
     """Remove credentials from arbitrary text before it is printed.
 
-    Applied to every error message the CLI shows. A failed database connection
-    reports its DSN, and that DSN carries the password.
+    Applied to every error message the CLI shows and to every probe detail
+    stored in a task result. A failed database connection reports its DSN, and
+    that DSN carries the password.
     """
     without_urls = _URL_CREDENTIALS_RE.sub(r"\g<scheme>\g<user>:" + MASK + "@", text)
-    return _PARAM_RE.sub(lambda m: f"{m.group(1)}={m.group(2)[:6]}...", without_urls)
+    without_bots = _BOT_TOKEN_RE.sub("/bot" + MASK, without_urls)
+    # Webhook credentials are masked whole. The platform parameters below keep a
+    # six-character prefix because correlating one request's msToken across two
+    # log lines is a real debugging need; no such need exists for a bot token.
+    without_webhooks = _WEBHOOK_PARAM_RE.sub(lambda m: f"{m.group(1)}={MASK}", without_bots)
+    return _PARAM_RE.sub(lambda m: f"{m.group(1)}={m.group(2)[:6]}...", without_webhooks)
 
 
 __all__ = [

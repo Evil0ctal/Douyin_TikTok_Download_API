@@ -21,8 +21,8 @@ import typer
 from rich.text import Text
 
 from dtk.cli import output, runtime
-from dtk.cli.masking import mask_endpoint, mask_secret
 from dtk.core.config import RUNTIME_SETTINGS, Scope, coerce
+from dtk.ops.masking import mask_endpoint, mask_secret
 
 #: Mapping keys whose values are credentials wherever they appear in a setting.
 _SECRET_FIELDS = frozenset({"token", "secret", "password", "key", "api_key", "webhook"})

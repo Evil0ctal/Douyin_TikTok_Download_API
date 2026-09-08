@@ -46,6 +46,7 @@ from dtk.models import Author, Content, Page
 from dtk.services import snapshots, tasks
 from dtk.services.fetch import FetchContext, FetchResult, FetchService
 from dtk.worker import parsing, registry
+from dtk.worker.ops import OperationRunner
 
 log = get_logger(__name__)
 
@@ -225,9 +226,14 @@ class TaskWorker:
         options: WorkerOptions | None = None,
         session_factory: SessionFactory = session_scope,
         redirect_fetcher: Callable[[str], Any] | None = None,
+        operations: OperationRunner | None = None,
     ) -> None:
         self._fetch = fetch
         self._store = store
+        # Console-triggered maintenance. Absent in a worker built for platform
+        # reads alone, and in most tests, which is why it is optional rather
+        # than a required collaborator.
+        self._operations = operations
         self._config: Callable[[], Config] = config if callable(config) else (lambda: config)
         self._options = options or WorkerOptions()
         self._session_factory = session_factory
@@ -372,12 +378,18 @@ class TaskWorker:
 
             result = await self._execute(run)
             await self._store.complete(task_id, result)
+            # A maintenance job may store its payload bare - the task contract
+            # accepts both shapes - and only the fetch path always carries
+            # meta. Indexing it would raise after the task was already stored
+            # as done, and the handler below would then overwrite that row with
+            # a failure the job never had.
+            meta = result.get("meta") or {}
             log.info(
                 "worker.task.done",
                 task_id=str(task_id),
                 endpoint=run.endpoint,
-                cached=result["meta"].get("cached"),
-                duration_ms=result["meta"].get("duration_ms"),
+                cached=meta.get("cached"),
+                duration_ms=meta.get("duration_ms"),
             )
         except asyncio.CancelledError:
             # Shutdown reached the drain deadline while this task was running.
@@ -434,6 +446,12 @@ class TaskWorker:
 
     async def _execute(self, run: TaskRun) -> dict[str, Any]:
         config = self._config()
+        # Maintenance first: these endpoints are local jobs with no platform,
+        # no signature and no token bucket, so the endpoint registry has nothing
+        # to say about them and would reject them as unknown.
+        if self._operations is not None and self._operations.handles(run.endpoint):
+            return await self._operations.run(run.endpoint, dict(run.params))
+
         endpoint, params = await self._resolve_endpoint(run)
         call = registry.resolve(endpoint, params, config)
         parsed: list[Any] = []

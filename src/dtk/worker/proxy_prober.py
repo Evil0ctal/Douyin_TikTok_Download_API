@@ -27,7 +27,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
@@ -276,6 +276,13 @@ class ProxyProber:
             )
             return None
 
+        # The client quotes whatever it was handed, and an exception raised
+        # while connecting through a proxy quotes the URL often enough that it
+        # is scrubbed here rather than at each use: this result is returned to
+        # callers - the console's proxy test stores it in a task and renders it
+        # in a browser - and not only written to a log line.
+        result = replace(result, detail=_without_credentials(result.detail, url))
+
         report.checked += 1
         await self._apply(session, proxy, result, report, url=url)
         return result
@@ -322,9 +329,7 @@ class ProxyProber:
             label=proxy.label,
             cooled_identities=cooled,
             consecutive_failures=failures,
-            # The client's message quotes whatever it was handed, so it is
-            # scrubbed before it reaches a log line (doc 08).
-            detail=_without_credentials(result.detail, url),
+            detail=result.detail,
         )
         # The label is what an operator recognizes; the masked URL is the
         # fallback and never carries the proxy credentials.

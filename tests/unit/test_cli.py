@@ -26,7 +26,11 @@ from typer.testing import CliRunner
 
 from dtk.cli import identities, output, proxies, runtime, settings_cmd, users
 from dtk.cli.main import app
-from dtk.cli.masking import (
+from dtk.core.config import BootstrapSettings, Config
+from dtk.core.crypto import Cipher
+from dtk.core.types import IdentityState, Platform, UserRole
+from dtk.db.models import Identity, Proxy, User
+from dtk.ops.masking import (
     ABSENT,
     MASK,
     mask_api_key,
@@ -37,10 +41,6 @@ from dtk.cli.masking import (
     scrub,
     short_id,
 )
-from dtk.core.config import BootstrapSettings, Config
-from dtk.core.crypto import Cipher
-from dtk.core.types import IdentityState, Platform, UserRole
-from dtk.db.models import Identity, Proxy, User
 
 #: Long enough for Cipher, and obviously not a real key.
 TEST_SECRET = "test-secret-key-that-is-long-enough-0123456789"
@@ -567,7 +567,7 @@ class TestProbes:
 
     def test_a_socks_proxy_reports_instead_of_raising(self) -> None:
         """socks5h is an accepted scheme, and httpx needs an optional extra."""
-        from dtk.cli import probes
+        from dtk.ops import probes
 
         url = "socks5h://bob:hunter2@10.0.0.9:1080"
         result = asyncio.run(probes.probe_proxy(url, timeout=1.0))
@@ -576,7 +576,7 @@ class TestProbes:
         assert "hunter2" not in result.detail
 
     def test_an_unusable_proxy_url_reports_instead_of_raising(self) -> None:
-        from dtk.cli import probes
+        from dtk.ops import probes
 
         result = asyncio.run(probes.probe_proxy("http://bob:hunter2@h:notaport", timeout=1.0))
         assert result.ok is False
@@ -586,7 +586,7 @@ class TestProbes:
         """`.get` on a decoded list would be an AttributeError, not a result."""
         import httpx
 
-        from dtk.cli import probes
+        from dtk.ops import probes
 
         real_client = httpx.AsyncClient
 
@@ -602,7 +602,7 @@ class TestProbes:
 
     def test_a_transport_failure_does_not_echo_the_signed_query(self) -> None:
         """The failure message quotes the request URL; a signed one carries msToken."""
-        from dtk.cli import pipeline, probes
+        from dtk.ops import pipeline, probes
         from dtk.transport.base import TransportFailure
 
         signed = (
@@ -631,7 +631,7 @@ class TestProbes:
 class TestSigningStack:
     def test_browser_rpc_is_behind_the_native_signers(self) -> None:
         """Configured browser-rpc must actually reach the registry as a fallback."""
-        from dtk.cli.pipeline import signing_stack
+        from dtk.ops.pipeline import signing_stack
 
         async def check() -> Any:
             async with signing_stack("http://browser-rpc:8000") as (_transport, signers):
@@ -640,7 +640,7 @@ class TestSigningStack:
         assert type(asyncio.run(check())).__name__ == "RpcSigner"
 
     def test_no_browser_rpc_means_native_only(self) -> None:
-        from dtk.cli.pipeline import signing_stack
+        from dtk.ops.pipeline import signing_stack
 
         async def check() -> Any:
             async with signing_stack("") as (_transport, signers):
@@ -650,7 +650,7 @@ class TestSigningStack:
 
     def test_building_a_registry_without_a_client_is_refused(self) -> None:
         """Silently dropping the RPC signer is what this used to do."""
-        from dtk.cli.pipeline import build_registry
+        from dtk.ops.pipeline import build_registry
 
         with pytest.raises(ValueError, match="no HTTP client"):
             build_registry("http://browser-rpc:8000")
@@ -802,7 +802,7 @@ class TestIdentities:
 
 class TestTargets:
     def test_a_douyin_video_maps_to_content_detail(self) -> None:
-        from dtk.cli.pipeline import target_for
+        from dtk.ops.pipeline import target_for
         from dtk.urls import identify
 
         target = target_for(identify("https://www.douyin.com/video/7298145681699622182"))
@@ -810,7 +810,7 @@ class TestTargets:
         assert target.params == {"content_id": "7298145681699622182"}
 
     def test_a_tiktok_user_maps_to_author_profile(self) -> None:
-        from dtk.cli.pipeline import target_for
+        from dtk.ops.pipeline import target_for
         from dtk.urls import identify
 
         target = target_for(identify("https://www.tiktok.com/@owlcitymusic"))
@@ -819,7 +819,7 @@ class TestTargets:
 
     def test_canonical_params_survive_the_shared_registry(self) -> None:
         """The CLI hands the registry canonical names; it returns platform ones."""
-        from dtk.cli.pipeline import target_for
+        from dtk.ops.pipeline import target_for
         from dtk.urls import identify
         from dtk.worker.registry import resolve
 
@@ -830,8 +830,8 @@ class TestTargets:
         assert callable(call.parse)
 
     def test_an_unsupported_resource_is_rejected(self) -> None:
-        from dtk.cli.pipeline import target_for
         from dtk.core.errors import UnsupportedContent
+        from dtk.ops.pipeline import target_for
         from dtk.urls import identify
 
         kind = identify("https://live.douyin.com/123456789")
@@ -938,7 +938,7 @@ class TestOutput:
 
 class TestSigningView:
     def test_screen_geometry_is_split(self) -> None:
-        from dtk.cli.pipeline import signing_view
+        from dtk.ops.pipeline import signing_view
         from dtk.transport.base import Fingerprint
 
         view = signing_view(Fingerprint(user_agent="UA", platform="Win32", screen="1920x1080"))
@@ -946,7 +946,7 @@ class TestSigningView:
         assert view.user_agent == "UA"
 
     def test_a_missing_screen_stays_absent(self) -> None:
-        from dtk.cli.pipeline import signing_view
+        from dtk.ops.pipeline import signing_view
         from dtk.transport.base import Fingerprint
 
         view = signing_view(Fingerprint(user_agent="UA"))

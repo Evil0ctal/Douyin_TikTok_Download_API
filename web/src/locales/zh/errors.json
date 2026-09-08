@@ -17,7 +17,8 @@
     "TASK_NOT_FOUND": "任务不存在，或结果已过期。",
     "SETUP_ALREADY_DONE": "本实例已完成初始化。",
     "SETUP_TOKEN_INVALID": "初始化令牌无效或已过期。",
-    "INTERNAL": "服务器内部错误。"
+    "INTERNAL": "服务器内部错误。",
+    "NOT_CONFIGURED": "未配置"
   },
   "hint": {
     "INVALID_URL": "请检查链接后重新粘贴，重试无效。",
@@ -36,7 +37,8 @@
     "TASK_NOT_FOUND": "请重新提交该请求。",
     "SETUP_ALREADY_DONE": "请直接登录。",
     "SETUP_TOKEN_INVALID": "重启 api 容器可在日志中生成新的令牌。",
-    "INTERNAL": "请附上 request_id 反馈，并查看服务端日志。"
+    "INTERNAL": "请附上 request_id 反馈，并查看服务端日志。",
+    "NOT_CONFIGURED": "本实例没有配置该组件。这是部署层面的设置而不是临时故障，重试不会有帮助。"
   },
   "generic": {
     "network": "无法连接到接口服务，请确认服务已启动且网络可达。",

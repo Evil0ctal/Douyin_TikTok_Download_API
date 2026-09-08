@@ -189,7 +189,7 @@ const IMPORT_REJECTIONS: ReadonlySet<string> = new Set([
   'port_out_of_range',
 ])
 
-/** What a proxy probe reports (mirrors ProxyProbe in src/dtk/cli/probes.py). */
+/** What a proxy probe reports (mirrors ProxyProbe in src/dtk/ops/probes.py). */
 interface ProxyProbeResult {
   ok?: boolean
   latency_ms?: number | null

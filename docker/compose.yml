@@ -48,8 +48,18 @@ x-app-hardening: &app-hardening
       max-size: "10m"
       max-file: "3"
 
+#: Backups are the one thing these containers write to disk. The image is
+#: read-only by design, so they get a named volume and DTK_BACKUP_DIR pointing
+#: at it - shared, because the worker writes the archive and the API is what
+#: lists and serves it.
+x-app-backups: &app-backups
+  volumes:
+    - backup-data:/var/lib/dtk/backups
+  environment:
+    DTK_BACKUP_DIR: /var/lib/dtk/backups
+
 x-app: &app
-  <<: [*app-image, *app-env, *app-hardening]
+  <<: [*app-image, *app-env, *app-hardening, *app-backups]
 
 services:
   # ----------------------------------------------------------------------
@@ -167,6 +177,11 @@ services:
       DTK_BIND_HOST: "0.0.0.0"
       DTK_BIND_PORT: "8000"
       DTK_CONSOLE_DIR: /app/web/dist
+      # Repeated rather than inherited: a YAML merge key replaces `environment`
+      # wholesale instead of merging it, so a service that declares any variable
+      # of its own loses every one from the anchor. The API lists and serves the
+      # archives the worker writes, so the two must name the same directory.
+      DTK_BACKUP_DIR: /var/lib/dtk/backups
     ports:
       # Loopback by default. Serving the outside world is an explicit act, and
       # it is on the operator to put TLS in front of it.
@@ -347,3 +362,4 @@ networks:
 volumes:
   postgres-data:
   redis-data:
+  backup-data:

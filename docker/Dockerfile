@@ -104,6 +104,14 @@ COPY --from=deps --chown=root:root /app/.venv /app/.venv
 COPY --from=console --chown=root:root /console /app/web/dist
 COPY --chown=root:root --chmod=0555 docker/entrypoint.sh /usr/local/bin/dtk-entrypoint
 
+# Backups are the one thing the runtime writes. The directory has to exist in
+# the image and be owned by the runtime user: Docker seeds a named volume from
+# the image path it covers, so an absent or root-owned path yields a root-owned
+# volume that a non-root process cannot write - which is a permission error at
+# the moment someone asks for a backup, not at startup.
+RUN install -d -o dtk -g dtk -m 0750 /var/lib/dtk/backups
+ENV DTK_BACKUP_DIR=/var/lib/dtk/backups
+
 USER dtk
 
 EXPOSE 8000

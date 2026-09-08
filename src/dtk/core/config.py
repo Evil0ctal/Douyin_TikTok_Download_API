@@ -46,6 +46,11 @@ class BootstrapSettings(BaseSettings):
     log_json: bool = True
     #: Empty disables automatic minting; the pool then relies on manual imports.
     browser_rpc_url: str = ""
+    #: Where backup archives are written and listed from. Both processes must
+    #: agree: the worker writes them and the API serves them. The default is
+    #: relative, which suits a checkout and the CLI; the container image is
+    #: read-only, so it sets this to a mounted volume instead.
+    backup_dir: str = "backups"
 
     @field_validator("secret_key")
     @classmethod

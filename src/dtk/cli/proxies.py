@@ -18,10 +18,11 @@ from urllib.parse import urlsplit
 
 import typer
 
-from dtk.cli import output, probes, runtime
-from dtk.cli.masking import mask_url, short_id
+from dtk.cli import output, runtime
 from dtk.db.models import Proxy
 from dtk.db.repositories import ProxyRepository
+from dtk.ops import probes
+from dtk.ops.masking import mask_url, short_id
 
 #: Schemes a proxy URL may use. Anything else is a typo or a copied web page.
 ALLOWED_SCHEMES = frozenset({"http", "https", "socks5", "socks5h"})
