@@ -69,6 +69,17 @@ P0_CAPABILITIES: Final[tuple[Capability, ...]] = tuple(Capability)
 CONTENT_ID: Final = "content_id"
 AUTHOR_ID: Final = "author_id"
 UNIQUE_ID: Final = "unique_id"
+
+#: Every stable author id both platforms issue starts with this. It is the only
+#: way to tell one from an @handle without asking the platform.
+SEC_UID_PREFIX: Final = "MS4wLjAB"
+
+
+def looks_like_sec_uid(value: str) -> bool:
+    """Whether this identifier is a stable author id rather than an @handle."""
+    return value.startswith(SEC_UID_PREFIX)
+
+
 COMMENT_ID: Final = "comment_id"
 CURSOR: Final = "cursor"
 COUNT: Final = "count"
@@ -231,6 +242,7 @@ class EndpointDefinition:
                     "accepts": list(self.accepts),
                 },
             )
+        self._route_handle(normalized)
         missing = tuple(
             name for name in self.required if name not in normalized or _is_blank(normalized[name])
         )
@@ -240,6 +252,39 @@ class EndpointDefinition:
                 details={"endpoint": self.name, "missing": list(missing)},
             )
         return normalized
+
+    def _route_handle(self, normalized: dict[str, Any]) -> None:
+        """Send an @handle to the parameter that accepts one.
+
+        A TikTok profile link is ``/@handle``, so every URL-shaped lookup
+        resolves to a handle rather than to a ``secUid`` - and ``author_id``
+        reaches the platform in the ``secUid`` slot. TikTok answers that with
+        ``statusCode 10221`` and an empty user, which is a 200 with a plausible
+        body, so it classifies as success and surfaces as an author who simply
+        has no data. Measured 2026-09-08 on one identity: ``secUid=<secUid>``
+        and ``uniqueId=<handle>`` both returned the profile, ``secUid=<handle>``
+        returned nothing.
+
+        Only ``author_profile`` accepts a handle; the post list has no such
+        parameter, so there the handle is refused by name instead of being sent
+        somewhere it cannot work. :mod:`dtk.mcp.routing` has always done this -
+        this is the same rule, moved to where every caller passes through.
+        """
+        value = normalized.get(AUTHOR_ID)
+        if not isinstance(value, str) or not value or looks_like_sec_uid(value):
+            return
+        handle = value.lstrip("@")
+        if UNIQUE_ID in self.accepts:
+            del normalized[AUTHOR_ID]
+            normalized[UNIQUE_ID] = handle
+            return
+        raise InvalidParam(
+            f"{self.name} needs the author's stable id, which starts with "
+            f"'{SEC_UID_PREFIX}', not the @handle '{handle}'; look the author up "
+            f"with {self.platform.value}.author_profile first and pass the id from "
+            "its result",
+            details={"endpoint": self.name, "field": AUTHOR_ID, "value": handle},
+        )
 
     def platform_params(self, params: Mapping[str, Any]) -> dict[str, Any]:
         """Canonical parameters translated into the adapter's own keywords."""

@@ -152,29 +152,41 @@
         "description": "报告数据库、缓存、浏览器 RPC 与身份池的健康状况，可供监控系统轮询。"
       },
       "batch": {
-        "summary": "批量提交多个链接"
+        "summary": "批量提交多个链接",
+        "description": "一次提交多个链接，为每个链接返回一个任务 ID。各链接独立调度，其中一个失败不会阻塞其余链接。"
       },
       "content_detail": {
-        "summary": "获取单条作品（视频或图集）"
+        "summary": "获取单条作品（视频或图集）",
+        "description": "获取单条作品（视频或图集），包含媒体地址、文案、统计数据与作者信息。使用 url 或 aweme_id 之一指定作品。"
       },
       "comments": {
-        "summary": "获取作品的一级评论"
+        "summary": "获取作品的一级评论",
+        "description": "获取作品的一级评论，含评论作者、点赞数与回复数。通过 cursor 翻页，响应中不再返回游标即表示已是最后一页。"
       },
       "comment_replies": {
-        "summary": "获取某条评论下的回复"
+        "summary": "获取某条评论下的回复",
+        "description": "获取某条评论下的回复。需同时传入 comment_id 与所属作品（用 url 或 aweme_id 之一指定）。"
       },
       "author_profile": {
-        "summary": "获取作者主页信息"
+        "summary": "获取作者主页信息",
+        "description": "获取作者主页公开信息：昵称、签名、头像、认证状态，以及粉丝数、关注数、获赞数与作品数。"
       },
       "author_posts": {
-        "summary": "获取作者的作品列表"
+        "summary": "获取作者的作品列表",
+        "description": "按时间倒序获取作者本人的作品列表，字段结构与单条作品接口一致。通过 cursor 翻页。"
       }
     },
     "param": {
       "lang": "人类可读文本的响应语言，可选 en 或 zh，其余值一律回退英文。",
       "wait": "等待任务完成的秒数，超时则返回 202 与 task_id。",
       "cursor": "上一页返回的游标，首页请留空。",
-      "count": "每页条数。"
+      "count": "每页条数。",
+      "url": "资源链接。允许直接传入包含链接的整段文本，因此可以把 App 复制的内容原样提交。",
+      "aweme_id": "作品 ID，与 url 二选一，二者必须且只能提供一个。",
+      "sec_user_id": "作者的稳定 ID，与 url 二选一。在 TikTok 上即 secUid。",
+      "comment_id": "要查询回复的父评论 ID，可从评论接口的返回中获得。",
+      "platform": "请求针对的平台，douyin 或 tiktok，必须与传入的链接一致。",
+      "include_raw": "在归一化结果之外，同时返回平台自身的原始响应。"
     },
     "response": {
       "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"

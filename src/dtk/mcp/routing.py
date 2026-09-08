@@ -34,12 +34,14 @@ from dtk.worker.registry import (
     CONTENT_ID,
     COUNT,
     CURSOR,
+    SEC_UID_PREFIX,
     UNIQUE_ID,
     Capability,
     EndpointDefinition,
     definition_for,
     endpoint_name,
     endpoint_names,
+    looks_like_sec_uid,
 )
 
 #: Logical endpoint for the URL entry point, matching what ``POST /api/v1/parse``
@@ -49,7 +51,7 @@ PARSE_ENDPOINT: Final = "parse"
 #: Both platforms prefix their stable, non-rotating user key with this (Douyin
 #: ``sec_user_id``, TikTok ``secUid``). Anything else a caller passes as a uid is
 #: treated as a handle.
-SEC_UID_PREFIX: Final = "MS4wLjAB"
+
 
 #: Page size bounds. The platforms silently cap larger values, so accepting one
 #: would return fewer items than the agent asked for without saying so.
@@ -107,10 +109,6 @@ def coerce_count(value: int | None) -> int | None:
             details={"field": "count", "min": MIN_COUNT, "max": MAX_COUNT},
         )
     return value
-
-
-def looks_like_sec_uid(value: str) -> bool:
-    return value.startswith(SEC_UID_PREFIX)
 
 
 def definition(platform: Platform, capability: Capability) -> EndpointDefinition:

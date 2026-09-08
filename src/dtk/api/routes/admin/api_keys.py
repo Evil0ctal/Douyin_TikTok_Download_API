@@ -15,7 +15,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
 
 from dtk.api.deps import Principal
@@ -54,9 +54,25 @@ def _row(key: ApiKey) -> dict[str, Any]:
 @router.get("", summary="List API keys")
 async def list_keys(
     request: Request,
-    mine_only: bool = Query(default=False),
+    mine_only: bool = Query(
+        default=False, description="Only list keys you created, rather than everyone's."
+    ),
     principal: Principal = Depends(read_admin),
 ) -> Any:
+    """Every API key on this instance, newest first.
+
+    Secrets are never returned - a key's value is shown once, when it is
+    created, and cannot be read back afterwards.
+
+    **Parameters**
+
+    - `mine_only` - list only the keys you created.
+
+    **Returns**
+
+    Each key's name, scopes, owner, creation and last-used times, and whether
+    it is still active.
+    """
     stmt = select(ApiKey).order_by(ApiKey.created_at.desc())
     if mine_only:
         stmt = stmt.where(ApiKey.user_id == principal.user_id)
@@ -119,9 +135,18 @@ async def create_key(
 @router.delete("/{key_id}", summary="Revoke an API key")
 async def revoke_key(
     request: Request,
-    key_id: uuid.UUID,
+    key_id: uuid.UUID = Path(description="The key to revoke."),
     principal: Principal = Depends(manage_pool),
 ) -> Any:
+    """Revoke one API key.
+
+    Takes effect immediately and cannot be undone; issue a new key instead of
+    trying to restore this one.
+
+    **Parameters**
+
+    - `key_id` - the key to revoke.
+    """
     keys = ApiKeyRepository(request.state.db)
     key = await keys.get(key_id)
     if key is None:

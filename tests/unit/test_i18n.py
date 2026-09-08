@@ -693,3 +693,82 @@ def test_a_setting_description_is_prose_rather_than_the_key_echoed_back() -> Non
             # exactly what its 47-character English counterpart says. Counting
             # characters to judge whether prose is substantial is an English
             # assumption, and this file is the last place that should carry one.
+
+
+# --------------------------------------------------------------------------
+# OpenAPI prose
+#
+# The same gap as the settings block above, in the document users actually
+# read. A route declares `openapi_extra={I18N_KEY: "..."}`; nothing checks that
+# the catalogue answers to that name, which is how the five endpoints the API
+# exists for reached Swagger UI with a one-line summary and no description at
+# all - in either language.
+#
+# English prose comes from the route's docstring, not the catalogue, because a
+# docstring sits next to the signature it describes. The English catalogue
+# entry still has to exist: `missing_keys` compares the languages symmetrically,
+# so a Chinese-only key is itself a failure.
+# --------------------------------------------------------------------------
+
+
+def _documented_operations():
+    """Every operation in the schema that names a catalogue entry."""
+    from dtk.api.app import create_app
+    from dtk.api.routes.openapi import I18N_KEY
+
+    schema = create_app().openapi()
+    for path, methods in sorted(schema.get("paths", {}).items()):
+        for method, operation in sorted(methods.items()):
+            key = operation.get(I18N_KEY)
+            if isinstance(key, str) and key:
+                yield f"{method.upper()} {path}", key, operation
+
+
+def test_every_i18n_keyed_operation_is_explained_in_every_language() -> None:
+    from dtk.i18n.catalog import has
+
+    missing = [
+        f"{where} -> openapi.op.{key}.{field} ({language})"
+        for where, key, _ in _documented_operations()
+        for language in (lang.value for lang in Language)
+        for field in ("summary", "description")
+        if not has(f"openapi.op.{key}.{field}", language)
+    ]
+    assert not missing, (
+        "operations with no catalogue prose:\n"
+        + "\n".join(missing)
+        + "\nAdd them to src/dtk/i18n/locales/<lang>.json under openapi.op.<key>."
+    )
+
+
+def test_every_documented_operation_has_an_english_description() -> None:
+    """Which, for English, means the route function needs a docstring."""
+    bare = [
+        where
+        for where, _key, op in _documented_operations()
+        if not (op.get("description") or "").strip()
+    ]
+    assert not bare, (
+        "operations rendering with no description in English:\n"
+        + "\n".join(bare)
+        + "\nGive the route function a docstring; FastAPI uses it as the description."
+    )
+
+
+def test_documented_operations_describe_every_parameter_they_accept() -> None:
+    """A parameter with no description is a name and a type, which is a guess.
+
+    `lang` is exempt: it is appended to every operation by the localizer itself
+    and carries its own catalogue text.
+    """
+    bare = [
+        f"{where} -> {parameter.get('name')}"
+        for where, _key, operation in _documented_operations()
+        for parameter in operation.get("parameters", [])
+        if parameter.get("name") != "lang" and not (parameter.get("description") or "").strip()
+    ]
+    assert not bare, (
+        "parameters with no description:\n"
+        + "\n".join(bare)
+        + "\nSet description= on the Query/Path declaration."
+    )

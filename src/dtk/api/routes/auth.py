@@ -196,6 +196,21 @@ async def _clear_failures(username: str, ip: str | None) -> None:
 
 @router.post("/login", summary="Exchange a password for a session cookie")
 async def login(request: Request, body: LoginRequest) -> Any:
+    """Sign in to the console and receive a session cookie.
+
+    For programs, prefer an API key over this endpoint: a key carries scopes
+    and can be revoked on its own. Repeated failures are throttled, and too
+    many will lock the account out for a while.
+
+    **Parameters**
+
+    - `username` - the console account name.
+    - `password` - that account's password.
+
+    **Returns**
+
+    The signed-in principal, plus a `Set-Cookie` holding the session.
+    """
     session = request.state.db
     ip = client_ip(request)
     await _check_lockout(body.username, ip)
@@ -252,6 +267,15 @@ async def logout(request: Request) -> Any:
 
 @router.get("/me", summary="The authenticated principal")
 async def me(request: Request, principal: Principal = Depends(authenticated)) -> Any:
+    """Who the current credential belongs to.
+
+    Works with either a session cookie or an API key, so it doubles as a way to
+    check that a key is live and to see what it is allowed to do.
+
+    **Returns**
+
+    The account name, role and the scopes this credential carries.
+    """
     user = await UserRepository(request.state.db).get(principal.user_id)
     if user is None:
         # The session outlived the account it names.
@@ -317,6 +341,13 @@ async def change_password(
 
 @router.get("/sessions", summary="List your live sessions")
 async def list_sessions(request: Request, principal: Principal = Depends(authenticated)) -> Any:
+    """Every device currently signed in as you.
+
+    **Returns**
+
+    One entry per live session with where and when it signed in, and a flag
+    marking the one making this request.
+    """
     current = sessions.cookie_token(request)
     live = await sessions.list_for(principal.user_id, current=current)
     return ok(request, [s.as_dict() for s in live])
@@ -326,6 +357,15 @@ async def list_sessions(request: Request, principal: Principal = Depends(authent
 async def revoke_other_sessions(
     request: Request, principal: Principal = Depends(authenticated)
 ) -> Any:
+    """Sign out everywhere except here.
+
+    The session making the request is kept, so you are not logged out by your
+    own call. Use this after changing a password, or if a device was lost.
+
+    **Returns**
+
+    How many sessions were revoked.
+    """
     current = sessions.cookie_token(request)
     revoked = await sessions.revoke_others(principal.user_id, keep=current)
     await audit(

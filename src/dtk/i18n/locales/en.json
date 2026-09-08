@@ -152,29 +152,41 @@
         "description": "Reports database, cache, browser RPC and identity pool health. Safe to poll from an uptime monitor."
       },
       "batch": {
-        "summary": "Submit many links at once"
+        "summary": "Submit many links at once",
+        "description": "Submits many links in one call and returns a task id per link. Each link is scheduled independently, so one failure does not hold up the rest."
       },
       "content_detail": {
-        "summary": "One post, video or image album"
+        "summary": "One post, video or image album",
+        "description": "One post - a video or an image album - with its media URLs, caption, statistics and author. Identify it by either url or aweme_id."
       },
       "comments": {
-        "summary": "Top level comments on a post"
+        "summary": "Top level comments on a post",
+        "description": "One page of top level comments on a post, with author, like count and reply count. Page through with cursor; a response with no cursor is the last page."
       },
       "comment_replies": {
-        "summary": "Replies under one comment"
+        "summary": "Replies under one comment",
+        "description": "One page of replies underneath a single comment. Pass comment_id together with the post, identified by either url or aweme_id."
       },
       "author_profile": {
-        "summary": "Author profile"
+        "summary": "Author profile",
+        "description": "One author's public profile: nickname, signature, avatar, verification state and follower, following, like and post counts."
       },
       "author_posts": {
-        "summary": "Author post list"
+        "summary": "Author post list",
+        "description": "One page of an author's own posts, newest first, in the same shape as the single post endpoint. Page through with cursor."
       }
     },
     "param": {
       "lang": "Response language for human-readable text. One of en or zh; anything else falls back to en.",
       "wait": "Seconds to wait for the task before returning 202 with a task id.",
       "cursor": "Opaque cursor from the previous page; omit for the first page.",
-      "count": "Items per page."
+      "count": "Items per page.",
+      "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",
+      "aweme_id": "The post id, as an alternative to url. Provide exactly one of the two.",
+      "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid.",
+      "comment_id": "The parent comment whose replies you want. Ids come from the comments endpoint.",
+      "platform": "Which platform the request is addressed to: douyin or tiktok. It must match the link you pass.",
+      "include_raw": "Also return the platform's own untouched payload alongside the normalized record."
     },
     "response": {
       "error": "The request failed. The code field is stable and machine-readable; the message field is localized."

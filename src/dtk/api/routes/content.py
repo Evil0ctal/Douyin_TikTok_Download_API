@@ -58,7 +58,30 @@ CURSOR_QUERY = Query(
     description="Opaque cursor from the previous page; omit for the first page.",
 )
 RAW_QUERY = Query(default=False, description="Include the untouched platform payload.")
-PLATFORM_PATH = Path(description="Platform the request is addressed to.")
+PLATFORM_PATH = Path(description="Platform the request is addressed to: douyin or tiktok.")
+URL_QUERY = Query(
+    default=None,
+    max_length=4096,
+    description=(
+        "A link to the resource. Text with a link inside it is accepted, so clipboard "
+        "content from the apps can be sent unedited."
+    ),
+)
+AWEME_ID_QUERY = Query(
+    default=None,
+    max_length=64,
+    description="The post id, as an alternative to url. Provide exactly one of the two.",
+)
+SEC_USER_ID_QUERY = Query(
+    default=None,
+    max_length=256,
+    description=("The author's stable id, as an alternative to url. On TikTok this is secUid."),
+)
+COMMENT_ID_QUERY = Query(
+    min_length=1,
+    max_length=64,
+    description="The parent comment whose replies you want; ids come from the comments endpoint.",
+)
 
 
 def read_scope(platform: Platform) -> Scope:
@@ -251,12 +274,33 @@ async def batch(
 async def video(
     request: Request,
     platform: Platform = PLATFORM_PATH,
-    url: str | None = Query(default=None, max_length=4096),
-    aweme_id: str | None = Query(default=None, max_length=64),
+    url: str | None = URL_QUERY,
+    aweme_id: str | None = AWEME_ID_QUERY,
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
+    """One post: a video, or an image album, with its author and statistics.
+
+    Identify the post by **either** `url` **or** `aweme_id` - exactly one is
+    required. A share link works, including the shortened `v.douyin.com` and
+    `vm.tiktok.com` forms, and a link that carries the id needs no id.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `url` - a link to the post. Text with a link inside it is accepted, so
+      the clipboard content the apps produce can be sent unedited.
+    - `aweme_id` - the post id, if you already have it.
+    - `include_raw` - also return the platform's own untouched payload.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    The post's media URLs, cover, caption, statistics, author and timestamps,
+    normalized to the same shape for both platforms.
+    """
     authorize(principal, platform)
     params = _content_params(platform, url=url, aweme_id=aweme_id)
     params["include_raw"] = include_raw
@@ -277,13 +321,34 @@ async def video(
 async def comments(
     request: Request,
     platform: Platform = PLATFORM_PATH,
-    url: str | None = Query(default=None, max_length=4096),
-    aweme_id: str | None = Query(default=None, max_length=64),
+    url: str | None = URL_QUERY,
+    aweme_id: str | None = AWEME_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
+    """One page of top level comments on a post.
+
+    Identify the post by **either** `url` **or** `aweme_id`. To read the
+    replies under a comment, use `/video/comments/replies`.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `url` - a link to the post.
+    - `aweme_id` - the post id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - comments per page.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    Comment text, author, like count, reply count and timestamp, plus the
+    cursor for the next page.
+    """
     authorize(principal, platform)
     params = _content_params(platform, url=url, aweme_id=aweme_id)
     params.update({"cursor": cursor, "count": resolve_count(count)})
@@ -304,14 +369,37 @@ async def comments(
 async def comment_replies(
     request: Request,
     platform: Platform = PLATFORM_PATH,
-    comment_id: str = Query(min_length=1, max_length=64),
-    url: str | None = Query(default=None, max_length=4096),
-    aweme_id: str | None = Query(default=None, max_length=64),
+    comment_id: str = COMMENT_ID_QUERY,
+    url: str | None = URL_QUERY,
+    aweme_id: str | None = AWEME_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
+    """One page of replies underneath a single comment.
+
+    Both the comment and the post it belongs to are required: pass
+    `comment_id` together with **either** `url` **or** `aweme_id`. Comment ids
+    come from `/video/comments`.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `comment_id` - the parent comment to read replies under.
+    - `url` - a link to the post the comment is on.
+    - `aweme_id` - that post's id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - replies per page.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    The same comment shape as `/video/comments`, plus the cursor for the next
+    page.
+    """
     authorize(principal, platform)
     params = _content_params(platform, url=url, aweme_id=aweme_id)
     params.update({"comment_id": comment_id, "cursor": cursor, "count": resolve_count(count)})
@@ -332,12 +420,32 @@ async def comment_replies(
 async def user(
     request: Request,
     platform: Platform = PLATFORM_PATH,
-    url: str | None = Query(default=None, max_length=4096),
-    sec_user_id: str | None = Query(default=None, max_length=256),
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
+    """One author's public profile.
+
+    Identify the author by **either** `url` **or** `sec_user_id` - exactly one
+    is required. A profile link is enough; the id is read out of it.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it. On
+      TikTok this is `secUid`.
+    - `include_raw` - also return the platform's own untouched payload.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    Nickname, signature, avatar, verification state, and follower, following,
+    like and post counts.
+    """
     authorize(principal, platform)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
     params["include_raw"] = include_raw
@@ -358,13 +466,35 @@ async def user(
 async def user_posts(
     request: Request,
     platform: Platform = PLATFORM_PATH,
-    url: str | None = Query(default=None, max_length=4096),
-    sec_user_id: str | None = Query(default=None, max_length=256),
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
+    """One page of an author's own posts, newest first.
+
+    Identify the author by **either** `url` **or** `sec_user_id`. Page through
+    the feed with `cursor`.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it. On
+      TikTok this is `secUid`.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    The same post shape as `/video`, one entry per post, plus the cursor for
+    the next page.
+    """
     authorize(principal, platform)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update({"cursor": cursor, "count": resolve_count(count)})

@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
 
 from dtk.api.deps import Principal
@@ -79,9 +79,24 @@ def _row(request: Request, proxy: Proxy, *, identity_count: int | None = None) -
 @router.get("", summary="List proxies")
 async def list_proxies(
     request: Request,
-    healthy_only: bool = Query(default=False),
+    healthy_only: bool = Query(
+        default=False, description="Only list proxies that passed their last probe."
+    ),
     principal: Principal = Depends(read_admin),
 ) -> Any:
+    """Every configured egress, oldest first.
+
+    Credentials in a proxy URL are masked; the full URL is never returned.
+
+    **Parameters**
+
+    - `healthy_only` - hide proxies that failed their last probe.
+
+    **Returns**
+
+    Each proxy's masked URL, label, country, timezone, health and how many
+    identities are bound to it.
+    """
     stmt = select(Proxy).order_by(Proxy.created_at)
     if healthy_only:
         stmt = stmt.where(Proxy.healthy.is_(True))
@@ -95,6 +110,22 @@ async def create_proxy(
     body: ProxyCreate,
     principal: Principal = Depends(manage_pool),
 ) -> Any:
+    """Add one egress to the pool.
+
+    The URL is stored encrypted and only ever returned masked. To add many at
+    once, use `/proxies/import` instead.
+
+    **Parameters**
+
+    - `url` - the proxy URL, `scheme://[user:pass@]host:port`.
+    - `label` - an optional name to recognise it by.
+    - `country`, `timezone` - optional overrides; otherwise they come from a
+      GeoIP lookup of the exit address when the proxy is probed.
+
+    **Returns**
+
+    The stored proxy, with its URL masked.
+    """
     spec = parse_proxy(body.url)
     proxy = await _store(
         request, spec, label=body.label, country=body.country, timezone=body.timezone
@@ -163,10 +194,24 @@ async def import_proxies(
 @router.put("/{proxy_id}", summary="Update one proxy")
 async def update_proxy(
     request: Request,
-    proxy_id: uuid.UUID,
     body: ProxyUpdate,
+    proxy_id: uuid.UUID = Path(description="The proxy to update."),
     principal: Principal = Depends(manage_pool),
 ) -> Any:
+    """Change one proxy's URL, label or geography.
+
+    Only the fields you send are changed. Replacing the URL re-encrypts it and
+    leaves the identities bound to this proxy in place.
+
+    **Parameters**
+
+    - `proxy_id` - the proxy to update.
+    - `url`, `label`, `country`, `timezone` - any subset of these.
+
+    **Returns**
+
+    The updated proxy, with its URL masked.
+    """
     session = request.state.db
     proxy = await session.get(Proxy, proxy_id)
     if proxy is None:
@@ -221,9 +266,23 @@ async def test_proxy(
 @router.delete("/{proxy_id}", summary="Delete a proxy and retire what used it")
 async def delete_proxy(
     request: Request,
-    proxy_id: uuid.UUID,
+    proxy_id: uuid.UUID = Path(description="The proxy to delete."),
     principal: Principal = Depends(manage_pool),
 ) -> Any:
+    """Delete one egress, and retire every identity bound to it.
+
+    An identity is tied to the exit it was minted behind, so it cannot outlive
+    that exit: the identities go too, and their cookies are wiped. This cannot
+    be undone.
+
+    **Parameters**
+
+    - `proxy_id` - the proxy to delete.
+
+    **Returns**
+
+    How many identities were retired along with it.
+    """
     session = request.state.db
     proxy = await session.get(Proxy, proxy_id)
     if proxy is None:

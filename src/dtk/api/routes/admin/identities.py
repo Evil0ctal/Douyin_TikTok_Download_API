@@ -90,11 +90,33 @@ def _warnings(report: ImportReport, lang: Language) -> list[str]:
 @router.get("", summary="List identities with state and health")
 async def list_identities(
     request: Request,
-    platform: Platform | None = Query(default=None),
-    state: IdentityState | None = Query(default=None),
-    limit: int = Query(default=DEFAULT_ADMIN_PAGE_SIZE, ge=1, le=MAX_ADMIN_PAGE_SIZE),
+    platform: Platform | None = Query(
+        default=None, description="Only identities for this platform."
+    ),
+    state: IdentityState | None = Query(default=None, description="Only identities in this state."),
+    limit: int = Query(
+        default=DEFAULT_ADMIN_PAGE_SIZE,
+        ge=1,
+        le=MAX_ADMIN_PAGE_SIZE,
+        description="Maximum identities to return.",
+    ),
     principal: Principal = Depends(read_admin),
 ) -> Any:
+    """The identity pool, newest first.
+
+    Cookies are never returned; this is the health view, not the credential.
+
+    **Parameters**
+
+    - `platform` - restrict to one platform.
+    - `state` - restrict to one state, such as `active` or `cooling`.
+    - `limit` - how many to return.
+
+    **Returns**
+
+    Each identity's id, platform, state, proxy, when it was minted and last
+    used, and its recent success rate.
+    """
     stmt = select(Identity)
     if platform is not None:
         stmt = stmt.where(Identity.platform == platform.value)

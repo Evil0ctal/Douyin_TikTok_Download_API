@@ -22,7 +22,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Path, Request
 from sqlalchemy import select
 
 from dtk.api.deps import Principal
@@ -83,6 +83,17 @@ async def _reload(request: Request) -> None:
 
 @router.get("", summary="Read every runtime setting")
 async def list_settings(request: Request, principal: Principal = Depends(read_admin)) -> Any:
+    """Every runtime setting, with its current value and where that came from.
+
+    Secrets are redacted. A value can come from the database, the environment
+    or the built-in default, and the response says which - so a setting that
+    refuses to change is explained rather than mysterious.
+
+    **Returns**
+
+    Each setting's key, current value, source, type, allowed choices where it
+    is constrained, and a description in the requested language.
+    """
     rows = {row.key: row for row in (await request.state.db.scalars(select(Setting))).all()}
     config = request.app.state.config
     items = []
@@ -119,10 +130,26 @@ async def list_settings(request: Request, principal: Principal = Depends(read_ad
 @router.put("/{key}", summary="Change one runtime setting")
 async def update_setting(
     request: Request,
-    key: str,
     body: SettingUpdate,
+    key: str = Path(description="The setting to change, as shown by the list endpoint."),
     principal: Principal = Depends(read_admin),
 ) -> Any:
+    """Change one runtime setting; it takes effect without a restart.
+
+    The value is validated against the setting's type and, where it has one,
+    its list of allowed choices. Settings that can disrupt a running instance
+    require `confirm`.
+
+    **Parameters**
+
+    - `key` - the setting to change.
+    - `value` - the new value, in the setting's own type.
+    - `confirm` - required for settings flagged as disruptive.
+
+    **Returns**
+
+    The setting, with its new value and source.
+    """
     spec = RUNTIME_SETTINGS.get(key)
     if spec is None:
         raise NotFound("no such setting")

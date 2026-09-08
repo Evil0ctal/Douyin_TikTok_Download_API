@@ -18,7 +18,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
 from dtk.api.deps import Principal
@@ -117,17 +117,30 @@ def _view_payload(
     return payload
 
 
+TASK_ID_PATH = Path(description="The task id returned when the work was submitted.")
+
+
 @router.get("/{task_id}", summary="Fetch a task", openapi_extra={I18N_KEY: "task_get"})
 async def get_task(
     request: Request,
-    task_id: uuid.UUID,
+    task_id: uuid.UUID = TASK_ID_PATH,
     principal: Principal = Depends(authenticated),
 ) -> Any:
-    """Idempotent while the result lives.
+    """The state of one task, and its result once it has finished.
 
-    Results are evicted after ``retention.task_result_hours``; the row survives
-    for the statistics, and a later lookup answers ``TASK_NOT_FOUND`` so the
-    caller re-submits rather than waiting for something that will never come.
+    Safe to poll, and safe to call twice: the answer does not change until the
+    task does.
+
+    **Parameters**
+
+    - `task_id` - the id returned when the work was submitted.
+
+    **Returns**
+
+    The task's state, timestamps and endpoint. A finished task also carries its
+    result. Results are kept for a limited time; once one has expired the
+    lookup answers `TASK_NOT_FOUND`, which means submit the work again rather
+    than keep polling.
     """
     view = await task_service.get(request.state.db, task_id)
     if view.state is TaskState.DONE and view.result is None:
@@ -140,8 +153,13 @@ async def get_task(
 @router.get("/{task_id}/events", summary="Stream a task's progress")
 async def task_events(
     request: Request,
-    task_id: uuid.UUID,
-    timeout: float = Query(default=SSE_MAX_SECONDS, ge=1, le=SSE_MAX_SECONDS),
+    task_id: uuid.UUID = TASK_ID_PATH,
+    timeout: float = Query(
+        default=SSE_MAX_SECONDS,
+        ge=1,
+        le=SSE_MAX_SECONDS,
+        description="Seconds to hold the stream open before closing it.",
+    ),
     principal: Principal = Depends(authenticated),
 ) -> StreamingResponse:
     """Server-sent events until the task settles or the deadline passes.

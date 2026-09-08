@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Path, Request
 from sqlalchemy import func, select
 
 from dtk.api.deps import Principal
@@ -53,6 +53,14 @@ async def _admin_count(request: Request, *, excluding: uuid.UUID | None = None) 
 
 @router.get("", summary="List console accounts")
 async def list_users(request: Request, principal: Principal = Depends(admin_only)) -> Any:
+    """Every console account.
+
+    Password hashes are never returned.
+
+    **Returns**
+
+    Each account's id, username, role and when it was created.
+    """
     users = await UserRepository(request.state.db).list_all()
     return ok(request, [_row(user) for user in users])
 
@@ -63,6 +71,21 @@ async def create_user(
     body: UserCreate,
     principal: Principal = Depends(admin_only),
 ) -> Any:
+    """Create a console account.
+
+    The password is checked against the instance's strength policy and stored
+    hashed. Usernames are unique.
+
+    **Parameters**
+
+    - `username` - the new account name.
+    - `password` - its password.
+    - `role` - what the account may do.
+
+    **Returns**
+
+    The created account, without its password.
+    """
     users = UserRepository(request.state.db)
     if await users.get_by_username(body.username) is not None:
         raise InvalidParam(
@@ -144,9 +167,18 @@ async def update_user(
 @router.delete("/{user_id}", summary="Delete a console account")
 async def delete_user(
     request: Request,
-    user_id: uuid.UUID,
+    user_id: uuid.UUID = Path(description="The account to delete."),
     principal: Principal = Depends(admin_only),
 ) -> Any:
+    """Delete a console account and revoke its sessions.
+
+    You cannot delete the account you are signed in with, and the last
+    remaining administrator cannot be deleted either.
+
+    **Parameters**
+
+    - `user_id` - the account to delete.
+    """
     if user_id == principal.user_id:
         raise InvalidParam(
             "you cannot delete the account you are signed in with",

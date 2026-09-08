@@ -341,7 +341,10 @@ def test_envelope_parameters_pass_through_untouched() -> None:
 
 def test_absent_values_are_dropped_not_coerced() -> None:
     definition = registry.definition_for("douyin.author_posts")
-    assert definition.platform_params({"author_id": "u", "cursor": None}) == {"sec_user_id": "u"}
+    author = "MS4wLjABAAAAexample"
+    assert definition.platform_params({"author_id": author, "cursor": None}) == {
+        "sec_user_id": author
+    }
 
 
 def test_a_bad_count_names_the_endpoint() -> None:
@@ -1375,3 +1378,42 @@ class TestTikTokDeviceId:
             for _ in range(20)
         }
         assert len(seen) > 1, "device_id is constant across requests"
+
+
+# --------------------------------------------------------------------------
+# @handle routing
+#
+# A TikTok profile link is "/@handle", so every URL-shaped author lookup
+# resolves to a handle rather than to a secUid. Sent as author_id it reaches
+# the platform in the secUid slot, where TikTok answers 200 with statusCode
+# 10221 and an empty user - a success-shaped response carrying nothing, which
+# surfaced as "this author has no data" rather than as a bad request.
+# --------------------------------------------------------------------------
+
+
+def test_a_tiktok_handle_is_routed_to_the_parameter_that_accepts_one() -> None:
+    definition = registry.definition_for("tiktok.author_profile")
+    assert definition.platform_params({"author_id": "chainzone_led"}) == {
+        "unique_id": "chainzone_led"
+    }
+
+
+def test_a_leading_at_sign_is_stripped_from_a_handle() -> None:
+    definition = registry.definition_for("tiktok.author_profile")
+    assert definition.platform_params({"author_id": "@chainzone_led"}) == {
+        "unique_id": "chainzone_led"
+    }
+
+
+def test_a_sec_uid_still_goes_to_the_stable_id_parameter() -> None:
+    """The fix must not divert the identifier that already worked."""
+    definition = registry.definition_for("tiktok.author_profile")
+    author = "MS4wLjABAAAASDkj_zPPnsTc11swAcHDf470jLCB3tx49m4OJluW3Tb"
+    assert definition.platform_params({"author_id": author}) == {"sec_uid": author}
+
+
+def test_an_endpoint_with_no_handle_parameter_refuses_the_handle_by_name() -> None:
+    """Better a named error than a request that cannot work being sent anyway."""
+    definition = registry.definition_for("tiktok.author_posts")
+    with pytest.raises(InvalidParam, match="stable id"):
+        definition.platform_params({"author_id": "chainzone_led"})
