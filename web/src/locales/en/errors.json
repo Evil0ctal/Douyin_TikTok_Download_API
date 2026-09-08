@@ -18,7 +18,8 @@
     "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
     "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
     "INTERNAL": "An unexpected internal error occurred.",
-    "NOT_CONFIGURED": "Not configured"
+    "NOT_CONFIGURED": "Not configured",
+    "QUEUE_FULL": "Queue full"
   },
   "hint": {
     "INVALID_URL": "Check the link and paste it again. Retrying will not help.",
@@ -38,7 +39,8 @@
     "SETUP_ALREADY_DONE": "Sign in instead.",
     "SETUP_TOKEN_INVALID": "Restart the api container to print a fresh token in the logs.",
     "INTERNAL": "Report the issue with the request id and check the server logs.",
-    "NOT_CONFIGURED": "This instance does not have that component set up. It is a deployment setting, not a temporary failure, so retrying will not help."
+    "NOT_CONFIGURED": "This instance does not have that component set up. It is a deployment setting, not a temporary failure, so retrying will not help.",
+    "QUEUE_FULL": "More work is queued than this instance is configured to hold. It is shedding load on purpose; raise sched.queue_max if the instance can take it, or wait for the backlog to drain."
   },
   "generic": {
     "network": "Cannot reach the API. Check that the service is running and reachable.",

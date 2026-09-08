@@ -16,5 +16,6 @@
   "SETUP_ALREADY_DONE": "本实例已完成初始化。",
   "SETUP_TOKEN_INVALID": "初始化令牌无效或已过期。",
   "INTERNAL": "服务器内部错误，请查看服务端日志。",
-  "NOT_CONFIGURED": "本实例未配置该功能。"
+  "NOT_CONFIGURED": "本实例未配置该功能。",
+  "QUEUE_FULL": "任务队列已满，请在 {retry_after} 秒后重试。"
 }

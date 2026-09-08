@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import uuid
 from enum import StrEnum
-from typing import Any
+from typing import Any, Final
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -38,10 +38,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.api import envelope
 from dtk.api.deps import Principal
 from dtk.api.routes.support import language, ok, request_id
-from dtk.core.errors import ErrorCode, TaskNotFound
+from dtk.core.errors import ErrorCode, QueueFull, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Platform, TaskState
+from dtk.core.types import Platform, RejectReason, TaskState
 from dtk.services import cache, tasks
 
 log = get_logger(__name__)
@@ -145,6 +145,11 @@ async def submit(
             log.debug("task.coalesced", endpoint=endpoint, task_id=str(joined[0]))
             return joined
 
+    # Checked after the coalescing attempt: joining work that is already queued
+    # adds nothing to the backlog, and refusing it would turn a full queue into
+    # a failure for callers who were about to get an answer for free.
+    await _refuse_when_the_queue_is_full(request, endpoint)
+
     task_id = await tasks.submit(session, endpoint, cleaned, api_key_id=principal.api_key_id)
     # Commit before the worker can pop the id off the queue: the row has to be
     # visible to another process by the time it looks the task up.
@@ -152,6 +157,39 @@ async def submit(
     if coalesce:
         await cache.claim_inflight(digest, str(task_id), ttl=INFLIGHT_TTL_SECONDS)
     return task_id, TaskState.QUEUED
+
+
+#: Jobs an operator triggers by hand. Exempt from the queue ceiling: they are
+#: rare, they are how someone investigates a backlog, and refusing to run the
+#: self check because the queue is deep would withhold the tool at the moment it
+#: is wanted.
+_OPERATOR_TRIGGERED: Final[frozenset[str]] = frozenset(member.value for member in Maintenance)
+
+
+async def _refuse_when_the_queue_is_full(request: Request, endpoint: str) -> None:
+    """Shed load rather than accept work nobody will get to.
+
+    ``sched.queue_max`` was a setting the console exposed and nothing read, and
+    RejectReason.QUEUE_FULL was defined and never raised - so the queue grew
+    without bound and every caller waited instead of being told to come back.
+    Doc 03 is explicit that rejecting early beats queueing: a caller left
+    hanging is worse off than one that gets a Retry-After immediately.
+    """
+    if endpoint in _OPERATOR_TRIGGERED:
+        return
+    ceiling = int(request.app.state.config.get("sched.queue_max"))
+    if ceiling <= 0:
+        return
+    depth = int(await get_redis().llen(tasks.QUEUE_KEY))
+    if depth < ceiling:
+        return
+    retry_after = max(1, int(request.app.state.config.get("sched.max_wait_seconds")))
+    log.warning("task.queue_full", endpoint=endpoint, depth=depth, ceiling=ceiling)
+    raise QueueFull(
+        f"{depth} tasks are already queued, at the configured ceiling of {ceiling}",
+        retry_after=retry_after,
+        details={"reject_reason": RejectReason.QUEUE_FULL.value, "queued": depth},
+    )
 
 
 def accepted(request: Request, task_id: uuid.UUID, state: TaskState) -> JSONResponse:

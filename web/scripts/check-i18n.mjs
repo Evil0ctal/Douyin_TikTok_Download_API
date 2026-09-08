@@ -104,6 +104,28 @@ if (existsSync(errorsPy)) {
       }
     }
   }
+
+  // src/lib/api.ts keeps its own copy of the enum, and isErrorCode() gates on
+  // it: a code missing there is silently rewritten to INTERNAL, so the console
+  // shows "an unexpected internal error" for a condition the server explained
+  // precisely. Only the catalogue was checked before, which does not catch it.
+  const apiTs = resolve(here, '..', 'src', 'lib', 'api.ts')
+  if (existsSync(apiTs)) {
+    const block = readFileSync(apiTs, 'utf8').match(/export const ERROR_CODES = \[([\s\S]*?)\] as const/)
+    if (!block) {
+      problems.push('could not find ERROR_CODES in src/lib/api.ts')
+    } else {
+      const declared = new Set([...block[1].matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]))
+      for (const code of codes) {
+        if (!declared.has(code)) problems.push(`src/lib/api.ts ERROR_CODES is missing ${code}`)
+      }
+      for (const code of declared) {
+        if (!codes.includes(code)) {
+          problems.push(`src/lib/api.ts ERROR_CODES has ${code}, which the API never sends`)
+        }
+      }
+    }
+  }
 } else {
   console.warn(`check-i18n: ${errorsPy} not found, skipping error-code coverage`)
 }

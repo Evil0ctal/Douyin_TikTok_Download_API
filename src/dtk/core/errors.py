@@ -29,6 +29,7 @@ class ErrorCode(StrEnum):
     SETUP_ALREADY_DONE = "SETUP_ALREADY_DONE"
     SETUP_TOKEN_INVALID = "SETUP_TOKEN_INVALID"
     NOT_CONFIGURED = "NOT_CONFIGURED"
+    QUEUE_FULL = "QUEUE_FULL"
     INTERNAL = "INTERNAL"
 
 
@@ -52,6 +53,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.SETUP_ALREADY_DONE: 409,
     ErrorCode.SETUP_TOKEN_INVALID: 403,
     ErrorCode.NOT_CONFIGURED: 501,
+    ErrorCode.QUEUE_FULL: 503,
     ErrorCode.INTERNAL: 500,
 }
 
@@ -133,6 +135,10 @@ Internal = _err("Internal", ErrorCode.INTERNAL)
 #: An optional component was never set up. Distinct from Internal, which
 #: promises the caller that trying again might work.
 NotConfigured = _err("NotConfigured", ErrorCode.NOT_CONFIGURED)
+#: The task queue is at its configured ceiling. Retryable by design: the
+#: caller is told when to come back rather than being queued behind work
+#: that will not finish in time to matter.
+QueueFull = _err("QueueFull", ErrorCode.QUEUE_FULL)
 
 
 class UpstreamChanged(DtkError):
@@ -164,6 +170,7 @@ __all__ = [
     "InvalidUrl",
     "NotConfigured",
     "NotFound",
+    "QueueFull",
     "RateLimited",
     "SetupAlreadyDone",
     "SetupTokenInvalid",

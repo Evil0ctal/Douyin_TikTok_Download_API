@@ -16,5 +16,6 @@
   "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
   "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
   "INTERNAL": "An unexpected internal error occurred; check the server logs for details.",
-  "NOT_CONFIGURED": "This feature is not configured on this instance."
+  "NOT_CONFIGURED": "This feature is not configured on this instance.",
+  "QUEUE_FULL": "The work queue is full; retry in {retry_after} seconds."
 }

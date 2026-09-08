@@ -103,6 +103,11 @@ export const ERROR_CODE_TONE: Record<ErrorCode, Tone> = {
   TASK_NOT_FOUND: 'muted',
   SETUP_ALREADY_DONE: 'neutral',
   SETUP_TOKEN_INVALID: 'danger',
+  // A deployment fact rather than a failure: this instance was never given the
+  // component. Nothing is broken and retrying changes nothing.
+  NOT_CONFIGURED: 'caution',
+  // Deliberate load shedding, like a rate limit: it clears on its own.
+  QUEUE_FULL: 'warning',
   INTERNAL: 'danger',
 }
 

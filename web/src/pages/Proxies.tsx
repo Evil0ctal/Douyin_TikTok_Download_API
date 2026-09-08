@@ -32,7 +32,11 @@ import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hoo
 /* -------------------------------------------------------------------------- */
 
 /** Schemes the server accepts. Anything else is rejected before it is sent. */
-const SCHEMES = ['http', 'https', 'socks5', 'socks5h', 'socks4'] as const
+// Mirrors ALLOWED_SCHEMES in src/dtk/api/routes/admin/proxy_urls.py. socks4 was
+// listed here and is not accepted there, so a pasted socks4 line previewed as
+// valid and was then refused on import with scheme_not_supported - the preview
+// exists precisely to stop that.
+const SCHEMES = ['http', 'https', 'socks5', 'socks5h'] as const
 
 const DEFAULT_SCHEME = 'http'
 

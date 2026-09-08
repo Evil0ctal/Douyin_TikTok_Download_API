@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from dtk.core.db import session_scope
+from dtk.core.redis import get_redis
 from dtk.core.types import TaskState
 from dtk.services import tasks as task_service
 from tests.integration import test_api_support as support
@@ -144,3 +145,54 @@ async def test_the_event_stream_rejects_an_unknown_task_before_streaming(client:
     response = await client.get(f"/api/v1/tasks/{uuid.uuid4()}/events")
     assert response.status_code == 404
     assert error_code(response) == "TASK_NOT_FOUND"
+
+
+# --------------------------------------------------------------------------
+# Queue backpressure
+# --------------------------------------------------------------------------
+
+
+async def test_the_queue_ceiling_sheds_load_instead_of_growing(client: Any) -> None:
+    """sched.queue_max was a setting the console exposed and nothing read.
+
+    RejectReason.QUEUE_FULL was defined and never raised, so the queue grew
+    without bound and callers waited rather than being told to come back. Doc 03
+    is explicit that rejecting early beats queueing.
+    """
+    await signed_in(client)
+    await client.put("/api/v1/admin/settings/sched.queue_max", json={"value": 2})
+
+    await get_redis().delete(task_service.QUEUE_KEY)
+    for _ in range(3):
+        await get_redis().rpush(task_service.QUEUE_KEY, str(uuid.uuid4()))
+
+    refused = await client.post(
+        "/api/v1/parse",
+        json={"url": "https://www.douyin.com/video/7123456789012345678"},
+    )
+    assert error_code(refused) == "QUEUE_FULL"
+    assert refused.status_code == 503
+    body = envelope(refused)["error"]
+    assert body["details"]["reject_reason"] == "queue_full"
+    assert int(refused.headers.get("retry-after", 0)) > 0
+
+    # An operator-triggered job is exempt: a deep queue is exactly when someone
+    # runs the self check, and refusing it withholds the tool at the moment it
+    # is wanted.
+    allowed = await client.post("/api/v1/admin/diagnose", json={"include_smoke_test": False})
+    assert allowed.status_code == 202
+
+
+async def test_a_ceiling_of_zero_disables_the_check(client: Any) -> None:
+    """The escape hatch, so an operator can turn backpressure off deliberately."""
+    await signed_in(client)
+    await client.put("/api/v1/admin/settings/sched.queue_max", json={"value": 0})
+    await get_redis().delete(task_service.QUEUE_KEY)
+    for _ in range(5):
+        await get_redis().rpush(task_service.QUEUE_KEY, str(uuid.uuid4()))
+
+    response = await client.post(
+        "/api/v1/parse",
+        json={"url": "https://www.douyin.com/video/7123456789012345678"},
+    )
+    assert response.status_code == 202, envelope(response)

@@ -35,6 +35,8 @@ export const ERROR_CODES = [
   'TASK_NOT_FOUND',
   'SETUP_ALREADY_DONE',
   'SETUP_TOKEN_INVALID',
+  'NOT_CONFIGURED',
+  'QUEUE_FULL',
   'INTERNAL',
 ] as const
 
