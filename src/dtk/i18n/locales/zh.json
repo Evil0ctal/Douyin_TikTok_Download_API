@@ -182,6 +182,14 @@
       "mix_posts": {
         "summary": "获取合辑 / 播放列表内的作品",
         "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表。合辑 ID 可从任意属于该合辑的作品中获得：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
+      },
+      "author_followers": {
+        "summary": "获取作者的粉丝列表",
+        "description": "分页获取关注该作者的账号。仅支持 TikTok：抖音的关注关系只对已登录身份开放，在抖音上请求会返回错误并列出支持该功能的平台。"
+      },
+      "author_following": {
+        "summary": "获取作者关注的账号",
+        "description": "分页获取该作者关注的账号。仅支持 TikTok；相比粉丝列表，账号隐藏关注列表的情况更常见，因此返回空页是正常结果。"
       }
     },
     "param": {

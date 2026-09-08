@@ -610,9 +610,9 @@ def test_endpoint_table_covers_the_p0_set() -> None:
     """Every capability the registry declares has a real endpoint behind it."""
     from dtk.worker.registry import P0_CAPABILITIES
 
-    assert set(ADAPTER.endpoints.names()) == {
-        f"tiktok.{capability.value}" for capability in P0_CAPABILITIES
-    }
+    assert {f"tiktok.{capability.value}" for capability in P0_CAPABILITIES} <= set(
+        ADAPTER.endpoints.names()
+    )
 
 
 def test_build_content_detail_request() -> None:
@@ -687,3 +687,53 @@ def test_client_profile_is_injected_not_hardcoded() -> None:
     assert spec["params"]["region"] == "SG"
     assert spec["params"]["priority_region"] == "SG"
     assert spec["params"]["app_language"] == "zh-Hans"
+
+
+# --------------------------------------------------------------------------
+# Follow graph
+# --------------------------------------------------------------------------
+
+
+def test_author_list_reads_the_user_and_stats_pair() -> None:
+    """Each entry is the same shape /api/user/detail/ returns for one author."""
+    page = parser.parse_author_list(
+        {
+            "userList": [
+                {
+                    "user": {
+                        "id": "123",
+                        "secUid": "MS4wLjABAAAAexample",
+                        "uniqueId": "someone",
+                        "nickname": "Someone",
+                        "avatarThumb": "https://p16.tiktokcdn.com/a.jpeg",
+                    },
+                    "stats": {"followerCount": 12, "followingCount": 3, "heartCount": 45},
+                }
+            ],
+            "hasMore": True,
+            "minCursor": 1788830136,
+        }
+    )
+    assert [author.nickname for author in page.items] == ["Someone"]
+    assert page.has_more is True
+    assert page.cursor == "1788830136"
+
+
+def test_an_absent_user_list_is_an_empty_page_not_a_broken_payload() -> None:
+    """A hidden following list omits the key rather than sending an empty list.
+
+    Measured 2026-09-08: one account returned 30 followers and, for the
+    following side, a 276-byte body with no `userList` key at all. Requiring the
+    key turned "this author hides who they follow" into UpstreamChanged.
+    """
+    page = parser.parse_author_list({"hasMore": False, "minCursor": -1, "statusCode": 0})
+
+    assert page.items == []
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_a_present_user_list_is_still_strict() -> None:
+    """Tolerating an absent key must not tolerate a malformed present one."""
+    with pytest.raises(UpstreamChanged):
+        parser.parse_author_list({"userList": [{"user": {}}], "hasMore": False})

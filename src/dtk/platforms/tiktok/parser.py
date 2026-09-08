@@ -416,6 +416,39 @@ def parse_author(payload: Mapping[str, Any]) -> Author:
     )
 
 
+def parse_author_list(payload: Mapping[str, Any]) -> Page[Author]:
+    """Parse ``/api/user/list/``, which answers for both sides of the graph.
+
+    Each entry is the same ``{user, stats}`` pair ``/api/user/detail/`` returns
+    for one author, so the entries reuse the profile parser rather than a second
+    reading of the same schema.
+
+    The cursor is ``minCursor``. TikTok reports ``hasMore`` honestly here, and a
+    hidden list answers with an empty page rather than an error - which is what
+    most accounts do for the following side.
+    """
+    root = _guard(payload)
+    # An empty result omits `userList` entirely rather than sending `[]`, which
+    # is what a hidden following list looks like - measured 2026-09-08, where
+    # the same account returned 30 followers and no `userList` key at all for
+    # the following side. Absent is therefore an empty page; a list that IS
+    # present stays strict, so a malformed entry is still reported rather than
+    # silently dropped.
+    entries = root.children("userList") if root.has("userList") else []
+    items = [
+        author_from_web_node(
+            entry.child("user"),
+            stats=entry.opt_child("stats") or entry.opt_child("statsV2"),
+        )
+        for entry in entries
+    ]
+    has_more = optional_bool(root.present("hasMore"))
+    cursor = optional_id(root.get("minCursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("minCursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/api/post/item_list/``."""
     root = _guard(payload)

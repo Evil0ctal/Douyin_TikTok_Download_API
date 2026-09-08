@@ -64,9 +64,9 @@ def test_adapter_satisfies_the_protocol(name: str) -> None:
     # capability, and the point of that rule is that adding one to the enum
     # fails here for whichever platform has not caught up - which a hardcoded
     # count cannot say.
-    assert set(adapter.endpoints.names()) == {
-        f"{name}.{capability.value}" for capability in P0_CAPABILITIES
-    }
+    assert {f"{name}.{capability.value}" for capability in P0_CAPABILITIES} <= set(
+        adapter.endpoints.names()
+    )
 
 
 def test_unknown_platform_is_rejected() -> None:

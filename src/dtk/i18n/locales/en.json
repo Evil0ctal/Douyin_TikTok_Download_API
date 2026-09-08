@@ -182,6 +182,14 @@
       "mix_posts": {
         "summary": "Posts inside a mix or playlist",
         "description": "One page of the posts collected in a mix - Douyin's series, TikTok's playlist. The id comes from any post that belongs to one: mix_info on Douyin, playlistId on TikTok."
+      },
+      "author_followers": {
+        "summary": "Accounts that follow an author",
+        "description": "One page of the accounts that follow an author. TikTok only: Douyin serves its follow graph only to a signed-in identity, so asking for it there returns an error naming the platforms that do support it."
+      },
+      "author_following": {
+        "summary": "Accounts an author follows",
+        "description": "One page of the accounts an author follows. TikTok only, and accounts hide this side of the graph far more often than their followers, so an empty page is a common and correct answer."
       }
     },
     "param": {

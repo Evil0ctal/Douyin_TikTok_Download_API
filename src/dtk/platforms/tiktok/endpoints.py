@@ -16,6 +16,8 @@ from typing import Final
 
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.tiktok.params import (
+    author_followers_params,
+    author_following_params,
     author_likes_params,
     author_posts_params,
     author_profile_params,
@@ -88,6 +90,8 @@ COMMENTS: Final = "tiktok.comments"
 COMMENT_REPLIES: Final = "tiktok.comment_replies"
 AUTHOR_LIKES: Final = "tiktok.author_likes"
 MIX_POSTS: Final = "tiktok.mix_posts"
+AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
+AUTHOR_FOLLOWING: Final = "tiktok.author_following"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -143,6 +147,22 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts inside one playlist",
     ),
     EndpointSpec(
+        name=AUTHOR_FOLLOWERS,
+        path=TikTokAPIEndpoints.USER_FANS,
+        required=("sec_uid",),
+        build=author_followers_params,
+        risk_weight=1.8,
+        summary="Accounts that follow an author",
+    ),
+    EndpointSpec(
+        name=AUTHOR_FOLLOWING,
+        path=TikTokAPIEndpoints.USER_FOLLOW,
+        required=("sec_uid",),
+        build=author_following_params,
+        risk_weight=1.8,
+        summary="Accounts an author follows",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=TikTokAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -162,6 +182,8 @@ ENDPOINTS: Final = EndpointTable.of(
 
 
 __all__ = [
+    "AUTHOR_FOLLOWERS",
+    "AUTHOR_FOLLOWING",
     "AUTHOR_LIKES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",

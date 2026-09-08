@@ -614,9 +614,9 @@ def test_endpoint_table_covers_the_p0_set() -> None:
     """Every capability the registry declares has a real endpoint behind it."""
     from dtk.worker.registry import P0_CAPABILITIES
 
-    assert set(ADAPTER.endpoints.names()) == {
-        f"douyin.{capability.value}" for capability in P0_CAPABILITIES
-    }
+    assert {f"douyin.{capability.value}" for capability in P0_CAPABILITIES} <= set(
+        ADAPTER.endpoints.names()
+    )
 
 
 def test_build_content_detail_request() -> None:

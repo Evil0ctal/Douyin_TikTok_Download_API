@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
 from dtk.models import Author, Comment, Content, Page
 from dtk.platforms.base import EndpointTable, PlatformAdapter, RequestSpec
@@ -45,6 +46,26 @@ class DouyinAdapter:
         self, payload: Mapping[str, Any], *, fetched_at: datetime
     ) -> Page[Content]:
         return parser.parse_author_posts(payload, fetched_at=fetched_at)
+
+    def parse_author_list(self, payload: Mapping[str, Any]) -> Page[Author]:
+        """Douyin does not serve a follow graph to a guest identity.
+
+        Measured 2026-09-08 against ``/aweme/v1/web/user/follower/list/`` and
+        ``/aweme/v1/web/user/following/list/`` with a healthy guest identity:
+        both answer ``status_code 8`` with a status message meaning "not signed
+        in". Passing
+        the numeric ``user_id`` alongside ``sec_user_id`` does not change it.
+
+        So no Douyin follower endpoint is registered, and this exists to say
+        that in the place someone will look rather than to leave the platform
+        silently missing a method the protocol requires. TikTok serves both
+        sides of the graph to a guest and does register them.
+        """
+        raise UnsupportedContent(
+            "Douyin serves follower and following lists only to a signed-in "
+            "identity; import one from the console to read them",
+            details={"platform": self.platform.value, "capability": "author_list"},
+        )
 
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None

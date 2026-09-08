@@ -37,10 +37,17 @@ from dtk.api.routes.support import (
     resolve_wait,
     validate_callback_url,
 )
-from dtk.core.errors import DtkError, ForbiddenScope, InvalidParam, InvalidUrl
+from dtk.core.errors import (
+    DtkError,
+    ForbiddenScope,
+    InvalidParam,
+    InvalidUrl,
+    UnsupportedContent,
+)
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
 from dtk.urls import ResourceKind, UrlKind, first_url, identify
+from dtk.worker import registry
 
 log = get_logger(__name__)
 
@@ -100,6 +107,30 @@ def read_scope(platform: Platform) -> Scope:
         return Scope(f"{platform.value}:read")
     except ValueError:
         return Scope.ADMIN
+
+
+def supported(platform: Platform, operation: Operation) -> str:
+    """The endpoint name, once this platform is known to serve this operation.
+
+    The platforms are not symmetric past the core five, and the difference is
+    not a bug to be papered over: Douyin answers "not signed in" for a follow
+    graph and returns nothing for an author's likes, both to a healthy guest
+    identity. A route that submitted the task anyway would answer with an empty
+    page and let the caller conclude the author has no followers.
+    """
+    name = endpoint_name(platform, operation)
+    if name not in registry.ENDPOINTS:
+        raise UnsupportedContent(
+            f"{platform.value} does not offer {operation.value}",
+            details={
+                "platform": platform.value,
+                "operation": operation.value,
+                "supported": sorted(
+                    p.value for p in Platform if endpoint_name(p, operation) in registry.ENDPOINTS
+                ),
+            },
+        )
+    return name
 
 
 def authorize(principal: Principal, platform: Platform) -> None:
@@ -559,7 +590,7 @@ async def user_likes(
     return await operations.submit_and_wait(
         request,
         principal,
-        endpoint=endpoint_name(platform, Operation.AUTHOR_LIKES),
+        endpoint=supported(platform, Operation.AUTHOR_LIKES),
         params=params,
         wait=resolve_wait(request, wait),
     )
@@ -603,9 +634,100 @@ async def mix_posts(
     return await operations.submit_and_wait(
         request,
         principal,
-        endpoint=endpoint_name(platform, Operation.MIX_POSTS),
+        endpoint=supported(platform, Operation.MIX_POSTS),
         params={"mix_id": mix_id, "cursor": cursor, "count": resolve_count(count)},
         wait=resolve_wait(request, wait),
+    )
+
+
+@router.get(
+    "/{platform}/user/followers",
+    summary="Accounts that follow an author",
+    openapi_extra={I18N_KEY: "author_followers"},
+)
+async def user_followers(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    wait: float | None = WAIT_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the accounts that follow an author.
+
+    **TikTok only.** Douyin answers this with "not signed in" for any guest
+    identity, so the endpoint is not offered there and asking returns a
+    `UNSUPPORTED_CONTENT` error naming the platforms that do serve it.
+
+    **Parameters**
+
+    - `platform` - must be `tiktok`.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - accounts per page.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    One author record per follower - nickname, avatar, signature and counts -
+    plus the cursor for the next page.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.AUTHOR_FOLLOWERS)
+    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params.update({"cursor": cursor, "count": resolve_count(count)})
+    return await operations.submit_and_wait(
+        request, principal, endpoint=endpoint, params=params, wait=resolve_wait(request, wait)
+    )
+
+
+@router.get(
+    "/{platform}/user/following",
+    summary="Accounts an author follows",
+    openapi_extra={I18N_KEY: "author_following"},
+)
+async def user_following(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    wait: float | None = WAIT_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the accounts an author follows.
+
+    **TikTok only**, for the same reason as `/user/followers`. Accounts hide
+    this side of the graph far more often than they hide their followers, so an
+    empty page is a common and correct answer even on TikTok.
+
+    **Parameters**
+
+    - `platform` - must be `tiktok`.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - accounts per page.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    One author record per followed account, plus the cursor for the next page.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.AUTHOR_FOLLOWING)
+    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params.update({"cursor": cursor, "count": resolve_count(count)})
+    return await operations.submit_and_wait(
+        request, principal, endpoint=endpoint, params=params, wait=resolve_wait(request, wait)
     )
 
 

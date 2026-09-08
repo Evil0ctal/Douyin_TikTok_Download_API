@@ -221,6 +221,66 @@ def mix_posts_params(
     }
 
 
+#: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
+#: The endpoint path is identical for both, so this value is the whole request.
+FOLLOWERS_SCENE: Final = "67"
+FOLLOWING_SCENE: Final = "21"
+
+
+def _user_list_params(
+    *,
+    sec_uid: str,
+    scene: str,
+    cursor: str | None,
+    count: int,
+    profile: ClientProfile,
+) -> dict[str, str]:
+    """Shared body of the two ``/api/user/list/`` calls.
+
+    The cursor is TikTok's ``minCursor``, a second-resolution timestamp of the
+    oldest entry on the page just returned. ``maxCursor`` stays 0: the pair
+    bounds a window and only the lower bound moves while paging backwards.
+    """
+    return {
+        **base_params(profile),
+        "secUid": str(sec_uid),
+        "count": str(count),
+        "minCursor": _cursor(cursor),
+        "maxCursor": "0",
+        "scene": scene,
+    }
+
+
+def author_followers_params(
+    *,
+    sec_uid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/user/list/`` asking for an author's followers."""
+    return _user_list_params(
+        sec_uid=sec_uid, scene=FOLLOWERS_SCENE, cursor=cursor, count=count, profile=profile
+    )
+
+
+def author_following_params(
+    *,
+    sec_uid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/user/list/`` asking who an author follows.
+
+    Accounts hide this list far more often than they hide their followers, so
+    an empty page is a common and correct answer.
+    """
+    return _user_list_params(
+        sec_uid=sec_uid, scene=FOLLOWING_SCENE, cursor=cursor, count=count, profile=profile
+    )
+
+
 def comments_params(
     *,
     aweme_id: str,

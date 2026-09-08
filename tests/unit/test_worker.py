@@ -245,13 +245,25 @@ def a_run(endpoint: str = "douyin.content_detail", **params: Any) -> TaskRun:
 
 
 def test_registry_covers_every_p0_endpoint() -> None:
+    """Every platform serves the core set; beyond it they may differ."""
     for platform in (Platform.DOUYIN, Platform.TIKTOK):
         assert registry.missing_capabilities(platform) == ()
         names = {d.name for d in registry.definitions_for(platform)}
-        assert names == {
+        required = {
             f"{platform.value}.{capability.value}" for capability in registry.P0_CAPABILITIES
         }
-    assert len(registry.ENDPOINTS) == 2 * len(registry.P0_CAPABILITIES)
+        allowed = required | {
+            f"{platform.value}.{capability.value}" for capability in registry.OPTIONAL_CAPABILITIES
+        }
+        assert required <= names <= allowed
+
+
+def test_optional_capabilities_are_the_ones_outside_the_core() -> None:
+    """The two lists partition the enum, so a new capability lands in exactly one."""
+    assert set(registry.P0_CAPABILITIES) | set(registry.OPTIONAL_CAPABILITIES) == set(
+        registry.Capability
+    )
+    assert not set(registry.P0_CAPABILITIES) & set(registry.OPTIONAL_CAPABILITIES)
 
 
 def test_registry_names_match_the_adapter_tables() -> None:

@@ -60,11 +60,36 @@ class Capability(StrEnum):
     COMMENT_REPLIES = "comment_replies"
     AUTHOR_LIKES = "author_likes"
     MIX_POSTS = "mix_posts"
+    AUTHOR_FOLLOWERS = "author_followers"
+    AUTHOR_FOLLOWING = "author_following"
 
 
 #: The P0 set from docs/design/11-data-contracts.md. A platform is only usable
-#: once it declares all of them.
-P0_CAPABILITIES: Final[tuple[Capability, ...]] = tuple(Capability)
+#: once it declares all of them, and `missing_capabilities` is what says so.
+#:
+#: Listed explicitly rather than derived from the enum. `tuple(Capability)` made
+#: every capability mandatory everywhere, which is right for the core five and
+#: wrong for everything after them: the platforms genuinely differ. TikTok
+#: groups posts into playlists it exposes as their own list; Douyin's follower
+#: endpoint wants a numeric uid its profile call has to supply first; Douyin
+#: serves an author's likes only to a signed-in identity. Requiring each of
+#: those of both platforms would mean shipping an endpoint that cannot work in
+#: order to satisfy a test.
+P0_CAPABILITIES: Final[tuple[Capability, ...]] = (
+    Capability.CONTENT_DETAIL,
+    Capability.AUTHOR_PROFILE,
+    Capability.AUTHOR_POSTS,
+    Capability.COMMENTS,
+    Capability.COMMENT_REPLIES,
+)
+
+#: Everything beyond the core. A platform declares what it can actually serve,
+#: and `GET /api/v1/system/status` reports the difference so a caller can see
+#: which endpoints exist for which platform rather than discovering it from an
+#: empty page.
+OPTIONAL_CAPABILITIES: Final[tuple[Capability, ...]] = tuple(
+    c for c in Capability if c not in P0_CAPABILITIES
+)
 
 # --- canonical caller-facing parameters ---------------------------------------
 
@@ -165,6 +190,8 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         },
         Capability.AUTHOR_LIKES: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
     },
 }
 
@@ -179,6 +206,8 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.COMMENT_REPLIES: "cache.list_ttl",
         Capability.AUTHOR_LIKES: "cache.list_ttl",
         Capability.MIX_POSTS: "cache.list_ttl",
+        Capability.AUTHOR_FOLLOWERS: "cache.list_ttl",
+        Capability.AUTHOR_FOLLOWING: "cache.list_ttl",
     }
 )
 
@@ -346,6 +375,10 @@ class EndpointDefinition:
                 # envelope - `aweme_list`/`max_cursor` on Douyin, `itemList`/
                 # `cursor` on TikTok - so one parser answers for all of them.
                 return adapter.parse_author_posts(payload, fetched_at=when)
+            case Capability.AUTHOR_FOLLOWERS | Capability.AUTHOR_FOLLOWING:
+                # One endpoint answers both, selected by a `scene` parameter, so
+                # one parser answers for both too.
+                return adapter.parse_author_list(payload)
             case Capability.COMMENTS:
                 return adapter.parse_comments(payload, content_id=content_id)
             case Capability.COMMENT_REPLIES:
@@ -507,6 +540,7 @@ __all__ = [
     "CURSOR",
     "ENDPOINTS",
     "ENVELOPE_PARAMS",
+    "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",
     "UNIQUE_ID",
     "Capability",
