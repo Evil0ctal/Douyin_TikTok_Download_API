@@ -101,7 +101,8 @@ _HEADER_RE = re.compile(
 # Cookie and signature parameters wherever they appear in free text.
 _PARAM_RE = re.compile(
     r"(?i)\b(sessionid(?:_ss)?|sid_guard|sid_tt|uid_tt|odin_tt|passport_csrf_token|ttwid|"
-    r"msToken|a_bogus|X-Bogus|_signature|verifyFp|s_v_web_id)\s*[=:]\s*([^\s;,&\"'\]}]+)"
+    r"msToken|a_bogus|X-Bogus|X-Dynosaur|X-Gnarly|_signature|verifyFp|s_v_web_id)"
+    r"\s*[=:]\s*([^\s;,&\"'\]}]+)"
 )
 # Full API keys: dtk_<prefix>_<secret>. The prefix is public and is kept so a
 # report still says which key was in play.

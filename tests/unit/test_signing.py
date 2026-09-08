@@ -32,10 +32,10 @@ import json
 import random
 import re
 import string
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from types import SimpleNamespace
-from typing import ClassVar
+from typing import ClassVar, cast
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlsplit
 
 import httpx
@@ -57,7 +57,7 @@ from dtk.signing.base import (
     endpoint_of,
     platform_of,
 )
-from dtk.signing.native import websign
+from dtk.signing.native import tiktok_sign, websign
 from dtk.signing.native.abogus import (
     ALPHABETS,
     DEFAULT_BROWSER_INFO,
@@ -86,6 +86,7 @@ from dtk.signing.native.tokens import (
     DOUYIN_MS_TOKEN_LENGTH,
     DOUYIN_TTWID,
     MS_TOKEN_ALPHABET,
+    TIKTOK_MS_TOKEN_LENGTH,
     VERIFY_FP_ALPHABET,
     MsTokenSpec,
     gen_false_ms_token,
@@ -701,6 +702,11 @@ DOUYIN_SPEC = RequestSpec.get(
     "https://www.douyin.com/aweme/v1/web/aweme/detail/",
     params={"device_platform": "webapp", "aid": "6383", "aweme_id": "7345492945006595379"},
 )
+#: Shorthand for the tests that still exercise the X-Bogus algorithm. TikTok
+#: stopped signing with it (its SDK sends the constant `1`), so the vehicle for
+#: those is Douyin with the algorithm named explicitly.
+X_BOGUS = SignatureAlgorithm.X_BOGUS
+
 TIKTOK_SPEC = RequestSpec.get(
     "https://www.tiktok.com/api/item/detail/",
     params={"aid": "1988", "itemId": "7339393672959757570"},
@@ -732,21 +738,26 @@ async def test_native_signer_signs_douyin_with_a_bogus() -> None:
     assert signed.query.endswith("&a_bogus=" + quote(signed.params["a_bogus"], safe=""))
 
 
-async def test_native_signer_signs_tiktok_with_x_bogus_unescaped() -> None:
+async def test_native_signer_sends_tiktoks_own_parameter_set() -> None:
+    """X-Bogus stopped being TikTok's signature and this signer stopped computing one.
+
+    On HTTP the SDK sends the literal ``X-Bogus=1``; the 16-character value in
+    ``xbogus.py`` only ever appears on websocket handshakes (docs/design/17).
+    Computing one here would send a parameter set TikTok's own page never sends,
+    and would leave the request without the signature it does check.
+    """
     signer = NativeSigner(Platform.TIKTOK, fill_ms_token=False)
     signed = await signer.sign(TIKTOK_SPEC, FINGERPRINT)
 
-    assert signed.algorithm is SignatureAlgorithm.X_BOGUS
-    assert set(signed.params) == {"X-Bogus"}
-    assert signed.query == (
-        f"aid=1988&itemId=7339393672959757570&X-Bogus={signed.params['X-Bogus']}"
-    )
+    assert list(signed.params) == ["X-Dynosaur", "msToken", "X-Bogus", "X-Gnarly"]
+    assert signed.params["X-Bogus"] == "1"
+    assert signed.query.startswith("aid=1988&itemId=7339393672959757570&X-Dynosaur=")
 
 
 async def test_native_signer_signs_the_bytes_it_returns() -> None:
     """The query is the signed byte sequence; re-encoding it would break it."""
-    signer = NativeSigner(Platform.TIKTOK, fill_ms_token=False)
-    signed = await signer.sign(TIKTOK_SPEC, FINGERPRINT)
+    signer = NativeSigner(Platform.DOUYIN, algorithm=SignatureAlgorithm.X_BOGUS)
+    signed = await signer.sign(DOUYIN_SPEC, FINGERPRINT)
     body, _, signature = signed.query.rpartition("&X-Bogus=")
     assert XBogus(FINGERPRINT.user_agent).sign(body) == signature
 
@@ -766,10 +777,12 @@ async def test_native_signer_fills_a_missing_ms_token_only() -> None:
 
 
 async def test_native_signer_uses_the_fingerprint_user_agent() -> None:
+    """TikTok's X-Dynosaur carries a hash of the User-Agent, so a signature
+    computed for one identity cannot be sent as another."""
     signer = NativeSigner(Platform.TIKTOK, fill_ms_token=False)
     one = await signer.sign(TIKTOK_SPEC, StaticFingerprint(user_agent=UA_CHROME90))
     other = await signer.sign(TIKTOK_SPEC, StaticFingerprint(user_agent=UA_SAFARI17))
-    assert one.params["X-Bogus"] != other.params["X-Bogus"]
+    assert one.params["X-Dynosaur"] != other.params["X-Dynosaur"]
 
 
 async def test_native_signer_refuses_a_fingerprint_without_a_user_agent() -> None:
@@ -1006,32 +1019,50 @@ async def test_both_signers_send_the_same_bytes_for_the_same_request(
         await RpcSigner(client, "http://rpc").sign(spec, FINGERPRINT)
 
     native_query = native_signed.query.rsplit("&", 1)[0]
-    assert captured == [native_query]
+    if platform is Platform.DOUYIN:
+        assert captured == [native_query]
+        return
+    # TikTok is the exception, and it is the platform's doing rather than a
+    # relaxation. Its SDK appends msToken *between* X-Dynosaur and X-Bogus and
+    # seals it there, so the token cannot also sit among the business
+    # parameters; and the seal covers the query as the browser normalises it,
+    # so a space has to be sent as %20 rather than raw. What the contract
+    # protects - the token reaching the platform byte for byte, `==` and all -
+    # still holds on both sides.
+    token = str(spec.params[MS_TOKEN_PARAM])
+    assert f"&{MS_TOKEN_PARAM}={token}&" in native_signed.query
+    assert captured[0].endswith(f"&{MS_TOKEN_PARAM}={token}")
+    assert native_signed.query.count(f"{MS_TOKEN_PARAM}=") == 1
 
 
 async def test_native_signer_reports_an_unsignable_query_as_a_signing_failure() -> None:
     """X-Bogus hex-decodes queries of 32 characters or fewer and raises
     ValueError on the rest; the registry only falls back on a DtkError."""
-    signer = NativeSigner(Platform.TIKTOK, fill_ms_token=False)
-    short = RequestSpec.get("https://www.tiktok.com/api/item/detail/", params={"a": "1"})
+    signer = NativeSigner(
+        Platform.DOUYIN, algorithm=SignatureAlgorithm.X_BOGUS, fill_ms_token=False
+    )
+    short = RequestSpec.get("https://www.douyin.com/aweme/v1/web/aweme/detail/", {"a": "1"})
     with pytest.raises(SigningFailed, match="could not be computed"):
         await signer.sign(short, FINGERPRINT)
 
 
 async def test_native_signer_reports_an_unencodable_user_agent_as_a_signing_failure() -> None:
-    signer = NativeSigner(Platform.TIKTOK, fill_ms_token=False)
+    signer = NativeSigner(
+        Platform.DOUYIN, algorithm=SignatureAlgorithm.X_BOGUS, fill_ms_token=False
+    )
     with pytest.raises(SigningFailed, match="could not be computed"):
         # Latin Extended-A: outside ISO-8859-1, which is what X-Bogus encodes to.
-        await signer.sign(TIKTOK_SPEC, StaticFingerprint(user_agent="Mozilla/5.0 \u0100"))
+        await signer.sign(DOUYIN_SPEC, StaticFingerprint(user_agent="Mozilla/5.0 \u0100"))
 
 
 async def test_registry_falls_back_when_the_algorithm_rejects_the_input() -> None:
     """The point of the previous two: a plain ValueError would skip the fallback."""
     rpc = FakeSigner(SIGNER_BROWSER, value="rpc-sig")
-    registry = SignerRegistry(
-        {Platform.TIKTOK: NativeSigner(Platform.TIKTOK, fill_ms_token=False)}, rpc
+    native = NativeSigner(
+        Platform.DOUYIN, algorithm=SignatureAlgorithm.X_BOGUS, fill_ms_token=False
     )
-    short = RequestSpec.get("https://www.tiktok.com/api/item/detail/", params={"a": "1"})
+    registry = SignerRegistry({Platform.DOUYIN: native}, rpc)
+    short = RequestSpec.get("https://www.douyin.com/aweme/v1/web/comment/list/", {"a": "1"})
     signed = await registry.sign(short, FINGERPRINT)
     assert signed.signer == SIGNER_BROWSER
 
@@ -1735,15 +1766,15 @@ async def test_shadow_bracket_absorbs_a_real_x_bogus_second_boundary(
 
     async with rpc_client(handler) as client:
         registry = SignerRegistry(
-            {Platform.TIKTOK: NativeSigner(Platform.TIKTOK)},
-            RpcSigner(client, "http://rpc"),
+            {Platform.DOUYIN: NativeSigner(Platform.DOUYIN, algorithm=X_BOGUS)},
+            RpcSigner(client, "http://rpc", algorithm=X_BOGUS),
             policy=RegistryPolicy(shadow_retries=0),
         )
-        assert await registry.compare_shadow(TIKTOK_SPEC, FINGERPRINT) is True
-    result = registry.shadow_result(Platform.TIKTOK, TIKTOK_SPEC.endpoint)
+        assert await registry.compare_shadow(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT) is True
+    result = registry.shadow_result(Platform.DOUYIN, DOUYIN_UNPROTECTED_SPEC.endpoint)
     assert result is not None
     assert (result.compared, result.matched) == (True, True)
-    assert registry.native_enabled(Platform.TIKTOK) is True
+    assert registry.native_enabled(Platform.DOUYIN) is True
 
 
 async def test_shadow_agrees_with_a_browser_running_the_same_x_bogus() -> None:
@@ -1762,14 +1793,15 @@ async def test_shadow_agrees_with_a_browser_running_the_same_x_bogus() -> None:
 
     async with rpc_client(handler) as client:
         registry = SignerRegistry(
-            {Platform.TIKTOK: NativeSigner(Platform.TIKTOK)}, RpcSigner(client, "http://rpc")
+            {Platform.DOUYIN: NativeSigner(Platform.DOUYIN, algorithm=X_BOGUS)},
+            RpcSigner(client, "http://rpc", algorithm=X_BOGUS),
         )
-        assert await registry.compare_shadow(TIKTOK_SPEC, FINGERPRINT) is True
-    result = registry.shadow_result(Platform.TIKTOK, TIKTOK_SPEC.endpoint)
+        assert await registry.compare_shadow(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT) is True
+    result = registry.shadow_result(Platform.DOUYIN, DOUYIN_UNPROTECTED_SPEC.endpoint)
     assert result is not None
     assert (result.compared, result.matched) == (True, True)
     assert result.verdicts["X-Bogus"] is Comparison.MATCH
-    assert registry.native_enabled(Platform.TIKTOK) is True
+    assert registry.native_enabled(Platform.DOUYIN) is True
 
 
 async def test_shadow_agrees_with_a_browser_whose_window_is_a_different_size() -> None:
@@ -2148,3 +2180,598 @@ class TestLiveContract:
         )
         assert signed.params["X-Bogus"] == "1"
         assert signed.params["X-Gnarly"] == "G" * 332
+
+
+TIKTOK_UA_MAC = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+)
+TIKTOK_UA_WINDOWS = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+TIKTOK_UA_LINUX = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+)
+
+#: Vectors produced by executing TikTok's genuine ``webmssdk 2.0.0.561`` in Node
+#: under a DOM stub and reading what it computed - an oracle entirely independent
+#: of the Python below, which is the only reason these are worth anything.
+#:
+#: Each signature carries the ChaCha key that produced it, spliced into its own
+#: ciphertext (that is how the server decrypts it, and how the key was recovered
+#: here). Feeding that key and the timestamp and nonces the SDK happened to draw
+#: back into the port makes the comparison byte-exact despite the per-call nonce.
+TIKTOK_VECTORS: list[dict[str, object]] = [
+    {
+        "query": "aid=1988&count=10",
+        "user_agent": TIKTOK_UA_MAC,
+        "ms_token": "",
+        "timestamp": 1788856077,
+        "nonce": 51705231,
+        "sequence": 1,
+        "dynosaur_key": (
+            978422917,
+            297502614,
+            495476334,
+            3283317692,
+            2976530683,
+            1833255788,
+            640912066,
+            837161194,
+            1669461668,
+            1494236015,
+            394043533,
+            3049628592,
+        ),
+        "dynosaur": (
+            "MxmNRRv/B-"
+            "a6aTHjkvVe9cmFRhMeLS613kBZFzkI/aJYxnjdutQ24acX9B9/EWqDls27AI1WNuyaY9yQV-fvFZ"
+            "98HD8AuO8owhWWl/k/NA8VrqhUi8SisGI7yUrOkPYuhjSfZRLYkGGOgiGZxl3WaGSlTOfZpAFId0"
+            "mkGwpCrZfrPHFoydYsLb/yWgabzJa1dqhKx2GbbaB6PX4aDjR9dLL7UrKk0s/DzRU/QVPXTcZV5S"
+            "A-"
+            "0iNUlMpHBc66oAf6S1vX5d6EOit0cum8dabUKE2owzmAG4jC9mibKZdkNQXy02gCJVgP31bnbFMM"
+            "W3u-ZI4sE0Pi-gGzNtwdlNvF1ABzqrSpSockDCh84FYrmmOGRNL-"
+            "vbyAwnYm7cmYIKuQ-a97tCivXvA="
+        ),
+        "gnarly_timestamp": 1788856077,
+        "gnarly_nonce": 51705346,
+        "nonce2": 4243271951,
+        "gnarly_sequence": 1,
+        "gnarly_key": (
+            1630480152,
+            2370805161,
+            303572552,
+            3085792651,
+            989762755,
+            2481426789,
+            1111047770,
+            4159623281,
+            1698763817,
+            2164255245,
+            1245854549,
+            1546723756,
+        ),
+        "gnarly_order": [0, 12, 1, 11, 15, 3, 6, 4, 5, 2, 8, 10, 9, 14, 16, 13],
+        "gnarly": (
+            "MC3KKmrckRFfMdp/YlNaTDaQpDXunCTZoDhfUcF5ak2ml87IfMPZmHnU4Rmo-BpWi3stE8dkD0LI"
+            "z0I2EF3q2zc6M9AAbGYCHTdt4-"
+            "/KooU2WCGcrzg8RrH5DVV0oZ5BP/0LrRgDj9b8sUAMK2vH8Gq/4-CPgq5874-"
+            "RFPYho9vzV3omXS9BRFCK6d6FNpDaPVFaIw/hwJzNwu7lZJkb7tewprbTvuM5jZIDC9/0CjnDNT3"
+            "FESXpDFqIY9XU-"
+            "yGfFGxZMScDZRqgNZkRQxDAa2ojWjVhui4pZdBxy4E0UBsQ1DNu5pquE4wuNnxIEsajo3u="
+        ),
+    },
+    {
+        "query": "aid=1988&count=10",
+        "user_agent": TIKTOK_UA_MAC,
+        "ms_token": "",
+        "timestamp": 1788856078,
+        "nonce": 51779695,
+        "sequence": 2,
+        "dynosaur_key": (
+            1572890829,
+            1514151185,
+            2529086182,
+            2272987962,
+            3955315074,
+            2915286751,
+            1302282518,
+            1633274394,
+            4243982449,
+            293973822,
+            1330316943,
+            2520625085,
+        ),
+        "dynosaur": (
+            "M8YFNBeheYzhVQ0idLWXK-cHoMFuj4F6UVad9YAGbVjJi9Fp87Tf5FwlCJLTC2Zne1uAQwijc09s"
+            "r9Q-"
+            "TPdhYbD7YIGKXw78CJ3LfKzcobObCkgCE5X/xbXNYsddUXwV0FpaK0aAiOUmaOO5X9XvaOKQ0iPQ"
+            "q/ByjHzbnZ3lAeMmv5fNiZLDxwiIdi1OKRo-"
+            "9xlUSYGEyb3jUIU6he07bVCupiTDyqAK95iUI4U0KacckKRpZoa63fqoAsbvaykcj/zVlkoEXHFy"
+            "-ohrmS4//GNmDv3KATr1ZtIeD49yLKgX62mg-Z2xqbX4CoqJ3x-tWiyJB9aG63t4djh-"
+            "/KgKq9KR/sMxElQoCfxrD80/JE5K45oyB1m5vT3-AmHPfz1hFtqcre7iHAA="
+        ),
+        "gnarly_timestamp": 1788856078,
+        "gnarly_nonce": 51780642,
+        "nonce2": 4243184428,
+        "gnarly_sequence": 2,
+        "gnarly_key": (
+            106601913,
+            1248264656,
+            1435065838,
+            700191209,
+            1840019693,
+            2160447077,
+            450230889,
+            4289322682,
+            353692308,
+            2723093055,
+            373234936,
+            2358079306,
+        ),
+        "gnarly_order": [14, 2, 0, 8, 5, 15, 9, 3, 10, 13, 6, 4, 1, 12, 11, 16],
+        "gnarly": (
+            "MOG4STmzqLn-PjdO0hhw/ImDkAp-wPz/3nRqpnKxBbCekrQ/NQSFLKeU-"
+            "s57mCJB7owuAhiSK75i-"
+            "GBi0OGUpsOQ5YcWopcOCMw9/IIExDsHer4CwSdFHp0b6C/pWw0OaX9BlPSykHk4WyJx2LG3RuS2M"
+            "ix7QLsqbTkqHsQfTpsr8A0qcYzhiYKqPxXBS0zP3WcQc0kPSWqylA8rAJn3YZlUYjkrJl0VAwoO7"
+            "LBpa3aR5-"
+            "s2P/TMaZfMvVGxQOIGfe4vGqo2PzuGmgwMfu/jQS0IxJJS5jp4GVytAL/CaeVAkLzluB858pg82g"
+            "KzeF8c4C/="
+        ),
+    },
+    {
+        "query": "WebIdLastTime=1788855000&aid=1988&app_language=en&app_name=tiktok_web&browser_language=en-US&browser_name=Mozilla&browser_online=true&browser_platform=Win32&browser_version=5.0%20%28Windows%29&channel=tiktok_web&cookie_enabled=true&device_id=7412345678901234567&device_platform=web_pc&focus_state=true&from_page=video&history_len=4&is_fullscreen=false&is_page_visible=true&itemId=7300000000000000000&language=en&os=windows&priority_region=US&referer=&region=US&root_referer=https%3A%2F%2Fwww.tiktok.com%2F&screen_height=1080&screen_width=1920&tz_name=America%2FLos_Angeles&webcast_language=en",
+        "user_agent": TIKTOK_UA_MAC,
+        "ms_token": "",
+        "timestamp": 1788856078,
+        "nonce": 51868859,
+        "sequence": 3,
+        "dynosaur_key": (
+            2190810609,
+            306857639,
+            2828155586,
+            4154581658,
+            1361351321,
+            3412939638,
+            835289227,
+            1217368521,
+            2587671991,
+            1849735486,
+            2608946324,
+            3731370325,
+        ),
+        "dynosaur": (
+            "M8b5ILfE9/NebLbDN50HcY56HJvWp37ay1CafY4ueK2DCpSY6Q5rTAXxUTC9N/hkldxRxsPYXYKH"
+            "AwHGIsxbs8snYQupSdvLHYVnzG8hgjBOTuHe4-"
+            "eMn7itfJxfcHpRBFM1ryb74AD2VWGMklBMBgjQGdmoWQVV746YJ/iuJXUgWAavYHRw1lKxZ3Kzsv"
+            "3TLXSG5lO7EAYE4XVYDjbKkvDoRn8e1SpIZPbNdR03NcRWk1H4PuGgbjtmbn468iMF29UJAaWZGu"
+            "ZbePsPVoQP3pQiqznHzmjfVioN3yPridyR63p8zefoj/gW-LNhIgBp/uI7WqKriBNArzytXlaLj3"
+            "BM44-UbyLEtvCJfXZNYCB/2vDx1rXWdWUtwo/035WsVy2Kmib7cuz="
+        ),
+        "gnarly_timestamp": 1788856078,
+        "gnarly_nonce": 51868109,
+        "nonce2": 4243109571,
+        "gnarly_sequence": 3,
+        "gnarly_key": (
+            2738372001,
+            1944646926,
+            2891279605,
+            1896260225,
+            227315666,
+            220078497,
+            2505479263,
+            3684765536,
+            2408748093,
+            2422444422,
+            1903679261,
+            289581807,
+        ),
+        "gnarly_order": [6, 13, 8, 5, 9, 15, 10, 2, 12, 3, 16, 4, 11, 1, 0, 14],
+        "gnarly": (
+            "MRs6ksz9FsQ2tTqeLpt1tsUEabU9U/m3qzRGrwl3YYus0ASncuGi/9XAAkCH58EvorqQ1HU-zgSZ"
+            "NP9P/XnG02otnmAosbAHeZ/FzLiU4kHa7Udxyn6OV6mrvLlHbS2GZUlDBClOl4TP2NKWkIRAfQrx"
+            "aAcV3xLmuEyaUvzQ/gTiNH72kYOnyrOr0D2d6hH0qM7ppW5z3S47zhJc0hVQDBlOwyd47ZcN-"
+            "XQltysGnPLfLhJ0GIo8RGcethbNUICd4ShLAucNFOFzWGc3WprZU775nmcBZNbyai/20G7vf-"
+            "AIVfKtMfeXnVujUH1enh0RQJw="
+        ),
+    },
+    {
+        "query": "a=%E4%B8%AD%E6%96%87&b=1",
+        "user_agent": TIKTOK_UA_MAC,
+        "ms_token": "",
+        "timestamp": 1788856078,
+        "nonce": 51954251,
+        "sequence": 1,
+        "dynosaur_key": (
+            148355427,
+            3502788418,
+            3431304442,
+            1739918888,
+            2830223742,
+            2575248196,
+            2428446985,
+            1803208299,
+            3496835547,
+            1928213672,
+            1456868826,
+            3826535118,
+        ),
+        "dynosaur": (
+            "MCidR-YGswCSLYD8ftQdLpd9FMnu3P6I-"
+            "LjbLrtxlbLxIFh5j4MffToKf5Pm9QnbdXXJTquCBewQvYtBdLCAKCjg0ZrfCBTkcbHM8sD-"
+            "dQHCbpeDxir3zFoSaafDE7IQAoSVsABu4j4nKWgq9I6CwzONXXLli7nvZWPvR-BeNnkGtjL2df18"
+            "BbZjdxWgDTcZhwoKhaYxT79G6rxJFI5pLfxDSrM2b3iAhdUDEV2wfVWFrhUtuNvn3Pf-PQYLC7bS"
+            "z5g5B8g1sWdm3UTxcubJZ3hgnd5fNZtYlkT4ke1JODsyXqvCPPAHwJ1O5yTUxJdK4LZlUHr0Eb/5"
+            "N5w2w1sNiZHV-VNYGgjfv30THKNI7-L44VsK7kdEzKKzY/u6gyNtN8MImueHV-z="
+        ),
+        "gnarly_timestamp": 1788856078,
+        "gnarly_nonce": 51954545,
+        "nonce2": 4242998399,
+        "gnarly_sequence": 1,
+        "gnarly_key": (
+            877908535,
+            162501319,
+            1940362746,
+            4290319688,
+            3071880399,
+            1359138359,
+            3383752451,
+            3474896168,
+            1087659318,
+            3629162626,
+            2392967149,
+            3055117667,
+        ),
+        "gnarly_order": [0, 4, 16, 13, 3, 11, 10, 14, 12, 9, 15, 6, 1, 8, 2, 5],
+        "gnarly": (
+            "MH91yiKqFPXeZw6eDj0Wux5yjpeGC7yL8OFH2bhp-jBoMHAM8bHcupNkJCZ47w4EvXmMwXofNxeb"
+            "NNoXbUeGRChLKPYTqq3RpuqS8hscSL5Dq/tvpmQE6vpQ15FldSxSw5UUusY0r3VM3Y0QzIdYyldM"
+            "zOXUWBwgcqp2nRILidP-E0156w/9zZ-5jwWGYVH-"
+            "645zZvDIz6lY8K3rAFzoYQ1VP9fBdNzrfFhf49CmHQ7AZeoJFmj6WM3tq0QfZVRHvPSOddmHLVYf"
+            "NJG7j-svyY1l3xe45XXO4tJA9OSlzv4I7L8INpFRHOJGDc9XxREEwzf="
+        ),
+    },
+    {
+        "query": "aid=1988&count=10",
+        "user_agent": TIKTOK_UA_WINDOWS,
+        "ms_token": "",
+        "timestamp": 1788856078,
+        "nonce": 52032174,
+        "sequence": 1,
+        "dynosaur_key": (
+            3465629445,
+            2818820546,
+            789670997,
+            997786302,
+            4151189881,
+            2806483319,
+            3997642507,
+            3527027,
+            2786407739,
+            2783534646,
+            354464432,
+            4065835603,
+        ),
+        "dynosaur": (
+            "MJwYIg1RDerVcH/siw5vkDtpPq28/NbLOziIn1B3XVUYUNVQ2ci7wAA8jmtuQmWPEEs2Z8TfJXY-"
+            "U3A0s54UwuL-WnH9JZrGLpkVEH/9mXYxvpH57/4UqkfyVcxORXzurOzLqlomKhpkfQuLzHqswleA"
+            "FfCVtdEtwipwO6x-PaQ44Tu7c/9SyLU0kZVaVajxI/i2WJq8gbbNRQh-otlx773VrnnT/MfmxwR1"
+            "1oVfAWtk9psmVAGZXiUq/QU9hTrGYvoBCGNrs9HAt4rDlNOgtQiRkyrfzcalKOd5s3sCrVuqEWTn"
+            "TCMIZVS5uk95F6Ks1wVYI40YLgcvGdoRccEazFfJkxT/GXW8CVSwsQaypdrpS/luFv5rQjwkrD2D"
+            "oZMKJgfinPrfPsZ="
+        ),
+        "gnarly_timestamp": 1788856078,
+        "gnarly_nonce": 52032313,
+        "nonce2": 4242945079,
+        "gnarly_sequence": 1,
+        "gnarly_key": (
+            110199929,
+            3425922960,
+            2220260331,
+            856875292,
+            3342478878,
+            2791964422,
+            3961841004,
+            2540417530,
+            2664435235,
+            3722301734,
+            3636874694,
+            625594914,
+        ),
+        "gnarly_order": [9, 2, 0, 10, 6, 16, 12, 13, 3, 1, 5, 4, 11, 14, 15, 8],
+        "gnarly": (
+            "MFXp1HcAedBouHs9i1YK40XlWBbHfX1Nc/W6usty3sPUeSe8UxL/eAeBEfF1NBQlZO6q3HaD5IOc"
+            "5uho3zNHwz5DUnzr2WDrNODYjz8urn/IJwKhwWXuuTaBQRGf/R64QMKpRk4XYUvZ4a2qVR-"
+            "y5ZNzBUtkBLe4qhuH6nhUNX8eKOwFicLyd0axNgb3W3wOOrYHLGZn/VvOUQ/K8kTPhhofxMXfcjS"
+            "j4JerRg/1R7578W53F9EMMMzfJXrVWbSdW4QqpuJKAQqS9c4kZEFB2C7lhENadMOM3uzRzjDJ6zt"
+            "3TsmhftfqMUU3Cz6Hn0pKyiR="
+        ),
+    },
+    {
+        "query": "aid=1988&count=35&cursor=0",
+        "user_agent": TIKTOK_UA_LINUX,
+        "ms_token": "",
+        "timestamp": 1788856078,
+        "nonce": 52111451,
+        "sequence": 2,
+        "dynosaur_key": (
+            1941879376,
+            1119390686,
+            2213810504,
+            1466769614,
+            1863902398,
+            2036712394,
+            855853420,
+            2717686558,
+            743547759,
+            1560501678,
+            3066388893,
+            1114757118,
+        ),
+        "dynosaur": (
+            "MRyRC/bdNVWy9tPRAMzyyfYjXzIy9UXUer-"
+            "pnk9wnu0v4WKDVD1PbsXyIOzJyloMz59rJ5VD-E0ZgdLxrNIo7XLiJ7Y5T0EvyeSmwI--1pBiLVV"
+            "CTuhtZVWOajShcX2S3wb9HbYCG09iApZHD49Ky2-"
+            "mQHN9M0URIw/ITLmcx0NyJf64mp8guOem1PJNTK6VEDx7uCF7AnpFPY78ZymmCA-JXQk2ZG5-"
+            "xdEg0AiXP/udX3SCJ7S5ywPqxbtbI3GP2RDWIFvJJh93peuhrqLPOPoGmGnm6GLU1ofM3EVQFGCO"
+            "nYYe/FUzHexTAG/c0/gpXSMudB/Qwy3LXjZ1qbXAYxzXlLQPSBsqF7LMVw5OcwrqvLzI0OP49ed7"
+            "hLpChEmagX4VsG//c5I="
+        ),
+        "gnarly_timestamp": 1788856078,
+        "gnarly_nonce": 52112096,
+        "nonce2": 4242861550,
+        "gnarly_sequence": 2,
+        "gnarly_key": (
+            2203665032,
+            564731253,
+            287839037,
+            806186182,
+            3568009729,
+            1008360972,
+            1075061277,
+            42020168,
+            1047637508,
+            3731156290,
+            4287507892,
+            3410900369,
+        ),
+        "gnarly_order": [8, 4, 10, 14, 5, 11, 2, 15, 3, 16, 13, 12, 1, 0, 9, 6],
+        "gnarly": (
+            "McltgPKyjtMqSj/lQr5K9VvIHpekTR/JQNK7U2/ZnDQasir-pCSEcMZC5UwWHQMrjVPqNeSOFATv"
+            "FoaSW59PSSDoNJqM2Gg0tbQvtZqtb/AwY5om2AInnqIOceo8LAvGWgezKCJ5Ib-TiLUWKNtkUYWL"
+            "CChm6nZcpDs1F2Oe8h8pQLYHm/f7sCWRA9NahAiUAJxf2pEXAusfnSOfBQZJ1gj7eCivZ41t7VFq"
+            "vXRXD0U3TuRkuADjCu8m3lk7vNVuM9F0uIMinXx9HpXmY9FrPxbCXffZXW4jpGLh91q9XKJYzQgF"
+            "SAr8paxRj8tvOHgIMiI="
+        ),
+    },
+]
+
+
+class TestTikTokSignature:
+    """TikTok's own X-Dynosaur and X-Gnarly, recovered and ported.
+
+    docs/design/17 §6 is explicit that "the request succeeded" is not evidence,
+    and TikTok makes the usual byte-for-byte check impossible: every signature
+    is an encrypted blob under a key drawn per call, so two independent
+    signatures of the same request never match.
+
+    What replaces it is the observation that the blob is self-decrypting - the
+    key is spliced into its own ciphertext so the server can recover it. So the
+    oracle's key is recoverable too, and with it, and the timestamp and nonces
+    the SDK happened to draw, this port can be asked to produce *that same
+    signature*. It does, character for character, for every vector below.
+    """
+
+    @staticmethod
+    def _dynosaur(vector: dict[str, object]) -> str:
+        payload = tiktok_sign.dynosaur_payload(
+            cast(str, vector["query"]),
+            cast(str, vector["user_agent"]),
+            timestamp=cast(int, vector["timestamp"]),
+            nonce=cast(int, vector["nonce"]),
+            sequence=cast(int, vector["sequence"]),
+        )
+        return tiktok_sign.seal(payload, cast("Sequence[int]", vector["dynosaur_key"]))
+
+    @staticmethod
+    def _gnarly(vector: dict[str, object]) -> str:
+        sealed = (
+            f"{vector['query']}&{tiktok_sign.DYNOSAUR_PARAM}={vector['dynosaur']}"
+            f"&{tiktok_sign.MS_TOKEN_PARAM}={vector['ms_token']}"
+        )
+        payload = tiktok_sign.gnarly_payload(
+            sealed,
+            cast(str, vector["user_agent"]),
+            timestamp=cast(int, vector["gnarly_timestamp"]),
+            nonce=cast(int, vector["gnarly_nonce"]),
+            nonce2=cast(int, vector["nonce2"]),
+            sequence=cast(int, vector["gnarly_sequence"]),
+            # The SDK's own emission order, so the comparison can be byte-exact.
+            # It differs between processes, which is the evidence that the server
+            # parses by key; this module ships ascending.
+            order=cast("Sequence[int]", vector["gnarly_order"]),
+        )
+        return tiktok_sign.seal(payload, cast("Sequence[int]", vector["gnarly_key"]))
+
+    @pytest.mark.parametrize("vector", TIKTOK_VECTORS, ids=range(len(TIKTOK_VECTORS)))
+    def test_it_reproduces_the_sdks_own_x_dynosaur(self, vector: dict[str, object]) -> None:
+        assert self._dynosaur(vector) == vector["dynosaur"]
+
+    @pytest.mark.parametrize("vector", TIKTOK_VECTORS, ids=range(len(TIKTOK_VECTORS)))
+    def test_it_reproduces_the_sdks_own_x_gnarly(self, vector: dict[str, object]) -> None:
+        assert self._gnarly(vector) == vector["gnarly"]
+
+    def test_the_seal_covers_x_dynosaur_and_ms_token(self) -> None:
+        """The suffix is required even when the token is empty.
+
+        Two vectors share the query ``aid=1988&count=10`` on different paths, so
+        this is also where the port pins that the seal follows the query and not
+        the endpoint.
+        """
+        vector = dict(TIKTOK_VECTORS[0])
+        vector["ms_token"] = "not-the-token-that-was-signed"
+        assert self._gnarly(vector) != TIKTOK_VECTORS[0]["gnarly"]
+
+    def test_the_call_counter_is_in_the_payload(self) -> None:
+        """The SDK counts its own calls from 1; two vectors differ only in that."""
+        first, second = TIKTOK_VECTORS[0], TIKTOK_VECTORS[1]
+        assert first["query"] == second["query"]
+        assert (first["sequence"], second["sequence"]) == (1, 2)
+        assert self._dynosaur(first) != self._dynosaur(dict(second, sequence=1))
+
+    def test_the_payloads_have_the_shape_the_platform_parses(self) -> None:
+        """Field count and length, which are what a bundle bump would change."""
+        vector = TIKTOK_VECTORS[0]
+        dynosaur = tiktok_sign.dynosaur_payload(
+            cast(str, vector["query"]),
+            cast(str, vector["user_agent"]),
+            timestamp=cast(int, vector["timestamp"]),
+            nonce=cast(int, vector["nonce"]),
+        )
+        # 25 entries, keys 0x20..0x38 ascending, no leading count byte.
+        keys = _tlv_keys(dynosaur, lead=0)
+        assert keys == list(range(0x20, 0x39))
+        gnarly = tiktok_sign.gnarly_payload(
+            "aid=1988&X-Dynosaur=x&msToken=",
+            cast(str, vector["user_agent"]),
+            timestamp=cast(int, vector["timestamp"]),
+            nonce=cast(int, vector["nonce"]),
+            nonce2=1,
+        )
+        # 16 entries behind a count byte, 0x07 absent - the SDK does not emit it,
+        # whatever xvhuan's implementation does.
+        assert gnarly[0] == 16
+        assert _tlv_keys(gnarly, lead=1) == [*range(0x00, 0x07), *range(0x08, 0x11)]
+        assert len(gnarly) == 193
+
+    def test_the_query_is_serialized_the_way_it_is_sealed(self) -> None:
+        """One encoder for both, or the seal covers bytes the platform never sees."""
+        query, params = tiktok_sign.sign(
+            [("browser_version", "5.0 (Windows)"), ("q", "\u4e2d")],
+            TIKTOK_UA_MAC,
+            rng=random.Random(11),
+        )
+        assert query.startswith("browser_version=5.0%20%28Windows%29&q=%E4%B8%AD&")
+        assert [part.split("=", 1)[0] for part in query.split("&")] == [
+            "browser_version",
+            "q",
+            tiktok_sign.DYNOSAUR_PARAM,
+            tiktok_sign.MS_TOKEN_PARAM,
+            tiktok_sign.BOGUS_PARAM,
+            tiktok_sign.GNARLY_PARAM,
+        ]
+        assert params[tiktok_sign.BOGUS_PARAM] == "1"
+
+    def test_x_bogus_is_the_constant_the_sdk_sends(self) -> None:
+        """A computed 16-character X-Bogus belongs to websockets, not to HTTP."""
+        _query, params = tiktok_sign.sign([("aid", "1988")], TIKTOK_UA_MAC, rng=random.Random(3))
+        assert params[tiktok_sign.BOGUS_PARAM] == tiktok_sign.BOGUS_VALUE == "1"
+
+    def test_two_signatures_of_one_request_differ(self) -> None:
+        """The nonce is real, so a byte comparison between calls proves nothing.
+
+        Pinned because the opposite was assumed for Douyin and cost a day: there
+        the value changed only because the timestamp is in whole seconds. Here it
+        changes because the key is drawn per call, which is why the vectors above
+        have to supply the key rather than compare two fresh signatures.
+        """
+        pairs = [("aid", "1988"), ("count", "10")]
+        first, _ = tiktok_sign.sign(pairs, TIKTOK_UA_MAC, timestamp=1788856077)
+        again, _ = tiktok_sign.sign(pairs, TIKTOK_UA_MAC, timestamp=1788856077)
+        assert first != again
+
+    def test_the_versions_it_reports_are_the_bundle_it_was_read_from(self) -> None:
+        """A bundle bump changes these, and a stale port looks like an outage."""
+        assert tiktok_sign.SDK_VERSION == "5.3.2"
+        assert tiktok_sign.SCM_VERSION == "2.0.0.561"
+
+    def test_the_url_state_hash_matches_the_sdks(self) -> None:
+        """FNV-1a with an extra ``* 33``; three payload fields depend on it."""
+        assert tiktok_sign.hash_state("") == 0x811C9DC4
+        assert tiktok_sign.hash_state("aid=1988&count=10") == 0x52B0CB44
+        assert tiktok_sign.hash_state(TIKTOK_UA_MAC) == 0x8F015CA0
+
+    def test_the_token_comes_from_the_identitys_own_jar(self) -> None:
+        assert tiktok_sign.pick_ms_token(None) == ""
+        assert tiktok_sign.pick_ms_token({"ttwid": "1|x"}) == ""
+        assert tiktok_sign.pick_ms_token({"msToken": "abc"}) == "abc"
+
+
+def _tlv_keys(payload: bytes, *, lead: int) -> list[int]:
+    """Walk the TLV entries the platform parses, returning their keys in order."""
+    keys: list[int] = []
+    offset = lead
+    while offset + 3 <= len(payload):
+        key, zero, length = payload[offset], payload[offset + 1], payload[offset + 2]
+        assert zero == 0, f"entry at {offset} is not [key][0x00][len]"
+        keys.append(key)
+        offset += 3 + length
+    assert offset == len(payload), "payload has a trailing partial entry"
+    return keys
+
+
+class TestNativeSignerOnTikTok:
+    """The signer emits the SDK's four parameters and nothing else.
+
+    Live on 2026-09-08, pure Python only and no browser anywhere in the path:
+    ``/api/recommend/item_list/`` answered 200 with a full payload and no
+    ``tt_orcas_res`` gate. See the module docstring of
+    :mod:`dtk.signing.native.tiktok_sign`.
+    """
+
+    FINGERPRINT = StaticFingerprint(
+        user_agent=TIKTOK_UA_WINDOWS,
+        browser_platform="Win32",
+        screen_width=1920,
+        screen_height=1080,
+    )
+
+    async def _sign(self, params: Mapping[str, str], **kwargs) -> SignedParams:
+        signer = NativeSigner(Platform.TIKTOK, rng=random.Random(5), **kwargs)
+        spec = RequestSpec.get("https://www.tiktok.com/api/recommend/item_list/", params)
+        return await signer.sign(spec, self.FINGERPRINT, kwargs.pop("session", None))
+
+    async def test_it_appends_the_four_parameters_in_the_platforms_order(self):
+        signed = await self._sign({"aid": "1988", "count": "10"})
+        assert list(signed.params) == ["X-Dynosaur", "msToken", "X-Bogus", "X-Gnarly"]
+        assert signed.query.startswith("aid=1988&count=10&X-Dynosaur=")
+        assert signed.headers == {}
+        assert signed.signer == SIGNER_NATIVE
+
+    async def test_the_token_is_the_identitys_and_appears_once(self):
+        """A second copy among the business parameters would seal a query TikTok
+        never sends, so the signer moves it rather than duplicating it."""
+        signer = NativeSigner(Platform.TIKTOK, rng=random.Random(5))
+        spec = RequestSpec.get("https://www.tiktok.com/api/recommend/item_list/", {"aid": "1988"})
+        signed = await signer.sign(
+            spec, self.FINGERPRINT, SigningSession(cookies={"msToken": "JARTOKEN"})
+        )
+        assert signed.params["msToken"] == "JARTOKEN"
+        assert signed.query.count("msToken=") == 1
+
+    async def test_a_pinned_token_wins_over_the_jar(self):
+        """What the shadow comparison relies on: both signers sign the same bytes."""
+        signer = NativeSigner(Platform.TIKTOK, rng=random.Random(5))
+        spec = RequestSpec.get(
+            "https://www.tiktok.com/api/recommend/item_list/",
+            {"aid": "1988", "msToken": "PINNED"},
+        )
+        signed = await signer.sign(
+            spec, self.FINGERPRINT, SigningSession(cookies={"msToken": "JARTOKEN"})
+        )
+        assert signed.params["msToken"] == "PINNED"
+        assert "msToken=PINNED" in signed.query
+
+    async def test_without_a_jar_it_invents_one_only_when_asked(self):
+        signed = await self._sign({"aid": "1988"}, fill_ms_token=False)
+        assert signed.params["msToken"] == ""
+        assert "&msToken=&" in signed.query
+        filled = await self._sign({"aid": "1988"})
+        assert len(filled.params["msToken"]) == TIKTOK_MS_TOKEN_LENGTH + 2
+
+    async def test_it_no_longer_computes_a_sixteen_character_x_bogus(self):
+        signed = await self._sign({"aid": "1988"})
+        assert signed.params["X-Bogus"] == "1"

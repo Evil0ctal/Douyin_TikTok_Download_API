@@ -20,6 +20,10 @@ So the gap is not the algorithm, it is the parameters around it: of the six
 Douyin sends, this signer produces one. Reviving it means porting
 ``x-secsdk-web-signature`` and deriving ``uifid``, not rewriting A-Bogus.
 
+TikTok is a different story and is now complete: :mod:`dtk.signing.native.tiktok_sign`
+ports ``X-Dynosaur`` and ``X-Gnarly``, the two parameters TikTok's own SDK
+computes, so no TikTok endpoint needs a browser either.
+
 Two things it does that V4 did not:
 
 * The signature follows the identity's fingerprint. V4 signed every request as
@@ -51,7 +55,7 @@ from dtk.signing.base import (
     SigningSession,
     encode_query,
 )
-from dtk.signing.native import websign
+from dtk.signing.native import tiktok_sign, websign
 from dtk.signing.native.abogus import (
     DEFAULT_BROWSER_INFO,
     ABogus,
@@ -143,16 +147,19 @@ class NativeSigner:
         params = dict(spec.params or {})
         added: dict[str, str] = {}
 
+        user_agent = identity_fingerprint.user_agent
+        if not user_agent:
+            raise SigningFailed("fingerprint carries no user agent")
+
+        if self.platform is Platform.TIKTOK:
+            return self._sign_tiktok(spec, params, user_agent, session)
+
         if self.fill_ms_token and not params.get(MS_TOKEN_PARAM):
             token = gen_false_ms_token(
                 MS_TOKEN_LENGTHS.get(self.platform, DOUYIN_MS_TOKEN_LENGTH), rng=self._rng
             )
             params[MS_TOKEN_PARAM] = token
             added[MS_TOKEN_PARAM] = token
-
-        user_agent = identity_fingerprint.user_agent
-        if not user_agent:
-            raise SigningFailed("fingerprint carries no user agent")
 
         try:
             if self.algorithm is SignatureAlgorithm.A_BOGUS:
@@ -190,6 +197,51 @@ class NativeSigner:
             query=query,
             params=added,
             headers=headers,
+            signer=self.name,
+            algorithm=self.algorithm,
+        )
+
+    def _sign_tiktok(
+        self,
+        spec: RequestSpec,
+        params: dict[str, str],
+        user_agent: str,
+        session: SigningSession | None,
+    ) -> SignedParams:
+        """TikTok's own four parameters, in the SDK's order.
+
+        See :mod:`dtk.signing.native.tiktok_sign`. Two things differ from every
+        other native path and both are the platform's doing:
+
+        * ``msToken`` is not a business parameter. The SDK appends it *between*
+          ``X-Dynosaur`` and ``X-Bogus`` and seals it there, so a second copy
+          among the business parameters would sign a query TikTok never sends.
+          It is taken from the caller's own value first - the shadow comparison
+          pins one so both signers sign identical bytes - then from the
+          identity's jar, then invented, then left empty, which is what the SDK
+          itself emits when it has no token.
+        * ``X-Bogus`` is the constant ``1``. The real 16-character X-Bogus only
+          exists on websocket handshakes, so computing one here would send a
+          parameter set TikTok's own page never sends.
+        """
+        token = params.pop(MS_TOKEN_PARAM, "") or tiktok_sign.pick_ms_token(
+            session.cookies if session is not None else None
+        )
+        if not token and self.fill_ms_token:
+            token = gen_false_ms_token(TIKTOK_MS_TOKEN_LENGTH, rng=self._rng)
+        query, added = tiktok_sign.sign(
+            list(params.items()), user_agent, ms_token=token, rng=self._rng
+        )
+        logger.debug(
+            "signing.native.signed",
+            platform=self.platform.value,
+            endpoint=spec.endpoint,
+            algorithm=self.algorithm.value,
+            web_signed=True,
+        )
+        return SignedParams(
+            query=query,
+            params=added,
             signer=self.name,
             algorithm=self.algorithm,
         )

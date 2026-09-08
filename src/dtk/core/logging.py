@@ -40,7 +40,8 @@ SENSITIVE_KEYS = frozenset(
 
 #: Signature and session parameters truncated inside URLs and free text.
 _PARAM_RE = re.compile(
-    r"\b(msToken|a_bogus|X-Bogus|_signature|sessionid|sid_guard|odin_tt|uid_tt|ttwid)"
+    r"\b(msToken|a_bogus|X-Bogus|X-Dynosaur|X-Gnarly|_signature|sessionid|sid_guard|odin_tt"
+    r"|uid_tt|ttwid)"
     r"=([^&\s;\"']{6,})",
     re.IGNORECASE,
 )

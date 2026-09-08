@@ -164,6 +164,11 @@ NUMERIC_HOST_RE = re.compile(r"^(0x[0-9a-f]+|\d+)$")
 TRACKING_PARAMS: frozenset[str] = frozenset(
     {
         "X-Bogus",
+        # TikTok's own two signature parameters. Same reason as the rest of this
+        # group: a URL copied out of DevTools carries them, and echoing a request
+        # seal back into the canonical URL puts it in the cache key.
+        "X-Dynosaur",
+        "X-Gnarly",
         "_d",
         "_r",
         "_signature",

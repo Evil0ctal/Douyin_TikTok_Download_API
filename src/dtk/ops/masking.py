@@ -42,7 +42,8 @@ _URL_CREDENTIALS_RE = re.compile(
 #: the redaction list in dtk.core.logging so a value masked in the log is masked
 #: on the terminal too.
 _PARAM_RE = re.compile(
-    r"\b(msToken|a_bogus|X-Bogus|_signature|sessionid|sid_guard|odin_tt|uid_tt|ttwid|passport_csrf_token)"
+    r"\b(msToken|a_bogus|X-Bogus|X-Dynosaur|X-Gnarly|_signature|sessionid|sid_guard|odin_tt"
+    r"|uid_tt|ttwid|passport_csrf_token)"
     r"=([^&\s;\"']{6,})",
     re.IGNORECASE,
 )
