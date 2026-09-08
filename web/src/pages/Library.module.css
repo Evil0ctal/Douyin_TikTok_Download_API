@@ -1,0 +1,73 @@
+/*
+ * The archive.
+ *
+ * Totals first, then the filters, then the rows: the question this page most
+ * often answers is "how much do I have", and the search box is the second
+ * question, not the first.
+ */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+/*
+ * A title cell has to be bounded, not merely truncatable.
+ *
+ * `u-truncate` on the inner span is not enough on its own: in an auto-layout
+ * table a long unbreakable title still widens its column, and the remaining
+ * five columns get pushed off the right edge - measured on a TikTok
+ * description that ran to 180 characters. The max-width is what actually caps
+ * the column; the truncation is what makes the cap look deliberate.
+ */
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 46ch;
+}
+
+.sub {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  /* Descriptions run long and arrive with the platform's own line breaks. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fact dd {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.tag {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}

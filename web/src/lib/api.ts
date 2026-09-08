@@ -734,6 +734,43 @@ export async function apiPatch<T>(
   return response.data
 }
 
+/**
+ * A streaming endpoint's body, as text.
+ *
+ * The archive export is the one route in this API that does not answer in the
+ * uniform envelope: it streams newline-delimited JSON, a page at a time, so an
+ * archive larger than one response is still exportable. That makes it the one
+ * caller `apiRequest` cannot serve, since it parses the envelope.
+ *
+ * Errors still arrive as the envelope, so a failure is decoded the usual way
+ * rather than handed back as a body of JSON the caller would have to sniff.
+ */
+export async function apiText(
+  path: string,
+  options: Omit<RequestOptions, 'method' | 'body'> = {},
+): Promise<string> {
+  const response = await fetch(buildUrl(path, options.params), {
+    method: 'GET',
+    headers: { 'Accept-Language': currentLanguage() },
+    credentials: 'same-origin',
+    signal: options.signal ?? null,
+  })
+  if (!response.ok) {
+    let code: unknown = 'INTERNAL'
+    let message = ''
+    try {
+      const body = (await response.json()) as { error?: { code?: unknown; message?: unknown } }
+      code = body.error?.code ?? 'INTERNAL'
+      message = typeof body.error?.message === 'string' ? body.error.message : ''
+    } catch {
+      // A non-JSON error body from a proxy in front of the API. The status is
+      // all there is, and pretending otherwise would invent a code.
+    }
+    throw new ApiError(isErrorCode(code) ? code : 'INTERNAL', message, { kind: 'api' })
+  }
+  return response.text()
+}
+
 export async function apiDelete<T>(
   path: string,
   options: Omit<RequestOptions, 'method'> = {},

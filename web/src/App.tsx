@@ -34,6 +34,7 @@ const Proxies = lazy(() => import('@/pages/Proxies'))
 const ApiKeys = lazy(() => import('@/pages/ApiKeys'))
 const EndpointAccess = lazy(() => import('@/pages/EndpointAccess'))
 const Tools = lazy(() => import('@/pages/Tools'))
+const Library = lazy(() => import('@/pages/Library'))
 const Downloads = lazy(() => import('@/pages/Downloads'))
 const Playground = lazy(() => import('@/pages/Playground'))
 const ParseTool = lazy(() => import('@/pages/ParseTool'))
@@ -87,6 +88,7 @@ function ConsoleRoutes() {
         <Route path="/playground" component={Playground} />
         <Route path="/parse" component={ParseTool} />
         <Route path="/tools" component={Tools} />
+        <Route path="/library" component={Library} />
         <Route path="/downloads" component={Downloads} />
         <Route path="/logs" component={Logs} />
         <Route path="/settings" component={Settings} />

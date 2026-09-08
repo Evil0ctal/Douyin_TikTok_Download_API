@@ -23,7 +23,8 @@
     "users": "Users",
     "endpointAccess": "Endpoint access",
     "tools": "Building blocks",
-    "downloads": "Downloads"
+    "downloads": "Downloads",
+    "library": "Library"
   },
   "page": {
     "overview": {
@@ -1212,6 +1213,100 @@
     "file": {
       "sha256": "sha256",
       "none": "No files were stored for this post."
+    }
+  },
+  "library": {
+    "title": "Library",
+    "description": "Everything this instance has already collected, answered from local storage. No identity is spent, nothing is fetched, and a post that has since been deleted is still here.",
+    "untitled": "Untitled",
+    "export": "Export",
+    "storeMedia": "Store the media",
+    "metric": {
+      "posts": "Posts",
+      "postsHint": "Kept until you delete them",
+      "authors": "Authors"
+    },
+    "filter": {
+      "title": "Find a post",
+      "description": "Filters combine. Search matches a substring of the title or description, so it behaves the same in Chinese as in English.",
+      "search": "Search",
+      "searchPlaceholder": "Words from the title or description",
+      "searchHint": "Substring matching, not word matching: Postgres' text search does not segment Chinese, so a word search would silently match nothing on the primary platform.",
+      "anyPlatform": "Any platform",
+      "anyKind": "Any kind",
+      "anyDuration": "Any length",
+      "anyAvailability": "Any availability",
+      "action": "Search",
+      "clear": "Clear"
+    },
+    "column": {
+      "post": "Post",
+      "kind": "Kind",
+      "duration": "Length",
+      "availability": "Availability",
+      "published": "Published",
+      "lastSeen": "Last seen"
+    },
+    "kind": {
+      "video": "Video",
+      "image_album": "Image album"
+    },
+    "duration": {
+      "short": "Under a minute",
+      "medium": "Under three minutes",
+      "long": "Long",
+      "unknown": "Unknown"
+    },
+    "availability": {
+      "live": "Live",
+      "deleted": "Deleted",
+      "private": "Private",
+      "unknown": "Unknown"
+    },
+    "detail": {
+      "author": "Author",
+      "firstSeen": "First seen",
+      "orientation": "Orientation",
+      "resolution": "Resolution",
+      "script": "Script",
+      "music": "Music",
+      "location": "Location",
+      "openOnPlatform": "Open on the platform",
+      "goneHint": "This post is no longer available on the platform. What is here is what this instance saw while it still was."
+    },
+    "page": {
+      "previous": "Previous",
+      "next": "Next",
+      "number": "Page {page}"
+    },
+    "empty": {
+      "title": "Nothing archived yet",
+      "description": "Posts are archived automatically as they are parsed. Parse one from the parse tool or the API and it will appear here."
+    },
+    "toast": {
+      "stored": "Download started",
+      "storeFailed": "Could not start the download",
+      "exported": "{count, plural, one {Exported # post} other {Exported # posts}}",
+      "exportFailed": "Export failed"
+    },
+    "orientationValue": {
+      "portrait": "Portrait",
+      "landscape": "Landscape",
+      "square": "Square",
+      "unknown": "Unknown"
+    },
+    "resolutionValue": {
+      "sd": "SD",
+      "hd": "HD",
+      "fhd": "Full HD",
+      "uhd": "4K",
+      "unknown": "Unknown"
+    },
+    "scriptValue": {
+      "cjk": "Chinese, Japanese or Korean",
+      "latin": "Latin",
+      "mixed": "Mixed",
+      "unknown": "Unknown"
     }
   }
 }

@@ -23,7 +23,8 @@
     "users": "用户",
     "endpointAccess": "接口访问控制",
     "tools": "基础工具",
-    "downloads": "下载"
+    "downloads": "下载",
+    "library": "资料库"
   },
   "page": {
     "overview": {
@@ -1212,6 +1213,100 @@
     "file": {
       "sha256": "sha256",
       "none": "这个作品没有保存下任何文件。"
+    }
+  },
+  "library": {
+    "title": "资料库",
+    "description": "本实例已经采集到的全部内容，直接从本地存储返回。不消耗身份、不发起请求，作品即使已经被平台删除，这里也还在。",
+    "untitled": "无标题",
+    "export": "导出",
+    "storeMedia": "保存媒体到本地",
+    "metric": {
+      "posts": "作品数",
+      "postsHint": "除非你删除，否则一直保留",
+      "authors": "作者数"
+    },
+    "filter": {
+      "title": "查找作品",
+      "description": "多个筛选条件可以叠加。搜索按标题或描述的子串匹配，所以中文和英文的表现是一致的。",
+      "search": "搜索",
+      "searchPlaceholder": "标题或描述里的词",
+      "searchHint": "按子串匹配而不是按词匹配：Postgres 的全文检索不会切分中文，按词搜索会在主力平台上静默地匹配不到任何东西。",
+      "anyPlatform": "全部平台",
+      "anyKind": "全部类型",
+      "anyDuration": "全部时长",
+      "anyAvailability": "全部状态",
+      "action": "搜索",
+      "clear": "清空"
+    },
+    "column": {
+      "post": "作品",
+      "kind": "类型",
+      "duration": "时长",
+      "availability": "可用性",
+      "published": "发布时间",
+      "lastSeen": "最后见到"
+    },
+    "kind": {
+      "video": "视频",
+      "image_album": "图文"
+    },
+    "duration": {
+      "short": "一分钟以内",
+      "medium": "三分钟以内",
+      "long": "长视频",
+      "unknown": "未知"
+    },
+    "availability": {
+      "live": "正常",
+      "deleted": "已删除",
+      "private": "已私密",
+      "unknown": "未知"
+    },
+    "detail": {
+      "author": "作者",
+      "firstSeen": "首次见到",
+      "orientation": "画面方向",
+      "resolution": "清晰度",
+      "script": "文字语种",
+      "music": "音乐",
+      "location": "位置",
+      "openOnPlatform": "在平台上打开",
+      "goneHint": "这个作品在平台上已经没有了。这里保留的是本实例当时看到的样子。"
+    },
+    "page": {
+      "previous": "上一页",
+      "next": "下一页",
+      "number": "第 {page} 页"
+    },
+    "empty": {
+      "title": "还没有归档任何内容",
+      "description": "作品会在被解析时自动归档。用解析工具或接口解析一个作品，它就会出现在这里。"
+    },
+    "toast": {
+      "stored": "已开始下载",
+      "storeFailed": "无法开始下载",
+      "exported": "{count, plural, other {已导出 # 条}}",
+      "exportFailed": "导出失败"
+    },
+    "orientationValue": {
+      "portrait": "竖屏",
+      "landscape": "横屏",
+      "square": "方形",
+      "unknown": "未知"
+    },
+    "resolutionValue": {
+      "sd": "标清",
+      "hd": "高清",
+      "fhd": "全高清",
+      "uhd": "4K",
+      "unknown": "未知"
+    },
+    "scriptValue": {
+      "cjk": "中日韩文字",
+      "latin": "拉丁字母",
+      "mixed": "混合",
+      "unknown": "未知"
     }
   }
 }

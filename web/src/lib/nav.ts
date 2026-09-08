@@ -41,6 +41,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/playground', labelKey: 'nav.playground', group: 'tools', icon: 'terminal' },
   { path: '/parse', labelKey: 'nav.parseTool', group: 'tools', icon: 'link' },
   { path: '/tools', labelKey: 'nav.tools', group: 'tools', icon: 'terminal' },
+  { path: '/library', labelKey: 'nav.library', group: 'tools', icon: 'archive' },
   { path: '/downloads', labelKey: 'nav.downloads', group: 'tools', icon: 'download' },
   { path: '/docs', labelKey: 'nav.apiDocs', group: 'tools', icon: 'book' },
   { path: '/api-keys', labelKey: 'nav.apiKeys', group: 'access', icon: 'key' },
