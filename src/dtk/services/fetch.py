@@ -55,7 +55,6 @@ from dtk.scheduler.policies import policy_for
 from dtk.scheduler.scheduler import Scheduler
 from dtk.services import cache
 from dtk.transport.base import (
-    Fingerprint,
     RawResponse,
     Transport,
     TransportFailure,
@@ -126,7 +125,12 @@ class SignedRequest(Protocol):
 
 
 ProxyResolver = Callable[[str], Awaitable[str | None]]
-SignFn = Callable[[Platform, str, dict[str, Any], Fingerprint], Awaitable[SignedRequest]]
+#: The identity is passed whole rather than as a bare fingerprint. Signing needs
+#: the cookie jar as well: the browser signer loads a page with it, so that the
+#: `verifyFp` in the query is the `s_v_web_id` in the jar the request carries.
+#: Passing only the fingerprint is what let the two disagree, and a request whose
+#: signature names a different session than its cookies gets an empty payload.
+SignFn = Callable[[Platform, str, dict[str, Any], TransportIdentity], Awaitable[SignedRequest]]
 
 
 class FetchService:
@@ -204,20 +208,22 @@ class FetchService:
             proxy_id = await _proxy_id_of(session, identity.id)
 
             spec = adapter.build_request(endpoint, **params)
-            signed = await self._sign(
-                platform, spec["url"], dict(spec.get("params") or {}), identity.fingerprint
+            # Built once and used twice, deliberately: the signature and the
+            # request have to describe the same visitor, and building the
+            # identity separately for each is how they came to disagree.
+            sender = TransportIdentity(
+                id=identity.id,
+                platform=identity.platform,
+                cookies=identity.cookies,
+                fingerprint=identity.fingerprint,
+                proxy_url=identity.proxy_url,
             )
+            signed = await self._sign(platform, spec["url"], dict(spec.get("params") or {}), sender)
             signer = signed.signer
             merged = {**(spec.get("params") or {}), **signed.params}
 
             response = await self._transport.request(
-                TransportIdentity(
-                    id=identity.id,
-                    platform=identity.platform,
-                    cookies=identity.cookies,
-                    fingerprint=identity.fingerprint,
-                    proxy_url=identity.proxy_url,
-                ),
+                sender,
                 _to_transport_spec(spec, merged, endpoint),
                 self._timeout,
             )

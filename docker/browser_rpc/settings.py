@@ -57,6 +57,12 @@ class Settings:
     mint_timeout_seconds: float = 75.0
     sign_timeout_seconds: float = 8.0
     context_open_timeout_seconds: float = 45.0
+    #: How long a freshly opened page may take to become able to sign. A page is
+    #: navigable well before its security bundle has loaded, and signing in that
+    #: window fails with "the SDK added nothing" - which reads like the platform
+    #: changed its algorithm and is really impatience. Counted from the end of
+    #: the navigation, so it is additional to the open above.
+    sdk_ready_timeout_seconds: float = 25.0
 
     #: Optional exit for the warm signing pages. Without it they load the
     #: platform's site from the container's own address, which puts the
@@ -133,6 +139,9 @@ class Settings:
             max_concurrent_mints=as_int("MAX_CONCURRENT_MINTS", defaults.max_concurrent_mints),
             mint_timeout_seconds=as_float("MINT_TIMEOUT_SECONDS", defaults.mint_timeout_seconds),
             sign_timeout_seconds=as_float("SIGN_TIMEOUT_SECONDS", defaults.sign_timeout_seconds),
+            sdk_ready_timeout_seconds=as_float(
+                "SDK_READY_TIMEOUT_SECONDS", defaults.sdk_ready_timeout_seconds
+            ),
             context_open_timeout_seconds=as_float(
                 "CONTEXT_OPEN_TIMEOUT_SECONDS", defaults.context_open_timeout_seconds
             ),
@@ -158,6 +167,7 @@ class Settings:
             "mint_timeout_seconds",
             "sign_timeout_seconds",
             "context_open_timeout_seconds",
+            "sdk_ready_timeout_seconds",
             "geo_probe_timeout_seconds",
         ):
             if getattr(self, name) <= 0:

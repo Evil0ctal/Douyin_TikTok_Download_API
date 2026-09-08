@@ -64,12 +64,25 @@ def _digest(*parts: str, length: int = 32) -> str:
 
 
 class FakeSigningContext:
-    """A warm context that computes a hash instead of running platform code."""
+    """A warm context that computes a hash instead of running platform code.
 
-    def __init__(self, platform: Platform, geo: GeoProfile) -> None:
+    It models one property of the real thing deliberately: the signature it
+    returns names the ``s_v_web_id`` of the jar the context was OPENED with, not
+    the jar of whoever asks it to sign. That is how the platforms behave -
+    measured on 2026-09-08, Douyin's ``verifyFp`` is the cookie the document
+    loaded with, cached - and reproducing it here is what lets a test catch a
+    context being reused across identities without driving a browser. A fake
+    that ignored cookies would pass just as happily with the bug in place.
+    """
+
+    def __init__(
+        self, platform: Platform, geo: GeoProfile, cookies: Mapping[str, str] | None = None
+    ) -> None:
         self._platform = platform
         self._geo = geo
         self._closed = False
+        #: Frozen at open time on purpose. See the class docstring.
+        self.cookies: Mapping[str, str] = dict(cookies or {})
 
     @property
     def platform(self) -> Platform:
@@ -84,10 +97,16 @@ class FakeSigningContext:
             raise BackendFailure("signing context is closed")
         field = SIGNATURE_FIELDS[self._platform]
         signature = _digest("sign", self._platform.value, plan.query, plan.user_agent or "")
-        return {
+        signed = {
             field: signature,
             "ms_token": _digest("mstoken", self._platform.value, plan.url, length=48),
         }
+        # Only Douyin sends it, and only when the context holds one - an
+        # anonymous context has no visitor to name.
+        carried = self.cookies.get("s_v_web_id")
+        if carried and self._platform is Platform.DOUYIN:
+            signed["verifyFp"] = carried
+        return signed
 
     async def close(self) -> None:
         self._closed = True
@@ -153,10 +172,11 @@ class FakeBackend:
         platform: Platform,
         geo: GeoProfile,
         proxy: ProxyEndpoint | None = None,
+        cookies: Mapping[str, str] | None = None,
     ) -> SigningContext:
         if not self._started:
             raise BackendFailure("backend is not started")
-        return FakeSigningContext(platform, geo)
+        return FakeSigningContext(platform, geo, cookies)
 
 
 def build(settings: object) -> FakeBackend:

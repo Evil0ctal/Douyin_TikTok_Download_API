@@ -13,6 +13,7 @@ path and cannot absorb that on top. See docs/design/04-transport-signing.md.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -161,11 +162,19 @@ class BrowserRpcClient:
         url: str,
         params: dict[str, Any],
         user_agent: str | None,
+        cookies: Mapping[str, str] | None = None,
+        proxy_url: str | None = None,
     ) -> dict[str, str]:
         """Ask the live page to sign a request.
 
         Slower than the native implementation, but it follows the platform when
         the algorithm changes, which the native port cannot.
+
+        ``cookies`` must be the jar the request will be sent with. The service
+        loads its signing page with them, so that the ``verifyFp`` it returns is
+        the ``s_v_web_id`` in this jar rather than some other session's; a
+        signature and a jar that name different sessions get an empty payload
+        back from both platforms.
         """
         try:
             body = await self._post(
@@ -175,6 +184,8 @@ class BrowserRpcClient:
                     "url": url,
                     "params": params,
                     "user_agent": user_agent,
+                    "cookies": dict(cookies or {}),
+                    "proxy_url": proxy_url,
                 },
                 SIGN_TIMEOUT_SECONDS,
             )

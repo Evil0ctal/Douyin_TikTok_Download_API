@@ -435,6 +435,14 @@ class TestRawResponse:
 # ------------------------------------------------------------------ classifier
 
 
+#: Douyin's `filter_detail.detail_msg` for a deleted or private post, captured
+#: verbatim on 2026-09-08. It means "this post is private or has been deleted
+#: and cannot be viewed; go and look at other posts". Kept as the platform sent
+#: it because the rule under test carries the message through to the console,
+#: and paraphrasing it would stop testing that.
+DELETED_POST_MESSAGE = "\u56e0\u4f5c\u54c1\u6743\u9650\u6216\u5df2\u88ab\u5220\u9664\uff0c\u65e0\u6cd5\u89c2\u770b\uff0c\u53bb\u770b\u770b\u5176\u4ed6\u4f5c\u54c1\u5427"
+
+
 def json_response(payload: Any, status: int = 200) -> RawResponse:
     return RawResponse(
         status=status,
@@ -454,6 +462,59 @@ class TestClassifier:
         assert result.outcome is Outcome.RISK_CONTROL
         assert result.rule == "payload.withheld"
         assert result.detail == "empty aweme_detail"
+
+    def test_an_absence_the_platform_explained_is_a_business_error(self) -> None:
+        """Douyin's answer for a deleted or private post, captured live.
+
+        Verified on 2026-09-08 against the identity probe's own smoke URL, whose
+        video had been deleted: HTTP 200 with a null `aweme_detail` and a
+        `filter_detail` saying why. The empty payload alone is the risk
+        signature, so this used to cool the identity that asked and count toward
+        the endpoint's risk rate - meaning a caller walking a list of older
+        posts could trip the circuit breaker and take the endpoint down for
+        every identity. The platform told us why; that makes it an answer.
+        """
+        response = json_response(
+            {
+                "aweme_detail": None,
+                "filter_detail": {
+                    "aweme_id": "7298145681699622182",
+                    "detail_msg": DELETED_POST_MESSAGE,
+                },
+            }
+        )
+        result = classify_detailed(response)
+        assert result.outcome is Outcome.BUSINESS_ERROR
+        assert result.rule == "payload.explained"
+        # The platform's own words are carried through, so the console shows the
+        # caller why the post is missing rather than a generic refusal.
+        assert result.detail == DELETED_POST_MESSAGE
+
+    def test_a_marker_with_no_message_is_still_risk_control(self) -> None:
+        """The rule above must not swallow the signature it sits in front of.
+
+        Captured live on 2026-09-08 alongside the explained case: the same shape,
+        a `filter_reason` nobody outside the platform can read, and every message
+        field empty. Douyin is not telling the caller why - so this is still a
+        withheld payload, and accepting the container alone as an explanation
+        would hide real withholding behind an empty envelope.
+        """
+        response = json_response(
+            {
+                "status_code": 0,
+                "aweme_detail": None,
+                "filter_detail": {
+                    "aweme_id": "7397714385177335090",
+                    "detail_msg": "",
+                    "filter_reason": "core_dep",
+                    "icon": "",
+                    "notice": "",
+                },
+            }
+        )
+        result = classify_detailed(response)
+        assert result.outcome is Outcome.RISK_CONTROL
+        assert result.rule == "payload.withheld"
 
     def test_empty_list_page_is_not_risk_control(self) -> None:
         # End of pagination. Cooling an identity here would punish normal use.

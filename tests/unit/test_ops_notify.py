@@ -37,6 +37,7 @@ from dtk.signing.base import (
     SignedParams,
     SignerHealth,
     SigningFingerprint,
+    SigningSession,
     StaticFingerprint,
 )
 from dtk.signing.registry import RegistryPolicy, SignerRegistry
@@ -648,9 +649,12 @@ class OneParamSigner:
         self._param = param
 
     async def sign(
-        self, spec: RequestSpec, identity_fingerprint: SigningFingerprint
+        self,
+        spec: RequestSpec,
+        identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
     ) -> SignedParams:
-        del spec, identity_fingerprint
+        del spec, identity_fingerprint, session
         return SignedParams(
             query=f"{self._param}={self._value}",
             params={self._param: self._value},

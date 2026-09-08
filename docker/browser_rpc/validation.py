@@ -39,11 +39,32 @@ DOMAINS_BY_PLATFORM: dict[Platform, frozenset[str]] = {
     Platform.TIKTOK: TIKTOK_DOMAINS,
 }
 
+#: The domain a stored cookie is replayed on. The pool keeps cookies as bare
+#: name/value pairs - an identity presents one jar, so the domain it was first
+#: seen on is not kept - and a signing context has to put them back somewhere.
+#: The registrable domain with a leading dot is the widest scope that is still
+#: correct, and it is what the platform's own pages set for the cookies that
+#: decide a signature.
+COOKIE_DOMAINS: dict[Platform, str] = {
+    Platform.DOUYIN: ".douyin.com",
+    Platform.TIKTOK: ".tiktok.com",
+}
+
 #: Where a mint session goes to be handed guest cookies. The platform sets
 #: `ttwid` and friends on the first HTML document, not on an API call.
 LANDING_URLS: dict[Platform, str] = {
     Platform.DOUYIN: "https://www.douyin.com/",
     Platform.TIKTOK: "https://www.tiktok.com/",
+}
+
+#: A request the platform's own page would sign, used only to find out whether
+#: the signing code has finished loading. It never reaches the network: the
+#: capture shim in `backends/cloak.py` aborts it inside the browser. These are
+#: the endpoints the application actually calls, so a page that can sign one can
+#: sign the real thing.
+READY_PROBE_URLS: dict[Platform, str] = {
+    Platform.DOUYIN: "https://www.douyin.com/aweme/v1/web/aweme/detail/",
+    Platform.TIKTOK: "https://www.tiktok.com/api/item/detail/",
 }
 
 #: The page a warm signing context keeps loaded, so the platform's own signing
@@ -179,6 +200,7 @@ __all__ = [
     "ALLOWED_DOMAINS",
     "ALLOWED_PROXY_SCHEMES",
     "ALLOWED_URL_SCHEMES",
+    "COOKIE_DOMAINS",
     "DOMAINS_BY_PLATFORM",
     "LANDING_URLS",
     "SIGNING_PAGE_URLS",

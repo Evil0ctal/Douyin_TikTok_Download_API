@@ -41,7 +41,12 @@ from dtk.scheduler.leases import Lease
 from dtk.services import cache
 from dtk.services.fetch import FetchContext, FetchService, _decode, _dump
 from dtk.signing.base import SIGNER_BROWSER, SignedParams
-from dtk.transport.base import Fingerprint, RawResponse, TransportFailure
+from dtk.transport.base import (
+    Fingerprint,
+    RawResponse,
+    TransportFailure,
+    TransportIdentity,
+)
 from dtk.transport.classify import classify_detailed
 
 ENDPOINT = "douyin.content_detail"
@@ -102,11 +107,14 @@ class FakeTransport:
 
     def __init__(self, answer: RawResponse | BaseException) -> None:
         self.answer = answer
+        #: Every identity the transport was asked to send as.
+        self.senders: list[Any] = []
 
     def classify(self, response=None, exception=None):
         return classify_detailed(response, exception)
 
     async def request(self, identity: Any, spec: Any, timeout: float | None = None) -> RawResponse:
+        self.senders.append(identity)
         if isinstance(self.answer, BaseException):
             raise self.answer
         return self.answer
@@ -143,7 +151,7 @@ def identity() -> LiveIdentity:
     )
 
 
-async def signer(platform: Platform, url: str, params: dict[str, Any], fingerprint: Fingerprint):
+async def signer(platform: Platform, url: str, params: dict[str, Any], sender: TransportIdentity):
     """The real SignedParams, so the pipeline's signer seam is exercised."""
     return SignedParams(query="a_bogus=AAA", params={"a_bogus": "AAA"}, signer=SIGNER_BROWSER)
 
@@ -542,3 +550,39 @@ class TestTransportSpecSeam:
 
         assert _to_transport_spec(self._spec(body={}), {}, "e").json_body is None
         assert _to_transport_spec(self._spec(body={"a": 1}), {}, "e").json_body == {"a": 1}
+
+
+async def test_the_signature_and_the_request_describe_the_same_visitor() -> None:
+    """One identity object reaches both seams, because the platform compares them.
+
+    The signer and the transport used to be handed the identity separately -
+    the signer got a bare fingerprint, the transport got the cookies - so
+    nothing in the pipeline connected the two. That is how requests came to go
+    out with a signature naming one session and a Cookie header naming another,
+    which Douyin and TikTok answer by withholding the payload rather than by
+    returning an error, so it read as rate limiting for weeks.
+    """
+    signed_as: list[Any] = []
+
+    async def recording_signer(
+        platform: Platform, url: str, params: dict[str, Any], sender: TransportIdentity
+    ):
+        signed_as.append(sender)
+        return SignedParams(query="a_bogus=AAA", params={"a_bogus": "AAA"}, signer=SIGNER_BROWSER)
+
+    transport = FakeTransport(response(200, {"status_code": 0, "aweme_detail": {"x": 1}}))
+    svc = FetchService(
+        scheduler=FakeScheduler(),  # type: ignore[arg-type]
+        pool=FakePool(identity()),  # type: ignore[arg-type]
+        transport=transport,  # type: ignore[arg-type]
+        sign=recording_signer,
+        cooldown_base=60,
+    )
+    await run_fetch(svc, FakeSession())
+
+    assert len(signed_as) == 1 and len(transport.senders) == 1
+    assert signed_as[0] is transport.senders[0]
+    # Named explicitly: the cookie jar is the half the signer needs and the
+    # half a bare fingerprint would not have carried.
+    assert signed_as[0].cookies == {"ttwid": "x"}
+    assert signed_as[0].proxy_url == "http://user:pass@exit.example:8080"

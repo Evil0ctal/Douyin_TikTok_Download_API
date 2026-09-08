@@ -56,7 +56,14 @@ class CandidateSource(Protocol):
 class SchedulerConfig:
     max_wait_seconds: float = 10.0
     poll_interval_seconds: float = 0.25
-    inflight_ttl_seconds: int = 60
+    #: How long the in-flight lock survives a worker that never returns it.
+    #: It has to outlast everything the holder does with the lease - signing and
+    #: the request itself - because the identity becomes available again the
+    #: moment it expires, and a second worker taking it breaks the
+    #: one-request-per-identity rule that the whole pool rests on. Signing is the
+    #: part that grew: a browser signature for an identity whose page is not
+    #: resident includes launching one, so a 60s ceiling no longer had headroom.
+    inflight_ttl_seconds: int = 120
     #: Hard bound on retries, independent of the clock. The deadline alone is
     #: not enough: a stalled or non-monotonic clock would spin here forever.
     max_attempts: int = 64

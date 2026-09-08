@@ -137,8 +137,16 @@ class BrowserBackend(Protocol):
         platform: Platform,
         geo: GeoProfile,
         proxy: ProxyEndpoint | None = None,
+        cookies: Mapping[str, str] | None = None,
     ) -> SigningContext:
-        """Open a warm context for a platform's signing page."""
+        """Open a warm context for a platform's signing page.
+
+        ``cookies`` are installed before the page is navigated, not after: the
+        signing SDK reads the cookies that decide a signature once, while the
+        document loads. Handing them over afterwards changes the jar without
+        changing the signature, which is the incoherence this argument exists
+        to prevent.
+        """
 
 
 __all__ = [

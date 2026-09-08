@@ -32,6 +32,7 @@ from dtk.signing.base import (
     SignedParams,
     SignerHealth,
     SigningFingerprint,
+    SigningSession,
     encode_query,
 )
 from dtk.signing.native.abogus import (
@@ -108,9 +109,19 @@ class NativeSigner:
         self._rng = rng or random.Random()
 
     async def sign(
-        self, spec: RequestSpec, identity_fingerprint: SigningFingerprint
+        self,
+        spec: RequestSpec,
+        identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
     ) -> SignedParams:
-        """Return the query string to send, signature appended."""
+        """Return the query string to send, signature appended.
+
+        ``session`` is accepted and ignored. The native algorithms compute from
+        the query and the User-Agent alone, so there is nothing here for a
+        cookie jar to change - unlike ``RpcSigner``, where the jar decides what
+        the browser signs. Taking the argument keeps one ``Signer`` protocol
+        rather than two.
+        """
         params = dict(spec.params or {})
         added: dict[str, str] = {}
 

@@ -105,7 +105,9 @@ class TestSigningModeReachesTheSigner:
             def __init__(self, name: str) -> None:
                 self.name = name
 
-            async def sign(self, spec, identity_fingerprint):  # pragma: no cover - unused
+            async def sign(
+                self, spec, identity_fingerprint, session=None
+            ):  # pragma: no cover - unused
                 raise AssertionError("selection is what is under test, not signing")
 
             async def health(self):

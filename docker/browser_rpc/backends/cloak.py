@@ -35,11 +35,13 @@ reason they are isolated in this file. `docker/README.md` records the procedure.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import importlib
 import logging
 import re
 import shutil
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -53,7 +55,13 @@ from browser_rpc.backends.base import (
 from browser_rpc.errors import BackendFailure, BackendUnavailable
 from browser_rpc.geo import GeoProfile
 from browser_rpc.settings import Settings
-from browser_rpc.validation import SIGNING_PAGE_URLS, Platform, ProxyEndpoint
+from browser_rpc.validation import (
+    COOKIE_DOMAINS,
+    READY_PROBE_URLS,
+    SIGNING_PAGE_URLS,
+    Platform,
+    ProxyEndpoint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +83,16 @@ LAUNCH_ENTRY_POINT: str = "launch_persistent_context_async"
 #: also a flag that changes the fingerprint, and the point of this backend is a
 #: browser that looks ordinary.
 CHROMIUM_ARGS: tuple[str, ...] = (
-    # --disable-dev-shm-usage is deliberately absent. It exists to work around a
-    # 64MB /dev/shm by moving shared memory onto the filesystem, and this
-    # container raises shm_size to 1GB instead - so the flag defeated the fix,
-    # pushing every renderer's shared memory into the 256MB /tmp tmpfs. Chromium
-    # then died mid-navigation with "No space left on device", which reaches the
-    # caller as "browser has been closed" and reads exactly like a platform
-    # block. Keep the two decisions together: raise /dev/shm, and use it.
+    # NOT the place to control --disable-dev-shm-usage. An earlier comment here
+    # claimed the flag was "deliberately absent" so that the container's 1GB
+    # /dev/shm would be used; reading a real launch line on 2026-09-08 disproved
+    # it. The driver passes --disable-dev-shm-usage itself, unconditionally, and
+    # arguments appended here cannot remove one it already set. The measured
+    # consequence: /dev/shm stays at 0% while every renderer's shared memory
+    # lands in /tmp, where two warm contexts hold ~290MB each as deleted-but-open
+    # files. Chromium then dies with SIGSEGV or "Target crashed", which reaches
+    # the caller looking exactly like a platform block. So /tmp is the budget
+    # that matters and it is sized in docker/compose.yml, not here.
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-background-networking",
@@ -124,10 +135,20 @@ COOKIE_SCRIPT = """() => Object.fromEntries(
 #: URL, hands it down to what it believes is the browser, and we read it there
 #: and abort - so a signature costs no upstream request.
 #: NOTE ON POOLING: a signing context cannot be shared between identities.
-#: `verifyFp` is the browser's `s_v_web_id` cookie and `uifid` is its `UIFID`
-#: cookie, both verified live on 2026-09-07, so a signature minted in one
-#: context is only coherent alongside that context's cookies. Warm contexts are
-#: therefore keyed per identity, not per platform.
+#: Measured on 2026-09-08, against a live page rather than inferred:
+#:
+#: * `verifyFp` and `fp` are both the browser's `s_v_web_id` cookie, verbatim.
+#: * The SDK reads it once, while the document loads, and caches it. Swapping
+#:   the cookie on a warm page changes nothing; only a fresh document does.
+#: * Seeding `verifyFp` in the query handed to the SDK does not work either -
+#:   it overwrites the value with its own cached one.
+#: * `uifid` matches the identity's `UIFID_TEMP` cookie, but it also matched
+#:   across two independently minted contexts, so it is device-derived and is
+#:   not what separates them. `verifyFp` is.
+#:
+#: So the only way to obtain a signature coherent with a given jar is to load
+#: the page with that jar already installed, and `browser_rpc.service` keys its
+#: warm slots on the jar for exactly that reason.
 CAPTURE_INIT_SCRIPT = """
 (() => {
   const nativeFetch = window.fetch;
@@ -154,6 +175,21 @@ CAPTURE_INIT_SCRIPT = """
   };
 })();
 """
+
+#: How often to ask whether the page can sign yet, and how long to keep asking.
+#:
+#: A page is navigable long before it can sign: `domcontentloaded` fires and the
+#: security bundle arrives afterwards. Signing inside that window fails with
+#: "the SDK added nothing", which reads like the platform changed its algorithm
+#: and is really just impatience - observed on TikTok, which was asked 1.1s
+#: after its context opened and produced nothing, twice, and then returned a
+#: 502 to the caller.
+#:
+#: Asking "has something wrapped window.fetch?" was tried first and is too weak:
+#: TikTok satisfies it within a second, long before the signing code is there.
+#: The only sound question is the one the caller will ask, so readiness is
+#: probed by taking a throwaway signature - see `_await_sdk`.
+READY_POLL_SECONDS: float = 0.25
 
 #: Asks the SDK to sign one request and returns whatever it added to the query.
 #:
@@ -496,25 +532,34 @@ class CloakBackend:
         platform: Platform,
         geo: GeoProfile,
         proxy: ProxyEndpoint | None = None,
+        cookies: Mapping[str, str] | None = None,
     ) -> CloakSigningContext:
         page_url = SIGNING_PAGE_URLS[platform]
-        # Warm contexts are not identities: they run in a throwaway directory
-        # and their cookies are never harvested. The directory is unique per
-        # context and not per platform, because Chromium locks a persistent
-        # profile: sharing one name would make the second context of a
-        # DTK_BROWSER_WARM_CONTEXTS=2 pool fail to launch, and would let a
-        # rebuilt page collide with the one it is replacing.
+        # A warm context still harvests nothing, but it is no longer anonymous:
+        # it carries the jar of the identity it signs for, so that `verifyFp`
+        # and the cookies the request sends come from one session. The directory
+        # is unique per context and not per platform, because Chromium locks a
+        # persistent profile: sharing one name would make the second context of
+        # a DTK_BROWSER_WARM_CONTEXTS=2 pool fail to launch, and would let a
+        # rebuilt page collide with the one it is replacing. It being unique
+        # also means no trace of the previous identity survives a rebind.
         profile_dir = f"{self._settings.profile_root}/warm-{platform.value}-{uuid.uuid4().hex[:8]}"
         context = await self._launch_context(
             profile_dir, geo, proxy, self._settings.context_open_timeout_seconds
         )
         try:
+            jar = cookie_payload(platform, cookies)
+            if jar:
+                # Before the first navigation: the SDK reads these while the
+                # document loads and caches what it read.
+                await context.add_cookies(jar)
             page = await self._page_of(context)
             await page.goto(
                 page_url,
                 wait_until="domcontentloaded",
                 timeout=self._settings.context_open_timeout_seconds * 1000,
             )
+            await _await_sdk(page, platform, self._settings.sdk_ready_timeout_seconds)
             fingerprint = await self._read_fingerprint(page)
             major = browser_major_of(fingerprint.get("userAgent"))
             if major is not None:
@@ -529,6 +574,65 @@ class CloakBackend:
                 f"could not warm a signing page for {platform.value}: {exc}"
             ) from exc
         return CloakSigningContext(platform, context, page, profile_dir)
+
+
+async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
+    """Block until the page can actually sign, by asking it to.
+
+    The probe is a real signature over a throwaway query, which is the only
+    question whose answer is not a proxy for the one that matters. It costs no
+    upstream request - the capture shim aborts the fetch before it leaves the
+    browser - so polling it is cheap.
+
+    Not fatal on timeout. A context that still cannot sign is returned anyway,
+    and the caller's own signature then fails with the SDK's message, which says
+    more about what is wrong than "opening a context timed out" would.
+    """
+    probe = {"url": READY_PROBE_URLS[platform], "query": "dtk_ready=1", "method": "GET"}
+    deadline = time.monotonic() + budget
+    started = time.monotonic()
+    while True:
+        try:
+            result = await page.evaluate(SIGN_SCRIPT, probe)
+            if isinstance(result, dict) and result.get("params"):
+                logger.info(
+                    "backend.cloak.sdk_ready platform=%s after=%.1fs",
+                    platform.value,
+                    time.monotonic() - started,
+                )
+                return
+        except Exception as exc:  # a navigation mid-poll, or a crashed target
+            logger.debug("backend.cloak.ready_probe_failed error=%s", exc)
+        if time.monotonic() >= deadline:
+            logger.warning(
+                "backend.cloak.sdk_never_ready platform=%s waited=%.0fs",
+                platform.value,
+                budget,
+            )
+            return
+        await asyncio.sleep(READY_POLL_SECONDS)
+
+
+def cookie_payload(platform: Platform, cookies: Mapping[str, str] | None) -> list[dict[str, str]]:
+    """Translate a flat jar into the driver's cookie shape.
+
+    The pool stores cookies as bare name/value pairs - an identity presents one
+    jar wherever it is used, so the domain each was first seen on is not kept -
+    and a signing context has to put them back somewhere. `COOKIE_DOMAINS` is
+    the registrable domain with a leading dot, the widest scope that is still
+    correct and the one the platform's own pages use for the cookies that decide
+    a signature.
+
+    Empty names and empty values are dropped rather than sent: the driver
+    rejects the whole batch if one entry is malformed, which would turn a single
+    junk cookie into a total signing outage.
+    """
+    domain = COOKIE_DOMAINS[platform]
+    return [
+        {"name": name, "value": value, "domain": domain, "path": "/"}
+        for name, value in (cookies or {}).items()
+        if name and value
+    ]
 
 
 async def _collect_cookies(context: Any) -> dict[str, str]:

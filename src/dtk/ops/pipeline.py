@@ -46,7 +46,7 @@ from dtk.ops.masking import short_id
 from dtk.ops.probes import probe_identity
 from dtk.platforms import get_adapter
 from dtk.signing import RequestSpec as SigningRequest
-from dtk.signing import SignerRegistry, StaticFingerprint, native_signers
+from dtk.signing import SignerRegistry, SigningSession, StaticFingerprint, native_signers
 from dtk.transport.base import Fingerprint, RawResponse, RequestSpec, TransportIdentity
 from dtk.urls import ResourceKind, UrlKind, resolve
 from dtk.worker import registry
@@ -319,22 +319,34 @@ async def call_endpoint(
     adapter = get_adapter(call.platform)
     spec = adapter.build_request(call.endpoint, **call.params)
 
+    # Built before signing and reused for the request, because the two have to
+    # describe the same visitor. Douyin's `verifyFp` is the `s_v_web_id` of
+    # whichever browser computed the signature, so signing without this jar
+    # produced a query naming one session and a Cookie header naming another -
+    # which the platform answers by withholding the payload. That is what the
+    # console's identity probe was reporting as risk control.
+    sender = TransportIdentity(
+        id=identity.id,
+        platform=identity.platform,
+        fingerprint=identity.fingerprint,
+        proxy_url=identity.proxy_url,
+        cookies=identity.cookies,
+    )
     signed = await signers.sign(
         SigningRequest(method=spec["method"], url=spec["url"], params=spec["params"]),
         signing_view(identity.fingerprint),
+        SigningSession(
+            cookies=identity.cookies,
+            proxy_url=identity.proxy_url,
+            identity_id=str(identity.id),
+        ),
         platform=call.platform,
         endpoint=call.endpoint,
     )
     url = signed.signed_url(spec["url"]) if signed.query else spec["url"]
 
     return await transport.request(
-        TransportIdentity(
-            id=identity.id,
-            platform=identity.platform,
-            fingerprint=identity.fingerprint,
-            proxy_url=identity.proxy_url,
-            cookies=identity.cookies,
-        ),
+        sender,
         RequestSpec(
             url=url,
             method=spec["method"],

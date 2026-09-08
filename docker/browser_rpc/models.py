@@ -61,6 +61,13 @@ class SignRequest(BaseModel):
     minting client sends only `params`, in which case the service builds the
     query itself. When both are present, `query` wins - the caller that built it
     knows the ordering and escaping the signature has to cover.
+
+    `cookies` is not decoration either. Measured on 2026-09-08: Douyin's
+    `verifyFp` IS the browser's `s_v_web_id` cookie, read once when the document
+    loads. Signing in a context that holds different cookies therefore produces
+    a query that contradicts the jar the request will carry, and both platforms
+    answer such a request with a withheld payload - which reads exactly like
+    rate limiting. Send the jar the request will actually be sent with.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -71,6 +78,14 @@ class SignRequest(BaseModel):
     query: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     user_agent: str | None = None
+    #: The identity's jar. Empty asks for an anonymous context, which is only
+    #: coherent for a caller that will send no cookies either.
+    cookies: dict[str, str] = Field(default_factory=dict)
+    #: The identity's exit. The signing page loads the platform through it, so
+    #: the jar is never presented from an address that is not the identity's.
+    proxy_url: str | None = None
+    #: Opaque, and used only to label logs. Coherence is decided by `cookies`.
+    identity_id: str | None = None
 
 
 class SignResponse(BaseModel):
@@ -110,4 +125,4 @@ class HealthResponse(BaseModel):
     error: str | None = None
 
 
-__all__ = ["HealthResponse", "MintRequest", "MintResponse", "SignRequest"]
+__all__ = ["HealthResponse", "MintRequest", "MintResponse", "SignRequest", "SignResponse"]

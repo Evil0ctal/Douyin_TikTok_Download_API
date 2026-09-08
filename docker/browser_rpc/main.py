@@ -123,6 +123,12 @@ def create_app(
             query,
             params=params,
             user_agent=payload.user_agent,
+            # The jar the caller will actually send. Without it the signature
+            # names a different session's `verifyFp` than the cookies do, and
+            # the platform answers with an empty payload.
+            cookies=payload.cookies,
+            proxy_url=payload.proxy_url,
+            identity_id=payload.identity_id,
         )
         # Echo the UA the signature was computed under so the caller can assert
         # it is the one it will actually send. TikTok rejects any mismatch.

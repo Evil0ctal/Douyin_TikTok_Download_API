@@ -115,6 +115,30 @@ EMPTY_PAYLOAD_KEYS: Final[tuple[str, ...]] = (
     "user",
 )
 
+#: Where the platform puts its reason for an empty payload, and the fields that
+#: carry the reason itself. Douyin answers a deleted or private post with 200
+#: and::
+#:
+#:     {"aweme_detail": null,
+#:      "filter_detail": {"aweme_id": "...", "filter_reason": "status_self_see",
+#:                        "detail_msg": "<why, in Chinese>"}}
+#:
+#: Observed live on 2026-09-08 against the identity probe's own smoke URL, whose
+#: video had been set to owner-only. The empty `aweme_detail` alone is exactly
+#: the risk signature, and reading it that way is expensive: every such post
+#: cooled the identity that asked for it and counted toward the endpoint's risk
+#: rate, so a caller walking a list of older posts could trip the circuit
+#: breaker and take the endpoint down for every identity.
+#:
+#: A MESSAGE is required, not merely the container. The same shape also arrives
+#: as `{"filter_reason": "core_dep", "detail_msg": "", "notice": ""}` - a refusal
+#: with nothing said, observed on the same day - and treating that as a business
+#: answer would hide real withholding behind an empty envelope. The line is
+#: whether the platform told the caller why: if it did, that is an answer; if it
+#: only left a marker, it is still a withheld payload.
+PAYLOAD_REASON_KEYS: Final[tuple[str, ...]] = ("filter_detail",)
+PAYLOAD_REASON_MESSAGE_KEYS: Final[tuple[str, ...]] = ("detail_msg", "notice", "msg")
+
 #: Success statuses that are *defined* to carry no body. An empty body is the
 #: correct answer for these, so the "withheld payload" reading does not apply:
 #: treating a 204 as risk control would cool an identity for a request that
@@ -301,6 +325,31 @@ def _empty_body(view: ResponseView) -> RuleResult:
     return False
 
 
+def _explained_absence(view: ResponseView) -> RuleResult:
+    """An empty payload the platform explained. See PAYLOAD_REASON_KEYS.
+
+    Ordered before `payload.withheld` because it is the same shape read with
+    more of the body: both see an empty `aweme_detail`, and only this one
+    notices that the platform said why.
+    """
+    if not view.response.ok:
+        return False
+    envelope = view.envelope
+    if envelope is None:
+        return False
+    if not any(key in EMPTY_PAYLOAD_KEYS and not envelope[key] for key in envelope):
+        return False
+    for key in PAYLOAD_REASON_KEYS:
+        reason = envelope.get(key)
+        if not isinstance(reason, dict):
+            continue
+        for field in PAYLOAD_REASON_MESSAGE_KEYS:
+            message = reason.get(field)
+            if isinstance(message, str) and message.strip():
+                return message
+    return False
+
+
 def _withheld_payload(view: ResponseView) -> RuleResult:
     if not view.response.ok:
         return False
@@ -335,6 +384,7 @@ DEFAULT_RULES: Final[tuple[ClassificationRule, ...]] = (
     ClassificationRule("http.business_status", Outcome.BUSINESS_ERROR, _business_status),
     ClassificationRule("envelope.nonzero", Outcome.BUSINESS_ERROR, _nonzero_envelope),
     ClassificationRule("body.empty", Outcome.RISK_CONTROL, _empty_body),
+    ClassificationRule("payload.explained", Outcome.BUSINESS_ERROR, _explained_absence),
     ClassificationRule("payload.withheld", Outcome.RISK_CONTROL, _withheld_payload),
     ClassificationRule("http.server_error", Outcome.NETWORK_ERROR, _server_error),
     ClassificationRule("http.client_error", Outcome.BUSINESS_ERROR, _client_error),

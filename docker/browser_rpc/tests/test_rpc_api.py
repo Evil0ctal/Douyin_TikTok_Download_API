@@ -100,6 +100,41 @@ class TestSignEndpoint:
         assert body["params"], "no signature parameters returned"
         assert "user_agent" in body
 
+    async def test_the_callers_cookies_reach_the_signing_page(
+        self, client: httpx.AsyncClient
+    ) -> None:
+        """The route has to forward the jar, not just accept it.
+
+        `verifyFp` is the `s_v_web_id` of whichever browser signed, so a route
+        that parsed `cookies` and dropped it would leave the request quoting
+        browser-rpc's own visitor while carrying the caller's cookies - the
+        exact incoherence both platforms answer by withholding the payload.
+        """
+        response = await client.post(
+            "/rpc/sign",
+            json={
+                "platform": "douyin",
+                "url": DOUYIN_URL,
+                "query": "aweme_id=7",
+                "params": {"aweme_id": "7"},
+                "cookies": {"s_v_web_id": "verify_caller", "ttwid": "1|abc"},
+                "identity_id": "ident-a",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["params"]["verifyFp"] == "verify_caller"
+
+    async def test_a_caller_that_sends_no_cookies_still_gets_a_signature(
+        self, client: httpx.AsyncClient
+    ) -> None:
+        """`cookies` is optional on the wire, so an older client keeps working."""
+        response = await client.post(
+            "/rpc/sign",
+            json={"platform": "douyin", "url": DOUYIN_URL, "params": {"aweme_id": "7"}},
+        )
+        assert response.status_code == 200
+        assert response.json()["params"]["a_bogus"]
+
     async def test_rejects_a_url_off_the_allowlist(self, client: httpx.AsyncClient) -> None:
         response = await client.post(
             "/rpc/sign",

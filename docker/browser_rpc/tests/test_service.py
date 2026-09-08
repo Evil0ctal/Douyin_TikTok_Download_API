@@ -7,6 +7,7 @@ without a browser at all.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,7 @@ from browser_rpc.errors import (
     OperationTimeout,
 )
 from browser_rpc.geo import ExitInfo, GeoProfile
-from browser_rpc.service import BrowserRpcService
+from browser_rpc.service import ANONYMOUS, BrowserRpcService, binding_key
 from browser_rpc.settings import Settings
 from browser_rpc.validation import Platform, ProxyEndpoint
 
@@ -42,16 +43,21 @@ class CountingBackend(FakeBackend):
         super().__init__()
         self.contexts_opened = 0
         self.context_proxies: list[ProxyEndpoint | None] = []
+        #: The jar each context was opened with, so a test can prove a
+        #: signature was taken in the identity's own session.
+        self.context_cookies: list[dict[str, str]] = []
 
     async def open_signing_context(
         self,
         platform: Platform,
         geo: GeoProfile,
         proxy: ProxyEndpoint | None = None,
+        cookies: Mapping[str, str] | None = None,
     ) -> FakeSigningContext:
         self.contexts_opened += 1
         self.context_proxies.append(proxy)
-        context = await super().open_signing_context(platform, geo, proxy)
+        self.context_cookies.append(dict(cookies or {}))
+        context = await super().open_signing_context(platform, geo, proxy, cookies)
         assert isinstance(context, FakeSigningContext)
         return context
 
@@ -75,11 +81,12 @@ class FlakyBackend(CountingBackend):
         platform: Platform,
         geo: GeoProfile,
         proxy: ProxyEndpoint | None = None,
+        cookies: Mapping[str, str] | None = None,
     ) -> FakeSigningContext:
         self.contexts_opened += 1
         if self.contexts_opened <= self.heal_after:
-            return BrokenContext(platform, geo)
-        return FakeSigningContext(platform, geo)
+            return BrokenContext(platform, geo, cookies)
+        return FakeSigningContext(platform, geo, cookies)
 
 
 class SlowBackend(FakeBackend):
@@ -319,3 +326,201 @@ class TestHealth:
         assert "cloakbrowser" in body["error"]
         with pytest.raises(BackendUnavailable):
             await service.mint(Platform.DOUYIN, None, None)
+
+
+class TestSigningInTheCallersOwnSession:
+    """The bug that made every scraped payload come back empty.
+
+    Signatures used to be taken in one shared warm page while the request went
+    out with a pool identity's cookies. Measured against a live page on
+    2026-09-08: Douyin's `verifyFp` IS the `s_v_web_id` of whatever browser
+    signed, so the query named one visitor and the Cookie header named another.
+    Both platforms answer that with a withheld payload rather than an error,
+    which is why it read as rate limiting for so long.
+
+    `FakeSigningContext` reproduces the coupling - it reports the jar it was
+    OPENED with, not the jar of whoever asks it to sign - so these tests fail
+    against the old behaviour without needing a browser.
+    """
+
+    async def test_the_signature_names_the_callers_own_visitor(self, settings: Settings) -> None:
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            signed = await service.sign(
+                Platform.DOUYIN,
+                DOUYIN_URL,
+                "a=1",
+                {"a": "1"},
+                cookies={"s_v_web_id": "verify_caller", "ttwid": "1|abc"},
+                identity_id="ident-a",
+            )
+        finally:
+            await service.close()
+
+        assert signed["verifyFp"] == "verify_caller"
+        assert backend.context_cookies == [{"s_v_web_id": "verify_caller", "ttwid": "1|abc"}]
+
+    async def test_two_identities_never_share_a_page(self, settings: Settings) -> None:
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            first = await service.sign(
+                Platform.DOUYIN,
+                DOUYIN_URL,
+                "a=1",
+                {"a": "1"},
+                cookies={"s_v_web_id": "verify_a"},
+                identity_id="a",
+            )
+            second = await service.sign(
+                Platform.DOUYIN,
+                DOUYIN_URL,
+                "a=1",
+                {"a": "1"},
+                cookies={"s_v_web_id": "verify_b"},
+                identity_id="b",
+            )
+        finally:
+            await service.close()
+
+        # The whole point: B's request must not go out quoting A's visitor.
+        assert first["verifyFp"] == "verify_a"
+        assert second["verifyFp"] == "verify_b"
+        assert backend.contexts_opened == 2
+
+    async def test_one_identity_keeps_its_page(self, settings: Settings) -> None:
+        """Coherence must not cost a browser launch per request."""
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            for _ in range(4):
+                await service.sign(
+                    Platform.DOUYIN,
+                    DOUYIN_URL,
+                    "a=1",
+                    {"a": "1"},
+                    cookies={"s_v_web_id": "verify_a"},
+                    identity_id="a",
+                )
+        finally:
+            await service.close()
+        assert backend.contexts_opened == 1
+
+    async def test_the_page_follows_the_identitys_own_exit(self, settings: Settings) -> None:
+        """Same jar, different exit: still a different page.
+
+        Reusing a page opened through one proxy would show the platform this
+        identity's cookies arriving from an address that is not its own, which
+        is exactly the link the pool exists to avoid.
+        """
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            for exit_url in ("http://proxy-a:8080", "http://proxy-b:8080"):
+                await service.sign(
+                    Platform.DOUYIN,
+                    DOUYIN_URL,
+                    "a=1",
+                    {"a": "1"},
+                    cookies={"s_v_web_id": "verify_a"},
+                    proxy_url=exit_url,
+                    identity_id="a",
+                )
+        finally:
+            await service.close()
+
+        assert backend.contexts_opened == 2
+        assert [p.server if p else None for p in backend.context_proxies] == [
+            "http://proxy-a:8080",
+            "http://proxy-b:8080",
+        ]
+
+    async def test_rebinding_never_exceeds_the_configured_browser_count(
+        self, settings: Settings
+    ) -> None:
+        """Rebinding replaces a page; it must not quietly add one.
+
+        `warm_contexts` is a memory budget - each Chromium holds hundreds of
+        megabytes of the container's tmpfs - so a pool that grew by one on every
+        identity switch would exhaust it and crash mid-navigation, which reaches
+        the caller looking like a platform block.
+        """
+        backend = CountingBackend()
+        service = BrowserRpcService(replace(settings, warm_contexts=1), backend)
+        await service.start()
+        try:
+            for name in ("a", "b", "a", "c"):
+                await service.sign(
+                    Platform.DOUYIN,
+                    DOUYIN_URL,
+                    "a=1",
+                    {"a": "1"},
+                    cookies={"s_v_web_id": f"verify_{name}"},
+                    identity_id=name,
+                )
+                assert service._pools[Platform.DOUYIN].live <= 1
+        finally:
+            await service.close()
+        # Four signatures, four rebinds, but never two browsers at once.
+        assert backend.contexts_opened == 4
+
+    async def test_concurrent_signatures_do_not_overrun_the_budget(
+        self, settings: Settings
+    ) -> None:
+        backend = CountingBackend()
+        service = BrowserRpcService(replace(settings, warm_contexts=2), backend)
+        await service.start()
+        try:
+            await asyncio.gather(
+                *[
+                    service.sign(
+                        Platform.DOUYIN,
+                        DOUYIN_URL,
+                        "a=1",
+                        {"a": "1"},
+                        cookies={"s_v_web_id": f"verify_{i}"},
+                        identity_id=str(i),
+                    )
+                    for i in range(8)
+                ]
+            )
+        finally:
+            await service.close()
+        assert service._pools[Platform.DOUYIN].live == 0
+
+    async def test_an_anonymous_caller_still_gets_a_signature(
+        self, service: BrowserRpcService
+    ) -> None:
+        """No cookies is a coherent request too: the caller sends none either."""
+        signed = await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
+        assert signed["a_bogus"]
+        assert "verifyFp" not in signed
+
+
+class TestBindingKey:
+    def test_the_same_session_is_the_same_binding(self) -> None:
+        jar = {"s_v_web_id": "verify_a", "ttwid": "1|abc"}
+        assert binding_key(jar, None) == binding_key(dict(reversed(list(jar.items()))), None)
+
+    def test_a_different_jar_is_a_different_binding(self) -> None:
+        assert binding_key({"s_v_web_id": "a"}, None) != binding_key({"s_v_web_id": "b"}, None)
+
+    def test_a_different_exit_is_a_different_binding(self) -> None:
+        jar = {"s_v_web_id": "a"}
+        assert binding_key(jar, "http://one:8080") != binding_key(jar, "http://two:8080")
+
+    def test_nothing_at_all_is_the_anonymous_binding(self) -> None:
+        assert binding_key({}, None) == ANONYMOUS
+        assert binding_key(None, None) == ANONYMOUS
+
+    def test_the_binding_does_not_carry_the_cookies_around(self) -> None:
+        """It is logged and compared, and a cookie jar is a credential."""
+        key = binding_key({"s_v_web_id": "verify_secret", "sessionid": "s3cr3t"}, "http://u:p@h:1")
+        assert "verify_secret" not in key
+        assert "s3cr3t" not in key
+        assert "p@h" not in key

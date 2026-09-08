@@ -36,10 +36,20 @@ log = get_logger(__name__)
 DEFAULT_PROXY_PROBE_URL: Final = "https://ipinfo.io/json"
 
 #: Fixed public links for the end-to-end smoke test. They are only ever used to
-#: prove that an endpoint still answers: a deleted post produces a business
-#: error, which is a pass for this purpose and reported as such.
+#: prove that an endpoint still answers: a post that has been deleted or made
+#: private produces a business error, which is a pass for this purpose and
+#: reported as such.
+#:
+#: That tolerance is not theoretical. The Douyin link here was a post its owner
+#: had since restricted, and until 2026-09-08 the classifier read the resulting
+#: empty payload as risk control - so every identity probe and every diagnosis
+#: reported the pool as blocked, on a healthy pool, for months. The rule that
+#: separates "the platform explained why" from "the platform said nothing" is in
+#: `dtk.transport.classify`, and it is what keeps a link rotting here from
+#: looking like an outage. Replacing the link is still worth doing when it rots;
+#: it is no longer urgent when it does.
 SMOKE_URLS: Final[dict[Platform, str]] = {
-    Platform.DOUYIN: "https://www.douyin.com/video/7298145681699622182",
+    Platform.DOUYIN: "https://www.douyin.com/video/7675505205047348543",
     Platform.TIKTOK: "https://www.tiktok.com/@owlcitymusic/video/7218694761253735723",
 }
 

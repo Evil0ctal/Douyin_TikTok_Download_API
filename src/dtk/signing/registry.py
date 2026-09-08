@@ -64,6 +64,7 @@ from dtk.signing.base import (
     Signer,
     SignerHealth,
     SigningFingerprint,
+    SigningSession,
     endpoint_of,
     platform_of,
 )
@@ -324,6 +325,7 @@ class SignerRegistry:
         self,
         spec: RequestSpec,
         identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
         *,
         platform: Platform | None = None,
         endpoint: str | None = None,
@@ -332,7 +334,7 @@ class SignerRegistry:
         key = self._key(spec, platform, endpoint)
         signer = await self._select(key)
         try:
-            return await signer.sign(spec, identity_fingerprint)
+            return await signer.sign(spec, identity_fingerprint, session)
         except DtkError as exc:
             if signer is self._rpc or self._rpc is None:
                 raise
@@ -341,7 +343,7 @@ class SignerRegistry:
             )
             if not await self._rpc_healthy():
                 raise
-            return await self._rpc.sign(spec, identity_fingerprint)
+            return await self._rpc.sign(spec, identity_fingerprint, session)
 
     async def _select(self, key: EndpointKey) -> Signer:
         """Pick a signer for this endpoint, per ``policy.mode``.
@@ -500,6 +502,7 @@ class SignerRegistry:
         self,
         spec: RequestSpec,
         identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
         *,
         platform: Platform | None = None,
         endpoint: str | None = None,
@@ -525,9 +528,13 @@ class SignerRegistry:
                 # carries a whole-second timestamp. Bracketing it means the
                 # browser's own second is one of the two we signed at, so a
                 # second boundary inside the call cannot look like a mismatch.
-                before = await native.sign(sample, identity_fingerprint)
-                remote_signed = await self._rpc.sign(sample, identity_fingerprint)
-                after = await native.sign(sample, identity_fingerprint)
+                before = await native.sign(sample, identity_fingerprint, session)
+                # The same session as the real request would use: the browser
+                # signs in a page loaded with this jar, and comparing against a
+                # signature taken in some other session would compare two
+                # different visitors and call the difference an algorithm drift.
+                remote_signed = await self._rpc.sign(sample, identity_fingerprint, session)
+                after = await native.sign(sample, identity_fingerprint, session)
             except DtkError as exc:
                 return self._record_shadow(key, False, True, f"sample failed: {exc}")
 

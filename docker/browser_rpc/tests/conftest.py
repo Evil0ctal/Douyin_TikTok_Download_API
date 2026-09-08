@@ -55,6 +55,7 @@ def settings(tmp_path: Path) -> Settings:
         mint_timeout_seconds=5.0,
         sign_timeout_seconds=5.0,
         context_open_timeout_seconds=5.0,
+        sdk_ready_timeout_seconds=2.0,
     )
 
 

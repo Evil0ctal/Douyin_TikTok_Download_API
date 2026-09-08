@@ -154,7 +154,11 @@ class StubPage:
     async def goto(self, url: str, **_: object) -> None:
         self.url = url
 
-    async def evaluate(self, script: str, *_: object) -> dict[str, str]:
+    async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+        # Two different questions arrive on this seam, and answering both with a
+        # fingerprint made the readiness probe wait out its entire budget.
+        if "__dtkSign" in script:
+            return {"params": {"a_bogus": "stub"}}
         return {"userAgent": CHROME_UA, "platform": "Win32"}
 
 
@@ -232,3 +236,81 @@ class TestFakeBackend:
         with pytest.raises(BackendFailure):
             await backend.mint(plan)
         await backend.close()
+
+
+class TestSigningReadiness:
+    """A page is navigable long before it can sign.
+
+    TikTok was asked for a signature 1.1 seconds after its context opened, twice
+    in a row, and answered "the SDK added nothing" both times - which reaches the
+    caller as a 502 and reads like the platform changed its algorithm. It had
+    simply not finished loading its security bundle.
+
+    The first fix attempted here was "wait until something wraps window.fetch",
+    and it is recorded as rejected: TikTok satisfies that within a second, well
+    before its signing code exists. The only sound readiness question is the one
+    the caller will ask - can this page sign? - so that is what is asked.
+    """
+
+    @staticmethod
+    def _backend(tmp_path: Path, page: object) -> CloakBackend:
+        backend = CloakBackend(
+            replace(
+                Settings(backend="cloak"),
+                profile_root=str(tmp_path),
+                sdk_ready_timeout_seconds=2.0,
+            )
+        )
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> object:
+            Path(profile_dir).mkdir(parents=True, exist_ok=True)
+            context = StubContext()
+            context.pages.append(page)
+            return context
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        return backend
+
+    async def test_a_context_is_not_handed_over_until_it_can_sign(self, tmp_path: Path) -> None:
+        class SlowSdkPage(StubPage):
+            """Answers the probe with nothing until the bundle has "loaded"."""
+
+            def __init__(self, ready_after: int) -> None:
+                super().__init__()
+                self.ready_after = ready_after
+                self.probes = 0
+
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                if "__dtkSign" not in script:
+                    return {"userAgent": CHROME_UA, "platform": "Win32"}
+                self.probes += 1
+                if self.probes <= self.ready_after:
+                    return {"error": "the SDK did not dispatch a request"}
+                return {"params": {"a_bogus": "stub"}}
+
+        page = SlowSdkPage(ready_after=3)
+        context = await self._backend(tmp_path, page).open_signing_context(
+            Platform.TIKTOK, FALLBACK_PROFILE
+        )
+        # It kept asking rather than handing over a page that would have failed.
+        assert page.probes == 4
+        await context.close()
+
+    async def test_a_page_that_never_signs_is_still_returned(self, tmp_path: Path) -> None:
+        """The budget must end in a legible signing error, not a hung caller.
+
+        Failing the open would report "opening a context timed out", which says
+        less than the SDK's own message about why it produced nothing.
+        """
+
+        class DeadSdkPage(StubPage):
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                if "__dtkSign" not in script:
+                    return {"userAgent": CHROME_UA, "platform": "Win32"}
+                return {"error": "the SDK did not dispatch a request"}
+
+        context = await self._backend(tmp_path, DeadSdkPage()).open_signing_context(
+            Platform.DOUYIN, FALLBACK_PROFILE
+        )
+        assert context is not None
+        await context.close()

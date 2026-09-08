@@ -310,16 +310,27 @@ services:
     tmpfs:
       # Browser profiles live in RAM: a mint profile is single-use, and a tmpfs
       # makes that structural rather than a promise about cleanup code.
-      # Chromium's scratch, and the only writable path it has. 256m was not
-      # enough for a resident browser: two warm contexts plus a mint in flight
-      # hold roughly 240m of deleted-but-open files, and the next navigation
-      # died with "No space left on device" - which surfaces to the caller as
-      # "the page crashed" and reads exactly like a platform block. It is RAM,
-      # so this is a memory budget: about 1G for the browser container.
-      - /tmp:size=1g,mode=1777
-      - /profiles:size=512m,mode=0700,uid=10001,gid=10001
-    # Chromium needs shared memory for its renderers; the 64MB default makes
-    # pages crash under load in ways that look like platform blocks.
+      #
+      # /tmp is the budget that matters, and it is sized from a measurement
+      # rather than a guess. The driver passes --disable-dev-shm-usage itself
+      # (read off a live launch line on 2026-09-08), so every renderer's shared
+      # memory lands here and NOT in /dev/shm below, which was observed at 0%
+      # while /tmp sat at 57%. Each resident context holds roughly 290M of
+      # deleted-but-open files - invisible to du, visible to df - so 1g fitted
+      # barely three, and opening a fourth killed Chromium with SIGSEGV and
+      # "Target crashed". That reaches the caller as a signing failure and
+      # reads exactly like a platform block.
+      #
+      # Since signing now keeps one context per identity (see
+      # browser_rpc/service.py), the ceiling is roughly
+      #   300M x DTK_BROWSER_WARM_CONTEXTS x 2 platforms + a mint in flight.
+      # 3g covers the default of 1 with room to raise it to 4. It is RAM: this
+      # is a memory budget, not free space.
+      - /tmp:size=3g,mode=1777
+      - /profiles:size=1g,mode=0700,uid=10001,gid=10001
+    # Kept, but do not count on it: the driver disables /dev/shm use, so this is
+    # insurance for a future build that stops doing so, not the fix for renderer
+    # crashes. The fix is the /tmp size above.
     shm_size: 1gb
     # Chromium's own sandbox needs to create user namespaces. Granting one
     # capability is the lesser evil against running the browser with

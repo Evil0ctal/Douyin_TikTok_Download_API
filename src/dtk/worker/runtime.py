@@ -126,8 +126,8 @@ async def build_runtime(
     from dtk.scheduler.scheduler import Scheduler, SchedulerConfig
     from dtk.signing import NativeSigner, RpcSigner, SignerRegistry, native_signers
     from dtk.signing.base import RequestSpec as SigningRequestSpec
-    from dtk.signing.base import SignedParams, StaticFingerprint
-    from dtk.transport import Fingerprint, WreqTransport
+    from dtk.signing.base import SignedParams, SigningSession, StaticFingerprint
+    from dtk.transport import TransportIdentity, WreqTransport
     from dtk.worker.maintenance import Maintenance, MaintenanceConfig
     from dtk.worker.pool_filler import FillerConfig, PoolFiller
     from dtk.worker.proxy_prober import HttpxProbeClient, ProberConfig, ProxyProber
@@ -186,14 +186,21 @@ async def build_runtime(
     )
 
     async def sign(
-        platform: Platform, url: str, params: dict[str, Any], fingerprint: Fingerprint
+        platform: Platform, url: str, params: dict[str, Any], sender: TransportIdentity
     ) -> SignedParams:
         # Returned whole rather than as a bare parameter dict: `.signer` is a
         # request_log column the Logs page renders, and unwrapping here is what
         # used to drop it.
         return await signer_registry.sign(
             SigningRequestSpec.get(url, {k: str(v) for k, v in params.items()}),
-            StaticFingerprint(user_agent=fingerprint.user_agent or ""),
+            StaticFingerprint(user_agent=sender.fingerprint.user_agent or ""),
+            # The identity's own session, so the browser signs in a page holding
+            # exactly the cookies this request will be sent with.
+            SigningSession(
+                cookies=sender.cookies,
+                proxy_url=sender.proxy_url,
+                identity_id=str(sender.id),
+            ),
             platform=platform,
         )
 

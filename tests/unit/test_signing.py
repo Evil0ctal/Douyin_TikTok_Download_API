@@ -50,6 +50,7 @@ from dtk.signing.base import (
     SignedParams,
     SignerHealth,
     SigningFingerprint,
+    SigningSession,
     StaticFingerprint,
     endpoint_of,
     platform_of,
@@ -808,6 +809,74 @@ async def test_rpc_signer_posts_the_exact_query_and_maps_the_response() -> None:
     )
 
 
+async def test_rpc_signer_sends_the_session_the_request_will_be_sent_with() -> None:
+    """The fix for the withheld-payload bug, at the wire.
+
+    Measured against a live page on 2026-09-08: Douyin's `verifyFp` IS the
+    `s_v_web_id` cookie of whatever browser computed the signature, read once
+    when the document loads. Sending no cookies here made browser-rpc sign in
+    its own warm session, so every request went out quoting one visitor in the
+    query and a different one in the Cookie header - and both platforms answer
+    that by withholding the payload rather than by returning an error.
+    """
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"a_bogus": "sig", "verifyFp": "verify_a"})
+
+    session = SigningSession(
+        cookies={"s_v_web_id": "verify_a", "ttwid": "1|abc"},
+        proxy_url="http://exit:8080",
+        identity_id="ident-a",
+    )
+    async with rpc_client(handler) as client:
+        await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT, session)
+
+    payload = json.loads(seen[0].read())
+    assert payload["cookies"] == {"s_v_web_id": "verify_a", "ttwid": "1|abc"}
+    assert payload["proxy_url"] == "http://exit:8080"
+    assert payload["identity_id"] == "ident-a"
+
+
+async def test_rpc_signer_without_a_session_asks_for_an_anonymous_one() -> None:
+    """Omitting the session must send an empty jar, not omit the field.
+
+    An older service reading a missing key as "use your own warm page" is
+    exactly the behaviour being removed; saying {} says what is meant.
+    """
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"a_bogus": "sig"})
+
+    async with rpc_client(handler) as client:
+        await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
+
+    payload = json.loads(seen[0].read())
+    assert payload["cookies"] == {}
+    assert payload["proxy_url"] is None
+
+
+async def test_a_signing_timeout_says_so_instead_of_logging_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`str()` on an httpx timeout is empty, and the log said `error=""`.
+
+    That happened in production and cost a debugging session: a timeout and an
+    unreachable service produced identical, empty evidence. The class name is
+    the part that distinguishes them.
+    """
+
+    def timing_out(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("")
+
+    async with rpc_client(timing_out) as client:
+        with pytest.raises(SigningFailed, match="ReadTimeout"):
+            await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
+
+
 async def test_rpc_signer_leaves_x_bogus_unescaped() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"x_bogus": "DFSzsw/VY-1"})
@@ -994,10 +1063,17 @@ class FakeSigner:
         self.fail = fail
         self.calls = 0
         self.health_calls = 0
+        #: Every session handed to `sign`, so a test can prove the registry
+        #: forwards the identity rather than dropping it.
+        self.sessions: list[SigningSession | None] = []
 
     async def sign(
-        self, spec: RequestSpec, identity_fingerprint: SigningFingerprint
+        self,
+        spec: RequestSpec,
+        identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
     ) -> SignedParams:
+        self.sessions.append(session)
         self.calls += 1
         if self.fail is not None:
             raise self.fail
@@ -1074,6 +1150,32 @@ async def test_auto_mode_starts_on_the_native_signer() -> None:
     assert signed.signer == SIGNER_NATIVE
     assert native.calls == 1
     assert rpc is not None and rpc.calls == 0
+
+
+async def test_the_registry_hands_the_identitys_session_to_the_signer() -> None:
+    """The registry is the only path from the fetch loop to a signer.
+
+    Dropping the session here would restore the bug in full while every
+    signer-level test kept passing: the browser would go back to signing in its
+    own warm page, and the platform would go back to withholding the payload.
+    """
+    registry, native, _, _ = build_registry(mode="native")
+    session = SigningSession(cookies={"s_v_web_id": "verify_a"}, identity_id="ident-a")
+    await registry.sign(DOUYIN_SPEC, FINGERPRINT, session)
+    assert native.sessions == [session]
+
+
+async def test_the_session_survives_the_fallback_to_the_browser() -> None:
+    """The crossover path is where a forwarded argument is easiest to lose."""
+    registry, _, rpc, _ = build_registry(
+        native=FakeSigner(SIGNER_NATIVE, fail=SigningFailed("stale")),
+        rpc=FakeSigner(SIGNER_BROWSER),
+        mode="native",
+    )
+    session = SigningSession(cookies={"s_v_web_id": "verify_a"}, identity_id="ident-a")
+    signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT, session)
+    assert signed.signer == SIGNER_BROWSER
+    assert rpc is not None and rpc.sessions == [session]
 
 
 # --------------------------------------------------------------------------

@@ -45,6 +45,7 @@ from dtk.signing.base import (
     SignedParams,
     SignerHealth,
     SigningFingerprint,
+    SigningSession,
     encode_query,
 )
 
@@ -118,7 +119,10 @@ class RpcSigner:
         return self._timeout()
 
     async def sign(
-        self, spec: RequestSpec, identity_fingerprint: SigningFingerprint
+        self,
+        spec: RequestSpec,
+        identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
     ) -> SignedParams:
         platform = self.platform or spec.platform
         if platform is None:
@@ -138,6 +142,14 @@ class RpcSigner:
             "query": query,
             "params": params,
             "user_agent": identity_fingerprint.user_agent,
+            # The identity's own session. browser-rpc loads a page with these
+            # cookies and signs there, so `verifyFp` names the same
+            # `s_v_web_id` the request will carry. Sending nothing here is what
+            # made every payload come back withheld: the browser signed in its
+            # own warm session and the request went out with another one's jar.
+            "cookies": dict(session.cookies) if session else {},
+            "proxy_url": session.proxy_url if session else None,
+            "identity_id": session.identity_id if session else None,
         }
 
         started = time.monotonic()
@@ -148,8 +160,17 @@ class RpcSigner:
             response.raise_for_status()
             body = response.json()
         except httpx.HTTPError as exc:
-            logger.warning("signing.rpc.failed", endpoint=spec.endpoint, error=str(exc))
-            raise SigningFailed(f"browser-rpc unreachable: {exc}") from exc
+            # `str()` on a timeout is the empty string, so reporting only the
+            # message logged `error=""` and said nothing at all. The class name
+            # is what distinguishes "browser-rpc is down" from "it took longer
+            # than signing.rpc_timeout_seconds", which are different problems.
+            logger.warning(
+                "signing.rpc.failed",
+                endpoint=spec.endpoint,
+                error=_describe(exc),
+                timeout=self.timeout,
+            )
+            raise SigningFailed(f"browser-rpc unreachable: {_describe(exc)}") from exc
         except ValueError as exc:
             logger.warning("signing.rpc.malformed", endpoint=spec.endpoint, error=str(exc))
             raise SigningFailed("browser-rpc returned a non-JSON body") from exc
@@ -251,8 +272,8 @@ class RpcSigner:
             response.raise_for_status()
             body = response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            logger.warning("signing.rpc.health_failed", error=str(exc))
-            return SignerHealth(signer=self.name, healthy=False, detail=str(exc))
+            logger.warning("signing.rpc.health_failed", error=_describe(exc))
+            return SignerHealth(signer=self.name, healthy=False, detail=_describe(exc))
 
         latency_ms = round((time.monotonic() - started) * 1000, 1)
         if not isinstance(body, dict):
@@ -279,6 +300,18 @@ class RpcSigner:
             backend_version=str(body["backend_version"]) if body.get("backend_version") else None,
             uptime_seconds=float(uptime) if isinstance(uptime, int | float) else None,
         )
+
+
+def _describe(exc: BaseException) -> str:
+    """A message that survives an exception whose ``str()`` is empty.
+
+    ``httpx.ReadTimeout`` and its siblings carry no message, so the obvious
+    ``str(exc)`` renders as nothing and a log line reads ``error=""``. That
+    happened, and it cost a debugging session: a timeout and an unreachable
+    service produced identical, empty evidence.
+    """
+    message = str(exc).strip()
+    return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
 __all__ = ["HEALTH_PATH", "SIGN_PATH", "RpcSigner"]

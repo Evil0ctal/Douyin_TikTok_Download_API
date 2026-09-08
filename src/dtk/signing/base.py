@@ -243,6 +243,35 @@ class StaticFingerprint:
     screen_height: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SigningSession:
+    """The session a signature has to be coherent with.
+
+    Separate from ``SigningFingerprint`` because it is a different kind of fact.
+    A fingerprint describes the browser; this describes *which visitor* is
+    speaking, and the platform checks the two against each other.
+
+    Measured on 2026-09-08 against a live page: Douyin's ``verifyFp`` query
+    parameter IS the ``s_v_web_id`` cookie of whatever browser computed the
+    signature. Sign in one session and send the request with another session's
+    cookies and the two contradict each other; Douyin and TikTok both answer by
+    withholding the payload rather than by rejecting the request, so the failure
+    surfaces as an empty body and reads exactly like rate limiting.
+
+    ``NativeSigner`` computes from the parameters alone and ignores this;
+    ``RpcSigner`` hands it to the browser, which is the whole point of it.
+    """
+
+    #: The jar the request will be sent with. Empty means an anonymous
+    #: signature, which is only coherent for a caller that sends no cookies.
+    cookies: Mapping[str, str] = _EMPTY
+    #: The exit the request will leave through, so the signing page can present
+    #: these cookies from the address they belong to.
+    proxy_url: str | None = None
+    #: For logs and slot affinity only. Coherence is decided by ``cookies``.
+    identity_id: str | None = None
+
+
 class Signer(Protocol):
     """Turns an unsigned request into the parameters the platform accepts."""
 
@@ -250,7 +279,10 @@ class Signer(Protocol):
     name: str
 
     async def sign(
-        self, spec: RequestSpec, identity_fingerprint: SigningFingerprint
+        self,
+        spec: RequestSpec,
+        identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
     ) -> SignedParams: ...
 
     async def health(self) -> SignerHealth: ...
@@ -268,6 +300,7 @@ __all__ = [
     "Signer",
     "SignerHealth",
     "SigningFingerprint",
+    "SigningSession",
     "StaticFingerprint",
     "encode_query",
     "endpoint_of",

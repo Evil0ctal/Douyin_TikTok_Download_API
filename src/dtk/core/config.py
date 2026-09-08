@@ -275,10 +275,16 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         ),
         SettingSpec(
             "signing.rpc_timeout_seconds",
-            15,
+            45,
             Scope.RUNTIME,
             int,
-            "Ceiling for one browser-rpc signing call.",
+            "Ceiling for one browser-rpc signing call. It has to cover a cold "
+            "one: a signature is taken in a page loaded with the identity's own "
+            "cookies, so the first call for an identity launches a browser and "
+            "loads the platform through that identity's proxy. Measured at "
+            "about 4s without a proxy; later calls for the same identity are "
+            "answered by the resident page in milliseconds. Raise "
+            "DTK_BROWSER_WARM_CONTEXTS to keep more identities resident.",
         ),
         # --- misc -----------------------------------------------------------
         SettingSpec(

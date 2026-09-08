@@ -5,10 +5,15 @@ Two context lifecycles, deliberately opposite (docs/design/04-transport-signing.
 * **mint contexts are single use.** A fresh profile directory per session, wiped
   when the session ends. Reusing a profile hands the next identity the previous
   one's traces, which is the one mistake that makes a whole pool correlatable.
-* **signing contexts stay warm.** Starting a browser costs seconds and the
-  signing fallback is already the degraded path; a resident page with the
-  platform's JavaScript loaded answers in hundreds of milliseconds. They are
-  rebuilt on a timer because the platform ships new JavaScript regularly.
+* **signing contexts stay warm, but only for one identity at a time.** Starting
+  a browser costs seconds and the signing fallback is already the degraded path;
+  a resident page answers in milliseconds. They are rebuilt on a timer because
+  the platform ships new JavaScript regularly, and rebuilt on demand whenever
+  the next signature is for a different jar - because a signature is only
+  coherent alongside the cookies the page was loaded with (see the pooling note
+  in `backends/cloak.py`). A slot therefore has a *binding*, and reusing one
+  across identities is the bug that made every scraped payload come back
+  withheld.
 
 Every budget here is shorter than the matching client timeout, so the caller
 reads an error that says what happened instead of hitting its own deadline.
@@ -17,6 +22,8 @@ reads an error that says what happened instead of hitting its own deadline.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import hashlib
 import logging
 import shutil
 import tempfile
@@ -47,6 +54,32 @@ from browser_rpc.validation import (
 
 logger = logging.getLogger(__name__)
 
+#: The binding of a context that carries no identity: what prewarm builds, and
+#: what a caller sending no cookies asks for.
+ANONYMOUS = "anonymous"
+
+
+def binding_key(cookies: Mapping[str, str] | None, proxy_url: str | None) -> str:
+    """Which warm slots can serve this request, as one comparable string.
+
+    Both halves matter and for different reasons. The **jar** decides the
+    signature: `verifyFp` is the `s_v_web_id` inside it, so a page loaded with a
+    different jar signs a different identity. The **exit** decides who the
+    platform sees loading that page: reusing a context opened through one
+    proxy to sign for an identity that exits somewhere else would show the
+    platform this jar arriving from an address that is not its own, which is the
+    correlation the identity pool exists to avoid.
+
+    Hashed rather than kept whole because this value is logged and compared, and
+    a cookie jar is a credential. The digest is not a security boundary - it is
+    an equality test that does not carry the secret around with it.
+    """
+    if not cookies and not proxy_url:
+        return ANONYMOUS
+    canonical = "\n".join(f"{name}={value}" for name, value in sorted((cookies or {}).items()))
+    digest = hashlib.sha256(f"{proxy_url or ''}\x00{canonical}".encode()).hexdigest()
+    return digest[:16]
+
 
 @dataclass(frozen=True, slots=True)
 class MintOutcome:
@@ -60,21 +93,32 @@ class MintOutcome:
 
 @dataclass(slots=True)
 class WarmSlot:
-    """One warm signing context and the moment it was built."""
+    """One warm signing context, the moment it was built, and whose it is."""
 
     context: SigningContext
     created_at: float
+    #: The jar this page was loaded with, as `binding_key` renders it. A slot is
+    #: reusable only for the same binding: its signatures name that jar's
+    #: `s_v_web_id` as `verifyFp`, so handing it to another identity produces a
+    #: query that contradicts the cookies the request will carry.
+    binding: str = ""
     generation: int = 0
 
 
 @dataclass(slots=True)
 class _PlatformPool:
-    """Warm slots for one platform, plus the lock that serializes rebuilds."""
+    """Warm slots for one platform, and the condition that hands them out.
 
-    idle: asyncio.LifoQueue[WarmSlot] = field(default_factory=asyncio.LifoQueue)
+    A list rather than a queue because acquisition is now a *search*: a caller
+    wants the slot already bound to its identity, and settles for rebinding
+    another only when there is none. `live` counts slots that exist or are being
+    opened, so capacity is respected while a 4-second launch is in flight.
+    """
+
+    idle: list[WarmSlot] = field(default_factory=list)
     live: int = 0
     capacity: int = 1
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    cond: asyncio.Condition = field(default_factory=asyncio.Condition)
 
 
 class BrowserRpcService:
@@ -135,24 +179,35 @@ class BrowserRpcService:
             await self._prewarm()
 
     async def _prewarm(self) -> None:
-        """Build one warm context per platform so the first signature is fast."""
+        """Build one context per platform so the first signature is fast.
+
+        Prewarmed slots are unbound: no identity is known at startup. The first
+        signature for a real identity therefore pays a rebind, and what prewarm
+        buys is not that signature but the proof - visible on /rpc/health as a
+        non-zero `warm_contexts` - that this deployment can open a page at all.
+        """
         for platform in Platform:
+            pool = self._pools[platform]
             try:
-                slot = await self._open_slot(platform)
+                slot = await self._open_slot(platform, ANONYMOUS, None, None)
             except RpcError as exc:
                 # Not fatal: the pool fills lazily on the first request.
                 logger.warning(
                     "browser_rpc.prewarm_failed platform=%s error=%s", platform.value, exc.message
                 )
                 continue
-            self._pools[platform].idle.put_nowait(slot)
+            async with pool.cond:
+                pool.live += 1
+                pool.idle.append(slot)
 
     async def close(self) -> None:
         self._running = False
         for platform, pool in self._pools.items():
-            while not pool.idle.empty():
-                slot = pool.idle.get_nowait()
-                pool.live -= 1
+            async with pool.cond:
+                idle, pool.idle = pool.idle, []
+                pool.live -= len(idle)
+                pool.cond.notify_all()
+            for slot in idle:
                 await self._close_slot(platform, slot)
         try:
             await self._backend.close()
@@ -278,10 +333,26 @@ class BrowserRpcService:
         query: str,
         params: Mapping[str, str] | None = None,
         user_agent: str | None = None,
+        *,
+        cookies: Mapping[str, str] | None = None,
+        proxy_url: str | None = None,
+        identity_id: str | None = None,
     ) -> dict[str, str]:
-        """Sign through a warm page, rebuilding the page once if it is stale."""
+        """Sign through a page loaded with this identity's own cookies.
+
+        The jar is what makes the answer usable: signing in a page that holds
+        somebody else's cookies yields a query naming somebody else's
+        `verifyFp`, and the platform withholds the payload rather than
+        rejecting the request, so the failure arrives looking like a block.
+        """
         self._require_running()
         target = validate_target_url(url, platform=platform)
+        jar = {str(k): str(v) for k, v in (cookies or {}).items()}
+        # An identity's own exit when it has one, the deployment's signing proxy
+        # otherwise. Both are validated; an invalid one is the caller's error.
+        exit_url = proxy_url or self._settings.sign_proxy_url
+        proxy = validate_proxy_url(exit_url)
+        binding = binding_key(jar, exit_url)
         plan = SignPlan(
             platform=platform,
             url=target,
@@ -295,7 +366,7 @@ class BrowserRpcService:
         # Two attempts: a warm page that has been up for a while is the most
         # common failure, and it is fixed by throwing it away.
         for attempt in (1, 2):
-            slot = await self._acquire_slot(platform)
+            slot = await self._acquire_slot(platform, binding, jar, proxy, identity_id)
             try:
                 signed = await self._with_timeout(
                     slot.context.sign(plan),
@@ -325,60 +396,105 @@ class BrowserRpcService:
                 await self._discard_slot(platform, slot)
                 continue
 
-            self._release_slot(platform, slot)
+            await self._release_slot(platform, slot)
             return signed
 
         raise last_error or BackendFailure("signing produced no result")
 
-    async def _acquire_slot(self, platform: Platform) -> WarmSlot:
-        pool = self._pools[platform]
-        while True:
-            slot: WarmSlot | None = None
-            if not pool.idle.empty():
-                slot = pool.idle.get_nowait()
-            elif pool.live < pool.capacity:
-                async with pool.lock:
-                    if pool.live < pool.capacity:
-                        return await self._open_slot(platform, count=True)
-                continue
-            else:
-                slot = await self._with_timeout(
-                    pool.idle.get(),
-                    self._settings.sign_timeout_seconds,
-                    f"waiting for a warm {platform.value} context",
-                )
+    async def _acquire_slot(
+        self,
+        platform: Platform,
+        binding: str,
+        cookies: Mapping[str, str],
+        proxy: Any,
+        identity_id: str | None,
+    ) -> WarmSlot:
+        """A page bound to `binding`, opening or rebinding one if there is none.
 
-            if self._is_stale(slot):
-                logger.info("browser_rpc.warm.refresh platform=%s", platform.value)
-                pool.live -= 1
-                await self._close_slot(platform, slot)
-                continue
-            return slot
+        The caller owns exactly one live credit when this returns, and must give
+        it back through `_release_slot` or `_discard_slot`. Opening and closing
+        both take seconds and are deliberately done outside the lock, so a
+        launch in flight never blocks another platform's release.
+        """
+        pool = self._pools[platform]
+        deadline = self._clock() + self._settings.context_open_timeout_seconds
+        while True:
+            evicted: WarmSlot | None = None
+            async with pool.cond:
+                hit = next((s for s in pool.idle if s.binding == binding), None)
+                if hit is not None:
+                    pool.idle.remove(hit)
+                    if not self._is_stale(hit):
+                        return hit
+                    # Its credit passes to the replacement we are about to open.
+                    logger.info("browser_rpc.warm.refresh platform=%s", platform.value)
+                    evicted = hit
+                elif pool.live < pool.capacity:
+                    pool.live += 1
+                elif pool.idle:
+                    # Every page belongs to someone else. The oldest is the one
+                    # least likely to be wanted again soon.
+                    evicted = pool.idle.pop(0)
+                    logger.info(
+                        "browser_rpc.warm.rebind platform=%s identity=%s",
+                        platform.value,
+                        _short(identity_id),
+                    )
+                else:
+                    # Every page exists and every one is in use; wait for a
+                    # release rather than exceeding the configured browser count.
+                    remaining = deadline - self._clock()
+                    if remaining <= 0:
+                        raise OperationTimeout(
+                            f"waiting for a warm {platform.value} context exceeded "
+                            f"{self._settings.context_open_timeout_seconds:g}s"
+                        )
+                    # A timeout here is not the answer, only the end of this
+                    # nap: the loop re-checks the deadline and gives up there.
+                    with contextlib.suppress(TimeoutError):
+                        await asyncio.wait_for(pool.cond.wait(), remaining)
+                    continue
+
+            if evicted is not None:
+                await self._close_slot(platform, evicted)
+            try:
+                return await self._open_slot(platform, binding, cookies, proxy)
+            except BaseException:
+                async with pool.cond:
+                    pool.live -= 1
+                    pool.cond.notify()
+                raise
 
     def _is_stale(self, slot: WarmSlot) -> bool:
         return (self._clock() - slot.created_at) >= self._settings.warm_refresh_seconds
 
-    async def _open_slot(self, platform: Platform, *, count: bool = True) -> WarmSlot:
-        pool = self._pools[platform]
+    async def _open_slot(
+        self,
+        platform: Platform,
+        binding: str,
+        cookies: Mapping[str, str] | None,
+        proxy: Any,
+    ) -> WarmSlot:
+        """Open one page carrying `cookies`. The caller already holds the credit."""
         geo_profile = geo_module.resolve(None, None, self._settings.default_country)
-        # A warm page is not an identity - it harvests no cookies - but it does
-        # load the platform's site, so it goes through the configured exit when
-        # there is one rather than showing the platform the host's address.
-        proxy = validate_proxy_url(self._settings.sign_proxy_url)
         context = await self._with_timeout(
-            self._backend.open_signing_context(platform, geo_profile, proxy),
+            self._backend.open_signing_context(platform, geo_profile, proxy, cookies),
             self._settings.context_open_timeout_seconds,
             f"opening a signing context for {platform.value}",
         )
-        if count:
-            pool.live += 1
-        return WarmSlot(context=context, created_at=self._clock())
+        return WarmSlot(context=context, created_at=self._clock(), binding=binding)
 
-    def _release_slot(self, platform: Platform, slot: WarmSlot) -> None:
-        self._pools[platform].idle.put_nowait(slot)
+    async def _release_slot(self, platform: Platform, slot: WarmSlot) -> None:
+        pool = self._pools[platform]
+        async with pool.cond:
+            pool.idle.append(slot)
+            pool.cond.notify()
 
     async def _discard_slot(self, platform: Platform, slot: WarmSlot) -> None:
-        self._pools[platform].live -= 1
+        pool = self._pools[platform]
+        async with pool.cond:
+            pool.live -= 1
+            pool.cond.notify()
         await self._close_slot(platform, slot)
 
     @staticmethod
@@ -398,4 +514,9 @@ class BrowserRpcService:
             raise OperationTimeout(f"{what} exceeded {timeout:g}s") from exc
 
 
-__all__ = ["BrowserRpcService", "MintOutcome", "WarmSlot"]
+def _short(identity_id: str | None) -> str:
+    """An identity id abbreviated for a log line, never the cookies behind it."""
+    return (identity_id or "-")[:8]
+
+
+__all__ = ["ANONYMOUS", "BrowserRpcService", "MintOutcome", "WarmSlot", "binding_key"]
