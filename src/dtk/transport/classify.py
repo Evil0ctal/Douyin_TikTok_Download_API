@@ -66,6 +66,26 @@ NETWORK_STATUS_CODES: Final[frozenset[int]] = frozenset(
 #: a request it does not like.
 RISK_STATUS_CODES: Final[frozenset[int]] = frozenset({401, 403, 405, 412, 429, 444})
 
+#: The header TikTok stamps on a response it has decided not to serve, whatever
+#: the request looked like. Measured on 2026-09-08 across 80+ live requests: the
+#: correlation with an empty or hollow body is exact, and the decision is made
+#: PER PATH, not per caller. In one session, seconds apart, with the same
+#: parameters, `/api/repost/item_list/` returned 683KB while
+#: `/api/post/item_list/` returned nothing; `/api/comment/list/reply/` answered
+#: while `/api/comment/list/` did not.
+#:
+#: It is invariant to everything a client controls - TLS profile, cookies,
+#: signature, headers, region steering, host - and TikTok's OWN PAGE gets the
+#: same empty answer on those paths, with its own genuine X-Gnarly and a live
+#: msToken. So no signer, native or browser, opens it.
+#:
+#: That is why it must not be read as risk control. Rotating identities cannot
+#: help, and cooling one for a server-side path decision burns the pool for a
+#: reason no identity can fix - the same mistake as reading a deleted post as a
+#: block. The endpoint has to be replaced, and this rule is how an operator sees
+#: that rather than watching TikTok identities cool one by one.
+PLATFORM_GATE_HEADER: Final = "tt_orcas_res"
+
 #: Fragments of Douyin's refusal when the signature it wanted is missing or does
 #: not cover the request. Observed live on 2026-09-08, all as 403 bodies of the
 #: form "Blocked by ArgusSecurityPlugin <reason>".
@@ -316,6 +336,21 @@ def _challenge_marker(view: ResponseView) -> RuleResult:
     return False
 
 
+def _path_gated(view: ResponseView) -> RuleResult:
+    """The platform declining to serve this path at all. See PLATFORM_GATE_HEADER.
+
+    Ordered before the body rules because it explains what they would otherwise
+    report as an empty body or an intact envelope, and it is the only one of the
+    three that says the endpoint - not the identity - is the problem.
+    """
+    if not view.response.ok:
+        return False
+    marker = view.response.headers.get(PLATFORM_GATE_HEADER)
+    if marker in (None, "", "0"):
+        return False
+    return f"{PLATFORM_GATE_HEADER}={marker}"
+
+
 def _signature_refused(view: ResponseView) -> RuleResult:
     """The platform rejecting our signature, as opposed to the identity.
 
@@ -421,6 +456,7 @@ DEFAULT_RULES: Final[tuple[ClassificationRule, ...]] = (
     ClassificationRule("http.risk_status", Outcome.RISK_CONTROL, _risk_status),
     ClassificationRule("http.business_status", Outcome.BUSINESS_ERROR, _business_status),
     ClassificationRule("envelope.nonzero", Outcome.BUSINESS_ERROR, _nonzero_envelope),
+    ClassificationRule("platform.path_gated", Outcome.BUSINESS_ERROR, _path_gated),
     ClassificationRule("body.empty", Outcome.RISK_CONTROL, _empty_body),
     ClassificationRule("payload.explained", Outcome.BUSINESS_ERROR, _explained_absence),
     ClassificationRule("payload.withheld", Outcome.RISK_CONTROL, _withheld_payload),

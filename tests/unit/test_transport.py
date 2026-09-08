@@ -521,6 +521,46 @@ class TestClassifier:
         assert result.outcome is Outcome.RISK_CONTROL
         assert result.rule == "payload.withheld"
 
+    def test_a_path_the_platform_refuses_to_serve_does_not_cool_the_identity(self) -> None:
+        """TikTok decides per PATH, and no identity can change its mind.
+
+        Measured on 2026-09-08: with the same session and parameters seconds
+        apart, /api/repost/item_list/ returned 683KB while /api/post/item_list/
+        returned nothing, both stamped tt_orcas_res: 1 on the blocked one.
+        TikTok's own page gets the same empty answer there, with its own genuine
+        signature. Read as risk control, every such call would cool an identity
+        and count toward the circuit breaker for a decision no identity can
+        affect - so the pool would degrade permanently while the real fix (use a
+        different endpoint) went unnamed.
+        """
+        response = RawResponse(
+            status=200,
+            headers={"content-type": "application/json", "tt_orcas_res": "1"},
+            body=b"",
+        )
+        result = classify_detailed(response)
+        assert result.rule == "platform.path_gated"
+        assert result.outcome is Outcome.BUSINESS_ERROR
+        assert result.detail == "tt_orcas_res=1"
+
+    def test_a_hollow_body_from_a_gated_path_is_caught_too(self) -> None:
+        """The gate also answers with an intact envelope and nothing in it."""
+        response = RawResponse(
+            status=200,
+            headers={"content-type": "application/json", "tt_orcas_res": "1"},
+            body=b'{"userInfo": {"user": {}, "stats": {}, "shareMeta": {}}}',
+        )
+        result = classify_detailed(response)
+        assert result.rule == "platform.path_gated"
+        assert result.outcome is Outcome.BUSINESS_ERROR
+
+    def test_an_ungated_empty_body_is_still_risk_control(self) -> None:
+        """The rule must not swallow the signal it sits in front of."""
+        response = RawResponse(status=200, headers={"content-type": "application/json"}, body=b"")
+        result = classify_detailed(response)
+        assert result.rule == "body.empty"
+        assert result.outcome is Outcome.RISK_CONTROL
+
     def test_a_refused_signature_is_named_rather_than_blamed_on_the_identity(self) -> None:
         """A 403 that says why must not read as "this identity is burnt".
 
