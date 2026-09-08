@@ -31,7 +31,7 @@ from urllib.parse import urlsplit, urlunsplit
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 
-from dtk.api import envelope
+from dtk.api import envelope, request_proxy
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.core.errors import ForbiddenScope, InvalidParam, InvalidUrl
 from dtk.core.logging import get_logger
@@ -264,6 +264,26 @@ def resolve_count(
     if value < 1:
         raise InvalidParam("count must be at least 1", details={"field": "count"})
     return min(value, maximum)
+
+
+def resolve_request_proxy(request: Request, value: str | None) -> str | None:
+    """Vet a caller-supplied egress against this instance's setting.
+
+    The mode lives in ``security.request_proxy`` and defaults to refusing the
+    parameter; :mod:`dtk.api.request_proxy` explains why, and does the checking.
+    An unrecognised setting value is treated as ``deny`` rather than as a
+    permissive default - a typo in an operator's configuration must not be the
+    thing that opens their network.
+    """
+    if value is None or not value.strip():
+        return None
+    raw = str(config_value(request, request_proxy.SETTING_KEY) or "")
+    try:
+        mode = request_proxy.RequestProxyMode(raw)
+    except ValueError:
+        log.warning("api.request_proxy.unknown_mode", configured=raw)
+        mode = request_proxy.RequestProxyMode.DENY
+    return request_proxy.normalize(value, mode=mode)
 
 
 def validate_callback_url(request: Request, url: str | None) -> str | None:

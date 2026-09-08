@@ -120,7 +120,8 @@
       },
       "system": {
         "check_updates": "Whether this instance may contact the project to check for a newer release. It makes an outbound request, so it is opt-in."
-      }
+      },
+      "security.request_proxy": "Whether a caller may pass ?proxy= to route their request through their own egress. 'deny' refuses the parameter, 'public' allows only publicly routable addresses, and 'any' also allows loopback and private ranges - which lets anyone holding an API key reach this server's own network."
     }
   },
   "openapi": {
@@ -203,7 +204,8 @@
       "comment_id": "The parent comment whose replies you want. Ids come from the comments endpoint.",
       "platform": "Which platform the request is addressed to: douyin or tiktok. It must match the link you pass.",
       "include_raw": "Also return the platform's own untouched payload alongside the normalized record.",
-      "mix_id": "The mix or playlist to read. Douyin returns it as mix_info, TikTok as playlistId."
+      "mix_id": "The mix or playlist to read. Douyin returns it as mix_info, TikTok as playlistId.",
+      "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy."
     },
     "response": {
       "error": "The request failed. The code field is stable and machine-readable; the message field is localized."

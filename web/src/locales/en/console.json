@@ -447,6 +447,11 @@
         "rpc": "Browser (recommended) - runs the platform's own script",
         "native": "In-process algorithms - no browser needed",
         "auto": "In-process, switching to the browser when signatures start failing"
+      },
+      "security.request_proxy": {
+        "deny": "Refuse it (recommended) - callers cannot choose an egress",
+        "public": "Allow, public addresses only - loopback and private ranges are refused",
+        "any": "Allow anything - an API key holder can reach this server's own network"
       }
     }
   },

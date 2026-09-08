@@ -265,6 +265,23 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "in-process algorithms, auto tries rpc then falls back to native.",
             choices=("rpc", "native", "auto"),
         ),
+        # --- caller-supplied egress ------------------------------------------
+        # An operator-configured proxy and a caller-supplied one carry opposite
+        # trust; see dtk.api.request_proxy. "deny" is the default because the
+        # safe failure of this feature is not having it: an instance on a public
+        # server sits inside a network its callers cannot otherwise reach, and
+        # "dial this for me" is request forgery in its plainest form.
+        SettingSpec(
+            "security.request_proxy",
+            "deny",
+            Scope.RUNTIME,
+            str,
+            "Whether a caller may pass ?proxy=. deny refuses it, public allows "
+            "only publicly routable addresses, any allows loopback and private "
+            "ranges too and is only coherent when every API key is trusted with "
+            "the instance's own network.",
+            choices=("deny", "public", "any"),
+        ),
         SettingSpec(
             "signing.fallback_enabled",
             True,

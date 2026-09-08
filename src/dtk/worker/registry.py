@@ -148,6 +148,10 @@ ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
         "language",
         "platform",
         "priority",
+        # The caller's own egress. It belongs to the request, never to the
+        # upstream query - sending it on would leak the proxy, credentials and
+        # all, to the platform.
+        "proxy",
         "url",
         "wait",
     }

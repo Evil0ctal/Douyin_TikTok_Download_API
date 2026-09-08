@@ -24,6 +24,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 
+from dtk.api import request_proxy
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
 from dtk.api.routes.openapi import I18N_KEY
@@ -34,6 +35,7 @@ from dtk.api.routes.support import (
     has_scope,
     ok,
     resolve_count,
+    resolve_request_proxy,
     resolve_wait,
     validate_callback_url,
 )
@@ -65,6 +67,14 @@ CURSOR_QUERY = Query(
     description="Opaque cursor from the previous page; omit for the first page.",
 )
 RAW_QUERY = Query(default=False, description="Include the untouched platform payload.")
+PROXY_QUERY = Query(
+    default=None,
+    max_length=request_proxy.MAX_LENGTH,
+    description=(
+        "Send the upstream request through this proxy, as a full URL. Refused "
+        "unless an administrator has enabled security.request_proxy."
+    ),
+)
 PLATFORM_PATH = Path(description="Platform the request is addressed to: douyin or tiktok.")
 URL_QUERY = Query(
     default=None,
@@ -206,6 +216,7 @@ async def parse(
     request: Request,
     body: ParseRequest,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """The front door: hand it a link or the share text around one.
@@ -234,6 +245,7 @@ async def parse(
             "callback_url": callback,
         },
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -245,6 +257,7 @@ async def parse(
 async def batch(
     request: Request,
     body: BatchRequest,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One round trip, N independent tasks.
@@ -259,6 +272,9 @@ async def batch(
             details={"required": [Scope.DOUYIN_READ.value, Scope.TIKTOK_READ.value]},
         )
     callback = validate_callback_url(request, body.callback_url)
+    # Vetted once for the whole batch rather than per item: the answer cannot
+    # differ between items, and checking N times would log N acceptances.
+    egress = resolve_request_proxy(request, proxy)
 
     results: list[dict[str, Any]] = []
     accepted = 0
@@ -275,6 +291,7 @@ async def batch(
                     "url": kind.url,
                     "include_raw": item.include_raw,
                     "callback_url": callback,
+                    "proxy": egress,
                 },
             )
         except DtkError as exc:
@@ -314,6 +331,7 @@ async def video(
     aweme_id: str | None = AWEME_ID_QUERY,
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One post: a video, or an image album, with its author and statistics.
@@ -346,6 +364,7 @@ async def video(
         endpoint=endpoint_name(platform, Operation.CONTENT_DETAIL),
         params=params,
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -362,6 +381,7 @@ async def comments(
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of top level comments on a post.
@@ -394,6 +414,7 @@ async def comments(
         endpoint=endpoint_name(platform, Operation.COMMENTS),
         params=params,
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -411,6 +432,7 @@ async def comment_replies(
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of replies underneath a single comment.
@@ -445,6 +467,7 @@ async def comment_replies(
         endpoint=endpoint_name(platform, Operation.COMMENT_REPLIES),
         params=params,
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -460,6 +483,7 @@ async def user(
     sec_user_id: str | None = SEC_USER_ID_QUERY,
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One author's public profile.
@@ -491,6 +515,7 @@ async def user(
         endpoint=endpoint_name(platform, Operation.AUTHOR_PROFILE),
         params=params,
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -507,6 +532,7 @@ async def user_posts(
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of an author's own posts, newest first.
@@ -540,6 +566,7 @@ async def user_posts(
         endpoint=endpoint_name(platform, Operation.AUTHOR_POSTS),
         params=params,
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -556,6 +583,7 @@ async def user_likes(
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts an author has publicly liked.
@@ -593,6 +621,7 @@ async def user_likes(
         endpoint=supported(platform, Operation.AUTHOR_LIKES),
         params=params,
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -608,6 +637,7 @@ async def mix_posts(
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts collected in a mix.
@@ -637,6 +667,7 @@ async def mix_posts(
         endpoint=supported(platform, Operation.MIX_POSTS),
         params={"mix_id": mix_id, "cursor": cursor, "count": resolve_count(count)},
         wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -653,6 +684,7 @@ async def user_followers(
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts that follow an author.
@@ -682,7 +714,12 @@ async def user_followers(
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update({"cursor": cursor, "count": resolve_count(count)})
     return await operations.submit_and_wait(
-        request, principal, endpoint=endpoint, params=params, wait=resolve_wait(request, wait)
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 
@@ -699,6 +736,7 @@ async def user_following(
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
     wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts an author follows.
@@ -727,7 +765,12 @@ async def user_following(
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update({"cursor": cursor, "count": resolve_count(count)})
     return await operations.submit_and_wait(
-        request, principal, endpoint=endpoint, params=params, wait=resolve_wait(request, wait)
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
     )
 
 

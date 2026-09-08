@@ -90,6 +90,16 @@ class FetchContext:
     api_key_id: uuid.UUID | None = None
     task_id: uuid.UUID | None = None
     include_raw: bool = False
+    #: An egress the caller asked for, already validated by
+    #: :mod:`dtk.api.request_proxy`. It REPLACES the identity's own exit, which
+    #: is a real cost and not a free option: the identity's cookies were minted
+    #: behind one address and would now be presented from another, and a jar
+    #: that disagrees with its exit is the incoherence docs 02 and 04 spend
+    #: their length avoiding. It is offered because a deployment with no proxies
+    #: configured has no other way to give a caller an egress, and because the
+    #: caller asking is the one who bears the cost. Off unless an operator turns
+    #: it on.
+    request_proxy: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +209,17 @@ class FetchService:
             proxy_url = (
                 await self._proxy_resolver(lease.identity_id) if self._proxy_resolver else None
             )
+            if ctx.request_proxy:
+                # Say it happened. An identity sent from an exit it was not
+                # minted behind is a plausible cause of a later refusal, and a
+                # silent override would leave nothing to correlate that against.
+                log.info(
+                    "fetch.request_proxy.applied",
+                    identity_id=str(lease.identity_id),
+                    endpoint=endpoint,
+                    replaced_bound_proxy=proxy_url is not None,
+                )
+                proxy_url = ctx.request_proxy
             identity = await self._pool.load(session, lease.identity_id, proxy_url=proxy_url)
             if identity is None:
                 # It was retired between ranking and leasing.

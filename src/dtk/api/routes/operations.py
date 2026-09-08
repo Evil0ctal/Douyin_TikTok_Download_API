@@ -256,6 +256,7 @@ async def submit_and_wait(
     endpoint: str,
     params: dict[str, Any],
     wait: float,
+    proxy: str | None = None,
     coalesce: bool = True,
 ) -> JSONResponse:
     """Submit, then optionally hold the connection until the task settles.
@@ -263,9 +264,19 @@ async def submit_and_wait(
     Long polling is a convenience for clients that cannot poll - an iOS
     Shortcut, a curl one-liner - and changes nothing internally: the work still
     runs through the queue (doc 06).
+
+    ``proxy`` is the caller's own egress, already vetted by
+    :func:`dtk.api.routes.support.resolve_request_proxy`. It joins the stored
+    parameters, which is also what keeps it out of the coalescing digest's blind
+    spot: two callers asking for the same post through different proxies are not
+    asking the same question, and must not be joined onto one task.
     """
     task_id, state = await submit(
-        request, principal, endpoint=endpoint, params=params, coalesce=coalesce
+        request,
+        principal,
+        endpoint=endpoint,
+        params={**params, "proxy": proxy} if proxy else params,
+        coalesce=coalesce,
     )
     if wait <= 0:
         return accepted(request, task_id, state)

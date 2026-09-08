@@ -120,7 +120,8 @@
       },
       "system": {
         "check_updates": "本实例是否可以联网检查新版本。这会发出外部请求，因此需要你主动开启。"
-      }
+      },
+      "security.request_proxy": "是否允许调用方通过 ?proxy= 使用自己的代理出口。deny 直接拒绝该参数；public 仅允许公网可路由地址；any 连回环和内网地址也允许——这意味着任何持有 API Key 的人都能访问本服务器所在的内网。"
     }
   },
   "openapi": {
@@ -203,7 +204,8 @@
       "comment_id": "要查询回复的父评论 ID，可从评论接口的返回中获得。",
       "platform": "请求针对的平台，douyin 或 tiktok，必须与传入的链接一致。",
       "include_raw": "在归一化结果之外，同时返回平台自身的原始响应。",
-      "mix_id": "要读取的合辑 / 播放列表 ID。抖音在 mix_info 字段返回，TikTok 在 playlistId 字段返回。"
+      "mix_id": "要读取的合辑 / 播放列表 ID。抖音在 mix_info 字段返回，TikTok 在 playlistId 字段返回。",
+      "proxy": "通过该代理发起上游请求，需填写完整 URL，例如 http://host:port。除非管理员启用了 security.request_proxy，否则该参数会被拒绝。"
     },
     "response": {
       "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"

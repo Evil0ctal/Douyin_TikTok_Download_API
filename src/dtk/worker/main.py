@@ -472,6 +472,10 @@ class TaskWorker:
             task_id=run.id,
             api_key_id=run.api_key_id,
             include_raw=bool(run.params.get("include_raw")),
+            # Validated at the edge by dtk.api.request_proxy, which is also
+            # where the operator's setting is read. By the time it reaches a
+            # stored task it has already been permitted.
+            request_proxy=run.params.get("proxy") or None,
         )
 
         async with self._session_factory() as session:
