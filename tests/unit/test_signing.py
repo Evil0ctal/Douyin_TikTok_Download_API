@@ -31,7 +31,6 @@ import hashlib
 import json
 import random
 import re
-import string
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from types import SimpleNamespace
@@ -71,6 +70,7 @@ from dtk.signing.native.abogus import (
     decode_base64,
     encode_base64,
     generate_ua_code,
+    is_decode_problem,
     rc4_encrypt,
     structure_error,
 )
@@ -1873,19 +1873,41 @@ async def test_shadow_agrees_with_a_browser_whose_window_is_a_different_size() -
     assert registry.native_enabled(Platform.DOUYIN) is True
 
 
-async def test_shadow_still_catches_a_browser_signing_a_different_algorithm() -> None:
-    """The relaxations above must not blunt the detector they exist to keep."""
+async def test_shadow_cannot_judge_a_bogus_while_the_reference_differs() -> None:
+    """A capability this suite used to assert, and no longer has. Deliberately.
+
+    Measured against the live browser on 2026-09-08: its a_bogus fails every one
+    of our structural checks - all seven frame constants, the browser-length slot
+    and the checksum - and is indistinguishable from a value produced by a
+    completely different algorithm. Scanning every frame offset and every
+    single-byte RC4 key recovers at most one of the seven constants, so it is not
+    our algorithm shifted; browser-rpc's Douyin page implements a NEWER version
+    than this port does.
+
+    Douyin accepts both: our native signature returned a full payload on all four
+    endpoints in the same session. So the port is not broken - the reference is
+    simply a different implementation, and a structural comparison against it can
+    only produce noise.
+
+    Reporting MISMATCH there disabled nothing but told an operator "the native
+    algorithm has drifted", pointing at the one component the evidence exonerated.
+    Until the invariants are re-derived from the current bundle, a_bogus is not
+    comparable, and saying so is worth more than a detector that is wrong every
+    time. `test_shadow_still_catches` for X-Bogus and X-Gnarly is unaffected.
+    """
 
     def handler(request: httpx.Request) -> httpx.Response:
-        # Same alphabet and a plausible length, but not this algorithm.
+        # Same alphabet and a plausible length, but not this algorithm - which is
+        # also what the live browser looks like to us.
         return httpx.Response(200, json={"a_bogus": encode_base64("z" * 124, "s4")})
 
     async with rpc_client(handler) as client:
         registry = SignerRegistry(
             {Platform.DOUYIN: NativeSigner(Platform.DOUYIN)}, RpcSigner(client, "http://rpc")
         )
-        assert await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT) is False
-    assert registry.native_enabled(Platform.DOUYIN) is False
+        assert await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT) is True
+    # The native path stays enabled, because nothing has shown it to be wrong.
+    assert registry.native_enabled(Platform.DOUYIN) is True
 
 
 async def test_shadow_skips_when_nothing_is_comparable() -> None:
@@ -1971,18 +1993,34 @@ def test_a_bogus_comparator_accepts_two_independent_signatures() -> None:
 
 @pytest.mark.parametrize("index", [0, 1, 2, 3, 11])
 def test_a_bogus_comparator_catches_a_broken_prefix(index: int) -> None:
-    """Flip a structured prefix bit and the comparator must notice."""
+    """Flip a structured prefix bit on OUR side and the comparator must notice.
+
+    On the remote side the same flip is inconclusive rather than a mismatch:
+    the live browser's prefix already breaks these masks, so they cannot be used
+    to judge the reference.
+    """
     native = sign_a_bogus(UA_CHROME90, DETAIL_QUERY)
     payload = bytearray(decode_base64(native, "s4"))
     and_mask, or_mask = PREFIX_MASKS[index]
     payload[index] = (payload[index] | ~(and_mask | or_mask)) & 0xFF
     tampered = encode_base64(payload.decode("latin-1"), "s4")
-    assert ABogusComparator().compare(native, tampered) is Comparison.MISMATCH
+
+    assert ABogusComparator().compare(tampered, native) is Comparison.MISMATCH
+    assert ABogusComparator().compare(native, tampered) is Comparison.SKIPPED
 
 
 def test_a_bogus_comparator_catches_truncation_and_alphabet_changes() -> None:
+    """A character outside the alphabet is malformed; a short frame is derived.
+
+    Truncating four characters still decodes, and fails only the browser-length
+    slot - a rule we derived - so on the remote side it is inconclusive. A
+    character the alphabet does not contain is malformed on any reading.
+    """
     native = sign_a_bogus(UA_CHROME90, DETAIL_QUERY)
-    assert ABogusComparator().compare(native, native[:-4]) is Comparison.MISMATCH
+
+    assert ABogusComparator().compare(native[:-4], native) is Comparison.MISMATCH
+    assert ABogusComparator().compare(native, native[:-4]) is Comparison.SKIPPED
+
     foreign = "!" + native[1:]
     assert ABogusComparator().compare(native, foreign) is Comparison.MISMATCH
 
@@ -2025,12 +2063,18 @@ def tamper_a_bogus(value: str, frame_index: int, new_byte: int) -> str:
 def test_a_bogus_structure_catches_a_changed_frame(
     frame_index: int, new_byte: int, reason: str
 ) -> None:
-    """The invariants that replaced the length check must actually bite."""
+    """The invariants that replaced the length check must actually bite.
+
+    The tampered value goes on the NATIVE side, because that is the side the
+    comparison judges. A derived rule failing on the remote side says our rule
+    is stale, not that the signer drifted - see
+    `test_a_stale_invariant_is_inconclusive_rather_than_a_mismatch`.
+    """
     native = sign_a_bogus(UA_CHROME90, DETAIL_QUERY)
     assert structure_error(native) is None
     tampered = tamper_a_bogus(native, frame_index, new_byte)
     assert structure_error(tampered) == reason
-    assert ABogusComparator().compare(native, tampered) is Comparison.MISMATCH
+    assert ABogusComparator().compare(tampered, native) is Comparison.MISMATCH
 
 
 def test_a_bogus_structure_accepts_every_fixture() -> None:
@@ -2039,9 +2083,43 @@ def test_a_bogus_structure_accepts_every_fixture() -> None:
 
 
 def test_a_bogus_comparator_rejects_a_value_that_is_not_base64_of_the_alphabet() -> None:
+    """A remote value that is not an a_bogus at all is still a mismatch.
+
+    This used to pass ASCII uppercase, which is entirely INSIDE the s4 alphabet -
+    so the value decoded cleanly and failed a derived noise rule instead, and the
+    test passed for a reason it did not intend. Characters outside the alphabet
+    are what "not base64 of the alphabet" actually means.
+    """
     native = sign_a_bogus(UA_CHROME90, DETAIL_QUERY)
-    same_length_but_wrong = (string.ascii_uppercase * 10)[: len(native)]
-    assert ABogusComparator().compare(native, same_length_but_wrong) is Comparison.MISMATCH
+    outside_the_alphabet = "!" * len(native)
+    assert ABogusComparator().compare(native, outside_the_alphabet) is Comparison.MISMATCH
+
+
+def test_a_stale_invariant_is_inconclusive_rather_than_a_mismatch() -> None:
+    """A rule the reference itself breaks cannot judge agreement with it.
+
+    Measured 2026-09-08: the live browser's own a_bogus fails `structure_error`
+    at noise byte 2, and nine of its twelve prefix bytes carry values our masks
+    forbid - while Douyin answers our native signature with a full payload on
+    all four endpoints. Reporting MISMATCH there told an operator "the native
+    algorithm has drifted" on evidence that said the opposite.
+    """
+    native = sign_a_bogus(UA_CHROME90, DETAIL_QUERY)
+    # Decodable, well-formed base64 of the right alphabet, breaking only a rule
+    # we derived - which is exactly the shape of the live browser's value.
+    remote = tamper_a_bogus(native, 17, 238)
+    assert is_decode_problem(structure_error(remote)) is False
+
+    assert ABogusComparator().compare(native, remote) is Comparison.SKIPPED
+
+
+def test_a_decode_failure_is_still_a_mismatch_on_either_side() -> None:
+    """Being generous about derived rules must not swallow a broken value."""
+    native = sign_a_bogus(UA_CHROME90, DETAIL_QUERY)
+    truncated = encode_base64("abc", "s4")
+
+    assert is_decode_problem(structure_error(truncated)) is True
+    assert ABogusComparator().compare(native, truncated) is Comparison.MISMATCH
 
 
 async def test_sliding_risk_window_counts_only_risk_control() -> None:
@@ -2105,6 +2183,7 @@ def test_x_bogus_md5_helper_passes_integer_lists_through() -> None:
 def test_a_bogus_comparator_rejects_a_payload_that_is_too_short() -> None:
     short = encode_base64("abc", "s4")
     assert ABogusComparator().compare(short, short) is Comparison.MISMATCH
+    assert is_decode_problem(structure_error(short)) is True
 
 
 async def test_registry_reraises_when_the_fallback_is_also_unavailable() -> None:

@@ -209,6 +209,7 @@ class StepCode(StrEnum):
     SIGNING_NO_REGISTRY = "signing_no_registry"
     SIGNING_NO_BROWSER_RPC = "signing_no_browser_rpc"
     SIGNING_MISMATCH = "signing_mismatch"
+    SIGNING_NOT_COMPARABLE = "signing_not_comparable"
     SIGNING_OK = "signing_ok"
 
     SMOKE_NOT_CONFIGURED = "smoke_not_configured"
@@ -579,6 +580,7 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
     fingerprint = StaticFingerprint(user_agent=PROBE_USER_AGENT)
     details: dict[str, Any] = {}
     mismatched: list[str] = []
+    skipped: list[str] = []
     for platform, url in SIGNING_PROBE_URLS.items():
         spec = RequestSpec.get(url, params={"aweme_id": "0", "device_platform": "webapp"})
         try:
@@ -589,6 +591,7 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
         shadow = ctx.registry.shadow_result(platform, spec.endpoint)
         if shadow is not None and not shadow.compared:
             details[platform.value] = f"not compared: {shadow.detail}"
+            skipped.append(platform.value)
             continue
         details[platform.value] = (
             "match" if agreed else f"mismatch: {shadow.detail if shadow else ''}"
@@ -601,6 +604,17 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
             StepStatus.FAIL,
             StepCode.SIGNING_MISMATCH,
             args={"platforms": ", ".join(mismatched)},
+            details=details,
+        )
+    if skipped:
+        # Any skip at all, not only a total one. "native and browser signatures
+        # agree" is the overclaim this step exists to avoid: with one platform
+        # compared and one not, it reads as evidence about both, and the one it
+        # says nothing about is exactly the one an operator needs told.
+        return result(
+            StepStatus.WARN,
+            StepCode.SIGNING_NOT_COMPARABLE,
+            args={"platforms": ", ".join(skipped)},
             details=details,
         )
     return result(StepStatus.PASS, StepCode.SIGNING_OK, details=details)

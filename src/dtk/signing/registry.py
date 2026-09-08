@@ -68,7 +68,7 @@ from dtk.signing.base import (
     endpoint_of,
     platform_of,
 )
-from dtk.signing.native.abogus import structure_error
+from dtk.signing.native.abogus import is_decode_problem, structure_error
 from dtk.signing.protection import requires_browser_signature as signed_by_platform
 
 logger = get_logger(__name__)
@@ -189,17 +189,46 @@ class ABogusComparator:
     ``len(browser_info)``, and the browser behind browser-rpc reports its own
     window geometry rather than the identity's, so requiring equal lengths would
     mismatch on every correct sample and disable the native path permanently.
+
+    The remote value is checked FIRST, and its failure is inconclusive rather
+    than a mismatch. Measured 2026-09-08: the live browser's own a_bogus fails
+    `structure_error` at noise byte 2, and nine of the twelve prefix bytes carry
+    values our masks forbid - while Douyin answers our native signature with a
+    full payload on all four endpoints. So the invariant is wrong, not the
+    signer, and reporting MISMATCH there told an operator "the native algorithm
+    has drifted" when the evidence said the opposite. A rule the reference
+    implementation itself breaks cannot judge agreement with the reference; it
+    can only report that it is not fit to judge.
     """
 
     def __init__(self, alphabet: str = "s4") -> None:
         self.alphabet = alphabet
 
     def compare(self, native: str, remote: str) -> Comparison:
-        for side, value in (("remote", remote), ("native", native)):
-            problem = structure_error(value, alphabet=self.alphabet)
-            if problem is not None:
-                logger.info("signing.shadow.a_bogus_structure", side=side, problem=problem)
-                return Comparison.MISMATCH
+        remote_problem = structure_error(remote, alphabet=self.alphabet)
+        if is_decode_problem(remote_problem):
+            # Not an a_bogus at all - truncated, wrong alphabet, wrong length.
+            # That is browser-rpc handing back something broken, which is worth
+            # failing on however stale our derived rules may be.
+            logger.info("signing.shadow.a_bogus_structure", side="remote", problem=remote_problem)
+            return Comparison.MISMATCH
+        if remote_problem is not None:
+            # Decodable, but breaks a rule we derived. Loud, because a stale
+            # invariant should be fixed rather than lived with - and not a
+            # verdict on the native signer.
+            logger.warning(
+                "signing.shadow.a_bogus_invariant_stale",
+                problem=remote_problem,
+                detail=(
+                    "the reference implements a different version of a_bogus; "
+                    "re-derive the invariants from the current bundle"
+                ),
+            )
+            return Comparison.SKIPPED
+        problem = structure_error(native, alphabet=self.alphabet)
+        if problem is not None:
+            logger.info("signing.shadow.a_bogus_structure", side="native", problem=problem)
+            return Comparison.MISMATCH
         return Comparison.MATCH
 
 

@@ -205,6 +205,21 @@ def build_browser_info(
     return "|".join(str(value) for value in values)
 
 
+#: Reasons `structure_error` gives that mean "this is not an a_bogus at all".
+#: Everything else it can say is a rule DERIVED from one reading of the
+#: algorithm, and a derived rule can be stale - see `ABogusComparator`, where
+#: the distinction decides whether a disagreement indicts the signer or the
+#: rule.
+DECODE_PROBLEMS: Final[frozenset[str]] = frozenset(
+    {"alphabet", "length not a multiple of four", "payload too short"}
+)
+
+
+def is_decode_problem(problem: str | None) -> bool:
+    """Whether this failure means the value is malformed rather than unexpected."""
+    return problem in DECODE_PROBLEMS
+
+
 def structure_error(value: str, *, alphabet: str = "s4") -> str | None:
     """The first way ``value`` fails to be a well-formed ``a_bogus``, or None.
 

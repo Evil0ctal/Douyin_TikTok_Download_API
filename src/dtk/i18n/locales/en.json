@@ -260,7 +260,8 @@
       "smoke_not_configured": "no smoke test link configured",
       "smoke_failed": "end-to-end fetch failed: {error}",
       "smoke_ok": "end-to-end fetch succeeded",
-      "step_crashed": "the check itself failed: {error}"
+      "step_crashed": "the check itself failed: {error}",
+      "signing_not_comparable": "cannot compare native and browser signing for {platforms}"
     },
     "action": {
       "components_unreachable": "Check that the postgres and redis containers are running and that DTK_DATABASE_URL and DTK_REDIS_URL point at them.",
@@ -275,7 +276,8 @@
       "signing_no_browser_rpc": "Configure DTK_BROWSER_RPC_URL to enable the shadow comparison that detects a stale signing algorithm before the risk rate does.",
       "signing_mismatch": "The native algorithm has drifted from the platform's. Those platforms now sign through browser-rpc; open an issue with this report so the algorithm can be updated.",
       "smoke_failed": "Read the failing step above first; a smoke failure is usually a symptom of the proxy, pool or signing step, not its own fault.",
-      "step_crashed": "This is a bug in dtk. Please report it with this report attached."
+      "step_crashed": "This is a bug in dtk. Please report it with this report attached.",
+      "signing_not_comparable": "The browser reference implements a different version of the algorithm, so a structural comparison against it says nothing either way. The native path is unaffected and still serves requests; re-derive the invariants from the current bundle to restore the check."
     }
   },
   "health": {

@@ -260,7 +260,8 @@
       "smoke_not_configured": "未配置冒烟测试链接",
       "smoke_failed": "端到端抓取失败：{error}",
       "smoke_ok": "端到端抓取成功",
-      "step_crashed": "检查本身出错了：{error}"
+      "step_crashed": "检查本身出错了：{error}",
+      "signing_not_comparable": "无法比对 {platforms} 的纯算与浏览器签名"
     },
     "action": {
       "components_unreachable": "请确认 postgres 与 redis 容器正在运行，并检查 DTK_DATABASE_URL、DTK_REDIS_URL 是否指向它们。",
@@ -275,7 +276,8 @@
       "signing_no_browser_rpc": "配置 DTK_BROWSER_RPC_URL 即可启用影子比对，在风控率上升之前就发现失效的签名算法。",
       "signing_mismatch": "原生算法已经和平台的实现产生偏差。这些平台目前改由 browser-rpc 签名；请附上这份报告提交 issue，以便更新算法。",
       "smoke_failed": "请先看上面失败的步骤；冒烟测试失败通常是代理、身份池或签名环节的连带结果，而不是它本身的问题。",
-      "step_crashed": "这是 dtk 的缺陷。请附上这份报告反馈给我们。"
+      "step_crashed": "这是 dtk 的缺陷。请附上这份报告反馈给我们。",
+      "signing_not_comparable": "浏览器参考实现的算法版本与本地端口不同，因此结构化比对无法给出任何结论。纯算路径不受影响，仍在正常提供服务；如需恢复该检查，请依据当前 bundle 重新推导校验不变量。"
     }
   },
   "health": {
