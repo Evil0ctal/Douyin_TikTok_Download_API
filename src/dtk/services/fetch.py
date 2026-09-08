@@ -32,7 +32,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -536,12 +536,34 @@ def _decode(response: RawResponse) -> dict[str, Any]:
     return json.loads(response.body.decode(response.charset or "utf-8", errors="replace"))
 
 
+def _strip_raw(value: Any) -> Any:
+    """Remove every ``raw`` key, at any depth.
+
+    ``model_dump(exclude={"raw"})`` drops only the TOP-LEVEL field, which is not
+    what a page is shaped like. Every list item carries its own ``raw`` - the
+    parsers fill it unconditionally - so a page of twenty comments kept twenty
+    untouched platform payloads in ``tasks.result`` and in the Redis response
+    cache for ``retention.task_result_hours``, for a caller who asked not to
+    receive them.
+
+    Only the ``include_raw=False`` path comes here. ``include_raw=True`` still
+    returns everything, per-item payloads included: some callers read fields the
+    normalized model does not carry, and doc 11's promise to them is the reason
+    ``raw`` exists at all.
+    """
+    if isinstance(value, dict):
+        return {key: _strip_raw(item) for key, item in value.items() if key != "raw"}
+    if isinstance(value, list):
+        return [_strip_raw(item) for item in value]
+    return value
+
+
 def _dump(parsed: Any, *, include_raw: bool) -> dict[str, Any]:
     if hasattr(parsed, "model_dump"):
-        exclude = None if include_raw else {"raw"}
-        return parsed.model_dump(mode="json", exclude=exclude)
+        dumped = parsed.model_dump(mode="json")
+        return dumped if include_raw else cast("dict[str, Any]", _strip_raw(dumped))
     if isinstance(parsed, dict):
-        return parsed
+        return parsed if include_raw else cast("dict[str, Any]", _strip_raw(parsed))
     return {"value": parsed}
 
 

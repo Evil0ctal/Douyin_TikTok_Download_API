@@ -1429,3 +1429,61 @@ def test_an_endpoint_with_no_handle_parameter_refuses_the_handle_by_name() -> No
     definition = registry.definition_for("tiktok.author_posts")
     with pytest.raises(InvalidParam, match="stable id"):
         definition.platform_params({"author_id": "chainzone_led"})
+
+
+# --------------------------------------------------------------------------
+# raw payloads
+#
+# `raw` exists so a caller can read fields the normalized model does not carry;
+# doc 11 promises them that. What it must not do is get STORED for a caller who
+# asked not to receive it - which is what happened, because
+# model_dump(exclude={"raw"}) drops only the top-level field and every list item
+# carries its own.
+# --------------------------------------------------------------------------
+
+
+def _page_with_raw():
+    from dtk.models.content import Author, Comment, Page
+
+    author = Author(platform="douyin", uid="9", nickname="n")
+    comment = Comment(
+        platform="douyin",
+        comment_id="1",
+        content_id="2",
+        text="hi",
+        author=author,
+        raw={"platform_only_field": "value"},
+    )
+    return Page[Comment](items=[comment], cursor=None, has_more=False)
+
+
+def test_include_raw_still_returns_every_per_item_payload() -> None:
+    """The half that must not regress: asking for raw gets ALL of it."""
+    from dtk.services.fetch import _dump
+
+    dumped = _dump(_page_with_raw(), include_raw=True)
+
+    assert dumped["items"][0]["raw"] == {"platform_only_field": "value"}
+    # And nothing else was flattened on the way through.
+    assert dumped["items"][0]["author"]["nickname"] == "n"
+
+
+def test_declining_raw_drops_it_at_every_depth() -> None:
+    """A page of twenty comments used to keep twenty untouched payloads."""
+    from dtk.services.fetch import _dump
+
+    dumped = _dump(_page_with_raw(), include_raw=False)
+
+    assert "raw" not in dumped
+    assert "raw" not in dumped["items"][0]
+    assert dumped["items"][0]["author"]["nickname"] == "n"
+
+
+def test_the_snapshot_dedup_key_separates_a_video_from_an_author() -> None:
+    """Sharing a namespace suppressed one of the two writes for a whole window."""
+    from dtk.services.snapshots import DEDUP_KEY
+
+    video = DEDUP_KEY.format(platform="douyin", content_type="video", content_id="7")
+    user = DEDUP_KEY.format(platform="douyin", content_type="user", content_id="7")
+
+    assert video != user

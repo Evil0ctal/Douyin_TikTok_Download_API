@@ -24,15 +24,24 @@ from dtk.models import Author, Content
 
 log = get_logger(__name__)
 
-DEDUP_KEY = "snapshot:{platform}:{content_id}"
+#: Includes ``content_type``. Without it a video and an author share a
+#: namespace: the two id spaces are different on both platforms, but nothing
+#: guarantees they never collide, and a collision silently suppressed one of the
+#: two writes for the whole `snapshot.min_interval_seconds` window - a metric
+#: that goes missing rather than wrong, which is the harder kind to notice.
+DEDUP_KEY = "snapshot:{platform}:{content_type}:{content_id}"
 
 
-async def _should_write(platform: Platform, content_id: str, min_interval: int) -> bool:
+async def _should_write(
+    platform: Platform, content_type: str, content_id: str, min_interval: int
+) -> bool:
     if min_interval <= 0:
         return True
     return bool(
         await get_redis().set(
-            DEDUP_KEY.format(platform=platform.value, content_id=content_id),
+            DEDUP_KEY.format(
+                platform=platform.value, content_type=content_type, content_id=content_id
+            ),
             "1",
             ex=min_interval,
             nx=True,
@@ -51,7 +60,7 @@ async def record_content(session: AsyncSession, content: Content, *, min_interva
     # writing 0 instead would put a phantom cliff into the growth curve.
     if _all_none(s.play_count, s.digg_count, s.comment_count, s.share_count, s.collect_count):
         return False
-    if not await _should_write(content.platform, content.content_id, min_interval):
+    if not await _should_write(content.platform, "video", content.content_id, min_interval):
         return False
 
     session.add(
@@ -78,7 +87,7 @@ async def record_author(session: AsyncSession, author: Author, *, min_interval: 
     st = author.stats
     if _all_none(st.follower_count, st.following_count, st.content_count, st.total_digg):
         return False
-    if not await _should_write(author.platform, author.uid, min_interval):
+    if not await _should_write(author.platform, "user", author.uid, min_interval):
         return False
 
     session.add(
