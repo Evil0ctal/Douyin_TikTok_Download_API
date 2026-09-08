@@ -443,6 +443,11 @@ class TestRawResponse:
 DELETED_POST_MESSAGE = "\u56e0\u4f5c\u54c1\u6743\u9650\u6216\u5df2\u88ab\u5220\u9664\uff0c\u65e0\u6cd5\u89c2\u770b\uff0c\u53bb\u770b\u770b\u5176\u4ed6\u4f5c\u54c1\u5427"
 
 
+def raw_response(status: int, body: bytes) -> RawResponse:
+    """A non-JSON body, the shape the platform's refusals actually arrive in."""
+    return RawResponse(status=status, headers={"content-type": "text/plain"}, body=body)
+
+
 def json_response(payload: Any, status: int = 200) -> RawResponse:
     return RawResponse(
         status=status,
@@ -515,6 +520,33 @@ class TestClassifier:
         result = classify_detailed(response)
         assert result.outcome is Outcome.RISK_CONTROL
         assert result.rule == "payload.withheld"
+
+    def test_a_refused_signature_is_named_rather_than_blamed_on_the_identity(self) -> None:
+        """A 403 that says why must not read as "this identity is burnt".
+
+        Douyin sign-protects only some endpoints, so a signer that stops
+        producing a required parameter refuses on those and nowhere else.
+        Read as plain risk control, that cools every identity that tries and
+        counts toward the endpoint's risk rate, so the pool degrades and the
+        circuit breaker trips while the actual cause goes unnamed. Bodies
+        captured live on 2026-09-08.
+        """
+        for body, marker in (
+            (b"Blocked by ArgusSecurityPlugin Uifid Not Found", "uifid not found"),
+            (b"Blocked by ArgusSecurityPlugin Signature Not Found", "signature not found"),
+            (b"Blocked by ArgusSecurityPlugin Sign Invalid", "sign invalid"),
+        ):
+            result = classify_detailed(raw_response(403, body))
+            assert result.rule == "signature.refused", body
+            assert result.detail == marker
+            # Still a refusal: pretending otherwise would let a broken signer
+            # look healthy while its traffic silently failed.
+            assert result.outcome is Outcome.RISK_CONTROL
+
+    def test_a_403_with_no_explanation_is_still_plain_risk_control(self) -> None:
+        result = classify_detailed(raw_response(403, b"forbidden"))
+        assert result.rule == "http.risk_status"
+        assert result.outcome is Outcome.RISK_CONTROL
 
     def test_empty_list_page_is_not_risk_control(self) -> None:
         # End of pagination. Cooling an identity here would punish normal use.

@@ -14,11 +14,12 @@ from pathlib import Path
 
 import pytest
 from browser_rpc.backends import build_backend
-from browser_rpc.backends.base import MintPlan
+from browser_rpc.backends.base import MintPlan, SignPlan
 from browser_rpc.backends.cloak import (
     CAPTURE_INIT_SCRIPT,
     SIGN_SCRIPT,
     CloakBackend,
+    CloakSigningContext,
     browser_family_of,
     browser_major_of,
     proxy_settings,
@@ -343,3 +344,65 @@ class TestSigningReadiness:
         )
         assert context is not None
         await context.close()
+
+
+class TestTheSdkUrlIsTheWholeAnswer:
+    """The backend must return the SDK's parameters and not one more.
+
+    Douyin's a_bogus covers the exact query string, so appending anything the
+    SDK did not put there forges the signature and the platform answers
+    "403 Blocked by ArgusSecurityPlugin Sign Invalid".
+
+    This existed: the backend used to append the page's msToken cookie whenever
+    the SDK had not put one in the query. A freshly opened page has no msToken
+    cookie, so it did nothing and signing worked; Douyin's scripts set one after
+    the page has been alive a while, and from that moment every signature from
+    that page was refused. Measured on 2026-09-08, the same warm context went
+    from 8/8 returning data to 6/6 refused, msToken the only difference.
+    """
+
+    class SdkPage(StubPage):
+        def __init__(self, params: dict[str, str]) -> None:
+            super().__init__()
+            self.params = params
+
+        async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+            if "__dtkSign" in script:
+                return {"params": dict(self.params)}
+            return {"userAgent": CHROME_UA, "platform": "Win32"}
+
+    async def test_nothing_is_added_to_what_the_sdk_signed(self) -> None:
+        sdk = {"a_bogus": "AAA", "verifyFp": "verify_x", "uifid": "ff00"}
+        page = self.SdkPage(sdk)
+        context = CloakSigningContext(Platform.DOUYIN, StubContext(), page)
+        signed = await context.sign(
+            SignPlan(
+                platform=Platform.DOUYIN,
+                url="https://www.douyin.com/aweme/v1/web/aweme/detail/",
+                query="aweme_id=7",
+                params={},
+            )
+        )
+        assert signed == sdk, "the backend invented a parameter the SDK did not sign"
+
+    async def test_a_page_holding_an_ms_token_cookie_changes_nothing(self) -> None:
+        """The exact shape of the bug: a cookie must not reach the query."""
+
+        class PageWithCookie(TestTheSdkUrlIsTheWholeAnswer.SdkPage):
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                if "document.cookie" in script:
+                    return {"msToken": "a-real-looking-token"}
+                return await super().evaluate(script, *_)
+
+        sdk = {"a_bogus": "AAA", "verifyFp": "verify_x"}
+        context = CloakSigningContext(Platform.DOUYIN, StubContext(), PageWithCookie(sdk))
+        signed = await context.sign(
+            SignPlan(
+                platform=Platform.DOUYIN,
+                url="https://www.douyin.com/aweme/v1/web/aweme/detail/",
+                query="aweme_id=7",
+                params={},
+            )
+        )
+        assert "msToken" not in signed
+        assert signed == sdk

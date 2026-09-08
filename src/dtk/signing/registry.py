@@ -69,6 +69,7 @@ from dtk.signing.base import (
     platform_of,
 )
 from dtk.signing.native.abogus import structure_error
+from dtk.signing.protection import requires_browser_signature as signed_by_platform
 
 logger = get_logger(__name__)
 
@@ -332,7 +333,7 @@ class SignerRegistry:
     ) -> SignedParams:
         """Sign ``spec``, choosing the signer per the rules in the module docstring."""
         key = self._key(spec, platform, endpoint)
-        signer = await self._select(key)
+        signer = await self._select(key, signed_by_platform(key[0], spec.url))
         try:
             return await signer.sign(spec, identity_fingerprint, session)
         except DtkError as exc:
@@ -345,13 +346,17 @@ class SignerRegistry:
                 raise
             return await self._rpc.sign(spec, identity_fingerprint, session)
 
-    async def _select(self, key: EndpointKey) -> Signer:
+    async def _select(self, key: EndpointKey, protected: bool = True) -> Signer:
         """Pick a signer for this endpoint, per ``policy.mode``.
 
         Every crossing to the mode's non-preferred signer is announced once per
         endpoint and carries the reason, because a silent crossing is how a
         broken signer goes on looking healthy: its traffic moves to the other
         one and the success rate never dips.
+
+        ``protected`` says whether the platform itself signs this endpoint (see
+        :mod:`dtk.signing.protection`). Only ``auto`` reads it, and the default
+        is True so a caller that does not know assumes the expensive, safe path.
         """
         platform, _endpoint = key
         native = self._native.get(platform)
@@ -383,16 +388,20 @@ class SignerRegistry:
             return self._cross(key, self._rpc, f"no native signer for {platform.value}")
         assert native is not None
 
-        if (
-            self.policy.mode == "auto"
-            and self._rpc is not None
-            and may_cross
-            and await self._at_risk(key)
-            and await self._rpc_healthy()
-        ):
-            return self._cross(
-                key, self._rpc, "the endpoint's risk rate suggests the signature is being rejected"
-            )
+        if self.policy.mode == "auto" and self._rpc is not None and may_cross:
+            # The platform's own SDK signs only some endpoints. On the rest, the
+            # native signer is not a degraded option - it is the same request
+            # the site would send, for microseconds instead of a browser.
+            # Measured 2026-09-08: 8/8 on two unprotected Douyin endpoints,
+            # 3/8 on two protected ones. See dtk.signing.protection.
+            if protected and await self._rpc_healthy():
+                return self._cross(key, self._rpc, "the platform signs this endpoint itself")
+            if await self._at_risk(key) and await self._rpc_healthy():
+                return self._cross(
+                    key,
+                    self._rpc,
+                    "the endpoint's risk rate suggests the signature is being rejected",
+                )
 
         return self._prefer(key, native)
 

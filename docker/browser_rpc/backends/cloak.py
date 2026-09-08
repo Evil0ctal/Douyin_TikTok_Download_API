@@ -110,16 +110,6 @@ FINGERPRINT_SCRIPT = """() => ({
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 })"""
 
-COOKIE_SCRIPT = """() => Object.fromEntries(
-  document.cookie.split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const index = part.indexOf('=');
-      return index < 0 ? [part, ''] : [part.slice(0, index), part.slice(index + 1)];
-    })
-)"""
-
 #: Injected before any page script runs, so it sits BENEATH the platform SDK.
 #:
 #: Both platforms sign by patching ``window.fetch`` and ``XMLHttpRequest``
@@ -333,25 +323,22 @@ class CloakSigningContext:
         signed = _string_fields(result.get("params"))
         if not signed:
             raise BackendFailure(f"the {self._platform.value} SDK added no parameters")
-
-        # Douyin no longer sends msToken in the query; TikTok's comes from the
-        # SDK itself. Only fill it in when the SDK did not, and never overwrite.
-        token = await self._ms_token()
-        if token:
-            signed.setdefault("msToken", token)
+        # NOTHING is added here. What the SDK put in the URL is the whole answer.
+        #
+        # There used to be a "helpful" fallback that appended the page's msToken
+        # cookie when the SDK had not put one in the query. It is a signature
+        # forgery: Douyin's a_bogus covers the exact query string, so a
+        # parameter the SDK did not sign turns a valid signature into
+        # "403 Blocked by ArgusSecurityPlugin Sign Invalid".
+        #
+        # It was invisible at first and then fatal, which is the worst shape a
+        # bug can have. A freshly opened page has no msToken cookie, so the
+        # fallback did nothing and signing worked; Douyin's own scripts set one
+        # after the page has been alive a while, and from that moment every
+        # signature from that page was rejected. Measured on 2026-09-08: the
+        # same warm context went from 8/8 returning data to 6/6 refused, with
+        # msToken the only difference in the parameter set.
         return signed
-
-    async def _ms_token(self) -> str | None:
-        """msToken lives in the page's cookies, not in the signature call."""
-        try:
-            cookies = await self._page.evaluate(COOKIE_SCRIPT)
-        except Exception as exc:
-            logger.warning("backend.cloak.cookie_read_failed error=%s", exc)
-            return None
-        if not isinstance(cookies, dict):
-            return None
-        value = cookies.get("msToken")
-        return str(value) if value else None
 
     async def close(self) -> None:
         if self._closed:

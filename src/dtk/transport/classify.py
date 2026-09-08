@@ -66,6 +66,25 @@ NETWORK_STATUS_CODES: Final[frozenset[int]] = frozenset(
 #: a request it does not like.
 RISK_STATUS_CODES: Final[frozenset[int]] = frozenset({401, 403, 405, 412, 429, 444})
 
+#: Fragments of Douyin's refusal when the signature it wanted is missing or does
+#: not cover the request. Observed live on 2026-09-08, all as 403 bodies of the
+#: form "Blocked by ArgusSecurityPlugin <reason>".
+#:
+#: These are OUR fault, not the identity's, and telling them apart matters. A
+#: 403 is otherwise read as risk control, which cools the identity that sent it
+#: and counts toward the endpoint's risk rate - so a signer that stopped
+#: producing a required parameter would quietly cool the entire pool and trip
+#: the circuit breaker, while the actual cause (a signature we did not send) went
+#: unnamed. Douyin sign-protects only some endpoints
+#: (:mod:`dtk.signing.protection`), and that list is copied from its SDK; when the
+#: SDK's list grows, this rule is how the operator finds out.
+SIGNATURE_REFUSAL_MARKERS: Final[tuple[str, ...]] = (
+    "uifid not found",
+    "signature not found",
+    "sign invalid",
+    "sign expired",
+)
+
 #: HTTP statuses that describe the content rather than the caller. 451 is a
 #: takedown: legitimate, permanent, and nothing to do with the identity.
 BUSINESS_STATUS_CODES: Final[frozenset[int]] = frozenset({400, 404, 410, 451})
@@ -297,6 +316,24 @@ def _challenge_marker(view: ResponseView) -> RuleResult:
     return False
 
 
+def _signature_refused(view: ResponseView) -> RuleResult:
+    """The platform rejecting our signature, as opposed to the identity.
+
+    Ordered before `http.risk_status` because both match the same 403 and only
+    this one knows why. It is still RISK_CONTROL - the request really was
+    refused, and pretending otherwise would let a broken signer look healthy -
+    but the rule name says the cause, so it is one glance in the Logs page to
+    tell "this identity is burnt" from "we stopped signing this endpoint".
+    """
+    if view.status not in RISK_STATUS_CODES:
+        return False
+    head = view.head
+    for marker in SIGNATURE_REFUSAL_MARKERS:
+        if marker in head:
+            return marker
+    return False
+
+
 def _risk_status(view: ResponseView) -> RuleResult:
     if view.status in RISK_STATUS_CODES:
         return f"http {view.status}"
@@ -380,6 +417,7 @@ DEFAULT_RULES: Final[tuple[ClassificationRule, ...]] = (
     ClassificationRule("envelope.risk_code", Outcome.RISK_CONTROL, _risk_envelope_status),
     ClassificationRule("envelope.business_code", Outcome.BUSINESS_ERROR, _business_envelope_status),
     ClassificationRule("body.challenge_marker", Outcome.RISK_CONTROL, _challenge_marker),
+    ClassificationRule("signature.refused", Outcome.RISK_CONTROL, _signature_refused),
     ClassificationRule("http.risk_status", Outcome.RISK_CONTROL, _risk_status),
     ClassificationRule("http.business_status", Outcome.BUSINESS_ERROR, _business_status),
     ClassificationRule("envelope.nonzero", Outcome.BUSINESS_ERROR, _nonzero_envelope),

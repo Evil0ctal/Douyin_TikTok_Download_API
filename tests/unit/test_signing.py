@@ -94,6 +94,7 @@ from dtk.signing.native.tokens import (
     gen_verify_fp,
 )
 from dtk.signing.native.xbogus import CHARACTER, X_BOGUS_LENGTH, XBogus
+from dtk.signing.protection import requires_browser_signature
 from dtk.signing.registry import (
     ABogusComparator,
     Comparison,
@@ -702,6 +703,15 @@ TIKTOK_SPEC = RequestSpec.get(
     params={"aid": "1988", "itemId": "7339393672959757570"},
 )
 
+#: A Douyin endpoint the platform does NOT sign itself, so `auto` leaves it on
+#: the native signer and the risk-driven crossing is reachable. DOUYIN_SPEC
+#: above is `/aweme/v1/web/aweme/detail/`, which IS in the SDK's webSign list -
+#: `auto` sends that one to the browser whatever the risk rate says.
+DOUYIN_UNPROTECTED_SPEC = RequestSpec.get(
+    "https://www.douyin.com/aweme/v1/web/user/profile/other/",
+    params={"device_platform": "webapp", "aid": "6383", "sec_user_id": "MS4wLjABAAAA"},
+)
+
 
 async def test_native_signer_signs_douyin_with_a_bogus() -> None:
     signer = NativeSigner(Platform.DOUYIN, rng=random.Random(11))
@@ -1156,11 +1166,24 @@ def build_registry(
     return registry, native, rpc, clock
 
 
-def push_risk(registry: SignerRegistry, count: int, risky: int) -> None:
+def push_risk(
+    registry: SignerRegistry,
+    count: int,
+    risky: int,
+    spec: RequestSpec = DOUYIN_UNPROTECTED_SPEC,
+) -> None:
+    """Record outcomes against the SAME key the signing call will look up.
+
+    The key is (platform, endpoint) and the endpoint is the URL path, so risk
+    pushed against one spec is invisible to a call made with another. It
+    defaults to the unprotected spec because that is the only one whose
+    risk-driven crossing is reachable: `auto` sends a platform-signed endpoint
+    to the browser regardless of the risk rate.
+    """
     for index in range(count):
         registry.observe(
             Platform.DOUYIN,
-            DOUYIN_SPEC.endpoint,
+            spec.endpoint,
             Outcome.RISK_CONTROL if index < risky else Outcome.OK,
         )
 
@@ -1168,7 +1191,7 @@ def push_risk(registry: SignerRegistry, count: int, risky: int) -> None:
 async def test_auto_mode_starts_on_the_native_signer() -> None:
     """Named for the mode, not for "the default": the default is rpc."""
     registry, native, rpc, _ = build_registry(rpc=FakeSigner(SIGNER_BROWSER), mode="auto")
-    signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+    signed = await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)
     assert signed.signer == SIGNER_NATIVE
     assert native.calls == 1
     assert rpc is not None and rpc.calls == 0
@@ -1198,6 +1221,68 @@ async def test_the_session_survives_the_fallback_to_the_browser() -> None:
     signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT, session)
     assert signed.signer == SIGNER_BROWSER
     assert rpc is not None and rpc.sessions == [session]
+
+
+class TestPlatformSignedEndpoints:
+    """`auto` uses the browser only where the platform signs the endpoint itself.
+
+    Douyin's own SDK carries the list (dtk.signing.protection). Measured live on
+    2026-09-08, pure-Python signing only, eight requests each:
+
+        /aweme/v1/web/user/profile/other/  unprotected  8/8 returned data
+        /aweme/v1/web/comment/list/        unprotected  8/8 returned data
+        /aweme/v1/web/aweme/detail/        protected    3/8
+        /aweme/v1/web/aweme/post/          protected    3/8
+
+    So on an unprotected endpoint the native signer is not a degraded option -
+    it is the same request the site would send, for microseconds rather than a
+    browser rebind, and it keeps working when browser-rpc is down.
+    """
+
+    async def test_auto_sends_a_platform_signed_endpoint_to_the_browser(self) -> None:
+        registry, native, rpc, _ = build_registry(rpc=FakeSigner(SIGNER_BROWSER), mode="auto")
+        signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+        assert signed.signer == SIGNER_BROWSER
+        assert native.calls == 0
+        # No risk had to be observed for this - which matters, because
+        # SignerRegistry.observe() has no caller in src/ and the risk-driven
+        # crossing therefore never fires in production.
+        assert rpc is not None and rpc.calls == 1
+
+    async def test_auto_keeps_an_unprotected_endpoint_on_the_native_signer(self) -> None:
+        registry, native, rpc, _ = build_registry(rpc=FakeSigner(SIGNER_BROWSER), mode="auto")
+        signed = await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)
+        assert signed.signer == SIGNER_NATIVE
+        assert native.calls == 1
+        assert rpc is not None and rpc.calls == 0
+
+    async def test_the_table_is_the_platforms_own_list(self) -> None:
+        """Every endpoint this project calls, classified as the SDK classifies it."""
+        assert requires_browser_signature(
+            Platform.DOUYIN, "https://www.douyin.com/aweme/v1/web/aweme/detail/"
+        )
+        assert requires_browser_signature(
+            Platform.DOUYIN, "https://www.douyin.com/aweme/v1/web/aweme/post/"
+        )
+        assert not requires_browser_signature(
+            Platform.DOUYIN, "https://www.douyin.com/aweme/v1/web/user/profile/other/"
+        )
+        assert not requires_browser_signature(
+            Platform.DOUYIN, "https://www.douyin.com/aweme/v1/web/comment/list/"
+        )
+
+    async def test_a_query_string_does_not_change_the_answer(self) -> None:
+        assert requires_browser_signature(
+            Platform.DOUYIN,
+            "https://www.douyin.com/aweme/v1/web/aweme/detail/?aweme_id=7&a_bogus=x",
+        )
+
+    async def test_tiktok_is_always_the_browsers(self) -> None:
+        """Not a table: X-Gnarly and X-Dynosaur have no port at all."""
+        assert requires_browser_signature(
+            Platform.TIKTOK, "https://www.tiktok.com/api/item/detail/"
+        )
+        assert requires_browser_signature(Platform.TIKTOK, "https://www.tiktok.com/anything/")
 
 
 # --------------------------------------------------------------------------
@@ -1285,7 +1370,7 @@ async def test_registry_switches_an_endpoint_to_rpc_when_risk_spikes() -> None:
     registry, native, _, clock = build_registry(rpc=rpc, alerts=alerts)
 
     push_risk(registry, 25, 20)  # 0.8 > 0.6 over 25 samples
-    signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+    signed = await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)
 
     assert signed.signer == SIGNER_BROWSER
     assert rpc.calls == 1
@@ -1298,17 +1383,19 @@ async def test_registry_switches_an_endpoint_to_rpc_when_risk_spikes() -> None:
             "signing.fallback.engaged",
             {
                 "platform": "douyin",
-                "endpoint": DOUYIN_SPEC.endpoint,
+                "endpoint": DOUYIN_UNPROTECTED_SPEC.endpoint,
                 "signer": SIGNER_BROWSER,
                 "reason": "the endpoint's risk rate suggests the signature is being rejected",
             },
         )
     ]
-    assert list(registry.fallback_endpoints()) == [(Platform.DOUYIN, DOUYIN_SPEC.endpoint)]
+    assert list(registry.fallback_endpoints()) == [
+        (Platform.DOUYIN, DOUYIN_UNPROTECTED_SPEC.endpoint)
+    ]
 
     # The alert fires on the transition, not on every request.
     clock.advance(10)
-    await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+    await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)
     assert len(alerts) == 1
 
 
@@ -1316,7 +1403,7 @@ async def test_registry_stays_native_when_the_sample_is_too_small() -> None:
     rpc = FakeSigner(SIGNER_BROWSER)
     registry, _native, _, _ = build_registry(rpc=rpc)
     push_risk(registry, 5, 5)  # rate 1.0 but only five samples
-    signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+    signed = await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)
     assert signed.signer == SIGNER_NATIVE
     assert rpc.calls == 0
 
@@ -1334,11 +1421,11 @@ async def test_registry_returns_to_native_when_the_risk_rate_falls() -> None:
     rpc = FakeSigner(SIGNER_BROWSER)
     registry, _native, _, clock = build_registry(rpc=rpc)
     push_risk(registry, 25, 20)
-    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_BROWSER
+    assert (await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)).signer == SIGNER_BROWSER
 
     push_risk(registry, 100, 0)
     clock.advance(10)
-    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+    assert (await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
     assert list(registry.fallback_endpoints()) == []
 
 
@@ -1399,10 +1486,10 @@ async def test_registry_accepts_an_injected_risk_source() -> None:
         risk_rate=risk_rate,
         clock=FakeClock(),
     )
-    registry.observe(Platform.DOUYIN, DOUYIN_SPEC.endpoint, Outcome.OK)  # ignored
-    signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+    registry.observe(Platform.DOUYIN, DOUYIN_UNPROTECTED_SPEC.endpoint, Outcome.OK)  # ignored
+    signed = await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)
     assert signed.signer == SIGNER_BROWSER
-    assert calls == [(Platform.DOUYIN, DOUYIN_SPEC.endpoint)]
+    assert calls == [(Platform.DOUYIN, DOUYIN_UNPROTECTED_SPEC.endpoint)]
 
 
 # --------------------------------------------------------------------------
@@ -1622,12 +1709,12 @@ async def test_operator_can_disable_and_re_enable_native() -> None:
     registry, _, _, _ = build_registry(rpc=rpc, alerts=alerts)
 
     registry.disable_native(Platform.DOUYIN, reason="a-bogus rotated")
-    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_BROWSER
+    assert (await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)).signer == SIGNER_BROWSER
     assert alerts[0][0] == "signing.native.disabled"
-    assert registry.should_shadow(DOUYIN_SPEC) is False
+    assert registry.should_shadow(DOUYIN_UNPROTECTED_SPEC) is False
 
     registry.enable_native(Platform.DOUYIN)
-    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+    assert (await registry.sign(DOUYIN_UNPROTECTED_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
 
 
 async def test_registry_health_covers_every_signer() -> None:
