@@ -21,7 +21,8 @@
     "diagnose": "诊断",
     "backup": "备份",
     "users": "用户",
-    "endpointAccess": "接口访问控制"
+    "endpointAccess": "接口访问控制",
+    "tools": "基础工具"
   },
   "page": {
     "overview": {
@@ -220,7 +221,8 @@
     "column": {
       "health": "健康度",
       "cooldown": "冷却剩余",
-      "minted": "铸造时间"
+      "minted": "铸造时间",
+      "session": "会话"
     },
     "noProxy": "服务器出口",
     "source": {
@@ -292,6 +294,12 @@
       "rule": "规则",
       "businessErrorNote": "业务错误算通过：平台正常响应了，只是内容已不存在。",
       "idle": "还没有结果。"
+    },
+    "session": {
+      "ok": "有效",
+      "missing": "缺失",
+      "too_short": "仅引导值",
+      "unknown": "未知"
     }
   },
   "proxy": {
@@ -891,7 +899,11 @@
       "comments": "作品评论",
       "replies": "评论回复",
       "user": "作者资料",
-      "posts": "作者作品列表"
+      "posts": "作者作品列表",
+      "likes": "作者点赞列表",
+      "mix": "合辑 / 播放列表作品",
+      "followers": "作者粉丝列表",
+      "following": "作者关注列表"
     },
     "param": {
       "url": "作品或主页链接，也可以直接粘贴分享文案。",
@@ -1073,5 +1085,58 @@
     "saveFailed": "接口访问设置更新失败",
     "openCount": "{count, plural, =0 {未开放任何接口} other {已开放 # 个接口}}",
     "openWarning": "{count, plural, other {有 # 个接口无需凭证即可响应。每次调用仍会消耗本实例的身份池。}}"
+  },
+  "tools": {
+    "title": "基础工具",
+    "description": "本服务每次请求都会用到的几块能力：链接解析、签名计算与游客身份铸造。",
+    "tab": {
+      "sign": "计算签名",
+      "parse": "解析链接",
+      "identity": "铸造身份"
+    },
+    "field": {
+      "platform": "平台",
+      "apiUrl": "API 地址",
+      "userAgent": "User-Agent",
+      "msToken": "msToken",
+      "link": "链接",
+      "proxy": "代理"
+    },
+    "sign": {
+      "title": "为平台 API 地址计算签名",
+      "description": "纯算术运算，不发起任何请求，也不消耗身份。",
+      "urlHint": "包含查询参数的完整 API 地址。签名会追加在你提供的内容之后。",
+      "userAgentHint": "两个平台都会把它计入签名。留空则使用默认的 Chrome UA。",
+      "userAgentPlaceholder": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Chrome/146.0.0.0 Safari/537.36",
+      "msTokenHint": "仅 TikTok 需要。它会被封进签名，因此必须与请求实际携带的 token 一致——填一个假的比不填更糟。",
+      "msTokenPlaceholder": "没有就留空",
+      "action": "计算签名",
+      "checklistTitle": "光有签名是不够的",
+      "checkUserAgent": "发送请求时必须使用签名时所用的那个 User-Agent —— 下方会回显。",
+      "checkTls": "TLS 指纹要与该 User-Agent 自洽。TikTok 会校验，直接用 curl 无论签名多正确都会被拒。",
+      "checkCookies": "必须携带 cookie。签名正确但不带 cookie 仍然返回空响应，因为平台响应的是一个会话。可在下一个标签页铸造。",
+      "signedUrl": "签名后的地址",
+      "added": "新增的参数（{algorithm}）",
+      "userAgentEcho": "请使用这个字符串原样发送请求。"
+    },
+    "parse": {
+      "title": "识别链接",
+      "description": "不发起任何请求，直接解析出平台、资源类型与 ID。",
+      "hint": "分享链接，或包含链接的整段剪贴板文本。",
+      "action": "解析",
+      "result": "结果",
+      "shortLink": "这是短链。必须实际跟随跳转才能知道目标，因此请改为提交到 /parse 接口。"
+    },
+    "identity": {
+      "title": "铸造游客身份",
+      "description": "驱动真实浏览器访问平台，返回平台下发的 cookie。不做任何存储。",
+      "proxyHint": "通过该出口铸造，使 cookie 与你后续使用的地址一致。受 security.request_proxy 设置约束。",
+      "action": "铸造",
+      "slow": "耗时数十秒：需要启动浏览器、加载页面并等待其脚本执行完毕。",
+      "cookies": "Cookie",
+      "cookiesHint": "请整套一起使用。其中 msToken 与 UIFID_TEMP 是任何算法都无法生成的。",
+      "fingerprint": "指纹",
+      "fingerprintHint": "请使用该 User-Agent 发送请求。cookie 与 UA 不匹配的身份比没有身份更弱。"
+    }
   }
 }

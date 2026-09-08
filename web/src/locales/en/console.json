@@ -21,7 +21,8 @@
     "diagnose": "Diagnose",
     "backup": "Backup",
     "users": "Users",
-    "endpointAccess": "Endpoint access"
+    "endpointAccess": "Endpoint access",
+    "tools": "Building blocks"
   },
   "page": {
     "overview": {
@@ -220,7 +221,8 @@
     "column": {
       "health": "Health",
       "cooldown": "Cooldown left",
-      "minted": "Minted"
+      "minted": "Minted",
+      "session": "Session"
     },
     "noProxy": "Server egress",
     "source": {
@@ -292,6 +294,12 @@
       "rule": "Rule",
       "businessErrorNote": "A business error counts as a pass: the platform answered, the content is simply gone.",
       "idle": "No result yet."
+    },
+    "session": {
+      "ok": "Live",
+      "missing": "None",
+      "too_short": "Bootstrap only",
+      "unknown": "Unknown"
     }
   },
   "proxy": {
@@ -891,7 +899,11 @@
       "comments": "Post comments",
       "replies": "Comment replies",
       "user": "Author profile",
-      "posts": "Author posts"
+      "posts": "Author posts",
+      "likes": "Author likes",
+      "mix": "Mix / playlist posts",
+      "followers": "Author followers",
+      "following": "Author following"
     },
     "param": {
       "url": "A post or profile link, or the share text around one.",
@@ -1073,5 +1085,58 @@
     "saveFailed": "Could not update endpoint access",
     "openCount": "{count, plural, =0 {No endpoint open} one {# endpoint open} other {# endpoints open}}",
     "openWarning": "{count, plural, one {# endpoint answers without a credential. It still costs this instance's identity pool on every call.} other {# endpoints answer without a credential. They still cost this instance's identity pool on every call.}}"
+  },
+  "tools": {
+    "title": "Building blocks",
+    "description": "The pieces this service uses on every request: link parsing, signature computation and guest identity minting.",
+    "tab": {
+      "sign": "Sign a URL",
+      "parse": "Parse a link",
+      "identity": "Mint an identity"
+    },
+    "field": {
+      "platform": "Platform",
+      "apiUrl": "API URL",
+      "userAgent": "User-Agent",
+      "msToken": "msToken",
+      "link": "Link",
+      "proxy": "Proxy"
+    },
+    "sign": {
+      "title": "Sign a platform API URL",
+      "description": "Pure arithmetic. Nothing is fetched and no identity is spent.",
+      "urlHint": "The full API URL including its query. The signature is appended to what you send.",
+      "userAgentHint": "Both platforms hash this into the signature. Leave it blank for a Chrome default.",
+      "userAgentPlaceholder": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Chrome/146.0.0.0 Safari/537.36",
+      "msTokenHint": "TikTok only. Sealed into the signature, so it must be the token the request will carry - an invented value is worse than none.",
+      "msTokenPlaceholder": "Leave blank if you have none",
+      "action": "Compute signature",
+      "checklistTitle": "A signature on its own is not enough",
+      "checkUserAgent": "Send the request with the exact User-Agent the signature was computed for - it is echoed back below.",
+      "checkTls": "Use a TLS fingerprint that agrees with that User-Agent. TikTok checks, and plain curl is refused whatever the signature says.",
+      "checkCookies": "Send a cookie jar. A correct signature with no cookies still returns an empty body, because the platform answers a session. Mint one on the next tab.",
+      "signedUrl": "Signed URL",
+      "added": "Parameters added ({algorithm})",
+      "userAgentEcho": "Send the request with this exact string."
+    },
+    "parse": {
+      "title": "Identify a link",
+      "description": "Works out the platform, resource kind and id without fetching anything.",
+      "hint": "A share link, or the whole clipboard text with a link somewhere in it.",
+      "action": "Parse",
+      "result": "Result",
+      "shortLink": "This is a short link. Its target cannot be known without following it, which is a network call - submit it to /parse instead."
+    },
+    "identity": {
+      "title": "Mint a guest identity",
+      "description": "Drives a real browser to the platform and returns the cookies it was issued. Nothing is stored.",
+      "proxyHint": "Mint behind this egress, so the jar matches the address you will use it from. Subject to the security.request_proxy setting.",
+      "action": "Mint",
+      "slow": "Takes tens of seconds: a browser has to launch, load the page and wait for its scripts to finish.",
+      "cookies": "Cookies",
+      "cookiesHint": "Send all of them together. msToken and UIFID_TEMP are the ones no algorithm can produce.",
+      "fingerprint": "Fingerprint",
+      "fingerprintHint": "Send requests with this User-Agent. A jar used with a different one is a weaker identity than no identity."
+    }
   }
 }

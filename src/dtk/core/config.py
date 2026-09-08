@@ -274,7 +274,11 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         SettingSpec(
             "api.public_endpoints",
             [],
-            Scope.RUNTIME,
+            # SENSITIVE, not RUNTIME: every entry removes a credential check.
+            # That is the definition this scope carries, and it is what makes
+            # the console demand an administrator and a typed confirmation
+            # rather than accepting a stray click.
+            Scope.SENSITIVE,
             list,
             "Endpoints served without an API key, each written as "
             "'<METHOD> <path>' exactly as the API document shows it, for "
@@ -290,7 +294,10 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         SettingSpec(
             "security.request_proxy",
             "deny",
-            Scope.RUNTIME,
+            # SENSITIVE for the same reason as security.url_allowlist beside it:
+            # "any" lets an API key holder reach the network this instance runs
+            # in, which is the largest single widening available in this file.
+            Scope.SENSITIVE,
             str,
             "Whether a caller may pass ?proxy=. deny refuses it, public allows "
             "only publicly routable addresses, any allows loopback and private "

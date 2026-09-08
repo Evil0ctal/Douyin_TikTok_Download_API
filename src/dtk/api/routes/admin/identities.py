@@ -14,7 +14,9 @@ the response (doc 06, doc 08).
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
@@ -50,10 +52,61 @@ def _pool(request: Request) -> IdentityPool:
     return IdentityPool(request.app.state.cipher)
 
 
-def _row(identity: Identity) -> dict[str, Any]:
+#: The session value each platform issues to a browser and no algorithm can
+#: produce, with the length below which it is the bootstrap value rather than
+#: the usable one. Measured 2026-09-08 across a 13-identity pool: every TikTok
+#: identity holding a 152-character msToken signed successfully, and every one
+#: holding the 128-character document value was refused - with a correct
+#: signature, because the token is inside the sealed bytes.
+#:
+#: This is the signal that was missing. A spent or bootstrap session looks
+#: exactly like a broken signer from the outside, and the console had no way to
+#: tell an operator which one they were looking at.
+_SESSION_COOKIE: Final[Mapping[str, tuple[str, int]]] = MappingProxyType(
+    {
+        Platform.TIKTOK.value: ("msToken", 144),
+        Platform.DOUYIN.value: ("UIFID_TEMP", 32),
+    }
+)
+
+
+def _parse_cookies(header: str) -> dict[str, str]:
+    """The jar as name/value pairs. Same shape `IdentityPool.load` reads."""
+    cookies: dict[str, str] = {}
+    for chunk in header.split(";"):
+        name, sep, value = chunk.partition("=")
+        if sep:
+            cookies[name.strip()] = value.strip()
+    return cookies
+
+
+def _session_health(platform: str, cookies: Mapping[str, str]) -> dict[str, Any]:
+    """Whether this identity still holds a usable session, never what it is.
+
+    Returns the name of the cookie that decides it and a verdict, and nothing
+    that could reconstitute the value: this endpoint's contract is that it never
+    widens to the cookie column, and a length is already more than it needs to
+    say. `held` is a boolean rather than the length for the same reason.
+    """
+    expected = _SESSION_COOKIE.get(platform)
+    if expected is None:
+        return {"cookie": None, "verdict": "unknown"}
+    name, minimum = expected
+    value = cookies.get(name) or ""
+    if not value:
+        verdict = "missing"
+    elif len(value) < minimum:
+        verdict = "too_short"
+    else:
+        verdict = "ok"
+    return {"cookie": name, "verdict": verdict, "held": bool(value)}
+
+
+def _row(identity: Identity, session: dict[str, Any] | None = None) -> dict[str, Any]:
     """The console view of one identity. Never widens to the cookie column."""
     fingerprint = identity.fingerprint or {}
     return {
+        "session": session or {"cookie": None, "verdict": "unknown"},
         "id": str(identity.id),
         "platform": identity.platform,
         "state": identity.state,
@@ -124,7 +177,20 @@ async def list_identities(
         stmt = stmt.where(Identity.state == state.value)
     stmt = stmt.order_by(Identity.minted_at.desc()).limit(limit)
     rows = (await request.state.db.scalars(stmt)).all()
-    return ok(request, [_row(row) for row in rows])
+    # Decrypting each jar costs, and the list is bounded by `limit`. It buys the
+    # one thing the board could not say before: whether an identity still holds
+    # the session value its platform issued, which is the difference between
+    # "retire this identity" and "the signer is broken".
+    cipher = request.app.state.cipher
+    sessions: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            header = cipher.decrypt(row.cookies_encrypted, aad=str(row.id))
+        except Exception:
+            sessions.append({"cookie": None, "verdict": "unknown"})
+            continue
+        sessions.append(_session_health(row.platform, _parse_cookies(header)))
+    return ok(request, [_row(row, session) for row, session in zip(rows, sessions, strict=True)])
 
 
 @router.post("/mint", summary="Mint guest identities")

@@ -85,6 +85,17 @@ export interface Identity {
   health?: number | null
   fingerprint?: Record<string, unknown> | null
   cookie_expires_at?: string | null
+  /**
+   * Whether the identity still holds the session value its platform issues to
+   * a browser. Never the value itself - only which cookie decides it and a
+   * verdict, because a spent session and a broken signer look identical from
+   * the outside and the board had no way to tell them apart.
+   */
+  session?: {
+    cookie: string | null
+    verdict: 'ok' | 'missing' | 'too_short' | 'unknown'
+    held?: boolean
+  } | null
 }
 
 export interface Proxy {

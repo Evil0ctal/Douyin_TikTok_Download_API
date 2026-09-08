@@ -94,6 +94,29 @@ const RAW_PARAM: ParamDef = {
   where: 'query',
   defaultValue: 'true',
 }
+/**
+ * Every data endpoint accepts one, and every instance refuses it until an
+ * operator sets security.request_proxy. Offering the field anyway is the point:
+ * a refusal here names the setting, which is more use than the field not
+ * existing.
+ */
+const PROXY_PARAM: ParamDef = {
+  name: 'proxy',
+  kind: 'text',
+  where: 'query',
+  placeholder: 'http://user:pass@host:port',
+}
+const SEC_UID_PARAM: ParamDef = {
+  name: 'sec_user_id',
+  kind: 'text',
+  where: 'query',
+  oneOf: 'target',
+  placeholder: 'MS4wLjABAAAA',
+}
+const PROFILE_URL_PARAM: ParamDef = {
+  ...URL_PARAM,
+  placeholder: 'https://www.douyin.com/user/MS4wLjABAAAA',
+}
 
 const CATALOG: readonly EndpointDef[] = [
   {
@@ -112,6 +135,7 @@ const CATALOG: readonly EndpointDef[] = [
       },
       { ...RAW_PARAM, where: 'body' },
       WAIT_PARAM,
+      PROXY_PARAM,
     ],
   },
   {
@@ -131,6 +155,7 @@ const CATALOG: readonly EndpointDef[] = [
       },
       RAW_PARAM,
       WAIT_PARAM,
+      PROXY_PARAM,
     ],
   },
   {
@@ -151,6 +176,7 @@ const CATALOG: readonly EndpointDef[] = [
       CURSOR_PARAM,
       COUNT_PARAM,
       WAIT_PARAM,
+      PROXY_PARAM,
     ],
   },
   {
@@ -165,6 +191,7 @@ const CATALOG: readonly EndpointDef[] = [
       CURSOR_PARAM,
       COUNT_PARAM,
       WAIT_PARAM,
+      PROXY_PARAM,
     ],
   },
   {
@@ -184,6 +211,7 @@ const CATALOG: readonly EndpointDef[] = [
       },
       RAW_PARAM,
       WAIT_PARAM,
+      PROXY_PARAM,
     ],
   },
   {
@@ -204,7 +232,46 @@ const CATALOG: readonly EndpointDef[] = [
       CURSOR_PARAM,
       COUNT_PARAM,
       WAIT_PARAM,
+      PROXY_PARAM,
     ],
+  },
+  {
+    id: 'likes',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/user/likes`,
+    operation: 'author_likes',
+    platformScoped: true,
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, CURSOR_PARAM, COUNT_PARAM, WAIT_PARAM, PROXY_PARAM],
+  },
+  {
+    id: 'mix',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/mix/posts`,
+    operation: 'mix_posts',
+    platformScoped: true,
+    params: [
+      { name: 'mix_id', kind: 'text', where: 'query', required: true },
+      CURSOR_PARAM,
+      COUNT_PARAM,
+      WAIT_PARAM,
+      PROXY_PARAM,
+    ],
+  },
+  {
+    id: 'followers',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/user/followers`,
+    operation: 'author_followers',
+    platformScoped: true,
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, CURSOR_PARAM, COUNT_PARAM, WAIT_PARAM, PROXY_PARAM],
+  },
+  {
+    id: 'following',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/user/following`,
+    operation: 'author_following',
+    platformScoped: true,
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, CURSOR_PARAM, COUNT_PARAM, WAIT_PARAM, PROXY_PARAM],
   },
 ]
 

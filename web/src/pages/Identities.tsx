@@ -125,6 +125,29 @@ const ROLE_COLOR: Record<CookieRole, string> = {
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Whether this identity still holds a usable session.
+ *
+ * `too_short` is the interesting one: the platform issued a value, so nothing
+ * looks missing, but it is the bootstrap token the document sets rather than
+ * the one its SDK replaces it with - and a request carrying it is refused with
+ * a perfectly correct signature.
+ */
+function SessionCell({ identity }: { identity: Identity }) {
+  const { t } = useTranslation()
+  const verdict = identity.session?.verdict ?? 'unknown'
+  const cookie = identity.session?.cookie
+  const title = cookie ? `${cookie}: ${t(`console:identity.session.${verdict}`)}` : undefined
+
+  const tone = verdict === 'ok' ? 'healthy' : verdict === 'unknown' ? 'unknown' : 'unhealthy'
+  return (
+    <span className="u-row" title={title}>
+      <StatusBadge kind="health" value={tone} size="sm" flash={false} />
+      <span className="u-xs">{t(`console:identity.session.${verdict}`)}</span>
+    </span>
+  )
+}
+
 export default function Identities() {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
@@ -230,6 +253,15 @@ export default function Identities() {
       width: '90px',
       sortValue: (row) => row.platform,
       cell: (row) => row.platform,
+    },
+    {
+      // The column that tells "retire this identity" from "the signer is
+      // broken". Both look like an empty response from the outside.
+      id: 'session',
+      header: t('console:identity.column.session'),
+      width: '130px',
+      sortValue: (row) => row.session?.verdict ?? 'unknown',
+      cell: (row) => <SessionCell identity={row} />,
     },
     {
       id: 'id',
