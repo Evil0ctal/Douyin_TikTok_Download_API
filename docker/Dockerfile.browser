@@ -29,7 +29,15 @@ ARG CLOAKBROWSER_COMMIT=""
 # The command that fetches the browser binaries after the Python package is
 # installed. It is an argument because it belongs to the pinned revision, not to
 # this file; verify it against the revision you pin (see docker/README.md).
-ARG CLOAKBROWSER_INSTALL_CMD="python -m cloakbrowser install chromium"
+# Verified against the real CLI at v0.5.10: `install` takes no arguments, and
+# `install chromium` is rejected outright. The previous value was written from
+# the shape Playwright uses and had never been run.
+ARG CLOAKBROWSER_INSTALL_CMD="python -m cloakbrowser install"
+
+# Where the browser is installed. CloakBrowser reads no environment variable of
+# its own - checked by grepping the package - so the only lever is HOME, which
+# is why the install and the runtime have to agree through the shim below.
+ARG CLOAKBROWSER_HOME=/opt/cloakbrowser
 
 ARG DTK_UID=10001
 ARG DTK_GID=10001
@@ -98,26 +106,30 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.
 # went wrong: fetching the package, or fetching the browser it drives.
 RUN if [ -n "${CLOAKBROWSER_COMMIT}" ]; then \
       pip install --no-cache-dir "cloakbrowser @ git+${CLOAKBROWSER_REPO}@${CLOAKBROWSER_COMMIT}" \
-      && sh -c "${CLOAKBROWSER_INSTALL_CMD}" \
-      && test -d /opt/ms-playwright \
-      && test -n "$(ls -A /opt/ms-playwright)"; \
+      && mkdir -p "${CLOAKBROWSER_HOME}" \
+      && HOME="${CLOAKBROWSER_HOME}" sh -c "${CLOAKBROWSER_INSTALL_CMD}" \
+      && HOME="${CLOAKBROWSER_HOME}" python -m cloakbrowser info \
+         | grep -qE "^Installed: *True"; \
     else \
       echo "browser-rpc: built without CLOAKBROWSER_COMMIT; only the fake backend is available" >&2; \
     fi
 
 # The install ran as root; the service runs as uid 10001 on a read-only root
 # filesystem, so the binaries have to be world-readable and world-traversable.
-# The `test -d` above is what turns "the pinned revision installs somewhere
-# else" into a build failure instead of a container that mints nothing.
-RUN if [ -d /opt/ms-playwright ]; then chmod -R a+rX /opt/ms-playwright; fi
+# Asking the tool whether it is installed, rather than testing a path, is what
+# turns "the pinned revision installs somewhere else" into a build failure
+# instead of a container that starts and mints nothing.
+RUN if [ -d "${CLOAKBROWSER_HOME}" ]; then chmod -R a+rX "${CLOAKBROWSER_HOME}"; fi
 
 # Back to /tmp for the runtime: that tmpfs is the only writable path the
 # container has. PLAYWRIGHT_BROWSERS_PATH deliberately stays where the browser
 # actually is.
 ENV HOME=/tmp \
-    XDG_CACHE_HOME=/tmp/.cache
+    XDG_CACHE_HOME=/tmp/.cache \
+    CLOAKBROWSER_HOME=${CLOAKBROWSER_HOME}
 
 COPY docker/browser_rpc /srv/browser_rpc
+COPY --chmod=0555 docker/browser-entrypoint.sh /usr/local/bin/browser-entrypoint
 
 RUN groupadd --system --gid "${DTK_GID}" dtk \
  && useradd --system --uid "${DTK_UID}" --gid "${DTK_GID}" \
@@ -154,7 +166,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 r = urllib.request.urlopen('http://127.0.0.1:9000/rpc/health', timeout=5); \
 sys.exit(0 if r.status == 200 and json.load(r).get('status') == 'ok' else 1)"
 
-ENTRYPOINT ["python", "-m", "browser_rpc"]
+ENTRYPOINT ["/usr/local/bin/browser-entrypoint"]
 
 LABEL org.opencontainers.image.title="dtk browser-rpc" \
       org.opencontainers.image.description="Headless browser RPC for dtk: identity minting and signature fallback" \

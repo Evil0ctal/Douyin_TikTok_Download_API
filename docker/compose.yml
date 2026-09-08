@@ -310,7 +310,13 @@ services:
     tmpfs:
       # Browser profiles live in RAM: a mint profile is single-use, and a tmpfs
       # makes that structural rather than a promise about cleanup code.
-      - /tmp:size=256m,mode=1777
+      # Chromium's scratch, and the only writable path it has. 256m was not
+      # enough for a resident browser: two warm contexts plus a mint in flight
+      # hold roughly 240m of deleted-but-open files, and the next navigation
+      # died with "No space left on device" - which surfaces to the caller as
+      # "the page crashed" and reads exactly like a platform block. It is RAM,
+      # so this is a memory budget: about 1G for the browser container.
+      - /tmp:size=1g,mode=1777
       - /profiles:size=512m,mode=0700,uid=10001,gid=10001
     # Chromium needs shared memory for its renderers; the 64MB default makes
     # pages crash under load in ways that look like platform blocks.

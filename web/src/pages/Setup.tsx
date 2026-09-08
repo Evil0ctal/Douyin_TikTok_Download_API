@@ -25,7 +25,14 @@ import { apiPost, apiRequest, isApiError, waitForTask } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
 import { PLATFORMS, type Platform } from '@/lib/types'
-import { SESSION_KEY, SETUP_STATUS_KEY, useApiMutation, useFormatters, useSetupStatus } from '@/hooks'
+import {
+  SESSION_KEY,
+  SETUP_STATUS_KEY,
+  useApiMutation,
+  useApiQuery,
+  useFormatters,
+  useSetupStatus,
+} from '@/hooks'
 
 import { ProxyPreviewList, parseProxyLines } from './Proxies'
 
@@ -522,9 +529,27 @@ function ProxyStep({ onNext }: { onNext: () => void }) {
 /* Step 3: first mint                                                          */
 /* -------------------------------------------------------------------------- */
 
+/** The half of GET /system/status this step needs. */
+interface BrowserRpcStatus {
+  components?: { browser_rpc?: { configured?: boolean } }
+}
+
 function MintStep({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation(['setup', 'console', 'common'])
   const toast = useToast()
+
+  // Minting drives a real browser, and the browser is an optional container -
+  // docker/compose.yml keeps it behind the `browser` profile because a
+  // deployment that imports its cookies by hand does not need the heaviest
+  // image in the stack. That is a supported way to run this, but the step used
+  // to offer Mint anyway, so the documented default configuration answered the
+  // first thing a new operator does with NOT_CONFIGURED.
+  const status = useApiQuery<BrowserRpcStatus>({
+    key: ['setup', 'browser-rpc'],
+    path: paths.system.status,
+  })
+  const configured = status.data?.components?.browser_rpc?.configured
+  const canMint = configured !== false
 
   const [platform, setPlatform] = useState<Platform>('douyin')
   const [count, setCount] = useState(1)
@@ -555,6 +580,25 @@ function MintStep({ onNext }: { onNext: () => void }) {
   )
 
   const busy = mint.isPending || waiting
+
+  if (!canMint) {
+    return (
+      <Card title={t('setup:step.mint.title')} description={t('setup:step.mint.unavailable')}>
+        <div className="u-stack">
+          <CodeBlock
+            language="text"
+            code="docker compose -p dtk -f docker/compose.yml --profile browser up -d"
+          />
+          <p className="u-xs u-muted">{t('setup:mint.unavailableHint')}</p>
+          <div className="u-row">
+            <Button variant="primary" onClick={onNext}>
+              {t('setup:mint.continueWithoutMinting')}
+            </Button>
+          </div>
+        </div>
+      </Card>
+    )
+  }
 
   return (
     <Card title={t('setup:step.mint.title')} description={t('setup:step.mint.description')}>

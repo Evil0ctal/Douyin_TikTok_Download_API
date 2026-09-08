@@ -59,18 +59,29 @@ logger = logging.getLogger(__name__)
 
 BACKEND_NAME = "cloak"
 
-#: Import candidates, in order. CloakBrowser advertises itself as a Playwright
-#: drop-in, so the async entry point is expected to be `async_playwright`; the
-#: fallback covers a build that only re-exports Playwright's own module path.
-DRIVER_MODULES: tuple[str, ...] = ("cloakbrowser", "cloakbrowser.async_api")
+#: Import candidates, in order: the package, then the submodule that holds the
+#: launch coroutines, in case a future build stops re-exporting them.
+DRIVER_MODULES: tuple[str, ...] = ("cloakbrowser", "cloakbrowser.browser")
+
+#: The coroutine this backend drives. Checked at startup so an image without the
+#: browser says so through /rpc/health instead of failing the first mint.
+#:
+#: Not `async_playwright`: that is Playwright's entry point, and this adapter was
+#: written against its shape before anyone ran it against cloakbrowser, which
+#: exposes module-level `launch_*_async` coroutines instead.
+LAUNCH_ENTRY_POINT: str = "launch_persistent_context_async"
 
 #: Chromium flags. Kept short on purpose: every flag that changes behaviour is
 #: also a flag that changes the fingerprint, and the point of this backend is a
 #: browser that looks ordinary.
 CHROMIUM_ARGS: tuple[str, ...] = (
-    # The default 64MB /dev/shm makes renderers crash under load in ways that
-    # look exactly like a platform block. The container also raises shm_size.
-    "--disable-dev-shm-usage",
+    # --disable-dev-shm-usage is deliberately absent. It exists to work around a
+    # 64MB /dev/shm by moving shared memory onto the filesystem, and this
+    # container raises shm_size to 1GB instead - so the flag defeated the fix,
+    # pushing every renderer's shared memory into the 256MB /tmp tmpfs. Chromium
+    # then died mid-navigation with "No space left on device", which reaches the
+    # caller as "browser has been closed" and reads exactly like a platform
+    # block. Keep the two decisions together: raise /dev/shm, and use it.
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-background-networking",
@@ -312,8 +323,6 @@ class CloakBackend:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._driver: Any = None
-        self._playwright: Any = None
-        self._chromium: Any = None
         self._version: str | None = None
         self._chromium_major: int | None = None
 
@@ -334,9 +343,9 @@ class CloakBackend:
             except ImportError as exc:
                 last_error = exc
                 continue
-            if hasattr(module, "async_playwright"):
+            if hasattr(module, LAUNCH_ENTRY_POINT):
                 return module
-            last_error = ImportError(f"{name} has no async_playwright entry point")
+            last_error = ImportError(f"{name} has no {LAUNCH_ENTRY_POINT} entry point")
         raise BackendUnavailable(
             "the CloakBrowser backend is not installed in this image. Rebuild with "
             "a pinned revision (CLOAKBROWSER_COMMIT=<sha> docker compose --profile "
@@ -346,27 +355,22 @@ class CloakBackend:
         )
 
     async def start(self) -> None:
+        """Resolve the driver. There is no session to open.
+
+        CloakBrowser exposes module-level coroutines rather than the
+        start/stop object Playwright uses, so a context is launched directly
+        and there is nothing to hold open between mints. Confirming the entry
+        point here rather than at the first mint keeps "no browser in this
+        image" a startup fact that /rpc/health reports.
+        """
         self._driver = self._load_driver()
-        try:
-            self._playwright = await self._driver.async_playwright().start()
-            self._chromium = self._playwright.chromium
-            self._version = getattr(self._driver, "__version__", None)
-        except Exception as exc:
-            raise BackendUnavailable(f"could not start the browser driver: {exc}") from exc
+        self._version = getattr(self._driver, "__version__", None)
         logger.info(
             "backend.cloak.started version=%s pin=%s", self._version, self._settings.backend_pin
         )
 
     async def close(self) -> None:
-        if self._playwright is None:
-            return
-        try:
-            await self._playwright.stop()
-        except Exception as exc:
-            logger.warning("backend.cloak.stop_failed error=%s", exc)
-        finally:
-            self._playwright = None
-            self._chromium = None
+        self._driver = None
 
     def info(self) -> BackendInfo:
         return BackendInfo(
@@ -391,23 +395,28 @@ class CloakBackend:
         that starts in one zone and changes to another has already reported the
         first one.
         """
-        if self._chromium is None:
+        if self._driver is None:
             raise BackendUnavailable("browser driver is not started")
 
+        # Parameter names verified against cloakbrowser 0.5.10, not assumed:
+        # it takes `timezone`, not Playwright's `timezone_id`, and has no
+        # extra_http_headers - Accept-Language is set on the context below,
+        # where it also survives a navigation.
         options: dict[str, Any] = {
             "user_data_dir": profile_dir,
             "headless": self._settings.headless,
             "locale": geo.locale,
-            "timezone_id": geo.timezone,
+            "timezone": geo.timezone,
             "args": list(CHROMIUM_ARGS),
-            "extra_http_headers": {"Accept-Language": geo.languages},
         }
         settings = proxy_settings(proxy)
         if settings:
             options["proxy"] = settings
 
         try:
-            context = await self._chromium.launch_persistent_context(**options)
+            context = await self._driver.launch_persistent_context_async(**options)
+            with contextlib.suppress(Exception):
+                await context.set_extra_http_headers({"Accept-Language": geo.languages})
         except Exception as exc:
             raise BackendFailure(f"could not open a browser context: {exc}") from exc
 

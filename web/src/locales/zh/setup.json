@@ -18,7 +18,8 @@
     },
     "mint": {
       "title": "铸造首个身份",
-      "description": "身份携带发起上游请求所需的指纹与 cookie。"
+      "description": "身份携带发起上游请求所需的指纹与 cookie。",
+      "unavailable": "本实例没有启动浏览器容器，无法自动铸造身份。这是受支持的运行方式——改为手动导入 Cookie 即可，或者启动浏览器容器后再回到这一步。"
     },
     "smoke": {
       "title": "冒烟测试",
@@ -45,7 +46,9 @@
     "submit": "开始铸造",
     "running": "正在铸造，需要几秒钟。",
     "success": "身份已就绪。",
-    "skip": "暂时跳过"
+    "skip": "暂时跳过",
+    "unavailableHint": "在其他容器旁边执行上面这条命令，在 .env 里设置 DTK_BROWSER_RPC_URL=http://browser-rpc:9000 然后重启。不启用它的话，可以在「身份池」页面粘贴你已登录浏览器里的 Cookie 来添加身份。",
+    "continueWithoutMinting": "跳过铸造，继续"
   },
   "smoke": {
     "url": "测试链接",

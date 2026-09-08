@@ -18,7 +18,8 @@
     },
     "mint": {
       "title": "Mint the first identity",
-      "description": "Identities carry the fingerprint and cookies used for upstream requests."
+      "description": "Identities carry the fingerprint and cookies used for upstream requests.",
+      "unavailable": "This instance has no browser container, so it cannot mint identities. That is a supported way to run it - import a cookie jar instead - or start the browser and come back."
     },
     "smoke": {
       "title": "Smoke test",
@@ -45,7 +46,9 @@
     "submit": "Mint identity",
     "running": "Minting. This takes a few seconds.",
     "success": "Identity ready.",
-    "skip": "Skip for now"
+    "skip": "Skip for now",
+    "unavailableHint": "Run that beside your other containers, set DTK_BROWSER_RPC_URL=http://browser-rpc:9000 in .env, and restart. Without it, add identities from the Identities page by pasting the cookies from a browser you are already signed in to.",
+    "continueWithoutMinting": "Continue without minting"
   },
   "smoke": {
     "url": "Test link",
