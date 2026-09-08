@@ -12,6 +12,7 @@ Layout, in the order a caller meets it:
 ``ios``                 ``/api/v1/ios/shortcut``
 ``tasks``               ``/api/v1/tasks/{id}`` and its event stream
 ``content``             ``/api/v1/parse`` and the per-platform reads
+``tools``               ``/api/v1/tools/*`` - signing, link parsing
 ``admin``               ``/api/v1/admin/*``
 ======================  ===================================================
 
@@ -25,7 +26,17 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from dtk.api.routes import admin, auth, content, ios, openapi, setup, system, tasks
+from dtk.api.routes import (
+    admin,
+    auth,
+    content,
+    ios,
+    openapi,
+    setup,
+    system,
+    tasks,
+    tools,
+)
 from dtk.core.logging import get_logger
 from dtk.mcp import mount as mount_mcp
 
@@ -39,6 +50,7 @@ ROUTERS = (
     ios.router,
     tasks.router,
     content.router,
+    tools.router,
     admin.router,
 )
 

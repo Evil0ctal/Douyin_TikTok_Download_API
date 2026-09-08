@@ -134,7 +134,8 @@
       "tasks": "Asynchronous task submission, polling and events.",
       "identity": "Identity pool inspection and maintenance.",
       "system": "Health, version and diagnostics.",
-      "admin": "Instance administration; requires the admin scope."
+      "admin": "Instance administration; requires the admin scope.",
+      "tools": "Building blocks: link parsing, signing and guest identity minting."
     },
     "op": {
       "parse": {
@@ -192,6 +193,18 @@
       "author_following": {
         "summary": "Accounts an author follows",
         "description": "One page of the accounts an author follows. TikTok only, and accounts hide this side of the graph far more often than their followers, so an empty page is a common and correct answer."
+      },
+      "tools_sign": {
+        "summary": "Sign a platform API URL",
+        "description": "Compute the signature parameters a platform API URL needs. Pure arithmetic - nothing is fetched and no identity is spent. The User-Agent is hashed into the signature, so send the request with the same one the response echoes back; TikTok also checks that the TLS fingerprint agrees with it."
+      },
+      "tools_parse_url": {
+        "summary": "Identify a share link",
+        "description": "Work out what a link points at without fetching anything: platform, resource kind and the id that names it. This is the id extraction v4 published as a dozen separate routes. Short links cannot be resolved without following them and come back needing expansion."
+      },
+      "tools_identity": {
+        "summary": "Mint a guest identity and return it",
+        "description": "Drive a real browser to the platform and hand back the cookies it was issued - the half of the work no algorithm can produce. Takes tens of seconds, requires the identity:manage scope, and stores nothing: use the admin mint endpoint instead to add one to this instance's own pool."
       }
     },
     "param": {
