@@ -34,6 +34,30 @@ x-app-env: &app-env
     - path: ../.env
       required: false
 
+#: Resource ceilings for the two Python app services.
+#:
+#: These existed nowhere before, on any service. Without them a saturated disk
+#: queue or a runaway job slows every Postgres write, which slows the api, which
+#: fails /readyz - and api is `restart: unless-stopped`, so it gets restarted in
+#: a loop while the actual cause carries on. "Overload cannot destabilise the
+#: main API" was an assumption until this block existed; the kernel is what
+#: makes it true, not the fact that the work happens in another container.
+#:
+#: Sized from measurement on 2026-09-08 rather than guessed: api was using
+#: 104 MiB and worker 71 MiB at rest, so 512M is roughly five times headroom -
+#: enough that a large page or a burst of concurrent tasks has room, low enough
+#: that a leak is stopped rather than swallowed by an 8 GiB host.
+#:
+#: pids_limit matters as much as memory here: a fork bomb, or a subprocess leak,
+#: exhausts the host's process table and takes down containers that are behaving
+#: perfectly. 256 is far above what an asyncio service needs and far below the
+#: default of unlimited.
+x-app-limits: &app-limits
+  mem_limit: 512m
+  memswap_limit: 512m
+  cpus: 2.0
+  pids_limit: 256
+
 x-app-hardening: &app-hardening
   read_only: true
   tmpfs:
@@ -59,7 +83,7 @@ x-app-backups: &app-backups
     DTK_BACKUP_DIR: /var/lib/dtk/backups
 
 x-app: &app
-  <<: [*app-image, *app-env, *app-hardening, *app-backups]
+  <<: [*app-image, *app-env, *app-hardening, *app-backups, *app-limits]
 
 services:
   # ----------------------------------------------------------------------
@@ -67,6 +91,14 @@ services:
   # reaching the internet, and nothing outside the compose project reaches them.
   # ----------------------------------------------------------------------
   postgres:
+    # Measured at 112 MiB at rest, but Postgres' working set is shared_buffers
+    # plus per-connection memory plus the OS page cache it relies on, so this is
+    # the one service where a tight limit degrades correctness rather than
+    # protecting it. 2g leaves room for the pool and for TimescaleDB's chunk
+    # metadata; it exists to stop a runaway query taking the host, not to be a
+    # budget Postgres has to live inside.
+    mem_limit: 2g
+    pids_limit: 256
     image: timescale/timescaledb-ha:pg17
     env_file:
       - path: ../.env
@@ -101,6 +133,11 @@ services:
         max-file: "3"
 
   redis:
+    # 8 MiB at rest. The queue, token buckets and the response cache all live
+    # here, and Redis dies rather than swaps when it hits a ceiling, so the
+    # limit is generous relative to the measurement.
+    mem_limit: 512m
+    pids_limit: 128
     image: redis:8-alpine
     # The image's entrypoint only drops privileges when its first argument is
     # literally `redis-server`, and the password has to come from the container's
@@ -263,6 +300,24 @@ services:
   # degraded mode rather than an error.
   # ----------------------------------------------------------------------
   browser-rpc:
+    # The heavy one, and the reason this block exists. Measured on 2026-09-08
+    # while warm: 2.57 GiB resident and 629% CPU - it legitimately uses six
+    # cores' worth of Chromium. Left unbounded it is the service that starves
+    # the api and postgres it shares a host with, which is the exact failure
+    # "isolate the heavy work in its own container" is supposed to prevent and
+    # does not, on its own.
+    #
+    # 4g is roughly 1.5x the warm measurement, so a second context has room and
+    # a leak still hits a wall. The CPU cap is deliberately below the six cores
+    # observed: signing and minting are off the request path (doc 01), so this
+    # service is exactly the one that should yield when the machine is busy.
+    #
+    # pids_limit is high because Chromium is many processes per context, not
+    # because anything here is careless: a renderer, a GPU process and several
+    # utility processes per tab, times the warm contexts.
+    mem_limit: 4g
+    cpus: 4.0
+    pids_limit: 1024
     profiles:
       - browser
     image: dtk-browser-rpc:${DTK_IMAGE_TAG:-dev}

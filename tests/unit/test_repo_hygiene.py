@@ -510,3 +510,44 @@ def test_every_endpoint_that_renders_text_is_known_to_the_console_cache() -> Non
         f"{gone} no longer localize anything, so the console is expiring their "
         "responses on every language switch for nothing"
     )
+
+
+# --------------------------------------------------------------------------
+# Container resource limits
+#
+# "Overload cannot destabilise the main API" was an assumption until these
+# existed: without cgroup limits a saturated container slows every Postgres
+# write, which slows the api, which fails /readyz - and api is
+# `restart: unless-stopped`, so it restarts in a loop while the cause carries on.
+# --------------------------------------------------------------------------
+
+
+def _compose_source() -> str:
+    return (REPO / "docker" / "compose.yml").read_text(encoding="utf-8")
+
+
+def test_every_service_has_a_memory_and_process_ceiling() -> None:
+    """A leak should hit a wall, not consume an 8 GiB host."""
+    import yaml
+
+    compose = yaml.safe_load(_compose_source())
+    anchors = _compose_source()
+    for name, service in (compose.get("services") or {}).items():
+        # The app services inherit theirs from the x-app-limits anchor, which
+        # yaml.safe_load has already merged.
+        assert service.get("mem_limit"), f"{name} has no mem_limit"
+        assert service.get("pids_limit"), f"{name} has no pids_limit"
+    assert "x-app-limits" in anchors
+
+
+def test_the_heaviest_service_is_bounded_below_the_host() -> None:
+    """browser-rpc measured 2.57 GiB and 629% CPU; unbounded it starves the rest."""
+    import yaml
+
+    compose = yaml.safe_load(_compose_source())
+    browser = compose["services"]["browser-rpc"]
+
+    assert browser["mem_limit"] == "4g"
+    # Below the six cores observed: minting and signing are off the request
+    # path, so this is the service that should yield when the machine is busy.
+    assert float(browser["cpus"]) <= 4.0
