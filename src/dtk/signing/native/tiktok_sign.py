@@ -153,6 +153,13 @@ VM_STATE_HASH: Final = 0xC46CE353
 #: per-identity value if TikTok ever starts reading it.
 CANVAS_HASH: Final = "-1"
 
+#: Three more environment fields the Node harness could not produce, so the port
+#: pinned "0". Being placeholders is measurable: a real browser reports a 32-bit
+#: hash at 0x28, a component version string at 0x32 and an md5 at 0x33.
+WEBGL_HASH: Final = "0"
+COMPONENT_VERSION: Final = "0"
+DEVICE_HASH: Final = "0"
+
 #: ``location.host + location.pathname`` of the page the SDK believes it is
 #: running in. Confirmed by pointing the harness at a video URL, which made this
 #: field follow. The home page is the honest answer for a client that has no page.
@@ -178,10 +185,24 @@ def encode_query(pairs: Iterable[tuple[str, str]]) -> str:
     """Serialize the business parameters into the exact bytes that get signed.
 
     ``X-Gnarly`` seals an md5 over this string, so it has to be the string that
-    goes on the wire - percent-encoded here rather than left to the HTTP client,
-    because a value like ``5.0 (Windows)`` contains a space and a client that
-    escapes it on the way out would seal bytes the platform never sees. ``*-._``
-    are the characters JavaScript's ``URLSearchParams`` leaves alone.
+    goes on the wire. ``*-._`` are the characters JavaScript's
+    ``URLSearchParams`` leaves alone.
+
+    KNOWN DIVERGENCE, measured 2026-09-08 and not yet resolved: the browser path
+    signs the RAW join instead - :func:`dtk.signing.base.encode_query` returns
+    ``key=value`` unescaped for X-Bogus, so browser-signed requests carry
+    ``browser_version=5.0 (Windows)`` where this function produces
+    ``5.0%20%28Windows%29``. X-Dynosaur field 0x2E is ``hash_state`` of the
+    query, so the two paths seal different bytes for the same request, and
+    ``/api/user/detail/`` rejects ours while ``/api/item/detail/`` and
+    ``/api/comment/list/`` accept it - TikTok checks that binding on some paths
+    and not others.
+
+    Switching this to the raw join was tried and made things WORSE: all three
+    endpoints then failed, so the encoding is not simply "match the browser".
+    Something else in the payload is computed over the escaped form. Left as it
+    is because two endpoints of three work this way and none work the other; the
+    open question is which of the internal bindings uses which encoding.
     """
     return "&".join(f"{quote(k, safe='*-._')}={quote(v, safe='*-._')}" for k, v in pairs)
 
@@ -372,7 +393,7 @@ def dynosaur_payload(
         0x25: _encode_bytes(str(sequence), _ENCODER_A),
         0x26: _encode_bytes(str(ENV_CODE), _ENCODER_A),
         0x27: _encode_bytes(str(timestamp), _ENCODER_A),
-        0x28: _encode_bytes("0", _ENCODER_A),
+        0x28: _encode_bytes(WEBGL_HASH, _ENCODER_A),
         0x29: _encode_bytes("0", _ENCODER_A),
         0x2A: _encode_bytes(SDK_VERSION, _ENCODER_A),
         0x2B: _be(hash_state(""), 4),
@@ -382,8 +403,8 @@ def dynosaur_payload(
         0x2F: _encode_bytes(str(sequence), _ENCODER_A),
         0x30: _be(hash_state(user_agent), 4),
         0x31: _encode_bytes(SCM_VERSION, _ENCODER_A),
-        0x32: _encode_bytes("0", _ENCODER_A),
-        0x33: _encode_bytes("0", _ENCODER_A),
+        0x32: _encode_bytes(COMPONENT_VERSION, _ENCODER_A),
+        0x33: _encode_bytes(DEVICE_HASH, _ENCODER_A),
         0x34: _encode_bytes(str(nonce), _ENCODER_A),
         0x35: _encode_bytes(PAGE, _ENCODER_A),
         0x36: _encode_bytes(str(UB_CODE), _ENCODER_A),
