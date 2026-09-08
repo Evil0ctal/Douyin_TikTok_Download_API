@@ -42,8 +42,15 @@ from dtk.core.logging import get_logger
 logger = get_logger(__name__)
 
 #: Alphabet V4 drew fake msToken characters from, kept as is so a fake token is
-#: indistinguishable in shape from the ones V4 produced.
-MS_TOKEN_ALPHABET: Final = "ABCDEFGHIGKLMNOPQRSTUVWXYZabcdefghigklmnopqrstuvwxyz0123456789="
+#: indistinguishable in shape from the ones V4 produced. Copied character for
+#: character from `gen_random_str` in V4's crawlers/utils/utils.py.
+#:
+#: It was mistranscribed once, and the mistake is the kind this alphabet exists
+#: to avoid: `J` and `j` had become `G` and `g`, and the trailing `+-` a single
+#: `=`. A token that can never contain the letter j, and carries an `=` in the
+#: middle rather than only in the padding, is not shaped like the real thing -
+#: which is the one property a fake msToken has to have.
+MS_TOKEN_ALPHABET: Final = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-"
 
 #: Douyin's fake msToken length before the ``==`` suffix.
 DOUYIN_MS_TOKEN_LENGTH: Final = 126

@@ -524,3 +524,92 @@ class TestBindingKey:
         assert "verify_secret" not in key
         assert "s3cr3t" not in key
         assert "p@h" not in key
+
+
+class TestOpeningFailuresAreRetried:
+    """A page that dies while warming up must not become the caller's 502.
+
+    Chromium renderers die under memory pressure - on the machine this was found
+    on, swap was exhausted and "Target crashed" arrived mid-warm-up. Acquiring
+    the slot used to sit outside the retry, so one unlucky launch failed the
+    whole signing call even though a second launch would have worked.
+    """
+
+    async def test_a_crash_while_warming_up_is_retried(self, settings: Settings) -> None:
+        class CrashesOnceBackend(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                if self.contexts_opened == 0:
+                    self.contexts_opened += 1
+                    raise BackendFailure(
+                        "could not warm a signing page for douyin: Page.evaluate: Target crashed"
+                    )
+                return await super().open_signing_context(platform, geo, proxy, cookies)
+
+        backend = CrashesOnceBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            signed = await service.sign(
+                Platform.DOUYIN,
+                DOUYIN_URL,
+                "a=1",
+                {"a": "1"},
+                cookies={"s_v_web_id": "verify_a"},
+                identity_id="a",
+            )
+        finally:
+            await service.close()
+        assert signed["a_bogus"]
+        assert backend.contexts_opened == 2
+
+    async def test_a_pool_that_never_opens_still_reports_the_reason(
+        self, settings: Settings
+    ) -> None:
+        """Retrying must not turn a real outage into a generic failure."""
+
+        class DeadBackend(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                raise BackendFailure("the renderer keeps dying")
+
+        service = BrowserRpcService(settings, DeadBackend())
+        await service.start()
+        try:
+            with pytest.raises(BackendFailure, match="renderer keeps dying"):
+                await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
+        finally:
+            await service.close()
+
+    async def test_a_failed_open_does_not_leak_the_slot(self, settings: Settings) -> None:
+        """The live count is a browser budget; a failed launch must give it back."""
+
+        class DeadBackend(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                raise BackendFailure("the renderer keeps dying")
+
+        service = BrowserRpcService(settings, DeadBackend())
+        await service.start()
+        try:
+            for _ in range(3):
+                with pytest.raises(BackendFailure):
+                    await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
+            assert service._pools[Platform.DOUYIN].live == 0
+        finally:
+            await service.close()

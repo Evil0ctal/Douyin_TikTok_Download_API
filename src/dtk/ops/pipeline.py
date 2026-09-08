@@ -62,6 +62,23 @@ from dtk.worker.registry import Capability, ResolvedCall
 #: Timeout for one upstream call.
 REQUEST_TIMEOUT_SECONDS: Final = 25.0
 
+#: Ceiling for one browser-rpc signing call, for the CLI and console paths that
+#: build their own registry here.
+#:
+#: It has to cover a COLD one, and the arithmetic is worth writing down because
+#: the default of 10s silently no longer did. A signature is taken in a page
+#: loaded with the asking identity's own cookies, so the first call for an
+#: identity opens a browser, navigates, and waits for the platform's signing
+#: bundle. browser-rpc caps opening plus readiness at its own
+#: context_open_timeout_seconds (45s) and the signature itself at
+#: sign_timeout_seconds (8s), so one attempt cannot exceed ~53s. In practice a
+#: cold bind measured ~4s and a warm one ~10ms.
+#:
+#: Below that ceiling the caller gives up on work the service is still doing,
+#: which is how `dtk identity test` began failing with a bare ReadTimeout on
+#: any identity whose page was not already resident.
+SIGNING_TIMEOUT_SECONDS: Final = 60.0
+
 
 @dataclass(frozen=True, slots=True)
 class Target:
@@ -261,7 +278,10 @@ def _as_int(value: str) -> int | None:
 
 
 def build_registry(
-    browser_rpc_url: str, *, client: httpx.AsyncClient | None = None
+    browser_rpc_url: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    timeout: float = SIGNING_TIMEOUT_SECONDS,
 ) -> SignerRegistry:
     """Native signers, with browser-rpc behind them when it is configured.
 
@@ -277,7 +297,7 @@ def build_registry(
     if browser_rpc_url:
         if client is None:
             raise ValueError("browser-rpc is configured but no HTTP client was supplied")
-        rpc = RpcSigner(client, browser_rpc_url)
+        rpc = RpcSigner(client, browser_rpc_url, timeout=timeout)
     return SignerRegistry(native_signers(), rpc)
 
 
@@ -294,8 +314,11 @@ async def signing_stack(browser_rpc_url: str) -> AsyncIterator[tuple[Any, Signer
     from dtk.transport import WreqTransport
 
     transport = WreqTransport()
+    # This client carries signing calls and nothing else, so its ceiling is the
+    # signing one - not the upstream-request one, which is shorter and would cap
+    # every cold bind.
     client = (
-        httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS, follow_redirects=True)
+        httpx.AsyncClient(timeout=SIGNING_TIMEOUT_SECONDS, follow_redirects=True)
         if browser_rpc_url
         else None
     )

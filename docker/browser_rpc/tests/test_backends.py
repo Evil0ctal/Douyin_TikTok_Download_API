@@ -296,6 +296,35 @@ class TestSigningReadiness:
         assert page.probes == 4
         await context.close()
 
+    async def test_the_probe_backs_off_instead_of_hammering_the_page(self, tmp_path: Path) -> None:
+        """Each probe runs a fetch through the SDK; a flat interval killed pages.
+
+        At a flat 0.25s a page that never became ready was probed about a
+        hundred times inside its budget, and Chromium died with "Target
+        crashed" - the readiness check destroying the page it was waiting for.
+        The bound below is what makes that impossible to reintroduce.
+        """
+
+        class DeadSdkPage(StubPage):
+            def __init__(self) -> None:
+                super().__init__()
+                self.probes = 0
+
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                if "__dtkSign" not in script:
+                    return {"userAgent": CHROME_UA, "platform": "Win32"}
+                self.probes += 1
+                return {"error": "the SDK did not dispatch a request"}
+
+        page = DeadSdkPage()
+        context = await self._backend(tmp_path, page).open_signing_context(
+            Platform.DOUYIN, FALLBACK_PROFILE
+        )
+        await context.close()
+        # 2s of budget: flat 0.25s polling would be 8, backing off is far fewer.
+        assert page.probes <= 6, f"{page.probes} probes in a 2s budget is hammering"
+        assert page.probes >= 2, "it gave up without really waiting"
+
     async def test_a_page_that_never_signs_is_still_returned(self, tmp_path: Path) -> None:
         """The budget must end in a legible signing error, not a hung caller.
 

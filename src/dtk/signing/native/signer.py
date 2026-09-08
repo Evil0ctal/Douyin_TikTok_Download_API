@@ -1,8 +1,24 @@
-"""The pure Python signer: the default path for every request.
+"""The pure Python signer: cheap, incomplete, and no longer the default.
 
 This is V4's ``BogusManager`` rewritten against the ``Signer`` protocol. It costs
-microseconds and has no external dependency, which is why docs/design/04 makes it
-the default and browser-rpc only the fallback.
+microseconds and has no external dependency. It is NOT the default - ``signing.mode``
+ships as ``rpc`` - and the docstring said the opposite here for a while, which is
+worth correcting rather than deleting: the reason is measured, not architectural.
+
+Measured against live Douyin on 2026-09-08, one identity, twenty requests:
+
+* This signer's ``a_bogus`` is ACCEPTED. Eight of twenty returned the full
+  payload, so the ported algorithm is not stale in the sense of computing a
+  wrong signature - a wrong one would have returned none.
+* The other twelve were refused with ``403 Uifid Not Found``. Douyin demands
+  ``uifid`` on a random majority of requests, and this signer cannot produce it.
+  Supplying the identity's ``UIFID_TEMP`` cookie satisfies that check and the
+  refusal simply moves to ``Signature Not Found`` - ``x-secsdk-web-signature``,
+  which has no port either. The browser path scored twenty of twenty.
+
+So the gap is not the algorithm, it is the parameters around it: of the six
+Douyin sends, this signer produces one. Reviving it means porting
+``x-secsdk-web-signature`` and deriving ``uifid``, not rewriting A-Bogus.
 
 Two things it does that V4 did not:
 

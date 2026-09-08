@@ -189,7 +189,19 @@ CAPTURE_INIT_SCRIPT = """
 #: TikTok satisfies it within a second, long before the signing code is there.
 #: The only sound question is the one the caller will ask, so readiness is
 #: probed by taking a throwaway signature - see `_await_sdk`.
+#:
+#: The probe BACKS OFF, and that is not a nicety. Each one dispatches a fetch
+#: through the SDK's own patched stack and aborts it; at a flat 0.25s a page that
+#: never becomes ready was probed ~100 times in its 25s budget and Chromium then
+#: died with "Target crashed" - the readiness check destroying the page it was
+#: waiting for. Backing off gives ~15 probes over the same budget while keeping
+#: the ready case fast, which is what matters: Douyin measured ready at 1.1s.
 READY_POLL_SECONDS: float = 0.25
+READY_POLL_MAX_SECONDS: float = 2.5
+READY_POLL_GROWTH: float = 1.6
+
+#: Consecutive probe exceptions that mean the page is gone rather than slow.
+READY_MAX_CONSECUTIVE_ERRORS: int = 3
 
 #: Asks the SDK to sign one request and returns whatever it added to the query.
 #:
@@ -591,26 +603,47 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
     probe = {"url": READY_PROBE_URLS[platform], "query": "dtk_ready=1", "method": "GET"}
     deadline = time.monotonic() + budget
     started = time.monotonic()
+    delay = READY_POLL_SECONDS
+    attempts = 0
+    # A page whose target has crashed answers every probe with an exception and
+    # will never recover, so waiting out the whole budget only delays the retry
+    # that could still succeed. Consecutive, because one failure can just be a
+    # navigation landing mid-probe.
+    consecutive_errors = 0
     while True:
+        attempts += 1
         try:
             result = await page.evaluate(SIGN_SCRIPT, probe)
+            consecutive_errors = 0
             if isinstance(result, dict) and result.get("params"):
                 logger.info(
-                    "backend.cloak.sdk_ready platform=%s after=%.1fs",
+                    "backend.cloak.sdk_ready platform=%s after=%.1fs probes=%d",
                     platform.value,
                     time.monotonic() - started,
+                    attempts,
                 )
                 return
         except Exception as exc:  # a navigation mid-poll, or a crashed target
+            consecutive_errors += 1
             logger.debug("backend.cloak.ready_probe_failed error=%s", exc)
+            if consecutive_errors >= READY_MAX_CONSECUTIVE_ERRORS:
+                logger.warning(
+                    "backend.cloak.ready_page_gone platform=%s after=%.1fs probes=%d",
+                    platform.value,
+                    time.monotonic() - started,
+                    attempts,
+                )
+                return
         if time.monotonic() >= deadline:
             logger.warning(
-                "backend.cloak.sdk_never_ready platform=%s waited=%.0fs",
+                "backend.cloak.sdk_never_ready platform=%s waited=%.0fs probes=%d",
                 platform.value,
                 budget,
+                attempts,
             )
             return
-        await asyncio.sleep(READY_POLL_SECONDS)
+        await asyncio.sleep(delay)
+        delay = min(delay * READY_POLL_GROWTH, READY_POLL_MAX_SECONDS)
 
 
 def cookie_payload(platform: Platform, cookies: Mapping[str, str] | None) -> list[dict[str, str]]:

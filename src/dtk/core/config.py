@@ -275,7 +275,7 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         ),
         SettingSpec(
             "signing.rpc_timeout_seconds",
-            45,
+            60,
             Scope.RUNTIME,
             int,
             "Ceiling for one browser-rpc signing call. It has to cover a cold "

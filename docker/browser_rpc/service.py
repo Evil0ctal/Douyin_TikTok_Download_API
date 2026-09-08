@@ -366,7 +366,22 @@ class BrowserRpcService:
         # Two attempts: a warm page that has been up for a while is the most
         # common failure, and it is fixed by throwing it away.
         for attempt in (1, 2):
-            slot = await self._acquire_slot(platform, binding, jar, proxy, identity_id)
+            try:
+                # Inside the retry deliberately. Opening a page can fail on its
+                # own - a renderer that dies mid-warm-up reports "Target
+                # crashed" - and leaving this outside meant one unlucky launch
+                # became a 502 for the caller with no second try. Under memory
+                # pressure that is the common failure, not the rare one.
+                slot = await self._acquire_slot(platform, binding, jar, proxy, identity_id)
+            except RpcError as exc:
+                last_error = exc
+                logger.warning(
+                    "browser_rpc.sign.open_failed platform=%s attempt=%d error=%s",
+                    platform.value,
+                    attempt,
+                    exc.message,
+                )
+                continue
             try:
                 signed = await self._with_timeout(
                     slot.context.sign(plan),

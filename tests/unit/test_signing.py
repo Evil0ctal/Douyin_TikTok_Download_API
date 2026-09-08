@@ -464,6 +464,28 @@ def test_false_ms_token_honours_the_requested_length() -> None:
     assert len(gen_false_ms_token(146, rng=random.Random(1))) == 148
 
 
+def test_the_ms_token_alphabet_is_the_one_v4_actually_used() -> None:
+    """Pinned against V4's literal, because the shape IS the point.
+
+    The constant's whole justification is that a fabricated msToken looks like
+    the ones V4 produced, and it had been mistranscribed: `J` and `j` were `G`
+    and `g`, and the trailing `+-` was a single `=`. Nothing caught it, because
+    the only other assertion about it - that a token's characters are drawn from
+    MS_TOKEN_ALPHABET - is true of any alphabet whatsoever.
+
+    The literal below is copied from `gen_random_str` in V4's
+    crawlers/utils/utils.py (branch `main`), which is the source of record.
+    """
+    v4_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-"
+    assert v4_alphabet == MS_TOKEN_ALPHABET
+
+    # The two properties the typo actually broke, spelled out so a future
+    # rewrite that keeps the length but loses the shape still fails.
+    assert "j" in MS_TOKEN_ALPHABET and "J" in MS_TOKEN_ALPHABET
+    assert "=" not in MS_TOKEN_ALPHABET, "= belongs in the padding, not the body"
+    assert len(set(MS_TOKEN_ALPHABET)) == len(MS_TOKEN_ALPHABET), "a duplicated letter"
+
+
 VERIFY_FP_RE = re.compile(
     r"^verify_[0-9a-z]+_[0-9A-Za-z]{8}_[0-9A-Za-z]{4}_[0-9A-Za-z]{4}_[0-9A-Za-z]{4}_[0-9A-Za-z]{12}$"
 )
