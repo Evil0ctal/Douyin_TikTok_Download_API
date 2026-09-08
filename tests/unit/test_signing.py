@@ -2647,14 +2647,24 @@ class TestTikTokSignature:
         assert _tlv_keys(gnarly, lead=1) == [*range(0x00, 0x07), *range(0x08, 0x11)]
         assert len(gnarly) == 193
 
-    def test_the_query_is_serialized_the_way_it_is_sealed(self) -> None:
-        """One encoder for both, or the seal covers bytes the platform never sees."""
+    def test_the_query_is_serialized_the_way_a_browser_would_send_it(self) -> None:
+        """Only what a browser must escape, or the seal covers different bytes.
+
+        X-Dynosaur 0x2E hashes this string, and the SDK hashes what the browser
+        handed it - normalised by the browser, not by a URL library. Chrome turns
+        a space into %20 and leaves parentheses, slashes and colons alone.
+        Percent-encoding everything produced `5.0%20%28Windows%29`, a different
+        hash, and a signature bound to bytes TikTok never sees; the symptom was
+        /api/user/detail/ silently returning nothing while its neighbours worked,
+        because TikTok verifies that binding on some paths and not others.
+        """
         query, params = tiktok_sign.sign(
             [("browser_version", "5.0 (Windows)"), ("q", "\u4e2d")],
             TIKTOK_UA_MAC,
             rng=random.Random(11),
         )
-        assert query.startswith("browser_version=5.0%20%28Windows%29&q=%E4%B8%AD&")
+        # The space is escaped; the parentheses are not. Non-ASCII becomes UTF-8.
+        assert query.startswith("browser_version=5.0%20(Windows)&q=%E4%B8%AD&")
         assert [part.split("=", 1)[0] for part in query.split("&")] == [
             "browser_version",
             "q",
@@ -2664,6 +2674,29 @@ class TestTikTokSignature:
             tiktok_sign.GNARLY_PARAM,
         ]
         assert params[tiktok_sign.BOGUS_PARAM] == "1"
+
+    def test_the_three_parameters_that_broke_user_detail(self) -> None:
+        """The exact values TikTok's own page sends unescaped.
+
+        These three are the whole difference between a signature TikTok accepts
+        and one it silently drops. Captured from a browser-signed request on
+        2026-09-08 and pinned here because the failure they cause is invisible:
+        HTTP 200, empty body, tt_orcas_res: 1, on one endpoint only.
+        """
+        query = tiktok_sign.encode_query(
+            [
+                ("browser_version", "5.0 (Windows)"),
+                ("root_referer", "https://www.tiktok.com/"),
+                ("tz_name", "America/Los_Angeles"),
+            ]
+        )
+        assert query == (
+            "browser_version=5.0%20(Windows)"
+            "&root_referer=https://www.tiktok.com/"
+            "&tz_name=America/Los_Angeles"
+        )
+        # What urlencode would have produced, and what the platform rejects.
+        assert "%28" not in query and "%3A" not in query and "%2F" not in query
 
     def test_x_bogus_is_the_constant_the_sdk_sends(self) -> None:
         """A computed 16-character X-Bogus belongs to websockets, not to HTTP."""

@@ -76,7 +76,6 @@ import random
 import time
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Final
-from urllib.parse import quote
 
 MASK32: Final = 0xFFFFFFFF
 
@@ -181,30 +180,57 @@ _ENCODER_A: Final = (103, 1, None, 2, 1)
 _ENCODER_B: Final = (102, 0, 165, 1, 0)
 
 
+#: The only characters a browser escapes inside a query string. Chrome leaves
+#: everything else - parentheses, slashes, colons, commas - literal, and the
+#: `#` is here because it would otherwise start the fragment.
+_MUST_ESCAPE: Final = {" ": "%20", '"': "%22", "<": "%3C", ">": "%3E", "`": "%60", "#": "%23"}
+
+
 def encode_query(pairs: Iterable[tuple[str, str]]) -> str:
-    """Serialize the business parameters into the exact bytes that get signed.
+    """Serialize the business parameters exactly as a browser would send them.
 
-    ``X-Gnarly`` seals an md5 over this string, so it has to be the string that
-    goes on the wire. ``*-._`` are the characters JavaScript's
-    ``URLSearchParams`` leaves alone.
+    This is NOT ``urlencode``, and the difference is the whole reason
+    ``/api/user/detail/`` used to fail while its neighbours worked.
 
-    KNOWN DIVERGENCE, measured 2026-09-08 and not yet resolved: the browser path
-    signs the RAW join instead - :func:`dtk.signing.base.encode_query` returns
-    ``key=value`` unescaped for X-Bogus, so browser-signed requests carry
-    ``browser_version=5.0 (Windows)`` where this function produces
-    ``5.0%20%28Windows%29``. X-Dynosaur field 0x2E is ``hash_state`` of the
-    query, so the two paths seal different bytes for the same request, and
-    ``/api/user/detail/`` rejects ours while ``/api/item/detail/`` and
-    ``/api/comment/list/`` accept it - TikTok checks that binding on some paths
-    and not others.
+    X-Dynosaur field 0x2E is ``hash_state`` of the query, and the SDK hashes the
+    string the browser handed it - which is the URL after the browser's own
+    normalisation, not after a library's. Chrome escapes a space to ``%20`` and
+    leaves parentheses, slashes and colons alone, so the real page hashes
+    ``browser_version=5.0%20(Windows)&root_referer=https://www.tiktok.com/``.
+    Percent-encoding everything, as this function first did, produced
+    ``5.0%20%28Windows%29`` and ``https%3A%2F%2F...`` - a different string, a
+    different hash, and a signature bound to bytes the platform never sees.
 
-    Switching this to the raw join was tried and made things WORSE: all three
-    endpoints then failed, so the encoding is not simply "match the browser".
-    Something else in the payload is computed over the escaped form. Left as it
-    is because two endpoints of three work this way and none work the other; the
-    open question is which of the internal bindings uses which encoding.
+    Recovered by capturing a browser-signed request, decoding its X-Dynosaur and
+    searching for the input that reproduces 0x2E: only-escape-the-space matches
+    byte for byte, and nothing else tried does. TikTok verifies that binding on
+    ``/api/user/detail/`` and ignores it on ``/api/item/detail/`` and
+    ``/api/comment/list/``, which is why the symptom was one endpoint silently
+    returning nothing.
+
+    The same string is hashed and sent, so this must stay the only encoder in
+    the path.
     """
-    return "&".join(f"{quote(k, safe='*-._')}={quote(v, safe='*-._')}" for k, v in pairs)
+    return "&".join(f"{_escape(key)}={_escape(value)}" for key, value in pairs)
+
+
+def _escape(text: str) -> str:
+    """Percent-escape only what a browser has to, leaving the rest literal.
+
+    Printable ASCII passes through untouched apart from the handful in
+    :data:`_MUST_ESCAPE`. Everything else - control characters and anything
+    non-ASCII - is percent-encoded from its UTF-8 bytes, which is what a browser
+    puts on the wire for a query it was handed as text.
+    """
+    out: list[str] = []
+    for ch in text:
+        if ch in _MUST_ESCAPE:
+            out.append(_MUST_ESCAPE[ch])
+        elif " " < ch <= "~":
+            out.append(ch)
+        else:
+            out.extend(f"%{byte:02X}" for byte in ch.encode("utf-8"))
+    return "".join(out)
 
 
 def hash_state(text: str) -> int:
