@@ -12,12 +12,16 @@ convenience:
 * :func:`client_ip` is documented as unreliable. Under Docker's userland proxy
   every request appears to come from the bridge gateway, so the address is a
   coarse abuse bucket and never an authorization signal (doc 06).
+  :func:`client_ip_is_trustworthy` is the second half of that: a counter keyed
+  on the address may only refuse a request where the address separates one
+  caller from the next, which is a property of the deployment, not of the code.
 * :func:`mask_proxy_url` is the only way a stored proxy is allowed to reach a
   response. No endpoint returns a credential in clear text (doc 08).
 """
 
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import Callable, Coroutine, Sequence
 from datetime import datetime
@@ -55,6 +59,12 @@ DEFAULT_PAGE_SIZE = 20
 MAX_ADMIN_PAGE_SIZE = 500
 DEFAULT_ADMIN_PAGE_SIZE = 100
 
+#: uvicorn's ``--forwarded-allow-ips``, which ``docker/entrypoint.sh`` passes
+#: through only when this is set. Its presence is the operator declaring that a
+#: reverse proxy sits in front, and therefore that the peer address has been
+#: rewritten from ``X-Forwarded-For``.
+FORWARDED_ALLOW_IPS_ENV = "DTK_FORWARDED_ALLOW_IPS"
+
 
 # --------------------------------------------------------------------------
 # Request context
@@ -80,9 +90,29 @@ def client_ip(request: Request) -> str | None:
     Deliberately ignores ``X-Forwarded-For``: without a trusted reverse proxy
     the header is caller-controlled, and with Docker's userland proxy the peer
     address is the bridge gateway anyway. Never make an access decision from
-    this value (doc 06).
+    this value (doc 06), and see :func:`client_ip_is_trustworthy` before
+    refusing anything because of it.
     """
     return request.client.host if request.client else None
+
+
+def client_ip_is_trustworthy() -> bool:
+    """Whether :func:`client_ip` tells one caller apart from the next.
+
+    Only where the operator has declared a reverse proxy. uvicorn rewrites the
+    peer address from ``X-Forwarded-For`` for the hops named in
+    ``DTK_FORWARDED_ALLOW_IPS`` and for no one otherwise, so behind a TLS
+    terminator - or behind Docker's published-port userland proxy, which is the
+    default - every request in the world arrives with the same address. A
+    counter keyed on that is one global bucket, and refusing on it hands any
+    stranger a lever on everyone else's access.
+
+    A wildcard is not a declaration: it tells uvicorn to believe the header from
+    whoever sends it, which makes the address forgeable rather than merely
+    shared, and a forgeable address is a worse lockout key than a shared one.
+    """
+    declared = os.environ.get(FORWARDED_ALLOW_IPS_ENV, "").strip()
+    return bool(declared) and "*" not in declared
 
 
 def user_agent(request: Request) -> str | None:
@@ -344,6 +374,7 @@ def iso(value: datetime | None) -> str | None:
 __all__ = [
     "DEFAULT_ADMIN_PAGE_SIZE",
     "DEFAULT_PAGE_SIZE",
+    "FORWARDED_ALLOW_IPS_ENV",
     "MAX_ADMIN_PAGE_SIZE",
     "MAX_PAGE_SIZE",
     "ROLE_RANK",
@@ -351,6 +382,7 @@ __all__ = [
     "audit",
     "authenticated",
     "client_ip",
+    "client_ip_is_trustworthy",
     "config_value",
     "guard",
     "has_scope",

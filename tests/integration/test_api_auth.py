@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import pytest
 
 from dtk.api.deps import SESSION_COOKIE, SESSION_KEY
 from dtk.api.routes import auth, sessions
+from dtk.api.routes.support import FORWARDED_ALLOW_IPS_ENV
 from dtk.core.redis import get_redis
 from dtk.core.types import Scope, UserRole
 from tests.integration import test_api_support as support
@@ -75,6 +77,57 @@ async def test_repeated_failures_lock_the_account_out(client: Any) -> None:
     assert body["error"]["code"] == "RATE_LIMITED"
     assert body["error"]["retry_after"] > 0
     assert locked.headers["retry-after"]
+
+
+async def test_junk_logins_from_one_address_do_not_lock_the_operator_out(
+    client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stranger must not be able to spend the operator's console for them.
+
+    Behind a TLS terminator - or behind Docker's published-port userland proxy,
+    which is the default - every request in the world arrives with the same
+    peer address, so this loop is what any unauthenticated caller can produce
+    on demand. The account it targets is not one of them, and it must still be
+    able to log in.
+    """
+    monkeypatch.delenv(FORWARDED_ALLOW_IPS_ENV, raising=False)
+    await make_user("owner", PASSWORD)
+    for attempt in range(auth.MAX_FAILURES_PER_IP):
+        assert (await login(client, f"stranger-{attempt}", "wrong")).status_code == 401
+
+    admitted = await login(client, "owner", PASSWORD)
+    assert admitted.status_code == 200
+    assert client.cookies.get(SESSION_COOKIE)
+
+
+async def test_the_address_counter_binds_once_a_proxy_is_declared(
+    client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With DTK_FORWARDED_ALLOW_IPS the peer address is one caller again."""
+    monkeypatch.setenv(FORWARDED_ALLOW_IPS_ENV, "10.1.0.7")
+    await make_user("owner", PASSWORD)
+    for attempt in range(auth.MAX_FAILURES_PER_IP):
+        assert (await login(client, f"stranger-{attempt}", "wrong")).status_code == 401
+
+    locked = await login(client, "owner", PASSWORD)
+    assert locked.status_code == 429
+    assert envelope(locked)["error"]["code"] == "RATE_LIMITED"
+
+
+async def test_a_wildcard_proxy_declaration_does_not_bind(
+    client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``*`` makes uvicorn believe X-Forwarded-For from whoever sends it.
+
+    The address is then forgeable, so it is a worse lockout key than a shared
+    one: anyone could pick the operator's address and spend its budget.
+    """
+    monkeypatch.setenv(FORWARDED_ALLOW_IPS_ENV, "*")
+    await make_user("owner", PASSWORD)
+    for attempt in range(auth.MAX_FAILURES_PER_IP):
+        assert (await login(client, f"stranger-{attempt}", "wrong")).status_code == 401
+
+    assert (await login(client, "owner", PASSWORD)).status_code == 200
 
 
 async def test_me_requires_a_credential(client: Any) -> None:
@@ -206,3 +259,56 @@ async def test_a_viewer_session_still_authenticates(client: Any) -> None:
     await signed_in(client, username="watcher", password=PASSWORD, role=UserRole.VIEWER)
     response = await client.get("/api/v1/auth/me")
     assert envelope(response)["data"]["user"]["role"] == UserRole.VIEWER.value
+
+
+# --------------------------------------------------------------------------
+# Spray throttling
+#
+# The per-address counter was softened because, behind a TLS terminator, every
+# login shares one peer address and twenty junk attempts locked the only
+# administrator out. That left nothing bounding an unauthenticated caller who
+# guesses across usernames - each attempt costing a real argon2 verification.
+# These cover the control that replaced it, which delays rather than refuses.
+# --------------------------------------------------------------------------
+
+
+async def test_a_spray_is_slowed_down_but_the_operator_still_gets_in(
+    client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A delay, never a refusal: refusing globally is the same lockout again."""
+    monkeypatch.setattr(auth, "SPRAY_DELAY_SECONDS", 0.05)
+    await make_user(username="opsuser", password=PASSWORD, role=UserRole.ADMIN)
+
+    for index in range(auth.SPRAY_THRESHOLD + 1):
+        await client.post(
+            "/api/v1/auth/login",
+            json={"username": f"nobody{index}", "password": "wrong-password-here"},
+        )
+
+    assert int(await get_redis().get(auth.LOGIN_SPRAY_KEY) or 0) >= auth.SPRAY_THRESHOLD
+
+    started = time.perf_counter()
+    accepted = await client.post(
+        "/api/v1/auth/login", json={"username": "opsuser", "password": PASSWORD}
+    )
+    elapsed = time.perf_counter() - started
+
+    assert accepted.status_code == 200, "a spray locked the operator out of their own console"
+    assert elapsed >= auth.SPRAY_DELAY_SECONDS, "the throttle did not apply"
+
+
+async def test_the_spray_window_expires_rather_than_latching(client: Any) -> None:
+    """It measures a rate. A latch would be a lockout with extra steps."""
+    await client.post(
+        "/api/v1/auth/login", json={"username": "nobody", "password": "wrong-password-here"}
+    )
+    ttl = await get_redis().ttl(auth.LOGIN_SPRAY_KEY)
+    assert 0 < ttl <= auth.LOGIN_SPRAY_WINDOW_SECONDS
+
+
+async def test_password_verification_is_bounded_in_concurrency(client: Any) -> None:
+    """argon2 is expensive by design, and this endpoint is open to anyone."""
+    assert auth._VERIFY_SLOTS._value <= 8, (
+        "an unbounded number of concurrent argon2 verifications is a CPU "
+        "exhaustion channel on an unauthenticated endpoint"
+    )

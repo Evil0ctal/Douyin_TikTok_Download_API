@@ -17,6 +17,7 @@ from typing import Annotated, Any
 import typer
 
 from dtk.cli import output, runtime
+from dtk.core.config import extra_url_hosts
 from dtk.core.errors import DtkError, UpstreamChanged
 from dtk.core.types import Outcome
 from dtk.ops import pipeline
@@ -45,7 +46,9 @@ def fetch(
     """Fetch one link and print the normalized result."""
 
     async def operation(ctx: runtime.Context) -> dict[str, Any]:
-        target = await pipeline.resolve_target(url, proxy_url=proxy)
+        target = await pipeline.resolve_target(
+            url, proxy_url=proxy, extra_hosts=extra_url_hosts(ctx.config)
+        )
         call = resolve(target.endpoint, target.params, ctx.config)
         identity = await pipeline.pick_identity(
             ctx.session, ctx.cipher, target.platform, identity_id=identity_id

@@ -19,10 +19,17 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from dtk.core.errors import DtkError, ErrorCode
 from dtk.core.types import BrowserFamily, Platform
+
+if TYPE_CHECKING:
+    # The ruleset lives in `dtk.transport.classify`, which imports this module;
+    # naming its result type in the `Transport` protocol is what keeps every
+    # caller - the fetch pipeline included - on one classifier instead of
+    # growing a second, cruder one of its own.
+    from dtk.transport.classify import Classification
 
 #: Fallback charset when the response carries no usable `content-type`.
 DEFAULT_CHARSET = "utf-8"
@@ -296,6 +303,12 @@ class CookieSink(Protocol):
 
 class Transport(Protocol):
     """The thin interface the rest of the system sees."""
+
+    def classify(
+        self,
+        response: RawResponse | None = None,
+        exception: BaseException | None = None,
+    ) -> Classification: ...
 
     async def request(
         self,

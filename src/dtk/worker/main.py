@@ -35,7 +35,7 @@ from typing import Any, Protocol
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk import __version__
-from dtk.core.config import BootstrapSettings, Config
+from dtk.core.config import BootstrapSettings, Config, extra_url_hosts
 from dtk.core.db import session_scope
 from dtk.core.errors import DtkError, ErrorCode, Internal, InvalidParam
 from dtk.core.logging import get_logger
@@ -225,7 +225,7 @@ class TaskWorker:
         config: Callable[[], Config] | Config,
         options: WorkerOptions | None = None,
         session_factory: SessionFactory = session_scope,
-        redirect_fetcher: Callable[[str], Any] | None = None,
+        egress: parsing.ProxySource | None = None,
         operations: OperationRunner | None = None,
     ) -> None:
         self._fetch = fetch
@@ -237,9 +237,10 @@ class TaskWorker:
         self._config: Callable[[], Config] = config if callable(config) else (lambda: config)
         self._options = options or WorkerOptions()
         self._session_factory = session_factory
-        # Only used to expand short links for the "parse" endpoint. Injectable so
-        # that path is testable without reaching the network.
-        self._redirect_fetcher = redirect_fetcher or parsing.make_redirect_fetcher()
+        # Where the "parse" endpoint's short-link hop leaves from. Only that hop
+        # uses it, and a worker built without one refuses to expand rather than
+        # falling back to this host's own address - see dtk.worker.parsing.
+        self._egress: parsing.ProxySource = egress or parsing.no_egress
         self._stop = asyncio.Event()
         self._gate = asyncio.Semaphore(self._options.concurrency)
         self._inflight: set[asyncio.Task[None]] = set()
@@ -439,7 +440,13 @@ class TaskWorker:
         if not url:
             raise InvalidParam("parse requires a url", details={"endpoint": run.endpoint})
 
-        endpoint, resolved = await parsing.plan(url, self._redirect_fetcher)
+        # One list for both halves: the fetcher re-checks each hop it is handed,
+        # and a fetcher that had not heard of the operator's hosts would refuse
+        # the hop expansion had just allowed.
+        hosts = extra_url_hosts(self._config())
+        endpoint, resolved = await parsing.plan(
+            url, parsing.egress_fetcher(self._egress, extra_hosts=hosts), extra_hosts=hosts
+        )
         # Pass through anything the caller also set, such as include_raw.
         extra = {k: v for k, v in run.params.items() if k != "url"}
         return endpoint, {**extra, **resolved}

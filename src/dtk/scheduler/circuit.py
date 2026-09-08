@@ -17,6 +17,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from dtk.core.config import Config
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis, run_script
 from dtk.core.types import DEFAULT_LANGUAGE, Language, Outcome
@@ -53,6 +54,21 @@ class CircuitConfig:
     open_seconds: int = 300
     #: A tripped endpoint lets exactly one probe through per interval.
     probe_interval_seconds: int = 60
+
+
+def circuit_config(config: Config) -> CircuitConfig:
+    """Build the breaker's thresholds from the runtime settings.
+
+    These three are what an operator reaches for when the breaker is too
+    twitchy or too patient, so they have to arrive from the settings table
+    rather than from the dataclass defaults. ``open_seconds`` and the probe
+    interval are not exposed and keep theirs.
+    """
+    return CircuitConfig(
+        risk_threshold=float(config.get("sched.circuit_risk_threshold")),
+        min_samples=int(config.get("sched.circuit_min_samples")),
+        min_identities=int(config.get("sched.circuit_min_identities")),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,6 +327,7 @@ __all__ = [
     "EndpointStats",
     "TripReason",
     "allow_probe",
+    "circuit_config",
     "parse_reason",
     "record",
     "reset",

@@ -72,6 +72,10 @@ from dtk.signing.native.abogus import structure_error
 logger = get_logger(__name__)
 
 EndpointKey = tuple[Platform, str]
+
+#: Called synchronously from inside ``sign``, so an implementation may neither
+#: block nor raise. :func:`dtk.ops.notify.signing_alert_hook` is the one the
+#: worker passes; it schedules the delivery and returns.
 AlertHook = Callable[[str, Mapping[str, Any]], None]
 
 #: Session token pinned for the duration of a shadow sample. ``NativeSigner``
@@ -672,9 +676,20 @@ class SignerRegistry:
         return resolved, endpoint or endpoint_of(spec.url)
 
     def _alert(self, event: str, context: Mapping[str, Any]) -> None:
+        """Announce one event to whoever wired a hook up.
+
+        The hook belongs to the caller and runs inside ``sign``, so a hook that
+        raised would turn "the fallback engaged" into a failed request - the one
+        thing an alert may never do.
+        """
         if self._on_alert is None:
             return
-        self._on_alert(event, context)
+        try:
+            self._on_alert(event, context)
+        except Exception as exc:
+            logger.warning(
+                "signing.alert_failed", event=event, error=f"{type(exc).__name__}: {exc}"[:200]
+            )
 
 
 __all__ = [

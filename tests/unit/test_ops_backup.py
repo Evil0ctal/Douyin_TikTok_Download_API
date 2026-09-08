@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import stat
 import tarfile
+import tempfile
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -140,8 +144,26 @@ class _Stream:
         return _AsyncRows(self._rows)
 
 
+class _Result:
+    """As much of a SQLAlchemy Result as the restore's duplicate lookup uses."""
+
+    def __init__(self, rows: list[tuple[Any, ...]]) -> None:
+        self._rows = rows
+
+    def all(self) -> list[tuple[Any, ...]]:
+        return list(self._rows)
+
+
 class FakeSession:
-    """Serves rows for an exported SELECT and records restored INSERTs."""
+    """Serves rows for an exported SELECT and records restored INSERTs.
+
+    ON CONFLICT is not modelled - the database enforces that - so a table with a
+    primary key accumulates its rows twice here. ``content_snapshots`` has no
+    unique index for the database to enforce anything with, which is why the
+    lookup that keeps it from duplicating is answered honestly: every row the
+    fake holds, ignoring the WHERE, exactly as the real narrowed query returns a
+    superset for the caller to match against.
+    """
 
     def __init__(self, rows: dict[str, list[dict[str, Any]]] | None = None) -> None:
         self._rows = rows or {}
@@ -152,11 +174,17 @@ class FakeSession:
         table = statement.get_final_froms()[0].name  # type: ignore[attr-defined]
         return _Stream(self._rows.get(table, []))
 
-    async def execute(self, statement: Any, params: Any = None) -> None:
+    async def execute(self, statement: Any, params: Any = None) -> Any:
         if isinstance(statement, Insert):
             name = statement.table.name
             self.inserted.setdefault(name, []).extend(params or [])
             return None
+        if isinstance(statement, Select):
+            table = statement.get_final_froms()[0].name  # type: ignore[attr-defined]
+            names = [column.name for column in statement.selected_columns]
+            return _Result(
+                [tuple(row.get(name) for name in names) for row in self.inserted.get(table, [])]
+            )
         self.statements.append(str(statement))
         return None
 
@@ -488,3 +516,149 @@ def test_an_archive_is_never_visible_while_it_is_being_written(tmp_path: Path) -
     leftovers = [p.name for p in tmp_path.iterdir() if p.is_file() and p != target]
     assert leftovers == [], f"the pack left files behind: {leftovers}"
     assert [i.path.name for i in backup.list_backups(tmp_path)] == [target.name]
+
+
+# --------------------------------------------------------------------------
+# Staging
+#
+# /tmp in the shipped container is a 64 MB tmpfs and, with every other path
+# read-only, the only place a default TemporaryDirectory can go. A database
+# staged there dies of ENOSPC once content_snapshots outgrows RAM, and names a
+# filesystem the operator never configured when it does. Staging belongs on the
+# volume the archive is headed for anyway.
+# --------------------------------------------------------------------------
+
+
+class _WatchingSession(FakeSession):
+    """Records what the backup directory holds while the tables are dumped."""
+
+    def __init__(self, rows: dict[str, list[dict[str, Any]]], directory: Path) -> None:
+        super().__init__(rows)
+        self._directory = directory
+        self.entries: set[str] = set()
+        self.listed: list[str] = []
+
+    async def stream(self, statement: Select[Any]) -> _Stream:
+        self.entries.update(path.name for path in self._directory.iterdir())
+        self.listed.extend(info.path.name for info in backup.list_backups(self._directory))
+        return await super().stream(statement)
+
+
+async def test_a_backup_never_stages_into_the_default_temp_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A default temp dir that cannot be written stands in for one that is full."""
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "no-such-tmpdir"))
+    session = _WatchingSession(sample_rows(), tmp_path)
+
+    info = await backup.create_backup(session, output=tmp_path, secret_key=SECRET)
+
+    staged = [name for name in session.entries if name.startswith(backup.STAGING_PREFIX)]
+    assert len(staged) == 1, f"the tables were staged elsewhere: {sorted(session.entries)}"
+    # It sat in the directory the Backup page globs, for as long as the dump
+    # took, and the page never saw it as an archive.
+    assert session.listed == []
+    assert info.path.is_file()
+    assert [path.name for path in tmp_path.iterdir()] == [info.path.name]
+
+
+async def test_staging_a_killed_backup_left_behind_is_swept(tmp_path: Path) -> None:
+    """Nothing clears it now that it is not in a tmpfs the container resets."""
+    abandoned = tmp_path / f"{backup.STAGING_PREFIX}killed"
+    abandoned.mkdir()
+    (abandoned / "content_snapshots.jsonl").write_text("{}\n", encoding="utf-8")
+    aged = time.time() - backup.STAGING_MAX_AGE_SECONDS - 60
+    os.utime(abandoned, (aged, aged))
+    running = tmp_path / f"{backup.STAGING_PREFIX}running"
+    running.mkdir()
+
+    await backup.create_backup(FakeSession(sample_rows()), output=tmp_path, secret_key=SECRET)
+
+    assert not abandoned.exists()
+    assert running.is_dir(), "a backup that is still writing lost its staging directory"
+
+
+# --------------------------------------------------------------------------
+# What the archive is readable by
+# --------------------------------------------------------------------------
+
+
+async def test_the_archive_is_readable_only_by_the_account_that_wrote_it(
+    tmp_path: Path,
+) -> None:
+    """Cookie jars are ciphertext; notify.channels webhook URLs are not."""
+    manifest = backup.build_manifest(contents={}, include_identities=False, secret_key=SECRET)
+    permissive = os.umask(0o000)
+    try:
+        info = await backup.create_backup(
+            FakeSession(sample_rows()),
+            output=tmp_path,
+            secret_key=SECRET,
+            include_identities=True,
+        )
+        from_memory = backup.write_archive(tmp_path / "in-memory.tar.gz", manifest, {"users": []})
+    finally:
+        os.umask(permissive)
+
+    assert stat.S_IMODE(info.path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(from_memory.stat().st_mode) == 0o600
+    with tarfile.open(info.path) as archive:
+        members = archive.getmembers()
+    assert {member.name for member in members} >= {"data/identities.jsonl"}
+    assert {member.mode for member in members} == {0o600}
+    # Nor does it say which account on which host took the backup.
+    assert {member.uname for member in members} == {""}
+    assert {member.uid for member in members} == {0}
+
+
+# --------------------------------------------------------------------------
+# Restoring twice
+#
+# content_snapshots is a hypertable with no unique index, so ON CONFLICT DO
+# NOTHING has nothing to conflict with and the rows are simply appended again.
+# --------------------------------------------------------------------------
+
+
+async def test_restoring_the_same_archive_twice_does_not_duplicate_snapshots(
+    tmp_path: Path,
+) -> None:
+    info = await backup.create_backup(
+        FakeSession(sample_rows()), output=tmp_path, secret_key=SECRET
+    )
+    target = FakeSession()
+
+    first = await backup.restore_backup(target, info.path, secret_key=SECRET)
+    second = await backup.restore_backup(target, info.path, secret_key=SECRET)
+
+    assert len(target.inserted["content_snapshots"]) == 1
+    # The per-table counts still say what the archive offered, which is what
+    # they have always meant and what the worker reports to the console.
+    assert first.restored["content_snapshots"] == 1
+    assert second.restored["content_snapshots"] == 1
+
+
+async def test_an_archive_that_repeats_a_snapshot_restores_it_once(tmp_path: Path) -> None:
+    """Two rows with one identifying key are one measurement, however they got there."""
+    rows = sample_rows()
+    rows["content_snapshots"] = rows["content_snapshots"] * 3
+
+    info = await backup.create_backup(FakeSession(rows), output=tmp_path, secret_key=SECRET)
+    target = FakeSession()
+    report = await backup.restore_backup(target, info.path, secret_key=SECRET)
+
+    assert report.restored["content_snapshots"] == 3
+    assert len(target.inserted["content_snapshots"]) == 1
+
+
+def test_the_snapshot_key_is_the_one_the_model_declares() -> None:
+    """Drift is silent: a wrong key matches nothing and the rows append again."""
+    from sqlalchemy import inspect
+
+    from dtk.db.models import ContentSnapshot
+
+    assert backup._NATURAL_KEY["content_snapshots"] == tuple(
+        column.name for column in inspect(ContentSnapshot).primary_key
+    )
+    assert not ContentSnapshot.__table__.primary_key.columns, (
+        "the table has a primary key now, and ON CONFLICT DO NOTHING covers it"
+    )

@@ -9,6 +9,12 @@ SENSITIVE keys are the reason this is not a plain key-value editor. The URL
 allowlist is the only thing standing between this service and being an open
 proxy, so widening it takes an administrator, an explicit ``confirm`` and an
 audit row.
+
+A setting can also *hold* a credential - ``notify.channels`` carries bot tokens,
+signing secrets and an SMTP password - and this endpoint is reachable by a
+viewer session and by any ``identity:manage`` key. So every value leaving here
+is masked, on the response and in the audit row alike, and a masked value coming
+back in means "keep the stored one" (:mod:`dtk.ops.masking`).
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ from dtk.core.types import Scope as KeyScope
 from dtk.db.models import Setting
 from dtk.i18n.catalog import has as catalog_has
 from dtk.i18n.catalog import t as translate
+from dtk.ops.masking import redact_setting, unredact_setting
 from dtk.services import settings_store
 
 log = get_logger(__name__)
@@ -81,10 +88,16 @@ async def list_settings(request: Request, principal: Principal = Depends(read_ad
     items = []
     for key, spec in sorted(RUNTIME_SETTINGS.items()):
         stored = rows.get(key)
+        value = config.get(key)
+        redacted = redact_setting(value)
         items.append(
             {
                 "key": key,
-                "value": config.get(key),
+                "value": redacted,
+                # The console has to be able to say "this field is shown masked;
+                # leave it alone and it keeps its value", because that is the
+                # only way to tell it apart from a field the user must fill in.
+                "masked": redacted != value,
                 "default": spec.default,
                 "scope": spec.scope.value,
                 "type": spec.type_.__name__,
@@ -115,8 +128,11 @@ async def update_setting(
         raise NotFound("no such setting")
     _authorize_write(principal, spec.scope, key, confirmed=body.confirm)
 
+    previous = request.app.state.config.get(key)
     try:
-        value = coerce(key, body.value)
+        # Unmasked before coercion, so what is validated is what will be stored:
+        # a value that arrived as a mask must not reach the table unchecked.
+        value = coerce(key, unredact_setting(body.value, previous))
     except (ValueError, TypeError) as exc:
         # The message is replaced by a translated one for the caller's language,
         # so anything the operator needs in order to fix the value has to travel
@@ -132,10 +148,13 @@ async def update_setting(
             },
         ) from exc
 
-    previous = request.app.state.config.get(key)
     await settings_store.set_value(key, value, updated_by=principal.user_id)
     await _reload(request)
 
+    # AuditRepository.record: never a credential in detail. The audit trail is
+    # read by humans, returned verbatim by GET /admin/audit and never trimmed by
+    # retention, so a bot token written here outlives the channel it belongs to.
+    change = {"from": redact_setting(previous), "to": redact_setting(value)}
     if spec.scope is Scope.SENSITIVE:
         # Doc 08 lists a SENSITIVE change beside importing an identity and
         # creating a key: the operations that widen the attack surface.
@@ -145,7 +164,7 @@ async def update_setting(
             "settings.updated_sensitive",
             target_type="setting",
             target_id=key,
-            detail={"from": previous, "to": value},
+            detail=change,
         )
     else:
         await audit(
@@ -154,12 +173,16 @@ async def update_setting(
             "settings.updated",
             target_type="setting",
             target_id=key,
-            detail={"from": previous, "to": value},
+            detail=change,
         )
     log.info("settings.updated", key=key, sensitive=spec.scope is Scope.SENSITIVE)
     return ok(
         request,
-        {"key": key, "value": value, "version": request.app.state.config.version},
+        {
+            "key": key,
+            "value": redact_setting(value),
+            "version": request.app.state.config.version,
+        },
     )
 
 
@@ -185,13 +208,16 @@ async def reset_setting(
         "settings.reset",
         target_type="setting",
         target_id=key,
-        detail={"from": previous, "to": request.app.state.config.get(key)},
+        detail={
+            "from": redact_setting(previous),
+            "to": redact_setting(request.app.state.config.get(key)),
+        },
     )
     return ok(
         request,
         {
             "key": key,
-            "value": request.app.state.config.get(key),
+            "value": redact_setting(request.app.state.config.get(key)),
             "source": _source(key, None),
             "version": request.app.state.config.version,
         },

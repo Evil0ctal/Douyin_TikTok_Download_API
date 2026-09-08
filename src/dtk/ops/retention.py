@@ -48,6 +48,11 @@ MAX_RETENTION_DAYS: Final[int] = 3650
 TASK_RESULT_SETTING: Final[str] = "retention.task_result_hours"
 TASK_ROW_SETTING: Final[str] = "retention.task_days"
 
+#: How long a retired identity's row is kept. ``identities`` is a plain table,
+#: so no policy can bound it; the sweep lives in the worker's maintenance pass
+#: and reads its window from here, with the rest of them.
+RETIRED_IDENTITY_SETTING: Final[str] = "retention.retired_identity_days"
+
 
 @dataclass(frozen=True, slots=True)
 class PolicyChange:
@@ -331,6 +336,7 @@ __all__ = [
     "MIN_RETENTION_DAYS",
     "PROTECTED_TABLES",
     "RETENTION_SETTINGS",
+    "RETIRED_IDENTITY_SETTING",
     "TASK_RESULT_SETTING",
     "TASK_ROW_SETTING",
     "PolicyChange",

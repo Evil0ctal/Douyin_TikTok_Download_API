@@ -58,6 +58,7 @@ from dtk.ops.backup import (
     read_manifest,
     verify_secret_key,
 )
+from dtk.ops.masking import redact_setting
 
 log = get_logger(__name__)
 
@@ -93,7 +94,13 @@ async def list_audit(
                 "api_key_id": str(row.api_key_id) if row.api_key_id else None,
                 "target_type": row.target_type,
                 "target_id": row.target_id,
-                "detail": row.detail,
+                # A settings change records the old and the new value, and
+                # notify.channels holds credentials. Rows written before those
+                # were masked at the source are still in this table - nothing
+                # trims it - so they are masked again on the way out.
+                "detail": (
+                    redact_setting(row.detail) if row.target_type == "setting" else row.detail
+                ),
                 "ip": row.ip,
                 "user_agent": row.user_agent,
             }

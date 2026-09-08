@@ -526,13 +526,16 @@
       "events": "Events",
       "eventsHint": "Clear what this channel should not receive. The deduplication window of each event is fixed and shown beside it.",
       "enabled": "Enabled",
-      "enabledHint": "A disabled channel is kept but skipped."
+      "enabledHint": "A disabled channel is kept but skipped.",
+      "maskedHint": "Shown masked. Leave it untouched to keep the stored value; type a new one to replace it, or clear it to remove it."
     },
     "error": {
       "nameTaken": "Another channel already uses this name.",
       "nameRequired": "Give the channel a name.",
       "urlHttps": "The URL must start with https://",
-      "required": "This field is required."
+      "required": "This field is required.",
+      "credentialMask": "Enter the {credential} for \"{record}\" again: the value sent was a mask, not a credential.",
+      "credentialMoved": "\"{record}\" now points somewhere new, so its stored {credential} was not kept. Enter it again."
     },
     "event": {
       "dedupHint": "Once per {window}, per {scope}",

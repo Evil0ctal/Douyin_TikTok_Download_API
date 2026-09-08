@@ -13,7 +13,7 @@ import asyncio
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from dtk.core.errors import EndpointCircuitOpen, IdentityPoolExhausted
 from dtk.core.logging import get_logger
@@ -22,6 +22,9 @@ from dtk.scheduler import circuit
 from dtk.scheduler.health import HealthInput, bucket, score
 from dtk.scheduler.leases import Lease, last_used_map, release, try_acquire
 from dtk.scheduler.policies import EndpointPolicy, policy_for
+
+if TYPE_CHECKING:  # pragma: no cover - imported for typing only
+    from dtk.ops.notify import Alerter
 
 log = get_logger(__name__)
 
@@ -88,6 +91,7 @@ class Scheduler:
         *,
         clock: object | None = None,
         rng: random.Random | None = None,
+        alerter: Alerter | None = None,
     ) -> None:
         self._source = source
         self._config = config
@@ -95,6 +99,9 @@ class Scheduler:
         self._now = clock if callable(clock) else _monotonic_epoch
         # Injectable so a test can make tie-breaking reproducible.
         self._rng = rng or random.Random()
+        # Optional, like the background jobs': a deployment with no channels
+        # configured passes None and the scheduler goes on working.
+        self._alerter = alerter
 
     # -- selection ---------------------------------------------------------
 
@@ -243,11 +250,53 @@ class Scheduler:
             trip, why = await circuit.should_trip(lease.endpoint, self._config.circuit, now=now)
             if trip:
                 await circuit.trip(lease.endpoint, self._config.circuit, why, now=now)
+                self._page_circuit_open(lease.endpoint, why)
         elif outcome is Outcome.OK:
             is_open, _, _ = await circuit.state(lease.endpoint, now=now)
             if is_open:
                 # A probe succeeded, so the endpoint is working again.
                 await circuit.reset(lease.endpoint)
+
+    def _page_circuit_open(self, endpoint: str, reason: str) -> None:
+        """Page the operator without making the request that tripped it wait.
+
+        This is the alert doc 15 leads with and the only place that knows the
+        circuit has just opened - :func:`circuit.trip` is called nowhere else.
+        It is also the request path, where a channel that takes its full
+        timeout twice would charge those seconds to whichever request happened
+        to be last, so the delivery is scheduled rather than awaited. The
+        30-minute window belongs to the notifier, so the thousand requests that
+        follow this one into an open circuit page nobody.
+        """
+        # Imported here, not at the top: dtk.ops reaches the identity pool,
+        # which imports this module, so the package-level import is a cycle.
+        from dtk.ops.notify import NotifyEvent, alert_in_background
+
+        parsed = circuit.parse_reason(reason)
+        alert_in_background(
+            self._alerter,
+            NotifyEvent.ENDPOINT_CIRCUIT_OPEN,
+            endpoint=endpoint,
+            platform=_platform_of(endpoint),
+            retry_after=self._config.circuit.open_seconds,
+            # The risk rate as a percentage, the sample count and how many
+            # identities it spanned - the same numbers, rendered the same way,
+            # as the reason the console shows for this trip.
+            **(parsed.template_args() if parsed is not None else {}),
+        )
+
+
+def _platform_of(endpoint: str) -> str | None:
+    """The platform an endpoint name starts with, for the alert's first word.
+
+    Endpoint names are ``<platform>.<call>`` (see :mod:`dtk.scheduler.policies`).
+    An unregistered name has no platform to report, and letting the alert say
+    "unknown" reads better than naming the same endpoint twice in one sentence.
+    """
+    try:
+        return Platform(endpoint.partition(".")[0]).value
+    except ValueError:
+        return None
 
 
 def _monotonic_epoch() -> float:

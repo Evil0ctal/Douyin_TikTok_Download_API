@@ -8,14 +8,16 @@ password.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from dtk.core.db import session_scope
 from dtk.core.types import IdentityState, Platform, Scope, UserRole
-from dtk.db.models import ApiKey, AuditLog, Identity, Proxy
+from dtk.db.models import ApiKey, AuditLog, Identity, Proxy, Setting
+from dtk.ops import backup
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
     anonymous_client,
@@ -449,13 +451,13 @@ async def test_a_sensitive_setting_needs_confirmation_and_writes_an_audit_row(
 ) -> None:
     await signed_in(client)
     unconfirmed = await client.put(
-        "/api/v1/admin/settings/security.enable_download_proxy", json={"value": True}
+        "/api/v1/admin/settings/security.enable_task_webhook", json={"value": True}
     )
     assert error_code(unconfirmed) == "INVALID_PARAM"
     assert envelope(unconfirmed)["error"]["details"]["sensitive"] is True
 
     confirmed = await client.put(
-        "/api/v1/admin/settings/security.enable_download_proxy",
+        "/api/v1/admin/settings/security.enable_task_webhook",
         json={"value": True, "confirm": True},
     )
     assert envelope(confirmed)["data"]["value"] is True
@@ -465,7 +467,7 @@ async def test_a_sensitive_setting_needs_confirmation_and_writes_an_audit_row(
 async def test_an_operator_cannot_change_a_sensitive_setting(client: Any) -> None:
     await signed_in(client, username="op", role=UserRole.OPERATOR)
     response = await client.put(
-        "/api/v1/admin/settings/security.enable_download_proxy",
+        "/api/v1/admin/settings/security.enable_task_webhook",
         json={"value": True, "confirm": True},
     )
     assert response.status_code == 403
@@ -491,7 +493,7 @@ async def test_an_identity_manage_key_cannot_change_a_sensitive_setting(
     async with anonymous_client(api_app) as caller:
         headers = {"Authorization": f"Bearer {key}"}
         denied = await caller.put(
-            "/api/v1/admin/settings/security.enable_download_proxy",
+            "/api/v1/admin/settings/security.enable_task_webhook",
             json={"value": True, "confirm": True},
             headers=headers,
         )
@@ -510,7 +512,7 @@ async def test_an_identity_manage_key_cannot_change_a_sensitive_setting(
     admin_key = await make_api_key(user_id, scopes=(Scope.ADMIN,), name="admin key")
     async with anonymous_client(api_app) as caller:
         confirmed = await caller.put(
-            "/api/v1/admin/settings/security.enable_download_proxy",
+            "/api/v1/admin/settings/security.enable_task_webhook",
             json={"value": True, "confirm": True},
             headers={"Authorization": f"Bearer {admin_key}"},
         )
@@ -551,6 +553,231 @@ async def test_an_invalid_value_is_refused_before_it_is_stored(client: Any) -> N
         "/api/v1/admin/settings/api.max_wait_seconds", json={"value": "not a number"}
     )
     assert error_code(response) == "INVALID_PARAM"
+
+
+# --------------------------------------------------------------------------
+# Settings that hold credentials
+#
+# notify.channels is an ordinary RUNTIME setting whose descriptors carry a bot
+# token, a signing secret and an SMTP password. This endpoint is reachable by a
+# viewer session and by any identity:manage key, so the value is masked wherever
+# it is read - and a masked value coming back in has to mean "keep the stored
+# one" without becoming a way to move a credential somewhere it can be read.
+# --------------------------------------------------------------------------
+
+#: SYNTHETIC credentials, generated for these tests.
+TELEGRAM_TOKEN = "7654321:AAFsyntheticBotTokenForTests00000000"
+DINGTALK_SECRET = "SECsynthetic0123456789abcdefghij"
+SMTP_PASSWORD = "synthetic-smtp-password"
+DINGTALK_URL = "https://oapi.dingtalk.com/robot/send?access_token=syntheticaccesstoken"
+
+CHANNEL_SECRETS = (TELEGRAM_TOKEN, DINGTALK_SECRET, SMTP_PASSWORD, "syntheticaccesstoken")
+
+
+def channels() -> list[dict[str, Any]]:
+    """One channel of each shape that carries a credential."""
+    return [
+        {
+            "type": "telegram",
+            "name": "tg",
+            "enabled": True,
+            "token": TELEGRAM_TOKEN,
+            "chat_id": "-1001234567890",
+        },
+        {
+            "type": "dingtalk",
+            "name": "ding",
+            "enabled": True,
+            "url": DINGTALK_URL,
+            "secret": DINGTALK_SECRET,
+        },
+        {
+            "type": "smtp",
+            "name": "mail",
+            "enabled": True,
+            "host": "smtp.example.com",
+            "port": 587,
+            "sender": "dtk@example.com",
+            "recipients": ["ops@example.com"],
+            "username": "dtk",
+            "password": SMTP_PASSWORD,
+        },
+    ]
+
+
+async def stored_channels() -> list[dict[str, Any]]:
+    """What the settings table actually holds, masking aside."""
+    async with session_scope() as session:
+        row = await session.get(Setting, "notify.channels")
+        return list(row.value) if row is not None else []
+
+
+async def put_channels(client: Any, value: list[dict[str, Any]]) -> Any:
+    return await client.put("/api/v1/admin/settings/notify.channels", json={"value": value})
+
+
+async def read_channels(client: Any) -> list[dict[str, Any]]:
+    """The masked channel list, as the console reads it."""
+    body = envelope(await client.get("/api/v1/admin/settings"))["data"]
+    row = next(item for item in body["settings"] if item["key"] == "notify.channels")
+    assert row["masked"] is True
+    return list(row["value"])
+
+
+async def test_channel_credentials_are_masked_wherever_a_setting_is_read(client: Any) -> None:
+    await signed_in(client)
+    written = await put_channels(client, channels())
+    assert written.status_code == 200
+
+    # The write's own answer, the listing, and the audit row the write left
+    # behind. The audit table is never trimmed by retention, so a token written
+    # there outlives the channel it belongs to.
+    listing = await client.get("/api/v1/admin/settings")
+    trail = await client.get("/api/v1/admin/audit")
+    for surface, response in (("put", written), ("list", listing), ("audit", trail)):
+        for secret in CHANNEL_SECRETS:
+            assert secret not in response.text, surface
+
+    detail = envelope(trail)["data"][0]["detail"]
+    assert detail["to"][0]["token"].endswith("***")
+
+    # A viewer reaches the same endpoint, and reads the same masked values.
+    await signed_in(client, username="watcher", role=UserRole.VIEWER)
+    assert TELEGRAM_TOKEN not in (await client.get("/api/v1/admin/settings")).text
+
+    # Masking is a rendering, not a deletion: the channel still works.
+    assert (await stored_channels())[0]["token"] == TELEGRAM_TOKEN
+
+
+async def test_an_audit_row_that_predates_the_masking_is_masked_on_the_way_out(
+    client: Any,
+) -> None:
+    """Nothing trims audit_log, so the rows written in clear are still there."""
+    await signed_in(client)
+    async with session_scope() as session:
+        session.add(
+            AuditLog(
+                action="settings.updated",
+                target_type="setting",
+                target_id="notify.channels",
+                detail={"from": [], "to": channels()},
+            )
+        )
+
+    response = await client.get("/api/v1/admin/audit")
+    assert TELEGRAM_TOKEN not in response.text
+    assert envelope(response)["data"][0]["detail"]["to"][0]["token"].endswith("***")
+
+
+async def test_a_masked_round_trip_keeps_the_stored_credentials(client: Any) -> None:
+    """The console resubmits the whole list, masks and all, to change one field.
+
+    Without the merge this is the write that replaces every credential in the
+    instance with the rendering of itself.
+    """
+    await signed_in(client)
+    await put_channels(client, channels())
+
+    edited = await read_channels(client)
+    edited[0]["enabled"] = False
+    assert (await put_channels(client, edited)).status_code == 200
+
+    stored = await stored_channels()
+    assert [row.get("token") or row.get("secret") or row.get("password") for row in stored] == [
+        TELEGRAM_TOKEN,
+        DINGTALK_SECRET,
+        SMTP_PASSWORD,
+    ]
+    assert stored[1]["url"] == DINGTALK_URL
+    assert stored[0]["enabled"] is False
+
+
+async def test_a_changed_credential_replaces_the_stored_one(client: Any) -> None:
+    await signed_in(client)
+    await put_channels(client, channels())
+
+    edited = await read_channels(client)
+    edited[0]["token"] = "1234567:AAFreplacementBotToken0000000000000"
+    edited[2]["password"] = "a-new-password"
+    assert (await put_channels(client, edited)).status_code == 200
+
+    stored = await stored_channels()
+    assert stored[0]["token"] == "1234567:AAFreplacementBotToken0000000000000"
+    assert stored[2]["password"] == "a-new-password"
+    # The one field that was left masked is still the original.
+    assert stored[1]["secret"] == DINGTALK_SECRET
+
+
+async def test_a_mask_cannot_carry_a_credential_to_a_new_target(client: Any) -> None:
+    """The merge is not a way to read a credential back.
+
+    An operator may edit notify.channels and must never learn the SMTP
+    password. Pointing the channel at a host they control while leaving the
+    password masked would have the server authenticate to that host with it.
+    """
+    await signed_in(client, username="op", role=UserRole.OPERATOR)
+    await put_channels(client, channels())
+
+    edited = await read_channels(client)
+    edited[2]["host"] = "smtp.attacker.example"
+    refused = await put_channels(client, edited)
+
+    assert error_code(refused) == "INVALID_PARAM"
+    assert envelope(refused)["error"]["details"] == {
+        "field": "value",
+        "record": "mail",
+        "credential": "password",
+    }
+    assert (await stored_channels())[2]["host"] == "smtp.example.com"
+
+
+async def test_a_mask_that_matches_nothing_is_refused(client: Any) -> None:
+    """Nothing may be stored as ``***``, and no mask may be invented.
+
+    A caller who reads the listing knows every mask in it. If a mask were
+    resolved against whichever record it happened to land on, that knowledge
+    would be enough to pull a stored token into a channel of their own.
+    """
+    await signed_in(client)
+    await put_channels(client, channels())
+    masked = (await read_channels(client))[0]["token"]
+
+    invented = [*channels()[:1], {"type": "telegram", "name": "mine", "token": masked}]
+    refused = await put_channels(client, invented)
+
+    assert error_code(refused) == "INVALID_PARAM"
+    assert envelope(refused)["error"]["details"]["record"] == "mine"
+    assert len(await stored_channels()) == 3
+
+
+async def test_channel_credentials_leave_a_backup_as_ciphertext(
+    client: Any, tmp_path: Path
+) -> None:
+    """The create-backup response promises ciphertext; settings is JSONB.
+
+    Encrypting on the way out rather than dropping the promise, because restore
+    already refuses an archive taken under another DTK_SECRET_KEY - so this adds
+    no failure an operator cannot see coming.
+    """
+    await signed_in(client)
+    await put_channels(client, channels())
+
+    async with session_scope() as session:
+        info = await backup.create_backup(
+            session, output=tmp_path, secret_key=support.TEST_SECRET_KEY
+        )
+    raw = backup.read_member(info.path, "settings")
+    assert raw is not None
+    for secret in CHANNEL_SECRETS:
+        assert secret.encode() not in raw
+    assert backup.SECRET_MARKER.encode() in raw
+
+    # And it comes back: an archive nobody can read is not a backup.
+    async with session_scope() as session:
+        await session.execute(delete(Setting).where(Setting.key == "notify.channels"))
+    async with session_scope() as session:
+        await backup.restore_backup(session, info.path, secret_key=support.TEST_SECRET_KEY)
+    assert (await stored_channels())[0]["token"] == TELEGRAM_TOKEN
 
 
 # --------------------------------------------------------------------------

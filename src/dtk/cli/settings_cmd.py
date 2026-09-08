@@ -22,14 +22,7 @@ from rich.text import Text
 
 from dtk.cli import output, runtime
 from dtk.core.config import RUNTIME_SETTINGS, Scope, coerce
-from dtk.ops.masking import mask_endpoint, mask_secret
-
-#: Mapping keys whose values are credentials wherever they appear in a setting.
-_SECRET_FIELDS = frozenset({"token", "secret", "password", "key", "api_key", "webhook"})
-
-#: Mapping keys holding a URL that is itself a credential: a bot token or a
-#: webhook path is enough to post to the channel, so only the host survives.
-_URL_FIELDS = frozenset({"url", "endpoint", "webhook_url"})
+from dtk.ops.masking import redact_setting
 
 app = typer.Typer(no_args_is_help=True, help="Runtime configuration stored in the database.")
 
@@ -37,23 +30,13 @@ app = typer.Typer(no_args_is_help=True, help="Runtime configuration stored in th
 def redact(key: str, value: Any) -> Any:
     """Mask credential-bearing parts of a setting value.
 
-    Walks lists and mappings because the values that matter are nested: the
-    channel descriptors in ``notify.channels`` are where a bot token lives.
+    The rules moved to :mod:`dtk.ops.masking` when the admin API needed them
+    too; this keeps the terminal's spelling of them. ``key`` is not consulted:
+    what makes a value a credential is the field it sits in, not the setting it
+    belongs to.
     """
-    if isinstance(value, dict):
-        redacted: dict[str, Any] = {}
-        for field, item in value.items():
-            lowered = str(field).lower()
-            if lowered in _URL_FIELDS and isinstance(item, str):
-                redacted[field] = mask_endpoint(item)
-            elif lowered in _SECRET_FIELDS and isinstance(item, str):
-                redacted[field] = mask_secret(item)
-            else:
-                redacted[field] = redact(key, item)
-        return redacted
-    if isinstance(value, list):
-        return [redact(key, item) for item in value]
-    return value
+    del key
+    return redact_setting(value)
 
 
 def render(value: Any) -> str:

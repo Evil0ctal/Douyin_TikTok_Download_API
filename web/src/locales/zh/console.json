@@ -526,13 +526,16 @@
       "events": "事件",
       "eventsHint": "取消勾选此通道不需要接收的事件。每个事件的去重窗口是固定的，显示在旁边。",
       "enabled": "启用",
-      "enabledHint": "禁用的通道会保留配置但跳过投递。"
+      "enabledHint": "禁用的通道会保留配置但跳过投递。",
+      "maskedHint": "此处以掩码显示。保持不变即保留已存储的值；输入新值即替换，清空则删除。"
     },
     "error": {
       "nameTaken": "已有同名通道。",
       "nameRequired": "请为通道取一个名称。",
       "urlHttps": "URL 必须以 https:// 开头",
-      "required": "此项必填。"
+      "required": "此项必填。",
+      "credentialMask": "请重新输入“{record}”的 {credential}：提交的是掩码，不是凭据。",
+      "credentialMoved": "“{record}”指向了新的目标，已存储的 {credential} 不会被保留，请重新输入。"
     },
     "event": {
       "dedupHint": "每 {window} 一次，按 {scope} 区分",

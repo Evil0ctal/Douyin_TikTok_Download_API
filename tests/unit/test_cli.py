@@ -700,7 +700,7 @@ class TestConfig:
     ) -> None:
         install_context(monkeypatch, FakeSession())
         result = runner.invoke(
-            app, ["config", "set", "security.enable_download_proxy", "true"], input="n\n"
+            app, ["config", "set", "security.enable_task_webhook", "true"], input="n\n"
         )
         assert result.exit_code == 1
         assert "sensitive setting" in result.output

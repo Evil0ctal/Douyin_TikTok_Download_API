@@ -8,6 +8,10 @@ to exercise the parsing was to hit the platform. Here the network step is
 isolated in :mod:`dtk.urls.expand` behind an injected callable, and this module
 stays fully testable with fixed strings.
 
+The operator's extra host list is the one runtime input, and it is passed in by
+the caller rather than read from the settings here, so what a host check decided
+stays reproducible from its arguments alone.
+
 This is also the SSRF chokepoint described in docs/design/08-security.md. Every
 URL the service is asked to fetch passes :func:`is_allowed_host` here, both
 before and after short-link expansion. Rules enforced:
@@ -18,7 +22,8 @@ before and after short-link expansion. Rules enforced:
   host;
 * no non-default port;
 * the host must be an allowlisted platform domain or a subdomain of one, tested
-  on a label boundary so ``douyin.com.evil.com`` fails;
+  on a label boundary so ``douyin.com.evil.com`` fails, or one of the exact
+  hostnames the operator added through ``security.url_allowlist``;
 * loopback, private, link-local, reserved and single-label internal names are
   rejected outright, ahead of the allowlist, so the rejection reason is honest.
 """
@@ -26,6 +31,7 @@ before and after short-link expansion. Rules enforced:
 from __future__ import annotations
 
 import ipaddress
+from collections.abc import Iterable
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, unquote, unquote_plus, urlencode, urlsplit
 
@@ -92,13 +98,17 @@ class UrlKind:
 
 @dataclass(frozen=True, slots=True)
 class _Target:
-    """An allowlisted URL, split into the parts the route table needs."""
+    """An allowlisted URL, split into the parts the route table needs.
+
+    ``platform`` is ``None`` for a host the operator allowlisted: it may be
+    fetched, but it belongs to no route table, so nothing can be built from it.
+    """
 
     scheme: str
     host: str
     path: str
     query: str
-    platform: Platform
+    platform: Platform | None
 
 
 # --------------------------------------------------------------------------
@@ -151,7 +161,39 @@ def _registrable_domain(host: str) -> str | None:
     return None
 
 
-def _split(url: str) -> _Target | None:
+def sanitize_extra_hosts(values: Iterable[str]) -> frozenset[str]:
+    """Normalize the hostnames an operator added to the allowlist.
+
+    An entry matches the host it names and nothing beneath it. Subdomain or
+    wildcard matching would turn one console edit into a whole zone, and this
+    list exists to admit a single stubborn redirect hop, not a provider.
+
+    Every rule the built-in list obeys applies here too, so an entry cannot
+    reach loopback, a private range or an intranet name however it is spelled.
+
+    Raises:
+        ValueError: an entry is not a usable public hostname. Refusing it by
+            name beats storing it and silently ignoring it on every read.
+    """
+    hosts: set[str] = set()
+    for raw in values:
+        if not isinstance(raw, str):
+            raise ValueError(f"url allowlist entries must be hostnames; got {raw!r}")
+        host = raw.strip().rstrip(".").lower()
+        if not host:
+            continue
+        if "//" in host or "/" in host:
+            # The likeliest mistake by far is pasting the URL that failed.
+            raise ValueError(f"{raw!r} must be a bare hostname, not a URL")
+        if not host.isascii() or not HOSTNAME_RE.match(host):
+            raise ValueError(f"{raw!r} is not a hostname")
+        if is_private_host(host):
+            raise ValueError(f"{raw!r} names this machine or a private network")
+        hosts.add(host)
+    return frozenset(hosts)
+
+
+def _split(url: str, extra_hosts: frozenset[str] = frozenset()) -> _Target | None:
     """Parse and validate ``url``. Returns ``None`` for anything not fetchable."""
     try:
         parts = urlsplit(url)
@@ -181,7 +223,7 @@ def _split(url: str) -> _Target | None:
         return None
 
     domain = _registrable_domain(host)
-    if domain is None:
+    if domain is None and host not in extra_hosts:
         return None
 
     return _Target(
@@ -189,17 +231,21 @@ def _split(url: str) -> _Target | None:
         host=host,
         path=parts.path or "/",
         query=parts.query,
-        platform=PLATFORM_BY_DOMAIN[domain],
+        platform=PLATFORM_BY_DOMAIN[domain] if domain is not None else None,
     )
 
 
-def is_allowed_host(url: str) -> bool:
+def is_allowed_host(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> bool:
     """True when ``url`` may be fetched by the service.
 
     Shares one implementation with :func:`identify` so the check the security
     layer performs and the check the parser performs can never drift apart.
+
+    ``extra_hosts`` are the operator's additions, already normalized by
+    :func:`sanitize_extra_hosts`; they are matched exactly and widen nothing
+    else.
     """
-    return _split(_prepare(url)) is not None
+    return _split(_prepare(url, extra_hosts), extra_hosts) is not None
 
 
 # --------------------------------------------------------------------------
@@ -212,7 +258,7 @@ def _trim(candidate: str) -> str:
     return candidate.rstrip(TRAILING_JUNK)
 
 
-def _prepare(url: str) -> str:
+def _prepare(url: str, extra_hosts: frozenset[str] = frozenset()) -> str:
     """Normalize whitespace and add the scheme a user left off.
 
     Only allowlisted hosts get a scheme added, so this convenience cannot widen
@@ -224,7 +270,7 @@ def _prepare(url: str) -> str:
     if "://" in text:
         return text
     head = text.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0].lower()
-    if head in BARE_URL_HOSTS:
+    if head in BARE_URL_HOSTS or head in extra_hosts:
         return f"https://{text}"
     return text
 
@@ -308,7 +354,7 @@ def _decode(value: str, from_query: bool) -> str:
     return unquote_plus(value) if from_query else unquote(value)
 
 
-def identify(url: str) -> UrlKind:
+def identify(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> UrlKind:
     """Classify a single URL. Never raises, never touches the network.
 
     An unrecognized or disallowed input comes back as ``UrlKind`` with
@@ -321,9 +367,15 @@ def identify(url: str) -> UrlKind:
     top of a profile page and the work is what the user meant to share.
     """
     original = url.strip()
-    target = _split(_prepare(original)) if original else None
+    target = _split(_prepare(original, extra_hosts), extra_hosts) if original else None
     if target is None:
         return UrlKind(original=original)
+
+    if target.platform is None:
+        # An operator allowlist entry: fetchable, but it names no platform, so
+        # there is no route table to consult and no call to build from it. It
+        # reads as allowed and unrecognized, which is what a redirect hop is.
+        return UrlKind(original=original, url=_generic_url(target))
 
     if target.host in SHORT_LINK_HOSTS:
         code = target.path.strip("/").split("/")[0]
@@ -378,13 +430,13 @@ def identify(url: str) -> UrlKind:
     return UrlKind(original=original, platform=target.platform, url=_generic_url(target))
 
 
-def normalize(url: str) -> str:
+def normalize(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> str:
     """Return the canonical web URL for ``url``.
 
     Raises:
         InvalidUrl: the scheme, host or authority is not an allowed target.
     """
-    kind = identify(url)
+    kind = identify(url, extra_hosts=extra_hosts)
     if kind.url is None:
         raise InvalidUrl(
             "not a supported Douyin or TikTok URL",
@@ -393,13 +445,14 @@ def normalize(url: str) -> str:
     return kind.url
 
 
-def require_supported(url: str) -> UrlKind:
+def require_supported(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> UrlKind:
     """Like :func:`identify`, but raise when the resource type is unknown.
 
     Short links count as supported: they are ours, they simply have to be
-    expanded first.
+    expanded first. An operator-allowlisted host never is: it carries no
+    platform, so it can only ever be a hop on the way to one.
     """
-    kind = identify(url)
+    kind = identify(url, extra_hosts=extra_hosts)
     if not kind.allowed:
         raise InvalidUrl(
             "not a supported Douyin or TikTok URL",
@@ -423,4 +476,5 @@ __all__ = [
     "is_private_host",
     "normalize",
     "require_supported",
+    "sanitize_extra_hosts",
 ]

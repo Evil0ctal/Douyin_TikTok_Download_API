@@ -12,6 +12,7 @@ See docs/design/10-configuration.md.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Any, Literal
 
@@ -66,7 +67,7 @@ class BootstrapSettings(BaseSettings):
 class SettingSpec:
     """Declaration of one runtime setting."""
 
-    __slots__ = ("choices", "default", "description", "key", "scope", "type_")
+    __slots__ = ("choices", "default", "description", "key", "scope", "type_", "validate")
 
     def __init__(
         self,
@@ -76,6 +77,7 @@ class SettingSpec:
         type_: type,
         description: str,
         choices: tuple[str, ...] | None = None,
+        validate: Callable[[Any], Any] | None = None,
     ) -> None:
         self.key = key
         self.default = default
@@ -92,6 +94,28 @@ class SettingSpec:
         #: far more useful than a stored typo that silently falls back to the
         #: default every time it is read.
         self.choices = choices
+        #: Checking the declared type cannot express, run after coercion. It
+        #: returns the value to store, so it may canonicalize as well as refuse:
+        #: a setting whose entries feed a security decision has to be pinned
+        #: down at the boundary rather than re-guessed by every reader.
+        self.validate = validate
+
+
+def _url_allowlist(value: Any) -> list[str]:
+    """Canonicalize security.url_allowlist, refusing anything it cannot mean.
+
+    This list is the one setting that can widen an SSRF boundary, so it is
+    pinned down here rather than interpreted by each reader: entries come back
+    lowercased, deduplicated and sorted, and a hostname that names this machine
+    or a private network is refused by name instead of stored and ignored.
+
+    The import is local because :mod:`dtk.urls` is layered above
+    :mod:`dtk.core`, and a settings write is far too rare to pay for the
+    package at import time.
+    """
+    from dtk.urls.parse import sanitize_extra_hosts
+
+    return sorted(sanitize_extra_hosts(value))
 
 
 #: The runtime setting registry. Anything not listed here cannot be stored in
@@ -148,13 +172,6 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         SettingSpec("pool.min_size", 3, Scope.RUNTIME, int, "Low-water mark per platform"),
         SettingSpec("pool.target_size", 8, Scope.RUNTIME, int, "Desired pool size"),
         SettingSpec(
-            "pool.safe_qps_per_identity",
-            0.2,
-            Scope.RUNTIME,
-            float,
-            "Conservative per-identity request rate",
-        ),
-        SettingSpec(
             "pool.health_prior",
             0.8,
             Scope.RUNTIME,
@@ -177,6 +194,13 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         SettingSpec("retention.identity_events_days", 90, Scope.RUNTIME, int, ""),
         SettingSpec("retention.task_days", 90, Scope.RUNTIME, int, ""),
         SettingSpec("retention.task_result_hours", 24, Scope.RUNTIME, int, ""),
+        SettingSpec(
+            "retention.retired_identity_days",
+            90,
+            Scope.RUNTIME,
+            int,
+            "How long a retired identity's row survives its retirement",
+        ),
         # --- api -----------------------------------------------------------
         SettingSpec(
             "api.default_rate_limit_per_min",
@@ -194,8 +218,10 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             [],
             Scope.SENSITIVE,
             list,
-            "Extra hostnames accepted for parsing. The built-in platform list "
-            "always applies; this only widens it.",
+            "Extra hostnames a short link may redirect through. The built-in "
+            "platform list always applies; entries here are matched exactly and "
+            "carry no platform, so they widen expansion, never routing.",
+            validate=_url_allowlist,
         ),
         SettingSpec(
             "security.cors_allow_origins",
@@ -206,20 +232,12 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         ),
         SettingSpec("security.cors_allow_credentials", False, Scope.SENSITIVE, bool, ""),
         SettingSpec(
-            "security.enable_download_proxy",
-            False,
-            Scope.SENSITIVE,
-            bool,
-            "Server-side media relay. Off by default; an open one gets abused.",
-        ),
-        SettingSpec(
             "security.enable_task_webhook",
             False,
             Scope.SENSITIVE,
             bool,
             "Caller-supplied callback_url is an SSRF vector.",
         ),
-        SettingSpec("security.download_proxy_max_bytes", 209715200, Scope.SENSITIVE, int, ""),
         # --- notifications --------------------------------------------------
         SettingSpec("notify.enabled", False, Scope.RUNTIME, bool, ""),
         SettingSpec(
@@ -316,6 +334,11 @@ def coerce(key: str, value: Any) -> Any:
     spec = RUNTIME_SETTINGS.get(key)
     if spec is None:
         raise KeyError(f"unknown setting: {key}")
+    coerced = _as_declared_type(spec, key, value)
+    return spec.validate(coerced) if spec.validate is not None else coerced
+
+
+def _as_declared_type(spec: SettingSpec, key: str, value: Any) -> Any:
     if spec.choices is not None:
         text = str(value).strip().lower()
         if text not in spec.choices:
@@ -334,6 +357,17 @@ def coerce(key: str, value: Any) -> Any:
     return spec.type_(value)
 
 
+def extra_url_hosts(config: Config) -> frozenset[str]:
+    """The hostnames ``security.url_allowlist`` adds, shaped for :mod:`dtk.urls`.
+
+    Everything that reaches a :class:`Config` has been through :func:`coerce`,
+    so these are already normalized; a stored value that was not would have
+    fallen back to the empty default with a warning, which is the fail-closed
+    direction for an allowlist.
+    """
+    return frozenset(config.get("security.url_allowlist"))
+
+
 LangCode = Literal["en", "zh"]
 
 __all__ = [
@@ -344,4 +378,5 @@ __all__ = [
     "Scope",
     "SettingSpec",
     "coerce",
+    "extra_url_hosts",
 ]

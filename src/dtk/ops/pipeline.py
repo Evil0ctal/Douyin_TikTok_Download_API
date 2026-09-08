@@ -29,7 +29,7 @@ from typing import Any, Final
 
 import httpx
 
-from dtk.core.config import Config
+from dtk.core.config import Config, extra_url_hosts
 from dtk.core.crypto import Cipher
 from dtk.core.errors import (
     IdentityPoolExhausted,
@@ -48,24 +48,19 @@ from dtk.platforms import get_adapter
 from dtk.signing import RequestSpec as SigningRequest
 from dtk.signing import SignerRegistry, StaticFingerprint, native_signers
 from dtk.transport.base import Fingerprint, RawResponse, RequestSpec, TransportIdentity
-from dtk.urls import RedirectFetcher, ResourceKind, UrlKind, resolve
+from dtk.urls import ResourceKind, UrlKind, resolve
 from dtk.worker import registry
+from dtk.worker.parsing import (
+    EXPAND_TIMEOUT_SECONDS,
+    ProxySource,
+    egress_fetcher,
+    pick_egress,
+    redirect_fetcher,
+)
 from dtk.worker.registry import Capability, ResolvedCall
-
-#: Timeout for the redirect hop that expands a short link.
-EXPAND_TIMEOUT_SECONDS: Final = 10.0
 
 #: Timeout for one upstream call.
 REQUEST_TIMEOUT_SECONDS: Final = 25.0
-
-#: A short link cannot be recognized before it is followed, so expansion is the
-#: one part of this path that issues an unsigned, identity-less request.
-_EXPAND_HEADERS: Final[dict[str, str]] = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-    )
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,32 +132,32 @@ def dump(parsed: Any, *, include_raw: bool) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-def redirect_fetcher(
-    *, proxy_url: str | None = None, timeout: float = EXPAND_TIMEOUT_SECONDS
-) -> RedirectFetcher:
-    """A RedirectFetcher backed by httpx, for short-link expansion.
-
-    Redirects are not followed here: dtk.urls re-validates every hop against the
-    host allowlist, and that check only happens if it sees the hops one by one.
-    """
-
-    async def fetch(url: str) -> str | None:
-        async with httpx.AsyncClient(
-            follow_redirects=False, proxy=proxy_url, timeout=timeout, headers=_EXPAND_HEADERS
-        ) as client:
-            response = await client.get(url)
-        if response.status_code not in (301, 302, 303, 307, 308):
-            return None
-        return response.headers.get("location")
-
-    return fetch
-
-
 async def resolve_target(
-    text: str, *, proxy_url: str | None = None, timeout: float = EXPAND_TIMEOUT_SECONDS
+    text: str,
+    *,
+    proxy_url: str | None = None,
+    egress: ProxySource | None = None,
+    timeout: float = EXPAND_TIMEOUT_SECONDS,
+    extra_hosts: frozenset[str] = frozenset(),
 ) -> Target:
-    """Turn pasted share text into the endpoint call it stands for."""
-    kind = await resolve(text, redirect_fetcher(proxy_url=proxy_url, timeout=timeout))
+    """Turn pasted share text into the endpoint call it stands for.
+
+    ``extra_hosts`` is ``security.url_allowlist``: it widens which hosts a short
+    link may redirect through, and the fetcher is built with the same list so
+    both halves of the check agree.
+
+    ``egress`` is the lazy form of ``proxy_url``, resolved only if a hop is
+    actually taken. Most text is a full URL that takes none, and the lookup
+    behind an egress is a database round trip - and one that raises when the
+    pool has no healthy proxy, which would turn "your link needed no
+    expansion" into "no proxy is available".
+    """
+    fetcher = (
+        egress_fetcher(egress, timeout=timeout, extra_hosts=extra_hosts)
+        if egress is not None
+        else redirect_fetcher(proxy_url=proxy_url, timeout=timeout, extra_hosts=extra_hosts)
+    )
+    kind = await resolve(text, fetcher, extra_hosts=extra_hosts)
     return target_for(kind)
 
 
@@ -372,7 +367,21 @@ async def smoke(
     exception into a failed step with the reason attached, and a result object
     saying "not ok" would put that decision back on every caller.
     """
-    target = await resolve_target(url)
+    # The expansion hop is an outbound request like any other. Following the
+    # link from this host while the probe itself leaves through a proxy shows
+    # the platform both addresses and that they belong together, so the hop
+    # borrows a pool egress too - see dtk.worker.parsing.pick_egress for why
+    # that is a proxy rather than a lease.
+    target = await resolve_target(
+        url,
+        # Lazily: SMOKE_URLS are full platform URLs that take no hop, and
+        # pick_egress raises when proxies exist but none are healthy. Awaited
+        # eagerly, a box with dead proxies failed the smoke step - and the last
+        # step of the setup wizard - with "no healthy proxy is available to
+        # expand the link", which is neither what failed nor what to do about it.
+        egress=lambda: pick_egress(session, cipher),
+        extra_hosts=extra_url_hosts(config),
+    )
     call = registry.resolve(target.endpoint, target.params, config)
     identity = await pick_identity(session, cipher, target.platform)
     probe = await probe_identity(transport, signers, identity, call, timeout=timeout)

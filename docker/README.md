@@ -117,6 +117,49 @@ The worker is started as `python -m dtk.worker`, falling back to
 `python -m dtk.ops.worker`; `DTK_WORKER_COMMAND` overrides the command line
 entirely for a deployment that starts it some other way.
 
+## Behind a reverse proxy
+
+Everything that reaches the api through a TLS terminator arrives with the
+terminator's address, and everything that reaches it through Docker's
+published-port userland proxy arrives with the bridge gateway's. Either way
+`request.client.host` is a single address shared by the whole internet.
+
+`DTK_FORWARDED_ALLOW_IPS` is how you say otherwise. Set it to the address, or
+comma-separated addresses, your proxy connects from; the entrypoint then starts
+uvicorn with `--proxy-headers --forwarded-allow-ips`, and uvicorn rewrites the
+peer address from `X-Forwarded-For` for those hops and for nobody else.
+
+```bash
+# in the repository-root .env, alongside DTK_SECRET_KEY
+DTK_FORWARDED_ALLOW_IPS=172.18.0.5    # the nginx/caddy container or host
+```
+
+| Value | What the api does with the source address |
+|---|---|
+| unset (default) | Peer address only. It is recorded, but no login is refused because of it: the per-address failure counter degrades to a `auth.login_spray_suspected` warning. |
+| your proxy's address | Real client addresses in the audit trail, the session list and the logs, and the per-address login limit refuses again. |
+| `*` | uvicorn believes `X-Forwarded-For` from whoever sends it, so the address is forgeable. The api treats this as undeclared and will not refuse a login on it. |
+
+The per-address limit is conditional because with one shared address it is one
+global bucket: twenty failed logins from a stranger would otherwise lock every
+account out of the console for fifteen minutes, repeatably, which is a denial of
+service handed to anyone who can reach the login page. The per-account limit is
+not conditional — five failures cost the attacker only the account they are
+guessing at.
+
+That per-account limit is still a lockout, so an operator whose own account is
+being guessed at can meet `RATE_LIMITED` on a correct password. The counter is a
+Redis key with a fifteen minute TTL, and waiting is not the only option:
+
+```bash
+docker compose -p dtk -f docker/compose.yml exec redis \
+    sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli DEL login:fail:user:admin'
+```
+
+The username in that key is lowercased. Reading the password from the
+container's own environment keeps it out of the host's shell history and process
+list, which is why the healthcheck is written the same way.
+
 ## Configuration and the two ways compose reads `.env`
 
 This trips people up, so it is worth being explicit.

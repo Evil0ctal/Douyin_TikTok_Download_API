@@ -13,8 +13,9 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Final
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.crypto import Cipher
@@ -35,6 +36,38 @@ from dtk.scheduler.scheduler import Candidate
 from dtk.transport.base import Fingerprint
 
 log = get_logger(__name__)
+
+#: The two windows doc 02 defines the health score over. They are read from the
+#: ``identity_health_5m`` continuous aggregate, which buckets at five minutes,
+#: so each window is only ever accurate to one bucket - far finer than the
+#: health tiers the scheduler actually ranks on.
+HEALTH_RECENT_MINUTES: Final[int] = 15
+HEALTH_RISK_MINUTES: Final[int] = 60
+
+#: The window counts for an identity the aggregate has nothing on. Zero samples
+#: is what :func:`dtk.scheduler.health.score` reads as "no history", so it falls
+#: back to the configured prior instead of scoring a fresh identity as perfect
+#: or as dead. It is also the right answer when the aggregate cannot be read.
+_NO_TRAFFIC: Final[tuple[int, int, int, int]] = (0, 0, 0, 0)
+
+#: Per-identity totals over both windows in one pass. The minute counts are
+#: interpolated rather than bound: they are the module constants above, never
+#: anything a caller supplies, and an INTERVAL literal keeps the statement
+#: readable next to the view it reads.
+_HEALTH_WINDOWS_SQL = text(
+    "SELECT h.identity_id, "
+    "coalesce(sum(h.total) FILTER (WHERE h.bucket >= now() - "
+    f"INTERVAL '{HEALTH_RECENT_MINUTES} minutes'), 0) AS recent_total, "
+    "coalesce(sum(h.ok) FILTER (WHERE h.bucket >= now() - "
+    f"INTERVAL '{HEALTH_RECENT_MINUTES} minutes'), 0) AS recent_ok, "
+    "coalesce(sum(h.total), 0) AS window_total, "
+    "coalesce(sum(h.risk), 0) AS window_risk "
+    "FROM identity_health_5m h "
+    "JOIN identities i ON i.id = h.identity_id "
+    "WHERE i.platform = :platform AND i.state = :state "
+    f"AND h.bucket >= now() - INTERVAL '{HEALTH_RISK_MINUTES} minutes' "
+    "GROUP BY h.identity_id"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,45 +208,155 @@ class IdentityPool:
     ) -> Sequence[Candidate]:
         """Supply the scheduler with rankable identities.
 
-        Cooling identities whose window has elapsed are promoted here rather
-        than by a background job, so a recovered pool becomes usable on the next
-        request instead of on the next sweep.
+        Identities whose backoff has elapsed are promoted here rather than by a
+        background job, so a recovered pool becomes usable on the next request
+        instead of on the next sweep.
+
+        The rates behind the health score are read here too. Ranking on the
+        failure streak alone cannot separate an identity that fails every other
+        request - each success wiping the streak - from one that has never
+        failed at all, which is the difference doc 02's other two factors exist
+        to express.
         """
         now = datetime.now(UTC)
         if state is IdentityState.ACTIVE:
-            await session.execute(
-                update(IdentityRow)
-                .where(
-                    IdentityRow.platform == platform.value,
-                    IdentityRow.state == IdentityState.COOLING.value,
-                    IdentityRow.cooldown_until.is_not(None),
-                    IdentityRow.cooldown_until <= now,
-                )
-                .values(state=IdentityState.ACTIVE.value, cooldown_until=None)
-            )
+            await self._promote_recovered(session, platform, now=now)
 
-        rows = (
-            await session.execute(
-                select(IdentityRow).where(
-                    IdentityRow.platform == platform.value,
-                    IdentityRow.state == state.value,
+        rows = list(
+            (
+                await session.execute(
+                    select(IdentityRow).where(
+                        IdentityRow.platform == platform.value,
+                        IdentityRow.state == state.value,
+                    )
                 )
             )
-        ).scalars()
+            .scalars()
+            .all()
+        )
+        windows = await self._health_windows(session, platform, state) if rows else {}
 
-        return [
-            Candidate(
-                identity_id=str(r.id),
-                platform=platform,
-                state=state,
-                last_used_at=r.last_used_at.timestamp() if r.last_used_at else None,
-                # Windowed rates live in the continuous aggregates; the streak is
-                # the part the scheduler needs on the hot path and it is kept on
-                # the row so ranking never waits on an aggregate refresh.
-                health=HealthInput(0, 0, 0, 0, r.consecutive_fails),
+        candidates: list[Candidate] = []
+        for row in rows:
+            recent_total, recent_ok, window_total, window_risk = windows.get(row.id, _NO_TRAFFIC)
+            candidates.append(
+                Candidate(
+                    identity_id=str(row.id),
+                    platform=platform,
+                    state=state,
+                    last_used_at=row.last_used_at.timestamp() if row.last_used_at else None,
+                    health=HealthInput(
+                        recent_total,
+                        recent_ok,
+                        window_total,
+                        window_risk,
+                        row.consecutive_fails,
+                    ),
+                )
             )
-            for r in rows
-        ]
+        return candidates
+
+    async def _promote_recovered(
+        self, session: AsyncSession, platform: Platform, *, now: datetime
+    ) -> None:
+        """Return identities whose backoff has elapsed to the active pool.
+
+        DEGRADED is included, and that is the point of this method. It is only
+        ever reached from COOLING, when the backoff hits its ceiling, so
+        promoting COOLING alone made it terminal: an identity that once ran a
+        long risk-control streak stayed dead weight for the life of the
+        deployment while the filler - which does not count DEGRADED as live -
+        minted a replacement for it, and then for its replacement.
+
+        The streak is deliberately not cleared. Only a successful request does
+        that (see :meth:`record_outcome`), so an identity that is still broken
+        computes the same ceiling cooldown on its next risk hit and drops back
+        within one request, while until it succeeds its health score keeps it at
+        the bottom of the ranking. That is the last-resort duty DEGRADED was
+        described as, now expressed by the score rather than by a state nothing
+        could leave.
+
+        A NULL ``cooldown_until`` counts as elapsed. No writer produces that
+        combination today, but a row that had it would be stuck in exactly the
+        way this method exists to prevent.
+        """
+        promoted = (
+            (
+                await session.execute(
+                    update(IdentityRow)
+                    .where(
+                        IdentityRow.platform == platform.value,
+                        IdentityRow.state.in_(
+                            [IdentityState.COOLING.value, IdentityState.DEGRADED.value]
+                        ),
+                        or_(
+                            IdentityRow.cooldown_until.is_(None),
+                            IdentityRow.cooldown_until <= now,
+                        ),
+                    )
+                    .values(state=IdentityState.ACTIVE.value, cooldown_until=None)
+                    .returning(IdentityRow.id)
+                    # A bulk UPDATE over rows this short-lived session has not
+                    # loaded; there is no in-memory state to keep in step.
+                    .execution_options(synchronize_session=False)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not promoted:
+            return
+        for identity_id in promoted:
+            # "degraded" is written to this timeline, so its undoing has to be
+            # too: the events table is the only record of why the pool changed
+            # shape, and leaving "degraded" as the last word about an identity
+            # that is working again makes it lie.
+            session.add(
+                IdentityEvent(
+                    ts=now,
+                    identity_id=identity_id,
+                    event="activated",
+                    detail={"reason": "cooldown_elapsed"},
+                )
+            )
+        # Flushed here, not left pending: the health read that follows runs in a
+        # savepoint, and a pending insert would be flushed inside it and rolled
+        # back with it. An unreadable aggregate must not swallow the timeline.
+        await session.flush()
+        log.info("identity.reactivated", platform=platform.value, count=len(promoted))
+
+    async def _health_windows(
+        self, session: AsyncSession, platform: Platform, state: IdentityState
+    ) -> dict[uuid.UUID, tuple[int, int, int, int]]:
+        """Per-identity request counts over both health windows.
+
+        Read from the continuous aggregate rather than from ``request_log``:
+        the aggregate is materialized in five-minute buckets with real-time
+        aggregation on top, so the last few minutes are included without this
+        query scanning the raw hypertable on the scheduler's path.
+
+        The savepoint is what makes the read optional. The view is absent on an
+        instance without TimescaleDB, and a statement that raises poisons the
+        surrounding transaction - here, the one the scheduler is picking an
+        identity in. Losing the rates costs ranking accuracy for one call;
+        losing the transaction costs the request.
+        """
+        try:
+            async with session.begin_nested():
+                rows = (
+                    await session.execute(
+                        _HEALTH_WINDOWS_SQL,
+                        {"platform": platform.value, "state": state.value},
+                    )
+                ).all()
+        except Exception as exc:
+            log.debug(
+                "identity.health_windows_unavailable",
+                platform=platform.value,
+                error=f"{type(exc).__name__}: {exc}"[:200],
+            )
+            return {}
+        return {row[0]: (int(row[1]), int(row[2]), int(row[3]), int(row[4])) for row in rows}
 
     # -- outcome bookkeeping ------------------------------------------------
 
@@ -244,6 +387,10 @@ class IdentityPool:
             if row.state == IdentityState.COOLING.value:
                 row.state = IdentityState.ACTIVE.value
                 row.cooldown_until = None
+            # A DEGRADED identity is deliberately not promoted here. Clearing
+            # the streak is what one success buys it; it rejoins the active pool
+            # when its ceiling cooldown elapses, so a long failing history costs
+            # it a probation window instead of being undone by a lucky request.
         elif outcome is Outcome.BUSINESS_ERROR:
             pass
         elif outcome is Outcome.NETWORK_ERROR:
@@ -341,4 +488,37 @@ class IdentityPool:
         return {str(state): int(count) for state, count in rows.all()}
 
 
-__all__ = ["IdentityPool", "LiveIdentity"]
+async def purge_retired(session: AsyncSession, *, days: int) -> int:
+    """Delete retired identities older than ``days``, returning how many went.
+
+    Retirement wipes the credential and keeps the row for its statistics, and
+    nothing ever removed it: on a deployment that mints a replacement for every
+    identity it loses, ``identities`` is the one table that only grows. The
+    window is an operator's call, so it comes from the retention settings like
+    every other one rather than from a constant in here.
+
+    Their events are left to age out under ``retention.identity_events_days``.
+    ``request_log`` and ``identity_events`` carry no foreign key to this table
+    (doc 05: no per-row check on the highest-volume insert path), so nothing
+    cascades and nothing blocks the delete.
+
+    ``retired_at`` is written by :func:`IdentityPool.retire`, but a row that
+    reached RETIRED without it would be exactly as immortal as the rows this
+    deletes, so the mint date stands in for a missing one.
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=max(1, days))
+    result = await session.execute(
+        delete(IdentityRow)
+        .where(
+            IdentityRow.state == IdentityState.RETIRED.value,
+            func.coalesce(IdentityRow.retired_at, IdentityRow.minted_at) < cutoff,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    count = int(getattr(result, "rowcount", 0) or 0)
+    if count:
+        log.info("identity.retired_purged", deleted=count, older_than_days=days)
+    return count
+
+
+__all__ = ["IdentityPool", "LiveIdentity", "purge_retired"]

@@ -34,7 +34,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, Protocol
 
 import httpx
 from redis.asyncio import Redis
@@ -555,6 +555,112 @@ class Notifier:
         return "exhausted attempts"
 
 
+# ---------------------------------------------------------------------------
+# Raising an alert from a caller that cannot wait for it
+# ---------------------------------------------------------------------------
+
+
+class Alerter(Protocol):
+    """The one method a caller needs in order to raise an alert.
+
+    The same protocol as :class:`dtk.worker.alerts.Alerter`, declared again
+    because the request path cannot import the worker package: that import runs
+    through ``dtk.worker.runtime`` into ``dtk.services.fetch`` and back into the
+    scheduler, which is one of the callers here. Structural typing means one
+    :class:`Notifier` still satisfies both.
+    """
+
+    async def notify(self, event: NotifyEvent, /, **args: Any) -> Any: ...
+
+
+#: Deliveries started off a caller's own path. Held for their lifetime because
+#: the event loop keeps only a weak reference to a running task, and an alert
+#: collected mid-POST is an alert nobody was ever sent.
+_in_flight: set[asyncio.Task[Any]] = set()
+
+
+def alert_in_background(alerter: Alerter | None, event: NotifyEvent, /, **args: Any) -> bool:
+    """Schedule one alert and return immediately.
+
+    The background jobs await :func:`dtk.worker.alerts.raise_alert`, which they
+    can afford; an endpoint tripping and a signature going stale are both
+    noticed inside a request, and there a channel that takes its full timeout
+    twice would charge those seconds to whichever request happened to be last.
+    Only the waiting is dropped - the delivery is deduplicated, retried and
+    logged exactly as an awaited one is.
+
+    Returns whether a delivery was scheduled. ``None`` is the normal state of a
+    deployment with no channels configured, and no running loop means a
+    synchronous caller: neither is an error, and neither may raise into the
+    request that got here.
+    """
+    if alerter is None:
+        return False
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        log.debug("ops.notify.no_loop", alert=event.value)
+        return False
+    task = loop.create_task(_deliver_quietly(alerter, event, args), name=f"alert-{event.value}")
+    _in_flight.add(task)
+    task.add_done_callback(_in_flight.discard)
+    return True
+
+
+async def _deliver_quietly(alerter: Alerter, event: NotifyEvent, args: Mapping[str, Any]) -> None:
+    """Deliver one alert, swallowing whatever it raises.
+
+    Nobody awaits this task, so an escaping exception would surface much later
+    as an unretrieved task exception, naming a request that had long since
+    finished instead of the channel that refused the message.
+    """
+    try:
+        await alerter.notify(event, **args)
+    except Exception as exc:
+        log.warning(
+            "ops.notify.background_failed",
+            alert=event.value,
+            error=scrub(f"{type(exc).__name__}: {exc}")[:MAX_REASON_LENGTH],
+        )
+
+
+def pending_alerts() -> tuple[asyncio.Task[Any], ...]:
+    """Background deliveries still in flight, for a caller that has to know.
+
+    Nothing in the request path waits on these; a test asserting that an alert
+    went out does, and so would a shutdown that did not want to cancel one
+    halfway through a POST.
+    """
+    return tuple(_in_flight)
+
+
+#: Signer-registry events that page an operator, and the trigger each becomes.
+#: The registry announces two more - engaging the browser-rpc fallback for an
+#: endpoint and returning from it - which are routing changes that undo
+#: themselves, and doc 15's table has no trigger for them.
+SIGNING_ALERTS: Final[Mapping[str, NotifyEvent]] = {
+    "signing.shadow.mismatch": NotifyEvent.SIGNATURE_STALE,
+}
+
+
+def signing_alert_hook(alerter: Alerter | None) -> Callable[[str, Mapping[str, Any]], None]:
+    """Adapt :class:`dtk.signing.registry.SignerRegistry`'s ``on_alert`` to a notifier.
+
+    The registry announces its events synchronously from inside ``sign``, so the
+    hook may neither await nor raise. What it hands over is a platform, an
+    endpoint and the names of the parameters that disagreed - names, never the
+    signatures themselves, which is what makes the context safe to put in a
+    webhook body.
+    """
+
+    def hook(event: str, context: Mapping[str, Any]) -> None:
+        trigger = SIGNING_ALERTS.get(event)
+        if trigger is not None:
+            alert_in_background(alerter, trigger, **context)
+
+    return hook
+
+
 def channels_from_config(config: Any) -> tuple[Channel, ...]:
     """The alert channels one settings snapshot describes.
 
@@ -607,7 +713,9 @@ __all__ = [
     "MAX_ATTEMPTS",
     "MAX_REASON_LENGTH",
     "RETRY_BACKOFF_SECONDS",
+    "SIGNING_ALERTS",
     "TRIGGERS",
+    "Alerter",
     "Deduplicator",
     "Delivery",
     "Message",
@@ -615,9 +723,12 @@ __all__ = [
     "NotifyEvent",
     "Severity",
     "TriggerSpec",
+    "alert_in_background",
     "channels_from_config",
     "dedup_key",
     "failure_reason",
     "notifier_from_config",
+    "pending_alerts",
     "render",
+    "signing_alert_hook",
 ]

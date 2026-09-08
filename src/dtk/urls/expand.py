@@ -54,6 +54,7 @@ async def expand(
     fetcher: RedirectFetcher,
     *,
     max_hops: int = MAX_REDIRECTS,
+    extra_hosts: frozenset[str] = frozenset(),
 ) -> str:
     """Follow ``url`` to its final destination and return the canonical form.
 
@@ -65,6 +66,10 @@ async def expand(
         url: Starting URL. Must already be on an allowlisted host.
         fetcher: Injected single-request callable, see :class:`RedirectFetcher`.
         max_hops: Maximum number of redirects to follow.
+        extra_hosts: The operator's ``security.url_allowlist``. This is the one
+            place it earns its keep: a chain that detours through a host we did
+            not anticipate dies here otherwise, and the operator has no other
+            way to let that one hop through.
 
     Returns:
         The canonical URL of the final destination.
@@ -77,22 +82,22 @@ async def expand(
         raise ValueError("max_hops must be at least 1")
 
     current = url.strip()
-    if not is_allowed_host(current):
+    if not is_allowed_host(current, extra_hosts=extra_hosts):
         logger.warning("urls.expand.rejected", stage="start")
         raise InvalidUrl(
             "not a supported Douyin or TikTok URL",
             details={"reason": "host_not_allowed"},
         )
 
-    seen = {normalize(current)}
+    seen = {normalize(current, extra_hosts=extra_hosts)}
     for hop in range(max_hops):
         location = await fetcher(current)
         if location is None or not location.strip():
             logger.debug("urls.expand.settled", hops=hop)
-            return normalize(current)
+            return normalize(current, extra_hosts=extra_hosts)
 
         candidate = urljoin(current, location.strip())
-        if not is_allowed_host(candidate):
+        if not is_allowed_host(candidate, extra_hosts=extra_hosts):
             # This is the check doc 08 exists for: the short link itself was
             # allowlisted, its target is not.
             logger.warning("urls.expand.rejected", stage="hop", hop=hop)
@@ -101,7 +106,7 @@ async def expand(
                 details={"reason": "redirect_not_allowed", "hop": hop},
             )
 
-        canonical = normalize(candidate)
+        canonical = normalize(candidate, extra_hosts=extra_hosts)
         if canonical in seen:
             logger.warning("urls.expand.loop", hop=hop)
             raise InvalidUrl(
@@ -124,6 +129,7 @@ async def resolve(
     fetcher: RedirectFetcher,
     *,
     max_hops: int = MAX_REDIRECTS,
+    extra_hosts: frozenset[str] = frozenset(),
 ) -> UrlKind:
     """Turn whatever the user pasted into a recognized resource.
 
@@ -131,6 +137,10 @@ async def resolve(
     first URL, classifies it, expands it when it is a short link, and
     classifies the result. This is the entry point the parse service and the
     CLI use.
+
+    ``extra_hosts`` widens which redirect hops may be followed, never which
+    resources exist: a chain that ends on an operator-allowlisted host has no
+    platform, so it is refused below as unrecognized.
 
     Raises:
         InvalidUrl: nothing usable in ``text``, the target is not allowed, or
@@ -140,7 +150,7 @@ async def resolve(
     if candidate is None:
         raise InvalidUrl("no URL found in the input", details={"reason": "no_url"})
 
-    kind = identify(candidate)
+    kind = identify(candidate, extra_hosts=extra_hosts)
     if not kind.allowed:
         raise InvalidUrl(
             "not a supported Douyin or TikTok URL",
@@ -148,8 +158,8 @@ async def resolve(
         )
 
     if kind.needs_expansion and kind.url is not None:
-        final = await expand(kind.url, fetcher, max_hops=max_hops)
-        kind = identify(final)
+        final = await expand(kind.url, fetcher, max_hops=max_hops, extra_hosts=extra_hosts)
+        kind = identify(final, extra_hosts=extra_hosts)
         logger.info("urls.resolve.expanded", resource=kind.resource.value)
 
     if kind.resource is ResourceKind.SHORT_LINK:

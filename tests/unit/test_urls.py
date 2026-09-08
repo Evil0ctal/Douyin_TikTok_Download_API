@@ -29,6 +29,7 @@ from dtk.urls import (
     normalize,
     require_supported,
     resolve,
+    sanitize_extra_hosts,
 )
 
 DOUYIN = Platform.DOUYIN
@@ -663,6 +664,93 @@ def test_is_private_host_allows_public_names(host: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# security.url_allowlist: the hosts an operator adds
+#
+# The console calls this the SSRF boundary and warns about it in red, so these
+# assert the shape of what an entry may do as tightly as what it may not. An
+# entry is one exact host, it carries no platform, and it is checked after the
+# scheme, port, userinfo and private-range rules rather than instead of them.
+# ---------------------------------------------------------------------------
+
+EXTRA = frozenset({"cdn.example.com"})
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param(["cdn.example.com"], {"cdn.example.com"}, id="plain"),
+        pytest.param(["  CDN.Example.COM.  "], {"cdn.example.com"}, id="case-and-trailing-dot"),
+        pytest.param(["a.example.com", "a.example.com"], {"a.example.com"}, id="deduplicated"),
+        pytest.param(["", "  "], set(), id="blank-entries-dropped"),
+    ],
+)
+def test_sanitize_extra_hosts(raw: list[str], expected: set[str]) -> None:
+    assert sanitize_extra_hosts(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        pytest.param("localhost", id="loopback-name"),
+        pytest.param("127.0.0.1", id="loopback-literal"),
+        pytest.param("169.254.169.254", id="cloud-metadata"),
+        pytest.param("10.0.0.1", id="private-range"),
+        pytest.param("db.internal", id="intranet-suffix"),
+        pytest.param("printer", id="single-label"),
+        pytest.param("*.example.com", id="wildcard"),
+        pytest.param("https://cdn.example.com/x", id="a-whole-url"),
+        pytest.param("cdn.example.com:8080", id="host-and-port"),
+        pytest.param("cdn.ex\u00e4mple.com", id="non-ascii"),
+        pytest.param(7, id="not-even-a-string"),
+    ],
+)
+def test_sanitize_extra_hosts_refuses(entry: object) -> None:
+    with pytest.raises(ValueError):
+        sanitize_extra_hosts([entry])  # type: ignore[list-item]
+
+
+def test_an_extra_host_is_allowed_but_belongs_to_no_platform() -> None:
+    """It may be fetched. It can never become a call: there is no route table."""
+    kind = identify("https://cdn.example.com/whatever", extra_hosts=EXTRA)
+    assert kind.allowed
+    assert kind.platform is None
+    assert kind.resource is ResourceKind.UNKNOWN
+    assert not kind.recognized
+
+
+def test_an_extra_host_matches_exactly_and_nothing_beneath_it() -> None:
+    assert is_allowed_host("https://cdn.example.com/x", extra_hosts=EXTRA) is True
+    assert is_allowed_host("https://sub.cdn.example.com/x", extra_hosts=EXTRA) is False
+    assert is_allowed_host("https://example.com/x", extra_hosts=EXTRA) is False
+    assert is_allowed_host("https://cdn.example.com.evil.io/x", extra_hosts=EXTRA) is False
+
+
+def test_the_allowlist_is_empty_unless_it_is_passed() -> None:
+    """The default is not "whatever the last caller used": it is nothing."""
+    assert is_allowed_host("https://cdn.example.com/x") is False
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        pytest.param("http://169.254.169.254/latest/meta-data/", id="link-local"),
+        pytest.param("http://127.0.0.1/x", id="loopback"),
+        pytest.param("https://cdn.example.com:8080/x", id="odd-port"),
+        pytest.param("https://evil.com@cdn.example.com/x", id="userinfo"),
+        pytest.param("file:///etc/passwd", id="file-scheme"),
+    ],
+)
+def test_an_entry_cannot_buy_its_way_past_the_other_rules(url: str) -> None:
+    """Even handed the host verbatim, the checks ahead of the allowlist stand.
+
+    sanitize_extra_hosts refuses these entries, so this is the second line: a
+    list hand-edited into the database still cannot reach any of them.
+    """
+    hosts = frozenset({"169.254.169.254", "127.0.0.1", "cdn.example.com"})
+    assert is_allowed_host(url, extra_hosts=hosts) is False
+
+
+# ---------------------------------------------------------------------------
 # normalize
 # ---------------------------------------------------------------------------
 
@@ -871,6 +959,26 @@ async def test_expand_default_hop_budget_is_bounded() -> None:
     assert len(fetcher.calls) == MAX_REDIRECTS
 
 
+async def test_expand_follows_a_hop_through_an_operator_allowlisted_host() -> None:
+    """The whole reason security.url_allowlist exists.
+
+    A chain that detours through a host nobody anticipated dies at the hop
+    re-check, and the operator has no other lever for it.
+    """
+    hops = {
+        "https://v.douyin.com/abc123": "https://cdn.example.com/r/abc123",
+        "https://cdn.example.com/r/abc123": f"https://www.douyin.com/video/{AWEME_ID}",
+    }
+    assert (
+        await expand("https://v.douyin.com/abc123", FakeRedirects(hops), extra_hosts=EXTRA)
+        == f"https://www.douyin.com/video/{AWEME_ID}"
+    )
+
+    with pytest.raises(InvalidUrl) as excinfo:
+        await expand("https://v.douyin.com/abc123", FakeRedirects(hops))
+    assert excinfo.value.details["reason"] == "redirect_not_allowed"
+
+
 async def test_expand_rejects_a_zero_hop_budget() -> None:
     with pytest.raises(ValueError, match="max_hops"):
         await expand("https://v.douyin.com/abc123", FakeRedirects(), max_hops=0)
@@ -930,6 +1038,14 @@ async def test_resolve_rejects_a_short_link_landing_on_a_page_we_cannot_use() ->
     fetcher = FakeRedirects({"https://v.douyin.com/abc123": "https://www.douyin.com/"})
     with pytest.raises(InvalidUrl) as excinfo:
         await resolve("https://v.douyin.com/abc123/", fetcher)
+    assert excinfo.value.details["reason"] == "unknown_resource"
+
+
+async def test_resolve_refuses_a_chain_that_ends_on_an_allowlisted_host() -> None:
+    """Widening expansion is not widening what may be fetched as a resource."""
+    fetcher = FakeRedirects({"https://v.douyin.com/abc123": "https://cdn.example.com/landing"})
+    with pytest.raises(InvalidUrl) as excinfo:
+        await resolve("https://v.douyin.com/abc123/", fetcher, extra_hosts=EXTRA)
     assert excinfo.value.details["reason"] == "unknown_resource"
 
 

@@ -13,16 +13,18 @@ from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from dtk import __version__
 from dtk.api import envelope
 from dtk.api.middleware import (
+    BodyLimitMiddleware,
     ContextMiddleware,
+    CorsMiddleware,
     DatabaseSessionMiddleware,
     SecurityHeadersMiddleware,
+    response_language,
 )
 from dtk.core.config import BootstrapSettings, Config
 from dtk.core.crypto import Cipher
@@ -30,7 +32,6 @@ from dtk.core.db import dispose_engine, init_engine
 from dtk.core.errors import HTTP_STATUS, DtkError, ErrorCode
 from dtk.core.logging import configure, get_logger
 from dtk.core.redis import close_redis, init_redis
-from dtk.core.types import DEFAULT_LANGUAGE, Language
 
 log = get_logger(__name__)
 
@@ -81,44 +82,23 @@ def create_app(settings: BootstrapSettings | None = None) -> FastAPI:
     # app importable and testable without a database.
     app.state.config = Config.defaults()
 
-    # Order matters: the outermost middleware runs first on the way in.
+    # Order matters: the outermost middleware runs first on the way in, and
+    # every middleware here is mounted unconditionally. Nothing may depend on a
+    # runtime setting to decide whether it exists: this runs before the
+    # lifespan has read the settings table, so it would see the defaults and
+    # keep them for the life of the process (doc 10). CORS is outermost so a
+    # preflight is answered without waking the rest of the stack; the body
+    # ceiling is innermost so its refusal still carries the correlation id and
+    # the caller's language.
+    app.add_middleware(BodyLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(DatabaseSessionMiddleware)
     app.add_middleware(ContextMiddleware)
-
-    origins = app.state.config.get("security.cors_allow_origins") or []
-    if origins:
-        # Empty by default. '*' would hand any site the ability to use a
-        # browser-held API key, so widening this is an explicit decision.
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=list(origins),
-            allow_credentials=bool(app.state.config.get("security.cors_allow_credentials")),
-            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allow_headers=["*"],
-            expose_headers=[
-                "X-Request-ID",
-                "X-RateLimit-Limit",
-                "X-RateLimit-Remaining",
-                "X-RateLimit-Reset",
-                "Retry-After",
-            ],
-        )
+    app.add_middleware(CorsMiddleware)
 
     _install_error_handlers(app)
     _install_routes(app)
     return app
-
-
-def _language_of(request: Request) -> Language:
-    """The response language, defaulting when the middleware has not run yet.
-
-    An error raised before ContextMiddleware sets it - a malformed request line,
-    say - still has to produce a localized envelope rather than crash on a
-    missing attribute.
-    """
-    value = getattr(request.state, "language", None)
-    return value if isinstance(value, Language) else DEFAULT_LANGUAGE
 
 
 def _install_error_handlers(app: FastAPI) -> None:
@@ -133,7 +113,7 @@ def _install_error_handlers(app: FastAPI) -> None:
         return envelope.failure(
             ErrorCode.INVALID_PARAM,
             getattr(request.state, "request_id", "unknown"),
-            language=_language_of(request),
+            language=response_language(request),
             details={"fields": exc.errors()[:10]},
         )
 
@@ -148,7 +128,7 @@ def _install_error_handlers(app: FastAPI) -> None:
         return envelope.failure(
             code,
             getattr(request.state, "request_id", "unknown"),
-            language=_language_of(request),
+            language=response_language(request),
             status_code=exc.status_code or HTTP_STATUS[code],
         )
 
@@ -160,7 +140,7 @@ def _install_error_handlers(app: FastAPI) -> None:
         return envelope.failure(
             ErrorCode.INTERNAL,
             getattr(request.state, "request_id", "unknown"),
-            language=_language_of(request),
+            language=response_language(request),
         )
 
 

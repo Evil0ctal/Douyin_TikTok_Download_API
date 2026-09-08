@@ -11,7 +11,16 @@ The ordering constraints that matter:
 * the identity's bookkeeping and the endpoint's circuit window are both updated
   even when the parse later fails, since the upstream call did happen;
 * a NETWORK_ERROR is retried on a *different* identity, because the fault is in
-  the egress rather than in the request.
+  the egress rather than in the request;
+* every attempt writes exactly one ``request_log`` row, including the ones that
+  never reached the platform. This service is the table's only writer, so a path
+  that skips it is a hole in the console, in the health aggregates and in the
+  audit trail at once.
+
+The outcome itself is not decided here: :mod:`dtk.transport.classify` owns the
+tables, and this module only adds the platform's own 200-body signature on top
+of them. Two classifiers disagreeing about what a 403 means is how a refused
+identity gets reported as missing content.
 
 See docs/design/01-architecture.md.
 """
@@ -23,7 +32,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,8 +45,9 @@ from dtk.core.errors import (
 )
 from dtk.core.logging import get_logger
 from dtk.core.types import Outcome, Platform
+from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import RequestLog
-from dtk.identity.pool import IdentityPool, LiveIdentity
+from dtk.identity.pool import IdentityPool
 from dtk.platforms import PlatformAdapter, get_adapter
 from dtk.platforms.base import RequestSpec as PlatformRequestSpec
 from dtk.scheduler.leases import Lease
@@ -52,6 +62,7 @@ from dtk.transport.base import (
     TransportIdentity,
 )
 from dtk.transport.base import RequestSpec as TransportRequestSpec
+from dtk.transport.classify import Classification
 
 log = get_logger(__name__)
 
@@ -82,8 +93,40 @@ class FetchContext:
     include_raw: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _Attempt:
+    """What one pass through :meth:`FetchService._call_once` produced.
+
+    ``payload`` is decoded there rather than here because the platform's
+    risk-control signature is read from the same bytes; ``None`` on an otherwise
+    OK response means the body was not JSON at all.
+    """
+
+    lease: Lease
+    outcome: Outcome
+    payload: dict[str, Any] | None = None
+    error_code: str | None = None
+    signer: str | None = None
+
+
+class SignedRequest(Protocol):
+    """What the injected signer hands back.
+
+    Structural, so the pipeline still knows nothing about ``dtk.signing`` beyond
+    the two things it needs: the parameters to send, and which signer produced
+    them - ``native`` or ``browser``, which is a column on ``request_log`` and
+    the first thing to look at when one platform's success rate drops alone.
+    """
+
+    @property
+    def params(self) -> Mapping[str, str]: ...
+
+    @property
+    def signer(self) -> str: ...
+
+
 ProxyResolver = Callable[[str], Awaitable[str | None]]
-SignFn = Callable[[Platform, str, dict[str, Any], Fingerprint], Awaitable[dict[str, str]]]
+SignFn = Callable[[Platform, str, dict[str, Any], Fingerprint], Awaitable[SignedRequest]]
 
 
 class FetchService:
@@ -117,12 +160,34 @@ class FetchService:
         endpoint: str,
         params: dict[str, Any],
         ctx: FetchContext,
-    ) -> tuple[RawResponse | None, Lease, LiveIdentity | None, Outcome, str | None]:
+        *,
+        started: float,
+    ) -> _Attempt:
         platform = Platform(adapter.platform)
-        lease = await self._scheduler.acquire(endpoint, platform)
+        try:
+            lease = await self._scheduler.acquire(endpoint, platform)
+        except DtkError as exc:
+            # A refusal is the shape of an outage, and it happens before there is
+            # anything else to log. Without this row the Logs page falls silent
+            # precisely while someone is watching it to find out why.
+            await self._log_request(
+                session,
+                ctx=ctx,
+                platform=platform,
+                endpoint=endpoint,
+                identity_id=None,
+                outcome=Outcome.NETWORK_ERROR,
+                status=None,
+                duration_ms=_elapsed_ms(started),
+                error_code=exc.code.value,
+                reject_reason=_reject_reason(exc),
+            )
+            raise
 
-        identity: LiveIdentity | None = None
-        response: RawResponse | None = None
+        proxy_id: uuid.UUID | None = None
+        payload: dict[str, Any] | None = None
+        status: int | None = None
+        signer: str | None = None
         outcome = Outcome.NETWORK_ERROR
         error_code: str | None = None
 
@@ -135,13 +200,15 @@ class FetchService:
                 # It was retired between ranking and leasing.
                 outcome = Outcome.NETWORK_ERROR
                 error_code = "identity_gone"
-                return None, lease, None, outcome, error_code
+                return _Attempt(lease=lease, outcome=outcome, error_code=error_code)
+            proxy_id = await _proxy_id_of(session, identity.id)
 
             spec = adapter.build_request(endpoint, **params)
             signed = await self._sign(
                 platform, spec["url"], dict(spec.get("params") or {}), identity.fingerprint
             )
-            merged = {**(spec.get("params") or {}), **signed}
+            signer = signed.signer
+            merged = {**(spec.get("params") or {}), **signed.params}
 
             response = await self._transport.request(
                 TransportIdentity(
@@ -154,7 +221,10 @@ class FetchService:
                 _to_transport_spec(spec, merged, endpoint),
                 self._timeout,
             )
-            outcome = _classify(adapter, response)
+            status = response.status
+            classification, payload = self._classify(adapter, response)
+            outcome = classification.outcome
+            error_code = _error_code_for(classification, payload)
         except TransportFailure as exc:
             outcome = Outcome.NETWORK_ERROR
             error_code = "transport_failure"
@@ -178,8 +248,54 @@ class FetchService:
                 cooldown_max=self._cooldown_max,
                 risk_weight=policy_for(endpoint).risk_weight,
             )
+            await self._log_request(
+                session,
+                ctx=ctx,
+                platform=platform,
+                endpoint=endpoint,
+                identity_id=lease.identity_id,
+                outcome=outcome,
+                status=status,
+                duration_ms=_elapsed_ms(started),
+                error_code=error_code,
+                proxy_id=proxy_id,
+                signer=signer,
+            )
 
-        return response, lease, identity, outcome, error_code
+        return _Attempt(
+            lease=lease,
+            outcome=outcome,
+            payload=payload,
+            error_code=error_code,
+            signer=signer,
+        )
+
+    def _classify(
+        self, adapter: PlatformAdapter, response: RawResponse
+    ) -> tuple[Classification, dict[str, Any] | None]:
+        """Judge one response, decoding it only when the verdict needs the body.
+
+        The tabled classifier behind the transport rules on the status, so a
+        401, 403, 444 or 407 is what it is: the platform refusing this identity,
+        or an exit that is no longer usable. The adapter's own signature stays
+        on top of it for the 200s that carry the refusal in the body instead.
+
+        A body that will not decode is *not* evidence about the identity - the
+        markers table is what speaks to that - so it is reported as a missing
+        payload and the caller turns it into ``UpstreamChanged``.
+        """
+        classification = self._transport.classify(response)
+        if classification.outcome is not Outcome.OK:
+            return classification, None
+        try:
+            payload = _decode(response)
+        except ValueError:
+            return classification, None
+        marker = adapter.detect_risk_control(payload)
+        if marker:
+            log.warning("fetch.risk_control", marker=marker, status=response.status)
+            return Classification(Outcome.RISK_CONTROL, "platform.risk_marker", marker), payload
+        return classification, payload
 
     # -- public ------------------------------------------------------------
 
@@ -202,37 +318,37 @@ class FetchService:
         hit = await cache.get(digest) if cache_ttl > 0 else None
         if hit is not None:
             # A cache hit costs no identity quota; it is the cheapest protection
-            # the pool has.
-            return FetchResult(
-                payload=hit,
-                outcome=Outcome.OK,
-                identity_id=None,
-                cached=True,
-                duration_ms=int((time.monotonic() - started) * 1000),
-                request_id=ctx.request_id,
-            )
-
-        last_error: str | None = None
-        for attempt in range(MAX_TRANSPORT_ATTEMPTS):
-            response, lease, _identity, outcome, error_code = await self._call_once(
-                session, adapter, endpoint, params, ctx
-            )
-            duration_ms = int((time.monotonic() - started) * 1000)
-
+            # the pool has. It is still a request the caller made, and a Logs
+            # page that omits them makes a cache that has started serving
+            # everything look like an endpoint nobody is calling.
             await self._log_request(
                 session,
                 ctx=ctx,
                 platform=platform,
                 endpoint=endpoint,
-                identity_id=lease.identity_id,
-                outcome=outcome,
-                status=response.status if response else None,
-                duration_ms=duration_ms,
-                error_code=error_code,
+                identity_id=None,
+                outcome=Outcome.OK,
+                status=None,
+                duration_ms=_elapsed_ms(started),
+                error_code=None,
+                cache_hit=True,
+            )
+            return FetchResult(
+                payload=hit,
+                outcome=Outcome.OK,
+                identity_id=None,
+                cached=True,
+                duration_ms=_elapsed_ms(started),
+                request_id=ctx.request_id,
             )
 
-            if outcome is Outcome.NETWORK_ERROR:
-                last_error = error_code or "network_error"
+        last_error: str | None = None
+        for attempt in range(MAX_TRANSPORT_ATTEMPTS):
+            call = await self._call_once(session, adapter, endpoint, params, ctx, started=started)
+            duration_ms = _elapsed_ms(started)
+
+            if call.outcome is Outcome.NETWORK_ERROR:
+                last_error = call.error_code or "network_error"
                 if attempt + 1 < MAX_TRANSPORT_ATTEMPTS:
                     continue  # a different identity, i.e. a different egress
                 raise Internal(
@@ -240,34 +356,37 @@ class FetchService:
                     details={"endpoint": endpoint, "last_error": last_error},
                 )
 
-            if outcome is Outcome.RISK_CONTROL:
+            if call.outcome is Outcome.RISK_CONTROL:
                 raise UpstreamRiskControl(
                     "the platform returned a risk-control response",
                     retry_after=self._cooldown_base,
                     details={"endpoint": endpoint},
                 )
 
-            assert response is not None
-            payload = _decode(response)
-
-            if outcome is Outcome.BUSINESS_ERROR:
+            if call.outcome is Outcome.BUSINESS_ERROR:
                 raise NotFound(
                     "the requested content does not exist or is unavailable",
                     details={"endpoint": endpoint},
                 )
 
-            parsed = parse(payload)
+            if call.payload is None:
+                # Classified as a working response, and still not JSON: the
+                # endpoint answers in a shape this build cannot read.
+                raise UpstreamChanged("response.body", platform=platform.value)
+
+            parsed = parse(call.payload)
             result = _dump(parsed, include_raw=ctx.include_raw)
             if cache_ttl > 0:
                 await cache.put(digest, result, cache_ttl)
 
             return FetchResult(
                 payload=result,
-                outcome=outcome,
-                identity_id=lease.identity_id,
+                outcome=call.outcome,
+                identity_id=call.lease.identity_id,
                 cached=False,
                 duration_ms=duration_ms,
                 request_id=ctx.request_id,
+                signer=call.signer,
             )
 
         raise Internal("unreachable")
@@ -284,7 +403,17 @@ class FetchService:
         status: int | None,
         duration_ms: int,
         error_code: str | None,
+        proxy_id: uuid.UUID | None = None,
+        signer: str | None = None,
+        cache_hit: bool = False,
+        reject_reason: str | None = None,
     ) -> None:
+        """Append one row. Every column the Logs page reads is filled here.
+
+        The four that used to be left out - the egress, the signer, the cache
+        flag and the refusal reason - are the ones an outage is diagnosed with,
+        and this is the only writer the table has.
+        """
         session.add(
             RequestLog(
                 ts=datetime.now(UTC),
@@ -293,12 +422,15 @@ class FetchService:
                 platform=platform.value,
                 endpoint=endpoint,
                 identity_id=uuid.UUID(identity_id) if identity_id else None,
+                proxy_id=proxy_id,
                 api_key_id=ctx.api_key_id,
                 outcome=outcome.value,
                 http_status=status,
                 duration_ms=duration_ms,
-                cache_hit=False,
+                cache_hit=cache_hit,
+                signer=signer,
                 error_code=error_code,
+                reject_reason=reject_reason,
             )
         )
 
@@ -328,25 +460,45 @@ def _to_transport_spec(
     )
 
 
-def _classify(adapter: PlatformAdapter, response: RawResponse) -> Outcome:
-    """Map a response onto one of the four outcome classes.
+def _elapsed_ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)
 
-    Separating BUSINESS_ERROR from RISK_CONTROL is the point. V4 treated every
-    non-200 alike, so looking up a deleted video could condemn a working cookie.
+
+def _reject_reason(exc: DtkError) -> str | None:
+    """The scheduler's own code for a refusal, as it goes into the log row.
+
+    A wire code rather than the sentence: the console translates the ones it
+    knows and prints the rest verbatim, and a runbook can key off it.
     """
-    if response.status in (429,) or response.status >= 500:
-        return Outcome.RISK_CONTROL
-    if not response.ok:
-        return Outcome.BUSINESS_ERROR
-    try:
-        payload = _decode(response)
-    except ValueError:
-        return Outcome.RISK_CONTROL
-    marker = adapter.detect_risk_control(payload)
-    if marker:
-        log.warning("fetch.risk_control", marker=marker, status=response.status)
-        return Outcome.RISK_CONTROL
-    return Outcome.OK
+    reason = exc.details.get("reject_reason")
+    return str(reason) if reason else None
+
+
+def _error_code_for(classification: Classification, payload: dict[str, Any] | None) -> str | None:
+    """What a classified response leaves in the log row's ``error_code``.
+
+    The matched rule, but only where the identity or the egress is implicated:
+    that column is the one place the table has for *why*, and a shift in the mix
+    of risk signals is what it is worth spending on. A missing video is already
+    fully told by the outcome and the status beside it.
+    """
+    if classification.outcome in (Outcome.RISK_CONTROL, Outcome.NETWORK_ERROR):
+        return classification.rule
+    if payload is None and classification.outcome is Outcome.OK:
+        return UpstreamChanged.code.value
+    return None
+
+
+async def _proxy_id_of(session: AsyncSession, identity_id: str) -> uuid.UUID | None:
+    """The egress this identity is bound to, for the log row.
+
+    The pool has just loaded the same row through this session, so this is an
+    identity-map lookup rather than a second round trip. The id is what the
+    console joins on; the decrypted URL next to it carries credentials and never
+    reaches a row at all.
+    """
+    row = await session.get(IdentityRow, uuid.UUID(identity_id))
+    return row.proxy_id if row is not None else None
 
 
 def _decode(response: RawResponse) -> dict[str, Any]:
@@ -371,5 +523,6 @@ __all__ = [
     "FetchContext",
     "FetchResult",
     "FetchService",
+    "SignedRequest",
     "UpstreamChanged",
 ]

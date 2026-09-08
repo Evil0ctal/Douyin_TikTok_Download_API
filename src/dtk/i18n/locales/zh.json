@@ -49,7 +49,7 @@
     },
     "signature_stale": {
       "title": "签名算法可能已失效",
-      "body": "{endpoint} 的本地签名与浏览器结果不一致，影子比对不一致率为 {mismatch_rate}%。"
+      "body": "{platform} {endpoint} 的本地签名与浏览器结果在 {parameters} 上不一致，该平台已改用浏览器签名，直到本地算法重新适配。"
     },
     "cookie_expiring": {
       "title": "登录态 cookie 即将过期",
@@ -79,7 +79,6 @@
       "pool": {
         "target_size": "身份池为每个平台维持的目标身份数量。",
         "min_size": "每个平台的身份数下限。低于此值会告警并触发自动补充。",
-        "safe_qps_per_identity": "单个身份允许的稳态请求速率。刻意设得保守——吞吐靠增加身份换取，而不是把单个身份推向风险区。",
         "health_prior": "尚无历史记录的身份所假定的成功率，取值 0 到 1。它决定新身份被调度的积极程度。"
       },
       "signing": {
@@ -99,7 +98,8 @@
         "request_log_days": "单条请求日志保留多少天后删除。内容快照永远不会被自动删除。",
         "identity_events_days": "身份状态变更记录保留多少天。要足够长，以便回答某个身份为什么被淘汰。",
         "task_days": "已完成的任务记录保留多少天。",
-        "task_result_hours": "任务结果内容保留多少小时。比任务记录本身短，因为结果才是占空间的部分。"
+        "task_result_hours": "任务结果内容保留多少小时。比任务记录本身短，因为结果才是占空间的部分。",
+        "retired_identity_days": "身份退休后其记录保留多久。cookie 在退休时已被立即擦除，这里保留的只是该身份存在过的记录；不设窗口的话，池子每淘汰一个身份，这张表就会多留一行，永不回收。"
       },
       "api": {
         "default_language": "请求未指定语言时使用的默认语言。单个请求始终可以用 ?lang= 或 Accept-Language 头覆盖它。",
@@ -108,11 +108,9 @@
         "mcp_tool_timeout": "单次 MCP 工具调用允许运行多久，超时后取消。"
       },
       "security": {
-        "url_allowlist": "额外允许解析的主机名。内置的平台列表始终生效，这里只做扩充——每加一条都会扩大 SSRF 攻击面。",
+        "url_allowlist": "短链跳转时额外允许经过的主机名。内置平台列表始终生效；这里的每一条都按完整主机名精确匹配、不归属任何平台，并且都会扩大 SSRF 攻击面——只有当跳转链卡在某个未列出的中转主机上时才需要添加。",
         "cors_allow_origins": "允许调用本接口的浏览器来源。留空表示仅同源。填 '*' 等于把你的 API Key 交给用户访问的任何网站。",
         "cors_allow_credentials": "跨域请求是否允许携带 Cookie。只有在明确列出来源时才有意义，不能与 '*' 同时使用。",
-        "enable_download_proxy": "服务端媒体中转。默认关闭——开放的中转很快会被发现并滥用。",
-        "download_proxy_max_bytes": "媒体中转允许透传的最大文件体积。它限制单个请求最多消耗多少带宽。",
         "enable_task_webhook": "任务是否可以回调调用方提供的 URL。该 URL 是 SSRF 攻击面，因此默认关闭。"
       },
       "notify": {
@@ -227,6 +225,11 @@
         "unknown_browser": "无法从 User-Agent 判断浏览器，也就没有可以匹配的 TLS 指纹。请填写复制这些 cookie 时所用的完整 User-Agent。",
         "no_useful_cookies": "可选 cookie 一个都没有，这个身份会很脆弱。补上 {optional} 里的任意一个都会好很多。"
       }
+    }
+  },
+  "api": {
+    "body_limit": {
+      "exceeded": "请求体超出本实例允许的大小，上限为 {limit_kib} KiB。"
     }
   }
 }

@@ -63,11 +63,11 @@ class TestRegistry:
         """Widening either enlarges the attack surface, so they need confirmation."""
         assert RUNTIME_SETTINGS["security.url_allowlist"].scope is Scope.SENSITIVE
         assert RUNTIME_SETTINGS["security.cors_allow_origins"].scope is Scope.SENSITIVE
-        assert RUNTIME_SETTINGS["security.enable_download_proxy"].scope is Scope.SENSITIVE
+        assert RUNTIME_SETTINGS["security.enable_task_webhook"].scope is Scope.SENSITIVE
 
     def test_dangerous_defaults_are_off(self):
         cfg = Config.defaults()
-        assert cfg.get("security.enable_download_proxy") is False
+        assert cfg.get("security.url_allowlist") == []
         assert cfg.get("security.enable_task_webhook") is False
         assert cfg.get("security.cors_allow_origins") == []
         assert cfg.get("system.check_updates") is False
@@ -147,3 +147,152 @@ class TestSigningModeReachesTheSigner:
 
         with pytest.raises(ValueError, match="must be one of"):
             coerce("signing.mode", "browser")
+
+
+class TestUrlAllowlistIsPinnedDownOnWrite:
+    """The one setting whose entries decide what the service may fetch.
+
+    A rejected value naming the offender is worth far more here than a stored
+    string every reader has to re-interpret, so the checking happens once, on
+    the way in, and readers are handed hostnames they can trust.
+    """
+
+    def test_entries_are_canonicalized(self):
+        assert coerce("security.url_allowlist", "  CDN.Example.COM. , a.example.com ") == [
+            "a.example.com",
+            "cdn.example.com",
+        ]
+
+    @pytest.mark.parametrize(
+        "value",
+        ["localhost", "127.0.0.1", "169.254.169.254", "db.internal", "*.example.com", "printer"],
+    )
+    def test_an_entry_that_would_widen_the_ssrf_surface_is_refused(self, value):
+        with pytest.raises(ValueError):
+            coerce("security.url_allowlist", value)
+
+    def test_a_stored_list_reaches_the_host_check(self):
+        """The console edit, the snapshot and the allowlist are one path."""
+        from dtk.core.config import extra_url_hosts
+        from dtk.urls import is_allowed_host
+
+        before = Config.defaults()
+        assert extra_url_hosts(before) == frozenset()
+        assert not is_allowed_host("https://cdn.example.com/r/1")
+
+        after = Config(
+            {
+                **before.as_dict(),
+                "security.url_allowlist": coerce("security.url_allowlist", "cdn.example.com"),
+            },
+            version=1,
+        )
+        hosts = extra_url_hosts(after)
+        assert hosts == frozenset({"cdn.example.com"})
+        assert is_allowed_host("https://cdn.example.com/r/1", extra_hosts=hosts)
+
+
+class TestCircuitThresholdsReachTheBreaker:
+    """Three settings the console offers as the breaker's tuning knobs.
+
+    They were declared and never read: CircuitConfig's own defaults won every
+    time, so an operator who widened the threshold after a bad afternoon saw an
+    audit row and no change in behaviour.
+    """
+
+    def test_the_settings_and_the_dataclass_agree_on_the_defaults(self):
+        """A fresh install must not behave differently from what the page shows."""
+        from dtk.scheduler.circuit import CircuitConfig
+
+        shipped = CircuitConfig()
+        cfg = Config.defaults()
+        assert cfg.get("sched.circuit_risk_threshold") == shipped.risk_threshold
+        assert cfg.get("sched.circuit_min_samples") == shipped.min_samples
+        assert cfg.get("sched.circuit_min_identities") == shipped.min_identities
+
+    def test_a_changed_setting_changes_the_thresholds(self):
+        from dtk.scheduler.circuit import circuit_config
+
+        tuned = Config(
+            {
+                **Config.defaults().as_dict(),
+                "sched.circuit_risk_threshold": 0.9,
+                "sched.circuit_min_samples": 100,
+                "sched.circuit_min_identities": 5,
+            },
+            version=1,
+        )
+        built = circuit_config(tuned)
+        assert (built.risk_threshold, built.min_samples, built.min_identities) == (0.9, 100, 5)
+        # Not exposed, so they keep the values the breaker ships with.
+        assert built.open_seconds == 300
+
+        # Assembled the way the worker assembles it: the scheduler reads its
+        # thresholds off this object on every release.
+        from dtk.scheduler.scheduler import SchedulerConfig
+
+        assert SchedulerConfig(circuit=built).circuit.min_samples == 100
+
+    def test_the_worker_builds_the_breaker_from_the_settings(self):
+        """The knobs are only real if the process that trips circuits is given them."""
+        import inspect
+
+        from dtk.worker.runtime import build_runtime
+
+        assert "circuit=circuit_config(" in inspect.getsource(build_runtime), (
+            "worker.runtime.build_runtime must pass circuit=circuit_config(current) to "
+            "SchedulerConfig, otherwise CircuitConfig's hardcoded defaults win and the "
+            "three sched.circuit_* settings are inert."
+        )
+
+
+class TestTheAllowlistReachesTheExpander:
+    """The setting is only true if the process that follows redirects has it."""
+
+    @pytest.mark.asyncio
+    async def test_the_worker_expands_through_an_allowlisted_hop(self, monkeypatch):
+        import uuid
+
+        from dtk.worker import parsing
+        from dtk.worker.main import TaskRun, TaskWorker
+
+        aweme_id = "7345492945006595379"
+        hops = {
+            "https://v.douyin.com/abc123": "https://cdn.example.com/r/abc123",
+            "https://cdn.example.com/r/abc123": f"https://www.douyin.com/video/{aweme_id}",
+        }
+        seen: dict[str, frozenset[str]] = {}
+
+        def fake_egress_fetcher(egress, *, timeout=0.0, extra_hosts=frozenset()):
+            seen["fetcher"] = extra_hosts
+
+            async def fetch(url: str) -> str | None:
+                return hops.get(url)
+
+            return fetch
+
+        monkeypatch.setattr(parsing, "egress_fetcher", fake_egress_fetcher)
+
+        config = Config(
+            {
+                **Config.defaults().as_dict(),
+                "security.url_allowlist": coerce("security.url_allowlist", "cdn.example.com"),
+            },
+            version=1,
+        )
+        worker = TaskWorker(
+            fetch=None,  # type: ignore[arg-type]
+            store=None,  # type: ignore[arg-type]
+            config=config,
+        )
+        run = TaskRun(
+            id=uuid.uuid4(),
+            endpoint="parse",
+            params={"url": "https://v.douyin.com/abc123"},
+        )
+
+        endpoint, params = await worker._resolve_endpoint(run)
+        assert (endpoint, params) == ("douyin.content_detail", {"content_id": aweme_id})
+        # Both halves of the hop check get the same list, or the fetcher refuses
+        # the hop the expander just allowed.
+        assert seen["fetcher"] == frozenset({"cdn.example.com"})

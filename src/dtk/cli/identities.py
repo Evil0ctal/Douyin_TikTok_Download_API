@@ -17,6 +17,7 @@ from typing import Annotated
 import typer
 
 from dtk.cli import output, runtime
+from dtk.core.config import extra_url_hosts
 from dtk.core.types import IdentitySource, IdentityState, Platform
 from dtk.db.repositories import IdentityRepository, ProxyRepository
 from dtk.identity import BrowserRpcClient, BrowserRpcUnavailable, IdentityPool
@@ -223,7 +224,9 @@ def test_identity(
             ctx.session, ctx.cipher, platform, identity_id=str(row.id)
         )
         target = await pipeline.resolve_target(
-            url or probes.SMOKE_URLS[platform], proxy_url=identity.proxy_url
+            url or probes.SMOKE_URLS[platform],
+            proxy_url=identity.proxy_url,
+            extra_hosts=extra_url_hosts(ctx.config),
         )
         call = resolve(target.endpoint, target.params, ctx.config)
         async with pipeline.signing_stack(ctx.settings.browser_rpc_url) as (transport, signers):

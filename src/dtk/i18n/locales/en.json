@@ -49,7 +49,7 @@
     },
     "signature_stale": {
       "title": "Signing algorithm may be stale",
-      "body": "Local signing disagreed with the browser for {endpoint}. Shadow comparison mismatch rate is {mismatch_rate}%."
+      "body": "Local signing disagreed with the browser for {platform} {endpoint} on {parameters}. That platform is signed by browser-rpc until the native algorithm is re-ported."
     },
     "cookie_expiring": {
       "title": "Session cookie expiring",
@@ -79,7 +79,6 @@
       "pool": {
         "target_size": "How many identities the pool tries to keep per platform.",
         "min_size": "Low-water mark per platform. Dropping below it raises an alert and triggers minting.",
-        "safe_qps_per_identity": "Sustained request rate a single identity is allowed. Deliberately conservative: throughput comes from more identities, not from pushing one harder.",
         "health_prior": "Assumed success rate for an identity with no history yet, between 0 and 1. It decides how eagerly a freshly minted identity is scheduled."
       },
       "signing": {
@@ -99,7 +98,8 @@
         "request_log_days": "How long per-request log rows are kept before they are dropped. Content snapshots are never deleted automatically.",
         "identity_events_days": "How long identity state changes are kept. Long enough to explain why an identity was retired.",
         "task_days": "How long finished task rows are kept.",
-        "task_result_hours": "How long a task's result payload is kept. Shorter than the task row itself, because the payload is the bulky part."
+        "task_result_hours": "How long a task's result payload is kept. Shorter than the task row itself, because the payload is the bulky part.",
+        "retired_identity_days": "How long a retired identity's row is kept after it is retired. The cookies are already wiped at retirement; this is only the record of the identity having existed, and without a window the table grows by one row for every identity the pool ever loses."
       },
       "api": {
         "default_language": "Language used when a request specifies none. A request may always override it with ?lang= or an Accept-Language header.",
@@ -108,11 +108,9 @@
         "mcp_tool_timeout": "How long one MCP tool call may run before it is cancelled."
       },
       "security": {
-        "url_allowlist": "Extra hostnames accepted for parsing. The built-in platform list always applies; this only widens it, and every entry widens the SSRF surface.",
+        "url_allowlist": "Extra hostnames a short link may redirect through. The built-in platform list always applies; each entry is matched as a whole hostname, belongs to no platform, and widens the SSRF surface, so add one only to rescue a redirect chain that dies on an unlisted hop.",
         "cors_allow_origins": "Browser origins allowed to call this API. Empty means same-origin only. '*' would hand your API keys to any site the user visits.",
         "cors_allow_credentials": "Whether cross-origin requests may carry cookies. Only meaningful with an explicit origin list; it cannot be combined with '*'.",
-        "enable_download_proxy": "Server-side media relay. Off by default: an open relay gets found and abused.",
-        "download_proxy_max_bytes": "Largest file the media relay will pass through. It bounds what one request can cost you in bandwidth.",
         "enable_task_webhook": "Whether a task may call back to a caller-supplied URL. That URL is an SSRF vector, so this is off by default."
       },
       "notify": {
@@ -227,6 +225,11 @@
         "unknown_browser": "The browser could not be inferred from the User-Agent, so no TLS profile can be matched. Supply the exact User-Agent these cookies were copied from.",
         "no_useful_cookies": "None of the optional cookies are present, so this identity will be weak. Any of {optional} would strengthen it."
       }
+    }
+  },
+  "api": {
+    "body_limit": {
+      "exceeded": "The request body is larger than this instance accepts; the ceiling is {limit_kib} KiB."
     }
   }
 }

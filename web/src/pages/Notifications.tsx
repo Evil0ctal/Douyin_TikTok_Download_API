@@ -480,7 +480,16 @@ function ChannelEditor({ open, draft, existingNames, saving, onChange, onClose, 
             inputMode={spec.key === 'port' ? 'numeric' : undefined}
             placeholder={spec.url ? 'https://' : undefined}
             style={spec.narrow ? { maxWidth: '140px' } : undefined}
-            description={spec.hint ? t(`notifications.field.${spec.key}Hint`) : undefined}
+            description={
+              // A masked value looks like a real one in a password field, so
+              // the page has to say that leaving it alone keeps the stored
+              // credential rather than saving the mask over it.
+              looksMasked(draft.fields[spec.key])
+                ? t('notifications.field.maskedHint')
+                : spec.hint
+                  ? t(`notifications.field.${spec.key}Hint`)
+                  : undefined
+            }
             error={fieldError(spec.key)}
             onChange={(event) => {
               patchField(spec.key, event.target.value)
@@ -586,6 +595,17 @@ interface TestResult {
   sent?: boolean
   delivered?: string[]
   failed?: Record<string, string>
+}
+
+/**
+ * Whether a field holds the server's mask rather than a credential.
+ *
+ * The API masks a stored credential on read and merges it back on write, so the
+ * editor shows something that is not the value. Recognising it is what lets the
+ * page explain itself; the server does the actual deciding.
+ */
+function looksMasked(value: string | undefined): boolean {
+  return typeof value === 'string' && value.includes('***')
 }
 
 export default function Notifications() {

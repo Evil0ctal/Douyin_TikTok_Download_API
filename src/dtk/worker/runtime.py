@@ -35,6 +35,7 @@ from dtk.services.fetch import FetchService
 from dtk.worker.loop import PeriodicLoop
 from dtk.worker.main import DatabaseTaskStore, SessionFactory, TaskWorker, WorkerOptions
 from dtk.worker.ops import OperationDeps, OperationRunner
+from dtk.worker.parsing import PoolEgress
 
 log = get_logger(__name__)
 
@@ -120,11 +121,12 @@ async def build_runtime(
     ``config_source`` follow the database.
     """
     from dtk.identity.minting import BrowserRpcClient
-    from dtk.ops.notify import notifier_from_config
+    from dtk.ops.notify import notifier_from_config, signing_alert_hook
+    from dtk.scheduler.circuit import circuit_config
     from dtk.scheduler.scheduler import Scheduler, SchedulerConfig
     from dtk.signing import NativeSigner, RpcSigner, SignerRegistry, native_signers
     from dtk.signing.base import RequestSpec as SigningRequestSpec
-    from dtk.signing.base import StaticFingerprint
+    from dtk.signing.base import SignedParams, StaticFingerprint
     from dtk.transport import Fingerprint, WreqTransport
     from dtk.worker.maintenance import Maintenance, MaintenanceConfig
     from dtk.worker.pool_filler import FillerConfig, PoolFiller
@@ -135,12 +137,25 @@ async def build_runtime(
 
     cipher = Cipher(settings.secret_key)
     pool = IdentityPool(cipher)
+
+    # One notifier for every background job and for the two alerts now raised
+    # from the request path, so doc 15's deduplication windows are shared
+    # rather than re-implemented per caller. Built here, before its first user,
+    # which is the scheduler.
+    #
+    # A source, not a snapshot: an operator who adds an alert channel and then
+    # waits for the next alert would otherwise be waiting on a worker that has
+    # never heard of it.
+    notifier = notifier_from_config(config_source, redis=get_redis())
+
     scheduler = Scheduler(
         PoolCandidates(pool),
         SchedulerConfig(
             max_wait_seconds=float(current.get("sched.max_wait_seconds")),
             health_prior=float(current.get("pool.health_prior")),
+            circuit=circuit_config(current),
         ),
+        alerter=notifier,
     )
     transport = WreqTransport()
 
@@ -163,17 +178,24 @@ async def build_runtime(
     # The policy is a callable, not a value: signing.mode is the setting an
     # operator reaches for when a signer goes stale, which is exactly the moment
     # a restart-to-apply would cost the most.
-    signer_registry = SignerRegistry(signers, rpc_signer, policy=_signing_policy(config_source))
+    signer_registry = SignerRegistry(
+        signers,
+        rpc_signer,
+        policy=_signing_policy(config_source),
+        on_alert=signing_alert_hook(notifier),
+    )
 
     async def sign(
         platform: Platform, url: str, params: dict[str, Any], fingerprint: Fingerprint
-    ) -> dict[str, str]:
-        signed = await signer_registry.sign(
+    ) -> SignedParams:
+        # Returned whole rather than as a bare parameter dict: `.signer` is a
+        # request_log column the Logs page renders, and unwrapping here is what
+        # used to drop it.
+        return await signer_registry.sign(
             SigningRequestSpec.get(url, {k: str(v) for k, v in params.items()}),
             StaticFingerprint(user_agent=fingerprint.user_agent or ""),
             platform=platform,
         )
-        return dict(signed.params)
 
     fetch = FetchService(
         scheduler=scheduler,
@@ -184,13 +206,6 @@ async def build_runtime(
         cooldown_base=int(current.get("sched.cooldown_base_seconds")),
         cooldown_max=int(current.get("sched.cooldown_max_seconds")),
     )
-
-    # One notifier for every background job, so doc 15's deduplication windows
-    # are shared rather than re-implemented per job.
-    # A source, not a snapshot: an operator who adds an alert channel then waits
-    # for the next alert would otherwise be waiting on a worker that has not
-    # heard of it.
-    notifier = notifier_from_config(config_source, redis=get_redis())
 
     filler_options = FillerConfig()
     prober_options = ProberConfig()
@@ -247,6 +262,10 @@ async def build_runtime(
         config=config_source,
         options=worker_options,
         operations=operations,
+        # A short link is expanded before an identity is chosen, so that hop
+        # takes its own egress from the proxy pool rather than leaving from
+        # this host's own address.
+        egress=PoolEgress(cipher),
     )
 
     loops = [

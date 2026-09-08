@@ -1,6 +1,6 @@
 """Periodic housekeeping the worker owns.
 
-Four jobs, each cheap, each with a failure mode that stays invisible until it is
+Five jobs, each cheap, each with a failure mode that stays invisible until it is
 expensive:
 
 * **retention follows the settings.** Doc 15 makes the windows runtime settings
@@ -8,6 +8,10 @@ expensive:
   TimescaleDB keeps its own policy objects - a changed setting has to be pushed
   into them. The work itself lives in :mod:`dtk.ops.retention`; this job is the
   scheduler that calls it, since nothing else runs on a timer.
+* **retired identities are eventually deleted.** Retirement keeps the row for
+  its statistics, and a pool that mints a replacement for every identity it
+  loses would otherwise grow one row per loss forever. No TimescaleDB policy
+  can bound it: ``identities`` is a plain table.
 * **continuous aggregates stay fresh.** They normally have a refresh policy of
   their own. A deployment that lost one - restored from a dump, upgraded across
   a version that renamed the job - would show identity health frozen at the last
@@ -42,6 +46,7 @@ from dtk.db.models import CONTINUOUS_AGGREGATES
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import Task as TaskRow
 from dtk.identity.importing import session_expiry
+from dtk.identity.pool import purge_retired
 from dtk.ops import retention
 from dtk.services import tasks
 from dtk.worker.alerts import Alerter, NotifyEvent, raise_alert
@@ -70,6 +75,7 @@ class MaintenanceConfig:
 @dataclass(slots=True)
 class MaintenanceReport:
     retention: retention.RetentionReport | None = None
+    retired_identities_purged: int = 0
     requeued_tasks: int = 0
     aggregates_refreshed: list[str] = field(default_factory=list)
     expiring_sessions: int = 0
@@ -102,6 +108,7 @@ class Maintenance:
         report = MaintenanceReport()
         for name, job in (
             ("apply_retention", self.apply_retention),
+            ("purge_retired_identities", self.purge_retired_identities),
             ("requeue_stale_tasks", self.requeue_stale_tasks),
             ("refresh_aggregates", self.refresh_aggregates),
             ("warn_expiring_sessions", self.warn_expiring_sessions),
@@ -114,6 +121,7 @@ class Maintenance:
                 log.warning("worker.maintenance.job_failed", job=name, error=message)
         log.info(
             "worker.maintenance.done",
+            retired_identities_purged=report.retired_identities_purged,
             requeued_tasks=report.requeued_tasks,
             aggregates_refreshed=len(report.aggregates_refreshed),
             expiring_sessions=report.expiring_sessions,
@@ -127,6 +135,18 @@ class Maintenance:
         """Re-apply the configured windows and evict aged task payloads."""
         async with self._session_factory() as session:
             report.retention = await retention.run_maintenance(session, self._config())
+
+    async def purge_retired_identities(self, report: MaintenanceReport) -> None:
+        """Bound the identities table.
+
+        A TimescaleDB policy cannot: ``identities`` is a plain table, and the
+        rows a pool sheds over months are what make it grow without limit. Its
+        own job rather than part of the retention pass, so a server without
+        TimescaleDB - where every policy call fails - still gets the sweep.
+        """
+        days = int(self._config().get(retention.RETIRED_IDENTITY_SETTING))
+        async with self._session_factory() as session:
+            report.retired_identities_purged = await purge_retired(session, days=days)
 
     # -- tasks -------------------------------------------------------------
 

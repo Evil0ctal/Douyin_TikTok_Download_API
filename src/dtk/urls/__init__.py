@@ -22,6 +22,7 @@ from dtk.urls.parse import (
     is_private_host,
     normalize,
     require_supported,
+    sanitize_extra_hosts,
 )
 from dtk.urls.patterns import ResourceKind
 
@@ -39,4 +40,5 @@ __all__ = [
     "normalize",
     "require_supported",
     "resolve",
+    "sanitize_extra_hosts",
 ]

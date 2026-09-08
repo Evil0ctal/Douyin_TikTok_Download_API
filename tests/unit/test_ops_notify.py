@@ -5,19 +5,42 @@ doc 15 run from fifteen minutes to a day, so wall-clock testing is not an
 option, and a window that silently stopped working would only be discovered by
 a user whose phone stopped ringing. Per-channel payload shapes live in
 ``test_ops_channels.py``.
+
+The last section reaches out of this module into the three places that raise an
+alert but had no test holding them to it. A declared trigger nobody emits is
+indistinguishable, from the console, from one that has simply not fired yet, so
+the trigger table alone proves nothing.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 
 import httpx
 import pytest
 
-from dtk.core.types import Language
+from dtk.core.errors import Internal
+from dtk.core.types import Language, Outcome, Platform
 from dtk.ops import channels, notify
 from dtk.ops.channels import ChannelType
 from dtk.ops.notify import NotifyEvent, Severity
+from dtk.scheduler import circuit
+from dtk.scheduler import scheduler as scheduler_module
+from dtk.scheduler.leases import Lease
+from dtk.scheduler.scheduler import Scheduler, SchedulerConfig
+from dtk.signing.base import (
+    RequestSpec,
+    SignatureAlgorithm,
+    SignedParams,
+    SignerHealth,
+    SigningFingerprint,
+    StaticFingerprint,
+)
+from dtk.signing.registry import RegistryPolicy, SignerRegistry
+from dtk.worker.ops import backup as backup_op
 
 
 class FakeRedis:
@@ -459,3 +482,280 @@ async def test_turning_alerts_off_takes_effect_on_the_next_alert() -> None:
 
     holder[0] = Config({**on.as_dict(), "notify.enabled": False}, version=2)
     assert notifier._enabled is False
+
+
+# --------------------------------------------------------------------------
+# the emitters
+#
+# Three triggers were declared here and raised nowhere: an operator ticking
+# "endpoint circuit opened", "signing algorithm may be stale" or "backup
+# failed" in the console was arming an alert that could not fire. Each test
+# below fails if its emitter goes away again.
+# --------------------------------------------------------------------------
+
+
+async def drain_alerts() -> None:
+    """Let the fire-and-forget deliveries finish before asserting on them.
+
+    The scheduler and the signer registry schedule their alerts rather than
+    awaiting them - the property pinned by
+    ``test_the_request_does_not_wait_for_the_alert`` - so asserting straight
+    after the call would be asserting on a task that has not run yet.
+    """
+    for _ in range(5):
+        pending = notify.pending_alerts()
+        if not pending:
+            return
+        await asyncio.gather(*pending)
+
+
+class NoCandidates:
+    """The scheduler's source, unused here: releasing a lease asks for none."""
+
+    async def candidates(self, platform: Platform, state: Any) -> tuple[()]:
+        del platform, state
+        return ()
+
+
+#: What the breaker stores when it trips: the code plus the numbers behind it.
+TRIPPED = circuit.TripReason(
+    circuit.RISK_ACROSS_IDENTITIES,
+    {"risk_rate": 0.71, "samples": 20, "identities": 4},
+).encode()
+
+LEASE = Lease(
+    identity_id="11111111-1111-1111-1111-111111111111",
+    endpoint="douyin.content_detail",
+    lease_id="lease-1",
+    tokens_left=1.0,
+)
+
+
+@pytest.fixture
+def tripping_circuit(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Take Redis out of ``Scheduler.release`` and force the trip decision.
+
+    What Redis does under these four calls is an integration concern and is
+    covered there. What matters here is the step after them, which existed in
+    the trigger table and nowhere else.
+    """
+    tripped: list[str] = []
+
+    async def noop(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    async def should_trip(endpoint: str, cfg: Any, *, now: float) -> tuple[bool, str]:
+        del endpoint, cfg, now
+        return True, TRIPPED
+
+    async def trip(endpoint: str, cfg: Any, reason: str, *, now: float) -> None:
+        del cfg, reason, now
+        tripped.append(endpoint)
+
+    monkeypatch.setattr(scheduler_module, "release", noop)
+    monkeypatch.setattr(circuit, "record", noop)
+    monkeypatch.setattr(circuit, "should_trip", should_trip)
+    monkeypatch.setattr(circuit, "trip", trip)
+    return tripped
+
+
+async def test_a_tripped_endpoint_pages_the_operator(tripping_circuit: list[str]) -> None:
+    """The alert an operator most expects, from the only place that knows."""
+    channel = RecordingChannel("ops")
+    notifier, _redis = make_notifier([channel], Clock())
+    scheduler = Scheduler(NoCandidates(), SchedulerConfig(), alerter=notifier)
+
+    await scheduler.release(LEASE, Outcome.RISK_CONTROL)
+    await drain_alerts()
+
+    assert tripping_circuit == ["douyin.content_detail"]
+    assert [message.event for message in channel.received] == [NotifyEvent.ENDPOINT_CIRCUIT_OPEN]
+    body = channel.received[0].body
+    # The numbers the console shows for this trip, rendered the same way.
+    assert "douyin.content_detail" in body
+    assert "71%" in body
+    assert "20" in body
+    assert str(SchedulerConfig().circuit.open_seconds) in body
+    await notifier.aclose()
+
+
+async def test_a_tripped_endpoint_pages_once_however_many_requests_trip_it(
+    tripping_circuit: list[str],
+) -> None:
+    """The window is what makes this alert survivable; it has to be claimed."""
+    channel = RecordingChannel("ops")
+    notifier, _redis = make_notifier([channel], Clock())
+    scheduler = Scheduler(NoCandidates(), SchedulerConfig(), alerter=notifier)
+
+    for _ in range(20):
+        await scheduler.release(LEASE, Outcome.RISK_CONTROL)
+    await drain_alerts()
+
+    assert len(tripping_circuit) == 20
+    assert len(channel.received) == 1, "the 30-minute window was not consulted"
+    await notifier.aclose()
+
+
+async def test_the_request_does_not_wait_for_the_alert(tripping_circuit: list[str]) -> None:
+    """A webhook that hangs may not become the latency of the request.
+
+    ``release`` runs inside the fetch path, and a channel taking its full
+    timeout twice would add those seconds to whichever request happened to trip
+    the circuit - a slow alert turning into a slow platform.
+    """
+    delivering = asyncio.Event()
+    finish = asyncio.Event()
+
+    class SlowAlerter:
+        async def notify(self, event: NotifyEvent, /, **args: Any) -> None:
+            del event, args
+            delivering.set()
+            await finish.wait()
+
+    scheduler = Scheduler(NoCandidates(), SchedulerConfig(), alerter=SlowAlerter())
+    # Bounded rather than a plain await: an emitter that went back to awaiting
+    # its delivery would hang here forever, and a hanging suite says less than
+    # a failing test.
+    await asyncio.wait_for(scheduler.release(LEASE, Outcome.RISK_CONTROL), timeout=1)
+
+    await asyncio.sleep(0)
+    assert delivering.is_set(), "the alert was never scheduled"
+    assert not finish.is_set()
+    finish.set()
+    await drain_alerts()
+
+
+async def test_an_alert_that_fails_does_not_fail_the_request(tripping_circuit: list[str]) -> None:
+    """Nor may a broken channel turn a tripped endpoint into a broken release."""
+
+    class Exploding:
+        async def notify(self, event: NotifyEvent, /, **args: Any) -> None:
+            del event, args
+            raise RuntimeError("the webhook host is down")
+
+    scheduler = Scheduler(NoCandidates(), SchedulerConfig(), alerter=Exploding())
+
+    await scheduler.release(LEASE, Outcome.RISK_CONTROL)
+    await drain_alerts()
+
+
+class OneParamSigner:
+    """A signer that always contributes the same value for one parameter."""
+
+    def __init__(self, name: str, value: str, param: str = "X-Bogus") -> None:
+        self.name = name
+        self._value = value
+        self._param = param
+
+    async def sign(
+        self, spec: RequestSpec, identity_fingerprint: SigningFingerprint
+    ) -> SignedParams:
+        del spec, identity_fingerprint
+        return SignedParams(
+            query=f"{self._param}={self._value}",
+            params={self._param: self._value},
+            signer=self.name,
+            algorithm=SignatureAlgorithm.X_BOGUS,
+        )
+
+    async def health(self) -> SignerHealth:
+        return SignerHealth(signer=self.name, healthy=True)
+
+
+SHADOW_SPEC = RequestSpec.get(
+    "https://www.douyin.com/aweme/v1/web/aweme/detail/",
+    params={"aweme_id": "7345492945006595379"},
+)
+SHADOW_FINGERPRINT = StaticFingerprint(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+
+
+async def test_a_stale_signature_pages_the_operator() -> None:
+    """The registry's hook had no callback, so the mismatch went nowhere."""
+    channel = RecordingChannel("ops")
+    notifier, _redis = make_notifier([channel], Clock())
+    registry = SignerRegistry(
+        {Platform.DOUYIN: OneParamSigner("native", "native-sig")},
+        OneParamSigner("browser", "browser-sig"),
+        policy=RegistryPolicy(mode="auto"),
+        on_alert=notify.signing_alert_hook(notifier),
+    )
+
+    assert await registry.compare_shadow(SHADOW_SPEC, SHADOW_FINGERPRINT) is False
+    await drain_alerts()
+
+    assert [message.event for message in channel.received] == [NotifyEvent.SIGNATURE_STALE]
+    # Asserted on the arguments rather than on the sentence: the wording is a
+    # locale string, and it is the parameter *names* that must travel - a
+    # signature value in an alert body would be the leak this trigger exists to
+    # report.
+    assert channel.received[0].details == {
+        "platform": "douyin",
+        "endpoint": "/aweme/v1/web/aweme/detail/",
+        "parameters": "X-Bogus",
+    }
+    assert "native-sig" not in channel.received[0].plain_text
+
+    assert await registry.compare_shadow(SHADOW_SPEC, SHADOW_FINGERPRINT) is False
+    await drain_alerts()
+    assert len(channel.received) == 1, "the 24-hour window was not consulted"
+    await notifier.aclose()
+
+
+def failing_backup_deps(notifier: notify.Notifier) -> Any:
+    """Only the two members the job reads. Passing nothing else is the point."""
+    return cast(Any, SimpleNamespace(secret_key="b" * 48, notifier=notifier))
+
+
+async def test_a_failed_backup_pages_the_operator(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The failure nobody watches: a backup that stopped running months ago."""
+    monkeypatch.setenv("DTK_SECRET_KEY", "b" * 48)
+    monkeypatch.setenv("DTK_BACKUP_DIR", str(tmp_path / "backups"))
+    channel = RecordingChannel("ops")
+    notifier, _redis = make_notifier([channel], Clock())
+
+    async def full_disk(*args: Any, **kwargs: Any) -> None:
+        raise OSError(28, "No space left on device", str(tmp_path / "backups" / "dtk.tar.gz"))
+
+    monkeypatch.setattr(backup_op, "create_backup", full_disk)
+
+    with pytest.raises(Internal):
+        await backup_op.run(failing_backup_deps(notifier), cast(Any, None), {})
+
+    assert [message.event for message in channel.received] == [NotifyEvent.BACKUP_FAILED]
+    body = channel.received[0].body
+    assert "No space left on device" in body
+    # The archive's path describes the host to whoever receives the webhook.
+    assert str(tmp_path) not in channel.received[0].plain_text
+    await notifier.aclose()
+
+
+async def test_a_backup_that_fails_for_any_other_reason_pages_too(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A database that goes away mid-export leaves the same hole in the history.
+
+    Its message is not quoted either: a driver puts its DSN in the exception
+    text, and this one leaves the host.
+    """
+    monkeypatch.setenv("DTK_SECRET_KEY", "b" * 48)
+    monkeypatch.setenv("DTK_BACKUP_DIR", str(tmp_path / "backups"))
+    channel = RecordingChannel("ops")
+    notifier, _redis = make_notifier([channel], Clock())
+
+    async def database_gone(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError(
+            'connection to server at "db", port 5432 failed: password authentication'
+        )
+
+    monkeypatch.setattr(backup_op, "create_backup", database_gone)
+
+    with pytest.raises(RuntimeError):
+        await backup_op.run(failing_backup_deps(notifier), cast(Any, None), {})
+
+    assert [message.event for message in channel.received] == [NotifyEvent.BACKUP_FAILED]
+    body = channel.received[0].body
+    assert "RuntimeError" in body
+    assert "5432" not in body
+    await notifier.aclose()
