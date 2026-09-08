@@ -13,6 +13,7 @@ Layout, in the order a caller meets it:
 ``tasks``               ``/api/v1/tasks/{id}`` and its event stream
 ``content``             ``/api/v1/parse`` and the per-platform reads
 ``tools``               ``/api/v1/tools/*`` - signing, link parsing
+``archive``             ``/api/v1/archive/*`` - what this instance has stored
 ``admin``               ``/api/v1/admin/*``
 ======================  ===================================================
 
@@ -28,6 +29,7 @@ from fastapi import FastAPI
 
 from dtk.api.routes import (
     admin,
+    archive,
     auth,
     content,
     ios,
@@ -50,6 +52,7 @@ ROUTERS = (
     ios.router,
     tasks.router,
     content.router,
+    archive.router,
     tools.router,
     admin.router,
 )

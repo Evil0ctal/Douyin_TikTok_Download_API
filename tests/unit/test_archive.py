@@ -250,3 +250,47 @@ async def test_a_full_profile_beats_the_abbreviated_author_on_a_post() -> None:
 
     authors = session.statements[0].compile().params  # type: ignore[attr-defined]
     assert authors["follower_count_m0"] == 99
+
+
+# --------------------------------------------------------------------------
+# Reading it back
+# --------------------------------------------------------------------------
+
+
+def test_a_cursor_round_trips() -> None:
+    from dtk.db.models import ArchivedContent
+
+    row = ArchivedContent(
+        platform="tiktok",
+        content_id="7",
+        kind="video",
+        web_url="https://x/7",
+        author_uid="u",
+        first_seen_at=NOW,
+        last_seen_at=NOW,
+    )
+    cursor = archive._cursor_encode(row)
+    decoded = archive._cursor_decode(cursor)
+
+    assert decoded is not None
+    stamp, platform, content_id = decoded
+    assert (platform, content_id) == ("tiktok", "7")
+    assert stamp == NOW
+
+
+@pytest.mark.parametrize("bad", ["", "!!!!", "Zm9v", "not-base64-at-all-@@@"])
+def test_an_unreadable_cursor_is_refused_rather_than_restarting(bad: str) -> None:
+    """Silently starting over from the top would look like an infinite feed."""
+    assert archive._cursor_decode(bad) is None
+
+
+def test_the_page_size_is_bounded() -> None:
+    """The row carries a whole media block, so a page of 500 is megabytes."""
+    assert archive.DEFAULT_PAGE <= archive.MAX_PAGE
+    assert archive.MAX_PAGE <= 200
+
+
+def test_a_filter_defaults_to_matching_everything() -> None:
+    spec = archive.ArchiveFilter()
+    assert spec.platform is None
+    assert spec.query is None

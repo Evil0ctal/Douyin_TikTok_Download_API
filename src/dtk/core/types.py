@@ -82,6 +82,15 @@ class Scope(StrEnum):
     DOUYIN_READ = "douyin:read"
     TIKTOK_READ = "tiktok:read"
     IDENTITY_MANAGE = "identity:manage"
+    #: Read what this instance has already stored. Separate from the platform
+    #: read scopes on purpose: an operator may open a platform endpoint to
+    #: unauthenticated callers, and "read douyin" must not thereby become "read
+    #: everything this instance has ever collected".
+    ARCHIVE_READ = "archive:read"
+    #: Walk the whole archive in one request. Its own scope because a bulk
+    #: export is the single call that turns a read key into a copy of the
+    #: database.
+    ARCHIVE_EXPORT = "archive:export"
     ADMIN = "admin"
 
 

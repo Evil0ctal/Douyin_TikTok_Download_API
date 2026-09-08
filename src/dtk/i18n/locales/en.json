@@ -138,7 +138,8 @@
       "identity": "Identity pool inspection and maintenance.",
       "system": "Health, version and diagnostics.",
       "admin": "Instance administration; requires the admin scope.",
-      "tools": "Building blocks: link parsing, signing and guest identity minting."
+      "tools": "Building blocks: link parsing, signing and guest identity minting.",
+      "archive": "What this instance has already collected. Answered from local storage."
     },
     "op": {
       "parse": {
@@ -208,6 +209,22 @@
       "tools_identity": {
         "summary": "Mint a guest identity and return it",
         "description": "Drive a real browser to the platform and hand back the cookies it was issued - the half of the work no algorithm can produce. Takes tens of seconds, requires the identity:manage scope, and stores nothing: use the admin mint endpoint instead to add one to this instance's own pool."
+      },
+      "archive_list": {
+        "summary": "Search the archive",
+        "description": "One page of what this instance has already collected, newest sighting first. Answers from local storage - no identity is spent, nothing is fetched, and a post that has since been deleted is still here with its availability saying so. Filters combine; paging is by cursor."
+      },
+      "archive_stats": {
+        "summary": "Archive totals",
+        "description": "How many posts and authors this instance holds, with a per-platform breakdown."
+      },
+      "archive_export": {
+        "summary": "Export the archive",
+        "description": "Stream every matching post as newline-delimited JSON, a page at a time rather than buffered, so the size of your own collection is not what breaks the export. Requires the archive:export scope, which ordinary read keys do not carry."
+      },
+      "archive_get": {
+        "summary": "One archived post",
+        "description": "One post as this instance last saw it, media manifest included. The signed CDN links inside it expire; the web URL is the part that survives."
       }
     },
     "param": {
@@ -222,7 +239,10 @@
       "platform": "Which platform the request is addressed to: douyin or tiktok. It must match the link you pass.",
       "include_raw": "Also return the platform's own untouched payload alongside the normalized record.",
       "mix_id": "The mix or playlist to read. Douyin returns it as mix_info, TikTok as playlistId.",
-      "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy."
+      "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy.",
+      "author_uid": "Only this author's posts.",
+      "tag": "Only posts carrying this tag.",
+      "q": "Substring of the title or description. Matched as a substring rather than by word, so it behaves the same in Chinese as in English."
     },
     "response": {
       "error": "The request failed. The code field is stable and machine-readable; the message field is localized."

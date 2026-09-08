@@ -138,7 +138,8 @@
       "identity": "身份池查看与维护。",
       "system": "健康检查、版本与诊断。",
       "admin": "实例管理，需要 admin 权限范围。",
-      "tools": "基础能力：链接解析、签名计算与游客身份铸造。"
+      "tools": "基础能力：链接解析、签名计算与游客身份铸造。",
+      "archive": "本实例已采集的内容，全部从本地存储读取。"
     },
     "op": {
       "parse": {
@@ -208,6 +209,22 @@
       "tools_identity": {
         "summary": "铸造并返回一个游客身份",
         "description": "驱动真实浏览器访问平台，返回平台下发的 cookie —— 这部分工作无法用算法生成。耗时数十秒，需要 identity:manage 权限，且不做任何存储；若希望将身份加入本实例的身份池，请改用管理端的铸造接口。"
+      },
+      "archive_list": {
+        "summary": "检索归档内容",
+        "description": "分页返回本实例已采集的内容，按最近一次出现时间倒序。数据来自本地存储——不消耗身份、不发起请求，即使作品已被删除也仍然在这里，并由 availability 字段标明。多个筛选条件可组合，翻页使用游标。"
+      },
+      "archive_stats": {
+        "summary": "归档统计",
+        "description": "本实例已保存的作品数与作者数，并按平台细分。"
+      },
+      "archive_export": {
+        "summary": "导出归档",
+        "description": "以 NDJSON 流式导出所有匹配的作品，逐页输出而非在内存中拼装，因此不会因为你的数据量变大而导致导出失败。需要 archive:export 权限，普通只读密钥不具备。"
+      },
+      "archive_get": {
+        "summary": "获取单条归档作品",
+        "description": "返回本实例最后一次看到的该作品，含媒体清单。其中的 CDN 签名链接会过期，web_url 才是长期有效的部分。"
       }
     },
     "param": {
@@ -222,7 +239,10 @@
       "platform": "请求针对的平台，douyin 或 tiktok，必须与传入的链接一致。",
       "include_raw": "在归一化结果之外，同时返回平台自身的原始响应。",
       "mix_id": "要读取的合辑 / 播放列表 ID。抖音在 mix_info 字段返回，TikTok 在 playlistId 字段返回。",
-      "proxy": "通过该代理发起上游请求，需填写完整 URL，例如 http://host:port。除非管理员启用了 security.request_proxy，否则该参数会被拒绝。"
+      "proxy": "通过该代理发起上游请求，需填写完整 URL，例如 http://host:port。除非管理员启用了 security.request_proxy，否则该参数会被拒绝。",
+      "author_uid": "仅返回该作者的作品。",
+      "tag": "仅返回带该标签的作品。",
+      "q": "标题或描述中的子串。按子串匹配而非按词匹配，因此中英文行为一致。"
     },
     "response": {
       "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"

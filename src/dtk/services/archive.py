@@ -27,12 +27,15 @@ docs/design/README.md records AI content analysis as a non-goal.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import unicodedata
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Final
 
-from sqlalchemy import func
+from sqlalchemy import func, literal, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -304,13 +307,184 @@ def _iter_models(model: Any) -> Iterable[Any]:
 
 
 __all__ = [
+    "DEFAULT_PAGE",
     "DURATION_BUCKETS",
+    "MAX_PAGE",
     "RESOLUTION_CLASSES",
+    "ArchiveFilter",
     "author_row",
     "content_row",
+    "count",
     "duration_bucket",
+    "get",
     "orientation_of",
     "record",
     "resolution_class",
     "script_of",
+    "search",
+    "stats",
 ]
+
+
+# --------------------------------------------------------------------------
+# Reading it back
+#
+# content_snapshots has been written to since install and has no console reader
+# at all - a write-only table is the mistake this half exists to avoid making
+# twice.
+# --------------------------------------------------------------------------
+
+
+#: Rows per page, and the ceiling a caller can ask for. Bounded because the row
+#: carries the whole media block, so a page of 500 is megabytes.
+DEFAULT_PAGE: Final = 50
+MAX_PAGE: Final = 200
+
+
+@dataclass(frozen=True, slots=True)
+class ArchiveFilter:
+    """What a caller may narrow the archive by."""
+
+    platform: str | None = None
+    author_uid: str | None = None
+    tag: str | None = None
+    kind: str | None = None
+    duration_bucket: str | None = None
+    availability: str | None = None
+    query: str | None = None
+    seen_after: datetime | None = None
+    seen_before: datetime | None = None
+
+
+def _cursor_encode(row: ArchivedContent) -> str:
+    """Keyset cursor: the sort key of the last row handed out.
+
+    Never OFFSET. The archive is written to while a client walks it, so an
+    offset silently skips and repeats rows - the failure mode where a caller
+    believes they have everything and does not.
+    """
+    stamp = row.last_seen_at.astimezone(UTC).isoformat()
+    return base64.urlsafe_b64encode(f"{stamp}|{row.platform}|{row.content_id}".encode()).decode(
+        "ascii"
+    )
+
+
+def _cursor_decode(cursor: str) -> tuple[datetime, str, str] | None:
+    try:
+        stamp, platform, content_id = (
+            base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8").split("|", 2)
+        )
+        return datetime.fromisoformat(stamp), platform, content_id
+    except (ValueError, UnicodeDecodeError, binascii.Error):
+        # A cursor the caller invented or truncated. Refusing beats starting
+        # over from the top, which would look like an infinite feed.
+        return None
+
+
+def _search_clause(term: str) -> Any:
+    """Match a search term against title and description.
+
+    Trigram ILIKE, not full-text search. Postgres' built-in parsers do not
+    segment Chinese: `to_tsvector` over a Douyin description yields a handful of
+    giant lexemes, and a search for a two-character word matches nothing - in
+    silence, on the platform most of this archive comes from. A substring match
+    backed by the GIN trigram indexes is the honest thing available without
+    adding a component README rules out, and it behaves the same in both scripts.
+    """
+    pattern = f"%{term}%"
+    return or_(
+        ArchivedContent.title.ilike(pattern),
+        ArchivedContent.description.ilike(pattern),
+    )
+
+
+def _apply(statement: Any, spec: ArchiveFilter) -> Any:
+    if spec.platform:
+        statement = statement.where(ArchivedContent.platform == spec.platform)
+    if spec.author_uid:
+        statement = statement.where(ArchivedContent.author_uid == spec.author_uid)
+    if spec.tag:
+        # `contains` on a Postgres array is the @> operator, which the GIN index
+        # on `tags` serves; ANY(...) would not use it.
+        statement = statement.where(ArchivedContent.tags.contains([spec.tag]))
+    if spec.kind:
+        statement = statement.where(ArchivedContent.kind == spec.kind)
+    if spec.duration_bucket:
+        statement = statement.where(ArchivedContent.duration_bucket == spec.duration_bucket)
+    if spec.availability:
+        statement = statement.where(ArchivedContent.availability == spec.availability)
+    if spec.seen_after:
+        statement = statement.where(ArchivedContent.last_seen_at >= spec.seen_after)
+    if spec.seen_before:
+        statement = statement.where(ArchivedContent.last_seen_at <= spec.seen_before)
+    if spec.query and spec.query.strip():
+        statement = statement.where(_search_clause(spec.query.strip()))
+    return statement
+
+
+async def search(
+    session: AsyncSession,
+    spec: ArchiveFilter,
+    *,
+    limit: int = DEFAULT_PAGE,
+    cursor: str | None = None,
+) -> tuple[list[ArchivedContent], str | None]:
+    """One page of the archive, newest sighting first.
+
+    Returns the rows and the cursor for the next page, or None when this was the
+    last one. An unreadable cursor yields an empty page rather than silently
+    restarting from the top.
+    """
+    size = max(1, min(limit, MAX_PAGE))
+    statement = _apply(select(ArchivedContent), spec)
+
+    if cursor:
+        decoded = _cursor_decode(cursor)
+        if decoded is None:
+            return [], None
+        stamp, platform, content_id = decoded
+        # Strict "less than" on the whole sort key, so a page boundary that
+        # falls inside a group of rows sharing a timestamp neither repeats nor
+        # skips one.
+        statement = statement.where(
+            tuple_(
+                ArchivedContent.last_seen_at, ArchivedContent.platform, ArchivedContent.content_id
+            )
+            < tuple_(literal(stamp), literal(platform), literal(content_id))
+        )
+
+    statement = statement.order_by(
+        ArchivedContent.last_seen_at.desc(),
+        ArchivedContent.platform.desc(),
+        ArchivedContent.content_id.desc(),
+    ).limit(size + 1)
+
+    rows = list((await session.scalars(statement)).all())
+    if len(rows) > size:
+        return rows[:size], _cursor_encode(rows[size - 1])
+    return rows, None
+
+
+async def count(session: AsyncSession, spec: ArchiveFilter) -> int:
+    """How many rows match, for the console's header."""
+    statement = _apply(select(func.count()).select_from(ArchivedContent), spec)
+    return int((await session.scalar(statement)) or 0)
+
+
+async def get(session: AsyncSession, platform: str, content_id: str) -> ArchivedContent | None:
+    return await session.get(ArchivedContent, (platform, content_id))
+
+
+async def stats(session: AsyncSession) -> dict[str, Any]:
+    """Totals for the console, cheap enough to run on every page load."""
+    contents = int((await session.scalar(select(func.count()).select_from(ArchivedContent))) or 0)
+    authors = int((await session.scalar(select(func.count()).select_from(ArchivedAuthor))) or 0)
+    by_platform = {
+        str(platform): int(total)
+        for platform, total in (
+            await session.execute(
+                select(ArchivedContent.platform, func.count()).group_by(ArchivedContent.platform)
+            )
+        ).all()
+    }
+    return {"contents": contents, "authors": authors, "by_platform": by_platform}
