@@ -87,6 +87,12 @@ class Maintenance(StrEnum):
     #: because it is dispatched by the same runner, but deliberately NOT exempt
     #: from the queue ceiling below.
     MEDIA_DOWNLOAD = "media.download"
+    #: Re-check whether archived posts still exist. Raised by the maintenance
+    #: sweep on a timer, and by hand from the Library page.
+    ARCHIVE_AVAILABILITY = "archive.availability"
+    #: Walk one author's history past the first page. Operator-triggered and
+    #: genuinely rare, unlike a download.
+    ARCHIVE_BACKFILL = "archive.backfill"
 
 
 def endpoint_name(platform: Platform, operation: Operation) -> str:

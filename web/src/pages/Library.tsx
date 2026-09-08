@@ -82,6 +82,7 @@ interface ArchiveStats {
   contents: number
   authors: number
   by_platform: Record<string, number>
+  by_availability: Record<string, number>
 }
 
 interface Filters {
@@ -148,6 +149,37 @@ export default function Library() {
       },
       onError: (error) => {
         toast.apiError(error, t('library.toast.storeFailed'))
+      },
+    },
+  )
+
+  const recheck = useApiMutation<{ task_id?: string }, void>(
+    () => apiPost(paths.archive.recheck, {}, { awaitTask: false }),
+    {
+      onSuccess: () => {
+        toast.success(t('library.toast.recheckStarted'))
+      },
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
+
+  const backfill = useApiMutation<{ task_id?: string }, ArchivedRow>(
+    (row) =>
+      apiPost(
+        paths.archive.backfill,
+        { platform: row.platform, author_id: row.author.uid },
+        { awaitTask: false },
+      ),
+    {
+      onSuccess: (_result, row) => {
+        toast.success(t('library.toast.backfillStarted'), {
+          description: row.author.nickname || row.author.uid,
+        })
+      },
+      onError: (error) => {
+        toast.apiError(error)
       },
     },
   )
@@ -267,16 +299,29 @@ export default function Library() {
         title={t('library.title')}
         description={t('library.description')}
         actions={
-          <Button
-            variant="secondary"
-            loading={exporting.isPending}
-            disabled={total === 0}
-            onClick={() => {
-              exporting.mutate()
-            }}
-          >
-            {t('library.export')}
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              loading={recheck.isPending}
+              disabled={total === 0}
+              title={t('library.recheckHint')}
+              onClick={() => {
+                recheck.mutate()
+              }}
+            >
+              {t('library.recheck')}
+            </Button>
+            <Button
+              variant="secondary"
+              loading={exporting.isPending}
+              disabled={total === 0}
+              onClick={() => {
+                exporting.mutate()
+              }}
+            >
+              {t('library.export')}
+            </Button>
+          </>
         }
       />
 
@@ -291,6 +336,13 @@ export default function Library() {
           label={t('library.metric.authors')}
           value={formatters.number(stats.data?.authors ?? 0)}
           loading={stats.isLoading}
+        />
+        <MetricTile
+          label={t('library.metric.gone')}
+          value={formatters.number(stats.data?.by_availability?.['deleted'] ?? 0)}
+          loading={stats.isLoading}
+          footer={t('library.metric.goneHint')}
+          tone={(stats.data?.by_availability?.['deleted'] ?? 0) > 0 ? 'muted' : 'neutral'}
         />
         {PLATFORMS.map((name) => (
           <MetricTile
@@ -441,15 +493,27 @@ export default function Library() {
         description={inspecting ? `${inspecting.platform} · ${inspecting.content_id}` : undefined}
         footer={
           inspecting ? (
-            <Button
-              variant="primary"
-              loading={store.isPending}
-              onClick={() => {
-                store.mutate(inspecting)
-              }}
-            >
-              {t('library.storeMedia')}
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                loading={backfill.isPending}
+                title={t('library.backfillHint')}
+                onClick={() => {
+                  backfill.mutate(inspecting)
+                }}
+              >
+                {t('library.backfill')}
+              </Button>
+              <Button
+                variant="primary"
+                loading={store.isPending}
+                onClick={() => {
+                  store.mutate(inspecting)
+                }}
+              >
+                {t('library.storeMedia')}
+              </Button>
+            </>
           ) : undefined
         }
       >

@@ -54,6 +54,8 @@ export const paths = {
     list: `${API_V1}/archive`,
     stats: `${API_V1}/archive/stats`,
     export: `${API_V1}/archive/export`,
+    recheck: `${API_V1}/archive/recheck`,
+    backfill: `${API_V1}/archive/backfill`,
   },
   watchlist: {
     list: `${API_V1}/admin/watchlist`,

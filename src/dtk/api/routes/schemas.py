@@ -217,6 +217,24 @@ class PinRequest(Body):
     pinned: bool = True
 
 
+class RecheckRequest(Body):
+    """Verify that archived posts still exist.
+
+    Every post checked is a real request through the identity pool, so the
+    batch is bounded here rather than left to whatever the caller asks for.
+    """
+
+    limit: int | None = Field(default=None, ge=1, le=200)
+    older_than_days: int | None = Field(default=None, ge=0, le=3650)
+
+
+class BackfillRequest(Body):
+    platform: Platform
+    #: The author's stable id, not the handle: users edit handles.
+    author_id: str = Field(min_length=1, max_length=128)
+    pages: int = Field(default=5, ge=1, le=20)
+
+
 class WatchCreate(Body):
     """Add one target to the schedule.
 
@@ -263,6 +281,7 @@ __all__ = [
     "MAX_PASTE_CHARS",
     "USERNAME_PATTERN",
     "ApiKeyCreate",
+    "BackfillRequest",
     "BackupRequest",
     "BatchItem",
     "BatchRequest",
@@ -279,6 +298,7 @@ __all__ = [
     "ProxyCreate",
     "ProxyImport",
     "ProxyUpdate",
+    "RecheckRequest",
     "RestoreRequest",
     "RetireRequest",
     "SettingUpdate",

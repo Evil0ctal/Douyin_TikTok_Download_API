@@ -151,7 +151,10 @@
         "min_interval_seconds": "Shortest interval any watched target may be given. A target collected every few seconds does not produce a better time series - it spends the whole identity pool on one author and starves everything else.",
         "default_interval_seconds": "Interval a newly watched target gets when none is specified.",
         "batch_size": "How many due entries one tick may queue. The rest stay due and go on the next tick, so a large watchlist is spread over minutes rather than landing all at once in front of whoever is using the API."
-      }
+      },
+      "archive.recheck_after_days": "How old a post's last existence check may be before it is checked again. This is what makes \"which of the things I saved are gone\" answerable at all - without it, a post deleted the day after it was archived stays marked live forever. 0 turns rechecking off.",
+      "archive.recheck_batch": "How many posts one recheck pass verifies. Each is a real request through the identity pool, so this is the knob that decides what the answer costs.",
+      "archive.recheck_pause_seconds": "Seconds between the individual requests a recheck or backfill makes. The scheduler paces requests per identity, which does nothing about a platform limit that counts requests per address - measured: 20 requests in 13 seconds were all rejected, while one a minute later succeeded. Nobody is waiting on these passes, so slow costs nothing."
     }
   },
   "openapi": {
@@ -276,6 +279,14 @@
       "downloads_cancel": {
         "summary": "Cancel a download",
         "description": "Stops a transfer that has not finished. Nothing is deleted: files already complete stay where they are, and removing files is the cleanup sweep's job rather than a DELETE's."
+      },
+      "archive_recheck": {
+        "summary": "Re-check what still exists",
+        "description": "Verifies that archived posts are still on the platform. A deleted post answers not-found, which is the finding rather than a failure: the record is kept and marked deleted, so it stays searchable and exportable with the truth attached. Each post is one real request through the identity pool, so the batch is bounded and the pass runs in the background."
+      },
+      "archive_backfill": {
+        "summary": "Archive an author's history",
+        "description": "Walks one author's posts past the first page and archives every one. Separate from the watchlist on purpose: a watchlist entry is for what is new and runs forever, while a backfill is a one-off with a very different cost. Stops at the first empty page, at the page ceiling, or when the platform says there is no more history."
       }
     },
     "param": {

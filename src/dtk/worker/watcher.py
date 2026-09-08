@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from time import monotonic
 from typing import Any
 
 from dtk.core.db import session_scope
@@ -50,6 +51,10 @@ class WatcherConfig:
     #: late a run can be, and a shorter tick would be a query per second for a
     #: table that changes hourly.
     interval_seconds: float = 60.0
+    #: How often to queue an availability recheck. Six hours, because the pass
+    #: itself only verifies `archive.recheck_batch` posts and the question it
+    #: answers - has this been deleted - moves on the scale of days.
+    availability_every_seconds: float = 6 * 3600
 
 
 @dataclass(slots=True)
@@ -57,6 +62,7 @@ class WatcherReport:
     due: int = 0
     submitted: int = 0
     reconciled: int = 0
+    availability_queued: bool = False
     skipped_capacity: bool = False
     disabled: bool = False
     errors: list[str] = field(default_factory=list)
@@ -76,6 +82,11 @@ class Watcher:
         self._config: Callable[[], Any] = config if callable(config) else (lambda: config)
         self._options = options or WatcherConfig()
         self._session_factory = session_factory
+        #: Monotonic stamp of the last availability sweep queued by this
+        #: process. In memory rather than in the database because a missed
+        #: sweep costs nothing - the posts stay due - and a restart re-checking
+        #: a few hours early is not a problem worth a row to prevent.
+        self._last_availability: float | None = None
 
     async def tick(self) -> WatcherReport:
         report = WatcherReport()
@@ -103,6 +114,8 @@ class Watcher:
                 action="scheduled collection stands down",
             )
             return report
+
+        await self.queue_availability(report, config)
 
         batch = int(config.get("watchlist.batch_size"))
         async with self._session_factory() as session:
@@ -142,6 +155,31 @@ class Watcher:
                 batch=batch,
             )
         return report
+
+    async def queue_availability(self, report: WatcherReport, config: Any) -> None:
+        """Queue a recheck pass, at most one every few hours.
+
+        Submitted as a task like everything else rather than run inline: the
+        pass makes one real request per post, and a maintenance tick is not the
+        place to hold a worker for a minute.
+
+        Only ever one in flight from this process. Queueing a second while the
+        first is still walking would double the request rate against a limit
+        the operator set once.
+        """
+        if int(config.get("archive.recheck_after_days")) <= 0:
+            return
+        now = monotonic()
+        if (
+            self._last_availability is not None
+            and now - self._last_availability < self._options.availability_every_seconds
+        ):
+            return
+        async with self._session_factory() as session:
+            await tasks.submit(session, "archive.availability", {})
+        self._last_availability = now
+        report.availability_queued = True
+        log.info("worker.watchlist.availability_queued")
 
     async def reconcile(self, report: WatcherReport) -> None:
         """Read back how each submitted run turned out.

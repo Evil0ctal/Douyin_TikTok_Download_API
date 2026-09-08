@@ -26,7 +26,9 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
 from dtk.api.deps import Principal, enforce_rate_limit
+from dtk.api.routes import operations
 from dtk.api.routes.openapi import I18N_KEY
+from dtk.api.routes.schemas import BackfillRequest, RecheckRequest
 from dtk.api.routes.support import ok
 from dtk.core.db import session_scope
 from dtk.core.errors import NotFound
@@ -243,6 +245,90 @@ async def export_archive(
         lines(),
         media_type="application/x-ndjson",
         headers={"Content-Disposition": 'attachment; filename="archive.ndjson"'},
+    )
+
+
+@router.post(
+    "/recheck", summary="Re-check what still exists", openapi_extra={I18N_KEY: "archive_recheck"}
+)
+async def recheck(
+    request: Request,
+    body: RecheckRequest,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Verify that archived posts still exist on the platform.
+
+    This is what makes "which of the things I saved are gone" answerable. A
+    deleted post answers the platform's own not-found, which is the finding
+    rather than a failure: the record is kept and marked `deleted`, so it stays
+    searchable and exportable with the truth attached.
+
+    Each post is one real request through the identity pool, so the batch is
+    bounded and the pass runs in the background.
+
+    **Parameters**
+
+    - `limit` - how many posts to verify, least recently checked first.
+    - `older_than_days` - only posts whose last check is older than this.
+
+    **Returns**
+
+    `202` with a task id. The result carries how many were checked and how many
+    turned out to be gone.
+    """
+    principal.require(Scope.ARCHIVE_READ)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=operations.Maintenance.ARCHIVE_AVAILABILITY.value,
+        params={"limit": body.limit, "older_than_days": body.older_than_days},
+        wait=0,
+        coalesce=True,
+    )
+
+
+@router.post(
+    "/backfill",
+    summary="Archive an author's history",
+    openapi_extra={I18N_KEY: "archive_backfill"},
+)
+async def backfill(
+    request: Request,
+    body: BackfillRequest,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Walk one author's posts past the first page and archive every one.
+
+    Separate from the watchlist on purpose. A watchlist entry is for what is
+    new and runs forever; a backfill is a one-off with a very different cost,
+    and making every scheduled run as deep as the deepest anyone ever wanted
+    would be the wrong trade.
+
+    Stops at the first page that returns nothing, at the page ceiling, or when
+    the platform says there is no more history - whichever comes first.
+
+    **Parameters**
+
+    - `platform`, `author_id` - whose history to walk.
+    - `pages` - how deep to go, capped by the server.
+
+    **Returns**
+
+    `202` with a task id. The result says how many pages were walked, how many
+    posts were archived, and why it stopped.
+    """
+    principal.require(Scope.ARCHIVE_READ)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=operations.Maintenance.ARCHIVE_BACKFILL.value,
+        params={
+            "platform": body.platform.value,
+            "author_id": body.author_id,
+            "pages": body.pages,
+        },
+        wait=0,
+        coalesce=True,
     )
 
 

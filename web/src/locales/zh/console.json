@@ -1227,7 +1227,9 @@
     "metric": {
       "posts": "作品数",
       "postsHint": "除非你删除，否则一直保留",
-      "authors": "作者数"
+      "authors": "作者数",
+      "gone": "已消失",
+      "goneHint": "平台上已删除，这里还留着"
     },
     "filter": {
       "title": "查找作品",
@@ -1290,7 +1292,9 @@
       "stored": "已开始下载",
       "storeFailed": "无法开始下载",
       "exported": "{count, plural, other {已导出 # 条}}",
-      "exportFailed": "导出失败"
+      "exportFailed": "导出失败",
+      "recheckStarted": "正在检查哪些作品还在",
+      "backfillStarted": "正在回溯该作者的历史"
     },
     "orientationValue": {
       "portrait": "竖屏",
@@ -1310,7 +1314,11 @@
       "latin": "拉丁字母",
       "mixed": "混合",
       "unknown": "未知"
-    }
+    },
+    "recheck": "重新检查",
+    "recheckHint": "验证最久没检查过的作品是否还在平台上。每个都是一次真实请求，所以在后台运行。",
+    "backfill": "回溯这位作者的历史",
+    "backfillHint": "翻过第一页，把这位作者的历史作品全部归档。"
   },
   "watchlist": {
     "title": "关注列表",

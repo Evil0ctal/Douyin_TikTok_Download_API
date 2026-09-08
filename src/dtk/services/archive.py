@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Final
 
-from sqlalchemy import func, literal, or_, select, tuple_
+from sqlalchemy import func, literal, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -475,6 +475,65 @@ async def get(session: AsyncSession, platform: str, content_id: str) -> Archived
     return await session.get(ArchivedContent, (platform, content_id))
 
 
+async def stale_availability(
+    session: AsyncSession, *, older_than: datetime, limit: int
+) -> list[ArchivedContent]:
+    """Archived posts still believed live whose existence was checked longest ago.
+
+    Rows already known to be gone are excluded, and deliberately: a deleted
+    post is a settled fact, and re-asking the platform about it forever would
+    spend the identity pool proving something already known. A post that comes
+    back is a real case and a rarer one; it is left for an operator to re-parse.
+    """
+    rows = (
+        (
+            await session.execute(
+                select(ArchivedContent)
+                .where(
+                    ArchivedContent.availability == "live",
+                    or_(
+                        ArchivedContent.availability_checked_at.is_(None),
+                        ArchivedContent.availability_checked_at < older_than,
+                    ),
+                )
+                .order_by(ArchivedContent.availability_checked_at.asc().nullsfirst())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return list(rows)
+
+
+async def mark_availability(
+    session: AsyncSession,
+    platform: str,
+    content_id: str,
+    *,
+    availability: str | None = None,
+    now: datetime | None = None,
+) -> None:
+    """Stamp the check, and record the verdict when there is one.
+
+    Called with no ``availability`` after a successful re-parse: the archive
+    write has already refreshed the row from the observation, and overwriting
+    it here from a second guess would be how the two disagree. All this adds is
+    that the check happened.
+    """
+    values: dict[str, Any] = {"availability_checked_at": now or datetime.now(UTC)}
+    if availability is not None:
+        values["availability"] = availability
+    await session.execute(
+        update(ArchivedContent)
+        .where(
+            ArchivedContent.platform == platform,
+            ArchivedContent.content_id == content_id,
+        )
+        .values(**values)
+    )
+
+
 async def stats(session: AsyncSession) -> dict[str, Any]:
     """Totals for the console, cheap enough to run on every page load."""
     contents = int((await session.scalar(select(func.count()).select_from(ArchivedContent))) or 0)
@@ -487,4 +546,19 @@ async def stats(session: AsyncSession) -> dict[str, Any]:
             )
         ).all()
     }
-    return {"contents": contents, "authors": authors, "by_platform": by_platform}
+    by_availability = {
+        str(state): int(total)
+        for state, total in (
+            await session.execute(
+                select(ArchivedContent.availability, func.count()).group_by(
+                    ArchivedContent.availability
+                )
+            )
+        ).all()
+    }
+    return {
+        "contents": contents,
+        "authors": authors,
+        "by_platform": by_platform,
+        "by_availability": by_availability,
+    }

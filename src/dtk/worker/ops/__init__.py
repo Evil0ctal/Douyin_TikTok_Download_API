@@ -1,8 +1,9 @@
 """Console-triggered maintenance jobs.
 
-Eight operations reach the worker that are not platform reads: running the self
+Ten operations reach the worker that are not platform reads: running the self
 check, taking a backup, restoring one, minting an identity, probing an identity
-or a proxy, sending a test alert, and storing one post's media on disk. The
+or a proxy, sending a test alert, storing one post's media on disk, re-checking
+whether archived posts still exist, and walking an author's history. The
 console submits each as an ordinary task, because each can take longer than a
 request should hold a connection open.
 
@@ -103,6 +104,7 @@ OperationHandler = Callable[
 def _handlers() -> Mapping[str, OperationHandler]:
     """The dispatch table, imported lazily to keep the import graph shallow."""
     from dtk.worker.ops import (
+        archive_sweep,
         backup,
         diagnose,
         identity_mint,
@@ -123,6 +125,8 @@ def _handlers() -> Mapping[str, OperationHandler]:
             "proxy.test": proxy_test.run,
             "notify.test": notify_test.run,
             "media.download": media_download.run,
+            "archive.availability": archive_sweep.run,
+            "archive.backfill": archive_sweep.backfill,
         }
     )
 
@@ -140,6 +144,8 @@ ENDPOINTS: Final[frozenset[str]] = frozenset(
         "proxy.test",
         "notify.test",
         "media.download",
+        "archive.availability",
+        "archive.backfill",
     }
 )
 

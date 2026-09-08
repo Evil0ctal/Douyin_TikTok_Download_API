@@ -378,6 +378,34 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "single thing this instance can choose to store.",
         ),
         SettingSpec(
+            "archive.recheck_after_days",
+            7,
+            Scope.RUNTIME,
+            int,
+            "How old a post's last existence check may be before it is checked "
+            "again. This is what makes 'which of the things I saved are gone' "
+            "answerable at all. 0 turns rechecking off.",
+        ),
+        SettingSpec(
+            "archive.recheck_batch",
+            25,
+            Scope.RUNTIME,
+            int,
+            "How many posts one recheck pass verifies. Each is a real request "
+            "through the identity pool, so this is the knob that decides what "
+            "the answer costs.",
+        ),
+        SettingSpec(
+            "archive.recheck_pause_seconds",
+            3,
+            Scope.RUNTIME,
+            int,
+            "Seconds between the individual requests a recheck or backfill "
+            "makes. The scheduler paces per identity, which does nothing about "
+            "a platform limit that counts requests per address; nobody is "
+            "waiting on these passes, so slow costs nothing.",
+        ),
+        SettingSpec(
             "retention.content_days",
             0,
             Scope.RUNTIME,

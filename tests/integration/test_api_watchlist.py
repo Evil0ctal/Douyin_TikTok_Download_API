@@ -185,7 +185,12 @@ async def test_a_due_entry_becomes_an_ordinary_task(api_app, db_engine, redis_cl
     # get_redis() rather than the fixture's client: the API suite repoints the
     # process-wide client at its own logical database, and asserting against a
     # different one would pass for the wrong reason.
-    assert await get_redis().llen(task_service.QUEUE_KEY) == 1
+    #
+    # Membership rather than a count: the same tick also queues the archive
+    # availability sweep, and a count would make this test fail every time
+    # another scheduled job is added, which says nothing about the watchlist.
+    queued = await get_redis().lrange(task_service.QUEUE_KEY, 0, -1)
+    assert str(entry.last_task_id) in queued
 
 
 async def test_the_batch_ceiling_spreads_a_large_watchlist(api_app, db_engine, redis_client):

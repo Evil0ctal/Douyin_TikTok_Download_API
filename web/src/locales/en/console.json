@@ -1227,7 +1227,9 @@
     "metric": {
       "posts": "Posts",
       "postsHint": "Kept until you delete them",
-      "authors": "Authors"
+      "authors": "Authors",
+      "gone": "Gone",
+      "goneHint": "Deleted on the platform, kept here"
     },
     "filter": {
       "title": "Find a post",
@@ -1290,7 +1292,9 @@
       "stored": "Download started",
       "storeFailed": "Could not start the download",
       "exported": "{count, plural, one {Exported # post} other {Exported # posts}}",
-      "exportFailed": "Export failed"
+      "exportFailed": "Export failed",
+      "recheckStarted": "Checking what still exists",
+      "backfillStarted": "Walking their history"
     },
     "orientationValue": {
       "portrait": "Portrait",
@@ -1310,7 +1314,11 @@
       "latin": "Latin",
       "mixed": "Mixed",
       "unknown": "Unknown"
-    }
+    },
+    "recheck": "Re-check",
+    "recheckHint": "Verify that the oldest-unchecked posts are still on the platform. Each is a real request, so it runs in the background.",
+    "backfill": "Archive their history",
+    "backfillHint": "Walk this author's posts past the first page and archive every one."
   },
   "watchlist": {
     "title": "Watchlist",

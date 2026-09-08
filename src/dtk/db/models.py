@@ -471,6 +471,14 @@ class ArchivedContent(Base):
         Index("ix_archived_contents_created", text("platform_created_at DESC")),
         Index("ix_archived_contents_tags", "tags", postgresql_using="gin"),
         Index("ix_archived_contents_music", "platform", "music_id"),
+        # The availability sweep's index: still believed live, least recently
+        # verified first. Partial, so the rows already known to be gone stay
+        # out of a query that runs on a timer.
+        Index(
+            "ix_archived_contents_recheck",
+            text("availability_checked_at ASC NULLS FIRST"),
+            postgresql_where=text("availability = 'live'"),
+        ),
     )
 
     platform: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -511,6 +519,13 @@ class ArchivedContent(Base):
 
     #: live | deleted | private | unknown. Only ever set from a real observation.
     availability: Mapped[str] = mapped_column(Text, default="live")
+    #: When availability was last *verified*, which is not the same as when the
+    #: post was last seen: a post that has been deleted is not seen at all, and
+    #: the check that discovered it still happened. Without this the sweep has
+    #: no way to order its work and would re-check the same rows forever.
+    availability_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     raw: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True, default=None
     )
