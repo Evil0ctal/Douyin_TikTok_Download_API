@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Mapping
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from dtk.core.errors import SigningFailed
 from dtk.core.logging import get_logger
@@ -51,6 +51,7 @@ from dtk.signing.base import (
     SigningSession,
     encode_query,
 )
+from dtk.signing.native import websign
 from dtk.signing.native.abogus import (
     DEFAULT_BROWSER_INFO,
     ABogus,
@@ -132,11 +133,12 @@ class NativeSigner:
     ) -> SignedParams:
         """Return the query string to send, signature appended.
 
-        ``session`` is accepted and ignored. The native algorithms compute from
-        the query and the User-Agent alone, so there is nothing here for a
-        cookie jar to change - unlike ``RpcSigner``, where the jar decides what
-        the browser signs. Taking the argument keeps one ``Signer`` protocol
-        rather than two.
+        ``session`` carries the identity's cookie jar, and on Douyin it decides
+        whether the request can reach a sign-protected endpoint at all: the
+        visitor parameters are copies of cookies (``verifyFp`` and ``fp`` are
+        ``s_v_web_id``, ``uifid`` is ``UIFID_TEMP``) and the platform's own
+        signature is computed over them. Without a jar this signer produces what
+        it always did, which is enough for the endpoints Douyin does not sign.
         """
         params = dict(spec.params or {})
         added: dict[str, str] = {}
@@ -173,18 +175,55 @@ class NativeSigner:
             raise SigningFailed(f"{self.algorithm.value} could not be computed: {exc}") from exc
 
         added[self.algorithm.value] = signature
+        headers: Mapping[str, str] = {}
+        if self.platform is Platform.DOUYIN and session is not None:
+            query, visitor, headers = self._add_web_signature(query, session)
+            added.update(visitor)
         logger.debug(
             "signing.native.signed",
             platform=self.platform.value,
             endpoint=spec.endpoint,
             algorithm=self.algorithm.value,
+            web_signed=bool(headers),
         )
         return SignedParams(
             query=query,
             params=added,
+            headers=headers,
             signer=self.name,
             algorithm=self.algorithm,
         )
+
+    @staticmethod
+    def _add_web_signature(
+        query: str, session: SigningSession
+    ) -> tuple[str, dict[str, str], dict[str, str]]:
+        """Append the visitor parameters and Douyin's own signature over them.
+
+        Order matters and is the platform's, not ours: the site sends
+        ``...&a_bogus=&verifyFp=&fp=&uifid=&timestamp=&x-secsdk-web-signature=``
+        and the signature covers everything before it, re-serialized. Captured
+        from a live page on 2026-09-08 and reproduced byte for byte.
+
+        A jar with no ``UIFID_TEMP`` gets the query untouched rather than a
+        signature over a missing visitor: the unprotected endpoints still work,
+        and the protected ones fail with the platform naming `uifid`, which says
+        more than anything invented here would.
+        """
+        uifid = websign.pick_uifid(session.cookies)
+        if not uifid:
+            return query, {}, {}
+        pairs = [_split_pair(part) for part in query.split("&") if part]
+        visitor: dict[str, str] = {}
+        verify_fp = (session.cookies or {}).get(websign.VERIFY_FP_COOKIE)
+        if verify_fp:
+            for name in websign.VERIFY_FP_PARAMS:
+                pairs.append((name, verify_fp))
+                visitor[name] = verify_fp
+        signed_query, signature, headers = websign.sign(pairs, uifid)
+        visitor[websign.UIFID_PARAM] = uifid
+        visitor[websign.SIGNATURE_PARAM] = signature
+        return signed_query, visitor, headers
 
     def _sign_a_bogus(
         self,
@@ -224,6 +263,18 @@ class NativeSigner:
             healthy=True,
             detail=f"{self.platform.value}:{self.algorithm.value}",
         )
+
+
+def _split_pair(part: str) -> tuple[str, str]:
+    """One ``k=v`` back into a pair, UNQUOTED so it can be re-serialized.
+
+    The query arrives already percent-encoded by the a_bogus layer, and the
+    signature is computed over a fresh serialization of the whole thing - so
+    every value has to be decoded here and encoded once, consistently, or the
+    bytes hashed and the bytes sent differ.
+    """
+    name, _, value = part.partition("=")
+    return unquote(name), unquote(value)
 
 
 def native_signers(

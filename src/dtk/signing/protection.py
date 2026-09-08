@@ -36,9 +36,11 @@ stops being protected merely costs a browser call it did not need.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from dtk.core.types import Platform
+from dtk.signing.native.websign import pick_uifid
 
 #: Douyin paths whose GET requests the platform signs. Copied from the SDK's own
 #: ``webSign.config.protectedHost["www.douyin.com"].GET`` on 2026-09-08. The POST
@@ -65,16 +67,27 @@ DOUYIN_SIGNED_PATHS: frozenset[str] = frozenset(
 )
 
 
-def requires_browser_signature(platform: Platform, url: str) -> bool:
+def requires_browser_signature(
+    platform: Platform, url: str, cookies: Mapping[str, str] | None = None
+) -> bool:
     """Whether this request needs a signature only a browser can produce.
 
     TikTok is always True and not from a table: its pages sign with X-Gnarly and
     X-Dynosaur, for which there is no port at all, so there is no unprotected
-    subset to find. Douyin is answered from the platform's own list above.
+    subset to find.
+
+    Douyin is False wherever the native signer can do the job, which is now
+    everywhere it has the identity's jar: `dtk.signing.native.websign` computes
+    the platform's own ``x-secsdk-web-signature``, and 24 of 24 live requests
+    across all four endpoints returned data with no browser involved on
+    2026-09-08. The table below still decides for a jar with no visitor id in
+    it, because that is the one case the native path cannot sign.
     """
     if platform is not Platform.DOUYIN:
         return True
-    return _normalise(urlsplit(url).path) in DOUYIN_SIGNED_PATHS
+    if _normalise(urlsplit(url).path) not in DOUYIN_SIGNED_PATHS:
+        return False
+    return pick_uifid(cookies) is None
 
 
 def _normalise(path: str) -> str:

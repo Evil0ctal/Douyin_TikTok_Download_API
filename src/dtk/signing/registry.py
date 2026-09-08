@@ -333,7 +333,10 @@ class SignerRegistry:
     ) -> SignedParams:
         """Sign ``spec``, choosing the signer per the rules in the module docstring."""
         key = self._key(spec, platform, endpoint)
-        signer = await self._select(key, signed_by_platform(key[0], spec.url))
+        signer = await self._select(
+            key,
+            signed_by_platform(key[0], spec.url, session.cookies if session else None),
+        )
         try:
             return await signer.sign(spec, identity_fingerprint, session)
         except DtkError as exc:
@@ -395,7 +398,9 @@ class SignerRegistry:
             # Measured 2026-09-08: 8/8 on two unprotected Douyin endpoints,
             # 3/8 on two protected ones. See dtk.signing.protection.
             if protected and await self._rpc_healthy():
-                return self._cross(key, self._rpc, "the platform signs this endpoint itself")
+                return self._cross(
+                    key, self._rpc, "this endpoint needs a signature only a browser can produce"
+                )
             if await self._at_risk(key) and await self._rpc_healthy():
                 return self._cross(
                     key,

@@ -27,6 +27,7 @@ shadow comparison.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import re
@@ -34,7 +35,8 @@ import string
 from collections.abc import Mapping
 from dataclasses import replace
 from types import SimpleNamespace
-from urllib.parse import parse_qs, quote, urlencode
+from typing import ClassVar
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlsplit
 
 import httpx
 import pytest
@@ -55,6 +57,7 @@ from dtk.signing.base import (
     endpoint_of,
     platform_of,
 )
+from dtk.signing.native import websign
 from dtk.signing.native.abogus import (
     ALPHABETS,
     DEFAULT_BROWSER_INFO,
@@ -1221,6 +1224,157 @@ async def test_the_session_survives_the_fallback_to_the_browser() -> None:
     signed = await registry.sign(DOUYIN_SPEC, FINGERPRINT, session)
     assert signed.signer == SIGNER_BROWSER
     assert rpc is not None and rpc.sessions == [session]
+
+
+class TestWebSignature:
+    """Douyin's own x-secsdk-web-signature, recovered and ported.
+
+    The vectors below were produced by executing the platform's real SDK in
+    Node and reading what it computed - an oracle independent of this
+    implementation, which is the point of having them. The port was separately
+    checked against signatures a live browser produced (recompute the md5 over
+    the URL Douyin's SDK built: 32 hex characters, byte-identical) and against
+    the platform itself (24 of 24 live requests returned data with no browser).
+
+    The uifid values here are invented. Real ones are visitor identifiers and
+    have no business in a test file.
+    """
+
+    UIFID = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
+
+    @staticmethod
+    def _sign(url: str, cookies: dict[str, str], stamp: int) -> str:
+        pairs = parse_qsl(urlsplit(url).query, keep_blank_values=True)
+        uifid = dict(pairs).get("uifid") or websign.pick_uifid(cookies)
+        assert uifid is not None
+        _query, signature, _headers = websign.sign(pairs, uifid, timestamp=stamp)
+        return signature
+
+    def test_it_reproduces_the_platforms_own_signatures(self) -> None:
+        vectors = [
+            (
+                "https://www.douyin.com/aweme/v1/web/aweme/detail/"
+                "?device_platform=webapp&aid=6383&aweme_id=123",
+                {"UIFID_TEMP": self.UIFID},
+                1788848841,
+                "6090b6162b96aeb107b51ab69140c764",
+            ),
+            (
+                "https://www.douyin.com/x/?q=%E4%B8%AD&z=a b&e=%2F",
+                {"UIFID": "AAAA1111", "UIFID_TEMP": "BBBB2222"},
+                1788848901,
+                "a79dcd330ecba4d98016189c3ca313cd",
+            ),
+            (
+                "https://www.douyin.com/x/",
+                {"UIFID": "AAAA1111"},
+                1788848901,
+                "0479f3eb2297110d45bfbd96ccccb292",
+            ),
+        ]
+        for url, cookies, stamp, expected in vectors:
+            assert self._sign(url, cookies, stamp) == expected, url
+
+    def test_a_uifid_already_in_the_query_keeps_its_place(self) -> None:
+        """Appending a second one changes the preimage, so the platform refuses."""
+        assert (
+            self._sign("https://www.douyin.com/x/?uifid=ZZZ&t=1", {"UIFID": "AAAA1111"}, 1788848901)
+            == "df59a6887d4647239b9079d7d16ad784"
+        )
+
+    def test_it_is_a_pure_function_of_the_second(self) -> None:
+        """No nonce, whatever the changing values on the wire suggest.
+
+        Worth pinning because the opposite was assumed for a while: the value
+        differs on every call in practice only because the timestamp is in whole
+        seconds and a call takes longer than one to set up.
+        """
+        url = "https://www.douyin.com/x/?a=1"
+        first = self._sign(url, {"UIFID_TEMP": self.UIFID}, 1788848841)
+        again = self._sign(url, {"UIFID_TEMP": self.UIFID}, 1788848841)
+        later = self._sign(url, {"UIFID_TEMP": self.UIFID}, 1788848842)
+        assert first == again
+        assert first != later
+
+    def test_the_query_is_serialized_the_way_it_is_hashed(self) -> None:
+        """The same bytes must be signed and sent, so one encoder does both."""
+        query, signature, _ = websign.sign(
+            [("z", "a b"), ("q", "\u4e2d")], self.UIFID, timestamp=1788848901
+        )
+        assert "a%20b" in query
+        assert query.endswith(f"&{websign.SIGNATURE_PARAM}={signature}")
+        covered = query.rsplit("&", 1)[0]
+        assert (
+            hashlib.md5(f"{self.UIFID}_1788848901_{websign.SALT}_{covered}".encode()).hexdigest()
+            == signature
+        )
+
+    def test_a_jar_with_no_visitor_id_signs_nothing(self) -> None:
+        assert websign.pick_uifid({}) is None
+        assert websign.pick_uifid({"ttwid": "1|x"}) is None
+        assert websign.pick_uifid({"UIFID_TEMP": "abc"}) == "abc"
+        # The SDK's own order: the plain name wins over the _TEMP one.
+        assert websign.pick_uifid({"UIFID_TEMP": "temp", "uifid": "plain"}) == "plain"
+
+
+class TestNativeSignerWithASession:
+    """With the identity's jar, the native signer covers Douyin end to end.
+
+    Measured live on 2026-09-08: 6 of 6 on each of author_profile, comments,
+    content_detail and author_posts, no browser involved.
+    """
+
+    JAR: ClassVar[dict[str, str]] = {
+        "s_v_web_id": "verify_test_visitor",
+        "UIFID_TEMP": "aabbccddeeff00112233445566778899",
+        "ttwid": "1|abc",
+    }
+
+    async def test_it_adds_the_visitor_parameters_and_the_signature(self) -> None:
+        signed = await NativeSigner(Platform.DOUYIN).sign(
+            DOUYIN_SPEC, FINGERPRINT, SigningSession(cookies=self.JAR)
+        )
+        assert signed.params["verifyFp"] == "verify_test_visitor"
+        assert signed.params["fp"] == "verify_test_visitor"
+        assert signed.params["uifid"] == self.JAR["UIFID_TEMP"]
+        assert len(signed.params[websign.SIGNATURE_PARAM]) == 32
+        # The platform's own pages send these as headers too.
+        assert signed.headers[websign.EXPIRE_HEADER].isdigit()
+        assert signed.headers["uifid"] == self.JAR["UIFID_TEMP"]
+
+    async def test_the_signature_covers_the_query_actually_sent(self) -> None:
+        """The whole point: hashed bytes and sent bytes are the same bytes."""
+        signed = await NativeSigner(Platform.DOUYIN).sign(
+            DOUYIN_SPEC, FINGERPRINT, SigningSession(cookies=self.JAR)
+        )
+        covered, _, signature = signed.query.rpartition(f"&{websign.SIGNATURE_PARAM}=")
+        stamp = signed.headers[websign.EXPIRE_HEADER]
+        assert (
+            hashlib.md5(
+                f"{self.JAR['UIFID_TEMP']}_{stamp}_{websign.SALT}_{covered}".encode()
+            ).hexdigest()
+            == signature
+        )
+
+    async def test_without_a_session_it_signs_as_it_always_did(self) -> None:
+        """No jar, no visitor parameters - and no invented ones."""
+        signed = await NativeSigner(Platform.DOUYIN).sign(DOUYIN_SPEC, FINGERPRINT)
+        assert websign.SIGNATURE_PARAM not in signed.params
+        assert "uifid" not in signed.params
+        assert not signed.headers
+
+    async def test_a_jar_without_a_visitor_id_is_left_alone(self) -> None:
+        signed = await NativeSigner(Platform.DOUYIN).sign(
+            DOUYIN_SPEC, FINGERPRINT, SigningSession(cookies={"ttwid": "1|abc"})
+        )
+        assert websign.SIGNATURE_PARAM not in signed.params
+
+    async def test_tiktok_is_untouched(self) -> None:
+        """X-Gnarly has no port; adding a Douyin signature would be nonsense."""
+        signed = await NativeSigner(Platform.TIKTOK).sign(
+            TIKTOK_SPEC, FINGERPRINT, SigningSession(cookies=self.JAR)
+        )
+        assert websign.SIGNATURE_PARAM not in signed.params
 
 
 class TestPlatformSignedEndpoints:
