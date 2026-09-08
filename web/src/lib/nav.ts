@@ -23,6 +23,7 @@ export type NavIconName =
   | 'activity'
   | 'archive'
   | 'download'
+  | 'clock'
   | 'users'
   | 'lock'
 
@@ -42,6 +43,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/parse', labelKey: 'nav.parseTool', group: 'tools', icon: 'link' },
   { path: '/tools', labelKey: 'nav.tools', group: 'tools', icon: 'terminal' },
   { path: '/library', labelKey: 'nav.library', group: 'tools', icon: 'archive' },
+  { path: '/watchlist', labelKey: 'nav.watchlist', group: 'tools', icon: 'clock' },
   { path: '/downloads', labelKey: 'nav.downloads', group: 'tools', icon: 'download' },
   { path: '/docs', labelKey: 'nav.apiDocs', group: 'tools', icon: 'book' },
   { path: '/api-keys', labelKey: 'nav.apiKeys', group: 'access', icon: 'key' },

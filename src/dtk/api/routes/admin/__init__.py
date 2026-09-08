@@ -29,6 +29,7 @@ from dtk.api.routes.admin import (
     proxies,
     settings,
     users,
+    watchlist,
 )
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -42,5 +43,6 @@ router.include_router(health.router)
 router.include_router(access.router)
 router.include_router(logs.router)
 router.include_router(maintenance.router)
+router.include_router(watchlist.router)
 
 __all__ = ["router"]

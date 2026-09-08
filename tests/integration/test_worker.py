@@ -736,6 +736,7 @@ async def test_the_worker_process_assembles(db_engine, redis_client):
             "pool_filler",
             "proxy_prober",
             "maintenance",
+            "watchlist",
         ]
         assert runtime.worker.inflight == 0
         assert runtime.worker.stopping is False

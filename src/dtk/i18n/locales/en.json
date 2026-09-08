@@ -145,6 +145,12 @@
         "max_bytes": "How much disk stored media may occupy. Past it the oldest unpinned downloads are removed until the volume is back under, and an alert says what went. Pinned downloads are never removed. 0 disables cleanup entirely.",
         "max_file_bytes": "Ceiling for one file, counted on bytes actually written rather than on the size the server claims. A transfer that reaches it is refused and leaves nothing behind.",
         "mirror_max_age_seconds": "How old an archived media link may be before a download re-parses the post to get fresh ones. Signed CDN links expire within hours; 0 always re-parses, which costs one request from the identity pool."
+      },
+      "watchlist": {
+        "enabled": "Run scheduled collection. Turning it off leaves the entries and everything they have collected alone; it simply stops submitting runs.",
+        "min_interval_seconds": "Shortest interval any watched target may be given. A target collected every few seconds does not produce a better time series - it spends the whole identity pool on one author and starves everything else.",
+        "default_interval_seconds": "Interval a newly watched target gets when none is specified.",
+        "batch_size": "How many due entries one tick may queue. The rest stay due and go on the next tick, so a large watchlist is spread over minutes rather than landing all at once in front of whoever is using the API."
       }
     }
   },

@@ -24,7 +24,8 @@
     "endpointAccess": "Endpoint access",
     "tools": "Building blocks",
     "downloads": "Downloads",
-    "library": "Library"
+    "library": "Library",
+    "watchlist": "Watchlist"
   },
   "page": {
     "overview": {
@@ -441,7 +442,8 @@
       "other": "Other",
       "archive": "Content archive",
       "capacity": "Capacity",
-      "media": "Media"
+      "media": "Media",
+      "watchlist": "Watchlist"
     },
     "groupHint": {
       "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
@@ -457,7 +459,8 @@
       "other": "Keys with no group of their own.",
       "archive": "What this instance keeps after a task result expires. The archive holds the current state of a post; the metric history beside it holds how it changed.",
       "capacity": "How this instance behaves as the disk fills. It warns, then pauses background writers - it never deletes.",
-      "media": "Where downloaded video and images live, how much disk they may take, and what happens when they reach it. Nothing here is deleted except stored files, and never a pinned one."
+      "media": "Where downloaded video and images live, how much disk they may take, and what happens when they reach it. Nothing here is deleted except stored files, and never a pinned one.",
+      "watchlist": "Which targets this instance re-collects on a timer, and how much of the queue that may take. Scheduled runs go through the same queue and identity pool as everything else, so they always yield to a caller who is waiting."
     },
     "choice": {
       "signing.mode": {
@@ -1307,6 +1310,65 @@
       "latin": "Latin",
       "mixed": "Mixed",
       "unknown": "Unknown"
+    }
+  },
+  "watchlist": {
+    "title": "Watchlist",
+    "description": "Targets this instance re-collects on a timer. This is what turns the snapshot history into a real time series instead of a scatter of whatever somebody happened to parse.",
+    "pauseAll": "Pause all",
+    "pauseConfirm": "{count, plural, one {Pause # watched target?} other {Pause all # watched targets?}} Nothing already collected is affected; they simply stop running until you enable them again.",
+    "paused": "Paused",
+    "remove": "Remove",
+    "neverRun": "Not run yet",
+    "failing": "{count, plural, one {# failure in a row} other {# failures in a row}}",
+    "toggleLabel": "Collect {target} on a schedule",
+    "offTitle": "Scheduled collection is switched off",
+    "offHint": "The watchlist.enabled setting is off, so nothing here runs however these entries are configured. Turn it back on from Settings.",
+    "metric": {
+      "entries": "Targets",
+      "enabled": "{count, plural, one {# running} other {# running}}",
+      "runs": "Runs",
+      "runsHint": "Observations collected since each was added",
+      "failing": "Failing",
+      "failingHint": "Retried less and less often until they recover"
+    },
+    "add": {
+      "title": "Watch a target",
+      "description": "An author is collected for new posts and follower counts; a post for how its own metrics move. Both end up in the archive and in the snapshot history.",
+      "action": "Watch",
+      "costHint": "Every entry spends the identity pool on a schedule for as long as it exists. Runs go through the same queue as everything else, so they always yield to a caller who is waiting."
+    },
+    "field": {
+      "platform": "Platform",
+      "kind": "Watch",
+      "target": "Target",
+      "targetHint": {
+        "author": "The author's stable id - sec_user_id on Douyin, the numeric id on TikTok. Not the handle: users change those.",
+        "content": "The post id, as the archive holds it."
+      },
+      "interval": "Every"
+    },
+    "kind": {
+      "author": "An author",
+      "content": "A post"
+    },
+    "column": {
+      "target": "Target",
+      "interval": "Interval",
+      "next": "Next run",
+      "runs": "Runs",
+      "health": "Last run",
+      "enabled": "Running"
+    },
+    "empty": {
+      "title": "Nothing is being watched",
+      "description": "Add an author above and this instance will collect their new posts on a schedule, filling in the growth curves the snapshot history is for."
+    },
+    "toast": {
+      "added": "Now watching; the first run is queued",
+      "addFailed": "Could not watch that target",
+      "removed": "Stopped watching. Everything already collected is kept.",
+      "paused": "{count, plural, one {Paused # target} other {Paused # targets}}"
     }
   }
 }

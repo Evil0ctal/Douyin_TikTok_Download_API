@@ -82,7 +82,15 @@ async def _measure_spread(redis_client, tag: str) -> float:
     ]
     scheduler = Scheduler(
         ListSource(pool),
-        SchedulerConfig(max_wait_seconds=10.0, poll_interval_seconds=0.005),
+        # The wait budget is scaffolding, not the thing under test: what is
+        # measured is how evenly the load lands, and a request that gives up
+        # waiting is measured as nothing at all. 600 requests over 12
+        # identities is 50 serialized rounds of a 2ms hold plus two Redis
+        # round-trips, so 10s was roughly 100x headroom on an idle machine and
+        # not enough on a busy one - it failed with IDENTITY_POOL_EXHAUSTED
+        # only when the whole suite ran alongside a live container stack.
+        # Raising it weakens no assertion; every count below is still exact.
+        SchedulerConfig(max_wait_seconds=60.0, poll_interval_seconds=0.005),
     )
 
     used: collections.Counter[str] = collections.Counter()

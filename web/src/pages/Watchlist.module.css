@@ -1,0 +1,34 @@
+/*
+ * Scheduled collection.
+ *
+ * The interval and the failure count are the two columns that carry the cost
+ * of this page, so neither is allowed to be quiet: the interval is mono and
+ * always visible, and a failing entry is coloured rather than merely counted.
+ */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  /* Bounded, so a long sec_user_id cannot push the other columns off-screen. */
+  max-width: 42ch;
+}
+
+.sub {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+.failing {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--caution);
+}

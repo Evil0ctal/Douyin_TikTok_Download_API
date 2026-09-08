@@ -75,6 +75,7 @@ const GROUP_ORDER = [
   'snapshot',
   'archive',
   'media',
+  'watchlist',
   'capacity',
   'retention',
   'api',

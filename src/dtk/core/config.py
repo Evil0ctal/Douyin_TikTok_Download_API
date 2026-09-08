@@ -166,6 +166,28 @@ DEFAULT_MEDIA_CEILING: Final = 2 * 1024**3
 DEFAULT_MEDIA_FILE_CEILING: Final = 512 * 1024**2
 
 
+def _watch_floor(value: Any) -> int:
+    """A collection interval floor that is actually a floor.
+
+    Below a minute this stops being a schedule and becomes a loop: the entry
+    would be re-queued before its previous run had finished, and the pool would
+    spend itself on one target. Sixty seconds is already far more often than
+    any real watch needs.
+    """
+    number = int(value)
+    if number < 60:
+        raise ValueError("must be at least 60 seconds")
+    return number
+
+
+#: Six hours. Often enough that a day's posts arrive in a few observations,
+#: rare enough that a watchlist of a hundred authors is 400 requests a day.
+DEFAULT_WATCH_INTERVAL: Final = 6 * 3600
+#: Fifteen minutes. Nothing on either platform moves fast enough to need more,
+#: and the floor is what stops a watchlist becoming a scraper.
+DEFAULT_WATCH_FLOOR: Final = 900
+
+
 RUNTIME_SETTINGS: dict[str, SettingSpec] = {
     s.key: s
     for s in [
@@ -363,6 +385,46 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "Delete archived posts older than this many days. 0 means never, "
             "which is the default: the archive exists precisely to outlive the "
             "platform.",
+        ),
+        # --- watchlist ---------------------------------------------------------
+        # What turns content_snapshots into a time series instead of a scatter
+        # of whatever somebody happened to parse. Every due entry is submitted
+        # as an ordinary task, so these knobs bound how much of the queue
+        # scheduled collection may take - never how fast it may go, which the
+        # scheduler and the identity pool already decide.
+        SettingSpec(
+            "watchlist.enabled",
+            True,
+            Scope.RUNTIME,
+            bool,
+            "Run scheduled collection. Off leaves the entries and their history "
+            "alone and simply stops submitting runs.",
+        ),
+        SettingSpec(
+            "watchlist.min_interval_seconds",
+            DEFAULT_WATCH_FLOOR,
+            Scope.RUNTIME,
+            int,
+            "Shortest interval an entry may be given. A target collected every "
+            "few seconds does not produce a better series, it spends the whole "
+            "identity pool on one author.",
+            validate=_watch_floor,
+        ),
+        SettingSpec(
+            "watchlist.default_interval_seconds",
+            DEFAULT_WATCH_INTERVAL,
+            Scope.RUNTIME,
+            int,
+            "Interval a new entry gets when none is given.",
+        ),
+        SettingSpec(
+            "watchlist.batch_size",
+            10,
+            Scope.RUNTIME,
+            int,
+            "How many due entries one tick may queue. The rest stay due and go "
+            "on the next tick, so a large watchlist is spread over minutes "
+            "rather than landing in front of whoever is using the API.",
         ),
         # --- media downloads ---------------------------------------------------
         # The one part of this system that writes large files to a disk on its

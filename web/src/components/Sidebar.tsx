@@ -12,6 +12,7 @@ import {
   BookIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ClockIcon,
   DownloadIcon,
   GaugeIcon,
   GlobeIcon,
@@ -44,6 +45,7 @@ const NAV_ICONS: Record<NavIconName, (props: IconProps) => ReactElement> = {
   activity: ActivityIcon,
   archive: ArchiveIcon,
   download: DownloadIcon,
+  clock: ClockIcon,
   users: UsersIcon,
 }
 

@@ -595,6 +595,76 @@ class MediaDownload(Base):
         )
 
 
+class WatchlistEntry(Base):
+    """One author or post this instance re-collects on a schedule.
+
+    The point is `content_snapshots`. Until something collects on a timer, that
+    hypertable holds whatever a human happened to parse, at whatever moments
+    they happened to do it - which is not a time series, it is a scatter of
+    unrelated observations. A watchlist turns it into one.
+
+    Nothing here fetches. An entry that comes due is submitted as an ordinary
+    task, so scheduled collection queues behind interactive requests, spends the
+    same identity pool under the same scheduler, and shows up in the console
+    beside every other task. A second collection path would be a second set of
+    rate limits to get wrong.
+    """
+
+    __tablename__ = "watchlist"
+    __table_args__ = (
+        # One entry per target: adding the same author twice is a mistake, not
+        # a way to collect twice as often.
+        Index("ix_watchlist_target", "platform", "kind", "target_id", unique=True),
+        # The due query, which runs every minute.
+        Index("ix_watchlist_due", "enabled", text("next_run_at ASC")),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=_NEW_UUID
+    )
+    platform: Mapped[str] = mapped_column(Text)
+    #: author | content. An author is watched for new posts and follower counts;
+    #: a post for how its metrics move.
+    kind: Mapped[str] = mapped_column(Text)
+    #: sec_user_id or aweme_id, as the platform spells it.
+    target_id: Mapped[str] = mapped_column(Text)
+    #: What to call it in the console. Filled from the first successful run, so
+    #: an operator who pasted an id still sees a nickname afterwards.
+    label: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    interval_seconds: Mapped[int] = mapped_column(Integer)
+    enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    #: How many pages of an author's posts one run walks. One is the useful
+    #: default: a watchlist is for what is new, and a backfill is a different
+    #: job with a different cost.
+    pages: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+    last_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    last_task_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True, default=None
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    #: When the outcome of ``last_task_id`` was read back. A run whose result
+    #: has not been reconciled yet has ``last_run_at`` newer than this, which is
+    #: exactly the query the watcher uses - no extra flag to keep in step.
+    last_result_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    #: Drives the backoff. An author whose id is wrong should be tried less and
+    #: less often rather than every interval forever.
+    consecutive_failures: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    #: Cumulative, for the console: "this entry has produced 412 observations".
+    runs: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+
+    def __repr__(self) -> str:
+        return _repr("WatchlistEntry", id=self.id, platform=self.platform, kind=self.kind)
+
+
 class ContentSnapshot(Base):
     """Hypertable. One row per successful parse, deduplicated in Redis.
 
@@ -657,6 +727,7 @@ TABLE_NAMES: Final[tuple[str, ...]] = (
     "archived_authors",
     "archived_contents",
     "media_downloads",
+    "watchlist",
 )
 
 #: Values the corresponding text columns accept, kept beside the models so a
@@ -691,4 +762,5 @@ __all__ = [
     "SettingsVersion",
     "Task",
     "User",
+    "WatchlistEntry",
 ]

@@ -132,6 +132,7 @@ async def build_runtime(
     from dtk.worker.maintenance import Maintenance, MaintenanceConfig
     from dtk.worker.pool_filler import FillerConfig, PoolFiller
     from dtk.worker.proxy_prober import HttpxProbeClient, ProberConfig, ProxyProber
+    from dtk.worker.watcher import Watcher, WatcherConfig
 
     config_source: Callable[[], Config] = config if callable(config) else (lambda: config)
     current = config_source()
@@ -225,6 +226,7 @@ async def build_runtime(
     filler_options = FillerConfig()
     prober_options = ProberConfig()
     maintenance_options = MaintenanceConfig()
+    watcher_options = WatcherConfig()
     filler = PoolFiller(
         pool=pool,
         rpc=rpc_client,
@@ -286,10 +288,16 @@ async def build_runtime(
         egress=PoolEgress(cipher),
     )
 
+    # Scheduled collection. A loop rather than part of maintenance: it runs on
+    # its own cadence, it is the one background job that submits work to the
+    # queue, and an operator turning it off should not also turn off retention.
+    watcher = Watcher(config=config_source, options=watcher_options)
+
     loops = [
         PeriodicLoop("pool_filler", filler_options.interval_seconds, filler.tick),
         PeriodicLoop("proxy_prober", prober_options.interval_seconds, prober.tick),
         PeriodicLoop("maintenance", maintenance_options.interval_seconds, maintenance.tick),
+        PeriodicLoop("watchlist", watcher_options.interval_seconds, watcher.tick),
     ]
     closers: list[Callable[[], Any]] = [transport.close, prober.aclose, notifier.aclose]
     if downloader is not None:

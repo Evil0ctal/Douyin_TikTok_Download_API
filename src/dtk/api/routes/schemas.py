@@ -217,6 +217,37 @@ class PinRequest(Body):
     pinned: bool = True
 
 
+class WatchCreate(Body):
+    """Add one target to the schedule.
+
+    A content key, the same as a download: there is no URL here either. What
+    this creates is a standing instruction to spend the identity pool every few
+    hours, which is why it is administrative rather than a data endpoint.
+    """
+
+    platform: Platform
+    #: author or content.
+    kind: str = Field(pattern="^(author|content)$")
+    #: sec_user_id or aweme_id, as the platform spells it.
+    target_id: str = Field(min_length=1, max_length=128)
+    #: What to call it in the console. Filled in from the first successful run
+    #: when it is omitted, so pasting a bare id is fine.
+    label: str | None = Field(default=None, max_length=128)
+    #: Omitted means watchlist.default_interval_seconds. The server refuses
+    #: anything under watchlist.min_interval_seconds rather than silently
+    #: substituting a number the caller did not ask for.
+    interval_seconds: int | None = Field(default=None, ge=1)
+    #: Pages of an author's posts one run walks. One is the useful default: a
+    #: watchlist is for what is new, and a backfill is a different job.
+    pages: int = Field(default=1, ge=1, le=10)
+
+
+class WatchUpdate(Body):
+    interval_seconds: int | None = Field(default=None, ge=1)
+    enabled: bool | None = None
+    pages: int | None = Field(default=None, ge=1, le=10)
+
+
 class NotificationTest(Body):
     channel: str | None = Field(default=None, max_length=64)
 
@@ -254,4 +285,6 @@ __all__ = [
     "SetupInit",
     "UserCreate",
     "UserUpdate",
+    "WatchCreate",
+    "WatchUpdate",
 ]

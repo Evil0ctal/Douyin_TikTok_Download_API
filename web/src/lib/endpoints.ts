@@ -55,6 +55,12 @@ export const paths = {
     stats: `${API_V1}/archive/stats`,
     export: `${API_V1}/archive/export`,
   },
+  watchlist: {
+    list: `${API_V1}/admin/watchlist`,
+    create: `${API_V1}/admin/watchlist`,
+    pause: `${API_V1}/admin/watchlist/pause`,
+    byId: (id: string) => `${API_V1}/admin/watchlist/${encodeURIComponent(id)}`,
+  },
   downloads: {
     list: `${API_V1}/downloads`,
     create: `${API_V1}/downloads`,

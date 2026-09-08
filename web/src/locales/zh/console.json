@@ -24,7 +24,8 @@
     "endpointAccess": "接口访问控制",
     "tools": "基础工具",
     "downloads": "下载",
-    "library": "资料库"
+    "library": "资料库",
+    "watchlist": "关注列表"
   },
   "page": {
     "overview": {
@@ -441,7 +442,8 @@
       "other": "其它",
       "archive": "内容归档",
       "capacity": "容量",
-      "media": "媒体"
+      "media": "媒体",
+      "watchlist": "关注列表"
     },
     "groupHint": {
       "sched": "等待、排队、冷却，以及接口熔断的阈值。",
@@ -457,7 +459,8 @@
       "other": "没有独立分组的配置项。",
       "archive": "任务结果过期后本实例会保留什么。归档保存作品的当前状态，旁边的指标历史保存它如何变化。",
       "capacity": "磁盘接近写满时本实例的行为：先告警，再暂停后台写入——但绝不删除数据。",
-      "media": "下载的视频与图片存放在哪里、最多可以占用多少磁盘、达到上限后会发生什么。这里只会删除已保存的文件，且永远不会删除置顶的那些。"
+      "media": "下载的视频与图片存放在哪里、最多可以占用多少磁盘、达到上限后会发生什么。这里只会删除已保存的文件，且永远不会删除置顶的那些。",
+      "watchlist": "本实例按定时重复采集哪些目标，以及这件事最多能占用多少队列。定时任务和其他请求走同一个队列和身份池，因此永远给正在等待的调用方让路。"
     },
     "choice": {
       "signing.mode": {
@@ -1307,6 +1310,65 @@
       "latin": "拉丁字母",
       "mixed": "混合",
       "unknown": "未知"
+    }
+  },
+  "watchlist": {
+    "title": "关注列表",
+    "description": "本实例按定时重复采集的目标。正是它让快照历史变成真正的时间序列，而不是「谁碰巧解析过什么」的散点。",
+    "pauseAll": "全部暂停",
+    "pauseConfirm": "{count, plural, other {确定暂停全部 # 个关注目标？}}已经采集到的内容不受影响，它们只是不再运行，直到你重新启用。",
+    "paused": "已暂停",
+    "remove": "移除",
+    "neverRun": "尚未运行",
+    "failing": "{count, plural, other {连续失败 # 次}}",
+    "toggleLabel": "定时采集 {target}",
+    "offTitle": "定时采集已全局关闭",
+    "offHint": "watchlist.enabled 设置为关闭，因此无论这些条目怎么配置都不会运行。可在「设置」中重新打开。",
+    "metric": {
+      "entries": "关注目标",
+      "enabled": "{count, plural, other {运行中 #}}",
+      "runs": "运行次数",
+      "runsHint": "自加入以来采集到的观测次数",
+      "failing": "失败中",
+      "failingHint": "会以越来越长的间隔重试，直到恢复"
+    },
+    "add": {
+      "title": "关注一个目标",
+      "description": "关注作者会采集其新作品与粉丝数；关注作品会采集它自己的数据变化。两者最终都会写入归档和快照历史。",
+      "action": "关注",
+      "costHint": "每个条目只要存在，就会按计划持续消耗身份池。采集任务和其他请求走同一个队列，因此永远给正在等待的调用方让路。"
+    },
+    "field": {
+      "platform": "平台",
+      "kind": "关注",
+      "target": "目标",
+      "targetHint": {
+        "author": "作者的稳定 ID——抖音是 sec_user_id，TikTok 是数字 ID。不要填抖音号，用户会改。",
+        "content": "作品 ID，和归档里保存的一致。"
+      },
+      "interval": "每隔"
+    },
+    "kind": {
+      "author": "一个作者",
+      "content": "一个作品"
+    },
+    "column": {
+      "target": "目标",
+      "interval": "间隔",
+      "next": "下次运行",
+      "runs": "运行次数",
+      "health": "上次运行",
+      "enabled": "运行中"
+    },
+    "empty": {
+      "title": "还没有关注任何目标",
+      "description": "在上方添加一个作者，本实例就会按计划采集他的新作品，把快照历史该有的增长曲线补齐。"
+    },
+    "toast": {
+      "added": "已开始关注，首次采集已入队",
+      "addFailed": "无法关注该目标",
+      "removed": "已停止关注。已经采集到的内容全部保留。",
+      "paused": "{count, plural, other {已暂停 # 个目标}}"
     }
   }
 }
