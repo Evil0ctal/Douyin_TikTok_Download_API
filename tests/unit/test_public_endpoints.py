@@ -155,3 +155,67 @@ def test_the_protected_flag_agrees_with_the_rule_the_request_path_uses() -> None
     """One source of truth, checked from both sides."""
     for row in _access_rows():
         assert row["protected"] == pe.is_protected(row["path"]), row["path"]
+
+
+# --------------------------------------------------------------------------
+# One scope rule, for every route
+#
+# `Principal.require` used to short-circuit on the account's role while
+# `support.has_scope` did not, and the difference was not academic: almost every
+# key on a self-hosted instance belongs to the admin user, so the archive and
+# media scopes were unenforceable in exactly the deployment they were written
+# for. Both now ask the principal, and these pin that down.
+# --------------------------------------------------------------------------
+
+
+def _key_principal(*scopes: Scope):
+    import uuid as _uuid
+
+    from dtk.api.deps import Principal
+    from dtk.core.types import UserRole
+
+    return Principal(
+        user_id=_uuid.uuid4(),
+        # An administrator's own key: the case that used to bypass every check.
+        role=UserRole.ADMIN,
+        scopes=frozenset(scopes),
+        api_key_id=_uuid.uuid4(),
+        rate_limit_per_min=None,
+    )
+
+
+def test_an_admins_read_key_is_still_bounded_by_its_scopes() -> None:
+    from dtk.core.errors import ForbiddenScope
+
+    key = _key_principal(Scope.DOUYIN_READ)
+    assert key.permits(Scope.DOUYIN_READ)
+    with pytest.raises(ForbiddenScope):
+        key.require(Scope.ARCHIVE_EXPORT)
+
+
+def test_the_admin_scope_on_a_key_still_opens_everything() -> None:
+    assert _key_principal(Scope.ADMIN).permits(Scope.ARCHIVE_EXPORT)
+
+
+def test_a_console_session_is_bounded_by_role_not_scopes() -> None:
+    import uuid as _uuid
+
+    from dtk.api.deps import Principal
+    from dtk.core.types import UserRole
+
+    session = Principal(
+        user_id=_uuid.uuid4(),
+        role=UserRole.ADMIN,
+        scopes=frozenset(),
+        api_key_id=None,
+        rate_limit_per_min=None,
+    )
+    assert session.permits(Scope.ARCHIVE_EXPORT)
+
+
+def test_the_two_scope_helpers_agree() -> None:
+    from dtk.api.routes.support import has_scope
+
+    key = _key_principal(Scope.DOUYIN_READ)
+    for scope in (Scope.DOUYIN_READ, Scope.ARCHIVE_EXPORT, Scope.MEDIA_WRITE):
+        assert has_scope(key, [scope]) == key.permits(scope)

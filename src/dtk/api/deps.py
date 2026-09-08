@@ -45,12 +45,46 @@ class Principal:
     def subject(self) -> str:
         return f"key:{self.api_key_id}" if self.api_key_id else f"user:{self.user_id}"
 
+    @property
+    def scoped(self) -> bool:
+        """Whether this caller is bounded by scopes rather than by its role.
+
+        An API key is. So is the anonymous principal an opened endpoint runs
+        as - it holds two read scopes and nothing else, and reading "no API key"
+        as "a console session" would hand it everything a role can do.
+        """
+        from dtk.api.public_endpoints import ANONYMOUS_USER_ID
+
+        return self.api_key_id is not None or self.user_id == ANONYMOUS_USER_ID
+
+    def permits(self, *needed: Scope) -> bool:
+        """Whether this caller may reach an endpoint gated on ``needed``.
+
+        A console session is not scoped: it is bounded by the account's role,
+        and the console is the surface those roles were written for. An API key
+        is bounded by the scopes it was minted with - **including a key owned by
+        an administrator**, because doc 06 requires that a plain read key cannot
+        reach identity management no matter who created it.
+
+        That last clause used to be missing here while
+        :func:`dtk.api.routes.support.has_scope` had it, and the two are not a
+        style difference: almost every key on a self-hosted instance belongs to
+        the admin user, so an admin-role short circuit made `archive:export` -
+        the one call that hands back a copy of the database - unenforceable in
+        exactly the deployment it was written for.
+        """
+        if not needed:
+            return True
+        if not self.scoped:
+            return True
+        if Scope.ADMIN in self.scopes:
+            return True
+        return bool(set(needed) & self.scopes)
+
     def require(self, *needed: Scope) -> None:
-        if self.role is UserRole.ADMIN or Scope.ADMIN in self.scopes:
-            return
-        if not set(needed) & self.scopes:
+        if not self.permits(*needed):
             raise ForbiddenScope(
-                "this API key lacks the scope required for this endpoint",
+                "this credential lacks the scope required for this endpoint",
                 details={"required": sorted(s.value for s in needed)},
             )
 

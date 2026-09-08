@@ -178,19 +178,11 @@ Guard = Callable[..., Coroutine[Any, Any, Principal]]
 def has_scope(principal: Principal, scopes: Sequence[Scope]) -> bool:
     """Whether the caller may reach an endpoint gated on ``scopes``.
 
-    A console session is not scoped: it is bounded by the account's role, and
-    the console is the surface those roles were written for. An API key is
-    bounded by the scopes it was minted with - including a key owned by an
-    administrator, because doc 06 requires that a plain read key cannot reach
-    identity management no matter who created it.
+    One rule, defined on the principal itself, so a route that calls
+    ``principal.require`` and one that depends on :func:`guard` cannot disagree
+    about who is allowed through - which they did until 2026-09-08.
     """
-    if not scopes:
-        return True
-    if principal.api_key_id is None:
-        return True
-    if Scope.ADMIN in principal.scopes:
-        return True
-    return bool(set(scopes) & principal.scopes)
+    return principal.permits(*scopes)
 
 
 def guard(
