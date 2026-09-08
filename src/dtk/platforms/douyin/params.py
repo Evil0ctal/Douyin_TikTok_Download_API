@@ -149,6 +149,48 @@ def author_posts_params(
     }
 
 
+def author_likes_params(
+    *,
+    sec_user_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/aweme/favorite/``.
+
+    Only returns anything when the author has chosen to make their likes
+    public, which most accounts have not. An empty page is the normal answer
+    for a private list, not an error.
+    """
+    return {
+        **base_params(profile),
+        "sec_user_id": str(sec_user_id),
+        "max_cursor": _cursor(cursor),
+        "count": str(count),
+        "publish_video_strategy_type": "2",
+    }
+
+
+def mix_posts_params(
+    *,
+    mix_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/mix/aweme/``.
+
+    A mix is Douyin's series or playlist. ``mix_id`` comes from the ``mix_info``
+    block of any post that belongs to one.
+    """
+    return {
+        **base_params(profile),
+        "mix_id": str(mix_id),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
 def comments_params(
     *,
     aweme_id: str,

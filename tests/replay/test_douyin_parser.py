@@ -611,12 +611,11 @@ def test_comment_page_claiming_more_without_a_cursor_raises() -> None:
 
 
 def test_endpoint_table_covers_the_p0_set() -> None:
+    """Every capability the registry declares has a real endpoint behind it."""
+    from dtk.worker.registry import P0_CAPABILITIES
+
     assert set(ADAPTER.endpoints.names()) == {
-        "douyin.content_detail",
-        "douyin.author_profile",
-        "douyin.author_posts",
-        "douyin.comments",
-        "douyin.comment_replies",
+        f"douyin.{capability.value}" for capability in P0_CAPABILITIES
     }
 
 

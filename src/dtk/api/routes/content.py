@@ -77,6 +77,11 @@ SEC_USER_ID_QUERY = Query(
     max_length=256,
     description=("The author's stable id, as an alternative to url. On TikTok this is secUid."),
 )
+MIX_ID_QUERY = Query(
+    min_length=1,
+    max_length=64,
+    description="The mix or playlist to read; Douyin calls it mix_info, TikTok playlistId.",
+)
 COMMENT_ID_QUERY = Query(
     min_length=1,
     max_length=64,
@@ -503,6 +508,103 @@ async def user_posts(
         principal,
         endpoint=endpoint_name(platform, Operation.AUTHOR_POSTS),
         params=params,
+        wait=resolve_wait(request, wait),
+    )
+
+
+@router.get(
+    "/{platform}/user/likes",
+    summary="Posts an author has liked",
+    openapi_extra={I18N_KEY: "author_likes"},
+)
+async def user_likes(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    wait: float | None = WAIT_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts an author has publicly liked.
+
+    Availability differs by platform, measured 2026-09-08:
+
+    - **TikTok** answers a guest request. Accounts hide their likes by default,
+      so an empty page usually means the author keeps the list private rather
+      than that anything failed.
+    - **Douyin** does not serve this list to a guest identity at all - the same
+      identity that reads posts and mixes gets an empty response here. It needs
+      an imported logged-in identity; see the console's identity import.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    The same post shape as `/video`, plus the cursor for the next page.
+    """
+    authorize(principal, platform)
+    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params.update({"cursor": cursor, "count": resolve_count(count)})
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint_name(platform, Operation.AUTHOR_LIKES),
+        params=params,
+        wait=resolve_wait(request, wait),
+    )
+
+
+@router.get(
+    "/{platform}/mix/posts",
+    summary="Posts inside a mix or playlist",
+    openapi_extra={I18N_KEY: "mix_posts"},
+)
+async def mix_posts(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    mix_id: str = MIX_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    wait: float | None = WAIT_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts collected in a mix.
+
+    A mix is Douyin's series and TikTok's playlist - an ordered set an author
+    groups their own posts into. The id comes from any post that belongs to
+    one: Douyin returns it as `mix_info`, TikTok as `playlistId`.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`.
+    - `mix_id` - the mix or playlist to read.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+
+    **Returns**
+
+    The same post shape as `/video`, plus the cursor for the next page.
+    """
+    authorize(principal, platform)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint_name(platform, Operation.MIX_POSTS),
+        params={"mix_id": mix_id, "cursor": cursor, "count": resolve_count(count)},
         wait=resolve_wait(request, wait),
     )
 

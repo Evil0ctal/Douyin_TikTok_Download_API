@@ -58,6 +58,8 @@ class Capability(StrEnum):
     AUTHOR_POSTS = "author_posts"
     COMMENTS = "comments"
     COMMENT_REPLIES = "comment_replies"
+    AUTHOR_LIKES = "author_likes"
+    MIX_POSTS = "mix_posts"
 
 
 #: The P0 set from docs/design/11-data-contracts.md. A platform is only usable
@@ -69,6 +71,7 @@ P0_CAPABILITIES: Final[tuple[Capability, ...]] = tuple(Capability)
 CONTENT_ID: Final = "content_id"
 AUTHOR_ID: Final = "author_id"
 UNIQUE_ID: Final = "unique_id"
+MIX_ID: Final = "mix_id"
 
 #: Every stable author id both platforms issue starts with this. It is the only
 #: way to tell one from an @handle without asking the platform.
@@ -104,6 +107,8 @@ ALIASES: Final[Mapping[str, str]] = MappingProxyType(
         "item_id": CONTENT_ID,
         "sec_user_id": AUTHOR_ID,
         "sec_uid": AUTHOR_ID,
+        "mixId": MIX_ID,
+        "playlist_id": MIX_ID,
     }
 )
 
@@ -125,7 +130,9 @@ ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
 
 #: Canonical parameters whose value is an identifier. Ids are always strings:
 #: a 19-digit aweme_id exceeds the JavaScript safe range (doc 11).
-_ID_PARAMS: Final[frozenset[str]] = frozenset({CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID})
+_ID_PARAMS: Final[frozenset[str]] = frozenset(
+    {CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID, MIX_ID}
+)
 
 #: canonical name -> platform builder keyword, per platform and capability.
 _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
@@ -140,6 +147,8 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        Capability.AUTHOR_LIKES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -154,6 +163,8 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        Capability.AUTHOR_LIKES: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
     },
 }
 
@@ -166,6 +177,8 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.AUTHOR_POSTS: "cache.list_ttl",
         Capability.COMMENTS: "cache.list_ttl",
         Capability.COMMENT_REPLIES: "cache.list_ttl",
+        Capability.AUTHOR_LIKES: "cache.list_ttl",
+        Capability.MIX_POSTS: "cache.list_ttl",
     }
 )
 
@@ -328,7 +341,10 @@ class EndpointDefinition:
                 return adapter.parse_content(payload, fetched_at=when)
             case Capability.AUTHOR_PROFILE:
                 return adapter.parse_author(payload)
-            case Capability.AUTHOR_POSTS:
+            case Capability.AUTHOR_POSTS | Capability.AUTHOR_LIKES | Capability.MIX_POSTS:
+                # All three are a page of posts in the platform's own list
+                # envelope - `aweme_list`/`max_cursor` on Douyin, `itemList`/
+                # `cursor` on TikTok - so one parser answers for all of them.
                 return adapter.parse_author_posts(payload, fetched_at=when)
             case Capability.COMMENTS:
                 return adapter.parse_comments(payload, content_id=content_id)

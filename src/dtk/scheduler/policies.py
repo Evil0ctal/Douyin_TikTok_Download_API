@@ -44,11 +44,15 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("douyin.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("douyin.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("douyin.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("douyin.author_likes", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy("douyin.mix_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         EndpointPolicy("tiktok.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("tiktok.author_likes", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy("tiktok.mix_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
     ]
 }
 

@@ -55,10 +55,18 @@ def test_every_platform_is_discovered_without_a_registry_edit() -> None:
 
 @pytest.mark.parametrize("name", PLATFORMS)
 def test_adapter_satisfies_the_protocol(name: str) -> None:
+    from dtk.worker.registry import P0_CAPABILITIES
+
     adapter = get_adapter(name)
     assert isinstance(adapter, PlatformAdapter)
     assert adapter.platform == Platform(name)
-    assert len(adapter.endpoints) == 5
+    # Derived, not a literal: a platform is usable only once it declares every
+    # capability, and the point of that rule is that adding one to the enum
+    # fails here for whichever platform has not caught up - which a hardcoded
+    # count cannot say.
+    assert set(adapter.endpoints.names()) == {
+        f"{name}.{capability.value}" for capability in P0_CAPABILITIES
+    }
 
 
 def test_unknown_platform_is_rejected() -> None:

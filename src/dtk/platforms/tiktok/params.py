@@ -179,6 +179,48 @@ def author_posts_params(
     }
 
 
+def author_likes_params(
+    *,
+    sec_uid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/favorite/item_list/``.
+
+    TikTok hides an account's likes by default, so an empty page is the normal
+    answer unless the author has turned the list on.
+    """
+    return {
+        **base_params(profile),
+        "secUid": str(sec_uid),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+    }
+
+
+def mix_posts_params(
+    *,
+    mix_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/mix/item_list/``.
+
+    A mix is TikTok's playlist. ``mix_id`` comes from the ``playlistId`` a post
+    carries when it belongs to one.
+    """
+    return {
+        **base_params(profile),
+        "mixId": str(mix_id),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+    }
+
+
 def comments_params(
     *,
     aweme_id: str,

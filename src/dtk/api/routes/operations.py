@@ -64,6 +64,8 @@ class Operation(StrEnum):
     AUTHOR_POSTS = "author_posts"
     COMMENTS = "comments"
     COMMENT_REPLIES = "comment_replies"
+    AUTHOR_LIKES = "author_likes"
+    MIX_POSTS = "mix_posts"
 
 
 class Maintenance(StrEnum):

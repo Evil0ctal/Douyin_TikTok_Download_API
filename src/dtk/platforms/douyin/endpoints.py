@@ -17,11 +17,13 @@ from typing import Final
 
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.douyin.params import (
+    author_likes_params,
     author_posts_params,
     author_profile_params,
     comment_replies_params,
     comments_params,
     content_detail_params,
+    mix_posts_params,
 )
 
 
@@ -184,6 +186,8 @@ AUTHOR_PROFILE: Final = "douyin.author_profile"
 AUTHOR_POSTS: Final = "douyin.author_posts"
 COMMENTS: Final = "douyin.comments"
 COMMENT_REPLIES: Final = "douyin.comment_replies"
+AUTHOR_LIKES: Final = "douyin.author_likes"
+MIX_POSTS: Final = "douyin.mix_posts"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -224,6 +228,22 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Author post list, paged by max_cursor",
     ),
     EndpointSpec(
+        name=AUTHOR_LIKES,
+        path=DouyinAPIEndpoints.USER_FAVORITE_A,
+        required=("sec_user_id",),
+        build=author_likes_params,
+        risk_weight=1.8,
+        summary="Posts an author has publicly liked",
+    ),
+    EndpointSpec(
+        name=MIX_POSTS,
+        path=DouyinAPIEndpoints.MIX_AWEME,
+        required=("mix_id",),
+        build=mix_posts_params,
+        risk_weight=1.5,
+        summary="Posts inside one mix (series)",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -243,6 +263,7 @@ ENDPOINTS: Final = EndpointTable.of(
 
 
 __all__ = [
+    "AUTHOR_LIKES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
     "COMMENTS",
@@ -250,5 +271,6 @@ __all__ = [
     "CONTENT_DETAIL",
     "DEFAULT_HEADERS",
     "ENDPOINTS",
+    "MIX_POSTS",
     "DouyinAPIEndpoints",
 ]

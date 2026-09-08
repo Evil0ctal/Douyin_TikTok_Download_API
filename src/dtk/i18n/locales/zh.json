@@ -174,6 +174,14 @@
       "author_posts": {
         "summary": "获取作者的作品列表",
         "description": "按时间倒序获取作者本人的作品列表，字段结构与单条作品接口一致。通过 cursor 翻页。"
+      },
+      "author_likes": {
+        "summary": "获取作者点赞过的作品",
+        "description": "分页获取作者公开点赞过的作品。TikTok 允许游客身份请求，返回空页通常表示作者未公开点赞列表；抖音则完全不向游客身份提供该列表，需要导入已登录的身份。"
+      },
+      "mix_posts": {
+        "summary": "获取合辑 / 播放列表内的作品",
+        "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表。合辑 ID 可从任意属于该合辑的作品中获得：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
       }
     },
     "param": {
@@ -186,7 +194,8 @@
       "sec_user_id": "作者的稳定 ID，与 url 二选一。在 TikTok 上即 secUid。",
       "comment_id": "要查询回复的父评论 ID，可从评论接口的返回中获得。",
       "platform": "请求针对的平台，douyin 或 tiktok，必须与传入的链接一致。",
-      "include_raw": "在归一化结果之外，同时返回平台自身的原始响应。"
+      "include_raw": "在归一化结果之外，同时返回平台自身的原始响应。",
+      "mix_id": "要读取的合辑 / 播放列表 ID。抖音在 mix_info 字段返回，TikTok 在 playlistId 字段返回。"
     },
     "response": {
       "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"
