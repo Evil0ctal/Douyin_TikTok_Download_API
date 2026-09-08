@@ -436,7 +436,8 @@
       "security": "Security",
       "notify": "Notifications",
       "system": "System",
-      "other": "Other"
+      "other": "Other",
+      "archive": "Content archive"
     },
     "groupHint": {
       "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
@@ -449,7 +450,8 @@
       "security": "Every key here is sensitive: allowlists, CORS and the download proxy.",
       "notify": "Delivery switch, channels and the default alert language.",
       "system": "Instance behaviour, including the opt-in update check.",
-      "other": "Keys with no group of their own."
+      "other": "Keys with no group of their own.",
+      "archive": "What this instance keeps after a task result expires. The archive holds the current state of a post; the metric history beside it holds how it changed."
     },
     "choice": {
       "signing.mode": {

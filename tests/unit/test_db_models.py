@@ -151,8 +151,23 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
 
 
 def _migration_source() -> str:
+    """The initial migration, for assertions about how IT is written."""
     path = Path(migrate.MIGRATIONS_DIR) / "versions" / "0001_initial_schema.py"
     return path.read_text(encoding="utf-8")
+
+
+def _all_migration_source() -> str:
+    """Every migration concatenated, for "the schema covers X" assertions.
+
+    Those questions are about the schema as a whole, not about one file, and a
+    table added in 0002 is no less created than one added in 0001. Reading only
+    the first migration made the coverage tests fail for the correct schema the
+    moment a second migration existed.
+    """
+    versions = Path(migrate.MIGRATIONS_DIR) / "versions"
+    return "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(versions.glob("[0-9]*.py"))
+    )
 
 
 def _index_names(table_name: str) -> set[str]:
@@ -570,8 +585,27 @@ class TestRepositoryStatements:
 
 
 class TestMigration:
-    def test_single_head_at_the_initial_revision(self) -> None:
-        assert migrate.head_revision() == "0001"
+    def test_the_revision_chain_has_exactly_one_head(self) -> None:
+        """One head, whatever the newest revision happens to be.
+
+        This asserted `== "0001"`, which made adding any second migration a test
+        failure - the thing the check exists to permit. What must stay true is
+        that the chain never branches: `get_current_head` raises on multiple
+        heads, and every revision below the head is reachable from it.
+        """
+        from alembic.script import ScriptDirectory
+
+        script = ScriptDirectory.from_config(migrate.alembic_config())
+        head = migrate.head_revision()
+
+        assert head is not None
+        assert len(script.get_heads()) == 1
+        # Walking down from the head reaches every revision file on disk, so a
+        # mistyped down_revision cannot orphan one.
+        walked = {revision.revision for revision in script.walk_revisions()}
+        versions = Path(migrate.MIGRATIONS_DIR) / "versions"
+        on_disk = {path.name.split("_", 1)[0] for path in versions.glob("[0-9]*.py")}
+        assert walked == on_disk
 
     def test_initial_revision_has_no_parent(self) -> None:
         source = _migration_source()
@@ -582,7 +616,8 @@ class TestMigration:
         assert "CREATE EXTENSION IF NOT EXISTS timescaledb" in _migration_source()
 
     def test_creates_every_table(self) -> None:
-        source = _migration_source()
+        """Across all migrations, not just the first: the ORM and the schema agree."""
+        source = _all_migration_source()
         for table in models.TABLE_NAMES:
             assert f'"{table}"' in source, table
 
@@ -680,8 +715,15 @@ class TestMigration:
         downgrade = source[source.index("def downgrade()") :]
         assert "DROP MATERIALIZED VIEW IF EXISTS" in downgrade
         assert "autocommit_block()" in downgrade
+
+    def test_every_table_is_dropped_by_some_downgrade(self) -> None:
+        """Across all migrations: nothing the schema creates outlives a full downgrade."""
+        downgrades = "\n".join(
+            source[source.index("def downgrade()") :]
+            for source in (_migration_source(), _all_migration_source())
+        )
         for table in models.TABLE_NAMES:
-            assert f'"{table}"' in downgrade, table
+            assert f'"{table}"' in downgrades, table
 
     def test_downgrade_drops_each_relation_as_its_own_kind(self) -> None:
         """DROP MATERIALIZED VIEW on a plain view errors even with IF EXISTS.

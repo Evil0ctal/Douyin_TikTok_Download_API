@@ -19,10 +19,14 @@ import typer
 from dtk.cli import output, runtime
 from dtk.core.config import extra_url_hosts
 from dtk.core.errors import DtkError, UpstreamChanged
+from dtk.core.logging import get_logger
 from dtk.core.types import Outcome
 from dtk.ops import pipeline
 from dtk.ops.masking import mask_url, short_id
+from dtk.services import archive
 from dtk.worker.registry import resolve
+
+log = get_logger(__name__)
 
 
 def fetch(
@@ -86,6 +90,11 @@ def fetch(
                 "raw": body if raw else None,
                 "parse_error": {"code": exc.code.value, "path": exc.path, "message": str(exc)},
             }
+        # Archive here too. `dtk fetch` is one of the three entry points doc 01
+        # promises share one logic, and it does not run through the worker - so
+        # hooking only TaskWorker._execute left the CLI silently storing nothing,
+        # which is exactly the asymmetry that rule exists to prevent.
+        await _archive(ctx, parsed)
         return {
             "summary": summary,
             "result": pipeline.dump(parsed, include_raw=raw),
@@ -135,3 +144,21 @@ def fetch(
 
 
 __all__ = ["fetch"]
+
+
+async def _archive(ctx: Any, parsed: Any) -> None:
+    """Keep what this fetch parsed, on the same terms the worker uses.
+
+    Failures are logged and dropped: the caller asked for data and has it, and a
+    missing archive row is a smaller harm than a command that reports failure
+    after a successful fetch.
+    """
+    if not bool(ctx.config.get("archive.enabled")):
+        return
+    try:
+        await archive.record(
+            ctx.session, (parsed,), store_raw=bool(ctx.config.get("archive.store_raw"))
+        )
+        await ctx.session.commit()
+    except Exception as exc:
+        log.warning("cli.archive_failed", error=f"{type(exc).__name__}: {exc}")

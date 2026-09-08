@@ -43,7 +43,7 @@ from dtk.core.redis import get_redis
 from dtk.core.types import Platform, TaskState
 from dtk.db.models import Task as TaskRow
 from dtk.models import Author, Content, Page
-from dtk.services import snapshots, tasks
+from dtk.services import archive, snapshots, tasks
 from dtk.services.fetch import FetchContext, FetchResult, FetchService
 from dtk.worker import parsing, registry
 from dtk.worker.ops import OperationRunner
@@ -498,6 +498,7 @@ class TaskWorker:
                 raise
             if parsed:
                 await self._record_snapshots(session, parsed[-1], config)
+                await self._archive(session, parsed[-1], config)
 
         return _result_payload(call.definition.name, call.platform, result)
 
@@ -516,6 +517,30 @@ class TaskWorker:
                     await snapshots.record_author(session, item, min_interval=interval)
         except Exception as exc:
             log.warning("worker.snapshot_failed", error=f"{type(exc).__name__}: {exc}")
+
+    async def _archive(self, session: AsyncSession, parsed: Any, config: Config) -> None:
+        """Keep the parsed content after the task result expires.
+
+        Beside the snapshot writer and with the same discipline, for the same
+        reason: the caller asked for data and got it, so losing an archive row is
+        a smaller harm than turning a successful fetch into an error.
+
+        Two settings, both defaulting to the conservative side. `archive.enabled`
+        because an operator who wants a stateless instance should be able to have
+        one, and `archive.store_raw` because the parsers fill `raw` on every
+        object and doc 18 measured what keeping all of it costs.
+        """
+        if not bool(config.get("archive.enabled")):
+            return
+        try:
+            written = await archive.record(
+                session, (parsed,), store_raw=bool(config.get("archive.store_raw"))
+            )
+        except Exception as exc:
+            log.warning("worker.archive_failed", error=f"{type(exc).__name__}: {exc}")
+            return
+        if written:
+            log.debug("worker.archived", contents=written)
 
 
 def _snapshot_targets(parsed: Any) -> tuple[Any, ...]:

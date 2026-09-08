@@ -536,7 +536,7 @@ def _decode(response: RawResponse) -> dict[str, Any]:
     return json.loads(response.body.decode(response.charset or "utf-8", errors="replace"))
 
 
-def _strip_raw(value: Any) -> Any:
+def strip_raw(value: Any) -> Any:
     """Remove every ``raw`` key, at any depth.
 
     ``model_dump(exclude={"raw"})`` drops only the TOP-LEVEL field, which is not
@@ -552,18 +552,18 @@ def _strip_raw(value: Any) -> Any:
     ``raw`` exists at all.
     """
     if isinstance(value, dict):
-        return {key: _strip_raw(item) for key, item in value.items() if key != "raw"}
+        return {key: strip_raw(item) for key, item in value.items() if key != "raw"}
     if isinstance(value, list):
-        return [_strip_raw(item) for item in value]
+        return [strip_raw(item) for item in value]
     return value
 
 
 def _dump(parsed: Any, *, include_raw: bool) -> dict[str, Any]:
     if hasattr(parsed, "model_dump"):
         dumped = parsed.model_dump(mode="json")
-        return dumped if include_raw else cast("dict[str, Any]", _strip_raw(dumped))
+        return dumped if include_raw else cast("dict[str, Any]", strip_raw(dumped))
     if isinstance(parsed, dict):
-        return parsed if include_raw else cast("dict[str, Any]", _strip_raw(parsed))
+        return parsed if include_raw else cast("dict[str, Any]", strip_raw(parsed))
     return {"value": parsed}
 
 
@@ -574,4 +574,5 @@ __all__ = [
     "FetchService",
     "SignedRequest",
     "UpstreamChanged",
+    "strip_raw",
 ]

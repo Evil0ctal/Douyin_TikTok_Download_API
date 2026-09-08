@@ -25,7 +25,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import httpx
 
@@ -45,6 +45,7 @@ from dtk.identity.pool import IdentityPool, LiveIdentity
 from dtk.ops.masking import short_id
 from dtk.ops.probes import probe_identity
 from dtk.platforms import get_adapter
+from dtk.services.fetch import strip_raw
 from dtk.signing import RequestSpec as SigningRequest
 from dtk.signing import SignerRegistry, SigningSession, StaticFingerprint, native_signers
 from dtk.transport.base import Fingerprint, RawResponse, RequestSpec, TransportIdentity
@@ -138,9 +139,10 @@ def target_for(kind: UrlKind) -> Target:
 def dump(parsed: Any, *, include_raw: bool) -> dict[str, Any]:
     """Normalized model to a JSON-ready dict, raw payload optional."""
     if hasattr(parsed, "model_dump"):
-        return parsed.model_dump(mode="json", exclude=None if include_raw else {"raw"})
+        dumped = parsed.model_dump(mode="json")
+        return dumped if include_raw else cast("dict[str, Any]", strip_raw(dumped))
     if isinstance(parsed, dict):
-        return dict(parsed)
+        return dict(parsed) if include_raw else cast("dict[str, Any]", strip_raw(dict(parsed)))
     return {"value": parsed}
 
 

@@ -73,6 +73,7 @@ const GROUP_ORDER = [
   'signing',
   'cache',
   'snapshot',
+  'archive',
   'retention',
   'api',
   'security',

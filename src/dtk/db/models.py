@@ -406,6 +406,121 @@ class IdentityEvent(Base):
         return _repr("IdentityEvent", identity_id=self.identity_id, event=self.event)
 
 
+class ArchivedAuthor(Base):
+    """One author's current state, upserted every time we parse them.
+
+    Plain relational table, not a hypertable. The append-only history of the same
+    object is `content_snapshots`, which already exists and stays exactly as it
+    is; this is the current-state row it joins to. A hypertable cannot serve here
+    because dedup is an upsert and a unique key on a hypertable would have to
+    include the partitioning column - which the module docstring above refuses on
+    the hot path.
+    """
+
+    __tablename__ = "archived_authors"
+
+    platform: Mapped[str] = mapped_column(Text, primary_key=True)
+    #: The platform's stable key: Douyin sec_user_id, TikTok's numeric id. Never
+    #: unique_id, which users edit - the same reason `Author.uid` documents.
+    uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    unique_id: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    nickname: Mapped[str] = mapped_column(Text)
+    signature: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    web_url: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    follower_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True, default=None)
+    following_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True, default=None)
+    content_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True, default=None)
+    total_digg: Mapped[int | None] = mapped_column(BigInteger, nullable=True, default=None)
+    #: Kept only when `archive.store_raw` is on. Off by default: the parsers fill
+    #: `raw` on every object, and doc 18 measured what storing all of it costs.
+    #:
+    #: ``none_as_null`` because SQLAlchemy's JSON types map Python None to the
+    #: JSON literal ``null`` rather than to SQL NULL. Without it a row with no
+    #: payload still answered ``raw IS NOT NULL``, which is the wrong answer to
+    #: the only question anyone asks this column.
+    raw: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True, default=None
+    )
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    def __repr__(self) -> str:
+        return _repr("ArchivedAuthor", platform=self.platform, uid=self.uid)
+
+
+class ArchivedContent(Base):
+    """One post's current state, plus the classification derived on write.
+
+    Every classification column is a deterministic function of what the parser
+    already returned - no model, no extra request, and recomputable from `raw`
+    when the rule changes. docs/design/README.md records AI content analysis as a
+    non-goal, and calling an embedding "auto-classification" would reverse that
+    by stealth (doc 18).
+
+    Engagement ratios are deliberately NOT stored. Doc 11 makes None and 0 mean
+    different things, so a ratio over a NULL numerator is undefined rather than
+    zero, and a column would bake that lie in. They are computed at read time.
+    """
+
+    __tablename__ = "archived_contents"
+    __table_args__ = (
+        Index("ix_archived_contents_author", "platform", "author_uid"),
+        Index("ix_archived_contents_last_seen", text("last_seen_at DESC")),
+        Index("ix_archived_contents_created", text("platform_created_at DESC")),
+        Index("ix_archived_contents_tags", "tags", postgresql_using="gin"),
+        Index("ix_archived_contents_music", "platform", "music_id"),
+    )
+
+    platform: Mapped[str] = mapped_column(Text, primary_key=True)
+    content_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    kind: Mapped[str] = mapped_column(Text)
+    web_url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    platform_created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True, default=None)
+
+    author_uid: Mapped[str] = mapped_column(Text)
+    author_nickname: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+
+    music_id: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    music_title: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    tags: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    location: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    cover_url: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    #: The whole parsed Media, mirror lists included, so a download can be
+    #: retried later without re-parsing. Signed CDN links inside it expire; that
+    #: is what `web_url` is for.
+    media: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True, default=None
+    )
+
+    # --- derived on write, recomputable ---------------------------------
+    #: portrait | landscape | square | unknown
+    orientation: Mapped[str] = mapped_column(Text, default="unknown")
+    #: short | medium | long | unknown, bucketed from duration_ms
+    duration_bucket: Mapped[str] = mapped_column(Text, default="unknown")
+    #: sd | hd | fhd | uhd | unknown, from the video's shorter edge
+    resolution_class: Mapped[str] = mapped_column(Text, default="unknown")
+    #: cjk | latin | mixed | unknown, from Unicode ranges in title+description
+    script: Mapped[str] = mapped_column(Text, default="unknown")
+
+    #: live | deleted | private | unknown. Only ever set from a real observation.
+    availability: Mapped[str] = mapped_column(Text, default="live")
+    raw: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True, default=None
+    )
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    def __repr__(self) -> str:
+        return _repr("ArchivedContent", platform=self.platform, content_id=self.content_id)
+
+
 class ContentSnapshot(Base):
     """Hypertable. One row per successful parse, deduplicated in Redis.
 
@@ -465,6 +580,8 @@ TABLE_NAMES: Final[tuple[str, ...]] = (
     "request_log",
     "identity_events",
     "content_snapshots",
+    "archived_authors",
+    "archived_contents",
 )
 
 #: Values the corresponding text columns accept, kept beside the models so a

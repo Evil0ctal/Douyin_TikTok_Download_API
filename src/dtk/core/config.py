@@ -265,6 +265,36 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "in-process algorithms, auto tries rpc then falls back to native.",
             choices=("rpc", "native", "auto"),
         ),
+        # --- content archive ---------------------------------------------------
+        # A parsed post used to live 24 hours in tasks.result and then vanish.
+        # The archive keeps its current state; content_snapshots keeps the
+        # history of the same object, and the two join on (platform, content_id).
+        SettingSpec(
+            "archive.enabled",
+            True,
+            Scope.RUNTIME,
+            bool,
+            "Keep parsed posts and authors after the task result expires. Off "
+            "makes the instance stateless beyond its logs.",
+        ),
+        SettingSpec(
+            "archive.store_raw",
+            False,
+            Scope.RUNTIME,
+            bool,
+            "Also keep each platform's untouched payload in the archive. Off by "
+            "default: the parsers fill it on every object, so it is the largest "
+            "single thing this instance can choose to store.",
+        ),
+        SettingSpec(
+            "retention.content_days",
+            0,
+            Scope.RUNTIME,
+            int,
+            "Delete archived posts older than this many days. 0 means never, "
+            "which is the default: the archive exists precisely to outlive the "
+            "platform.",
+        ),
         # --- selectively opened endpoints -------------------------------------
         # Empty by default: every endpoint needs a credential. An operator can
         # open specific ones by listing them exactly as the API document spells
