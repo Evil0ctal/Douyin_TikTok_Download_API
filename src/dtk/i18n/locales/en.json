@@ -63,6 +63,14 @@
     "test": {
       "title": "Test alert",
       "body": "This is a test alert from your dtk instance, sent to the {channel} channel because someone asked for it in the console. Nothing is wrong and no action is needed."
+    },
+    "capacity_warning": {
+      "title": "Disk filling up",
+      "body": "{detail}. Background collection is still running; it will pause automatically at {hard_stop}%."
+    },
+    "capacity_paused": {
+      "title": "Background collection paused",
+      "body": "{detail}. New download jobs and scheduled collection have stopped so the instance keeps serving reads. Nothing has been deleted; free space or raise capacity.hard_stop_percent to resume."
     }
   },
   "settings": {
@@ -125,7 +133,9 @@
       "api.public_endpoints": "Endpoints this instance serves without an API key, each written as '<METHOD> <path>' exactly as the API document shows it, for example 'GET /api/v1/{platform}/video'. Empty means everything needs a credential, which is the default. Admin, authentication and setup endpoints can never be opened, whatever is listed here.",
       "archive.enabled": "Keep parsed posts and authors in the database after the task result expires. With this off the instance keeps only its logs and metric history, and a post you parsed today cannot be looked up tomorrow.",
       "archive.store_raw": "Also keep each platform's untouched payload alongside the normalized record, so a new field can be back-computed later without re-crawling. Off by default: the parsers produce one for every object, making it the largest single thing this instance can choose to store.",
-      "retention.content_days": "Delete archived posts last seen more than this many days ago. 0 means never delete, which is the default - the archive exists precisely to outlive the platform. Disk is protected by the capacity guard instead."
+      "retention.content_days": "Delete archived posts last seen more than this many days ago. 0 means never delete, which is the default - the archive exists precisely to outlive the platform. Disk is protected by the capacity guard instead.",
+      "capacity.warn_percent": "Disk usage percent at which this instance raises a warning. Measured on the filesystem, so it accounts for WAL, indexes and anything else sharing the volume.",
+      "capacity.hard_stop_percent": "Disk usage percent at which background collection and new download jobs stand down. Interactive API reads are never paused, and nothing is ever deleted - a full disk should degrade the instance, not take it offline or destroy what it has collected."
     }
   },
   "openapi": {

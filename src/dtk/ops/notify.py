@@ -81,6 +81,11 @@ class NotifyEvent(StrEnum):
     SIGNATURE_STALE = "signature_stale"
     COOKIE_EXPIRING = "cookie_expiring"
     BACKUP_FAILED = "backup_failed"
+    #: The disk is filling. Two events rather than one severity field, because
+    #: they call for different actions: the first says look, the second says
+    #: background collection has already stopped.
+    CAPACITY_WARNING = "capacity_warning"
+    CAPACITY_PAUSED = "capacity_paused"
     #: Nothing detects this one: it is the console's Test button, pressed to
     #: prove a channel is reachable before an incident depends on it.
     TEST = "test"
@@ -114,6 +119,12 @@ TRIGGERS: Final[Mapping[NotifyEvent, TriggerSpec]] = {
     NotifyEvent.SIGNATURE_STALE: TriggerSpec(Severity.ERROR, 24 * HOUR, ("endpoint",)),
     NotifyEvent.COOKIE_EXPIRING: TriggerSpec(Severity.WARNING, 24 * HOUR, ("identity_id",)),
     NotifyEvent.BACKUP_FAILED: TriggerSpec(Severity.ERROR, 24 * HOUR, ()),
+    # A filling disk is a slow condition, so the windows are long: it will still
+    # be true in an hour, and repeating it every five minutes is how an operator
+    # learns to mute the channel that also carries POOL_EMPTY. Scoped by volume
+    # so a full media disk does not suppress the warning for the database one.
+    NotifyEvent.CAPACITY_WARNING: TriggerSpec(Severity.WARNING, 6 * HOUR, ("worst_path",)),
+    NotifyEvent.CAPACITY_PAUSED: TriggerSpec(Severity.ERROR, 1 * HOUR, ("worst_path",)),
     # A test arrives one deliberate press at a time, so there is no storm to
     # damp. :meth:`Notifier.send_test` does not consult the deduplicator at
     # all; the zero window is here so this table cannot be read as promising a

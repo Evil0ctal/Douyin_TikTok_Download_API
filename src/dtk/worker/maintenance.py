@@ -47,7 +47,7 @@ from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import Task as TaskRow
 from dtk.identity.importing import session_expiry
 from dtk.identity.pool import purge_retired
-from dtk.ops import retention
+from dtk.ops import capacity, retention
 from dtk.services import tasks
 from dtk.worker.alerts import Alerter, NotifyEvent, raise_alert
 
@@ -77,6 +77,8 @@ class MaintenanceReport:
     retention: retention.RetentionReport | None = None
     retired_identities_purged: int = 0
     requeued_tasks: int = 0
+    #: The disk verdict this tick. Background writers read `paused` from it.
+    capacity: capacity.CapacityReport | None = None
     aggregates_refreshed: list[str] = field(default_factory=list)
     expiring_sessions: int = 0
     errors: list[str] = field(default_factory=list)
@@ -112,6 +114,7 @@ class Maintenance:
             ("requeue_stale_tasks", self.requeue_stale_tasks),
             ("refresh_aggregates", self.refresh_aggregates),
             ("warn_expiring_sessions", self.warn_expiring_sessions),
+            ("check_capacity", self.check_capacity),
         ):
             try:
                 await job(report)
@@ -128,6 +131,44 @@ class Maintenance:
             errors=len(report.errors),
         )
         return report
+
+    # -- capacity ----------------------------------------------------------
+
+    async def check_capacity(self, report: MaintenanceReport) -> None:
+        """Measure the disk and alert, without deleting anything.
+
+        Nothing here frees space. It reports, and past the hard stop it sets the
+        flag background writers consult - collection and downloads stand down,
+        interactive reads carry on. A full disk should degrade the instance, not
+        take it offline, and certainly not destroy what it was collecting.
+        """
+        config = self._config()
+        verdict = capacity.evaluate(
+            warn_percent=float(config.get("capacity.warn_percent")),
+            hard_stop_percent=float(config.get("capacity.hard_stop_percent")),
+        )
+        report.capacity = verdict
+        if verdict.state is capacity.CapacityState.OK:
+            return
+
+        event = (
+            NotifyEvent.CAPACITY_PAUSED
+            if verdict.state is capacity.CapacityState.FULL
+            else NotifyEvent.CAPACITY_WARNING
+        )
+        log.warning(
+            "worker.maintenance.capacity",
+            state=verdict.state.value,
+            worst_path=verdict.worst_path,
+            worst_percent=verdict.worst_percent,
+        )
+        await raise_alert(
+            self._alerter,
+            event,
+            detail=verdict.detail,
+            worst_path=verdict.worst_path or "",
+            hard_stop=int(config.get("capacity.hard_stop_percent")),
+        )
 
     # -- retention ---------------------------------------------------------
 

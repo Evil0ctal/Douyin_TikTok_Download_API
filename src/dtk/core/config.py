@@ -120,6 +120,19 @@ def _url_allowlist(value: Any) -> list[str]:
 
 #: The runtime setting registry. Anything not listed here cannot be stored in
 #: the settings table, which keeps a typo from silently becoming a config key.
+def _percent(value: Any) -> int:
+    """A percentage that is actually a percentage.
+
+    Out of range is not a typo to normalise away: 0 would pause an instance the
+    moment it starts, and 150 would mean the guard never fires at all - silently,
+    which is the failure the capacity guard exists to prevent.
+    """
+    number = int(value)
+    if not 1 <= number <= 99:
+        raise ValueError("must be between 1 and 99")
+    return number
+
+
 RUNTIME_SETTINGS: dict[str, SettingSpec] = {
     s.key: s
     for s in [
@@ -264,6 +277,29 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "Which signer to prefer: rpc drives a real browser, native runs the "
             "in-process algorithms, auto tries rpc then falls back to native.",
             choices=("rpc", "native", "auto"),
+        ),
+        # --- capacity ----------------------------------------------------------
+        # What keeps an unattended instance safe, and it is not retention:
+        # nothing here deletes. Past the hard stop, background collection and new
+        # download jobs stand down while interactive reads carry on - turning a
+        # full disk into "my API is down" is a worse outage than the one being
+        # prevented. See docs/design/18.
+        SettingSpec(
+            "capacity.warn_percent",
+            80,
+            Scope.RUNTIME,
+            int,
+            "Disk usage percent at which to raise a warning.",
+            validate=_percent,
+        ),
+        SettingSpec(
+            "capacity.hard_stop_percent",
+            92,
+            Scope.RUNTIME,
+            int,
+            "Disk usage percent at which background collection and new download "
+            "jobs pause. Interactive reads are never paused, and nothing is deleted.",
+            validate=_percent,
         ),
         # --- content archive ---------------------------------------------------
         # A parsed post used to live 24 hours in tasks.result and then vanish.

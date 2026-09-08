@@ -437,7 +437,8 @@
       "notify": "Notifications",
       "system": "System",
       "other": "Other",
-      "archive": "Content archive"
+      "archive": "Content archive",
+      "capacity": "Capacity"
     },
     "groupHint": {
       "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
@@ -451,7 +452,8 @@
       "notify": "Delivery switch, channels and the default alert language.",
       "system": "Instance behaviour, including the opt-in update check.",
       "other": "Keys with no group of their own.",
-      "archive": "What this instance keeps after a task result expires. The archive holds the current state of a post; the metric history beside it holds how it changed."
+      "archive": "What this instance keeps after a task result expires. The archive holds the current state of a post; the metric history beside it holds how it changed.",
+      "capacity": "How this instance behaves as the disk fills. It warns, then pauses background writers - it never deletes."
     },
     "choice": {
       "signing.mode": {

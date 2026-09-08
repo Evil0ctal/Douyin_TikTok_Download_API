@@ -74,6 +74,7 @@ const GROUP_ORDER = [
   'cache',
   'snapshot',
   'archive',
+  'capacity',
   'retention',
   'api',
   'security',
