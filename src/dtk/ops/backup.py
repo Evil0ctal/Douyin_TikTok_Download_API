@@ -35,6 +35,7 @@ import json
 import tarfile
 import tempfile
 import uuid
+import zlib
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -367,13 +368,46 @@ def write_archive(
 def read_manifest(path: str | Path) -> Manifest:
     """Read and validate the manifest of an archive."""
     try:
-        with tarfile.open(Path(path), "r:gz") as archive:
-            raw = _member_bytes(archive, MANIFEST_NAME)
-    except (tarfile.TarError, OSError) as exc:
+        raw = _first_member_bytes(Path(path), MANIFEST_NAME)
+    except _UNREADABLE as exc:
+        # EOFError and zlib.error are the shapes a truncated gzip takes, and
+        # neither is a TarError or an OSError. Left uncaught they reached the
+        # generic exception handler and answered INTERNAL, so an archive the
+        # page exists to warn about was the one thing it could not describe.
         raise ManifestInvalid(f"not a readable backup archive: {exc}") from exc
     if raw is None:
         raise ManifestInvalid(f"archive has no {MANIFEST_NAME}")
     return parse_manifest(raw)
+
+
+#: Everything a damaged or truncated archive can raise on the way to its first
+#: member. gzip signals truncation with EOFError and corruption with
+#: zlib.error; neither inherits from TarError or OSError.
+_UNREADABLE: Final[tuple[type[BaseException], ...]] = (
+    tarfile.TarError,
+    OSError,
+    EOFError,
+    zlib.error,
+)
+
+
+def _first_member_bytes(path: Path, name: str) -> bytes | None:
+    """Read one named member without decompressing the whole archive.
+
+    ``tarfile.open(..., "r:gz")`` supports seeking, and gzip does not: seeking
+    forward decompresses and discards, so reading a 220-byte manifest cost a
+    full pass over the archive - about a fifth of a second per uncompressed
+    gigabyte, per file, on every ten-second poll of the Backup page. The stream
+    mode ("r|gz") reads forward only and stops at the member, which is the first
+    one written.
+    """
+    with tarfile.open(path, "r|gz") as archive:
+        for member in archive:
+            if member.name != name:
+                continue
+            handle = archive.extractfile(member)
+            return handle.read() if handle is not None else None
+    return None
 
 
 def parse_manifest(raw: bytes) -> Manifest:
@@ -421,9 +455,24 @@ def read_table(path: str | Path, table: str) -> list[dict[str, Any]]:
 
 
 def read_member(path: str | Path, table: str) -> bytes | None:
-    """Raw JSON-lines bytes an archive holds for one table, or None."""
-    with tarfile.open(Path(path), "r:gz") as archive:
-        return _member_bytes(archive, f"{DATA_DIR}/{table}.jsonl")
+    """Raw JSON-lines bytes an archive holds for one table, or None.
+
+    Random access, unlike the manifest read: the tables are pulled in
+    RESTORE_ORDER, which is not the order they were written, so a forward-only
+    stream cannot serve it.
+
+    A damaged archive raises here rather than escaping as an EOFError from
+    deep inside gzip. Restore validates the manifest first, and this is the
+    point where the *rest* of the file turns out to be unreadable - the caller
+    needs a coded error it can report, not a 500 halfway through a restore.
+    """
+    try:
+        with tarfile.open(Path(path), "r:gz") as archive:
+            return _member_bytes(archive, f"{DATA_DIR}/{table}.jsonl")
+    except _UNREADABLE as exc:
+        raise ManifestInvalid(
+            f"the archive is damaged and {table} could not be read: {exc}"
+        ) from exc
 
 
 def parse_rows(raw: bytes | None, table: str) -> Iterator[dict[str, Any]]:
@@ -530,11 +579,25 @@ async def create_backup(
 
 
 def _pack_archive(target: Path, manifest: Manifest, staging: Path, selected: Sequence[str]) -> None:
-    """Write the finished archive from the staged JSON-lines files."""
-    with tarfile.open(target, "w:gz") as archive:
-        _add_bytes(archive, MANIFEST_NAME, _manifest_bytes(manifest))
-        for name in selected:
-            archive.add(staging / f"{name}.jsonl", arcname=f"{DATA_DIR}/{name}.jsonl")
+    """Write the finished archive from the staged JSON-lines files.
+
+    Written beside the target and renamed into place. Gzipping a multi-gigabyte
+    database takes minutes, and writing straight to the final name left a
+    truncated .tar.gz sitting in the directory for that whole time - which the
+    console's Backup page polls every ten seconds, and which raises EOFError
+    rather than a tar error, so taking a backup broke the page that takes
+    backups. A rename within one directory is atomic, so a reader sees the file
+    either absent or complete.
+    """
+    partial = target.with_name(f".{target.name}.partial")
+    try:
+        with tarfile.open(partial, "w:gz") as archive:
+            _add_bytes(archive, MANIFEST_NAME, _manifest_bytes(manifest))
+            for name in selected:
+                archive.add(staging / f"{name}.jsonl", arcname=f"{DATA_DIR}/{name}.jsonl")
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
 
 
 async def _dump_table(session: AsyncSession, name: str, destination: Path) -> int:

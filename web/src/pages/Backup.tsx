@@ -44,7 +44,12 @@ interface Manifest {
   created_at: string
   dtk_version: string
   include_identities: boolean
-  key_check: string
+  /**
+   * Whether this instance holds the key the archive was written under. The
+   * manifest's own fingerprint of that key never leaves the server: it exists
+   * to confirm a guess at DTK_SECRET_KEY, so the API sends the verdict instead.
+   */
+  key_matches?: boolean | null
   contents?: Record<string, number> | null
 }
 
@@ -200,7 +205,10 @@ export default function Backup() {
     async (path) => {
       const accepted = await apiPost<{ task_id?: string }>(
         paths.backup.restore,
-        { path },
+        // The API refuses a restore that is not explicitly confirmed, the same
+        // way it refuses a sensitive setting write. The dialog above is the
+        // human half of that; this is the half the server can check.
+        { path, confirm: true },
         { awaitTask: false },
       )
       if (accepted?.task_id) return waitForTask(accepted.task_id, { timeoutMs: 300_000 })
@@ -287,11 +295,13 @@ export default function Backup() {
     {
       id: 'key',
       header: t('backup.column.keyCheck'),
-      mono: true,
       cell: (row) =>
         row.manifest ? (
-          <span className="u-muted" title={row.manifest.key_check}>
-            {row.manifest.key_check.slice(0, 8)}
+          <span
+            className="u-nowrap"
+            style={{ color: row.manifest.key_matches ? undefined : 'var(--danger)' }}
+          >
+            {row.manifest.key_matches ? t('backup.key.matches') : t('backup.key.differs')}
           </span>
         ) : (
           <span className="u-muted">—</span>

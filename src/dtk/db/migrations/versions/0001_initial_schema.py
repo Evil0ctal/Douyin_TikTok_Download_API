@@ -466,6 +466,16 @@ def _create_timeseries_tables() -> None:
         ["identity_id", sa.text("ts DESC")],
         if_not_exists=True,
     )
+    # The Logs page's outcome filter. Without it the filter loses the ts
+    # ordering and scans every retained chunk with no early stop, which is the
+    # one query on this hypertable that can take an instance down - and it is
+    # reached from a checkbox, not from an unusual API call.
+    op.create_index(
+        "ix_request_log_outcome_ts",
+        "request_log",
+        ["outcome", sa.text("ts DESC")],
+        if_not_exists=True,
+    )
     # Doc 05: the handle a user has when reporting a broken request is the
     # request_id from the response envelope.
     op.create_index("ix_request_log_request_id", "request_log", ["request_id"], if_not_exists=True)

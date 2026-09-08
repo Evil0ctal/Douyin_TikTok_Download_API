@@ -305,6 +305,11 @@ class TestIndexes:
         assert {
             "ix_request_log_endpoint_ts",
             "ix_request_log_identity_ts",
+            # Every filter the Logs page offers needs one. The outcome filter is
+            # two clicks away and is how anyone looks for what went wrong;
+            # without an index it drops off the ts ordering and scans every
+            # retained chunk with no early stop.
+            "ix_request_log_outcome_ts",
             # Doc 05: the user reporting a broken request has only this handle.
             "ix_request_log_request_id",
         } <= names
@@ -316,6 +321,7 @@ class TestIndexes:
             "identity_id",
             "ts DESC",
         ]
+        assert _index_targets("request_log", "ix_request_log_outcome_ts") == ["outcome", "ts DESC"]
         assert _index_targets("request_log", "ix_request_log_request_id") == ["request_id"]
 
     def test_snapshot_history_index(self) -> None:

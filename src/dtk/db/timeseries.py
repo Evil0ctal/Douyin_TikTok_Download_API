@@ -19,7 +19,7 @@ from typing import Any, cast
 
 from sqlalchemy import Table, select
 
-from dtk.core.types import Platform
+from dtk.core.types import Outcome, Platform
 from dtk.db.base import Repository, utcnow
 from dtk.db.models import ContentSnapshot, IdentityEvent, RequestLog
 
@@ -93,6 +93,49 @@ class RequestLogRepository(Repository):
             .where(RequestLog.request_id == request_id)
             .order_by(RequestLog.ts.desc())
         )
+        return (await self.session.scalars(stmt)).all()
+
+    async def list_recent(
+        self,
+        *,
+        since: datetime,
+        limit: int,
+        request_id: uuid.UUID | None = None,
+        endpoint: str | None = None,
+        identity_id: uuid.UUID | None = None,
+        outcomes: Sequence[Outcome] | None = None,
+    ) -> Sequence[RequestLog]:
+        """Newest first, within a window. Both bounds are required arguments.
+
+        ``since`` and ``limit`` are keyword-only and have no defaults because
+        every other query in this class touches one chunk or one indexed key,
+        while this one is a filtered scan: on a busy instance the table is
+        millions of rows a day, and only the ``ts`` predicate lets TimescaleDB
+        drop the chunks outside the window before reading anything.
+
+        Ordering on ``ts DESC`` is what makes the filtered forms cheap as well:
+        ``ix_request_log_endpoint_ts`` and ``ix_request_log_identity_ts`` are
+        both ``(col, ts DESC)``, so a filtered page is an index scan that stops
+        at ``limit`` rather than a sort of the whole window.
+
+        ``endpoint`` matches exactly. A substring match would read better in the
+        console and would also discard those indexes, which is not a trade this
+        table can afford.
+        """
+        stmt = (
+            select(RequestLog)
+            .where(RequestLog.ts >= since)
+            .order_by(RequestLog.ts.desc())
+            .limit(limit)
+        )
+        if request_id is not None:
+            stmt = stmt.where(RequestLog.request_id == request_id)
+        if endpoint is not None:
+            stmt = stmt.where(RequestLog.endpoint == endpoint)
+        if identity_id is not None:
+            stmt = stmt.where(RequestLog.identity_id == identity_id)
+        if outcomes:
+            stmt = stmt.where(RequestLog.outcome.in_([o.value for o in outcomes]))
         return (await self.session.scalars(stmt)).all()
 
 

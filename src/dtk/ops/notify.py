@@ -327,24 +327,44 @@ class Notifier:
 
     def __init__(
         self,
-        channels: Sequence[Channel] = (),
+        channels: Sequence[Channel] | Callable[[], Sequence[Channel]] = (),
         *,
         redis: Redis | None = None,
         clock: Callable[[], float] = time.time,
         client: httpx.AsyncClient | None = None,
-        enabled: bool = True,
+        enabled: bool | Callable[[], bool] = True,
         deduplicator: Deduplicator | None = None,
     ) -> None:
-        self._channels = tuple(channels)
+        # Either a fixed list or a source read on every alert. The worker holds
+        # one notifier for the life of the process, so a fixed list meant that
+        # adding a channel in the console changed nothing until a restart - and
+        # the first thing anyone does after adding one is wait for an alert.
+        if callable(channels):
+            self._channel_source: Callable[[], Sequence[Channel]] = channels
+        else:
+            fixed_channels = tuple(channels)
+            self._channel_source = lambda: fixed_channels
+        if callable(enabled):
+            self._enabled_source: Callable[[], bool] = enabled
+        else:
+            fixed_enabled = bool(enabled)
+            self._enabled_source = lambda: fixed_enabled
         self._clock = clock
         self._client = client
         self._owns_client = client is None
-        self._enabled = enabled
         self._dedup = deduplicator or Deduplicator(redis=redis, clock=clock)
 
     @property
     def channels(self) -> tuple[Channel, ...]:
-        return self._channels
+        return tuple(self._channel_source())
+
+    @property
+    def _channels(self) -> tuple[Channel, ...]:
+        return tuple(self._channel_source())
+
+    @property
+    def _enabled(self) -> bool:
+        return self._enabled_source()
 
     async def aclose(self) -> None:
         client, owned = self._client, self._owns_client
@@ -375,7 +395,7 @@ class Notifier:
         sent_at = datetime.fromtimestamp(self._clock(), UTC)
         rendered: dict[Language, Message] = {}
         prepared: list[tuple[Channel, Message]] = []
-        for channel in self._channels:
+        for channel in self._subscribers(event):
             message = rendered.get(channel.language)
             if message is None:
                 message = render(event, channel.language, sent_at=sent_at, **args)
@@ -465,6 +485,23 @@ class Notifier:
             failed=failed,
         )
 
+    def _subscribers(self, event: NotifyEvent) -> tuple[Channel, ...]:
+        """The channels that asked for this event.
+
+        The console lets an operator narrow a channel to a few events and writes
+        the choice into the descriptor, but nothing read it: every channel
+        received every alert, so a channel set up for "pool empty" alone was
+        also paging on every proxy that went down. An empty or absent list still
+        means everything, which is how the console encodes "all" - it only
+        writes the field when a strict subset is chosen.
+        """
+        chosen: list[Channel] = []
+        for channel in self._channels:
+            wanted = getattr(channel, "options", {}).get("events")
+            if not isinstance(wanted, list) or not wanted or event.value in wanted:
+                chosen.append(channel)
+        return tuple(chosen)
+
     def _select(self, channel: str | None) -> tuple[Channel, ...]:
         """The channels a request names. ``None`` means every one of them."""
         if channel is None:
@@ -518,19 +555,12 @@ class Notifier:
         return "exhausted attempts"
 
 
-def notifier_from_config(
-    config: Any,
-    *,
-    redis: Redis | None = None,
-    clock: Callable[[], float] = time.time,
-    client: httpx.AsyncClient | None = None,
-) -> Notifier:
-    """Build a notifier from the runtime settings snapshot.
+def channels_from_config(config: Any) -> tuple[Channel, ...]:
+    """The alert channels one settings snapshot describes.
 
     Channels with no language of their own inherit ``notify.language`` so a
     Chinese operator's webhook receives Chinese alerts.
     """
-    enabled = bool(config.get("notify.enabled"))
     default_language = config.get("notify.language") or DEFAULT_LANGUAGE
     descriptors: list[Mapping[str, Any]] = []
     for entry in config.get("notify.channels") or []:
@@ -538,12 +568,37 @@ def notifier_from_config(
             merged = dict(entry)
             merged.setdefault("language", default_language)
             descriptors.append(merged)
+    return tuple(build_channels(descriptors))
+
+
+def notifier_from_config(
+    config: Any | Callable[[], Any],
+    *,
+    redis: Redis | None = None,
+    clock: Callable[[], float] = time.time,
+    client: httpx.AsyncClient | None = None,
+) -> Notifier:
+    """Build a notifier from the runtime settings.
+
+    ``config`` may be a snapshot or a source. The worker passes a source: it
+    holds one notifier for the life of the process, so a snapshot meant a
+    channel added in the console was ignored until the next restart - and
+    waiting for an alert is exactly how someone checks that it worked.
+    """
+    if not callable(config):
+        return Notifier(
+            channels_from_config(config),
+            redis=redis,
+            clock=clock,
+            client=client,
+            enabled=bool(config.get("notify.enabled")),
+        )
     return Notifier(
-        build_channels(descriptors),
+        lambda: channels_from_config(config()),
         redis=redis,
         clock=clock,
         client=client,
-        enabled=enabled,
+        enabled=lambda: bool(config().get("notify.enabled")),
     )
 
 
@@ -560,6 +615,7 @@ __all__ = [
     "NotifyEvent",
     "Severity",
     "TriggerSpec",
+    "channels_from_config",
     "dedup_key",
     "failure_reason",
     "notifier_from_config",

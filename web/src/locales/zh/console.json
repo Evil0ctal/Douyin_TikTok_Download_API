@@ -725,6 +725,10 @@
       "createFailed": "备份失败",
       "restored": "已恢复 {name}",
       "restoreFailed": "恢复失败"
+    },
+    "key": {
+      "matches": "当前密钥",
+      "differs": "其他密钥"
     }
   },
   "users": {

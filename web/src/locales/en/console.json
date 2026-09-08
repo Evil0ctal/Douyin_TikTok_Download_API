@@ -725,6 +725,10 @@
       "createFailed": "The backup failed",
       "restored": "Restored {name}",
       "restoreFailed": "The restore failed"
+    },
+    "key": {
+      "matches": "This key",
+      "differs": "Another key"
     }
   },
   "users": {

@@ -343,6 +343,12 @@ class RequestLog(Base):
     __table_args__ = (
         Index("ix_request_log_endpoint_ts", "endpoint", text("ts DESC")),
         Index("ix_request_log_identity_ts", "identity_id", text("ts DESC")),
+        # The Logs page's outcome filter, which is two clicks away and is how
+        # anyone looks for what went wrong. Without this the filter falls off
+        # the ts ordering and seq-scans every retained chunk with no early
+        # stop - the one query shape on this hypertable that can take the
+        # instance down, reached from a checkbox.
+        Index("ix_request_log_outcome_ts", "outcome", text("ts DESC")),
         # Support lookups by the request_id printed in the API envelope: it is
         # the only handle a user has when reporting a broken request.
         Index("ix_request_log_request_id", "request_id"),

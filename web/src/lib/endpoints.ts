@@ -14,13 +14,19 @@ export const paths = {
     init: '/api/setup/init',
   },
   auth: {
-    session: `${API_V1}/auth/session`,
+    /** The caller's own principal. `sessions` below is the device list, not this. */
+    me: `${API_V1}/auth/me`,
     login: `${API_V1}/auth/login`,
     logout: `${API_V1}/auth/logout`,
     password: `${API_V1}/auth/password`,
     sessions: `${API_V1}/auth/sessions`,
   },
   tasks: {
+    /**
+     * The family prefix; the API serves no GET here, only the paths below it.
+     * lib/query.ts matches cache entries against it, which is how a polled task
+     * (Diagnose) gets expired when the language changes.
+     */
     root: `${API_V1}/tasks`,
     byId: (taskId: string) => `${API_V1}/tasks/${encodeURIComponent(taskId)}`,
     events: (taskId: string) => `${API_V1}/tasks/${encodeURIComponent(taskId)}/events`,
@@ -33,7 +39,6 @@ export const paths = {
     import: `${API_V1}/admin/identities/import`,
     byId: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}`,
     test: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/test`,
-    events: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/events`,
   },
   proxies: {
     list: `${API_V1}/admin/proxies`,
@@ -62,8 +67,7 @@ export const paths = {
     byId: (id: string) => `${API_V1}/admin/users/${encodeURIComponent(id)}`,
   },
   notifications: {
-    channels: `${API_V1}/admin/notifications/channels`,
-    byId: (id: string) => `${API_V1}/admin/notifications/channels/${encodeURIComponent(id)}`,
+    /** Channels themselves are the `notify.channels` setting, edited through `settings`. */
     test: `${API_V1}/admin/notifications/test`,
   },
   diagnose: `${API_V1}/admin/diagnose`,
@@ -71,7 +75,6 @@ export const paths = {
     list: `${API_V1}/admin/backup`,
     create: `${API_V1}/admin/backup`,
     restore: `${API_V1}/admin/backup/restore`,
-    byId: (id: string) => `${API_V1}/admin/backup/${encodeURIComponent(id)}`,
   },
   system: {
     status: `${API_V1}/system/status`,

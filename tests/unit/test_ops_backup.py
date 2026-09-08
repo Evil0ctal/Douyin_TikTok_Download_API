@@ -8,6 +8,7 @@ producing a database full of credentials nobody can ever decrypt.
 
 from __future__ import annotations
 
+import io
 import json
 import tarfile
 import uuid
@@ -405,3 +406,85 @@ def test_a_hand_edited_key_check_is_a_mismatch_not_a_crash() -> None:
 
     with pytest.raises(backup.SecretKeyMismatch):
         backup.verify_secret_key(manifest, SECRET)
+
+
+# --------------------------------------------------------------------------
+# Damaged archives
+#
+# The corruption that matters is a truncated gzip, not a file of random bytes.
+# gzip signals it with EOFError, which is neither a TarError nor an OSError, so
+# it escaped every guard and answered INTERNAL - and the listing endpoint the
+# console polls every ten seconds was the thing it broke.
+# --------------------------------------------------------------------------
+
+
+def _archive_bytes(payload: int = 1 << 20) -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+        body = json.dumps(
+            {
+                "schema_version": 1,
+                "created_at": "2026-03-01T12:00:00+00:00",
+                "dtk_version": "5.0.0",
+                "include_identities": False,
+                "contents": {"users": 1},
+                "key_check": "deadbeef",
+            }
+        ).encode()
+        info = tarfile.TarInfo("manifest.json")
+        info.size = len(body)
+        archive.addfile(info, io.BytesIO(body))
+        filler = b"x" * payload
+        info = tarfile.TarInfo("data/users.jsonl")
+        info.size = len(filler)
+        archive.addfile(info, io.BytesIO(filler))
+    return buffer.getvalue()
+
+
+def test_a_truncated_archive_does_not_take_the_listing_down(tmp_path: Path) -> None:
+    """A whole page of archives must survive one damaged file."""
+    raw = _archive_bytes()
+    (tmp_path / "dtk-backup-good.tar.gz").write_bytes(raw)
+    (tmp_path / "dtk-backup-cut.tar.gz").write_bytes(raw[: len(raw) // 2])
+    (tmp_path / "dtk-backup-garbage.tar.gz").write_bytes(b"not a gzip stream")
+
+    listed = backup.list_backups(tmp_path)
+
+    assert len(listed) == 3, "a damaged archive was dropped rather than reported"
+    assert any(info.error for info in listed), "nothing was reported as unreadable"
+
+
+def test_restoring_a_truncated_archive_is_a_coded_error(tmp_path: Path) -> None:
+    """Not an EOFError from inside gzip, which the API renders as INTERNAL."""
+    raw = _archive_bytes()
+    cut = tmp_path / "dtk-backup-cut.tar.gz"
+    cut.write_bytes(raw[: len(raw) // 2])
+
+    with pytest.raises(backup.BackupError):
+        backup.read_member(cut, "users")
+
+
+def test_an_archive_is_never_visible_while_it_is_being_written(tmp_path: Path) -> None:
+    """The window that made this a daily failure rather than a rare one.
+
+    create_backup gzips a multi-gigabyte database, which takes minutes, and it
+    used to write straight to the final name. For that whole time the directory
+    held a truncated archive - so taking a backup broke the page that takes
+    backups, for every viewer, every night.
+    """
+    manifest = backup.build_manifest(
+        contents={"users": 0}, include_identities=False, secret_key="k" * 48
+    )
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    (staging / "users.jsonl").write_bytes(b"")
+    target = tmp_path / "dtk-backup-atomic.tar.gz"
+
+    backup._pack_archive(target, manifest, staging, ["users"])
+
+    assert target.is_file()
+    # Nothing partial survives, and nothing partial ever matched the listing
+    # glob in the first place: the temporary name does not end in .tar.gz.
+    leftovers = [p.name for p in tmp_path.iterdir() if p.is_file() and p != target]
+    assert leftovers == [], f"the pack left files behind: {leftovers}"
+    assert [i.path.name for i in backup.list_backups(tmp_path)] == [target.name]

@@ -605,12 +605,22 @@ export async function waitForTask<T>(
 export interface TaskEventHandlers {
   onState?: (task: TaskEnvelope) => void
   onError?: (error: ApiError) => void
+  /** The stream ended on its own, having reached a terminal state or timed out. */
+  onEnd?: () => void
 }
+
+//: The frames src/dtk/api/routes/tasks.py emits, by name.
+const TASK_STATE_EVENTS = ['state', 'result'] as const
 
 /**
  * Server-sent progress for one task. Optional: waitForTask covers the same
  * ground by polling, and the console falls back to it when SSE is unavailable.
  * Returns a close function.
+ *
+ * Every frame is NAMED - the server writes `event: state` before its data - and
+ * a named frame is delivered to addEventListener(name), never to onmessage.
+ * This listened on onmessage alone, so the stream delivered nothing at all and
+ * the only reason no page noticed is that no page calls this yet.
  */
 export function openTaskEvents(taskId: string, handlers: TaskEventHandlers): () => void {
   let source: EventSource
@@ -625,15 +635,53 @@ export function openTaskEvents(taskId: string, handlers: TaskEventHandlers): () 
     return () => {}
   }
 
-  source.onmessage = (event: MessageEvent<string>) => {
+  const parse = (raw: string): unknown => {
     try {
-      const parsed: unknown = JSON.parse(event.data)
-      if (isTaskEnvelope(parsed)) handlers.onState?.(parsed)
+      return JSON.parse(raw)
     } catch {
       // A malformed frame is not worth tearing the stream down for.
+      return null
     }
   }
+
+  for (const name of TASK_STATE_EVENTS) {
+    source.addEventListener(name, (event: MessageEvent<string>) => {
+      const parsed = parse(event.data)
+      if (isTaskEnvelope(parsed)) handlers.onState?.(parsed)
+    })
+  }
+
+  // The server's own error frame, which carries a code the console can
+  // translate - unlike onerror below, which only knows the socket broke.
+  source.addEventListener('error' as 'message', (event: MessageEvent<string>) => {
+    if (typeof event.data !== 'string') return
+    const parsed = parse(event.data)
+    const raw =
+      typeof parsed === 'object' && parsed !== null && 'code' in parsed
+        ? (parsed as { code: unknown }).code
+        : null
+    // An unrecognised code becomes INTERNAL rather than being passed through:
+    // the console renders the code as a catalogue key, and a key nobody
+    // translated shows the reader a raw identifier.
+    handlers.onError?.(
+      new ApiError(isErrorCode(raw) ? raw : 'INTERNAL', '', { kind: 'api' }),
+    )
+    source.close()
+  })
+
+  for (const name of ['end', 'timeout'] as const) {
+    source.addEventListener(name, () => {
+      handlers.onEnd?.()
+      source.close()
+    })
+  }
+
   source.onerror = () => {
+    // Fires for a dropped connection AND, in some browsers, once after the
+    // server closes a completed stream. Reporting the second as a failure would
+    // turn every finished task into an error, so a stream this function has
+    // already closed says nothing.
+    if (source.readyState === EventSource.CLOSED) return
     handlers.onError?.(
       new ApiError('INTERNAL', 'The task event stream was interrupted.', { kind: 'network' }),
     )

@@ -56,10 +56,17 @@ class Clock:
 
 
 class RecordingChannel:
-    def __init__(self, name: str, language: Language = Language.EN) -> None:
+    def __init__(
+        self,
+        name: str,
+        language: Language = Language.EN,
+        events: list[str] | None = None,
+    ) -> None:
         self.name = name
         self.language = language
         self.type = ChannelType.WEBHOOK
+        # Where a real channel keeps its subscription, so a test can narrow one.
+        self.options: dict[str, object] = {"events": events} if events is not None else {}
         self.received: list[notify.Message] = []
 
     async def send(self, message: notify.Message, client: httpx.AsyncClient) -> None:
@@ -377,3 +384,78 @@ async def test_aclose_does_not_orphan_a_client_created_afterwards() -> None:
     await notifier.aclose()
     assert created.is_closed is True
     await borrowed.aclose()
+
+
+async def test_notify_delivers_only_to_the_channels_that_subscribed() -> None:
+    """Asserted through notify(), not through the helper it calls.
+
+    The console writes the subscription into the descriptor and nothing read it,
+    so a channel narrowed to one event kept receiving all of them - configured
+    in the UI, unconfigured in fact. An earlier version of this test called the
+    selector directly and still passed with the filter unwired, which proves
+    nothing about delivery.
+    """
+    pool_only = RecordingChannel("pool", events=["pool_empty"])
+    everything = RecordingChannel("everything")
+    notifier, _redis = make_notifier([pool_only, everything], Clock())
+
+    await notifier.notify(NotifyEvent.PROXY_UNHEALTHY, proxy="p1", failures=3)
+
+    assert pool_only.received == [], "a narrowed channel was paged for an event it declined"
+    assert len(everything.received) == 1
+
+    await notifier.notify(NotifyEvent.POOL_EMPTY, platform="douyin")
+    assert len(pool_only.received) == 1
+    assert len(everything.received) == 2
+
+
+async def test_an_empty_subscription_list_still_means_every_event() -> None:
+    """How the console encodes "all": it omits the field, or leaves it empty."""
+    listed = RecordingChannel("all", events=[])
+    absent = RecordingChannel("also-all")
+    notifier, _redis = make_notifier([listed, absent], Clock())
+
+    for event in (NotifyEvent.POOL_EMPTY, NotifyEvent.PROXY_UNHEALTHY):
+        assert [c.name for c in notifier._subscribers(event)] == ["all", "also-all"]
+
+
+async def test_a_channel_added_after_startup_is_used_without_a_restart() -> None:
+    """The worker holds one notifier for the life of the process.
+
+    Built from a snapshot, it kept the channels it saw at boot, so an operator
+    who added one in the console and waited for the next alert waited forever -
+    and waiting for an alert is exactly how someone confirms a channel works.
+    """
+    from dtk.core.config import Config
+
+    snapshot = {"notify.enabled": True, "notify.language": "en", "notify.channels": []}
+    live = Config({**Config.defaults().as_dict(), **snapshot}, version=1)
+    holder = [live]
+
+    notifier = notify.notifier_from_config(lambda: holder[0])
+    assert notifier.channels == ()
+
+    holder[0] = Config(
+        {
+            **live.as_dict(),
+            "notify.channels": [
+                {"type": "webhook", "name": "ops", "url": "https://hooks.test/added"}
+            ],
+        },
+        version=2,
+    )
+    assert [c.name for c in notifier.channels] == ["ops"]
+
+
+async def test_turning_alerts_off_takes_effect_on_the_next_alert() -> None:
+    """The same for the master switch, which is the more urgent direction."""
+    from dtk.core.config import Config
+
+    base = Config.defaults().as_dict()
+    on = Config({**base, "notify.enabled": True, "notify.channels": []}, version=1)
+    holder = [on]
+    notifier = notify.notifier_from_config(lambda: holder[0])
+    assert notifier._enabled is True
+
+    holder[0] = Config({**on.as_dict(), "notify.enabled": False}, version=2)
+    assert notifier._enabled is False

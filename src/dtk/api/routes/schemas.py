@@ -187,6 +187,17 @@ class BackupRequest(Body):
     include_identities: bool = False
 
 
+class RestoreRequest(Body):
+    #: The file name the listing returned, never a path. The server joins it
+    #: onto the backup directory, so anything with a directory in it is refused
+    #: rather than resolved.
+    path: str = Field(min_length=1, max_length=255)
+    #: A restore inserts archived users, API keys and settings into a live
+    #: instance and cannot be undone from the console, so it is confirmed the
+    #: way a SENSITIVE setting write is (doc 08).
+    confirm: bool = False
+
+
 class NotificationTest(Body):
     channel: str | None = Field(default=None, max_length=64)
 
@@ -216,6 +227,7 @@ __all__ = [
     "ProxyCreate",
     "ProxyImport",
     "ProxyUpdate",
+    "RestoreRequest",
     "RetireRequest",
     "SettingUpdate",
     "SetupInit",

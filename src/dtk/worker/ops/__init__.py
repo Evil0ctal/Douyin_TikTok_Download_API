@@ -1,9 +1,10 @@
 """Console-triggered maintenance jobs.
 
-Six operations reach the worker that are not platform reads: running the self
-check, taking a backup, minting an identity, probing an identity or a proxy, and
-sending a test alert. The console submits each as an ordinary task, because each
-can take longer than a request should hold a connection open.
+Seven operations reach the worker that are not platform reads: running the self
+check, taking a backup, restoring one, minting an identity, probing an identity
+or a proxy, and sending a test alert. The console submits each as an ordinary
+task, because each can take longer than a request should hold a connection
+open.
 
 They do not belong in :mod:`dtk.worker.registry`. That table describes upstream
 endpoints - a platform, a signature, a token bucket, a parse - and none of that
@@ -99,12 +100,14 @@ def _handlers() -> Mapping[str, OperationHandler]:
         identity_test,
         notify_test,
         proxy_test,
+        restore,
     )
 
     return MappingProxyType(
         {
             "diagnose": diagnose.run,
             "backup": backup.run,
+            "backup.restore": restore.run,
             "identity.mint": identity_mint.run,
             "identity.test": identity_test.run,
             "proxy.test": proxy_test.run,
@@ -114,10 +117,18 @@ def _handlers() -> Mapping[str, OperationHandler]:
 
 
 #: Every endpoint this package handles. Named separately from the table so the
-#: worker can answer "is this mine?" without importing six modules, and so a
+#: worker can answer "is this mine?" without importing every module, and so a
 #: test can assert this set against the Maintenance enum the routes submit.
 ENDPOINTS: Final[frozenset[str]] = frozenset(
-    {"diagnose", "backup", "identity.mint", "identity.test", "proxy.test", "notify.test"}
+    {
+        "diagnose",
+        "backup",
+        "backup.restore",
+        "identity.mint",
+        "identity.test",
+        "proxy.test",
+        "notify.test",
+    }
 )
 
 

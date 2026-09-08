@@ -19,7 +19,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from dtk.api.routes.admin import api_keys, health, identities, maintenance, proxies, settings, users
+from dtk.api.routes.admin import (
+    api_keys,
+    health,
+    identities,
+    logs,
+    maintenance,
+    proxies,
+    settings,
+    users,
+)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -29,6 +38,7 @@ router.include_router(api_keys.router)
 router.include_router(settings.router)
 router.include_router(users.router)
 router.include_router(health.router)
+router.include_router(logs.router)
 router.include_router(maintenance.router)
 
 __all__ = ["router"]

@@ -187,7 +187,10 @@ async def build_runtime(
 
     # One notifier for every background job, so doc 15's deduplication windows
     # are shared rather than re-implemented per job.
-    notifier = notifier_from_config(current, redis=get_redis())
+    # A source, not a snapshot: an operator who adds an alert channel then waits
+    # for the next alert would otherwise be waiting on a worker that has not
+    # heard of it.
+    notifier = notifier_from_config(config_source, redis=get_redis())
 
     filler_options = FillerConfig()
     prober_options = ProberConfig()

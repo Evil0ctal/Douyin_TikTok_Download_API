@@ -16,7 +16,8 @@ Task vocabulary
   (``douyin.content_detail``, ``tiktok.author_posts``, ...), so a worker can
   look the endpoint up with ``get_adapter(platform).endpoints[name]``.
 * ``identity.mint`` / ``identity.test`` / ``proxy.test`` / ``diagnose`` /
-  ``backup`` / ``notify.test`` - maintenance jobs the console triggers.
+  ``backup`` / ``backup.restore`` / ``notify.test`` - maintenance jobs the
+  console triggers.
 
 ``Task.params`` uses the public query vocabulary (``url``, ``aweme_id``,
 ``sec_user_id``, ``comment_id``, ``cursor``, ``count``, ``include_raw``), not a
@@ -73,6 +74,10 @@ class Maintenance(StrEnum):
     PROXY_TEST = "proxy.test"
     DIAGNOSE = "diagnose"
     BACKUP = "backup"
+    #: Kept off the request thread for the same reason as BACKUP, and for one
+    #: more: a restore writes rows for as long as the archive is large, and a
+    #: browser that gives up mid-way must not be able to abandon it half done.
+    BACKUP_RESTORE = "backup.restore"
     NOTIFY_TEST = "notify.test"
 
 
