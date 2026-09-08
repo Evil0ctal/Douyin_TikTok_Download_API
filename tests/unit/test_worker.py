@@ -25,11 +25,13 @@ from dtk.core.errors import (
     DtkError,
     ErrorCode,
     InvalidParam,
+    NotFound,
     RateLimited,
     UpstreamChanged,
     UpstreamRiskControl,
 )
 from dtk.core.types import IdentityState, Language, Outcome, Platform, Scope, TaskState
+from dtk.ops import webhooks
 from dtk.platforms import get_adapter
 from dtk.platforms.tiktok.params import DEVICE_ID_DIGITS
 from dtk.services.fetch import FetchResult
@@ -1487,3 +1489,124 @@ def test_the_snapshot_dedup_key_separates_a_video_from_an_author() -> None:
     user = DEDUP_KEY.format(platform="douyin", content_type="user", content_id="7")
 
     assert video != user
+
+
+# --------------------------------------------------------------------------
+# Task callbacks
+#
+# `callback_url` was declared, validated and stored from the first release, and
+# nothing ever posted to it. These pin down the wiring that closes that, plus
+# the two properties that make it safe: delivery happens after the task is
+# stored, and it can never fail the task.
+# --------------------------------------------------------------------------
+
+
+def _callback_config(enabled: bool = True, secret: str = "") -> Config:
+    return Config(
+        {
+            **Config.defaults().as_dict(),
+            "security.enable_task_webhook": enabled,
+            "security.webhook_secret": secret,
+        }
+    )
+
+
+async def test_a_finished_task_posts_to_its_callback(monkeypatch: Any) -> None:
+    sent: list[tuple[str, dict[str, Any], str]] = []
+
+    async def fake_deliver(url: str, body: dict[str, Any], *, secret: str = "", **_: Any) -> Any:
+        sent.append((url, body, secret))
+        return None
+
+    monkeypatch.setattr(webhooks, "deliver", fake_deliver)
+
+    run = a_run(callback_url="https://example.com/hook", aweme_id="7300000000000000000")
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(store, FakeFetch())
+    worker._config = lambda: _callback_config(secret="s")
+
+    await worker._run_one(run.id)
+
+    assert len(sent) == 1
+    url, body, secret = sent[0]
+    assert url == "https://example.com/hook"
+    assert body["event"] == "task.completed"
+    assert body["task_id"] == str(run.id)
+    assert secret == "s"
+    # The result is stored before anything is posted, so a webhook that never
+    # answers cannot cost the caller their data.
+    assert run.id in store.completed
+
+
+async def test_a_failed_task_posts_the_reason(monkeypatch: Any) -> None:
+    sent: list[dict[str, Any]] = []
+
+    async def fake_deliver(url: str, body: dict[str, Any], **_: Any) -> Any:
+        sent.append(body)
+        return None
+
+    monkeypatch.setattr(webhooks, "deliver", fake_deliver)
+
+    run = a_run(callback_url="https://example.com/hook", aweme_id="7300000000000000000")
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(store, FakeFetch(error=NotFound("gone")))
+    worker._config = lambda: _callback_config()
+
+    await worker._run_one(run.id)
+
+    assert sent and sent[0]["event"] == "task.failed"
+    assert sent[0]["error"]["code"] == "NOT_FOUND"
+
+
+async def test_a_dead_callback_never_fails_the_task(monkeypatch: Any) -> None:
+    """The contract. The caller asked for data and got it."""
+
+    async def exploding(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("the receiver is on fire")
+
+    monkeypatch.setattr(webhooks, "deliver", exploding)
+
+    run = a_run(callback_url="https://example.com/hook", aweme_id="7300000000000000000")
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(store, FakeFetch())
+    worker._config = lambda: _callback_config()
+
+    await worker._run_one(run.id)
+
+    # Stored as done, and the exception from delivery did not turn it into a
+    # failure - `_run_one` catches it, which is why this asserts both.
+    assert run.id in store.completed
+    assert run.id not in store.failed
+
+
+async def test_no_callback_means_no_outbound_request(monkeypatch: Any) -> None:
+    async def never(*_args: Any, **_kwargs: Any) -> Any:  # pragma: no cover
+        raise AssertionError("a task with no callback_url must not post anywhere")
+
+    monkeypatch.setattr(webhooks, "deliver", never)
+
+    run = a_run()
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(store, FakeFetch())
+    worker._config = lambda: _callback_config()
+
+    await worker._run_one(run.id)
+    assert run.id in store.completed
+
+
+async def test_turning_the_setting_off_stops_delivery(monkeypatch: Any) -> None:
+    """An operator switching this off between submission and completion means
+    it; the caller was told yes at the time and is told nothing now."""
+
+    async def never(*_args: Any, **_kwargs: Any) -> Any:  # pragma: no cover
+        raise AssertionError("delivery must not happen while the setting is off")
+
+    monkeypatch.setattr(webhooks, "deliver", never)
+
+    run = a_run(callback_url="https://example.com/hook", aweme_id="7300000000000000000")
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(store, FakeFetch())
+    worker._config = lambda: _callback_config(enabled=False)
+
+    await worker._run_one(run.id)
+    assert run.id in store.completed

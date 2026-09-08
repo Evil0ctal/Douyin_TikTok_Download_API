@@ -196,3 +196,55 @@ async def test_a_ceiling_of_zero_disables_the_check(client: Any) -> None:
         json={"url": "https://www.douyin.com/video/7123456789012345678"},
     )
     assert response.status_code == 202, envelope(response)
+
+
+# --------------------------------------------------------------------------
+# Cancellation
+# --------------------------------------------------------------------------
+
+
+async def test_cancelling_a_queued_task_fails_it(client, db_engine, redis_client):
+    """The row stays, with its state, the way every finished task does."""
+    import uuid as _uuid
+
+    from dtk.core.db import session_scope
+    from dtk.services import tasks as task_service
+    from tests.integration.test_api_support import envelope, signed_in
+
+    await signed_in(client)
+    async with session_scope() as session:
+        task_id = await task_service.submit(session, "parse", {"url": "https://www.douyin.com/"})
+
+    response = await client.delete(f"/api/v1/tasks/{task_id}")
+    assert envelope(response)["data"]["state"] == "failed"
+
+    async with session_scope() as session:
+        view = await task_service.get(session, _uuid.UUID(str(task_id)))
+        assert view.state.value == "failed"
+        assert view.error is not None
+
+
+async def test_cancelling_a_running_task_reports_it_as_running(client, db_engine, redis_client):
+    """Its request is in flight and the identity's quota is already spent;
+    recording a failure the worker never had would make the risk rate lie."""
+    from dtk.core.db import session_scope
+    from dtk.services import tasks as task_service
+    from tests.integration.test_api_support import envelope, signed_in
+
+    await signed_in(client)
+    async with session_scope() as session:
+        task_id = await task_service.submit(session, "parse", {"url": "https://www.douyin.com/"})
+        await task_service.mark_running(session, task_id)
+
+    response = await client.delete(f"/api/v1/tasks/{task_id}")
+    assert envelope(response)["data"]["state"] == "running"
+
+
+async def test_cancelling_an_unknown_task_is_a_404(client, db_engine, redis_client):
+    import uuid as _uuid
+
+    from tests.integration.test_api_support import error_code, signed_in
+
+    await signed_in(client)
+    response = await client.delete(f"/api/v1/tasks/{_uuid.uuid4()}")
+    assert error_code(response) == "TASK_NOT_FOUND"

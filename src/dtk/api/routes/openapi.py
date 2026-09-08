@@ -43,6 +43,8 @@ SESSION_DESCRIPTION_KEY = "openapi.security.session"
 OP_PREFIX = "openapi.op."
 PARAM_PREFIX = "openapi.param."
 DESCRIPTION_KEY = "openapi.description"
+#: The one sentence that explains the uniform envelope to a reader of /docs.
+ENVELOPE_DESCRIPTION_KEY = "openapi.envelope"
 
 #: Every endpoint honours ``?lang=``, but the middleware reads it rather than a
 #: route signature, so it would otherwise be invisible in the document.
@@ -164,6 +166,120 @@ def _declare_security(schema: dict[str, Any], language: Language) -> None:
                 operation["security"] = [{_API_KEY_SCHEME: []}, {_SESSION_SCHEME: []}]
 
 
+#: The two component schemas every operation actually answers with.
+#:
+#: Only the envelope is declared, never each endpoint's ``data``. That is the
+#: same decision :mod:`dtk.api.routes.schemas` makes for request bodies and
+#: states outright: responses are assembled as dictionaries, and declaring them
+#: a second time here would only let the two drift. What a generated client
+#: genuinely needs is the part that never varies - is this a success, where is
+#: the payload, what shape is an error - and that is what this types.
+_ENVELOPE_SCHEMA: Final = "DtkResponse"
+_ERROR_SCHEMA: Final = "DtkError"
+
+
+def _envelope_components(language: Language) -> dict[str, Any]:
+    return {
+        _ERROR_SCHEMA: {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "Stable machine-readable identifier. Never translated.",
+                    "example": "IDENTITY_POOL_EXHAUSTED",
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Human sentence, rendered in the caller's language.",
+                },
+                "details": {"type": "object", "additionalProperties": True},
+                "retry_after": {
+                    "type": "integer",
+                    "nullable": True,
+                    "description": "Seconds to wait, when the error is one that clears.",
+                },
+                "retryable": {"type": "boolean"},
+            },
+        },
+        _ENVELOPE_SCHEMA: {
+            "type": "object",
+            "required": ["success", "data", "error", "meta"],
+            "description": _text(ENVELOPE_DESCRIPTION_KEY, language)
+            or (
+                "Every response has this shape, including errors. `data` carries "
+                "the endpoint's own payload and is null whenever `success` is false."
+            ),
+            "properties": {
+                "success": {"type": "boolean"},
+                "data": {"nullable": True, "description": "The endpoint's payload."},
+                "error": {
+                    "oneOf": [{"$ref": f"#/components/schemas/{_ERROR_SCHEMA}"}],
+                    "nullable": True,
+                },
+                "meta": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "properties": {"request_id": {"type": "string", "format": "uuid"}},
+                },
+            },
+        },
+    }
+
+
+#: Status codes any authenticated endpoint can answer, documented once.
+#: Without these a generated client has no error type at all and a reader is
+#: left to discover 429 by being rate limited.
+_COMMON_ERRORS: Final[tuple[tuple[str, str], ...]] = (
+    ("400", "The request was rejected. `error.code` says why."),
+    ("401", "No API key or session, or it is not valid."),
+    ("403", "Authenticated, but this credential lacks the scope."),
+    ("404", "No such resource, or the platform says the content is gone."),
+    ("429", "Rate limited. `error.retry_after` says when to come back."),
+    ("503", "The identity pool, the queue or an upstream endpoint is unavailable."),
+)
+
+
+def _type_responses(schema: dict[str, Any], language: Language) -> None:
+    """Point every response at the envelope, and drop the 422 that never happens.
+
+    FastAPI documents a 422 with its own `HTTPValidationError` on any operation
+    that has a body or a typed parameter. This API never sends one: the handler
+    in :mod:`dtk.api.app` catches `RequestValidationError` and answers 400 in
+    the envelope like everything else. A documented status the service cannot
+    produce is worse than an undocumented one, because a client writes a branch
+    for it.
+    """
+    components = schema.setdefault("components", {}).setdefault("schemas", {})
+    components.update(_envelope_components(language))
+    components.pop("HTTPValidationError", None)
+    components.pop("ValidationError", None)
+
+    envelope_content = {
+        "application/json": {"schema": {"$ref": f"#/components/schemas/{_ENVELOPE_SCHEMA}"}}
+    }
+    for operations in schema.get("paths", {}).values():
+        for operation in operations.values():
+            if not isinstance(operation, dict):
+                continue
+            responses = operation.setdefault("responses", {})
+            responses.pop("422", None)
+            for status, response in list(responses.items()):
+                if not isinstance(response, dict) or not status.startswith("2"):
+                    continue
+                # A streaming endpoint declares its own media type; the export
+                # answers newline-delimited JSON, not the envelope, and saying
+                # otherwise would be the same lie in the other direction.
+                content = response.get("content") or {}
+                if any(kind != "application/json" for kind in content):
+                    continue
+                response["content"] = envelope_content
+            for status, description in _COMMON_ERRORS:
+                responses.setdefault(
+                    status, {"description": description, "content": envelope_content}
+                )
+
+
 def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
     """Render the document for one language.
 
@@ -187,6 +303,7 @@ def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
                 _localize_operation(operation, language)
     _localize_tags(schema, language)
     _declare_security(schema, language)
+    _type_responses(schema, language)
     schema["info"]["x-language"] = language.value
     return schema
 

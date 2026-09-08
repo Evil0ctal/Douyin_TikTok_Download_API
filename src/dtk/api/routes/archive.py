@@ -183,7 +183,16 @@ async def archive_stats(
     return ok(request, await archive.stats(request.state.db))
 
 
-@router.get("/export", summary="Export the archive", openapi_extra={I18N_KEY: "archive_export"})
+@router.get(
+    "/export",
+    summary="Export the archive",
+    openapi_extra={I18N_KEY: "archive_export"},
+    # Declared, because this is the one endpoint that does not answer in the
+    # uniform envelope. Without saying so the generated document would promise
+    # a JSON object and hand back newline-delimited records.
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/x-ndjson": {}}, "description": "One post per line."}},
+)
 async def export_archive(
     request: Request,
     platform: str | None = PLATFORM_QUERY,

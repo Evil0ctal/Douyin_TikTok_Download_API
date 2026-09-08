@@ -14,7 +14,7 @@ import logging
 import re
 import sys
 from collections.abc import MutableMapping
-from typing import Any
+from typing import Any, Final
 
 import structlog
 
@@ -61,10 +61,22 @@ def redact(_logger: Any, _name: str, event: MutableMapping[str, Any]) -> Mutable
     return event
 
 
+#: Third-party loggers pinned quieter than the application's own level.
+#:
+#: httpx logs every request line at INFO, URL and all. That is a leak, not just
+#: noise: a caller-supplied ``callback_url`` routinely carries a token in its
+#: query string, and a signed CDN link carries a signature - neither belongs in
+#: an operator's log or in whatever aggregates it. Everything those lines say is
+#: already in this project's own `transport.request.done`, with the URL masked.
+QUIET_LOGGERS: Final[tuple[str, ...]] = ("httpx", "httpcore", "hpack")
+
+
 def configure(level: str = "info", json_output: bool = True) -> None:
     logging.basicConfig(
         format="%(message)s", stream=sys.stdout, level=getattr(logging, level.upper(), 20)
     )
+    for name in QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
     renderer: Any = (
         structlog.processors.JSONRenderer()
         if json_output
@@ -90,4 +102,4 @@ def get_logger(name: str) -> Any:
     return structlog.get_logger(name)
 
 
-__all__ = ["SENSITIVE_KEYS", "configure", "get_logger", "redact"]
+__all__ = ["QUIET_LOGGERS", "SENSITIVE_KEYS", "configure", "get_logger", "redact"]

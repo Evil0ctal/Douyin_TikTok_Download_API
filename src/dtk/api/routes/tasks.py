@@ -150,6 +150,34 @@ async def get_task(
     return ok(request, _view_payload(view, language(request)))
 
 
+@router.delete("/{task_id}", summary="Cancel a task", openapi_extra={I18N_KEY: "task_cancel"})
+async def cancel_task(
+    request: Request,
+    task_id: uuid.UUID = TASK_ID_PATH,
+    principal: Principal = Depends(authenticated),
+) -> Any:
+    """Give up on a task that has not started.
+
+    Only a queued task is stopped. One that is already running is left alone
+    and reported as running: the request is in flight against a platform and
+    the identity's quota is already spent, so recording a failure the worker
+    never had would make the endpoint's risk rate lie - and the circuit breaker
+    reads that rate.
+
+    Nothing is deleted. The row stays, with its state, the way every other
+    finished task does.
+
+    **Returns**
+
+    The task's state after the request: `failed` if it was cancelled, or
+    whatever it already was.
+    """
+    session = request.state.db
+    state = await task_service.cancel(session, task_id)
+    await session.commit()
+    return ok(request, {"task_id": str(task_id), "state": state})
+
+
 @router.get("/{task_id}/events", summary="Stream a task's progress")
 async def task_events(
     request: Request,

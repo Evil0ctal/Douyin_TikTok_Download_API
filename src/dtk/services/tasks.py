@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dtk.core.errors import TaskNotFound
+from dtk.core.errors import ErrorCode, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.core.types import TaskState
@@ -114,6 +114,33 @@ async def _signal(task_id: uuid.UUID) -> None:
     await redis.expire(key, SIGNAL_TTL)
 
 
+async def cancel(session: AsyncSession, task_id: uuid.UUID) -> str:
+    """Give up on a task that has not finished. Returns what happened.
+
+    Only a queued task is actually stopped. A running one is left alone and
+    reported as such rather than marked failed: the request is already in
+    flight against a platform, the identity's quota is already spent, and
+    recording a failure the worker did not have would make the endpoint's risk
+    rate lie - which is what the circuit breaker reads.
+
+    The id stays on the Redis queue. Removing an element from the middle of a
+    list is O(n) and racy, and the worker skips a task that is no longer queued
+    when it pops one, which costs a single lookup.
+    """
+    task = await session.get(Task, task_id)
+    if task is None:
+        raise TaskNotFound("no such task, or its result has expired")
+    if task.state != TaskState.QUEUED.value:
+        return task.state
+    task.state = TaskState.FAILED.value
+    task.error = {"code": ErrorCode.INVALID_PARAM.value, "message": "cancelled by the caller"}
+    task.finished_at = datetime.now(UTC)
+    await session.flush()
+    await _signal(task_id)
+    log.info("task.cancelled", task_id=str(task_id))
+    return TaskState.FAILED.value
+
+
 async def get(session: AsyncSession, task_id: uuid.UUID) -> TaskView:
     task = await session.get(Task, task_id)
     if task is None:
@@ -198,6 +225,7 @@ __all__ = [
     "QUEUE_KEY",
     "SIGNAL_KEY",
     "TaskView",
+    "cancel",
     "claim",
     "expire_results",
     "finish",

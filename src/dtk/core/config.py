@@ -306,6 +306,15 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             bool,
             "Caller-supplied callback_url is an SSRF vector.",
         ),
+        SettingSpec(
+            "security.webhook_secret",
+            "",
+            Scope.SENSITIVE,
+            str,
+            "Shared secret for the X-Dtk-Signature header on task callbacks. "
+            "Without it a receiver cannot tell a real notification from anyone "
+            "who guessed the URL.",
+        ),
         # --- notifications --------------------------------------------------
         SettingSpec("notify.enabled", False, Scope.RUNTIME, bool, ""),
         SettingSpec(

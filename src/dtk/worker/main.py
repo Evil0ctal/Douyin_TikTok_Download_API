@@ -43,6 +43,7 @@ from dtk.core.redis import get_redis
 from dtk.core.types import Platform, TaskState
 from dtk.db.models import Task as TaskRow
 from dtk.models import Author, Content, Page
+from dtk.ops import webhooks
 from dtk.services import archive, snapshots, tasks
 from dtk.services.fetch import FetchContext, FetchResult, FetchService
 from dtk.worker import parsing, registry
@@ -355,6 +356,10 @@ class TaskWorker:
     # -- one task ----------------------------------------------------------
 
     async def _run_one(self, task_id: uuid.UUID) -> None:
+        # Bound before the try, because the handlers below use it: a failure in
+        # attempt() or start() leaves nothing to notify about, and a NameError
+        # there would replace a real error with a confusing one.
+        run: TaskRun | None = None
         try:
             attempt = await self._store.attempt(task_id)
             if attempt > self._options.max_attempts:
@@ -379,6 +384,7 @@ class TaskWorker:
 
             result = await self._execute(run)
             await self._store.complete(task_id, result)
+            await self._notify(run, state=TaskState.DONE.value)
             # A maintenance job may store its payload bare - the task contract
             # accepts both shapes - and only the fetch path always carries
             # meta. Indexing it would raise after the task was already stored
@@ -402,11 +408,59 @@ class TaskWorker:
         except DtkError as exc:
             log.info("worker.task.failed", task_id=str(task_id), code=exc.code.value)
             await self._finish_failed(task_id, exc)
+            await self._notify(run, state=TaskState.FAILED.value, error=serialize_error(exc))
         except Exception as exc:
             log.exception("worker.task.crashed", task_id=str(task_id), error=type(exc).__name__)
             await self._finish_failed(task_id, exc)
+            await self._notify(run, state=TaskState.FAILED.value, error=serialize_error(exc))
         finally:
             self._gate.release()
+
+    async def _notify(
+        self, run: TaskRun | None, *, state: str, error: dict[str, Any] | None = None
+    ) -> None:
+        """Deliver the task callback, if the caller asked for one.
+
+        This is the missing half of a parameter this API has accepted,
+        validated and stored since the first release without ever sending
+        anything to it. Doc 06 promises webhooks; nothing made the request.
+
+        After the task is stored, always. The caller's data is safe on the row
+        before any outbound request is attempted, so a webhook endpoint that is
+        down, slow or hostile cannot turn a successful fetch into a failed task
+        - and `deliver` never raises, which is what makes that a guarantee
+        rather than an intention.
+        """
+        if run is None:
+            return
+        url = run.params.get("callback_url")
+        if not isinstance(url, str) or not url:
+            return
+        try:
+            config = self._config()
+            if not bool(config.get("security.enable_task_webhook")):
+                # Turned off between submission and completion. The caller was
+                # told yes at the time and is told nothing now, which is the
+                # safe direction: an operator switching this off means it.
+                log.info("worker.webhook.disabled", task_id=str(run.id))
+                return
+            body = webhooks.payload_for(
+                str(run.id), endpoint=run.endpoint, state=state, error=error
+            )
+            secret = str(config.get("security.webhook_secret") or "")
+            await webhooks.deliver(url, body, secret=secret)
+        except Exception as exc:
+            # `deliver` promises not to raise, and this catches it anyway. The
+            # call site sits inside `_run_one`'s try, so anything escaping here
+            # would be caught as a task failure and would overwrite a row
+            # already stored as done - turning a successful fetch into a
+            # failure because a webhook misbehaved. Belt and braces, on the one
+            # path where the braces failing is silent data loss for the caller.
+            log.warning(
+                "worker.webhook.crashed",
+                task_id=str(run.id),
+                error=f"{type(exc).__name__}: {exc}"[:200],
+            )
 
     async def _finish_failed(self, task_id: uuid.UUID, exc: BaseException) -> None:
         try:

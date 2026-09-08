@@ -154,7 +154,8 @@
       },
       "archive.recheck_after_days": "How old a post's last existence check may be before it is checked again. This is what makes \"which of the things I saved are gone\" answerable at all - without it, a post deleted the day after it was archived stays marked live forever. 0 turns rechecking off.",
       "archive.recheck_batch": "How many posts one recheck pass verifies. Each is a real request through the identity pool, so this is the knob that decides what the answer costs.",
-      "archive.recheck_pause_seconds": "Seconds between the individual requests a recheck or backfill makes. The scheduler paces requests per identity, which does nothing about a platform limit that counts requests per address - measured: 20 requests in 13 seconds were all rejected, while one a minute later succeeded. Nobody is waiting on these passes, so slow costs nothing."
+      "archive.recheck_pause_seconds": "Seconds between the individual requests a recheck or backfill makes. The scheduler paces requests per identity, which does nothing about a platform limit that counts requests per address - measured: 20 requests in 13 seconds were all rejected, while one a minute later succeeded. Nobody is waiting on these passes, so slow costs nothing.",
+      "security.webhook_secret": "Shared secret used to sign task callbacks, sent as X-Dtk-Signature: sha256=<hmac of the exact body>. Without it a receiver has no way to tell a real notification from anyone who guessed the callback URL. Leave empty to send callbacks unsigned."
     }
   },
   "openapi": {
@@ -287,6 +288,10 @@
       "archive_backfill": {
         "summary": "Archive an author's history",
         "description": "Walks one author's posts past the first page and archives every one. Separate from the watchlist on purpose: a watchlist entry is for what is new and runs forever, while a backfill is a one-off with a very different cost. Stops at the first empty page, at the page ceiling, or when the platform says there is no more history."
+      },
+      "task_cancel": {
+        "summary": "Cancel a task",
+        "description": "Gives up on a task that has not started. Only a queued task is stopped; one already running is left alone and reported as running, because its request is in flight and the identity's quota is already spent - recording a failure the worker never had would make the endpoint's risk rate lie. Nothing is deleted."
       }
     },
     "param": {
@@ -312,7 +317,8 @@
     "security": {
       "api_key": "Create one on the console's API keys page, then send it as this header. Bearer authorization works too.",
       "session": "Set by signing in to the console. A browser sends it automatically, which is why Try it out works here when you are signed in."
-    }
+    },
+    "envelope": "Every response has this shape, errors included. `data` carries the endpoint's own payload and is null whenever `success` is false; `error.code` is a stable identifier that is never translated, while `error.message` is rendered in the language you asked for."
   },
   "circuit": {
     "reason": {
