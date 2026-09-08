@@ -20,6 +20,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from dtk.api.routes.admin import (
+    access,
     api_keys,
     health,
     identities,
@@ -38,6 +39,7 @@ router.include_router(api_keys.router)
 router.include_router(settings.router)
 router.include_router(users.router)
 router.include_router(health.router)
+router.include_router(access.router)
 router.include_router(logs.router)
 router.include_router(maintenance.router)
 

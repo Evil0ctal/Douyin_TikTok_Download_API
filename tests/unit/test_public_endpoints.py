@@ -107,3 +107,51 @@ def test_an_anonymous_caller_cannot_satisfy_an_admin_requirement() -> None:
 
     with pytest.raises(ForbiddenScope):
         pe.anonymous().require(Scope.ADMIN)
+
+
+# --------------------------------------------------------------------------
+# The console's switch list
+#
+# The rows the console renders have to agree with what the request path
+# enforces. A first version of _rows walked app.routes, where include_router
+# leaves the sub-router's own unprefixed paths ("/api-keys"), so every admin
+# route came back unprotected and switchable. The ban still held at request
+# time, but the console would have shown a switch that lied.
+# --------------------------------------------------------------------------
+
+
+def _access_rows():
+    from dtk.api.app import create_app
+    from dtk.api.routes.admin.access import _rows
+
+    class _Req:
+        def __init__(self, app: object) -> None:
+            self.app = app
+
+    return _rows(_Req(create_app()), frozenset())
+
+
+def test_the_switch_list_covers_the_documented_api() -> None:
+    rows = _access_rows()
+    assert len(rows) > 40
+    assert all(row["path"].startswith("/api") for row in rows)
+
+
+def test_every_path_in_the_switch_list_is_a_full_path() -> None:
+    """The prefix is what makes a path recognisably an admin one."""
+    assert any(row["path"].startswith("/api/v1/admin/") for row in _access_rows())
+
+
+def test_no_admin_auth_or_setup_row_is_offered_as_switchable() -> None:
+    offered = [
+        row["path"]
+        for row in _access_rows()
+        if not row["protected"] and pe.is_protected(row["path"])
+    ]
+    assert offered == []
+
+
+def test_the_protected_flag_agrees_with_the_rule_the_request_path_uses() -> None:
+    """One source of truth, checked from both sides."""
+    for row in _access_rows():
+        assert row["protected"] == pe.is_protected(row["path"]), row["path"]

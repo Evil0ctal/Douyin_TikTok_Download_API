@@ -51,6 +51,8 @@ export const paths = {
     byId: (id: string) => `${API_V1}/admin/api-keys/${encodeURIComponent(id)}`,
   },
   endpointsHealth: `${API_V1}/admin/endpoints/health`,
+  /** Which endpoints are served without a key, and which can never be. */
+  endpointsAccess: `${API_V1}/admin/endpoints/access`,
   metrics: {
     timeseries: `${API_V1}/admin/metrics/timeseries`,
   },

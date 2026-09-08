@@ -23,6 +23,7 @@ export type NavIconName =
   | 'activity'
   | 'archive'
   | 'users'
+  | 'lock'
 
 export interface NavItem {
   path: string
@@ -40,6 +41,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/parse', labelKey: 'nav.parseTool', group: 'tools', icon: 'link' },
   { path: '/docs', labelKey: 'nav.apiDocs', group: 'tools', icon: 'book' },
   { path: '/api-keys', labelKey: 'nav.apiKeys', group: 'access', icon: 'key' },
+  { path: '/endpoint-access', labelKey: 'nav.endpointAccess', group: 'access', icon: 'lock' },
   { path: '/users', labelKey: 'nav.users', group: 'access', icon: 'users' },
   { path: '/logs', labelKey: 'nav.logs', group: 'operations', icon: 'list' },
   { path: '/system', labelKey: 'nav.system', group: 'operations', icon: 'server' },

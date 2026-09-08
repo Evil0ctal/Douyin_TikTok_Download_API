@@ -20,7 +20,8 @@
     "system": "System",
     "diagnose": "Diagnose",
     "backup": "Backup",
-    "users": "Users"
+    "users": "Users",
+    "endpointAccess": "Endpoint access"
   },
   "page": {
     "overview": {
@@ -1055,5 +1056,22 @@
     "assetsFailed": "The Swagger UI assets could not be fetched from the CDN. On an air-gapped deployment that is expected: the raw document and the server-rendered page still work.",
     "emptyTitle": "The document declares no operations",
     "emptyDescription": "That is a deployment problem rather than an empty database: the api container registered no routes."
+  },
+  "access": {
+    "title": "Endpoint access",
+    "description": "Every endpoint needs an API key unless you open it here. Admin, authentication and setup endpoints can never be opened.",
+    "openWarningTitle": "Open to anyone who can reach this server",
+    "filter": "Filter by path, summary or method",
+    "noMatch": "No endpoint matches that filter",
+    "locked": "Always protected",
+    "lockedHint": "Admin, authentication and setup endpoints are refused by the server whatever this page says, so they have no switch.",
+    "toggleLabel": "Serve {endpoint} without a key",
+    "confirmTitle": "Serve this endpoint without a key?",
+    "confirmBody": "{endpoint} will answer anyone who can reach this server. Anonymous callers get read access only and are rate limited by address, but every call still spends this instance's identity pool.",
+    "confirmAction": "Open it",
+    "saved": "Endpoint access updated",
+    "saveFailed": "Could not update endpoint access",
+    "openCount": "{count, plural, =0 {No endpoint open} one {# endpoint open} other {# endpoints open}}",
+    "openWarning": "{count, plural, one {# endpoint answers without a credential. It still costs this instance's identity pool on every call.} other {# endpoints answer without a credential. They still cost this instance's identity pool on every call.}}"
   }
 }

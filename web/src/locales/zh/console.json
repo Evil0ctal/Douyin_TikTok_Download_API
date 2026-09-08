@@ -20,7 +20,8 @@
     "system": "系统信息",
     "diagnose": "诊断",
     "backup": "备份",
-    "users": "用户"
+    "users": "用户",
+    "endpointAccess": "接口访问控制"
   },
   "page": {
     "overview": {
@@ -1055,5 +1056,22 @@
     "assetsFailed": "无法从 CDN 获取 Swagger UI 资源。离线部署时这是预期行为：原始文档与服务端渲染的页面仍然可用。",
     "emptyTitle": "文档中没有任何接口",
     "emptyDescription": "这属于部署问题而不是数据为空：api 容器没有注册任何路由。"
+  },
+  "access": {
+    "title": "接口访问控制",
+    "description": "所有接口默认都需要 API Key，除非在此开放。管理、认证与初始化类接口无法开放。",
+    "openWarningTitle": "任何能访问到本服务器的人都可调用",
+    "filter": "按路径、说明或方法筛选",
+    "noMatch": "没有匹配的接口",
+    "locked": "始终受保护",
+    "lockedHint": "管理、认证与初始化类接口无论此页如何设置都会被服务端拒绝，因此不提供开关。",
+    "toggleLabel": "无需 Key 即可访问 {endpoint}",
+    "confirmTitle": "确定开放此接口？",
+    "confirmBody": "{endpoint} 将对任何能访问到本服务器的人开放。匿名调用只有读取权限并按来源地址限流，但每次调用仍会消耗本实例的身份池。",
+    "confirmAction": "确认开放",
+    "saved": "接口访问设置已更新",
+    "saveFailed": "接口访问设置更新失败",
+    "openCount": "{count, plural, =0 {未开放任何接口} other {已开放 # 个接口}}",
+    "openWarning": "{count, plural, other {有 # 个接口无需凭证即可响应。每次调用仍会消耗本实例的身份池。}}"
   }
 }

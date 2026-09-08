@@ -1,0 +1,93 @@
+/*
+ * Endpoint access list.
+ *
+ * A long list of paths that has to stay scannable: the method colour and the
+ * lock are what an operator reads first, and the path is mono so a template
+ * segment like {platform} is obviously a placeholder rather than a literal.
+ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+/* The HTTP method, coloured by how much damage it can do. */
+.method {
+  flex: 0 0 auto;
+  min-width: 4.5rem;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.method[data-tone='ok'] {
+  color: var(--success);
+}
+
+.method[data-tone='warn'] {
+  color: var(--caution);
+}
+
+.method[data-tone='danger'] {
+  color: var(--danger);
+}
+
+.method[data-tone='muted'] {
+  color: var(--text-muted);
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.body code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+/*
+ * A locked row occupies the same column as a switch so the list does not jag,
+ * but reads as a statement rather than a control - there is nothing to click,
+ * because the server refuses these paths whatever this page says.
+ */
+.locked {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.count[data-open='true'] {
+  color: var(--warning);
+}
