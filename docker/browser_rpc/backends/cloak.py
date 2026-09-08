@@ -44,7 +44,8 @@ import shutil
 import time
 import uuid
 from collections.abc import Mapping, Sequence
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Final
 
 from browser_rpc.backends.base import (
     BackendInfo,
@@ -192,6 +193,19 @@ READY_POLL_GROWTH: float = 1.6
 
 #: Consecutive probe exceptions that mean the page is gone rather than slow.
 READY_MAX_CONSECUTIVE_ERRORS: int = 3
+
+#: The session cookie a mint must come home with, per platform, as
+#: ``(name, minimum length)``. Only TikTok has one: its ``msToken`` arrives twice,
+#: and the short first value produces signatures the platform refuses. Douyin has
+#: no equivalent - its signing inputs are present as soon as the jar is.
+SESSION_COOKIE_MINIMUMS: Final[Mapping[Platform, tuple[str, int]]] = MappingProxyType(
+    {Platform.TIKTOK: ("msToken", 144)}
+)
+
+#: How long to keep polling for it, and how often. The SDK normally replaces the
+#: bootstrap token within a second of the flat wait above.
+SESSION_COOKIE_WAIT_SECONDS: Final = 15.0
+SESSION_COOKIE_POLL_SECONDS: Final = 0.5
 
 #: Asks the SDK to sign one request and returns whatever it added to the query.
 #:
@@ -476,6 +490,39 @@ class CloakBackend:
             raise BackendFailure(f"could not read the page fingerprint: {exc}") from exc
         return _string_fields(values)
 
+    async def _await_session_cookie(self, context: Any, plan: MintPlan) -> dict[str, str]:
+        """Read the jar once the platform's session token is the usable one.
+
+        The flat wait above is enough for the guest cookies, but not always for
+        TikTok's ``msToken``: the document sets a short bootstrap value and the
+        SDK replaces it a moment later with the one its own requests carry. Both
+        are called ``msToken`` and both look plausible in the pool.
+
+        Measured on 2026-09-08 across a 13-identity pool: every identity minted
+        with a 152-character token signed successfully, and every identity minted
+        with a 128-character one was refused - with a correct signature, because
+        the token is inside the sealed bytes. Nothing downstream can tell the two
+        apart, so an identity minted too early is a permanently broken pool entry
+        that reports as a signing failure. Failing the mint is the cheaper
+        outcome, and the caller already retries.
+        """
+        minimum = SESSION_COOKIE_MINIMUMS.get(plan.platform)
+        deadline = time.monotonic() + SESSION_COOKIE_WAIT_SECONDS
+        cookies = await _collect_cookies(context)
+        if minimum is None:
+            return cookies
+        name, length = minimum
+        while len(cookies.get(name, "")) < length and time.monotonic() < deadline:
+            await asyncio.sleep(SESSION_COOKIE_POLL_SECONDS)
+            cookies = await _collect_cookies(context)
+        held = len(cookies.get(name, ""))
+        if held < length:
+            raise BackendFailure(
+                f"{plan.platform.value} {name} is {held} characters after "
+                f"{SESSION_COOKIE_WAIT_SECONDS:.0f}s; the usable token is at least {length}"
+            )
+        return cookies
+
     # -- operations -------------------------------------------------------
 
     async def mint(self, plan: MintPlan) -> MintedProfile:
@@ -498,7 +545,7 @@ class CloakBackend:
                 raise BackendFailure(f"could not load {plan.landing_url}: {exc}") from exc
 
             fingerprint = await self._read_fingerprint(page)
-            cookies = await _collect_cookies(context)
+            cookies = await self._await_session_cookie(context, plan)
             if not cookies:
                 raise BackendFailure(
                     f"{plan.platform.value} set no cookies; the exit is most likely blocked"

@@ -1,35 +1,38 @@
-"""The pure Python signer: cheap, incomplete, and no longer the default.
+"""The pure Python signer: cheap, complete, and now the default.
 
-This is V4's ``BogusManager`` rewritten against the ``Signer`` protocol. It costs
-microseconds and has no external dependency. It is NOT the default - ``signing.mode``
-ships as ``rpc`` - and the docstring said the opposite here for a while, which is
-worth correcting rather than deleting: the reason is measured, not architectural.
+This started as V4's ``BogusManager`` rewritten against the ``Signer`` protocol.
+It costs microseconds and has no external dependency, and as of 2026-09-08 it
+signs every endpoint of both platforms - ``signing.mode`` ships as ``native``, and
+the browser's job is to mint identities rather than to sign what they send.
 
-Measured against live Douyin on 2026-09-08, one identity, twenty requests:
+The history is kept because it is the argument for the shape of the thing. This
+docstring twice claimed the algorithm was the problem, and both times it was the
+parameters around it:
 
-* This signer's ``a_bogus`` is ACCEPTED. Eight of twenty returned the full
-  payload, so the ported algorithm is not stale in the sense of computing a
-  wrong signature - a wrong one would have returned none.
-* The other twelve were refused with ``403 Uifid Not Found``. Douyin demands
-  ``uifid`` on a random majority of requests, and this signer cannot produce it.
-  Supplying the identity's ``UIFID_TEMP`` cookie satisfies that check and the
-  refusal simply moves to ``Signature Not Found`` - ``x-secsdk-web-signature``,
-  which has no port either. The browser path scored twenty of twenty.
+* Douyin. The ported ``a_bogus`` was always ACCEPTED - eight of twenty live
+  requests returned the full payload, and a wrong signature would have returned
+  none. The other twelve were refused ``403 Uifid Not Found``, then ``Signature
+  Not Found`` once the cookie was supplied. Of the six parameters Douyin sends,
+  this signer produced one. :mod:`dtk.signing.native.websign` ports the missing
+  ``x-secsdk-web-signature`` and reads ``uifid`` off the jar; 24 of 24 live
+  requests across all four endpoints then returned data.
+* TikTok. :mod:`dtk.signing.native.tiktok_sign` ports ``X-Dynosaur`` and
+  ``X-Gnarly``. The algorithm reproduces the platform's own seal byte for byte,
+  but two environment constants were taken from a Node harness rather than a
+  browser, and only ``/api/post/item_list/`` checks them - so one endpoint
+  returned an empty body while the rest looked healthy. A capture fixed it.
 
-So the gap is not the algorithm, it is the parameters around it: of the six
-Douyin sends, this signer produces one. Reviving it means porting
-``x-secsdk-web-signature`` and deriving ``uifid``, not rewriting A-Bogus.
-
-TikTok is a different story and is now complete: :mod:`dtk.signing.native.tiktok_sign`
-ports ``X-Dynosaur`` and ``X-Gnarly``, the two parameters TikTok's own SDK
-computes, so no TikTok endpoint needs a browser either.
+Both stories have the same moral, and it is the reason ``fallback_enabled``
+exists: a signer that is wrong in one place looks fine everywhere else, and
+silent fallback to the other signer is what keeps it looking fine.
 
 Two things it does that V4 did not:
 
 * The signature follows the identity's fingerprint. V4 signed every request as
   one hard-coded Chrome 90 on a MacIntel screen no matter which identity sent it;
   a fingerprint that disagrees with itself across layers is the cheapest way to
-  be spotted.
+  be spotted. TikTok enforces this: the same signed bytes replayed over a Firefox
+  TLS profile are refused.
 * A missing ``msToken`` is filled in locally rather than left out, and the caller
   can turn that off.
 """

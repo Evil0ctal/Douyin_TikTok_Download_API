@@ -40,6 +40,7 @@ from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from dtk.core.types import Platform
+from dtk.signing.native.tiktok_sign import pick_ms_token
 from dtk.signing.native.websign import pick_uifid
 
 #: Douyin paths whose GET requests the platform signs. Copied from the SDK's own
@@ -72,17 +73,23 @@ def requires_browser_signature(
 ) -> bool:
     """Whether this request needs a signature only a browser can produce.
 
-    TikTok is always True and not from a table: its pages sign with X-Gnarly and
-    X-Dynosaur, for which there is no port at all, so there is no unprotected
-    subset to find.
+    Both platforms are now False wherever the native signer has what it needs,
+    and the shape of the answer is the same for each: the port can sign, but only
+    a browser can mint the session value the signature has to carry.
 
-    Douyin is False wherever the native signer can do the job, which is now
-    everywhere it has the identity's jar: `dtk.signing.native.websign` computes
-    the platform's own ``x-secsdk-web-signature``, and 24 of 24 live requests
-    across all four endpoints returned data with no browser involved on
-    2026-09-08. The table below still decides for a jar with no visitor id in
-    it, because that is the one case the native path cannot sign.
+    TikTok needs the identity's ``msToken``. `dtk.signing.native.tiktok_sign`
+    produces X-Dynosaur and X-Gnarly, verified against the platform's own seal
+    byte for byte and live on all four endpoints on 2026-09-08. A jar with no
+    token is the case the port cannot cover, so it goes to the browser.
+
+    Douyin needs the identity's visitor id, for the same reason:
+    `dtk.signing.native.websign` computes the platform's own
+    ``x-secsdk-web-signature``, and 24 of 24 live requests across all four
+    endpoints returned data with no browser involved. The table below still
+    decides for a jar with no visitor id in it.
     """
+    if platform is Platform.TIKTOK:
+        return not pick_ms_token(cookies)
     if platform is not Platform.DOUYIN:
         return True
     if _normalise(urlsplit(url).path) not in DOUYIN_SIGNED_PATHS:

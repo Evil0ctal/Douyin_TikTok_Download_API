@@ -522,16 +522,14 @@ class TestClassifier:
         assert result.rule == "payload.withheld"
 
     def test_a_path_the_platform_refuses_to_serve_does_not_cool_the_identity(self) -> None:
-        """TikTok decides per PATH, and no identity can change its mind.
+        """TikTok refusing a signature it did not accept, as a 200 with no body.
 
-        Measured on 2026-09-08: with the same session and parameters seconds
-        apart, /api/repost/item_list/ returned 683KB while /api/post/item_list/
-        returned nothing, both stamped tt_orcas_res: 1 on the blocked one.
-        TikTok's own page gets the same empty answer there, with its own genuine
-        signature. Read as risk control, every such call would cool an identity
-        and count toward the circuit breaker for a decision no identity can
-        affect - so the pool would degrade permanently while the real fix (use a
-        different endpoint) went unnamed.
+        Proven on 2026-09-08 by holding one captured request byte-identical and
+        changing only the seal: the browser's own signature returned 82KB, ours
+        returned 0 bytes and this header, and correcting two constants in the
+        port turned the same call into 495KB. Only /api/post/item_list/ verifies
+        the environment report, which is why a mis-signed client fails on one
+        path and looks like a platform block everywhere else.
         """
         response = RawResponse(
             status=200,
@@ -539,20 +537,20 @@ class TestClassifier:
             body=b"",
         )
         result = classify_detailed(response)
-        assert result.rule == "platform.path_gated"
-        assert result.outcome is Outcome.BUSINESS_ERROR
+        assert result.rule == "signature.rejected"
+        assert result.outcome is Outcome.RISK_CONTROL
         assert result.detail == "tt_orcas_res=1"
 
-    def test_a_hollow_body_from_a_gated_path_is_caught_too(self) -> None:
-        """The gate also answers with an intact envelope and nothing in it."""
+    def test_a_hollow_body_from_a_rejected_signature_is_caught_too(self) -> None:
+        """The refusal also comes back as an intact envelope with nothing in it."""
         response = RawResponse(
             status=200,
             headers={"content-type": "application/json", "tt_orcas_res": "1"},
             body=b'{"userInfo": {"user": {}, "stats": {}, "shareMeta": {}}}',
         )
         result = classify_detailed(response)
-        assert result.rule == "platform.path_gated"
-        assert result.outcome is Outcome.BUSINESS_ERROR
+        assert result.rule == "signature.rejected"
+        assert result.outcome is Outcome.RISK_CONTROL
 
     def test_an_ungated_empty_body_is_still_risk_control(self) -> None:
         """The rule must not swallow the signal it sits in front of."""

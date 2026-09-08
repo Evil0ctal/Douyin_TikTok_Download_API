@@ -215,8 +215,8 @@ DEFAULT_COMPARATORS: Mapping[str, SignatureComparator] = {
 #: How the registry picks between the two signers. Surfaced as ``signing.mode``
 #: in the console.
 #:
-#: ``rpc``    - always ask the browser. Currently the only mode that produces a
-#:              signature either platform accepts.
+#: ``rpc``    - always ask the browser. The mode to fall back to when a platform
+#:              changes its SDK and the port has not caught up yet.
 #: ``native`` - always run the in-process algorithms, and never reach for a
 #:              browser. The mode for a deployment with no browser-rpc service.
 #: ``auto``   - start native and switch an endpoint to the browser once its risk
@@ -228,26 +228,30 @@ SigningMode = Literal["rpc", "native", "auto"]
 class RegistryPolicy:
     """Thresholds; defaults follow docs/design/03-scheduler.md.
 
-    ``mode`` defaults to ``rpc`` because the native signers are known stale.
+    ``mode`` defaults to ``native``: browser-rpc mints identities, and the
+    in-process algorithms sign every request those identities then send. That is
+    the ordering decision D6 always wanted, and it is now the one the evidence
+    supports.
 
-    Verified in a live browser on 2026-09-07 (docs/design/04-transport-signing.md):
-    Douyin currently sends a 184-character ``a_bogus`` alongside ``verifyFp``,
-    ``fp``, ``uifid``, ``timestamp`` and ``x-secsdk-web-signature``, and sends no
-    ``msToken`` and no ``X-Bogus`` at all; TikTok signs with ``X-Gnarly`` and
-    ``X-Dynosaur`` and has reduced ``X-Bogus`` to a single vestigial character.
-    The implementations inherited from V4 produce neither shape.
+    Verified live on 2026-09-08, native signer plus wreq, no browser in the
+    request path: Douyin 4/4 endpoints, TikTok 4/4 - ``author_posts`` 495KB/20
+    items, ``content_detail`` 28KB, ``comments`` 8.5KB, ``author_profile`` 2.5KB.
 
-    The golden vectors in tests/unit/test_signing_golden.py still pass: they
-    prove the port is faithful to V4, which is a different claim from V4 still
-    being correct. It is not.
+    The last TikTok endpoint to fall was ``/api/post/item_list/``, and it is worth
+    saying why, because it is the failure mode this default has to survive. It is
+    the only endpoint that verifies the X-Dynosaur environment report; the rest
+    answer a mis-signed request normally. Two constants in the port were wrong,
+    so one path returned 200 with an empty body while everything else looked
+    healthy. Proven by holding a captured request byte-identical and changing only
+    the seal - the browser's returned 82KB, ours 0 bytes - and fixed by taking the
+    values from a real capture instead of from a Node harness.
 
-    So the ordering in decision D6 - native first, RPC as fallback - is inverted
-    here on evidence. The native path stays because it is the only thing that
-    works with no browser at all, and because whoever next reverse-engineers the
-    current algorithm will want somewhere to put it.
+    Which is the argument for ``fallback_enabled`` below, not against this default:
+    a signer can be broken on one endpoint and fine on every other, and the thing
+    that hides it is traffic quietly moving to the other signer.
     """
 
-    mode: SigningMode = "rpc"
+    mode: SigningMode = "native"
     #: Whether the mode's non-preferred signer may be used when the preferred
     #: one is unavailable. Turning it off is a diagnostic: with fallback on, a
     #: signer that has stopped working looks healthy because its traffic quietly

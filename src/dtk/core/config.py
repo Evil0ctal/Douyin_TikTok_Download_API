@@ -249,16 +249,16 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         ),
         SettingSpec("notify.language", "en", Scope.RUNTIME, str, ""),
         # --- signing ---------------------------------------------------------
-        # Which signer to try first. Measured against both live sites on
-        # 2026-09-07, the ported V4 algorithms no longer produce what the
-        # platforms send: Douyin has moved to a 184-character a_bogus and
-        # dropped X-Bogus entirely, TikTok signs with X-Gnarly. So "rpc" is the
-        # working default, and "native" stays selectable for whoever next
-        # reverse-engineers the current algorithm.
-        # See docs/design/04-transport-signing.md.
+        # Which signer to try first. The V4 ports really were stale on
+        # 2026-09-07; the current algorithms were reverse-engineered on
+        # 2026-09-08 and verified live on all four endpoints of both platforms
+        # with no browser in the request path, so "native" is the default and
+        # the browser is what mints identities rather than what signs.
+        # "rpc" stays selectable, and is where to go the day a platform ships a
+        # new SDK. See docs/design/17-signature-reversing.md.
         SettingSpec(
             "signing.mode",
-            "rpc",
+            "native",
             Scope.RUNTIME,
             str,
             "Which signer to prefer: rpc drives a real browser, native runs the "
