@@ -9,10 +9,12 @@ Everything needed to run dtk on one host. The design this implements is
 docker/
 ├── Dockerfile           api + worker + migrate (one image, three entrypoints)
 ├── Dockerfile.browser   browser-rpc (optional, --profile browser)
+├── Dockerfile.downloader  media downloader (optional, --profile downloader)
 ├── entrypoint.sh        role dispatch and the DTK_SECRET_KEY gate
 ├── compose.yml          the stack
 ├── compose.test.yml     test fixtures only (owned elsewhere; never used here)
-└── browser_rpc/         the RPC service source, built into Dockerfile.browser
+├── browser_rpc/         the RPC service source, built into Dockerfile.browser
+└── downloader/          the Go downloader source, built into Dockerfile.downloader
 ```
 
 ## Quick start
@@ -55,6 +57,24 @@ CLOAKBROWSER_COMMIT=<sha> \
 Leaving the profile off is a supported deployment, not a degraded one: a user who
 imports cookies by hand does not need the heaviest container in the stack, and
 the pool falls back to manual import on its own when browser-rpc is unreachable.
+
+With the media downloader (storing video and images on this host's own disk):
+
+```bash
+echo 'DTK_DOWNLOADER_URL=http://downloader:9100' >> .env
+docker compose -p dtk -f docker/compose.yml --profile downloader up -d --build
+```
+
+Also optional, and also not degraded without it: `POST /api/v1/downloads` then
+answers 501 with a message saying how to turn it on, and nothing else changes.
+The files land on the `media-data` volume, laid out as
+`<platform>/<author>/<content id>/` with a `meta.json` beside them. They are
+never served back through the API - this container fills the operator's disk,
+it does not relay media to callers (`docs/design/18-storage-media-and-collection.md`).
+
+Stored media is capped by the `media.max_bytes` setting, 2 GiB by default.
+Past it the oldest unpinned downloads are removed and an alert says what went;
+pinning one in the console exempts it for good.
 
 ## What the images are
 

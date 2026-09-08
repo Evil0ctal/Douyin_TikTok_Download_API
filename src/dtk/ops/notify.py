@@ -86,6 +86,11 @@ class NotifyEvent(StrEnum):
     #: background collection has already stopped.
     CAPACITY_WARNING = "capacity_warning"
     CAPACITY_PAUSED = "capacity_paused"
+    #: Stored media was deleted to stay under the size ceiling. Its own event
+    #: rather than a capacity one: nothing is wrong, a policy the operator set
+    #: did exactly what it was told, and they still need to be told which files
+    #: it took - because that is the only notice they will ever get.
+    MEDIA_EVICTED = "media_evicted"
     #: Nothing detects this one: it is the console's Test button, pressed to
     #: prove a channel is reachable before an incident depends on it.
     TEST = "test"
@@ -125,6 +130,10 @@ TRIGGERS: Final[Mapping[NotifyEvent, TriggerSpec]] = {
     # so a full media disk does not suppress the warning for the database one.
     NotifyEvent.CAPACITY_WARNING: TriggerSpec(Severity.WARNING, 6 * HOUR, ("worst_path",)),
     NotifyEvent.CAPACITY_PAUSED: TriggerSpec(Severity.ERROR, 1 * HOUR, ("worst_path",)),
+    # Six hours, same reasoning as the capacity pair: on a busy instance the
+    # ceiling is reached again within minutes, and one line per eviction would
+    # train an operator to mute the channel that also carries POOL_EMPTY.
+    NotifyEvent.MEDIA_EVICTED: TriggerSpec(Severity.WARNING, 6 * HOUR, ()),
     # A test arrives one deliberate press at a time, so there is no storm to
     # damp. :meth:`Notifier.send_test` does not consult the deduplicator at
     # all; the zero window is here so this table cannot be read as promising a

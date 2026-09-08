@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -52,6 +52,14 @@ class BootstrapSettings(BaseSettings):
     #: relative, which suits a checkout and the CLI; the container image is
     #: read-only, so it sets this to a mounted volume instead.
     backup_dir: str = "backups"
+    #: Where the Go media downloader listens. Empty disables media downloads
+    #: entirely, which is the correct state for a deployment that never starts
+    #: the `downloader` compose profile - the archive is unaffected.
+    downloader_url: str = ""
+    #: Optional shared secret for that sidecar. It listens on an internal
+    #: network no other container is on, so this is defence in depth rather
+    #: than the boundary; empty means the sidecar checks nothing.
+    downloader_token: str = ""
 
     @field_validator("secret_key")
     @classmethod
@@ -131,6 +139,31 @@ def _percent(value: Any) -> int:
     if not 1 <= number <= 99:
         raise ValueError("must be between 1 and 99")
     return number
+
+
+def _byte_ceiling(value: Any) -> int:
+    """A byte limit that is either off or big enough to be a limit.
+
+    0 means "no ceiling" and is a deliberate choice an operator may make. A
+    small positive number is not: 1000 bytes would refuse every real transfer,
+    and it would do it as a per-file error rather than as anything resembling
+    "your setting is wrong". One mebibyte is the floor.
+    """
+    number = int(value)
+    if number < 0:
+        raise ValueError("must not be negative")
+    if 0 < number < 1024 * 1024:
+        raise ValueError("must be 0 (unlimited) or at least 1 MiB")
+    return number
+
+
+#: What an unattended instance may fill by itself, chosen by the maintainer:
+#: a self-hoster who leaves this running overnight would rather lose a few old
+#: videos than a partition.
+DEFAULT_MEDIA_CEILING: Final = 2 * 1024**3
+#: One file. A long Douyin video measured 246 MB on 2026-09-08, so this is
+#: roughly twice the largest thing normally encountered.
+DEFAULT_MEDIA_FILE_CEILING: Final = 512 * 1024**2
 
 
 RUNTIME_SETTINGS: dict[str, SettingSpec] = {
@@ -330,6 +363,50 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "Delete archived posts older than this many days. 0 means never, "
             "which is the default: the archive exists precisely to outlive the "
             "platform.",
+        ),
+        # --- media downloads ---------------------------------------------------
+        # The one part of this system that writes large files to a disk on its
+        # own initiative, so both of its limits are settings rather than
+        # constants: the total the volume may hold, and the most any one file
+        # may be. Both are counted in bytes actually written - Content-Length
+        # and the platform's own size_bytes are claims, and doc 18 records that
+        # neither is trusted.
+        SettingSpec(
+            "media.enabled",
+            True,
+            Scope.RUNTIME,
+            bool,
+            "Allow media downloads. Off refuses new jobs and leaves stored "
+            "files alone; nothing is deleted by turning this off.",
+        ),
+        SettingSpec(
+            "media.max_bytes",
+            DEFAULT_MEDIA_CEILING,
+            Scope.RUNTIME,
+            int,
+            "How much disk stored media may occupy. Past it the oldest "
+            "unpinned downloads are removed until the volume is back under, "
+            "and an alert says what went. 0 disables eviction entirely.",
+            validate=_byte_ceiling,
+        ),
+        SettingSpec(
+            "media.max_file_bytes",
+            DEFAULT_MEDIA_FILE_CEILING,
+            Scope.RUNTIME,
+            int,
+            "Ceiling for one file, counted on bytes written rather than on "
+            "what the server claims. A transfer that reaches it is refused and "
+            "leaves nothing behind.",
+            validate=_byte_ceiling,
+        ),
+        SettingSpec(
+            "media.mirror_max_age_seconds",
+            600,
+            Scope.RUNTIME,
+            int,
+            "How old an archived media link may be before a download re-parses "
+            "the post to get fresh ones. Signed CDN links expire within hours; "
+            "0 always re-parses.",
         ),
         # --- selectively opened endpoints -------------------------------------
         # Empty by default: every endpoint needs a credential. An operator can

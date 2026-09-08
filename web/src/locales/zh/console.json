@@ -22,7 +22,8 @@
     "backup": "备份",
     "users": "用户",
     "endpointAccess": "接口访问控制",
-    "tools": "基础工具"
+    "tools": "基础工具",
+    "downloads": "下载"
   },
   "page": {
     "overview": {
@@ -438,7 +439,8 @@
       "system": "系统",
       "other": "其它",
       "archive": "内容归档",
-      "capacity": "容量"
+      "capacity": "容量",
+      "media": "媒体"
     },
     "groupHint": {
       "sched": "等待、排队、冷却，以及接口熔断的阈值。",
@@ -453,7 +455,8 @@
       "system": "实例级行为，包含默认关闭的更新检查。",
       "other": "没有独立分组的配置项。",
       "archive": "任务结果过期后本实例会保留什么。归档保存作品的当前状态，旁边的指标历史保存它如何变化。",
-      "capacity": "磁盘接近写满时本实例的行为：先告警，再暂停后台写入——但绝不删除数据。"
+      "capacity": "磁盘接近写满时本实例的行为：先告警，再暂停后台写入——但绝不删除数据。",
+      "media": "下载的视频与图片存放在哪里、最多可以占用多少磁盘、达到上限后会发生什么。这里只会删除已保存的文件，且永远不会删除置顶的那些。"
     },
     "choice": {
       "signing.mode": {
@@ -865,13 +868,21 @@
       "douyinRead": "读取抖音数据",
       "tiktokRead": "读取 TikTok 数据",
       "identityManage": "管理身份池",
-      "admin": "完整管理权限"
+      "admin": "完整管理权限",
+      "archiveRead": "读取内容归档",
+      "archiveExport": "导出整个归档",
+      "mediaRead": "查看已保存的媒体",
+      "mediaWrite": "保存与置顶媒体"
     },
     "scopeHint": {
       "douyinRead": "抖音的作品、作者、评论与解析接口。",
       "tiktokRead": "TikTok 的同类接口。",
       "identityManage": "铸造、导入、测试与退休身份。普通读取密钥绝不应该拥有它。",
-      "admin": "包含配置与用户在内的全部权限，请谨慎授予。"
+      "admin": "包含配置与用户在内的全部权限，请谨慎授予。",
+      "archiveRead": "本实例已经采集到的全部内容，直接从本地存储返回。刻意与平台读取权限分开：开放某个平台接口不应等于开放整个数据集。",
+      "archiveExport": "一次请求遍历整个归档。这是唯一一个能把只读密钥变成数据库副本的调用。",
+      "mediaRead": "列出服务器磁盘上有什么、占用多少空间。文件本身永远不会通过 API 提供。",
+      "mediaWrite": "发起下载、置顶保护、取消下载。它会消耗身份配额并占用磁盘，因此任何只读权限都不隐含它。"
     },
     "rateLimitHint": "每分钟请求数。这是防滥用限额，不是计费额度：本项目没有套餐、用量计量或结算。它存在的唯一目的，是防止写错的脚本把整个身份池打穿。留空则沿用实例默认值。",
     "rateLimitInvalid": "请输入 {min} 到 {max} 之间的整数，或者留空。",
@@ -1141,6 +1152,66 @@
       "cookiesHint": "请整套一起使用。其中 msToken 与 UIFID_TEMP 是任何算法都无法生成的。",
       "fingerprint": "指纹",
       "fingerprintHint": "请使用该 User-Agent 发送请求。cookie 与 UA 不匹配的身份比没有身份更弱。"
+    }
+  },
+  "downloads": {
+    "title": "下载",
+    "description": "本实例保存在自己磁盘上的媒体。文件写入服务器的媒体卷，本页面只做索引，永远不会把文件回传。",
+    "unavailableTitle": "下载器未运行",
+    "unavailable": "无法连接到下载器容器。",
+    "unavailableHint": "用 --profile downloader 启动它并设置 DTK_DOWNLOADER_URL。本实例的其他功能不受影响，缺的只是抓取文件这一步。",
+    "evicted": "已清理",
+    "evictedHint": "为了控制媒体容量上限，文件已被删除。记录保留，重新请求一次即可重新下载。",
+    "pin": "置顶",
+    "pinned": "已置顶",
+    "pinHint": "按容量清理时保住这些文件。这是唯一能阻止它们被删除的方式。",
+    "unpinHint": "取消置顶，让容量清理可以删除这些文件。",
+    "metric": {
+      "stored": "已占用磁盘",
+      "ofCeiling": "上限 {ceiling}",
+      "noCeiling": "未设置上限，不会自动清理",
+      "downloads": "下载数",
+      "inFlight": "{count, plural, other {进行中 #}}",
+      "pinned": "已置顶",
+      "pinnedHint": "永远不会被容量清理删除",
+      "evicted": "已清理",
+      "evictedHint": "文件已删除，记录保留"
+    },
+    "start": {
+      "title": "保存作品媒体",
+      "description": "作品必须已经在归档里：这里填的是内容 ID 而不是 URL，所以你输入的内容不会决定去连接哪个主机。",
+      "action": "开始保存",
+      "sinkNote": "文件写入服务器的媒体卷，永远不会通过本 API 回传——这是你磁盘上的存档，不是代理。"
+    },
+    "field": {
+      "platform": "平台",
+      "contentId": "内容 ID",
+      "contentIdHint": "归档中保存的作品 ID。如果还没有，请先解析一次该作品。"
+    },
+    "column": {
+      "content": "作品",
+      "state": "状态",
+      "files": "文件数",
+      "size": "大小",
+      "finished": "完成时间",
+      "keep": "保留"
+    },
+    "filter": {
+      "allStates": "全部状态"
+    },
+    "empty": {
+      "title": "还没有保存任何内容",
+      "description": "可以在上方开始一个。文件写入服务器的媒体卷，按 平台/作者/作品 的结构存放，旁边附带 meta.json。"
+    },
+    "toast": {
+      "started": "已开始下载",
+      "startFailed": "无法开始下载",
+      "pinned": "已置顶，清理时会跳过",
+      "unpinned": "已取消置顶"
+    },
+    "file": {
+      "sha256": "sha256",
+      "none": "这个作品没有保存下任何文件。"
     }
   }
 }

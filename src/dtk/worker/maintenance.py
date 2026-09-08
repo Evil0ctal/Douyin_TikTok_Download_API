@@ -24,6 +24,16 @@ expensive:
 * **expiring logins are announced early.** An imported session cookie dies at a
   known time (:func:`dtk.identity.importing.session_expiry`). Warning days ahead
   turns a sudden mass failure into a scheduled chore.
+* **stored media stays under its ceiling.** The only job here that deletes
+  anything a user can see, and the only one that had to: an unattended instance
+  fetching video fills a partition otherwise. Oldest first, pinned never, files
+  only - the `media_downloads` row survives its files, so "collected and later
+  cleaned up" stays a different fact from "never fetched".
+* **abandoned downloads stop claiming to be in flight.** The task that runs a
+  download is re-queued like any other, but a task that exhausts its attempts
+  leaves the download row saying `running` for good. Nothing else would ever
+  correct it, and a console that shows a transfer in flight forever is worse
+  than one that shows a failure.
 
 See docs/design/15-operations.md and docs/design/05-data-model.md.
 """
@@ -35,20 +45,23 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text, update
 
 from dtk.core.crypto import Cipher
 from dtk.core.db import get_engine, session_scope
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.core.types import IdentitySource, IdentityState, TaskState
+from dtk.db.base import affected
 from dtk.db.models import CONTINUOUS_AGGREGATES
 from dtk.db.models import Identity as IdentityRow
+from dtk.db.models import MediaDownload as MediaDownloadRow
 from dtk.db.models import Task as TaskRow
 from dtk.identity.importing import session_expiry
 from dtk.identity.pool import purge_retired
+from dtk.media import DownloaderClient, DownloaderUnavailable
 from dtk.ops import capacity, retention
-from dtk.services import tasks
+from dtk.services import downloads, tasks
 from dtk.worker.alerts import Alerter, NotifyEvent, raise_alert
 
 log = get_logger(__name__)
@@ -67,6 +80,11 @@ class MaintenanceConfig:
     #: cannot be pushed back onto the queue all at once.
     requeue_limit: int = 200
     session_expiry_warning_days: int = 3
+    #: A download still queued or running this long after it was created is
+    #: presumed abandoned. Generous: a 250 MB video over a slow link is a
+    #: legitimate half hour, and failing a transfer that is still going would
+    #: be a worse error than leaving a stale row for another tick.
+    stale_download_seconds: int = 7200
     #: How far back a manual aggregate refresh reaches. Wider than the chunk
     #: interval, so a refresh that was missed once still catches up.
     aggregate_refresh_window: str = "1 day"
@@ -81,6 +99,12 @@ class MaintenanceReport:
     capacity: capacity.CapacityReport | None = None
     aggregates_refreshed: list[str] = field(default_factory=list)
     expiring_sessions: int = 0
+    #: Downloads whose files were removed to stay under the media ceiling.
+    media_evicted: int = 0
+    media_freed_bytes: int = 0
+    #: Downloads that were still claiming to be in flight long after any real
+    #: transfer could have been.
+    stale_downloads_failed: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -94,6 +118,7 @@ class Maintenance:
         session_factory: SessionFactory = session_scope,
         engine_factory: Callable[[], Any] = get_engine,
         alerter: Alerter | None = None,
+        downloader: DownloaderClient | None = None,
     ) -> None:
         self._cipher = cipher
         self._config: Callable[[], Any] = config if callable(config) else (lambda: config)
@@ -101,6 +126,7 @@ class Maintenance:
         self._session_factory = session_factory
         self._engine_factory = engine_factory
         self._alerter = alerter
+        self._downloader = downloader
         self._timescale: bool | None = None
 
     # -- entry point -------------------------------------------------------
@@ -115,6 +141,8 @@ class Maintenance:
             ("refresh_aggregates", self.refresh_aggregates),
             ("warn_expiring_sessions", self.warn_expiring_sessions),
             ("check_capacity", self.check_capacity),
+            ("enforce_media_ceiling", self.enforce_media_ceiling),
+            ("fail_stale_downloads", self.fail_stale_downloads),
         ):
             try:
                 await job(report)
@@ -128,6 +156,8 @@ class Maintenance:
             requeued_tasks=report.requeued_tasks,
             aggregates_refreshed=len(report.aggregates_refreshed),
             expiring_sessions=report.expiring_sessions,
+            media_evicted=report.media_evicted,
+            stale_downloads_failed=report.stale_downloads_failed,
             errors=len(report.errors),
         )
         return report
@@ -169,6 +199,121 @@ class Maintenance:
             worst_path=verdict.worst_path or "",
             hard_stop=int(config.get("capacity.hard_stop_percent")),
         )
+
+    # -- media -------------------------------------------------------------
+
+    async def enforce_media_ceiling(self, report: MaintenanceReport) -> None:
+        """Delete stored media, oldest first, until the volume is under its ceiling.
+
+        The only job in this class that removes something a user can see, so
+        every guard is explicit:
+
+        * the total comes from the volume, not from this database. Files can be
+          removed by hand or restored from a backup, and a sweep that trusted
+          its own bookkeeping would delete to satisfy a number nothing else
+          agrees with;
+        * pinned downloads are skipped, always. Without an exemption a
+          size-based policy eventually removes the one file somebody meant to
+          keep, and a deleted post cannot be fetched again;
+        * only files go. The row, its digests and its file list stay, so the
+          library still shows what was collected and says it was evicted;
+        * every sweep that removes something raises an alert. This is the only
+          notice an operator gets that their disk policy just ran.
+
+        A ceiling of 0 disables the whole thing, which is a choice an operator
+        is allowed to make.
+        """
+        client = self._downloader
+        if client is None or not client.configured:
+            return
+        ceiling = int(self._config().get("media.max_bytes"))
+        if ceiling <= 0:
+            return
+
+        try:
+            volume = await client.files()
+        except DownloaderUnavailable as exc:
+            # An absent sidecar is not an error here. The profile may simply not
+            # be running, and a maintenance pass must not start failing because
+            # an optional container is down.
+            log.debug("worker.maintenance.media_unavailable", error=str(exc)[:200])
+            return
+
+        total = int(volume.get("total_bytes") or 0)
+        if total <= ceiling:
+            return
+
+        async with self._session_factory() as session:
+            eviction = await downloads.plan_eviction(
+                session, total_bytes=total, ceiling_bytes=ceiling
+            )
+        if not eviction.paths:
+            # Over the ceiling with nothing evictable means everything on the
+            # volume is pinned, or was written by something other than a
+            # recorded download. Saying so beats sweeping silently forever.
+            log.warning(
+                "worker.maintenance.media_over_ceiling",
+                total_bytes=total,
+                ceiling_bytes=ceiling,
+                pinned_bytes=eviction.pinned_bytes,
+                action="nothing evictable",
+            )
+            return
+
+        removed = await client.delete(list(eviction.paths))
+        freed = int(removed.get("freed_bytes") or 0)
+        confirmed = {str(path) for path in removed.get("removed") or []}
+        # Only what the sidecar confirmed it removed is marked evicted. Marking
+        # optimistically would produce a row claiming the file is gone while it
+        # is still on the disk, and the next sweep would then never reclaim it.
+        evicted_ids = [
+            download_id
+            for path, download_id in zip(eviction.paths, eviction.ids, strict=True)
+            if path in confirmed
+        ]
+        async with self._session_factory() as session:
+            report.media_evicted = await downloads.mark_evicted(session, evicted_ids)
+        report.media_freed_bytes = freed
+
+        log.warning(
+            "worker.maintenance.media_evicted",
+            downloads=report.media_evicted,
+            freed_bytes=freed,
+            total_bytes=total,
+            ceiling_bytes=ceiling,
+        )
+        await raise_alert(
+            self._alerter,
+            NotifyEvent.MEDIA_EVICTED,
+            files=report.media_evicted,
+            freed=_human_bytes(freed),
+            ceiling=_human_bytes(ceiling),
+        )
+
+    async def fail_stale_downloads(self, report: MaintenanceReport) -> None:
+        """Settle downloads whose worker never came back.
+
+        Only rows old enough that no transfer could still be running, and only
+        the two live states. Nothing on disk is touched: files that did land
+        stay where they are, and the row keeps whatever it managed to record.
+        """
+        cutoff = datetime.now(UTC) - timedelta(seconds=self._options.stale_download_seconds)
+        async with self._session_factory() as session:
+            result = await session.execute(
+                update(MediaDownloadRow)
+                .where(
+                    MediaDownloadRow.state.in_(downloads.LIVE_STATES),
+                    MediaDownloadRow.created_at < cutoff,
+                )
+                .values(
+                    state="failed",
+                    error="the worker never reported an outcome for this download",
+                    finished_at=func.now(),
+                )
+            )
+        report.stale_downloads_failed = affected(result)
+        if report.stale_downloads_failed:
+            log.warning("worker.maintenance.stale_downloads", count=report.stale_downloads_failed)
 
     # -- retention ---------------------------------------------------------
 
@@ -351,6 +496,20 @@ class Maintenance:
             # A row this key cannot open is not this job's problem to report.
             return None
         return session_expiry(cookies_from_header(header))
+
+
+def _human_bytes(value: int) -> str:
+    """Bytes as something an operator reads in an alert rather than counts.
+
+    "1.9 GiB" in a notification is the number someone acts on; 2040109465 is a
+    number they have to divide twice before they can.
+    """
+    size = float(value)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if size < 1024 or unit == "GiB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} GiB"
 
 
 def cookies_from_header(header: str) -> dict[str, str]:

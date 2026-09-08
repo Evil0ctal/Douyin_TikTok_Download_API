@@ -40,8 +40,32 @@ export type RejectReason = (typeof REJECT_REASONS)[number]
 export const USER_ROLES = ['admin', 'operator', 'viewer'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
-export const SCOPES = ['douyin:read', 'tiktok:read', 'identity:manage', 'admin'] as const
+export const SCOPES = [
+  'douyin:read',
+  'tiktok:read',
+  'identity:manage',
+  'archive:read',
+  'archive:export',
+  'media:read',
+  'media:write',
+  'admin',
+] as const
 export type Scope = (typeof SCOPES)[number]
+
+/**
+ * A download's outcome. `partial` is its own state rather than a success or a
+ * failure: a post whose video landed and whose third image 404'd is neither,
+ * and reporting it as either hides half of what happened.
+ */
+export const DOWNLOAD_STATES = [
+  'queued',
+  'running',
+  'done',
+  'partial',
+  'failed',
+  'cancelled',
+] as const
+export type DownloadState = (typeof DOWNLOAD_STATES)[number]
 
 export const BROWSER_FAMILIES = ['chrome', 'firefox', 'safari'] as const
 export type BrowserFamily = (typeof BROWSER_FAMILIES)[number]

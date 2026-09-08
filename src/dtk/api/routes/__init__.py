@@ -14,6 +14,7 @@ Layout, in the order a caller meets it:
 ``content``             ``/api/v1/parse`` and the per-platform reads
 ``tools``               ``/api/v1/tools/*`` - signing, link parsing
 ``archive``             ``/api/v1/archive/*`` - what this instance has stored
+``downloads``           ``/api/v1/downloads/*`` - media stored on the local disk
 ``admin``               ``/api/v1/admin/*``
 ======================  ===================================================
 
@@ -32,6 +33,7 @@ from dtk.api.routes import (
     archive,
     auth,
     content,
+    downloads,
     ios,
     openapi,
     setup,
@@ -53,6 +55,7 @@ ROUTERS = (
     tasks.router,
     content.router,
     archive.router,
+    downloads.router,
     tools.router,
     admin.router,
 )

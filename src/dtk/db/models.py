@@ -521,6 +521,80 @@ class ArchivedContent(Base):
         return _repr("ArchivedContent", platform=self.platform, content_id=self.content_id)
 
 
+class MediaDownload(Base):
+    """One request to store a post's media on this instance's own disk.
+
+    The row outlives the files. Eviction under the size ceiling removes bytes
+    and sets ``files_removed_at``; it never deletes this record, so an operator
+    can still see what was collected, when, and that it was evicted rather than
+    never fetched - and can download it again. Deleting the metadata to save
+    disk would throw away the part that costs nothing to keep.
+
+    ``pinned`` is the only exemption from eviction, and it exists because a
+    size-based policy without one eventually deletes the file the operator
+    cared about most. Nothing sets it automatically.
+    """
+
+    __tablename__ = "media_downloads"
+    __table_args__ = (
+        Index("ix_media_downloads_content", "platform", "content_id"),
+        Index("ix_media_downloads_created", text("created_at DESC")),
+        Index("ix_media_downloads_state", "state"),
+        # Drives the eviction sweep: what is on disk, oldest first, skipping
+        # the pinned. Partial, because everything already evicted is exactly
+        # what the sweep never needs to look at again.
+        Index(
+            "ix_media_downloads_evictable",
+            "pinned",
+            text("finished_at ASC"),
+            postgresql_where=text("files_removed_at IS NULL AND bytes_total > 0"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=_NEW_UUID
+    )
+    platform: Mapped[str] = mapped_column(Text)
+    content_id: Mapped[str] = mapped_column(Text)
+    author_uid: Mapped[str] = mapped_column(Text)
+    #: queued | running | done | partial | failed | cancelled
+    state: Mapped[str] = mapped_column(Text, server_default=text("'queued'"))
+    #: Relative to the media root, as <platform>/<author_uid>/<content_id>.
+    #: Never absolute: the path inside the container is not the path on the
+    #: host, and storing one would make the row wrong the moment the volume
+    #: is mounted somewhere else.
+    directory: Mapped[str] = mapped_column(Text)
+    bytes_total: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    file_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    #: Per file: name, kind, bytes, sha256, content_type, error.
+    files: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True, default=None
+    )
+    #: Never evicted while true.
+    pinned: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    #: Set when the bytes were removed to stay under the size ceiling. The row
+    #: and its metadata stay.
+    files_removed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="SET NULL"), default=None
+    )
+    #: The task that runs it, so the console can follow one from the other.
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True, default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    def __repr__(self) -> str:
+        return _repr(
+            "MediaDownload", id=self.id, platform=self.platform, content_id=self.content_id
+        )
+
+
 class ContentSnapshot(Base):
     """Hypertable. One row per successful parse, deduplicated in Redis.
 
@@ -582,6 +656,7 @@ TABLE_NAMES: Final[tuple[str, ...]] = (
     "content_snapshots",
     "archived_authors",
     "archived_contents",
+    "media_downloads",
 )
 
 #: Values the corresponding text columns accept, kept beside the models so a
@@ -609,6 +684,7 @@ __all__ = [
     "ContentSnapshot",
     "Identity",
     "IdentityEvent",
+    "MediaDownload",
     "Proxy",
     "RequestLog",
     "Setting",

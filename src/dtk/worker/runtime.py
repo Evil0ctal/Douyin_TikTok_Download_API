@@ -121,6 +121,7 @@ async def build_runtime(
     ``config_source`` follow the database.
     """
     from dtk.identity.minting import BrowserRpcClient
+    from dtk.media import DownloaderClient
     from dtk.ops.notify import notifier_from_config, signing_alert_hook
     from dtk.scheduler.circuit import circuit_config
     from dtk.scheduler.scheduler import Scheduler, SchedulerConfig
@@ -214,6 +215,13 @@ async def build_runtime(
         cooldown_max=int(current.get("sched.cooldown_max_seconds")),
     )
 
+    # The media sidecar, when the downloader profile is running. Absent is a
+    # normal state, not a fault: without it the archive still records
+    # everything and only the byte-fetching half is missing.
+    downloader: DownloaderClient | None = None
+    if settings.downloader_url:
+        downloader = DownloaderClient(settings.downloader_url, token=settings.downloader_token)
+
     filler_options = FillerConfig()
     prober_options = ProberConfig()
     maintenance_options = MaintenanceConfig()
@@ -237,6 +245,7 @@ async def build_runtime(
         config=config_source,
         options=maintenance_options,
         alerter=notifier,
+        downloader=downloader,
     )
 
     # The console's maintenance jobs run on the same collaborators as the loops
@@ -255,6 +264,8 @@ async def build_runtime(
             prober=prober,
             notifier=notifier,
             rpc=rpc_client,
+            downloader=downloader,
+            fetch=fetch,
         ),
         session_factory=session_scope,
     )
@@ -281,6 +292,8 @@ async def build_runtime(
         PeriodicLoop("maintenance", maintenance_options.interval_seconds, maintenance.tick),
     ]
     closers: list[Callable[[], Any]] = [transport.close, prober.aclose, notifier.aclose]
+    if downloader is not None:
+        closers.append(downloader.aclose)
     if rpc_http is not None:
         # The client was injected, so browser-rpc will not close it for us.
         closers.append(rpc_http.aclose)

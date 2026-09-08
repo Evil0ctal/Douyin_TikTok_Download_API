@@ -1,10 +1,10 @@
 """Console-triggered maintenance jobs.
 
-Seven operations reach the worker that are not platform reads: running the self
+Eight operations reach the worker that are not platform reads: running the self
 check, taking a backup, restoring one, minting an identity, probing an identity
-or a proxy, and sending a test alert. The console submits each as an ordinary
-task, because each can take longer than a request should hold a connection
-open.
+or a proxy, sending a test alert, and storing one post's media on disk. The
+console submits each as an ordinary task, because each can take longer than a
+request should hold a connection open.
 
 They do not belong in :mod:`dtk.worker.registry`. That table describes upstream
 endpoints - a platform, a signature, a token bucket, a parse - and none of that
@@ -43,7 +43,9 @@ if TYPE_CHECKING:  # imported lazily so worker startup stays light
     from dtk.core.crypto import Cipher
     from dtk.identity.minting import BrowserRpcClient
     from dtk.identity.pool import IdentityPool
+    from dtk.media import DownloaderClient
     from dtk.ops.notify import Notifier
+    from dtk.services.fetch import FetchService
     from dtk.signing.registry import SignerRegistry
     from dtk.transport.base import Transport
     from dtk.worker.pool_filler import PoolFiller
@@ -82,6 +84,13 @@ class OperationDeps:
     prober: ProxyProber | None = None
     notifier: Notifier | None = None
     rpc: BrowserRpcClient | None = None
+    #: The media sidecar, absent unless the downloader profile is running.
+    downloader: DownloaderClient | None = None
+    #: The same fetch pipeline the task loop uses. A media download may have to
+    #: re-parse a post first, because signed CDN links expire, and doing that
+    #: through a second pipeline would spend identities the scheduler is not
+    #: accounting for.
+    fetch: FetchService | None = None
 
 
 #: One maintenance job. Takes its dependencies, a session scoped to this task,
@@ -98,6 +107,7 @@ def _handlers() -> Mapping[str, OperationHandler]:
         diagnose,
         identity_mint,
         identity_test,
+        media_download,
         notify_test,
         proxy_test,
         restore,
@@ -112,6 +122,7 @@ def _handlers() -> Mapping[str, OperationHandler]:
             "identity.test": identity_test.run,
             "proxy.test": proxy_test.run,
             "notify.test": notify_test.run,
+            "media.download": media_download.run,
         }
     )
 
@@ -128,6 +139,7 @@ ENDPOINTS: Final[frozenset[str]] = frozenset(
         "identity.test",
         "proxy.test",
         "notify.test",
+        "media.download",
     }
 )
 

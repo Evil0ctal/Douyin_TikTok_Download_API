@@ -1,0 +1,53 @@
+/*
+ * Downloads.
+ *
+ * The storage tiles come first because the number that matters on this page is
+ * how full the disk is, not how many rows the table has: everything else here
+ * is reversible, and running out of space is not.
+ */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The platform under the id: two facts, one column, no extra header. */
+.sub {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+/*
+ * The file list in the detail drawer. Deliberately without a link on the name:
+ * the path is what an operator needs, and offering to open the file would make
+ * this API the media proxy the design rules out.
+ */
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.file:last-child {
+  border-bottom: 0;
+}

@@ -93,6 +93,10 @@ const SCOPE_COPY: Record<Scope, string> = {
   'douyin:read': 'douyinRead',
   'tiktok:read': 'tiktokRead',
   'identity:manage': 'identityManage',
+  'archive:read': 'archiveRead',
+  'archive:export': 'archiveExport',
+  'media:read': 'mediaRead',
+  'media:write': 'mediaWrite',
   admin: 'admin',
 }
 

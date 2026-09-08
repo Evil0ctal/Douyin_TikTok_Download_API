@@ -50,6 +50,12 @@ export const paths = {
     list: `${API_V1}/admin/api-keys`,
     byId: (id: string) => `${API_V1}/admin/api-keys/${encodeURIComponent(id)}`,
   },
+  downloads: {
+    list: `${API_V1}/downloads`,
+    create: `${API_V1}/downloads`,
+    storage: `${API_V1}/downloads/storage`,
+    pin: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}/pin`,
+  },
   tools: {
     sign: `${API_V1}/tools/sign`,
     parseUrl: `${API_V1}/tools/parse-url`,

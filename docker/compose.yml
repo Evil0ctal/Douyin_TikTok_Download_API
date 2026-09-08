@@ -425,6 +425,92 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ----------------------------------------------------------------------
+  # Media downloader. Optional by design, like browser-rpc: an instance that
+  # only wants metadata never needs to store a byte of video.
+  #
+  #   docker compose -p dtk -f docker/compose.yml --profile downloader up -d
+  #
+  # Set DTK_DOWNLOADER_URL=http://downloader:9100 in ../.env to let api and
+  # worker use it. Left unset, POST /api/v1/downloads answers 501 with an
+  # actionable message and everything else is unaffected.
+  #
+  # This is the only container in the stack that dials arbitrary CDN hosts, so
+  # it is also the one with the least in it: a scratch image holding one static
+  # Go binary, no shell, no package manager, and exactly one writable path.
+  # ----------------------------------------------------------------------
+  downloader:
+    # Sized from what the work actually is. Transfers are streamed with
+    # io.Copy, so resident memory is a handful of 32 KiB buffers per concurrent
+    # file plus the runtime - not the size of the files. 512m is generous
+    # against that and still a wall a leak hits.
+    #
+    # The CPU cap is the deliberate one. Pulling a dozen files at once is IO,
+    # not compute, and the reason this service exists in its own container is
+    # that its overload must not reach the api it shares a host with. Two cores
+    # is more than enough to saturate a home connection.
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 2.0
+    pids_limit: 128
+    profiles:
+      - downloader
+    image: dtk-downloader:${DTK_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.downloader
+      args:
+        VERSION: ${DTK_IMAGE_TAG:-dev}
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      # This container holds no credentials and never touches the database.
+      # Both are blanked even though the shared env file carries them: the
+      # downloader is the component whose compromise would matter most, and it
+      # is the one that needs neither.
+      DTK_SECRET_KEY: ""
+      DTK_DATABASE_URL: ""
+      DTK_REDIS_URL: ""
+      # Fixed by the container: the bind address has to match `expose`, the
+      # healthcheck and the volume mounted below.
+      DTK_DOWNLOADER_BIND: "0.0.0.0:9100"
+      DTK_DOWNLOADER_ROOT: /var/lib/dtk/media
+      #
+      # DTK_DOWNLOADER_WORKERS, ITEM_WORKERS, QUEUE, TIMEOUT_SECONDS and TOKEN
+      # are deliberately absent so ../.env can set them. The defaults - 4, 4,
+      # 64, 900s, no token - are what this file used to pin.
+    expose:
+      - "9100"
+    networks:
+      # The CDNs, and nothing else. It has no route to postgres or redis
+      # because it has no reason to reach either.
+      - edge
+    volumes:
+      - media-data:/var/lib/dtk/media
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      # The binary probes itself: a scratch image has no curl, and adding one
+      # would undo the reason this image is scratch.
+      test: ["CMD", "/usr/local/bin/downloader", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # Long enough for an in-flight transfer to be cancelled and its .part
+    # removed, rather than left behind for the next run to overwrite.
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   # No gateway: postgres and redis cannot reach anything off this host.
   data:
@@ -435,3 +521,7 @@ volumes:
   postgres-data:
   redis-data:
   backup-data:
+  # The media volume. Named rather than a bind mount so a default install
+  # cannot write into the checkout, and mounted only by the downloader: the api
+  # and worker index what is stored and never open the files.
+  media-data:

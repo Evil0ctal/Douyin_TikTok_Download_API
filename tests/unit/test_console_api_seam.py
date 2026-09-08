@@ -112,9 +112,18 @@ def declarations() -> dict[str, str]:
 
     found: dict[str, str] = {}
     group: list[str] = []
+    # An arrow whose parameter list does not fit on one line is wrapped by the
+    # formatter, so the declaration arrives as two lines. Rejoined rather than
+    # skipped: an unreadable line is a path this file stops checking, which is
+    # the failure it exists to prevent.
+    pending = ""
     for number, raw in enumerate(lines, 1):
-        line = raw.strip()
+        line = (pending + " " + raw.strip()).strip() if pending else raw.strip()
+        pending = ""
         if not line or line.startswith("//"):
+            continue
+        if line.endswith("=>"):
+            pending = line
             continue
         if line == _BLOCK_END:
             break

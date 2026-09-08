@@ -22,7 +22,8 @@
     "backup": "Backup",
     "users": "Users",
     "endpointAccess": "Endpoint access",
-    "tools": "Building blocks"
+    "tools": "Building blocks",
+    "downloads": "Downloads"
   },
   "page": {
     "overview": {
@@ -438,7 +439,8 @@
       "system": "System",
       "other": "Other",
       "archive": "Content archive",
-      "capacity": "Capacity"
+      "capacity": "Capacity",
+      "media": "Media"
     },
     "groupHint": {
       "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
@@ -453,7 +455,8 @@
       "system": "Instance behaviour, including the opt-in update check.",
       "other": "Keys with no group of their own.",
       "archive": "What this instance keeps after a task result expires. The archive holds the current state of a post; the metric history beside it holds how it changed.",
-      "capacity": "How this instance behaves as the disk fills. It warns, then pauses background writers - it never deletes."
+      "capacity": "How this instance behaves as the disk fills. It warns, then pauses background writers - it never deletes.",
+      "media": "Where downloaded video and images live, how much disk they may take, and what happens when they reach it. Nothing here is deleted except stored files, and never a pinned one."
     },
     "choice": {
       "signing.mode": {
@@ -865,13 +868,21 @@
       "douyinRead": "Read Douyin data",
       "tiktokRead": "Read TikTok data",
       "identityManage": "Manage the identity pool",
-      "admin": "Full administrative access"
+      "admin": "Full administrative access",
+      "archiveRead": "Read the content archive",
+      "archiveExport": "Export the whole archive",
+      "mediaRead": "See stored media",
+      "mediaWrite": "Store and pin media"
     },
     "scopeHint": {
       "douyinRead": "Post, author, comment and parse endpoints for Douyin.",
       "tiktokRead": "The same endpoints for TikTok.",
       "identityManage": "Mint, import, test and retire identities. An ordinary read key must never carry this.",
-      "admin": "Everything, settings and users included. Grant it sparingly."
+      "admin": "Everything, settings and users included. Grant it sparingly.",
+      "archiveRead": "Everything this instance has already collected, answered from local storage. Separate from the platform scopes on purpose: opening a platform endpoint must not open the whole collection.",
+      "archiveExport": "Walk the entire archive in one request. This is the single call that turns a read key into a copy of the database.",
+      "mediaRead": "List what is on the server's disk and how much space it uses. Files themselves are never served through the API.",
+      "mediaWrite": "Start a download, pin one against cleanup, or cancel one. It spends an identity and fills a disk, so no read scope implies it."
     },
     "rateLimitHint": "Requests per minute. This is abuse protection, not a billing quota: the project has no plans, metering or usage settlement. It exists so one runaway script cannot drain the identity pool. Leave empty to inherit the instance default.",
     "rateLimitInvalid": "Enter a whole number between {min} and {max}, or leave it empty.",
@@ -1141,6 +1152,66 @@
       "cookiesHint": "Send all of them together. msToken and UIFID_TEMP are the ones no algorithm can produce.",
       "fingerprint": "Fingerprint",
       "fingerprintHint": "Send requests with this User-Agent. A jar used with a different one is a weaker identity than no identity."
+    }
+  },
+  "downloads": {
+    "title": "Downloads",
+    "description": "Media this instance has stored on its own disk. Files land on the server's media volume; this page indexes them and never streams them back.",
+    "unavailableTitle": "No downloader running",
+    "unavailable": "The downloader container is not reachable.",
+    "unavailableHint": "Start it with --profile downloader and set DTK_DOWNLOADER_URL. Everything else on this instance is unaffected; only fetching the bytes is missing.",
+    "evicted": "Cleaned up",
+    "evictedHint": "The files were removed to stay under the media ceiling. The record is kept, and asking again fetches them back.",
+    "pin": "Pin",
+    "pinned": "Pinned",
+    "pinHint": "Keep these files when the size ceiling cleans up. This is the only way to stop them being removed.",
+    "unpinHint": "Let the size ceiling clean these files up again.",
+    "metric": {
+      "stored": "Stored on disk",
+      "ofCeiling": "of {ceiling}",
+      "noCeiling": "No ceiling set; nothing is ever cleaned up",
+      "downloads": "Downloads",
+      "inFlight": "{count, plural, one {# in flight} other {# in flight}}",
+      "pinned": "Pinned",
+      "pinnedHint": "Never removed by the size ceiling",
+      "evicted": "Cleaned up",
+      "evictedHint": "Files removed, records kept"
+    },
+    "start": {
+      "title": "Store a post's media",
+      "description": "The post has to be in the archive already: this takes a content id, never a URL, so nothing you type here decides which host gets dialled.",
+      "action": "Store",
+      "sinkNote": "Files are written to the server's media volume. They are never served back through this API - this is an archive on your disk, not a proxy."
+    },
+    "field": {
+      "platform": "Platform",
+      "contentId": "Content id",
+      "contentIdHint": "The post id as the archive holds it. Parse the post first if it is not there yet."
+    },
+    "column": {
+      "content": "Post",
+      "state": "State",
+      "files": "Files",
+      "size": "Size",
+      "finished": "Finished",
+      "keep": "Keep"
+    },
+    "filter": {
+      "allStates": "Any state"
+    },
+    "empty": {
+      "title": "Nothing stored yet",
+      "description": "Start one above. Files land on the server's media volume, laid out as platform/author/post with a meta.json beside them."
+    },
+    "toast": {
+      "started": "Download started",
+      "startFailed": "Could not start the download",
+      "pinned": "Pinned; the cleanup will skip it",
+      "unpinned": "Unpinned"
+    },
+    "file": {
+      "sha256": "sha256",
+      "none": "No files were stored for this post."
     }
   }
 }

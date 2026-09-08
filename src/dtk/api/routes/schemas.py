@@ -198,6 +198,25 @@ class RestoreRequest(Body):
     confirm: bool = False
 
 
+class DownloadRequest(Body):
+    """Start storing one archived post's media.
+
+    A content key, never a URL. That is the whole of doc 08's fourth
+    constraint expressed as a type: there is no field here a caller could use
+    to point the downloader at a host of their choosing.
+    """
+
+    platform: Platform
+    #: As the archive holds it. Text, never an integer: a 19-digit aweme_id
+    #: exceeds the JavaScript safe range.
+    content_id: str = Field(min_length=1, max_length=64)
+
+
+class PinRequest(Body):
+    #: True exempts this download from the size-based cleanup for good.
+    pinned: bool = True
+
+
 class NotificationTest(Body):
     channel: str | None = Field(default=None, max_length=64)
 
@@ -218,12 +237,14 @@ __all__ = [
     "BatchRequest",
     "Body",
     "DiagnoseRequest",
+    "DownloadRequest",
     "IdentityImport",
     "LoginRequest",
     "MintRequest",
     "NotificationTest",
     "ParseRequest",
     "PasswordChange",
+    "PinRequest",
     "ProxyCreate",
     "ProxyImport",
     "ProxyUpdate",

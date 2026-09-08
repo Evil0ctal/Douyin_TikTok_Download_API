@@ -423,6 +423,16 @@ export function ArchiveIcon(props: IconProps) {
   )
 }
 
+export function DownloadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M8 2.5v7.5" />
+      <path d="M5 7.25 8 10.25l3-3" />
+      <path d="M3 12.5h10" />
+    </Svg>
+  )
+}
+
 export function BookIcon(props: IconProps) {
   return (
     <Svg {...props}>

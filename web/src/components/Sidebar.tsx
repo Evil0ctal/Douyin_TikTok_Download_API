@@ -12,6 +12,7 @@ import {
   BookIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DownloadIcon,
   GaugeIcon,
   GlobeIcon,
   IdCardIcon,
@@ -42,6 +43,7 @@ const NAV_ICONS: Record<NavIconName, (props: IconProps) => ReactElement> = {
   server: ServerIcon,
   activity: ActivityIcon,
   archive: ArchiveIcon,
+  download: DownloadIcon,
   users: UsersIcon,
 }
 

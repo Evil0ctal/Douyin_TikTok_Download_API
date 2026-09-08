@@ -85,7 +85,15 @@
       "operator": "运维",
       "viewer": "只读"
     },
-    "unknown": "未知"
+    "unknown": "未知",
+    "download": {
+      "queued": "排队中",
+      "running": "下载中",
+      "done": "已保存",
+      "partial": "部分保存",
+      "failed": "失败",
+      "cancelled": "已取消"
+    }
   },
   "table": {
     "columns": "列",

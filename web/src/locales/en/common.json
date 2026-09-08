@@ -85,7 +85,15 @@
       "operator": "Operator",
       "viewer": "Viewer"
     },
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "download": {
+      "queued": "Queued",
+      "running": "Downloading",
+      "done": "Stored",
+      "partial": "Partly stored",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
   },
   "table": {
     "columns": "Columns",

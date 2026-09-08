@@ -71,6 +71,10 @@
     "capacity_paused": {
       "title": "Background collection paused",
       "body": "{detail}. New download jobs and scheduled collection have stopped so the instance keeps serving reads. Nothing has been deleted; free space or raise capacity.hard_stop_percent to resume."
+    },
+    "media_evicted": {
+      "title": "Stored media cleaned up",
+      "body": "{files} downloads ({freed}) were removed to stay under the {ceiling} media ceiling. Pinned downloads were not touched, and every record is still in the library - only the files are gone."
     }
   },
   "settings": {
@@ -135,7 +139,13 @@
       "archive.store_raw": "Also keep each platform's untouched payload alongside the normalized record, so a new field can be back-computed later without re-crawling. Off by default: the parsers produce one for every object, making it the largest single thing this instance can choose to store.",
       "retention.content_days": "Delete archived posts last seen more than this many days ago. 0 means never delete, which is the default - the archive exists precisely to outlive the platform. Disk is protected by the capacity guard instead.",
       "capacity.warn_percent": "Disk usage percent at which this instance raises a warning. Measured on the filesystem, so it accounts for WAL, indexes and anything else sharing the volume.",
-      "capacity.hard_stop_percent": "Disk usage percent at which background collection and new download jobs stand down. Interactive API reads are never paused, and nothing is ever deleted - a full disk should degrade the instance, not take it offline or destroy what it has collected."
+      "capacity.hard_stop_percent": "Disk usage percent at which background collection and new download jobs stand down. Interactive API reads are never paused, and nothing is ever deleted - a full disk should degrade the instance, not take it offline or destroy what it has collected.",
+      "media": {
+        "enabled": "Allow media downloads. Turning it off refuses new jobs and leaves stored files alone; nothing is deleted by this switch.",
+        "max_bytes": "How much disk stored media may occupy. Past it the oldest unpinned downloads are removed until the volume is back under, and an alert says what went. Pinned downloads are never removed. 0 disables cleanup entirely.",
+        "max_file_bytes": "Ceiling for one file, counted on bytes actually written rather than on the size the server claims. A transfer that reaches it is refused and leaves nothing behind.",
+        "mirror_max_age_seconds": "How old an archived media link may be before a download re-parses the post to get fresh ones. Signed CDN links expire within hours; 0 always re-parses, which costs one request from the identity pool."
+      }
     }
   },
   "openapi": {
@@ -149,7 +159,8 @@
       "system": "Health, version and diagnostics.",
       "admin": "Instance administration; requires the admin scope.",
       "tools": "Building blocks: link parsing, signing and guest identity minting.",
-      "archive": "What this instance has already collected. Answered from local storage."
+      "archive": "What this instance has already collected. Answered from local storage.",
+      "downloads": "Media this instance has stored on its own disk. A sink, never a relay: bytes are never streamed back to a caller."
     },
     "op": {
       "parse": {
@@ -235,6 +246,30 @@
       "archive_get": {
         "summary": "One archived post",
         "description": "One post as this instance last saw it, media manifest included. The signed CDN links inside it expire; the web URL is the part that survives."
+      },
+      "downloads_create": {
+        "summary": "Store a post's media",
+        "description": "Fetches one already-archived post's media onto this instance's own disk. Takes a content key rather than a URL: nothing a caller sends decides which host is dialled. Answers 202 with a download id; the files land on the operator's volume and are never served back through this API."
+      },
+      "downloads_list": {
+        "summary": "List downloads",
+        "description": "What this instance has been asked to store, newest first, with each file's size and sha256. A row whose on_disk is false was collected and later removed to stay under the media ceiling - which, unlike never having fetched it, can be undone by asking again."
+      },
+      "downloads_storage": {
+        "summary": "Media storage usage",
+        "description": "How much disk stored media occupies and how much it is allowed to, measured on the volume rather than summed from the database, plus whether the downloader container is reachable."
+      },
+      "downloads_get": {
+        "summary": "One download",
+        "description": "One download and every file in it: name, size, sha256 and content type, and whether the files are still stored."
+      },
+      "downloads_pin": {
+        "summary": "Pin or unpin a download",
+        "description": "Exempts one download from the size-based cleanup. This is the only way to keep a file the ceiling would otherwise remove, and a post the platform has since deleted cannot be fetched again."
+      },
+      "downloads_cancel": {
+        "summary": "Cancel a download",
+        "description": "Stops a transfer that has not finished. Nothing is deleted: files already complete stay where they are, and removing files is the cleanup sweep's job rather than a DELETE's."
       }
     },
     "param": {

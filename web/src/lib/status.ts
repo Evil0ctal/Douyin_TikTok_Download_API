@@ -11,7 +11,14 @@
  */
 
 import type { ErrorCode } from './api'
-import type { CircuitState, IdentityState, Outcome, TaskState, UserRole } from './types'
+import type {
+  CircuitState,
+  DownloadState,
+  IdentityState,
+  Outcome,
+  TaskState,
+  UserRole,
+} from './types'
 
 export type Tone = 'success' | 'warning' | 'caution' | 'danger' | 'neutral' | 'muted' | 'accent'
 
@@ -54,6 +61,17 @@ export const OUTCOME_STATUS: Record<Outcome, StatusMeta> = {
   business_error: { tone: 'muted', icon: 'minus', labelKey: 'state.outcome.business_error' },
   risk_control: { tone: 'danger', icon: 'alert', labelKey: 'state.outcome.risk_control' },
   network_error: { tone: 'caution', icon: 'alert', labelKey: 'state.outcome.network_error' },
+}
+
+export const DOWNLOAD_STATUS: Record<DownloadState, StatusMeta> = {
+  queued: { tone: 'neutral', icon: 'clock', labelKey: 'state.download.queued' },
+  running: { tone: 'accent', icon: 'spinner', labelKey: 'state.download.running' },
+  done: { tone: 'success', icon: 'check', labelKey: 'state.download.done' },
+  // Warning rather than success or danger: some files landed and some did not,
+  // and either of the other two tones would hide half of that.
+  partial: { tone: 'warning', icon: 'half', labelKey: 'state.download.partial' },
+  failed: { tone: 'danger', icon: 'cross', labelKey: 'state.download.failed' },
+  cancelled: { tone: 'neutral', icon: 'pause', labelKey: 'state.download.cancelled' },
 }
 
 export const CIRCUIT_STATUS: Record<CircuitState, StatusMeta> = {
@@ -116,6 +134,7 @@ export type StatusKind =
   | 'task'
   | 'outcome'
   | 'circuit'
+  | 'download'
   | 'health'
   | 'key'
   | 'role'
@@ -125,6 +144,7 @@ const REGISTRY: Record<StatusKind, Record<string, StatusMeta>> = {
   task: TASK_STATE_STATUS,
   outcome: OUTCOME_STATUS,
   circuit: CIRCUIT_STATUS,
+  download: DOWNLOAD_STATUS,
   health: HEALTH_STATUS,
   key: KEY_STATUS,
   role: ROLE_STATUS,

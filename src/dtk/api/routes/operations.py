@@ -83,6 +83,10 @@ class Maintenance(StrEnum):
     #: browser that gives up mid-way must not be able to abandon it half done.
     BACKUP_RESTORE = "backup.restore"
     NOTIFY_TEST = "notify.test"
+    #: Store one archived post's media on the operator's disk. Listed here
+    #: because it is dispatched by the same runner, but deliberately NOT exempt
+    #: from the queue ceiling below.
+    MEDIA_DOWNLOAD = "media.download"
 
 
 def endpoint_name(platform: Platform, operation: Operation) -> str:
@@ -167,7 +171,15 @@ async def submit(
 #: rare, they are how someone investigates a backlog, and refusing to run the
 #: self check because the queue is deep would withhold the tool at the moment it
 #: is wanted.
-_OPERATOR_TRIGGERED: Final[frozenset[str]] = frozenset(member.value for member in Maintenance)
+#:
+#: Media downloads are the exception, and the exception is the point of the
+#: rule: they are dispatched by the same runner but they are not rare, a caller
+#: can start as many as they have archived posts, and each one holds a worker
+#: slot for as long as a video takes. Exempting them would let one operator's
+#: bulk download starve every read on the instance.
+_OPERATOR_TRIGGERED: Final[frozenset[str]] = frozenset(
+    member.value for member in Maintenance if member is not Maintenance.MEDIA_DOWNLOAD
+)
 
 
 async def _refuse_when_the_queue_is_full(request: Request, endpoint: str) -> None:

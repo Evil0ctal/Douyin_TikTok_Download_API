@@ -1,0 +1,64 @@
+# The media downloader: a Go binary on scratch.
+#
+# Two properties this image is built for, in order:
+#
+#   1. Small attack surface. This is the one container in the stack that dials
+#      arbitrary CDN hosts and writes their bytes to a disk the operator cares
+#      about. There is no shell in it, no package manager, and nothing to
+#      execute but the binary - so a bug that yields command execution has no
+#      commands to run.
+#   2. Reproducible. No modules are fetched: the service is standard library
+#      only (see downloader/go.mod), so the build needs no network and cannot
+#      drift between machines.
+#
+# The healthcheck is the binary itself (`downloader healthcheck`), because a
+# scratch image has no curl and adding one would undo the first property.
+
+FROM golang:1.23-alpine AS build
+
+ARG VERSION=dev
+WORKDIR /src
+COPY docker/downloader/ ./
+
+# CGO off so the result is a static binary a scratch image can execute at all.
+# -trimpath keeps build machine paths out of the binary; the symbol table and
+# DWARF go with -s -w because nothing debugs this in production.
+RUN CGO_ENABLED=0 GOFLAGS=-mod=mod go build \
+        -trimpath \
+        -ldflags="-s -w -X main.version=${VERSION}" \
+        -o /out/downloader .
+
+# Verify what ships. A build that compiles but fails its own tests is not a
+# build worth pushing to a machine that will run it unattended.
+RUN go vet ./... && go test ./...
+
+# An empty directory to seed the media volume with. Docker initialises a fresh
+# named volume from whatever the image has at the mount point, ownership
+# included, so this is what makes the volume writable by a non-root user.
+# Without it the volume arrives owned by root and the first job fails with
+# "permission denied" - measured on 2026-09-08.
+RUN mkdir -p /seed/media
+
+FROM scratch
+
+# The CDNs are HTTPS-only; without the trust store every transfer fails at the
+# handshake with an error that reads like a network problem.
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build /out/downloader /usr/local/bin/downloader
+COPY --from=build --chown=10001:10001 /seed/media /var/lib/dtk/media
+
+# Numeric, because scratch has no /etc/passwd for a name to resolve against.
+# 10001 matches the browser-rpc container, so a volume shared between them
+# would not be a permissions puzzle.
+USER 10001:10001
+
+ENV DTK_DOWNLOADER_BIND=0.0.0.0:9100 \
+    DTK_DOWNLOADER_ROOT=/var/lib/dtk/media
+
+EXPOSE 9100
+
+# No VOLUME instruction: compose mounts the named volume, and declaring one
+# here would also create an anonymous volume for every ad-hoc `docker run`,
+# which is a slow way to fill a disk with orphans nobody knows to delete.
+
+ENTRYPOINT ["/usr/local/bin/downloader"]

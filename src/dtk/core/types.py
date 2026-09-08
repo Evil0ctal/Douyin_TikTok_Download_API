@@ -91,6 +91,12 @@ class Scope(StrEnum):
     #: export is the single call that turns a read key into a copy of the
     #: database.
     ARCHIVE_EXPORT = "archive:export"
+    #: See what media this instance has stored on its own disk.
+    MEDIA_READ = "media:read"
+    #: Start a download, and pin or cancel one. Separate from `media:read`
+    #: because starting one spends an identity, fills a disk and is the only
+    #: read-shaped call in this API with a lasting side effect on the host.
+    MEDIA_WRITE = "media:write"
     ADMIN = "admin"
 
 
