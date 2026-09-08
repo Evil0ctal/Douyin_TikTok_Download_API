@@ -265,6 +265,22 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "in-process algorithms, auto tries rpc then falls back to native.",
             choices=("rpc", "native", "auto"),
         ),
+        # --- selectively opened endpoints -------------------------------------
+        # Empty by default: every endpoint needs a credential. An operator can
+        # open specific ones by listing them exactly as the API document spells
+        # them. dtk.api.public_endpoints refuses admin, auth and setup paths
+        # whatever this says, with no override - the failure of a mistyped entry
+        # matching an admin route is unrecoverable and silent.
+        SettingSpec(
+            "api.public_endpoints",
+            [],
+            Scope.RUNTIME,
+            list,
+            "Endpoints served without an API key, each written as "
+            "'<METHOD> <path>' exactly as the API document shows it, for "
+            "example 'GET /api/v1/{platform}/video'. Admin, auth and setup "
+            "endpoints can never be opened.",
+        ),
         # --- caller-supplied egress ------------------------------------------
         # An operator-configured proxy and a caller-supplied one carry opposite
         # trust; see dtk.api.request_proxy. "deny" is the default because the
