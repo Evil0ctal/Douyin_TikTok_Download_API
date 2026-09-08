@@ -22,6 +22,11 @@ from dtk.core.types import Scope, UserRole
 from dtk.db.models import ApiKey, User
 
 SESSION_COOKIE = "dtk_session"
+
+#: The header a program authenticates with. Named because the OpenAPI document
+#: advertises it to Swagger UI, and a document that names a different header
+#: than the code reads is worse than one that names none.
+API_KEY_HEADER = "X-API-Key"
 SESSION_KEY = "session:{token}"
 RATE_KEY = "ratelimit:{subject}:{window}"
 
@@ -104,7 +109,7 @@ def _bearer(request: Request) -> str | None:
     header = request.headers.get("authorization")
     if header and header.lower().startswith("bearer "):
         return header[7:].strip()
-    return request.headers.get("x-api-key")
+    return request.headers.get(API_KEY_HEADER.lower())
 
 
 async def current_principal(request: Request) -> Principal:

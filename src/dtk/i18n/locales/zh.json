@@ -150,6 +150,24 @@
       "health": {
         "summary": "实例健康状态",
         "description": "报告数据库、缓存、浏览器 RPC 与身份池的健康状况，可供监控系统轮询。"
+      },
+      "batch": {
+        "summary": "批量提交多个链接"
+      },
+      "content_detail": {
+        "summary": "获取单条作品（视频或图集）"
+      },
+      "comments": {
+        "summary": "获取作品的一级评论"
+      },
+      "comment_replies": {
+        "summary": "获取某条评论下的回复"
+      },
+      "author_profile": {
+        "summary": "获取作者主页信息"
+      },
+      "author_posts": {
+        "summary": "获取作者的作品列表"
       }
     },
     "param": {
@@ -160,6 +178,10 @@
     },
     "response": {
       "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"
+    },
+    "security": {
+      "api_key": "在控制台的「API Key」页面创建，然后放在这个请求头里发送。也可以用 Bearer 授权头。",
+      "session": "登录控制台后自动设置。浏览器会自动带上，所以你在已登录状态下可以直接用这里的「Try it out」。"
     }
   },
   "circuit": {

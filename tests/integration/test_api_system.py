@@ -72,8 +72,16 @@ async def test_system_status_reports_version_pool_and_storage(client: Any) -> No
     assert data["uptime_seconds"] >= 0
     assert data["components"]["postgres"]["ok"] is True
     assert data["components"]["redis"]["ok"] is True
-    # Not probed from a status page; the diagnostics run does that.
-    assert data["components"]["browser_rpc"]["ok"] is None
+    # Asserted as a relationship, not a value: whether a browser is configured
+    # depends on the .env this suite is run beside. What must hold either way is
+    # that a configured one is actually probed - reporting "unknown" for a
+    # browser that is running perfectly was the one question this row exists to
+    # answer - and that an absent one is reported as absent rather than broken.
+    browser = data["components"]["browser_rpc"]
+    if browser["configured"]:
+        assert isinstance(browser["ok"], bool), "a configured browser was never probed"
+    else:
+        assert browser["ok"] is None
     assert data["pool"]["total_active"] == 0
     assert set(data["pool"][Platform.DOUYIN.value]) == {s.value for s in IdentityState}
     assert data["storage"]["db_size_bytes"] > 0

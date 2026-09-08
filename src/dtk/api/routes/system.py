@@ -18,8 +18,9 @@ import asyncio
 import os
 import time
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, Final
 
+import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
@@ -162,15 +163,47 @@ async def system_status(request: Request, principal: Principal = Depends(authent
     )
 
 
-async def _browser_rpc_status(request: Request) -> dict[str, Any]:
-    """Configured or not, without calling it.
+#: Ceiling for the browser probe below. Short on purpose: the page polls, and a
+#: browser that cannot answer a health check in a second is not one the pool
+#: should be told is fine.
+BROWSER_PROBE_TIMEOUT_SECONDS: Final = 1.0
 
-    Probing the browser RPC from a status endpoint would put a multi-second
-    dependency behind a page the console polls; the diagnostics run
-    (``POST /api/v1/admin/diagnose``) is where that check belongs.
+
+async def _browser_rpc_status(request: Request) -> dict[str, Any]:
+    """Configured, and answering.
+
+    An earlier version reported only whether a URL was set, on the reasoning
+    that probing would put a multi-second dependency behind a polled page. The
+    reasoning was right and the conclusion was not: the System page then said
+    "unknown" for a browser that was running perfectly, which is the one
+    question an operator opens that row to answer. /rpc/health is a local call
+    that returns in milliseconds, so it is bounded rather than skipped, and a
+    timeout is reported as unhealthy rather than as unknown.
     """
-    url = getattr(request.app.state.settings, "browser_rpc_url", "")
-    return {"configured": bool(url), "ok": None}
+    url = str(getattr(request.app.state.settings, "browser_rpc_url", "") or "")
+    if not url:
+        return {"configured": False, "ok": None}
+
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=BROWSER_PROBE_TIMEOUT_SECONDS) as client:
+            response = await client.get(f"{url.rstrip('/')}/rpc/health")
+            body = response.json() if response.is_success else {}
+    except Exception as exc:
+        # Named by type only: the message quotes the URL, which is internal but
+        # is still not something a status row needs to carry.
+        log.warning("system.browser_rpc.unreachable", error=type(exc).__name__)
+        return {"configured": True, "ok": False, "detail_code": "unreachable"}
+
+    status = str(body.get("status") or "")
+    return {
+        "configured": True,
+        "ok": status == "ok",
+        "latency_ms": int((time.perf_counter() - started) * 1000),
+        "chromium_major": body.get("chromium_major"),
+        "warm_contexts": body.get("warm_contexts"),
+        "detail_code": None if status == "ok" else "degraded",
+    }
 
 
 async def _storage(session: Any) -> dict[str, Any]:

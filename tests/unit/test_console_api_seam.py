@@ -21,6 +21,7 @@ from __future__ import annotations
 import functools
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -218,9 +219,9 @@ _HTTP_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})
 
 
 @functools.cache
-def registered() -> dict[str, frozenset[str]]:
-    """Every path the API serves, canonicalised, with the methods it accepts."""
-    app = create_app(
+def _app() -> Any:
+    """One app, built without touching a service. Cached: it is not cheap."""
+    return create_app(
         BootstrapSettings(
             secret_key=TEST_SECRET,
             database_url="postgresql+asyncpg://dtk:dtk@nowhere:5432/dtk",
@@ -228,6 +229,12 @@ def registered() -> dict[str, frozenset[str]]:
             browser_rpc_url="",
         )
     )
+
+
+@functools.cache
+def registered() -> dict[str, frozenset[str]]:
+    """Every path the API serves, canonicalised, with the methods it accepts."""
+    app = _app()
 
     routes: dict[str, set[str]] = {}
     for path, operations in app.openapi()["paths"].items():
@@ -372,3 +379,64 @@ def test_the_operator_declarations_have_not_quietly_become_ordinary(name: str) -
         f"paths.{name} now has a consumer in web/src, so it no longer needs an "
         "exception from test_no_declaration_is_dead; remove it from DECLARED_FOR_OPERATORS"
     )
+
+
+# --------------------------------------------------------------------------
+# The document has to say how to authenticate
+#
+# The spec declared no securitySchemes at all, so Swagger UI showed no
+# Authorize button, there was nowhere to put an API key, and every "Try it out"
+# against a real endpoint answered 401 - on a service whose whole purpose is to
+# be called by someone else's program.
+# --------------------------------------------------------------------------
+
+
+def test_the_document_says_how_to_authenticate() -> None:
+    from dtk.api.deps import API_KEY_HEADER, SESSION_COOKIE
+
+    schema = _app().openapi()
+    schemes = (schema.get("components") or {}).get("securitySchemes") or {}
+    assert schemes, "no securitySchemes: the docs page cannot offer an Authorize button"
+
+    by_name = {s.get("name") for s in schemes.values()}
+    assert API_KEY_HEADER in by_name, (
+        f"the document does not advertise {API_KEY_HEADER}, which is the header "
+        "dtk.api.deps actually reads"
+    )
+    assert SESSION_COOKIE in by_name
+
+
+def test_every_guarded_route_declares_its_security() -> None:
+    """A route with no security reads as public, and most of these are not."""
+    schema = _app().openapi()
+    public = {"/api/setup/status", "/api/setup/init", "/api/v1/auth/login"}
+    missing = [
+        f"{method.upper()} {path}"
+        for path, operations in schema["paths"].items()
+        if path not in public
+        for method, operation in operations.items()
+        if isinstance(operation, dict) and not operation.get("security")
+    ]
+    assert not missing, f"routes that document no way to authenticate: {missing[:6]}"
+
+
+def test_the_scraping_endpoints_are_translated() -> None:
+    """The reason they did not look like scraping endpoints in the console.
+
+    All seven were in the document and six carried an English summary in the
+    Chinese one, so a reader scanning the Chinese document for the scraping endpoints
+    saw English labels among translated ones and read them as something else.
+    """
+    from dtk.api.routes.openapi import build_schema
+    from dtk.core.types import Language
+
+    schema = build_schema(_app(), Language.ZH)
+    untranslated = [
+        f"{method.upper()} {path}"
+        for path, operations in schema["paths"].items()
+        for method, operation in operations.items()
+        if isinstance(operation, dict)
+        and "content" in (operation.get("tags") or [])
+        and operation.get("summary", "").isascii()
+    ]
+    assert not untranslated, f"content endpoints still in English under zh: {untranslated}"

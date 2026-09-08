@@ -150,6 +150,24 @@
       "health": {
         "summary": "Instance health",
         "description": "Reports database, cache, browser RPC and identity pool health. Safe to poll from an uptime monitor."
+      },
+      "batch": {
+        "summary": "Submit many links at once"
+      },
+      "content_detail": {
+        "summary": "One post, video or image album"
+      },
+      "comments": {
+        "summary": "Top level comments on a post"
+      },
+      "comment_replies": {
+        "summary": "Replies under one comment"
+      },
+      "author_profile": {
+        "summary": "Author profile"
+      },
+      "author_posts": {
+        "summary": "Author post list"
       }
     },
     "param": {
@@ -160,6 +178,10 @@
     },
     "response": {
       "error": "The request failed. The code field is stable and machine-readable; the message field is localized."
+    },
+    "security": {
+      "api_key": "Create one on the console's API keys page, then send it as this header. Bearer authorization works too.",
+      "session": "Set by signing in to the console. A browser sends it automatically, which is why Try it out works here when you are signed in."
     }
   },
   "circuit": {

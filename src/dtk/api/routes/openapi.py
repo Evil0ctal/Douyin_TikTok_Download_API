@@ -17,13 +17,14 @@ Swagger page loads the matching document.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
 from fastapi import FastAPI, Request
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from dtk.api.deps import API_KEY_HEADER, SESSION_COOKIE
 from dtk.core.logging import get_logger
 from dtk.core.types import DEFAULT_LANGUAGE, Language
 from dtk.i18n import catalog
@@ -37,6 +38,8 @@ log = get_logger(__name__)
 I18N_KEY = "x-i18n"
 
 TAG_PREFIX = "openapi.tag."
+API_KEY_DESCRIPTION_KEY = "openapi.security.api_key"
+SESSION_DESCRIPTION_KEY = "openapi.security.session"
 OP_PREFIX = "openapi.op."
 PARAM_PREFIX = "openapi.param."
 DESCRIPTION_KEY = "openapi.description"
@@ -112,6 +115,55 @@ def _localize_tags(schema: dict[str, Any], language: Language) -> None:
         schema["tags"] = described
 
 
+#: Paths every caller reaches without credentials. Everything else needs one,
+#: which is what the scheme below lets Swagger UI actually send.
+_PUBLIC_PATHS: Final[frozenset[str]] = frozenset(
+    {"/api/setup/status", "/api/setup/init", "/api/v1/auth/login"}
+)
+
+_API_KEY_SCHEME = "ApiKeyAuth"
+_SESSION_SCHEME = "SessionCookie"
+
+
+def _declare_security(schema: dict[str, Any], language: Language) -> None:
+    """Say how a caller authenticates, so the docs page can do it.
+
+    Without this the document declares no security at all: Swagger UI shows no
+    Authorize button, there is nowhere to put an API key, and every "Try it out"
+    against a real endpoint answers 401 - on a service whose whole purpose is to
+    be called by someone else's program.
+
+    Both schemes are declared because both are real. A program sends the header;
+    the console sends the cookie it already has, which is why opening /docs from
+    a signed-in browser works without pasting anything.
+    """
+    components = schema.setdefault("components", {})
+    components["securitySchemes"] = {
+        _API_KEY_SCHEME: {
+            "type": "apiKey",
+            "in": "header",
+            "name": API_KEY_HEADER,
+            "description": _translate(API_KEY_DESCRIPTION_KEY, language)
+            or "Create one on the console's API keys page.",
+        },
+        _SESSION_SCHEME: {
+            "type": "apiKey",
+            "in": "cookie",
+            "name": SESSION_COOKIE,
+            "description": _translate(SESSION_DESCRIPTION_KEY, language)
+            or "Set by signing in to the console; sent automatically by a browser.",
+        },
+    }
+    # Per operation rather than one global default: a document that claims the
+    # login endpoint needs a key is wrong in a way a reader has to un-learn.
+    for path, operations in schema.get("paths", {}).items():
+        if path in _PUBLIC_PATHS:
+            continue
+        for operation in operations.values():
+            if isinstance(operation, dict) and "security" not in operation:
+                operation["security"] = [{_API_KEY_SCHEME: []}, {_SESSION_SCHEME: []}]
+
+
 def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
     """Render the document for one language.
 
@@ -134,6 +186,7 @@ def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
             if isinstance(operation, dict):
                 _localize_operation(operation, language)
     _localize_tags(schema, language)
+    _declare_security(schema, language)
     schema["info"]["x-language"] = language.value
     return schema
 
@@ -151,6 +204,13 @@ def install(app: FastAPI) -> None:
     ]
 
     schema_url = app.openapi_url or "/openapi.json"
+
+    # One generator, not two. `app.openapi()` is what FastAPI's own tooling and
+    # every test reaches for, and leaving it on the built-in generator meant the
+    # served document and the introspected one disagreed - the security schemes
+    # below existed on the wire and were invisible to anything that asked the
+    # app. Pointed at the same builder, in the default language.
+    app.openapi = lambda: build_schema(app, DEFAULT_LANGUAGE)  # type: ignore[method-assign]
 
     def _language(request: Request) -> Language:
         return resolve_language(

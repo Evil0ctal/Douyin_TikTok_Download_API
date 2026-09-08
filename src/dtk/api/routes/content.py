@@ -178,7 +178,11 @@ async def parse(
     )
 
 
-@router.post("/tasks/batch", summary="Submit many links at once")
+@router.post(
+    "/tasks/batch",
+    summary="Submit many links at once",
+    openapi_extra={I18N_KEY: "batch"},
+)
 async def batch(
     request: Request,
     body: BatchRequest,
@@ -239,7 +243,11 @@ async def batch(
 # --------------------------------------------------------------------------
 
 
-@router.get("/{platform}/video", summary="One post, video or image album")
+@router.get(
+    "/{platform}/video",
+    summary="One post, video or image album",
+    openapi_extra={I18N_KEY: "content_detail"},
+)
 async def video(
     request: Request,
     platform: Platform = PLATFORM_PATH,
@@ -261,7 +269,11 @@ async def video(
     )
 
 
-@router.get("/{platform}/video/comments", summary="Top level comments on a post")
+@router.get(
+    "/{platform}/video/comments",
+    summary="Top level comments on a post",
+    openapi_extra={I18N_KEY: "comments"},
+)
 async def comments(
     request: Request,
     platform: Platform = PLATFORM_PATH,
@@ -284,7 +296,11 @@ async def comments(
     )
 
 
-@router.get("/{platform}/video/comments/replies", summary="Replies under one comment")
+@router.get(
+    "/{platform}/video/comments/replies",
+    summary="Replies under one comment",
+    openapi_extra={I18N_KEY: "comment_replies"},
+)
 async def comment_replies(
     request: Request,
     platform: Platform = PLATFORM_PATH,
@@ -308,7 +324,11 @@ async def comment_replies(
     )
 
 
-@router.get("/{platform}/user", summary="Author profile")
+@router.get(
+    "/{platform}/user",
+    summary="Author profile",
+    openapi_extra={I18N_KEY: "author_profile"},
+)
 async def user(
     request: Request,
     platform: Platform = PLATFORM_PATH,
@@ -330,7 +350,11 @@ async def user(
     )
 
 
-@router.get("/{platform}/user/posts", summary="Author post list")
+@router.get(
+    "/{platform}/user/posts",
+    summary="Author post list",
+    openapi_extra={I18N_KEY: "author_posts"},
+)
 async def user_posts(
     request: Request,
     platform: Platform = PLATFORM_PATH,
