@@ -934,7 +934,17 @@
     "revokedToast": "密钥已撤销",
     "revokeFailed": "撤销密钥失败",
     "emptyTitle": "还没有 API Key",
-    "emptyDescription": "建议为每个脚本或 Agent 单独创建，这样泄露时只撤销其中一个即可，不影响其它调用方。"
+    "emptyDescription": "建议为每个脚本或 Agent 单独创建，这样泄露时只撤销其中一个即可，不影响其它调用方。",
+    "search": "按名称、前缀或 scope 搜索",
+    "filterStatus": "按状态筛选",
+    "filterScope": "按 scope 筛选",
+    "allStatuses": "全部状态",
+    "allScopes": "全部 scope",
+    "hiddenByFilter": "筛选条件隐藏了 {count} 个密钥",
+    "revokeSelected": "吊销选中的 {count} 个",
+    "bulkRevokeTitle": "确定吊销选中的密钥？",
+    "bulkRevokeBody": "这 {count} 个密钥会立即失效，正在使用它们的程序下一次调用就会收到 401。吊销无法撤销，需要的话请另行创建。",
+    "bulkRevokedToast": "已吊销 {count} 个密钥"
   },
   "playground": {
     "endpointLabel": "接口",

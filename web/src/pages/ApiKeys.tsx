@@ -44,6 +44,9 @@ const KEYS_QUERY = ['admin', 'api-keys'] as const
 /** Key status as the server reports it; recomputed locally when it does not. */
 type KeyStatus = 'active' | 'revoked' | 'expired'
 
+/** The order the status filter offers them in. */
+const KEY_STATUSES: readonly KeyStatus[] = ['active', 'expired', 'revoked']
+
 interface ApiKeyRow extends ApiKeySummary {
   status?: KeyStatus
   user_id?: string
@@ -129,6 +132,11 @@ export default function ApiKeys() {
     poll: POLL.slow,
   })
 
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<KeyStatus | 'all'>('all')
+  const [scopeFilter, setScopeFilter] = useState<Scope | 'all'>('all')
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [bulkRevoking, setBulkRevoking] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [errors, setErrors] = useState<DraftErrors>({})
@@ -263,6 +271,7 @@ export default function ApiKeys() {
         id: 'rateLimit',
         header: t('console:field.rateLimit'),
         align: 'right',
+        width: '110px',
         cell: (row) =>
           row.rate_limit == null ? (
             <span className="u-muted">{t('apiKeys.rateLimitDefault')}</span>
@@ -276,6 +285,7 @@ export default function ApiKeys() {
       {
         id: 'expiresAt',
         header: t('console:field.expiresAt'),
+        width: '120px',
         cell: (row) =>
           row.expires_at ? (
             <span className="u-mono" title={format.timestamp(row.expires_at)}>
@@ -304,7 +314,6 @@ export default function ApiKeys() {
           <span className="u-mono u-nowrap">{format.dateTime(row.created_at)}</span>
         ),
         sortValue: (row) => row.created_at,
-        defaultHidden: true,
       },
       {
         id: 'actions',
@@ -329,11 +338,60 @@ export default function ApiKeys() {
     [t, format],
   )
 
-  const rows = keys.data
+  const all = keys.data
+  /**
+   * Filtered here rather than on the server: the endpoint returns every key on
+   * the instance in one page, so the counts stay exact and the controls answer
+   * instantly. Matching is on the wire values - the prefix, the name, the raw
+   * scope strings - so the same query behaves identically in both languages.
+   */
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    return (all ?? []).filter((row) => {
+      if (statusFilter !== 'all' && keyStatus(row, now) !== statusFilter) return false
+      if (scopeFilter !== 'all' && !row.scopes.includes(scopeFilter)) return false
+      if (!needle) return true
+      return [row.name, row.prefix, ...row.scopes]
+        .join(' ')
+        .toLowerCase()
+        .includes(needle)
+    })
+  }, [all, search, statusFilter, scopeFilter, now])
+
+  const hidden = (all?.length ?? 0) - rows.length
   const activeCount = useMemo(
-    () => (rows ?? []).filter((row) => keyStatus(row, now) === 'active').length,
-    [rows, now],
+    () => (all ?? []).filter((row) => keyStatus(row, now) === 'active').length,
+    [all, now],
   )
+
+  /** Selected keys that are still worth revoking; a revoked one is a no-op. */
+  const revocable = useMemo(
+    () => rows.filter((row) => selected.has(row.id) && keyStatus(row, now) !== 'revoked'),
+    [rows, selected, now],
+  )
+
+  /**
+   * One request per key rather than a bulk endpoint, because there is no bulk
+   * endpoint and inventing one to serve a console button would put a
+   * multi-delete on the public API. Sequential, so a failure stops rather than
+   * firing the rest at a server that has already said no.
+   */
+  const revokeSelected = async (): Promise<void> => {
+    let revoked = 0
+    for (const row of revocable) {
+      try {
+        await apiDelete(paths.apiKeys.byId(row.id))
+        revoked += 1
+      } catch (error) {
+        toast.apiError(error, t('apiKeys.revokeFailed'))
+        break
+      }
+    }
+    if (revoked > 0) toast.success(t('apiKeys.bulkRevokedToast', { count: revoked }))
+    setSelected(new Set())
+    setBulkRevoking(false)
+    void invalidate(KEYS_QUERY)
+  }
 
   return (
     <div className="u-page">
@@ -373,6 +431,62 @@ export default function ApiKeys() {
         columns={columns}
         rows={rows}
         getRowId={(row) => row.id}
+        selectedIds={selected}
+        onSelectionChange={setSelected}
+        toolbar={
+          <>
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+              }}
+              placeholder={t('apiKeys.search')}
+              aria-label={t('apiKeys.search')}
+              style={{ width: '200px' }}
+            />
+            <Select
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value as KeyStatus | 'all')
+              }}
+              aria-label={t('apiKeys.filterStatus')}
+              options={[
+                { value: 'all', label: t('apiKeys.allStatuses') },
+                ...KEY_STATUSES.map((value) => ({
+                  value,
+                  label: t(`common:state.key.${value}`),
+                })),
+              ]}
+              style={{ width: '150px' }}
+            />
+            <Select
+              value={scopeFilter}
+              onChange={(event) => {
+                setScopeFilter(event.target.value as Scope | 'all')
+              }}
+              aria-label={t('apiKeys.filterScope')}
+              options={[
+                { value: 'all', label: t('apiKeys.allScopes') },
+                ...SCOPES.map((value) => ({ value, label: value })),
+              ]}
+              style={{ width: '190px' }}
+            />
+            {revocable.length > 0 ? (
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  setBulkRevoking(true)
+                }}
+              >
+                {t('apiKeys.revokeSelected', { count: revocable.length })}
+              </Button>
+            ) : null}
+            {hidden > 0 ? (
+              <span className="u-xs u-muted">{t('apiKeys.hiddenByFilter', { count: hidden })}</span>
+            ) : null}
+          </>
+        }
         loading={keys.isLoading}
         error={keys.isError ? keys.error : undefined}
         onRetry={() => {
@@ -395,6 +509,20 @@ export default function ApiKeys() {
           </Button>
         }
         caption={t('page.apiKeys.title')}
+      />
+
+      <ConfirmDialog
+        open={bulkRevoking}
+        danger
+        title={t('apiKeys.bulkRevokeTitle')}
+        description={t('apiKeys.bulkRevokeBody', { count: revocable.length })}
+        confirmLabel={t('apiKeys.revoke')}
+        onConfirm={() => {
+          void revokeSelected()
+        }}
+        onCancel={() => {
+          setBulkRevoking(false)
+        }}
       />
 
       <Modal

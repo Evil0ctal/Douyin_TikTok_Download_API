@@ -934,7 +934,17 @@
     "revokedToast": "Key revoked",
     "revokeFailed": "Could not revoke the key",
     "emptyTitle": "No API keys yet",
-    "emptyDescription": "Create one per script or agent, so a single leak can be revoked without disturbing anything else."
+    "emptyDescription": "Create one per script or agent, so a single leak can be revoked without disturbing anything else.",
+    "search": "Search name, prefix or scope",
+    "filterStatus": "Filter by status",
+    "filterScope": "Filter by scope",
+    "allStatuses": "Any status",
+    "allScopes": "Any scope",
+    "hiddenByFilter": "{count, plural, one {# key hidden by the filters} other {# keys hidden by the filters}}",
+    "revokeSelected": "Revoke {count, plural, one {# key} other {# keys}}",
+    "bulkRevokeTitle": "Revoke the selected keys?",
+    "bulkRevokeBody": "{count, plural, one {# key stops working immediately} other {# keys stop working immediately}}. Anything using them starts getting 401 on its next call. Revoking cannot be undone; mint a replacement instead.",
+    "bulkRevokedToast": "{count, plural, one {# key revoked} other {# keys revoked}}"
   },
   "playground": {
     "endpointLabel": "Endpoint",
