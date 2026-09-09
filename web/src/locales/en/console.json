@@ -1289,7 +1289,7 @@
   },
   "downloads": {
     "title": "Downloads",
-    "description": "Media this instance has stored on its own disk. Files land on the server's media volume; this page indexes them and never streams them back.",
+    "description": "Media this instance has stored on its own disk. Files land on the server's media volume; this page indexes them, and a stored file can be saved from here.",
     "unavailableTitle": "No downloader running",
     "unavailable": "The downloader container is not reachable.",
     "unavailableHint": "Start it with --profile downloader and set DTK_DOWNLOADER_URL. Everything else on this instance is unaffected; only fetching the bytes is missing.",
@@ -1314,7 +1314,7 @@
       "title": "Store a post's media",
       "description": "The post has to be in the archive already: this takes a content id, never a URL, so nothing you type here decides which host gets dialled.",
       "action": "Store",
-      "sinkNote": "Files are written to the server's media volume. They are never served back through this API - this is an archive on your disk, not a proxy."
+      "sinkNote": "Files are written to the server's media volume. Nothing is fetched on demand - saving one serves the copy already on the disk, behind media:read. This is an archive on your disk, not a proxy."
     },
     "field": {
       "platform": "Platform",
