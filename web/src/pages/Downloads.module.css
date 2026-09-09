@@ -120,3 +120,15 @@
   line-height: var(--leading-xs);
   color: var(--text-muted);
 }
+
+/* The two secondary things the same input can do: save the post's comments, or
+   queue everything its author has posted. On the same card because they take
+   the identical input, and splitting them off would ask for the link twice. */
+.moreActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}

@@ -18,9 +18,9 @@ import {
   useToast,
 } from '@/components'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
-import { apiDelete, apiPost, isApiError } from '@/lib/api'
+import { apiDelete, apiGet, apiPost, isApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { paths } from '@/lib/endpoints'
+import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import { DOWNLOAD_STATES, type DownloadState, type Platform } from '@/lib/types'
 
@@ -57,6 +57,46 @@ function videoOf(row: DownloadRow): string | null {
   if (!row.on_disk) return null
   const file = row.files.find((entry) => entry.kind === 'video' && entry.state === 'done')
   return file ? paths.downloads.file(row.id, file.name) : null
+}
+
+/** One page of comments, as the read endpoint returns it. */
+interface CommentPage {
+  items: unknown[]
+  cursor: string | null
+  has_more: boolean
+}
+
+interface AuthorPage {
+  items: Array<{ content_id: string }>
+}
+
+interface ParsedLink {
+  allowed: boolean
+  platform: string | null
+  resource: string
+  resource_id: string | null
+}
+
+/** How deep a comment save goes. Each page is a real request through the pool. */
+const COMMENT_PAGES = 5
+const COMMENT_PAGE_SIZE = 50
+/** One page of an author's feed. Dozens of downloads is already a lot to queue. */
+const AUTHOR_PAGE_SIZE = 20
+
+/** Hand the browser a file. The archive export does the same thing. */
+function saveJson(data: unknown, filename: string): void {
+  const href = URL.createObjectURL(
+    new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+  )
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => {
+    URL.revokeObjectURL(href)
+  }, 1_000)
 }
 
 const DOWNLOADS_KEY = ['downloads'] as const
@@ -204,6 +244,110 @@ export default function Downloads() {
       },
     },
   )
+
+  /**
+   * Save a post's comments as a JSON file, through the browser.
+   *
+   * Comments are data, not media: the sidecar downloads files onto the
+   * operator's volume, and there is no file here to fetch - the platform hands
+   * them over as JSON. So this pages through the ordinary read endpoint and
+   * hands the browser a blob, the same way the archive export already works.
+   * It spends the identity pool like any other read, which is why the page
+   * says how many pages it is about to ask for.
+   */
+  const saveComments = useApiMutation<number, void>(
+    async () => {
+      const { platform: which, id } = await resolveTarget()
+      const all: unknown[] = []
+      let cursor: string | null = null
+      for (let page = 0; page < COMMENT_PAGES; page += 1) {
+        const body: CommentPage = await apiGet(`${API_V1}/${which}/video/comments`, {
+          params: {
+            aweme_id: id,
+            count: String(COMMENT_PAGE_SIZE),
+            ...(cursor ? { cursor } : {}),
+          },
+        })
+        all.push(...body.items)
+        if (!body.has_more || !body.cursor) break
+        cursor = body.cursor
+      }
+      saveJson(all, `comments-${which}-${id}.json`)
+      return all.length
+    },
+    {
+      onSuccess: (count) => {
+        toast.success(t('downloads.comments.done', { count }))
+      },
+      onError: (error) => {
+        toast.apiError(error, t('downloads.comments.failed'))
+      },
+    },
+  )
+
+  /**
+   * Queue a download for everything an author has posted.
+   *
+   * One page of their feed, then one download request per post. Bounded on
+   * purpose: this is the control on the page that can spend the identity pool
+   * dozens of times from one click, and a number the operator can see beats a
+   * "download everything" button whose cost is discovered afterwards.
+   */
+  const saveAuthor = useApiMutation<{ queued: number; posts: number }, void>(
+    async () => {
+      const { platform: which, id } = await resolveTarget({ author: true })
+      const feed: AuthorPage = await apiGet(`${API_V1}/${which}/user/posts`, {
+        params: { sec_user_id: id, count: String(AUTHOR_PAGE_SIZE) },
+      })
+      let queued = 0
+      for (const post of feed.items) {
+        try {
+          await apiPost(
+            paths.downloads.create,
+            { platform: which, content_id: post.content_id },
+            { awaitTask: false },
+          )
+          queued += 1
+        } catch {
+          // One post with nothing fetchable must not abandon the rest; the
+          // count reported at the end is what actually got queued.
+        }
+      }
+      return { queued, posts: feed.items.length }
+    },
+    {
+      onSuccess: ({ queued, posts }) => {
+        setTarget('')
+        refresh()
+        toast.success(t('downloads.author.done', { queued, posts }))
+      },
+      onError: (error) => {
+        toast.apiError(error, t('downloads.author.failed'))
+      },
+    },
+  )
+
+  /**
+   * Turn whatever is in the box into a platform and an id.
+   *
+   * A bare id is taken at face value with the platform menu beside it; anything
+   * else goes to /tools/parse-url, which is the same allowlist the download
+   * endpoint uses, so an unrecognised host never becomes a request.
+   */
+  const resolveTarget = async (
+    opts: { author?: boolean } = {},
+  ): Promise<{ platform: Platform; id: string }> => {
+    const text = target.trim()
+    if (/^\d+$/.test(text) && !opts.author) return { platform, id: text }
+
+    const kind: ParsedLink = await apiGet(paths.tools.parseUrl, { params: { url: text } })
+    if (!kind.allowed || !kind.platform || !kind.resource_id) {
+      throw new Error(t('downloads.target.unrecognised'))
+    }
+    const wanted = opts.author ? 'user' : 'video'
+    if (kind.resource !== wanted) throw new Error(t(`downloads.target.expected.${wanted}`))
+    return { platform: kind.platform as Platform, id: kind.resource_id }
+  }
 
   /** Keep one copy of each post; remove the rest. */
   const dedupe = useApiMutation<
@@ -502,6 +646,34 @@ export default function Downloads() {
             {t('downloads.start.action')}
           </Button>
         </form>
+        {/* The same box, two more things to do with it. Kept on the card
+            rather than in their own: they take the identical input and
+            splitting them up would ask somebody to paste the link twice. */}
+        <div className={styles.moreActions}>
+          <Button
+            variant="secondary"
+            loading={saveComments.isPending}
+            disabled={!target.trim()}
+            title={t('downloads.comments.hint', { pages: COMMENT_PAGES })}
+            onClick={() => {
+              saveComments.mutate()
+            }}
+          >
+            {t('downloads.comments.action')}
+          </Button>
+          <Button
+            variant="secondary"
+            loading={saveAuthor.isPending}
+            disabled={!target.trim()}
+            title={t('downloads.author.hint', { count: AUTHOR_PAGE_SIZE })}
+            onClick={() => {
+              saveAuthor.mutate()
+            }}
+          >
+            {t('downloads.author.action')}
+          </Button>
+        </div>
+
         <p className={styles.startNote}>{t('downloads.start.sinkNote')}</p>
       </Card>
 

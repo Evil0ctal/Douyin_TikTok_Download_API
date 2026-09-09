@@ -1389,7 +1389,7 @@
     },
     "start": {
       "title": "Store a post's media",
-      "description": "The post has to be in the archive already: this takes a content id, never a URL, so nothing you type here decides which host gets dialled.",
+      "description": "Paste a link or a post id. If this instance has never seen the post it fetches it first, then downloads it. A link is not a host this dials: it is matched against the platforms this build knows, and only the post id inside it is used.",
       "action": "Store",
       "sinkNote": "Files are written to the server's media volume. Nothing is fetched on demand - saving one serves the copy already on the disk, behind media:read. This is an archive on your disk, not a proxy."
     },
@@ -1447,6 +1447,25 @@
       "confirmBody": "The newest copy of each post is kept, and a directory is only deleted when no surviving record still uses it - so where two attempts wrote to the same place, the records go and the file stays. This cannot be undone.",
       "confirmAction": "Remove them",
       "done": "{count, plural, one {# duplicate removed} other {# duplicates removed}}, {size} freed"
+    },
+    "comments": {
+      "action": "Save the comments",
+      "hint": "Reads up to {pages} pages through the identity pool and saves them as a JSON file. Comments are data rather than media, so they come to your browser, not the media volume.",
+      "done": "{count, plural, one {# comment saved} other {# comments saved}}",
+      "failed": "Could not save the comments"
+    },
+    "author": {
+      "action": "Save this author's posts",
+      "hint": "Queues a download for the author's most recent {count} posts. Paste their profile link.",
+      "done": "{queued} of {posts} queued",
+      "failed": "Could not queue the author's posts"
+    },
+    "target": {
+      "unrecognised": "That is not a link this instance recognises",
+      "expected": {
+        "video": "That is a profile link. Paste a post link, or use \"Save this author's posts\".",
+        "user": "That is a post link. Paste the author's profile link instead."
+      }
     }
   },
   "library": {
