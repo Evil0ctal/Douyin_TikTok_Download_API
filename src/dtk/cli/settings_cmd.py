@@ -31,12 +31,12 @@ def redact(key: str, value: Any) -> Any:
     """Mask credential-bearing parts of a setting value.
 
     The rules moved to :mod:`dtk.ops.masking` when the admin API needed them
-    too; this keeps the terminal's spelling of them. ``key`` is not consulted:
-    what makes a value a credential is the field it sits in, not the setting it
-    belongs to.
+    too; this keeps the terminal's spelling of them. ``key`` IS consulted: a
+    field name is what makes a nested value a credential, but a top-level
+    scalar like ``security.webhook_secret`` is a credential because the registry
+    says so, and nothing about the string itself reveals that.
     """
-    del key
-    return redact_setting(value)
+    return redact_setting(value, key)
 
 
 def render(value: Any) -> str:

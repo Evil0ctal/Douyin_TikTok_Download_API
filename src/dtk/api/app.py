@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import AsyncIterator
+from typing import Any, Final
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -65,6 +66,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.info("api.stopped")
 
 
+#: Keys pydantic attaches to a validation error that must never leave the
+#: process. ``input`` is the offending value, and for a body that failed to
+#: parse at all it is the raw request bytes; ``ctx`` can carry the same value
+#: again inside an exception it wrapped; ``url`` is a docs link, not an error.
+_UNSAFE_ERROR_KEYS: Final[frozenset[str]] = frozenset({"input", "ctx", "url"})
+
+
+def _safe_validation_fields(exc: RequestValidationError) -> list[dict[str, Any]]:
+    """The field path and the reason, and nothing the caller sent.
+
+    FastAPI's ``errors()`` takes no arguments - it hands back pydantic's list
+    verbatim - so the stripping happens here rather than at the call.
+    """
+    fields: list[dict[str, Any]] = []
+    for error in list(exc.errors())[:10]:
+        if not isinstance(error, dict):
+            continue
+        fields.append({k: v for k, v in error.items() if k not in _UNSAFE_ERROR_KEYS})
+    return fields
+
+
 def create_app(settings: BootstrapSettings | None = None) -> FastAPI:
     settings = settings or BootstrapSettings()
 
@@ -110,11 +132,26 @@ def _install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
+        """Answer a malformed request without quoting it back.
+
+        ``include_input=False`` is the whole point. Pydantic puts the offending
+        value in every error, and for a body that failed to parse at all - a
+        JSON document sent with `Content-Type: text/plain`, which is what plain
+        `curl -d` does - that value is the raw request bytes. Serializing them
+        raised `TypeError: Object of type bytes is not JSON serializable`, the
+        catch-all turned it into a 500, and the traceback wrote the whole body
+        into the container log: an imported cookie jar on one endpoint, a
+        plaintext password on another, and reachable unauthenticated through
+        `POST /auth/login`.
+
+        So the input never travels. The field path and the reason are what a
+        caller needs; the value is something they already have.
+        """
         return envelope.failure(
             ErrorCode.INVALID_PARAM,
             getattr(request.state, "request_id", "unknown"),
             language=response_language(request),
-            details={"fields": exc.errors()[:10]},
+            details={"fields": _safe_validation_fields(exc)},
         )
 
     @app.exception_handler(StarletteHTTPException)

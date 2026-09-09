@@ -214,22 +214,55 @@ def is_credential_field(name: str) -> bool:
     return lowered in SECRET_FIELDS or lowered in URL_FIELDS
 
 
-def redact_setting(value: Any) -> Any:
+def is_sensitive_setting(key: str | None) -> bool:
+    """Whether this setting is declared SENSITIVE in the registry.
+
+    Read from the declaration rather than guessed from the name. A setting is
+    sensitive because someone said so in :mod:`dtk.core.config`, and a name
+    heuristic would both miss ``api.public_endpoints`` and mask things that are
+    not secret at all.
+    """
+    if not key:
+        return False
+    from dtk.core.config import RUNTIME_SETTINGS, Scope
+
+    spec = RUNTIME_SETTINGS.get(key)
+    return spec is not None and spec.scope is Scope.SENSITIVE
+
+
+def redact_setting(value: Any, key: str | None = None) -> Any:
     """Mask the credential-bearing parts of a setting value.
 
     Walks lists and mappings because the values that matter are nested: the
     channel descriptors in ``notify.channels`` are where a bot token lives. Every
     surface that shows a setting goes through here - the CLI's tables, the admin
     API's responses, and the audit row a settings write leaves behind.
+
+    ``key`` is what makes a *scalar* secret maskable, and its absence was a real
+    leak. This function used to decide purely on shape: it masked by field name
+    inside a mapping or a list and returned any top-level scalar untouched. So
+    ``notify.channels`` - a list of records - was masked correctly on every
+    surface, while ``security.webhook_secret`` - a bare string, declared
+    SENSITIVE - was returned verbatim by the settings listing, echoed by the
+    write, and written in cleartext into an audit row that retention never
+    trims. A caller with only ``identity:manage`` could read it while being
+    refused permission to change it.
+
+    Shape cannot answer this question; only the declaration can, which is why
+    the key is passed in.
     """
     if isinstance(value, Mapping):
         return {field: _redact_field(str(field), item) for field, item in value.items()}
     if isinstance(value, list):
         return [redact_setting(item) for item in value]
+    if is_sensitive_setting(key) and isinstance(value, str):
+        # An empty string is "not set", which is not a secret and is worth
+        # being able to see.
+        return mask_secret(value) if value else value
     return value
 
 
-def unredact_setting(value: Any, stored: Any) -> Any:
+def unredact_setting(value: Any, stored: Any, key: str | None = None) -> Any:
     """Put back the stored values that the masks in ``value`` stand in for.
 
     Masking on read breaks an editable setting, because the console reads the
@@ -271,6 +304,18 @@ def unredact_setting(value: Any, stored: Any) -> Any:
         ]
     if isinstance(value, Mapping):
         return _merge_record(value, stored if isinstance(stored, Mapping) else None)
+    if (
+        is_sensitive_setting(key)
+        and isinstance(value, str)
+        and isinstance(stored, str)
+        and stored
+        and value == mask_secret(stored)
+    ):
+        # The console reads the masked value and writes the whole form back.
+        # Without this, saving any other field on the page would store the mask
+        # as the secret. Matched against the mask *of the stored value*, so a
+        # caller cannot invent one and have a credential handed back to them.
+        return stored
     return value
 
 
@@ -384,6 +429,7 @@ __all__ = [
     "SECRET_FIELDS",
     "URL_FIELDS",
     "is_credential_field",
+    "is_sensitive_setting",
     "mask_api_key",
     "mask_cookies",
     "mask_endpoint",

@@ -100,7 +100,7 @@ async def list_settings(request: Request, principal: Principal = Depends(read_ad
     for key, spec in sorted(RUNTIME_SETTINGS.items()):
         stored = rows.get(key)
         value = config.get(key)
-        redacted = redact_setting(value)
+        redacted = redact_setting(value, spec.key)
         items.append(
             {
                 "key": key,
@@ -159,7 +159,7 @@ async def update_setting(
     try:
         # Unmasked before coercion, so what is validated is what will be stored:
         # a value that arrived as a mask must not reach the table unchecked.
-        value = coerce(key, unredact_setting(body.value, previous))
+        value = coerce(key, unredact_setting(body.value, previous, key))
     except (ValueError, TypeError) as exc:
         # The message is replaced by a translated one for the caller's language,
         # so anything the operator needs in order to fix the value has to travel
@@ -181,7 +181,7 @@ async def update_setting(
     # AuditRepository.record: never a credential in detail. The audit trail is
     # read by humans, returned verbatim by GET /admin/audit and never trimmed by
     # retention, so a bot token written here outlives the channel it belongs to.
-    change = {"from": redact_setting(previous), "to": redact_setting(value)}
+    change = {"from": redact_setting(previous, key), "to": redact_setting(value, key)}
     if spec.scope is Scope.SENSITIVE:
         # Doc 08 lists a SENSITIVE change beside importing an identity and
         # creating a key: the operations that widen the attack surface.
@@ -207,7 +207,7 @@ async def update_setting(
         request,
         {
             "key": key,
-            "value": redact_setting(value),
+            "value": redact_setting(value, key),
             "version": request.app.state.config.version,
         },
     )
@@ -236,15 +236,15 @@ async def reset_setting(
         target_type="setting",
         target_id=key,
         detail={
-            "from": redact_setting(previous),
-            "to": redact_setting(request.app.state.config.get(key)),
+            "from": redact_setting(previous, key),
+            "to": redact_setting(request.app.state.config.get(key), key),
         },
     )
     return ok(
         request,
         {
             "key": key,
-            "value": redact_setting(request.app.state.config.get(key)),
+            "value": redact_setting(request.app.state.config.get(key), key),
             "source": _source(key, None),
             "version": request.app.state.config.version,
         },

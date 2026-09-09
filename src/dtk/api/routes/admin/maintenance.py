@@ -99,7 +99,9 @@ async def list_audit(
                 # were masked at the source are still in this table - nothing
                 # trims it - so they are masked again on the way out.
                 "detail": (
-                    redact_setting(row.detail) if row.target_type == "setting" else row.detail
+                    redact_setting(row.detail, row.target_id)
+                    if row.target_type == "setting"
+                    else row.detail
                 ),
                 "ip": row.ip,
                 "user_agent": row.user_agent,

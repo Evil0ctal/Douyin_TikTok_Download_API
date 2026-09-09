@@ -26,8 +26,8 @@ whole of doc 08's fourth constraint, restated where it is enforced.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
@@ -363,6 +363,11 @@ class Eviction:
 
     paths: tuple[str, ...] = ()
     ids: tuple[uuid.UUID, ...] = ()
+    #: Which rows live on each directory. Several rows routinely share one -
+    #: the layout has nothing per-download in it - and every one of them loses
+    #: its files when that directory goes, so the caller needs the grouping to
+    #: mark the right rows after a partial delete.
+    ids_by_path: Mapping[str, tuple[uuid.UUID, ...]] = field(default_factory=dict)
     bytes_freed: int = 0
     #: Bytes still on the volume that the sweep cannot touch, because they are
     #: pinned. Surfaced rather than swallowed: an operator who pins more than
@@ -378,27 +383,54 @@ def choose_evictions(rows: Sequence[Any], *, over_by: int) -> Eviction:
     part with a policy in it, and a policy that deletes files should be
     testable without a database.
 
-    ``rows`` arrives oldest first. Pinned rows are counted and skipped rather
-    than filtered out beforehand, so the caller can say how much of the volume
-    the sweep is unable to touch - an operator who has pinned more than their
-    own ceiling has silently disabled their cleanup, and should hear about it.
+    ``rows`` arrives oldest first.
+
+    **The unit is the directory, not the row.** ``directory_of`` is
+    ``platform/author/content`` with nothing per-download in it, and nothing
+    stops the same post being downloaded twice, so several rows routinely share
+    one directory - and what the sidecar deletes is a directory, recursively.
+    Deciding row by row got both halves wrong: it scheduled a directory for
+    deletion because *one* of its rows was unpinned, destroying the pinned
+    row's files while reporting those same bytes as protected; and it added the
+    same directory's bytes to ``bytes_freed`` once per row, so the sweep
+    believed it had freed twice what it had and stopped short of the ceiling.
+
+    So: group by directory, refuse the whole directory if **any** row on it is
+    pinned, and count its bytes once. A pin protects the files, which is what
+    the pin endpoint promises and what an operator would assume.
     """
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        group = groups.setdefault(
+            row.directory, {"pinned": False, "bytes": 0, "ids": [], "order": len(groups)}
+        )
+        group["ids"].append(row.id)
+        group["pinned"] = group["pinned"] or bool(row.pinned)
+        # The largest claim wins rather than the sum: two rows for one post
+        # describe the same files, and adding them counts the bytes twice.
+        group["bytes"] = max(int(group["bytes"]), int(row.bytes_total))
+
     freed = 0
     paths: list[str] = []
     ids: list[uuid.UUID] = []
+    by_path: dict[str, tuple[uuid.UUID, ...]] = {}
     pinned_bytes = 0
-    for row in rows:
-        if row.pinned:
-            pinned_bytes += int(row.bytes_total)
+    for directory, group in sorted(groups.items(), key=lambda item: item[1]["order"]):
+        if group["pinned"]:
+            pinned_bytes += int(group["bytes"])
             continue
         if freed >= over_by:
             continue
-        paths.append(row.directory)
-        ids.append(row.id)
-        freed += int(row.bytes_total)
+        paths.append(directory)
+        # Every row on the directory is marked evicted, because every one of
+        # them loses its files when the directory goes.
+        ids.extend(group["ids"])
+        by_path[directory] = tuple(group["ids"])
+        freed += int(group["bytes"])
     return Eviction(
         paths=tuple(paths),
         ids=tuple(ids),
+        ids_by_path=by_path,
         bytes_freed=freed,
         pinned_bytes=pinned_bytes,
         over_by=over_by,

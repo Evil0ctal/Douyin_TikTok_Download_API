@@ -9,6 +9,7 @@ exception worth pinning down precisely.
 
 from __future__ import annotations
 
+import itertools
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -21,10 +22,20 @@ from dtk.services import downloads
 MB = 1024 * 1024
 
 
+_ROWS = itertools.count()
+
+
 def row(bytes_total: int, *, pinned: bool = False, name: str = "") -> SimpleNamespace:
+    """One download row.
+
+    Each gets its OWN directory unless `name` says otherwise. The default used
+    to be derived from the byte count, so two rows of the same size silently
+    shared a directory - which is the exact collision `choose_evictions` groups
+    on, and it made this helper hide the thing the tests below now pin.
+    """
     return SimpleNamespace(
         id=uuid.uuid4(),
-        directory=name or f"douyin/a/{bytes_total}",
+        directory=name or f"douyin/a/{next(_ROWS)}",
         bytes_total=bytes_total,
         pinned=pinned,
     )
@@ -153,3 +164,44 @@ def test_a_media_download_is_not_exempt_from_the_queue_ceiling() -> None:
 
     assert Maintenance.MEDIA_DOWNLOAD.value not in _OPERATOR_TRIGGERED
     assert Maintenance.DIAGNOSE.value in _OPERATOR_TRIGGERED
+
+
+class TestSharedDirectories:
+    """Several downloads of one post land in one directory.
+
+    `directory_of` is platform/author/content with nothing per-download in it,
+    and nothing dedupes, so this is the normal case rather than an edge one -
+    and what the sidecar deletes is the whole directory, recursively.
+    """
+
+    def test_a_pin_protects_every_row_on_its_directory(self):
+        """The defect this replaced: the sweep scheduled a directory for
+        deletion because one of its rows was unpinned, destroying the pinned
+        row's files while reporting those same bytes as protected."""
+        shared = "douyin/MS4wA/7408"
+        pinned = row(240 * MB, pinned=True, name=shared)
+        duplicate = row(240 * MB, name=shared)
+        plan = downloads.choose_evictions([pinned, duplicate], over_by=100 * MB)
+
+        assert plan.paths == ()
+        assert plan.pinned_bytes == 240 * MB
+
+    def test_one_directory_is_counted_once_not_once_per_row(self):
+        """Two rows describing the same files are not twice the disk. Counting
+        them twice made the sweep believe it had freed enough and stop short."""
+        shared = "douyin/MS4wA/7408"
+        plan = downloads.choose_evictions(
+            [row(240 * MB, name=shared), row(240 * MB, name=shared)], over_by=100 * MB
+        )
+        assert plan.paths == (shared,)
+        assert plan.bytes_freed == 240 * MB
+
+    def test_every_row_on_a_removed_directory_is_marked(self):
+        """All of them lose their files, so all of them have to be recorded as
+        evicted - otherwise a row keeps claiming on_disk for files that are gone."""
+        shared = "douyin/MS4wA/7408"
+        first, second = row(240 * MB, name=shared), row(240 * MB, name=shared)
+        plan = downloads.choose_evictions([first, second], over_by=100 * MB)
+
+        assert set(plan.ids) == {first.id, second.id}
+        assert plan.ids_by_path[shared] == (first.id, second.id)

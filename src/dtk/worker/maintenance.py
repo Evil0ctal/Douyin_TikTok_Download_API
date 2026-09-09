@@ -282,10 +282,14 @@ class Maintenance:
         # Only what the sidecar confirmed it removed is marked evicted. Marking
         # optimistically would produce a row claiming the file is gone while it
         # is still on the disk, and the next sweep would then never reclaim it.
+        # Grouped by directory rather than zipped against it: several rows can
+        # share one directory, so the two tuples are not parallel and zipping
+        # them raised as soon as a post had been downloaded twice.
         evicted_ids = [
             download_id
-            for path, download_id in zip(eviction.paths, eviction.ids, strict=True)
+            for path in eviction.paths
             if path in confirmed
+            for download_id in eviction.ids_by_path.get(path, ())
         ]
         async with self._session_factory() as session:
             report.media_evicted = await downloads.mark_evicted(session, evicted_ids)

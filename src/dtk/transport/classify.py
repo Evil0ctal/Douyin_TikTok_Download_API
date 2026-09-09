@@ -443,6 +443,44 @@ def _withheld_payload(view: ResponseView) -> RuleResult:
     return False
 
 
+#: Keys an envelope may carry that say nothing about the content: the status,
+#: its message, and the tracing crumbs both platforms attach to everything.
+_ENVELOPE_META_KEYS: Final[frozenset[str]] = frozenset(
+    {*ENVELOPE_STATUS_KEYS, *ENVELOPE_MESSAGE_KEYS, "extra", "log_pb", "logid", "log_id"}
+)
+
+
+def _bare_envelope(view: ResponseView) -> RuleResult:
+    """A 200 whose envelope carries a status and nothing else.
+
+    Measured on 2026-09-08: Douyin answers ``douyin.author_posts`` with any
+    non-zero ``max_cursor`` as HTTP 200 and exactly ``{"status_code":0}`` - 17
+    bytes, no ``aweme_list``, no reason - while the same request with
+    ``max_cursor=0`` returns 612 KB. It is not the end of the feed; older posts
+    demonstrably exist.
+
+    :func:`_withheld_payload` could not see it, because that rule fires on a
+    payload key that is *present and empty*, and here the key is absent
+    entirely. So the response was classified ``default.ok``, handed to the
+    parser, and came back as ``UPSTREAM_CHANGED`` - a non-retryable error whose
+    message asks the operator to report a parser bug that no parser change can
+    fix. It also went into ``request_log`` as ``outcome=ok, http_status=200``,
+    so a systematic refusal never reached pool health or the endpoint breaker.
+
+    Keyed on "nothing but metadata" rather than on a list of payload names,
+    because the payload key differs per endpoint - ``aweme_list``, ``comments``,
+    ``user`` - and a rule that had to know them all would miss the next one.
+    """
+    if not view.response.ok:
+        return False
+    envelope = view.envelope
+    if not isinstance(envelope, dict) or not envelope:
+        return False
+    if any(key not in _ENVELOPE_META_KEYS for key in envelope):
+        return False
+    return "envelope carries a status and no payload"
+
+
 def _server_error(view: ResponseView) -> RuleResult:
     if view.status >= 500:
         return f"http {view.status}"
@@ -469,6 +507,9 @@ DEFAULT_RULES: Final[tuple[ClassificationRule, ...]] = (
     ClassificationRule("body.empty", Outcome.RISK_CONTROL, _empty_body),
     ClassificationRule("payload.explained", Outcome.BUSINESS_ERROR, _explained_absence),
     ClassificationRule("payload.withheld", Outcome.RISK_CONTROL, _withheld_payload),
+    # After payload.withheld and payload.explained, so a refusal that names its
+    # reason is still reported as the business answer it is.
+    ClassificationRule("payload.bare_envelope", Outcome.RISK_CONTROL, _bare_envelope),
     ClassificationRule("http.server_error", Outcome.NETWORK_ERROR, _server_error),
     ClassificationRule("http.client_error", Outcome.BUSINESS_ERROR, _client_error),
 )

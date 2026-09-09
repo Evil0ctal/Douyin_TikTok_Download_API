@@ -354,7 +354,7 @@ class FetchService:
         ctx = ctx or FetchContext()
         adapter = get_adapter(platform)
         started = time.monotonic()
-        digest = cache.cache_key(endpoint, params)
+        digest = cache.cache_key(endpoint, params, include_raw=ctx.include_raw)
 
         hit = await cache.get(digest) if cache_ttl > 0 else None
         if hit is not None:

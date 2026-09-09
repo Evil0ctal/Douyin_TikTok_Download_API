@@ -634,3 +634,48 @@ async def test_the_signature_and_the_request_describe_the_same_visitor() -> None
     # half a bare fingerprint would not have carried.
     assert signed_as[0].cookies == {"ttwid": "x"}
     assert signed_as[0].proxy_url == "http://user:pass@exit.example:8080"
+
+
+class TestBareEnvelope:
+    """A 200 carrying a status and no payload.
+
+    Measured on 2026-09-08: Douyin answers author_posts with any non-zero
+    max_cursor as exactly `{"status_code":0}` - 17 bytes - while max_cursor=0
+    returns 612 KB. It is a refusal, not the end of the feed. It used to reach
+    the parser and come back as a non-retryable UPSTREAM_CHANGED telling the
+    operator to report a parser bug, and it was logged as outcome=ok, so the
+    pool never learned anything from it.
+    """
+
+    def _classify(self, body: bytes, status: int = 200):
+        return classify_detailed(response(status=status, body=body))
+
+    def test_a_status_only_envelope_is_withheld_not_ok(self):
+        result = self._classify(b'{"status_code":0}')
+        assert result.outcome is Outcome.RISK_CONTROL
+        assert result.rule == "payload.bare_envelope"
+
+    def test_tracing_crumbs_do_not_make_it_look_like_a_payload(self):
+        result = self._classify(b'{"status_code":0,"status_msg":"","log_pb":{"impr_id":"x"}}')
+        assert result.outcome is Outcome.RISK_CONTROL
+
+    def test_a_real_answer_is_untouched(self):
+        """The rule must key on 'nothing but metadata', not on a payload name -
+        the payload key differs per endpoint."""
+        result = self._classify(b'{"status_code":0,"aweme_list":[{"aweme_id":"1"}],"has_more":1}')
+        assert result.outcome is Outcome.OK
+
+    def test_an_empty_list_is_still_a_real_answer(self):
+        """An author with no posts answers with the key present and empty; that
+        is the end of a feed, not a refusal."""
+        result = self._classify(b'{"status_code":0,"aweme_list":[],"has_more":0}')
+        assert result.outcome is Outcome.OK
+
+    def test_a_named_refusal_still_reports_its_own_reason(self):
+        """payload.explained runs first, so a platform that says why keeps
+        being reported as the business answer it is."""
+        body = (
+            b'{"status_code":0,"aweme_detail":null,'
+            b'"filter_detail":{"filter_reason":"self_see","detail_msg":"only you"}}'
+        )
+        assert self._classify(body).outcome is Outcome.BUSINESS_ERROR

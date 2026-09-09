@@ -12,6 +12,7 @@ time, so there is no cache to wait out.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,8 +23,9 @@ from dtk.api.deps import Principal
 from dtk.api.routes.schemas import ApiKeyCreate
 from dtk.api.routes.support import audit, iso, manage_pool, ok, read_admin
 from dtk.core.crypto import new_api_key
-from dtk.core.errors import InvalidParam, NotFound
+from dtk.core.errors import ForbiddenScope, InvalidParam, NotFound
 from dtk.core.logging import get_logger
+from dtk.core.types import Scope
 from dtk.db.models import ApiKey
 from dtk.db.repositories import ApiKeyRepository
 
@@ -80,6 +82,32 @@ async def list_keys(
     return ok(request, [_row(row) for row in rows])
 
 
+def _refuse_escalation(principal: Principal, requested: Sequence[Scope]) -> None:
+    """A key may not mint scopes its creator does not hold.
+
+    This route is guarded by ``manage_pool``, which admits ``identity:manage``
+    as well as ``admin`` - and it did not look at the scopes being minted. So a
+    key holding only ``identity:manage``, refused ``GET /admin/users`` and
+    refused a write to ``api.public_endpoints``, could create a key with
+    ``scopes: ["admin"]`` and use it to do both, one request apart. The guard
+    was asking whether the caller may create keys, never whether it may create
+    *this* key.
+
+    A console session is bounded by its role rather than by scopes, and the
+    guard above already requires at least OPERATOR, so a session is left to
+    mint what its role allows. It is a credential minting a credential that has
+    to be bounded by what the first one holds.
+    """
+    if principal.api_key_id is None:
+        return
+    excess = sorted(scope.value for scope in requested if scope not in principal.scopes)
+    if excess:
+        raise ForbiddenScope(
+            "an API key cannot create a key with scopes it does not hold itself",
+            details={"refused": excess, "held": sorted(s.value for s in principal.scopes)},
+        )
+
+
 @router.post("", summary="Create an API key")
 async def create_key(
     request: Request,
@@ -97,6 +125,7 @@ async def create_key(
             "expires_at must be in the future",
             details={"field": "expires_at"},
         )
+    _refuse_escalation(principal, body.scopes)
     full, prefix, digest = new_api_key()
     key = await ApiKeyRepository(request.state.db).create(
         user_id=principal.user_id,

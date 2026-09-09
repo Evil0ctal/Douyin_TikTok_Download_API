@@ -55,7 +55,21 @@ def _candidates() -> list[Path]:
 #: Paths the fallback must never claim. Without this a typo in an API path would
 #: return the console's HTML with status 200, and a client parsing JSON would
 #: report something entirely unrelated to the actual mistake.
-RESERVED_PREFIXES = ("/api/", "/healthz", "/readyz", "/docs", "/redoc", "/openapi.json")
+#:
+#: ``/mcp`` is here because leaving it out was worse than a wrong body: the
+#: catch-all full-matched ``GET /mcp`` and answered the console shell with 200,
+#: so a probing client saw apparent success, while ``POST /mcp`` partial-matched
+#: and got 405 before Starlette's trailing-slash redirect could run. Only
+#: ``/mcp/`` worked, and nothing in either answer said so.
+RESERVED_PREFIXES = (
+    "/api/",
+    "/healthz",
+    "/readyz",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/mcp",
+)
 
 
 def localize(html: str, language: Language) -> str:

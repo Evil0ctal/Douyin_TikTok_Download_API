@@ -27,6 +27,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from starlette.types import Receive, Send
 from starlette.types import Scope as ASGIScope
 
@@ -238,6 +239,35 @@ def _chain_lifespan(app: FastAPI, sub: Starlette) -> None:
     app.router.lifespan_context = combined
 
 
+def _redirect_bare_path(app: FastAPI, path: str) -> None:
+    """Send ``/mcp`` to ``/mcp/`` rather than answering 404.
+
+    A Mount matches only the paths beneath it, so the bare prefix is left for
+    whatever comes next - and for a while that was the console's SPA catch-all,
+    which answered ``GET /mcp`` with the console shell and **200**. A client
+    probing the documented path saw apparent success and nothing that hinted at
+    the missing slash; ``POST /mcp`` got a 405 from the same partial match.
+    Adding the prefix to the console's reserved list stopped the wrong body but
+    left a bare 404, which is honest and still unhelpful.
+
+    Registered after the mount so the mount keeps precedence for everything
+    under it.
+    """
+
+    async def _to_slash(_: Request) -> RedirectResponse:
+        # 307, not 302: the method and body have to survive, and the client
+        # that hits this is usually POSTing an initialize call.
+        return RedirectResponse(url=f"{path}/", status_code=307)
+
+    app.add_api_route(
+        path,
+        _to_slash,
+        methods=["GET", "POST"],
+        include_in_schema=False,
+        name="mcp_trailing_slash",
+    )
+
+
 def mount(
     app: FastAPI,
     *,
@@ -255,6 +285,7 @@ def mount(
     server = build_server(context or app_context(app))
     http_app = create_http_app(server, stateless=stateless)
     app.mount(path, ApiKeyGuard(http_app, scopes=scopes))
+    _redirect_bare_path(app, path)
     _chain_lifespan(app, http_app)
     log.info("mcp.http.mounted", path=path, stateless=stateless)
     return server

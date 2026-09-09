@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Any
+from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import StreamingResponse
@@ -33,7 +33,7 @@ from dtk.api.routes.support import ok
 from dtk.core.db import session_scope
 from dtk.core.errors import NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import Scope
+from dtk.core.types import Platform, Scope
 from dtk.db.models import ArchivedContent
 from dtk.services import archive
 
@@ -44,6 +44,13 @@ router = APIRouter(prefix="/api/v1/archive", tags=["archive"])
 #: Hard ceiling on a single export, so one call cannot run for an hour. A caller
 #: who needs more pages through with `cursor` on the list endpoint.
 EXPORT_LIMIT = 50_000
+
+#: Which read scope a walk of one platform's history costs. Both of these
+#: endpoints look like archive reads and behave like platform reads.
+_READ_SCOPE: Final[dict[Platform, Scope]] = {
+    Platform.DOUYIN: Scope.DOUYIN_READ,
+    Platform.TIKTOK: Scope.TIKTOK_READ,
+}
 
 PLATFORM_QUERY = Query(default=None, description="Only this platform.")
 AUTHOR_QUERY = Query(default=None, max_length=256, description="Only this author's posts.")
@@ -285,7 +292,12 @@ async def recheck(
     `202` with a task id. The result carries how many were checked and how many
     turned out to be gone.
     """
-    principal.require(Scope.ARCHIVE_READ)
+    # Not archive:read. This spends the identity pool on a real request per
+    # post, which is exactly what the downloads module says no read scope may
+    # imply - and the archive module's own docstring promises that reading it
+    # spends no identity. A recheck is a platform read wearing an archive name,
+    # so it asks for a platform read scope.
+    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
     return await operations.submit_and_wait(
         request,
         principal,
@@ -326,7 +338,9 @@ async def backfill(
     `202` with a task id. The result says how many pages were walked, how many
     posts were archived, and why it stopped.
     """
-    principal.require(Scope.ARCHIVE_READ)
+    # The platform's own read scope, for the same reason as the recheck above -
+    # and this one names its platform, so it can ask for exactly that one.
+    principal.require(_READ_SCOPE[body.platform])
     return await operations.submit_and_wait(
         request,
         principal,

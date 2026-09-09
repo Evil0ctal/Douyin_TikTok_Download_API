@@ -24,11 +24,24 @@ CACHE_KEY = "cache:{digest}"
 INFLIGHT_KEY = "inflight:{digest}"
 
 
-def cache_key(endpoint: str, params: dict[str, Any]) -> str:
+def cache_key(endpoint: str, params: dict[str, Any], *, include_raw: bool = False) -> str:
     """Digest of the normalized business parameters, not of the raw URL.
 
     Two callers who reach the same content by different URL spellings must land
     on the same entry.
+
+    ``include_raw`` is part of the key because the cached value is the *shaped*
+    body, not the platform's answer: ``_dump`` strips ``raw`` before it is
+    stored. Leaving it out froze whichever value the first caller used for the
+    whole TTL, in both directions - a later ``include_raw=true`` got a body with
+    no ``raw`` in it, and a later ``include_raw=false`` got one that still had
+    it. The second is the one that matters: the raw payload is the largest
+    thing this instance stores, and it was being handed to, and persisted in
+    ``tasks.result`` for, a caller who explicitly opted out.
+
+    It is not part of the *upstream* request, so this does mean two fetches
+    where a smarter cache would do one. That is the honest trade until the
+    cache stores the unshaped body.
     """
     canonical = json.dumps(
         {k: v for k, v in sorted(params.items()) if v is not None},
@@ -36,7 +49,8 @@ def cache_key(endpoint: str, params: dict[str, Any]) -> str:
         ensure_ascii=False,
         default=str,
     )
-    return hashlib.sha256(f"{endpoint}\x00{canonical}".encode()).hexdigest()[:32]
+    suffix = "\x00raw" if include_raw else ""
+    return hashlib.sha256(f"{endpoint}\x00{canonical}{suffix}".encode()).hexdigest()[:32]
 
 
 async def get(digest: str) -> dict[str, Any] | None:
