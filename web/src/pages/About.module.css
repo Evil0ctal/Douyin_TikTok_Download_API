@@ -78,7 +78,12 @@
   background: var(--bg-raised);
 }
 
+/* The logo is a white square. On the dark theme it needs a light tile under it
+   or it reads as a rendering fault; giving it one deliberately is the
+   difference between "their brand" and "something broke". */
 .sponsor img {
   border-radius: var(--radius-sm);
   object-fit: contain;
+  background: #ffffff;
+  padding: var(--space-1);
 }
