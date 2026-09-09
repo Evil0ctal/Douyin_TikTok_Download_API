@@ -271,6 +271,15 @@
   opacity: 0.5;
 }
 
+/* Label above hint, like Field does it. They were two inline spans with no
+ * separator, so a checkbox given both rendered them run together as one word. */
+.checkboxText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .checkboxLabel {
   font-size: var(--text-sm);
   line-height: var(--leading-sm);

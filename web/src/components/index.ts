@@ -73,6 +73,8 @@ export type { SidebarProps } from './Sidebar'
 export { Skeleton, SkeletonText } from './Skeleton'
 export type { SkeletonProps, SkeletonTextProps } from './Skeleton'
 
+export { SigningStages } from './SigningStages'
+export type { SigningStage, SigningStagesProps } from './SigningStages'
 export { SplitPane } from './SplitPane'
 export type { SplitPaneProps } from './SplitPane'
 

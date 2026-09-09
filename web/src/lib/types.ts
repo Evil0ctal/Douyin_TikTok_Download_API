@@ -109,7 +109,6 @@ export interface Identity {
   retire_reason?: string | null
   health?: number | null
   fingerprint?: Record<string, unknown> | null
-  cookie_expires_at?: string | null
   /**
    * Whether the identity still holds the session value its platform issues to
    * a browser. Never the value itself - only which cookie decides it and a

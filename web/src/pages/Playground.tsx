@@ -1,23 +1,26 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  Card,
   Checkbox,
   CodeBlock,
   CopyableId,
+  Disclosure,
   EmptyState,
   ErrorCodeBadge,
   Input,
-  PageHeader,
   Select,
+  SigningStages,
+  SplitPane,
   StatusBadge,
   useErrorInfo,
   type SelectOption,
 } from '@/components'
 import { useApiQuery, useFormatters } from '@/hooks'
-import { apiRequest, isApiError, type ApiError, type ResponseMeta } from '@/lib/api'
+import type { SigningStage } from '@/components'
+import { useApiMutation } from '@/hooks'
+import { apiPost, apiRequest, isApiError, type ApiError, type ResponseMeta } from '@/lib/api'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import {
@@ -29,9 +32,10 @@ import {
   type RequestLogRow,
   type TaskState,
 } from '@/lib/types'
+import styles from './playground.module.css'
 
 /**
- * Endpoint playground.
+ * Endpoint workbench.
  *
  * This page exists so that a dead endpoint can be diagnosed in three minutes.
  * A failure therefore never stops at "500": it shows the stable error code, the
@@ -43,6 +47,14 @@ import {
  * The copy-ready snippets are the other half. For most users the first
  * successful call is a paste of the curl line, so the snippets are generated
  * from the form as it stands rather than from a static example.
+ *
+ * The layout is three resizable panes filling the viewport - catalogue, request,
+ * response - rather than one scrolling column of cards. The column wasted most
+ * of a wide screen on empty gutters while the thing a reader needs next was
+ * always below the fold, and every response was rendered expanded, so one large
+ * payload pushed the snippet arbitrarily far down the page. Response panels are
+ * now collapsed by default and opened on purpose; the failure panel is the one
+ * exception, because on a failed call it is the entire reason to be here.
  */
 
 /* -------------------------------------------------------------------------- */
@@ -51,12 +63,15 @@ import {
 
 type ParamKind = 'text' | 'number' | 'boolean'
 type ParamWhere = 'query' | 'body'
+/** Which block of the form a parameter belongs in. Purely presentational. */
+type ParamSection = 'target' | 'paging' | 'request'
 
 interface ParamDef {
   /** Wire name. Never translated (docs/design/14-i18n.md). */
   name: string
   kind: ParamKind
   where: ParamWhere
+  section: ParamSection
   required?: boolean
   /** Members of a group are alternatives: exactly one has to be filled in. */
   oneOf?: string
@@ -81,17 +96,39 @@ const URL_PARAM: ParamDef = {
   name: 'url',
   kind: 'text',
   where: 'query',
+  section: 'target',
   oneOf: 'target',
   placeholder: 'https://www.douyin.com/video/7300000000000000000',
 }
 
-const WAIT_PARAM: ParamDef = { name: 'wait', kind: 'number', where: 'query', min: 0, max: 30 }
-const CURSOR_PARAM: ParamDef = { name: 'cursor', kind: 'text', where: 'query' }
-const COUNT_PARAM: ParamDef = { name: 'count', kind: 'number', where: 'query', min: 1, max: 50 }
+const WAIT_PARAM: ParamDef = {
+  name: 'wait',
+  kind: 'number',
+  where: 'query',
+  section: 'request',
+  min: 0,
+  max: 30,
+}
+const CURSOR_PARAM: ParamDef = { name: 'cursor', kind: 'text', where: 'query', section: 'paging' }
+const COUNT_PARAM: ParamDef = {
+  name: 'count',
+  kind: 'number',
+  where: 'query',
+  section: 'paging',
+  min: 1,
+  max: 50,
+}
+/**
+ * Accepted by every read endpoint since the page endpoints gained it. It used
+ * to be declared on three, while the response panel offered an "include the raw
+ * payload and run again" button on all of them - which re-sent the identical
+ * request, because the builder only walks the selected endpoint's parameters.
+ */
 const RAW_PARAM: ParamDef = {
   name: 'include_raw',
   kind: 'boolean',
   where: 'query',
+  section: 'request',
   defaultValue: 'true',
 }
 /**
@@ -104,12 +141,25 @@ const PROXY_PARAM: ParamDef = {
   name: 'proxy',
   kind: 'text',
   where: 'query',
+  section: 'request',
   placeholder: 'http://user:pass@host:port',
+}
+/**
+ * Send as one named identity and no other. Rendered as a picker rather than as
+ * a text input, because the value is a uuid nobody types from memory and the
+ * thing a reader is actually choosing between is "which of my accounts".
+ */
+const IDENTITY_PARAM: ParamDef = {
+  name: 'identity',
+  kind: 'text',
+  where: 'query',
+  section: 'request',
 }
 const SEC_UID_PARAM: ParamDef = {
   name: 'sec_user_id',
   kind: 'text',
   where: 'query',
+  section: 'target',
   oneOf: 'target',
   placeholder: 'MS4wLjABAAAA',
 }
@@ -117,6 +167,18 @@ const PROFILE_URL_PARAM: ParamDef = {
   ...URL_PARAM,
   placeholder: 'https://www.douyin.com/user/MS4wLjABAAAA',
 }
+const AWEME_ID_PARAM: ParamDef = {
+  name: 'aweme_id',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  oneOf: 'target',
+  placeholder: '7300000000000000000',
+}
+
+/** The three that every read endpoint carries, in the order the API declares them. */
+const ENVELOPE_PARAMS: readonly ParamDef[] = [RAW_PARAM, WAIT_PARAM, PROXY_PARAM, IDENTITY_PARAM]
+const PAGE_PARAMS: readonly ParamDef[] = [CURSOR_PARAM, COUNT_PARAM]
 
 const CATALOG: readonly EndpointDef[] = [
   {
@@ -130,12 +192,14 @@ const CATALOG: readonly EndpointDef[] = [
         name: 'url',
         kind: 'text',
         where: 'body',
+        section: 'target',
         required: true,
         placeholder: 'https://v.douyin.com/iRNBho6G/',
       },
       { ...RAW_PARAM, where: 'body' },
       WAIT_PARAM,
       PROXY_PARAM,
+      IDENTITY_PARAM,
     ],
   },
   {
@@ -144,19 +208,7 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/video`,
     operation: 'content_detail',
     platformScoped: true,
-    params: [
-      URL_PARAM,
-      {
-        name: 'aweme_id',
-        kind: 'text',
-        where: 'query',
-        oneOf: 'target',
-        placeholder: '7300000000000000000',
-      },
-      RAW_PARAM,
-      WAIT_PARAM,
-      PROXY_PARAM,
-    ],
+    params: [URL_PARAM, AWEME_ID_PARAM, ...ENVELOPE_PARAMS],
   },
   {
     id: 'comments',
@@ -164,20 +216,7 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/video/comments`,
     operation: 'comments',
     platformScoped: true,
-    params: [
-      URL_PARAM,
-      {
-        name: 'aweme_id',
-        kind: 'text',
-        where: 'query',
-        oneOf: 'target',
-        placeholder: '7300000000000000000',
-      },
-      CURSOR_PARAM,
-      COUNT_PARAM,
-      WAIT_PARAM,
-      PROXY_PARAM,
-    ],
+    params: [URL_PARAM, AWEME_ID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
   {
     id: 'replies',
@@ -186,12 +225,10 @@ const CATALOG: readonly EndpointDef[] = [
     operation: 'comment_replies',
     platformScoped: true,
     params: [
-      { name: 'comment_id', kind: 'text', where: 'query', required: true },
-      { name: 'aweme_id', kind: 'text', where: 'query' },
-      CURSOR_PARAM,
-      COUNT_PARAM,
-      WAIT_PARAM,
-      PROXY_PARAM,
+      { name: 'comment_id', kind: 'text', where: 'query', section: 'target', required: true },
+      { ...AWEME_ID_PARAM, oneOf: undefined },
+      ...PAGE_PARAMS,
+      ...ENVELOPE_PARAMS,
     ],
   },
   {
@@ -200,19 +237,7 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/user`,
     operation: 'author_profile',
     platformScoped: true,
-    params: [
-      { ...URL_PARAM, placeholder: 'https://www.douyin.com/user/MS4wLjABAAAA' },
-      {
-        name: 'sec_user_id',
-        kind: 'text',
-        where: 'query',
-        oneOf: 'target',
-        placeholder: 'MS4wLjABAAAA',
-      },
-      RAW_PARAM,
-      WAIT_PARAM,
-      PROXY_PARAM,
-    ],
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...ENVELOPE_PARAMS],
   },
   {
     id: 'posts',
@@ -220,20 +245,7 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/user/posts`,
     operation: 'author_posts',
     platformScoped: true,
-    params: [
-      { ...URL_PARAM, placeholder: 'https://www.douyin.com/user/MS4wLjABAAAA' },
-      {
-        name: 'sec_user_id',
-        kind: 'text',
-        where: 'query',
-        oneOf: 'target',
-        placeholder: 'MS4wLjABAAAA',
-      },
-      CURSOR_PARAM,
-      COUNT_PARAM,
-      WAIT_PARAM,
-      PROXY_PARAM,
-    ],
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
   {
     id: 'likes',
@@ -241,7 +253,7 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/user/likes`,
     operation: 'author_likes',
     platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, CURSOR_PARAM, COUNT_PARAM, WAIT_PARAM, PROXY_PARAM],
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
   {
     id: 'mix',
@@ -250,11 +262,9 @@ const CATALOG: readonly EndpointDef[] = [
     operation: 'mix_posts',
     platformScoped: true,
     params: [
-      { name: 'mix_id', kind: 'text', where: 'query', required: true },
-      CURSOR_PARAM,
-      COUNT_PARAM,
-      WAIT_PARAM,
-      PROXY_PARAM,
+      { name: 'mix_id', kind: 'text', where: 'query', section: 'target', required: true },
+      ...PAGE_PARAMS,
+      ...ENVELOPE_PARAMS,
     ],
   },
   {
@@ -263,7 +273,7 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/user/followers`,
     operation: 'author_followers',
     platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, CURSOR_PARAM, COUNT_PARAM, WAIT_PARAM, PROXY_PARAM],
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
   {
     id: 'following',
@@ -271,14 +281,16 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/user/following`,
     operation: 'author_following',
     platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, CURSOR_PARAM, COUNT_PARAM, WAIT_PARAM, PROXY_PARAM],
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
 ]
 
 const DEFAULT_ENDPOINT = CATALOG[0] as EndpointDef
 
+const SECTION_ORDER: readonly ParamSection[] = ['target', 'paging', 'request']
+
 /* -------------------------------------------------------------------------- */
-/* Health and pool shapes                                                      */
+/* Health, pool and identity shapes                                            */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -303,6 +315,16 @@ interface EndpointHealthRow {
 function circuitOf(row: EndpointHealthRow): CircuitState {
   if (row.circuit) return row.circuit
   return row.circuit_open ? 'open' : 'closed'
+}
+
+/** Only the fields the picker needs; the Identities page owns the full shape. */
+interface IdentityOption {
+  id: string
+  platform: string
+  state: IdentityState
+  source: 'minted' | 'imported'
+  authenticated: boolean
+  proxy_label?: string | null
 }
 
 type PoolCounts = Record<IdentityState, number>
@@ -338,6 +360,17 @@ function poolCounts(pool: unknown, depth = 0): PoolCounts {
 
 interface SystemStatusLike {
   pool?: unknown
+}
+
+/**
+ * What /tools/sign answers. Only the parts this panel draws: the flat fields
+ * are the tools page's business, the stages are what a reader debugging a
+ * refused call is here for.
+ */
+interface SignResult {
+  algorithm: string
+  query: string
+  stages?: readonly SigningStage[]
 }
 
 function asRows<T>(payload: unknown): T[] {
@@ -385,6 +418,16 @@ function pickRaw(value: unknown): unknown {
     return raws.length > 0 ? raws : null
   }
   return null
+}
+
+/** The cursor for the next page, when the payload is a page and has one. */
+function nextCursor(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  if (!Array.isArray(record['items'])) return null
+  if (record['has_more'] === false) return null
+  const cursor = record['cursor']
+  return typeof cursor === 'string' && cursor ? cursor : null
 }
 
 /* -------------------------------------------------------------------------- */
@@ -483,6 +526,21 @@ interface RunResult {
   healthEndpoint: string | null
 }
 
+/** One entry in the session's run history. Held in memory only: a request can
+ *  carry a proxy password or an identity id, and neither belongs in storage
+ *  that outlives the tab. */
+interface HistoryEntry {
+  key: number
+  endpointId: string
+  platform: Platform
+  values: Record<string, string>
+  ok: boolean
+  at: number
+  elapsedMs: number
+}
+
+const HISTORY_LIMIT = 12
+
 export default function Playground() {
   const { t, i18n } = useTranslation(['console', 'common'])
   const format = useFormatters()
@@ -495,6 +553,9 @@ export default function Playground() {
   const [taskState, setTaskState] = useState<TaskState | null>(null)
   const [result, setResult] = useState<RunResult | null>(null)
   const [snippet, setSnippet] = useState<SnippetLanguage>('curl')
+  const [history, setHistory] = useState<HistoryEntry[]>([])
+  const [signUrl, setSignUrl] = useState('')
+  const [signCookies, setSignCookies] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
   const endpoint = useMemo(
@@ -519,6 +580,35 @@ export default function Playground() {
     path: paths.system.status,
     poll: POLL.fast,
   })
+
+  /**
+   * The pool, for the identity picker. Read-only and best effort: a caller
+   * without `identity:manage` cannot list identities and also cannot use the
+   * parameter, so a failure here leaves the picker empty rather than raising -
+   * the rest of the page works without it.
+   */
+  const identities = useApiQuery<IdentityOption[]>({
+    key: ['admin', 'identities', 'picker'],
+    path: paths.identities.list,
+    params: { limit: 200 },
+    retry: false,
+  })
+
+  /**
+   * The signature panel signs a platform URL on demand. It is deliberately not
+   * tied to the call above it: this page talks to this API, and the signature
+   * that mattered was computed in the worker against the platform's own URL,
+   * which never comes back. What the run DOES tell you is which signer ran -
+   * that is read off the request log below - and this is where you reproduce
+   * the arithmetic behind it.
+   */
+  const signature = useApiMutation<SignResult, void>(() =>
+    apiPost<SignResult>(paths.tools.sign, {
+      platform,
+      url: signUrl.trim(),
+      cookies: signCookies.trim() || null,
+    }),
+  )
 
   const requestId = result?.requestId ?? null
 
@@ -634,6 +724,16 @@ export default function Playground() {
 
     const startedAt = Date.now()
     const startedPerf = performance.now()
+    const sentValues = { ...values, ...overrides }
+
+    const remember = (ok: boolean, elapsedMs: number): void => {
+      setHistory((current) =>
+        [
+          { key: startedAt, endpointId: endpoint.id, platform, values: sentValues, ok, at: startedAt, elapsedMs },
+          ...current,
+        ].slice(0, HISTORY_LIMIT),
+      )
+    }
 
     try {
       const response = await apiRequest<unknown>(path, {
@@ -647,35 +747,48 @@ export default function Playground() {
           setTaskState(task.state)
         },
       })
+      const elapsedMs = performance.now() - startedPerf
       setResult({
         ok: true,
         method: endpoint.method,
         url: `${path}${queryString(query)}`,
         startedAt,
-        elapsedMs: performance.now() - startedPerf,
+        elapsedMs,
         httpStatus: response.status,
         data: response.data,
         meta: response.meta,
         requestId: response.meta.request_id ?? null,
         healthEndpoint: healthEndpointName,
       })
+      remember(true, elapsedMs)
     } catch (error) {
       const apiError: ApiError | null = isApiError(error) ? error : null
+      const elapsedMs = performance.now() - startedPerf
       setResult({
         ok: false,
         method: endpoint.method,
         url: `${path}${queryString(query)}`,
         startedAt,
-        elapsedMs: performance.now() - startedPerf,
+        elapsedMs,
         httpStatus: apiError?.status ?? null,
         error,
         requestId: apiError?.requestId ?? null,
         healthEndpoint: healthEndpointName,
       })
+      remember(false, elapsedMs)
     } finally {
       abortRef.current = null
       setRunning(false)
     }
+  }
+
+  /** Put a past run's parameters back in the form. Deliberately does not send:
+   *  a click that replays an upstream call would spend an identity by accident. */
+  const restore = (entry: HistoryEntry): void => {
+    setEndpointId(entry.endpointId)
+    setPlatform(entry.platform)
+    setValues(entry.values)
+    setFieldErrors({})
   }
 
   /* -------------------------------------------------------------- health -- */
@@ -687,40 +800,207 @@ export default function Playground() {
   const openCircuits = healthRows.filter((row) => circuitOf(row) !== 'closed')
   const pool = poolCounts(system.data?.pool)
 
-  const endpointOptions: SelectOption[] = CATALOG.map((entry) => ({
-    value: entry.id,
-    label: `${t(`playground.endpoint.${entry.id}`)} · ${entry.method} ${entry.path(platform)}`,
-  }))
+  /**
+   * Identities this call could actually be pinned to: the right platform, and
+   * not retired - retirement wipes the jar, so a retired identity has nothing
+   * left to send as. The state and the "logged in" marker travel in the label
+   * because choosing between accounts is what this control is for.
+   */
+  const identityOptions: SelectOption[] = useMemo(() => {
+    const rows = (identities.data ?? []).filter(
+      (row) =>
+        row.state !== 'retired' && (!endpoint.platformScoped || row.platform === platform),
+    )
+    return [
+      { value: '', label: t('playground.identityAuto') },
+      ...rows.map((row) => ({
+        value: row.id,
+        label: [
+          row.id.slice(0, 8),
+          row.state,
+          row.authenticated ? t('playground.identityLoggedIn') : row.source,
+        ].join(' · '),
+      })),
+    ]
+  }, [identities.data, endpoint.platformScoped, platform, t])
 
   const normalized = result?.ok ? stripRaw(result.data) : null
   const raw = result?.ok ? pickRaw(result.data) : null
+  const cursor = result?.ok ? nextCursor(result.data) : null
+
+  /* A platform switch can strip the pinned identity out from under the form.
+   * Clearing it beats sending a Douyin identity to a TikTok endpoint and
+   * reading the 400 that comes back. */
+  useEffect(() => {
+    const pinned = values['identity']
+    if (!pinned) return
+    const row = (identities.data ?? []).find((entry) => entry.id === pinned)
+    if (row && endpoint.platformScoped && row.platform !== platform) {
+      setValue('identity', '')
+    }
+    // Only the platform and the roster can invalidate a pin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platform, identities.data, endpoint.platformScoped])
+
+  /* ---------------------------------------------------------------- view -- */
+
+  const paramsBySection = (section: ParamSection): ParamDef[] =>
+    endpoint.params.filter((param) => param.section === section)
+
+  const renderParam = (param: ParamDef) => {
+    if (param.name === 'identity') {
+      return (
+        <Select
+          key={param.name}
+          label={<span className="u-mono">{param.name}</span>}
+          description={t('playground.param.identity')}
+          value={valueOf(param)}
+          options={identityOptions}
+          onChange={(event) => {
+            setValue(param.name, event.target.value)
+          }}
+        />
+      )
+    }
+    if (param.kind === 'boolean') {
+      return (
+        <Checkbox
+          key={param.name}
+          checked={valueOf(param) === 'true'}
+          onChange={(event) => {
+            setValue(param.name, event.target.checked ? 'true' : 'false')
+          }}
+          label={<span className="u-mono">{param.name}</span>}
+          hint={t(`playground.param.${param.name}`)}
+        />
+      )
+    }
+    return (
+      <Input
+        key={param.name}
+        label={<span className="u-mono">{param.name}</span>}
+        description={t(`playground.param.${param.name}`)}
+        required={param.required}
+        showOptional={!param.required && !param.oneOf}
+        mono
+        inputMode={param.kind === 'number' ? 'numeric' : undefined}
+        placeholder={param.placeholder}
+        value={valueOf(param)}
+        error={fieldErrors[param.name]}
+        onChange={(event) => {
+          setValue(param.name, event.target.value)
+        }}
+      />
+    )
+  }
 
   return (
-    <div className="u-stack-lg">
-      <PageHeader
-        title={t('page.playground.title')}
-        description={t('page.playground.description')}
-        badge={
-          running ? (
+    <div data-shell-fill className={styles.workbench}>
+      <div className={styles.addressBar}>
+        <h1 className={styles.pageTitle}>{t('page.playground.title')}</h1>
+        <span className={styles.url}>
+          <span className={styles.method}>{endpoint.method}</span>{' '}
+          {path}
+          {queryString(preview.query)}
+        </span>
+        <div className={styles.actions}>
+          {running ? (
             <StatusBadge kind="task" value={taskState ?? 'queued'} size="sm" />
           ) : result ? (
             <StatusBadge kind="task" value={result.ok ? 'done' : 'failed'} size="sm" />
-          ) : null
-        }
-      />
+          ) : null}
+          {running ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                abortRef.current?.abort()
+              }}
+            >
+              {t('common:action.cancel')}
+            </Button>
+          ) : null}
+          <Button
+            variant="primary"
+            size="sm"
+            loading={running}
+            onClick={() => {
+              void send()
+            }}
+          >
+            {t('playground.send')}
+          </Button>
+        </div>
+      </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 'var(--space-4)',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          alignItems: 'start',
-        }}
+      <SplitPane
+        storageKey="playground"
+        gutterLabels={[
+          t('common:layout.splitterAt', { index: 1 }),
+          t('common:layout.splitterAt', { index: 2 }),
+        ]}
+        defaultSizes={[16, 42, 42]}
+        minSizes={[170, 320, 320]}
       >
-        <Card
-          title={t('playground.requestTitle')}
-          description={t('playground.requestDescription')}
-        >
+        {/* ---------------------------------------------------- catalogue -- */}
+        <div className={styles.pane}>
+          <h2 className={styles.paneHeading}>{t('playground.catalogTitle')}</h2>
+          <ul className={styles.endpointList}>
+            {CATALOG.map((entry) => (
+              <li key={entry.id}>
+                <button
+                  type="button"
+                  className={styles.endpointItem}
+                  aria-current={entry.id === endpointId}
+                  onClick={() => {
+                    setEndpointId(entry.id)
+                    setFieldErrors({})
+                  }}
+                >
+                  <span className={styles.endpointVerb}>{entry.method}</span>
+                  <span>{t(`playground.endpoint.${entry.id}`)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <h2 className={styles.paneHeading}>{t('playground.historyTitle')}</h2>
+          {history.length === 0 ? (
+            <p className="u-xs u-muted" style={{ margin: 0 }}>
+              {t('playground.historyEmpty')}
+            </p>
+          ) : (
+            <ul className={styles.endpointList}>
+              {history.map((entry) => (
+                <li key={entry.key}>
+                  <button
+                    type="button"
+                    className={styles.historyItem}
+                    onClick={() => {
+                      restore(entry)
+                    }}
+                    title={t('playground.historyRestore')}
+                  >
+                    <span
+                      className={`${styles.historyDot} ${entry.ok ? styles.historyOk : styles.historyFailed}`}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      {t(`playground.endpoint.${entry.endpointId}`)}
+                      {CATALOG.find((e) => e.id === entry.endpointId)?.platformScoped
+                        ? ` · ${entry.platform}`
+                        : ''}
+                    </span>
+                    <span className="u-mono u-muted">{format.latency(entry.elapsedMs)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* ------------------------------------------------------ request -- */}
+        <div className={styles.pane}>
           <form
             className="u-stack"
             onSubmit={(event) => {
@@ -728,101 +1008,339 @@ export default function Playground() {
               void send()
             }}
           >
-            <Select
-              label={t('playground.endpointLabel')}
-              value={endpointId}
-              options={endpointOptions}
-              onChange={(event) => {
-                setEndpointId(event.target.value)
-                setFieldErrors({})
-              }}
-            />
-
             {endpoint.platformScoped ? (
-              <Select
-                label={t('console:field.platform')}
-                value={platform}
-                options={PLATFORMS.map((entry) => ({ value: entry, label: entry }))}
-                onChange={(event) => {
-                  setPlatform(event.target.value as Platform)
-                }}
-              />
+              <div className={styles.paramGrid}>
+                <Select
+                  label={t('console:field.platform')}
+                  value={platform}
+                  options={PLATFORMS.map((entry) => ({ value: entry, label: entry }))}
+                  onChange={(event) => {
+                    setPlatform(event.target.value as Platform)
+                  }}
+                />
+              </div>
             ) : null}
 
-            <p className="u-mono u-xs u-secondary" style={{ margin: 0, wordBreak: 'break-all' }}>
-              {endpoint.method} {path}
-              {queryString(preview.query)}
-            </p>
+            {SECTION_ORDER.map((section) => {
+              const params = paramsBySection(section)
+              if (params.length === 0) return null
+              const switches = params.filter((param) => param.kind === 'boolean')
+              const fields = params.filter((param) => param.kind !== 'boolean')
+              return (
+                <div key={section} className={styles.paramGroup}>
+                  <h2 className={styles.paneHeading}>{t(`playground.section.${section}`)}</h2>
+                  {fields.length > 0 ? (
+                    <div className={styles.paramGrid}>{fields.map(renderParam)}</div>
+                  ) : null}
+                  {switches.length > 0 ? (
+                    <div className={styles.switchRow}>{switches.map(renderParam)}</div>
+                  ) : null}
+                </div>
+              )
+            })}
 
-            {endpoint.params.map((param) =>
-              param.kind === 'boolean' ? (
-                <Checkbox
-                  key={param.name}
-                  checked={valueOf(param) === 'true'}
-                  onChange={(event) => {
-                    setValue(param.name, event.target.checked ? 'true' : 'false')
-                  }}
-                  label={<span className="u-mono">{param.name}</span>}
-                  hint={t(`playground.param.${param.name}`)}
-                />
-              ) : (
-                <Input
-                  key={param.name}
-                  label={<span className="u-mono">{param.name}</span>}
-                  description={t(`playground.param.${param.name}`)}
-                  required={param.required}
-                  showOptional={!param.required && !param.oneOf}
-                  mono
-                  inputMode={param.kind === 'number' ? 'numeric' : undefined}
-                  placeholder={param.placeholder}
-                  value={valueOf(param)}
-                  error={fieldErrors[param.name]}
-                  onChange={(event) => {
-                    setValue(param.name, event.target.value)
-                  }}
-                />
-              ),
-            )}
-
-            <div className="u-row">
-              <Button type="submit" variant="primary" loading={running}>
-                {t('playground.send')}
-              </Button>
-              {running ? (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    abortRef.current?.abort()
-                  }}
-                >
-                  {t('common:action.cancel')}
-                </Button>
-              ) : null}
-              {running && taskState ? (
-                <span className="u-xs u-muted">
-                  {t('playground.taskState')} <StatusBadge kind="task" value={taskState} size="sm" />
-                </span>
-              ) : null}
-            </div>
+            {/* Submitting with Enter has to keep working; the visible Send is in
+                the address bar, where the URL it will call already is. */}
+            <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
           </form>
-        </Card>
+        </div>
 
-        <Card title={t('playground.contextTitle')} description={t('playground.contextDescription')}>
-          <div className="u-stack">
-            <div className="u-stack-sm">
-              <span className="u-xs u-muted">{t('playground.circuitLabel')}</span>
-              {health.isLoading ? (
-                <span className="u-muted u-xs">{t('common:loading')}</span>
-              ) : health.isError ? (
-                <span className="u-xs" style={{ color: 'var(--caution)' }}>
-                  {t('playground.healthUnavailable')}
+        {/* ----------------------------------------------------- response -- */}
+        <div className={styles.pane}>
+          {!result && !running ? (
+            <EmptyState
+              title={t('playground.emptyTitle')}
+              description={t('playground.emptyDescription')}
+            />
+          ) : null}
+
+          {result ? (
+            <div className={styles.statusStrip}>
+              <span className="u-mono">HTTP {result.httpStatus ?? '-'}</span>
+              <span>
+                {t('console:field.duration')}{' '}
+                <span className="u-mono">{format.latency(result.elapsedMs)}</span>
+              </span>
+              {result.meta?.duration_ms !== undefined ? (
+                <span>
+                  {t('playground.serverDuration')}{' '}
+                  <span className="u-mono">{format.latency(result.meta.duration_ms)}</span>
                 </span>
-              ) : matchedHealth ? (
-                <div className="u-stack-sm">
-                  <span className="u-row u-wrap">
-                    <StatusBadge kind="circuit" value={circuitOf(matchedHealth)} />
-                    <span className="u-mono u-xs u-secondary">{matchedHealth.endpoint}</span>
+              ) : null}
+              {result.ok ? (
+                <span>
+                  {t('console:field.cacheHit')}{' '}
+                  <span className="u-mono">
+                    {result.meta?.cached ? t('common:value.yes') : t('common:value.no')}
                   </span>
+                </span>
+              ) : null}
+              <span>
+                {t('console:field.requestId')}{' '}
+                {result.requestId ? (
+                  <CopyableId value={result.requestId} length={14} middle />
+                ) : (
+                  <span className="u-muted">{t('playground.noRequestId')}</span>
+                )}
+              </span>
+            </div>
+          ) : null}
+
+          {/* The failure panel is the page's reason for existing and is never
+              collapsed: error code, request id, serving identity, circuit and
+              pool in one place is what separates "the platform changed" from
+              "we are out of identities". */}
+          {result && !result.ok ? (
+            <div className="u-stack">
+              <div className="u-row u-wrap">
+                {errorInfo.error ? <ErrorCodeBadge code={errorInfo.error.code} /> : null}
+                {errorInfo.error?.retryAfter ? (
+                  <span className="u-xs" style={{ color: 'var(--warning)' }}>
+                    {t('playground.retryAfter', {
+                      seconds: format.duration(errorInfo.error.retryAfter * 1000),
+                    })}
+                  </span>
+                ) : null}
+              </div>
+              <p style={{ margin: 0 }}>{errorInfo.message}</p>
+              {errorInfo.hint ? (
+                <p className="u-xs u-muted" style={{ margin: 0 }}>
+                  {errorInfo.hint}
+                </p>
+              ) : null}
+
+              <dl className={styles.facts}>
+                <dt className="u-xs u-muted">{t('playground.servedBy')}</dt>
+                <dd>
+                  {result.requestId === null ? (
+                    <span className="u-muted u-xs">{t('playground.servedByUnknown')}</span>
+                  ) : logLookupRows.isLoading ? (
+                    <span className="u-muted u-xs">{t('common:loading')}</span>
+                  ) : servedBy ? (
+                    <span className="u-row u-wrap">
+                      <CopyableId value={servedBy.identity_id} length={12} middle />
+                      <StatusBadge kind="outcome" value={servedBy.outcome} size="sm" flash={false} />
+                      {servedBy.signer ? (
+                        <span className="u-xs u-muted u-mono">{servedBy.signer}</span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="u-row u-wrap">
+                      <span className="u-muted u-xs">{t('playground.servedByPending')}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          void logLookupRows.refetch()
+                        }}
+                      >
+                        {t('common:action.refresh')}
+                      </Button>
+                    </span>
+                  )}
+                </dd>
+
+                <dt className="u-xs u-muted">{t('playground.endpointLabel')}</dt>
+                <dd className="u-row u-wrap">
+                  <span className="u-mono u-xs">{result.healthEndpoint ?? result.url}</span>
+                  {matchedHealth ? (
+                    <StatusBadge kind="circuit" value={circuitOf(matchedHealth)} size="sm" />
+                  ) : null}
+                </dd>
+
+                <dt className="u-xs u-muted">{t('playground.poolLabel')}</dt>
+                <dd className="u-mono u-xs">
+                  {t('playground.poolInline', {
+                    active: pool.active,
+                    cooling: pool.cooling,
+                    degraded: pool.degraded,
+                  })}
+                </dd>
+              </dl>
+            </div>
+          ) : null}
+
+          {result?.ok ? (
+            <div className={styles.panels}>
+              <Disclosure title={t('playground.normalizedTitle')} flush bodyClassName={styles.payload}>
+                <CodeBlock json={normalized} title={t('playground.normalizedTitle')} />
+              </Disclosure>
+
+              <Disclosure
+                title={t('playground.rawTitle')}
+                meta={
+                  raw ? null : <span className="u-xs u-muted">{t('playground.rawAbsent')}</span>
+                }
+                flush
+                bodyClassName={styles.payload}
+              >
+                {raw ? (
+                  <CodeBlock json={raw} title={t('playground.rawTitle')} />
+                ) : (
+                  <div className="u-stack-sm" style={{ padding: 'var(--space-4)' }}>
+                    <p className="u-secondary" style={{ margin: 0 }}>
+                      {t('playground.rawMissing')}
+                    </p>
+                    <div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setValue('include_raw', 'true')
+                          void send({ include_raw: 'true' })
+                        }}
+                      >
+                        {t('playground.rawEnable')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </Disclosure>
+
+              <Disclosure title={t('playground.metaTitle')}>
+                <div className="u-stack-sm">
+                  <CodeBlock json={result.meta ?? {}} title={t('playground.metaTitle')} />
+                  {cursor ? (
+                    <div className="u-row u-wrap">
+                      <span className="u-xs u-muted">{t('playground.nextPageHint')}</span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setValue('cursor', cursor)
+                          void send({ cursor })
+                        }}
+                      >
+                        {t('playground.nextPage')}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </Disclosure>
+
+              <Disclosure title={t('playground.snippetTitle')}>
+                <div className="u-stack-sm">
+                  <div className="u-row" role="tablist" aria-label={t('playground.snippetTitle')}>
+                    {SNIPPET_LANGUAGES.map((language) => (
+                      <Button
+                        key={language}
+                        size="sm"
+                        variant={snippet === language ? 'secondary' : 'ghost'}
+                        role="tab"
+                        aria-selected={snippet === language}
+                        onClick={() => {
+                          setSnippet(language)
+                        }}
+                      >
+                        {t(`playground.snippet.${language}`)}
+                      </Button>
+                    ))}
+                  </div>
+                  <CodeBlock
+                    code={snippetText}
+                    language="text"
+                    title={t(`playground.snippet.${snippet}`)}
+                    collapsible={false}
+                  />
+                  <p className="u-xs u-muted" style={{ margin: 0 }}>
+                    {t('playground.snippetNote')}
+                  </p>
+                </div>
+              </Disclosure>
+            </div>
+          ) : null}
+
+          <div className={styles.panels}>
+            <Disclosure
+              title={t('playground.signatureTitle')}
+              meta={
+                servedBy?.signer ? (
+                  <span className="u-mono u-xs u-muted">{servedBy.signer}</span>
+                ) : null
+              }
+            >
+              <div className="u-stack-sm">
+                <p className="u-xs u-muted" style={{ margin: 0 }}>
+                  {t('playground.signatureDescription')}
+                </p>
+                <Input
+                  label={<span className="u-mono">url</span>}
+                  description={t('playground.signatureUrlHint')}
+                  mono
+                  placeholder="https://www.douyin.com/aweme/v1/web/aweme/detail/?aid=6383&aweme_id=..."
+                  value={signUrl}
+                  onChange={(event) => {
+                    setSignUrl(event.target.value)
+                  }}
+                />
+                <Input
+                  label={<span className="u-mono">cookies</span>}
+                  description={t('playground.signatureCookiesHint')}
+                  mono
+                  // Cookie names, not prose: these are the wire spellings the
+                  // signer looks for and translating them would be wrong.
+                  // eslint-disable-next-line local/no-untranslated-text
+                  placeholder="UIFID_TEMP=...; s_v_web_id=..."
+                  value={signCookies}
+                  onChange={(event) => {
+                    setSignCookies(event.target.value)
+                  }}
+                />
+                <div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={signature.isPending}
+                    disabled={!signUrl.trim()}
+                    onClick={() => {
+                      signature.mutate()
+                    }}
+                  >
+                    {t('playground.signatureAction')}
+                  </Button>
+                </div>
+                {signature.data?.stages && signature.data.stages.length > 0 ? (
+                  <SigningStages stages={signature.data.stages} />
+                ) : null}
+              </div>
+            </Disclosure>
+          </div>
+
+          {/* Always available, whether or not a call has been made: an operator
+              who arrives to find out why nothing works needs the circuit and
+              the pool before they need a response. */}
+          <div className={styles.panels}>
+            <Disclosure
+              title={t('playground.contextTitle')}
+              meta={
+                <span className={styles.contextRow}>
+                  {matchedHealth ? (
+                    <StatusBadge kind="circuit" value={circuitOf(matchedHealth)} size="sm" />
+                  ) : (
+                    <span className="u-xs u-muted">
+                      {t('playground.circuitAggregate', {
+                        open: openCircuits.length,
+                        total: healthRows.length,
+                      })}
+                    </span>
+                  )}
+                  <span className="u-mono u-xs">
+                    {t('playground.poolInline', {
+                      active: pool.active,
+                      cooling: pool.cooling,
+                      degraded: pool.degraded,
+                    })}
+                  </span>
+                </span>
+              }
+            >
+              <div className="u-stack-sm">
+                <span className="u-xs u-muted">{t('playground.circuitLabel')}</span>
+                {health.isError ? (
+                  <span className="u-xs" style={{ color: 'var(--caution)' }}>
+                    {t('playground.healthUnavailable')}
+                  </span>
+                ) : matchedHealth ? (
                   <span className="u-xs u-muted u-row u-wrap">
                     <span>
                       {t('console:metric.successRate')}{' '}
@@ -839,267 +1357,42 @@ export default function Playground() {
                       </span>
                     </span>
                   </span>
-                  {matchedHealth.retry_after ? (
-                    <span className="u-xs" style={{ color: 'var(--warning)' }}>
-                      {t('playground.retryAfter', {
-                        seconds: format.duration(matchedHealth.retry_after * 1000),
-                      })}
-                    </span>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="u-stack-sm">
-                  <span className="u-xs u-secondary">
-                    {t('playground.circuitAggregate', {
-                      open: openCircuits.length,
-                      total: healthRows.length,
-                    })}
-                  </span>
-                  {openCircuits.slice(0, 5).map((row) => (
-                    <span key={row.endpoint} className="u-row u-wrap">
-                      <StatusBadge kind="circuit" value={circuitOf(row)} size="sm" />
-                      <span className="u-mono u-xs u-secondary">{row.endpoint}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="u-stack-sm">
-              <span className="u-xs u-muted">{t('playground.poolLabel')}</span>
-              {system.isLoading ? (
-                <span className="u-muted u-xs">{t('common:loading')}</span>
-              ) : system.isError ? (
-                <span className="u-xs" style={{ color: 'var(--caution)' }}>
-                  {t('playground.poolUnavailable')}
-                </span>
-              ) : (
-                <div className="u-row u-wrap">
-                  {IDENTITY_STATES.filter((state) => state !== 'retired').map((state) => (
-                    <span key={state} className="u-row" style={{ gap: 'var(--space-1)' }}>
-                      <StatusBadge kind="identity" value={state} size="sm" flash={false} />
-                      <span className="u-mono">{format.number(pool[state])}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
-              {pool.active === 0 && !system.isLoading && !system.isError ? (
-                <span className="u-xs" style={{ color: 'var(--warning)' }}>
-                  {t('playground.poolEmptyHint')}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {result && !result.ok ? (
-        <Card title={t('playground.failureTitle')} description={t('playground.failureDescription')}>
-          <div className="u-stack">
-            <div className="u-row u-wrap">
-              {errorInfo.error ? <ErrorCodeBadge code={errorInfo.error.code} /> : null}
-              {result.httpStatus ? (
-                <span className="u-mono u-xs u-secondary">HTTP {result.httpStatus}</span>
-              ) : null}
-              {errorInfo.error?.retryAfter ? (
-                <span className="u-xs" style={{ color: 'var(--warning)' }}>
-                  {t('playground.retryAfter', {
-                    seconds: format.duration(errorInfo.error.retryAfter * 1000),
-                  })}
-                </span>
-              ) : null}
-            </div>
-            <p style={{ margin: 0 }}>{errorInfo.message}</p>
-            {errorInfo.hint ? (
-              <p className="u-xs u-muted" style={{ margin: 0 }}>
-                {errorInfo.hint}
-              </p>
-            ) : null}
-
-            <dl
-              style={{
-                margin: 0,
-                display: 'grid',
-                gridTemplateColumns: 'auto 1fr',
-                gap: 'var(--space-2) var(--space-3)',
-                alignItems: 'center',
-              }}
-            >
-              <dt className="u-xs u-muted">{t('console:field.requestId')}</dt>
-              <dd style={{ margin: 0 }}>
-                {result.requestId ? (
-                  <CopyableId value={result.requestId} length={18} middle />
                 ) : (
-                  <span className="u-muted">{t('playground.noRequestId')}</span>
-                )}
-              </dd>
-
-              <dt className="u-xs u-muted">{t('playground.servedBy')}</dt>
-              <dd style={{ margin: 0 }}>
-                {result.requestId === null ? (
-                  <span className="u-muted u-xs">{t('playground.servedByUnknown')}</span>
-                ) : logLookupRows.isLoading ? (
-                  <span className="u-muted u-xs">{t('common:loading')}</span>
-                ) : servedBy ? (
-                  <span className="u-row u-wrap">
-                    <CopyableId value={servedBy.identity_id} length={12} middle />
-                    <StatusBadge kind="outcome" value={servedBy.outcome} size="sm" flash={false} />
-                    {servedBy.proxy_id ? (
-                      <span className="u-xs u-muted">
-                        {t('console:field.proxy')} <CopyableId value={servedBy.proxy_id} length={8} />
+                  <div className="u-stack-sm">
+                    {openCircuits.slice(0, 5).map((row) => (
+                      <span key={row.endpoint} className="u-row u-wrap">
+                        <StatusBadge kind="circuit" value={circuitOf(row)} size="sm" />
+                        <span className="u-mono u-xs u-secondary">{row.endpoint}</span>
                       </span>
-                    ) : null}
-                    {servedBy.signer ? (
-                      <span className="u-xs u-muted u-mono">{servedBy.signer}</span>
-                    ) : null}
+                    ))}
+                  </div>
+                )}
+
+                <span className="u-xs u-muted">{t('playground.poolLabel')}</span>
+                {system.isError ? (
+                  <span className="u-xs" style={{ color: 'var(--caution)' }}>
+                    {t('playground.poolUnavailable')}
                   </span>
                 ) : (
-                  <span className="u-row u-wrap">
-                    <span className="u-muted u-xs">{t('playground.servedByPending')}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        void logLookupRows.refetch()
-                      }}
-                    >
-                      {t('common:action.refresh')}
-                    </Button>
-                  </span>
-                )}
-              </dd>
-
-              <dt className="u-xs u-muted">{t('playground.endpointLabel')}</dt>
-              <dd style={{ margin: 0 }} className="u-row u-wrap">
-                <span className="u-mono u-xs">{result.healthEndpoint ?? result.url}</span>
-                {matchedHealth ? (
-                  <StatusBadge kind="circuit" value={circuitOf(matchedHealth)} size="sm" />
-                ) : null}
-              </dd>
-
-              <dt className="u-xs u-muted">{t('playground.poolLabel')}</dt>
-              <dd style={{ margin: 0 }} className="u-mono u-xs">
-                {t('playground.poolInline', {
-                  active: pool.active,
-                  cooling: pool.cooling,
-                  degraded: pool.degraded,
-                })}
-              </dd>
-            </dl>
-          </div>
-        </Card>
-      ) : null}
-
-      {!result && !running ? (
-        <Card>
-          <EmptyState
-            title={t('playground.emptyTitle')}
-            description={t('playground.emptyDescription')}
-          />
-        </Card>
-      ) : null}
-
-      {result?.ok ? (
-        <div className="u-stack">
-          <div className="u-row u-wrap u-xs u-muted">
-            <span>
-              {t('console:field.requestId')}{' '}
-              <CopyableId value={result.requestId} length={18} middle />
-            </span>
-            <span>
-              {t('console:field.duration')}{' '}
-              <span className="u-mono">{format.latency(result.elapsedMs)}</span>
-            </span>
-            {result.meta?.duration_ms !== undefined ? (
-              <span>
-                {t('playground.serverDuration')}{' '}
-                <span className="u-mono">{format.latency(result.meta.duration_ms)}</span>
-              </span>
-            ) : null}
-            <span>
-              {t('console:field.cacheHit')}{' '}
-              <span className="u-mono">
-                {result.meta?.cached ? t('common:value.yes') : t('common:value.no')}
-              </span>
-            </span>
-            <span className="u-mono">HTTP {result.httpStatus}</span>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gap: 'var(--space-4)',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              alignItems: 'start',
-            }}
-          >
-            <Card
-              title={t('playground.normalizedTitle')}
-              description={t('playground.normalizedDescription')}
-              flush
-            >
-              <CodeBlock json={normalized} title={t('playground.normalizedTitle')} />
-            </Card>
-            <Card
-              title={t('playground.rawTitle')}
-              description={t('playground.rawDescription')}
-              flush
-            >
-              {raw ? (
-                <CodeBlock json={raw} title={t('playground.rawTitle')} defaultCollapsed />
-              ) : (
-                <div className="u-stack-sm" style={{ padding: 'var(--space-4)' }}>
-                  <p className="u-secondary" style={{ margin: 0 }}>
-                    {t('playground.rawMissing')}
-                  </p>
-                  <div>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setValue('include_raw', 'true')
-                        void send({ include_raw: 'true' })
-                      }}
-                    >
-                      {t('playground.rawEnable')}
-                    </Button>
+                  <div className="u-row u-wrap">
+                    {IDENTITY_STATES.filter((state) => state !== 'retired').map((state) => (
+                      <span key={state} className="u-row" style={{ gap: 'var(--space-1)' }}>
+                        <StatusBadge kind="identity" value={state} size="sm" flash={false} />
+                        <span className="u-mono">{format.number(pool[state])}</span>
+                      </span>
+                    ))}
                   </div>
-                </div>
-              )}
-            </Card>
+                )}
+                {pool.active === 0 && !system.isLoading && !system.isError ? (
+                  <span className="u-xs" style={{ color: 'var(--warning)' }}>
+                    {t('playground.poolEmptyHint')}
+                  </span>
+                ) : null}
+              </div>
+            </Disclosure>
           </div>
         </div>
-      ) : null}
-
-      <Card title={t('playground.snippetTitle')} description={t('playground.snippetDescription')}>
-        <div className="u-stack">
-          <div className="u-row" role="tablist" aria-label={t('playground.snippetTitle')}>
-            {SNIPPET_LANGUAGES.map((language) => (
-              <Button
-                key={language}
-                size="sm"
-                variant={snippet === language ? 'secondary' : 'ghost'}
-                role="tab"
-                aria-selected={snippet === language}
-                onClick={() => {
-                  setSnippet(language)
-                }}
-              >
-                {t(`playground.snippet.${language}`)}
-              </Button>
-            ))}
-          </div>
-          <CodeBlock
-            code={snippetText}
-            language="text"
-            title={t(`playground.snippet.${snippet}`)}
-            collapsible={false}
-          />
-          <p className="u-xs u-muted" style={{ margin: 0 }}>
-            {t('playground.snippetNote')}
-          </p>
-        </div>
-      </Card>
+      </SplitPane>
     </div>
   )
 }

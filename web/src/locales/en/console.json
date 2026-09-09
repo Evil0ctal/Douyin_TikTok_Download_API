@@ -242,11 +242,17 @@
     },
     "empty": {
       "title": "No identities yet",
-      "description": "Mint a guest identity, or import a logged-in cookie jar."
+      "description": "Mint a guest identity, or import a logged-in cookie jar.",
+      "filteredTitle": "Nothing matches this view",
+      "filteredDescription": "The pool is not empty, this view is. Widen a filter, clear the search, or show the identities that cannot serve a request."
     },
     "filter": {
       "allPlatforms": "All platforms",
-      "allStates": "All states"
+      "allStates": "All states",
+      "allSources": "All sources",
+      "anyLogin": "Logged in or guest",
+      "loggedInOnly": "Logged in only",
+      "guestOnly": "Guests only"
     },
     "mint": {
       "action": "Mint",
@@ -303,6 +309,19 @@
       "missing": "None",
       "too_short": "Bootstrap only",
       "unknown": "Unknown"
+    },
+    "hidden": {
+      "title": "{count, plural, one {# identity hidden} other {# identities hidden}}",
+      "showingAll": "Showing every identity, including the ones that cannot serve a request.",
+      "retired": "{count} retired",
+      "deadSession": "{count} with a spent session",
+      "why": "Neither can serve a request: a retired identity has had its cookies wiped, and a session the platform no longer accepts is refused even with a correct signature. Cooling and degraded identities are still shown.",
+      "showAll": "Show all",
+      "hideUnusable": "Hide unusable"
+    },
+    "health": {
+      "noTraffic": "No traffic",
+      "noTrafficHint": "No requests in the health window, so there is nothing to score. This is not a measured pass."
     }
   },
   "proxy": {
@@ -933,7 +952,10 @@
       "cursor": "Opaque cursor from the previous page. Leave empty for the first page.",
       "count": "Items per page, up to 50.",
       "include_raw": "Also return the untouched platform payload.",
-      "wait": "Seconds the server may hold the connection before answering with a task id instead."
+      "wait": "Seconds the server may hold the connection before answering with a task id instead.",
+      "proxy": "Send the upstream request through this proxy. Refused unless an administrator has enabled security.request_proxy.",
+      "mix_id": "The collection's id, from a mix or playlist link.",
+      "identity": "Send as one named identity and no other. For content only that account can see. The request is never served from another identity and never from the cache."
     },
     "required": "Required.",
     "oneOfRequired": "Fill in one of these.",
@@ -976,7 +998,27 @@
       "javascript": "JavaScript"
     },
     "emptyTitle": "No call yet",
-    "emptyDescription": "Send a request and the normalized result and the raw platform payload appear here, side by side."
+    "emptyDescription": "Send a request and the normalized result and the raw platform payload appear here, side by side.",
+    "identityAuto": "Any identity (scheduler picks)",
+    "identityLoggedIn": "logged in",
+    "catalogTitle": "Endpoints",
+    "historyTitle": "This session",
+    "historyEmpty": "Calls you make appear here.",
+    "historyRestore": "Put these parameters back in the form. It does not re-send.",
+    "section": {
+      "target": "Target",
+      "paging": "Paging",
+      "request": "Request"
+    },
+    "metaTitle": "Response metadata",
+    "rawAbsent": "not requested",
+    "nextPage": "Fetch the next page",
+    "nextPageHint": "This page has a cursor. Fetching the next one spends another request.",
+    "signatureTitle": "Signature",
+    "signatureDescription": "The signature that served the call above was computed in the worker against the platform's own URL, which never comes back. Reproduce it here: paste a platform API URL and see which layer contributed what. The signer that actually ran is shown in this panel's header once the request log catches up.",
+    "signatureUrlHint": "A platform API URL, query included. Nothing is fetched: this is arithmetic.",
+    "signatureCookiesHint": "Optional. Douyin computes its own signature over the visitor id inside the jar, so without one no signature headers are produced.",
+    "signatureAction": "Compute"
   },
   "parse": {
     "inputTitle": "Links",
@@ -1176,7 +1218,18 @@
         "inputNotReconstructible": "The bytes this layer signed are not always the bytes finally sent, so the input it hashed is not shown - a reconstruction would be right for most queries and silently wrong for the rest.",
         "salt": "Salt",
         "preimage": "md5 preimage",
-        "preimageHint": "The signature is the md5 of exactly this string. It was recomputed and checked against the signature before being returned."
+        "preimageHint": "The signature is the md5 of exactly this string. It was recomputed and checked against the signature before being returned.",
+        "ran": "Ran",
+        "paramCount": "{count, plural, one {# parameter} other {# parameters}}",
+        "headerCount": "{count, plural, one {# header} other {# headers}}",
+        "column": {
+          "param": "Parameter",
+          "value": "Value",
+          "role": "Role"
+        },
+        "headersAdded": "Headers this layer added",
+        "noParams": "This layer added no parameters.",
+        "preimageUnverified": "The preimage did not reproduce this signature when it was checked, so it is not shown: an unverifiable one would be read as documentation of the algorithm."
       }
     },
     "parse": {

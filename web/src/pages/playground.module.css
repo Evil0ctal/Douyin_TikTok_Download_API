@@ -1,0 +1,256 @@
+/*
+ * The playground is the console's only workbench, and the first page here to
+ * fill the viewport instead of scrolling as one column. The rules below exist
+ * because a three-pane layout needs a definite height at every level: a single
+ * `min-height` anywhere in the chain and every `height: 100%` below it resolves
+ * to auto, which reads as "the panes ignore my CSS" rather than as the one-word
+ * bug it is.
+ */
+
+.workbench {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+/* The address bar: method, live URL, and the button that sends it. Modelled on
+ * the tools people already use, and load bearing for the same reason - the URL
+ * a call will actually make is the single most useful thing to have on screen
+ * while filling in a form. */
+.addressBar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.method {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--accent);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+}
+
+.url {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pane 1: the endpoint list                                                    */
+/* -------------------------------------------------------------------------- */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-1);
+}
+
+.paneHeading {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.endpointList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.endpointItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.endpointItem:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.endpointItem[aria-current='true'] {
+  background: var(--bg-raised);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.endpointVerb {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.endpointItem[aria-current='true'] .endpointVerb {
+  color: var(--accent);
+}
+
+/* History is what makes this a workbench rather than a form. Nothing about a
+ * run was repeatable before: every send cleared the last result and there was
+ * no way to put the same parameters back. */
+.historyItem {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.historyItem:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.historyDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.historyOk {
+  background: var(--success);
+}
+
+.historyFailed {
+  background: var(--danger);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pane 2: the request form                                                     */
+/* -------------------------------------------------------------------------- */
+
+/* Two columns where the pane is wide enough. Every parameter used to be a
+ * full-width input with a label above and a description below - about 72px of
+ * height each, for a control 32px tall. */
+.paramGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.paramGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.switchRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pane 3: the response                                                         */
+/* -------------------------------------------------------------------------- */
+
+.statusStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Disclosures draw their own seam between siblings, so they stack in a bare
+ * container rather than in u-stack - a gap would leave that hairline floating. */
+.panels {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.contextRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: var(--text-xs);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin: 0;
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+/* A payload panel scrolls inside itself rather than growing the pane. One
+ * video's normalized result measured 31,686px tall: opening it pushed every
+ * panel below it off the bottom of a pane that cannot scroll that far. */
+.payload {
+  max-height: 46vh;
+  overflow: auto;
+}

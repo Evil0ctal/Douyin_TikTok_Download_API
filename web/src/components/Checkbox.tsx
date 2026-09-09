@@ -36,7 +36,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         {indeterminate ? <MinusIcon size={11} /> : <CheckIcon size={11} />}
       </span>
       {label || hint ? (
-        <span>
+        <span className={styles.checkboxText}>
           {label ? <span className={styles.checkboxLabel}>{label}</span> : null}
           {hint ? <span className={cn(styles.hint, styles.description)}>{hint}</span> : null}
         </span>

@@ -1,0 +1,44 @@
+/*
+ * Identities.
+ *
+ * The one thing on this page that the utility layer cannot express is the
+ * notice admitting what the default view holds back. It is styled like the
+ * import dialog's risk panel - inset ground, one warm edge - because it carries
+ * the same kind of statement: something is true of this page that is not
+ * visible in the rows themselves.
+ */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.noticeIcon {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  /* Aligns the glyph with the cap height of the heading beside it rather than
+     with the top of its line box. */
+  padding-top: var(--space-1);
+}
+
+/*
+ * One chip per reason, each carrying its own count. A bare "6 hidden" sends an
+ * operator hunting for six broken identities when four of them are retired on
+ * purpose, so the grounds never travel separately from the number.
+ */
+.reason {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

@@ -1,0 +1,162 @@
+/*
+ * The signing pipeline diagram. Lives beside the component rather than in a
+ * page module because two pages draw it: the tools page frames it in a Card,
+ * the playground in a Disclosure.
+ */
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/*
+ * The ordinal is the whole point of the list - these layers run in this order
+ * and no other - so it is drawn rather than left to the reader to count.
+ */
+.index {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
+/* The stage name as the JSON spells it, so the picture maps onto the payload. */
+.wire {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.counts {
+  flex: none;
+  white-space: nowrap;
+}
+
+/*
+ * Disclosure's meta slot never shrinks, so on a phone the counts push the stage
+ * name out of its own row. They are a summary of the table below; the verdict
+ * and the seal are not, and stay.
+ */
+@media (max-width: 767px) {
+  .counts {
+    display: none;
+  }
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  padding: 1px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.tagIcon {
+  flex: none;
+  display: inline-flex;
+}
+
+/* Stage body ------------------------------------------------------------------ */
+
+.reason {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+.fact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.factLabel {
+  flex: none;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+.sectionLabel {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+
+/* Contribution table ---------------------------------------------------------- */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.table th {
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  white-space: nowrap;
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table td {
+  padding: var(--space-2);
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.paramName {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/*
+ * a_bogus runs to about 160 characters and X-Gnarly further. Without a cap the
+ * value column takes the whole table and pushes the role column - the one that
+ * says which of these actually seals the request - off the right edge.
+ */
+.paramValue {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  max-width: 60ch;
+  overflow-wrap: anywhere;
+}

@@ -243,12 +243,16 @@
   min-height: 0;
 }
 
-/* The filled page scrolls inside its own panes, so the column must not grow. */
+/* The filled page scrolls inside its own panes, so the column must not grow.
+ * Its padding shrinks too: the generous bottom gutter exists to let a scrolling
+ * page end clear of the viewport edge, and on a page that cannot scroll it is
+ * 48px of nothing between the last row and the bottom of the screen. */
 .shell:has([data-shell-fill]) .content {
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  padding: var(--space-4);
 }
 
 .shell [data-shell-fill] {

@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   CodeBlock,
+  SigningStages,
   ErrorState,
   Field,
   Input,
@@ -16,7 +17,9 @@ import {
 import { useApiMutation } from '@/hooks'
 import { apiGet, apiPost, isApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
+import type { SigningStage } from '@/components'
 import type { Platform } from '@/lib/types'
+
 
 /**
  * The building blocks, as three forms.
@@ -79,6 +82,8 @@ interface SignResult {
   headers: Record<string, string>
   user_agent: string
   algorithm: string
+  /** Optional: an older build of the API answers the seven fields and nothing else. */
+  stages?: readonly SigningStage[]
 }
 
 function SignForm() {
@@ -178,6 +183,15 @@ function SignForm() {
           <Card title={t('tools.sign.signedUrl')}>
             <CodeBlock code={sign.data.signed_url} language="text" />
           </Card>
+          {sign.data.stages && sign.data.stages.length > 0 ? (
+            <Card
+              title={t('tools.sign.stages.title')}
+              description={t('tools.sign.stages.description')}
+              flush
+            >
+              <SigningStages stages={sign.data.stages} />
+            </Card>
+          ) : null}
           <Card title={t('tools.sign.added', { algorithm: sign.data.algorithm })}>
             <CodeBlock json={sign.data.params} />
           </Card>
@@ -194,6 +208,11 @@ function SignForm() {
     </>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/* Stages                                                                      */
+/* -------------------------------------------------------------------------- */
+
 
 /* -------------------------------------------------------------------------- */
 /* Parse                                                                       */

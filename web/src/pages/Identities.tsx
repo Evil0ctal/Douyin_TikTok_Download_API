@@ -19,6 +19,7 @@ import {
   PageHeader,
   Select,
   Skeleton,
+  SlidersIcon,
   StatusBadge,
   Textarea,
   useToast,
@@ -28,8 +29,18 @@ import { apiDelete, apiPost, waitForTask, type ApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
 import { POLL } from '@/lib/query'
-import { IDENTITY_STATES, PLATFORMS, type Identity, type Outcome, type Platform } from '@/lib/types'
+import {
+  IDENTITY_SOURCES,
+  IDENTITY_STATES,
+  PLATFORMS,
+  type Identity,
+  type IdentitySource,
+  type Outcome,
+  type Platform,
+} from '@/lib/types'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
+
+import styles from './identities.module.css'
 
 /* -------------------------------------------------------------------------- */
 /* API shapes                                                                  */
@@ -80,6 +91,30 @@ interface ProxyOption {
 
 const IDENTITIES_KEY = ['admin', 'identities'] as const
 const PAGE_LIMIT = 200
+
+/**
+ * Where a measured score stops reading as good and starts reading as poor. The
+ * cell and the row flash share these, so the colour on screen and the change
+ * worth animating cannot disagree about where a band ends.
+ */
+const HEALTH_GOOD = 0.8
+const HEALTH_FAIR = 0.4
+
+/**
+ * Session verdicts that mean the credential is spent, mirroring
+ * `_session_health` in src/dtk/api/routes/admin/identities.py. `missing` holds
+ * no session value at all; `too_short` holds the bootstrap value the document
+ * sets rather than the one the platform SDK replaces it with. A request
+ * carrying either is refused with a perfectly correct signature, so neither can
+ * serve traffic, and neither is worth an operator's attention by default.
+ */
+const DEAD_SESSION: ReadonlySet<string> = new Set(['missing', 'too_short'])
+
+/**
+ * Filter over `authenticated`. "Show me my logged-in accounts" is the question
+ * asked immediately before pinning a request to one of them.
+ */
+type LoginFilter = 'all' | 'yes' | 'no'
 
 /**
  * Cookie roles, mirroring REQUIRED / SESSION_MARKERS / USEFUL in
@@ -156,7 +191,12 @@ export default function Identities() {
 
   const [platform, setPlatform] = useState<Platform | 'all'>('all')
   const [state, setState] = useState<string>('all')
+  const [source, setSource] = useState<IdentitySource | 'all'>('all')
+  const [login, setLogin] = useState<LoginFilter>('all')
   const [search, setSearch] = useState('')
+  // Off by default: the page opens on the identities that can still serve a
+  // request. The notice above the table says what that is holding back.
+  const [showAll, setShowAll] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [probes, setProbes] = useState<Record<string, ProbeState>>({})
   const [probeDetail, setProbeDetail] = useState<{ identity: Identity; state: ProbeState } | null>(null)
@@ -183,15 +223,62 @@ export default function Identities() {
 
   const refresh = (): Promise<void> => invalidate(IDENTITIES_KEY)
 
-  const rows = useMemo(() => {
+  /**
+   * Search, source and login run over the page the API already returned rather
+   * than as query parameters: the fetch is one unpaginated page of at most
+   * PAGE_LIMIT rows, so filtering here makes every count the page quotes exact
+   * and instant instead of an estimate of what a next page might hold.
+   */
+  const matched = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    if (!needle) return query.data ?? []
-    return (query.data ?? []).filter((row) =>
-      [row.id, row.proxy_id, row.proxy_label]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(needle)),
-    )
-  }, [query.data, search])
+    return (query.data ?? []).filter((row) => {
+      if (source !== 'all' && row.source !== source) return false
+      if (login !== 'all' && row.authenticated !== (login === 'yes')) return false
+      if (!needle) return true
+      // Wire values, not their translated labels. An operator typing "cooling"
+      // or "imported" is typing what the API prints, and matching the localized
+      // label would make the same query behave differently in each language.
+      return [row.id, row.platform, row.state, row.source, row.proxy_id, row.proxy_label].some(
+        (field) => field != null && String(field).toLowerCase().includes(needle),
+      )
+    })
+  }, [query.data, search, source, login])
+
+  /**
+   * What the default view keeps back, and how much of it.
+   *
+   * Retired identities are husks - the credential is wiped, the row survives
+   * for its statistics - and an identity whose session verdict is dead holds a
+   * credential the platform refuses. Cooling and degraded stay: cooling is a
+   * timer that runs out on its own, and hiding a recovering pool is how a
+   * console reports "no identities" to an operator who has forty.
+   */
+  const view = useMemo(() => {
+    // An explicit "state: retired" asks for exactly the rows the default view
+    // drops, and retiring wipes the jar, so those rows also read as a dead
+    // session. Suppressing either here would answer the operator's question
+    // with an empty table.
+    if (state === 'retired') {
+      return { visible: matched, retired: 0, deadSession: 0, unusable: 0 }
+    }
+    const visible: Identity[] = []
+    let retired = 0
+    let deadSession = 0
+    for (const row of matched) {
+      if (row.state === 'retired') {
+        retired += 1
+        continue
+      }
+      if (DEAD_SESSION.has(row.session?.verdict ?? 'unknown')) {
+        deadSession += 1
+        continue
+      }
+      visible.push(row)
+    }
+    return { visible, retired, deadSession, unusable: retired + deadSession }
+  }, [matched, state])
+
+  const rows = showAll ? matched : view.visible
 
   const runProbe = async (identity: Identity): Promise<void> => {
     setProbes((current) => ({ ...current, [identity.id]: { running: true } }))
@@ -243,7 +330,12 @@ export default function Identities() {
       id: 'health',
       header: t('console:identity.column.health'),
       width: '130px',
-      sortValue: (row) => row.health ?? -row.consecutive_fails,
+      // The measured score only. A 0..1 success ratio and a count of failures
+      // are different quantities, and folding the second in as a negative
+      // number sorted an identity with no traffic and no failures above one
+      // measured at 100%. Unmeasured rows return null, which the table sorts as
+      // unmeasured rather than as either end of the scale.
+      sortValue: (row) => row.health ?? null,
       cell: (row) => <HealthCell identity={row} />,
     },
     {
@@ -267,21 +359,39 @@ export default function Identities() {
       id: 'id',
       header: t('console:field.identityId'),
       mono: true,
+      // Not hideable. Pinning a request names one identity by its id, and this
+      // cell is where that id gets copied from; a column preference persisted
+      // in localStorage could otherwise leave the page permanently unable to
+      // answer the question it is now most often opened for.
+      hideable: false,
+      sortValue: (row) => row.id,
       cell: (row) => <CopyableId value={row.id} middle length={14} />,
     },
     {
       id: 'proxy',
       header: t('console:field.proxy'),
+      // Wide enough for the "no proxy" sentence. Without it the column
+      // collapses to the width of one character and renders that phrase
+      // vertically, one glyph per line.
+      width: '150px',
       sortValue: (row) => row.proxy_label ?? row.proxy_id ?? '',
+      // The name someone gave the egress when there is one, the id when there
+      // is not: the serializer sends `proxy_label: null` for an unnamed proxy,
+      // for an identity with no proxy, and for a proxy row that went away
+      // underneath the page. The id stays reachable on hover either way,
+      // because the label is what an operator recognises and the id is what
+      // they have to quote.
       cell: (row) =>
         row.proxy_id ? (
           row.proxy_label ? (
-            <span className="u-truncate">{row.proxy_label}</span>
+            <span className="u-truncate" title={row.proxy_id}>
+              {row.proxy_label}
+            </span>
           ) : (
             <CopyableId value={row.proxy_id} middle length={12} />
           )
         ) : (
-          <span className="u-muted">{t('console:identity.noProxy')}</span>
+          <span className="u-muted u-truncate">{t('console:identity.noProxy')}</span>
         ),
     },
     {
@@ -379,6 +489,10 @@ export default function Identities() {
   ]
 
   const selectedRows = rows.filter((row) => selected.has(row.id))
+  // The pool is not empty, this view is. Offering "mint your first identity"
+  // here would answer a question nobody asked and hide the one that matters:
+  // which filter to widen.
+  const filteredToNothing = rows.length === 0 && (query.data?.length ?? 0) > 0
 
   return (
     <div className="u-stack-lg">
@@ -407,6 +521,17 @@ export default function Identities() {
         }
       />
 
+      {view.unusable > 0 || showAll ? (
+        <SuppressionNotice
+          retired={view.retired}
+          deadSession={view.deadSession}
+          showAll={showAll}
+          onToggle={() => {
+            setShowAll((current) => !current)
+          }}
+        />
+      ) : null}
+
       <Card flush>
         <DataTable
           columns={columns}
@@ -421,23 +546,45 @@ export default function Identities() {
           defaultSort={{ columnId: 'state', direction: 'asc' }}
           selectedIds={selected}
           onSelectionChange={setSelected}
-          flashValue={(row) => row.state}
+          // What an operator watches a 5s poll for: the state, whether the
+          // session is still live, the failure streak, and which health band
+          // the score landed in. The raw score is deliberately not in here - it
+          // drifts with every bucket, and a table that flashes every row on
+          // every poll teaches an operator to stop reading the flash.
+          flashValue={(row) =>
+            [
+              row.state,
+              row.session?.verdict ?? 'unknown',
+              row.consecutive_fails,
+              healthBand(row),
+            ].join('|')
+          }
           caption={t('console:page.identities.title')}
           onRowClick={(row) => {
             const probe = probes[row.id]
             if (probe?.result || probe?.error) setProbeDetail({ identity: row, state: probe })
           }}
-          emptyTitle={t('console:identity.empty.title')}
-          emptyDescription={t('console:identity.empty.description')}
+          emptyTitle={
+            filteredToNothing
+              ? t('console:identity.empty.filteredTitle')
+              : t('console:identity.empty.title')
+          }
+          emptyDescription={
+            filteredToNothing
+              ? t('console:identity.empty.filteredDescription')
+              : t('console:identity.empty.description')
+          }
           emptyAction={
-            <Button
-              variant="primary"
-              onClick={() => {
-                setMintOpen(true)
-              }}
-            >
-              {t('console:identity.mint.action')}
-            </Button>
+            filteredToNothing ? null : (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setMintOpen(true)
+                }}
+              >
+                {t('console:identity.mint.action')}
+              </Button>
+            )
           }
           toolbar={
             <>
@@ -477,6 +624,36 @@ export default function Identities() {
                       value,
                       label: t(`common:state.identity.${value}`),
                     })),
+                  ]}
+                />
+              </FilterSlot>
+              <FilterSlot width="150px">
+                <Select
+                  value={source}
+                  aria-label={t('console:field.source')}
+                  onChange={(event) => {
+                    setSource(event.target.value as IdentitySource | 'all')
+                  }}
+                  options={[
+                    { value: 'all', label: t('console:identity.filter.allSources') },
+                    ...IDENTITY_SOURCES.map((value) => ({
+                      value,
+                      label: t(`console:identity.source.${value}`),
+                    })),
+                  ]}
+                />
+              </FilterSlot>
+              <FilterSlot width="180px">
+                <Select
+                  value={login}
+                  aria-label={t('console:field.authenticated')}
+                  onChange={(event) => {
+                    setLogin(event.target.value as LoginFilter)
+                  }}
+                  options={[
+                    { value: 'all', label: t('console:identity.filter.anyLogin') },
+                    { value: 'yes', label: t('console:identity.filter.loggedInOnly') },
+                    { value: 'no', label: t('console:identity.filter.guestOnly') },
                   ]}
                 />
               </FilterSlot>
@@ -550,6 +727,70 @@ function FilterSlot({ children, width = '160px' }: { children: ReactNode; width?
   return <div style={{ width, flex: '0 0 auto' }}>{children}</div>
 }
 
+interface SuppressionNoticeProps {
+  retired: number
+  deadSession: number
+  showAll: boolean
+  onToggle: () => void
+}
+
+/**
+ * What the default view is holding back, in numbers, with the way back.
+ *
+ * A table that silently omits rows is how an operator concludes their
+ * identities have vanished, so this says how many and on what grounds rather
+ * than leaving the count to be inferred from a row total. It sits above the
+ * table rather than in the toolbar because it is a sentence, and a wrapping row
+ * of five filters is the wrong place to explain why a row is missing.
+ */
+function SuppressionNotice({ retired, deadSession, showAll, onToggle }: SuppressionNoticeProps) {
+  const { t } = useTranslation(['console', 'common'])
+  const hidden = retired + deadSession
+
+  return (
+    <div className={styles.notice}>
+      <span className={styles.noticeIcon} aria-hidden="true">
+        <SlidersIcon size={13} />
+      </span>
+      <div className="u-stack-sm u-grow">
+        <span className="u-row u-wrap">
+          <strong>
+            {showAll
+              ? t('console:identity.hidden.showingAll')
+              : t('console:identity.hidden.title', { count: hidden })}
+          </strong>
+          {retired > 0 ? (
+            <span className={styles.reason}>
+              {t('console:identity.hidden.retired', { count: retired })}
+            </span>
+          ) : null}
+          {deadSession > 0 ? (
+            <span className={styles.reason}>
+              {t('console:identity.hidden.deadSession', { count: deadSession })}
+            </span>
+          ) : null}
+        </span>
+        <p className="u-xs u-secondary">{t('console:identity.hidden.why')}</p>
+      </div>
+      <Button size="sm" variant="secondary" onClick={onToggle}>
+        {showAll
+          ? t('console:identity.hidden.hideUnusable')
+          : t('console:identity.hidden.showAll')}
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * The band HealthCell paints, not the score behind it. The flash key uses this
+ * so a drift from 0.94 to 0.93 between two polls is not reported as an event.
+ */
+function healthBand(identity: Identity): string {
+  if (identity.health === null || identity.health === undefined) return 'none'
+  if (identity.health >= HEALTH_GOOD) return 'good'
+  return identity.health >= HEALTH_FAIR ? 'fair' : 'poor'
+}
+
 function remainingMs(until: string | null | undefined): number | null {
   if (!until) return null
   const value = new Date(until).getTime() - Date.now()
@@ -559,6 +800,12 @@ function remainingMs(until: string | null | undefined): number | null {
 /**
  * Health as the API reports it when it does, and as consecutive failures when
  * it does not. Both are colour plus icon plus words, never colour alone.
+ *
+ * `health` is null exactly when the aggregate has no traffic for this identity,
+ * which is not a pass. A freshly minted identity that has never served a
+ * request used to draw the same unqualified "Healthy" badge as one measured at
+ * 100% over the last hour - collapsing "nothing is known" into "it works",
+ * which is the one distinction this column exists to make.
  */
 function HealthCell({ identity }: { identity: Identity }) {
   const { t } = useTranslation(['console', 'common'])
@@ -566,7 +813,11 @@ function HealthCell({ identity }: { identity: Identity }) {
 
   if (identity.health !== null && identity.health !== undefined) {
     const tone =
-      identity.health >= 0.8 ? 'healthy' : identity.health >= 0.4 ? 'unknown' : 'unhealthy'
+      identity.health >= HEALTH_GOOD
+        ? 'healthy'
+        : identity.health >= HEALTH_FAIR
+          ? 'unknown'
+          : 'unhealthy'
     return (
       <span className="u-row">
         <StatusBadge kind="health" value={tone} size="sm" flash={false} />
@@ -576,7 +827,12 @@ function HealthCell({ identity }: { identity: Identity }) {
   }
 
   if (identity.consecutive_fails === 0) {
-    return <StatusBadge kind="health" value="healthy" size="sm" flash={false} />
+    return (
+      <span className="u-row" title={t('console:identity.health.noTrafficHint')}>
+        <StatusBadge kind="health" value="unknown" size="sm" flash={false} />
+        <span className="u-xs u-muted">{t('console:identity.health.noTraffic')}</span>
+      </span>
+    )
   }
   return (
     <span className="u-row">

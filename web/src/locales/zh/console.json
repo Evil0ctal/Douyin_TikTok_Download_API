@@ -242,11 +242,17 @@
     },
     "empty": {
       "title": "还没有身份",
-      "description": "可以铸造游客身份，也可以导入登录态 cookie。"
+      "description": "可以铸造游客身份，也可以导入登录态 cookie。",
+      "filteredTitle": "当前视图没有匹配的身份",
+      "filteredDescription": "身份池并不是空的，只是当前视图为空。可以放宽筛选、清空搜索，或显示无法承接请求的身份。"
     },
     "filter": {
       "allPlatforms": "全部平台",
-      "allStates": "全部状态"
+      "allStates": "全部状态",
+      "allSources": "全部来源",
+      "anyLogin": "登录态不限",
+      "loggedInOnly": "仅登录态",
+      "guestOnly": "仅游客"
     },
     "mint": {
       "action": "铸造",
@@ -303,6 +309,19 @@
       "missing": "缺失",
       "too_short": "仅引导值",
       "unknown": "未知"
+    },
+    "hidden": {
+      "title": "已隐藏 {count} 个身份",
+      "showingAll": "正在显示全部身份，包括无法承接请求的那些。",
+      "retired": "{count} 个已退休",
+      "deadSession": "{count} 个会话已失效",
+      "why": "这两类都无法承接请求：已退休身份的 cookie 已被清除；平台不再接受的会话即使签名正确也会被拒绝。冷却中和已降级的身份仍然显示。",
+      "showAll": "显示全部",
+      "hideUnusable": "隐藏不可用"
+    },
+    "health": {
+      "noTraffic": "无流量",
+      "noTrafficHint": "健康度窗口内没有请求，因此无法评分。这不等于测得的良好。"
     }
   },
   "proxy": {
@@ -933,7 +952,10 @@
       "cursor": "上一页返回的不透明游标，首页留空。",
       "count": "每页条数，最多 50。",
       "include_raw": "同时返回未经处理的平台原始响应。",
-      "wait": "服务端在同一连接上等待结果的秒数，超时则改为返回 task_id。"
+      "wait": "服务端在同一连接上等待结果的秒数，超时则改为返回 task_id。",
+      "proxy": "让上游请求走这个代理。除非管理员开启了 security.request_proxy，否则会被拒绝。",
+      "mix_id": "合集 ID，可从合集或播放列表链接中获取。",
+      "identity": "只用指定的这一个身份发送，不会换成别的。用于只有该账号能看到的内容。该请求永远不会由其他身份代发，也不会走缓存。"
     },
     "required": "必填。",
     "oneOfRequired": "以下字段任填其一。",
@@ -976,7 +998,27 @@
       "javascript": "JavaScript"
     },
     "emptyTitle": "还没有发起调用",
-    "emptyDescription": "发起一次请求后，归一化结果与平台原始响应会并排显示在这里。"
+    "emptyDescription": "发起一次请求后，归一化结果与平台原始响应会并排显示在这里。",
+    "identityAuto": "任意身份（由调度器挑选）",
+    "identityLoggedIn": "已登录",
+    "catalogTitle": "接口",
+    "historyTitle": "本次会话",
+    "historyEmpty": "你发起的调用会出现在这里。",
+    "historyRestore": "把这些参数填回表单，不会重新发送。",
+    "section": {
+      "target": "目标",
+      "paging": "分页",
+      "request": "请求"
+    },
+    "metaTitle": "响应元数据",
+    "rawAbsent": "未请求",
+    "nextPage": "获取下一页",
+    "nextPageHint": "这一页带有游标。获取下一页会再消耗一次请求。",
+    "signatureTitle": "签名",
+    "signatureDescription": "上面那次调用的签名是在 worker 里对平台自己的地址算出来的，而那个地址不会返回给调用方。可以在这里复现：粘贴一个平台 API 地址，就能看到每一层各自贡献了什么。请求日志追上之后，实际使用的签名器会显示在这个面板的标题栏里。",
+    "signatureUrlHint": "平台的 API 地址，含查询串。不会发起任何请求，纯算术运算。",
+    "signatureCookiesHint": "选填。抖音的签名是对 Cookie 里的访客 ID 计算的，不提供就不会生成签名请求头。",
+    "signatureAction": "计算签名"
   },
   "parse": {
     "inputTitle": "链接",
@@ -1176,7 +1218,18 @@
         "inputNotReconstructible": "这一层所签名的字节与最终发送的字节不一定相同，因此不展示它所哈希的输入——还原出来的结果对大多数查询是对的，对其余的则会悄无声息地出错。",
         "salt": "盐值",
         "preimage": "md5 原文",
-        "preimageHint": "签名就是这段字符串的 md5。返回之前已重新计算并与签名核对过。"
+        "preimageHint": "签名就是这段字符串的 md5。返回之前已重新计算并与签名核对过。",
+        "ran": "已执行",
+        "paramCount": "{count} 个参数",
+        "headerCount": "{count} 个请求头",
+        "column": {
+          "param": "参数",
+          "value": "值",
+          "role": "作用"
+        },
+        "headersAdded": "这一层新增的请求头",
+        "noParams": "这一层没有新增参数。",
+        "preimageUnverified": "校验时该原文无法复现这个签名，因此不予展示：一个无法验证的原文会被当作算法文档来引用。"
       }
     },
     "parse": {
