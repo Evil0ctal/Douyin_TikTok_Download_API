@@ -527,6 +527,49 @@ async def plan_eviction(session: AsyncSession, *, total_bytes: int, ceiling_byte
     return choose_evictions(list(rows), over_by=total_bytes - ceiling_bytes)
 
 
+async def titles_for(
+    session: AsyncSession, keys: Sequence[tuple[str, str]]
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """What the archive knows about these posts, in one query.
+
+    A downloads table that lists content ids and byte counts is a table of
+    receipts: it says something was kept and not what. The archive already
+    holds the title and the author, and joining them here costs one statement
+    per page rather than a column on `media_downloads` that would go stale the
+    moment a post was re-parsed.
+
+    Missing is a real answer, not a failure: media can be downloaded for a post
+    the archive later dropped, and the row still describes a real file.
+    """
+    if not keys:
+        return {}
+    rows = (
+        (
+            await session.execute(
+                select(
+                    ArchivedContent.platform,
+                    ArchivedContent.content_id,
+                    ArchivedContent.title,
+                    ArchivedContent.author_nickname,
+                    ArchivedContent.duration_ms,
+                ).where(
+                    tuple_(ArchivedContent.platform, ArchivedContent.content_id).in_(list(keys))
+                )
+            )
+        )
+        .tuples()
+        .all()
+    )
+    return {
+        (platform, content_id): {
+            "title": title,
+            "author": nickname,
+            "duration_ms": duration,
+        }
+        for platform, content_id, title, nickname, duration in rows
+    }
+
+
 def as_dict(row: MediaDownload) -> dict[str, Any]:
     """One download, shaped for the API and the console."""
     return {
@@ -576,4 +619,5 @@ __all__ = [
     "set_pinned",
     "stats",
     "stored_for",
+    "titles_for",
 ]

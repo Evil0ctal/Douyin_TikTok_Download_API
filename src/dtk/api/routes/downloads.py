@@ -215,10 +215,18 @@ async def list_downloads(
         limit=limit or DEFAULT_ADMIN_PAGE_SIZE,
         offset=offset,
     )
+    # One statement for the page. A table of content ids and byte counts is a
+    # table of receipts; the archive already knows what was kept.
+    titles = await downloads.titles_for(
+        request.state.db, [(row.platform, row.content_id) for row in rows]
+    )
     return ok(
         request,
         {
-            "items": [downloads.as_dict(row) for row in rows],
+            "items": [
+                {**downloads.as_dict(row), "post": titles.get((row.platform, row.content_id))}
+                for row in rows
+            ],
             "total": total,
             "limit": limit or DEFAULT_ADMIN_PAGE_SIZE,
             "offset": offset,

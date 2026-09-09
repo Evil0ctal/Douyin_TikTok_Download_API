@@ -44,6 +44,20 @@ import styles from './Downloads.module.css'
  * would erase the only evidence the size ceiling ever ran.
  */
 
+/** The stored cover, when the row still has its files. */
+function coverOf(row: DownloadRow): string | null {
+  if (!row.on_disk) return null
+  const file = row.files.find((entry) => entry.kind === 'cover' && entry.state === 'done')
+  return file ? paths.downloads.file(row.id, file.name) : null
+}
+
+/** The stored video, when there is one. An image post has none. */
+function videoOf(row: DownloadRow): string | null {
+  if (!row.on_disk) return null
+  const file = row.files.find((entry) => entry.kind === 'video' && entry.state === 'done')
+  return file ? paths.downloads.file(row.id, file.name) : null
+}
+
 const DOWNLOADS_KEY = ['downloads'] as const
 const STORAGE_KEY = ['downloads', 'storage'] as const
 
@@ -76,6 +90,12 @@ interface DownloadRow {
   task_id: string | null
   created_at: string
   finished_at: string | null
+  /**
+   * What the archive knows about the post, or null. Null is a real answer:
+   * media can be kept for a post the archive later dropped, and the row still
+   * describes a real file on the volume.
+   */
+  post: { title: string | null; author: string | null; duration_ms: number | null } | null
 }
 
 interface DownloadList {
@@ -227,16 +247,34 @@ export default function Downloads() {
       {
         id: 'content',
         header: t('downloads.column.content'),
-        mono: true,
-        cell: (row) => (
-          <div className={styles.cell}>
-            <span className="u-truncate" title={row.directory}>
-              {row.content_id}
-            </span>
-            <span className={styles.sub}>{row.platform}</span>
-          </div>
-        ),
-        sortValue: (row) => row.content_id,
+        // The thumbnail is the fastest way to know which post a row is, and it
+        // costs nothing new: the cover is already on the volume and already
+        // servable. Falls back to the content id, which is what this column
+        // used to be on its own - a table of receipts that said something was
+        // kept and not what.
+        // Bounded, or a long caption pushes every other column off the screen.
+        // A title is worth a lot of room and not the whole table.
+        width: '360px',
+        cell: (row) => {
+          const cover = coverOf(row)
+          return (
+            <div className="u-row" style={{ minWidth: 0 }}>
+              <span className={styles.thumb}>
+                {cover ? <img src={cover} alt="" loading="lazy" /> : null}
+              </span>
+              <div className={styles.cell} style={{ minWidth: 0, maxWidth: '310px' }}>
+                <span className="u-truncate" title={row.directory}>
+                  {row.post?.title || row.content_id}
+                </span>
+                <span className={styles.sub}>
+                  {row.post?.author ? `${row.post.author} · ` : ''}
+                  {row.platform}
+                </span>
+              </div>
+            </div>
+          )
+        },
+        sortValue: (row) => row.post?.title || row.content_id,
       },
       {
         id: 'state',
@@ -526,8 +564,17 @@ function Detail({ row }: { row: DownloadRow }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
 
+  const video = videoOf(row)
+  const cover = coverOf(row)
+
   return (
     <div className="u-stack">
+      {video ? (
+        <video className={styles.player} src={video} poster={cover ?? undefined} controls preload="metadata" />
+      ) : cover ? (
+        <img className={styles.player} src={cover} alt="" />
+      ) : null}
+
       <div className="u-row-between">
         <StatusBadge kind="download" value={row.state} />
         <span className="u-mono u-xs u-muted">
