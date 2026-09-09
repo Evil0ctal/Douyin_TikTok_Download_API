@@ -158,17 +158,6 @@ async def get(session: AsyncSession, download_id: uuid.UUID) -> MediaDownload | 
     return await session.get(MediaDownload, download_id)
 
 
-async def latest_for(session: AsyncSession, platform: str, content_id: str) -> MediaDownload | None:
-    """The most recent download of one post, whatever state it is in."""
-    statement = (
-        select(MediaDownload)
-        .where(MediaDownload.platform == platform, MediaDownload.content_id == content_id)
-        .order_by(MediaDownload.created_at.desc())
-        .limit(1)
-    )
-    return (await session.execute(statement)).scalars().first()
-
-
 async def mark_running(session: AsyncSession, download_id: uuid.UUID) -> None:
     await session.execute(
         update(MediaDownload)
@@ -325,12 +314,26 @@ async def search(
 
 
 async def stats(session: AsyncSession) -> dict[str, Any]:
-    """Totals for the console's storage panel."""
+    """Totals for the console's storage panel.
+
+    ``bytes_total`` sums one row per *directory*, not per row. Several
+    downloads of one post share a directory and each row claims the whole of
+    it, so a plain SUM reported 493 MB against 246 MB actually on the volume.
+    The eviction planner already had to learn this; the panel had not.
+    """
+    per_directory = (
+        select(func.max(MediaDownload.bytes_total).label("bytes"))
+        .where(MediaDownload.files_removed_at.is_(None))
+        .group_by(MediaDownload.directory)
+        .subquery()
+    )
+    stored_bytes = (
+        await session.execute(select(func.coalesce(func.sum(per_directory.c.bytes), 0)))
+    ).scalar_one()
     totals = (
         await session.execute(
             select(
                 func.count(),
-                func.coalesce(func.sum(MediaDownload.bytes_total), 0),
                 func.count().filter(MediaDownload.pinned.is_(True)),
                 func.count().filter(MediaDownload.files_removed_at.is_not(None)),
                 func.count().filter(MediaDownload.state.in_(LIVE_STATES)),
@@ -344,10 +347,10 @@ async def stats(session: AsyncSession) -> dict[str, Any]:
     ).all()
     return {
         "downloads": int(totals[0]),
-        "bytes_total": int(totals[1]),
-        "pinned": int(totals[2]),
-        "evicted": int(totals[3]),
-        "in_flight": int(totals[4]),
+        "bytes_total": int(stored_bytes),
+        "pinned": int(totals[1]),
+        "evicted": int(totals[2]),
+        "in_flight": int(totals[3]),
         "by_state": {str(state): int(count) for state, count in by_state},
     }
 
@@ -511,7 +514,6 @@ __all__ = [
     "fail",
     "get",
     "job_payload",
-    "latest_for",
     "mark_evicted",
     "mark_running",
     "mirrors_are_stale",

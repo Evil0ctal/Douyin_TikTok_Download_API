@@ -205,8 +205,11 @@ async def test_revoking_one_session_by_its_public_id(client: Any) -> None:
     assert response.status_code == 200
     assert await get_redis().get(SESSION_KEY.format(token=other)) is None
 
+    # A well-formed id that names nothing is a missing row, not a malformed
+    # request: the caller has nothing to correct in what they sent.
     missing = await client.delete("/api/v1/auth/sessions/deadbeefdeadbeef")
-    assert error_code(missing) == "INVALID_PARAM"
+    assert missing.status_code == 404
+    assert error_code(missing) == "NOT_FOUND"
 
 
 async def test_password_change_requires_the_current_one(client: Any) -> None:

@@ -237,6 +237,65 @@ async def test_storage_reports_the_ceiling_and_an_absent_downloader(
     assert data["downloader"]["available"] is False
 
 
+async def test_storage_counts_a_shared_directory_once(api_app, db_engine, redis_client):
+    """Three rows, one directory, one set of bytes on the volume.
+
+    The media layout has nothing per-download in it, so every download of one
+    post lands in the same directory and every row records the whole of it.
+    Summing the rows reported 3x what the disk actually held.
+    """
+    directory = f"douyin/{AUTHOR_UID}/{CONTENT_ID}"
+    async with session_scope() as session:
+        for _ in range(3):
+            session.add(
+                MediaDownload(
+                    id=uuid.uuid4(),
+                    platform="douyin",
+                    content_id=CONTENT_ID,
+                    author_uid=AUTHOR_UID,
+                    state="done",
+                    directory=directory,
+                    bytes_total=1000,
+                    file_count=2,
+                )
+            )
+        # A second directory does add its own bytes, and an evicted row adds
+        # none: its files are gone from the volume the number describes.
+        session.add(
+            MediaDownload(
+                id=uuid.uuid4(),
+                platform="douyin",
+                content_id="7000000000000000001",
+                author_uid=AUTHOR_UID,
+                state="done",
+                directory=f"douyin/{AUTHOR_UID}/7000000000000000001",
+                bytes_total=250,
+                file_count=1,
+            )
+        )
+        session.add(
+            MediaDownload(
+                id=uuid.uuid4(),
+                platform="douyin",
+                content_id="7000000000000000002",
+                author_uid=AUTHOR_UID,
+                state="done",
+                directory=f"douyin/{AUTHOR_UID}/7000000000000000002",
+                bytes_total=9999,
+                file_count=1,
+                files_removed_at=datetime.now(UTC),
+            )
+        )
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get("/api/v1/downloads/storage", headers={"X-API-Key": key})
+    data = envelope(response)["data"]
+    assert data["downloads"] == 5
+    assert data["bytes_total"] == 1250
+    assert data["evicted"] == 1
+
+
 async def test_pinning_a_download_that_does_not_exist_is_a_404(api_app, db_engine, redis_client):
     user_id = await make_user()
     key = await media_key(user_id)

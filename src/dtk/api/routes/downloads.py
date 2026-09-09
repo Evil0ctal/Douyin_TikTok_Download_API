@@ -41,7 +41,7 @@ from dtk.api.routes.support import (
 from dtk.core.config import BootstrapSettings
 from dtk.core.errors import InvalidParam, NotConfigured, NotFound, QueueFull
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, Scope
+from dtk.core.types import DownloadState, Platform, Scope
 from dtk.ops import capacity
 from dtk.services import archive, downloads, tasks
 
@@ -55,7 +55,7 @@ router = APIRouter(prefix="/api/v1/downloads", tags=["downloads"])
 CAPACITY_RETRY_AFTER = 300
 
 PLATFORM_QUERY = Query(default=None, description="Only this platform.")
-STATE_QUERY = Query(default=None, description="queued, running, done, partial, failed, cancelled.")
+STATE_QUERY = Query(default=None, description="Only downloads in this state.")
 PINNED_QUERY = Query(default=None, description="Only pinned downloads, or only unpinned.")
 ON_DISK_QUERY = Query(default=None, description="True for downloads whose files are still stored.")
 LIMIT_QUERY = Query(default=None, ge=1, le=MAX_ADMIN_PAGE_SIZE, description="Rows per page.")
@@ -182,8 +182,8 @@ async def start_download(
 @router.get("", summary="List downloads", openapi_extra={I18N_KEY: "downloads_list"})
 async def list_downloads(
     request: Request,
-    platform: str | None = PLATFORM_QUERY,
-    state: str | None = STATE_QUERY,
+    platform: Platform | None = PLATFORM_QUERY,
+    state: DownloadState | None = STATE_QUERY,
     pinned: bool | None = PINNED_QUERY,
     on_disk: bool | None = ON_DISK_QUERY,
     limit: int | None = LIMIT_QUERY,

@@ -33,6 +33,7 @@ from dtk.api.routes.schemas import BatchRequest, ParseRequest
 from dtk.api.routes.support import (
     MAX_PAGE_SIZE,
     has_scope,
+    language,
     ok,
     resolve_count,
     resolve_request_proxy,
@@ -48,6 +49,7 @@ from dtk.core.errors import (
 )
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
+from dtk.i18n.messages import render_error
 from dtk.urls import ResourceKind, UrlKind, first_url, identify
 from dtk.worker import registry
 
@@ -299,7 +301,16 @@ async def batch(
                 {
                     "url": item.url,
                     "task_id": None,
-                    "error": {"code": exc.code.value, "details": exc.details or None},
+                    # Rendered in the caller's language, like every other error
+                    # this API returns. Batch was the one place that shipped a
+                    # bare code: the console's own BatchItemResult declares
+                    # `message?` and fell back to a generic sentence, and the
+                    # endpoint's `lang` parameter changed nothing.
+                    "error": {
+                        "code": exc.code.value,
+                        "message": render_error(exc, language(request)),
+                        "details": exc.details or None,
+                    },
                 }
             )
             continue

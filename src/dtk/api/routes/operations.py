@@ -41,7 +41,7 @@ from dtk.api.routes.support import language, ok, request_id
 from dtk.core.errors import ErrorCode, Internal, QueueFull, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Platform, RejectReason, TaskState
+from dtk.core.types import Platform, RejectReason, Scope, TaskState
 from dtk.services import cache, tasks
 
 # The worker package's declared surface, not its internals: this route and
@@ -143,6 +143,48 @@ async def _attach(session: AsyncSession, digest: str) -> tuple[uuid.UUID, TaskSt
         await cache.release_inflight(digest, existing)
         return None
     return task_id, view.state
+
+
+#: What reading or cancelling one task requires, by endpoint family.
+#:
+#: Reading a task's result needs the scope that creating it needed. Without
+#: this, `GET /tasks/{id}` and its siblings were guarded by `authenticated`
+#: alone - no scopes at all - so a key holding only `archive:read`, refused
+#: `GET /{platform}/video/comments` outright, could read that endpoint's full
+#: payload back out of any task id it was given.
+#:
+#: Ownership is deliberately NOT checked: a console session and the key that
+#: submitted a job are routinely different credentials for the same operator,
+#: and task ids are random UUIDv4 with no enumeration path.
+_MAINTENANCE_SCOPES: Final[tuple[Scope, ...]] = (Scope.ADMIN, Scope.IDENTITY_MANAGE)
+_READ_ANY_PLATFORM: Final[tuple[Scope, ...]] = (Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+
+
+def scopes_for_task(endpoint: str) -> tuple[Scope, ...]:
+    """Which scopes may read the result of a task on ``endpoint``.
+
+    Any one of them is enough, which is how :meth:`Principal.require` reads a
+    list. An endpoint this build does not recognise falls back to admin - the
+    safe direction for a row written by a newer version.
+    """
+    if endpoint == Operation.PARSE.value:
+        # Platform-agnostic at submission; either read scope could have made it.
+        return _READ_ANY_PLATFORM
+    if endpoint in (Maintenance.MEDIA_DOWNLOAD.value,):
+        return (Scope.MEDIA_READ, Scope.MEDIA_WRITE, *_MAINTENANCE_SCOPES)
+    if endpoint in (
+        Maintenance.ARCHIVE_AVAILABILITY.value,
+        Maintenance.ARCHIVE_BACKFILL.value,
+    ):
+        return (*_READ_ANY_PLATFORM, Scope.ARCHIVE_READ)
+    if endpoint in {member.value for member in Maintenance}:
+        return _MAINTENANCE_SCOPES
+    try:
+        from dtk.worker import registry
+
+        return (registry.definition_for(endpoint).scope,)
+    except Exception:
+        return (Scope.ADMIN,)
 
 
 async def submit(

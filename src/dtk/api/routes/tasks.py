@@ -16,12 +16,14 @@ import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
+from time import monotonic
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
 from dtk.api.deps import Principal
+from dtk.api.routes import operations
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.operations import unwrap
 from dtk.api.routes.support import authenticated, iso, language, ok
@@ -143,6 +145,10 @@ async def get_task(
     than keep polling.
     """
     view = await task_service.get(request.state.db, task_id)
+    # The scope creating this task needed. Reading a result back has to cost
+    # the same as asking for it, or a low-scope key becomes a way around every
+    # other scope in the system.
+    principal.require(*operations.scopes_for_task(view.endpoint))
     if view.state is TaskState.DONE and view.result is None:
         # The row outlives its payload by design; say so rather than handing
         # back a success with nothing in it.
@@ -173,6 +179,9 @@ async def cancel_task(
     whatever it already was.
     """
     session = request.state.db
+    principal.require(
+        *operations.scopes_for_task((await task_service.get(session, task_id)).endpoint)
+    )
     state = await task_service.cancel(session, task_id)
     await session.commit()
     return ok(request, {"task_id": str(task_id), "state": state})
@@ -196,8 +205,11 @@ async def task_events(
     there is nothing left to authorize.
     """
     # Fail fast on an unknown id so the caller gets a 404 envelope instead of
-    # an event stream that says nothing.
-    await task_service.get(request.state.db, task_id)
+    # an event stream that says nothing - and authorize the same way the
+    # polling route does, since this returns the same payload.
+    principal.require(
+        *operations.scopes_for_task((await task_service.get(request.state.db, task_id)).endpoint)
+    )
 
     # Bound before the stream opens, like the session below: the negotiated
     # language belongs to the request, and the request is over by the time the
@@ -208,10 +220,18 @@ async def task_events(
         redis = get_redis()
         signal_key = task_service.SIGNAL_KEY.format(task_id=task_id)
         last_state: str | None = None
-        elapsed = 0.0
+        # A wall-clock deadline, not a running total of nominal ticks. `blpop`
+        # returns the moment the completion signal arrives, and the old code
+        # booked the whole tick anyway - so for any timeout of five seconds or
+        # less the very first early wake pushed `elapsed` past the deadline,
+        # the loop exited without re-reading the task, and the caller was sent
+        # `timeout` for a task that had already finished. The sibling long poll
+        # in `dtk.services.tasks.wait_for` has always used a deadline; this is
+        # the same idea, and the same reason.
+        deadline = monotonic() + timeout
         silent = 0.0
         try:
-            while elapsed < timeout:
+            while True:
                 if await request.is_disconnected():
                     break
                 async with session_scope() as session:
@@ -240,12 +260,18 @@ async def task_events(
                     silent = 0.0
                     yield b": keep-alive\n\n"
 
-                waited = min(SSE_TICK_SECONDS, max(1.0, timeout - elapsed))
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    break
+                waited = min(SSE_TICK_SECONDS, max(1.0, remaining))
                 # Blocks on the same signal the task queue pushes on
                 # completion, so a finished task wakes the stream at once.
+                started = monotonic()
                 await redis.blpop([signal_key], timeout=int(waited))
-                elapsed += waited
-                silent += waited
+                # What actually elapsed. An early wake means the task settled,
+                # and the loop goes back to the top to read it rather than
+                # counting time that was never spent.
+                silent += monotonic() - started
             yield _event("timeout", {"task_id": str(task_id), "state": last_state})
         except asyncio.CancelledError:  # client went away mid-stream
             raise

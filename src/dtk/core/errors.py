@@ -30,6 +30,18 @@ class ErrorCode(StrEnum):
     SETUP_TOKEN_INVALID = "SETUP_TOKEN_INVALID"
     NOT_CONFIGURED = "NOT_CONFIGURED"
     QUEUE_FULL = "QUEUE_FULL"
+    #: The work was given up on deliberately - a task cancelled by its caller.
+    #: Its own code because it used to be reported as INVALID_PARAM, which told
+    #: the caller their perfectly valid request was malformed, and which is in
+    #: NON_RETRYABLE - so an agent reading the result learned never to try that
+    #: URL again.
+    CANCELLED = "CANCELLED"
+    #: The method is not allowed on this path. Answered by the framework, and
+    #: previously laundered into INTERNAL, whose own contract tells the caller
+    #: to file a bug quoting a request id that is never logged.
+    METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"
+    #: The request body arrived in a media type this endpoint does not read.
+    UNSUPPORTED_MEDIA_TYPE = "UNSUPPORTED_MEDIA_TYPE"
     INTERNAL = "INTERNAL"
 
 
@@ -54,6 +66,9 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.SETUP_TOKEN_INVALID: 403,
     ErrorCode.NOT_CONFIGURED: 501,
     ErrorCode.QUEUE_FULL: 503,
+    ErrorCode.CANCELLED: 409,
+    ErrorCode.METHOD_NOT_ALLOWED: 405,
+    ErrorCode.UNSUPPORTED_MEDIA_TYPE: 415,
     ErrorCode.INTERNAL: 500,
 }
 
@@ -71,6 +86,12 @@ NON_RETRYABLE: frozenset[ErrorCode] = frozenset(
         ErrorCode.UPSTREAM_CHANGED,
         ErrorCode.SETUP_ALREADY_DONE,
         ErrorCode.SETUP_TOKEN_INVALID,
+        # Somebody decided to stop this. Retrying is not a fix, it is ignoring
+        # them.
+        ErrorCode.CANCELLED,
+        # A different method might work; this one never will.
+        ErrorCode.METHOD_NOT_ALLOWED,
+        ErrorCode.UNSUPPORTED_MEDIA_TYPE,
         # A capability this deployment simply does not have. Retrying is
         # never the answer: no amount of waiting installs a browser
         # container or writes an alert channel into the settings.
@@ -139,6 +160,8 @@ NotConfigured = _err("NotConfigured", ErrorCode.NOT_CONFIGURED)
 #: caller is told when to come back rather than being queued behind work
 #: that will not finish in time to matter.
 QueueFull = _err("QueueFull", ErrorCode.QUEUE_FULL)
+#: Given up on deliberately, by whoever asked for it.
+Cancelled = _err("Cancelled", ErrorCode.CANCELLED)
 
 
 class UpstreamChanged(DtkError):
@@ -159,6 +182,7 @@ class UpstreamChanged(DtkError):
 __all__ = [
     "HTTP_STATUS",
     "NON_RETRYABLE",
+    "Cancelled",
     "ContentPrivate",
     "DtkError",
     "EndpointCircuitOpen",

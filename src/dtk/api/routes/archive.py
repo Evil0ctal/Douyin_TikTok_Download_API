@@ -33,7 +33,7 @@ from dtk.api.routes.support import ok
 from dtk.core.db import session_scope
 from dtk.core.errors import NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, Scope
+from dtk.core.types import Availability, ContentKind, DurationBucket, Platform, Scope
 from dtk.db.models import ArchivedContent
 from dtk.services import archive
 
@@ -55,9 +55,9 @@ _READ_SCOPE: Final[dict[Platform, Scope]] = {
 PLATFORM_QUERY = Query(default=None, description="Only this platform.")
 AUTHOR_QUERY = Query(default=None, max_length=256, description="Only this author's posts.")
 TAG_QUERY = Query(default=None, max_length=128, description="Only posts carrying this tag.")
-KIND_QUERY = Query(default=None, description="video or image_album.")
-DURATION_QUERY = Query(default=None, description="short, medium, long or unknown.")
-AVAILABILITY_QUERY = Query(default=None, description="live, deleted, private or unknown.")
+KIND_QUERY = Query(default=None, description="Only posts of this kind.")
+DURATION_QUERY = Query(default=None, description="Only posts in this length class.")
+AVAILABILITY_QUERY = Query(default=None, description="Only posts with this upstream status.")
 SEARCH_QUERY = Query(
     default=None,
     max_length=200,
@@ -129,12 +129,12 @@ def _row(content: ArchivedContent, *, include_media: bool = True) -> dict[str, A
 @router.get("", summary="Search the archive", openapi_extra={I18N_KEY: "archive_list"})
 async def list_archive(
     request: Request,
-    platform: str | None = PLATFORM_QUERY,
+    platform: Platform | None = PLATFORM_QUERY,
     author_uid: str | None = AUTHOR_QUERY,
     tag: str | None = TAG_QUERY,
-    kind: str | None = KIND_QUERY,
-    duration_bucket: str | None = DURATION_QUERY,
-    availability: str | None = AVAILABILITY_QUERY,
+    kind: ContentKind | None = KIND_QUERY,
+    duration_bucket: DurationBucket | None = DURATION_QUERY,
+    availability: Availability | None = AVAILABILITY_QUERY,
     q: str | None = SEARCH_QUERY,
     cursor: str | None = CURSOR_QUERY,
     limit: int | None = LIMIT_QUERY,
@@ -202,12 +202,12 @@ async def archive_stats(
 )
 async def export_archive(
     request: Request,
-    platform: str | None = PLATFORM_QUERY,
+    platform: Platform | None = PLATFORM_QUERY,
     author_uid: str | None = AUTHOR_QUERY,
     tag: str | None = TAG_QUERY,
-    kind: str | None = KIND_QUERY,
-    duration_bucket: str | None = DURATION_QUERY,
-    availability: str | None = AVAILABILITY_QUERY,
+    kind: ContentKind | None = KIND_QUERY,
+    duration_bucket: DurationBucket | None = DURATION_QUERY,
+    availability: Availability | None = AVAILABILITY_QUERY,
     q: str | None = SEARCH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> StreamingResponse:

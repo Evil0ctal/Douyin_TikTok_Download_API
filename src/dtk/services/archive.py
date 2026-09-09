@@ -381,6 +381,24 @@ def _cursor_decode(cursor: str) -> tuple[datetime, str, str] | None:
         return None
 
 
+#: The escape character for a LIKE pattern built from caller input. Backslash
+#: rather than anything exotic so the SQL reads the way anyone would expect.
+LIKE_ESCAPE: Final = "\\"
+
+
+def escape_like(term: str) -> str:
+    """Neutralize the wildcards in a substring a caller typed.
+
+    The escape character has to go first, or escaping `%` would produce a
+    pattern whose own escape is then escaped.
+    """
+    return (
+        term.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
+        .replace("%", f"{LIKE_ESCAPE}%")
+        .replace("_", f"{LIKE_ESCAPE}_")
+    )
+
+
 def _search_clause(term: str) -> Any:
     """Match a search term against title and description.
 
@@ -391,10 +409,15 @@ def _search_clause(term: str) -> Any:
     backed by the GIN trigram indexes is the honest thing available without
     adding a component README rules out, and it behaves the same in both scripts.
     """
-    pattern = f"%{term}%"
+    # Escaped, because the caller typed a substring and not a LIKE pattern.
+    # Unescaped, `q=%` returned the entire archive and `q=L_D` matched "LED" -
+    # and both characters are ordinary in captions and handles. Not an
+    # injection (the value is still bound), just wrong answers, including on
+    # the export, which would stream everything for `q=%`.
+    pattern = f"%{escape_like(term)}%"
     return or_(
-        ArchivedContent.title.ilike(pattern),
-        ArchivedContent.description.ilike(pattern),
+        ArchivedContent.title.ilike(pattern, escape=LIKE_ESCAPE),
+        ArchivedContent.description.ilike(pattern, escape=LIKE_ESCAPE),
     )
 
 

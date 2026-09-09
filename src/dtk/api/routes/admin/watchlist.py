@@ -31,6 +31,7 @@ from dtk.api.routes.support import (
 )
 from dtk.core.errors import NotFound
 from dtk.core.logging import get_logger
+from dtk.core.types import Platform, WatchKind
 from dtk.services import watchlist
 
 log = get_logger(__name__)
@@ -39,7 +40,7 @@ router = APIRouter(prefix="/watchlist", tags=["admin"])
 
 ENTRY_ID = Path(description="The watchlist entry id.")
 PLATFORM_QUERY = Query(default=None, description="Only this platform.")
-KIND_QUERY = Query(default=None, description="author or content.")
+KIND_QUERY = Query(default=None, description="Only entries of this kind.")
 ENABLED_QUERY = Query(default=None, description="Only enabled entries, or only paused ones.")
 LIMIT_QUERY = Query(default=None, ge=1, le=MAX_ADMIN_PAGE_SIZE, description="Rows per page.")
 OFFSET_QUERY = Query(default=0, ge=0, description="Rows to skip.")
@@ -52,8 +53,8 @@ def _floor(request: Request) -> int:
 @router.get("", summary="List watched targets")
 async def list_watchlist(
     request: Request,
-    platform: str | None = PLATFORM_QUERY,
-    kind: str | None = KIND_QUERY,
+    platform: Platform | None = PLATFORM_QUERY,
+    kind: WatchKind | None = KIND_QUERY,
     enabled: bool | None = ENABLED_QUERY,
     limit: int | None = LIMIT_QUERY,
     offset: int = OFFSET_QUERY,

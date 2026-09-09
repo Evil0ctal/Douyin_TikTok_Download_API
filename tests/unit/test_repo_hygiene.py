@@ -478,6 +478,9 @@ LOCALIZED_ROUTES_OUTSIDE_THE_CACHE = {
     "api/routes/admin/identities.py",
     "api/routes/operations.py",
     "api/routes/ios.py",
+    # POST /tasks/batch renders each rejected item's reason inline. A mutation
+    # response, so nothing holds it across a language switch.
+    "api/routes/content.py",
 }
 
 

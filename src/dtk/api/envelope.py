@@ -10,6 +10,7 @@ See docs/design/06-api-auth-mcp.md and docs/design/11-data-contracts.md.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import Request
@@ -71,6 +72,7 @@ def failure(
     retry_after: int | None = None,
     details: dict[str, Any] | None = None,
     status_code: int | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     args = dict(details or {})
     if retry_after is not None:
@@ -86,7 +88,12 @@ def failure(
         error["details"] = details
 
     status = status_code or HTTP_STATUS.get(code, 500)
-    headers = {"Retry-After": str(retry_after)} if retry_after else None
+    # Whatever the framework attached, plus Retry-After when this error carries
+    # one. `Allow` on a 405 is the case that made this matter: RFC 9110 makes it
+    # a MUST, and rebuilding the response here dropped it.
+    outgoing: dict[str, str] = dict(headers or {})
+    if retry_after:
+        outgoing["Retry-After"] = str(retry_after)
     return JSONResponse(
         status_code=status,
         content={
@@ -95,7 +102,7 @@ def failure(
             "error": error,
             "meta": _meta(request_id),
         },
-        headers=headers,
+        headers=outgoing or None,
     )
 
 

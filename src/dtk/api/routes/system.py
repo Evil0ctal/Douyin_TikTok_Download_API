@@ -206,6 +206,30 @@ async def _browser_rpc_status(request: Request) -> dict[str, Any]:
     }
 
 
+async def _hypertable_counts(session: Any, counts: dict[str, Any]) -> list[tuple[str, Any]]:
+    """Replace a hypertable's parent-relation estimate with the chunk sum.
+
+    ``approximate_row_count`` walks the chunks, which is where a hypertable's
+    rows actually are. It is best effort in both directions: a server without
+    TimescaleDB has no such function, and a table nobody has analyzed still
+    answers 0 - so a zero it returns is left as NULL rather than reported as an
+    empty table.
+    """
+    from dtk.db.models import HYPERTABLES
+
+    for name in HYPERTABLES:
+        if name not in counts:
+            continue
+        try:
+            value = (
+                await session.execute(text("SELECT approximate_row_count(:name)"), {"name": name})
+            ).scalar_one()
+        except Exception:
+            continue
+        counts[name] = int(value) if value else None
+    return list(counts.items())
+
+
 async def _storage(session: Any) -> dict[str, Any]:
     """Disk use and row counts, estimated rather than counted.
 
@@ -217,15 +241,26 @@ async def _storage(session: Any) -> dict[str, Any]:
         size = (
             await session.execute(text("SELECT pg_database_size(current_database())"))
         ).scalar_one()
+        # Three of these four are TimescaleDB hypertables, and reltuples on the
+        # parent relation describes the parent - which stores nothing, because
+        # every row lives in a chunk. GREATEST(reltuples, 0) then turned the
+        # never-analyzed sentinel of -1 into a confident 0, so the status page
+        # told an operator the request log was empty while it held 839 rows.
+        #
+        # approximate_row_count() sums the chunks and is the right question to
+        # ask; NULL when it cannot answer, rather than a number that is wrong.
         estimates = (
             await session.execute(
                 text(
-                    "SELECT relname, GREATEST(reltuples, 0)::bigint AS rows "
+                    "SELECT relname, "
+                    "  CASE WHEN reltuples < 0 THEN NULL "
+                    "       ELSE reltuples::bigint END AS rows "
                     "FROM pg_class WHERE relname = ANY(:names)"
                 ),
                 {"names": ["request_log", "identity_events", "content_snapshots", "tasks"]},
             )
         ).all()
+        estimates = await _hypertable_counts(session, dict(estimates))
         identities = (
             await session.execute(select(func.count()).select_from(Identity))
         ).scalar_one()
@@ -234,7 +269,10 @@ async def _storage(session: Any) -> dict[str, Any]:
         return {"db_size_bytes": None, "rows": {}}
     return {
         "db_size_bytes": int(size),
-        "rows": {name: int(rows) for name, rows in estimates},
+        # None where the estimate is genuinely unknown - a relation nobody has
+        # analyzed, or a server without TimescaleDB. A null says "I do not know";
+        # a 0 says "it is empty", and only one of those was ever true here.
+        "rows": {name: (int(rows) if rows is not None else None) for name, rows in estimates},
         "identities": int(identities),
     }
 

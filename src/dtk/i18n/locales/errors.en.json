@@ -2,7 +2,7 @@
   "INVALID_URL": "The URL was not recognized as a supported Douyin or TikTok link.",
   "UNSUPPORTED_CONTENT": "That content type is not supported yet.",
   "INVALID_PARAM": "One or more request parameters are invalid.",
-  "UNAUTHENTICATED": "A valid API key is required; send it in the X-API-Key header.",
+  "UNAUTHENTICATED": "Authentication failed. Send a valid API key in the X-API-Key header, or sign in to the console.",
   "FORBIDDEN_SCOPE": "This API key lacks the scope required by this endpoint.",
   "NOT_FOUND": "The requested resource does not exist.",
   "CONTENT_PRIVATE": "This content is private or has been removed by its author.",
@@ -17,5 +17,8 @@
   "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
   "INTERNAL": "An unexpected internal error occurred; check the server logs for details.",
   "NOT_CONFIGURED": "This feature is not configured on this instance.",
-  "QUEUE_FULL": "The work queue is full; retry in {retry_after} seconds."
+  "QUEUE_FULL": "The work queue is full; retry in {retry_after} seconds.",
+  "CANCELLED": "The task was cancelled before it finished.",
+  "METHOD_NOT_ALLOWED": "That HTTP method is not allowed on this path.",
+  "UNSUPPORTED_MEDIA_TYPE": "The request body was sent in a media type this endpoint does not read."
 }

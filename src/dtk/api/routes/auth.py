@@ -35,7 +35,7 @@ from dtk.api.routes.support import (
     ok,
     user_agent,
 )
-from dtk.core.errors import InvalidParam, RateLimited, Unauthenticated
+from dtk.core.errors import InvalidParam, NotFound, RateLimited, Unauthenticated
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.db.repositories import UserRepository
@@ -386,9 +386,14 @@ async def revoke_one_session(
     """``session_ref`` is the digest from the list, never the token itself."""
     revoked = await sessions.revoke_by_id(principal.user_id, session_ref)
     if not revoked:
-        raise InvalidParam(
+        # NotFound, not InvalidParam. Every other resource in this API tells a
+        # caller whether their id was malformed or simply unknown; this was the
+        # one route that answered 400 to both, so a client could not tell a typo
+        # from a session that was already gone. There is nothing to protect by
+        # blurring them - `revoke_by_id` only ever scans the caller's own index.
+        raise NotFound(
             "no such session for this account",
-            details={"field": "session_ref"},
+            details={"session_ref": session_ref[:64]},
         )
     return ok(request, {"revoked": 1})
 

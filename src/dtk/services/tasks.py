@@ -177,7 +177,12 @@ async def cancel(session: AsyncSession, task_id: uuid.UUID) -> str:
     if task.state != TaskState.QUEUED.value:
         return task.state
     task.state = TaskState.FAILED.value
-    task.error = {"code": ErrorCode.INVALID_PARAM.value, "message": "cancelled by the caller"}
+    # CANCELLED, not INVALID_PARAM. The old code told the caller their
+    # perfectly valid request was malformed, in a code that sits in
+    # NON_RETRYABLE - so an agent reading the result learned never to try that
+    # URL again, and a synchronous `?wait=` caller got HTTP 400 for a link that
+    # was fine.
+    task.error = {"code": ErrorCode.CANCELLED.value, "message": "cancelled by the caller"}
     task.finished_at = datetime.now(UTC)
     await session.flush()
     await _signal(task_id)

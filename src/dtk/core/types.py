@@ -20,6 +20,51 @@ class ContentKind(StrEnum):
     LIVE = "live"
 
 
+class DownloadState(StrEnum):
+    """Where one media download stands.
+
+    Wider than :class:`TaskState`: a download of a post with several files can
+    land some and lose others, which is neither done nor failed.
+    """
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    DONE = "done"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class Availability(StrEnum):
+    """Whether the archived post is still reachable upstream.
+
+    ``UNKNOWN`` is what a failed check leaves behind. It is deliberately not
+    ``DELETED``: an archive that quietly reclassifies posts on a network blip
+    would be worse than one that admits it does not know.
+    """
+
+    LIVE = "live"
+    DELETED = "deleted"
+    PRIVATE = "private"
+    UNKNOWN = "unknown"
+
+
+class DurationBucket(StrEnum):
+    """Coarse length classes, from ``archive.duration_bucket``."""
+
+    SHORT = "short"
+    MEDIUM = "medium"
+    LONG = "long"
+    UNKNOWN = "unknown"
+
+
+class WatchKind(StrEnum):
+    """What a watchlist entry follows."""
+
+    AUTHOR = "author"
+    CONTENT = "content"
+
+
 class Outcome(StrEnum):
     """Classification of a single upstream request.
 

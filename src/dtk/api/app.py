@@ -160,13 +160,24 @@ def _install_error_handlers(app: FastAPI) -> None:
             401: ErrorCode.UNAUTHENTICATED,
             403: ErrorCode.FORBIDDEN_SCOPE,
             404: ErrorCode.NOT_FOUND,
+            405: ErrorCode.METHOD_NOT_ALLOWED,
+            409: ErrorCode.SETUP_ALREADY_DONE,
+            415: ErrorCode.UNSUPPORTED_MEDIA_TYPE,
             429: ErrorCode.RATE_LIMITED,
+            501: ErrorCode.NOT_CONFIGURED,
         }.get(exc.status_code, ErrorCode.INTERNAL)
+        # Everything the framework attached, `Allow` above all: RFC 9110 makes
+        # it a MUST on a 405, and rebuilding the response without it dropped it.
+        # Falling back to INTERNAL for a 405 was worse than untidy - INTERNAL's
+        # own contract tells the caller to file a bug quoting a request id that
+        # is never logged, for what is only a method they got wrong, and it is
+        # absent from NON_RETRYABLE so a code-branching client retries forever.
         return envelope.failure(
             code,
             getattr(request.state, "request_id", "unknown"),
             language=response_language(request),
             status_code=exc.status_code or HTTP_STATUS[code],
+            headers=getattr(exc, "headers", None),
         )
 
     @app.exception_handler(Exception)
