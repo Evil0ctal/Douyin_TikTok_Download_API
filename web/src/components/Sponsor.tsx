@@ -61,6 +61,7 @@ export function Sponsor({ variant = 'full', className }: SponsorProps) {
           <span className={styles.compactLabel}>{t('about.sponsor.label')}</span>
           <span className={cn(styles.compactName, 'u-truncate')}>{SPONSOR.name}</span>
         </span>
+        <ExternalIcon size={11} className={styles.compactAway} />
       </a>
     )
   }

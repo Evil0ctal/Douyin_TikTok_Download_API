@@ -56,10 +56,31 @@
   letter-spacing: 0.01em;
 }
 
+/*
+ * No visible scrollbar, and that is an alignment fix rather than a taste one.
+ *
+ * A classic (non-overlay) scrollbar is laid out inside this box and takes its
+ * width out of the content, while the pinned block below - which does not
+ * scroll - keeps the full width. The two then disagree about where the left
+ * edge is: measured 6px on this machine, which is enough to knock the About
+ * icon out of the column of nav icons when the sidebar is collapsed to 56px.
+ * Compensating for it in CSS is not possible, because nothing exposes the
+ * scrollbar's width and it differs per platform and per setting.
+ *
+ * The affordance survives: this scrolls by wheel and trackpad, keyboard focus
+ * still scrolls a focused row into view, and the list is grouped with headings
+ * so a cut-off group reads as cut off. Most macOS users never saw the bar
+ * anyway - overlay scrollbars are the default there.
+ */
 .navScroll {
   overflow-y: auto;
   padding: var(--space-2) var(--space-2) var(--space-4);
   flex: 1 1 auto;
+  scrollbar-width: none;
+}
+
+.navScroll::-webkit-scrollbar {
+  display: none;
 }
 
 .navGroup {
@@ -130,7 +151,8 @@
   color: var(--text);
 }
 
-.collapsed .navLink {
+.collapsed .navLink,
+.collapsed .about {
   justify-content: center;
   padding: 0;
 }
@@ -338,14 +360,31 @@
  * groups above are places you work, and this is the colophon. It sits at the
  * bottom for the same reason a colophon does.
  */
+/*
+ * The pinned foot of the navigation: About, then who pays for this.
+ *
+ * It carries the separator from the scrolling list above, so neither child has
+ * to. A border on either of them would be worse than no border: both get a
+ * rounded hover background, and a full-width rule cutting across the top of a
+ * rounded highlight is a seam, not a division.
+ */
+.pinned {
+  flex: none;
+  padding: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Sized as a nav row, because it is one. It was 2px shorter, a step darker and
+   a step rounder than the links above it, which made the last item in the
+   sidebar look like a mistake rather than a destination. */
 .about {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 var(--space-2) var(--space-1);
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  height: 30px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
   min-width: 0;
 }

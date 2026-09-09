@@ -126,29 +126,41 @@ export function Sidebar({
         })}
       </div>
 
-      {/* Sponsors keep this free, so they are visible from every page rather
-          than only from the page about them. Collapsed, the sidebar is icons
-          and this would be a logo with no room to say what it is, so it goes
-          with the labels. */}
-      {!embedded && !collapsed ? <Sponsor variant="compact" /> : null}
+      {/*
+        Pinned under the scrolling navigation, in this order for a reason.
+        About is a page in this console and reads as one more nav row; the
+        sponsor is an outbound link to somebody else, and it used to sit
+        directly above About with four pixels between them, so the two read as
+        one block - an advert with a menu item stuck to it.
 
-      {/* Copyright and the licence, at the bottom of every page. Small, and
-          present: an Apache-2.0 project that never says so anywhere in its own
-          interface is asking people to go and find out. */}
+        The rule on the wrapper is load bearing. The navigation scrolls, so
+        without it whatever the scroll happened to cut off runs straight into
+        this: measured with 214px of nav still below the fold, the first pinned
+        row sat under the "operations" heading and looked like part of it.
+      */}
       {!embedded ? (
-        <Link
-          href="/about"
-          className={cn(styles.about, location === '/about' && styles.aboutActive)}
-          title={collapsed ? t('common:nav.about') : undefined}
-          onClick={onNavigate}
-        >
-          <span className={styles.navIcon}>
-            <InfoIcon size={14} />
-          </span>
-          <span className={cn(styles.navLabel, 'u-truncate')}>
-            {t('common:nav.about')}
-          </span>
-        </Link>
+        <div className={styles.pinned}>
+          {/* Copyright and the licence, from every page. An Apache-2.0 project
+              that never says so anywhere in its own interface is asking people
+              to go and find out. */}
+          <Link
+            href="/about"
+            className={cn(styles.about, location === '/about' && styles.aboutActive)}
+            title={collapsed ? t('common:nav.about') : undefined}
+            onClick={onNavigate}
+          >
+            <span className={styles.navIcon}>
+              <InfoIcon size={14} />
+            </span>
+            <span className={cn(styles.navLabel, 'u-truncate')}>{t('common:nav.about')}</span>
+          </Link>
+
+          {/* Sponsors keep this free, so they are visible from every page
+              rather than only from the page about them. Collapsed, the sidebar
+              is icons and this would be a logo with no room to say what it is,
+              so it goes with the labels. */}
+          {!collapsed ? <Sponsor variant="compact" /> : null}
+        </div>
       ) : null}
 
       {!embedded && onToggleCollapse ? (

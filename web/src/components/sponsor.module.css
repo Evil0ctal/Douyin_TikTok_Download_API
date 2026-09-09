@@ -27,6 +27,10 @@
   border-radius: var(--radius-sm);
   object-fit: contain;
   background: #ffffff;
+  /* The hairline is for the light theme, where a white tile on a near-white
+     page has no edge and the mark reads as floating in the margin. On dark it
+     costs nothing. */
+  outline: 1px solid var(--border-subtle);
   padding: 2px;
   flex: none;
 }
@@ -43,30 +47,44 @@
 }
 
 /*
- * The sidebar strip. One line, above the about link, on every page.
+ * The sidebar strip. Two lines at the foot of the navigation, on every page.
  *
- * Bordered rather than filled: the nav items above it are flat until hovered,
- * and a filled block here would out-shout the page the operator is actually
- * trying to reach.
+ * Flat until hovered, like the nav rows it sits under: a filled block here
+ * would out-shout the page the operator is actually trying to reach. The
+ * separator from the list above belongs to the wrapper in shell.module.css,
+ * not here - this used to own it, and then About was moved above the strip and
+ * the rule ended up in the middle of the pinned block.
  */
 .compact {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
-  /* The rule above it is load bearing. The navigation scrolls and this is
-     pinned below it, so without a separator the strip butts against whatever
-     the scroll happened to cut off and reads as one more item in whichever
-     group ended there - measured with 214px of nav still below the fold, it
-     sat directly under the "operations" heading. */
-  margin: var(--space-2) var(--space-2) var(--space-1);
-  padding: var(--space-3) var(--space-2) var(--space-2);
-  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius);
   color: var(--text-secondary);
   min-width: 0;
 }
 
+/* No underline: `a:hover` in base.css adds one, and here it would strike
+   through two lines of text inside a row that already lifts its background and
+   carries an away-arrow. The nav rows it sits under do not underline either. */
 .compact:hover {
+  background: var(--bg-raised);
   color: var(--text);
+  text-decoration: none;
+}
+
+/* Says the link leaves the console. Without it the strip is shaped exactly
+   like the nav row above it, which promises a page that does not exist here. */
+.compactAway {
+  color: var(--text-muted);
+  flex: none;
+}
+
+.compact:hover .compactAway {
+  color: var(--text-secondary);
 }
 
 .compact:hover img {
