@@ -339,16 +339,23 @@ async def test_the_logged_endpoint_is_the_logical_name_not_a_signed_url(client: 
     """
     from dtk.platforms import get_adapter
     from dtk.services.fetch import FetchContext, FetchService, _to_transport_spec
+    from dtk.signing.base import SignedParams
 
     signature = "SIGNED-a1b2c3d4e5f6"
     spec = get_adapter(Platform.DOUYIN).build_request(ENDPOINT, aweme_id="7123")
-    merged = {**(spec.get("params") or {}), "a_bogus": signature, "msToken": signature}
-    transport = _to_transport_spec(spec, merged, ENDPOINT)
+    signed = SignedParams(
+        query=f"aweme_id=7123&a_bogus={signature}",
+        params={"a_bogus": signature},
+        headers={"x-secsdk-web-signature": signature},
+    )
+    transport = _to_transport_spec(spec, signed, ENDPOINT)
 
+    # The signature IS in the URL, and has to be: the query goes to the platform
+    # byte for byte as it was signed. What must never carry it is the logical
+    # endpoint name, which is what the log row keys on.
+    assert signature in transport.url
     assert transport.endpoint == ENDPOINT
-    assert signature in transport.params["a_bogus"]
     assert signature not in transport.endpoint
-    assert signature not in transport.url
 
     await signed_in(client)
     ctx = FetchContext()

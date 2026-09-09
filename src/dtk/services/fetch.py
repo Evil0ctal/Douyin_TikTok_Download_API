@@ -121,17 +121,32 @@ class _Attempt:
 class SignedRequest(Protocol):
     """What the injected signer hands back.
 
-    Structural, so the pipeline still knows nothing about ``dtk.signing`` beyond
-    the two things it needs: the parameters to send, and which signer produced
-    them - ``native`` or ``browser``, which is a column on ``request_log`` and
-    the first thing to look at when one platform's success rate drops alone.
+    Structural, so the pipeline still knows nothing about ``dtk.signing`` - but
+    it has to name everything the signature consists of, and for a long time it
+    named only half. Declaring just ``params`` and ``signer`` made the two
+    missing pieces invisible at this seam, and the code below duly dropped
+    both: the exact query string, and the headers. Every platform read through
+    the API failed for it while the same call through ``dtk fetch`` - which
+    uses the full object - succeeded.
+
+    ``query`` is authoritative and ``params`` is not. The parameters are for
+    logging and assertions; the query is the bytes that were signed, and
+    re-encoding them changes the signature.
     """
+
+    @property
+    def query(self) -> str: ...
 
     @property
     def params(self) -> Mapping[str, str]: ...
 
     @property
+    def headers(self) -> Mapping[str, str]: ...
+
+    @property
     def signer(self) -> str: ...
+
+    def signed_url(self, base_url: str) -> str: ...
 
 
 ProxyResolver = Callable[[str], Awaitable[str | None]]
@@ -241,11 +256,10 @@ class FetchService:
             )
             signed = await self._sign(platform, spec["url"], dict(spec.get("params") or {}), sender)
             signer = signed.signer
-            merged = {**(spec.get("params") or {}), **signed.params}
 
             response = await self._transport.request(
                 sender,
-                _to_transport_spec(spec, merged, endpoint),
+                _to_transport_spec(spec, signed, endpoint),
                 self._timeout,
             )
             status = response.status
@@ -463,7 +477,9 @@ class FetchService:
 
 
 def _to_transport_spec(
-    spec: PlatformRequestSpec | Mapping[str, Any], params: dict[str, Any], endpoint: str
+    spec: PlatformRequestSpec | Mapping[str, Any],
+    signed: SignedRequest,
+    endpoint: str,
 ) -> TransportRequestSpec:
     """Bridge the platform's request description onto the transport's.
 
@@ -473,13 +489,33 @@ def _to_transport_spec(
     scheduling and log correlation. Converting at this seam is the orchestration
     layer's job; letting either side learn the other's type is what turns two
     independent modules into one tangled one.
+
+    Two things about the signature have to survive this conversion, and neither
+    did until 2026-09-09 - which is why every platform read through the API
+    failed while the identical call through ``dtk fetch`` succeeded.
+
+    **The query goes byte for byte.** ``SignedRequest.query`` says so outright
+    and adds that ``params`` is "for logging and assertions only"; this function
+    rebuilt the query from ``params`` and let the transport re-encode it. That
+    turns the ``/`` inside a base64 ``X-Gnarly`` into ``%2F`` - 30 bytes of
+    difference on a TikTok detail call - and the signature is computed over the
+    exact string, so the platform answered 200 with an empty payload, which
+    classifies as risk control.
+
+    **The signed headers come too.** Douyin's web signature is three headers -
+    ``uifid``, ``x-secsdk-web-expire``, ``x-secsdk-web-signature`` - and they
+    were dropped on the floor here, so every Douyin request arrived with a
+    signature in the query and none in the headers, and was answered 403.
     """
     body = spec.get("body")
     return TransportRequestSpec(
-        url=spec["url"],
+        # The signed URL, so the query is exactly what was signed. `params` is
+        # left None deliberately: handing the transport both would let it
+        # re-encode and append them a second time.
+        url=signed.signed_url(spec["url"]) if signed.query else spec["url"],
         method=str(spec.get("method") or "GET"),
-        params={k: str(v) for k, v in params.items() if v is not None},
-        headers=dict(spec.get("headers") or {}),
+        params=None if signed.query else {k: str(v) for k, v in (spec.get("params") or {}).items()},
+        headers={**dict(spec.get("headers") or {}), **dict(signed.headers)},
         json_body=body if body else None,
         # The logical name, never the signed URL: that carries tokens and would
         # make every log line unique and uncorrelatable.

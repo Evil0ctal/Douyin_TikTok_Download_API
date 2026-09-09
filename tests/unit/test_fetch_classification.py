@@ -498,6 +498,14 @@ class TestTransportSpecSeam:
     endpoint name - and the orchestration layer converts between them. Letting
     either side learn the other's type is how two independent modules become one
     tangled one, so the conversion is pinned here.
+
+    These tests used to assert the defect. `test_signed_params_replace_the
+    _originals` checked that the signed parameters were merged into a dict and
+    handed to the transport to re-encode - which is exactly what broke every
+    platform read through the API on both platforms, because the signature is
+    computed over an exact query string and Douyin's lives in three headers.
+    The contract they now pin is the one `SignedRequest` always stated: send
+    the query byte for byte, and carry the headers.
     """
 
     def _spec(self, **overrides):
@@ -511,14 +519,22 @@ class TestTransportSpecSeam:
         base.update(overrides)
         return base
 
+    def _signed(self, query="aweme_id=1&a_bogus=AAA", headers=None, params=None):
+        from dtk.signing.base import SignedParams
+
+        return SignedParams(
+            query=query,
+            params=params or {"a_bogus": "AAA"},
+            headers=headers or {},
+        )
+
     def test_produces_the_transport_dataclass(self):
         from dtk.services.fetch import _to_transport_spec
         from dtk.transport.base import RequestSpec as TransportRequestSpec
 
-        out = _to_transport_spec(self._spec(), {"aweme_id": "1"}, "douyin.content_detail")
+        out = _to_transport_spec(self._spec(), self._signed(), "douyin.content_detail")
         assert isinstance(out, TransportRequestSpec)
         assert out.method == "GET"
-        assert out.url.endswith("/aweme/detail/")
 
     def test_carries_the_logical_endpoint_not_the_signed_url(self):
         """Signatures make every URL unique; logging them would make every log
@@ -526,30 +542,62 @@ class TestTransportSpecSeam:
         from dtk.services.fetch import _to_transport_spec
 
         out = _to_transport_spec(
-            self._spec(), {"aweme_id": "1", "a_bogus": "SECRET"}, "douyin.content_detail"
+            self._spec(), self._signed(query="aweme_id=1&a_bogus=SECRET"), "douyin.content_detail"
         )
         assert out.endpoint == "douyin.content_detail"
         assert "a_bogus" not in (out.endpoint or "")
 
-    def test_signed_params_replace_the_originals(self):
+    def test_the_query_is_sent_byte_for_byte(self):
+        """The regression. A base64 signature contains `/`, and re-encoding it
+        as `%2F` changes the string the platform verifies - measured at 30 bytes
+        of difference on one TikTok detail call, answered 200 with an empty
+        payload."""
+        from dtk.services.fetch import _to_transport_spec
+
+        query = "aid=1988&itemId=7&X-Gnarly=Mky/8Brd+GN8aH=="
+        out = _to_transport_spec(self._spec(), self._signed(query=query), "e")
+        assert out.url.endswith("?" + query)
+        # None, not the parameters: handing the transport both would let it
+        # re-encode them and append a second copy.
+        assert out.params is None
+
+    def test_the_signed_headers_are_carried(self):
+        """The other half of the regression. Douyin's web signature is three
+        headers; dropping them is a 403 on every request."""
         from dtk.services.fetch import _to_transport_spec
 
         out = _to_transport_spec(
-            self._spec(), {"aweme_id": "1", "a_bogus": "AAA", "msToken": "BBB"}, "e"
+            self._spec(),
+            self._signed(
+                headers={
+                    "uifid": "U",
+                    "x-secsdk-web-signature": "S",
+                    "x-secsdk-web-expire": "E",
+                }
+            ),
+            "e",
         )
-        assert out.params == {"aweme_id": "1", "a_bogus": "AAA", "msToken": "BBB"}
+        assert out.headers["x-secsdk-web-signature"] == "S"
+        assert out.headers["uifid"] == "U"
+        # And the platform's own headers survive alongside them.
+        assert out.headers["referer"] == "https://www.douyin.com/"
 
-    def test_none_params_are_dropped_and_values_stringified(self):
+    def test_an_unsigned_request_still_sends_its_parameters(self):
+        """Not every endpoint is signed. With no query, the platform's own
+        parameters have to reach the transport."""
         from dtk.services.fetch import _to_transport_spec
 
-        out = _to_transport_spec(self._spec(), {"count": 20, "cursor": None}, "e")
-        assert out.params == {"count": "20"}
+        out = _to_transport_spec(self._spec(), self._signed(query="", params={}), "e")
+        assert out.params == {"aweme_id": "1"}
+        assert out.url.endswith("/aweme/detail/")
 
     def test_empty_body_becomes_none_rather_than_an_empty_object(self):
         from dtk.services.fetch import _to_transport_spec
 
-        assert _to_transport_spec(self._spec(body={}), {}, "e").json_body is None
-        assert _to_transport_spec(self._spec(body={"a": 1}), {}, "e").json_body == {"a": 1}
+        assert _to_transport_spec(self._spec(body={}), self._signed(), "e").json_body is None
+        assert _to_transport_spec(self._spec(body={"a": 1}), self._signed(), "e").json_body == {
+            "a": 1
+        }
 
 
 async def test_the_signature_and_the_request_describe_the_same_visitor() -> None:
