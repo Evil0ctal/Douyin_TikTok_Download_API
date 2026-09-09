@@ -146,6 +146,22 @@ class NativeSigner:
         ``s_v_web_id``, ``uifid`` is ``UIFID_TEMP``) and the platform's own
         signature is computed over them. Without a jar this signer produces what
         it always did, which is enough for the endpoints Douyin does not sign.
+
+        ``msToken`` is read from that same jar, and fabricated only when the jar
+        has none. Douyin does not appear to care either way - measured on one
+        guest identity against ``/aweme/v1/web/aweme/detail/``, which is
+        sign-protected, 2026-09-09: a fabricated token returned 100,827 bytes
+        and ``status_code: 0``, no token at all 101,950, and a query token
+        deliberately contradicting a different one in the Cookie header 101,833.
+        All three were complete payloads. That is the *opposite* of TikTok,
+        where the same experiment on 2026-09-08 measured a fabricated token at 0
+        bytes, which is why :meth:`_sign_tiktok` never invents one.
+
+        The jar is preferred anyway, for the one case the measurement above did
+        not cover: an imported jar from a logged-in browser carries a real
+        ``msToken``, and a query that contradicts the Cookie header it travels
+        with is the incoherence docs 02 and 04 spend their length avoiding. No
+        minted Douyin jar carries the cookie, so this changes nothing for one.
         """
         params = dict(spec.params or {})
         added: dict[str, str] = {}
@@ -158,7 +174,12 @@ class NativeSigner:
             return self._sign_tiktok(spec, params, user_agent, session)
 
         if self.fill_ms_token and not params.get(MS_TOKEN_PARAM):
-            token = gen_false_ms_token(
+            # Caller, then jar, then invention - the same precedence
+            # `_sign_tiktok` uses, and the same one the other three visitor
+            # values on this path already follow.
+            token = (session.cookies if session is not None else {}).get(
+                MS_TOKEN_PARAM
+            ) or gen_false_ms_token(
                 MS_TOKEN_LENGTHS.get(self.platform, DOUYIN_MS_TOKEN_LENGTH), rng=self._rng
             )
             params[MS_TOKEN_PARAM] = token

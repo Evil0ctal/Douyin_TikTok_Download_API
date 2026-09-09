@@ -775,6 +775,51 @@ async def test_native_signer_fills_a_missing_ms_token_only() -> None:
     assert MS_TOKEN_PARAM not in parse_qs(without.query)
 
 
+async def test_native_signer_prefers_the_jars_ms_token_on_douyin() -> None:
+    """The query and the Cookie header have to agree about who is speaking.
+
+    Douyin does not appear to check: measured on one guest identity against the
+    sign-protected /aweme/v1/web/aweme/detail/, 2026-09-09, a fabricated token,
+    no token, and a query token contradicting a different cookie all returned
+    complete payloads. The jar wins anyway, because an imported jar from a
+    logged-in browser carries a real msToken and that case is unmeasured - and
+    because the three other visitor values on this path are already read from
+    the same jar.
+    """
+    signer = NativeSigner(Platform.DOUYIN, rng=random.Random(5))
+    session = SigningSession(cookies={MS_TOKEN_PARAM: "from-the-jar"})
+
+    signed = await signer.sign(DOUYIN_SPEC, FINGERPRINT, session)
+
+    assert signed.params[MS_TOKEN_PARAM] == "from-the-jar"
+    assert parse_qs(signed.query)[MS_TOKEN_PARAM] == ["from-the-jar"]
+
+
+async def test_a_caller_supplied_ms_token_still_outranks_the_jar() -> None:
+    """The shadow comparison depends on this: it pins a value into the spec so
+    both signers hash identical bytes, and a jar that overrode it would report a
+    mismatch on every sample."""
+    signer = NativeSigner(Platform.DOUYIN, rng=random.Random(5))
+    spec = DOUYIN_SPEC.with_params({**DOUYIN_SPEC.params, MS_TOKEN_PARAM: "from-the-caller"})
+    session = SigningSession(cookies={MS_TOKEN_PARAM: "from-the-jar"})
+
+    signed = await signer.sign(spec, FINGERPRINT, session)
+
+    assert parse_qs(signed.query)[MS_TOKEN_PARAM] == ["from-the-caller"]
+
+
+async def test_a_jar_without_an_ms_token_still_gets_a_fabricated_one() -> None:
+    """No minted Douyin jar carries the cookie - 9 of 9 on the reference
+    instance - so preferring the jar must not become "send nothing"."""
+    signer = NativeSigner(Platform.DOUYIN, rng=random.Random(5))
+    session = SigningSession(cookies={"ttwid": "x", "UIFID_TEMP": "y"})
+
+    signed = await signer.sign(DOUYIN_SPEC, FINGERPRINT, session)
+
+    assert len(signed.params[MS_TOKEN_PARAM]) == DOUYIN_MS_TOKEN_LENGTH + 2
+    assert signed.params[MS_TOKEN_PARAM].endswith("==")
+
+
 async def test_native_signer_never_invents_a_tiktok_ms_token() -> None:
     """On TikTok a fabricated token is strictly worse than no token.
 
