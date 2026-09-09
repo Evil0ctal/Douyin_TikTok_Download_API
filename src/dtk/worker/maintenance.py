@@ -21,6 +21,13 @@ expensive:
   leaves a task ``running`` forever. This sweep is what makes "a crash never
   loses a task" true rather than aspirational; the attempt counter in
   :mod:`dtk.worker.main` bounds how often one task may come back.
+* **orphaned tasks are re-queued.** The sweep above looks only at ``running``
+  rows, and for a long time nothing looked at the other shape: a row still
+  ``queued`` whose id is no longer on the Redis list. Every predicate of the
+  stale sweep fails on it - wrong state, and a NULL ``started_at`` that fails
+  both remaining comparisons - so a task dropped before it ever started was
+  unreachable by any code path in the system. Measured on 2026-09-08: three
+  such rows, the oldest twenty hours old.
 * **expiring logins are announced early.** An imported session cookie dies at a
   known time (:func:`dtk.identity.importing.session_expiry`). Warning days ahead
   turns a sudden mass failure into a scheduled chore.
@@ -79,6 +86,11 @@ class MaintenanceConfig:
     #: How many stale tasks one sweep may re-queue, so a pathological backlog
     #: cannot be pushed back onto the queue all at once.
     requeue_limit: int = 200
+    #: A task still ``queued`` this long after it was created, with no entry on
+    #: the Redis list, was dropped rather than merely waiting. Generous: a deep
+    #: backlog is legitimately queued for minutes, and its id IS on the list, so
+    #: this window only has to outlast the gap between commit and publish.
+    orphan_task_seconds: int = 300
     session_expiry_warning_days: int = 3
     #: A download still queued or running this long after it was created is
     #: presumed abandoned. Generous: a 250 MB video over a slow link is a
@@ -95,6 +107,8 @@ class MaintenanceReport:
     retention: retention.RetentionReport | None = None
     retired_identities_purged: int = 0
     requeued_tasks: int = 0
+    #: Tasks that were queued in the database but on no queue.
+    requeued_orphans: int = 0
     #: The disk verdict this tick. Background writers read `paused` from it.
     capacity: capacity.CapacityReport | None = None
     aggregates_refreshed: list[str] = field(default_factory=list)
@@ -138,6 +152,7 @@ class Maintenance:
             ("apply_retention", self.apply_retention),
             ("purge_retired_identities", self.purge_retired_identities),
             ("requeue_stale_tasks", self.requeue_stale_tasks),
+            ("requeue_orphaned_tasks", self.requeue_orphaned_tasks),
             ("refresh_aggregates", self.refresh_aggregates),
             ("warn_expiring_sessions", self.warn_expiring_sessions),
             ("check_capacity", self.check_capacity),
@@ -154,6 +169,7 @@ class Maintenance:
             "worker.maintenance.done",
             retired_identities_purged=report.retired_identities_purged,
             requeued_tasks=report.requeued_tasks,
+            requeued_orphans=report.requeued_orphans,
             aggregates_refreshed=len(report.aggregates_refreshed),
             expiring_sessions=report.expiring_sessions,
             media_evicted=report.media_evicted,
@@ -380,6 +396,56 @@ class Maintenance:
             await redis.rpush(tasks.QUEUE_KEY, task_id)
             report.requeued_tasks += 1
         log.warning("worker.maintenance.requeued_stale", count=report.requeued_tasks)
+
+    async def requeue_orphaned_tasks(self, report: MaintenanceReport) -> None:
+        """Recover tasks that are queued in the database but on no queue.
+
+        The shape this catches: ``state='queued'``, ``started_at`` NULL, and the
+        id absent from the Redis list. A task in that state was published and
+        then lost - historically because the id was pushed before the row was
+        committed, so a worker popped it, found nothing and dropped it - and
+        nothing else in this system can see it. :meth:`requeue_stale_tasks`
+        filters on ``state == running``, which this fails on all three of its
+        predicates.
+
+        The list is read BEFORE the query, deliberately. A task popped between
+        the two reads is merely pushed again and refused by
+        ``DatabaseTaskStore.start`` if it has since finished; the other order
+        would let a task submitted in that window look like an orphan when the
+        query ran first and the list read second missed its entry.
+        """
+        redis = get_redis()
+        queued_ids = {str(value) for value in await redis.lrange(tasks.QUEUE_KEY, 0, -1)}
+
+        cutoff = datetime.now(UTC) - timedelta(seconds=self._options.orphan_task_seconds)
+        orphans: list[str] = []
+        async with self._session_factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(TaskRow)
+                        .where(
+                            TaskRow.state == TaskState.QUEUED.value,
+                            TaskRow.created_at < cutoff,
+                        )
+                        .order_by(TaskRow.created_at)
+                        .limit(self._options.requeue_limit)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            orphans = [str(row.id) for row in rows if str(row.id) not in queued_ids]
+
+        for task_id in orphans:
+            await redis.rpush(tasks.QUEUE_KEY, task_id)
+            report.requeued_orphans += 1
+        if orphans:
+            log.warning(
+                "worker.maintenance.requeued_orphans",
+                count=report.requeued_orphans,
+                oldest=orphans[0],
+            )
 
     # -- time series -------------------------------------------------------
 

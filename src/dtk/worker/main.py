@@ -187,10 +187,20 @@ class DatabaseTaskStore:
         async with self._session_factory() as session:
             row = await session.get(TaskRow, task_id)
             if row is None:
+                # Two very different situations used to share one log line, and
+                # that conflation is why the commit race went unnoticed for so
+                # long: a cancelled task legitimately leaves its id on the queue
+                # and lands in the branch below, so the warning was routine.
+                # This branch is not routine. It means the queue held an id with
+                # no row behind it - a rolled-back submission, or a retention
+                # pass that reached a row it should not have.
+                log.error("worker.task.unavailable", task_id=str(task_id), reason="missing")
                 return None
             if row.state in (TaskState.DONE.value, TaskState.FAILED.value):
                 # Already finished, most likely by a worker that was re-queued
-                # after a slow finish. Running it again would burn quota twice.
+                # after a slow finish, or cancelled while queued. Running it
+                # again would burn quota twice.
+                log.info("worker.task.unavailable", task_id=str(task_id), reason=row.state)
                 return None
             await tasks.mark_running(session, task_id)
             return TaskRun(
@@ -379,7 +389,11 @@ class TaskWorker:
 
             run = await self._store.start(task_id)
             if run is None:
-                log.warning("worker.task.unavailable", task_id=str(task_id))
+                # The store logs which of the two cases this was. Nothing is
+                # re-queued here on purpose: a blind requeue would resurrect
+                # every cancelled task, and a row that is genuinely missing has
+                # nothing to run. A row that exists but was never claimed is
+                # the orphan sweep's job (`requeue_orphaned_tasks`).
                 return
 
             result = await self._execute(run)

@@ -74,11 +74,11 @@ class ServiceTaskGateway:
     __slots__ = ()
 
     async def submit(self, endpoint: str, params: dict[str, Any]) -> str:
-        # Its own session, closed before the wait begins: the row has to be
-        # committed before a worker in another process pops the id off the queue.
-        async with session_scope() as session:
-            task_id = await tasks.submit(session, endpoint, params)
-        return str(task_id)
+        # The row is committed before a worker in another process can pop the
+        # id off the queue. `submit_now` takes no session precisely so that
+        # ordering cannot be got wrong here - the comment this replaced said
+        # the same thing while the code did the opposite.
+        return str(await tasks.submit_now(endpoint, params))
 
     async def wait(self, task_id: str, seconds: float) -> TaskOutcome | None:
         async with session_scope() as session:

@@ -22,6 +22,7 @@ from dtk.core.config import Config
 from dtk.core.crypto import Cipher
 from dtk.core.db import session_scope
 from dtk.core.errors import ErrorCode, UpstreamRiskControl
+from dtk.core.redis import get_redis
 from dtk.core.types import (
     BrowserFamily,
     IdentitySource,
@@ -129,8 +130,13 @@ def session_factory_for(session: Any) -> Any:
 
 
 async def _submit(endpoint: str = "douyin.content_detail", **params: Any) -> uuid.UUID:
-    async with session_scope() as session:
-        return await tasks.submit(session, endpoint, params or {"aweme_id": "7300000000000000000"})
+    """Write, commit and publish, the way a real caller does.
+
+    `submit_now` rather than `create` on purpose: these tests drive a real
+    worker, so the id has to actually reach the queue - and the ordering it
+    enforces is the thing under test elsewhere in this file.
+    """
+    return await tasks.submit_now(endpoint, params or {"aweme_id": "7300000000000000000"})
 
 
 async def _task_row(task_id: uuid.UUID) -> Task:
@@ -742,3 +748,157 @@ async def test_the_worker_process_assembles(db_engine, redis_client):
         assert runtime.worker.stopping is False
     finally:
         await runtime.aclose()
+
+
+# --------------------------------------------------------------------------
+# The submit / commit / enqueue ordering
+#
+# A task disappeared on 2026-09-08: submitted at 23:27:20.606, declared
+# unavailable by the worker 3ms later, left `queued` forever. `submit()` pushed
+# the id to Redis after flush() but inside the caller's open transaction, so a
+# worker parked in BLPOP popped an id whose row no other connection could see
+# yet, found nothing and dropped it - while three separate call sites carried a
+# comment asserting the ordering the code did not have.
+#
+# These use genuinely separate sessions, because that is the whole point: an
+# in-process test sharing one session passes with the bug present, which is why
+# the suite never caught it.
+# --------------------------------------------------------------------------
+
+
+async def test_a_task_is_not_claimable_before_its_row_is_committed(db_engine, redis_client):
+    await get_redis().delete(tasks.QUEUE_KEY)
+
+    async with session_scope() as session:
+        task_id = await tasks.create(session, "douyin.content_detail", {"aweme_id": "7"})
+
+        # The premise, pinned rather than assumed: under READ COMMITTED the
+        # uncommitted row is invisible to any other connection.
+        async with session_scope() as other:
+            assert await other.get(Task, task_id) is None
+
+        # The assertion that failed before the fix.
+        queued = await get_redis().lrange(tasks.QUEUE_KEY, 0, -1)
+        assert str(task_id) not in queued, (
+            f"task {task_id} was published to the queue while its row was still "
+            "uncommitted; a worker can claim it and find nothing"
+        )
+
+    # Committed now, and still not published - publishing is a separate act.
+    async with session_scope() as other:
+        assert await other.get(Task, task_id) is not None
+    assert str(task_id) not in await get_redis().lrange(tasks.QUEUE_KEY, 0, -1)
+
+    await tasks.enqueue(task_id)
+    assert str(task_id) in await get_redis().lrange(tasks.QUEUE_KEY, 0, -1)
+
+
+async def test_a_rolled_back_submission_publishes_nothing(db_engine, redis_client):
+    """The other half: a queue entry must never outlive the transaction that
+    made it. Before the fix, a rollback left the workers a pointer to a task
+    that never existed."""
+    await get_redis().delete(tasks.QUEUE_KEY)
+
+    task_id = None
+    with contextlib.suppress(RuntimeError):
+        async with session_scope() as session:
+            task_id = await tasks.create(session, "douyin.content_detail", {"aweme_id": "7"})
+            raise RuntimeError("the caller failed after writing the row")
+
+    assert task_id is not None
+    async with session_scope() as other:
+        assert await other.get(Task, task_id) is None
+    assert await get_redis().lrange(tasks.QUEUE_KEY, 0, -1) == []
+
+
+async def test_the_orphan_sweep_recovers_a_task_nothing_else_can_see(db_engine, redis_client):
+    """`state='queued'`, `started_at` NULL, id not on the list.
+
+    Every predicate of requeue_stale_tasks fails on this shape - wrong state,
+    and a NULL started_at that fails both remaining comparisons - so before the
+    sweep existed there was no code path in the system that could see it.
+    """
+    await get_redis().delete(tasks.QUEUE_KEY)
+    async with session_scope() as session:
+        task_id = await tasks.create(session, "douyin.content_detail", {"aweme_id": "7"})
+        row = await session.get(Task, task_id)
+        row.created_at = datetime.now(UTC) - timedelta(minutes=10)
+    # Deliberately not enqueued: this is a task that was published and lost.
+
+    maintenance = Maintenance(
+        cipher=Cipher("x" * 40),
+        config=lambda: Config.defaults(),
+        options=MaintenanceConfig(orphan_task_seconds=300),
+    )
+    report = MaintenanceReport()
+    await maintenance.requeue_orphaned_tasks(report)
+
+    assert report.requeued_orphans >= 1
+    assert str(task_id) in await get_redis().lrange(tasks.QUEUE_KEY, 0, -1)
+
+
+async def test_the_orphan_sweep_leaves_a_legitimately_queued_task_alone(db_engine, redis_client):
+    """A deep backlog is queued for minutes and its id IS on the list."""
+    await get_redis().delete(tasks.QUEUE_KEY)
+    async with session_scope() as session:
+        task_id = await tasks.create(session, "douyin.content_detail", {"aweme_id": "7"})
+        row = await session.get(Task, task_id)
+        row.created_at = datetime.now(UTC) - timedelta(minutes=10)
+    await tasks.enqueue(task_id)
+
+    maintenance = Maintenance(
+        cipher=Cipher("x" * 40),
+        config=lambda: Config.defaults(),
+        options=MaintenanceConfig(orphan_task_seconds=300),
+    )
+    report = MaintenanceReport()
+    await maintenance.requeue_orphaned_tasks(report)
+
+    # Asserted on this id rather than on the sweep's total: other tests in this
+    # module leave queued rows behind, and they are orphans by this definition.
+    # Still exactly once on the list, not duplicated.
+    assert (await get_redis().lrange(tasks.QUEUE_KEY, 0, -1)).count(str(task_id)) == 1
+
+
+async def test_a_freshly_submitted_task_is_never_mistaken_for_an_orphan(db_engine, redis_client):
+    """The age window has to outlast the gap between commit and publish."""
+    await get_redis().delete(tasks.QUEUE_KEY)
+    async with session_scope() as session:
+        task_id = await tasks.create(session, "douyin.content_detail", {"aweme_id": "7"})
+    # Committed, not yet published - exactly the state between the two calls.
+
+    maintenance = Maintenance(
+        cipher=Cipher("x" * 40),
+        config=lambda: Config.defaults(),
+        options=MaintenanceConfig(orphan_task_seconds=300),
+    )
+    report = MaintenanceReport()
+    await maintenance.requeue_orphaned_tasks(report)
+
+    # Again scoped to this id: what matters is that a task committed seconds
+    # ago is not swept out from under the enqueue that is about to happen.
+    assert str(task_id) not in await get_redis().lrange(tasks.QUEUE_KEY, 0, -1)
+
+
+async def test_retention_never_deletes_a_task_that_has_not_finished(db_engine, redis_client):
+    """`delete_old` deleted by age alone, so a task still queued past the
+    window was removed out from under its own queue entry - a second, separate
+    producer of the same disappearance."""
+    from dtk.db.repositories import TaskRepository
+
+    async with session_scope() as session:
+        queued_id = await tasks.create(session, "douyin.content_detail", {"aweme_id": "7"})
+        done_id = await tasks.create(session, "douyin.content_detail", {"aweme_id": "8"})
+        for task_id in (queued_id, done_id):
+            row = await session.get(Task, task_id)
+            row.created_at = datetime.now(UTC) - timedelta(days=90)
+        finished = await session.get(Task, done_id)
+        finished.state = TaskState.DONE.value
+
+    async with session_scope() as session:
+        deleted = await TaskRepository(session).delete_old(older_than=timedelta(days=30))
+
+    assert deleted == 1
+    async with session_scope() as session:
+        assert await session.get(Task, queued_id) is not None
+        assert await session.get(Task, done_id) is None

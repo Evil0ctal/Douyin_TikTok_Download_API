@@ -38,11 +38,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.api import envelope
 from dtk.api.deps import Principal
 from dtk.api.routes.support import language, ok, request_id
-from dtk.core.errors import ErrorCode, QueueFull, TaskNotFound
+from dtk.core.errors import ErrorCode, Internal, QueueFull, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.core.types import Platform, RejectReason, TaskState
 from dtk.services import cache, tasks
+
+# The worker package's declared surface, not its internals: this route and
+# the worker have to agree on the stored error shape, and `dtk.api.routes.tasks`
+# re-renders it for the caller's language.
+from dtk.worker import serialize_error
 
 log = get_logger(__name__)
 
@@ -147,8 +152,18 @@ async def submit(
     endpoint: str,
     params: dict[str, Any],
     coalesce: bool = True,
+    publish: bool = True,
 ) -> tuple[uuid.UUID, TaskState]:
-    """Queue one job, joining an identical in-flight one when there is one."""
+    """Queue one job, joining an identical in-flight one when there is one.
+
+    ``publish=False`` writes and commits the row but does not put the id on the
+    queue, for a caller that has more to write in the same transaction - see
+    the downloads route, which has to store the task id on its own row before
+    the worker can see either. Such a caller MUST call
+    :func:`dtk.services.tasks.enqueue` after its own commit; if it forgets, the
+    row sits queued until the orphan sweep recovers it a few minutes later,
+    which is a delay rather than a loss.
+    """
     session = request.state.db
     cleaned = _clean(params)
     digest = _digest(endpoint, cleaned)
@@ -164,12 +179,34 @@ async def submit(
     # a failure for callers who were about to get an answer for free.
     await _refuse_when_the_queue_is_full(request, endpoint)
 
-    task_id = await tasks.submit(session, endpoint, cleaned, api_key_id=principal.api_key_id)
+    task_id = await tasks.create(session, endpoint, cleaned, api_key_id=principal.api_key_id)
     # Commit before the worker can pop the id off the queue: the row has to be
-    # visible to another process by the time it looks the task up.
+    # visible to another process by the time it looks the task up. This is now
+    # true rather than merely intended - `create` writes the row and nothing
+    # else, and `enqueue` below is what makes the id claimable.
     await session.commit()
     if coalesce:
+        # Claimed before the id is published, so a task can never finish before
+        # its in-flight claim exists and advertise work that is already done.
         await cache.claim_inflight(digest, str(task_id), ttl=INFLIGHT_TTL_SECONDS)
+    if not publish:
+        return task_id, TaskState.QUEUED
+    try:
+        await tasks.enqueue(task_id, endpoint=endpoint)
+    except Exception as exc:
+        # Redis went away between the commit and the publish. The row is
+        # committed and would sit queued until the orphan sweep found it
+        # minutes later, so settle it now: the caller is about to be told this
+        # failed, and a task that is both failed and pending is worse than
+        # either.
+        log.warning("task.enqueue_failed", task_id=str(task_id), error=type(exc).__name__)
+        await tasks.finish(
+            session,
+            task_id,
+            error=serialize_error(Internal("the task could not be queued for a worker")),
+        )
+        await session.commit()
+        raise
     return task_id, TaskState.QUEUED
 
 

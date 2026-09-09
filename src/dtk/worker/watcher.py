@@ -28,6 +28,7 @@ Three things it refuses to do:
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from time import monotonic
@@ -118,6 +119,14 @@ class Watcher:
         await self.queue_availability(report, config)
 
         batch = int(config.get("watchlist.batch_size"))
+        # Collected inside the transaction, published after it commits. This is
+        # the widest instance of the ordering bug in the codebase: one session
+        # wraps the whole due batch, so under the old code the first id was
+        # claimable through nine more submits and nine writes before anything
+        # committed - and a raise anywhere in the loop rolled back rows whose
+        # ids were already on the queue, leaving the workers pointers to tasks
+        # that never existed.
+        publish: list[tuple[uuid.UUID, str]] = []
         async with self._session_factory() as session:
             entries = await watchlist.due(session, limit=batch)
             report.due = len(entries)
@@ -131,7 +140,10 @@ class Watcher:
                     report.errors.append(str(exc))
                     continue
                 try:
-                    task_id = await tasks.submit(session, endpoint, params)
+                    task_id = await tasks.create(session, endpoint, params)
+                    # Inside the same try as the create: a failure here used to
+                    # escape the loop and roll back every row in the batch.
+                    await watchlist.mark_submitted(session, entry.id, task_id)
                 except Exception as exc:
                     message = f"{type(exc).__name__}: {exc}"[:200]
                     await watchlist.mark_failed(session, entry.id, message)
@@ -143,9 +155,12 @@ class Watcher:
                         error=message,
                     )
                     continue
-                await watchlist.mark_submitted(session, entry.id, task_id)
+                publish.append((task_id, endpoint))
                 report.submitted += 1
                 report.submitted_ids.append(str(entry.id))
+
+        for task_id, endpoint in publish:
+            await tasks.enqueue(task_id, endpoint=endpoint)
 
         if report.submitted:
             log.info(
@@ -175,8 +190,7 @@ class Watcher:
             and now - self._last_availability < self._options.availability_every_seconds
         ):
             return
-        async with self._session_factory() as session:
-            await tasks.submit(session, "archive.availability", {})
+        await tasks.submit_now("archive.availability", {})
         self._last_availability = now
         report.availability_queued = True
         log.info("worker.watchlist.availability_queued")

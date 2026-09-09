@@ -43,7 +43,7 @@ from dtk.core.errors import InvalidParam, NotConfigured, NotFound, QueueFull
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
 from dtk.ops import capacity
-from dtk.services import archive, downloads
+from dtk.services import archive, downloads, tasks
 
 log = get_logger(__name__)
 
@@ -150,9 +150,14 @@ async def start_download(
         # acts, and the second one is usually "the first did not work" - joining
         # them onto one task would answer it with the failure it was retrying.
         coalesce=False,
+        # Held back until the download row carries the task id. Otherwise a
+        # worker can start before that link is written, and a request that dies
+        # in the gap leaves a download nothing points at.
+        publish=False,
     )
     download.task_id = task_id
     await session.commit()
+    await tasks.enqueue(task_id, endpoint=operations.Maintenance.MEDIA_DOWNLOAD.value)
 
     log.info(
         "media.download.requested",

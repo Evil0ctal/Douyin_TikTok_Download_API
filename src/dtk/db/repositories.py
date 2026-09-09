@@ -543,9 +543,24 @@ class TaskRepository(Repository):
         return int(purged)
 
     async def delete_old(self, *, older_than: timedelta) -> int:
-        """Delete task metadata past its retention window."""
+        """Delete finished task metadata past its retention window.
+
+        Finished only. Without the state filter this deletes by age alone, so a
+        task still queued or running past the window is removed out from under
+        its own Redis queue entry - the worker then pops an id whose row does
+        not exist and drops it, which is indistinguishable from the commit race
+        this filter was added alongside. A task older than the window that has
+        still not finished is a symptom to look at, not a row to delete.
+        """
         cutoff = utcnow() - older_than
-        stmt = delete(Task).where(Task.created_at < cutoff).execution_options(**_NO_SYNC)
+        stmt = (
+            delete(Task)
+            .where(
+                Task.created_at < cutoff,
+                Task.state.in_((TaskState.DONE.value, TaskState.FAILED.value)),
+            )
+            .execution_options(**_NO_SYNC)
+        )
         deleted = affected(await self.session.execute(stmt))
         if deleted:
             log.info("tasks.rows_deleted", rows=deleted)

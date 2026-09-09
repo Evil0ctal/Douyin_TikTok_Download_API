@@ -45,13 +45,29 @@ class TaskView:
     finished_at: datetime | None
 
 
-async def submit(
+async def create(
     session: AsyncSession,
     endpoint: str,
     params: dict[str, Any],
     *,
     api_key_id: uuid.UUID | None = None,
 ) -> uuid.UUID:
+    """Write the task row. It is not runnable until :func:`enqueue` publishes it.
+
+    The queue write is deliberately NOT here, and this split is the whole
+    lesson of the incident on 2026-09-08. The two steps commit at different
+    moments and only the caller knows when its transaction ends, so a function
+    that did both would have to guess - and it guessed wrong: an id on the
+    queue is claimable within microseconds, a worker parked in BLPOP is woken
+    by the push itself, and it looks the row up on its own connection. Under
+    READ COMMITTED an uncommitted INSERT is simply not there, so the worker
+    found nothing, logged the task unavailable and dropped it while the row
+    committed a millisecond later and stayed ``queued`` forever.
+
+    Three separate call sites carried a comment asserting "commit before the
+    worker can pop the id" and all three were wrong, because the ordering was
+    never theirs to control. Now it is.
+    """
     task_id = uuid.uuid4()
     session.add(
         Task(
@@ -64,8 +80,36 @@ async def submit(
         )
     )
     await session.flush()
+    log.debug("task.created", task_id=str(task_id), endpoint=endpoint)
+    return task_id
+
+
+async def enqueue(task_id: uuid.UUID, *, endpoint: str = "") -> None:
+    """Publish an already-committed task to the workers.
+
+    Call this only after the transaction that wrote the row has committed. A
+    worker can claim the id before this coroutine returns.
+    """
     await get_redis().rpush(QUEUE_KEY, str(task_id))
     log.info("task.submitted", task_id=str(task_id), endpoint=endpoint)
+
+
+async def submit_now(
+    endpoint: str,
+    params: dict[str, Any],
+    *,
+    api_key_id: uuid.UUID | None = None,
+) -> uuid.UUID:
+    """Write, commit and publish, for a caller with no transaction of its own.
+
+    Takes no session, on purpose: that is what makes the unsafe ordering
+    inexpressible here rather than merely discouraged.
+    """
+    from dtk.core.db import session_scope
+
+    async with session_scope() as session:
+        task_id = await create(session, endpoint, params, api_key_id=api_key_id)
+    await enqueue(task_id, endpoint=endpoint)
     return task_id
 
 
@@ -232,6 +276,6 @@ __all__ = [
     "get",
     "mark_running",
     "serialize",
-    "submit",
+    "submit_now",
     "wait_for",
 ]

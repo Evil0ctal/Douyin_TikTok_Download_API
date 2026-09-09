@@ -212,8 +212,7 @@ async def test_cancelling_a_queued_task_fails_it(client, db_engine, redis_client
     from tests.integration.test_api_support import envelope, signed_in
 
     await signed_in(client)
-    async with session_scope() as session:
-        task_id = await task_service.submit(session, "parse", {"url": "https://www.douyin.com/"})
+    task_id = await task_service.submit_now("parse", {"url": "https://www.douyin.com/"})
 
     response = await client.delete(f"/api/v1/tasks/{task_id}")
     assert envelope(response)["data"]["state"] == "failed"
@@ -232,8 +231,8 @@ async def test_cancelling_a_running_task_reports_it_as_running(client, db_engine
     from tests.integration.test_api_support import envelope, signed_in
 
     await signed_in(client)
+    task_id = await task_service.submit_now("parse", {"url": "https://www.douyin.com/"})
     async with session_scope() as session:
-        task_id = await task_service.submit(session, "parse", {"url": "https://www.douyin.com/"})
         await task_service.mark_running(session, task_id)
 
     response = await client.delete(f"/api/v1/tasks/{task_id}")
