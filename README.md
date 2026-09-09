@@ -1,5 +1,5 @@
 <div align="center">
-<a href="https://douyin.wtf/" alt="logo"><img src="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/logo/logo192.png" width="120"/></a>
+<a href="https://douyin.wtf/" alt="logo"><img src="./logo/logo.svg" width="120" alt="Douyin_TikTok_Download_API"/></a>
 </div>
 <h1 align="center">Douyin_TikTok_Download_API</h1>
 
