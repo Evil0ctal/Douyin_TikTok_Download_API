@@ -27,7 +27,7 @@ from fastapi.responses import StreamingResponse
 
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
-from dtk.api.routes.openapi import I18N_KEY
+from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
 from dtk.api.routes.schemas import BackfillRequest, RecheckRequest
 from dtk.api.routes.support import ok
 from dtk.core.db import session_scope
@@ -265,7 +265,9 @@ async def export_archive(
 
 
 @router.post(
-    "/recheck", summary="Re-check what still exists", openapi_extra={I18N_KEY: "archive_recheck"}
+    "/recheck",
+    summary="Re-check what still exists",
+    openapi_extra={I18N_KEY: "archive_recheck", **ACCEPTED_RESPONSES},
 )
 async def recheck(
     request: Request,
@@ -311,7 +313,7 @@ async def recheck(
 @router.post(
     "/backfill",
     summary="Archive an author's history",
-    openapi_extra={I18N_KEY: "archive_backfill"},
+    openapi_extra={I18N_KEY: "archive_backfill", **ACCEPTED_RESPONSES},
 )
 async def backfill(
     request: Request,

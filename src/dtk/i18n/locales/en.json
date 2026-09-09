@@ -161,93 +161,33 @@
   "openapi": {
     "description": "Self-hosted data API for Douyin and TikTok. Submit a link, get normalized content back. Errors carry a stable code plus a message in the requested language; append ?lang=zh for Chinese.",
     "tag": {
-      "parse": "Platform-agnostic entry point: hand it any supported link.",
-      "douyin": "Douyin endpoints.",
-      "tiktok": "TikTok endpoints.",
-      "tasks": "Asynchronous task submission, polling and events.",
-      "identity": "Identity pool inspection and maintenance.",
-      "system": "Health, version and diagnostics.",
       "admin": "Instance administration; requires the admin scope.",
-      "tools": "Building blocks: link parsing, signing and guest identity minting.",
       "archive": "What this instance has already collected. Answered from local storage.",
-      "downloads": "Media this instance has stored on its own disk. A sink, never a relay: bytes are never streamed back to a caller."
+      "auth": "Signing in, sessions, and the account you are signed in as.",
+      "content": "Platform-agnostic reads: hand any of these a link or an id.",
+      "downloads": "Media this instance has stored on its own disk. A sink, never a relay: bytes are never streamed back to a caller.",
+      "ios": "The iOS Shortcut this instance serves, ready to install.",
+      "setup": "First-run: the only endpoints that answer before an administrator exists.",
+      "system": "Health, version and diagnostics.",
+      "tasks": "Asynchronous task submission, polling and events.",
+      "tools": "Building blocks: link parsing, signing and guest identity minting."
     },
     "op": {
-      "parse": {
-        "summary": "Parse any supported link",
-        "description": "Detects the platform and content kind from the URL, then returns the normalized record. Add ?wait= to block for a result instead of polling the task."
+      "api_keys_create": {
+        "summary": "Create an API key",
+        "description": "Mint a key and show it once."
       },
-      "task_get": {
-        "summary": "Fetch a task",
-        "description": "Returns the task state and, once it is done, its result. Results expire; re-submit if the task is gone."
+      "api_keys_list": {
+        "summary": "List API keys",
+        "description": "Every API key on this instance, newest first."
       },
-      "ios_shortcut": {
-        "summary": "iOS Shortcut release information",
-        "description": "Version, download link and release notes for the companion iOS Shortcut, rendered in the requested language."
+      "api_keys_revoke": {
+        "summary": "Revoke an API key",
+        "description": "Revoke one API key."
       },
-      "health": {
-        "summary": "Instance health",
-        "description": "Reports database, cache, browser RPC and identity pool health. Safe to poll from an uptime monitor."
-      },
-      "batch": {
-        "summary": "Submit many links at once",
-        "description": "Submits many links in one call and returns a task id per link. Each link is scheduled independently, so one failure does not hold up the rest."
-      },
-      "content_detail": {
-        "summary": "One post, video or image album",
-        "description": "One post - a video or an image album - with its media URLs, caption, statistics and author. Identify it by either url or aweme_id."
-      },
-      "comments": {
-        "summary": "Top level comments on a post",
-        "description": "One page of top level comments on a post, with author, like count and reply count. Page through with cursor; a response with no cursor is the last page."
-      },
-      "comment_replies": {
-        "summary": "Replies under one comment",
-        "description": "One page of replies underneath a single comment. Pass comment_id together with the post, identified by either url or aweme_id."
-      },
-      "author_profile": {
-        "summary": "Author profile",
-        "description": "One author's public profile: nickname, signature, avatar, verification state and follower, following, like and post counts."
-      },
-      "author_posts": {
-        "summary": "Author post list",
-        "description": "One page of an author's own posts, newest first, in the same shape as the single post endpoint. Page through with cursor."
-      },
-      "author_likes": {
-        "summary": "Posts an author has liked",
-        "description": "One page of the posts an author has publicly liked. TikTok answers a guest request, and an empty page usually means the author keeps their likes private. Douyin does not serve this list to a guest identity at all and needs an imported logged-in one."
-      },
-      "mix_posts": {
-        "summary": "Posts inside a mix or playlist",
-        "description": "One page of the posts collected in a mix - Douyin's series, TikTok's playlist. The id comes from any post that belongs to one: mix_info on Douyin, playlistId on TikTok."
-      },
-      "author_followers": {
-        "summary": "Accounts that follow an author",
-        "description": "One page of the accounts that follow an author. TikTok only: Douyin serves its follow graph only to a signed-in identity, so asking for it there returns an error naming the platforms that do support it."
-      },
-      "author_following": {
-        "summary": "Accounts an author follows",
-        "description": "One page of the accounts an author follows. TikTok only, and accounts hide this side of the graph far more often than their followers, so an empty page is a common and correct answer."
-      },
-      "tools_sign": {
-        "summary": "Sign a platform API URL",
-        "description": "Compute the signature parameters a platform API URL needs. Pure arithmetic - nothing is fetched and no identity is spent. The User-Agent is hashed into the signature, so send the request with the same one the response echoes back; TikTok also checks that the TLS fingerprint agrees with it."
-      },
-      "tools_parse_url": {
-        "summary": "Identify a share link",
-        "description": "Work out what a link points at without fetching anything: platform, resource kind and the id that names it. This is the id extraction v4 published as a dozen separate routes. Short links cannot be resolved without following them and come back needing expansion."
-      },
-      "tools_identity": {
-        "summary": "Mint a guest identity and return it",
-        "description": "Drive a real browser to the platform and hand back the cookies it was issued - the half of the work no algorithm can produce. Takes tens of seconds, requires the identity:manage scope, and stores nothing: use the admin mint endpoint instead to add one to this instance's own pool."
-      },
-      "archive_list": {
-        "summary": "Search the archive",
-        "description": "One page of what this instance has already collected, newest sighting first. Answers from local storage - no identity is spent, nothing is fetched, and a post that has since been deleted is still here with its availability saying so. Filters combine; paging is by cursor."
-      },
-      "archive_stats": {
-        "summary": "Archive totals",
-        "description": "How many posts and authors this instance holds, with a per-platform breakdown."
+      "archive_backfill": {
+        "summary": "Archive an author's history",
+        "description": "Walks one author's posts past the first page and archives every one. Separate from the watchlist on purpose: a watchlist entry is for what is new and runs forever, while a backfill is a one-off with a very different cost. Stops at the first empty page, at the page ceiling, or when the platform says there is no more history."
       },
       "archive_export": {
         "summary": "Export the archive",
@@ -257,41 +197,285 @@
         "summary": "One archived post",
         "description": "One post as this instance last saw it, media manifest included. The signed CDN links inside it expire; the web URL is the part that survives."
       },
-      "downloads_create": {
-        "summary": "Store a post's media",
-        "description": "Fetches one already-archived post's media onto this instance's own disk. Takes a content key rather than a URL: nothing a caller sends decides which host is dialled. Answers 202 with a download id; the files land on the operator's volume and are never served back through this API."
-      },
-      "downloads_list": {
-        "summary": "List downloads",
-        "description": "What this instance has been asked to store, newest first, with each file's size and sha256. A row whose on_disk is false was collected and later removed to stay under the media ceiling - which, unlike never having fetched it, can be undone by asking again."
-      },
-      "downloads_storage": {
-        "summary": "Media storage usage",
-        "description": "How much disk stored media occupies and how much it is allowed to, measured on the volume rather than summed from the database, plus whether the downloader container is reachable."
-      },
-      "downloads_get": {
-        "summary": "One download",
-        "description": "One download and every file in it: name, size, sha256 and content type, and whether the files are still stored."
-      },
-      "downloads_pin": {
-        "summary": "Pin or unpin a download",
-        "description": "Exempts one download from the size-based cleanup. This is the only way to keep a file the ceiling would otherwise remove, and a post the platform has since deleted cannot be fetched again."
-      },
-      "downloads_cancel": {
-        "summary": "Cancel a download",
-        "description": "Stops a transfer that has not finished. Nothing is deleted: files already complete stay where they are, and removing files is the cleanup sweep's job rather than a DELETE's."
+      "archive_list": {
+        "summary": "Search the archive",
+        "description": "One page of what this instance has already collected, newest sighting first. Answers from local storage - no identity is spent, nothing is fetched, and a post that has since been deleted is still here with its availability saying so. Filters combine; paging is by cursor."
       },
       "archive_recheck": {
         "summary": "Re-check what still exists",
         "description": "Verifies that archived posts are still on the platform. A deleted post answers not-found, which is the finding rather than a failure: the record is kept and marked deleted, so it stays searchable and exportable with the truth attached. Each post is one real request through the identity pool, so the batch is bounded and the pass runs in the background."
       },
-      "archive_backfill": {
-        "summary": "Archive an author's history",
-        "description": "Walks one author's posts past the first page and archives every one. Separate from the watchlist on purpose: a watchlist entry is for what is new and runs forever, while a backfill is a one-off with a very different cost. Stops at the first empty page, at the page ceiling, or when the platform says there is no more history."
+      "archive_stats": {
+        "summary": "Archive totals",
+        "description": "How many posts and authors this instance holds, with a per-platform breakdown."
+      },
+      "audit_list": {
+        "summary": "Read the audit trail",
+        "description": "Sensitive operations, newest first."
+      },
+      "auth_login": {
+        "summary": "Exchange a password for a session cookie",
+        "description": "Sign in to the console and receive a session cookie."
+      },
+      "auth_logout": {
+        "summary": "Revoke the current session",
+        "description": "Idempotent on purpose: logging out twice is not an error."
+      },
+      "auth_me": {
+        "summary": "The authenticated principal",
+        "description": "Who the current credential belongs to."
+      },
+      "auth_password": {
+        "summary": "Change your own password",
+        "description": "Requires the current password even inside an authenticated session."
+      },
+      "auth_session_revoke": {
+        "summary": "Revoke one of your sessions",
+        "description": "``session_ref`` is the digest from the list, never the token itself."
+      },
+      "auth_sessions": {
+        "summary": "List your live sessions",
+        "description": "Every device currently signed in as you."
+      },
+      "auth_sessions_revoke_all": {
+        "summary": "Log out every other device",
+        "description": "Sign out everywhere except here."
+      },
+      "author_followers": {
+        "summary": "Accounts that follow an author",
+        "description": "One page of the accounts that follow an author. TikTok only: Douyin serves its follow graph only to a signed-in identity, so asking for it there returns an error naming the platforms that do support it."
+      },
+      "author_following": {
+        "summary": "Accounts an author follows",
+        "description": "One page of the accounts an author follows. TikTok only, and accounts hide this side of the graph far more often than their followers, so an empty page is a common and correct answer."
+      },
+      "author_likes": {
+        "summary": "Posts an author has liked",
+        "description": "One page of the posts an author has publicly liked. TikTok answers a guest request, and an empty page usually means the author keeps their likes private. Douyin does not serve this list to a guest identity at all and needs an imported logged-in one."
+      },
+      "author_posts": {
+        "summary": "Author post list",
+        "description": "One page of an author's own posts, newest first, in the same shape as the single post endpoint. Page through with cursor."
+      },
+      "author_profile": {
+        "summary": "Author profile",
+        "description": "One author's public profile: nickname, signature, avatar, verification state and follower, following, like and post counts."
+      },
+      "backup_create": {
+        "summary": "Create a backup archive",
+        "description": "Queue an export."
+      },
+      "backup_list": {
+        "summary": "List backup archives",
+        "description": "Archives the server can see, newest first."
+      },
+      "backup_restore": {
+        "summary": "Restore a backup archive",
+        "description": "Queue a restore of one archive."
+      },
+      "batch": {
+        "summary": "Submit many links at once",
+        "description": "Submits many links in one call and returns a task id per link. Each link is scheduled independently, so one failure does not hold up the rest."
+      },
+      "comment_replies": {
+        "summary": "Replies under one comment",
+        "description": "One page of replies underneath a single comment. Pass comment_id together with the post, identified by either url or aweme_id."
+      },
+      "comments": {
+        "summary": "Top level comments on a post",
+        "description": "One page of top level comments on a post, with author, like count and reply count. Page through with cursor; a response with no cursor is the last page."
+      },
+      "content_detail": {
+        "summary": "One post, video or image album",
+        "description": "One post - a video or an image album - with its media URLs, caption, statistics and author. Identify it by either url or aweme_id."
+      },
+      "diagnose": {
+        "summary": "Run the six-step self check",
+        "description": "Queue the same diagnosis the setup wizard finishes with (doc 15)."
+      },
+      "downloads_cancel": {
+        "summary": "Cancel a download",
+        "description": "Stops a transfer that has not finished. Nothing is deleted: files already complete stay where they are, and removing files is the cleanup sweep's job rather than a DELETE's."
+      },
+      "downloads_create": {
+        "summary": "Store a post's media",
+        "description": "Fetches one already-archived post's media onto this instance's own disk. Takes a content key rather than a URL: nothing a caller sends decides which host is dialled. Answers 202 with a download id; the files land on the operator's volume and are never served back through this API."
+      },
+      "downloads_get": {
+        "summary": "One download",
+        "description": "One download and every file in it: name, size, sha256 and content type, and whether the files are still stored."
+      },
+      "downloads_list": {
+        "summary": "List downloads",
+        "description": "What this instance has been asked to store, newest first, with each file's size and sha256. A row whose on_disk is false was collected and later removed to stay under the media ceiling - which, unlike never having fetched it, can be undone by asking again."
+      },
+      "downloads_pin": {
+        "summary": "Pin or unpin a download",
+        "description": "Exempts one download from the size-based cleanup. This is the only way to keep a file the ceiling would otherwise remove, and a post the platform has since deleted cannot be fetched again."
+      },
+      "downloads_storage": {
+        "summary": "Media storage usage",
+        "description": "How much disk stored media occupies and how much it is allowed to, measured on the volume rather than summed from the database, plus whether the downloader container is reachable."
+      },
+      "endpoints_access": {
+        "summary": "Which endpoints are served without a key",
+        "description": "Every endpoint, with whether it currently needs a credential."
+      },
+      "endpoints_health": {
+        "summary": "Per-endpoint health and circuit state",
+        "description": "Every declared endpoint, whether or not it has traffic."
+      },
+      "health": {
+        "summary": "Instance health",
+        "description": "Reports database, cache, browser RPC and identity pool health. Safe to poll from an uptime monitor."
+      },
+      "identities_import": {
+        "summary": "Import a logged-in cookie jar",
+        "description": "Detect the paste format, report what was understood, then store it."
+      },
+      "identities_list": {
+        "summary": "List identities with state and health",
+        "description": "The identity pool, newest first."
+      },
+      "identities_mint": {
+        "summary": "Mint guest identities",
+        "description": "Queue a minting job per identity requested."
+      },
+      "identities_retire": {
+        "summary": "Retire an identity",
+        "description": "Retire and wipe. The statistics stay, the credential does not (doc 05)."
+      },
+      "identities_test": {
+        "summary": "Probe one identity",
+        "description": "Queue a single real request on this identity."
+      },
+      "ios_shortcut": {
+        "summary": "iOS Shortcut release information",
+        "description": "Version, download link and release notes for the companion iOS Shortcut, rendered in the requested language."
+      },
+      "metrics_timeseries": {
+        "summary": "Request volume and outcomes over time",
+        "description": "Raw buckets. Series selection and zooming happen in the browser (doc 07)."
+      },
+      "mix_posts": {
+        "summary": "Posts inside a mix or playlist",
+        "description": "One page of the posts collected in a mix - Douyin's series, TikTok's playlist. The id comes from any post that belongs to one: mix_info on Douyin, playlistId on TikTok."
+      },
+      "notify_test": {
+        "summary": "Send a test alert",
+        "description": "Prove the channel works before an incident depends on it."
+      },
+      "parse": {
+        "summary": "Parse any supported link",
+        "description": "Detects the platform and content kind from the URL, then returns the normalized record. Add ?wait= to block for a result instead of polling the task."
+      },
+      "proxies_create": {
+        "summary": "Add one proxy",
+        "description": "Add one egress to the pool."
+      },
+      "proxies_delete": {
+        "summary": "Delete a proxy and retire what used it",
+        "description": "Delete one egress, and retire every identity bound to it."
+      },
+      "proxies_import": {
+        "summary": "Bulk import a pasted proxy list",
+        "description": "Accept a block of lines and report the fate of each one."
+      },
+      "proxies_list": {
+        "summary": "List proxies",
+        "description": "Every configured egress, oldest first."
+      },
+      "proxies_test": {
+        "summary": "Probe one proxy",
+        "description": "Queue a connectivity and GeoIP probe for this egress."
+      },
+      "proxies_update": {
+        "summary": "Update one proxy",
+        "description": "Change one proxy's URL, label or geography."
+      },
+      "request_log": {
+        "summary": "Read the request log",
+        "description": "Recent requests, newest first, filtered."
+      },
+      "settings_list": {
+        "summary": "Read every runtime setting",
+        "description": "Every runtime setting, with its current value and where that came from."
+      },
+      "settings_reset": {
+        "summary": "Reset one setting to its inherited value",
+        "description": "Delete the override so the key falls back to the environment or default."
+      },
+      "settings_update": {
+        "summary": "Change one runtime setting",
+        "description": "Change one runtime setting; it takes effect without a restart."
+      },
+      "setup_init": {
+        "summary": "Create the first administrator account",
+        "description": "Consume the setup token and create the administrator."
+      },
+      "setup_status": {
+        "summary": "Whether this instance has an administrator yet",
+        "description": "Unauthenticated by necessity: it is what the wizard asks first."
       },
       "task_cancel": {
         "summary": "Cancel a task",
         "description": "Gives up on a task that has not started. Only a queued task is stopped; one already running is left alone and reported as running, because its request is in flight and the identity's quota is already spent - recording a failure the worker never had would make the endpoint's risk rate lie. Nothing is deleted."
+      },
+      "task_events": {
+        "summary": "Stream a task's progress",
+        "description": "Server-sent events until the task settles or the deadline passes."
+      },
+      "task_get": {
+        "summary": "Fetch a task",
+        "description": "Returns the task state and, once it is done, its result. Results expire; re-submit if the task is gone."
+      },
+      "tools_identity": {
+        "summary": "Mint a guest identity and return it",
+        "description": "Drive a real browser to the platform and hand back the cookies it was issued - the half of the work no algorithm can produce. Takes tens of seconds, requires the identity:manage scope, and stores nothing: use the admin mint endpoint instead to add one to this instance's own pool."
+      },
+      "tools_parse_url": {
+        "summary": "Identify a share link",
+        "description": "Work out what a link points at without fetching anything: platform, resource kind and the id that names it. This is the id extraction v4 published as a dozen separate routes. Short links cannot be resolved without following them and come back needing expansion."
+      },
+      "tools_sign": {
+        "summary": "Sign a platform API URL",
+        "description": "Compute the signature parameters a platform API URL needs. Pure arithmetic - nothing is fetched and no identity is spent. The User-Agent is hashed into the signature, so send the request with the same one the response echoes back; TikTok also checks that the TLS fingerprint agrees with it."
+      },
+      "users_create": {
+        "summary": "Create a console account",
+        "description": "Create a console account."
+      },
+      "users_delete": {
+        "summary": "Delete a console account",
+        "description": "Delete a console account and revoke its sessions."
+      },
+      "users_list": {
+        "summary": "List console accounts",
+        "description": "Every console account."
+      },
+      "users_update": {
+        "summary": "Change a role or reset a password",
+        "description": "The password reset an administrator performs for someone else."
+      },
+      "watchlist_create": {
+        "summary": "Watch a target",
+        "description": "Start collecting one author or post on a schedule."
+      },
+      "watchlist_delete": {
+        "summary": "Stop watching a target",
+        "description": "Stop collecting this target."
+      },
+      "watchlist_list": {
+        "summary": "List watched targets",
+        "description": "Every target this instance collects on a timer, soonest due first."
+      },
+      "watchlist_pause": {
+        "summary": "Pause every watched target",
+        "description": "Stop all scheduled collection without losing the list."
+      },
+      "watchlist_update": {
+        "summary": "Change or pause a watched target",
+        "description": "Change the interval, the page depth, or whether it runs at all."
       }
     },
     "param": {
@@ -312,6 +496,17 @@
       "q": "Substring of the title or description. Matched as a substring rather than by word, so it behaves the same in Chinese as in English."
     },
     "response": {
+      "200": "The result.",
+      "201": "Created. `data` is the new resource.",
+      "202": "Accepted and queued. `data.task_id` names the task to poll.",
+      "400": "The request was rejected. `error.code` says why.",
+      "401": "No API key or session, or it is not valid.",
+      "403": "Authenticated, but this credential lacks the scope.",
+      "404": "No such resource, or the platform says the content is gone.",
+      "429": "Rate limited. `error.retry_after` says when to come back.",
+      "500": "An unhandled error. `meta.request_id` identifies it in the logs.",
+      "502": "The platform refused, withheld the payload, or changed shape.",
+      "503": "The identity pool, the queue or an upstream endpoint is unavailable.",
       "error": "The request failed. The code field is stable and machine-readable; the message field is localized."
     },
     "security": {

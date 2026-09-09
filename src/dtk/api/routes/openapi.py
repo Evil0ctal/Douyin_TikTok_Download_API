@@ -50,6 +50,35 @@ ENVELOPE_DESCRIPTION_KEY = "openapi.envelope"
 #: route signature, so it would otherwise be invisible in the document.
 LANG_PARAMETER_KEY = f"{PARAM_PREFIX}lang"
 
+#: Extension key naming the success statuses an operation can answer with.
+#: FastAPI infers one from the decorator's ``status_code``, which is right for
+#: a route that answers the same thing every time and wrong for every route
+#: that queues work: those answer 202 with a task id, or 200 with the result if
+#: the caller asked to wait for it, and the document promised only the 200.
+#:
+#: Set it as ``openapi_extra={I18N_KEY: "parse", **ASYNC_RESPONSES}``.
+STATUS_KEY = "x-statuses"
+
+#: For a route that submits a task and may hold the connection for the result.
+ASYNC_RESPONSES: Final[dict[str, Any]] = {STATUS_KEY: ("200", "202")}
+
+#: For a route that always queues and never waits.
+ACCEPTED_RESPONSES: Final[dict[str, Any]] = {STATUS_KEY: ("202",)}
+
+#: For a route that always creates something.
+CREATED_RESPONSES: Final[dict[str, Any]] = {STATUS_KEY: ("201",)}
+
+#: For a route that creates on the first call and updates on the next.
+UPSERT_RESPONSES: Final[dict[str, Any]] = {STATUS_KEY: ("200", "201")}
+
+#: What each success status means here. One sentence, because the operation's
+#: own description carries the detail.
+_SUCCESS_DESCRIPTIONS: Final[dict[str, str]] = {
+    "200": "The result.",
+    "201": "Created. `data` is the new resource.",
+    "202": "Accepted and queued. `data.task_id` names the task to poll.",
+}
+
 
 def _translate(key: str, language: Language) -> str | None:
     """Catalogue lookup that declines rather than inventing text."""
@@ -77,7 +106,28 @@ def _lang_parameter(language: Language) -> dict[str, Any]:
     }
 
 
-def _localize_operation(operation: dict[str, Any], language: Language) -> None:
+def _annotate_wait(parameter: dict[str, Any], ceiling: float | None) -> None:
+    """Publish this instance's ``?wait=`` ceiling on the parameter itself.
+
+    ``resolve_wait`` rejects anything above ``api.max_wait_seconds`` rather
+    than clamping it, deliberately - a caller that asked to block for five
+    minutes has to learn it cannot. The schema declared no maximum, so the one
+    document that could have told them read as unbounded and the ceiling was
+    only discoverable by tripping over it.
+
+    Read from the live configuration rather than hardcoded, because the
+    setting is editable at runtime: the document describes this instance.
+    """
+    if ceiling is None:
+        return
+    schema = parameter.setdefault("schema", {})
+    if isinstance(schema, dict):
+        schema["maximum"] = ceiling
+
+
+def _localize_operation(
+    operation: dict[str, Any], language: Language, wait_ceiling: float | None = None
+) -> None:
     """Swap one operation's prose, then its shared parameter descriptions."""
     key = operation.get(I18N_KEY)
     if isinstance(key, str) and key:
@@ -92,9 +142,12 @@ def _localize_operation(operation: dict[str, Any], language: Language) -> None:
     for parameter in parameters:
         if not isinstance(parameter, dict):
             continue
-        text = _translate(f"{PARAM_PREFIX}{parameter.get('name')}", language)
+        name = parameter.get("name")
+        text = _translate(f"{PARAM_PREFIX}{name}", language)
         if text:
             parameter["description"] = text
+        if name == "wait":
+            _annotate_wait(parameter, wait_ceiling)
     if not any(isinstance(p, dict) and p.get("name") == "lang" for p in parameters):
         parameters.append(_lang_parameter(language))
 
@@ -111,7 +164,10 @@ def _localize_tags(schema: dict[str, Any], language: Language) -> None:
     )
     described = []
     for name in names:
-        text = _translate(f"{TAG_PREFIX}{name}", language)
+        # _text, not _translate: a tag's description lives only in the
+        # catalogue, so declining on the default language shipped an English
+        # document whose every tag was a bare name.
+        text = _text(f"{TAG_PREFIX}{name}", language)
         described.append({"name": name, "description": text} if text else {"name": name})
     if described:
         schema["tags"] = described
@@ -120,7 +176,18 @@ def _localize_tags(schema: dict[str, Any], language: Language) -> None:
 #: Paths every caller reaches without credentials. Everything else needs one,
 #: which is what the scheme below lets Swagger UI actually send.
 _PUBLIC_PATHS: Final[frozenset[str]] = frozenset(
-    {"/api/setup/status", "/api/setup/init", "/api/v1/auth/login"}
+    {
+        "/api/setup/status",
+        "/api/setup/init",
+        "/api/v1/auth/login",
+        # Signing out is what a caller whose session already expired does, and
+        # it succeeds either way. Demanding a credential to end one is the kind
+        # of documented requirement a reader has to un-learn.
+        "/api/v1/auth/logout",
+        # The Shortcut file is a static document served so an iPhone can fetch
+        # it before anyone has signed in on that device.
+        "/api/v1/ios/shortcut",
+    }
 )
 
 _API_KEY_SCHEME = "ApiKeyAuth"
@@ -230,14 +297,19 @@ def _envelope_components(language: Language) -> dict[str, Any]:
 #: Status codes any authenticated endpoint can answer, documented once.
 #: Without these a generated client has no error type at all and a reader is
 #: left to discover 429 by being rate limited.
+#: Keyed under ``openapi.response.<status>`` so the sentences translate; the
+#: English here is the fallback for a catalogue that has not caught up.
 _COMMON_ERRORS: Final[tuple[tuple[str, str], ...]] = (
     ("400", "The request was rejected. `error.code` says why."),
     ("401", "No API key or session, or it is not valid."),
     ("403", "Authenticated, but this credential lacks the scope."),
     ("404", "No such resource, or the platform says the content is gone."),
     ("429", "Rate limited. `error.retry_after` says when to come back."),
+    ("500", "An unhandled error. `meta.request_id` identifies it in the logs."),
+    ("502", "The platform refused, withheld the payload, or changed shape."),
     ("503", "The identity pool, the queue or an upstream endpoint is unavailable."),
 )
+RESPONSE_PREFIX = "openapi.response."
 
 
 def _type_responses(schema: dict[str, Any], language: Language) -> None:
@@ -264,6 +336,7 @@ def _type_responses(schema: dict[str, Any], language: Language) -> None:
                 continue
             responses = operation.setdefault("responses", {})
             responses.pop("422", None)
+            declared = operation.get(STATUS_KEY)
             for status, response in list(responses.items()):
                 if not isinstance(response, dict) or not status.startswith("2"):
                     continue
@@ -273,11 +346,42 @@ def _type_responses(schema: dict[str, Any], language: Language) -> None:
                 content = response.get("content") or {}
                 if any(kind != "application/json" for kind in content):
                     continue
+                if declared and status not in declared:
+                    # FastAPI infers one success status from the decorator. A
+                    # route that always queues never answers it, and a client
+                    # generated against the document would branch on a status
+                    # the service cannot produce.
+                    responses.pop(status)
+                    continue
                 response["content"] = envelope_content
-            for status, description in _COMMON_ERRORS:
+            for status in declared or ():
                 responses.setdefault(
-                    status, {"description": description, "content": envelope_content}
+                    status,
+                    {
+                        "description": _text(f"{RESPONSE_PREFIX}{status}", language)
+                        or _SUCCESS_DESCRIPTIONS.get(status, "Success."),
+                        "content": envelope_content,
+                    },
                 )
+            for status, fallback in _COMMON_ERRORS:
+                responses.setdefault(
+                    status,
+                    {
+                        "description": _text(f"{RESPONSE_PREFIX}{status}", language) or fallback,
+                        "content": envelope_content,
+                    },
+                )
+
+
+def _wait_ceiling(app: FastAPI) -> float | None:
+    """``api.max_wait_seconds`` if this app has a configuration to read it from."""
+    config = getattr(app.state, "config", None)
+    if config is None:
+        return None
+    try:
+        return float(config.get("api.max_wait_seconds"))
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
@@ -297,10 +401,11 @@ def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
     if translated_description:
         schema["info"]["description"] = translated_description
 
+    wait_ceiling = _wait_ceiling(app)
     for path in schema.get("paths", {}).values():
         for operation in path.values():
             if isinstance(operation, dict):
-                _localize_operation(operation, language)
+                _localize_operation(operation, language, wait_ceiling)
     _localize_tags(schema, language)
     _declare_security(schema, language)
     _type_responses(schema, language)

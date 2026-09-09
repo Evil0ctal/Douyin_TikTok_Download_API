@@ -19,11 +19,12 @@ from dataclasses import replace
 from types import MappingProxyType
 from typing import Any, Final
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
 
 from dtk.api.deps import Principal
 from dtk.api.routes import operations
+from dtk.api.routes.openapi import ACCEPTED_RESPONSES, CREATED_RESPONSES, I18N_KEY
 from dtk.api.routes.operations import Maintenance
 from dtk.api.routes.schemas import IdentityImport, MintRequest, RetireRequest
 from dtk.api.routes.support import (
@@ -48,7 +49,7 @@ from dtk.scheduler.health import score
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/identities", tags=["admin"])
+router = APIRouter(prefix="/identities")
 
 
 def _pool(request: Request) -> IdentityPool:
@@ -151,7 +152,9 @@ def _warnings(report: ImportReport, lang: Language) -> list[str]:
     return [t(warning.key, lang, **warning.args) for warning in report.warnings]
 
 
-@router.get("", summary="List identities with state and health")
+@router.get(
+    "", summary="List identities with state and health", openapi_extra={I18N_KEY: "identities_list"}
+)
 async def list_identities(
     request: Request,
     platform: Platform | None = Query(
@@ -221,7 +224,11 @@ async def list_identities(
     )
 
 
-@router.post("/mint", summary="Mint guest identities")
+@router.post(
+    "/mint",
+    summary="Mint guest identities",
+    openapi_extra={I18N_KEY: "identities_mint", **ACCEPTED_RESPONSES},
+)
 async def mint(
     request: Request,
     body: MintRequest,
@@ -255,7 +262,11 @@ async def mint(
     return ok(request, {"task_ids": task_ids, "count": len(task_ids)}, status_code=202)
 
 
-@router.post("/import", summary="Import a logged-in cookie jar")
+@router.post(
+    "/import",
+    summary="Import a logged-in cookie jar",
+    openapi_extra={I18N_KEY: "identities_import", **CREATED_RESPONSES},
+)
 async def import_identity(
     request: Request,
     body: IdentityImport,
@@ -339,10 +350,14 @@ async def import_identity(
     )
 
 
-@router.post("/{identity_id}/test", summary="Probe one identity")
+@router.post(
+    "/{identity_id}/test",
+    summary="Probe one identity",
+    openapi_extra={I18N_KEY: "identities_test", **ACCEPTED_RESPONSES},
+)
 async def test_identity(
     request: Request,
-    identity_id: uuid.UUID,
+    identity_id: uuid.UUID = Path(description="The identity to act on."),
     principal: Principal = Depends(manage_pool),
 ) -> Any:
     """Queue a single real request on this identity.
@@ -364,10 +379,12 @@ async def test_identity(
     return ok(request, {"task_id": str(task_id)}, status_code=202)
 
 
-@router.delete("/{identity_id}", summary="Retire an identity")
+@router.delete(
+    "/{identity_id}", summary="Retire an identity", openapi_extra={I18N_KEY: "identities_retire"}
+)
 async def retire_identity(
     request: Request,
-    identity_id: uuid.UUID,
+    identity_id: uuid.UUID = Path(description="The identity to act on."),
     body: RetireRequest | None = None,
     principal: Principal = Depends(manage_pool),
 ) -> Any:

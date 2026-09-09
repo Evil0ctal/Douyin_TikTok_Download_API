@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
 
 from dtk.api.deps import Principal
+from dtk.api.routes.openapi import CREATED_RESPONSES, I18N_KEY
 from dtk.api.routes.schemas import ApiKeyCreate
 from dtk.api.routes.support import audit, iso, manage_pool, ok, read_admin
 from dtk.core.crypto import new_api_key
@@ -31,7 +32,7 @@ from dtk.db.repositories import ApiKeyRepository
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/api-keys", tags=["admin"])
+router = APIRouter(prefix="/api-keys")
 
 
 def _row(key: ApiKey) -> dict[str, Any]:
@@ -53,7 +54,7 @@ def _row(key: ApiKey) -> dict[str, Any]:
     }
 
 
-@router.get("", summary="List API keys")
+@router.get("", summary="List API keys", openapi_extra={I18N_KEY: "api_keys_list"})
 async def list_keys(
     request: Request,
     mine_only: bool = Query(
@@ -108,7 +109,11 @@ def _refuse_escalation(principal: Principal, requested: Sequence[Scope]) -> None
         )
 
 
-@router.post("", summary="Create an API key")
+@router.post(
+    "",
+    summary="Create an API key",
+    openapi_extra={I18N_KEY: "api_keys_create", **CREATED_RESPONSES},
+)
 async def create_key(
     request: Request,
     body: ApiKeyCreate,
@@ -161,7 +166,9 @@ async def create_key(
     )
 
 
-@router.delete("/{key_id}", summary="Revoke an API key")
+@router.delete(
+    "/{key_id}", summary="Revoke an API key", openapi_extra={I18N_KEY: "api_keys_revoke"}
+)
 async def revoke_key(
     request: Request,
     key_id: uuid.UUID = Path(description="The key to revoke."),

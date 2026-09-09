@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import text
 
 from dtk.api.deps import Principal
+from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.support import language, ok, read_admin
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform
@@ -34,7 +35,9 @@ from dtk.scheduler.policies import policy_for
 
 log = get_logger(__name__)
 
-router = APIRouter(tags=["admin"])
+# Tagged by the aggregate router in __init__.py; repeating it here is what
+# put ["admin", "admin"] on every one of these operations.
+router = APIRouter()
 
 #: Chart windows the console offers. A day at five-minute resolution is 288
 #: points, which draws instantly; a week at that resolution would not.
@@ -60,7 +63,11 @@ _TIMESERIES_SQL = text(
 )
 
 
-@router.get("/endpoints/health", summary="Per-endpoint health and circuit state")
+@router.get(
+    "/endpoints/health",
+    summary="Per-endpoint health and circuit state",
+    openapi_extra={I18N_KEY: "endpoints_health"},
+)
 async def endpoint_health(request: Request, principal: Principal = Depends(read_admin)) -> Any:
     """Every declared endpoint, whether or not it has traffic.
 
@@ -104,13 +111,29 @@ async def endpoint_health(request: Request, principal: Principal = Depends(read_
     return ok(request, rows)
 
 
-@router.get("/metrics/timeseries", summary="Request volume and outcomes over time")
+@router.get(
+    "/metrics/timeseries",
+    summary="Request volume and outcomes over time",
+    openapi_extra={I18N_KEY: "metrics_timeseries"},
+)
 async def metrics_timeseries(
     request: Request,
-    hours: int = Query(default=DEFAULT_WINDOW_HOURS, ge=1, le=MAX_WINDOW_HOURS),
-    step: int = Query(default=DEFAULT_STEP_SECONDS, ge=MIN_STEP_SECONDS, le=86400),
-    endpoint: str | None = Query(default=None, max_length=128),
-    platform: Platform | None = Query(default=None),
+    hours: int = Query(
+        default=DEFAULT_WINDOW_HOURS,
+        ge=1,
+        le=MAX_WINDOW_HOURS,
+        description="How far back the window reaches.",
+    ),
+    step: int = Query(
+        default=DEFAULT_STEP_SECONDS,
+        ge=MIN_STEP_SECONDS,
+        le=86400,
+        description="Bucket width in seconds.",
+    ),
+    endpoint: str | None = Query(
+        default=None, max_length=128, description="Only traffic to this endpoint."
+    ),
+    platform: Platform | None = Query(default=None, description="Only this platform."),
     principal: Principal = Depends(read_admin),
 ) -> Any:
     """Raw buckets. Series selection and zooming happen in the browser (doc 07)."""

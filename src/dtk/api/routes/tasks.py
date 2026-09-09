@@ -187,7 +187,9 @@ async def cancel_task(
     return ok(request, {"task_id": str(task_id), "state": state})
 
 
-@router.get("/{task_id}/events", summary="Stream a task's progress")
+@router.get(
+    "/{task_id}/events", summary="Stream a task's progress", openapi_extra={I18N_KEY: "task_events"}
+)
 async def task_events(
     request: Request,
     task_id: uuid.UUID = TASK_ID_PATH,

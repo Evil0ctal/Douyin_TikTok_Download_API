@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from dtk.api import request_proxy
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
-from dtk.api.routes.openapi import I18N_KEY
+from dtk.api.routes.openapi import ACCEPTED_RESPONSES, ASYNC_RESPONSES, I18N_KEY
 from dtk.api.routes.operations import Operation, endpoint_name
 from dtk.api.routes.schemas import BatchRequest, ParseRequest
 from dtk.api.routes.support import (
@@ -212,7 +212,7 @@ def _identifier(kind: UrlKind, wanted: ResourceKind) -> str | None:
 @router.post(
     "/parse",
     summary="Parse any supported link",
-    openapi_extra={I18N_KEY: "parse"},
+    openapi_extra={I18N_KEY: "parse", **ASYNC_RESPONSES},
 )
 async def parse(
     request: Request,
@@ -254,7 +254,7 @@ async def parse(
 @router.post(
     "/tasks/batch",
     summary="Submit many links at once",
-    openapi_extra={I18N_KEY: "batch"},
+    openapi_extra={I18N_KEY: "batch", **ACCEPTED_RESPONSES},
 )
 async def batch(
     request: Request,
@@ -333,7 +333,7 @@ async def batch(
 @router.get(
     "/{platform}/video",
     summary="One post, video or image album",
-    openapi_extra={I18N_KEY: "content_detail"},
+    openapi_extra={I18N_KEY: "content_detail", **ASYNC_RESPONSES},
 )
 async def video(
     request: Request,
@@ -382,7 +382,7 @@ async def video(
 @router.get(
     "/{platform}/video/comments",
     summary="Top level comments on a post",
-    openapi_extra={I18N_KEY: "comments"},
+    openapi_extra={I18N_KEY: "comments", **ASYNC_RESPONSES},
 )
 async def comments(
     request: Request,
@@ -432,7 +432,7 @@ async def comments(
 @router.get(
     "/{platform}/video/comments/replies",
     summary="Replies under one comment",
-    openapi_extra={I18N_KEY: "comment_replies"},
+    openapi_extra={I18N_KEY: "comment_replies", **ASYNC_RESPONSES},
 )
 async def comment_replies(
     request: Request,
@@ -485,7 +485,7 @@ async def comment_replies(
 @router.get(
     "/{platform}/user",
     summary="Author profile",
-    openapi_extra={I18N_KEY: "author_profile"},
+    openapi_extra={I18N_KEY: "author_profile", **ASYNC_RESPONSES},
 )
 async def user(
     request: Request,
@@ -533,7 +533,7 @@ async def user(
 @router.get(
     "/{platform}/user/posts",
     summary="Author post list",
-    openapi_extra={I18N_KEY: "author_posts"},
+    openapi_extra={I18N_KEY: "author_posts", **ASYNC_RESPONSES},
 )
 async def user_posts(
     request: Request,
@@ -584,7 +584,7 @@ async def user_posts(
 @router.get(
     "/{platform}/user/likes",
     summary="Posts an author has liked",
-    openapi_extra={I18N_KEY: "author_likes"},
+    openapi_extra={I18N_KEY: "author_likes", **ASYNC_RESPONSES},
 )
 async def user_likes(
     request: Request,
@@ -639,7 +639,7 @@ async def user_likes(
 @router.get(
     "/{platform}/mix/posts",
     summary="Posts inside a mix or playlist",
-    openapi_extra={I18N_KEY: "mix_posts"},
+    openapi_extra={I18N_KEY: "mix_posts", **ASYNC_RESPONSES},
 )
 async def mix_posts(
     request: Request,
@@ -685,7 +685,7 @@ async def mix_posts(
 @router.get(
     "/{platform}/user/followers",
     summary="Accounts that follow an author",
-    openapi_extra={I18N_KEY: "author_followers"},
+    openapi_extra={I18N_KEY: "author_followers", **ASYNC_RESPONSES},
 )
 async def user_followers(
     request: Request,
@@ -737,7 +737,7 @@ async def user_followers(
 @router.get(
     "/{platform}/user/following",
     summary="Accounts an author follows",
-    openapi_extra={I18N_KEY: "author_following"},
+    openapi_extra={I18N_KEY: "author_following", **ASYNC_RESPONSES},
 )
 async def user_following(
     request: Request,

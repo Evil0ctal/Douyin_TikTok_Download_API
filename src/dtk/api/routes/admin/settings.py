@@ -22,10 +22,11 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
 
 from dtk.api.deps import Principal
+from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.schemas import SettingUpdate
 from dtk.api.routes.support import audit, has_scope, iso, ok, read_admin
 from dtk.core.config import RUNTIME_SETTINGS, SENSITIVE_KEYS, Scope, coerce
@@ -41,7 +42,7 @@ from dtk.services import settings_store
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/settings", tags=["admin"])
+router = APIRouter(prefix="/settings")
 
 
 def _env_name(key: str) -> str:
@@ -81,7 +82,7 @@ async def _reload(request: Request) -> None:
     request.app.state.config = await settings_store.load_config()
 
 
-@router.get("", summary="Read every runtime setting")
+@router.get("", summary="Read every runtime setting", openapi_extra={I18N_KEY: "settings_list"})
 async def list_settings(request: Request, principal: Principal = Depends(read_admin)) -> Any:
     """Every runtime setting, with its current value and where that came from.
 
@@ -127,7 +128,9 @@ async def list_settings(request: Request, principal: Principal = Depends(read_ad
     return ok(request, {"version": config.version, "settings": items})
 
 
-@router.put("/{key}", summary="Change one runtime setting")
+@router.put(
+    "/{key}", summary="Change one runtime setting", openapi_extra={I18N_KEY: "settings_update"}
+)
 async def update_setting(
     request: Request,
     body: SettingUpdate,
@@ -213,11 +216,17 @@ async def update_setting(
     )
 
 
-@router.delete("/{key}", summary="Reset one setting to its inherited value")
+@router.delete(
+    "/{key}",
+    summary="Reset one setting to its inherited value",
+    openapi_extra={I18N_KEY: "settings_reset"},
+)
 async def reset_setting(
     request: Request,
-    key: str,
-    confirm: bool = False,
+    key: str = Path(description="The setting to reset, as shown by the list endpoint."),
+    confirm: bool = Query(
+        default=False, description="Required for settings flagged as disruptive."
+    ),
     principal: Principal = Depends(read_admin),
 ) -> Any:
     """Delete the override so the key falls back to the environment or default."""

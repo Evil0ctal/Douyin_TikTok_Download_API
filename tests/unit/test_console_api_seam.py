@@ -417,8 +417,12 @@ def test_the_document_says_how_to_authenticate() -> None:
 
 def test_every_guarded_route_declares_its_security() -> None:
     """A route with no security reads as public, and most of these are not."""
+    from dtk.api.routes.openapi import _PUBLIC_PATHS
+
     schema = _app().openapi()
-    public = {"/api/setup/status", "/api/setup/init", "/api/v1/auth/login"}
+    # Imported, not restated. A second copy of this list is how the document
+    # came to demand a credential for signing out.
+    public = _PUBLIC_PATHS
     missing = [
         f"{method.upper()} {path}"
         for path, operations in schema["paths"].items()
@@ -427,6 +431,80 @@ def test_every_guarded_route_declares_its_security() -> None:
         if isinstance(operation, dict) and not operation.get("security")
     ]
     assert not missing, f"routes that document no way to authenticate: {missing[:6]}"
+
+
+def test_no_operation_repeats_a_tag() -> None:
+    """A tag twice is not a grouping, it is a copy-paste.
+
+    Every admin leaf router declared ``tags=["admin"]`` and so did the
+    aggregate that includes them, so 37 of 76 operations carried it twice and
+    Swagger UI listed them under a duplicated heading.
+    """
+    schema = _app().openapi()
+    doubled = [
+        f"{method.upper()} {path}: {operation['tags']}"
+        for path, operations in schema["paths"].items()
+        for method, operation in operations.items()
+        if isinstance(operation, dict)
+        and len(operation.get("tags") or []) != len(set(operation.get("tags") or []))
+    ]
+    assert not doubled, f"operations with a repeated tag: {doubled[:6]}"
+
+
+def test_every_tag_in_use_is_described() -> None:
+    """And no tag is described that nothing uses.
+
+    The catalogue still carried `douyin`, `identity`, `parse` and `tiktok`
+    after the routers stopped declaring them, and had never gained `auth`,
+    `content`, `ios` or `setup`.
+    """
+    from dtk.api.routes.openapi import build_schema
+    from dtk.core.types import Language
+
+    for language in Language:
+        schema = build_schema(_app(), language)
+        bare = [tag["name"] for tag in schema.get("tags", []) if not tag.get("description")]
+        assert not bare, f"tags with no description in {language.value}: {bare}"
+
+
+def test_no_operation_documents_a_success_it_cannot_send() -> None:
+    """A route that always queues must not promise a 200.
+
+    A client generated from the document writes a branch per declared status.
+    Every submitting route answered 202 and documented only the 200 FastAPI
+    infers from the decorator, so that branch was the one that never ran.
+    """
+    from dtk.api.routes.openapi import STATUS_KEY
+
+    schema = _app().openapi()
+    wrong = [
+        f"{method.upper()} {path}: declares {sorted(declared)}, documents {sorted(documented)}"
+        for path, operations in schema["paths"].items()
+        for method, operation in operations.items()
+        if isinstance(operation, dict) and (declared := set(operation.get(STATUS_KEY) or ()))
+        for documented in [{s for s in operation.get("responses", {}) if s.startswith("2")}]
+        if documented != declared
+    ]
+    assert not wrong, f"operations documenting an unreachable success: {wrong[:6]}"
+
+
+def test_the_wait_ceiling_is_in_the_document() -> None:
+    """`?wait=` is rejected above `api.max_wait_seconds`, not clamped.
+
+    So the one place a caller could have learned the limit was the schema, and
+    it declared no maximum at all.
+    """
+    schema = _app().openapi()
+    waits = [
+        parameter
+        for operations in schema["paths"].values()
+        for operation in operations.values()
+        if isinstance(operation, dict)
+        for parameter in operation.get("parameters", [])
+        if parameter.get("name") == "wait"
+    ]
+    assert waits, "no ?wait= parameter in the document at all"
+    assert all(p.get("schema", {}).get("maximum") for p in waits)
 
 
 def test_the_scraping_endpoints_are_translated() -> None:

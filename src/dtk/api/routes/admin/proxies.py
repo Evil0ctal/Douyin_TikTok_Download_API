@@ -22,6 +22,7 @@ from sqlalchemy import select
 from dtk.api.deps import Principal
 from dtk.api.routes import operations
 from dtk.api.routes.admin.proxy_urls import ProxySpec, parse_many, parse_proxy, sample_of
+from dtk.api.routes.openapi import ACCEPTED_RESPONSES, CREATED_RESPONSES, I18N_KEY, UPSERT_RESPONSES
 from dtk.api.routes.operations import Maintenance
 from dtk.api.routes.schemas import ProxyCreate, ProxyImport, ProxyUpdate
 from dtk.api.routes.support import (
@@ -40,7 +41,7 @@ from dtk.identity.pool import IdentityPool
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/proxies", tags=["admin"])
+router = APIRouter(prefix="/proxies")
 
 
 def _cipher(request: Request) -> Any:
@@ -76,7 +77,7 @@ def _row(request: Request, proxy: Proxy, *, identity_count: int | None = None) -
     return payload
 
 
-@router.get("", summary="List proxies")
+@router.get("", summary="List proxies", openapi_extra={I18N_KEY: "proxies_list"})
 async def list_proxies(
     request: Request,
     healthy_only: bool = Query(
@@ -104,7 +105,9 @@ async def list_proxies(
     return ok(request, [_row(request, row) for row in rows])
 
 
-@router.post("", summary="Add one proxy")
+@router.post(
+    "", summary="Add one proxy", openapi_extra={I18N_KEY: "proxies_create", **CREATED_RESPONSES}
+)
 async def create_proxy(
     request: Request,
     body: ProxyCreate,
@@ -141,7 +144,11 @@ async def create_proxy(
     return ok(request, _row(request, proxy), status_code=201)
 
 
-@router.post("/import", summary="Bulk import a pasted proxy list")
+@router.post(
+    "/import",
+    summary="Bulk import a pasted proxy list",
+    openapi_extra={I18N_KEY: "proxies_import", **UPSERT_RESPONSES},
+)
 async def import_proxies(
     request: Request,
     body: ProxyImport,
@@ -191,7 +198,7 @@ async def import_proxies(
     )
 
 
-@router.put("/{proxy_id}", summary="Update one proxy")
+@router.put("/{proxy_id}", summary="Update one proxy", openapi_extra={I18N_KEY: "proxies_update"})
 async def update_proxy(
     request: Request,
     body: ProxyUpdate,
@@ -244,10 +251,14 @@ async def update_proxy(
     return ok(request, _row(request, proxy))
 
 
-@router.post("/{proxy_id}/test", summary="Probe one proxy")
+@router.post(
+    "/{proxy_id}/test",
+    summary="Probe one proxy",
+    openapi_extra={I18N_KEY: "proxies_test", **ACCEPTED_RESPONSES},
+)
 async def test_proxy(
     request: Request,
-    proxy_id: uuid.UUID,
+    proxy_id: uuid.UUID = Path(description="The proxy to probe."),
     principal: Principal = Depends(manage_pool),
 ) -> Any:
     """Queue a connectivity and GeoIP probe for this egress."""
@@ -263,7 +274,11 @@ async def test_proxy(
     return ok(request, {"task_id": str(task_id)}, status_code=202)
 
 
-@router.delete("/{proxy_id}", summary="Delete a proxy and retire what used it")
+@router.delete(
+    "/{proxy_id}",
+    summary="Delete a proxy and retire what used it",
+    openapi_extra={I18N_KEY: "proxies_delete"},
+)
 async def delete_proxy(
     request: Request,
     proxy_id: uuid.UUID = Path(description="The proxy to delete."),

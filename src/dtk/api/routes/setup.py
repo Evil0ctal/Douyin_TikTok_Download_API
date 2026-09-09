@@ -27,6 +27,7 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
 
+from dtk.api.routes.openapi import CREATED_RESPONSES, I18N_KEY
 from dtk.api.routes.passwords import hash_password
 from dtk.api.routes.schemas import SetupInit
 from dtk.api.routes.support import client_ip, ok, user_agent
@@ -140,13 +141,21 @@ def install_startup_hook(app: FastAPI) -> None:
     app.router.lifespan_context = lifespan
 
 
-@router.get("/status", summary="Whether this instance has an administrator yet")
+@router.get(
+    "/status",
+    summary="Whether this instance has an administrator yet",
+    openapi_extra={I18N_KEY: "setup_status"},
+)
 async def setup_status(request: Request) -> Any:
     """Unauthenticated by necessity: it is what the wizard asks first."""
     return ok(request, {"initialized": await is_initialized()})
 
 
-@router.post("/init", summary="Create the first administrator account")
+@router.post(
+    "/init",
+    summary="Create the first administrator account",
+    openapi_extra={I18N_KEY: "setup_init", **CREATED_RESPONSES},
+)
 async def setup_init(request: Request, body: SetupInit) -> Any:
     """Consume the setup token and create the administrator.
 

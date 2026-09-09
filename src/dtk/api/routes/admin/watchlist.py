@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Path, Query, Request
 
 from dtk.api.deps import Principal
+from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.schemas import WatchCreate, WatchUpdate
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
@@ -36,7 +37,7 @@ from dtk.services import watchlist
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/watchlist", tags=["admin"])
+router = APIRouter(prefix="/watchlist")
 
 ENTRY_ID = Path(description="The watchlist entry id.")
 PLATFORM_QUERY = Query(default=None, description="Only this platform.")
@@ -50,7 +51,7 @@ def _floor(request: Request) -> int:
     return int(request.app.state.config.get("watchlist.min_interval_seconds"))
 
 
-@router.get("", summary="List watched targets")
+@router.get("", summary="List watched targets", openapi_extra={I18N_KEY: "watchlist_list"})
 async def list_watchlist(
     request: Request,
     platform: Platform | None = PLATFORM_QUERY,
@@ -80,7 +81,9 @@ async def list_watchlist(
     )
 
 
-@router.post("", summary="Watch a target", status_code=201)
+@router.post(
+    "", summary="Watch a target", openapi_extra={I18N_KEY: "watchlist_create"}, status_code=201
+)
 async def add_watch(
     request: Request,
     body: WatchCreate,
@@ -124,7 +127,11 @@ async def add_watch(
     return ok(request, watchlist.as_dict(entry), status_code=201)
 
 
-@router.patch("/{entry_id}", summary="Change or pause a watched target")
+@router.patch(
+    "/{entry_id}",
+    summary="Change or pause a watched target",
+    openapi_extra={I18N_KEY: "watchlist_update"},
+)
 async def update_watch(
     request: Request,
     body: WatchUpdate,
@@ -160,7 +167,9 @@ async def update_watch(
     return ok(request, watchlist.as_dict(entry))
 
 
-@router.delete("/{entry_id}", summary="Stop watching a target")
+@router.delete(
+    "/{entry_id}", summary="Stop watching a target", openapi_extra={I18N_KEY: "watchlist_delete"}
+)
 async def remove_watch(
     request: Request,
     entry_id: uuid.UUID = ENTRY_ID,
@@ -187,7 +196,9 @@ async def remove_watch(
     return ok(request, {"removed": True, "entry_id": str(entry_id)})
 
 
-@router.post("/pause", summary="Pause every watched target")
+@router.post(
+    "/pause", summary="Pause every watched target", openapi_extra={I18N_KEY: "watchlist_pause"}
+)
 async def pause_watchlist(
     request: Request,
     principal: Principal = Depends(manage_pool),

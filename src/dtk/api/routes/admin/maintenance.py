@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from dtk.api.deps import Principal
 from dtk.api.routes import operations
+from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
 from dtk.api.routes.operations import Maintenance
 from dtk.api.routes.schemas import (
     BackupRequest,
@@ -62,16 +63,29 @@ from dtk.ops.masking import redact_setting
 
 log = get_logger(__name__)
 
-router = APIRouter(tags=["admin"])
+# Tagged by the aggregate router in __init__.py; repeating it here is what
+# put ["admin", "admin"] on every one of these operations.
+router = APIRouter()
 
 
-@router.get("/audit", summary="Read the audit trail")
+@router.get("/audit", summary="Read the audit trail", openapi_extra={I18N_KEY: "audit_list"})
 async def list_audit(
     request: Request,
-    limit: int = Query(default=DEFAULT_ADMIN_PAGE_SIZE, ge=1, le=MAX_ADMIN_PAGE_SIZE),
-    action: str | None = Query(default=None, max_length=128),
-    before: datetime | None = Query(default=None),
-    user_id: uuid.UUID | None = Query(default=None),
+    limit: int = Query(
+        default=DEFAULT_ADMIN_PAGE_SIZE,
+        ge=1,
+        le=MAX_ADMIN_PAGE_SIZE,
+        description="Maximum rows to return.",
+    ),
+    action: str | None = Query(
+        default=None, max_length=128, description="Only this action, such as `settings.update`."
+    ),
+    before: datetime | None = Query(
+        default=None, description="Only entries older than this timestamp. Page with it."
+    ),
+    user_id: uuid.UUID | None = Query(
+        default=None, description="Only what this console account did."
+    ),
     principal: Principal = Depends(read_admin),
 ) -> Any:
     """Sensitive operations, newest first.
@@ -111,7 +125,11 @@ async def list_audit(
     )
 
 
-@router.post("/diagnose", summary="Run the six-step self check")
+@router.post(
+    "/diagnose",
+    summary="Run the six-step self check",
+    openapi_extra={I18N_KEY: "diagnose", **ACCEPTED_RESPONSES},
+)
 async def diagnose(
     request: Request,
     body: DiagnoseRequest | None = None,
@@ -135,7 +153,11 @@ async def diagnose(
     return ok(request, {"task_id": str(task_id)}, status_code=202)
 
 
-@router.post("/notifications/test", summary="Send a test alert")
+@router.post(
+    "/notifications/test",
+    summary="Send a test alert",
+    openapi_extra={I18N_KEY: "notify_test", **ACCEPTED_RESPONSES},
+)
 async def test_notification(
     request: Request,
     body: NotificationTest | None = None,
@@ -259,7 +281,7 @@ def _entry(info: BackupInfo, directory: Path, secret_key: str) -> dict[str, Any]
     }
 
 
-@router.get("/backup", summary="List backup archives")
+@router.get("/backup", summary="List backup archives", openapi_extra={I18N_KEY: "backup_list"})
 async def list_backup_archives(
     request: Request,
     principal: Principal = Depends(read_admin),
@@ -285,7 +307,11 @@ async def list_backup_archives(
     return ok(request, [_entry(info, directory, secret_key) for info in infos])
 
 
-@router.post("/backup", summary="Create a backup archive")
+@router.post(
+    "/backup",
+    summary="Create a backup archive",
+    openapi_extra={I18N_KEY: "backup_create", **ACCEPTED_RESPONSES},
+)
 async def create_backup(
     request: Request,
     body: BackupRequest | None = None,
@@ -327,7 +353,11 @@ async def create_backup(
     )
 
 
-@router.post("/backup/restore", summary="Restore a backup archive")
+@router.post(
+    "/backup/restore",
+    summary="Restore a backup archive",
+    openapi_extra={I18N_KEY: "backup_restore", **ACCEPTED_RESPONSES},
+)
 async def restore_backup_archive(
     request: Request,
     body: RestoreRequest,

@@ -20,10 +20,11 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Path, Request
 
 from dtk.api.deps import Principal
 from dtk.api.routes import sessions
+from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.passwords import hash_password, needs_rehash, verify_password
 from dtk.api.routes.schemas import LoginRequest, PasswordChange
 from dtk.api.routes.support import (
@@ -194,7 +195,11 @@ async def _clear_failures(username: str, ip: str | None) -> None:
         await redis.delete(LOGIN_FAIL_IP_KEY.format(ip=ip))
 
 
-@router.post("/login", summary="Exchange a password for a session cookie")
+@router.post(
+    "/login",
+    summary="Exchange a password for a session cookie",
+    openapi_extra={I18N_KEY: "auth_login"},
+)
 async def login(request: Request, body: LoginRequest) -> Any:
     """Sign in to the console and receive a session cookie.
 
@@ -254,7 +259,9 @@ async def login(request: Request, body: LoginRequest) -> Any:
     return response
 
 
-@router.post("/logout", summary="Revoke the current session")
+@router.post(
+    "/logout", summary="Revoke the current session", openapi_extra={I18N_KEY: "auth_logout"}
+)
 async def logout(request: Request) -> Any:
     """Idempotent on purpose: logging out twice is not an error."""
     token = sessions.cookie_token(request)
@@ -265,7 +272,7 @@ async def logout(request: Request) -> Any:
     return response
 
 
-@router.get("/me", summary="The authenticated principal")
+@router.get("/me", summary="The authenticated principal", openapi_extra={I18N_KEY: "auth_me"})
 async def me(request: Request, principal: Principal = Depends(authenticated)) -> Any:
     """Who the current credential belongs to.
 
@@ -293,7 +300,9 @@ async def me(request: Request, principal: Principal = Depends(authenticated)) ->
     )
 
 
-@router.post("/password", summary="Change your own password")
+@router.post(
+    "/password", summary="Change your own password", openapi_extra={I18N_KEY: "auth_password"}
+)
 async def change_password(
     request: Request,
     body: PasswordChange,
@@ -339,7 +348,9 @@ async def change_password(
     return ok(request, {"changed": True, "revoked_sessions": revoked})
 
 
-@router.get("/sessions", summary="List your live sessions")
+@router.get(
+    "/sessions", summary="List your live sessions", openapi_extra={I18N_KEY: "auth_sessions"}
+)
 async def list_sessions(request: Request, principal: Principal = Depends(authenticated)) -> Any:
     """Every device currently signed in as you.
 
@@ -353,7 +364,11 @@ async def list_sessions(request: Request, principal: Principal = Depends(authent
     return ok(request, [s.as_dict() for s in live])
 
 
-@router.delete("/sessions", summary="Log out every other device")
+@router.delete(
+    "/sessions",
+    summary="Log out every other device",
+    openapi_extra={I18N_KEY: "auth_sessions_revoke_all"},
+)
 async def revoke_other_sessions(
     request: Request, principal: Principal = Depends(authenticated)
 ) -> Any:
@@ -379,9 +394,15 @@ async def revoke_other_sessions(
     return ok(request, {"revoked": revoked})
 
 
-@router.delete("/sessions/{session_ref}", summary="Revoke one of your sessions")
+@router.delete(
+    "/sessions/{session_ref}",
+    summary="Revoke one of your sessions",
+    openapi_extra={I18N_KEY: "auth_session_revoke"},
+)
 async def revoke_one_session(
-    request: Request, session_ref: str, principal: Principal = Depends(authenticated)
+    request: Request,
+    session_ref: str = Path(description="The session digest from the list endpoint."),
+    principal: Principal = Depends(authenticated),
 ) -> Any:
     """``session_ref`` is the digest from the list, never the token itself."""
     revoked = await sessions.revoke_by_id(principal.user_id, session_ref)

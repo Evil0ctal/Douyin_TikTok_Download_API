@@ -31,7 +31,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
-from dtk.api.routes.openapi import I18N_KEY
+from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
 from dtk.api.routes.schemas import DownloadRequest, PinRequest
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
@@ -80,7 +80,11 @@ def _configured(request: Request) -> None:
         raise NotConfigured("media downloads are disabled in the settings")
 
 
-@router.post("", summary="Store a post's media", openapi_extra={I18N_KEY: "downloads_create"})
+@router.post(
+    "",
+    summary="Store a post's media",
+    openapi_extra={I18N_KEY: "downloads_create", **ACCEPTED_RESPONSES},
+)
 async def start_download(
     request: Request,
     body: DownloadRequest,

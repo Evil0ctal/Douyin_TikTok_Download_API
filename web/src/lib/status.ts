@@ -126,6 +126,11 @@ export const ERROR_CODE_TONE: Record<ErrorCode, Tone> = {
   NOT_CONFIGURED: 'caution',
   // Deliberate load shedding, like a rate limit: it clears on its own.
   QUEUE_FULL: 'warning',
+  // Somebody stopped this on purpose. Nothing is wrong, so nothing is flagged.
+  CANCELLED: 'neutral',
+  // The caller addressed the API wrongly. Their mistake to fix, not an incident.
+  METHOD_NOT_ALLOWED: 'caution',
+  UNSUPPORTED_MEDIA_TYPE: 'caution',
   INTERNAL: 'danger',
 }
 

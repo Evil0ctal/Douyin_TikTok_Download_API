@@ -23,12 +23,15 @@ from fastapi import APIRouter, Depends, Request
 
 from dtk.api import public_endpoints
 from dtk.api.deps import Principal
+from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.support import ok, read_admin
 from dtk.core.logging import get_logger
 
 log = get_logger(__name__)
 
-router = APIRouter(tags=["admin"])
+# Tagged by the aggregate router in __init__.py; repeating it here is what
+# put ["admin", "admin"] on every one of these operations.
+router = APIRouter()
 
 #: Methods worth offering. HEAD and OPTIONS are answered by the framework and
 #: are not something an operator opens or closes.
@@ -137,7 +140,11 @@ def _rows(request: Request, opened: frozenset[str]) -> list[dict[str, Any]]:
     return rows
 
 
-@router.get("/endpoints/access", summary="Which endpoints are served without a key")
+@router.get(
+    "/endpoints/access",
+    summary="Which endpoints are served without a key",
+    openapi_extra={I18N_KEY: "endpoints_access"},
+)
 async def endpoint_access(
     request: Request,
     principal: Principal = Depends(read_admin),

@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 
 from dtk.api.deps import Principal
 from dtk.api.routes import sessions
+from dtk.api.routes.openapi import CREATED_RESPONSES, I18N_KEY
 from dtk.api.routes.passwords import hash_password
 from dtk.api.routes.schemas import UserCreate, UserUpdate
 from dtk.api.routes.support import admin_only, audit, iso, ok
@@ -31,7 +32,7 @@ from dtk.db.repositories import UserRepository
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/users", tags=["admin"])
+router = APIRouter(prefix="/users")
 
 
 def _row(user: User) -> dict[str, Any]:
@@ -51,7 +52,7 @@ async def _admin_count(request: Request, *, excluding: uuid.UUID | None = None) 
     return int((await request.state.db.execute(stmt)).scalar_one())
 
 
-@router.get("", summary="List console accounts")
+@router.get("", summary="List console accounts", openapi_extra={I18N_KEY: "users_list"})
 async def list_users(request: Request, principal: Principal = Depends(admin_only)) -> Any:
     """Every console account.
 
@@ -65,7 +66,11 @@ async def list_users(request: Request, principal: Principal = Depends(admin_only
     return ok(request, [_row(user) for user in users])
 
 
-@router.post("", summary="Create a console account")
+@router.post(
+    "",
+    summary="Create a console account",
+    openapi_extra={I18N_KEY: "users_create", **CREATED_RESPONSES},
+)
 async def create_user(
     request: Request,
     body: UserCreate,
@@ -109,11 +114,15 @@ async def create_user(
     return ok(request, _row(user), status_code=201)
 
 
-@router.put("/{user_id}", summary="Change a role or reset a password")
+@router.put(
+    "/{user_id}",
+    summary="Change a role or reset a password",
+    openapi_extra={I18N_KEY: "users_update"},
+)
 async def update_user(
     request: Request,
-    user_id: uuid.UUID,
     body: UserUpdate,
+    user_id: uuid.UUID = Path(description="The account to change."),
     principal: Principal = Depends(admin_only),
 ) -> Any:
     """The password reset an administrator performs for someone else.
@@ -164,7 +173,9 @@ async def update_user(
     return ok(request, {**_row(refreshed or user), "revoked_sessions": revoked})
 
 
-@router.delete("/{user_id}", summary="Delete a console account")
+@router.delete(
+    "/{user_id}", summary="Delete a console account", openapi_extra={I18N_KEY: "users_delete"}
+)
 async def delete_user(
     request: Request,
     user_id: uuid.UUID = Path(description="The account to delete."),

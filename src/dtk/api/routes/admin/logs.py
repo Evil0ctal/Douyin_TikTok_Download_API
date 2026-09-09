@@ -27,6 +27,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 
 from dtk.api.deps import Principal
+from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
     MAX_ADMIN_PAGE_SIZE,
@@ -38,7 +39,9 @@ from dtk.core.types import Outcome
 from dtk.db.models import RequestLog
 from dtk.db.timeseries import RequestLogRepository
 
-router = APIRouter(tags=["admin"])
+# Tagged by the aggregate router in __init__.py; repeating it here is what
+# put ["admin", "admin"] on every one of these operations.
+router = APIRouter()
 
 #: Widest window the console offers (its 30-day option). Retention deletes
 #: request_log rows after 14 days, so asking for more is allowed and simply
@@ -78,15 +81,35 @@ def _row(row: RequestLog) -> dict[str, Any]:
     }
 
 
-@router.get("/logs/requests", summary="Read the request log")
+@router.get(
+    "/logs/requests", summary="Read the request log", openapi_extra={I18N_KEY: "request_log"}
+)
 async def list_request_log(
     request: Request,
-    request_id: uuid.UUID | None = Query(default=None),
-    endpoint: str | None = Query(default=None, max_length=128),
-    identity_id: uuid.UUID | None = Query(default=None),
-    outcome: list[Outcome] | None = Query(default=None),
-    minutes: int = Query(default=DEFAULT_MINUTES, ge=1, le=MAX_MINUTES),
-    limit: int = Query(default=DEFAULT_ADMIN_PAGE_SIZE, ge=1, le=MAX_ADMIN_PAGE_SIZE),
+    request_id: uuid.UUID | None = Query(
+        default=None, description="Only the request with this id."
+    ),
+    endpoint: str | None = Query(
+        default=None, max_length=128, description="Only requests to this endpoint."
+    ),
+    identity_id: uuid.UUID | None = Query(
+        default=None, description="Only requests made with this identity."
+    ),
+    outcome: list[Outcome] | None = Query(
+        default=None, description="Only these outcomes. Repeat the parameter to allow several."
+    ),
+    minutes: int = Query(
+        default=DEFAULT_MINUTES,
+        ge=1,
+        le=MAX_MINUTES,
+        description="How far back to look. Rows older than the log's retention are gone.",
+    ),
+    limit: int = Query(
+        default=DEFAULT_ADMIN_PAGE_SIZE,
+        ge=1,
+        le=MAX_ADMIN_PAGE_SIZE,
+        description="Maximum rows to return.",
+    ),
     principal: Principal = Depends(read_admin),
 ) -> Any:
     """Recent requests, newest first, filtered.

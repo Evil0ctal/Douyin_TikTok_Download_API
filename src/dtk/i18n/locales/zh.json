@@ -161,93 +161,33 @@
   "openapi": {
     "description": "自部署的抖音 / TikTok 数据接口。提交链接即可获得归一化后的内容。错误响应同时包含稳定错误码与按语言渲染的消息，追加 ?lang=zh 可获取中文。",
     "tag": {
-      "parse": "通用入口：传入任意受支持的链接。",
-      "douyin": "抖音接口。",
-      "tiktok": "TikTok 接口。",
-      "tasks": "异步任务的提交、轮询与事件推送。",
-      "identity": "身份池查看与维护。",
-      "system": "健康检查、版本与诊断。",
       "admin": "实例管理，需要 admin 权限范围。",
-      "tools": "基础能力：链接解析、签名计算与游客身份铸造。",
       "archive": "本实例已采集的内容，全部从本地存储读取。",
-      "downloads": "本实例保存在自己磁盘上的媒体。它只是水槽而不是中继：字节永远不会回传给调用方。"
+      "auth": "登录、会话，以及当前登录的账号。",
+      "content": "与平台无关的读取接口：传入链接或 ID 即可。",
+      "downloads": "本实例保存在自己磁盘上的媒体。它只是水槽而不是中继：字节永远不会回传给调用方。",
+      "ios": "本实例提供的 iOS 快捷指令，可直接安装。",
+      "setup": "首次运行：在管理员账号存在之前，只有这些接口会应答。",
+      "system": "健康检查、版本与诊断。",
+      "tasks": "异步任务的提交、轮询与事件推送。",
+      "tools": "基础能力：链接解析、签名计算与游客身份铸造。"
     },
     "op": {
-      "parse": {
-        "summary": "解析任意受支持的链接",
-        "description": "自动识别链接所属平台与内容类型，返回归一化记录。附加 ?wait= 可阻塞等待结果，无需轮询任务。"
+      "api_keys_create": {
+        "summary": "创建 API 密钥",
+        "description": "生成密钥，并且只展示这一次。"
       },
-      "task_get": {
-        "summary": "查询任务",
-        "description": "返回任务状态，完成后附带结果。结果会过期，任务不存在时请重新提交。"
+      "api_keys_list": {
+        "summary": "列出 API 密钥",
+        "description": "本实例的所有 API 密钥，最新的在前。"
       },
-      "ios_shortcut": {
-        "summary": "iOS 快捷指令版本信息",
-        "description": "配套 iOS 快捷指令的版本号、下载链接与更新说明，按请求语言渲染。"
+      "api_keys_revoke": {
+        "summary": "吊销 API 密钥",
+        "description": "吊销一个 API 密钥。"
       },
-      "health": {
-        "summary": "实例健康状态",
-        "description": "报告数据库、缓存、浏览器 RPC 与身份池的健康状况，可供监控系统轮询。"
-      },
-      "batch": {
-        "summary": "批量提交多个链接",
-        "description": "一次提交多个链接，为每个链接返回一个任务 ID。各链接独立调度，其中一个失败不会阻塞其余链接。"
-      },
-      "content_detail": {
-        "summary": "获取单条作品（视频或图集）",
-        "description": "获取单条作品（视频或图集），包含媒体地址、文案、统计数据与作者信息。使用 url 或 aweme_id 之一指定作品。"
-      },
-      "comments": {
-        "summary": "获取作品的一级评论",
-        "description": "获取作品的一级评论，含评论作者、点赞数与回复数。通过 cursor 翻页，响应中不再返回游标即表示已是最后一页。"
-      },
-      "comment_replies": {
-        "summary": "获取某条评论下的回复",
-        "description": "获取某条评论下的回复。需同时传入 comment_id 与所属作品（用 url 或 aweme_id 之一指定）。"
-      },
-      "author_profile": {
-        "summary": "获取作者主页信息",
-        "description": "获取作者主页公开信息：昵称、签名、头像、认证状态，以及粉丝数、关注数、获赞数与作品数。"
-      },
-      "author_posts": {
-        "summary": "获取作者的作品列表",
-        "description": "按时间倒序获取作者本人的作品列表，字段结构与单条作品接口一致。通过 cursor 翻页。"
-      },
-      "author_likes": {
-        "summary": "获取作者点赞过的作品",
-        "description": "分页获取作者公开点赞过的作品。TikTok 允许游客身份请求，返回空页通常表示作者未公开点赞列表；抖音则完全不向游客身份提供该列表，需要导入已登录的身份。"
-      },
-      "mix_posts": {
-        "summary": "获取合辑 / 播放列表内的作品",
-        "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表。合辑 ID 可从任意属于该合辑的作品中获得：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
-      },
-      "author_followers": {
-        "summary": "获取作者的粉丝列表",
-        "description": "分页获取关注该作者的账号。仅支持 TikTok：抖音的关注关系只对已登录身份开放，在抖音上请求会返回错误并列出支持该功能的平台。"
-      },
-      "author_following": {
-        "summary": "获取作者关注的账号",
-        "description": "分页获取该作者关注的账号。仅支持 TikTok；相比粉丝列表，账号隐藏关注列表的情况更常见，因此返回空页是正常结果。"
-      },
-      "tools_sign": {
-        "summary": "为平台 API URL 计算签名",
-        "description": "计算平台 API URL 所需的签名参数。纯算术运算，不发起任何请求，也不消耗身份。User-Agent 会被计入签名，因此发送请求时必须使用响应中回显的同一个 UA；TikTok 还会校验 TLS 指纹与 UA 是否自洽。"
-      },
-      "tools_parse_url": {
-        "summary": "识别分享链接",
-        "description": "在不发起任何请求的前提下解析链接指向：平台、资源类型，以及标识该资源的 ID。这就是 v4 中十余个独立 ID 提取接口的合并版本。短链必须实际跟随跳转才能解析，因此会返回「需要展开」。"
-      },
-      "tools_identity": {
-        "summary": "铸造并返回一个游客身份",
-        "description": "驱动真实浏览器访问平台，返回平台下发的 cookie —— 这部分工作无法用算法生成。耗时数十秒，需要 identity:manage 权限，且不做任何存储；若希望将身份加入本实例的身份池，请改用管理端的铸造接口。"
-      },
-      "archive_list": {
-        "summary": "检索归档内容",
-        "description": "分页返回本实例已采集的内容，按最近一次出现时间倒序。数据来自本地存储——不消耗身份、不发起请求，即使作品已被删除也仍然在这里，并由 availability 字段标明。多个筛选条件可组合，翻页使用游标。"
-      },
-      "archive_stats": {
-        "summary": "归档统计",
-        "description": "本实例已保存的作品数与作者数，并按平台细分。"
+      "archive_backfill": {
+        "summary": "回溯归档作者的历史作品",
+        "description": "翻过第一页，把某个作者的历史作品全部归档。和关注列表刻意分开：关注列表针对的是「新增内容」并且会一直运行，而回溯是一次性的、成本完全不同的操作。遇到第一个空页、达到页数上限，或者平台表示没有更多历史时停止。"
       },
       "archive_export": {
         "summary": "导出归档",
@@ -257,41 +197,285 @@
         "summary": "获取单条归档作品",
         "description": "返回本实例最后一次看到的该作品，含媒体清单。其中的 CDN 签名链接会过期，web_url 才是长期有效的部分。"
       },
-      "downloads_create": {
-        "summary": "保存作品媒体到本地",
-        "description": "把一个已归档作品的媒体文件下载到本实例自己的磁盘。参数是内容标识而不是 URL：调用方无法决定去连接哪个主机。返回 202 和一个下载 ID；文件落在部署者的媒体卷上，本接口永远不会把字节回传给调用方。"
-      },
-      "downloads_list": {
-        "summary": "下载列表",
-        "description": "本实例被要求保存的内容，最新的在前，含每个文件的大小与 sha256。on_disk 为 false 表示曾经下载过、后来为了控制媒体容量上限被清理掉了——这和从未下载过不同，重新请求一次即可恢复。"
-      },
-      "downloads_storage": {
-        "summary": "媒体存储用量",
-        "description": "已保存媒体占用了多少磁盘、上限是多少。用量直接测量卷而不是对数据库求和，同时返回下载器容器是否可达。"
-      },
-      "downloads_get": {
-        "summary": "单条下载",
-        "description": "一条下载记录及其全部文件：文件名、大小、sha256、内容类型，以及文件是否仍在磁盘上。"
-      },
-      "downloads_pin": {
-        "summary": "置顶 / 取消置顶",
-        "description": "把一条下载排除在按容量清理之外。这是保住某个文件不被上限清掉的唯一方式；平台已经删除的作品无法重新下载。"
-      },
-      "downloads_cancel": {
-        "summary": "取消下载",
-        "description": "停止一个尚未完成的传输。不会删除任何东西：已经下载完整的文件保持原样，删除文件是清理任务按上限执行的事，不是 DELETE 的事。"
+      "archive_list": {
+        "summary": "检索归档内容",
+        "description": "分页返回本实例已采集的内容，按最近一次出现时间倒序。数据来自本地存储——不消耗身份、不发起请求，即使作品已被删除也仍然在这里，并由 availability 字段标明。多个筛选条件可组合，翻页使用游标。"
       },
       "archive_recheck": {
         "summary": "重新检查作品是否还在",
         "description": "验证已归档的作品在平台上是否仍然存在。已删除的作品会返回「不存在」，这是检查结果而不是失败：记录会被保留并标记为已删除，因此它仍然可以被搜索和导出，只是带上了真实状态。每个作品都是一次经过身份池的真实请求，所以批量有上限，并且整个过程在后台运行。"
       },
-      "archive_backfill": {
-        "summary": "回溯归档作者的历史作品",
-        "description": "翻过第一页，把某个作者的历史作品全部归档。和关注列表刻意分开：关注列表针对的是「新增内容」并且会一直运行，而回溯是一次性的、成本完全不同的操作。遇到第一个空页、达到页数上限，或者平台表示没有更多历史时停止。"
+      "archive_stats": {
+        "summary": "归档统计",
+        "description": "本实例已保存的作品数与作者数，并按平台细分。"
+      },
+      "audit_list": {
+        "summary": "读取审计日志",
+        "description": "敏感操作记录，最新的在前。"
+      },
+      "auth_login": {
+        "summary": "用密码换取会话 Cookie",
+        "description": "登录控制台并获得会话 Cookie。"
+      },
+      "auth_logout": {
+        "summary": "吊销当前会话",
+        "description": "刻意设计为幂等：重复登出不算错误。"
+      },
+      "auth_me": {
+        "summary": "当前身份主体",
+        "description": "当前凭据属于谁。"
+      },
+      "auth_password": {
+        "summary": "修改自己的密码",
+        "description": "即使在已登录的会话中，也仍需提供当前密码。"
+      },
+      "auth_session_revoke": {
+        "summary": "吊销你的某个会话",
+        "description": "session_ref 是列表中的摘要，而不是令牌本身。"
+      },
+      "auth_sessions": {
+        "summary": "列出你的活跃会话",
+        "description": "当前以你的身份登录的每一台设备。"
+      },
+      "auth_sessions_revoke_all": {
+        "summary": "登出其他所有设备",
+        "description": "退出除当前设备之外的所有登录。"
+      },
+      "author_followers": {
+        "summary": "获取作者的粉丝列表",
+        "description": "分页获取关注该作者的账号。仅支持 TikTok：抖音的关注关系只对已登录身份开放，在抖音上请求会返回错误并列出支持该功能的平台。"
+      },
+      "author_following": {
+        "summary": "获取作者关注的账号",
+        "description": "分页获取该作者关注的账号。仅支持 TikTok；相比粉丝列表，账号隐藏关注列表的情况更常见，因此返回空页是正常结果。"
+      },
+      "author_likes": {
+        "summary": "获取作者点赞过的作品",
+        "description": "分页获取作者公开点赞过的作品。TikTok 允许游客身份请求，返回空页通常表示作者未公开点赞列表；抖音则完全不向游客身份提供该列表，需要导入已登录的身份。"
+      },
+      "author_posts": {
+        "summary": "获取作者的作品列表",
+        "description": "按时间倒序获取作者本人的作品列表，字段结构与单条作品接口一致。通过 cursor 翻页。"
+      },
+      "author_profile": {
+        "summary": "获取作者主页信息",
+        "description": "获取作者主页公开信息：昵称、签名、头像、认证状态，以及粉丝数、关注数、获赞数与作品数。"
+      },
+      "backup_create": {
+        "summary": "创建备份归档",
+        "description": "排入一次导出任务。"
+      },
+      "backup_list": {
+        "summary": "列出备份归档",
+        "description": "服务端可见的归档，最新的在前。"
+      },
+      "backup_restore": {
+        "summary": "从备份归档恢复",
+        "description": "排入一次归档恢复任务。"
+      },
+      "batch": {
+        "summary": "批量提交多个链接",
+        "description": "一次提交多个链接，为每个链接返回一个任务 ID。各链接独立调度，其中一个失败不会阻塞其余链接。"
+      },
+      "comment_replies": {
+        "summary": "获取某条评论下的回复",
+        "description": "获取某条评论下的回复。需同时传入 comment_id 与所属作品（用 url 或 aweme_id 之一指定）。"
+      },
+      "comments": {
+        "summary": "获取作品的一级评论",
+        "description": "获取作品的一级评论，含评论作者、点赞数与回复数。通过 cursor 翻页，响应中不再返回游标即表示已是最后一页。"
+      },
+      "content_detail": {
+        "summary": "获取单条作品（视频或图集）",
+        "description": "获取单条作品（视频或图集），包含媒体地址、文案、统计数据与作者信息。使用 url 或 aweme_id 之一指定作品。"
+      },
+      "diagnose": {
+        "summary": "运行六步自检",
+        "description": "排入与初始化向导收尾时相同的自检（见文档 15）。"
+      },
+      "downloads_cancel": {
+        "summary": "取消下载",
+        "description": "停止一个尚未完成的传输。不会删除任何东西：已经下载完整的文件保持原样，删除文件是清理任务按上限执行的事，不是 DELETE 的事。"
+      },
+      "downloads_create": {
+        "summary": "保存作品媒体到本地",
+        "description": "把一个已归档作品的媒体文件下载到本实例自己的磁盘。参数是内容标识而不是 URL：调用方无法决定去连接哪个主机。返回 202 和一个下载 ID；文件落在部署者的媒体卷上，本接口永远不会把字节回传给调用方。"
+      },
+      "downloads_get": {
+        "summary": "单条下载",
+        "description": "一条下载记录及其全部文件：文件名、大小、sha256、内容类型，以及文件是否仍在磁盘上。"
+      },
+      "downloads_list": {
+        "summary": "下载列表",
+        "description": "本实例被要求保存的内容，最新的在前，含每个文件的大小与 sha256。on_disk 为 false 表示曾经下载过、后来为了控制媒体容量上限被清理掉了——这和从未下载过不同，重新请求一次即可恢复。"
+      },
+      "downloads_pin": {
+        "summary": "置顶 / 取消置顶",
+        "description": "把一条下载排除在按容量清理之外。这是保住某个文件不被上限清掉的唯一方式；平台已经删除的作品无法重新下载。"
+      },
+      "downloads_storage": {
+        "summary": "媒体存储用量",
+        "description": "已保存媒体占用了多少磁盘、上限是多少。用量直接测量卷而不是对数据库求和，同时返回下载器容器是否可达。"
+      },
+      "endpoints_access": {
+        "summary": "哪些接口无需密钥即可访问",
+        "description": "列出所有接口，并标明当前是否需要凭据。"
+      },
+      "endpoints_health": {
+        "summary": "各接口的健康与熔断状态",
+        "description": "列出所有已声明的接口，无论是否有流量。"
+      },
+      "health": {
+        "summary": "实例健康状态",
+        "description": "报告数据库、缓存、浏览器 RPC 与身份池的健康状况，可供监控系统轮询。"
+      },
+      "identities_import": {
+        "summary": "导入已登录的 Cookie",
+        "description": "识别粘贴格式，报告解析结果，然后加密存储。"
+      },
+      "identities_list": {
+        "summary": "列出身份及其状态与健康度",
+        "description": "身份池，最新的在前。"
+      },
+      "identities_mint": {
+        "summary": "铸造访客身份",
+        "description": "为请求的每个身份排入一个铸造任务。"
+      },
+      "identities_retire": {
+        "summary": "退役一个身份",
+        "description": "退役并清除。统计数据保留，凭据不保留（见文档 05）。"
+      },
+      "identities_test": {
+        "summary": "探测单个身份",
+        "description": "用该身份排入一次真实请求。"
+      },
+      "ios_shortcut": {
+        "summary": "iOS 快捷指令版本信息",
+        "description": "配套 iOS 快捷指令的版本号、下载链接与更新说明，按请求语言渲染。"
+      },
+      "metrics_timeseries": {
+        "summary": "请求量与结果随时间的变化",
+        "description": "原始分桶数据。序列选择与缩放在浏览器端完成（见文档 07）。"
+      },
+      "mix_posts": {
+        "summary": "获取合辑 / 播放列表内的作品",
+        "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表。合辑 ID 可从任意属于该合辑的作品中获得：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
+      },
+      "notify_test": {
+        "summary": "发送测试告警",
+        "description": "在真正出事之前，先验证通知渠道可用。"
+      },
+      "parse": {
+        "summary": "解析任意受支持的链接",
+        "description": "自动识别链接所属平台与内容类型，返回归一化记录。附加 ?wait= 可阻塞等待结果，无需轮询任务。"
+      },
+      "proxies_create": {
+        "summary": "添加一个代理",
+        "description": "向池中添加一个出口。"
+      },
+      "proxies_delete": {
+        "summary": "删除代理并退役其关联身份",
+        "description": "删除一个出口，并退役绑定在它上面的每个身份。"
+      },
+      "proxies_import": {
+        "summary": "批量导入粘贴的代理列表",
+        "description": "接收多行文本，并逐行报告处理结果。"
+      },
+      "proxies_list": {
+        "summary": "列出代理",
+        "description": "所有已配置的出口，最早的在前。"
+      },
+      "proxies_test": {
+        "summary": "探测单个代理",
+        "description": "为该出口排入一次连通性与 GeoIP 探测。"
+      },
+      "proxies_update": {
+        "summary": "修改一个代理",
+        "description": "修改某个代理的 URL、标签或地区。"
+      },
+      "request_log": {
+        "summary": "读取请求日志",
+        "description": "最近的请求，最新的在前，可按条件筛选。"
+      },
+      "settings_list": {
+        "summary": "读取全部运行时设置",
+        "description": "每一项运行时设置，含当前值及其来源。"
+      },
+      "settings_reset": {
+        "summary": "将一项设置恢复为继承值",
+        "description": "删除覆盖值，使该项回落到环境变量或默认值。"
+      },
+      "settings_update": {
+        "summary": "修改一项运行时设置",
+        "description": "修改一项运行时设置，无需重启即刻生效。"
+      },
+      "setup_init": {
+        "summary": "创建第一个管理员账号",
+        "description": "消耗初始化令牌并创建管理员。"
+      },
+      "setup_status": {
+        "summary": "本实例是否已有管理员",
+        "description": "必须免鉴权：这是初始化向导问的第一个问题。"
       },
       "task_cancel": {
         "summary": "取消任务",
         "description": "放弃一个还没开始的任务。只有排队中的任务会被停止；已经在运行的任务保持原样并如实返回运行中，因为它的请求已经发出、身份配额已经花掉——记录一个 worker 从未遇到的失败会让接口的风控率失真。不会删除任何东西。"
+      },
+      "task_events": {
+        "summary": "订阅任务进度",
+        "description": "以 Server-Sent Events 推送，直到任务结束或超时。"
+      },
+      "task_get": {
+        "summary": "查询任务",
+        "description": "返回任务状态，完成后附带结果。结果会过期，任务不存在时请重新提交。"
+      },
+      "tools_identity": {
+        "summary": "铸造并返回一个游客身份",
+        "description": "驱动真实浏览器访问平台，返回平台下发的 cookie —— 这部分工作无法用算法生成。耗时数十秒，需要 identity:manage 权限，且不做任何存储；若希望将身份加入本实例的身份池，请改用管理端的铸造接口。"
+      },
+      "tools_parse_url": {
+        "summary": "识别分享链接",
+        "description": "在不发起任何请求的前提下解析链接指向：平台、资源类型，以及标识该资源的 ID。这就是 v4 中十余个独立 ID 提取接口的合并版本。短链必须实际跟随跳转才能解析，因此会返回「需要展开」。"
+      },
+      "tools_sign": {
+        "summary": "为平台 API URL 计算签名",
+        "description": "计算平台 API URL 所需的签名参数。纯算术运算，不发起任何请求，也不消耗身份。User-Agent 会被计入签名，因此发送请求时必须使用响应中回显的同一个 UA；TikTok 还会校验 TLS 指纹与 UA 是否自洽。"
+      },
+      "users_create": {
+        "summary": "创建控制台账号",
+        "description": "创建一个控制台账号。"
+      },
+      "users_delete": {
+        "summary": "删除控制台账号",
+        "description": "删除一个控制台账号并吊销其会话。"
+      },
+      "users_list": {
+        "summary": "列出控制台账号",
+        "description": "所有控制台账号。"
+      },
+      "users_update": {
+        "summary": "修改角色或重置密码",
+        "description": "管理员代他人执行的密码重置。"
+      },
+      "watchlist_create": {
+        "summary": "监视一个目标",
+        "description": "开始按计划采集某个作者或作品。"
+      },
+      "watchlist_delete": {
+        "summary": "停止监视一个目标",
+        "description": "不再采集该目标。"
+      },
+      "watchlist_list": {
+        "summary": "列出被监视的目标",
+        "description": "本实例定时采集的所有目标，最快到期的在前。"
+      },
+      "watchlist_pause": {
+        "summary": "暂停全部监视目标",
+        "description": "停止所有定时采集，但保留列表。"
+      },
+      "watchlist_update": {
+        "summary": "修改或暂停一个监视目标",
+        "description": "修改采集间隔、翻页深度，或是否继续运行。"
       }
     },
     "param": {
@@ -312,6 +496,17 @@
       "q": "标题或描述中的子串。按子串匹配而非按词匹配，因此中英文行为一致。"
     },
     "response": {
+      "200": "请求结果。",
+      "201": "已创建，`data` 是新建的资源。",
+      "202": "已接受并排队，`data.task_id` 指明可轮询的任务。",
+      "400": "请求被拒绝，`error.code` 说明原因。",
+      "401": "缺少 API 密钥或会话，或者它已失效。",
+      "403": "已通过认证，但该凭据不具备所需的 scope。",
+      "404": "资源不存在，或平台表示该内容已消失。",
+      "429": "触发限流，`error.retry_after` 说明何时可以重试。",
+      "500": "未处理的错误。可用 `meta.request_id` 在日志中定位。",
+      "502": "平台拒绝了请求、扣留了数据，或改变了响应结构。",
+      "503": "身份池、队列或某个上游接口不可用。",
       "error": "请求失败。code 字段稳定且机器可读，message 字段按语言本地化。"
     },
     "security": {

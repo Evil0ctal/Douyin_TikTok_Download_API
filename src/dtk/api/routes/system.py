@@ -120,7 +120,6 @@ async def readyz() -> JSONResponse:
 
 @router.get(
     "/api/v1/system/status",
-    tags=["system"],
     summary="Instance status",
     openapi_extra={I18N_KEY: "health"},
 )
