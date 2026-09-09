@@ -216,12 +216,29 @@ interface PoolPlatform {
   below_minimum: boolean
 }
 
+/** One attempt, as the worker recorded it. `reason` is the code it logs. */
+interface MintAttempt {
+  ts: string
+  platform: string
+  ok: boolean
+  reason: string
+  identity_id: string | null
+  error: string | null
+}
+
+interface MintActivity {
+  current: { platform: string; started_at: string } | null
+  recent: MintAttempt[]
+  backoff: { failures: number; until: string } | null
+}
+
 interface PoolLevel {
   min_size: number
   target_size: number
   max_fail_streak: number
   can_mint: boolean
   platforms: PoolPlatform[]
+  activity: MintActivity
 }
 
 /**
@@ -244,7 +261,10 @@ function RefillCard() {
   const query = useApiQuery<PoolLevel>({
     key: POOL_KEY,
     path: paths.identities.pool,
-    poll: POLL.slow,
+    // A mint takes about five seconds. On the slow beat the panel showed every
+    // result and none of the acts, which is the half an operator watches for
+    // after retiring a platform's identities.
+    poll: POLL.fast,
   })
 
   // Held as text, not as numbers: an input the operator has emptied on the way
@@ -378,6 +398,8 @@ function RefillCard() {
         ) : null}
       </div>
 
+      <MintActivityRow activity={query.data.activity} canMint={canMint} />
+
       <p className={styles.refillHint}>
         {canMint
           ? t('console:identity.refill.description')
@@ -385,6 +407,97 @@ function RefillCard() {
         {t('console:identity.refill.usableHint', { streak: query.data.max_fail_streak })}
       </p>
     </Card>
+  )
+}
+
+/**
+ * What the refill job is doing and how the last few attempts went.
+ *
+ * Part of the refill card rather than a card of its own: it is the same
+ * subject, and two adjacent panels both about minting would say the pool level
+ * twice. It costs a row only when there is something to say - an instance that
+ * has never minted renders nothing here.
+ *
+ * The attempts come from the worker through Redis, because a failed mint writes
+ * no identity row. That asymmetry is the whole reason this exists: a success is
+ * already visible as a number going up, and a failure used to be visible only
+ * in `docker compose logs`.
+ */
+function MintActivityRow({
+  activity,
+  canMint,
+}: {
+  activity: MintActivity
+  canMint: boolean
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const format = useFormatters()
+
+  const recent = activity.recent
+  if (!canMint || (recent.length === 0 && !activity.current && !activity.backoff)) return null
+
+  const failures = recent.filter((entry) => !entry.ok).length
+
+  return (
+    <div className={styles.mintRow}>
+      {activity.current ? (
+        <span className={styles.minting}>
+          {/* A pulsing dot rather than a spinner: the row is one line tall and
+              this is the only thing on the page that has to read as "right
+              now" rather than "recently". */}
+          <span className={styles.pulse} aria-hidden="true" />
+          {t('console:identity.mintLog.inFlight', { platform: activity.current.platform })}
+        </span>
+      ) : activity.backoff ? (
+        // Louder than a failed attempt: the job is not merely failing, it has
+        // stopped trying until this passes.
+        <span className={styles.backoff}>
+          {t('console:identity.mintLog.backoff', {
+            failures: activity.backoff.failures,
+            when: format.relative(activity.backoff.until),
+          })}
+        </span>
+      ) : (
+        <span className="u-xs u-muted">{t('console:identity.mintLog.idle')}</span>
+      )}
+
+      {recent.length > 0 ? (
+        <>
+          <span className={styles.attempts}>
+            {recent.map((entry, index) => (
+              <span
+                key={`${entry.ts}:${index}`}
+                className={styles.attempt}
+                data-ok={entry.ok}
+                // Everything about one attempt in the tooltip: the row is a
+                // shape to scan, and a run of failures sharing one reason is a
+                // different story from an alternating one.
+                title={[
+                  entry.platform,
+                  entry.ok
+                    ? t('console:identity.mintLog.ok')
+                    : t(`console:identity.mintLog.reason.${entry.reason}`, {
+                        defaultValue: entry.reason,
+                      }),
+                  format.dateTime(entry.ts),
+                  entry.error ?? '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              />
+            ))}
+          </span>
+          <span className="u-xs u-muted">
+            {failures === 0
+              ? t('console:identity.mintLog.allOk', { count: recent.length })
+              : t('console:identity.mintLog.someFailed', {
+                  count: recent.length,
+                  failures,
+                })}
+          </span>
+        </>
+      ) : null}
+    </div>
   )
 }
 

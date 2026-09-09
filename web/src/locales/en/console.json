@@ -347,6 +347,22 @@
       "target": "Top up to",
       "saved": "Refill thresholds updated",
       "saveFailed": "Could not update the refill thresholds"
+    },
+    "mintLog": {
+      "inFlight": "Minting a {platform} identity",
+      "idle": "Idle",
+      "backoff": "{failures, plural, one {# failure in a row} other {# failures in a row}} — not trying again until {when}",
+      "ok": "Minted",
+      "allOk": "{count, plural, one {last # attempt succeeded} other {last # attempts all succeeded}}",
+      "someFailed": "{failures} of the last {count} failed",
+      "reason": {
+        "minted": "Minted",
+        "no_free_proxy": "Every proxy already has a live identity of this platform behind it; two behind one exit is the recombination the pool exists to prevent",
+        "proxy_not_found": "The proxy this mint was pinned to no longer exists",
+        "proxy_undecryptable": "The chosen proxy's URL could not be decrypted, and minting on the direct egress would bind the identity to an exit it will never use",
+        "rpc_unavailable": "The browser container did not answer",
+        "unusable_fingerprint": "The browser reported a fingerprint with no usable version, so the identity was refused rather than paired with a guessed TLS profile"
+      }
     }
   },
   "proxy": {

@@ -32,6 +32,8 @@ from dtk.core.types import (
     TaskState,
 )
 from dtk.db.models import CONTINUOUS_AGGREGATES, Identity, Proxy, RequestLog, Task
+from dtk.identity import mint_log
+from dtk.identity.minting import BrowserRpcUnavailable
 from dtk.identity.pool import IdentityPool
 from dtk.services import tasks
 from dtk.services.fetch import FetchResult
@@ -658,6 +660,81 @@ async def test_a_minted_identity_lands_in_the_pool(db_engine, redis_client, clea
         assert row.state == IdentityState.ACTIVE.value
         assert row.source == IdentitySource.MINTED.value
         assert row.platform == Platform.TIKTOK.value
+
+
+async def test_a_real_mint_leaves_a_trail_the_console_can_read(
+    db_engine, redis_client, cleanup_identities
+):
+    """Success is already visible in the pool count; this is for what follows.
+
+    The same record has to carry failures, and a failure writes no identity
+    row - so this is the only place a console can learn that the job tried.
+    """
+    cipher = Cipher(SECRET)
+    filler = PoolFiller(
+        pool=IdentityPool(cipher), rpc=RecordingRpc(), cipher=cipher, config=Config.defaults()
+    )
+    await redis_client.delete(MINT_LOCK_KEY)
+
+    result = await filler.top_up_once(Platform.TIKTOK)
+    cleanup_identities.append(result.identity_id)
+
+    snapshot = await mint_log.snapshot()
+    assert snapshot["current"] is None  # cleared on the way out
+    assert snapshot["recent"][0]["ok"] is True
+    assert snapshot["recent"][0]["identity_id"] == str(result.identity_id)
+
+
+async def test_a_failing_mint_records_the_reason_and_the_backoff(db_engine, redis_client):
+    """The case the panel exists for: nothing else in the system says this."""
+    cipher = Cipher(SECRET)
+
+    class DeadRpc:
+        configured = True
+
+        async def mint(self, *args, **kwargs):
+            raise BrowserRpcUnavailable("browser-rpc is not answering")
+
+    filler = PoolFiller(
+        pool=IdentityPool(cipher), rpc=DeadRpc(), cipher=cipher, config=Config.defaults()
+    )
+    await redis_client.delete(MINT_LOCK_KEY)
+
+    result = await filler.top_up_once(Platform.TIKTOK)
+
+    assert result.minted is False
+    snapshot = await mint_log.snapshot()
+    assert snapshot["recent"][0]["ok"] is False
+    assert snapshot["recent"][0]["reason"] == "rpc_unavailable"
+    assert snapshot["backoff"]["failures"] == 1
+
+
+async def test_a_hand_pressed_mint_that_fails_does_not_put_the_sweep_to_sleep(
+    db_engine, redis_client
+):
+    """Ten button presses against a down browser must not silence refill.
+
+    The attempt is still recorded - the operator wants to see why their press
+    did nothing - but the shared backoff is the sweep's health, not theirs.
+    """
+    cipher = Cipher(SECRET)
+
+    class DeadRpc:
+        configured = True
+
+        async def mint(self, *args, **kwargs):
+            raise BrowserRpcUnavailable("browser-rpc is not answering")
+
+    filler = PoolFiller(
+        pool=IdentityPool(cipher), rpc=DeadRpc(), cipher=cipher, config=Config.defaults()
+    )
+    await redis_client.delete(MINT_LOCK_KEY)
+
+    await filler.top_up_once(Platform.TIKTOK, shared_backoff=False)
+
+    snapshot = await mint_log.snapshot()
+    assert snapshot["recent"][0]["reason"] == "rpc_unavailable"
+    assert snapshot["backoff"] is None
 
 
 async def test_the_pool_level_query_runs_against_the_real_table(db_engine, redis_client):

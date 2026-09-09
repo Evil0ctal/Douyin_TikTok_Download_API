@@ -34,6 +34,7 @@ from dtk.core.db import session_scope
 from dtk.core.logging import get_logger
 from dtk.core.redis import run_script
 from dtk.core.types import IdentitySource, IdentityState, Platform
+from dtk.identity import mint_log
 from dtk.identity.minting import BrowserRpcClient, BrowserRpcUnavailable
 from dtk.identity.pool import IdentityPool
 from dtk.worker.alerts import Alerter, NotifyEvent, raise_alert
@@ -275,6 +276,10 @@ class PoolFiller:
             proxy, reason = await self._pick_proxy(session, platform, proxy_id=proxy_id)
             if reason is not None:
                 log.info("worker.mint.skipped", platform=platform.value, reason=reason)
+                # A skip is an outcome an operator has to be able to see. A
+                # pool that will not refill because every proxy is down looks
+                # exactly like one nobody asked to refill, otherwise.
+                await mint_log.finished(platform, ok=False, reason=reason)
                 return FillResult(platform=platform, reason=reason)
 
             proxy_url = None
@@ -284,6 +289,7 @@ class PoolFiller:
                 if proxy_url is None:
                     # Minting on the direct egress instead would bind the
                     # identity to an exit it will never use again.
+                    await mint_log.finished(platform, ok=False, reason="proxy_undecryptable")
                     return FillResult(platform=platform, reason="proxy_undecryptable")
                 geo_hint = {
                     k: v for k, v in (("country", proxy.country), ("timezone", proxy.timezone)) if v
@@ -294,6 +300,9 @@ class PoolFiller:
                 platform=platform.value,
                 proxy_id=str(proxy.id) if proxy is not None else None,
             )
+            # Given the lock's lifetime, so a worker killed mid-mint leaves a
+            # stale "minting..." for seconds rather than until someone notices.
+            await mint_log.started(platform, ttl=self._options.lock_ttl_seconds)
             try:
                 result = await self._rpc.mint(platform, proxy_url=proxy_url, geo_hint=geo_hint)
                 identity_id = await self._pool.add(
@@ -305,11 +314,13 @@ class PoolFiller:
                     proxy_id=proxy.id if proxy is not None else None,
                 )
             except BrowserRpcUnavailable as exc:
-                return self._failed(platform, "rpc_unavailable", exc, shared_backoff=shared_backoff)
+                return await self._failed(
+                    platform, "rpc_unavailable", exc, shared_backoff=shared_backoff
+                )
             except ValueError as exc:
                 # A fingerprint with no inferable browser. Doc 02: refuse it
                 # rather than pair a default UA with an unknown TLS profile.
-                return self._failed(
+                return await self._failed(
                     platform, "unusable_fingerprint", exc, shared_backoff=shared_backoff
                 )
 
@@ -321,6 +332,8 @@ class PoolFiller:
             identity_id=str(identity_id),
             proxy_id=str(proxy.id) if proxy is not None else None,
         )
+        await mint_log.finished(platform, ok=True, reason="minted", identity_id=identity_id)
+        await mint_log.recovered()
         return FillResult(
             platform=platform,
             identity_id=identity_id,
@@ -329,9 +342,15 @@ class PoolFiller:
             proxy_id=proxy.id if proxy is not None else None,
         )
 
-    def _failed(
+    async def _failed(
         self, platform: Platform, reason: str, exc: Exception, *, shared_backoff: bool = True
     ) -> FillResult:
+        # Async because every exit from here leaves a breadcrumb the console
+        # reads. A failed mint is the case the status panel exists for: a
+        # success leaves an identity row behind and shows up in the pool count,
+        # while a failure used to leave nothing but a log line - so a pool that
+        # stubbornly would not refill looked exactly like one nobody had asked
+        # to refill.
         if not shared_backoff:
             # A hand-triggered mint that failed says nothing new about the
             # sweep's health, and letting it drive the shared counter means a
@@ -344,6 +363,7 @@ class PoolFiller:
                 manual=True,
                 error=str(exc)[:200],
             )
+            await mint_log.finished(platform, ok=False, reason=reason, error=str(exc))
             return FillResult(platform=platform, reason=reason)
 
         self._failures += 1
@@ -360,6 +380,8 @@ class PoolFiller:
             backoff_seconds=int(delay),
             error=str(exc)[:200],
         )
+        await mint_log.finished(platform, ok=False, reason=reason, error=str(exc))
+        await mint_log.backing_off(failures=self._failures, seconds=delay)
         return FillResult(platform=platform, reason=reason)
 
     # -- proxies -----------------------------------------------------------

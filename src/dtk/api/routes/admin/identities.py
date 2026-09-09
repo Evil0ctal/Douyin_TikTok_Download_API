@@ -43,7 +43,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import IdentitySource, IdentityState, Language, Platform
 from dtk.db.models import Identity, Proxy
 from dtk.i18n.catalog import t
-from dtk.identity import pool
+from dtk.identity import mint_log, pool
 from dtk.identity.importing import ImportReport, build_report
 from dtk.identity.pool import IdentityPool
 from dtk.scheduler.health import score
@@ -279,6 +279,13 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
     container there is nothing to mint with, the job is skipped entirely, and a
     low-water mark is a number with no effect - which is worth saying out loud
     rather than leaving an operator to wonder why the pool never refills.
+
+    `activity` is what the job has actually been doing: the mint in flight if
+    there is one, the last few attempts with their outcomes, and the backoff if
+    repeated failures have put the sweep to sleep. It comes from the worker via
+    Redis rather than from this database, because a failed mint writes no row -
+    which is exactly why a pool that stubbornly will not refill used to look
+    identical to one nobody asked to refill.
     """
     config = request.app.state.config
     min_size = int(config.get("pool.min_size"))
@@ -320,6 +327,7 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
             "max_fail_streak": max_fail_streak,
             "can_mint": can_mint,
             "platforms": platforms,
+            "activity": await mint_log.snapshot(),
         },
     )
 

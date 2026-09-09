@@ -146,3 +146,86 @@
   line-height: var(--leading-xs);
   color: var(--text-muted);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Mint activity                                                               */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * One more line on the refill card, present only when there is something to
+ * say. An instance that has never minted renders nothing here at all.
+ */
+.mintRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.minting {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.backoff {
+  color: var(--caution);
+  white-space: nowrap;
+}
+
+.pulse {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentcolor;
+  animation: mint-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mint-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion gets the dot without the beat. It still carries the meaning:
+   the row it is on says "minting", and the dot is the emphasis, not the word. */
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/*
+ * The last attempts as a shape to scan. Newest first, matching the order the
+ * worker wrote them and the order the console reads everything else in.
+ */
+.attempts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+}
+
+.attempt {
+  width: 7px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--success);
+  cursor: help;
+}
+
+.attempt[data-ok='false'] {
+  background: var(--danger);
+}

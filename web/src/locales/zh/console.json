@@ -347,6 +347,22 @@
       "target": "补到",
       "saved": "补充阈值已更新",
       "saveFailed": "补充阈值更新失败"
+    },
+    "mintLog": {
+      "inFlight": "正在锻造 {platform} 身份",
+      "idle": "空闲",
+      "backoff": "连续失败 {failures} 次，{when} 之前不再重试",
+      "ok": "锻造成功",
+      "allOk": "最近 {count} 次全部成功",
+      "someFailed": "最近 {count} 次中有 {failures} 次失败",
+      "reason": {
+        "minted": "锻造成功",
+        "no_free_proxy": "每个代理后面都已经有一个该平台的存活身份了；同一出口后面放两个正是身份池要避免的重组",
+        "proxy_not_found": "本次锻造指定的代理已经不存在了",
+        "proxy_undecryptable": "选中代理的 URL 解密失败；改用直连锻造会把这个身份绑死在一个它永远不会再用的出口上",
+        "rpc_unavailable": "浏览器容器没有响应",
+        "unusable_fingerprint": "浏览器返回的指纹里没有可用的版本号，与其配一个猜出来的 TLS 档案，不如直接拒绝这个身份"
+      }
     }
   },
   "proxy": {
