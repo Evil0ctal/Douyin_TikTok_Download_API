@@ -109,6 +109,36 @@ interface Bucket {
  * only change worth a highlight is a status that actually changed
  * (docs/design/12-design-system.md).
  */
+interface ArchiveTotals {
+  contents: number
+  authors: number
+  stored: number
+}
+
+interface StorageTotals {
+  bytes_total: number
+  max_bytes: number
+  in_flight: number
+  by_state?: Record<string, number>
+  downloader?: { volume_bytes?: number } | null
+}
+
+interface WatchlistTotals {
+  total: number
+  stats?: { failing?: number } | null
+}
+
+/** Quiet until the volume is nearly full, loud once it is. */
+function diskTone(storage: StorageTotals | undefined): 'warning' | 'danger' | undefined {
+  const ceiling = storage?.max_bytes ?? 0
+  if (!storage || ceiling <= 0) return undefined
+  const used = storage.downloader?.volume_bytes ?? storage.bytes_total ?? 0
+  const share = used / ceiling
+  if (share >= 0.9) return 'danger'
+  if (share >= 0.75) return 'warning'
+  return undefined
+}
+
 export default function Overview() {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
@@ -123,6 +153,33 @@ export default function Overview() {
     key: ['system', 'status'],
     path: paths.system.status,
     poll: POLL.fast,
+  })
+
+  /**
+   * What this instance has kept, as against what it has asked for.
+   *
+   * Every tile above is about requests - how many, how well, how fast - and
+   * none of them says what the thing is actually accumulating. "66 archived,
+   * 8 downloaded, 309 MB" is the answer to a different and more common
+   * question, and all three numbers were already served by endpoints this page
+   * did not call.
+   */
+  const archive = useApiQuery<ArchiveTotals>({
+    key: ['archive', 'stats'],
+    path: paths.archive.stats,
+    poll: POLL.slow,
+  })
+
+  const storage = useApiQuery<StorageTotals>({
+    key: ['downloads', 'storage'],
+    path: paths.downloads.storage,
+    poll: POLL.slow,
+  })
+
+  const watchlist = useApiQuery<WatchlistTotals>({
+    key: ['admin', 'watchlist', 'overview'],
+    path: paths.watchlist.list,
+    poll: POLL.slow,
   })
 
   const health = useApiQuery<EndpointHealthRow[]>({
@@ -394,6 +451,74 @@ export default function Overview() {
           loading={health.isLoading}
           tone={openCircuits.length > 0 ? 'danger' : undefined}
           footer={t('console:overview.endpointCount', { count: health.data?.length ?? 0 })}
+        />
+      </div>
+
+      {/* The second question this page should answer: not how the requests
+          went, but what they left behind. */}
+      <div className="u-grid-metrics">
+        <MetricTile
+          label={t('console:metric.archived')}
+          value={format.number(archive.data?.contents ?? 0)}
+          loading={archive.isLoading}
+          footer={
+            <span className="u-xs u-muted">
+              {t('console:metric.archivedHint', { count: archive.data?.authors ?? 0 })}
+            </span>
+          }
+        />
+        <MetricTile
+          label={t('console:metric.downloaded')}
+          value={format.number(archive.data?.stored ?? 0)}
+          loading={archive.isLoading}
+          footer={
+            <span className="u-xs u-muted">
+              {t('console:metric.downloadedHint', {
+                total: format.number(archive.data?.contents ?? 0),
+              })}
+            </span>
+          }
+        />
+        <MetricTile
+          label={t('console:metric.diskUsed')}
+          value={format.bytes(
+            storage.data?.downloader?.volume_bytes ?? storage.data?.bytes_total ?? 0,
+          )}
+          loading={storage.isLoading}
+          // Loud only near the ceiling, where new downloads start being refused.
+          tone={diskTone(storage.data)}
+          footer={
+            <span className="u-xs u-muted">
+              {t('console:metric.diskUsedHint', {
+                ceiling: format.bytes(storage.data?.max_bytes ?? 0),
+              })}
+            </span>
+          }
+        />
+        <MetricTile
+          label={t('console:metric.inFlight')}
+          value={format.number(storage.data?.in_flight ?? 0)}
+          loading={storage.isLoading}
+          footer={
+            <span className="u-xs u-muted">
+              {t('console:metric.inFlightHint', {
+                failed: (storage.data?.by_state?.failed ?? 0) + (storage.data?.by_state?.partial ?? 0),
+              })}
+            </span>
+          }
+        />
+        <MetricTile
+          label={t('console:metric.watching')}
+          value={format.number(watchlist.data?.total ?? 0)}
+          loading={watchlist.isLoading}
+          tone={(watchlist.data?.stats?.failing ?? 0) > 0 ? 'warning' : undefined}
+          footer={
+            <span className="u-xs u-muted">
+              {(watchlist.data?.stats?.failing ?? 0) > 0
+                ? t('console:metric.watchingFailing', { count: watchlist.data?.stats?.failing ?? 0 })
+                : t('console:metric.watchingHint')}
+            </span>
+          }
         />
       </div>
 

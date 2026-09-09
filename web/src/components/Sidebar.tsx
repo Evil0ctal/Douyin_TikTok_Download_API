@@ -27,6 +27,7 @@ import {
   UsersIcon,
   type IconProps,
 } from './Icons'
+import { Logo } from './Logo'
 import styles from './shell.module.css'
 
 const NAV_ICONS: Record<NavIconName, (props: IconProps) => ReactElement> = {
@@ -83,7 +84,7 @@ export function Sidebar({
       {!embedded ? (
         <div className={styles.brand}>
           <span className={styles.brandMark} aria-hidden="true">
-            d
+            <Logo size={24} />
           </span>
           <span className={styles.brandName}>{t('common:app.name')}</span>
         </div>

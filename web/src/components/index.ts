@@ -45,6 +45,7 @@ export type { FieldProps } from './Field'
 export * from './Icons'
 
 export { Input } from './Input'
+export { Logo } from './Logo'
 export type { InputProps } from './Input'
 
 export { LanguageSwitcher } from './LanguageSwitcher'

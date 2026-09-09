@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "dtk",
+    "name": "DTK",
     "console": "Console",
     "tagline": "Self-hosted Douyin and TikTok data API",
-    "documentTitle": "{page} · dtk console"
+    "documentTitle": "{page} · DTK console"
   },
   "action": {
     "save": "Save",

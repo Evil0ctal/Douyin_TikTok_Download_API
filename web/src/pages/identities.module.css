@@ -229,3 +229,52 @@
 .attempt[data-ok='false'] {
   background: var(--danger);
 }
+
+/* -------------------------------------------------------------------------- */
+/* One identity's history                                                      */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Per endpoint, because that is the question. One endpoint refusing while the
+ * others answer is a signature problem or a sign-protected path; every endpoint
+ * refusing at once is the identity. Those want opposite responses, and a flat
+ * list of thirty requests does not tell them apart.
+ */
+.endpointList,
+.requestList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.endpointRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.requestRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.endpointRow:last-child,
+.requestRow:last-child {
+  border-bottom: 0;
+}
+
+.riskCount {
+  font-size: var(--text-xs);
+  color: var(--danger);
+  white-space: nowrap;
+}

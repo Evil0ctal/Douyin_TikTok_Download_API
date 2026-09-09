@@ -33,16 +33,20 @@
   min-width: 0;
 }
 
+/*
+ * The mark gets the whole box rather than sitting inside a filled tile.
+ *
+ * It was a 22px accent square with a 15px glyph in it, and at that size the
+ * braces and the arrow ran together into a smudge. A line drawing needs its
+ * strokes far enough apart to stay separate, and the cheapest way to buy that
+ * is to stop spending a third of the box on padding.
+ */
 .brandMark {
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-text);
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
-  font-weight: var(--weight-semibold);
-  font-size: var(--text-xs);
+  color: var(--accent);
   flex: none;
 }
 

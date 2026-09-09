@@ -9,8 +9,8 @@
  *     identifier in front of a user.
  */
 
-import { readFileSync, existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { IntlMessageFormat } from 'intl-messageformat'
@@ -157,6 +157,54 @@ if (existsSync(errorsPy)) {
   }
 }
 
+// 5: every literal key a t() call names actually exists.
+//
+// Parity between en and zh says the two files agree; it says nothing about
+// whether the console asks for keys either of them has. A typo ships silently
+// and renders as the raw key - "identity.column.streak" in the middle of a
+// drawer - which no test and no type checker sees. Caught exactly that way
+// once, which is why this exists.
+//
+// Literal keys only. A key built from a variable - t(`x.${kind}`) - cannot be
+// resolved here, and guessing at the possible values would produce false
+// failures on the one pattern the console uses most.
+const src = resolve(here, '..', 'src')
+const CALL = /\bt\(\s*'([a-z][\w.]*:)?([\w.]+)'/g
+const DEFAULTED = /defaultValue/
+
+function* sources(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name !== 'locales') yield* sources(full)
+    } else if (/\.tsx?$/.test(entry.name)) {
+      yield full
+    }
+  }
+}
+
+for (const file of sources(src)) {
+  const text = readFileSync(file, 'utf8')
+  for (const [whole, prefix, key] of text.matchAll(CALL)) {
+    const namespace = prefix ? prefix.slice(0, -1) : null
+    // No namespace means whichever the component declared; the console mixes
+    // several, so check the key against all of them and only complain when no
+    // namespace has it.
+    const candidates = namespace ? [namespace] : NAMESPACES
+    if (namespace && !NAMESPACES.includes(namespace)) continue
+    const found = candidates.some((ns) => catalogs.get(`en:${ns}`)?.has(key))
+    if (found) continue
+    // A call site that supplies its own fallback is saying the key may be
+    // absent, which is how the endpoint and tag labels are written.
+    const at = text.indexOf(whole)
+    if (DEFAULTED.test(text.slice(at, at + 400))) continue
+    problems.push(
+      `${relative(src, file)} asks for "${namespace ? `${namespace}:` : ''}${key}", ` +
+        'which no catalogue has',
+    )
+  }
+}
+
 if (problems.length > 0) {
   console.error('i18n check failed:')
   for (const problem of problems) console.error(`  - ${problem}`)
@@ -165,5 +213,5 @@ if (problems.length > 0) {
 
 console.log(
   'i18n check passed: en/zh key sets match, ICU parses, all error codes covered, ' +
-    'language names are endonyms',
+    'language names are endonyms, every t() key resolves',
 )

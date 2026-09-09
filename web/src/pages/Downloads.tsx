@@ -98,6 +98,8 @@ interface CommentPage {
 
 interface AuthorPage {
   items: Array<{ content_id: string }>
+  cursor: string | null
+  has_more: boolean
 }
 
 interface ParsedLink {
@@ -110,8 +112,30 @@ interface ParsedLink {
 /** How deep a comment save goes. Each page is a real request through the pool. */
 const COMMENT_PAGES = 5
 const COMMENT_PAGE_SIZE = 50
-/** One page of an author's feed. Dozens of downloads is already a lot to queue. */
 const AUTHOR_PAGE_SIZE = 20
+/**
+ * How many of an author's posts to take, offered as a menu rather than a
+ * number field.
+ *
+ * The cost of this control is the thing worth showing: every post is a
+ * download, and every page of the feed is a read through the identity pool. A
+ * free-text depth invites "99999" typed without a thought; a list of round
+ * numbers makes the choice one of a few known sizes, and "everything" is
+ * deliberately the last item rather than the default.
+ */
+const AUTHOR_DEPTHS = [20, 50, 100, 200, 0] as const
+/** Enough pages to reach the deepest choice, and a stop for the "all" case. */
+const AUTHOR_MAX_PAGES = 40
+
+/**
+ * A bare author id, as both platforms spell it.
+ *
+ * Douyin's `sec_user_id` and TikTok's `secUid` are the same base64-ish shape
+ * and both start `MS4wLjABAAAA`. Matching the prefix rather than the whole
+ * string keeps this a recognition test and not a validator - the platform
+ * decides whether the id exists, and it says so plainly when asked.
+ */
+const SEC_UID = /^MS4wLjABAAAA[\w-]+$/
 
 /** Hand the browser a file. The archive export does the same thing. */
 function saveJson(data: unknown, filename: string): void {
@@ -209,6 +233,8 @@ export default function Downloads() {
   //: How many duplicates a dry run found, while the confirmation is up.
   const [deduping, setDeduping] = useState<number | null>(null)
   const [mode, setMode] = useState<DownloadMode>('post')
+  //: 0 means everything the feed will give up, bounded by AUTHOR_MAX_PAGES.
+  const [depth, setDepth] = useState<number>(AUTHOR_DEPTHS[0])
   //: Shared by every mode that can act on more than one thing, which is what
   //: makes re-running a feed cheap: the author added three posts and the other
   //: forty are already here.
@@ -338,12 +364,31 @@ export default function Downloads() {
   const saveAuthor = useApiMutation<{ queued: number; posts: number; skipped: number }, void>(
     async () => {
       const { platform: which, id } = await resolveTarget({ author: true })
-      const feed: AuthorPage = await apiGet(`${API_V1}/${which}/user/posts`, {
-        params: { sec_user_id: id, count: String(AUTHOR_PAGE_SIZE) },
-      })
+      const wanted = depth === 0 ? Number.POSITIVE_INFINITY : depth
+
+      // Walked page by page, because one page is whatever the platform felt
+      // like returning - 23 here, not the 20 that was asked for - and "the
+      // most recent 100" has to mean 100 rather than "however many five pages
+      // happened to be".
+      const posts: Array<{ content_id: string }> = []
+      let cursor: string | null = null
+      for (let page = 0; page < AUTHOR_MAX_PAGES && posts.length < wanted; page += 1) {
+        const feed: AuthorPage = await apiGet(`${API_V1}/${which}/user/posts`, {
+          params: {
+            sec_user_id: id,
+            count: String(AUTHOR_PAGE_SIZE),
+            ...(cursor ? { cursor } : {}),
+          },
+        })
+        posts.push(...feed.items)
+        if (!feed.has_more || !feed.cursor) break
+        cursor = feed.cursor
+      }
+      const taking = posts.slice(0, wanted === Number.POSITIVE_INFINITY ? posts.length : wanted)
+
       let queued = 0
       let skipped = 0
-      for (const post of feed.items) {
+      for (const post of taking) {
         try {
           // The server decides what "already downloaded" means, so this and a
           // single post's button cannot drift apart about it - and it also
@@ -361,7 +406,7 @@ export default function Downloads() {
           // counts reported at the end are what actually happened.
         }
       }
-      return { queued, posts: feed.items.length, skipped }
+      return { queued, posts: taking.length, skipped }
     },
     {
       onSuccess: ({ queued, posts, skipped }) => {
@@ -391,6 +436,11 @@ export default function Downloads() {
   ): Promise<{ platform: Platform; id: string }> => {
     const text = target.trim()
     if (/^\d+$/.test(text) && !opts.author) return { platform, id: text }
+    // A bare author id, which is what the archive and the playground hand you
+    // and what a scrape of somebody else's list contains. Douyin's is
+    // `MS4wLjABAAAA…` and TikTok's is the same shape, so the prefix is the
+    // test; anything else goes to the parser as a link.
+    if (opts.author && SEC_UID.test(text)) return { platform, id: text }
 
     const kind: ParsedLink = await apiGet(paths.tools.parseUrl, { params: { url: text } })
     if (!kind.allowed || !kind.platform || !kind.resource_id) {
@@ -720,9 +770,31 @@ export default function Downloads() {
           </Button>
         </form>
 
-        {/* One option, shared by every mode it means anything for. Comments are
-            saved to your browser rather than to the volume, so there is nothing
-            here for it to skip. */}
+        {/* How far to go, and what to skip. Both belong under the form rather
+            than in it: they are settings for the run, not another thing to
+            paste. */}
+        {mode === 'author' ? (
+          <div className={styles.startOptions}>
+            <Select
+              label={t('downloads.depth.label')}
+              description={t('downloads.depth.hint')}
+              value={String(depth)}
+              onChange={(event) => {
+                setDepth(Number(event.target.value))
+              }}
+              fieldClassName={styles.depthField}
+            >
+              {AUTHOR_DEPTHS.map((value) => (
+                <option key={value} value={String(value)}>
+                  {value === 0
+                    ? t('downloads.depth.all')
+                    : t('downloads.depth.count', { count: value })}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
+
         {active.skippable ? (
           <div className={styles.startOptions}>
             <Checkbox

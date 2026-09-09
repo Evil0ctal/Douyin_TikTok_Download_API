@@ -196,3 +196,8 @@
 .startOptions {
   margin-top: var(--space-3);
 }
+
+/* The depth menu sizes to its longest option rather than to the card. */
+.depthField {
+  max-width: 260px;
+}

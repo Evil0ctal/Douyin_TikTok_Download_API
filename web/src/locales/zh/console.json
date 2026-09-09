@@ -156,7 +156,18 @@
     "requests": "请求量",
     "activeIdentities": "可用身份",
     "openCircuits": "熔断接口",
-    "avgDuration": "平均耗时"
+    "avgDuration": "平均耗时",
+    "archived": "已归档作品",
+    "archivedHint": "来自 {count} 位作者",
+    "downloaded": "已下载媒体",
+    "downloadedHint": "共归档 {total} 个",
+    "diskUsed": "已占用磁盘",
+    "diskUsedHint": "上限 {ceiling}",
+    "inFlight": "正在下载",
+    "inFlightHint": "{failed, plural, =0 {无失败或部分完成} other {# 个失败或部分完成}}",
+    "watching": "关注中",
+    "watchingHint": "按计划定期重新收集",
+    "watchingFailing": "{count} 个正在失败"
   },
   "login": {
     "subtitle": "使用初始化时创建的管理员账号登录。",
@@ -376,6 +387,19 @@
       "done": "{count} 个身份已重新参与轮换",
       "dialogBody": "将清除冷却时间和连续失败计数，并把身份标记为可用。适用于失败并非它自己造成的情况——比如连续查了一批错误的 ID，或者代理已经修好了。如果会话本身已经废了，平台会在几次请求内再次拒绝它，它会重新进入冷却。",
       "dialogTitle": "确定让 {count} 个身份重新参与轮换？"
+    },
+    "history": {
+      "title": "身份历史",
+      "byEndpoint": "按接口统计",
+      "recent": "最近的请求",
+      "calls": "{count} 次调用",
+      "refused": "{count} 次被拒",
+      "clean": "无拒绝",
+      "empty": "最近一周没有请求记录。",
+      "oneRefused": "拒绝这个身份的是 {endpoint}。",
+      "oneRefusedHint": "其他接口仍然正常响应它，说明会话还活着。只有单个接口拒绝，通常是本程序在那条路径上的签名有问题，或者那是个需要 visitor id 的签名保护接口——不是 Cookie 废了。",
+      "everythingRefused": "这个身份碰过的每个接口都拒绝了它。",
+      "everythingRefusedHint": "问题在身份本身而不在某条路径：会话已经用尽，或者被平台标记了。通常的做法是退休它，让身份池锻造一个新的。"
     }
   },
   "proxy": {
@@ -1462,7 +1486,7 @@
       "unrecognised": "这不是本实例能识别的链接",
       "expected": {
         "video": "这是主页链接。请粘贴作品链接，或者改用“保存该作者的作品”。",
-        "user": "这是作品链接。请改为粘贴作者的主页链接。"
+        "user": "这是作品链接。请改为粘贴作者的主页链接或 sec_user_id。"
       }
     },
     "mode": {
@@ -1485,15 +1509,21 @@
       "author": {
         "label": "作者的作品",
         "description": "把某个作者最近一页的作品全部排队下载。粘贴他的主页链接即可，平台信息从链接里来。",
-        "field": "主页链接",
-        "hint": "读取该作者一页 feed——最多 20 个作品——并为每个排队下载。这是本页唯一一次点击就可能消耗身份池几十次的控件。",
-        "placeholder": "https://www.douyin.com/user/MS4wLjABAAAA…",
+        "field": "主页链接或作者 ID",
+        "hint": "可以是主页链接，也可以是资料库和调试台里给你的那串 sec_user_id。链接自带平台信息；纯 ID 需要用左边的菜单指定。",
+        "placeholder": "https://www.douyin.com/user/MS4wLjABAAAA… 或 MS4wLjABAAAA…",
         "action": "排队下载"
       }
     },
     "skipExisting": {
       "label": "跳过已下载的内容",
       "hint": "直接返回本实例已有的那一份，而不是重新抓取。重跑一次 feed 时想要的正是这个：作者新发了三个作品，另外四十个早就在本地了。已被淘汰的副本不算——那里已经没有字节可跳过了。"
+    },
+    "depth": {
+      "label": "下载多少个",
+      "hint": "从最新的开始，自动翻页直到取够这么多。每个作品都是一次下载，每翻一页都是一次走身份池的读取。",
+      "count": "最新的 {count} 个",
+      "all": "全部（feed 给多少取多少）"
     }
   },
   "library": {

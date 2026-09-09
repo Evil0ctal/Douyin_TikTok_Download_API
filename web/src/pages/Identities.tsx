@@ -14,6 +14,8 @@ import {
   IdCardIcon,
   Input,
   LockIcon,
+  Banner,
+  Drawer,
   MaskedSecret,
   Modal,
   PageHeader,
@@ -531,6 +533,7 @@ export default function Identities() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [probes, setProbes] = useState<Record<string, ProbeState>>({})
   const [probeDetail, setProbeDetail] = useState<{ identity: Identity; state: ProbeState } | null>(null)
+  const [inspecting, setInspecting] = useState<Identity | null>(null)
   const [mintOpen, setMintOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [retiring, setRetiring] = useState<Identity[] | null>(null)
@@ -955,10 +958,10 @@ export default function Identities() {
             ].join('|')
           }
           caption={t('console:page.identities.title')}
-          onRowClick={(row) => {
-            const probe = probes[row.id]
-            if (probe?.result || probe?.error) setProbeDetail({ identity: row, state: probe })
-          }}
+          // Opens the history. It used to open the probe dialog and only when
+          // a probe had already been run, so clicking a row usually did
+          // nothing at all.
+          onRowClick={setInspecting}
           emptyTitle={
             filteredToNothing
               ? t('console:identity.empty.filteredTitle')
@@ -1125,6 +1128,14 @@ export default function Identities() {
         }}
         onConfirm={() => {
           retire.mutate(retiring ?? [])
+        }}
+      />
+
+      <IdentityDrawer
+        identity={inspecting}
+        probe={inspecting ? probes[inspecting.id] : undefined}
+        onClose={() => {
+          setInspecting(null)
         }}
       />
 
@@ -1721,6 +1732,223 @@ function Fact({ label, value, mono }: { label: ReactNode; value: ReactNode; mono
 /* -------------------------------------------------------------------------- */
 /* Probe result                                                                */
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* One identity's history                                                      */
+/* -------------------------------------------------------------------------- */
+
+interface RequestRow {
+  ts: string
+  endpoint: string
+  outcome: string
+  http_status: number | null
+  duration_ms: number | null
+  error_code: string | null
+  request_id: string
+}
+
+/** The logs endpoint answers a bare list or an envelope, depending on the page. */
+function asRows<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload as T[]
+  if (payload && typeof payload === 'object') {
+    const items = (payload as { items?: unknown }).items
+    if (Array.isArray(items)) return items as T[]
+  }
+  return []
+}
+
+/** A week. Far enough back to explain a cooldown, near enough to stay small. */
+const HISTORY_MINUTES = 7 * 24 * 60
+const HISTORY_LIMIT = 200
+
+/**
+ * What this identity has actually been doing.
+ *
+ * The board says an identity is degraded and gives a failure streak, and until
+ * now that was the end of the story - the next question, "degraded by what",
+ * had its answer in the Logs page behind a filter nobody knew to set. The
+ * request log carries an identity_id on every row, so it can be asked directly.
+ *
+ * The per-endpoint breakdown is the point rather than the list. One endpoint
+ * refusing while the others answer is a signature problem or a sign-protected
+ * path; every endpoint refusing at once is the identity itself. Those want
+ * opposite responses, and a flat list of thirty rows does not tell them apart.
+ */
+function IdentityDrawer({
+  identity,
+  probe,
+  onClose,
+}: {
+  identity: Identity | null
+  probe: ProbeState | undefined
+  onClose: () => void
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const format = useFormatters()
+
+  const history = useApiQuery<RequestRow[]>({
+    key: ['admin', 'logs', 'identity', identity?.id ?? 'none'],
+    path: paths.logs.requests,
+    params: identity
+      ? {
+          identity_id: identity.id,
+          minutes: String(HISTORY_MINUTES),
+          limit: String(HISTORY_LIMIT),
+        }
+      : undefined,
+    enabled: Boolean(identity),
+  })
+
+  const rows = useMemo(() => asRows<RequestRow>(history.data), [history.data])
+
+  /** Per endpoint: how many, how many refused, and what the platform said. */
+  const byEndpoint = useMemo(() => {
+    const buckets = new Map<
+      string,
+      { endpoint: string; total: number; risk: number; failed: number; reasons: Set<string> }
+    >()
+    for (const row of rows) {
+      const bucket = buckets.get(row.endpoint) ?? {
+        endpoint: row.endpoint,
+        total: 0,
+        risk: 0,
+        failed: 0,
+        reasons: new Set<string>(),
+      }
+      bucket.total += 1
+      if (row.outcome === 'risk_control') bucket.risk += 1
+      if (row.outcome === 'network_error') bucket.failed += 1
+      if (row.error_code) bucket.reasons.add(row.error_code)
+      buckets.set(row.endpoint, bucket)
+    }
+    // Whatever refused most, first. That is the row somebody opened this for.
+    return [...buckets.values()].sort((a, b) => b.risk - a.risk || b.total - a.total)
+  }, [rows])
+
+  const risky = byEndpoint.filter((entry) => entry.risk > 0)
+
+  return (
+    <Drawer
+      open={identity !== null}
+      onClose={onClose}
+      title={t('console:identity.history.title')}
+      description={identity?.id}
+    >
+      {identity ? (
+        <div className="u-stack">
+          <div className="u-row u-wrap">
+            <StatusBadge kind="identity" value={identity.state} flash={false} />
+            <Fact
+              label={t('console:field.consecutiveFails')}
+              value={identity.consecutive_fails}
+              mono
+            />
+            <Fact
+              label={t('console:field.lastUsedAt')}
+              value={
+                identity.last_used_at ? format.relative(identity.last_used_at) : MISSING
+              }
+            />
+            {identity.cooldown_until ? (
+              <Fact
+                label={t('console:identity.column.cooldown')}
+                value={format.relative(identity.cooldown_until)}
+              />
+            ) : null}
+          </div>
+
+          {/* The answer to "what caused the risk control", stated rather than
+              left to be inferred from a list. */}
+          {risky.length > 0 ? (
+            <Banner tone="caution" icon={<AlertIcon size={14} />}>
+              <div className="u-stack-sm">
+                <span>
+                  {risky.length === byEndpoint.length && byEndpoint.length > 1
+                    ? t('console:identity.history.everythingRefused')
+                    : t('console:identity.history.oneRefused', {
+                        endpoint: risky[0]?.endpoint ?? '',
+                      })}
+                </span>
+                <span className="u-xs u-muted">
+                  {risky.length === byEndpoint.length && byEndpoint.length > 1
+                    ? t('console:identity.history.everythingRefusedHint')
+                    : t('console:identity.history.oneRefusedHint')}
+                </span>
+              </div>
+            </Banner>
+          ) : null}
+
+          <Card title={t('console:identity.history.byEndpoint')} flush>
+            {history.isLoading ? (
+              <div className="u-stack-sm" style={{ padding: 'var(--space-4)' }}>
+                <Skeleton height={18} />
+                <Skeleton height={18} />
+              </div>
+            ) : byEndpoint.length === 0 ? (
+              <p className="u-muted" style={{ margin: 0, padding: 'var(--space-4)' }}>
+                {t('console:identity.history.empty')}
+              </p>
+            ) : (
+              <ul className={styles.endpointList}>
+                {byEndpoint.map((entry) => (
+                  <li key={entry.endpoint} className={styles.endpointRow}>
+                    <span className="u-mono u-truncate" title={entry.endpoint}>
+                      {entry.endpoint}
+                    </span>
+                    <span className="u-xs u-muted">
+                      {t('console:identity.history.calls', { count: entry.total })}
+                    </span>
+                    {entry.risk > 0 ? (
+                      <span className={styles.riskCount}>
+                        {t('console:identity.history.refused', { count: entry.risk })}
+                      </span>
+                    ) : (
+                      <span className="u-xs u-muted">{t('console:identity.history.clean')}</span>
+                    )}
+                    <span className="u-xs u-muted u-truncate">
+                      {[...entry.reasons].join(', ')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title={t('console:identity.history.recent')} flush>
+            <ul className={styles.requestList}>
+              {rows.slice(0, 25).map((row) => (
+                <li key={row.request_id} className={styles.requestRow}>
+                  <StatusBadge kind="outcome" value={row.outcome} size="sm" flash={false} />
+                  <span className="u-mono u-xs u-truncate" title={row.endpoint}>
+                    {row.endpoint}
+                  </span>
+                  <span className="u-xs u-muted u-mono">{row.http_status ?? MISSING}</span>
+                  <span className="u-xs u-muted u-mono">
+                    {row.duration_ms === null ? MISSING : format.latency(row.duration_ms)}
+                  </span>
+                  <span className="u-xs u-muted">{format.relative(row.ts)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          {probe?.result ? (
+            <Card title={t('console:identity.test.title')}>
+              <div className="u-row u-wrap">
+                <StatusBadge
+                  kind="health"
+                  value={probe.result.ok ? 'healthy' : 'unhealthy'}
+                  flash={false}
+                />
+                <Fact label={t('console:identity.test.rule')} value={probe.result.rule ?? MISSING} mono />
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
+    </Drawer>
+  )
+}
 
 interface ProbeDialogProps {
   open: boolean

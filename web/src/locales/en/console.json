@@ -156,7 +156,18 @@
     "requests": "Requests",
     "activeIdentities": "Active identities",
     "openCircuits": "Open circuits",
-    "avgDuration": "Average duration"
+    "avgDuration": "Average duration",
+    "archived": "Archived posts",
+    "archivedHint": "{count, plural, one {from # author} other {from # authors}}",
+    "downloaded": "Media downloaded",
+    "downloadedHint": "of {total} archived",
+    "diskUsed": "Disk used",
+    "diskUsedHint": "of {ceiling}",
+    "inFlight": "Downloading now",
+    "inFlightHint": "{failed, plural, =0 {none failed or partial} one {# failed or partial} other {# failed or partial}}",
+    "watching": "On the watchlist",
+    "watchingHint": "re-collected on a timer",
+    "watchingFailing": "{count, plural, one {# failing} other {# failing}}"
   },
   "login": {
     "subtitle": "Sign in with the administrator account created during setup.",
@@ -376,6 +387,19 @@
       "done": "{count, plural, one {# identity is back in rotation} other {# identities are back in rotation}}",
       "dialogTitle": "{count, plural, one {Put # identity back into rotation?} other {Put # identities back into rotation?}}",
       "dialogBody": "The cooldown and the consecutive failure count are cleared and the identity is marked active. Do this when the failures were not its fault - a run of bad ids, or a proxy that has since been fixed. If the session itself is burnt, the platform will refuse it again within a few requests and it will cool straight back down."
+    },
+    "history": {
+      "title": "Identity history",
+      "byEndpoint": "By endpoint",
+      "recent": "Recent requests",
+      "calls": "{count, plural, one {# call} other {# calls}}",
+      "refused": "{count, plural, one {# refused} other {# refused}}",
+      "clean": "none refused",
+      "empty": "No requests in the last week.",
+      "oneRefused": "{endpoint} is the endpoint refusing this identity.",
+      "oneRefusedHint": "The others still answer it, so the session is alive. One endpoint refusing on its own is usually a signature this build gets wrong on that path, or a sign-protected endpoint the identity has no visitor id for - not a burnt cookie.",
+      "everythingRefused": "Every endpoint this identity touched refused it.",
+      "everythingRefusedHint": "That is the identity rather than any one path: the session is spent, or the platform has flagged it. Retiring it and letting the pool mint a replacement is the usual answer."
     }
   },
   "proxy": {
@@ -1462,7 +1486,7 @@
       "unrecognised": "That is not a link this instance recognises",
       "expected": {
         "video": "That is a profile link. Paste a post link, or use \"Save this author's posts\".",
-        "user": "That is a post link. Paste the author's profile link instead."
+        "user": "That is a post link. Paste the author's profile link or their sec_user_id."
       }
     },
     "mode": {
@@ -1485,8 +1509,8 @@
       "author": {
         "label": "An author's posts",
         "description": "Queue a download for everything on an author's most recent page. Paste their profile link; the platform comes from the link.",
-        "field": "Profile link",
-        "hint": "Reads one page of the author's feed - up to 20 posts - and queues a download for each. This is the control here that can spend the identity pool dozens of times from one click.",
+        "field": "Profile link or author id",
+        "hint": "A profile link, or the bare sec_user_id the archive and the playground give you. The platform comes from a link; a bare id needs the menu.",
         "placeholder": "https://www.douyin.com/user/MS4wLjABAAAA…",
         "action": "Queue their posts"
       }
@@ -1494,6 +1518,12 @@
     "skipExisting": {
       "label": "Skip what is already downloaded",
       "hint": "Hands back the copy this instance already has instead of fetching the post again. What re-running a feed wants: the author added three posts and the other forty are here already. An evicted copy does not count - there are no bytes left to skip."
+    },
+    "depth": {
+      "label": "How many posts",
+      "hint": "Newest first, paging the feed until it has this many. Every post is a download and every page is a read through the identity pool.",
+      "count": "The newest {count}",
+      "all": "Everything the feed will give up"
     }
   },
   "library": {
