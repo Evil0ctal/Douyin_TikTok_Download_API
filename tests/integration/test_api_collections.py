@@ -447,3 +447,104 @@ async def test_the_collections_path_is_not_read_as_a_platform(client: Any) -> No
 
     assert response.status_code == 200
     assert envelope(response)["data"]["items"][0]["id"] == collection_id
+
+
+# --------------------------------------------------------------------------
+# What is on the disk, as against what was seen
+# --------------------------------------------------------------------------
+
+
+async def store(content_id: str, *, evicted: bool = False, state: str = "done") -> None:
+    """Record that this instance downloaded a post's media."""
+    async with session_scope() as session:
+        session.add(
+            MediaDownload(
+                id=uuid.uuid4(),
+                platform="douyin",
+                content_id=content_id,
+                author_uid=AUTHOR_UID,
+                state=state,
+                directory=f"douyin/{AUTHOR_UID}/{content_id}",
+                bytes_total=0 if evicted else 2048,
+                file_count=1,
+                files_removed_at=datetime.now(UTC) if evicted else None,
+            )
+        )
+
+
+async def test_stored_true_returns_only_what_is_on_the_disk(client: Any) -> None:
+    await signed_in(client)
+    await archive_posts("7001", "7002", "7003")
+    await store("7002")
+
+    page = envelope(await client.get("/api/v1/archive", params={"stored": "true"}))["data"]
+
+    assert [row["content_id"] for row in page["items"]] == ["7002"]
+
+
+async def test_stored_false_returns_the_rest(client: Any) -> None:
+    await signed_in(client)
+    await archive_posts("7001", "7002")
+    await store("7002")
+
+    page = envelope(await client.get("/api/v1/archive", params={"stored": "false"}))["data"]
+
+    assert [row["content_id"] for row in page["items"]] == ["7001"]
+
+
+async def test_an_evicted_download_is_not_stored(client: Any) -> None:
+    """Eviction keeps the row on purpose. There are no bytes left to play."""
+    await signed_in(client)
+    await archive_posts("7001")
+    await store("7001", evicted=True)
+
+    page = envelope(await client.get("/api/v1/archive", params={"stored": "true"}))["data"]
+
+    assert page["items"] == []
+
+
+async def test_a_download_that_never_finished_is_not_stored(client: Any) -> None:
+    await signed_in(client)
+    await archive_posts("7001")
+    await store("7001", state="failed")
+
+    page = envelope(await client.get("/api/v1/archive", params={"stored": "true"}))["data"]
+
+    assert page["items"] == []
+
+
+async def test_omitting_the_filter_returns_both(client: Any) -> None:
+    await signed_in(client)
+    await archive_posts("7001", "7002")
+    await store("7002")
+
+    page = envelope(await client.get("/api/v1/archive"))["data"]
+
+    assert len(page["items"]) == 2
+
+
+async def test_the_stats_separate_what_was_seen_from_what_was_kept(client: Any) -> None:
+    """ "46 posts" used to read as 46 videos on the disk."""
+    await signed_in(client)
+    await archive_posts("7001", "7002", "7003")
+    await store("7002")
+
+    data = envelope(await client.get("/api/v1/archive/stats"))["data"]
+
+    assert data["contents"] == 3
+    assert data["stored"] == 1
+    assert data["by_platform"]["douyin"] == 3
+    assert data["stored_by_platform"]["douyin"] == 1
+
+
+async def test_the_stored_count_and_the_stored_filter_agree(client: Any) -> None:
+    """One definition of "downloaded", so the tile and the list cannot differ."""
+    await signed_in(client)
+    await archive_posts("7001", "7002", "7003")
+    await store("7001")
+    await store("7002", evicted=True)
+
+    data = envelope(await client.get("/api/v1/archive/stats"))["data"]
+    page = envelope(await client.get("/api/v1/archive", params={"stored": "true"}))["data"]
+
+    assert data["stored"] == len(page["items"]) == 1

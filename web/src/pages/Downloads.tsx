@@ -396,7 +396,18 @@ export default function Downloads() {
       ) : null}
 
       <Card title={t('downloads.start.title')} description={t('downloads.start.description')}>
-        <div className="u-row">
+        {/* A grid, not a row. `Field` stacks a label over its control and a
+            description under it, so three of them in a flex row left the button
+            floating level with the labels while the input's help text pushed
+            everything else down. The columns line the controls up and let the
+            help text sit under the field it describes. */}
+        <form
+          className={styles.startForm}
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (contentId.trim()) start.mutate()
+          }}
+        >
           <Field id="download-platform" label={t('downloads.field.platform')}>
             <Select
               value={platform}
@@ -421,21 +432,21 @@ export default function Downloads() {
               onChange={(event) => {
                 setContentId(event.target.value)
               }}
+              mono
+              inputMode="numeric"
               placeholder="7408915107113127220"
             />
           </Field>
           <Button
+            type="submit"
             variant="primary"
             loading={start.isPending}
             disabled={!contentId.trim()}
-            onClick={() => {
-              start.mutate()
-            }}
           >
             {t('downloads.start.action')}
           </Button>
-        </div>
-        <p className="u-xs u-muted">{t('downloads.start.sinkNote')}</p>
+        </form>
+        <p className={styles.startNote}>{t('downloads.start.sinkNote')}</p>
       </Card>
 
       <DataTable

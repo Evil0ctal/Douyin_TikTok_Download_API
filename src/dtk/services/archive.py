@@ -42,7 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.logging import get_logger
 from dtk.db.base import affected
-from dtk.db.models import ArchivedAuthor, ArchivedContent, CollectionItem
+from dtk.db.models import ArchivedAuthor, ArchivedContent, CollectionItem, MediaDownload
 from dtk.models import Author, Content, Page
 
 log = get_logger(__name__)
@@ -360,6 +360,10 @@ class ArchiveFilter:
     #: Only posts in this collection. A hand-made set, so it is the one filter
     #: here that is not a property of the post.
     collection_id: uuid.UUID | None = None
+    #: True for posts whose media is on this instance's disk right now, False
+    #: for the rest, None for both. Like the collection filter this is a fact
+    #: about what was kept rather than about the post.
+    stored: bool | None = None
 
 
 def _cursor_encode(row: ArchivedContent) -> str:
@@ -459,9 +463,32 @@ def _apply(statement: Any, spec: ArchiveFilter) -> Any:
             )
             .exists()
         )
+    if spec.stored is not None:
+        statement = statement.where(_stored_clause() if spec.stored else ~_stored_clause())
     if spec.query and spec.query.strip():
         statement = statement.where(_search_clause(spec.query.strip()))
     return statement
+
+
+def _stored_clause() -> Any:
+    """Whether this instance is holding the post's media right now.
+
+    The same three conditions :func:`dtk.services.downloads.stored_for` uses, so
+    the filter and the badge on the card cannot disagree about what "downloaded"
+    means. `files_removed_at` is the one that matters: eviction keeps the row on
+    purpose, and counting an evicted download as stored would offer a play
+    button for bytes that are gone.
+    """
+    return (
+        select(literal(1))
+        .where(
+            MediaDownload.platform == ArchivedContent.platform,
+            MediaDownload.content_id == ArchivedContent.content_id,
+            MediaDownload.state == "done",
+            MediaDownload.files_removed_at.is_(None),
+        )
+        .exists()
+    )
 
 
 async def search(
@@ -622,9 +649,25 @@ async def stats(session: AsyncSession) -> dict[str, Any]:
             )
         ).all()
     }
+    # How much of the above this instance is actually holding. The archive is
+    # what was seen and a download is what was kept, and the console showed only
+    # the first - so "46 douyin posts" read as 46 videos on the disk, which is
+    # the number an operator watching a volume fill up actually wants.
+    stored_by_platform = {
+        str(platform): int(total)
+        for platform, total in (
+            await session.execute(
+                select(ArchivedContent.platform, func.count())
+                .where(_stored_clause())
+                .group_by(ArchivedContent.platform)
+            )
+        ).all()
+    }
     return {
         "contents": contents,
         "authors": authors,
         "by_platform": by_platform,
         "by_availability": by_availability,
+        "stored": sum(stored_by_platform.values()),
+        "stored_by_platform": stored_by_platform,
     }

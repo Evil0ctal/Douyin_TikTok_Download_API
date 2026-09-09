@@ -124,6 +124,14 @@ interface ArchiveStats {
   authors: number
   by_platform: Record<string, number>
   by_availability: Record<string, number>
+  /**
+   * How many of the above this instance is holding the media for. The archive
+   * is what was seen and a download is what was kept, so "46 douyin posts" was
+   * being read as 46 videos on the disk - which is the number somebody watching
+   * a volume fill up actually wants.
+   */
+  stored: number
+  stored_by_platform: Record<string, number>
 }
 
 interface Filters {
@@ -133,6 +141,8 @@ interface Filters {
   availability: string
   /** A collection id. The one filter here that is not a property of the post. */
   collection: string
+  /** '' for both, 'true' for downloaded only, 'false' for the rest. */
+  stored: string
   q: string
 }
 
@@ -145,6 +155,7 @@ const NO_FILTERS: Filters = {
   duration_bucket: '',
   availability: '',
   collection: '',
+  stored: '',
   q: '',
 }
 
@@ -240,6 +251,10 @@ export default function Library() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [managingCollections, setManagingCollections] = useState(false)
+
+  // What is actually narrowing the list. Shown beside Clear, because a filter
+  // set two scrolls ago is the usual reason a wall of 66 posts shows four.
+  const activeFilters = Object.values(applied).filter(Boolean).length
 
   const cursor = trail[page] ?? null
 
@@ -552,22 +567,38 @@ export default function Library() {
       />
 
       <div className={styles.tiles}>
+        {/* Every count of posts now says how many of them are on the disk.
+            "Seen" and "kept" are different numbers and the page reported only
+            the first, so an archive of 66 read as 66 videos stored here. The
+            footer is a link rather than a note: the next thing you want after
+            reading "12 of 66" is those twelve. */}
         <MetricTile
           label={t('library.metric.posts')}
           value={formatters.number(total)}
           loading={stats.isLoading}
-          footer={t('library.metric.postsHint')}
+          footer={
+            <StoredFooter
+              stored={stats.data?.stored ?? 0}
+              of={total}
+              onShow={() => {
+                const next = { ...NO_FILTERS, stored: 'true' }
+                setDraft(next)
+                search(next)
+              }}
+            />
+          }
         />
         <MetricTile
           label={t('library.metric.authors')}
           value={formatters.number(stats.data?.authors ?? 0)}
           loading={stats.isLoading}
+          footer={<span className="u-xs u-muted">{t('library.metric.postsHint')}</span>}
         />
         <MetricTile
           label={t('library.metric.gone')}
           value={formatters.number(stats.data?.by_availability?.['deleted'] ?? 0)}
           loading={stats.isLoading}
-          footer={t('library.metric.goneHint')}
+          footer={<span className="u-xs u-muted">{t('library.metric.goneHint')}</span>}
           tone={(stats.data?.by_availability?.['deleted'] ?? 0) > 0 ? 'muted' : 'neutral'}
         />
         {PLATFORMS.map((name) => (
@@ -576,88 +607,134 @@ export default function Library() {
             label={name}
             value={formatters.number(stats.data?.by_platform[name] ?? 0)}
             loading={stats.isLoading}
+            footer={
+              <StoredFooter
+                stored={stats.data?.stored_by_platform?.[name] ?? 0}
+                of={stats.data?.by_platform[name] ?? 0}
+                onShow={() => {
+                  const next = { ...NO_FILTERS, platform: name, stored: 'true' }
+                  setDraft(next)
+                  search(next)
+                }}
+              />
+            }
           />
         ))}
       </div>
 
       <Card title={t('library.filter.title')} description={t('library.filter.description')}>
         <form
-          className="u-row u-wrap"
+          className={styles.filters}
           onSubmit={(event) => {
             event.preventDefault()
             search(draft)
           }}
         >
-          {/* The text box is the only control that still waits for a submit.
-              Typing is not a decision until you stop, and firing a query per
-              keystroke would page the archive on the way to a word; picking
-              "douyin" from a menu IS the decision, and making somebody confirm
-              it afterwards is a step that carries no information. */}
-          <Input
-            value={draft.q}
-            onChange={(event) => {
-              setDraft({ ...draft, q: event.target.value })
-            }}
-            placeholder={t('library.filter.searchPlaceholder')}
-            aria-label={t('library.filter.search')}
-          />
-          <Button type="submit" variant="primary">
-            {t('library.filter.action')}
-          </Button>
-          {MENUS.map(({ field, label, options, blank, literal }) => (
-            <Select
-              key={field}
-              value={draft[field]}
-              aria-label={t(label)}
+          {/* The search row spans the grid: it is the only control here that
+              waits for a submit, so it needs its button beside it rather than
+              lost among eight menus. Typing is not a decision until you stop,
+              and firing a query per keystroke would page the archive on the way
+              to a word; picking "douyin" from a menu IS the decision. */}
+          <div className={styles.searchRow}>
+            <Input
+              value={draft.q}
               onChange={(event) => {
-                // Applied on change, not on submit: `draft` and `applied` move
-                // together for these, and the text box is what keeps them apart.
-                const next = { ...draft, [field]: event.target.value }
+                setDraft({ ...draft, q: event.target.value })
+              }}
+              placeholder={t('library.filter.searchPlaceholder')}
+              aria-label={t('library.filter.search')}
+            />
+            <Button type="submit" variant="primary">
+              {t('library.filter.action')}
+            </Button>
+          </div>
+
+          {/* Every menu labelled and on its own column. They were an unlabelled
+              row of eight, which is a row you have to open one by one to find
+              out what any of them narrows. */}
+          <div className={styles.menus}>
+            {MENUS.map(({ field, label, options, blank, literal }) => (
+              <Select
+                key={field}
+                label={t(label)}
+                value={draft[field]}
+                onChange={(event) => {
+                  // Applied on change, not on submit: `draft` and `applied`
+                  // move together for these, and the text box is what keeps
+                  // them apart.
+                  const next = { ...draft, [field]: event.target.value }
+                  setDraft(next)
+                  search(next)
+                }}
+              >
+                <option value="">{t(blank)}</option>
+                {options.map(({ value, label: option }) => (
+                  <option key={value} value={value}>
+                    {literal ? option : t(option)}
+                  </option>
+                ))}
+              </Select>
+            ))}
+            <Select
+              label={t('library.collection.filterLabel')}
+              value={draft.collection}
+              onChange={(event) => {
+                const next = { ...draft, collection: event.target.value }
                 setDraft(next)
                 search(next)
               }}
             >
-              <option value="">{t(blank)}</option>
-              {options.map(({ value, label: option }) => (
-                <option key={value} value={value}>
-                  {literal ? option : t(option)}
+              <option value="">{t('library.collection.any')}</option>
+              {(collections.data?.items ?? []).map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name} ({row.items})
                 </option>
               ))}
             </Select>
-          ))}
-          <Select
-            value={draft.collection}
-            aria-label={t('library.collection.filterLabel')}
-            onChange={(event) => {
-              const next = { ...draft, collection: event.target.value }
-              setDraft(next)
-              search(next)
-            }}
-          >
-            <option value="">{t('library.collection.any')}</option>
-            {(collections.data?.items ?? []).map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name} ({row.items})
-              </option>
-            ))}
-          </Select>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setDraft(NO_FILTERS)
-              search(NO_FILTERS)
-            }}
-          >
-            {t('library.filter.clear')}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setManagingCollections(true)
-            }}
-          >
-            {t('library.collection.manage')}
-          </Button>
+            <Select
+              label={t('library.filter.storedLabel')}
+              value={draft.stored}
+              onChange={(event) => {
+                const next = { ...draft, stored: event.target.value }
+                setDraft(next)
+                search(next)
+              }}
+            >
+              <option value="">{t('library.filter.anyStored')}</option>
+              <option value="true">{t('library.filter.storedOnly')}</option>
+              <option value="false">{t('library.filter.notStoredOnly')}</option>
+            </Select>
+          </div>
+
+          {/* The two things that are not filters, kept off the filter grid so
+              "clear" cannot be mistaken for one more thing to narrow by. */}
+          <div className={styles.filterActions}>
+            <span className="u-xs u-muted">
+              {activeFilters > 0
+                ? t('library.filter.activeCount', { count: activeFilters })
+                : t('library.filter.noneActive')}
+            </span>
+            <span className="u-row">
+              <Button
+                variant="ghost"
+                disabled={activeFilters === 0}
+                onClick={() => {
+                  setDraft(NO_FILTERS)
+                  search(NO_FILTERS)
+                }}
+              >
+                {t('library.filter.clear')}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setManagingCollections(true)
+                }}
+              >
+                {t('library.collection.manage')}
+              </Button>
+            </span>
+          </div>
         </form>
         <p className="u-xs u-muted">{t('library.filter.searchHint')}</p>
       </Card>
@@ -907,6 +984,33 @@ export default function Library() {
  * kept is the one that still renders a year later. With neither, the tile says
  * so rather than showing a broken image.
  */
+/** "N of M downloaded", and a way to see those N. */
+function StoredFooter({
+  stored,
+  of,
+  onShow,
+}: {
+  stored: number
+  of: number
+  onShow: () => void
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const formatters = useFormatters()
+
+  if (of === 0) return null
+  if (stored === 0) {
+    return <span className="u-xs u-muted">{t('library.metric.noneStored')}</span>
+  }
+  return (
+    <button type="button" className={styles.storedLink} onClick={onShow}>
+      {t('library.metric.storedOf', {
+        stored: formatters.number(stored),
+        total: formatters.number(of),
+      })}
+    </button>
+  )
+}
+
 /**
  * The bulk action bar.
  *

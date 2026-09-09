@@ -1447,7 +1447,9 @@
       "postsHint": "Kept until you delete them",
       "authors": "Authors",
       "gone": "Gone",
-      "goneHint": "Deleted on the platform, kept here"
+      "goneHint": "Deleted on the platform, kept here",
+      "storedOf": "{stored} of {total} downloaded",
+      "noneStored": "None downloaded yet"
     },
     "filter": {
       "title": "Find a post",
@@ -1460,7 +1462,13 @@
       "anyDuration": "Any length",
       "anyAvailability": "Any availability",
       "action": "Search",
-      "clear": "Clear"
+      "clear": "Clear",
+      "storedLabel": "On this disk",
+      "anyStored": "Downloaded or not",
+      "storedOnly": "Downloaded only",
+      "notStoredOnly": "Not downloaded",
+      "activeCount": "{count, plural, one {# filter narrowing this list} other {# filters narrowing this list}}",
+      "noneActive": "Showing everything"
     },
     "column": {
       "post": "Post",

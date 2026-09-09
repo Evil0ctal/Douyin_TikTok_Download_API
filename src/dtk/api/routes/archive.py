@@ -75,6 +75,15 @@ CURSOR_QUERY = Query(
     default=None, max_length=512, description="Cursor from the previous page; omit for the first."
 )
 LIMIT_QUERY = Query(default=None, ge=1, le=archive.MAX_PAGE, description="Rows per page.")
+STORED_QUERY = Query(
+    default=None,
+    description=(
+        "True for posts whose media this instance is holding right now, false "
+        "for the rest. Like `collection` this describes what was kept rather "
+        "than the post: an evicted download does not count, because there is "
+        "nothing left to play."
+    ),
+)
 COLLECTION_QUERY = Query(
     default=None,
     description=(
@@ -95,6 +104,7 @@ def _filter(
     seen_after: datetime | None = None,
     seen_before: datetime | None = None,
     collection_id: uuid.UUID | None = None,
+    stored: bool | None = None,
 ) -> archive.ArchiveFilter:
     return archive.ArchiveFilter(
         platform=platform,
@@ -107,6 +117,7 @@ def _filter(
         seen_after=seen_after,
         seen_before=seen_before,
         collection_id=collection_id,
+        stored=stored,
     )
 
 
@@ -170,6 +181,7 @@ async def list_archive(
     availability: Availability | None = AVAILABILITY_QUERY,
     q: str | None = SEARCH_QUERY,
     collection: uuid.UUID | None = COLLECTION_QUERY,
+    stored: bool | None = STORED_QUERY,
     cursor: str | None = CURSOR_QUERY,
     limit: int | None = LIMIT_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
@@ -185,6 +197,9 @@ async def list_archive(
       narrow the result; all optional and combinable.
     - `collection` - only posts in this collection. The one filter here that is
       not a property of the post: somebody put them in it.
+    - `stored` - true for the posts whose media is on this instance's disk right
+      now. An evicted download does not count: the record is kept on purpose,
+      and the bytes are not there to play.
     - `q` - substring of the title or description. Matched as a substring rather
       than by word, so it behaves the same in Chinese as in English.
     - `cursor` - the cursor from the previous page. Omit it for the first page;
@@ -198,14 +213,25 @@ async def list_archive(
     """
     principal.require(Scope.ARCHIVE_READ)
     spec = _filter(
-        platform, author_uid, tag, kind, duration_bucket, availability, q, collection_id=collection
+        platform,
+        author_uid,
+        tag,
+        kind,
+        duration_bucket,
+        availability,
+        q,
+        collection_id=collection,
+        stored=stored,
     )
     rows, next_cursor = await archive.search(
         request.state.db, spec, limit=limit or archive.DEFAULT_PAGE, cursor=cursor
     )
     # One query for the whole page rather than one per row: the console renders
     # this as a grid of covers and asks the same question of every card.
-    stored = (
+    #
+    # Named `on_disk` rather than `stored`, which is now the query parameter
+    # asking to be filtered by it.
+    on_disk = (
         await downloads.stored_for(
             request.state.db, [(row.platform, row.content_id) for row in rows]
         )
@@ -223,7 +249,7 @@ async def list_archive(
             "items": [
                 _row(
                     row,
-                    stored=stored.get((row.platform, row.content_id)),
+                    stored=on_disk.get((row.platform, row.content_id)),
                     in_collections=member_of.get((row.platform, row.content_id), []),
                 )
                 for row in rows
@@ -243,7 +269,11 @@ async def archive_stats(
 
     **Returns**
 
-    Total posts and authors, and a per-platform breakdown.
+    Total posts and authors, a per-platform breakdown, and how many of them
+    this instance is holding the media for - in total and per platform. The
+    archive is what was seen and a download is what was kept, so the two counts
+    are different questions and reporting only the first made "46 posts" read
+    as 46 videos on the disk.
     """
     principal.require(Scope.ARCHIVE_READ)
     return ok(request, await archive.stats(request.state.db))

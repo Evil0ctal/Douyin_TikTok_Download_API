@@ -309,3 +309,69 @@
 .collectionRow:last-child {
   border-bottom: 0;
 }
+
+/* -------------------------------------------------------------------------- */
+/* The filter card                                                             */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Three bands, not one wrapping row.
+ *
+ * Nine controls in a `u-row u-wrap` reflow into whatever the width allows, so
+ * the search box, the menus and the buttons ended up interleaved at most
+ * viewport sizes - and none of the menus said what it narrowed until you
+ * opened it.
+ */
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The search box takes the room; its button stays beside it rather than
+   wrapping onto a line of its own. */
+.searchRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+/* One column per menu, each wide enough for its longest option and its label.
+   auto-fit rather than a fixed count, so seven menus become two rows on a
+   laptop and one on a wide screen without a breakpoint. */
+.menus {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.filterActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* The "12 of 66 downloaded" line under a tile. A button rather than a note,
+   because the next thing anybody wants after reading it is those twelve. */
+.storedLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.storedLink:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}

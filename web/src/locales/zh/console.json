@@ -1447,7 +1447,9 @@
       "postsHint": "除非你删除，否则一直保留",
       "authors": "作者数",
       "gone": "已消失",
-      "goneHint": "平台上已删除，这里还留着"
+      "goneHint": "平台上已删除，这里还留着",
+      "storedOf": "已下载 {stored} / {total}",
+      "noneStored": "还没有下载任何一个"
     },
     "filter": {
       "title": "查找作品",
@@ -1460,7 +1462,13 @@
       "anyDuration": "全部时长",
       "anyAvailability": "全部状态",
       "action": "搜索",
-      "clear": "清空"
+      "clear": "清空",
+      "storedLabel": "本地文件",
+      "anyStored": "下载与否不限",
+      "storedOnly": "仅已下载",
+      "notStoredOnly": "仅未下载",
+      "activeCount": "有 {count} 个筛选条件生效",
+      "noneActive": "未筛选，显示全部"
     },
     "column": {
       "post": "作品",

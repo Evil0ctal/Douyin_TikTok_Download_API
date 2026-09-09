@@ -96,3 +96,37 @@
   display: block;
   object-fit: contain;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Starting one                                                                */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * platform | id | button, with the button on the control row rather than the
+ * label row.
+ *
+ * `align-items: end` is what does it: every Field is a column of label,
+ * control and optional help text, and ending them together puts the three
+ * controls on one line whatever is written above or below them.
+ */
+.startForm {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+/* One column on a phone, where three across is three unreadable columns. */
+@media (max-width: 640px) {
+  .startForm {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.startNote {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
