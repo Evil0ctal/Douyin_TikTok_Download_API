@@ -26,7 +26,8 @@
     "downloads": "下载",
     "library": "资料库",
     "watchlist": "关注列表",
-    "scheduler": "调度器"
+    "scheduler": "调度器",
+    "mcp": "MCP"
   },
   "page": {
     "overview": {
@@ -1823,5 +1824,74 @@
       "become": "想赞助这个项目，请访问 github.com/sponsors/evil0ctal。",
       "label": "赞助商"
     }
+  },
+  "mcp": {
+    "title": "MCP",
+    "description": "把 AI 代理接到这个实例上。工具、身份池、限流都和 REST 接口共用同一套。",
+    "endpoint": {
+      "title": "接入地址",
+      "body": "根据你打开这个页面时用的地址自动生成。",
+      "transport": "传输方式：",
+      "auth": "认证：",
+      "authValue": "API Key，放在 Authorization 或 X-API-Key 请求头里",
+      "slash": "末尾的斜杠要保留。/mcp 会 307 跳转到 /mcp/，而不会在跳转后重发 POST 的客户端，报的错看起来像是认证失败。",
+      "host": "127.0.0.1 只对本机上的代理有效。跑在别处的代理需要一个它真能访问到的地址，并且这个实例要挂在 TLS 后面。",
+      "cookie": "这里不接受控制台的会话 Cookie。MCP 只认 API Key，所以浏览器里已经登录的状态不能当凭证用。"
+    },
+    "noKeys": "现在还没有任何 API Key，而 MCP 只认这个。请到「访问控制 → API Key」创建一个，勾上你希望代理能访问的平台读权限。",
+    "configure": {
+      "title": "客户端配置",
+      "body": "选一个客户端。地址已经替你填好了，Key 没有。",
+      "client": "客户端",
+      "keyNote": "凡是出现 dtk_YOUR_API_KEY 的地方都换成真实的 Key——Codex 则是设置片段里那个环境变量。Key 只在创建时显示一次，之后再也看不到，丢了就重新建一个，别费劲去找。"
+    },
+    "client": {
+      "claudeCode": {
+        "name": "Claude Code",
+        "where": "执行一次即可，它会把这个服务写进 Claude Code 的配置。加上 --scope project 可以改为写进当前仓库。"
+      },
+      "claudeDesktop": {
+        "name": "Claude Desktop",
+        "where": "claude_desktop_config.json 只认 stdio 服务，而 Claude Desktop 的远程连接器走 OAuth，本服务不支持——所以这里通过 mcp-remote 中转，需要本机装有 Node。设置 → 开发者 → 编辑配置，合并后重启应用。"
+      },
+      "codex": {
+        "name": "Codex CLI",
+        "where": "追加到 ~/.codex/config.toml，并在启动 Codex 的终端里 export DTK_API_KEY。Key 从环境变量读取，配置文件本身可以放心提交。"
+      },
+      "cherry": {
+        "name": "Cherry Studio",
+        "where": "设置 → MCP 服务器 → 添加服务器 → 从 JSON 导入。Cherry Studio 把这种传输方式叫 streamableHttp。"
+      },
+      "generic": {
+        "name": "其他客户端",
+        "where": "任何支持 streamable-http 的客户端。它需要发出的请求长这样："
+      },
+      "stdio": {
+        "name": "stdio（本机，不走 HTTP）",
+        "where": "给自己拉起进程的代理用。它通过管道走 JSON-RPC，读取和 API 进程完全相同的环境变量，所以两边不会对着不同的数据库。"
+      }
+    },
+    "tools": {
+      "title": "工具",
+      "body": "代理能调用的东西。每一个都和 REST 调用一样消耗身份池。"
+    },
+    "tool": {
+      "parse_url": "解析链接指向的任何内容。手上有 URL 时从这里开始。",
+      "get_video": "按 ID 获取单个作品，视频或图集。",
+      "get_user": "获取作者资料。",
+      "list_user_posts": "分页列出某作者的作品。",
+      "list_comments": "分页列出某作品的一级评论。",
+      "get_content_history": "读取某作品或作者已记录的指标历史。",
+      "pool_status": "身份池与接口健康度，调用开始失败时看这个。",
+      "get_task_result": "取回没能在限时内完成的那次调用的结果。"
+    },
+    "usage": {
+      "title": "写提示词的人需要知道的",
+      "async": "每个工具都会自己等结果。如果一次调用还没跑完，它会返回一个 task id 而不是一直阻塞，再用 get_task_result 取回——代理不需要自己写轮询循环。",
+      "scopes": "Key 受限于它创建时勾选的权限，即使拥有者是管理员也一样。只有 douyin:read 的 Key，通过 MCP 一样访问不了 TikTok。",
+      "paging": "列表类工具是分页的。要下一页请用它返回的 cursor，而不是把 count 调大——服务端的说明里专门提醒了代理别这么干。",
+      "rest": "同样这些能力的 REST 版本"
+    },
+    "toolCount": "{count} 个工具"
   }
 }

@@ -103,7 +103,7 @@ docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化�
 | 接口文档 | `/docs` | 控制台内的 Swagger UI，中英双语 |
 | 裸接口文档 | `/swagger`、`/redoc` | 无需登录 |
 | REST API | `/api/v1/...` | 88 个操作 |
-| MCP | `/mcp` | 与 REST 共用同一个 service 层 |
+| MCP | `/mcp` | 与 REST 共用同一个 service 层，配置方法见控制台 `/mcp-guide` |
 | CLI | `dtk --help` | 同上 |
 
 主要能力：

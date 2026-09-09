@@ -1,0 +1,80 @@
+/*
+ * Pointing an agent at this instance.
+ */
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* The three things people get wrong, before the snippets rather than after
+   somebody has spent an evening on one of them. */
+.gotchas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}
+
+.clientPicker {
+  max-width: 320px;
+  margin-bottom: var(--space-3);
+}
+
+.where {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.tools {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tools li {
+  display: grid;
+  grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.tools li:last-child {
+  border-bottom: 0;
+}
+
+.docsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.docsLink:hover {
+  color: var(--accent);
+}
+
+/* The two-column tool list needs 160px for the name before the description
+   has anywhere to go. Below that the columns start hyphenating single words,
+   so stack instead. */
+@media (max-width: 640px) {
+  .tools li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+}

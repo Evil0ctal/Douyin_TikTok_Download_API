@@ -358,6 +358,19 @@ export function TerminalIcon(props: IconProps) {
   )
 }
 
+export function PlugIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      {/* Two pins, a body and a lead: the shape of plugging one thing into
+          another, which is the whole of what the MCP page is for. */}
+      <path d="M6 1.75v3" />
+      <path d="M10 1.75v3" />
+      <path d="M4 4.75h8v2.5a4 4 0 0 1-8 0z" />
+      <path d="M8 11.25v3" />
+    </Svg>
+  )
+}
+
 export function LinkIcon(props: IconProps) {
   return (
     <Svg {...props}>

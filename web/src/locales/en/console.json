@@ -26,7 +26,8 @@
     "downloads": "Downloads",
     "library": "Library",
     "watchlist": "Watchlist",
-    "scheduler": "Scheduler"
+    "scheduler": "Scheduler",
+    "mcp": "MCP"
   },
   "page": {
     "overview": {
@@ -1823,5 +1824,74 @@
       "become": "To sponsor this project, see github.com/sponsors/evil0ctal.",
       "label": "Sponsor"
     }
+  },
+  "mcp": {
+    "title": "MCP",
+    "description": "Point an agent at this instance. The same tools, the same identity pool, the same rate limits as the REST API.",
+    "endpoint": {
+      "title": "Endpoint",
+      "body": "Generated from the address you reached this page on.",
+      "transport": "Transport:",
+      "auth": "Auth:",
+      "authValue": "an API key, in an Authorization or X-API-Key header",
+      "slash": "Keep the trailing slash. /mcp answers 307 to /mcp/, and a client that does not re-send the POST on a redirect fails in a way that looks like an auth problem.",
+      "host": "127.0.0.1 only works for an agent on this machine. An agent somewhere else needs an address it can actually reach, and this instance behind TLS.",
+      "cookie": "The console session cookie is not accepted here. MCP takes API keys and nothing else, so a browser that is already signed in cannot be used as a credential."
+    },
+    "noKeys": "There are no API keys yet, and MCP will not accept anything else. Create one under Access control → API keys, with read access to the platforms you want the agent to reach.",
+    "configure": {
+      "title": "Client configuration",
+      "body": "Pick a client. The address is filled in for you; the key is not.",
+      "client": "Client",
+      "keyNote": "Wherever dtk_YOUR_API_KEY appears, put a real key - or, for Codex, set the environment variable the snippet names. A key is shown once when you create it and never again, so if you have lost it, make a new one rather than hunting for the old."
+    },
+    "client": {
+      "claudeCode": {
+        "name": "Claude Code",
+        "where": "Run this once. It writes the server into your Claude Code config; add --scope project to commit it to the repository instead."
+      },
+      "claudeDesktop": {
+        "name": "Claude Desktop",
+        "where": "claude_desktop_config.json only validates stdio servers, and Claude Desktop's remote-connector screen authenticates with OAuth, which this server does not speak - so this goes through the mcp-remote bridge and needs Node installed. Settings → Developer → Edit Config, merge, restart the app."
+      },
+      "codex": {
+        "name": "Codex CLI",
+        "where": "Append to ~/.codex/config.toml, and export DTK_API_KEY in the shell you start Codex from. Codex reads the key from there so the config file stays safe to commit."
+      },
+      "cherry": {
+        "name": "Cherry Studio",
+        "where": "Settings → MCP Servers → Add Server → Import from JSON. Cherry Studio calls this transport 'streamableHttp'."
+      },
+      "generic": {
+        "name": "Any other client",
+        "where": "Anything that speaks streamable-http. The request shape it has to make:"
+      },
+      "stdio": {
+        "name": "stdio (local, no HTTP)",
+        "where": "For an agent that spawns the process itself. It talks JSON-RPC over the pipe and reads the same environment as the API, so the two never disagree about which database they are looking at."
+      }
+    },
+    "tools": {
+      "title": "Tools",
+      "body": "What the agent can call. Every one of them spends the identity pool exactly as a REST call would."
+    },
+    "tool": {
+      "parse_url": "Fetch whatever a link points at. The place to start when you have a URL.",
+      "get_video": "One post, video or image album, by id.",
+      "get_user": "An author profile.",
+      "list_user_posts": "An author's posts, one page at a time.",
+      "list_comments": "Top-level comments on a post, one page at a time.",
+      "get_content_history": "Recorded metric history for a post or an author.",
+      "pool_status": "Identity-pool and endpoint health, for when calls start failing.",
+      "get_task_result": "Collect a result that did not finish in time."
+    },
+    "usage": {
+      "title": "Notes for whoever is writing the prompts",
+      "async": "Every tool waits for its own answer. When one comes back still running, it returns a task id rather than blocking, and get_task_result collects it - the agent does not need to poll in a loop.",
+      "scopes": "A key is bounded by the scopes it was minted with, even if an administrator owns it. A key with only douyin:read cannot reach TikTok through MCP any more than through REST.",
+      "paging": "Listing tools page. Ask for the next page with the cursor they return rather than raising the count, which is the mistake the server instructions specifically warn the agent about.",
+      "rest": "The same operations over REST"
+    },
+    "toolCount": "{count, plural, one {# tool} other {# tools}}"
   }
 }

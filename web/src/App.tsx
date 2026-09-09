@@ -49,6 +49,7 @@ const Backup = lazy(() => import('@/pages/Backup'))
 const Users = lazy(() => import('@/pages/Users'))
 const ApiDocs = lazy(() => import('@/pages/ApiDocs'))
 const About = lazy(() => import('@/pages/About'))
+const Mcp = lazy(() => import('@/pages/Mcp'))
 
 const queryClient = createQueryClient()
 
@@ -103,6 +104,7 @@ function ConsoleRoutes() {
         <Route path="/backup" component={Backup} />
         <Route path="/users" component={Users} />
         <Route path="/docs" component={ApiDocs} />
+        <Route path="/mcp-guide" component={Mcp} />
         <Route path="/about" component={About} />
         <Route component={NotFound} />
       </Switch>

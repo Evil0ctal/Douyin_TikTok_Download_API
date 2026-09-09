@@ -61,8 +61,8 @@ def _candidates() -> list[Path]:
 #: so a probing client saw apparent success, while ``POST /mcp`` partial-matched
 #: and got 405 before Starlette's trailing-slash redirect could run. Only
 #: ``/mcp/`` worked, and nothing in either answer said so.
-RESERVED_PREFIXES = (
-    "/api/",
+RESERVED_ROOTS = (
+    "/api",
     "/healthz",
     "/readyz",
     # Not "/docs": that path belongs to the console's own API reference page,
@@ -72,6 +72,19 @@ RESERVED_PREFIXES = (
     "/openapi.json",
     "/mcp",
 )
+
+
+def is_reserved(path: str) -> bool:
+    """Whether ``path`` belongs to the API rather than to the console's router.
+
+    Matched on whole segments, which the earlier plain ``startswith`` did not
+    do. ``/mcp`` reserved every path merely beginning with those four letters,
+    so the console's own page about the MCP endpoint - ``/mcp-guide`` - was
+    answered with a JSON 404 naming a route the reader had no way to find. A
+    longer name that shares a prefix is a different path, and the console owns
+    everything the API has not claimed outright.
+    """
+    return any(path == root or path.startswith(f"{root}/") for root in RESERVED_ROOTS)
 
 
 def localize(html: str, language: Language) -> str:
@@ -139,7 +152,7 @@ def install(app: FastAPI, dist: Path | None = None) -> bool:
     # and FastAPI would otherwise try to build a Pydantic field from it.
     @app.get("/{path:path}", include_in_schema=False, response_model=None)
     async def console(request: Request, path: str) -> FileResponse | HTMLResponse:
-        if request.url.path.startswith(RESERVED_PREFIXES):
+        if is_reserved(request.url.path):
             # Raised rather than assembled here, so a mistyped API path gets the
             # same localized envelope as every other error: the handler in
             # dtk.api.app already has the request's language and correlation id.
@@ -164,4 +177,4 @@ def install(app: FastAPI, dist: Path | None = None) -> bool:
     return True
 
 
-__all__ = ["LANGUAGE_MARKER", "RESERVED_PREFIXES", "install", "localize"]
+__all__ = ["LANGUAGE_MARKER", "RESERVED_ROOTS", "install", "is_reserved", "localize"]

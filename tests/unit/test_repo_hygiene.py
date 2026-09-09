@@ -687,3 +687,39 @@ def test_the_integration_suite_clears_every_table() -> None:
         "tables in the schema that the API suite never clears: "
         f"{sorted(set(TABLE_NAMES) - set(TABLES))}"
     )
+
+
+def test_the_mcp_guide_lists_the_tools_the_server_registers() -> None:
+    """The console's MCP page names every tool, and only tools that exist.
+
+    The page is documentation, so nothing it says is executed and nothing type
+    checks it. A tool renamed in `TOOL_METHODS` leaves the page advertising a
+    name the server answers `unknown tool` to, and a tool added leaves it off a
+    list the reader has no reason to distrust. Both fail silently and both are
+    read by somebody writing a prompt against this instance.
+    """
+    from dtk.mcp.tools import TOOL_METHODS
+
+    source = (WEB / "pages" / "Mcp.tsx").read_text(encoding="utf-8")
+    block = re.search(r"^const TOOLS = \[(.*?)\] as const$", source, re.M | re.S)
+    assert block is not None, "Mcp.tsx no longer declares a `const TOOLS = [...] as const`"
+
+    listed = tuple(re.findall(r"'([a-z_]+)'", block.group(1)))
+    assert listed == TOOL_METHODS, (
+        "the MCP guide and the server disagree about the tool set: "
+        f"page has {listed}, server registers {TOOL_METHODS}"
+    )
+
+    # Every one of them also needs a description in both languages, or the row
+    # renders as its own key.
+    for language in ("en", "zh"):
+        console = json.loads(
+            (REPO / "web" / "src" / "locales" / language / "console.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        described = console.get("mcp", {}).get("tool", {})
+        assert set(described) == set(TOOL_METHODS), (
+            f"{language} console.json describes {sorted(described)}, "
+            f"expected {sorted(TOOL_METHODS)}"
+        )

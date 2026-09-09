@@ -115,7 +115,7 @@ see [docker/README.md](./docker/README.md).
 | API reference | `/docs` | Swagger UI inside the console, English and Chinese |
 | Bare reference | `/swagger`, `/redoc` | No login required |
 | REST API | `/api/v1/...` | 88 operations |
-| MCP | `/mcp` | Shares the service layer with REST |
+| MCP | `/mcp` | Shares the service layer with REST; client setup at `/mcp-guide` in the console |
 | CLI | `dtk --help` | Same |
 
 The main capabilities:

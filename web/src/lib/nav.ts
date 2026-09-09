@@ -14,6 +14,7 @@ export type NavIconName =
   | 'globe'
   | 'key'
   | 'terminal'
+  | 'plug'
   | 'link'
   | 'book'
   | 'list'
@@ -47,6 +48,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/watchlist', labelKey: 'nav.watchlist', group: 'tools', icon: 'clock' },
   { path: '/downloads', labelKey: 'nav.downloads', group: 'tools', icon: 'download' },
   { path: '/docs', labelKey: 'nav.apiDocs', group: 'tools', icon: 'book' },
+  // Not '/mcp': that path is the MCP endpoint itself, mounted on the API.
+  { path: '/mcp-guide', labelKey: 'nav.mcp', group: 'tools', icon: 'plug' },
   { path: '/api-keys', labelKey: 'nav.apiKeys', group: 'access', icon: 'key' },
   { path: '/endpoint-access', labelKey: 'nav.endpointAccess', group: 'access', icon: 'lock' },
   { path: '/users', labelKey: 'nav.users', group: 'access', icon: 'users' },
