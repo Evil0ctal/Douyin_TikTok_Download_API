@@ -1820,7 +1820,8 @@
       "title": "赞助商",
       "body": "他们付费出现在这里，让这个项目可以一直免费开源。",
       "pitch": "社交媒体数据与 API 市场——抖音、TikTok、小红书、Instagram、YouTube 等。",
-      "become": "想赞助这个项目，请访问 github.com/sponsors/evil0ctal。"
+      "become": "想赞助这个项目，请访问 github.com/sponsors/evil0ctal。",
+      "label": "赞助商"
     }
   }
 }

@@ -1820,7 +1820,8 @@
       "title": "Sponsor",
       "body": "Paid to be here, so the project can stay free and open.",
       "pitch": "Social media data and API marketplace — Douyin, TikTok, Xiaohongshu, Instagram, YouTube and more.",
-      "become": "To sponsor this project, see github.com/sponsors/evil0ctal."
+      "become": "To sponsor this project, see github.com/sponsors/evil0ctal.",
+      "label": "Sponsor"
     }
   }
 }

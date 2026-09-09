@@ -46,6 +46,7 @@ export * from './Icons'
 
 export { Input } from './Input'
 export { Logo } from './Logo'
+export { Sponsor, SPONSOR } from './Sponsor'
 export type { InputProps } from './Input'
 
 export { LanguageSwitcher } from './LanguageSwitcher'

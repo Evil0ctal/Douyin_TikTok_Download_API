@@ -29,6 +29,7 @@ import {
   InfoIcon,
 } from './Icons'
 import { Logo } from './Logo'
+import { Sponsor } from './Sponsor'
 import styles from './shell.module.css'
 
 const NAV_ICONS: Record<NavIconName, (props: IconProps) => ReactElement> = {
@@ -122,6 +123,12 @@ export function Sidebar({
           )
         })}
       </div>
+
+      {/* Sponsors keep this free, so they are visible from every page rather
+          than only from the page about them. Collapsed, the sidebar is icons
+          and this would be a logo with no room to say what it is, so it goes
+          with the labels. */}
+      {!embedded && !collapsed ? <Sponsor variant="compact" /> : null}
 
       {/* Copyright and the licence, at the bottom of every page. Small, and
           present: an Apache-2.0 project that never says so anywhere in its own

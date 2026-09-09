@@ -61,29 +61,3 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
-
-.sponsor {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: inherit;
-}
-
-.sponsor:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-raised);
-}
-
-/* The logo is a white square. On the dark theme it needs a light tile under it
-   or it reads as a rendering fault; giving it one deliberately is the
-   difference between "their brand" and "something broke". */
-.sponsor img {
-  border-radius: var(--radius-sm);
-  object-fit: contain;
-  background: #ffffff;
-  padding: var(--space-1);
-}

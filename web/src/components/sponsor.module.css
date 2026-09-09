@@ -1,0 +1,86 @@
+/*
+ * Sponsor placements.
+ *
+ * The logo is a white square, so every variant gives it a white tile
+ * deliberately - on the dark theme an unbacked white image reads as a broken
+ * render rather than as somebody's brand.
+ */
+
+.full {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: inherit;
+}
+
+.full:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-raised);
+}
+
+.full img,
+.compact img {
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  background: #ffffff;
+  padding: 2px;
+  flex: none;
+}
+
+/* Said out loud, in both variants. Paid placement that reads as a feature is a
+   dark pattern anywhere, and this is somebody's own admin panel. */
+.fullLabel,
+.compactLabel {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/*
+ * The sidebar strip. One line, above the about link, on every page.
+ *
+ * Bordered rather than filled: the nav items above it are flat until hovered,
+ * and a filled block here would out-shout the page the operator is actually
+ * trying to reach.
+ */
+.compact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* The rule above it is load bearing. The navigation scrolls and this is
+     pinned below it, so without a separator the strip butts against whatever
+     the scroll happened to cut off and reads as one more item in whichever
+     group ended there - measured with 214px of nav still below the fold, it
+     sat directly under the "operations" heading. */
+  margin: var(--space-2) var(--space-2) var(--space-1);
+  padding: var(--space-3) var(--space-2) var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.compact:hover {
+  color: var(--text);
+}
+
+.compact:hover img {
+  outline: 1px solid var(--border-strong);
+}
+
+.compactText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.compactName {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}

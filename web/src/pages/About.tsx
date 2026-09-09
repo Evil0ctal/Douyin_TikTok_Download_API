@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-import { Banner, Card, ExternalIcon, InfoIcon, Logo, PageHeader } from '@/components'
+import { Banner, Card, ExternalIcon, InfoIcon, Logo, PageHeader, Sponsor } from '@/components'
 import { useApiQuery } from '@/hooks'
 import { paths } from '@/lib/endpoints'
 
@@ -29,26 +29,6 @@ const LINKS = [
   { id: 'issues', href: `${REPO}/issues` },
   { id: 'license', href: `${REPO}/blob/main/LICENSE` },
 ] as const
-
-/**
- * Sponsors pay to be here and the project stays free. Their words, not ours.
- *
- * The logo is served from this instance rather than hotlinked. `system.check_updates`
- * is off by default and documented as "outbound request; the user opts in rather
- * than being opted in" - a sponsor image fetched from tikhub.io on every load of
- * this page would be exactly that request, made without asking, and it would tell
- * a third party that this instance exists every time somebody opened the page.
- *
- * The copy is 800x800 and 16KB, taken from https://tikhub.io/logo.jpeg. The URL
- * the old README used - /wp-content/uploads/2024/11/Main-Logo.webp - has been a
- * 404 since the site moved off WordPress, which is why this card rendered without
- * an image.
- */
-const SPONSOR = {
-  name: 'TikHub.io',
-  href: 'https://www.tikhub.io/',
-  logo: '/sponsors/tikhub.jpeg',
-}
 
 interface SystemStatus {
   version: string
@@ -132,21 +112,7 @@ export default function About() {
       </Card>
 
       <Card title={t('console:about.sponsor.title')} description={t('console:about.sponsor.body')}>
-        <a
-          className={styles.sponsor}
-          href={SPONSOR.href}
-          target="_blank"
-          rel="noreferrer noopener sponsored"
-        >
-          {/* Not lazy. It is 16KB, served from this instance, and two screens down
-              at most - deferring it buys nothing and costs a visible pop-in. */}
-          <img src={SPONSOR.logo} alt={SPONSOR.name} width={72} height={72} />
-          <span className="u-stack-sm" style={{ minWidth: 0 }}>
-            <strong>{SPONSOR.name}</strong>
-            <span className="u-xs u-secondary">{t('console:about.sponsor.pitch')}</span>
-          </span>
-          <ExternalIcon size={13} />
-        </a>
+        <Sponsor />
         <p className="u-xs u-muted" style={{ margin: 'var(--space-3) 0 0' }}>
           {t('console:about.sponsor.become')}
         </p>
