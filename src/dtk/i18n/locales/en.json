@@ -302,6 +302,10 @@
         "summary": "Store a post's media",
         "description": "Fetches one already-archived post's media onto this instance's own disk. Takes a content key rather than a URL: nothing a caller sends decides which host is dialled. Answers 202 with a download id; the files land on the operator's volume and are never served back through this API."
       },
+      "downloads_file": {
+        "summary": "Download one stored file",
+        "description": "Serve one file this instance has already stored, to a browser. The path is rebuilt from the stored record - the download's own directory plus a name that has to appear in its file list - so the only thing a caller chooses is which record, never where on the disk to read. Nothing is fetched: files evicted to stay under the media ceiling answer 404, and asking for the download again is what restores them."
+      },
       "downloads_get": {
         "summary": "One download",
         "description": "One download and every file in it: name, size, sha256 and content type, and whether the files are still stored."

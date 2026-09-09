@@ -1344,7 +1344,19 @@
     },
     "file": {
       "sha256": "sha256",
-      "none": "这个作品没有保存下任何文件。"
+      "none": "这个作品没有保存下任何文件。",
+      "open": "保存这个文件"
+    },
+    "bulk": {
+      "pin": "固定选中的 {count} 项",
+      "unpin": "取消固定 {count} 项",
+      "delete": "删除选中的 {count} 项",
+      "pinned": "已固定 {count} 项",
+      "unpinned": "已取消固定 {count} 项",
+      "deleted": "已删除 {count} 项",
+      "deleteTitle": "确定删除选中的下载？",
+      "deleteBody": "这 {count} 项的文件会从媒体卷上删除。记录会保留并标明「文件已清理」，这样你才分得清它和「从来没抓过」的区别——重新请求这次下载就能把文件取回来。",
+      "deleteConfirm": "删除文件"
     }
   },
   "library": {

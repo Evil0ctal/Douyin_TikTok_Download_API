@@ -219,6 +219,19 @@ services:
       # of its own loses every one from the anchor. The API lists and serves the
       # archives the worker writes, so the two must name the same directory.
       DTK_BACKUP_DIR: /var/lib/dtk/backups
+      DTK_MEDIA_DIR: /var/lib/dtk/media
+    volumes:
+      # Repeated for the same YAML reason as the environment above: naming any
+      # volume here replaces the anchor's list wholesale.
+      - backup-data:/var/lib/dtk/backups
+      # Read-only, and the only component besides the downloader that sees the
+      # media at all. The console needs to hand a stored file to a browser, and
+      # the API is the only part of this system with authentication, scopes,
+      # rate limiting and an audit trail - so it serves the bytes and the
+      # downloader stays what its own header insists it must remain: a sink,
+      # never a relay. `:ro` because indexing and serving are both reads; a
+      # download is deleted through the downloader, which owns the writes.
+      - media-data:/var/lib/dtk/media:ro
     ports:
       # Loopback by default. Serving the outside world is an explicit act, and
       # it is on the operator to put TLS in front of it.
@@ -522,6 +535,8 @@ volumes:
   redis-data:
   backup-data:
   # The media volume. Named rather than a bind mount so a default install
-  # cannot write into the checkout, and mounted only by the downloader: the api
-  # and worker index what is stored and never open the files.
+  # cannot write into the checkout. The downloader mounts it read-write and is
+  # the only component that writes; the api mounts it read-only so the console
+  # can hand a stored file to a browser behind `media:read`. The worker still
+  # only indexes what is stored and never opens a file.
   media-data:

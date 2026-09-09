@@ -18,6 +18,7 @@ import pytest
 from dtk.core.db import session_scope
 from dtk.core.types import Scope
 from dtk.db.models import ArchivedContent, MediaDownload
+from dtk.ops import capacity
 from dtk.services import downloads
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
@@ -420,3 +421,156 @@ async def test_a_stale_download_stops_claiming_to_be_in_flight(api_app, db_engin
     async with session_scope() as session:
         row = await downloads.get(session, download_id)
         assert row is not None and row.state == "failed" and row.error
+
+
+# --------------------------------------------------------------------------
+# Serving a stored file
+#
+# The API is the only component in this system with authentication, scopes,
+# rate limiting and an audit trail, which is why it serves the bytes and the
+# downloader - whose own header insists it must never become a relay - does
+# not. What that buys is only as good as the path handling below.
+# --------------------------------------------------------------------------
+
+
+async def stored_download(tmp_root, *, name: str = "video.mp4", state: str = "done") -> uuid.UUID:
+    """A record whose directory really exists under the media root."""
+    download_id = uuid.uuid4()
+    directory = f"douyin/{AUTHOR_UID}/{CONTENT_ID}"
+    (tmp_root / directory).mkdir(parents=True, exist_ok=True)
+    (tmp_root / directory / name).write_bytes(b"not really an mp4, but bytes are bytes")
+    async with session_scope() as session:
+        session.add(
+            MediaDownload(
+                id=download_id,
+                platform="douyin",
+                content_id=CONTENT_ID,
+                author_uid=AUTHOR_UID,
+                state="done",
+                directory=directory,
+                bytes_total=38,
+                file_count=1,
+                files=[
+                    {
+                        "name": name,
+                        "kind": "video",
+                        "state": state,
+                        "bytes": 38,
+                        "content_type": "video/mp4",
+                    }
+                ],
+            )
+        )
+    return download_id
+
+
+async def test_a_stored_file_is_served_with_its_recorded_type(
+    api_app, db_engine, redis_client, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(capacity, "MEDIA_PATH", str(tmp_path))
+    download_id = await stored_download(tmp_path)
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get(
+            f"/api/v1/downloads/{download_id}/files/video.mp4", headers={"X-API-Key": key}
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("video/mp4")
+    assert "video.mp4" in response.headers.get("content-disposition", "")
+    assert response.content == b"not really an mp4, but bytes are bytes"
+
+
+async def test_a_name_not_in_the_record_is_refused(
+    api_app, db_engine, redis_client, tmp_path, monkeypatch
+):
+    """Existing on the volume is not the test; being in the record is.
+
+    A file the downloader wrote beside this one, for a different download, is
+    reachable on the filesystem and must not be reachable through this record.
+    """
+    monkeypatch.setattr(capacity, "MEDIA_PATH", str(tmp_path))
+    download_id = await stored_download(tmp_path)
+    neighbour = tmp_path / f"douyin/{AUTHOR_UID}/{CONTENT_ID}" / "someone-elses.mp4"
+    neighbour.write_bytes(b"not yours")
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get(
+            f"/api/v1/downloads/{download_id}/files/someone-elses.mp4",
+            headers={"X-API-Key": key},
+        )
+
+    assert error_code(response) == "NOT_FOUND"
+    assert neighbour.exists(), "the probe must not have removed the neighbour"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../../../etc/passwd",
+        "..%2f..%2fetc%2fpasswd",
+        "....//....//etc/passwd",
+        "/etc/passwd",
+    ],
+)
+async def test_a_traversing_name_never_leaves_the_media_root(
+    api_app, db_engine, redis_client, tmp_path, monkeypatch, name
+):
+    monkeypatch.setattr(capacity, "MEDIA_PATH", str(tmp_path))
+    download_id = await stored_download(tmp_path)
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get(
+            f"/api/v1/downloads/{download_id}/files/{name}", headers={"X-API-Key": key}
+        )
+
+    # Either the router never matches it or the record never lists it. What must
+    # not happen is a 200 carrying something from outside the root.
+    assert response.status_code in (404, 405)
+    if response.status_code == 404 and response.headers.get("content-type", "").startswith(
+        "application/json"
+    ):
+        assert error_code(response) == "NOT_FOUND"
+
+
+async def test_an_evicted_download_says_so_rather_than_refetching(
+    api_app, db_engine, redis_client, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(capacity, "MEDIA_PATH", str(tmp_path))
+    download_id = await stored_download(tmp_path)
+    async with session_scope() as session:
+        row = await session.get(MediaDownload, download_id)
+        assert row is not None
+        row.files_removed_at = datetime.now(UTC)
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get(
+            f"/api/v1/downloads/{download_id}/files/video.mp4", headers={"X-API-Key": key}
+        )
+
+    assert error_code(response) == "NOT_FOUND"
+    assert envelope(response)["error"]["details"]["reason"] == "evicted"
+
+
+async def test_serving_a_file_needs_media_read(
+    api_app, db_engine, redis_client, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(capacity, "MEDIA_PATH", str(tmp_path))
+    download_id = await stored_download(tmp_path)
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.DOUYIN_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get(
+            f"/api/v1/downloads/{download_id}/files/video.mp4", headers={"X-API-Key": key}
+        )
+
+    assert error_code(response) == "FORBIDDEN_SCOPE"

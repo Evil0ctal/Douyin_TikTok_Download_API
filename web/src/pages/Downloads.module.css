@@ -51,3 +51,17 @@
 .file:last-child {
   border-bottom: 0;
 }
+
+/* An ordinary link, styled as one: the browser's own download handling is what
+ * this is for, so anything that looks like a button would be a lie about what
+ * clicking it does. */
+.open {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.open:hover {
+  text-decoration: underline;
+}

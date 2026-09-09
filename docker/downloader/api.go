@@ -7,6 +7,12 @@ package main
 // a route that streams stored bytes back to a caller: the downloader is a sink
 // that fills the operator's own disk, not a relay that turns this instance into
 // an open media proxy (docs/design/18, docs/design/07).
+//
+// That still holds after doc 18 §1.4.1, which lets the console hand a stored
+// file to an operator's browser. Those bytes leave through the API, which is
+// the only component here with authentication, scopes, rate limiting and an
+// audit trail. This one keeps the volume and answers no question about its
+// contents beyond how much space they take.
 
 import (
 	"encoding/json"

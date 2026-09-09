@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   CopyableId,
+  ConfirmDialog,
   DataTable,
   Drawer,
   Field,
@@ -17,7 +18,7 @@ import {
   useToast,
 } from '@/components'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
-import { apiPost, isApiError } from '@/lib/api'
+import { apiDelete, apiPost, isApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import { DOWNLOAD_STATES, type DownloadState, type Platform } from '@/lib/types'
@@ -27,13 +28,15 @@ import styles from './Downloads.module.css'
 /**
  * Media stored on this instance's own disk.
  *
- * Two things about this page are deliberate and would be wrong to "fix".
- *
- * There is no play button and no download link. The files land on the
- * operator's media volume, and this console indexes them rather than serving
- * them: streaming a stored byte back through the API is the relay that
- * docs/design/07-frontend.md rules out, and the fact that the person looking at
- * this page owns the disk does not change what the endpoint would become.
+ * A file can be opened from here, and that is a reversal worth stating. The
+ * page used to refuse it on the grounds that streaming a stored byte back
+ * through the API is the relay docs/design/07-frontend.md rules out. Doc 18
+ * §1.4.1 revisits that: none of doc 07's three reasons - bandwidth, an open
+ * proxy, expiring signed links - describes handing an already-stored file to
+ * an authenticated operator's own browser. The endpoint fetches nothing,
+ * addresses a database row rather than a URL, and sits behind `media:read`.
+ * The downloader is still a sink; the bytes leave through the API because the
+ * API is the part of this system that can say who is asking.
  *
  * A row whose files have been cleaned up still appears, greyed, saying so.
  * "Collected and later evicted" is a different fact from "never fetched" -
@@ -112,6 +115,9 @@ export default function Downloads() {
   const [contentId, setContentId] = useState('')
   const [stateFilter, setStateFilter] = useState<DownloadState | ''>('')
   const [inspecting, setInspecting] = useState<DownloadRow | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [confirming, setConfirming] = useState<'delete' | null>(null)
+  const [working, setWorking] = useState(false)
 
   const storage = useApiQuery<Storage>({
     key: STORAGE_KEY,
@@ -177,6 +183,44 @@ export default function Downloads() {
       : storage.data && !storage.data.downloader.available
         ? storage.data.downloader.detail || t('downloads.unavailable')
         : null
+
+  const rows = list.data?.items ?? []
+  const chosen = rows.filter((row) => selected.has(row.id))
+  /** Pinning protects a whole directory, so an already-pinned row is a no-op. */
+  const unpinned = chosen.filter((row) => !row.pinned)
+  const pinned = chosen.filter((row) => row.pinned)
+  /** Only a row that still has files on the volume has anything to delete. */
+  const removable = chosen.filter((row) => row.on_disk)
+
+  /**
+   * One request per row rather than a bulk endpoint. There is no bulk endpoint,
+   * and adding a multi-delete to the public API to serve a console button is a
+   * bigger thing than the button. Sequential, stopping on the first failure, so
+   * a server that has already refused is not asked N more times.
+   */
+  const applyToEach = async (
+    targets: DownloadRow[],
+    call: (row: DownloadRow) => Promise<unknown>,
+    toastKey: string,
+  ): Promise<void> => {
+    setWorking(true)
+    let done = 0
+    for (const row of targets) {
+      try {
+        await call(row)
+        done += 1
+      } catch (error) {
+        toast.apiError(error)
+        break
+      }
+    }
+    if (done > 0) toast.success(t(toastKey, { count: done }))
+    setSelected(new Set())
+    setConfirming(null)
+    setWorking(false)
+    void invalidate(DOWNLOADS_KEY)
+    void invalidate(STORAGE_KEY)
+  }
 
   const columns: Array<Column<DownloadRow>> = useMemo(
     () => [
@@ -358,7 +402,7 @@ export default function Downloads() {
 
       <DataTable
         columns={columns}
-        rows={list.data?.items}
+        rows={rows}
         getRowId={(row) => row.id}
         loading={list.isLoading}
         error={list.error}
@@ -366,27 +410,94 @@ export default function Downloads() {
           void list.refetch()
         }}
         storageKey="downloads"
+        selectedIds={selected}
+        onSelectionChange={setSelected}
         onRowClick={setInspecting}
         defaultSort={{ columnId: 'finished', direction: 'desc' }}
         flashValue={(row) => row.state}
         emptyTitle={t('downloads.empty.title')}
         emptyDescription={t('downloads.empty.description')}
         toolbar={
-          <Select
-            aria-label={t('downloads.column.state')}
-            value={stateFilter}
-            onChange={(event) => {
-              setStateFilter(event.target.value as DownloadState | '')
-            }}
-          >
-            <option value="">{t('downloads.filter.allStates')}</option>
-            {DOWNLOAD_STATES.map((state) => (
-              <option key={state} value={state}>
-                {t(`common:state.download.${state}`)}
-              </option>
-            ))}
-          </Select>
+          <>
+            <Select
+              aria-label={t('downloads.column.state')}
+              value={stateFilter}
+              onChange={(event) => {
+                setStateFilter(event.target.value as DownloadState | '')
+              }}
+            >
+              <option value="">{t('downloads.filter.allStates')}</option>
+              {DOWNLOAD_STATES.map((state) => (
+                <option key={state} value={state}>
+                  {t(`common:state.download.${state}`)}
+                </option>
+              ))}
+            </Select>
+            {unpinned.length > 0 ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={working}
+                onClick={() => {
+                  void applyToEach(
+                    unpinned,
+                    (row) => apiPost(paths.downloads.pin(row.id), { pinned: true }),
+                    'downloads.bulk.pinned',
+                  )
+                }}
+              >
+                {t('downloads.bulk.pin', { count: unpinned.length })}
+              </Button>
+            ) : null}
+            {pinned.length > 0 ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={working}
+                onClick={() => {
+                  void applyToEach(
+                    pinned,
+                    (row) => apiPost(paths.downloads.pin(row.id), { pinned: false }),
+                    'downloads.bulk.unpinned',
+                  )
+                }}
+              >
+                {t('downloads.bulk.unpin', { count: pinned.length })}
+              </Button>
+            ) : null}
+            {removable.length > 0 ? (
+              <Button
+                size="sm"
+                variant="danger"
+                loading={working}
+                onClick={() => {
+                  setConfirming('delete')
+                }}
+              >
+                {t('downloads.bulk.delete', { count: removable.length })}
+              </Button>
+            ) : null}
+          </>
         }
+      />
+
+      <ConfirmDialog
+        open={confirming === 'delete'}
+        danger
+        loading={working}
+        title={t('downloads.bulk.deleteTitle')}
+        description={t('downloads.bulk.deleteBody', { count: removable.length })}
+        confirmLabel={t('downloads.bulk.deleteConfirm')}
+        onConfirm={() => {
+          void applyToEach(
+            removable,
+            (row) => apiDelete(paths.downloads.byId(row.id)),
+            'downloads.bulk.deleted',
+          )
+        }}
+        onCancel={() => {
+          setConfirming(null)
+        }}
       />
 
       <Drawer
@@ -408,8 +519,8 @@ export default function Downloads() {
  *
  * The sha256 is here because it is the only thing that makes a stored file
  * verifiable years later, when the post is gone and the CDN link means nothing.
- * There is still no link to open the file: the path is what the operator needs,
- * and serving the bytes is what this whole component refuses to do.
+ * It sits beside the file rather than behind it for the same reason: what you
+ * check a download against is the digest, not the size.
  */
 function Detail({ row }: { row: DownloadRow }) {
   const { t } = useTranslation(['console', 'common'])
@@ -442,6 +553,15 @@ function Detail({ row }: { row: DownloadRow }) {
               <CopyableId value={file.sha256} label={t('downloads.file.sha256')} />
             ) : null}
             {file.error ? <span className={styles.sub}>{file.error}</span> : null}
+            {row.on_disk && file.state === 'done' ? (
+              <a
+                className={styles.open}
+                href={paths.downloads.file(row.id, file.name)}
+                download={file.name}
+              >
+                {t('downloads.file.open')}
+              </a>
+            ) : null}
           </li>
         ))}
       </ul>

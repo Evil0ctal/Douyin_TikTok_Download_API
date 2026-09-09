@@ -25,9 +25,11 @@ download spends an identity and consumes disk, which no read scope should imply.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path as FsPath
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi.responses import FileResponse
 
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
@@ -295,6 +297,88 @@ async def get_download(
     if row is None:
         raise NotFound("no such download", details={"download_id": str(download_id)})
     return ok(request, downloads.as_dict(row))
+
+
+@router.get(
+    "/{download_id}/files/{name}",
+    summary="Download one stored file",
+    openapi_extra={I18N_KEY: "downloads_file"},
+    # Bytes, not the envelope. Declared so the generated document does not
+    # promise a JSON object and then hand back an mp4.
+    response_class=FileResponse,
+    responses={
+        200: {"content": {"application/octet-stream": {}}, "description": "The stored file."}
+    },
+)
+async def get_file(
+    request: Request,
+    download_id: uuid.UUID = DOWNLOAD_ID,
+    name: str = Path(description="The file's name, exactly as the download record lists it."),
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Serve one file this instance has already stored, to a browser.
+
+    The path is rebuilt from the stored row - the download's own directory plus
+    a name that has to appear in its file list - so the only thing a caller
+    chooses is *which* record, never where on the disk to read. A name that is
+    not in the record is a 404 whether or not something of that name exists.
+
+    Nothing is fetched: if the files were evicted to stay under the media
+    ceiling the record survives without them, and this answers 404 rather than
+    going back to the platform. Ask for the download again to restore it.
+
+    **Parameters**
+
+    - `download_id` - the record, from `GET /downloads`.
+    - `name` - one of the names in that record's `files`.
+
+    **Returns**
+
+    The file, with the content type the downloader recorded for it and a
+    Content-Disposition that makes a browser save rather than render it.
+    """
+    principal.require(Scope.MEDIA_READ)
+    row = await downloads.get(request.state.db, download_id)
+    if row is None:
+        raise NotFound("no such download", details={"download_id": str(download_id)})
+    if row.files_removed_at is not None:
+        raise NotFound(
+            "this download's files were removed to stay under the media ceiling",
+            details={"download_id": str(download_id), "reason": "evicted"},
+        )
+
+    entry = next(
+        (item for item in (row.files or []) if isinstance(item, dict) and item.get("name") == name),
+        None,
+    )
+    if entry is None or entry.get("state") != "done":
+        raise NotFound(
+            "this download has no completed file by that name",
+            details={"download_id": str(download_id), "name": name},
+        )
+
+    # Two independent checks, because one of them being enough is exactly the
+    # assumption path traversal is built on. The name came out of the stored
+    # record rather than off the wire, and the resolved path still has to land
+    # inside the media root.
+    root = FsPath(capacity.MEDIA_PATH).resolve()
+    try:
+        target = (root / str(row.directory) / name).resolve()
+        target.relative_to(root)
+    except (ValueError, OSError):
+        log.warning("media.path_escaped", download_id=str(download_id))
+        raise NotFound("no such file", details={"download_id": str(download_id)}) from None
+    if not target.is_file():
+        raise NotFound(
+            "the record lists this file but it is not on the volume",
+            details={"download_id": str(download_id), "name": name},
+        )
+
+    return FileResponse(
+        target,
+        media_type=str(entry.get("content_type") or "application/octet-stream"),
+        filename=name,
+    )
 
 
 @router.post(

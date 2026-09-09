@@ -68,6 +68,11 @@ export const paths = {
     create: `${API_V1}/downloads`,
     storage: `${API_V1}/downloads/storage`,
     pin: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}/pin`,
+    byId: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}`,
+    // A plain href the browser follows, so the session cookie authenticates it
+    // the same way it does every other request from this page.
+    file: (id: string, name: string) =>
+      `${API_V1}/downloads/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`,
   },
   tools: {
     sign: `${API_V1}/tools/sign`,

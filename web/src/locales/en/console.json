@@ -1344,7 +1344,19 @@
     },
     "file": {
       "sha256": "sha256",
-      "none": "No files were stored for this post."
+      "none": "No files were stored for this post.",
+      "open": "Save this file"
+    },
+    "bulk": {
+      "pin": "Pin {count, plural, one {# download} other {# downloads}}",
+      "unpin": "Unpin {count, plural, one {# download} other {# downloads}}",
+      "delete": "Delete {count, plural, one {# download} other {# downloads}}",
+      "pinned": "{count, plural, one {# download pinned} other {# downloads pinned}}",
+      "unpinned": "{count, plural, one {# download unpinned} other {# downloads unpinned}}",
+      "deleted": "{count, plural, one {# download removed} other {# downloads removed}}",
+      "deleteTitle": "Delete the selected downloads?",
+      "deleteBody": "{count, plural, one {# download's files are removed} other {# downloads' files are removed}} from the media volume. The record stays and says the files were cleaned up, so you can tell this apart from never having fetched them - and asking for the download again restores them.",
+      "deleteConfirm": "Delete the files"
     }
   },
   "library": {
