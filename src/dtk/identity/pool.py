@@ -19,6 +19,7 @@ from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.crypto import Cipher
+from dtk.core.errors import InvalidParam
 from dtk.core.logging import get_logger
 from dtk.core.types import (
     BrowserFamily,
@@ -505,6 +506,60 @@ class IdentityPool:
         if count:
             log.warning("identity.proxy_cooldown", proxy_id=str(proxy_id), affected=count)
         return count
+
+    async def reset(self, session: AsyncSession, identity_id: str) -> IdentityState | None:
+        """Put a cooling or degraded identity straight back into rotation.
+
+        The pool recovers on its own - a cooldown elapses, a success clears the
+        streak - and that is deliberately slow, because an identity that has
+        failed repeatedly usually deserves the probation. This is the override
+        for the case the automatic path cannot know about: the failures were not
+        the identity's fault.
+
+        That case is real and recent. Until 2026-09-09 the classifier read
+        Douyin's answer for a post that does not exist as risk control, so
+        looking up one wrong id cooled the identity that asked and added to its
+        streak. Fixing the classifier stops it happening again and un-does none
+        of it: a degraded identity waits out a cooldown it never earned, and a
+        streak of five keeps it out of `usable_count` until five successes have
+        gone by. Nothing else in this system can say "that was us".
+
+        Returns the new state, or None when there was no such identity.
+
+        A retired identity is deliberately not resettable. Retirement wipes the
+        cookie jar, so there is no session left to return to rotation and the
+        row is a statistic; offering a button that appeared to bring one back
+        would be offering a lie.
+        """
+        row = await session.get(IdentityRow, uuid.UUID(identity_id))
+        if row is None:
+            return None
+        if row.state == IdentityState.RETIRED.value:
+            raise InvalidParam(
+                "a retired identity has no session left to reset",
+                details={"identity_id": identity_id, "state": row.state},
+            )
+
+        before = row.state
+        streak = row.consecutive_fails
+        row.state = IdentityState.ACTIVE.value
+        row.cooldown_until = None
+        row.consecutive_fails = 0
+        session.add(
+            IdentityEvent(
+                ts=datetime.now(UTC),
+                identity_id=row.id,
+                event="reset",
+                # What it was before, so the history still shows the identity
+                # was in trouble and that a person decided otherwise.
+                detail={"from_state": before, "cleared_streak": streak},
+            )
+        )
+        await session.flush()
+        log.info(
+            "identity.reset", identity_id=identity_id, from_state=before, cleared_streak=streak
+        )
+        return IdentityState(row.state)
 
     async def retire(self, session: AsyncSession, identity_id: str, reason: str) -> None:
         """Retire an identity and wipe its credential immediately.

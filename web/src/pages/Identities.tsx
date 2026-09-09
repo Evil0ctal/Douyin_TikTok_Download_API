@@ -207,6 +207,19 @@ function SessionCell({ identity }: { identity: Identity }) {
 
 const POOL_KEY = ['admin', 'identities', 'pool'] as const
 
+/**
+ * Whether resetting this identity would change anything.
+ *
+ * Cooling and degraded are the states a reset lifts. A streak matters even on
+ * an active identity: it is what `usable_count` measures the pool against, so
+ * an active identity carrying five failures is one the refill job has already
+ * written off. Retired is excluded because its cookie jar was wiped.
+ */
+function needsReset(row: Identity): boolean {
+  if (row.state === 'retired') return false
+  return row.state === 'cooling' || row.state === 'degraded' || row.consecutive_fails > 0
+}
+
 interface PoolPlatform {
   platform: string
   usable: number
@@ -521,6 +534,7 @@ export default function Identities() {
   const [mintOpen, setMintOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [retiring, setRetiring] = useState<Identity[] | null>(null)
+  const [resetting, setResetting] = useState<Identity[] | null>(null)
 
   const query = useApiQuery<Identity[]>({
     key: [...IDENTITIES_KEY, platform, state],
@@ -613,6 +627,37 @@ export default function Identities() {
       setProbeDetail({ identity, state: next })
     }
   }
+
+  /**
+   * Put identities back into rotation by hand.
+   *
+   * Offered because recovery is deliberately slow - a degraded identity waits
+   * out a ceiling cooldown, and a failure streak keeps it out of the pool level
+   * until that many successes have gone by - and slow is right only when the
+   * failures were the identity's fault. Nothing automatic can know when they
+   * were not; this instance's own classifier charged identities for looking up
+   * posts that did not exist until 2026-09-09, and fixing that repaired none of
+   * the damage it had already done.
+   */
+  const reset = useApiMutation<unknown, Identity[]>(
+    async (targets) => {
+      for (const identity of targets) {
+        await apiPost(paths.identities.reset(identity.id), {})
+      }
+      return null
+    },
+    {
+      onSuccess: async (_data, targets) => {
+        toast.success(t('console:identity.reset.done', { count: targets.length }))
+        setResetting(null)
+        setSelected(new Set())
+        await refresh()
+      },
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
 
   const retire = useApiMutation<unknown, Identity[]>(
     async (targets) => {
@@ -798,6 +843,21 @@ export default function Identities() {
           >
             {t('common:action.test')}
           </Button>
+          {/* Only where it does something. An active identity with no streak
+              has nothing to clear, and a button that is always there teaches
+              people to press it as a ritual. */}
+          {needsReset(row) ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={(event) => {
+                event.stopPropagation()
+                setResetting([row])
+              }}
+            >
+              {t('console:identity.reset.action')}
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="ghost"
@@ -992,6 +1052,19 @@ export default function Identities() {
                   ]}
                 />
               </FilterSlot>
+              {selectedRows.some(needsReset) ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setResetting(selectedRows.filter(needsReset))
+                  }}
+                >
+                  {t('console:identity.reset.bulk', {
+                    count: selectedRows.filter(needsReset).length,
+                  })}
+                </Button>
+              ) : null}
               {selected.size > 0 ? (
                 <Button
                   size="sm"
@@ -1024,6 +1097,20 @@ export default function Identities() {
           setImportOpen(false)
         }}
         onDone={refresh}
+      />
+
+      <ConfirmDialog
+        open={resetting !== null}
+        loading={reset.isPending}
+        title={t('console:identity.reset.dialogTitle', { count: resetting?.length ?? 0 })}
+        description={t('console:identity.reset.dialogBody')}
+        confirmLabel={t('console:identity.reset.action')}
+        onCancel={() => {
+          setResetting(null)
+        }}
+        onConfirm={() => {
+          reset.mutate(resetting ?? [])
+        }}
       />
 
       <ConfirmDialog
@@ -1676,7 +1763,16 @@ function ProbeDialog({ open, identity, state, onClose }: ProbeDialogProps) {
               <Fact label={t('console:identity.test.rule')} value={result.rule ?? MISSING} mono />
             </div>
             {result.detail ? <CodeBlock code={result.detail} language="text" /> : null}
-            <p className="u-xs u-muted">{t('console:identity.test.businessErrorNote')}</p>
+            {/* The note explains the verdict, so it has to depend on it. It
+                used to say "a business error counts as a pass" under every
+                result, including a plain success - which reads as the console
+                telling you the post is gone when the platform said nothing of
+                the kind. */}
+            <p className="u-xs u-muted">
+              {t(`console:identity.test.note.${result.outcome ?? 'unknown'}`, {
+                defaultValue: t('console:identity.test.note.unknown'),
+              })}
+            </p>
           </>
         ) : null}
         {!state?.running && !result && !state?.error ? (

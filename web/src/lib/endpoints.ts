@@ -41,6 +41,8 @@ export const paths = {
     import: `${API_V1}/admin/identities/import`,
     byId: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}`,
     test: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/test`,
+    /** Clears a cooldown and a failure streak. Refused on a retired identity. */
+    reset: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/reset`,
   },
   proxies: {
     list: `${API_V1}/admin/proxies`,

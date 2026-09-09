@@ -487,6 +487,65 @@ async def test_identity(
     return ok(request, {"task_id": str(task_id)}, status_code=202)
 
 
+@router.post(
+    "/{identity_id}/reset",
+    summary="Return an identity to rotation",
+    openapi_extra={I18N_KEY: "identities_reset"},
+)
+async def reset_identity(
+    request: Request,
+    identity_id: uuid.UUID = Path(description="The identity to act on."),
+    principal: Principal = Depends(manage_pool),
+) -> Any:
+    """Clear a cooldown and a failure streak, and mark the identity active.
+
+    The pool recovers on its own and does so slowly on purpose: an identity that
+    has failed repeatedly usually deserves the probation. This is the override
+    for the case that recovery cannot know about - the failures were not the
+    identity's fault.
+
+    That case is real. Until 2026-09-09 this instance read Douyin's answer for a
+    post that does not exist as risk control, so looking up one wrong id cooled
+    the identity that asked and added to its streak. Fixing the classifier stops
+    it recurring and repairs none of the damage: a degraded identity waits out a
+    cooldown it never earned, and a streak keeps it out of the pool level until
+    that many successes have gone by.
+
+    Refused on a retired identity, whose cookie jar was wiped when it was
+    retired: there is no session left to return to rotation, and a button that
+    appeared to bring one back would be a lie.
+
+    **Returns**
+
+    The identity's id and its new state.
+    """
+    session = request.state.db
+    identity = await session.get(Identity, identity_id)
+    if identity is None:
+        raise NotFound("no such identity")
+
+    before = identity.state
+    streak = identity.consecutive_fails
+    state = await _pool(request).reset(session, str(identity_id))
+    await audit(
+        request,
+        principal,
+        "identity.reset",
+        target_type="identity",
+        target_id=str(identity_id),
+        detail={"from_state": before, "cleared_streak": streak, "platform": identity.platform},
+    )
+    return ok(
+        request,
+        {
+            "id": str(identity_id),
+            "state": state.value if state else IdentityState.ACTIVE.value,
+            "from_state": before,
+            "cleared_streak": streak,
+        },
+    )
+
+
 @router.delete(
     "/{identity_id}", summary="Retire an identity", openapi_extra={I18N_KEY: "identities_retire"}
 )

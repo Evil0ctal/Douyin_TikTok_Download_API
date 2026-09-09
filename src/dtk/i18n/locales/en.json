@@ -378,6 +378,10 @@
         "summary": "Pool level against its low-water mark",
         "description": "What the background refill job compares, per platform. `usable` counts live identities whose consecutive failure streak is still under `pool.max_fail_streak` - not the row count, because an identity that fails every request stays live and would otherwise keep a dead pool looking full. Below `pool.min_size` the worker mints one identity per minute until the pool is back at `pool.target_size`. `can_mint` is false when this deployment has no browser container, in which case the marks have no effect and the pool is whatever was imported by hand."
       },
+      "identities_reset": {
+        "summary": "Return an identity to rotation",
+        "description": "Clears the cooldown and the consecutive failure streak and marks the identity active. The pool recovers on its own and does so slowly on purpose - an identity that has failed repeatedly usually deserves the probation - so this is the override for the case recovery cannot know about: the failures were not the identity's fault. Refused on a retired identity, whose cookie jar was wiped when it was retired; there is no session left to return to rotation. The reset is written to the identity's history with the state it came from, so the record still shows the identity was in trouble and that a person decided otherwise."
+      },
       "identities_retire": {
         "summary": "Retire an identity",
         "description": "Retire and wipe. The statistics stay, the credential does not (doc 05)."

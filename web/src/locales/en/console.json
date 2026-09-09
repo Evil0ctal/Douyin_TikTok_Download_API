@@ -306,8 +306,14 @@
     "test": {
       "title": "Identity test",
       "rule": "Rule",
-      "businessErrorNote": "A business error counts as a pass: the platform answered, the content is simply gone.",
-      "idle": "No result yet."
+      "idle": "No result yet.",
+      "note": {
+        "ok": "The platform answered this identity normally. Its cookies are accepted and its signature was read.",
+        "business_error": "Counts as a pass. The platform answered normally and said the post itself is unavailable, which is a fact about the content and not about this identity.",
+        "risk_control": "The platform refused this identity rather than the request. Its cookies are burnt or it has been flagged; it has been cooled and will not be scheduled until the cooldown elapses.",
+        "network_error": "No answer at all. This is the proxy, DNS or TLS between here and the platform, not the identity - the same probe through a different exit is worth trying.",
+        "unknown": "No outcome was reported."
+      }
     },
     "session": {
       "ok": "Live",
@@ -363,6 +369,13 @@
         "rpc_unavailable": "The browser container did not answer",
         "unusable_fingerprint": "The browser reported a fingerprint with no usable version, so the identity was refused rather than paired with a guessed TLS profile"
       }
+    },
+    "reset": {
+      "action": "Reset",
+      "bulk": "{count, plural, one {Reset # identity} other {Reset # identities}}",
+      "done": "{count, plural, one {# identity is back in rotation} other {# identities are back in rotation}}",
+      "dialogTitle": "{count, plural, one {Put # identity back into rotation?} other {Put # identities back into rotation?}}",
+      "dialogBody": "The cooldown and the consecutive failure count are cleared and the identity is marked active. Do this when the failures were not its fault - a run of bad ids, or a proxy that has since been fixed. If the session itself is burnt, the platform will refuse it again within a few requests and it will cool straight back down."
     }
   },
   "proxy": {

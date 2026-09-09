@@ -8,6 +8,7 @@ password.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,7 @@ from sqlalchemy import delete, select
 
 from dtk.core.db import session_scope
 from dtk.core.types import IdentityState, Platform, Scope, UserRole
-from dtk.db.models import ApiKey, AuditLog, Identity, Proxy, Setting
+from dtk.db.models import ApiKey, AuditLog, Identity, IdentityEvent, Proxy, Setting
 from dtk.ops import backup
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
@@ -986,3 +987,134 @@ async def test_backup_is_administrator_only(client: Any) -> None:
     await signed_in(client, username="op", role=UserRole.OPERATOR)
     response = await client.post("/api/v1/admin/backup", json={"include_identities": True})
     assert response.status_code == 403
+
+
+# --------------------------------------------------------------------------
+# Putting one back
+# --------------------------------------------------------------------------
+
+
+async def _degrade(streak: int = 5, state: str = IdentityState.DEGRADED.value) -> uuid.UUID:
+    async with session_scope() as session:
+        row = (await session.scalars(select(Identity))).one()
+        row.state = state
+        row.consecutive_fails = streak
+        row.cooldown_until = datetime.now(UTC) + timedelta(hours=1)
+        await session.commit()
+        return row.id
+
+
+async def _import_one(client: Any) -> None:
+    await client.post(
+        "/api/v1/admin/identities/import",
+        json={
+            "platform": Platform.DOUYIN.value,
+            "cookies": SESSION_COOKIE_BLOB,
+            "user_agent": CHROME_UA,
+        },
+    )
+
+
+async def test_reset_clears_the_cooldown_and_the_streak(client: Any) -> None:
+    """The override for failures that were not the identity's fault.
+
+    Recovery is deliberately slow, and slow is right only when the identity
+    earned it. This instance's own classifier charged identities for looking up
+    posts that did not exist until 2026-09-09, and fixing that repaired none of
+    the damage already done.
+    """
+    await signed_in(client)
+    await _import_one(client)
+    identity_id = await _degrade()
+
+    body = envelope(await client.post(f"/api/v1/admin/identities/{identity_id}/reset"))["data"]
+
+    assert body["state"] == IdentityState.ACTIVE.value
+    assert body["from_state"] == IdentityState.DEGRADED.value
+    assert body["cleared_streak"] == 5
+    async with session_scope() as session:
+        row = await session.get(Identity, identity_id)
+        assert row is not None
+        assert row.state == IdentityState.ACTIVE.value
+        assert row.consecutive_fails == 0
+        assert row.cooldown_until is None
+
+
+async def test_reset_brings_an_identity_back_into_the_pool_level(client: Any) -> None:
+    """The number the refill job compares, which a streak keeps it out of."""
+    await signed_in(client)
+    await _import_one(client)
+    identity_id = await _degrade()
+
+    before = envelope(await client.get("/api/v1/admin/identities/pool"))["data"]
+    douyin_before = next(p for p in before["platforms"] if p["platform"] == "douyin")
+    assert douyin_before["usable"] == 0
+
+    await client.post(f"/api/v1/admin/identities/{identity_id}/reset")
+
+    after = envelope(await client.get("/api/v1/admin/identities/pool"))["data"]
+    douyin_after = next(p for p in after["platforms"] if p["platform"] == "douyin")
+    assert douyin_after["usable"] == 1
+
+
+async def test_reset_is_written_to_the_identity_history(client: Any) -> None:
+    """The record still shows it was in trouble, and that a person overrode it."""
+    await signed_in(client)
+    await _import_one(client)
+    identity_id = await _degrade()
+
+    await client.post(f"/api/v1/admin/identities/{identity_id}/reset")
+
+    async with session_scope() as session:
+        events = (
+            await session.scalars(
+                select(IdentityEvent).where(IdentityEvent.identity_id == identity_id)
+            )
+        ).all()
+    reset = next(event for event in events if event.event == "reset")
+    assert reset.detail == {"from_state": IdentityState.DEGRADED.value, "cleared_streak": 5}
+    assert "identity.reset" in await audit_actions()
+
+
+async def test_a_retired_identity_cannot_be_reset(client: Any) -> None:
+    """Retiring wipes the jar. There is no session left to put back."""
+    await signed_in(client)
+    await _import_one(client)
+    identity_id = await _degrade(state=IdentityState.RETIRED.value)
+
+    refused = await client.post(f"/api/v1/admin/identities/{identity_id}/reset")
+
+    assert error_code(refused) == "INVALID_PARAM"
+
+
+async def test_resetting_something_that_is_not_there_is_a_404(client: Any) -> None:
+    await signed_in(client)
+    missing = uuid.uuid4()
+    assert error_code(await client.post(f"/api/v1/admin/identities/{missing}/reset")) == "NOT_FOUND"
+
+
+async def test_a_read_only_key_cannot_reset(api_app: Any, client: Any) -> None:
+    """It returns an identity to service, which is a pool change.
+
+    Through a client with no cookie: the shared one carries a console session,
+    and `current_principal` falls back to it when a key is refused - so the
+    request would succeed for the wrong reason.
+    """
+    await signed_in(client)
+    await _import_one(client)
+    identity_id = await _degrade()
+    # `signed_in` already created "admin"; this one needs its own name.
+    user_id = await make_user(username="reader", role=UserRole.VIEWER)
+    key = await make_api_key(user_id, scopes=(Scope.ARCHIVE_READ,))
+
+    async with anonymous_client(api_app) as caller:
+        refused = await caller.post(
+            f"/api/v1/admin/identities/{identity_id}/reset",
+            headers={"Authorization": f"Bearer {key}"},
+        )
+
+    assert refused.status_code in (401, 403)
+    async with session_scope() as session:
+        row = await session.get(Identity, identity_id)
+        assert row is not None
+        assert row.state == IdentityState.DEGRADED.value
