@@ -213,3 +213,99 @@
   background: var(--bg-base);
   display: block;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Selection and bulk actions                                                  */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The card gained a sibling. A checkbox cannot live inside the card's button -
+ * nested interactive content is invalid, and a click on it would open the
+ * drawer as well - so the two are laid over one another instead.
+ */
+.cardShell {
+  position: relative;
+  border-radius: var(--radius);
+}
+
+.cardShell[data-selected='true'] .thumb {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+
+.select {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  /* Solid rather than translucent: it sits on a cover that can be any colour,
+     and a checkbox that disappears against a white frame is one nobody finds. */
+  background: var(--bg-base);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+
+.select input {
+  margin: 0;
+  cursor: pointer;
+}
+
+/*
+ * Pinned to the bottom of the viewport, not placed above the grid.
+ *
+ * The selection is made by scrolling through a wall of covers; a bar at the top
+ * of the page is a bar you have to scroll back to before you can act on what
+ * you just picked.
+ */
+.bulkBar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 25%));
+}
+
+.bulkCount {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.bulkSpacer {
+  flex: 1 1 auto;
+}
+
+.collectionList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.collectionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.collectionRow:last-child {
+  border-bottom: 0;
+}

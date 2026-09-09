@@ -51,6 +51,8 @@ API_TEST_REDIS_DB = 9
 
 #: Cleared before every test, children first so foreign keys stay satisfied.
 TABLES = (
+    "collection_items",
+    "collections",
     "watchlist",
     "media_downloads",
     "archived_contents",

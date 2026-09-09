@@ -1450,7 +1450,11 @@
       "exported": "{count, plural, one {Exported # post} other {Exported # posts}}",
       "exportFailed": "Export failed",
       "recheckStarted": "Checking what still exists",
-      "backfillStarted": "Walking their history"
+      "backfillStarted": "Walking their history",
+      "addedToCollection": "{count, plural, =0 {Already in that collection} one {# post added} other {# posts added}}",
+      "removedFromCollection": "{count, plural, one {# post removed from the collection} other {# posts removed from the collection}}",
+      "deleted": "{count, plural, one {# post deleted} other {# posts deleted}}, {size} freed",
+      "deleteFailed": "Nothing was deleted"
     },
     "orientationValue": {
       "portrait": "Portrait",
@@ -1493,7 +1497,39 @@
       "savedHint": "Stored on this instance's disk"
     },
     "storeAgain": "Saved · fetch again",
-    "storedHint": "Already on this instance's disk, {size}. Fetching again replaces it with a fresh copy."
+    "storedHint": "Already on this instance's disk, {size}. Fetching again replaces it with a fresh copy.",
+    "collection": {
+      "manage": "Collections",
+      "any": "Any collection",
+      "filterLabel": "Collection",
+      "name": "Name",
+      "namePlaceholder": "for the edit",
+      "create": "Create",
+      "created": "Collection created",
+      "deleted": "Collection deleted",
+      "itemCount": "{count, plural, =0 {empty} one {# post} other {# posts}}",
+      "emptyTitle": "No collections yet",
+      "emptyDescription": "A collection is a set you make by hand. Everything else the library groups by - author, platform, when it was saved - comes out of the post itself.",
+      "deleteHint": "Deleting a collection removes the label only. The posts stay in the archive and their files stay on disk.",
+      "confirmTitle": "Delete this collection?",
+      "confirmBody": "“{name}” will be removed. The posts in it stay in the archive and keep their files."
+    },
+    "bulk": {
+      "label": "Bulk actions",
+      "count": "{count, plural, one {# selected} other {# selected}}",
+      "selectOne": "Select {title}",
+      "selectPage": "Select this page",
+      "clear": "Clear",
+      "addTo": "Add to collection",
+      "removeFrom": "Remove from this collection",
+      "noCollections": "No collections yet",
+      "delete": "Delete"
+    },
+    "delete": {
+      "title": "Delete these posts?",
+      "body": "{count, plural, one {# post and any media stored for it will be deleted from this instance.} other {# posts and any media stored for them will be deleted from this instance.}} The posts stay on the platform. This cannot be undone and there is no trash.",
+      "action": "Delete"
+    }
   },
   "watchlist": {
     "title": "Watchlist",

@@ -20,5 +20,6 @@
   "QUEUE_FULL": "The work queue is full; retry in {retry_after} seconds.",
   "CANCELLED": "The task was cancelled before it finished.",
   "METHOD_NOT_ALLOWED": "That HTTP method is not allowed on this path.",
-  "UNSUPPORTED_MEDIA_TYPE": "The request body was sent in a media type this endpoint does not read."
+  "UNSUPPORTED_MEDIA_TYPE": "The request body was sent in a media type this endpoint does not read.",
+  "DOWNLOADER_UNAVAILABLE": "The media downloader is not answering; nothing was changed."
 }

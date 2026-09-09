@@ -190,6 +190,10 @@
         "summary": "Archive an author's history",
         "description": "Walks one author's posts past the first page and archives every one. Separate from the watchlist on purpose: a watchlist entry is for what is new and runs forever, while a backfill is a one-off with a very different cost. Stops at the first empty page, at the page ceiling, or when the platform says there is no more history."
       },
+      "archive_delete": {
+        "summary": "Delete archived posts",
+        "description": "The one call in the archive that destroys something. Not reversible and there is no trash: the record goes, its collection memberships go with it, and unless `media` is false the stored files are removed from disk as well. `media` defaults to true because that is what \"delete this\" means about a video the instance is holding. Files are removed before rows, so the worst case is bytes with no record rather than a record offering a download it cannot deliver."
+      },
       "archive_export": {
         "summary": "Export the archive",
         "description": "Stream every matching post as newline-delimited JSON, a page at a time rather than buffered, so the size of your own collection is not what breaks the export. Requires the archive:export scope, which ordinary read keys do not carry."
@@ -277,6 +281,30 @@
       "batch": {
         "summary": "Submit many links at once",
         "description": "Submits many links in one call and returns a task id per link. Each link is scheduled independently, so one failure does not hold up the rest."
+      },
+      "collections_add": {
+        "summary": "Add posts to a collection",
+        "description": "Adding a post that is already in the collection is a no-op rather than an error: the console sends whatever is selected, and part of a selection is routinely already there. A post that is not in the archive is skipped, so one stale card does not refuse the other nineteen. Returns how many were newly added."
+      },
+      "collections_create": {
+        "summary": "Create a collection",
+        "description": "Make a new named set, empty until posts are added to it. The name is unique case-insensitively and whitespace in it is collapsed. `note` is free text the console shows under the name and nothing ever parses."
+      },
+      "collections_delete": {
+        "summary": "Delete a collection",
+        "description": "Removes the collection itself. The posts stay in the archive and the files stay on disk: a collection is a label, and deleting a label is not deleting what it was on."
+      },
+      "collections_list": {
+        "summary": "List collections",
+        "description": "Every collection, with how many posts is in each. A collection is the one grouping the library offers that is not derived from the posts: author, platform and collection date all come out of the record, and this one comes out of somebody deciding."
+      },
+      "collections_remove": {
+        "summary": "Take posts out of a collection",
+        "description": "Removes membership only; the posts stay in the archive. A POST rather than a DELETE because it carries a body, and a DELETE with a body is the kind of thing intermediaries drop."
+      },
+      "collections_update": {
+        "summary": "Rename a collection",
+        "description": "Change the name, the note, or both. Membership is untouched. Send `note` as null to clear it; leave it out of the body entirely to keep whatever is there - the two are different requests that would otherwise look identical."
       },
       "comment_replies": {
         "summary": "Replies under one comment",

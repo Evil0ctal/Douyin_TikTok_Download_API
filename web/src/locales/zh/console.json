@@ -1450,7 +1450,11 @@
       "exported": "{count, plural, other {已导出 # 条}}",
       "exportFailed": "导出失败",
       "recheckStarted": "正在检查哪些作品还在",
-      "backfillStarted": "正在回溯该作者的历史"
+      "backfillStarted": "正在回溯该作者的历史",
+      "addedToCollection": "{count, plural, =0 {已经在该合集中} other {已加入 # 个作品}}",
+      "removedFromCollection": "已从合集移出 {count} 个作品",
+      "deleted": "已删除 {count} 个作品，释放 {size}",
+      "deleteFailed": "没有删除任何内容"
     },
     "orientationValue": {
       "portrait": "竖屏",
@@ -1493,7 +1497,39 @@
       "savedHint": "已存在本实例磁盘上"
     },
     "storeAgain": "已保存 · 重新抓取",
-    "storedHint": "已经在本实例磁盘上，{size}。重新抓取会用新的一份替换它。"
+    "storedHint": "已经在本实例磁盘上，{size}。重新抓取会用新的一份替换它。",
+    "collection": {
+      "manage": "合集",
+      "any": "全部合集",
+      "filterLabel": "合集",
+      "name": "名称",
+      "namePlaceholder": "待剪辑",
+      "create": "创建",
+      "created": "合集已创建",
+      "deleted": "合集已删除",
+      "itemCount": "{count, plural, =0 {空} other {# 个作品}}",
+      "emptyTitle": "还没有合集",
+      "emptyDescription": "合集是你手动分的一组作品。资料库里其他的分组方式——作者、平台、保存时间——都是从作品本身算出来的。",
+      "deleteHint": "删除合集只是删掉这个标签，里面的作品仍留在归档中，文件也仍在磁盘上。",
+      "confirmTitle": "确定删除这个合集？",
+      "confirmBody": "将删除“{name}”。其中的作品仍保留在归档中，文件也不会被删除。"
+    },
+    "bulk": {
+      "label": "批量操作",
+      "count": "已选 {count} 项",
+      "selectOne": "选择 {title}",
+      "selectPage": "选中本页",
+      "clear": "取消选择",
+      "addTo": "加入合集",
+      "removeFrom": "从当前合集移出",
+      "noCollections": "还没有合集",
+      "delete": "删除"
+    },
+    "delete": {
+      "title": "确定删除这些作品？",
+      "body": "将从本实例删除 {count} 个作品，以及为它们保存的所有媒体文件。平台上的原作品不受影响。此操作不可撤销，也没有回收站。",
+      "action": "删除"
+    }
   },
   "watchlist": {
     "title": "关注列表",

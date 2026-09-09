@@ -58,6 +58,15 @@ export const paths = {
     export: `${API_V1}/archive/export`,
     recheck: `${API_V1}/archive/recheck`,
     backfill: `${API_V1}/archive/backfill`,
+    /** Removes the archive rows and, unless told otherwise, the stored files. */
+    delete: `${API_V1}/archive/delete`,
+    collections: `${API_V1}/archive/collections`,
+    collection: (id: string) => `${API_V1}/archive/collections/${encodeURIComponent(id)}`,
+    collectionItems: (id: string) =>
+      `${API_V1}/archive/collections/${encodeURIComponent(id)}/items`,
+    /** POST, not DELETE: it carries a body, and bodies on DELETE get dropped. */
+    collectionItemsRemove: (id: string) =>
+      `${API_V1}/archive/collections/${encodeURIComponent(id)}/items/remove`,
   },
   watchlist: {
     list: `${API_V1}/admin/watchlist`,

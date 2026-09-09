@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
-from sqlalchemy import func, select, tuple_, update
+from sqlalchemy import delete, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.logging import get_logger
@@ -364,6 +364,52 @@ async def stored_for(
             "images": [f["name"] for f in files if f["kind"] == "image" and f["state"] == "done"],
         }
     return found
+
+
+async def directories_for(
+    session: AsyncSession, keys: Sequence[tuple[str, str]]
+) -> tuple[list[str], list[uuid.UUID]]:
+    """Every stored directory for these posts, and the rows that own them.
+
+    Includes rows in any state, not just ``done``: a cancelled or partial
+    download still wrote bytes, and "delete what you have of this post" has to
+    mean all of it. Rows already evicted are skipped - there is nothing on disk
+    to ask the sidecar about - but they are still returned as ids, because the
+    record goes with the post either way.
+    """
+    if not keys:
+        return [], []
+    rows = (
+        (
+            await session.execute(
+                select(MediaDownload).where(
+                    tuple_(MediaDownload.platform, MediaDownload.content_id).in_(list(keys))
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    directories = sorted(
+        {row.directory for row in rows if row.directory and row.files_removed_at is None}
+    )
+    return directories, [row.id for row in rows]
+
+
+async def forget(session: AsyncSession, ids: Sequence[uuid.UUID]) -> int:
+    """Delete download records outright.
+
+    The opposite of :func:`mark_evicted`, and the only place that does this.
+    Eviction keeps the row on purpose - it is the record that something was
+    collected and later reclaimed for space - but a post being removed from the
+    archive is a person saying they do not want it, and leaving the metadata
+    behind would leave the library able to list a post nothing else knows about.
+    """
+    if not ids:
+        return 0
+    result = await session.execute(delete(MediaDownload).where(MediaDownload.id.in_(list(ids))))
+    await session.flush()
+    return affected(result)
 
 
 async def stats(session: AsyncSession) -> dict[str, Any]:

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Button,
   Card,
+  ConfirmDialog,
   DataTable,
   DownloadIcon,
   Drawer,
@@ -11,6 +12,7 @@ import {
   ErrorState,
   Input,
   MetricTile,
+  Modal,
   PageHeader,
   PlayIcon,
   Select,
@@ -19,7 +21,7 @@ import {
   useToast,
 } from '@/components'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
-import { apiPost, apiText } from '@/lib/api'
+import { apiDelete, apiPost, apiText } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import type { Platform } from '@/lib/types'
 
@@ -80,6 +82,17 @@ interface ArchivedRow {
    * separate scopes on purpose.
    */
   stored: StoredMedia | null
+  /** Ids of the hand-made sets this post is in. Empty for most posts. */
+  collections: string[]
+}
+
+interface CollectionRow {
+  id: string
+  name: string
+  note: string | null
+  items: number
+  created_at: string | null
+  updated_at: string | null
 }
 
 type ViewMode = 'grid' | 'table'
@@ -118,13 +131,82 @@ interface Filters {
   kind: string
   duration_bucket: string
   availability: string
+  /** A collection id. The one filter here that is not a property of the post. */
+  collection: string
   q: string
 }
 
 /** How long a small download usually takes to land, measured on a 9MB post. */
 const STORE_SETTLE_MS = 4000
 
-const NO_FILTERS: Filters = { platform: '', kind: '', duration_bucket: '', availability: '', q: '' }
+const NO_FILTERS: Filters = {
+  platform: '',
+  kind: '',
+  duration_bucket: '',
+  availability: '',
+  collection: '',
+  q: '',
+}
+
+const COLLECTIONS_KEY = ['archive', 'collections'] as const
+
+/**
+ * The menus that apply the moment they change.
+ *
+ * Declared as data rather than written out five times, because the thing that
+ * makes them a group is precisely that they behave identically: each is a
+ * closed set of values, so picking one IS the decision and there is nothing for
+ * a subsequent button press to add.
+ */
+const MENUS: ReadonlyArray<{
+  field: 'platform' | 'kind' | 'duration_bucket' | 'availability'
+  label: string
+  blank: string
+  /** Option labels are catalogue keys unless this says they are literal text. */
+  literal?: boolean
+  options: ReadonlyArray<{ value: string; label: string }>
+}> = [
+  {
+    field: 'platform',
+    label: 'library.column.post',
+    blank: 'library.filter.anyPlatform',
+    // Platform names are wire values and are never translated (doc 14).
+    literal: true,
+    options: PLATFORMS.map((name) => ({ value: name, label: name })),
+  },
+  {
+    field: 'kind',
+    label: 'library.column.kind',
+    blank: 'library.filter.anyKind',
+    options: KINDS.map((kind) => ({ value: kind, label: `library.kind.${kind}` })),
+  },
+  {
+    field: 'duration_bucket',
+    label: 'library.column.duration',
+    blank: 'library.filter.anyDuration',
+    options: DURATIONS.map((bucket) => ({ value: bucket, label: `library.duration.${bucket}` })),
+  },
+  {
+    field: 'availability',
+    label: 'library.column.availability',
+    blank: 'library.filter.anyAvailability',
+    options: AVAILABILITIES.map((state) => ({
+      value: state,
+      label: `library.availability.${state}`,
+    })),
+  },
+]
+
+/** The key a selected post is held under. Neither half is unique on its own. */
+function keyOf(row: { platform: string; content_id: string }): string {
+  return `${row.platform}:${row.content_id}`
+}
+
+/** Back to the pair the API takes. */
+function refOf(key: string): { platform: string; content_id: string } {
+  const cut = key.indexOf(':')
+  return { platform: key.slice(0, cut), content_id: key.slice(cut + 1) }
+}
 
 function queryOf(filters: Filters, cursor: string | null): Record<string, string> {
   const params: Record<string, string> = {}
@@ -152,10 +234,21 @@ export default function Library() {
   // duration or scanning availability down a column.
   const [view, setView] = useState<ViewMode>('grid')
   const [groupBy, setGroupBy] = useState<GroupBy>('none')
+  // Selection is by key rather than by row, so it survives a poll replacing the
+  // objects underneath it. It is deliberately NOT cleared when the page turns:
+  // "select some here, some there, then act" is the whole point of it.
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [managingCollections, setManagingCollections] = useState(false)
 
   const cursor = trail[page] ?? null
 
   const stats = useApiQuery<ArchiveStats>({ key: STATS_KEY, path: paths.archive.stats })
+
+  const collections = useApiQuery<{ items: CollectionRow[] }>({
+    key: COLLECTIONS_KEY,
+    path: paths.archive.collections,
+  })
 
   const list = useApiQuery<ArchivePage>({
     key: ['archive', 'list', applied, cursor],
@@ -259,6 +352,64 @@ export default function Library() {
       },
       onError: (error) => {
         toast.apiError(error, t('library.toast.exportFailed'))
+      },
+    },
+  )
+
+  /** Everything a bulk action needs, in the shape the API takes. */
+  const chosen = useMemo(() => [...selected].map(refOf), [selected])
+
+  const afterBulk = useCallback(
+    (message: string) => {
+      void invalidate(['archive'])
+      void invalidate(['downloads'])
+      setSelected(new Set())
+      toast.success(message)
+    },
+    [invalidate, toast],
+  )
+
+  const addToCollection = useApiMutation<{ added: number }, string>(
+    (collectionId) => apiPost(paths.archive.collectionItems(collectionId), { items: chosen }),
+    {
+      onSuccess: (result) => {
+        afterBulk(t('library.toast.addedToCollection', { count: result.added }))
+      },
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
+
+  const removeFromCollection = useApiMutation<{ removed: number }, string>(
+    (collectionId) =>
+      apiPost(paths.archive.collectionItemsRemove(collectionId), { items: chosen }),
+    {
+      onSuccess: (result) => {
+        afterBulk(t('library.toast.removedFromCollection', { count: result.removed }))
+      },
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
+
+  const destroy = useApiMutation<{ deleted: number; freed_bytes: number }, void>(
+    () => apiPost(paths.archive.delete, { items: chosen, media: true }),
+    {
+      onSuccess: (result) => {
+        void invalidate(['archive', 'stats'])
+        afterBulk(
+          t('library.toast.deleted', {
+            count: result.deleted,
+            size: formatters.bytes(result.freed_bytes),
+          }),
+        )
+      },
+      onError: (error) => {
+        // The server refuses rather than orphaning bytes when it cannot reach
+        // the downloader, so the message is the useful part here.
+        toast.apiError(error, t('library.toast.deleteFailed'))
       },
     },
   )
@@ -431,12 +582,17 @@ export default function Library() {
 
       <Card title={t('library.filter.title')} description={t('library.filter.description')}>
         <form
-          className="u-row"
+          className="u-row u-wrap"
           onSubmit={(event) => {
             event.preventDefault()
             search(draft)
           }}
         >
+          {/* The text box is the only control that still waits for a submit.
+              Typing is not a decision until you stop, and firing a query per
+              keystroke would page the archive on the way to a word; picking
+              "douyin" from a menu IS the decision, and making somebody confirm
+              it afterwards is a step that carries no information. */}
           <Input
             value={draft.q}
             onChange={(event) => {
@@ -445,65 +601,46 @@ export default function Library() {
             placeholder={t('library.filter.searchPlaceholder')}
             aria-label={t('library.filter.search')}
           />
-          <Select
-            value={draft.platform}
-            aria-label={t('library.column.post')}
-            onChange={(event) => {
-              setDraft({ ...draft, platform: event.target.value })
-            }}
-          >
-            <option value="">{t('library.filter.anyPlatform')}</option>
-            {PLATFORMS.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={draft.kind}
-            aria-label={t('library.column.kind')}
-            onChange={(event) => {
-              setDraft({ ...draft, kind: event.target.value })
-            }}
-          >
-            <option value="">{t('library.filter.anyKind')}</option>
-            {KINDS.map((kind) => (
-              <option key={kind} value={kind}>
-                {t(`library.kind.${kind}`)}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={draft.duration_bucket}
-            aria-label={t('library.column.duration')}
-            onChange={(event) => {
-              setDraft({ ...draft, duration_bucket: event.target.value })
-            }}
-          >
-            <option value="">{t('library.filter.anyDuration')}</option>
-            {DURATIONS.map((bucket) => (
-              <option key={bucket} value={bucket}>
-                {t(`library.duration.${bucket}`)}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={draft.availability}
-            aria-label={t('library.column.availability')}
-            onChange={(event) => {
-              setDraft({ ...draft, availability: event.target.value })
-            }}
-          >
-            <option value="">{t('library.filter.anyAvailability')}</option>
-            {AVAILABILITIES.map((state) => (
-              <option key={state} value={state}>
-                {t(`library.availability.${state}`)}
-              </option>
-            ))}
-          </Select>
           <Button type="submit" variant="primary">
             {t('library.filter.action')}
           </Button>
+          {MENUS.map(({ field, label, options, blank, literal }) => (
+            <Select
+              key={field}
+              value={draft[field]}
+              aria-label={t(label)}
+              onChange={(event) => {
+                // Applied on change, not on submit: `draft` and `applied` move
+                // together for these, and the text box is what keeps them apart.
+                const next = { ...draft, [field]: event.target.value }
+                setDraft(next)
+                search(next)
+              }}
+            >
+              <option value="">{t(blank)}</option>
+              {options.map(({ value, label: option }) => (
+                <option key={value} value={value}>
+                  {literal ? option : t(option)}
+                </option>
+              ))}
+            </Select>
+          ))}
+          <Select
+            value={draft.collection}
+            aria-label={t('library.collection.filterLabel')}
+            onChange={(event) => {
+              const next = { ...draft, collection: event.target.value }
+              setDraft(next)
+              search(next)
+            }}
+          >
+            <option value="">{t('library.collection.any')}</option>
+            {(collections.data?.items ?? []).map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name} ({row.items})
+              </option>
+            ))}
+          </Select>
           <Button
             variant="ghost"
             onClick={() => {
@@ -513,9 +650,39 @@ export default function Library() {
           >
             {t('library.filter.clear')}
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setManagingCollections(true)
+            }}
+          >
+            {t('library.collection.manage')}
+          </Button>
         </form>
         <p className="u-xs u-muted">{t('library.filter.searchHint')}</p>
       </Card>
+
+      <BulkBar
+        selected={selected}
+        collections={collections.data?.items ?? []}
+        busy={addToCollection.isPending || removeFromCollection.isPending || destroy.isPending}
+        activeCollection={applied.collection}
+        onAdd={(id) => {
+          addToCollection.mutate(id)
+        }}
+        onRemove={(id) => {
+          removeFromCollection.mutate(id)
+        }}
+        onDelete={() => {
+          setConfirmingDelete(true)
+        }}
+        onSelectPage={() => {
+          setSelected(new Set([...selected, ...items.map(keyOf)]))
+        }}
+        onClear={() => {
+          setSelected(new Set())
+        }}
+      />
 
       <div className="u-row-between u-wrap">
         <div className="u-row" role="tablist" aria-label={t('library.view.label')}>
@@ -554,7 +721,9 @@ export default function Library() {
         <DataTable
           columns={columns}
           rows={items}
-          getRowId={(row) => `${row.platform}:${row.content_id}`}
+          getRowId={keyOf}
+          selectedIds={selected}
+          onSelectionChange={setSelected}
           loading={list.isLoading}
           error={list.error}
           onRetry={() => {
@@ -599,8 +768,15 @@ export default function Library() {
             <div className={styles.grid}>
               {group.rows.map((row) => (
                 <CoverCard
-                  key={`${row.platform}:${row.content_id}`}
+                  key={keyOf(row)}
                   row={row}
+                  selected={selected.has(keyOf(row))}
+                  onToggle={() => {
+                    const next = new Set(selected)
+                    if (next.has(keyOf(row))) next.delete(keyOf(row))
+                    else next.add(keyOf(row))
+                    setSelected(next)
+                  }}
                   onOpen={setInspecting}
                 />
               ))}
@@ -608,6 +784,33 @@ export default function Library() {
           </div>
         ))
       )}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        danger
+        title={t('library.delete.title')}
+        description={t('library.delete.body', { count: selected.size })}
+        confirmLabel={t('library.delete.action')}
+        loading={destroy.isPending}
+        onConfirm={() => {
+          destroy.mutate()
+          setConfirmingDelete(false)
+        }}
+        onCancel={() => {
+          setConfirmingDelete(false)
+        }}
+      />
+
+      <CollectionManager
+        open={managingCollections}
+        rows={collections.data?.items ?? []}
+        onClose={() => {
+          setManagingCollections(false)
+        }}
+        onChanged={() => {
+          void invalidate(['archive'])
+        }}
+      />
 
       {(page > 0 || list.data?.has_more) && (
         <div className="u-row-between">
@@ -704,11 +907,238 @@ export default function Library() {
  * kept is the one that still renders a year later. With neither, the tile says
  * so rather than showing a broken image.
  */
+/**
+ * The bulk action bar.
+ *
+ * Present only while something is selected, and pinned to the bottom of the
+ * viewport rather than placed above the grid: the selection is made by
+ * scrolling through a wall of covers, and a bar at the top of the page is a bar
+ * you have to scroll back to.
+ */
+function BulkBar({
+  selected,
+  collections,
+  activeCollection,
+  busy,
+  onAdd,
+  onRemove,
+  onDelete,
+  onSelectPage,
+  onClear,
+}: {
+  selected: ReadonlySet<string>
+  collections: readonly CollectionRow[]
+  /** The collection being filtered by, if any: "remove from" needs a target. */
+  activeCollection: string
+  busy: boolean
+  onAdd: (collectionId: string) => void
+  onRemove: (collectionId: string) => void
+  onDelete: () => void
+  onSelectPage: () => void
+  onClear: () => void
+}) {
+  const { t } = useTranslation(['console', 'common'])
+
+  if (selected.size === 0) return null
+
+  return (
+    <div className={styles.bulkBar} role="region" aria-label={t('library.bulk.label')}>
+      <span className={styles.bulkCount}>{t('library.bulk.count', { count: selected.size })}</span>
+
+      <Select
+        aria-label={t('library.bulk.addTo')}
+        value=""
+        disabled={busy || collections.length === 0}
+        onChange={(event) => {
+          if (event.target.value) onAdd(event.target.value)
+          // Reset to the prompt: this is an action menu, not a stored choice,
+          // and leaving the last collection showing would read as a filter.
+          event.target.value = ''
+        }}
+      >
+        <option value="">
+          {collections.length === 0 ? t('library.bulk.noCollections') : t('library.bulk.addTo')}
+        </option>
+        {collections.map((row) => (
+          <option key={row.id} value={row.id}>
+            {row.name}
+          </option>
+        ))}
+      </Select>
+
+      {/* Only offered while a collection is being viewed. "Remove from which
+          one" has no answer otherwise, and a second menu that duplicated the
+          first would be two menus one letter apart. */}
+      {activeCollection ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={busy}
+          onClick={() => {
+            onRemove(activeCollection)
+          }}
+        >
+          {t('library.bulk.removeFrom')}
+        </Button>
+      ) : null}
+
+      <span className={styles.bulkSpacer} />
+
+      <Button size="sm" variant="ghost" onClick={onSelectPage}>
+        {t('library.bulk.selectPage')}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onClear}>
+        {t('library.bulk.clear')}
+      </Button>
+      <Button size="sm" variant="danger" disabled={busy} onClick={onDelete}>
+        {t('library.bulk.delete')}
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * Making, renaming and deleting the sets themselves.
+ *
+ * A modal rather than a page: this is housekeeping done occasionally, and the
+ * thing an operator wants back afterwards is the wall they were looking at.
+ */
+function CollectionManager({
+  open,
+  rows,
+  onClose,
+  onChanged,
+}: {
+  open: boolean
+  rows: readonly CollectionRow[]
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const toast = useToast()
+  const invalidate = useInvalidate()
+  const [name, setName] = useState('')
+  const [removing, setRemoving] = useState<CollectionRow | null>(null)
+
+  const refresh = (): void => {
+    void invalidate(COLLECTIONS_KEY)
+    onChanged()
+  }
+
+  const create = useApiMutation<CollectionRow, string>(
+    (value) => apiPost(paths.archive.collections, { name: value }),
+    {
+      onSuccess: () => {
+        setName('')
+        refresh()
+        toast.success(t('library.collection.created'))
+      },
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
+
+  const destroy = useApiMutation<{ deleted: boolean }, CollectionRow>(
+    (row) => apiDelete(paths.archive.collection(row.id)),
+    {
+      onSuccess: () => {
+        setRemoving(null)
+        refresh()
+        toast.success(t('library.collection.deleted'))
+      },
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
+
+  return (
+    <Modal open={open} onClose={onClose} title={t('library.collection.manage')} size="md">
+      <div className="u-stack">
+        <form
+          className="u-row"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (name.trim()) create.mutate(name)
+          }}
+        >
+          <Input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value)
+            }}
+            placeholder={t('library.collection.namePlaceholder')}
+            aria-label={t('library.collection.name')}
+          />
+          <Button type="submit" variant="primary" loading={create.isPending}>
+            {t('library.collection.create')}
+          </Button>
+        </form>
+
+        {rows.length === 0 ? (
+          <EmptyState
+            title={t('library.collection.emptyTitle')}
+            description={t('library.collection.emptyDescription')}
+          />
+        ) : (
+          <ul className={styles.collectionList}>
+            {rows.map((row) => (
+              <li key={row.id} className={styles.collectionRow}>
+                <span className="u-stack-sm" style={{ minWidth: 0 }}>
+                  <span className="u-truncate">{row.name}</span>
+                  <span className="u-xs u-muted">
+                    {t('library.collection.itemCount', { count: row.items })}
+                  </span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setRemoving(row)
+                  }}
+                >
+                  {t('common:action.delete')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Worth spelling out: this is the one delete on the page that does not
+            touch a single post or byte. */}
+        <p className="u-xs u-muted" style={{ margin: 0 }}>
+          {t('library.collection.deleteHint')}
+        </p>
+      </div>
+
+      <ConfirmDialog
+        open={removing !== null}
+        danger
+        title={t('library.collection.confirmTitle')}
+        description={t('library.collection.confirmBody', { name: removing?.name ?? '' })}
+        confirmLabel={t('common:action.delete')}
+        loading={destroy.isPending}
+        onConfirm={() => {
+          if (removing) destroy.mutate(removing)
+        }}
+        onCancel={() => {
+          setRemoving(null)
+        }}
+      />
+    </Modal>
+  )
+}
+
 function CoverCard({
   row,
+  selected,
+  onToggle,
   onOpen,
 }: {
   row: ArchivedRow
+  selected: boolean
+  onToggle: () => void
   onOpen: (row: ArchivedRow) => void
 }) {
   const { t } = useTranslation(['console', 'common'])
@@ -719,7 +1149,18 @@ function CoverCard({
   const cover = local ?? row.cover_url
 
   return (
-    <button type="button" className={styles.card} onClick={() => onOpen(row)}>
+    <div className={styles.cardShell} data-selected={selected}>
+      {/* A sibling of the card button rather than a child: a checkbox inside a
+          button is invalid, and clicking one would open the drawer as well. */}
+      <label className={styles.select} onClick={(event) => event.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          aria-label={t('library.bulk.selectOne', { title: row.title || row.content_id })}
+        />
+      </label>
+      <button type="button" className={styles.card} onClick={() => onOpen(row)}>
       <span className={styles.thumb}>
         {cover ? (
           <img src={cover} alt="" loading="lazy" />
@@ -743,7 +1184,8 @@ function CoverCard({
         <span className="u-truncate">{row.author.nickname || row.author.uid}</span>
         <span className="u-mono">{row.platform}</span>
       </span>
-    </button>
+      </button>
+    </div>
   )
 }
 

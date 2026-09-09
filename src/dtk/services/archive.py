@@ -30,17 +30,19 @@ from __future__ import annotations
 import base64
 import binascii
 import unicodedata
+import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Final
 
-from sqlalchemy import func, literal, or_, select, tuple_, update
+from sqlalchemy import delete, func, literal, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.logging import get_logger
-from dtk.db.models import ArchivedAuthor, ArchivedContent
+from dtk.db.base import affected
+from dtk.db.models import ArchivedAuthor, ArchivedContent, CollectionItem
 from dtk.models import Author, Content, Page
 
 log = get_logger(__name__)
@@ -319,6 +321,7 @@ __all__ = [
     "get",
     "orientation_of",
     "record",
+    "remove",
     "resolution_class",
     "script_of",
     "search",
@@ -354,6 +357,9 @@ class ArchiveFilter:
     query: str | None = None
     seen_after: datetime | None = None
     seen_before: datetime | None = None
+    #: Only posts in this collection. A hand-made set, so it is the one filter
+    #: here that is not a property of the post.
+    collection_id: uuid.UUID | None = None
 
 
 def _cursor_encode(row: ArchivedContent) -> str:
@@ -440,6 +446,19 @@ def _apply(statement: Any, spec: ArchiveFilter) -> Any:
         statement = statement.where(ArchivedContent.last_seen_at >= spec.seen_after)
     if spec.seen_before:
         statement = statement.where(ArchivedContent.last_seen_at <= spec.seen_before)
+    if spec.collection_id is not None:
+        # EXISTS rather than a join: a post is in a collection at most once, but
+        # the planner does not know that from the schema, and a join here would
+        # be one more thing to remember if that ever stopped being true.
+        statement = statement.where(
+            select(literal(1))
+            .where(
+                CollectionItem.collection_id == spec.collection_id,
+                CollectionItem.platform == ArchivedContent.platform,
+                CollectionItem.content_id == ArchivedContent.content_id,
+            )
+            .exists()
+        )
     if spec.query and spec.query.strip():
         statement = statement.where(_search_clause(spec.query.strip()))
     return statement
@@ -486,6 +505,30 @@ async def search(
     if len(rows) > size:
         return rows[:size], _cursor_encode(rows[size - 1])
     return rows, None
+
+
+async def remove(session: AsyncSession, keys: Sequence[tuple[str, str]]) -> int:
+    """Delete archived posts by (platform, content_id), returning how many went.
+
+    The only destructive operation this module has. Everything else here is a
+    read, and the archive's whole reason for existing is to outlive the
+    platform - so removing a row is something a person asks for explicitly,
+    never something a sweep decides.
+
+    Collection membership goes with the row, by the foreign key's cascade.
+    Snapshots do not: `content_snapshots` is a time series about what the post's
+    numbers were doing, its rows are true whether or not the post is still in
+    the archive, and the hypertable has its own retention.
+    """
+    if not keys:
+        return 0
+    result = await session.execute(
+        delete(ArchivedContent).where(
+            tuple_(ArchivedContent.platform, ArchivedContent.content_id).in_(list(keys))
+        )
+    )
+    await session.flush()
+    return affected(result)
 
 
 async def count(session: AsyncSession, spec: ArchiveFilter) -> int:

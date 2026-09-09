@@ -20,5 +20,6 @@
   "QUEUE_FULL": "任务队列已满，请在 {retry_after} 秒后重试。",
   "CANCELLED": "任务在完成前被取消。",
   "METHOD_NOT_ALLOWED": "该路径不支持这个 HTTP 方法。",
-  "UNSUPPORTED_MEDIA_TYPE": "请求体的媒体类型不是本接口能读取的类型。"
+  "UNSUPPORTED_MEDIA_TYPE": "请求体的媒体类型不是本接口能读取的类型。",
+  "DOWNLOADER_UNAVAILABLE": "媒体下载器没有响应，本次没有做任何改动。"
 }

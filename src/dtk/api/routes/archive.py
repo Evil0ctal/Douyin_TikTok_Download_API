@@ -18,6 +18,7 @@ believes they have everything and does not.
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any, Final
@@ -27,15 +28,22 @@ from fastapi.responses import StreamingResponse
 
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
-from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
-from dtk.api.routes.schemas import BackfillRequest, RecheckRequest
+from dtk.api.routes.openapi import ACCEPTED_RESPONSES, CREATED_RESPONSES, I18N_KEY
+from dtk.api.routes.schemas import (
+    ArchiveDelete,
+    BackfillRequest,
+    CollectionCreate,
+    CollectionUpdate,
+    ContentSelection,
+    RecheckRequest,
+)
 from dtk.api.routes.support import ok
 from dtk.core.db import session_scope
-from dtk.core.errors import NotFound
+from dtk.core.errors import DownloaderDown, NotConfigured, NotFound
 from dtk.core.logging import get_logger
 from dtk.core.types import Availability, ContentKind, DurationBucket, Platform, Scope
 from dtk.db.models import ArchivedContent
-from dtk.services import archive, downloads
+from dtk.services import archive, collections, downloads
 
 log = get_logger(__name__)
 
@@ -67,6 +75,13 @@ CURSOR_QUERY = Query(
     default=None, max_length=512, description="Cursor from the previous page; omit for the first."
 )
 LIMIT_QUERY = Query(default=None, ge=1, le=archive.MAX_PAGE, description="Rows per page.")
+COLLECTION_QUERY = Query(
+    default=None,
+    description=(
+        "Only posts in this collection, by id. Unlike every other filter here "
+        "this one is not a property of the post: somebody put them in it."
+    ),
+)
 
 
 def _filter(
@@ -79,6 +94,7 @@ def _filter(
     query: str | None,
     seen_after: datetime | None = None,
     seen_before: datetime | None = None,
+    collection_id: uuid.UUID | None = None,
 ) -> archive.ArchiveFilter:
     return archive.ArchiveFilter(
         platform=platform,
@@ -90,6 +106,7 @@ def _filter(
         query=query,
         seen_after=seen_after,
         seen_before=seen_before,
+        collection_id=collection_id,
     )
 
 
@@ -98,6 +115,7 @@ def _row(
     *,
     include_media: bool = True,
     stored: dict[str, Any] | None = None,
+    in_collections: list[str] | None = None,
 ) -> dict[str, Any]:
     """One archived post, shaped the way the API's own content records are.
 
@@ -136,6 +154,8 @@ def _row(
     if include_media:
         payload["media"] = content.media
     payload["stored"] = stored
+    if in_collections is not None:
+        payload["collections"] = in_collections
     return payload
 
 
@@ -149,6 +169,7 @@ async def list_archive(
     duration_bucket: DurationBucket | None = DURATION_QUERY,
     availability: Availability | None = AVAILABILITY_QUERY,
     q: str | None = SEARCH_QUERY,
+    collection: uuid.UUID | None = COLLECTION_QUERY,
     cursor: str | None = CURSOR_QUERY,
     limit: int | None = LIMIT_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
@@ -162,6 +183,8 @@ async def list_archive(
 
     - `platform`, `author_uid`, `tag`, `kind`, `duration_bucket`, `availability` -
       narrow the result; all optional and combinable.
+    - `collection` - only posts in this collection. The one filter here that is
+      not a property of the post: somebody put them in it.
     - `q` - substring of the title or description. Matched as a substring rather
       than by word, so it behaves the same in Chinese as in English.
     - `cursor` - the cursor from the previous page. Omit it for the first page;
@@ -174,7 +197,9 @@ async def list_archive(
     manifest, plus the cursor for the next page.
     """
     principal.require(Scope.ARCHIVE_READ)
-    spec = _filter(platform, author_uid, tag, kind, duration_bucket, availability, q)
+    spec = _filter(
+        platform, author_uid, tag, kind, duration_bucket, availability, q, collection_id=collection
+    )
     rows, next_cursor = await archive.search(
         request.state.db, spec, limit=limit or archive.DEFAULT_PAGE, cursor=cursor
     )
@@ -187,10 +212,22 @@ async def list_archive(
         if principal.permits(Scope.MEDIA_READ, Scope.ADMIN)
         else {}
     )
+    # Same shape of question, same treatment: one query for the page rather
+    # than one per card.
+    member_of = await collections.memberships(
+        request.state.db, [(row.platform, row.content_id) for row in rows]
+    )
     return ok(
         request,
         {
-            "items": [_row(row, stored=stored.get((row.platform, row.content_id))) for row in rows],
+            "items": [
+                _row(
+                    row,
+                    stored=stored.get((row.platform, row.content_id)),
+                    in_collections=member_of.get((row.platform, row.content_id), []),
+                )
+                for row in rows
+            ],
             "cursor": next_cursor,
             "has_more": bool(next_cursor),
         },
@@ -377,6 +414,269 @@ async def backfill(
         wait=0,
         coalesce=True,
     )
+
+
+# --------------------------------------------------------------------------
+# Collections
+# --------------------------------------------------------------------------
+#
+# Registered above `/{platform}/{content_id}`, which would otherwise swallow
+# `/collections/{id}` - FastAPI matches in registration order and a two-segment
+# template does not care that the first segment is a word rather than a
+# platform.
+
+
+@router.get(
+    "/collections", summary="List collections", openapi_extra={I18N_KEY: "collections_list"}
+)
+async def list_collections(
+    request: Request, principal: Principal = Depends(enforce_rate_limit)
+) -> Any:
+    """Every collection, with how many posts is in each.
+
+    A collection is the one grouping the library offers that is not derived
+    from the posts: author, platform and collection date all come out of the
+    record, and this one comes out of somebody deciding.
+
+    **Returns**
+
+    Each collection's id, name, note, item count and timestamps, newest first.
+    """
+    principal.require(Scope.ARCHIVE_READ)
+    return ok(request, {"items": await collections.listing(request.state.db)})
+
+
+@router.post(
+    "/collections",
+    summary="Create a collection",
+    openapi_extra={I18N_KEY: "collections_create", **CREATED_RESPONSES},
+    status_code=201,
+)
+async def create_collection(
+    request: Request,
+    body: CollectionCreate,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Make a new named set. Empty until posts are added to it.
+
+    **Parameters**
+
+    - `name` - unique, case-insensitively. Whitespace is collapsed.
+    - `note` - free text the console shows under the name. Never parsed.
+
+    **Returns**
+
+    The collection.
+    """
+    principal.require(Scope.MEDIA_WRITE, Scope.ADMIN)
+    row = await collections.create(
+        request.state.db, name=body.name, note=body.note, created_by=principal.user_id
+    )
+    await request.state.db.commit()
+    return ok(request, collections.as_dict(row, items=0), status_code=201)
+
+
+@router.patch(
+    "/collections/{collection_id}",
+    summary="Rename a collection",
+    openapi_extra={I18N_KEY: "collections_update"},
+)
+async def update_collection(
+    request: Request,
+    body: CollectionUpdate,
+    collection_id: uuid.UUID = Path(description="The collection to change."),
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Change the name, the note, or both. Membership is untouched.
+
+    **Parameters**
+
+    - `name` - the new name, if it is changing.
+    - `note` - the new note. Send it as null to clear it; leave it out
+      entirely to keep whatever is there.
+
+    **Returns**
+
+    The collection.
+    """
+    principal.require(Scope.MEDIA_WRITE, Scope.ADMIN)
+    row = await collections.rename(
+        request.state.db,
+        collection_id,
+        name=body.name,
+        note=body.note,
+        # Sent-and-null and not-sent are the same value and different requests.
+        note_given="note" in body.model_fields_set,
+    )
+    await request.state.db.commit()
+    return ok(request, collections.as_dict(row))
+
+
+@router.delete(
+    "/collections/{collection_id}",
+    summary="Delete a collection",
+    openapi_extra={I18N_KEY: "collections_delete"},
+)
+async def delete_collection(
+    request: Request,
+    collection_id: uuid.UUID = Path(description="The collection to delete."),
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Remove the collection itself.
+
+    The posts stay in the archive and the files stay on disk: a collection is a
+    label, and deleting a label is not deleting what it was on.
+
+    **Returns**
+
+    `{"deleted": true}`.
+    """
+    principal.require(Scope.MEDIA_WRITE, Scope.ADMIN)
+    await collections.remove(request.state.db, collection_id)
+    await request.state.db.commit()
+    return ok(request, {"deleted": True})
+
+
+@router.post(
+    "/collections/{collection_id}/items",
+    summary="Add posts to a collection",
+    openapi_extra={I18N_KEY: "collections_add"},
+)
+async def add_to_collection(
+    request: Request,
+    body: ContentSelection,
+    collection_id: uuid.UUID = Path(description="The collection to add to."),
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Put posts in a collection.
+
+    Adding a post that is already in it is a no-op rather than an error: the
+    console sends whatever is selected, and part of a selection is routinely
+    already there. A post that is not in the archive is skipped, so one stale
+    card does not refuse the other nineteen.
+
+    **Parameters**
+
+    - `items` - the posts, each as a platform and a content id.
+
+    **Returns**
+
+    `added`, the number that were not already in it.
+    """
+    principal.require(Scope.MEDIA_WRITE, Scope.ADMIN)
+    added = await collections.add_items(
+        request.state.db, collection_id, collections.clean_keys(body.items)
+    )
+    await request.state.db.commit()
+    return ok(request, {"added": added})
+
+
+@router.post(
+    "/collections/{collection_id}/items/remove",
+    summary="Take posts out of a collection",
+    openapi_extra={I18N_KEY: "collections_remove"},
+)
+async def remove_from_collection(
+    request: Request,
+    body: ContentSelection,
+    collection_id: uuid.UUID = Path(description="The collection to remove from."),
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Take posts out of a collection, leaving them in the archive.
+
+    A POST rather than a DELETE because it carries a body, and a DELETE with a
+    body is the kind of thing intermediaries drop.
+
+    **Returns**
+
+    `removed`, the number of memberships that went.
+    """
+    principal.require(Scope.MEDIA_WRITE, Scope.ADMIN)
+    removed = await collections.remove_items(
+        request.state.db, collection_id, collections.clean_keys(body.items)
+    )
+    await request.state.db.commit()
+    return ok(request, {"removed": removed})
+
+
+@router.post("/delete", summary="Delete archived posts", openapi_extra={I18N_KEY: "archive_delete"})
+async def delete_archived(
+    request: Request,
+    body: ArchiveDelete,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Remove posts from the archive, and by default their stored media too.
+
+    This is the one call in the archive that destroys something. It is not
+    reversible and there is no trash: the row goes, its collection memberships
+    go with it, and unless `media` is false the sidecar is asked to remove the
+    directories on disk as well.
+
+    The files are removed first and the rows second. The other order can leave a
+    record pointing at a directory that is already gone, which reads as a
+    download the console can offer and cannot deliver; this order can at worst
+    leave bytes with no record, which the storage panel already reports.
+
+    **Parameters**
+
+    - `items` - the posts, each as a platform and a content id.
+    - `media` - also delete what is on disk. True by default, because that is
+      what "delete this" means about a video the instance is holding.
+
+    **Returns**
+
+    How many archive rows went, how many download records went, and how many
+    bytes the sidecar reported freeing.
+    """
+    # Deleting is not a read, and it reaches further than one download: the same
+    # scope that may start a download and cancel one may also remove what it
+    # produced, and nothing weaker can.
+    principal.require(Scope.MEDIA_WRITE, Scope.ADMIN)
+    keys = collections.clean_keys(body.items)
+
+    directories, download_ids = await downloads.directories_for(request.state.db, keys)
+    freed = 0
+    if body.media and directories:
+        settings = request.app.state.settings
+        if not settings.downloader_url:
+            # There are bytes on the volume and no way to reach them. Deleting
+            # the rows anyway would leave files nothing can account for and
+            # nothing can remove; `media=false` is the call that says to keep
+            # them on purpose.
+            raise NotConfigured(
+                "this post has stored media and this instance has no media "
+                "downloader to remove it; start the downloader compose profile, "
+                "or send media=false to delete the record and keep the files"
+            )
+        from dtk.media import DownloaderClient, DownloaderUnavailable
+
+        client = DownloaderClient(settings.downloader_url, token=settings.downloader_token)
+        try:
+            removed = await client.delete(directories)
+            freed = int(removed.get("freed_bytes") or 0)
+        except DownloaderUnavailable as exc:
+            # Same reasoning, one step later: the sidecar exists and did not
+            # answer. Refusing leaves everything as it was, which is recoverable;
+            # proceeding would not be.
+            log.warning("archive.delete.downloader_failed", error=str(exc)[:200])
+            raise DownloaderDown(
+                "the media downloader did not answer, so nothing was deleted"
+            ) from exc
+        finally:
+            await client.aclose()
+
+    forgotten = await downloads.forget(request.state.db, download_ids) if body.media else 0
+    deleted = await archive.remove(request.state.db, keys)
+    await request.state.db.commit()
+
+    log.info(
+        "archive.deleted",
+        posts=deleted,
+        downloads=forgotten,
+        freed_bytes=freed,
+        actor=str(principal.user_id) if principal.user_id else None,
+    )
+    return ok(request, {"deleted": deleted, "downloads_removed": forgotten, "freed_bytes": freed})
 
 
 @router.get(

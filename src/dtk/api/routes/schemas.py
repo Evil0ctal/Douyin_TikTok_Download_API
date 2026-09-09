@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dtk.api.routes.passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
 from dtk.core.types import Platform, Scope, UserRole
+from dtk.services import collections
 
 #: Usernames are local console accounts, not display names: keep them to what
 #: reads unambiguously in a log line and a URL.
@@ -233,6 +234,62 @@ class BackfillRequest(Body):
     #: The author's stable id, not the handle: users edit handles.
     author_id: str = Field(min_length=1, max_length=128)
     pages: int = Field(default=5, ge=1, le=20)
+
+
+class ContentRef(Body):
+    """One archived post, by the pair the archive is keyed on."""
+
+    platform: Platform
+    #: aweme_id or its TikTok equivalent. Text, never an integer: a 19-digit id
+    #: exceeds the JavaScript safe range and the console would round it.
+    content_id: str = Field(min_length=1, max_length=128)
+
+
+class CollectionCreate(Body):
+    """A named set of posts, made by hand.
+
+    Nothing infers membership; that is the point of it. The name is unique
+    case-insensitively, which the database enforces rather than this schema -
+    a check here would still lose a race between two console tabs.
+    """
+
+    name: str = Field(min_length=1, max_length=collections.MAX_NAME)
+    note: str | None = Field(default=None, max_length=collections.MAX_NOTE)
+
+
+class CollectionUpdate(Body):
+    """Rename a collection, change its note, or both.
+
+    Both fields are optional and both default to None, which is why the handler
+    reads `model_fields_set` rather than the values: "leave the note alone" and
+    "clear the note" arrive identically otherwise, and guessing at that would
+    quietly erase text nobody mentioned.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=collections.MAX_NAME)
+    note: str | None = Field(default=None, max_length=collections.MAX_NOTE)
+
+
+class ContentSelection(Body):
+    """The posts a bulk call acts on.
+
+    Bounded here rather than in the handler: past this a caller should make two
+    calls, not hold one transaction open across the archive.
+    """
+
+    items: list[ContentRef] = Field(min_length=1, max_length=collections.MAX_ITEMS)
+
+
+class ArchiveDelete(ContentSelection):
+    """Remove posts from the archive, and optionally their stored media.
+
+    `media` defaults to true because that is what "delete this" means when the
+    thing on screen is a video the instance has on disk. Setting it false keeps
+    the files and removes only the record, which is the narrower thing somebody
+    might want and is not the obvious reading of the button.
+    """
+
+    media: bool = True
 
 
 class WatchCreate(Body):

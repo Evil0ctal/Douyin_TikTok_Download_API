@@ -32,6 +32,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     LargeBinary,
@@ -725,6 +726,69 @@ class ContentSnapshot(Base):
         )
 
 
+class Collection(Base):
+    """A named set of archived posts, made by hand.
+
+    The archive already groups itself several ways - by author, by platform, by
+    when it was collected - and every one of them is derived from the post. This
+    is the one that is not: "things I am keeping", "for the edit", "check these
+    later". Nothing computes it and nothing may, or it stops meaning what the
+    person who made it meant.
+
+    Membership is a plain join table rather than an array on the content row,
+    because the interesting queries run both ways: everything in a collection,
+    and every collection a post is in. It cascades from both sides - deleting a
+    collection removes its membership and nothing else, and deleting an
+    archived post removes it from every collection it was in.
+    """
+
+    __tablename__ = "collections"
+    __table_args__ = (Index("ix_collections_name", text("lower(name)"), unique=True),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=_NEW_UUID
+    )
+    name: Mapped[str] = mapped_column(Text)
+    #: Free text the console shows under the name. Never parsed.
+    note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+
+    def __repr__(self) -> str:
+        return _repr("Collection", **{"id": self.id, "name": self.name})
+
+
+class CollectionItem(Base):
+    """One post's membership of one collection.
+
+    The primary key is the whole row, so adding the same post twice is a no-op
+    the schema enforces rather than something every caller has to remember.
+    """
+
+    __tablename__ = "collection_items"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["platform", "content_id"],
+            ["archived_contents.platform", "archived_contents.content_id"],
+            ondelete="CASCADE",
+        ),
+        Index("ix_collection_items_content", "platform", "content_id"),
+    )
+
+    collection_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("collections.id", ondelete="CASCADE"), primary_key=True
+    )
+    platform: Mapped[str] = mapped_column(Text, primary_key=True)
+    content_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+
+    def __repr__(self) -> str:
+        return _repr("CollectionItem", collection_id=self.collection_id, content_id=self.content_id)
+
+
 #: Every table this module defines, in dependency order. Used by the backup
 #: command and by the tests that compare the ORM against the first migration.
 TABLE_NAMES: Final[tuple[str, ...]] = (
@@ -743,6 +807,8 @@ TABLE_NAMES: Final[tuple[str, ...]] = (
     "archived_contents",
     "media_downloads",
     "watchlist",
+    "collections",
+    "collection_items",
 )
 
 #: Values the corresponding text columns accept, kept beside the models so a
@@ -767,6 +833,8 @@ __all__ = [
     "TASK_STATE_VALUES",
     "ApiKey",
     "AuditLog",
+    "Collection",
+    "CollectionItem",
     "ContentSnapshot",
     "Identity",
     "IdentityEvent",

@@ -577,3 +577,21 @@ def test_the_heaviest_service_is_bounded_below_the_host() -> None:
     # Below the six cores observed: minting and signing are off the request
     # path, so this is the service that should yield when the machine is busy.
     assert float(browser["cpus"]) <= 4.0
+
+
+def test_the_integration_suite_clears_every_table() -> None:
+    """A table missing from TABLES leaks rows between tests.
+
+    Found the hard way: `collections` was added to the schema and not to this
+    list, and the first test to create one passed while every later test in the
+    file failed on a unique name it had never seen. The failure looks like a bug
+    in the feature rather than in the fixture, which is what makes it worth a
+    test of its own.
+    """
+    from dtk.db.models import TABLE_NAMES
+    from tests.integration.test_api_support import TABLES
+
+    assert set(TABLE_NAMES) - set(TABLES) == set(), (
+        "tables in the schema that the API suite never clears: "
+        f"{sorted(set(TABLE_NAMES) - set(TABLES))}"
+    )
