@@ -138,46 +138,59 @@
 /* -------------------------------------------------------------------------- */
 
 /*
- * A tab row rather than a button per feature. Three buttons under one input
- * were already hiding two of them, and the list is going to grow: a mode costs
- * a row in the catalogue and no extra room on the card.
+ * A row of buttons, one of which is on.
+ *
+ * It was a segmented control - a tinted strip with the selected tile a shade
+ * lighter - and it did not read as clickable, because on this palette it
+ * barely read at all. The selected tile measured 1.08:1 against the strip, and
+ * every neighbouring surface token sits within 1.15:1 of every other, so no
+ * choice of background alone can carry the state. It has to be colour.
+ *
+ * So each tab carries its own border at rest, which is what makes a thing look
+ * pressable, and the selected one is filled with the accent: 9.9:1 against the
+ * card in dark and 4.8:1 in light, with its label 9.9:1 and 4.9:1 on the fill.
+ * The enclosing strip is gone - a bordered button inside a bordered strip is a
+ * box in a box.
  */
 .modes {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin-bottom: var(--space-4);
-  padding: 3px;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
 }
 
 .mode {
   padding: var(--space-1) var(--space-3);
-  border: 1px solid transparent;
+  height: 30px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: none;
+  background: var(--bg-raised);
   color: var(--text-secondary);
   font: inherit;
   font-size: var(--text-sm);
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color var(--duration-1) var(--ease),
+    border-color var(--duration-1) var(--ease),
+    color var(--duration-1) var(--ease);
 }
 
-.mode:hover {
+.mode:hover:not([aria-selected='true']) {
+  border-color: var(--border-strong);
   color: var(--text);
 }
 
 .mode[aria-selected='true'] {
-  background: var(--bg-raised);
-  border-color: var(--border);
-  color: var(--text);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
 }
 
 .mode:focus-visible {
   outline: var(--focus-ring-width) solid var(--accent);
-  outline-offset: -1px;
+  outline-offset: var(--focus-ring-offset);
 }
 
 .startOptions {
