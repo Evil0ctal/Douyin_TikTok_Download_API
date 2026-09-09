@@ -43,7 +43,12 @@ export function Field({
   const { t } = useTranslation()
 
   return (
-    <div className={cn(styles.field, className)}>
+    // `data-field` is a layout hook, not a style. A row of controls needs to
+    // know which of its children are fields - a stack of label, control and
+    // help text - so it can put all their controls on one line; see
+    // `.u-form-row` in styles/utilities.css. The class name here is hashed by
+    // CSS modules and cannot be targeted from a global sheet.
+    <div data-field="" className={cn(styles.field, className)}>
       {label ? (
         <label className={styles.label} htmlFor={id}>
           {label}

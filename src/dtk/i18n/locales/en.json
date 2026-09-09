@@ -330,6 +330,10 @@
         "summary": "Store a post's media",
         "description": "Fetches one already-archived post's media onto this instance's own disk. Takes a content key rather than a URL: nothing a caller sends decides which host is dialled. Answers 202 with a download id; the files land on the operator's volume and are never served back through this API."
       },
+      "downloads_dedupe": {
+        "summary": "Remove duplicate downloads",
+        "description": "Keeps one copy of each post and removes the rest. Re-downloading is a normal thing to do - the first attempt failed, the mirrors went stale, the file was evicted - and each attempt leaves a row, with the successful ones leaving a complete second copy of the same video. The newest copy that still has its files is kept: newest because it came from the freshest mirrors, still-present because keeping an evicted row over a present one would delete the only copy there is. A directory is removed only when no surviving row shares it - two downloads of one post land in the same directory, so deleting the older row's path by id would delete the file the newer one just wrote. Send `dry_run` to see what would go."
+      },
       "downloads_file": {
         "summary": "Download one stored file",
         "description": "Serve one file this instance has already stored, to a browser. The path is rebuilt from the stored record - the download's own directory plus a name that has to appear in its file list - so the only thing a caller chooses is which record, never where on the disk to read. Nothing is fetched: files evicted to stay under the media ceiling answer 404, and asking for the download again is what restores them."

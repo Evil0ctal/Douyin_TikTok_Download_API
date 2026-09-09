@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 
 from dtk.core.db import session_scope
 from dtk.core.types import Scope
@@ -108,21 +109,130 @@ async def test_downloads_need_a_key_at_all(api_app, db_engine, redis_client):
 # --------------------------------------------------------------------------
 
 
-async def test_a_post_that_was_never_archived_is_refused(api_app, db_engine, redis_client):
-    """The caller supplies a content key, and this instance decides if it knows it.
+async def test_a_post_that_was_never_archived_is_fetched_first(api_app, db_engine, redis_client):
+    """A downloader that can only save what you already parsed is two steps.
 
-    That is the whole SSRF story for this endpoint: there is no URL to validate
-    because there is no URL to send.
+    This used to be a 404 telling the caller to parse it first. The worker
+    fetches it now - through the same pool, scheduler and request log as any
+    other read - so the request is accepted and the archive lookup happens
+    where the fetching happens.
     """
     user_id = await make_user()
     key = await media_key(user_id)
     async with anonymous_client(api_app) as caller:
         response = await caller.post(
             "/api/v1/downloads",
-            json={"platform": "douyin", "content_id": "404404404"},
+            json={"platform": "douyin", "content_id": CONTENT_ID},
             headers={"X-API-Key": key},
         )
-    assert error_code(response) == "NOT_FOUND"
+    assert response.status_code == 202
+    body = envelope(response)["data"]
+    assert body["archived"] is False
+    # Nothing to plan from yet, and the directory is a placeholder until the
+    # fetch says who the author is.
+    assert body["planned"] == []
+    assert downloads.PENDING_AUTHOR in body["directory"]
+
+
+async def test_a_download_can_be_started_from_a_link(api_app, db_engine, redis_client):
+    """The link is not a URL anything fetches: identify() yields the post id."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    await archive_a_post()
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"url": f"https://www.douyin.com/video/{CONTENT_ID}"},
+            headers={"X-API-Key": key},
+        )
+    assert response.status_code == 202
+    assert envelope(response)["data"]["archived"] is True
+
+
+async def test_share_text_around_a_link_still_works(api_app, db_engine, redis_client):
+    """What the app actually puts on the clipboard: a caption, a code and a link."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    await archive_a_post()
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"url": f"7.61 gTa:/ look at this https://www.douyin.com/video/{CONTENT_ID} copy"},
+            headers={"X-API-Key": key},
+        )
+    assert response.status_code == 202
+
+
+async def test_a_host_nobody_allowlisted_is_refused(api_app, db_engine, redis_client):
+    """The SSRF story, restated for the field that now exists."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"url": "http://169.254.169.254/latest/meta-data/"},
+            headers={"X-API-Key": key},
+        )
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_a_short_link_says_to_expand_it(api_app, db_engine, redis_client):
+    """Resolving one means following it, and this endpoint makes no requests."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"url": "https://v.douyin.com/iRNBho6G/"},
+            headers={"X-API-Key": key},
+        )
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["needs_expansion"] is True
+
+
+async def test_a_profile_link_is_not_a_post(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"url": "https://www.douyin.com/user/MS4wLjABAAAAexample"},
+            headers={"X-API-Key": key},
+        )
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_a_link_and_a_platform_that_disagree_are_refused(api_app, db_engine, redis_client):
+    """Guessing is how you download the wrong post and call it a feature."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"url": f"https://www.douyin.com/video/{CONTENT_ID}", "platform": "tiktok"},
+            headers={"X-API-Key": key},
+        )
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_a_malformed_typed_id_never_reaches_the_pool(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": "not-an-id"},
+            headers={"X-API-Key": key},
+        )
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_neither_a_link_nor_a_key_is_refused(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post("/api/v1/downloads", json={}, headers={"X-API-Key": key})
+    assert error_code(response) == "INVALID_PARAM"
 
 
 async def test_a_post_with_no_fetchable_mirror_is_refused_with_the_reason(
@@ -696,3 +806,189 @@ async def test_a_caller_without_media_read_is_told_nothing_about_the_disk(
         response = await caller.get("/api/v1/archive", headers={"X-API-Key": key})
 
     assert envelope(response)["data"]["items"][0]["stored"] is None
+
+
+# --------------------------------------------------------------------------
+# Keeping one copy
+# --------------------------------------------------------------------------
+
+
+async def _record(
+    content_id: str,
+    *,
+    directory: str,
+    created: datetime,
+    state: str = "done",
+    evicted: bool = False,
+    bytes_total: int = 1024,
+) -> uuid.UUID:
+    download_id = uuid.uuid4()
+    async with session_scope() as session:
+        session.add(
+            MediaDownload(
+                id=download_id,
+                platform="douyin",
+                content_id=content_id,
+                author_uid=AUTHOR_UID,
+                state=state,
+                directory=directory,
+                bytes_total=0 if evicted else bytes_total,
+                file_count=1,
+                created_at=created,
+                files_removed_at=created if evicted else None,
+            )
+        )
+    return download_id
+
+
+async def test_one_download_is_not_a_duplicate(api_app, db_engine, redis_client):
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+
+    async with anonymous_client(api_app) as caller:
+        body = envelope(
+            await caller.post("/api/v1/downloads/deduplicate", headers={"X-API-Key": key})
+        )["data"]
+
+    assert body["duplicates"] == 0
+    assert body["posts"] == []
+
+
+async def test_the_newest_copy_is_kept(api_app, db_engine, redis_client):
+    """Newest because it came from the freshest mirrors."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    old = await _record(CONTENT_ID, directory="d/a/1", created=now - timedelta(hours=2))
+    new = await _record(CONTENT_ID, directory="d/a/1", created=now)
+
+    async with anonymous_client(api_app) as caller:
+        body = envelope(
+            await caller.post("/api/v1/downloads/deduplicate", headers={"X-API-Key": key})
+        )["data"]
+
+    assert body["removed"] == 1
+    async with session_scope() as session:
+        assert await session.get(MediaDownload, new) is not None
+        assert await session.get(MediaDownload, old) is None
+
+
+async def test_the_shared_directory_is_not_deleted(api_app, db_engine, redis_client):
+    """Two downloads of one post land in the same directory.
+
+    Deleting the older row's path by id would delete the file the newer one
+    just wrote - which is the whole reason this is not a loop over ids.
+    """
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    await _record(CONTENT_ID, directory="d/a/1", created=now - timedelta(hours=2))
+    await _record(CONTENT_ID, directory="d/a/1", created=now)
+
+    async with anonymous_client(api_app) as caller:
+        body = envelope(
+            await caller.post("/api/v1/downloads/deduplicate", headers={"X-API-Key": key})
+        )["data"]
+
+    # No paths to remove, so no downloader is needed and none was called - the
+    # rows go, the one real copy on disk stays.
+    assert body["posts"][0]["paths"] == []
+    assert body["removed"] == 1
+    assert body["freed_bytes"] == 0
+
+
+async def test_an_evicted_copy_is_never_preferred_over_a_present_one(
+    api_app, db_engine, redis_client
+):
+    """Keeping the evicted row would delete the only copy there is."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    present = await _record(CONTENT_ID, directory="d/a/1", created=now - timedelta(hours=2))
+    await _record(CONTENT_ID, directory="d/a/1", created=now, evicted=True)
+
+    async with anonymous_client(api_app) as caller:
+        await caller.post("/api/v1/downloads/deduplicate", headers={"X-API-Key": key})
+
+    async with session_scope() as session:
+        assert await session.get(MediaDownload, present) is not None
+
+
+async def test_a_dry_run_changes_nothing(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    await _record(CONTENT_ID, directory="d/a/1", created=now - timedelta(hours=2))
+    await _record(CONTENT_ID, directory="d/a/1", created=now)
+
+    async with anonymous_client(api_app) as caller:
+        body = envelope(
+            await caller.post(
+                "/api/v1/downloads/deduplicate",
+                json={"dry_run": True},
+                headers={"X-API-Key": key},
+            )
+        )["data"]
+
+    assert body["duplicates"] == 1
+    assert body["removed"] == 0
+    async with session_scope() as session:
+        assert len((await session.scalars(select(MediaDownload))).all()) == 2
+
+
+async def test_posts_downloaded_once_each_are_left_alone(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    await _record("7000000000000000001", directory="d/a/1", created=now)
+    await _record("7000000000000000002", directory="d/a/2", created=now)
+
+    async with anonymous_client(api_app) as caller:
+        body = envelope(
+            await caller.post("/api/v1/downloads/deduplicate", headers={"X-API-Key": key})
+        )["data"]
+
+    assert body["duplicates"] == 0
+    async with session_scope() as session:
+        assert len((await session.scalars(select(MediaDownload))).all()) == 2
+
+
+async def test_a_read_key_cannot_deduplicate(api_app, db_engine, redis_client):
+    """It deletes files and records, so no read scope implies it."""
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post("/api/v1/downloads/deduplicate", headers={"X-API-Key": key})
+    assert error_code(response) == "FORBIDDEN_SCOPE"
+
+
+async def test_a_download_that_cannot_be_fetched_ends_as_failed(api_app, db_engine, redis_client):
+    """It used to sit at `queued` forever, reading as still waiting.
+
+    `fail` wrote the terminal state into the session and the worker raised
+    immediately afterwards to fail the task, so the rollback took the write with
+    it. Only visible once downloading a post nobody had archived became an
+    ordinary thing to do - before that, an unfetchable post was refused by the
+    API and never reached the worker at all.
+    """
+    from dtk.services import downloads as service
+
+    await archive_a_post()
+    async with session_scope() as session:
+        row = (await session.scalars(select(ArchivedContent))).one()
+        download = await service.create(session, row)
+        download_id = download.id
+        await session.commit()
+
+    async with session_scope() as session:
+        await service.fail(session, download_id, "nothing to fetch")
+        # The rollback a raising caller would trigger.
+        await session.rollback()
+
+    async with session_scope() as session:
+        settled = await session.get(MediaDownload, download_id)
+        assert settled is not None
+        assert settled.state == "failed"
+        assert settled.error == "nothing to fetch"

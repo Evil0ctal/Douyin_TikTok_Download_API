@@ -17,6 +17,7 @@ import {
 } from '@/components'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiPatch, apiPost } from '@/lib/api'
+import { cn } from '@/lib/cn'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import type { Platform } from '@/lib/types'
@@ -304,8 +305,11 @@ export default function Watchlist() {
       </div>
 
       <Card title={t('watchlist.add.title')} description={t('watchlist.add.description')}>
+        {/* Four fields and a button, only one of which carries help text - the
+            case a flex row gets wrong, putting that field's control 20px above
+            its neighbours. u-form-row shares three rows between them. */}
         <form
-          className="u-row"
+          className={cn('u-form-row', styles.addForm)}
           onSubmit={(event) => {
             event.preventDefault()
             add.mutate()

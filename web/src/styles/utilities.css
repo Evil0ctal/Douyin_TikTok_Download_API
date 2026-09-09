@@ -44,6 +44,54 @@
   gap: var(--space-2);
 }
 
+/*
+ * A row of form controls whose controls actually line up.
+ *
+ * Three shared rows - label, control, help text - handed to every field through
+ * subgrid. A plain flex row cannot do this: `align-items: end` aligns the
+ * field WRAPPERS, so a field carrying help text pushes its own control up by
+ * the height of that text relative to the ones beside it. Measured on
+ * /downloads: the platform menu and the content id were both 32px tall and sat
+ * 20px apart, because only one of them had a hint under it.
+ *
+ * Columns belong to the caller - a form knows how wide its own fields should
+ * be - and this owns only the rows. Children that are not fields, a submit
+ * button being the usual one, sit on the control row.
+ */
+.u-form-row {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: end;
+}
+
+.u-form-row > * {
+  grid-row: 2;
+  min-width: 0;
+}
+
+.u-form-row > [data-field] {
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  gap: var(--space-1);
+}
+
+/* One column per control is unreadable on a phone; one control per row is not. */
+@media (max-width: 640px) {
+  .u-form-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: none;
+    align-items: stretch;
+  }
+
+  .u-form-row > *,
+  .u-form-row > [data-field] {
+    grid-row: auto;
+    grid-template-rows: none;
+  }
+}
+
 .u-row-between {
   display: flex;
   align-items: center;

@@ -121,8 +121,19 @@ def job_payload(
     }
 
 
+#: Where a download goes before anyone knows who made the post. The worker
+#: rewrites the row's directory once it has fetched it, so nothing is ever
+#: written under this - it only has to be a valid path that cannot collide with
+#: a real author id.
+PENDING_AUTHOR: Final = "_pending"
+
+
 def directory_of(row: ArchivedContent) -> str:
     return f"{row.platform}/{row.author_uid}/{row.content_id}"
+
+
+def pending_directory(platform: str, content_id: str) -> str:
+    return f"{platform}/{PENDING_AUTHOR}/{content_id}"
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +163,48 @@ async def create(
     session.add(download)
     await session.flush()
     return download
+
+
+async def create_pending(
+    session: AsyncSession,
+    *,
+    platform: str,
+    content_id: str,
+    requested_by: uuid.UUID | None = None,
+) -> MediaDownload:
+    """The same, for a post this instance has never seen.
+
+    A downloader that can only save what you happened to parse first is two
+    steps where people expect one, so the worker fetches the post before
+    downloading it - through the same pool, scheduler and request log as any
+    other read. Until it has, nobody knows the author, and the author is half
+    the directory: :func:`adopt` writes both once the fetch comes back.
+    """
+    download = MediaDownload(
+        platform=platform,
+        content_id=content_id,
+        author_uid="",
+        state="queued",
+        directory=pending_directory(platform, content_id),
+        requested_by=requested_by,
+    )
+    session.add(download)
+    await session.flush()
+    return download
+
+
+async def adopt(session: AsyncSession, download: MediaDownload, row: ArchivedContent) -> None:
+    """Point a pending download at the author the fetch turned up.
+
+    Only ever moves a row off the placeholder: a download whose author is
+    already known is left alone, because the directory is where the sidecar has
+    been writing and rewriting it mid-flight would orphan the bytes.
+    """
+    if download.author_uid:
+        return
+    download.author_uid = row.author_uid
+    download.directory = directory_of(row)
+    await session.flush()
 
 
 async def get(session: AsyncSession, download_id: uuid.UUID) -> MediaDownload | None:
@@ -195,11 +248,21 @@ async def apply_result(
 
 
 async def fail(session: AsyncSession, download_id: uuid.UUID, reason: str) -> None:
+    """Record that this download is over and why.
+
+    Commits, which the other writers here deliberately do not. Half the callers
+    raise immediately afterwards to fail the task, and an uncommitted write dies
+    with the rollback that follows - so a download whose post could not be
+    fetched stayed `queued` forever, reading as still waiting when it was
+    already over. Making it durable here rather than at each call site is the
+    version the next caller cannot forget.
+    """
     await session.execute(
         update(MediaDownload)
         .where(MediaDownload.id == download_id)
         .values(state="failed", error=reason[:500], finished_at=func.now())
     )
+    await session.commit()
 
 
 async def cancel(session: AsyncSession, download_id: uuid.UUID) -> bool:
@@ -410,6 +473,81 @@ async def forget(session: AsyncSession, ids: Sequence[uuid.UUID]) -> int:
     result = await session.execute(delete(MediaDownload).where(MediaDownload.id.in_(list(ids))))
     await session.flush()
     return affected(result)
+
+
+@dataclass(frozen=True, slots=True)
+class Duplicate:
+    """One post that has been downloaded more than once."""
+
+    platform: str
+    content_id: str
+    #: The one being kept: the newest that still has its files.
+    keep: uuid.UUID
+    #: The older copies, newest first.
+    drop: tuple[uuid.UUID, ...]
+    #: Directories the superseded copies own outright, safe to remove.
+    paths: tuple[str, ...]
+    bytes_freed: int
+
+
+async def find_duplicates(session: AsyncSession) -> list[Duplicate]:
+    """Posts downloaded more than once, and which copy to keep.
+
+    Re-downloading is a normal thing to do: the first attempt failed, the
+    mirrors went stale, the file was evicted. Each attempt leaves a row, and
+    the ones that succeeded leave a complete second copy of the same video -
+    which is the disk filling up with bytes nobody asked for twice.
+
+    The newest copy that still has its files is the keeper. Newest because it
+    was fetched from the freshest mirrors; still-has-its-files because keeping
+    an evicted row and deleting a present one would delete the only copy.
+
+    A directory is only listed for removal when no surviving row shares it.
+    Two downloads of the same post land in the same directory - it is keyed by
+    platform, author and post - so deleting the older one's path by id would
+    delete the file the newer one just wrote.
+    """
+    rows = (
+        (
+            await session.execute(
+                select(MediaDownload)
+                .where(MediaDownload.state == "done")
+                .order_by(MediaDownload.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    by_post: dict[tuple[str, str], list[MediaDownload]] = {}
+    for row in rows:
+        by_post.setdefault((row.platform, row.content_id), []).append(row)
+
+    duplicates: list[Duplicate] = []
+    for (platform, content_id), copies in by_post.items():
+        if len(copies) < 2:
+            continue
+        keeper = next((row for row in copies if row.files_removed_at is None), copies[0])
+        drop = [row for row in copies if row.id != keeper.id]
+        if not drop:
+            continue
+        kept_paths = {keeper.directory} | {
+            row.directory for row in rows if row.id not in {d.id for d in drop} and row.directory
+        }
+        paths = sorted(
+            {row.directory for row in drop if row.directory and row.directory not in kept_paths}
+        )
+        duplicates.append(
+            Duplicate(
+                platform=platform,
+                content_id=content_id,
+                keep=keeper.id,
+                drop=tuple(row.id for row in drop),
+                paths=tuple(paths),
+                bytes_freed=sum(int(row.bytes_total or 0) for row in drop),
+            )
+        )
+    return duplicates
 
 
 async def stats(session: AsyncSession) -> dict[str, Any]:
@@ -643,22 +781,28 @@ __all__ = [
     "DEFAULT_PAGE",
     "LIVE_STATES",
     "MAX_PAGE",
+    "PENDING_AUTHOR",
     "TERMINAL_STATES",
     "DownloadError",
     "DownloadFilter",
+    "Duplicate",
     "Eviction",
+    "adopt",
     "apply_result",
     "as_dict",
     "cancel",
     "choose_evictions",
     "create",
+    "create_pending",
     "directory_of",
     "fail",
+    "find_duplicates",
     "get",
     "job_payload",
     "mark_evicted",
     "mark_running",
     "mirrors_are_stale",
+    "pending_directory",
     "plan_eviction",
     "plan_for",
     "search",

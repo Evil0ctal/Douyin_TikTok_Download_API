@@ -34,18 +34,19 @@ from fastapi.responses import FileResponse
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
 from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
-from dtk.api.routes.schemas import DownloadRequest, PinRequest
+from dtk.api.routes.schemas import DedupeRequest, DownloadRequest, PinRequest
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
     MAX_ADMIN_PAGE_SIZE,
     ok,
 )
 from dtk.core.config import BootstrapSettings
-from dtk.core.errors import InvalidParam, NotConfigured, NotFound, QueueFull
+from dtk.core.errors import DownloaderDown, InvalidParam, NotConfigured, NotFound, QueueFull
 from dtk.core.logging import get_logger
 from dtk.core.types import DownloadState, Platform, Scope
 from dtk.ops import capacity
 from dtk.services import archive, downloads, tasks
+from dtk.urls import ResourceKind, first_url, identify, require_content_id
 
 log = get_logger(__name__)
 
@@ -92,17 +93,31 @@ async def start_download(
     body: DownloadRequest,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
-    """Fetch one archived post's media onto this instance's disk.
+    """Fetch one post's media onto this instance's disk.
 
-    The post must already be in the archive - this endpoint takes a content key,
-    never a URL, so nothing a caller sends decides what gets fetched. If the
-    stored links have gone stale the worker re-parses the post first, which
-    spends an identity from the ordinary pool.
+    Takes a post id or a link. A link is not a URL this endpoint will fetch:
+    it goes through `dtk.urls.identify`, which is the allowlist doc 08 puts in
+    front of every caller-supplied URL, and only the post id it yields is used.
+    The request then goes to the platform's own endpoint table exactly as if the
+    id had been typed.
+
+    The post does not have to be archived. If this instance has never seen it,
+    the worker fetches it first - through the same pool, scheduler and request
+    log as any other read - and downloads what comes back. A downloader that
+    could only save what you happened to parse first is two steps where people
+    expect one.
+
+    Short links are the exception: resolving `v.douyin.com/xxxx` means following
+    it, and this endpoint does not make network calls. Send those to `/parse`,
+    which expands them in the background, and the post is archived by the time
+    you come back.
 
     **Parameters**
 
-    - `platform` - douyin or tiktok.
-    - `content_id` - the post id, as the archive holds it.
+    - `url` - a share link, or the share text around one.
+    - `platform`, `content_id` - the post key, if you already have it. A link
+      supplies both; giving both a link and a key that disagree is refused
+      rather than guessed at.
 
     **Returns**
 
@@ -113,11 +128,7 @@ async def start_download(
     principal.require(Scope.MEDIA_WRITE)
     _configured(request)
 
-    try:
-        platform = Platform(body.platform)
-    except ValueError as exc:
-        raise InvalidParam("platform must be douyin or tiktok") from exc
-
+    platform, content_id = _resolve_target(body)
     config = request.app.state.config
     verdict = capacity.evaluate(
         warn_percent=float(config.get("capacity.warn_percent")),
@@ -130,23 +141,31 @@ async def start_download(
         )
 
     session = request.state.db
-    row = await archive.get(session, platform.value, body.content_id)
+    row = await archive.get(session, platform.value, content_id)
+    planned: list[dict[str, str]] = []
+    skipped: list[str] = []
     if row is None:
-        raise NotFound(
-            "this instance has not archived that post; parse it first",
-            details={"platform": platform.value, "content_id": body.content_id},
+        # Never seen. The worker fetches it before downloading, so there is
+        # nothing to plan from yet and nothing to refuse on.
+        download = await downloads.create_pending(
+            session,
+            platform=platform.value,
+            content_id=content_id,
+            requested_by=principal.api_key_id,
         )
-
-    # Planned here as well as in the worker, so a post with nothing fetchable is
-    # a 400 the caller reads now rather than a task that fails in a minute.
-    plan = downloads.plan_for(row, max_file_bytes=int(config.get("media.max_file_bytes")))
-    if plan.empty:
-        raise InvalidParam(
-            "; ".join(plan.skipped) or "this post has no downloadable media",
-            details={"skipped": list(plan.skipped)},
-        )
-
-    download = await downloads.create(session, row, requested_by=principal.api_key_id)
+    else:
+        # Planned here as well as in the worker, so a post that IS archived and
+        # has nothing fetchable is a 400 the caller reads now rather than a task
+        # that fails in a minute.
+        plan = downloads.plan_for(row, max_file_bytes=int(config.get("media.max_file_bytes")))
+        if plan.empty:
+            raise InvalidParam(
+                "; ".join(plan.skipped) or "this post has no downloadable media",
+                details={"skipped": list(plan.skipped)},
+            )
+        planned = [{"name": item.name, "kind": item.kind} for item in plan.items]
+        skipped = list(plan.skipped)
+        download = await downloads.create(session, row, requested_by=principal.api_key_id)
     task_id, state = await operations.submit(
         request,
         principal,
@@ -169,7 +188,8 @@ async def start_download(
         "media.download.requested",
         download_id=str(download.id),
         platform=platform.value,
-        items=len(plan.items),
+        items=len(planned),
+        archived=row is not None,
     )
     return ok(
         request,
@@ -178,11 +198,170 @@ async def start_download(
             "task_id": str(task_id),
             "state": state.value,
             "directory": download.directory,
-            "planned": [{"name": item.name, "kind": item.kind} for item in plan.items],
-            "skipped": list(plan.skipped),
+            "planned": planned,
+            "skipped": skipped,
+            # False means the worker has to fetch the post before it can
+            # download anything, which is a slower first response.
+            "archived": row is not None,
         },
         status_code=202,
     )
+
+
+def _resolve_target(body: DownloadRequest) -> tuple[Platform, str]:
+    """Work out which post is meant, from a link or a key.
+
+    `identify` is the allowlist: an unrecognised host yields nothing and is
+    refused here, so no URL a caller sends ever becomes a request.
+    """
+    if body.url:
+        kind = identify(body.url)
+        if not kind.allowed:
+            # Both apps put a caption and a numeric code on the clipboard
+            # beside the link, and that whole string is what gets pasted.
+            candidate = first_url(body.url)
+            if candidate is not None:
+                kind = identify(candidate)
+        if not kind.allowed or kind.platform is None:
+            raise InvalidParam(
+                "that link is not a supported Douyin or TikTok post",
+                details={"field": "url"},
+            )
+        if kind.needs_expansion:
+            raise InvalidParam(
+                "a short link has to be expanded before it names a post; send it "
+                "to /api/v1/parse, which follows it in the background",
+                details={"field": "url", "needs_expansion": True},
+            )
+        if kind.resource is not ResourceKind.VIDEO or not kind.resource_id:
+            raise InvalidParam(
+                "that link names a profile rather than a post",
+                details={"field": "url", "resource": kind.resource.value},
+            )
+        if body.platform is not None and body.platform is not kind.platform:
+            # Guessing which one was meant is how you download the wrong post
+            # from the wrong platform and call it a feature.
+            raise InvalidParam(
+                "the link and the platform disagree",
+                details={"url_platform": kind.platform.value, "platform": body.platform.value},
+            )
+        if body.content_id and body.content_id != kind.resource_id:
+            raise InvalidParam(
+                "the link and the content_id name different posts",
+                details={"url_content_id": kind.resource_id, "content_id": body.content_id},
+            )
+        return kind.platform, kind.resource_id
+
+    if body.platform is None or not body.content_id:
+        raise InvalidParam(
+            "provide either url, or platform and content_id",
+            details={"fields": ["url", "platform", "content_id"]},
+        )
+    # Only a typed id is checked: one extracted from a link came out of the
+    # pattern that recognised the link.
+    return body.platform, require_content_id(body.content_id, platform=body.platform)
+
+
+@router.post(
+    "/deduplicate",
+    summary="Remove duplicate downloads",
+    openapi_extra={I18N_KEY: "downloads_dedupe"},
+)
+async def deduplicate(
+    request: Request,
+    body: DedupeRequest | None = None,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Keep one copy of each post and remove the rest.
+
+    Re-downloading a post is a normal thing to do - the first attempt failed,
+    the mirrors went stale, the file was evicted - and each attempt leaves a
+    row. The successful ones leave a complete second copy of the same video,
+    which is the disk filling with bytes nobody asked for twice.
+
+    The newest copy that still has its files is kept: newest because it came
+    from the freshest mirrors, still-present because keeping an evicted row over
+    a present one would delete the only copy there is.
+
+    A directory is only removed when no surviving row shares it. Two downloads
+    of one post land in the same directory - it is keyed by platform, author and
+    post - so deleting the older row's path by id would delete the file the
+    newer one just wrote. In that ordinary case the rows go and the bytes stay,
+    which is the correct outcome: there was only ever one copy on disk.
+
+    **Parameters**
+
+    - `dry_run` - report what would go and change nothing.
+
+    **Returns**
+
+    How many duplicate records were found, how many were removed, the bytes the
+    sidecar reported freeing, and the posts involved.
+    """
+    principal.require(Scope.MEDIA_WRITE)
+    dry_run = body.dry_run if body is not None else False
+
+    session = request.state.db
+    duplicates = await downloads.find_duplicates(session)
+    posts = [
+        {
+            "platform": item.platform,
+            "content_id": item.content_id,
+            "copies": len(item.drop) + 1,
+            "removing": len(item.drop),
+            "paths": list(item.paths),
+        }
+        for item in duplicates
+    ]
+    summary: dict[str, Any] = {
+        "duplicates": sum(len(item.drop) for item in duplicates),
+        "posts": posts,
+        "dry_run": dry_run,
+        "removed": 0,
+        "freed_bytes": 0,
+    }
+    if dry_run or not duplicates:
+        return ok(request, summary)
+
+    directories = sorted({path for item in duplicates for path in item.paths})
+    freed = 0
+    if directories:
+        settings: BootstrapSettings = request.app.state.settings
+        if not settings.downloader_url:
+            raise NotConfigured(
+                "some duplicates own files this instance cannot reach; start the "
+                "downloader compose profile, or the records would be removed and "
+                "the bytes left behind"
+            )
+        from dtk.media import DownloaderClient, DownloaderUnavailable
+
+        client = DownloaderClient(settings.downloader_url, token=settings.downloader_token)
+        try:
+            removed = await client.delete(directories)
+            freed = int(removed.get("freed_bytes") or 0)
+        except DownloaderUnavailable as exc:
+            # Same rule as deleting an archived post: refuse rather than leave
+            # bytes nothing points at.
+            log.warning("media.dedupe.downloader_failed", error=str(exc)[:200])
+            raise DownloaderDown(
+                "the media downloader did not answer, nothing was removed"
+            ) from exc
+        finally:
+            await client.aclose()
+
+    summary["removed"] = await downloads.forget(
+        session, [download_id for item in duplicates for download_id in item.drop]
+    )
+    summary["freed_bytes"] = freed
+    await session.commit()
+    log.info(
+        "media.dedupe",
+        posts=len(duplicates),
+        removed=summary["removed"],
+        freed_bytes=freed,
+        directories=len(directories),
+    )
+    return ok(request, summary)
 
 
 @router.get("", summary="List downloads", openapi_extra={I18N_KEY: "downloads_list"})

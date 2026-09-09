@@ -83,6 +83,12 @@ async def run(
             details={"platform": download.platform, "content_id": download.content_id},
         )
 
+    # A download created before its post was archived carries a placeholder
+    # author, and the author is half the directory. Now that the fetch has
+    # come back, the row can say where its files really go - before the job is
+    # built from it, which is what reads `directory`.
+    await downloads.adopt(session, download, row)
+
     plan = downloads.plan_for(row, max_file_bytes=int(config.get("media.max_file_bytes")))
     if plan.empty:
         detail = "; ".join(plan.skipped) or "this post has no downloadable media"
@@ -153,10 +159,15 @@ async def _content(
     download: Any,
     config: Any,
 ) -> ArchivedContent | None:
-    """The archive row, re-parsed first when its links are too old to use."""
+    """The archive row: fetched if we have never seen it, refreshed if stale."""
     row = await archive.get(session, download.platform, download.content_id)
     if row is None:
-        return None
+        # Never archived. Fetch it now rather than refusing - a downloader that
+        # can only save what you happened to parse first is two steps where
+        # people expect one. The fetch goes through the same FetchService as
+        # every other read, so it spends an identity from the ordinary pool,
+        # obeys the scheduler, and writes a request_log row.
+        return await _reparse(deps, session, download)
     max_age = int(config.get("media.mirror_max_age_seconds"))
     if not downloads.mirrors_are_stale(row, max_age_seconds=max_age):
         return row

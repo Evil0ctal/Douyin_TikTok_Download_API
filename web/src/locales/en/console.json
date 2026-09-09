@@ -1396,7 +1396,9 @@
     "field": {
       "platform": "Platform",
       "contentId": "Content id",
-      "contentIdHint": "The post id as the archive holds it. Parse the post first if it is not there yet."
+      "contentIdHint": "The post id as the archive holds it. Parse the post first if it is not there yet.",
+      "target": "Link or post id",
+      "targetHint": "A share link, the share text around one, or a bare post id. A link says which platform it is; a bare id needs the menu beside it."
     },
     "column": {
       "content": "Post",
@@ -1417,7 +1419,8 @@
       "started": "Download started",
       "startFailed": "Could not start the download",
       "pinned": "Pinned; the cleanup will skip it",
-      "unpinned": "Unpinned"
+      "unpinned": "Unpinned",
+      "fetchingFirst": "Fetching the post first, then downloading it"
     },
     "file": {
       "sha256": "sha256",
@@ -1434,6 +1437,16 @@
       "deleteTitle": "Delete the selected downloads?",
       "deleteBody": "{count, plural, one {# download's files are removed} other {# downloads' files are removed}} from the media volume. The record stays and says the files were cleaned up, so you can tell this apart from never having fetched them - and asking for the download again restores them.",
       "deleteConfirm": "Delete the files"
+    },
+    "dedupe": {
+      "title": "Duplicate downloads",
+      "description": "Re-downloading a post is normal - the first attempt failed, the links went stale, the file was evicted - and each attempt leaves a record. This keeps the newest copy of each post and removes the rest.",
+      "action": "Check for duplicates",
+      "none": "No post has been downloaded twice",
+      "confirmTitle": "{count, plural, one {Remove # duplicate record?} other {Remove # duplicate records?}}",
+      "confirmBody": "The newest copy of each post is kept, and a directory is only deleted when no surviving record still uses it - so where two attempts wrote to the same place, the records go and the file stays. This cannot be undone.",
+      "confirmAction": "Remove them",
+      "done": "{count, plural, one {# duplicate removed} other {# duplicates removed}}, {size} freed"
     }
   },
   "library": {

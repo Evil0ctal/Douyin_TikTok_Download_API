@@ -19,6 +19,7 @@ import {
 } from '@/components'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiPost, isApiError } from '@/lib/api'
+import { cn } from '@/lib/cn'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import { DOWNLOAD_STATES, type DownloadState, type Platform } from '@/lib/types'
@@ -132,7 +133,11 @@ export default function Downloads() {
   const invalidate = useInvalidate()
 
   const [platform, setPlatform] = useState<Platform>('douyin')
-  const [contentId, setContentId] = useState('')
+  //: A link or a post id. One box, because the share sheet gives a link and
+  //: asking which one you have is asking you to classify your own clipboard.
+  const [target, setTarget] = useState('')
+  //: How many duplicates a dry run found, while the confirmation is up.
+  const [deduping, setDeduping] = useState<number | null>(null)
   const [stateFilter, setStateFilter] = useState<DownloadState | ''>('')
   const [inspecting, setInspecting] = useState<DownloadRow | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
@@ -159,26 +164,73 @@ export default function Downloads() {
     void invalidate(STORAGE_KEY)
   }
 
-  const start = useApiMutation<{ download_id: string; skipped?: string[] }, void>(
+  /**
+   * One box, two shapes.
+   *
+   * People have a link far more often than an id - the share sheet gives a
+   * link - and asking which one this is would be asking them to classify their
+   * own clipboard. Digits are an id, anything else is a link, and the API
+   * refuses either if it cannot make sense of it.
+   */
+  const looksLikeId = /^\d+$/.test(target.trim())
+
+  const start = useApiMutation<
+    { download_id: string; skipped?: string[]; archived?: boolean },
+    void
+  >(
     () =>
       apiPost(
         paths.downloads.create,
-        { platform, content_id: contentId.trim() },
+        looksLikeId
+          ? { platform, content_id: target.trim() }
+          : { url: target.trim() },
         { awaitTask: false },
       ),
     {
       onSuccess: (result) => {
-        setContentId('')
+        setTarget('')
         refresh()
-        toast.success(t('downloads.toast.started'), {
-          description: result.skipped?.length ? result.skipped.join('; ') : undefined,
-        })
+        toast.success(
+          // A post this instance has never seen has to be fetched before
+          // anything can be downloaded, which is a slower first result. Saying
+          // so beats a progress row that sits at "queued" for longer than the
+          // last one did.
+          result.archived === false ? t('downloads.toast.fetchingFirst') : t('downloads.toast.started'),
+          { description: result.skipped?.length ? result.skipped.join('; ') : undefined },
+        )
       },
       onError: (error) => {
         toast.apiError(error, t('downloads.toast.startFailed'))
       },
     },
   )
+
+  /** Keep one copy of each post; remove the rest. */
+  const dedupe = useApiMutation<
+    { duplicates: number; removed: number; freed_bytes: number },
+    boolean
+  >((dryRun) => apiPost(paths.downloads.dedupe, { dry_run: dryRun }), {
+    onSuccess: (result, dryRun) => {
+      refresh()
+      if (result.duplicates === 0) {
+        toast.success(t('downloads.dedupe.none'))
+        return
+      }
+      if (dryRun) {
+        setDeduping(result.duplicates)
+        return
+      }
+      toast.success(
+        t('downloads.dedupe.done', {
+          count: result.removed,
+          size: formatters.bytes(result.freed_bytes),
+        }),
+      )
+    },
+    onError: (error) => {
+      toast.apiError(error)
+    },
+  })
 
   const pin = useApiMutation<unknown, { id: string; pinned: boolean }>(
     ({ id, pinned }) => apiPost(paths.downloads.pin(id), { pinned }),
@@ -396,21 +448,26 @@ export default function Downloads() {
       ) : null}
 
       <Card title={t('downloads.start.title')} description={t('downloads.start.description')}>
-        {/* A grid, not a row. `Field` stacks a label over its control and a
-            description under it, so three of them in a flex row left the button
-            floating level with the labels while the input's help text pushed
-            everything else down. The columns line the controls up and let the
-            help text sit under the field it describes. */}
+        {/* u-form-row, not u-row. `Field` stacks a label over its control and
+            a description under it, so three of them in a flex row put the
+            controls on three different lines - measured 20px apart, because
+            only the content id has a hint. The shared row hands all three a
+            subgrid so the controls land together. */}
         <form
-          className={styles.startForm}
+          className={cn('u-form-row', styles.startForm)}
           onSubmit={(event) => {
             event.preventDefault()
-            if (contentId.trim()) start.mutate()
+            if (target.trim()) start.mutate()
           }}
         >
+          {/* Only consulted for a bare id. A link says which platform it is,
+              and the API refuses one that disagrees with this rather than
+              guessing - so the menu is disabled while a link is in the box,
+              which says that without a sentence. */}
           <Field id="download-platform" label={t('downloads.field.platform')}>
             <Select
               value={platform}
+              disabled={target.trim().length > 0 && !looksLikeId}
               onChange={(event) => {
                 setPlatform(event.target.value as Platform)
               }}
@@ -424,30 +481,60 @@ export default function Downloads() {
           </Field>
           <Field
             id="download-content"
-            label={t('downloads.field.contentId')}
-            description={t('downloads.field.contentIdHint')}
+            label={t('downloads.field.target')}
+            description={t('downloads.field.targetHint')}
           >
             <Input
-              value={contentId}
+              value={target}
               onChange={(event) => {
-                setContentId(event.target.value)
+                setTarget(event.target.value)
               }}
               mono
-              inputMode="numeric"
-              placeholder="7408915107113127220"
+              placeholder="https://www.douyin.com/video/7408915107113127220"
             />
           </Field>
           <Button
             type="submit"
             variant="primary"
             loading={start.isPending}
-            disabled={!contentId.trim()}
+            disabled={!target.trim()}
           >
             {t('downloads.start.action')}
           </Button>
         </form>
         <p className={styles.startNote}>{t('downloads.start.sinkNote')}</p>
       </Card>
+
+      {/* Housekeeping, next to the volume it frees. A dry run first, always:
+          the count is the whole decision and nobody can make it from a button
+          labelled "deduplicate". */}
+      <Card title={t('downloads.dedupe.title')} description={t('downloads.dedupe.description')}>
+        <Button
+          variant="secondary"
+          loading={dedupe.isPending}
+          onClick={() => {
+            dedupe.mutate(true)
+          }}
+        >
+          {t('downloads.dedupe.action')}
+        </Button>
+      </Card>
+
+      <ConfirmDialog
+        open={deduping !== null}
+        danger
+        title={t('downloads.dedupe.confirmTitle', { count: deduping ?? 0 })}
+        description={t('downloads.dedupe.confirmBody')}
+        confirmLabel={t('downloads.dedupe.confirmAction')}
+        loading={dedupe.isPending}
+        onConfirm={() => {
+          setDeduping(null)
+          dedupe.mutate(false)
+        }}
+        onCancel={() => {
+          setDeduping(null)
+        }}
+      />
 
       <DataTable
         columns={columns}

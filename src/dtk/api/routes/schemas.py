@@ -200,17 +200,39 @@ class RestoreRequest(Body):
 
 
 class DownloadRequest(Body):
-    """Start storing one archived post's media.
+    """Start storing one post's media.
 
-    A content key, never a URL. That is the whole of doc 08's fourth
-    constraint expressed as a type: there is no field here a caller could use
-    to point the downloader at a host of their choosing.
+    A content key or a link, and a link is still not a URL the downloader will
+    fetch. Doc 08's fourth constraint is that nothing a caller sends decides
+    what host gets contacted, and that holds: a link here is run through
+    `dtk.urls.identify`, which is the SSRF chokepoint, and only the post id it
+    yields is used. The request goes to the platform's own endpoint table, the
+    same as if the id had been typed.
+
+    Everything is optional at this layer because the combinations are the
+    handler's to judge - a link alone, a platform and an id, or a link whose
+    platform disagrees with the one named.
     """
 
-    platform: Platform
+    platform: Platform | None = None
     #: As the archive holds it. Text, never an integer: a 19-digit aweme_id
     #: exceeds the JavaScript safe range.
-    content_id: str = Field(min_length=1, max_length=64)
+    content_id: str | None = Field(default=None, min_length=1, max_length=64)
+    #: A share link, or the share text with one inside it.
+    url: str | None = Field(default=None, max_length=4096)
+
+
+class DedupeRequest(Body):
+    """Remove the older duplicate downloads of the same post.
+
+    Re-downloading a post is a normal thing to do - the first attempt failed,
+    the mirrors went stale, the file was evicted - and each one leaves a row.
+    What accumulates is several complete copies of the same video under the
+    same directory, which is the disk filling up with the same bytes.
+    """
+
+    #: Report what would go without touching anything.
+    dry_run: bool = False
 
 
 class PinRequest(Body):

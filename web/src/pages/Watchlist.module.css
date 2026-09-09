@@ -32,3 +32,10 @@
   line-height: var(--leading-xs);
   color: var(--caution);
 }
+
+/* Columns only; u-form-row owns the rows and the alignment. Platform and kind
+   are short menus, the target is the long one, and the interval and the button
+   size to their content. */
+.addForm {
+  grid-template-columns: minmax(120px, auto) minmax(120px, auto) minmax(0, 1fr) minmax(120px, auto) auto;
+}

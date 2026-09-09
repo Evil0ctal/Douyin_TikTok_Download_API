@@ -109,19 +109,9 @@
  * control and optional help text, and ending them together puts the three
  * controls on one line whatever is written above or below them.
  */
+/* Only the columns; u-form-row owns the rows and the alignment. */
 .startForm {
-  display: grid;
   grid-template-columns: minmax(140px, auto) minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: end;
-}
-
-/* One column on a phone, where three across is three unreadable columns. */
-@media (max-width: 640px) {
-  .startForm {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-  }
 }
 
 .startNote {
