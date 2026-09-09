@@ -127,6 +127,9 @@ const AUTHOR_DEPTHS = [20, 50, 100, 200, 0] as const
 /** Enough pages to reach the deepest choice, and a stop for the "all" case. */
 const AUTHOR_MAX_PAGES = 40
 
+/** States a retry makes sense from: settled, and not holding files already. */
+const RETRYABLE: ReadonlySet<string> = new Set(['failed', 'partial', 'cancelled'])
+
 /**
  * A bare author id, as both platforms spell it.
  *
@@ -168,6 +171,15 @@ interface DownloadFile {
   error: string | null
 }
 
+/** What the sidecar says about a job still running. Null once it settles. */
+interface DownloadProgress {
+  bytes: number
+  files_done: number
+  files_total: number
+  state: string
+  items: Array<{ name: string; kind: string; state: string; bytes: number }>
+}
+
 interface DownloadRow {
   id: string
   platform: string
@@ -191,6 +203,8 @@ interface DownloadRow {
    * describes a real file on the volume.
    */
   post: { title: string | null; author: string | null; duration_ms: number | null } | null
+  /** Live, from the sidecar, and only while the download is in flight. */
+  progress: DownloadProgress | null
 }
 
 interface DownloadList {
@@ -218,6 +232,42 @@ interface Storage {
   max_bytes: number
   max_file_bytes: number
   downloader: DownloaderHealth
+}
+
+/**
+ * How far along a running download is.
+ *
+ * By files rather than by bytes, because the total is not known. The platform
+ * declares a size and the sidecar does not trust it - the ceiling is enforced
+ * on bytes actually written - so there is no denominator to divide by. Files
+ * done out of files planned is a real fraction, and the bytes so far are shown
+ * beside it as the number that keeps moving.
+ */
+function Progress({ progress }: { progress: DownloadProgress }) {
+  const { t } = useTranslation(['console', 'common'])
+  const formatters = useFormatters()
+  const share = progress.files_total > 0 ? progress.files_done / progress.files_total : 0
+
+  return (
+    <span className={styles.progress} title={t('downloads.progress.hint')}>
+      <span
+        className={styles.progressTrack}
+        role="progressbar"
+        aria-valuenow={progress.files_done}
+        aria-valuemin={0}
+        aria-valuemax={progress.files_total}
+      >
+        <span className={styles.progressFill} style={{ width: `${Math.round(share * 100)}%` }} />
+      </span>
+      <span className="u-xs u-muted u-mono">
+        {t('downloads.progress.files', {
+          done: progress.files_done,
+          total: progress.files_total,
+        })}
+        {progress.bytes > 0 ? ` · ${formatters.bytes(progress.bytes)}` : ''}
+      </span>
+    </span>
+  )
 }
 
 export default function Downloads() {
@@ -451,6 +501,28 @@ export default function Downloads() {
     return { platform: kind.platform as Platform, id: kind.resource_id }
   }
 
+  /**
+   * Start a settled download over.
+   *
+   * Not a resume, and there is no resume to offer: the sidecar truncates its
+   * `.part` on every attempt, and it is built that way because media URLs are
+   * signed and expire - bytes fetched an hour ago cannot be continued against
+   * a link that answers 403 now. Asking again is what works, and the worker
+   * re-parses the post for fresh mirrors when the stored ones have gone stale.
+   */
+  const retry = useApiMutation<{ download_id: string }, string>(
+    (downloadId) => apiPost(paths.downloads.retry, { download_id: downloadId }),
+    {
+      onSuccess: () => {
+        refresh()
+        toast.success(t('downloads.retry.started'))
+      },
+      onError: (error) => {
+        toast.apiError(error, t('downloads.retry.failed'))
+      },
+    },
+  )
+
   /** Keep one copy of each post; remove the rest. */
   const dedupe = useApiMutation<
     { duplicates: number; removed: number; freed_bytes: number },
@@ -577,8 +649,16 @@ export default function Downloads() {
       {
         id: 'state',
         header: t('downloads.column.state'),
-        width: '150px',
-        cell: (row) => <StatusBadge kind="download" value={row.state} flash />,
+        width: '190px',
+        cell: (row) => (
+          <div className="u-stack-sm" style={{ minWidth: 0 }}>
+            <StatusBadge kind="download" value={row.state} flash />
+            {/* Only while it is happening. A settled download's progress is
+                its result, and a full bar under "done" says nothing the badge
+                did not already say. */}
+            {row.progress ? <Progress progress={row.progress} /> : null}
+          </div>
+        ),
         sortValue: (row) => row.state,
       },
       {
@@ -638,8 +718,30 @@ export default function Downloads() {
         ),
         sortValue: (row) => (row.pinned ? 1 : 0),
       },
+      {
+        id: 'retry',
+        header: t('downloads.column.retry'),
+        width: '110px',
+        cell: (row) =>
+          // Only where there is something to retry. A finished download has
+          // its files and a running one would race itself.
+          RETRYABLE.has(row.state) ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={retry.isPending && retry.variables === row.id}
+              onClick={(event) => {
+                event.stopPropagation()
+                retry.mutate(row.id)
+              }}
+              title={t('downloads.retry.hint')}
+            >
+              {t('downloads.retry.action')}
+            </Button>
+          ) : null,
+      },
     ],
-    [formatters, pin, t],
+    [formatters, pin, retry, t],
   )
 
   return (

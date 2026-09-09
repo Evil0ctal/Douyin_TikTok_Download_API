@@ -11,6 +11,7 @@ envelope; declaring them twice would only let the two drift apart.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -225,6 +226,18 @@ class DownloadRequest(Body):
     #: author has added three posts since last time and the other forty are
     #: already on the disk.
     skip_existing: bool = False
+
+
+class RetryRequest(Body):
+    """Start a settled download over.
+
+    There is no resume to ask for. The sidecar truncates its `.part` on every
+    attempt, and it is built that way because media URLs are signed and expire -
+    bytes fetched an hour ago cannot be continued against a link that now
+    answers 403.
+    """
+
+    download_id: uuid.UUID
 
 
 class DedupeRequest(Body):

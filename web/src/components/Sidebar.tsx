@@ -26,6 +26,7 @@ import {
   TerminalIcon,
   UsersIcon,
   type IconProps,
+  InfoIcon,
 } from './Icons'
 import { Logo } from './Logo'
 import styles from './shell.module.css'
@@ -121,6 +122,25 @@ export function Sidebar({
           )
         })}
       </div>
+
+      {/* Copyright and the licence, at the bottom of every page. Small, and
+          present: an Apache-2.0 project that never says so anywhere in its own
+          interface is asking people to go and find out. */}
+      {!embedded ? (
+        <Link
+          href="/about"
+          className={cn(styles.about, location === '/about' && styles.aboutActive)}
+          title={collapsed ? t('common:nav.about') : undefined}
+          onClick={onNavigate}
+        >
+          <span className={styles.navIcon}>
+            <InfoIcon size={14} />
+          </span>
+          <span className={cn(styles.navLabel, 'u-truncate')}>
+            {t('common:nav.about')}
+          </span>
+        </Link>
+      ) : null}
 
       {!embedded && onToggleCollapse ? (
         <div className={styles.sidebarFooter}>

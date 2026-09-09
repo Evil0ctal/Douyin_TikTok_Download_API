@@ -147,7 +147,8 @@
     "expand": "Expand sidebar",
     "openMenu": "Open navigation",
     "closeMenu": "Close navigation",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "about": "About"
   },
   "field": {
     "required": "Required",

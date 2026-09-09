@@ -25,8 +25,9 @@ download spends an identity and consumes disk, which no read scope should imply.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from pathlib import Path as FsPath
-from typing import Any
+from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import FileResponse
@@ -35,7 +36,7 @@ from sqlalchemy.exc import IntegrityError
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
 from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
-from dtk.api.routes.schemas import DedupeRequest, DownloadRequest, PinRequest
+from dtk.api.routes.schemas import DedupeRequest, DownloadRequest, PinRequest, RetryRequest
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
     MAX_ADMIN_PAGE_SIZE,
@@ -347,6 +348,118 @@ def _resolve_target(body: DownloadRequest) -> tuple[Platform, str]:
     return body.platform, require_content_id(body.content_id, platform=body.platform)
 
 
+#: How many live downloads to ask the sidecar about on one listing. The number
+#: in flight is normally one or two - the sidecar has a small worker pool - and
+#: a page that made forty extra calls to draw forty progress bars would cost
+#: more than the bars are worth.
+PROGRESS_LOOKUP_LIMIT: Final = 8
+
+
+async def _live_progress(request: Request, rows: Sequence[Any]) -> dict[str, dict[str, Any]]:
+    """Ask the sidecar how far along the in-flight downloads are.
+
+    Read from the sidecar rather than stored, because the durable record is
+    written once when the job settles and progress is only interesting before
+    then. The job id is the download id, so nothing has to be kept to find it.
+
+    Best effort throughout. A sidecar that is not configured, is down, or has
+    forgotten a job - it keeps a bounded history and loses everything on
+    restart - means the row draws without a bar, which is what it did before.
+    A progress bar is not worth failing a listing over.
+    """
+    live = [row for row in rows if row.state in downloads.LIVE_STATES][:PROGRESS_LOOKUP_LIMIT]
+    settings: BootstrapSettings = request.app.state.settings
+    if not live or not settings.downloader_url:
+        return {}
+
+    from dtk.media import DownloaderClient, DownloaderUnavailable
+
+    client = DownloaderClient(settings.downloader_url, token=settings.downloader_token)
+    found: dict[str, dict[str, Any]] = {}
+    try:
+        for row in live:
+            try:
+                job = await client.job(row.id.hex)
+            except DownloaderUnavailable:
+                break
+            if not job:
+                continue
+            items = [item for item in (job.get("items") or []) if isinstance(item, dict)]
+            done = sum(1 for item in items if item.get("state") == "done")
+            found[str(row.id)] = {
+                "bytes": int(job.get("bytes_total") or 0),
+                "files_done": done,
+                "files_total": len(items),
+                "state": str(job.get("state") or ""),
+                # Per file, so a stalled cover next to a finished video is
+                # visible as that rather than as one number not moving.
+                "items": [
+                    {
+                        "name": str(item.get("name") or ""),
+                        "kind": str(item.get("kind") or ""),
+                        "state": str(item.get("state") or ""),
+                        "bytes": int(item.get("bytes") or 0),
+                    }
+                    for item in items
+                ],
+            }
+    finally:
+        await client.aclose()
+    return found
+
+
+@router.post(
+    "/retry",
+    summary="Try a download again",
+    openapi_extra={I18N_KEY: "downloads_retry", **ACCEPTED_RESPONSES},
+)
+async def retry_download(
+    request: Request,
+    body: RetryRequest,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Start a settled download over.
+
+    There is no resume, and there could not usefully be one. The sidecar writes
+    to `<name>.part` and truncates it on every attempt, and the reason it is
+    built that way is upstream: media URLs are signed and expire, so bytes
+    fetched an hour ago cannot be continued against a link that now answers 403.
+    What works instead is what this does - ask again, which re-parses the post
+    for fresh mirrors first if the stored ones have gone stale.
+
+    Refused while the download is still going. A stuck one is failed by the
+    maintenance pass after `maintenance.stale_download_seconds`, and until then
+    there is nothing to retry: a second attempt would race the first into the
+    same directory.
+
+    **Parameters**
+
+    - `download_id` - the settled download to try again.
+
+    **Returns**
+
+    `202` with the new `download_id` and the task running it.
+    """
+    principal.require(Scope.MEDIA_WRITE)
+    _configured(request)
+
+    session = request.state.db
+    row = await downloads.get(session, body.download_id)
+    if row is None:
+        raise NotFound("no such download", details={"download_id": str(body.download_id)})
+    if row.state in downloads.LIVE_STATES:
+        raise InvalidParam(
+            "that download is still running; cancel it first, or wait for it to settle",
+            details={"download_id": str(body.download_id), "state": row.state},
+        )
+
+    return await start_download(
+        request,
+        DownloadRequest(platform=Platform(row.platform), content_id=row.content_id),
+        principal,
+    )
+
+
 @router.post(
     "/deduplicate",
     summary="Remove duplicate downloads",
@@ -484,11 +597,17 @@ async def list_downloads(
     titles = await downloads.titles_for(
         request.state.db, [(row.platform, row.content_id) for row in rows]
     )
+    # Only the in-flight rows cost anything here, and only while there are any.
+    progress = await _live_progress(request, rows)
     return ok(
         request,
         {
             "items": [
-                {**downloads.as_dict(row), "post": titles.get((row.platform, row.content_id))}
+                {
+                    **downloads.as_dict(row),
+                    "post": titles.get((row.platform, row.content_id)),
+                    "progress": progress.get(str(row.id)),
+                }
                 for row in rows
             ],
             "total": total,

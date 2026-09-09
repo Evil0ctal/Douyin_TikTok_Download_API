@@ -350,6 +350,10 @@
         "summary": "Pin or unpin a download",
         "description": "Exempts one download from the size-based cleanup. This is the only way to keep a file the ceiling would otherwise remove, and a post the platform has since deleted cannot be fetched again."
       },
+      "downloads_retry": {
+        "summary": "Try a download again",
+        "description": "Starts a settled download over. There is no resume and there could not usefully be one: the sidecar writes to `<name>.part` and truncates it on every attempt, and it is built that way because media URLs are signed and expire - bytes fetched an hour ago cannot be continued against a link that now answers 403. Asking again is what works, and it re-parses the post for fresh mirrors first when the stored ones have gone stale. Refused while the download is still running: a stuck one is failed by the maintenance pass, and until then a second attempt would only race the first into the same directory."
+      },
       "downloads_storage": {
         "summary": "Media storage usage",
         "description": "How much disk stored media occupies and how much it is allowed to, measured on the volume rather than summed from the database, plus whether the downloader container is reachable."

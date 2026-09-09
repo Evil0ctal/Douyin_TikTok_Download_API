@@ -1200,3 +1200,115 @@ async def test_two_different_posts_are_unaffected(api_app, db_engine, redis_clie
         )
 
     assert first.status_code == second.status_code == 202
+
+
+# --------------------------------------------------------------------------
+# Trying again
+# --------------------------------------------------------------------------
+
+
+async def test_a_failed_download_can_be_retried(api_app, db_engine, redis_client):
+    """Ask again, which is the only thing that works.
+
+    There is no resume: the sidecar truncates its `.part` on every attempt, and
+    it is built that way because media URLs are signed and expire - bytes
+    fetched an hour ago cannot be continued against a link that now answers 403.
+    """
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    failed = await _record(
+        CONTENT_ID, directory="d/a/1", created=datetime.now(UTC), state="failed", bytes_total=0
+    )
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads/retry",
+            json={"download_id": str(failed)},
+            headers={"X-API-Key": key},
+        )
+
+    assert response.status_code == 202
+    assert envelope(response)["data"]["download_id"] != str(failed)
+
+
+async def test_a_partial_download_can_be_retried(api_app, db_engine, redis_client):
+    """The state the cover race left behind, and the reason this button exists."""
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    partial = await _record(
+        CONTENT_ID, directory="d/a/1", created=datetime.now(UTC), state="partial"
+    )
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads/retry",
+            json={"download_id": str(partial)},
+            headers={"X-API-Key": key},
+        )
+
+    assert response.status_code == 202
+
+
+async def test_a_running_download_is_not_retried(api_app, db_engine, redis_client):
+    """A second attempt would race the first into the same directory."""
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    running = await _record(
+        CONTENT_ID, directory="d/a/1", created=datetime.now(UTC), state="running"
+    )
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads/retry",
+            json={"download_id": str(running)},
+            headers={"X-API-Key": key},
+        )
+
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_retrying_something_that_is_not_there_is_a_404(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads/retry",
+            json={"download_id": str(uuid.uuid4())},
+            headers={"X-API-Key": key},
+        )
+    assert error_code(response) == "NOT_FOUND"
+
+
+async def test_a_read_key_cannot_retry(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads/retry",
+            json={"download_id": str(uuid.uuid4())},
+            headers={"X-API-Key": key},
+        )
+    assert error_code(response) == "FORBIDDEN_SCOPE"
+
+
+async def test_the_listing_carries_a_progress_slot(api_app, db_engine, redis_client):
+    """Present on every row, null unless the sidecar had something to say.
+
+    A settled download's progress is its result, so only live rows are ever
+    asked about - and with no sidecar configured, nothing is.
+    """
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+
+    async with anonymous_client(api_app) as caller:
+        body = envelope(await caller.get("/api/v1/downloads", headers={"X-API-Key": key}))["data"]
+
+    rows = body["items"] if isinstance(body, dict) else body
+    assert rows
+    assert all("progress" in row for row in rows)
+    assert rows[0]["progress"] is None

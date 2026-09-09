@@ -48,6 +48,7 @@ const Diagnose = lazy(() => import('@/pages/Diagnose'))
 const Backup = lazy(() => import('@/pages/Backup'))
 const Users = lazy(() => import('@/pages/Users'))
 const ApiDocs = lazy(() => import('@/pages/ApiDocs'))
+const About = lazy(() => import('@/pages/About'))
 
 const queryClient = createQueryClient()
 
@@ -102,6 +103,7 @@ function ConsoleRoutes() {
         <Route path="/backup" component={Backup} />
         <Route path="/users" component={Users} />
         <Route path="/docs" component={ApiDocs} />
+        <Route path="/about" component={About} />
         <Route component={NotFound} />
       </Switch>
     </Suspense>

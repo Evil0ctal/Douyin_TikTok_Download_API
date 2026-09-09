@@ -442,6 +442,16 @@ export function PlayIcon(props: IconProps) {
   )
 }
 
+export function InfoIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 7.25v4" />
+      <path d="M8 4.9h.01" />
+    </Svg>
+  )
+}
+
 export function BookIcon(props: IconProps) {
   return (
     <Svg {...props}>

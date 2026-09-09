@@ -81,6 +81,8 @@ export const paths = {
     create: `${API_V1}/downloads`,
     /** Keeps the newest copy of each post and removes the rest. */
     dedupe: `${API_V1}/downloads/deduplicate`,
+    /** Starts a settled download over. There is no resume; see the route. */
+    retry: `${API_V1}/downloads/retry`,
     storage: `${API_V1}/downloads/storage`,
     pin: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}/pin`,
     byId: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}`,

@@ -201,3 +201,36 @@
 .depthField {
   max-width: 260px;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Progress                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * By files, not by bytes. The platform declares a size and the sidecar does
+ * not trust it - the ceiling is enforced on bytes actually written - so there
+ * is no denominator. Files done out of files planned is a real fraction; the
+ * bytes sit beside it as the number that keeps moving.
+ */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.progressTrack {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width var(--duration-2, 200ms) var(--ease);
+}

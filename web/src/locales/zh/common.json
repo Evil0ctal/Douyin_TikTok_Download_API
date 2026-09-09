@@ -147,7 +147,8 @@
     "expand": "展开侧边栏",
     "openMenu": "打开导航",
     "closeMenu": "关闭导航",
-    "skipToContent": "跳到主内容"
+    "skipToContent": "跳到主内容",
+    "about": "关于"
   },
   "field": {
     "required": "必填",

@@ -61,7 +61,21 @@ export const NAV_ITEMS: readonly NavItem[] = [
 /** Routes reachable without a session. */
 export const PUBLIC_ROUTES: readonly string[] = ['/login', '/setup']
 
+/**
+ * Pages that are real but not in the navigation groups.
+ *
+ * About is the colophon: it has its own link pinned under the nav rather than
+ * a place in a group, and the breadcrumb still has to be able to name it -
+ * without this it resolved to "page not found" on a page that had just
+ * rendered.
+ */
+const UNLISTED: readonly NavItem[] = [
+  { path: '/about', labelKey: 'page.about.title', group: 'operations', icon: 'server' },
+]
+
 export function navItemFor(path: string): NavItem | undefined {
   if (path === '/') return NAV_ITEMS[0]
-  return NAV_ITEMS.find((item) => item.path !== '/' && path.startsWith(item.path))
+  return [...NAV_ITEMS, ...UNLISTED].find(
+    (item) => item.path !== '/' && path.startsWith(item.path),
+  )
 }

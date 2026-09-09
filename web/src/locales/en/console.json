@@ -101,6 +101,10 @@
     "scheduler": {
       "title": "Scheduler",
       "description": "Which identity serves the next request, what stops one of them serving all of them, and when the pool tops itself up."
+    },
+    "about": {
+      "title": "About",
+      "description": "Licence, copyright and sponsors."
     }
   },
   "shell": {
@@ -1427,7 +1431,8 @@
       "files": "Files",
       "size": "Size",
       "finished": "Finished",
-      "keep": "Keep"
+      "keep": "Keep",
+      "retry": "Retry"
     },
     "filter": {
       "allStates": "Any state"
@@ -1524,6 +1529,16 @@
       "hint": "Newest first, paging the feed until it has this many. Every post is a download and every page is a read through the identity pool.",
       "count": "The newest {count}",
       "all": "Everything the feed will give up"
+    },
+    "progress": {
+      "files": "{done}/{total} files",
+      "hint": "Counted in files, not bytes: the platform declares a size and the sidecar does not trust it, so there is no total to divide by."
+    },
+    "retry": {
+      "action": "Retry",
+      "hint": "Fetches the post again from scratch. There is no resume - media links are signed and expire, so partial bytes cannot be continued.",
+      "started": "Trying again",
+      "failed": "Could not retry"
     }
   },
   "library": {
@@ -1774,5 +1789,38 @@
     },
     "overridesTitle": "Where these values come from",
     "overrides": "{count, plural, =0 {Every value on this page is the built-in default or an environment seed.} one {# value is stored in the database and overrides its environment seed.} other {# values are stored in the database and override their environment seeds.}}"
+  },
+  "about": {
+    "title": "About",
+    "description": "What this is, who made it, and what you may do with it.",
+    "tagline": "A self-hosted API for Douyin and TikTok data, and a console for running it.",
+    "copyright": "© 2022–{year} Evil0ctal and contributors",
+    "link": {
+      "repo": "Source on GitHub",
+      "issues": "Report an issue",
+      "license": "Read the licence"
+    },
+    "licence": {
+      "title": "Licence: Apache 2.0",
+      "body": "You may use, modify and distribute this software, including commercially and inside closed-source products. The grant is irrevocable. Three things are asked of you in return:",
+      "notice": "Keep the copyright notice and the licence text with any copy you distribute.",
+      "changes": "State what you changed, in files you modified.",
+      "warranty": "Accept that it comes with no warranty. If it breaks something, that is on you."
+    },
+    "request": {
+      "title": "A request from the author",
+      "body": "This project is given away, and it stays free because sponsors pay for it rather than users. If you are making money from it, please consider sponsoring instead of only taking.",
+      "note": "This is a request, not a licence condition. Apache 2.0 permits commercial use and nothing here takes that back — you are free to decline, and to keep using it either way."
+    },
+    "responsibility": {
+      "title": "What you are responsible for",
+      "body": "This fetches data from platforms that have their own terms, and it runs on your machine under your control. Respect the platforms' terms and applicable law, respect the people whose content you collect, and do not use it to harass anyone or to redistribute work that is not yours. Nobody else can enforce any of that for you."
+    },
+    "sponsor": {
+      "title": "Sponsor",
+      "body": "Paid to be here, so the project can stay free and open.",
+      "pitch": "Social media data and API marketplace — Douyin, TikTok, Xiaohongshu, Instagram, YouTube and more.",
+      "become": "To sponsor this project, see github.com/sponsors/evil0ctal."
+    }
   }
 }

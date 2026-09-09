@@ -330,3 +330,32 @@
     display: none;
   }
 }
+
+/*
+ * The about link, pinned under the navigation.
+ *
+ * Styled as a nav item because it is one, but kept out of NAV_ITEMS: the
+ * groups above are places you work, and this is the colophon. It sits at the
+ * bottom for the same reason a colophon does.
+ */
+.about {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-2) var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+
+.about:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.aboutActive {
+  background: var(--bg-raised);
+  color: var(--text);
+}
