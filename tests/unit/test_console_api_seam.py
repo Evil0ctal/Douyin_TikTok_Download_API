@@ -527,3 +527,49 @@ def test_the_scraping_endpoints_are_translated() -> None:
         and operation.get("summary", "").isascii()
     ]
     assert not untranslated, f"content endpoints still in English under zh: {untranslated}"
+
+
+# --------------------------------------------------------------------------
+# Sensitive settings, written from a page rather than from the settings editor
+# --------------------------------------------------------------------------
+
+
+def test_a_page_writing_a_sensitive_setting_sends_the_confirmation() -> None:
+    """A SENSITIVE key refuses a PUT without ``confirm``, and says so quietly.
+
+    Doc 10 flags a handful of settings as widening the attack surface, and the
+    API answers a write without ``confirm: true`` with INVALID_PARAM naming the
+    field. The settings editor knows this and asks for a typed confirmation.
+    A page that writes one of these keys directly does not know it unless
+    somebody remembered - and /endpoint-access did not, so every switch on it
+    failed in both directions and reported it as "could not update endpoint
+    access". Nothing else noticed: the request was well formed, the API answered
+    correctly, and the only symptom was a toast.
+
+    Scoped to literal keys, because that is the shape a page uses when it owns
+    one particular setting. The settings editor writes ``row.key`` from a
+    variable and is deliberately not in scope here; it has its own dialog.
+    """
+    console = Path(__file__).resolve().parents[2] / "web" / "src"
+    sensitive = _sensitive_setting_keys()
+    offenders: list[str] = []
+
+    call = re.compile(
+        r"apiPut\(\s*paths\.settings\.byKey\(\s*['\"]([^'\"]+)['\"]\s*\)\s*,(.{0,200}?)\)",
+        re.S,
+    )
+    for path in sorted(console.rglob("*.tsx")) + sorted(console.rglob("*.ts")):
+        text = path.read_text(encoding="utf-8")
+        for key, args in call.findall(text):
+            if key in sensitive and "confirm" not in args:
+                offenders.append(f"{path.relative_to(console)}: {key} written without confirm")
+
+    assert not offenders, "sensitive settings written without a confirmation:\n" + "\n".join(
+        offenders
+    )
+
+
+def _sensitive_setting_keys() -> frozenset[str]:
+    from dtk.core.config import RUNTIME_SETTINGS, Scope
+
+    return frozenset(key for key, spec in RUNTIME_SETTINGS.items() if spec.scope is Scope.SENSITIVE)

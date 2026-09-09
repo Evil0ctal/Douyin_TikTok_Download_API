@@ -266,6 +266,31 @@ class TestConsoleHygiene:
             if name in {"msToken", "ttwid", "odin_tt", "UIFID_TEMP", "tt_csrf_token", "uifid"}:
                 assert value.startswith("REPLACE_"), f"{name} has a real-looking value"
 
+    def test_opening_an_endpoint_always_goes_through_a_confirmation(self):
+        """The one invariant on the endpoint-access page worth a test.
+
+        Removing a credential check is the only irreversible-feeling thing that
+        page does, and it is guarded by a confirm dialog. The guard is easy to
+        lose while rearranging the switch: it was inverted so that ON means
+        "requires a key" - which matches how people read a switch, all-on being
+        all-safe - and inverting the control without inverting the handler would
+        have moved the confirmation onto the harmless direction and let the
+        dangerous one through silently.
+
+        Stated as "no call site opens an endpoint except the dialog's own", so
+        it survives the next rearrangement of the control.
+        """
+        source = (WEB / "pages" / "EndpointAccess.tsx").read_text(encoding="utf-8")
+        opens = re.findall(r"apply\(\s*(\w+)\s*,\s*true\s*\)", source)
+        assert opens == ["pending"], (
+            "an endpoint is opened from somewhere other than the confirm dialog: "
+            f"apply(..., true) called with {opens}"
+        )
+        # And the dialog is what holds `pending`, so the row being opened is the
+        # one the operator was shown.
+        assert "setPending(row)" in source
+        assert "open={pending !== null}" in source
+
     def test_no_cjk_outside_the_chinese_locale(self):
         offenders = []
         for path in list(WEB.rglob("*.tsx")) + list(WEB.rglob("*.ts")):

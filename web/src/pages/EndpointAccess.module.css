@@ -117,3 +117,31 @@
 .state[data-open='true'] {
   color: var(--warning);
 }
+
+/*
+ * The two lists above the groups: what an operator opened, and what has no
+ * credential check at all. Both answer "which ones", which is the question a
+ * count on its own leaves open.
+ */
+.uriList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.uriList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.uriList code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}

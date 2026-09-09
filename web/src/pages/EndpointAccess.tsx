@@ -87,7 +87,15 @@ export default function EndpointAccess() {
   const query = useApiQuery<AccessPayload>({ key: ACCESS_KEY, path: paths.endpointsAccess })
 
   const save = useApiMutation(
-    (next: string[]) => apiPut(paths.settings.byKey('api.public_endpoints'), { value: next }),
+    // `confirm` is not optional here. api.public_endpoints is flagged SENSITIVE
+    // (doc 10: widening the attack surface must not be a stray click), so a PUT
+    // without it is refused with INVALID_PARAM naming the field - which meant
+    // every switch on this page failed, in both directions, and reported it as
+    // "could not update endpoint access". The deliberate step the flag is
+    // asking for is the confirm dialog this page already shows before opening
+    // one; closing one narrows the surface and needs no ceremony.
+    (next: string[]) =>
+      apiPut(paths.settings.byKey('api.public_endpoints'), { value: next, confirm: true }),
     {
       onSuccess: async () => {
         await invalidate(ACCESS_KEY)
@@ -111,16 +119,32 @@ export default function EndpointAccess() {
     )
   }, [rows, filter])
 
-  const openCount = useMemo(() => rows.filter((row) => row.public).length, [rows])
+  /**
+   * Two different numbers that were being reported as one.
+   *
+   * `opened` is what an operator chose here and can undo here. `alwaysOpen` is
+   * the handful of routes with no credential check in the code - a login
+   * endpoint cannot require you to be logged in - which no switch on this page
+   * can close.
+   *
+   * Reporting the sum as "N endpoints answer without a credential" over a
+   * warning about spending the identity pool was wrong twice: an instance that
+   * had opened nothing still got the alarm, and the sentence about the pool is
+   * false for every one of the always-open routes. None of them fetch anything.
+   */
+  const opened = useMemo(
+    () => rows.filter((row) => row.public && !row.always_public),
+    [rows],
+  )
+  const alwaysOpen = useMemo(() => rows.filter((row) => row.always_public), [rows])
 
   /**
    * Grouped by the tag the API document already gives every operation, so the
-   * page reads as ten sections rather than as seventy-six rows in a row. A
-   * group opens when it holds something the operator has opened, and otherwise
-   * stays shut: the question this page answers is "what is open", and a group
-   * with nothing open is the answer being "nothing here", not something to
-   * scroll past. Filtering opens everything, because a search with its results
-   * collapsed is a search that failed.
+   * page reads as ten sections rather than as seventy-six rows in a row. Every
+   * group starts shut - seventy-six paths is a page nobody scans, and the
+   * heading plus its counts is the summary somebody actually came for.
+   * Filtering opens everything, because a search with its results collapsed is
+   * a search that failed.
    */
   const groups = useMemo(() => {
     const buckets = new Map<string, EndpointRow[]>()
@@ -136,11 +160,10 @@ export default function EndpointAccess() {
       .map(([tag, rows]) => ({
         tag,
         rows,
-        // The same count the page badge shows, always-open routes included.
-        // Excluding them left every group shut on an instance whose only open
-        // endpoints are the ones no switch can close - so the badge said five
-        // were open and nothing on the page showed where.
-        open: rows.filter((row) => row.public).length,
+        // Only what an operator opened. The always-open routes are listed in
+        // their own card above, where they can be explained rather than
+        // counted into a warning that does not apply to them.
+        open: rows.filter((row) => row.public && !row.always_public).length,
       }))
       .sort((a, b) => a.tag.localeCompare(b.tag))
   }, [visible])
@@ -158,10 +181,20 @@ export default function EndpointAccess() {
     save.mutate([...open].sort())
   }
 
-  /** Opening one removes a credential check, so it is confirmed. Closing is not. */
-  function onToggle(row: EndpointRow, next: boolean) {
-    if (next) setPending(row)
-    else apply(row, false)
+  /**
+   * The switch is "requires a key", so ON is the protected state.
+   *
+   * It used to be "is open", which put every protected endpoint's toggle in the
+   * off position - a page of switches that are off, describing an instance
+   * where nothing is exposed. That reads as protection being switched off. A
+   * switch should track the safe property, so that all-on means all-safe.
+   *
+   * Turning one OFF is therefore what removes a credential check, and that is
+   * the direction that gets confirmed. Turning it back on is not.
+   */
+  function onToggle(row: EndpointRow, requiresKey: boolean) {
+    if (requiresKey) apply(row, false)
+    else setPending(row)
   }
 
   if (query.isLoading) return <Skeleton />
@@ -176,17 +209,54 @@ export default function EndpointAccess() {
         title={t('access.title')}
         description={t('access.description')}
         badge={
-          <span className={styles.count} data-open={openCount > 0}>
-            {t('access.openCount', { count: openCount })}
+          <span className={styles.count} data-open={opened.length > 0}>
+            {t('access.openCount', { count: opened.length })}
           </span>
         }
       />
 
-      {openCount > 0 && (
+      {/* The alarm, and only when there is something to be alarmed about.
+          Every sentence in it is true of these routes and of no others: they
+          were opened by hand, they can be closed by hand, and each call really
+          does spend the identity pool. */}
+      {opened.length > 0 ? (
         <Card title={t('access.openWarningTitle')}>
-          <p>{t('access.openWarning', { count: openCount })}</p>
+          <p className="u-secondary">{t('access.openWarning', { count: opened.length })}</p>
+          <ul className={styles.uriList}>
+            {opened.map((row) => (
+              <li key={row.key}>
+                <span className={styles.method} data-tone={METHOD_TONE[row.method] ?? 'muted'}>
+                  {row.method}
+                </span>
+                <code>{row.path}</code>
+              </li>
+            ))}
+          </ul>
         </Card>
-      )}
+      ) : null}
+
+      {/* Not a warning: a list. These have no credential check in the code - a
+          login endpoint cannot require you to be logged in - so no switch here
+          closes them, and saying which they are is more use than counting them
+          into an alarm that does not describe them. */}
+      {alwaysOpen.length > 0 ? (
+        <Card
+          title={t('access.alwaysOpenTitle', { count: alwaysOpen.length })}
+          description={t('access.alwaysOpenBody')}
+        >
+          <ul className={styles.uriList}>
+            {alwaysOpen.map((row) => (
+              <li key={row.key}>
+                <span className={styles.method} data-tone={METHOD_TONE[row.method] ?? 'muted'}>
+                  {row.method}
+                </span>
+                <code>{row.path}</code>
+                {row.summary ? <span className={styles.summary}>{row.summary}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <Card description={t('access.lockedHint')}>
         <Input
@@ -204,7 +274,7 @@ export default function EndpointAccess() {
         <Card flush key={group.tag}>
           <Disclosure
             title={t(`access.group.${group.tag}`, { defaultValue: group.tag })}
-            defaultOpen={searching || group.open > 0}
+            defaultOpen={searching}
             meta={
               <span className="u-row u-xs u-muted">
                 {group.open > 0 ? (
@@ -241,14 +311,14 @@ export default function EndpointAccess() {
                   </span>
                 ) : (
                   <span className={styles.control}>
-                    {/* Named, not implied. A switch alone leaves "closed" as
+                    {/* Named, not implied. A switch alone leaves its state as
                         the absence of a signal, and the absence of a signal is
                         how an operator reads "no check here". */}
                     <span className={styles.state} data-open={row.public}>
                       {row.public ? t('access.stateOpen') : t('access.stateClosed')}
                     </span>
                     <Switch
-                      checked={row.public}
+                      checked={!row.public}
                       disabled={save.isPending}
                       onChange={(event) => onToggle(row, event.target.checked)}
                       aria-label={t('access.toggleLabel', { endpoint: row.key })}
