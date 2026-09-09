@@ -363,7 +363,10 @@ export default function ApiDocs() {
       presets: factory.presets?.apis ? [factory.presets.apis] : [],
       layout: 'BaseLayout',
       deepLinking: true,
-      docExpansion: 'list',
+      // Collapsed, tags included. 'list' opens every tag, which on 76
+      // operations is a wall the reader has to scroll past to reach the one
+      // they came for.
+      docExpansion: 'none',
       defaultModelsExpandDepth: 0,
       displayRequestDuration: true,
       persistAuthorization: true,

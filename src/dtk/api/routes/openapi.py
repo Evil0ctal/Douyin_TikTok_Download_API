@@ -453,6 +453,10 @@ def install(app: FastAPI) -> None:
             return get_swagger_ui_html(
                 openapi_url=f"{schema_url}?lang={language.value}",
                 title=f"{app.title} - API",
+                # Everything collapsed. Seventy-six operations expanded is a
+                # page nobody can scan; the reader arrives looking for one
+                # endpoint, and the tag headings are how they find it.
+                swagger_ui_parameters={"docExpansion": "none", "tryItOutEnabled": True},
             )
 
     if app.redoc_url:

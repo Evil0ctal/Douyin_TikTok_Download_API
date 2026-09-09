@@ -91,7 +91,8 @@
       "pool": {
         "target_size": "How many identities the pool tries to keep per platform.",
         "min_size": "Low-water mark per platform. Dropping below it raises an alert and triggers minting.",
-        "health_prior": "Assumed success rate for an identity with no history yet, between 0 and 1. It decides how eagerly a freshly minted identity is scheduled."
+        "health_prior": "Assumed success rate for an identity with no history yet, between 0 and 1. It decides how eagerly a freshly minted identity is scheduled.",
+        "max_fail_streak": "Consecutive failures after which an identity stops counting towards the pool level, so the filler mints a replacement instead of counting a session that serves nothing. The failure streak is used rather than the health score because the score is empty until there is traffic, and scoring a freshly minted identity as unusable would turn the low-water mark into a minting loop."
       },
       "signing": {
         "mode": "Which signer produces the request signature: the browser, the in-process algorithms, or automatic switching between them.",

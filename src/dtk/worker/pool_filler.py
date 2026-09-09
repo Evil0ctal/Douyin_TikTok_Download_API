@@ -161,6 +161,7 @@ class PoolFiller:
         config = self._config()
         min_size = int(config.get("pool.min_size"))
         target_size = max(min_size, int(config.get("pool.target_size")))
+        max_fail_streak = max(1, int(config.get("pool.max_fail_streak")))
 
         worst: tuple[int, Platform] | None = None
         pending: list[tuple[NotifyEvent, dict[str, Any]]] = []
@@ -169,6 +170,17 @@ class PoolFiller:
                 counts = await self._pool.counts(session, platform)
                 active = int(counts.get(IdentityState.ACTIVE.value, 0))
                 live = _live(counts)
+                usable = await self._pool.usable_count(
+                    session, platform, max_fail_streak=max_fail_streak
+                )
+                if usable == 0 and live > 0:
+                    # Every identity that exists is failing. That is a
+                    # platform-wide event, not a pool shortage: minting into it
+                    # adds fresh identities to be burned by whatever is burning
+                    # the others, and five new visitors appearing during an
+                    # incident is the loudest signal this deployment can send.
+                    # Hold the level and let POOL_EMPTY / POOL_BELOW_MIN talk.
+                    usable = live
 
                 if active == 0:
                     pending.append((NotifyEvent.POOL_EMPTY, {"platform": platform.value}))
@@ -180,14 +192,14 @@ class PoolFiller:
                         )
                     )
 
-                if live < min_size:
+                if usable < min_size:
                     self._filling.add(platform)
-                elif live >= target_size:
+                elif usable >= target_size:
                     self._filling.discard(platform)
                 if platform not in self._filling:
                     continue
-                if worst is None or live < worst[0]:
-                    worst = (live, platform)
+                if worst is None or usable < worst[0]:
+                    worst = (usable, platform)
 
         for event, args in pending:
             await raise_alert(self._alerter, event, **args)
@@ -424,12 +436,17 @@ class PoolFiller:
 
 
 def _live(counts: dict[str, int]) -> int:
-    """Identities that count towards the pool level.
+    """Identities that exist and are not a last resort.
 
-    Cooling identities are included: they come back on their own when the
-    backoff elapses. Counting only ACTIVE would trigger a minting spree during
-    a platform-wide risk-control event, which is the worst possible moment to
-    add fresh identities. DEGRADED is excluded - it is a last-resort tier.
+    No longer the pool level - :meth:`IdentityPool.usable_count` is, because an
+    identity that fails every request still exists and counting it kept the
+    filler idle in front of a pool that served nothing. What this is still for
+    is the platform-event guard above: when the usable count is zero but this
+    is not, everything is failing at once, and minting into that is the worst
+    available move.
+
+    Cooling identities are included, because they come back on their own when
+    the backoff elapses. DEGRADED is excluded - it is a last-resort tier.
     """
     return int(counts.get(IdentityState.ACTIVE.value, 0)) + int(
         counts.get(IdentityState.COOLING.value, 0)

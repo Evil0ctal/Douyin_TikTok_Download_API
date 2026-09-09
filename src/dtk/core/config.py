@@ -240,6 +240,14 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         SettingSpec("pool.min_size", 3, Scope.RUNTIME, int, "Low-water mark per platform"),
         SettingSpec("pool.target_size", 8, Scope.RUNTIME, int, "Desired pool size"),
         SettingSpec(
+            "pool.max_fail_streak",
+            3,
+            Scope.RUNTIME,
+            int,
+            "Consecutive failures after which an identity stops counting towards "
+            "the pool level, so the filler replaces it instead of counting it",
+        ),
+        SettingSpec(
             "pool.health_prior",
             0.8,
             Scope.RUNTIME,

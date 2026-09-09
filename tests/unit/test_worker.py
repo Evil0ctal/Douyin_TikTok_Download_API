@@ -775,14 +775,23 @@ class FakeRpc:
 
 
 class FakePool:
-    def __init__(self, counts: dict[str, int] | None = None) -> None:
+    def __init__(self, counts: dict[str, int] | None = None, *, usable: int | None = None) -> None:
         self._counts = dict(counts or {})
+        #: How many of those are still under the failure-streak threshold.
+        #: Defaults to all of the live ones, which is what a pool that is
+        #: working looks like and keeps every existing test meaning what it did.
+        self._usable = usable
         self.added: list[dict[str, Any]] = []
         self.cooled: list[tuple[uuid.UUID, int]] = []
         self.retired: list[str] = []
 
     async def counts(self, session: Any, platform: Platform) -> dict[str, int]:
         return dict(self._counts)
+
+    async def usable_count(self, session: Any, platform: Platform, *, max_fail_streak: int) -> int:
+        if self._usable is not None:
+            return self._usable
+        return int(self._counts.get("active", 0)) + int(self._counts.get("cooling", 0))
 
     async def add(self, session: Any, **kwargs: Any) -> uuid.UUID:
         self.added.append(kwargs)
@@ -919,6 +928,54 @@ async def test_minting_uses_a_free_proxy_and_its_geo() -> None:
     assert result.minted is True
     assert rpc.proxies == ["http://user:secret@eu-1.example:8080"]
     assert pool.added[0]["proxy_id"] == proxy.id
+
+
+async def test_a_full_pool_of_broken_identities_is_refilled() -> None:
+    """The gap this closes: the level used to be "how many identities exist".
+
+    An identity that fails every request stays live - a risk-control hit cools
+    it, the backoff elapses, it is promoted back and fails again - so a pool can
+    sit permanently at its target while serving nothing, and the filler, which
+    was counting rows, had nothing to do. Measured on a reference instance:
+    eighteen live TikTok identities, thirteen of them at a zero success rate,
+    and a filler that had not minted in a day.
+    """
+    rpc = FakeRpc()
+    pool = FakePool({"active": 12}, usable=1)
+    filler = make_filler(rpc, pool)
+
+    result = await filler.tick()
+
+    assert result.minted is True
+
+
+async def test_a_pool_that_is_entirely_broken_is_not_refilled() -> None:
+    """Nothing usable and plenty live means everything is failing at once.
+
+    That is a platform-wide event, and minting into it adds fresh identities to
+    be burned by whatever is burning the others - while five new visitors
+    appearing from one deployment during an incident is the loudest signal this
+    thing can send. The alerts still fire; the browser stays put.
+    """
+    rpc = FakeRpc()
+    pool = FakePool({"active": 12}, usable=0)
+    filler = make_filler(rpc, pool)
+
+    result = await filler.tick()
+
+    assert result.minted is False
+    assert rpc.mints == 0
+
+
+async def test_a_genuinely_empty_pool_is_still_refilled() -> None:
+    """The guard above must not swallow the case it looks like."""
+    rpc = FakeRpc()
+    pool = FakePool({}, usable=0)
+    filler = make_filler(rpc, pool)
+
+    result = await filler.tick()
+
+    assert result.minted is True
 
 
 async def test_an_empty_pool_alerts_even_when_minting_is_disabled() -> None:

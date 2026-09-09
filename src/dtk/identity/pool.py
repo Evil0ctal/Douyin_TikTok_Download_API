@@ -538,6 +538,33 @@ class IdentityPool:
         )
         return {str(state): int(count) for state, count in rows.all()}
 
+    async def usable_count(
+        self, session: AsyncSession, platform: Platform, *, max_fail_streak: int
+    ) -> int:
+        """Live identities whose failure streak is still under the threshold.
+
+        The pool level the filler reads used to be "how many identities exist",
+        which is not the question an operator is asking when they set a
+        low-water mark. An identity that fails every request stays live - a
+        risk-control hit cools it, the backoff elapses, it is promoted back and
+        fails again - so a pool can sit permanently at its target while serving
+        nothing, and the filler, counting rows, has nothing to do.
+
+        The streak is used rather than the health score because the score is
+        NULL until there is traffic in the aggregate's window: scoring a freshly
+        minted identity as unusable is how a low-water mark turns into a minting
+        loop. The streak is written on every outcome and starts at zero.
+        """
+        cooling = IdentityState.COOLING.value
+        rows = await session.execute(
+            select(func.count()).where(
+                IdentityRow.platform == platform.value,
+                IdentityRow.state.in_((IdentityState.ACTIVE.value, cooling)),
+                IdentityRow.consecutive_fails < max_fail_streak,
+            )
+        )
+        return int(rows.scalar_one())
+
 
 async def purge_retired(session: AsyncSession, *, days: int) -> int:
     """Delete retired identities older than ``days``, returning how many went.
