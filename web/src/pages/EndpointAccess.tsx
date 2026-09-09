@@ -7,6 +7,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  GlobeIcon,
   LockIcon,
   PageHeader,
   Skeleton,
@@ -51,6 +52,12 @@ interface EndpointRow {
   /** True when the server will never serve this without a credential. */
   protected: boolean
   public: boolean
+  /**
+   * The route has no credential check at all, so it is served openly whatever
+   * the setting says and no switch can close it. Distinct from `public`, which
+   * for every other row means "opened by the operator".
+   */
+  always_public?: boolean
 }
 
 interface AccessPayload {
@@ -106,7 +113,13 @@ export default function EndpointAccess() {
   const openCount = useMemo(() => rows.filter((row) => row.public).length, [rows])
 
   function apply(row: EndpointRow, next: boolean) {
-    const open = new Set(rows.filter((entry) => entry.public).map((entry) => entry.key))
+    // Built from what the SETTING opened, not from what is currently served.
+    // `public` now also covers routes that never had a credential check, and
+    // rebuilding from it would write those into api.public_endpoints - adding
+    // an entry the operator never chose for a route the entry cannot affect.
+    const open = new Set(
+      rows.filter((entry) => entry.public && !entry.always_public).map((entry) => entry.key),
+    )
     if (next) open.add(row.key)
     else open.delete(row.key)
     save.mutate([...open].sort())
@@ -164,7 +177,12 @@ export default function EndpointAccess() {
                     <span className={styles.summary}>{row.summary}</span>
                   ) : null}
                 </span>
-                {row.protected ? (
+                {row.always_public ? (
+                  <span className={styles.locked} title={t('access.alwaysOpenHint')}>
+                    <GlobeIcon />
+                    {t('access.alwaysOpen')}
+                  </span>
+                ) : row.protected ? (
                   <span className={styles.locked} title={t('access.lockedHint')}>
                     <LockIcon />
                     {t('access.locked')}

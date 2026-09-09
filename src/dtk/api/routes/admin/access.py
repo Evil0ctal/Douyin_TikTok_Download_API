@@ -35,6 +35,57 @@ router = APIRouter(tags=["admin"])
 _METHODS = ("GET", "POST", "PUT", "DELETE", "PATCH")
 
 
+def _unauthenticated_routes(request: Request) -> frozenset[str]:
+    """Route keys that require no credential at all, whatever the setting says.
+
+    Derived from the real dependency tree, because the setting cannot express
+    this and the document does not either. ``api.public_endpoints`` describes
+    endpoints an operator *opened*; a handful of routes were never closed in the
+    first place - the iOS Shortcut asks for its release notes before it has
+    anywhere to put a key, and the setup status probe answers before there is an
+    account to authenticate as.
+
+    Without this the listing reported ``open_count: 0`` while two endpoints were
+    answering 200 to anyone, and offered the operator an off switch on a route
+    no switch can close. This function is the only thing here that can tell the
+    difference between "closed" and "never had a lock".
+
+    Walking the tree needs care: ``include_router`` leaves a proxy whose
+    ``original_router`` holds the real routes, and those already carry their full
+    path - so the prefix must NOT be re-applied. Getting that wrong is what made
+    an earlier attempt at :func:`_rows` report every admin route as switchable,
+    which is why that one reads the OpenAPI document instead.
+    """
+    from fastapi.routing import APIRoute
+
+    from dtk.api.deps import current_principal, enforce_rate_limit
+
+    guards = {enforce_rate_limit, current_principal}
+
+    def dependencies(dependant: Any) -> Any:
+        yield dependant
+        for nested in dependant.dependencies:
+            yield from dependencies(nested)
+
+    def routes(collection: Any) -> Any:
+        for route in collection:
+            if isinstance(route, APIRoute):
+                yield route
+            inner = getattr(route, "original_router", None)
+            if inner is not None:
+                yield from routes(getattr(inner, "routes", ()))
+
+    open_keys: set[str] = set()
+    for route in routes(request.app.routes):
+        calls = {node.call for node in dependencies(route.dependant)}
+        if calls & guards:
+            continue
+        for method in route.methods or ():
+            if method.upper() in _METHODS:
+                open_keys.add(public_endpoints.route_key(method, route.path))
+    return frozenset(open_keys)
+
+
 def _rows(request: Request, opened: frozenset[str]) -> list[dict[str, Any]]:
     """Every documented operation, with what it is and whether it is open.
 
@@ -55,6 +106,7 @@ def _rows(request: Request, opened: frozenset[str]) -> list[dict[str, Any]]:
       shown a switch that lied.
     """
     schema = request.app.openapi()
+    always_open = _unauthenticated_routes(request)
     rows: list[dict[str, Any]] = []
     for path, operations in (schema.get("paths") or {}).items():
         if not path.startswith("/api"):
@@ -74,7 +126,11 @@ def _rows(request: Request, opened: frozenset[str]) -> list[dict[str, Any]]:
                     # Locked rows can never be opened; the console shows why
                     # rather than offering a switch that would do nothing.
                     "protected": protected,
-                    "public": (not protected) and key in opened,
+                    # Never had a lock, as opposed to having one that is open.
+                    # A switch cannot close these either, so the console has to
+                    # be able to tell the two apart.
+                    "always_public": key in always_open,
+                    "public": key in always_open or ((not protected) and key in opened),
                 }
             )
     rows.sort(key=lambda row: (row["path"], row["method"]))

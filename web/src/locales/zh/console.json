@@ -1103,7 +1103,9 @@
     "saved": "接口访问设置已更新",
     "saveFailed": "接口访问设置更新失败",
     "openCount": "{count, plural, =0 {未开放任何接口} other {已开放 # 个接口}}",
-    "openWarning": "{count, plural, other {有 # 个接口无需凭证即可响应。每次调用仍会消耗本实例的身份池。}}"
+    "openWarning": "{count, plural, other {有 # 个接口无需凭证即可响应。每次调用仍会消耗本实例的身份池。}}",
+    "alwaysOpen": "无需凭据",
+    "alwaysOpenHint": "这个路由根本没有鉴权检查，无论本页怎么设置它都会响应任何人。这里没有开关可以关它——要关只能改代码。"
   },
   "tools": {
     "title": "基础工具",

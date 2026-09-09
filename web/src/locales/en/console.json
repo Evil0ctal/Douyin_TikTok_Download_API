@@ -1103,7 +1103,9 @@
     "saved": "Endpoint access updated",
     "saveFailed": "Could not update endpoint access",
     "openCount": "{count, plural, =0 {No endpoint open} one {# endpoint open} other {# endpoints open}}",
-    "openWarning": "{count, plural, one {# endpoint answers without a credential. It still costs this instance's identity pool on every call.} other {# endpoints answer without a credential. They still cost this instance's identity pool on every call.}}"
+    "openWarning": "{count, plural, one {# endpoint answers without a credential. It still costs this instance's identity pool on every call.} other {# endpoints answer without a credential. They still cost this instance's identity pool on every call.}}",
+    "alwaysOpen": "No credential",
+    "alwaysOpenHint": "This route has no credential check at all, so it answers anyone whatever this page says. There is nothing to switch: closing it would mean changing the code."
   },
   "tools": {
     "title": "Building blocks",
