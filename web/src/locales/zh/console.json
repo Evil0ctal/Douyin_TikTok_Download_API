@@ -225,7 +225,7 @@
       "health": "健康度",
       "cooldown": "冷却剩余",
       "minted": "铸造时间",
-      "session": "会话"
+      "session": "会话凭据"
     },
     "noProxy": "服务器出口",
     "source": {
@@ -308,7 +308,8 @@
       "ok": "有效",
       "missing": "缺失",
       "too_short": "仅引导值",
-      "unknown": "未知"
+      "unknown": "未知",
+      "checked": "检查了 {cookie}：{verdict}"
     },
     "hidden": {
       "title": "已隐藏 {count} 个身份",
@@ -322,7 +323,12 @@
     "health": {
       "noTraffic": "无流量",
       "noTrafficHint": "健康度窗口内没有请求，因此无法评分。这不等于测得的良好。"
-    }
+    },
+    "columnHint": {
+      "session": "对存下来的 Cookie 做的静态检查：会话 cookie 在不在，长度够不够——是真实会话还是首次访问拿到的引导值。不发请求、不看历史。",
+      "health": "这个身份最近的请求实际跑得怎么样：15 分钟内的成功率、60 分钟内的风控率，以及当前的连续失败次数。没有流量时为空。"
+    },
+    "columnsDiffer": "「会话凭据」和「健康度」量的不是同一件事。凭据完整但请求一直失败，说明 Cookie 没问题、是签名或出口有问题——这是本页最快的判断依据。"
   },
   "proxy": {
     "column": {
@@ -1149,7 +1155,21 @@
     "openCount": "{count, plural, =0 {未开放任何接口} other {已开放 # 个接口}}",
     "openWarning": "{count, plural, other {有 # 个接口无需凭证即可响应。每次调用仍会消耗本实例的身份池。}}",
     "alwaysOpen": "无需凭据",
-    "alwaysOpenHint": "这个路由根本没有鉴权检查，无论本页怎么设置它都会响应任何人。这里没有开关可以关它——要关只能改代码。"
+    "alwaysOpenHint": "这个路由根本没有鉴权检查，无论本页怎么设置它都会响应任何人。这里没有开关可以关它——要关只能改代码。",
+    "group": {
+      "content": "内容读取",
+      "archive": "内容归档",
+      "downloads": "媒体下载",
+      "tasks": "任务",
+      "tools": "基础工具",
+      "admin": "管理",
+      "auth": "认证",
+      "setup": "初始化",
+      "system": "系统",
+      "ios": "iOS 快捷指令",
+      "other": "未分类"
+    },
+    "groupCount": "{count} 个接口"
   },
   "tools": {
     "title": "基础工具",

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Card,
   ConfirmDialog,
+  Disclosure,
   EmptyState,
   ErrorState,
   Input,
@@ -112,6 +113,38 @@ export default function EndpointAccess() {
 
   const openCount = useMemo(() => rows.filter((row) => row.public).length, [rows])
 
+  /**
+   * Grouped by the tag the API document already gives every operation, so the
+   * page reads as ten sections rather than as seventy-six rows in a row. A
+   * group opens when it holds something the operator has opened, and otherwise
+   * stays shut: the question this page answers is "what is open", and a group
+   * with nothing open is the answer being "nothing here", not something to
+   * scroll past. Filtering opens everything, because a search with its results
+   * collapsed is a search that failed.
+   */
+  const groups = useMemo(() => {
+    const buckets = new Map<string, EndpointRow[]>()
+    for (const row of visible) {
+      // An operation with no tag is a real possibility and gets its own bucket
+      // rather than vanishing.
+      const tag = row.tags[0] ?? 'other'
+      const bucket = buckets.get(tag)
+      if (bucket) bucket.push(row)
+      else buckets.set(tag, [row])
+    }
+    return [...buckets.entries()]
+      .map(([tag, rows]) => ({
+        tag,
+        rows,
+        // The same count the page badge shows, always-open routes included.
+        // Excluding them left every group shut on an instance whose only open
+        // endpoints are the ones no switch can close - so the badge said five
+        // were open and nothing on the page showed where.
+        open: rows.filter((row) => row.public).length,
+      }))
+      .sort((a, b) => a.tag.localeCompare(b.tag))
+  }, [visible])
+
   function apply(row: EndpointRow, next: boolean) {
     // Built from what the SETTING opened, not from what is currently served.
     // `public` now also covers routes that never had a credential check, and
@@ -133,6 +166,9 @@ export default function EndpointAccess() {
 
   if (query.isLoading) return <Skeleton />
   if (query.error) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+
+
+  const searching = filter.trim().length > 0
 
   return (
     <div className="u-page">
@@ -164,9 +200,25 @@ export default function EndpointAccess() {
       {visible.length === 0 ? (
         <EmptyState title={t('access.noMatch')} />
       ) : (
-        <Card flush>
+        groups.map((group) => (
+        <Card flush key={group.tag}>
+          <Disclosure
+            title={t(`access.group.${group.tag}`, { defaultValue: group.tag })}
+            defaultOpen={searching || group.open > 0}
+            meta={
+              <span className="u-row u-xs u-muted">
+                {group.open > 0 ? (
+                  <span className={styles.count} data-open="true">
+                    {t('access.openCount', { count: group.open })}
+                  </span>
+                ) : null}
+                <span>{t('access.groupCount', { count: group.rows.length })}</span>
+              </span>
+            }
+            flush
+          >
           <ul className={styles.list}>
-            {visible.map((row) => (
+            {group.rows.map((row) => (
               <li key={row.key} className={styles.row}>
                 <span className={styles.method} data-tone={METHOD_TONE[row.method] ?? 'muted'}>
                   {row.method}
@@ -198,7 +250,9 @@ export default function EndpointAccess() {
               </li>
             ))}
           </ul>
+          </Disclosure>
         </Card>
+        ))
       )}
 
       <ConfirmDialog

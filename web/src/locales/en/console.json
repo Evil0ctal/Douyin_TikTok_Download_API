@@ -225,7 +225,7 @@
       "health": "Health",
       "cooldown": "Cooldown left",
       "minted": "Minted",
-      "session": "Session"
+      "session": "Credential"
     },
     "noProxy": "Server egress",
     "source": {
@@ -308,7 +308,8 @@
       "ok": "Live",
       "missing": "None",
       "too_short": "Bootstrap only",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "checked": "Checked {cookie}: {verdict}"
     },
     "hidden": {
       "title": "{count, plural, one {# identity hidden} other {# identities hidden}}",
@@ -322,7 +323,12 @@
     "health": {
       "noTraffic": "No traffic",
       "noTrafficHint": "No requests in the health window, so there is nothing to score. This is not a measured pass."
-    }
+    },
+    "columnHint": {
+      "session": "A static check on the stored cookie jar: is the session cookie present, and long enough to be a real session rather than the bootstrap value a first-time visitor gets. No network, no history.",
+      "health": "How this identity's recent requests actually went: the success rate over 15 minutes, the risk-control rate over 60, and the current failure streak. Empty until there is traffic."
+    },
+    "columnsDiffer": "Credential and health measure different things. A complete credential whose requests keep failing means the jar is fine and the signature or the exit is not - which is the fastest read on this page."
   },
   "proxy": {
     "column": {
@@ -1149,7 +1155,21 @@
     "openCount": "{count, plural, =0 {No endpoint open} one {# endpoint open} other {# endpoints open}}",
     "openWarning": "{count, plural, one {# endpoint answers without a credential. It still costs this instance's identity pool on every call.} other {# endpoints answer without a credential. They still cost this instance's identity pool on every call.}}",
     "alwaysOpen": "No credential",
-    "alwaysOpenHint": "This route has no credential check at all, so it answers anyone whatever this page says. There is nothing to switch: closing it would mean changing the code."
+    "alwaysOpenHint": "This route has no credential check at all, so it answers anyone whatever this page says. There is nothing to switch: closing it would mean changing the code.",
+    "group": {
+      "content": "Content",
+      "archive": "Archive",
+      "downloads": "Downloads",
+      "tasks": "Tasks",
+      "tools": "Tools",
+      "admin": "Administration",
+      "auth": "Authentication",
+      "setup": "First run",
+      "system": "System",
+      "ios": "iOS Shortcut",
+      "other": "Untagged"
+    },
+    "groupCount": "{count, plural, one {# endpoint} other {# endpoints}}"
   },
   "tools": {
     "title": "Building blocks",

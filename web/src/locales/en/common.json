@@ -93,6 +93,12 @@
       "partial": "Partly stored",
       "failed": "Failed",
       "cancelled": "Cancelled"
+    },
+    "credential": {
+      "ok": "Complete",
+      "missing": "Missing",
+      "too_short": "Bootstrap only",
+      "unknown": "Unreadable"
     }
   },
   "table": {

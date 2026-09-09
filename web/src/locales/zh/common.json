@@ -93,6 +93,12 @@
       "partial": "部分保存",
       "failed": "失败",
       "cancelled": "已取消"
+    },
+    "credential": {
+      "ok": "完整",
+      "missing": "缺失",
+      "too_short": "仅引导值",
+      "unknown": "无法判断"
     }
   },
   "table": {

@@ -168,17 +168,35 @@ const ROLE_COLOR: Record<CookieRole, string> = {
  * the one its SDK replaces it with - and a request carrying it is refused with
  * a perfectly correct signature.
  */
+/**
+ * What the stored jar looks like - never how the identity's requests went.
+ *
+ * The verdict is a static check on one cookie: present, and long enough to be a
+ * real session rather than the bootstrap value the platform hands a first-time
+ * visitor. It touches no network and reads no history, which is exactly why it
+ * is worth a column of its own: an identity whose credential is complete and
+ * whose requests keep failing has a signing or egress problem, not a jar
+ * problem, and that pair is the fastest read on this page.
+ *
+ * It gets its own vocabulary for the same reason. Both columns used to render
+ * the health words, so two different measurements said "healthy" and a
+ * disagreement between them read as the page contradicting itself.
+ */
 function SessionCell({ identity }: { identity: Identity }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['console', 'common'])
   const verdict = identity.session?.verdict ?? 'unknown'
   const cookie = identity.session?.cookie
-  const title = cookie ? `${cookie}: ${t(`console:identity.session.${verdict}`)}` : undefined
+  const title = cookie
+    ? t('console:identity.session.checked', {
+        cookie,
+        verdict: t(`common:state.credential.${verdict}`),
+      })
+    : undefined
 
-  const tone = verdict === 'ok' ? 'healthy' : verdict === 'unknown' ? 'unknown' : 'unhealthy'
   return (
     <span className="u-row" title={title}>
-      <StatusBadge kind="health" value={tone} size="sm" flash={false} />
-      <span className="u-xs">{t(`console:identity.session.${verdict}`)}</span>
+      <StatusBadge kind="credential" value={verdict} size="sm" flash={false} />
+      {cookie ? <span className="u-xs u-muted u-mono">{cookie}</span> : null}
     </span>
   )
 }
@@ -328,8 +346,12 @@ export default function Identities() {
     },
     {
       id: 'health',
-      header: t('console:identity.column.health'),
-      width: '130px',
+      header: (
+        <span title={t('console:identity.columnHint.health')}>
+          {t('console:identity.column.health')}
+        </span>
+      ),
+      width: '155px',
       // The measured score only. A 0..1 success ratio and a count of failures
       // are different quantities, and folding the second in as a negative
       // number sorted an identity with no traffic and no failures above one
@@ -350,8 +372,12 @@ export default function Identities() {
       // The column that tells "retire this identity" from "the signer is
       // broken". Both look like an empty response from the outside.
       id: 'session',
-      header: t('console:identity.column.session'),
-      width: '130px',
+      header: (
+        <span title={t('console:identity.columnHint.session')}>
+          {t('console:identity.column.session')}
+        </span>
+      ),
+      width: '165px',
       sortValue: (row) => row.session?.verdict ?? 'unknown',
       cell: (row) => <SessionCell identity={row} />,
     },
@@ -531,6 +557,13 @@ export default function Identities() {
           }}
         />
       ) : null}
+
+      {/* The one sentence that stops the two columns reading as a
+          contradiction. Muted and inline rather than a banner: it is a legend,
+          not a warning, and the page already carries one notice. */}
+      <p className="u-xs u-muted" style={{ margin: 0 }}>
+        {t('console:identity.columnsDiffer')}
+      </p>
 
       <Card flush>
         <DataTable

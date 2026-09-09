@@ -86,6 +86,26 @@ export const HEALTH_STATUS: Record<'healthy' | 'unhealthy' | 'unknown', StatusMe
   unknown: { tone: 'neutral', icon: 'minus', labelKey: 'state.health.unknown' },
 }
 
+/**
+ * Whether the stored cookie jar still looks like a session.
+ *
+ * Deliberately NOT the health vocabulary. The two are different measurements -
+ * this is a static check on the jar, health is how the identity's recent
+ * requests actually went - and rendering both as "healthy / unhealthy /
+ * unknown" made a row reading "credential fine, requests failing" look like the
+ * page contradicting itself, when that pair is the single most useful thing it
+ * can say: the jar is not the problem, the signature or the exit is.
+ */
+export const CREDENTIAL_STATUS: Record<
+  'ok' | 'missing' | 'too_short' | 'unknown',
+  StatusMeta
+> = {
+  ok: { tone: 'success', icon: 'check', labelKey: 'state.credential.ok' },
+  missing: { tone: 'danger', icon: 'cross', labelKey: 'state.credential.missing' },
+  too_short: { tone: 'warning', icon: 'alert', labelKey: 'state.credential.too_short' },
+  unknown: { tone: 'neutral', icon: 'minus', labelKey: 'state.credential.unknown' },
+}
+
 export const KEY_STATUS: Record<'active' | 'revoked' | 'expired', StatusMeta> = {
   active: { tone: 'success', icon: 'dot', labelKey: 'state.key.active' },
   revoked: { tone: 'neutral', icon: 'cross', labelKey: 'state.key.revoked' },
@@ -141,6 +161,7 @@ export type StatusKind =
   | 'circuit'
   | 'download'
   | 'health'
+  | 'credential'
   | 'key'
   | 'role'
 
@@ -151,6 +172,7 @@ const REGISTRY: Record<StatusKind, Record<string, StatusMeta>> = {
   circuit: CIRCUIT_STATUS,
   download: DOWNLOAD_STATUS,
   health: HEALTH_STATUS,
+  credential: CREDENTIAL_STATUS,
   key: KEY_STATUS,
   role: ROLE_STATUS,
 }
