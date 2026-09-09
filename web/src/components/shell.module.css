@@ -218,6 +218,45 @@
   flex: 1 1 auto;
 }
 
+/*
+ * Opt-in full-height page.
+ *
+ * .shell is min-height:100vh and not height:100vh on purpose - the shell has to
+ * grow past the viewport for a long page, and pinning it to the viewport would
+ * leave the sticky sidebar with no room to travel. The cost is that nothing
+ * between #root and .content has a definite height, so a page child asking for
+ * height:100% resolves to auto and a three-column layout collapses to its
+ * content. A page that wants to own the viewport instead marks its root element
+ * with data-shell-fill; :has() then makes that one chain definite
+ * (shell -> main -> content -> the marked element) without any change to the
+ * shell markup or to a page that does not ask. Do not "simplify" the min-height
+ * above into a height: that clips every scrolling page in the console.
+ */
+.shell:has([data-shell-fill]) {
+  height: 100vh;
+  /* Mobile browsers count their collapsing toolbar in vh but not in dvh, so the
+     last rows of a filled page would sit under the URL bar. */
+  height: 100dvh;
+}
+
+.shell:has([data-shell-fill]) .main {
+  min-height: 0;
+}
+
+/* The filled page scrolls inside its own panes, so the column must not grow. */
+.shell:has([data-shell-fill]) .content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shell [data-shell-fill] {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
 .centered {
   min-height: 100vh;
   display: grid;

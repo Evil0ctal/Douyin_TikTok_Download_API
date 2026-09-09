@@ -100,6 +100,14 @@ class FetchContext:
     #: caller asking is the one who bears the cost. Off unless an operator turns
     #: it on.
     request_proxy: str | None = None
+    #: One identity, named by the caller, that this request must go out on -
+    #: and must not silently be served by any other. The case it exists for is
+    #: a jar the caller imported from their own logged-in browser: the content
+    #: they are asking for is visible to that session and to no other, so a
+    #: substitution does not degrade the answer, it changes what was asked.
+    #: Requires `identity:manage`; see
+    #: :func:`dtk.api.routes.support.resolve_request_identity`.
+    identity_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,7 +202,7 @@ class FetchService:
     ) -> _Attempt:
         platform = Platform(adapter.platform)
         try:
-            lease = await self._scheduler.acquire(endpoint, platform)
+            lease = await self._scheduler.acquire(endpoint, platform, identity_id=ctx.identity_id)
         except DtkError as exc:
             # A refusal is the shape of an outage, and it happens before there is
             # anything else to log. Without this row the Logs page falls silent
@@ -354,9 +362,19 @@ class FetchService:
         ctx = ctx or FetchContext()
         adapter = get_adapter(platform)
         started = time.monotonic()
-        digest = cache.cache_key(endpoint, params, include_raw=ctx.include_raw)
+        digest = cache.cache_key(
+            endpoint, params, include_raw=ctx.include_raw, egress=ctx.request_proxy
+        )
 
-        hit = await cache.get(digest) if cache_ttl > 0 else None
+        # A pinned request neither reads nor writes the shared cache. It is
+        # asking what one particular session can see, and the answer is
+        # frequently something no other caller is entitled to: a post visible
+        # only to the account whose jar this is. Keying the entry by identity
+        # would keep it correct, but it would still put private content in a
+        # cache several other code paths can reach, for a saving that does not
+        # exist - pinning is a deliberate, low-volume act.
+        cacheable = cache_ttl > 0 and ctx.identity_id is None
+        hit = await cache.get(digest) if cacheable else None
         if hit is not None:
             # A cache hit costs no identity quota; it is the cheapest protection
             # the pool has. It is still a request the caller made, and a Logs
@@ -383,17 +401,24 @@ class FetchService:
                 request_id=ctx.request_id,
             )
 
+        # Retrying is only worth anything because the next attempt lands on a
+        # different identity behind a different exit. Pinned, it lands on the
+        # same one, so the three attempts would spend three tokens out of a
+        # bucket that holds three to five - turning one flaky call into an
+        # identity with no quota left.
+        attempts = 1 if ctx.identity_id else MAX_TRANSPORT_ATTEMPTS
+
         last_error: str | None = None
-        for attempt in range(MAX_TRANSPORT_ATTEMPTS):
+        for attempt in range(attempts):
             call = await self._call_once(session, adapter, endpoint, params, ctx, started=started)
             duration_ms = _elapsed_ms(started)
 
             if call.outcome is Outcome.NETWORK_ERROR:
                 last_error = call.error_code or "network_error"
-                if attempt + 1 < MAX_TRANSPORT_ATTEMPTS:
+                if attempt + 1 < attempts:
                     continue  # a different identity, i.e. a different egress
                 raise Internal(
-                    f"upstream unreachable after {MAX_TRANSPORT_ATTEMPTS} attempts",
+                    f"upstream unreachable after {attempts} attempts",
                     details={"endpoint": endpoint, "last_error": last_error},
                 )
 
@@ -417,7 +442,7 @@ class FetchService:
 
             parsed = parse(call.payload)
             result = _dump(parsed, include_raw=ctx.include_raw)
-            if cache_ttl > 0:
+            if cacheable:
                 await cache.put(digest, result, cache_ttl)
 
             return FetchResult(

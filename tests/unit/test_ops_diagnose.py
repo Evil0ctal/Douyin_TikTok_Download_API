@@ -219,7 +219,9 @@ def test_a_warning_alone_is_not_a_failed_run() -> None:
     and exit 1, and a verdict that cries wolf is one an operator stops reading.
     """
     report = _report(
-        diagnose.StepResult(number=4, step="pool", status=StepStatus.WARN, code=StepCode.POOL_BELOW_MINIMUM)
+        diagnose.StepResult(
+            number=4, step="pool", status=StepStatus.WARN, code=StepCode.POOL_BELOW_MINIMUM
+        )
     )
 
     assert report.verdict == "warn"

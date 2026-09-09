@@ -14,13 +14,14 @@ the response (doc 06, doc 08).
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from types import MappingProxyType
 from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.api.deps import Principal
 from dtk.api.routes import operations
@@ -40,7 +41,7 @@ from dtk.api.routes.support import (
 from dtk.core.errors import InvalidParam, NotFound
 from dtk.core.logging import get_logger
 from dtk.core.types import IdentitySource, IdentityState, Language, Platform
-from dtk.db.models import Identity
+from dtk.db.models import Identity, Proxy
 from dtk.i18n.catalog import t
 from dtk.identity import pool
 from dtk.identity.importing import ImportReport, build_report
@@ -106,10 +107,32 @@ def _session_health(platform: str, cookies: Mapping[str, str]) -> dict[str, Any]
     return {"cookie": name, "verdict": verdict, "held": bool(value)}
 
 
+async def _proxy_labels(
+    session: AsyncSession, identities: Sequence[Identity]
+) -> dict[uuid.UUID, str | None]:
+    """The label of every proxy this page is bound to, in one statement.
+
+    One query for the whole page rather than one per row: the console polls
+    this listing every five seconds at ``limit=200``, and each row already
+    costs an AES-GCM decrypt of its jar. A lookup per row would hang two
+    hundred more round-trips off that poll to answer a question about far
+    fewer proxies - identities share egresses, so the distinct set is small.
+
+    Only the label is selected. The URL is a credential (doc 08), and no shape
+    of it, masked or otherwise, has any business on this endpoint.
+    """
+    bound = {identity.proxy_id for identity in identities if identity.proxy_id is not None}
+    if not bound:
+        return {}
+    rows = await session.execute(select(Proxy.id, Proxy.label).where(Proxy.id.in_(bound)))
+    return dict(rows.tuples().all())
+
+
 def _row(
     identity: Identity,
     session: dict[str, Any] | None = None,
     health: float | None = None,
+    proxy_label: str | None = None,
 ) -> dict[str, Any]:
     """The console view of one identity. Never widens to the cookie column."""
     fingerprint = identity.fingerprint or {}
@@ -125,6 +148,11 @@ def _row(
         "source": identity.source,
         "authenticated": identity.authenticated,
         "proxy_id": str(identity.proxy_id) if identity.proxy_id else None,
+        # The name a person gave the egress, or None where the identity has no
+        # proxy, the proxy row went away underneath the page, or nobody named
+        # it. Never the URL, not even masked: the console falls back to the id,
+        # which identifies the egress without carrying its password (doc 08).
+        "proxy_label": proxy_label,
         "consecutive_fails": identity.consecutive_fails,
         "cooldown_until": iso(identity.cooldown_until),
         "minted_at": iso(identity.minted_at),
@@ -181,9 +209,11 @@ async def list_identities(
 
     **Returns**
 
-    Each identity's id, platform, state, proxy, when it was minted and last
-    used, and its health score over the last 15 and 60 minutes - `null` for an
-    identity the aggregate has no traffic for, which is not the same as zero.
+    Each identity's id, platform, state, the proxy it is bound to - its
+    `proxy_id` and `proxy_label`, the name someone gave that proxy, `null` when
+    there is no proxy or no name, and never its URL - when it was minted and
+    last used, and its health score over the last 15 and 60 minutes: `null` for
+    an identity the aggregate has no traffic for, which is not the same as zero.
     """
     stmt = select(Identity)
     if platform is not None:
@@ -215,10 +245,11 @@ async def list_identities(
         for row in rows
         if row.id in windows
     }
+    labels = await _proxy_labels(request.state.db, rows)
     return ok(
         request,
         [
-            _row(row, session, health.get(row.id))
+            _row(row, session, health.get(row.id), labels.get(row.proxy_id))
             for row, session in zip(rows, sessions, strict=True)
         ],
     )

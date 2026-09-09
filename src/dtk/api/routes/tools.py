@@ -22,6 +22,8 @@ rather than the shape:
 
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -38,8 +40,9 @@ from dtk.core.types import Platform, Scope
 from dtk.identity.importing import parse_cookies
 from dtk.identity.minting import BrowserRpcClient, BrowserRpcUnavailable
 from dtk.signing import SigningSession, native_signers
+from dtk.signing.base import MS_TOKEN_PARAM, SignedParams, StaticFingerprint
 from dtk.signing.base import RequestSpec as SigningRequest
-from dtk.signing.base import StaticFingerprint
+from dtk.signing.native import tiktok_sign, websign
 from dtk.urls import first_url, identify
 
 log = get_logger(__name__)
@@ -82,6 +85,226 @@ class SignRequest(BaseModel):
             "so without it the signature headers cannot be produced."
         ),
     )
+
+
+# --------------------------------------------------------------------------
+# The signing pipeline, described
+# --------------------------------------------------------------------------
+#
+# The seven fields /tools/sign has always returned say WHAT the signature is.
+# They cannot say how it was reached, so the layers - a business query, a
+# session token, a seal over both, and on Douyin a second seal over the visitor
+# - arrive flattened into one query string, and a caller whose request is
+# refused has no way to see which layer is missing. `stages` unflattens them.
+#
+# Everything below is reconstructed from what the signer returned. Nothing in
+# dtk.signing reports it, and nothing there was changed to: that subtree is the
+# load-bearing part of this project and its return types are worth more than
+# this endpoint's ergonomics.
+
+#: Stage names, in the order the layers run. Wire values - the console keys its
+#: diagram off them - so they are as stable as the seven fields beside them.
+STAGE_BUSINESS = "business"
+STAGE_SESSION = "session"
+STAGE_SIGNATURE = "signature"
+STAGE_WEBSIGN = "websign"
+
+#: Why a layer contributed nothing. Slugs rather than sentences, for the reason
+#: error codes are: the console renders them in the reader's language, and a
+#: caller may branch on them.
+SKIP_NO_UIFID = "no_uifid_cookie"
+SKIP_NO_MS_TOKEN = "no_ms_token_supplied"
+
+#: Where the session token came from. Only ``generated`` is a value the caller
+#: did not supply, and only Douyin ever produces one: TikTok verifies a token
+#: when one is present but accepts its absence, so its signer leaves the
+#: parameter empty rather than inventing a value that would fail verification
+#: (see :func:`dtk.signing.native.tiktok_sign.sign`).
+MS_TOKEN_FROM_URL = "url"
+MS_TOKEN_FROM_COOKIES = "cookies"
+MS_TOKEN_GENERATED = "generated"
+MS_TOKEN_ABSENT = "absent"
+
+#: What each signature parameter is for. ``algorithm`` reports ``X-Bogus`` on
+#: TikTok because that is the stable name of the scheme on the wire, but the
+#: X-Bogus TikTok Web sends is the constant ``1``: X-Gnarly is the seal over the
+#: query and X-Dynosaur the environment report it covers. A diagram drawn from
+#: ``algorithm`` alone would point at the one parameter that seals nothing.
+ROLE_SEAL = "seal"
+ROLE_ENVIRONMENT = "environment"
+ROLE_CONSTANT = "constant"
+
+#: Role of each parameter TikTok's SDK appends, spelled as it spells them.
+TIKTOK_SIGNATURE_ROLES: Mapping[str, str] = {
+    tiktok_sign.DYNOSAUR_PARAM: ROLE_ENVIRONMENT,
+    tiktok_sign.BOGUS_PARAM: ROLE_CONSTANT,
+    tiktok_sign.GNARLY_PARAM: ROLE_SEAL,
+}
+
+
+def _stage(
+    name: str,
+    *,
+    ran: bool,
+    params: Mapping[str, str] | None = None,
+    headers: Mapping[str, str] | None = None,
+    skipped_reason: str | None = None,
+) -> dict[str, Any]:
+    """One layer of the pipeline, in the shape every layer reports.
+
+    A layer that did not run is still a box: an empty ``websign`` is how a
+    reader learns that the jar they sent carried no visitor id, and that this -
+    rather than the algorithm - is why the sign-protected endpoints refuse them.
+    """
+    return {
+        "name": name,
+        "ran": ran,
+        "skipped_reason": skipped_reason,
+        "params": dict(params or {}),
+        "headers": dict(headers or {}),
+    }
+
+
+def _business_stage(params: Mapping[str, str]) -> dict[str, Any]:
+    """What the caller put in the URL, minus the one parameter that is not theirs.
+
+    ``msToken`` is a session value wherever it was written, and TikTok's signer
+    treats it as one: it takes it out of the business parameters and re-appends
+    it between X-Dynosaur and X-Bogus. Listing it here as well would count it
+    twice in a diagram whose stages are meant to add up to ``query``.
+    """
+    return _stage(
+        STAGE_BUSINESS,
+        ran=True,
+        params={name: value for name, value in params.items() if name != MS_TOKEN_PARAM},
+    )
+
+
+def _session_stage(
+    platform: Platform,
+    url_params: Mapping[str, str],
+    signed: SignedParams,
+) -> dict[str, Any]:
+    """The session token, and which side of the platform asymmetry it came from.
+
+    Douyin's signer invents one when the URL carries none, and reports it among
+    the parameters it added. TikTok's takes the caller's - URL first, then the
+    jar - and reports whatever it found, empty included; it never invents,
+    because a fabricated token is verified and fails, while a missing one is
+    accepted. Reporting both as "msToken" would hide the only difference that
+    matters here.
+    """
+    from_url = url_params.get(MS_TOKEN_PARAM, "")
+    added = signed.params.get(MS_TOKEN_PARAM, "")
+    if platform is Platform.DOUYIN:
+        token = added or from_url
+        source = MS_TOKEN_GENERATED if added else MS_TOKEN_FROM_URL
+    else:
+        token = added
+        source = MS_TOKEN_FROM_URL if added == from_url else MS_TOKEN_FROM_COOKIES
+    if not token:
+        source = MS_TOKEN_ABSENT
+    stage = _stage(
+        STAGE_SESSION,
+        ran=bool(token),
+        params={MS_TOKEN_PARAM: token} if token else None,
+        skipped_reason=None if token else SKIP_NO_MS_TOKEN,
+    )
+    stage["ms_token_source"] = source
+    return stage
+
+
+def _signature_stage(platform: Platform, signed: SignedParams) -> dict[str, Any]:
+    """The seal layer, and which of its parameters is actually the seal.
+
+    ``input_reconstructible`` is false and stays false. The seal is computed
+    over the query as its own encoder produced it, and the string finally sent
+    is built by a different one - ``urlencode`` against a URLSearchParams-
+    compatible quote - so for some inputs the bytes signed are not the bytes
+    sent. A preimage that is right for most queries would be read as
+    documentation of the algorithm, which is worse than not offering one.
+    """
+    if platform is Platform.TIKTOK:
+        params = {
+            name: signed.params[name] for name in TIKTOK_SIGNATURE_ROLES if name in signed.params
+        }
+        roles = {name: TIKTOK_SIGNATURE_ROLES[name] for name in params}
+        seal = tiktok_sign.GNARLY_PARAM
+    else:
+        seal = signed.algorithm.value
+        params = {seal: signed.params[seal]} if seal in signed.params else {}
+        roles = dict.fromkeys(params, ROLE_SEAL)
+    stage = _stage(STAGE_SIGNATURE, ran=True, params=params)
+    stage["seal_param"] = seal
+    stage["roles"] = roles
+    stage["input_reconstructible"] = False
+    return stage
+
+
+def _websign_stage(signed: SignedParams) -> dict[str, Any]:
+    """Douyin's own signature over the visitor, or the reason there is none.
+
+    Every value is recovered from what the signer returned: the parameters are
+    in ``signed.params``, the timestamp is the expire header, and the preimage
+    is rebuilt from ``signed.query``.
+    """
+    headers = dict(signed.headers or {})
+    uifid = headers.get(websign.UIFID_PARAM, "")
+    signature = signed.params.get(websign.SIGNATURE_PARAM, "")
+    if not uifid or not signature:
+        return _stage(STAGE_WEBSIGN, ran=False, skipped_reason=SKIP_NO_UIFID)
+    stamp = headers.get(websign.EXPIRE_HEADER, "")
+    params = {
+        name: signed.params[name] for name in websign.VERIFY_FP_PARAMS if name in signed.params
+    }
+    params[websign.UIFID_PARAM] = uifid
+    params[websign.TIMESTAMP_PARAM] = stamp
+    params[websign.SIGNATURE_PARAM] = signature
+    stage = _stage(STAGE_WEBSIGN, ran=True, params=params, headers=headers)
+    stage["salt"] = websign.SALT
+    stage["preimage"] = _websign_preimage(
+        signed.query, uifid=uifid, stamp=stamp, signature=signature
+    )
+    return stage
+
+
+def _websign_preimage(query: str, *, uifid: str, stamp: str, signature: str) -> str | None:
+    """The exact string Douyin's md5 covers, or None when it cannot be proven.
+
+    The signer does not return it, so it is rebuilt here - the signed query
+    without its trailing signature parameter - and then checked by recomputing
+    the md5. A preimage that does not reproduce the signature beside it would be
+    read as documentation of the algorithm and derived from, so an unverifiable
+    one is dropped rather than published.
+    """
+    covered, separator, _ = query.rpartition(f"&{websign.SIGNATURE_PARAM}=")
+    if not separator:
+        return None
+    preimage = f"{uifid}_{stamp}_{websign.SALT}_{covered}"
+    if hashlib.md5(preimage.encode()).hexdigest() != signature:
+        return None
+    return preimage
+
+
+def _stages(
+    platform: Platform,
+    url_params: Mapping[str, str],
+    signed: SignedParams,
+) -> list[dict[str, Any]]:
+    """Every layer that ran, and on Douyin the one that may not have.
+
+    TikTok gets no ``websign`` box. The layer does not exist on that platform,
+    and a stage permanently marked skipped would read as a step that could have
+    run if the caller had sent something more.
+    """
+    stages = [
+        _business_stage(url_params),
+        _session_stage(platform, url_params, signed),
+        _signature_stage(platform, signed),
+    ]
+    if platform is Platform.DOUYIN:
+        stages.append(_websign_stage(signed))
+    return stages
 
 
 @router.post(
@@ -133,6 +356,28 @@ async def sign(
 
     The signed query string, the parameters that were added, any headers the
     signature requires, and the User-Agent the signature was computed with.
+
+    `stages` is that same result unflattened: one entry per layer of the
+    pipeline, in the order the layers ran, each naming the parameters and
+    headers it contributed and whether it ran at all.
+
+    - `business` - what you put in the URL.
+    - `session` - the `msToken`. `ms_token_source` says where it came from;
+      `generated` means Douyin invented one, which is the only value here you
+      did not supply. TikTok never invents: with no token it is skipped with
+      `no_ms_token_supplied` and an empty `msToken` is sent, because a
+      fabricated one is verified and fails while a missing one is accepted.
+    - `signature` - the seal. `seal_param` names the parameter that is actually
+      it, which on TikTok is `X-Gnarly`: `algorithm` reports `X-Bogus` because
+      that is the stable name of the scheme, but the X-Bogus sent is the
+      constant `1`. `roles` says the same per parameter.
+      `input_reconstructible` is false - the bytes this layer signed are not
+      always the bytes finally sent, so this endpoint will not guess at them.
+    - `websign` - Douyin only. When the jar carried no visitor id it is present
+      and skipped with `no_uifid_cookie`, which is the reason `headers` came
+      back empty and the reason a sign-protected endpoint will refuse you. When
+      it ran it also carries the `salt` and the `preimage` its md5 covers,
+      verified against the returned signature before being returned.
 
     Send `query` byte for byte - re-encoding it changes the bytes the signature
     covers - and send every header in `headers` alongside it.
@@ -189,6 +434,7 @@ async def sign(
             "headers": dict(signed.headers or {}),
             "user_agent": user_agent,
             "algorithm": signed.algorithm.value,
+            "stages": _stages(platform, params, signed),
         },
     )
 

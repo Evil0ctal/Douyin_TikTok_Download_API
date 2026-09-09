@@ -117,6 +117,10 @@ class RejectReason(StrEnum):
     NO_IDENTITY = "no_identity"
     NO_TOKEN = "no_token"
     ALL_INFLIGHT = "all_inflight"
+    #: A caller named an identity that cannot serve the request at all - it is
+    #: retired, still minting, or belongs to another platform. Distinct from
+    #: NO_IDENTITY because the pool is fine and only this request is refused.
+    PINNED_UNAVAILABLE = "pinned_unavailable"
     QUEUE_FULL = "queue_full"
     WAIT_TIMEOUT = "wait_timeout"
 

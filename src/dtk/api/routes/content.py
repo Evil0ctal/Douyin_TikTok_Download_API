@@ -36,6 +36,7 @@ from dtk.api.routes.support import (
     language,
     ok,
     resolve_count,
+    resolve_request_identity,
     resolve_request_proxy,
     resolve_wait,
     validate_callback_url,
@@ -75,6 +76,16 @@ PROXY_QUERY = Query(
     description=(
         "Send the upstream request through this proxy, as a full URL. Refused "
         "unless an administrator has enabled security.request_proxy."
+    ),
+)
+IDENTITY_QUERY = Query(
+    default=None,
+    max_length=36,
+    description=(
+        "Send the request as this identity and no other, by id. For content only "
+        "that account can see, such as your own private posts, fetched with a jar "
+        "you imported from your own browser. Requires identity:manage; the request "
+        "is never served from another identity and never from the response cache."
     ),
 )
 PLATFORM_PATH = Path(description="Platform the request is addressed to: douyin or tiktok.")
@@ -219,6 +230,7 @@ async def parse(
     body: ParseRequest,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """The front door: hand it a link or the share text around one.
@@ -248,6 +260,14 @@ async def parse(
         },
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        # The platform comes from the link rather than from the path here, and
+        # is None for a short link that has not been expanded yet. The pin is
+        # still checked for existence and retirement; the platform check falls
+        # to the scheduler, which cannot see an identity of the wrong platform
+        # in the first place.
+        identity=await resolve_request_identity(
+            request, principal, identity, platform=kind.platform
+        ),
     )
 
 
@@ -260,6 +280,7 @@ async def batch(
     request: Request,
     body: BatchRequest,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One round trip, N independent tasks.
@@ -275,8 +296,11 @@ async def batch(
         )
     callback = validate_callback_url(request, body.callback_url)
     # Vetted once for the whole batch rather than per item: the answer cannot
-    # differ between items, and checking N times would log N acceptances.
+    # differ between items, and checking N times would log N acceptances. The
+    # pin is checked without a platform for the same reason it is on /parse -
+    # each item names its own link, and they need not agree.
     egress = resolve_request_proxy(request, proxy)
+    pinned = await resolve_request_identity(request, principal, identity)
 
     results: list[dict[str, Any]] = []
     accepted = 0
@@ -294,6 +318,7 @@ async def batch(
                     "include_raw": item.include_raw,
                     "callback_url": callback,
                     "proxy": egress,
+                    "identity": pinned,
                 },
             )
         except DtkError as exc:
@@ -343,6 +368,7 @@ async def video(
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One post: a video, or an image album, with its author and statistics.
@@ -360,6 +386,8 @@ async def video(
     - `include_raw` - also return the platform's own untouched payload.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -376,6 +404,7 @@ async def video(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -391,8 +420,10 @@ async def comments(
     aweme_id: str | None = AWEME_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of top level comments on a post.
@@ -408,8 +439,13 @@ async def comments(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - comments per page.
+    - `include_raw` - include each item's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -418,7 +454,7 @@ async def comments(
     """
     authorize(principal, platform)
     params = _content_params(platform, url=url, aweme_id=aweme_id)
-    params.update({"cursor": cursor, "count": resolve_count(count)})
+    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
     return await operations.submit_and_wait(
         request,
         principal,
@@ -426,6 +462,7 @@ async def comments(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -442,8 +479,10 @@ async def comment_replies(
     aweme_id: str | None = AWEME_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of replies underneath a single comment.
@@ -461,8 +500,13 @@ async def comment_replies(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - replies per page.
+    - `include_raw` - include each item's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -471,7 +515,14 @@ async def comment_replies(
     """
     authorize(principal, platform)
     params = _content_params(platform, url=url, aweme_id=aweme_id)
-    params.update({"comment_id": comment_id, "cursor": cursor, "count": resolve_count(count)})
+    params.update(
+        {
+            "comment_id": comment_id,
+            "cursor": cursor,
+            "count": resolve_count(count),
+            "include_raw": include_raw,
+        }
+    )
     return await operations.submit_and_wait(
         request,
         principal,
@@ -479,6 +530,7 @@ async def comment_replies(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -495,6 +547,7 @@ async def user(
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One author's public profile.
@@ -511,6 +564,8 @@ async def user(
     - `include_raw` - also return the platform's own untouched payload.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -527,6 +582,7 @@ async def user(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -542,8 +598,10 @@ async def user_posts(
     sec_user_id: str | None = SEC_USER_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of an author's own posts, newest first.
@@ -560,8 +618,13 @@ async def user_posts(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - posts per page.
+    - `include_raw` - include each item's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -570,7 +633,7 @@ async def user_posts(
     """
     authorize(principal, platform)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count)})
+    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
     return await operations.submit_and_wait(
         request,
         principal,
@@ -578,6 +641,7 @@ async def user_posts(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -593,8 +657,10 @@ async def user_likes(
     sec_user_id: str | None = SEC_USER_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts an author has publicly liked.
@@ -616,8 +682,13 @@ async def user_likes(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - posts per page.
+    - `include_raw` - include each item's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -625,7 +696,7 @@ async def user_likes(
     """
     authorize(principal, platform)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count)})
+    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
     return await operations.submit_and_wait(
         request,
         principal,
@@ -633,6 +704,7 @@ async def user_likes(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -647,8 +719,10 @@ async def mix_posts(
     mix_id: str = MIX_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts collected in a mix.
@@ -664,8 +738,13 @@ async def mix_posts(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - posts per page.
+    - `include_raw` - include each item's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -676,9 +755,15 @@ async def mix_posts(
         request,
         principal,
         endpoint=supported(platform, Operation.MIX_POSTS),
-        params={"mix_id": mix_id, "cursor": cursor, "count": resolve_count(count)},
+        params={
+            "mix_id": mix_id,
+            "cursor": cursor,
+            "count": resolve_count(count),
+            "include_raw": include_raw,
+        },
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -694,8 +779,10 @@ async def user_followers(
     sec_user_id: str | None = SEC_USER_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts that follow an author.
@@ -712,8 +799,13 @@ async def user_followers(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - accounts per page.
+    - `include_raw` - include each item's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -723,7 +815,7 @@ async def user_followers(
     authorize(principal, platform)
     endpoint = supported(platform, Operation.AUTHOR_FOLLOWERS)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count)})
+    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
     return await operations.submit_and_wait(
         request,
         principal,
@@ -731,6 +823,7 @@ async def user_followers(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 
@@ -746,8 +839,10 @@ async def user_following(
     sec_user_id: str | None = SEC_USER_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts an author follows.
@@ -764,8 +859,13 @@ async def user_following(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - accounts per page.
+    - `include_raw` - include each item's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
+    - `identity` - send the request as this identity and no other. For content
+      only one account can see. Requires `identity:manage`.
 
     **Returns**
 
@@ -774,7 +874,7 @@ async def user_following(
     authorize(principal, platform)
     endpoint = supported(platform, Operation.AUTHOR_FOLLOWING)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count)})
+    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
     return await operations.submit_and_wait(
         request,
         principal,
@@ -782,6 +882,7 @@ async def user_following(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
 

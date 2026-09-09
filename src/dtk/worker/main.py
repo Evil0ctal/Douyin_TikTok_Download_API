@@ -544,6 +544,11 @@ class TaskWorker:
             # where the operator's setting is read. By the time it reaches a
             # stored task it has already been permitted.
             request_proxy=run.params.get("proxy") or None,
+            # Likewise checked at the edge for existence, retirement and
+            # platform. The scheduler checks again because a row can be retired
+            # between submission and execution, and refuses rather than
+            # substituting.
+            identity_id=run.params.get("identity") or None,
         )
 
         async with self._session_factory() as session:
@@ -568,7 +573,9 @@ class TaskWorker:
                 await self._record_snapshots(session, parsed[-1], config)
                 await self._archive(session, parsed[-1], config)
 
-        return _result_payload(call.definition.name, call.platform, result)
+        return _result_payload(
+            call.definition.name, call.platform, result, pinned=ctx.identity_id is not None
+        )
 
     async def _record_snapshots(self, session: AsyncSession, parsed: Any, config: Config) -> None:
         """Fold a successful parse into the metric history.
@@ -619,7 +626,9 @@ def _snapshot_targets(parsed: Any) -> tuple[Any, ...]:
     return ()
 
 
-def _result_payload(endpoint: str, platform: Platform, result: FetchResult) -> dict[str, Any]:
+def _result_payload(
+    endpoint: str, platform: Platform, result: FetchResult, *, pinned: bool = False
+) -> dict[str, Any]:
     """The stored task result: the data plus the metadata the API echoes back."""
     meta: dict[str, Any] = {
         "endpoint": endpoint,
@@ -628,6 +637,13 @@ def _result_payload(endpoint: str, platform: Platform, result: FetchResult) -> d
         "duration_ms": result.duration_ms,
         "request_id": str(result.request_id),
     }
+    if pinned and result.identity_id:
+        # Echoed only when the caller named it, and then only back to them.
+        # The identity id is not a secret - it is logged in the clear on every
+        # request - but the ordinary data path deliberately does not hand one
+        # out, and the MCP surface hides it from agents entirely. Confirming a
+        # value the caller supplied is a different act from disclosing one.
+        meta["identity_id"] = result.identity_id
     data = result.payload
     if isinstance(data, dict) and "items" in data and "has_more" in data:
         meta["cursor"] = {"next": data.get("cursor"), "has_more": bool(data.get("has_more"))}

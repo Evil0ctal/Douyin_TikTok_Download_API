@@ -25,7 +25,7 @@ import os
 import uuid
 from collections.abc import Callable, Coroutine, Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, Final
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import Depends, Request
@@ -33,9 +33,10 @@ from fastapi.responses import JSONResponse
 
 from dtk.api import envelope, request_proxy
 from dtk.api.deps import Principal, enforce_rate_limit
-from dtk.core.errors import ForbiddenScope, InvalidParam, InvalidUrl
+from dtk.core.errors import ForbiddenScope, InvalidParam, InvalidUrl, NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import Language, Scope, UserRole
+from dtk.core.types import IdentityState, Language, Platform, Scope, UserRole
+from dtk.db.models import Identity
 from dtk.db.repositories import AuditRepository
 from dtk.urls import is_private_host
 
@@ -278,6 +279,69 @@ def resolve_request_proxy(request: Request, value: str | None) -> str | None:
     return request_proxy.normalize(value, mode=mode)
 
 
+#: The scopes and role a caller needs before they may name an identity. They
+#: are exactly ``manage_pool``'s, restated here because this is an inline check
+#: on a route gated for reading rather than a dependency on the route itself.
+_PIN_SCOPES: Final[tuple[Scope, ...]] = (Scope.ADMIN, Scope.IDENTITY_MANAGE)
+
+
+async def resolve_request_identity(
+    request: Request,
+    principal: Principal,
+    value: str | None,
+    *,
+    platform: Platform | None = None,
+) -> str | None:
+    """Vet a caller-supplied identity, so a bad pin is a 400 and not a dead task.
+
+    Pinning is gated like pool management rather than like reading, and the
+    reason is worth stating plainly: the identity pool is instance-wide and its
+    rows have no owner, so naming one is asking to send a request as whoever
+    imported that jar. On a self-hosted instance that is usually the same
+    person; it is not guaranteed to be, and a plain read key must not be able
+    to reach someone's logged-in session.
+
+    Existence, retirement and platform are all checked here rather than left to
+    the worker. The worker checks again - a row can be retired between
+    submission and execution - but a caller who mistyped a uuid deserves an
+    immediate answer naming the field, not a task that queues, runs and fails.
+    """
+    if value is None or not value.strip():
+        return None
+    principal.require(*_PIN_SCOPES)
+    if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.OPERATOR]:
+        raise ForbiddenScope(
+            "naming an identity requires an operator role",
+            details={"required_role": UserRole.OPERATOR.value, "field": "identity"},
+        )
+    try:
+        identity_id = uuid.UUID(value.strip())
+    except ValueError:
+        raise InvalidParam("identity must be a uuid", details={"field": "identity"}) from None
+
+    row = await request.state.db.get(Identity, identity_id)
+    if row is None:
+        raise NotFound("no identity with that id", details={"field": "identity"})
+    if row.state == IdentityState.RETIRED.value:
+        # Retirement wipes the ciphertext, so there is no jar left to sign
+        # with. Saying so beats the pool-exhausted 503 the scheduler would
+        # otherwise produce several seconds later.
+        raise InvalidParam(
+            "that identity has been retired and no longer holds a session",
+            details={"field": "identity", "reason": "retired"},
+        )
+    if platform is not None and row.platform != platform.value:
+        raise InvalidParam(
+            "that identity belongs to a different platform than this endpoint",
+            details={
+                "field": "identity",
+                "identity_platform": row.platform,
+                "endpoint_platform": platform.value,
+            },
+        )
+    return str(identity_id)
+
+
 def validate_callback_url(request: Request, url: str | None) -> str | None:
     """Vet a caller-supplied webhook target.
 
@@ -408,6 +472,7 @@ __all__ = [
     "read_admin",
     "request_id",
     "resolve_count",
+    "resolve_request_identity",
     "resolve_wait",
     "user_agent",
     "validate_callback_url",

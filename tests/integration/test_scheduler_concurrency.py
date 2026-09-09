@@ -12,6 +12,7 @@ import asyncio
 
 import pytest
 
+from dtk.core.errors import IdentityPoolExhausted, InvalidParam
 from dtk.core.types import IdentityState, Outcome, Platform
 from dtk.scheduler import circuit
 from dtk.scheduler.health import HealthInput
@@ -240,3 +241,117 @@ async def test_open_circuit_fails_fast_without_waiting(redis_client):
     with pytest.raises(EndpointCircuitOpen):
         await sched.acquire("douyin.author_posts", Platform.DOUYIN)
     assert loop.time() - started < 1.0, "an open circuit must not wait out max_wait_seconds"
+
+
+# --------------------------------------------------------------------------
+# Pinning
+#
+# A pinned request is asking what one session can see. Every guarantee below
+# exists because the alternative is not a degraded answer but a different
+# question silently answered: an identity that cannot see the caller's private
+# post returns an empty page, which reads exactly like the post being gone.
+# --------------------------------------------------------------------------
+
+
+async def test_a_pin_is_honoured_over_a_healthier_identity(redis_client):
+    """Ranking is what the pin overrides. It is not a preference."""
+    cfg = SchedulerConfig()
+    healthy = make_candidate(1)
+    tired = make_candidate(2, fails=4)
+    sched = Scheduler(ListSource([healthy, tired]), cfg, clock=AdvancingClock(step=0.0))
+
+    lease = await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-2")
+
+    assert lease.identity_id == "identity-2"
+
+
+async def test_a_pin_never_falls_back_when_the_named_identity_is_busy(redis_client):
+    """The failure mode this rules out is the expensive one.
+
+    Falling back would send a request meant for one account's session out on
+    another, and the platform answers that with a 200 and an empty body - so
+    the caller sees "your private post does not exist" rather than an error.
+    """
+    cfg = SchedulerConfig(max_wait_seconds=0.0)
+    sched = Scheduler(
+        ListSource([make_candidate(1), make_candidate(2)]), cfg, clock=AdvancingClock(step=1.0)
+    )
+    held = await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-1")
+    assert held.identity_id == "identity-1"
+
+    with pytest.raises(IdentityPoolExhausted) as exc:
+        await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-1")
+
+    assert exc.value.details["identity_id"] == "identity-1"
+    # The reason collapses to wait_timeout once the deadline passes, as it does
+    # for the unpinned pool. What must survive is which identity was refused:
+    # "every identity is busy" would send an operator to look at a pool that is
+    # fine, when the only thing busy is the caller's own previous request.
+    assert "named identity is busy" in str(exc.value)
+
+
+async def test_a_pin_on_a_cooling_identity_is_granted(redis_client):
+    """Cooling is a judgement about the shared pool, not about this request.
+
+    The identity is being rested because general traffic on it was getting
+    risk-controlled. A caller reading their own account's posts with their own
+    jar has knowingly stepped outside that, and refusing them would enforce a
+    policy about a resource they are not competing for.
+    """
+    cfg = SchedulerConfig()
+    cooling = make_candidate(7, state=IdentityState.COOLING)
+    sched = Scheduler(ListSource([cooling]), cfg, clock=AdvancingClock(step=0.0))
+
+    lease = await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-7")
+
+    assert lease.identity_id == "identity-7"
+
+
+async def test_an_unpinned_call_still_ignores_a_cooling_identity(redis_client):
+    """The previous test must not have widened the ordinary pool."""
+    cfg = SchedulerConfig(max_wait_seconds=0.0)
+    sched = Scheduler(
+        ListSource([make_candidate(7, state=IdentityState.COOLING)]),
+        cfg,
+        clock=AdvancingClock(step=1.0),
+    )
+
+    with pytest.raises(IdentityPoolExhausted):
+        await sched.acquire("douyin.author_posts", Platform.DOUYIN)
+
+
+async def test_a_pin_on_an_unusable_identity_fails_fast_as_a_parameter_error(redis_client):
+    """Retired or still minting: waiting cannot mend either, and 503 would lie.
+
+    The pool is not exhausted - it is fine, and the caller named something it
+    does not contain. A 503 tells a client to retry, which it would then do
+    forever.
+    """
+    cfg = SchedulerConfig(max_wait_seconds=30.0)
+    sched = Scheduler(ListSource([make_candidate(1)]), cfg, clock=AdvancingClock(step=0.0))
+
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    with pytest.raises(InvalidParam) as exc:
+        await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-404")
+
+    assert loop.time() - started < 1.0, "an unusable pin must not wait out max_wait_seconds"
+    assert exc.value.details["field"] == "identity"
+    assert exc.value.details["reject_reason"] == "pinned_unavailable"
+
+
+async def test_a_pin_of_the_wrong_platform_is_not_reachable(redis_client):
+    """The candidate query filters on platform, so a cross-platform pin cannot
+    resolve even if the route's check were somehow skipped."""
+    cfg = SchedulerConfig(max_wait_seconds=0.0)
+    tiktok = Candidate(
+        identity_id="identity-tt",
+        platform=Platform.TIKTOK,
+        state=IdentityState.ACTIVE,
+        last_used_at=None,
+        health=HealthInput(20, 20, 60, 0, 0),
+    )
+    sched = Scheduler(ListSource([tiktok]), cfg, clock=AdvancingClock(step=0.0))
+
+    with pytest.raises(InvalidParam):
+        await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-tt")

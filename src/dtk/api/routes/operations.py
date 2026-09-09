@@ -354,6 +354,7 @@ async def submit_and_wait(
     params: dict[str, Any],
     wait: float,
     proxy: str | None = None,
+    identity: str | None = None,
     coalesce: bool = True,
 ) -> JSONResponse:
     """Submit, then optionally hold the connection until the task settles.
@@ -367,12 +368,20 @@ async def submit_and_wait(
     parameters, which is also what keeps it out of the coalescing digest's blind
     spot: two callers asking for the same post through different proxies are not
     asking the same question, and must not be joined onto one task.
+
+    ``identity`` is the same shape of parameter and joins the stored params for
+    the same reason, with more at stake: a pinned request is asking what one
+    session can see, so joining it onto an unpinned task for the same post
+    would answer it from whichever identity that task happened to draw.
     """
+    envelope_params = {
+        key: value for key, value in (("proxy", proxy), ("identity", identity)) if value is not None
+    }
     task_id, state = await submit(
         request,
         principal,
         endpoint=endpoint,
-        params={**params, "proxy": proxy} if proxy else params,
+        params={**params, **envelope_params} if envelope_params else params,
         coalesce=coalesce,
     )
     if wait <= 0:

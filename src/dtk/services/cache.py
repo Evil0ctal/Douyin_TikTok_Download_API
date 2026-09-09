@@ -24,7 +24,13 @@ CACHE_KEY = "cache:{digest}"
 INFLIGHT_KEY = "inflight:{digest}"
 
 
-def cache_key(endpoint: str, params: dict[str, Any], *, include_raw: bool = False) -> str:
+def cache_key(
+    endpoint: str,
+    params: dict[str, Any],
+    *,
+    include_raw: bool = False,
+    egress: str | None = None,
+) -> str:
     """Digest of the normalized business parameters, not of the raw URL.
 
     Two callers who reach the same content by different URL spellings must land
@@ -42,6 +48,18 @@ def cache_key(endpoint: str, params: dict[str, Any], *, include_raw: bool = Fals
     It is not part of the *upstream* request, so this does mean two fetches
     where a smarter cache would do one. That is the honest trade until the
     cache stores the unshaped body.
+
+    ``egress`` is the exit the request will leave through, when the caller chose
+    one. It has to be here for the same reason ``include_raw`` does, only with
+    worse consequences: the platforms answer differently by region, so a caller
+    who supplied a proxy was being served whatever the first caller through a
+    different exit had cached, and vice versa. It arrives as the proxy URL,
+    which can carry credentials, and is hashed before it goes anywhere near a
+    key so that no part of it is ever stored or printed.
+
+    A request that pins an identity does not come through here at all - see
+    :meth:`dtk.services.fetch.FetchService.fetch`. A session-scoped answer must
+    not be written to a shared cache under any key.
     """
     canonical = json.dumps(
         {k: v for k, v in sorted(params.items()) if v is not None},
@@ -50,6 +68,8 @@ def cache_key(endpoint: str, params: dict[str, Any], *, include_raw: bool = Fals
         default=str,
     )
     suffix = "\x00raw" if include_raw else ""
+    if egress:
+        suffix += "\x00exit" + hashlib.sha256(egress.encode()).hexdigest()[:16]
     return hashlib.sha256(f"{endpoint}\x00{canonical}{suffix}".encode()).hexdigest()[:32]
 
 

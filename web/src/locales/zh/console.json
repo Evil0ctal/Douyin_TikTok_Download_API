@@ -1072,7 +1072,8 @@
       "no_token": "所有身份配额均已用尽",
       "all_inflight": "所有身份都在处理请求",
       "queue_full": "等待队列已满",
-      "wait_timeout": "等待身份超时"
+      "wait_timeout": "等待身份超时",
+      "pinned_unavailable": "指定的身份无法处理该请求"
     }
   },
   "docs": {
@@ -1144,7 +1145,39 @@
       "cookiesHint": "请求将携带的 Cookie，任意粘贴格式均可。抖音的签名是对其中的访客 ID 计算的，缺少它就无法生成签名请求头。",
       "cookiesPlaceholder": "UIFID_TEMP=...; s_v_web_id=...; msToken=...",
       "headers": "签名所需的请求头",
-      "headersHint": "这些请求头必须与签名后的查询串一起发送。缺少它们时，抖音会拒绝受签名保护的接口。"
+      "headersHint": "这些请求头必须与签名后的查询串一起发送。缺少它们时，抖音会拒绝受签名保护的接口。",
+      "stages": {
+        "title": "这个查询串是怎么拼出来的",
+        "description": "流水线的每一层各占一格，按运行顺序排列。没有执行的层也会列出，并给出原因。",
+        "name": {
+          "business": "你的参数",
+          "session": "会话 token",
+          "signature": "签名",
+          "websign": "访客签名"
+        },
+        "skipped": "未执行",
+        "reason": {
+          "no_uifid_cookie": "Cookie 中没有 uifid，因此无法计算抖音自己的签名，也就没有生成任何签名请求头。受签名保护的接口会以 uifid 为由拒绝该请求；可在下一个标签页铸造身份。",
+          "no_ms_token_supplied": "你没有提供 msToken，因此发送的是空值。TikTok 允许不带 token，但会校验带上的 token，所以这里不会伪造一个。"
+        },
+        "source": {
+          "label": "msToken 来源",
+          "url": "来自你提交的地址",
+          "cookies": "来自你提交的 Cookie",
+          "generated": "由本地伪造。抖音接受伪造的 token，TikTok 不接受——所以只有抖音会出现这一项。",
+          "absent": "未提供"
+        },
+        "role": {
+          "seal": "为请求签名",
+          "environment": "环境上报",
+          "constant": "固定常量，并非计算得出"
+        },
+        "sealParam": "真正为该请求签名的参数是 {param}。",
+        "inputNotReconstructible": "这一层所签名的字节与最终发送的字节不一定相同，因此不展示它所哈希的输入——还原出来的结果对大多数查询是对的，对其余的则会悄无声息地出错。",
+        "salt": "盐值",
+        "preimage": "md5 原文",
+        "preimageHint": "签名就是这段字符串的 md5。返回之前已重新计算并与签名核对过。"
+      }
     },
     "parse": {
       "title": "识别链接",

@@ -1072,7 +1072,8 @@
       "no_token": "Every identity is out of quota",
       "all_inflight": "Every identity is busy",
       "queue_full": "The wait queue is full",
-      "wait_timeout": "Gave up waiting for an identity"
+      "wait_timeout": "Gave up waiting for an identity",
+      "pinned_unavailable": "The named identity cannot serve this"
     }
   },
   "docs": {
@@ -1144,7 +1145,39 @@
       "cookiesHint": "The jar the request will be sent with, in any paste format. Douyin signs over the visitor id inside it, so without one no signature headers are produced.",
       "cookiesPlaceholder": "UIFID_TEMP=...; s_v_web_id=...; msToken=...",
       "headers": "Headers the signature requires",
-      "headersHint": "Send every one of these alongside the signed query. Douyin refuses a sign-protected endpoint without them."
+      "headersHint": "Send every one of these alongside the signed query. Douyin refuses a sign-protected endpoint without them.",
+      "stages": {
+        "title": "How this query was assembled",
+        "description": "One box per layer of the pipeline, in the order the layers ran. A layer that did not run is still shown, with the reason.",
+        "name": {
+          "business": "Your parameters",
+          "session": "Session token",
+          "signature": "Signature",
+          "websign": "Visitor signature"
+        },
+        "skipped": "Did not run",
+        "reason": {
+          "no_uifid_cookie": "The jar carried no uifid, so Douyin's own signature could not be computed and no signature headers were produced. The sign-protected endpoints will refuse the request naming uifid; mint an identity on the next tab.",
+          "no_ms_token_supplied": "You supplied no msToken, so an empty one is sent. TikTok accepts a missing token but verifies one that is present, so none was invented."
+        },
+        "source": {
+          "label": "msToken source",
+          "url": "From the URL you sent",
+          "cookies": "From the cookie jar you sent",
+          "generated": "Invented here. Douyin accepts a fabricated token; TikTok does not, which is why only Douyin ever shows this.",
+          "absent": "None was supplied"
+        },
+        "role": {
+          "seal": "Seals the request",
+          "environment": "Environment report",
+          "constant": "A constant, not computed"
+        },
+        "sealParam": "{param} is the parameter that actually seals this request.",
+        "inputNotReconstructible": "The bytes this layer signed are not always the bytes finally sent, so the input it hashed is not shown - a reconstruction would be right for most queries and silently wrong for the rest.",
+        "salt": "Salt",
+        "preimage": "md5 preimage",
+        "preimageHint": "The signature is the md5 of exactly this string. It was recomputed and checked against the signature before being returned."
+      }
     },
     "parse": {
       "title": "Identify a link",

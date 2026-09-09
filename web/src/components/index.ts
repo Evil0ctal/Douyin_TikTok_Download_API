@@ -26,6 +26,9 @@ export type { CopyableIdProps } from './CopyableId'
 export { DataTable } from './DataTable'
 export type { Column, DataTableProps, Density, SortState } from './DataTable'
 
+export { Disclosure } from './Disclosure'
+export type { DisclosureProps } from './Disclosure'
+
 export { Drawer } from './Drawer'
 export type { DrawerProps } from './Drawer'
 
@@ -69,6 +72,9 @@ export type { SidebarProps } from './Sidebar'
 
 export { Skeleton, SkeletonText } from './Skeleton'
 export type { SkeletonProps, SkeletonTextProps } from './Skeleton'
+
+export { SplitPane } from './SplitPane'
+export type { SplitPaneProps } from './SplitPane'
 
 export { ErrorCodeBadge, StatusBadge, toneClass } from './StatusBadge'
 export type { ErrorCodeBadgeProps, StatusBadgeProps } from './StatusBadge'

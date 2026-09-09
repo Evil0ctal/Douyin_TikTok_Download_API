@@ -196,5 +196,9 @@
   },
   "task": {
     "failed": "Task {taskId} failed."
+  },
+  "layout": {
+    "splitter": "Resize columns",
+    "splitterAt": "Resize columns, divider {index, number}"
   }
 }

@@ -39,6 +39,7 @@ from dtk.identity.pool import LiveIdentity
 from dtk.platforms import get_adapter
 from dtk.scheduler.leases import Lease
 from dtk.services import cache
+from dtk.services import fetch as fetch_module
 from dtk.services.fetch import FetchContext, FetchService, _decode, _dump
 from dtk.signing.base import SIGNER_BROWSER, SignedParams
 from dtk.transport.base import (
@@ -51,6 +52,9 @@ from dtk.transport.classify import classify_detailed
 
 ENDPOINT = "douyin.content_detail"
 IDENTITY_ID = "6f1d7f4e-4c0a-4b3a-9f2e-1d0c8a5b7e31"
+#: A second one, for the tests that have to tell "the identity the caller
+#: named" apart from "whichever one the pool handed out".
+PINNED_ID = "9a2c33b1-77de-4d55-8f10-2b6e4c9a0d18"
 PROXY_ID = uuid.UUID("2b9c1e77-3c2a-4a55-8f10-9d6b4c2e0a13")
 CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0.0.0 Safari/537.36"
 
@@ -78,11 +82,22 @@ class FakeScheduler:
     def __init__(self, reject: DtkError | None = None) -> None:
         self.reject = reject
         self.released: list[Outcome] = []
+        #: Every identity the service asked for, so a test can assert that a
+        #: pinned request never widened to the pool.
+        self.asked_for: list[str | None] = []
 
-    async def acquire(self, endpoint: str, platform: Platform) -> Lease:
+    async def acquire(
+        self, endpoint: str, platform: Platform, *, identity_id: str | None = None
+    ) -> Lease:
+        self.asked_for.append(identity_id)
         if self.reject is not None:
             raise self.reject
-        return Lease(identity_id=IDENTITY_ID, endpoint=endpoint, lease_id="lease-1", tokens_left=3)
+        return Lease(
+            identity_id=identity_id or IDENTITY_ID,
+            endpoint=endpoint,
+            lease_id="lease-1",
+            tokens_left=3,
+        )
 
     async def release(self, lease: Lease, outcome: Outcome) -> None:
         self.released.append(outcome)
@@ -679,3 +694,131 @@ class TestBareEnvelope:
             b'"filter_detail":{"filter_reason":"self_see","detail_msg":"only you"}}'
         )
         assert self._classify(body).outcome is Outcome.BUSINESS_ERROR
+
+
+class TestPinnedIdentity:
+    """What a request that names one identity must and must not do.
+
+    The case is a caller reading content only their own account can see, with a
+    jar they imported from their own browser. Every guarantee here follows from
+    that one sentence: the answer belongs to a session, so serving it from
+    another identity, or from a cache anyone else can read, does not degrade
+    the answer - it changes what was asked and hides that it did.
+    """
+
+    async def test_the_pin_reaches_the_scheduler(self):
+        scheduler = FakeScheduler()
+        svc = service(
+            response(200, {"status_code": 0, "aweme_detail": {"x": 1}}), scheduler=scheduler
+        )
+
+        await run_fetch(svc, FakeSession(), ctx=FetchContext(identity_id=PINNED_ID))
+
+        assert scheduler.asked_for == [PINNED_ID]
+
+    async def test_an_unpinned_call_asks_for_nothing_in_particular(self):
+        scheduler = FakeScheduler()
+        svc = service(
+            response(200, {"status_code": 0, "aweme_detail": {"x": 1}}), scheduler=scheduler
+        )
+
+        await run_fetch(svc, FakeSession())
+
+        assert scheduler.asked_for == [None]
+
+    async def test_a_pinned_answer_is_never_written_to_the_shared_cache(self, monkeypatch):
+        """The leak this prevents: a private post fetched on the caller's own
+        session, cached, then served to the next anonymous caller who asks for
+        the same post."""
+        written: list[str] = []
+
+        async def record(digest, payload, ttl):
+            written.append(digest)
+
+        monkeypatch.setattr(fetch_module.cache, "put", record)
+        svc = service(response(200, {"status_code": 0, "aweme_detail": {"x": 1}}))
+
+        await run_fetch(svc, FakeSession(), cache_ttl=600, ctx=FetchContext(identity_id=PINNED_ID))
+
+        assert written == []
+
+    async def test_an_unpinned_answer_is_still_cached(self, monkeypatch):
+        """The bypass must be exactly as narrow as it claims to be."""
+        written: list[str] = []
+
+        async def record(digest, payload, ttl):
+            written.append(digest)
+
+        async def miss(digest):
+            return None
+
+        monkeypatch.setattr(fetch_module.cache, "get", miss)
+        monkeypatch.setattr(fetch_module.cache, "put", record)
+        svc = service(response(200, {"status_code": 0, "aweme_detail": {"x": 1}}))
+
+        await run_fetch(svc, FakeSession(), cache_ttl=600)
+
+        assert len(written) == 1
+
+    async def test_a_pinned_call_never_reads_the_shared_cache(self, monkeypatch):
+        """Reading is the other half. A pinned caller who was handed the public
+        view of their own post would have no way to tell."""
+        reads: list[str] = []
+
+        async def record(digest):
+            reads.append(digest)
+            return {"data": "somebody else's answer"}
+
+        monkeypatch.setattr(fetch_module.cache, "get", record)
+        svc = service(response(200, {"status_code": 0, "aweme_detail": {"x": 1}}))
+
+        result = await run_fetch(
+            svc, FakeSession(), cache_ttl=600, ctx=FetchContext(identity_id=PINNED_ID)
+        )
+
+        assert reads == []
+        assert result.cached is False
+
+    async def test_a_pinned_call_does_not_retry_onto_the_same_bucket(self):
+        """Retrying is only worth anything because the next attempt lands on a
+        different identity. Pinned it does not, and three attempts would empty
+        a token bucket that holds three to five."""
+        scheduler = FakeScheduler()
+        svc = service(response(407, {}), scheduler=scheduler)
+
+        with pytest.raises(DtkError):
+            await run_fetch(svc, FakeSession(), ctx=FetchContext(identity_id=PINNED_ID))
+
+        assert scheduler.asked_for == [PINNED_ID]
+
+    async def test_an_unpinned_call_still_retries_across_identities(self):
+        scheduler = FakeScheduler()
+        svc = service(response(407, {}), scheduler=scheduler)
+
+        with pytest.raises(DtkError):
+            await run_fetch(svc, FakeSession())
+
+        assert len(scheduler.asked_for) == fetch_module.MAX_TRANSPORT_ATTEMPTS
+
+
+class TestCacheKeyDiscriminators:
+    """Two callers who will not receive the same answer must not share a key."""
+
+    def test_a_different_egress_is_a_different_entry(self):
+        plain = cache.cache_key(ENDPOINT, {"aweme_id": "7123"})
+        proxied = cache.cache_key(
+            ENDPOINT, {"aweme_id": "7123"}, egress="http://user:pw@example:8080"
+        )
+        assert plain != proxied
+
+    def test_the_egress_value_never_appears_in_the_key(self):
+        """It arrives as a URL that can carry credentials."""
+        secret = "http://user:hunter2@example:8080"
+        digest = cache.cache_key(ENDPOINT, {"aweme_id": "7123"}, egress=secret)
+        assert "hunter2" not in digest
+        assert "example" not in digest
+
+    def test_the_same_egress_is_the_same_entry(self):
+        first = cache.cache_key(ENDPOINT, {"aweme_id": "7123"}, egress="http://a:1")
+        second = cache.cache_key(ENDPOINT, {"aweme_id": "7123"}, egress="http://a:1")
+        assert first == second

@@ -196,5 +196,9 @@
   },
   "task": {
     "failed": "任务 {taskId} 执行失败。"
+  },
+  "layout": {
+    "splitter": "调整栏宽",
+    "splitterAt": "调整栏宽，第 {index, number} 条分隔线"
   }
 }

@@ -34,6 +34,7 @@ export const REJECT_REASONS = [
   'all_inflight',
   'queue_full',
   'wait_timeout',
+  'pinned_unavailable',
 ] as const
 export type RejectReason = (typeof REJECT_REASONS)[number]
 

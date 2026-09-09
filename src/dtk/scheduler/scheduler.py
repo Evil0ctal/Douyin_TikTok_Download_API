@@ -13,9 +13,9 @@ import asyncio
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
-from dtk.core.errors import EndpointCircuitOpen, IdentityPoolExhausted
+from dtk.core.errors import EndpointCircuitOpen, IdentityPoolExhausted, InvalidParam
 from dtk.core.logging import get_logger
 from dtk.core.types import IdentityState, Outcome, Platform, RejectReason
 from dtk.scheduler import circuit
@@ -83,11 +83,23 @@ class SchedulerConfig:
 class Rejected(Exception):
     """Internal signal carrying why no lease could be issued."""
 
-    def __init__(self, reason: RejectReason, detail: str = "", retry_after: int = 0) -> None:
+    def __init__(
+        self,
+        reason: RejectReason,
+        detail: str = "",
+        retry_after: int = 0,
+        *,
+        waitable: bool = True,
+    ) -> None:
         super().__init__(detail or reason.value)
         self.reason = reason
         self.detail = detail
         self.retry_after = retry_after
+        #: Whether polling until the deadline could plausibly change the answer.
+        #: An open circuit and an unusable pinned identity cannot, and spending
+        #: the full wait budget on either only delays the error the caller has
+        #: to act on.
+        self.waitable = waitable
 
 
 class Scheduler:
@@ -154,22 +166,69 @@ class Scheduler:
 
         return sorted(candidates, key=key)
 
+    async def _pinned_candidate(self, platform: Platform, identity_id: str) -> Candidate | None:
+        """The one identity a caller named, whatever state it is resting in.
+
+        Three lookups rather than one query by id, because ``CandidateSource``
+        is a Protocol that several test doubles implement; widening it would
+        break every one of them for a path that runs only when a caller asks
+        for a specific identity by name.
+
+        COOLING is searched deliberately. Cooling is a judgement about the
+        shared pool - this identity has been getting risk-controlled, so stop
+        spending general traffic on it - and a caller fetching their own
+        account's private posts with their own jar has knowingly stepped
+        outside that judgement. Refusing them would be the scheduler enforcing
+        a policy about a resource the request is not competing for.
+
+        RETIRED is not searched, and that is not an oversight: retirement wipes
+        the ciphertext, so there is no jar left to sign with.
+        """
+        for state in (IdentityState.ACTIVE, IdentityState.DEGRADED, IdentityState.COOLING):
+            for candidate in await self._source.candidates(platform, state):
+                if candidate.identity_id == identity_id:
+                    return candidate
+        return None
+
     async def _attempt(
-        self, endpoint: str, platform: Platform, policy: EndpointPolicy, seed: int
+        self,
+        endpoint: str,
+        platform: Platform,
+        policy: EndpointPolicy,
+        seed: int,
+        identity_id: str | None = None,
     ) -> Lease:
         now = self._now()
 
         is_open, retry_after, reason = await circuit.state(endpoint, now=now)
         if is_open and not await circuit.allow_probe(endpoint, self._config.circuit):
-            raise Rejected(RejectReason.CIRCUIT_OPEN, reason, retry_after)
+            # Not waitable: an open circuit is a decision about the endpoint
+            # that stands for its whole window, so polling it until the
+            # deadline only delays an error the caller has to see now.
+            raise Rejected(RejectReason.CIRCUIT_OPEN, reason, retry_after, waitable=False)
 
-        pool = list(await self._source.candidates(platform, IdentityState.ACTIVE))
-        if not pool:
-            # Degraded identities are the last resort, used only once the
-            # healthy pool is empty.
-            pool = list(await self._source.candidates(platform, IdentityState.DEGRADED))
-        if not pool:
-            raise Rejected(RejectReason.NO_IDENTITY, "no active or degraded identity")
+        if identity_id is not None:
+            # A pin is a pool of one. It never widens, on any refusal, for any
+            # reason: the whole point of naming an identity is that the answer
+            # is only correct when it comes from that session, and quietly
+            # serving it from another one would hand back an empty or public
+            # view of content the caller can see and the substitute cannot.
+            pinned = await self._pinned_candidate(platform, identity_id)
+            if pinned is None:
+                raise Rejected(
+                    RejectReason.PINNED_UNAVAILABLE,
+                    "the named identity is retired, still minting, or not on this platform",
+                    waitable=False,
+                )
+            pool = [pinned]
+        else:
+            pool = list(await self._source.candidates(platform, IdentityState.ACTIVE))
+            if not pool:
+                # Degraded identities are the last resort, used only once the
+                # healthy pool is empty.
+                pool = list(await self._source.candidates(platform, IdentityState.DEGRADED))
+            if not pool:
+                raise Rejected(RejectReason.NO_IDENTITY, "no active or degraded identity")
 
         recent = await last_used_map()
         saw_inflight = False
@@ -193,17 +252,32 @@ class Scheduler:
             saw_inflight |= why == "inflight"
             saw_no_token |= why == "no_token"
 
+        if identity_id is not None:
+            # Naming the pin matters: "every identity is busy" sends an operator
+            # to look at a pool that is fine, when what is busy is the single
+            # identity they asked for - which, with an in-flight ceiling of one,
+            # simply means their own previous request has not finished.
+            if saw_no_token:
+                raise Rejected(RejectReason.NO_TOKEN, "the named identity is out of quota")
+            raise Rejected(RejectReason.ALL_INFLIGHT, "the named identity is busy")
         if saw_no_token and not saw_inflight:
             raise Rejected(RejectReason.NO_TOKEN, "every identity is out of quota")
         raise Rejected(RejectReason.ALL_INFLIGHT, "every identity is busy")
 
     # -- public API --------------------------------------------------------
 
-    async def acquire(self, endpoint: str, platform: Platform) -> Lease:
+    async def acquire(
+        self, endpoint: str, platform: Platform, *, identity_id: str | None = None
+    ) -> Lease:
         """Wait briefly for a lease, then give up with an explainable error.
 
         Rejecting early beats queueing indefinitely: a caller left hanging for a
         minute before failing is worse off than one told to retry immediately.
+
+        ``identity_id`` pins the request to one identity. Waiting still applies
+        and is in fact more useful than usual - concurrency per identity is one,
+        so a pinned caller's second request is normally waiting on their own
+        first - but falling back to another identity never does.
         """
         policy = policy_for(endpoint)
         deadline = self._now() + self._config.max_wait_seconds
@@ -215,10 +289,12 @@ class Scheduler:
 
         while True:
             try:
-                return await self._attempt(endpoint, platform, policy, seed + attempt)
+                return await self._attempt(
+                    endpoint, platform, policy, seed + attempt, identity_id=identity_id
+                )
             except Rejected as exc:
                 last = exc
-                if exc.reason is RejectReason.CIRCUIT_OPEN:
+                if not exc.waitable:
                     break  # waiting cannot help
                 if self._now() >= deadline:
                     last = Rejected(RejectReason.WAIT_TIMEOUT, exc.detail, exc.retry_after)
@@ -233,17 +309,26 @@ class Scheduler:
             platform=platform.value,
             reject_reason=last.reason.value,
             detail=last.detail,
+            pinned=identity_id is not None,
         )
+        details: dict[str, Any] = {"endpoint": endpoint, "reject_reason": last.reason.value}
+        if identity_id is not None:
+            details["identity_id"] = identity_id
         if last.reason is RejectReason.CIRCUIT_OPEN:
             raise EndpointCircuitOpen(
                 last.detail,
                 retry_after=last.retry_after or self._config.circuit.open_seconds,
-                details={"endpoint": endpoint, "reject_reason": last.reason.value},
+                details=details,
             )
+        if last.reason is RejectReason.PINNED_UNAVAILABLE:
+            # Not a 503. The pool is not exhausted and waiting will not mend
+            # this: the caller named an identity that cannot serve the request,
+            # which is a fact about their parameter and nothing else.
+            raise InvalidParam(last.detail, details={**details, "field": "identity"})
         raise IdentityPoolExhausted(
             last.detail,
             retry_after=max(1, int(self._config.max_wait_seconds)),
-            details={"endpoint": endpoint, "reject_reason": last.reason.value},
+            details=details,
         )
 
     async def release(self, lease: Lease, outcome: Outcome) -> None:

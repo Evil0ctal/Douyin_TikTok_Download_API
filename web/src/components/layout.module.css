@@ -1,0 +1,165 @@
+/* Layout primitives: collapsible sections and resizable columns. */
+
+/* Disclosure ----------------------------------------------------------------- */
+
+.disclosure {
+  min-width: 0;
+}
+
+/*
+ * A stack of disclosures is one list, not a pile of boxes: only the seam where
+ * two of them touch is drawn, so the joint is a single hairline instead of two
+ * borders meeting. Stack them in a plain container - inside a gapped one
+ * (u-stack) the rule would float in the gap with nothing to separate.
+ */
+.disclosure + .disclosure {
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Standalone use, where no Card is already drawing the frame. */
+.disclosureBordered {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+}
+
+.disclosureHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.disclosureTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  color: var(--text);
+  border-radius: var(--radius);
+  transition: background-color var(--duration-1) var(--ease);
+}
+
+/*
+ * Hover goes darker rather than lighter. A disclosure list is usually inside a
+ * Card, which is already --bg-raised, so the raised hover the sidebar uses would
+ * be invisible exactly where these get stacked.
+ */
+.disclosureTrigger:hover {
+  background: var(--bg-inset);
+}
+
+.disclosureChevron {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-muted);
+  transform: rotate(-90deg);
+  transition: transform var(--duration-2) var(--ease);
+}
+
+.disclosureChevronOpen {
+  transform: rotate(0deg);
+}
+
+.disclosureTitle {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  font-weight: var(--weight-medium);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disclosureMeta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.disclosureBody {
+  padding: 0 var(--space-3) var(--space-3);
+  min-width: 0;
+}
+
+.disclosureBodyFlush {
+  padding: 0;
+}
+
+/* SplitPane ------------------------------------------------------------------ */
+
+/*
+ * Columns are grid tracks, not flex items with widths: minmax(0, Nfr) lets the
+ * browser divide the leftover space in the stored proportions and keeps a pane
+ * from being pushed wider by its own content (a long unbroken id in a JSON
+ * response would otherwise widen the track it lives in).
+ */
+.split {
+  display: grid;
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.gutter {
+  position: relative;
+  align-self: stretch;
+  cursor: col-resize;
+  /* Without this a drag on a trackpad or a touchscreen scrolls the pane instead
+     of moving the gutter: the browser claims the gesture before pointermove. */
+  touch-action: none;
+}
+
+/* The track is a comfortable target; the line the user sees is 1px of it. */
+.gutter::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border-subtle);
+  transition:
+    background-color var(--duration-1) var(--ease),
+    width var(--duration-1) var(--ease);
+}
+
+.gutter:hover::before,
+.gutterActive::before {
+  background: var(--accent);
+  width: 2px;
+}
+
+/* A drag that starts on the gutter must not select the text it passes over. */
+.splitDragging {
+  user-select: none;
+  cursor: col-resize;
+}
+
+.splitStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.splitStackPane {
+  min-width: 0;
+}
