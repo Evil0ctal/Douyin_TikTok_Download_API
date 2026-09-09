@@ -88,6 +88,8 @@ export const paths = {
   tools: {
     sign: `${API_V1}/tools/sign`,
     parseUrl: `${API_V1}/tools/parse-url`,
+    /** The same recognition, over a pasted list. No network calls. */
+    parseBatch: `${API_V1}/tools/parse-batch`,
     identity: `${API_V1}/tools/identity`,
   },
   endpointsHealth: `${API_V1}/admin/endpoints/health`,

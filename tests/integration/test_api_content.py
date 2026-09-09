@@ -13,6 +13,7 @@ import uuid
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 
 from dtk.core.db import session_scope
 from dtk.core.types import Scope, TaskState
@@ -42,6 +43,18 @@ SHORT_LINK = "https://v.douyin.com/abc123/"
 #: What the Douyin app actually puts on the clipboard: a numeric code, the
 #: caption and the link, all on one line.
 SHARE_TEXT = "7.61 gTa:/ a caption https://v.douyin.com/abc123/ copy this link"
+
+
+def an_id(n: int = 0) -> str:
+    """A distinct, well-formed post id.
+
+    These tests care about rate limits and task identity, not about id shape,
+    and used to say "7123". That stopped working when malformed ids started
+    being refused at the boundary - which is the point of refusing them, so the
+    fixture moved rather than the rule.
+    """
+    return str(7123456789012345678 + n)
+
 
 #: Addresses an SSRF attempt reaches for: cloud metadata, loopback, the docker
 #: bridge gateway and a lookalike domain.
@@ -130,7 +143,7 @@ async def test_callback_url_is_refused_while_webhooks_are_off(client: Any) -> No
 
 
 async def test_data_endpoints_require_a_credential(client: Any) -> None:
-    response = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123"})
+    response = await client.get("/api/v1/douyin/video", params={"aweme_id": an_id()})
     assert response.status_code == 401
     assert error_code(response) == "UNAUTHENTICATED"
 
@@ -171,8 +184,10 @@ async def test_rate_limit_headers_are_present_and_count_down(client: Any) -> Non
     key = await make_api_key(user_id, scopes=(Scope.DOUYIN_READ,), rate_limit=5)
     headers = {"Authorization": f"Bearer {key}"}
 
-    first = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123"}, headers=headers)
-    second = await client.get("/api/v1/douyin/video", params={"aweme_id": "7124"}, headers=headers)
+    first = await client.get("/api/v1/douyin/video", params={"aweme_id": an_id()}, headers=headers)
+    second = await client.get(
+        "/api/v1/douyin/video", params={"aweme_id": an_id(1)}, headers=headers
+    )
     assert first.headers["x-ratelimit-limit"] == "5"
     assert int(first.headers["x-ratelimit-remaining"]) == 4
     assert int(second.headers["x-ratelimit-remaining"]) == 3
@@ -186,11 +201,13 @@ async def test_exhausting_the_rate_limit_answers_429_with_retry_after(client: An
     for index in range(2):
         assert (
             await client.get(
-                "/api/v1/douyin/video", params={"aweme_id": f"712{index}"}, headers=headers
+                "/api/v1/douyin/video", params={"aweme_id": an_id(index)}, headers=headers
             )
         ).status_code == 202
 
-    limited = await client.get("/api/v1/douyin/video", params={"aweme_id": "7129"}, headers=headers)
+    limited = await client.get(
+        "/api/v1/douyin/video", params={"aweme_id": an_id(9)}, headers=headers
+    )
     assert limited.status_code == 429
     body = envelope(limited)
     assert body["error"]["code"] == "RATE_LIMITED"
@@ -349,7 +366,7 @@ async def test_a_failed_task_renders_as_the_matching_error_envelope(client: Any)
     which is the whole reason the signal exists.
     """
     await signed_in(client)
-    submitted = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123"})
+    submitted = await client.get("/api/v1/douyin/video", params={"aweme_id": an_id()})
     task_id = envelope(submitted)["data"]["task_id"]
 
     async def fail_shortly() -> None:
@@ -362,7 +379,7 @@ async def test_a_failed_task_renders_as_the_matching_error_envelope(client: Any)
             )
 
     response, _ = await asyncio.gather(
-        client.get("/api/v1/douyin/video", params={"aweme_id": "7123", "wait": 5}),
+        client.get("/api/v1/douyin/video", params={"aweme_id": an_id(), "wait": 5}),
         fail_shortly(),
     )
     assert response.status_code == 503
@@ -379,16 +396,127 @@ async def test_a_failed_task_is_not_replayed_to_the_next_caller(client: Any) -> 
     turn one bad request into a minute of them.
     """
     await signed_in(client)
-    first = await client.get("/api/v1/douyin/video", params={"aweme_id": "7126"})
+    first = await client.get("/api/v1/douyin/video", params={"aweme_id": an_id(6)})
     first_id = envelope(first)["data"]["task_id"]
     async with session_scope() as session:
         await task_service.finish(
             session, uuid.UUID(first_id), error={"code": "UPSTREAM_RISK_CONTROL"}
         )
 
-    second = await client.get("/api/v1/douyin/video", params={"aweme_id": "7126"})
+    second = await client.get("/api/v1/douyin/video", params={"aweme_id": an_id(6)})
     assert second.status_code == 202
     assert envelope(second)["data"]["task_id"] != first_id
+
+
+# --------------------------------------------------------------------------
+# Ids the caller typed
+# --------------------------------------------------------------------------
+
+
+async def test_a_malformed_id_is_refused_before_it_costs_an_identity(client: Any) -> None:
+    """The caller's mistake, answered by us, for free.
+
+    Sending it upstream spends a pooled identity to be told the same thing -
+    and, until the classifier was fixed, cooled that identity for it.
+    """
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/video", params={"aweme_id": "not-an-id"})
+
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["field"] == "aweme_id"
+    async with session_scope() as session:
+        assert (await session.scalars(select(Task))).all() == []
+
+
+async def test_a_number_that_cannot_be_an_id_is_refused_too(client: Any) -> None:
+    """ "7123" decodes to 1970. Digits are not enough to be a post id."""
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123"})
+
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_a_well_formed_id_is_still_asked_upstream(client: Any) -> None:
+    """The check refuses what cannot be an id, never what merely might not exist."""
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/video", params={"aweme_id": an_id()})
+
+    assert response.status_code == 202
+
+
+async def test_an_id_inside_a_recognised_link_is_not_second_guessed(client: Any) -> None:
+    """It came out of the pattern that recognised the URL, not out of a form."""
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/video", params={"url": DOUYIN_VIDEO})
+
+    assert response.status_code == 202
+
+
+# --------------------------------------------------------------------------
+# Parsing a list of them
+# --------------------------------------------------------------------------
+
+
+async def test_a_batch_of_links_and_ids_is_sorted_out_without_fetching(client: Any) -> None:
+    await signed_in(client)
+    response = await client.post(
+        "/api/v1/tools/parse-batch",
+        json={
+            "text": "\n".join(
+                [
+                    DOUYIN_VIDEO,
+                    an_id(1),
+                    SHORT_LINK,
+                    "7123",
+                    "just some words",
+                    "",
+                    an_id(1),  # a duplicate, dropped
+                ]
+            )
+        },
+    )
+
+    data = envelope(response)["data"]
+    assert [item["kind"] for item in data["items"]] == [
+        "link",
+        "content_id",
+        "short_link",
+        "bad_id",
+        "unknown",
+    ]
+    assert data["total"] == 5
+    assert data["counts"]["content_id"] == 1
+
+
+async def test_a_batch_reports_when_an_id_was_minted(client: Any) -> None:
+    """The id carries its own timestamp; showing it is what makes the tool useful."""
+    await signed_in(client)
+    response = await client.post("/api/v1/tools/parse-batch", json={"text": an_id()})
+
+    item = envelope(response)["data"]["items"][0]
+    assert item["kind"] == "content_id"
+    assert item["minted_at"].startswith("2022-07-23")
+
+
+async def test_a_batch_names_a_mistyped_id_rather_than_shrugging(client: Any) -> None:
+    """ "unknown" for a line of digits is an unhelpful answer."""
+    await signed_in(client)
+    response = await client.post("/api/v1/tools/parse-batch", json={"text": "99999999999999999999"})
+
+    assert envelope(response)["data"]["items"][0]["kind"] == "bad_id"
+
+
+async def test_a_batch_never_touches_the_network(client: Any) -> None:
+    """A short link comes back as one, not resolved."""
+    await signed_in(client)
+    response = await client.post("/api/v1/tools/parse-batch", json={"text": SHORT_LINK})
+
+    item = envelope(response)["data"]["items"][0]
+    assert item["kind"] == "short_link"
+    assert item["needs_expansion"] is True
+    # The slug, which is what identify() reports and what /parse-url reports
+    # too - but not a post id, so it carries no minting time.
+    assert item["minted_at"] is None
 
 
 async def test_missing_identifier_is_an_invalid_param(client: Any) -> None:

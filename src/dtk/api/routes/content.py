@@ -51,7 +51,7 @@ from dtk.core.errors import (
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
 from dtk.i18n.messages import render_error
-from dtk.urls import ResourceKind, UrlKind, first_url, identify
+from dtk.urls import ResourceKind, UrlKind, first_url, identify, require_content_id
 from dtk.worker import registry
 
 log = get_logger(__name__)
@@ -979,8 +979,15 @@ def _content_params(platform: Platform, *, url: str | None, aweme_id: str | None
     if url:
         kind = vet_url(url, expected=platform)
         extracted = _identifier(kind, ResourceKind.VIDEO)
-        return {"aweme_id": aweme_id or extracted, "url": None if extracted else kind.url}
-    return {"aweme_id": aweme_id, "url": None}
+        chosen = aweme_id or extracted
+        # Only what the caller typed is checked. An id this system pulled out of
+        # a URL it already recognised has been through the pattern that
+        # recognised it, and refusing one here would turn a link the platform
+        # would answer into a 400 from us.
+        if aweme_id:
+            require_content_id(aweme_id, platform=platform)
+        return {"aweme_id": chosen, "url": None if extracted else kind.url}
+    return {"aweme_id": require_content_id(str(aweme_id), platform=platform), "url": None}
 
 
 def _author_params(

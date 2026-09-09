@@ -495,21 +495,27 @@ class TestClassifier:
         # caller why the post is missing rather than a generic refusal.
         assert result.detail == DELETED_POST_MESSAGE
 
-    def test_a_marker_with_no_message_is_still_risk_control(self) -> None:
-        """The rule above must not swallow the signature it sits in front of.
+    def test_a_reason_code_with_no_sentence_is_still_an_answer(self) -> None:
+        """What Douyin returns for an aweme_id that does not exist.
 
-        Captured live on 2026-09-08 alongside the explained case: the same shape,
-        a `filter_reason` nobody outside the platform can read, and every message
-        field empty. Douyin is not telling the caller why - so this is still a
-        withheld payload, and accepting the container alone as an explanation
-        would hide real withholding behind an empty envelope.
+        This assertion used to say RISK_CONTROL, on the reasoning that a
+        `filter_reason` with every message field blank was "a refusal with
+        nothing said" and might be withholding in disguise. Measured against the
+        live API on 2026-09-09, it is simply the not-found answer - the exact
+        211-byte body below - which made every typed-wrong id an
+        UPSTREAM_RISK_CONTROL that cooled a healthy identity and counted toward
+        the endpoint's risk rate.
+
+        `filter_detail` naming the post by id and giving a reason code IS the
+        platform answering about that post. Whether it also wrote a sentence for
+        a human is a UI decision on their side, not a signal about ours.
         """
         response = json_response(
             {
                 "status_code": 0,
                 "aweme_detail": None,
                 "filter_detail": {
-                    "aweme_id": "7397714385177335090",
+                    "aweme_id": "7123456789012345678",
                     "detail_msg": "",
                     "filter_reason": "core_dep",
                     "icon": "",
@@ -518,8 +524,52 @@ class TestClassifier:
             }
         )
         result = classify_detailed(response)
+        assert result.outcome is Outcome.BUSINESS_ERROR
+        assert result.rule == "payload.explained"
+        # The code travels even with no sentence beside it, so the log says
+        # which kind of absence this was.
+        assert result.detail == "core_dep"
+
+    def test_an_empty_payload_with_nothing_said_is_still_risk_control(self) -> None:
+        """The rule above must not swallow the signature it sits in front of.
+
+        The line is whether the platform said anything about this post at all.
+        A null payload with no `filter_detail` is the canonical withholding
+        shape from doc 02, and it has to keep cooling the identity that saw it.
+        """
+        response = json_response({"status_code": 0, "aweme_detail": None})
+        result = classify_detailed(response)
         assert result.outcome is Outcome.RISK_CONTROL
         assert result.rule == "payload.withheld"
+
+    def test_an_empty_filter_detail_explains_nothing(self) -> None:
+        """The container alone is not an answer; something has to be in it."""
+        response = json_response(
+            {
+                "status_code": 0,
+                "aweme_detail": None,
+                "filter_detail": {"aweme_id": "7397714385177335090", "icon": ""},
+            }
+        )
+        result = classify_detailed(response)
+        assert result.outcome is Outcome.RISK_CONTROL
+        assert result.rule == "payload.withheld"
+
+    def test_a_reason_and_a_sentence_are_reported_together(self) -> None:
+        """Owner-only, the shape captured on 2026-09-08."""
+        response = json_response(
+            {
+                "aweme_detail": None,
+                "filter_detail": {
+                    "aweme_id": "7298145681699622182",
+                    "filter_reason": "status_self_see",
+                    "detail_msg": DELETED_POST_MESSAGE,
+                },
+            }
+        )
+        result = classify_detailed(response)
+        assert result.outcome is Outcome.BUSINESS_ERROR
+        assert result.detail == f"status_self_see: {DELETED_POST_MESSAGE}"
 
     def test_a_path_the_platform_refuses_to_serve_does_not_cool_the_identity(self) -> None:
         """TikTok refusing a signature it did not accept, as a 200 with no body.

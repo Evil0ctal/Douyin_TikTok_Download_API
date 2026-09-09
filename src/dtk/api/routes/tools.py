@@ -23,8 +23,9 @@ rather than the shape:
 from __future__ import annotations
 
 import hashlib
+from collections import Counter
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -43,9 +44,16 @@ from dtk.signing import SigningSession, native_signers
 from dtk.signing.base import MS_TOKEN_PARAM, SignedParams, StaticFingerprint
 from dtk.signing.base import RequestSpec as SigningRequest
 from dtk.signing.native import tiktok_sign, websign
-from dtk.urls import first_url, identify
+from dtk.urls import first_url, identify, read_content_id
 
 log = get_logger(__name__)
+
+#: Ceiling on one batch. A column pasted out of a spreadsheet is the intended
+#: input and runs to hundreds; past this the caller wants a script, not a form.
+MAX_BATCH_LINES: Final = 1000
+#: The text that carries them. Generous per line, because a share-sheet paste
+#: is a caption and a link together.
+MAX_BATCH_TEXT: Final = 512 * 1024
 
 router = APIRouter(prefix="/api/v1/tools", tags=["tools"])
 
@@ -501,6 +509,143 @@ async def parse_url(
             "needs_expansion": kind.needs_expansion,
         },
     )
+
+
+class BatchParseRequest(BaseModel):
+    """A blob of text with links and ids in it, one per line."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(
+        max_length=MAX_BATCH_TEXT,
+        description=(
+            "Links, post ids, or whole share-sheet paste, one item per line. "
+            "Blank lines and duplicates are dropped."
+        ),
+    )
+
+
+@router.post(
+    "/parse-batch",
+    summary="Identify many links and ids at once",
+    openapi_extra={I18N_KEY: "tools_parse_batch"},
+)
+async def parse_batch(
+    request: Request,
+    body: BatchParseRequest,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Work out what a list of links and ids point at, without fetching anything.
+
+    `/tools/parse-url` answers one at a time, which is the wrong shape for the
+    thing people actually have: a column pasted out of a spreadsheet, or the
+    output of a scrape. Nothing here touches the network, so a thousand lines
+    cost one request and no identity.
+
+    Each line is tried as a link first and as a bare post id second. An id is
+    checked against its own embedded timestamp - both platforms mint ids whose
+    high 32 bits are the Unix second they were issued - so a typo is named as
+    one here instead of becoming an upstream request that spends an identity to
+    be told the same thing.
+
+    That check cannot tell a post that never existed from one that has been
+    deleted: a plausible id is a plausible id. It rejects text that cannot be an
+    id at all, which is the part worth doing for free.
+
+    **Parameters**
+
+    - `text` - the lines, separated by newlines. Duplicates and blanks go.
+
+    **Returns**
+
+    One entry per distinct line in the order given, each with what it was
+    recognised as, and a summary count by outcome.
+    """
+    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+
+    seen: set[str] = set()
+    items: list[dict[str, Any]] = []
+    for raw in body.text.splitlines():
+        line = raw.strip()
+        if not line or line in seen:
+            continue
+        seen.add(line)
+        items.append(_identify_line(line))
+        if len(items) >= MAX_BATCH_LINES:
+            break
+
+    counts = Counter(item["kind"] for item in items)
+    return ok(
+        request,
+        {
+            "items": items,
+            "total": len(items),
+            "counts": dict(counts),
+            # Said out loud rather than left as a short list: a caller who
+            # pasted 5000 lines and got 1000 back should not have to count.
+            "truncated": len(seen) > len(items),
+        },
+    )
+
+
+def _identify_line(line: str) -> dict[str, Any]:
+    """One line, as a link if it is one and as a post id otherwise.
+
+    Links win. A bare 19-digit number inside a URL is the post id either way,
+    and going through `identify` keeps the host allowlist the only thing that
+    decides what is recognised.
+    """
+    entry: dict[str, Any] = {
+        "input": line,
+        "kind": "unknown",
+        "platform": None,
+        "resource": None,
+        "resource_id": None,
+        "handle": None,
+        "url": None,
+        "needs_expansion": False,
+        "minted_at": None,
+    }
+
+    kind = identify(line)
+    if not kind.allowed:
+        candidate = first_url(line)
+        if candidate is not None:
+            kind = identify(candidate)
+    if kind.allowed:
+        entry.update(
+            kind="link",
+            platform=kind.platform.value if kind.platform else None,
+            resource=kind.resource.value,
+            resource_id=kind.resource_id,
+            handle=kind.handle,
+            url=kind.url,
+            needs_expansion=kind.needs_expansion,
+        )
+        if kind.needs_expansion:
+            # A short link resolves only by following it, which is a network
+            # call this endpoint promises not to make.
+            entry["kind"] = "short_link"
+        elif kind.resource_id:
+            parsed = read_content_id(kind.resource_id)
+            if parsed is not None:
+                entry["minted_at"] = parsed.minted_at.isoformat()
+        return entry
+
+    parsed = read_content_id(line)
+    if parsed is not None:
+        entry.update(
+            kind="content_id",
+            resource_id=parsed.value,
+            minted_at=parsed.minted_at.isoformat(),
+        )
+        return entry
+
+    # Named specifically when it looks like somebody meant an id and mistyped,
+    # because "unknown" for a line of digits is an unhelpful answer.
+    if line.strip().isdigit():
+        entry["kind"] = "bad_id"
+    return entry
 
 
 class IdentityRequest(BaseModel):

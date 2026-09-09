@@ -470,6 +470,10 @@
         "summary": "Mint a guest identity and return it",
         "description": "Drive a real browser to the platform and hand back the cookies it was issued - the half of the work no algorithm can produce. Takes tens of seconds, requires the identity:manage scope, and stores nothing: use the admin mint endpoint instead to add one to this instance's own pool."
       },
+      "tools_parse_batch": {
+        "summary": "Identify many links and ids at once",
+        "description": "`/tools/parse-url` answers one at a time, which is the wrong shape for what people actually have: a column pasted out of a spreadsheet, or the output of a scrape. Nothing here touches the network, so a thousand lines cost one request and no identity. Each line is tried as a link first and as a bare post id second; an id is checked against its own embedded timestamp, since both platforms mint ids whose high 32 bits are the Unix second they were issued. That check cannot tell a post that never existed from one since deleted - a plausible id is a plausible id - but it names a typo for free, instead of letting it become an upstream request that spends an identity to be told the same thing. Blank lines and duplicates are dropped."
+      },
       "tools_parse_url": {
         "summary": "Identify a share link",
         "description": "Work out what a link points at without fetching anything: platform, resource kind and the id that names it. This is the id extraction v4 published as a dozen separate routes. Short links cannot be resolved without following them and come back needing expansion."

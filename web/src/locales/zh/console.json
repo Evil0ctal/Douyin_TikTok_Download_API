@@ -1226,7 +1226,8 @@
     "tab": {
       "sign": "计算签名",
       "parse": "解析链接",
-      "identity": "铸造身份"
+      "identity": "铸造身份",
+      "batch": "批量"
     },
     "field": {
       "platform": "平台",
@@ -1319,6 +1320,30 @@
       "cookiesHint": "请整套一起使用。其中 msToken 与 UIFID_TEMP 是任何算法都无法生成的。",
       "fingerprint": "指纹",
       "fingerprintHint": "请使用该 User-Agent 发送请求。cookie 与 UA 不匹配的身份比没有身份更弱。"
+    },
+    "batch": {
+      "title": "批量解析 ID",
+      "description": "把粘贴进来的一列链接和作品 ID 分门别类，不发起任何请求。不消耗身份，也没有任何数据离开这台机器。",
+      "field": "链接与 ID",
+      "hint": "一行一个，空行和重复行会自动去掉。作品 ID 里带着它被签发的那一秒，所以输入错误会在这里就被指出来，而不是变成一次上游请求。",
+      "action": "{count, plural, =0 {解析} other {解析 # 行}}",
+      "copyIds": "复制所有 ID",
+      "copied": "ID 已复制",
+      "truncated": "只解析了前 {total} 行，剩下的请分批提交。",
+      "kind": {
+        "content_id": "作品 ID",
+        "link": "链接",
+        "short_link": "短链接",
+        "bad_id": "不是有效 ID",
+        "unknown": "无法识别"
+      },
+      "column": {
+        "input": "输入",
+        "kind": "识别结果",
+        "platform": "平台",
+        "id": "ID",
+        "minted": "ID 签发时间"
+      }
     }
   },
   "downloads": {

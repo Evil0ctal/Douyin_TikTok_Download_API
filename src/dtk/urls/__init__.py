@@ -13,6 +13,7 @@ Typical use::
 """
 
 from dtk.urls.expand import MAX_REDIRECTS, RedirectFetcher, expand, resolve
+from dtk.urls.ids import ContentId, read_content_id, require_content_id
 from dtk.urls.parse import (
     UrlKind,
     extract_urls,
@@ -28,6 +29,7 @@ from dtk.urls.patterns import ResourceKind
 
 __all__ = [
     "MAX_REDIRECTS",
+    "ContentId",
     "RedirectFetcher",
     "ResourceKind",
     "UrlKind",
@@ -38,6 +40,8 @@ __all__ = [
     "is_allowed_host",
     "is_private_host",
     "normalize",
+    "read_content_id",
+    "require_content_id",
     "require_supported",
     "resolve",
     "sanitize_extra_hosts",

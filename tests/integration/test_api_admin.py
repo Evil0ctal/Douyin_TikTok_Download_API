@@ -45,6 +45,10 @@ COOKIE_BLOB = "ttwid=1%7Cabcdefghijklmnop; odin_tt=0123456789abcdef"
 #: A logged-in jar. The session value is SYNTHETIC, generated for this test.
 SESSION_COOKIE_BLOB = f"{COOKIE_BLOB}; sessionid=deadbeefcafebabe0123"  # SYNTHETIC
 PROXY_URL = "http://proxyuser:sup3rsecret@10.20.30.40:8080"
+#: Well-formed post ids. Shape is checked at the boundary now, so a stand-in
+#: like "7123" is refused before the thing under test is reached.
+VIDEO_ID = "7123456789012345678"
+OTHER_VIDEO_ID = "7123456789012345679"
 
 
 async def audit_actions() -> list[str]:
@@ -417,14 +421,14 @@ async def test_a_new_key_is_shown_once_and_then_never_again(client: Any, api_app
     async with anonymous_client(api_app) as caller:
         headers = {"Authorization": f"Bearer {full_key}"}
         allowed = await caller.get(
-            "/api/v1/douyin/video", params={"aweme_id": "7123"}, headers=headers
+            "/api/v1/douyin/video", params={"aweme_id": VIDEO_ID}, headers=headers
         )
         assert allowed.status_code == 202
 
         assert (await client.delete(f"/api/v1/admin/api-keys/{created['id']}")).status_code == 200
 
         denied = await caller.get(
-            "/api/v1/douyin/video", params={"aweme_id": "7124"}, headers=headers
+            "/api/v1/douyin/video", params={"aweme_id": OTHER_VIDEO_ID}, headers=headers
         )
     assert denied.status_code == 401
     assert {"api_key.created", "api_key.revoked"} <= set(await audit_actions())

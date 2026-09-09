@@ -5,18 +5,22 @@ import {
   Button,
   Card,
   CodeBlock,
+  CopyableId,
+  DataTable,
   SigningStages,
   ErrorState,
   Field,
   Input,
+  MetricTile,
   PageHeader,
   Select,
   Textarea,
   useToast,
 } from '@/components'
-import { useApiMutation } from '@/hooks'
+import { useApiMutation, useFormatters } from '@/hooks'
 import { apiGet, apiPost, isApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
+import { MISSING } from '@/lib/format'
 import type { SigningStage } from '@/components'
 import type { Platform } from '@/lib/types'
 
@@ -35,7 +39,7 @@ import type { Platform } from '@/lib/types'
  * says what else has to line up, and the minting form is what produces it.
  */
 
-type ToolTab = 'sign' | 'parse' | 'identity'
+type ToolTab = 'sign' | 'parse' | 'batch' | 'identity'
 
 const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
 
@@ -49,7 +53,7 @@ export default function Tools() {
 
       <Card>
         <div className="u-row" role="tablist" aria-label={t('tools.title')}>
-          {(['sign', 'parse', 'identity'] as const).map((id) => (
+          {(['sign', 'parse', 'batch', 'identity'] as const).map((id) => (
             <Button
               key={id}
               role="tab"
@@ -65,6 +69,7 @@ export default function Tools() {
 
       {tab === 'sign' && <SignForm />}
       {tab === 'parse' && <ParseForm />}
+      {tab === 'batch' && <BatchForm />}
       {tab === 'identity' && <IdentityForm />}
     </div>
   )
@@ -268,6 +273,184 @@ function ParseForm() {
           <CodeBlock json={parse.data} />
         </Card>
       )}
+    </>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Batch                                                                       */
+/* -------------------------------------------------------------------------- */
+
+interface BatchItem {
+  input: string
+  kind: 'link' | 'short_link' | 'content_id' | 'bad_id' | 'unknown'
+  platform: string | null
+  resource: string | null
+  resource_id: string | null
+  handle: string | null
+  url: string | null
+  needs_expansion: boolean
+  /**
+   * When the id was issued. Both platforms mint post ids whose high 32 bits are
+   * a Unix second, so this comes out of the id itself rather than out of a
+   * request. It is at or a little before the publication time, never after.
+   */
+  minted_at: string | null
+}
+
+interface BatchResult {
+  items: BatchItem[]
+  total: number
+  counts: Record<string, number>
+  truncated: boolean
+}
+
+/** Newest first is wrong here: the answer has to line up with what was pasted. */
+const BATCH_KINDS = ['content_id', 'link', 'short_link', 'bad_id', 'unknown'] as const
+
+function BatchForm() {
+  const { t } = useTranslation(['console', 'common'])
+  const format = useFormatters()
+  const toast = useToast()
+  const [text, setText] = useState('')
+
+  const parse = useApiMutation<BatchResult, void>(
+    () => apiPost<BatchResult>(paths.tools.parseBatch, { text }),
+    {
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
+
+  const lines = text.split('\n').filter((line) => line.trim()).length
+
+  return (
+    <>
+      <Card title={t('console:tools.batch.title')} description={t('console:tools.batch.description')}>
+        <div className="u-stack">
+          <Field
+            id="batch-input"
+            label={t('console:tools.batch.field')}
+            description={t('console:tools.batch.hint')}
+          >
+            <Textarea
+              rows={10}
+              value={text}
+              onChange={(event) => {
+                setText(event.target.value)
+              }}
+              placeholder={'7123456789012345678\nhttps://www.douyin.com/video/7123456789012345678'}
+            />
+          </Field>
+          <div className="u-row">
+            <Button
+              variant="primary"
+              loading={parse.isPending}
+              disabled={lines === 0}
+              onClick={() => {
+                parse.mutate()
+              }}
+            >
+              {t('console:tools.batch.action', { count: lines })}
+            </Button>
+            {parse.data ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const ids = parse.data.items
+                    .filter((item) => item.resource_id && item.kind !== 'bad_id')
+                    .map((item) => item.resource_id)
+                    .join('\n')
+                  void navigator.clipboard.writeText(ids)
+                  toast.success(t('console:tools.batch.copied'))
+                }}
+              >
+                {t('console:tools.batch.copyIds')}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </Card>
+
+      {parse.error && !isApiError(parse.error) && <ErrorState error={parse.error} />}
+
+      {parse.data ? (
+        <>
+          <div className="u-grid-metrics">
+            {BATCH_KINDS.filter((kind) => parse.data.counts[kind]).map((kind) => (
+              <MetricTile
+                key={kind}
+                label={t(`console:tools.batch.kind.${kind}`)}
+                value={String(parse.data.counts[kind])}
+              />
+            ))}
+          </div>
+
+          {parse.data.truncated ? (
+            <Card>
+              <p className="u-muted" style={{ margin: 0 }}>
+                {t('console:tools.batch.truncated', { total: parse.data.total })}
+              </p>
+            </Card>
+          ) : null}
+
+          <Card flush>
+            <DataTable
+              columns={[
+                {
+                  id: 'input',
+                  header: t('console:tools.batch.column.input'),
+                  width: '40%',
+                  cell: (row) => (
+                    <span className="u-mono u-truncate" title={row.input}>
+                      {row.input}
+                    </span>
+                  ),
+                },
+                {
+                  id: 'kind',
+                  header: t('console:tools.batch.column.kind'),
+                  cell: (row) => (
+                    <span className={row.kind === 'bad_id' || row.kind === 'unknown' ? 'u-danger' : undefined}>
+                      {t(`console:tools.batch.kind.${row.kind}`)}
+                    </span>
+                  ),
+                },
+                {
+                  id: 'platform',
+                  header: t('console:tools.batch.column.platform'),
+                  cell: (row) => <span className="u-mono">{row.platform ?? MISSING}</span>,
+                },
+                {
+                  id: 'resource_id',
+                  header: t('console:tools.batch.column.id'),
+                  width: '25%',
+                  cell: (row) =>
+                    row.resource_id ? (
+                      <CopyableId value={row.resource_id} length={22} />
+                    ) : (
+                      <span className="u-muted">{MISSING}</span>
+                    ),
+                },
+                {
+                  id: 'minted_at',
+                  header: t('console:tools.batch.column.minted'),
+                  cell: (row) =>
+                    row.minted_at ? (
+                      format.dateTime(row.minted_at)
+                    ) : (
+                      <span className="u-muted">{MISSING}</span>
+                    ),
+                },
+              ]}
+              rows={parse.data.items}
+              getRowId={(row) => row.input}
+              caption={t('console:tools.batch.title')}
+            />
+          </Card>
+        </>
+      ) : null}
     </>
   )
 }

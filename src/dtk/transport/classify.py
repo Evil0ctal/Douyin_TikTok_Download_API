@@ -156,28 +156,49 @@ EMPTY_PAYLOAD_KEYS: Final[tuple[str, ...]] = (
     "user",
 )
 
-#: Where the platform puts its reason for an empty payload, and the fields that
-#: carry the reason itself. Douyin answers a deleted or private post with 200
-#: and::
+#: Where the platform puts its reason for an empty payload. Douyin answers a
+#: post it will not return with 200 and::
 #:
-#:     {"aweme_detail": null,
+#:     {"status_code": 0,
+#:      "aweme_detail": null,
 #:      "filter_detail": {"aweme_id": "...", "filter_reason": "status_self_see",
 #:                        "detail_msg": "<why, in Chinese>"}}
 #:
-#: Observed live on 2026-09-08 against the identity probe's own smoke URL, whose
-#: video had been set to owner-only. The empty `aweme_detail` alone is exactly
-#: the risk signature, and reading it that way is expensive: every such post
-#: cooled the identity that asked for it and counted toward the endpoint's risk
-#: rate, so a caller walking a list of older posts could trip the circuit
-#: breaker and take the endpoint down for every identity.
+#: The empty `aweme_detail` alone is exactly the risk signature, and reading it
+#: that way is expensive: every such post cooled the identity that asked for it
+#: and counted toward the endpoint's risk rate, so a caller walking a list of
+#: older posts could trip the circuit breaker and take the endpoint down for
+#: every identity.
 #:
-#: A MESSAGE is required, not merely the container. The same shape also arrives
-#: as `{"filter_reason": "core_dep", "detail_msg": "", "notice": ""}` - a refusal
-#: with nothing said, observed on the same day - and treating that as a business
-#: answer would hide real withholding behind an empty envelope. The line is
-#: whether the platform told the caller why: if it did, that is an answer; if it
-#: only left a marker, it is still a withheld payload.
+#: A NAMED REASON is what makes it an answer - not a populated message.
+#:
+#: This rule first required a non-empty `detail_msg`, on the reasoning that
+#: `{"filter_reason": "core_dep", "detail_msg": "", "notice": ""}` was "a
+#: refusal with nothing said" and might be withholding in disguise. Measured
+#: against the live API on 2026-09-09, that is simply what Douyin returns for an
+#: aweme_id that does not exist:
+#:
+#:     GET /aweme/v1/web/aweme/detail/?aweme_id=7123456789012345678
+#:     200, 211 bytes, {"status_code": 0, "aweme_detail": null,
+#:                      "filter_detail": {"aweme_id": "7123456789012345678",
+#:                                        "detail_msg": "", "filter_reason":
+#:                                        "core_dep", "icon": "", "notice": ""}}
+#:
+#: So requiring the message turned every typo into UPSTREAM_RISK_CONTROL and
+#: cooled a healthy identity for it. `filter_detail` naming the post by id and
+#: giving a reason code IS the platform answering about that post; whether it
+#: also wrote a sentence for a human is a UI decision on their side, not a
+#: signal about ours.
+#:
+#: What still reads as withholding is `aweme_detail` empty with no
+#: `filter_detail` at all - the payload gone with nothing said about it, which
+#: is what :func:`_withheld_payload` fires on.
 PAYLOAD_REASON_KEYS: Final[tuple[str, ...]] = ("filter_detail",)
+#: The field naming why, as a machine code. Observed: "core_dep" (no such post)
+#: and "status_self_see" (owner-only).
+PAYLOAD_REASON_CODE_KEYS: Final[tuple[str, ...]] = ("filter_reason",)
+#: The human sentence beside it, when the platform wrote one. Reported so an
+#: operator sees what the platform said, never used to decide the outcome.
 PAYLOAD_REASON_MESSAGE_KEYS: Final[tuple[str, ...]] = ("detail_msg", "notice", "msg")
 
 #: Success statuses that are *defined* to carry no body. An empty body is the
@@ -411,7 +432,11 @@ def _explained_absence(view: ResponseView) -> RuleResult:
 
     Ordered before `payload.withheld` because it is the same shape read with
     more of the body: both see an empty `aweme_detail`, and only this one
-    notices that the platform said why.
+    notices that the platform named the post and said why.
+
+    The detail reports the reason code, plus the platform's own sentence when
+    there is one. The code is what decides; the sentence is for whoever reads
+    the log.
     """
     if not view.response.ok:
         return False
@@ -424,11 +449,26 @@ def _explained_absence(view: ResponseView) -> RuleResult:
         reason = envelope.get(key)
         if not isinstance(reason, dict):
             continue
-        for field in PAYLOAD_REASON_MESSAGE_KEYS:
-            message = reason.get(field)
-            if isinstance(message, str) and message.strip():
-                return message
+        code = _first_text(reason, PAYLOAD_REASON_CODE_KEYS)
+        message = _first_text(reason, PAYLOAD_REASON_MESSAGE_KEYS)
+        # Either half is the platform speaking about this post. A code with no
+        # sentence is the ordinary case for a post that does not exist; a
+        # sentence with no code is what a withheld one carries. An empty
+        # container says nothing and is left to `payload.withheld`.
+        if code and message:
+            return f"{code}: {message}"
+        if code or message:
+            return code or message or False
     return False
+
+
+def _first_text(source: Mapping[str, Any], keys: Sequence[str]) -> str | None:
+    """The first of ``keys`` holding non-blank text."""
+    for key in keys:
+        value = source.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _withheld_payload(view: ResponseView) -> RuleResult:

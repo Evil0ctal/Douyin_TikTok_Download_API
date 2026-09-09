@@ -85,6 +85,13 @@
   color: var(--text-secondary);
 }
 
+/* The third text colour, beside muted and secondary: a value that is wrong
+   rather than merely quiet. Text only - a badge is the right tool when the
+   thing being marked is a state rather than a cell. */
+.u-danger {
+  color: var(--danger);
+}
+
 .u-xs {
   font-size: var(--text-xs);
   line-height: var(--leading-xs);
