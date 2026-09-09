@@ -247,12 +247,34 @@ class TestConsoleHygiene:
 # --------------------------------------------------------------------------
 
 CONSOLE_SETTINGS = WEB / "pages" / "Settings.tsx"
+#: Scheduler and pool settings render here instead, beside the pool they act on
+#: and beside a description of the rotation they tune.
+CONSOLE_SCHEDULER = WEB / "pages" / "Scheduler.tsx"
 
 
 def _console_groups() -> list[str]:
+    """Every group the console gives a heading of its own, on whichever page.
+
+    Two pages now render runtime settings, so a group is "covered" if either one
+    claims it. Reading only the settings page would call the scheduler's own
+    settings homeless the moment they moved.
+    """
     source = CONSOLE_SETTINGS.read_text(encoding="utf-8")
     block = re.search(r"const GROUP_ORDER = \[(.*?)\] as const", source, re.S)
     assert block is not None, "GROUP_ORDER is no longer declared the way this test reads it"
+    groups = re.findall(r"'([^']+)'", block.group(1))
+
+    scheduler = CONSOLE_SCHEDULER.read_text(encoding="utf-8")
+    owned = re.search(r"const SECTIONS = \[(.*?)\] as const", scheduler, re.S)
+    assert owned is not None, "SECTIONS is no longer declared the way this test reads it"
+    return groups + re.findall(r"'([^']+)'", owned.group(1))
+
+
+def _settings_page_groups() -> list[str]:
+    """Only the ones the settings page itself lists, for the reverse check."""
+    source = CONSOLE_SETTINGS.read_text(encoding="utf-8")
+    block = re.search(r"const GROUP_ORDER = \[(.*?)\] as const", source, re.S)
+    assert block is not None
     return re.findall(r"'([^']+)'", block.group(1))
 
 
@@ -267,7 +289,8 @@ def test_every_setting_group_has_a_console_group() -> None:
     assert not missing, (
         f"settings groups with no console group: {missing}. They will render under "
         f"'Other' with no heading of their own; add them to GROUP_ORDER in "
-        f"{CONSOLE_SETTINGS.relative_to(REPO)}."
+        f"{CONSOLE_SETTINGS.relative_to(REPO)}, or to SECTIONS in "
+        f"{CONSOLE_SCHEDULER.relative_to(REPO)} if they belong to the scheduler."
     )
 
 
@@ -283,7 +306,7 @@ def test_every_console_group_is_named_in_both_languages(language: str) -> None:
         (REPO / "web" / "src" / "locales" / language / "console.json").read_text(encoding="utf-8")
     )
     settings = console["settings"]
-    for group in _console_groups():
+    for group in _settings_page_groups():
         assert group in settings["group"], f"{language}: settings.group.{group} is missing"
         assert group in settings["groupHint"], f"{language}: settings.groupHint.{group} is missing"
 

@@ -25,7 +25,8 @@
     "tools": "Building blocks",
     "downloads": "Downloads",
     "library": "Library",
-    "watchlist": "Watchlist"
+    "watchlist": "Watchlist",
+    "scheduler": "Scheduler"
   },
   "page": {
     "overview": {
@@ -96,6 +97,10 @@
       "title": "Page not found",
       "description": "That route does not exist in this console.",
       "action": "Back to overview"
+    },
+    "scheduler": {
+      "title": "Scheduler",
+      "description": "Which identity serves the next request, what stops one of them serving all of them, and when the pool tops itself up."
     }
   },
   "shell": {
@@ -1502,5 +1507,29 @@
       "removed": "Stopped watching. Everything already collected is kept.",
       "paused": "{count, plural, one {Paused # target} other {Paused # targets}}"
     }
+  },
+  "scheduler": {
+    "pool": {
+      "active": "Schedulable right now",
+      "cooling": "Resting off a risk-control hit; they come back on their own",
+      "degraded": "Hit the cooldown ceiling. Last resort, used only when nothing is active"
+    },
+    "rotationTitle": "How one request picks an identity",
+    "rotationDescription": "Five stages, in this order. A request that clears all five gets a lease; anything else is refused with the reason, which is what the request log records.",
+    "stage": {
+      "circuit": "The endpoint's circuit. Opened by failures across at least sched.circuit_min_identities distinct identities, so one broken identity cannot close an endpoint for everyone. While open, one probe per interval is let through and everything else is refused without spending anything.",
+      "rank": "Ranking: health tier first, then least-recently-used, then a per-call jitter. The tier is coarse on purpose - ranking on the exact score makes the single healthiest identity win every time, which is a hot spot rather than a rotation.",
+      "inflight": "One request at a time per identity. A real session is not parallel, and this is the limit that actually stops one identity absorbing a burst.",
+      "quota": "A token bucket per identity and endpoint. A list endpoint refills at 0.12/s, so one identity serves roughly one of those every eight seconds however many are queued.",
+      "outcome": "The result is folded back in: an OK clears the failure streak, a risk-control hit cools the identity for a doubling backoff, and a business error - a deleted video - deliberately changes nothing."
+    },
+    "fairness": "The ordering aims for \"no identity is systematically favoured\", not for round-robin. Perfect turn-taking needs a global sequencer, because several concurrent callers read the same last-used snapshot before any of them wins a lease.",
+    "fairnessMeasured": "Measured against a uniform random baseline, the resulting spread is no better than chance. What the scheduler does guarantee, and what its tests assert strictly, is exclusivity, quota and that no identity is starved.",
+    "section": {
+      "sched": "Waiting, cooldown and the endpoint circuit.",
+      "pool": "How many identities to keep, and what counts as one worth keeping."
+    },
+    "overridesTitle": "Where these values come from",
+    "overrides": "{count, plural, =0 {Every value on this page is the built-in default or an environment seed.} one {# value is stored in the database and overrides its environment seed.} other {# values are stored in the database and override their environment seeds.}}"
   }
 }

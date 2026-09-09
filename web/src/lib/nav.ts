@@ -39,6 +39,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/', labelKey: 'nav.overview', group: 'monitor', icon: 'gauge' },
   { path: '/identities', labelKey: 'nav.identities', group: 'pool', icon: 'idCard' },
   { path: '/proxies', labelKey: 'nav.proxies', group: 'pool', icon: 'globe' },
+  { path: '/scheduler', labelKey: 'nav.scheduler', group: 'pool', icon: 'sliders' },
   { path: '/playground', labelKey: 'nav.playground', group: 'tools', icon: 'terminal' },
   { path: '/parse', labelKey: 'nav.parseTool', group: 'tools', icon: 'link' },
   { path: '/tools', labelKey: 'nav.tools', group: 'tools', icon: 'terminal' },
