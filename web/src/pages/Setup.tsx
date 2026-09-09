@@ -108,7 +108,7 @@ export default function Setup() {
   return (
     <div className={shell.centered}>
       <div className={shell.centeredPanel} style={{ maxWidth: '760px' }}>
-        <div className="u-stack-lg">
+        <div className="u-page">
           <div className="u-row-between">
             <span className="u-mono u-secondary">{t('common:app.name')}</span>
             <span className="u-row">

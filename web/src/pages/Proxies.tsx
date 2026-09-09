@@ -431,7 +431,7 @@ export default function Proxies() {
   const selectedRows = rows.filter((row) => selected.has(row.id))
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('console:page.proxies.title')}
         description={t('console:page.proxies.description')}

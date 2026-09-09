@@ -850,7 +850,7 @@ export default function Notifications() {
   ]
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.notifications.title')}
         description={t('page.notifications.description')}

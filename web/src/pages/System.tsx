@@ -390,7 +390,7 @@ export default function System() {
   })()
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.system.title')}
         description={t('page.system.description')}

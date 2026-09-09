@@ -135,7 +135,7 @@ export default function EndpointAccess() {
   if (query.error) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
 
   return (
-    <>
+    <div className="u-page">
       <PageHeader
         title={t('access.title')}
         description={t('access.description')}
@@ -214,6 +214,6 @@ export default function EndpointAccess() {
         }}
         onCancel={() => setPending(null)}
       />
-    </>
+    </div>
   )
 }

@@ -258,7 +258,7 @@ export default function Watchlist() {
   const globallyOff = query.data ? !query.data.enabled : false
 
   return (
-    <>
+    <div className="u-page">
       <PageHeader
         title={t('watchlist.title')}
         description={t('watchlist.description')}
@@ -402,6 +402,6 @@ export default function Watchlist() {
           setPausing(false)
         }}
       />
-    </>
+    </div>
   )
 }

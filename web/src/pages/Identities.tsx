@@ -495,7 +495,7 @@ export default function Identities() {
   const filteredToNothing = rows.length === 0 && (query.data?.length ?? 0) > 0
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('console:page.identities.title')}
         description={t('console:page.identities.description')}

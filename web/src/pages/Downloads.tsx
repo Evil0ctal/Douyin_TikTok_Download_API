@@ -263,7 +263,7 @@ export default function Downloads() {
   )
 
   return (
-    <>
+    <div className="u-page">
       <PageHeader
         title={t('downloads.title')}
         description={t('downloads.description')}
@@ -399,7 +399,7 @@ export default function Downloads() {
       >
         {inspecting ? <Detail row={inspecting} /> : null}
       </Drawer>
-    </>
+    </div>
   )
 }
 

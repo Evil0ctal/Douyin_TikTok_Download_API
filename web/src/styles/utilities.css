@@ -4,6 +4,22 @@
  * page-local CSS module.
  */
 
+/*
+ * The page rhythm, defined once.
+ *
+ * Every page root used one of these by eye: ten pages sat on u-stack-lg, six on
+ * u-stack, three on u-stack-sm and two on nothing at all, so the gap between
+ * two cards was 24px, 16px, 8px or zero depending on which page you were
+ * looking at - and the two with no root read as one unbroken slab. A page that
+ * wants a different rhythm inside a section still reaches for u-stack; this is
+ * only the distance between the sections themselves.
+ */
+.u-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
 .u-stack {
   display: flex;
   flex-direction: column;

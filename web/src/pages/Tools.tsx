@@ -44,7 +44,7 @@ export default function Tools() {
   const [tab, setTab] = useState<ToolTab>('sign')
 
   return (
-    <>
+    <div className="u-page">
       <PageHeader title={t('tools.title')} description={t('tools.description')} />
 
       <Card>
@@ -66,7 +66,7 @@ export default function Tools() {
       {tab === 'sign' && <SignForm />}
       {tab === 'parse' && <ParseForm />}
       {tab === 'identity' && <IdentityForm />}
-    </>
+    </div>
   )
 }
 

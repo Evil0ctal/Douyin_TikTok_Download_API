@@ -337,7 +337,7 @@ export default function Backup() {
   ]
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.backup.title')}
         description={t('page.backup.description')}

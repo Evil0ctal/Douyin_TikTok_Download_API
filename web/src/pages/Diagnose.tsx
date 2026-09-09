@@ -306,7 +306,7 @@ export default function Diagnose() {
   const failed = state === 'failed'
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.diagnose.title')}
         description={t('page.diagnose.description')}

@@ -276,7 +276,7 @@ export default function Overview() {
   ]
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('console:page.overview.title')}
         description={t('console:page.overview.description')}

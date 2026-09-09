@@ -388,7 +388,7 @@ export default function ApiDocs() {
   }
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.apiDocs.title')}
         description={t('page.apiDocs.description')}

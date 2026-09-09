@@ -439,7 +439,7 @@ export default function Users() {
   ]
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.users.title')}
         description={t('page.users.description')}

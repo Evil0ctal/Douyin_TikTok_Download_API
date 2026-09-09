@@ -551,7 +551,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.settings.title')}
         description={t('page.settings.description')}

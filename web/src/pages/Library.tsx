@@ -294,7 +294,7 @@ export default function Library() {
   const total = stats.data?.contents ?? 0
 
   return (
-    <>
+    <div className="u-page">
       <PageHeader
         title={t('library.title')}
         description={t('library.description')}
@@ -519,7 +519,7 @@ export default function Library() {
       >
         {inspecting ? <Detail row={inspecting} /> : null}
       </Drawer>
-    </>
+    </div>
   )
 }
 

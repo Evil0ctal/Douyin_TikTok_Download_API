@@ -339,7 +339,7 @@ export default function Logs() {
   ]
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.logs.title')}
         description={t('page.logs.description')}

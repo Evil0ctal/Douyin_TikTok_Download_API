@@ -336,7 +336,7 @@ export default function ApiKeys() {
   )
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.apiKeys.title')}
         description={t('page.apiKeys.description')}

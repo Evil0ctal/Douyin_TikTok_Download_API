@@ -767,7 +767,7 @@ export default function ParseTool() {
   const failedRetryable = rows.filter((row) => retryable(row))
 
   return (
-    <div className="u-stack-lg">
+    <div className="u-page">
       <PageHeader
         title={t('page.parseTool.title')}
         description={t('page.parseTool.description')}
