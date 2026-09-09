@@ -91,3 +91,29 @@
 .count[data-open='true'] {
   color: var(--warning);
 }
+
+/*
+ * The switch column, with the state spelled out beside it.
+ *
+ * An unlabelled switch in the off position says nothing. Next to forty rows
+ * that carry an explicit lock, thirty closed rows showing only a grey toggle
+ * read as the ones without a credential check - the opposite of what they are.
+ * The word is the fix; the fixed width keeps the toggles in a column.
+ */
+.control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 8.5rem;
+}
+
+.state {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.state[data-open='true'] {
+  color: var(--warning);
+}

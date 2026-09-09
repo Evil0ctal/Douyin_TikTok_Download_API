@@ -1174,3 +1174,48 @@ class TestClientLifetime:
         assert broken.closed == 1
         # The client itself survives; retiring it is the pool's decision.
         assert transport.client_count == 1
+
+
+# --------------------------------------------------------------------------
+# The version pair the System page compares
+# --------------------------------------------------------------------------
+
+
+class TestReportedWreqMajor:
+    """``wreq_profile_major`` answers the half of the drift check that is local.
+
+    It was reported by nobody, so the console read it as missing and told the
+    operator browser-rpc had not sent a version - one row below the Chromium
+    major browser-rpc had just sent.
+    """
+
+    def test_a_browser_wreq_has_a_profile_for_answers_with_that_major(self) -> None:
+        from dtk.api.routes.system import wreq_profile_major
+
+        shipped = known_majors(BrowserFamily.CHROME)
+        assert wreq_profile_major(shipped[-1]) == shipped[-1]
+
+    def test_a_gap_in_the_table_answers_with_the_nearest_below(self) -> None:
+        """What a request from that browser would actually be sent with."""
+        from dtk.api.routes.system import wreq_profile_major
+
+        shipped = known_majors(BrowserFamily.CHROME)
+        missing = next(
+            (major for major in range(shipped[0] + 1, shipped[-1]) if major not in shipped),
+            None,
+        )
+        assert missing is not None, "the table has no gaps to test with"
+        expected = max(major for major in shipped if major < missing)
+        assert wreq_profile_major(missing) == expected
+
+    def test_an_unknown_browser_answers_with_the_newest_profile(self) -> None:
+        """Nothing to align against, so report what this build could emulate."""
+        from dtk.api.routes.system import wreq_profile_major
+
+        assert wreq_profile_major(None) == max(known_majors(BrowserFamily.CHROME))
+
+    def test_a_browser_older_than_every_profile_answers_with_the_oldest(self) -> None:
+        from dtk.api.routes.system import wreq_profile_major
+
+        oldest = min(known_majors(BrowserFamily.CHROME))
+        assert wreq_profile_major(oldest - 5) == oldest

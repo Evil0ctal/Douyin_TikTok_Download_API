@@ -32,9 +32,15 @@ from dtk.api.routes.support import authenticated, ok
 from dtk.core.db import session_scope
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import IdentityState, Platform
+from dtk.core.types import BrowserFamily, IdentityState, Platform
 from dtk.db.models import Identity
 from dtk.db.repositories import IdentityRepository
+from dtk.transport.emulation import (
+    EmulationUnavailable,
+    UnknownBrowserFamily,
+    known_majors,
+    select_profile,
+)
 
 log = get_logger(__name__)
 
@@ -154,7 +160,7 @@ async def system_status(request: Request, principal: Principal = Depends(authent
             "components": {
                 "postgres": postgres,
                 "redis": redis,
-                "browser_rpc": await _browser_rpc_status(request),
+                "browser_rpc": await _browser_rpc_with_profile(request),
             },
             "pool": pool,
             "storage": await _storage(session),
@@ -166,6 +172,57 @@ async def system_status(request: Request, principal: Principal = Depends(authent
 #: browser that cannot answer a health check in a second is not one the pool
 #: should be told is fine.
 BROWSER_PROBE_TIMEOUT_SECONDS: Final = 1.0
+
+#: The family the drift check is about. Both platforms are signed from Chromium
+#: and every minted fingerprint carries a Chrome family, so the wreq side of the
+#: comparison is a Chrome profile or it is nothing.
+DRIFT_FAMILY: Final = BrowserFamily.CHROME
+
+
+def wreq_profile_major(chromium_major: int | None) -> int | None:
+    """The TLS profile major this process would actually emulate.
+
+    Local, and therefore knowable whether or not browser-rpc answers: it is a
+    property of the installed wreq, not of the browser container. It was
+    reported by nobody, so the System page read it as missing and told the
+    operator that browser-rpc had not sent a version - while displaying, one
+    row above, the version browser-rpc had just sent.
+
+    Answered against the browser's major rather than as "the newest profile
+    shipped", because the number is only meaningful as the other half of the
+    drift comparison: what matters is the profile a request from *that* browser
+    would be sent with, which is the exact major if wreq has one and the
+    nearest below it otherwise.
+    """
+    try:
+        majors = known_majors(DRIFT_FAMILY)
+    except UnknownBrowserFamily:
+        # A wreq build with no Chrome profiles at all. Nothing to compare, and
+        # the transport would already be failing louder than this row.
+        return None
+    if not majors:
+        return None
+    if chromium_major is None:
+        return max(majors)
+    try:
+        return select_profile(DRIFT_FAMILY, chromium_major).profile.major
+    except EmulationUnavailable:
+        # A browser older than every profile wreq ships. There is no candidate
+        # below it, and the oldest one is what the page should be arguing about.
+        return min(majors)
+
+
+async def _browser_rpc_with_profile(request: Request) -> dict[str, Any]:
+    """The browser probe, plus the wreq major it is meant to be compared with.
+
+    The two numbers live in one component because neither means anything alone:
+    the card is a single claim about whether the browser that mints the cookies
+    and the client that replays them agree on a major version.
+    """
+    status = await _browser_rpc_status(request)
+    major = status.get("chromium_major")
+    status["wreq_profile_major"] = wreq_profile_major(major if isinstance(major, int) else None)
+    return status
 
 
 async def _browser_rpc_status(request: Request) -> dict[str, Any]:

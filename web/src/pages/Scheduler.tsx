@@ -209,7 +209,6 @@ export default function Scheduler() {
             key={section}
             title={t(`settings.group.${section}`)}
             description={t(`scheduler.section.${section}`)}
-            flush
           >
             <div>
               {rows.map((row) => (

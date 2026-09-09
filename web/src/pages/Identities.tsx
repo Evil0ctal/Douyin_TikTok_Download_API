@@ -15,6 +15,7 @@ import {
   Input,
   LockIcon,
   MaskedSecret,
+  MetricTile,
   Modal,
   PageHeader,
   Select,
@@ -198,6 +199,94 @@ function SessionCell({ identity }: { identity: Identity }) {
       <StatusBadge kind="credential" value={verdict} size="sm" flash={false} />
       {cookie ? <span className="u-xs u-muted u-mono">{cookie}</span> : null}
     </span>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Automatic refill                                                            */
+/* -------------------------------------------------------------------------- */
+
+interface PoolPlatform {
+  platform: string
+  usable: number
+  live: number
+  active: number
+  minting: number
+  below_minimum: boolean
+}
+
+interface PoolLevel {
+  min_size: number
+  target_size: number
+  max_fail_streak: number
+  can_mint: boolean
+  platforms: PoolPlatform[]
+}
+
+/**
+ * What the refill job is doing, on the page where an operator looks for it.
+ *
+ * The job has always existed - the worker checks every platform once a minute
+ * and mints one identity at a time back up to `pool.target_size` - and nothing
+ * on this board said so, which made it indistinguishable from not existing.
+ *
+ * `usable` rather than a row count, because that is the number the job compares
+ * against the mark: an identity that fails every request stays live, so a pool
+ * counted by rows sits at its target while serving nothing.
+ */
+function RefillCard() {
+  const { t } = useTranslation(['console', 'common'])
+
+  const query = useApiQuery<PoolLevel>({
+    key: ['admin', 'identities', 'pool'],
+    path: paths.identities.pool,
+    poll: POLL.slow,
+  })
+
+  if (query.isLoading) {
+    return (
+      <Card title={t('console:identity.refill.title')}>
+        <Skeleton height={44} />
+      </Card>
+    )
+  }
+  if (query.isError || !query.data) return null
+
+  const { min_size: minimum, target_size: target, can_mint: canMint, platforms } = query.data
+
+  return (
+    <Card
+      title={t('console:identity.refill.title')}
+      description={
+        canMint
+          ? t('console:identity.refill.description', { minimum, target })
+          : t('console:identity.refill.noBrowser')
+      }
+    >
+      <div className="u-grid-metrics">
+        {platforms.map((row) => (
+          <MetricTile
+            key={row.platform}
+            label={row.platform}
+            value={String(row.usable)}
+            footer={
+              <span className="u-xs u-muted">
+                {!canMint
+                  ? t('console:identity.refill.manualOnly')
+                  : row.minting > 0
+                    ? t('console:identity.refill.minting', { count: row.minting })
+                    : row.below_minimum
+                      ? t('console:identity.refill.below', { minimum })
+                      : t('console:identity.refill.satisfied', { minimum })}
+              </span>
+            }
+          />
+        ))}
+      </div>
+      <p className="u-xs u-muted" style={{ marginTop: 'var(--space-3)', marginBottom: 0 }}>
+        {t('console:identity.refill.usableHint', { streak: query.data.max_fail_streak })}
+      </p>
+    </Card>
   )
 }
 
@@ -564,6 +653,8 @@ export default function Identities() {
       <p className="u-xs u-muted" style={{ margin: 0 }}>
         {t('console:identity.columnsDiffer')}
       </p>
+
+      <RefillCard />
 
       <Card flush>
         <DataTable

@@ -11,7 +11,7 @@ translation keeps the English text rather than rendering as a key name: a
 partially translated document is usable, a document full of
 ``openapi.op.parse.summary`` is not.
 
-``/docs`` and ``/redoc`` forward their own ``?lang=`` to the schema URL, so the
+``/swagger`` and ``/redoc`` forward their own ``?lang=`` to the schema URL, so the
 Swagger page loads the matching document.
 """
 
@@ -43,7 +43,7 @@ SESSION_DESCRIPTION_KEY = "openapi.security.session"
 OP_PREFIX = "openapi.op."
 PARAM_PREFIX = "openapi.param."
 DESCRIPTION_KEY = "openapi.description"
-#: The one sentence that explains the uniform envelope to a reader of /docs.
+#: The one sentence that explains the uniform envelope to a reader of the docs.
 ENVELOPE_DESCRIPTION_KEY = "openapi.envelope"
 
 #: Every endpoint honours ``?lang=``, but the middleware reads it rather than a
@@ -203,7 +203,7 @@ def _declare_security(schema: dict[str, Any], language: Language) -> None:
     be called by someone else's program.
 
     Both schemes are declared because both are real. A program sends the header;
-    the console sends the cookie it already has, which is why opening /docs from
+    the console sends the cookie it already has, which is why opening the docs from
     a signed-in browser works without pasting anything.
     """
     components = schema.setdefault("components", {})
@@ -416,7 +416,7 @@ def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
 def install(app: FastAPI) -> None:
     """Replace the generated documentation routes with language-aware ones.
 
-    FastAPI registers ``/openapi.json``, ``/docs`` and ``/redoc`` when the
+    FastAPI registers ``/openapi.json``, its ``docs_url`` and ``/redoc`` when the
     application is constructed, and the first matching route wins, so they are
     removed before the replacements are added rather than shadowed.
     """

@@ -510,7 +510,15 @@ export default function System() {
                 </Banner>
               ) : chromiumMajor === null || wreqMajor === null ? (
                 <Banner tone="accent" icon={<ServerIcon size={14} />}>
-                  {t('system.drift.unknown')}
+                  {/* Name the half that is missing. One message covering both
+                      blamed browser-rpc for a gap that was on the wreq side,
+                      while the row above it displayed the Chromium major
+                      browser-rpc had just reported. */}
+                  {t(
+                    chromiumMajor === null
+                      ? 'system.drift.unknownChromium'
+                      : 'system.drift.unknownWreq',
+                  )}
                 </Banner>
               ) : (
                 <Banner tone="success" icon={<CheckIcon size={14} />}>

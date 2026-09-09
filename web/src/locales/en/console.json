@@ -333,7 +333,17 @@
       "session": "A static check on the stored cookie jar: is the session cookie present, and long enough to be a real session rather than the bootstrap value a first-time visitor gets. No network, no history.",
       "health": "How this identity's recent requests actually went: the success rate over 15 minutes, the risk-control rate over 60, and the current failure streak. Empty until there is traffic."
     },
-    "columnsDiffer": "Credential and health measure different things. A complete credential whose requests keep failing means the jar is fine and the signature or the exit is not - which is the fastest read on this page."
+    "columnsDiffer": "Credential and health measure different things. A complete credential whose requests keep failing means the jar is fine and the signature or the exit is not - which is the fastest read on this page.",
+    "refill": {
+      "title": "Automatic refill",
+      "description": "The worker checks each platform every minute and mints one identity at a time whenever fewer than {minimum} are usable, until {target} are. Both marks are on the Scheduler page.",
+      "noBrowser": "No browser container is configured, so nothing can be minted. The pool is whatever you import by hand, and the low-water marks have no effect.",
+      "below": "Below {minimum}. Minting.",
+      "satisfied": "At or above {minimum}.",
+      "minting": "{count, plural, one {# being minted} other {# being minted}}",
+      "manualOnly": "Imported by hand",
+      "usableHint": "Usable means live with fewer than {streak} consecutive failures - not the row count, because an identity that fails every request still counts as live."
+    }
   },
   "proxy": {
     "column": {
@@ -650,7 +660,8 @@
       "chromium": "Chromium major",
       "wreq": "wreq profile major",
       "warning": "Version drift: Chromium is on {chromium} while the wreq profile targets {wreq}. Signatures are still produced, but the fingerprint no longer matches the browser that made them. Pin the browser image or update the profile.",
-      "unknown": "No majors reported. The browser RPC is either not configured or not reporting its versions yet.",
+      "unknownChromium": "No Chromium major reported. browser-rpc is not configured, or has not answered a health check yet.",
+      "unknownWreq": "The installed wreq ships no Chrome emulation profile, so there is nothing to compare the browser against. Signing still works; the TLS fingerprint does not match the browser that produced it.",
       "aligned": "Both on major {major}. No drift."
     },
     "storage": {
@@ -977,7 +988,7 @@
       "proxy": "Send the upstream request through this proxy. Refused unless an administrator has enabled security.request_proxy.",
       "mix_id": "The collection's id, from a mix or playlist link.",
       "identity": "Send as one named identity and no other. For content only that account can see. The request is never served from another identity and never from the cache.",
-      "refresh": "Ignore any cached or in-flight answer and ask upstream again. Costs an identity and a real request, so use it to check whether something changed rather than on every call."
+      "refresh": "Ignore any cached or in-flight answer and ask upstream again. Without it a repeat inside the cache window is free: 30 minutes for one post, 15 for a profile, 5 for anything paged (cache.* in Settings). A refresh costs an identity and a real request."
     },
     "required": "Required.",
     "oneOfRequired": "Fill in one of these.",
@@ -1185,7 +1196,9 @@
       "ios": "iOS Shortcut",
       "other": "Untagged"
     },
-    "groupCount": "{count, plural, one {# endpoint} other {# endpoints}}"
+    "groupCount": "{count, plural, one {# endpoint} other {# endpoints}}",
+    "stateClosed": "Key required",
+    "stateOpen": "Open"
   },
   "tools": {
     "title": "Building blocks",

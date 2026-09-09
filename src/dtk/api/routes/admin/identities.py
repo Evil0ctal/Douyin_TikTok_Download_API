@@ -255,6 +255,75 @@ async def list_identities(
     )
 
 
+@router.get(
+    "/pool",
+    summary="Pool level against its low-water mark",
+    openapi_extra={I18N_KEY: "identities_pool"},
+)
+async def pool_level(request: Request, principal: Principal = Depends(read_admin)) -> Any:
+    """What the refill job is looking at, per platform.
+
+    The job exists and has since the beginning - the worker checks each platform
+    every minute and mints one identity at a time until the pool is back at
+    `pool.target_size` - but nothing on the identities board said so, so the
+    only way to know it was running was to watch rows appear. This is that
+    check, answered on demand.
+
+    `usable` is the number the job actually compares against the mark: live
+    identities whose consecutive failure streak is still under
+    `pool.max_fail_streak`. It is deliberately not the row count. An identity
+    that fails every request stays live, so a pool counted by rows can sit at
+    its target while serving nothing.
+
+    `minting` is whether this deployment can mint at all. Without a browser
+    container there is nothing to mint with, the job is skipped entirely, and a
+    low-water mark is a number with no effect - which is worth saying out loud
+    rather than leaving an operator to wonder why the pool never refills.
+    """
+    config = request.app.state.config
+    min_size = int(config.get("pool.min_size"))
+    target_size = max(min_size, int(config.get("pool.target_size")))
+    max_fail_streak = max(1, int(config.get("pool.max_fail_streak")))
+    can_mint = bool(getattr(request.app.state.settings, "browser_rpc_url", "") or "")
+
+    identities = IdentityPool(request.app.state.cipher)
+    platforms: list[dict[str, Any]] = []
+    for platform in Platform:
+        counts = await identities.counts(request.state.db, platform)
+        usable = await identities.usable_count(
+            request.state.db, platform, max_fail_streak=max_fail_streak
+        )
+        live = counts.get(IdentityState.ACTIVE.value, 0) + counts.get(
+            IdentityState.COOLING.value, 0
+        )
+        platforms.append(
+            {
+                "platform": platform.value,
+                "usable": usable,
+                "live": live,
+                "active": counts.get(IdentityState.ACTIVE.value, 0),
+                "minting": counts.get(IdentityState.MINTING.value, 0),
+                # The state the filler would be in on its next tick. It refills
+                # from below the mark up to the target, so a pool between the
+                # two is only refilling if it was already under - which this
+                # cannot know from a count alone, and says the honest thing:
+                # below the mark it will mint, at or above it will not.
+                "below_minimum": usable < min_size,
+            }
+        )
+
+    return ok(
+        request,
+        {
+            "min_size": min_size,
+            "target_size": target_size,
+            "max_fail_streak": max_fail_streak,
+            "can_mint": can_mint,
+            "platforms": platforms,
+        },
+    )
+
+
 @router.post(
     "/mint",
     summary="Mint guest identities",

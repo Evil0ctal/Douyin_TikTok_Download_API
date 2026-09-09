@@ -58,6 +58,70 @@ async def audit_actions() -> list[str]:
 # --------------------------------------------------------------------------
 
 
+async def test_pool_level_reports_the_marks_the_refill_job_uses(client: Any) -> None:
+    """The numbers the identities board shows for automatic minting.
+
+    Both platforms are always listed, including one with nothing in it: an
+    empty pool is the case an operator most needs to see, and a platform that
+    only appears once it has identities is a platform whose refill looks
+    switched off.
+    """
+    await signed_in(client)
+    await client.post(
+        "/api/v1/admin/identities/import",
+        json={
+            "platform": Platform.DOUYIN.value,
+            "cookies": SESSION_COOKIE_BLOB,
+            "user_agent": CHROME_UA,
+        },
+    )
+
+    data = envelope(await client.get("/api/v1/admin/identities/pool"))["data"]
+
+    assert data["min_size"] >= 1
+    assert data["target_size"] >= data["min_size"]
+    by_platform = {row["platform"]: row for row in data["platforms"]}
+    assert set(by_platform) == {platform.value for platform in Platform}
+    assert by_platform[Platform.DOUYIN.value]["usable"] == 1
+    assert by_platform[Platform.TIKTOK.value]["usable"] == 0
+    assert by_platform[Platform.TIKTOK.value]["below_minimum"] is True
+
+
+async def test_pool_level_counts_usable_not_rows(client: Any) -> None:
+    """A dead identity is still a row. The mark is about what can serve."""
+    await signed_in(client)
+    await client.post(
+        "/api/v1/admin/identities/import",
+        json={
+            "platform": Platform.DOUYIN.value,
+            "cookies": SESSION_COOKIE_BLOB,
+            "user_agent": CHROME_UA,
+        },
+    )
+    before = envelope(await client.get("/api/v1/admin/identities/pool"))["data"]
+    streak = before["max_fail_streak"]
+
+    async with session_scope() as session:
+        identity = (await session.scalars(select(Identity))).one()
+        identity.consecutive_fails = streak
+        await session.commit()
+
+    after = envelope(await client.get("/api/v1/admin/identities/pool"))["data"]
+    row = next(r for r in after["platforms"] if r["platform"] == Platform.DOUYIN.value)
+    assert row["live"] == 1  # the row is still there and still active
+    assert row["usable"] == 0  # and it is not what the mark counts
+
+
+async def test_pool_level_needs_admin(client: Any) -> None:
+    """It names the marks and the shortfall, so it is not a public number."""
+    user_id = await make_user()
+    key = await make_api_key(user_id, scopes=(Scope.DOUYIN_READ,))
+    response = await client.get(
+        "/api/v1/admin/identities/pool", headers={"Authorization": f"Bearer {key}"}
+    )
+    assert response.status_code in (401, 403)
+
+
 async def test_identity_import_dry_run_masks_and_stores_nothing(client: Any) -> None:
     await signed_in(client)
     response = await client.post(

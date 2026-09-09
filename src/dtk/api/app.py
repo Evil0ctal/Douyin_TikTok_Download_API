@@ -94,7 +94,14 @@ def create_app(settings: BootstrapSettings | None = None) -> FastAPI:
         title="dtk",
         version=__version__,
         description=DESCRIPTION,
-        docs_url="/docs",
+        # NOT /docs. The console owns that path: it renders the same Swagger
+        # UI inside the shell, themed and behind a session. Both claiming it
+        # meant which page you got depended on how you arrived - client-side
+        # navigation gave the console, a reload gave the bare document - and
+        # a reload is exactly what somebody does after expanding a tag.
+        # /swagger stays credential-free for callers who have no console
+        # account, which is most consumers of a public instance.
+        docs_url="/swagger",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
         lifespan=lifespan,

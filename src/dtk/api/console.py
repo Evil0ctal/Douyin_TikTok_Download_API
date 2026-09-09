@@ -65,7 +65,9 @@ RESERVED_PREFIXES = (
     "/api/",
     "/healthz",
     "/readyz",
-    "/docs",
+    # Not "/docs": that path belongs to the console's own API reference page,
+    # and reserving it here made a reload 404 rather than serve the shell.
+    "/swagger",
     "/redoc",
     "/openapi.json",
     "/mcp",

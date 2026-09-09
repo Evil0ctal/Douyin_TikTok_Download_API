@@ -66,7 +66,7 @@ def register_routes(app: FastAPI) -> None:
     for router in ROUTERS:
         app.include_router(router)
 
-    # Replaces FastAPI's /openapi.json, /docs and /redoc with ?lang= aware
+    # Replaces FastAPI's /openapi.json, /swagger and /redoc with ?lang= aware
     # versions (doc 14).
     openapi.install(app)
     # Issues and prints the first-run setup token once the application's own

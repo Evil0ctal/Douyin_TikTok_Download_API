@@ -152,6 +152,19 @@ services:
     # $$ escapes compose interpolation, so REDIS_PASSWORD is expanded by the
     # shell inside the container from the env file rather than being written
     # into the resolved compose config.
+    #
+    # maxmemory is set well under mem_limit and is not optional. The response
+    # cache writes one entry per distinct request and keeps it for the TTL in
+    # cache.content_ttl (30 min by default); measured entries run 16-200 KB, so
+    # a busy instance can put hundreds of megabytes in here inside one TTL
+    # window. With no ceiling that ends as an OOM kill of the whole container -
+    # the queue included - rather than as a cache miss.
+    #
+    # volatile-lru, not allkeys-lru: `tasks:queue` is a list with no expiry and
+    # so is never an eviction candidate, and neither is sched:lastused. What
+    # can be evicted is what carries a TTL - cache entries, rate-limit
+    # counters, scheduler token buckets, console sessions - all of which are
+    # rebuildable or merely inconvenient to lose. A queued task is not.
     command:
       - sh
       - -c
@@ -164,7 +177,8 @@ services:
           --requirepass "$$REDIS_PASSWORD" \
           --appendonly yes \
           --save 60 1 \
-          --maxmemory-policy noeviction
+          --maxmemory ${DTK_REDIS_MAXMEMORY:-320mb} \
+          --maxmemory-policy volatile-lru
     volumes:
       - redis-data:/data
     networks:

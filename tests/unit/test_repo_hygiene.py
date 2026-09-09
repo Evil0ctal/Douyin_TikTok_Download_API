@@ -490,7 +490,7 @@ def test_a_language_switch_expires_the_cache_it_invalidated() -> None:
 LOCALIZED_ROUTES_THE_CONSOLE_CACHES = {
     "api/routes/admin/health.py",  # the circuit breaker's reason sentence
     "api/routes/admin/settings.py",  # setting descriptions
-    "api/routes/openapi.py",  # the document /docs renders
+    "api/routes/openapi.py",  # the document the reference pages render
     "api/routes/tasks.py",  # a stored task error, re-rendered per reader
 }
 

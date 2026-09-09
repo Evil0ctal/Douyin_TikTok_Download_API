@@ -295,5 +295,5 @@ class TestDocumentation:
             assert expected in paths, f"{expected} is missing from the API"
 
     async def test_swagger_and_redoc_render(self, client):
-        assert (await client.get("/docs")).status_code == 200
+        assert (await client.get("/swagger")).status_code == 200
         assert (await client.get("/redoc")).status_code == 200

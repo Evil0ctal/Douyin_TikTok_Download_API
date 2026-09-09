@@ -346,6 +346,10 @@
         "summary": "Mint guest identities",
         "description": "Queue a minting job per identity requested."
       },
+      "identities_pool": {
+        "summary": "Pool level against its low-water mark",
+        "description": "What the background refill job compares, per platform. `usable` counts live identities whose consecutive failure streak is still under `pool.max_fail_streak` - not the row count, because an identity that fails every request stays live and would otherwise keep a dead pool looking full. Below `pool.min_size` the worker mints one identity per minute until the pool is back at `pool.target_size`. `can_mint` is false when this deployment has no browser container, in which case the marks have no effect and the pool is whatever was imported by hand."
+      },
       "identities_retire": {
         "summary": "Retire an identity",
         "description": "Retire and wipe. The statistics stay, the credential does not (doc 05)."
@@ -496,7 +500,7 @@
       "platform": "Which platform the request is addressed to: douyin or tiktok. It must match the link you pass.",
       "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy.",
       "q": "Substring of the title or description. Matched as a substring rather than by word, so it behaves the same in Chinese as in English.",
-      "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call.",
+      "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call. How long the cached answer lives depends on what was asked for and is set in the console: cache.content_ttl for one post (30 minutes by default), cache.author_ttl for a profile (15 minutes), cache.list_ttl for anything paged (5 minutes). Entries expire on their own and Redis is capped below its container limit, dropping the least recently used expiring keys before it fills, so the cache cannot grow without bound.",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid.",
       "tag": "Only posts carrying this tag.",
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",

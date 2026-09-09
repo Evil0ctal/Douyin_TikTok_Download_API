@@ -240,12 +240,20 @@ export default function EndpointAccess() {
                     {t('access.locked')}
                   </span>
                 ) : (
-                  <Switch
-                    checked={row.public}
-                    disabled={save.isPending}
-                    onChange={(event) => onToggle(row, event.target.checked)}
-                    aria-label={t('access.toggleLabel', { endpoint: row.key })}
-                  />
+                  <span className={styles.control}>
+                    {/* Named, not implied. A switch alone leaves "closed" as
+                        the absence of a signal, and the absence of a signal is
+                        how an operator reads "no check here". */}
+                    <span className={styles.state} data-open={row.public}>
+                      {row.public ? t('access.stateOpen') : t('access.stateClosed')}
+                    </span>
+                    <Switch
+                      checked={row.public}
+                      disabled={save.isPending}
+                      onChange={(event) => onToggle(row, event.target.checked)}
+                      aria-label={t('access.toggleLabel', { endpoint: row.key })}
+                    />
+                  </span>
                 )}
               </li>
             ))}

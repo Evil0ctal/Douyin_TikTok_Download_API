@@ -36,6 +36,8 @@ export const paths = {
   identities: {
     list: `${API_V1}/admin/identities`,
     mint: `${API_V1}/admin/identities/mint`,
+    /** Pool level against pool.min_size, per platform: what the refill job reads. */
+    pool: `${API_V1}/admin/identities/pool`,
     import: `${API_V1}/admin/identities/import`,
     byId: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}`,
     test: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/test`,
@@ -113,8 +115,12 @@ export const paths = {
     ready: '/readyz',
   },
   docs: {
-    /** Swagger UI is served by the api container and rendered per UI language. */
-    swagger: '/docs',
+    /**
+     * The bare Swagger UI the api container serves, rendered per UI language.
+     * Not /docs: that is this console's own reference page, so the button
+     * beside it used to open the page the reader was already on.
+     */
+    swagger: '/swagger',
     openapi: '/openapi.json',
     redoc: '/redoc',
   },

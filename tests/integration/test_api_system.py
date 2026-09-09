@@ -9,7 +9,12 @@ import pytest
 from dtk import __version__
 from dtk.core.types import IdentityState, Platform
 from tests.integration import test_api_support as support
-from tests.integration.test_api_support import envelope, error_code, signed_in
+from tests.integration.test_api_support import (
+    anonymous_client,
+    envelope,
+    error_code,
+    signed_in,
+)
 
 # Fixtures are re-exported by assignment: pytest picks them up from this
 # module's namespace, and a test parameter of the same name does not then
@@ -178,16 +183,40 @@ async def test_every_operation_documents_the_lang_parameter(client: Any) -> None
 
 
 async def test_swagger_ui_loads_the_matching_document(client: Any) -> None:
-    english = await client.get("/docs")
+    english = await client.get("/swagger")
     assert english.status_code == 200
     assert "/openapi.json?lang=en" in english.text
 
-    chinese = await client.get("/docs", params={"lang": "zh"})
+    chinese = await client.get("/swagger", params={"lang": "zh"})
     assert "/openapi.json?lang=zh" in chinese.text
 
     redoc = await client.get("/redoc", params={"lang": "zh"})
     assert redoc.status_code == 200
     assert "/openapi.json?lang=zh" in redoc.text
+
+
+async def test_docs_belongs_to_the_console_not_to_swagger(client: Any) -> None:
+    """Two pages claimed /docs and which one you got depended on how you arrived.
+
+    Client-side navigation gave the console's own reference page; a reload gave
+    the bare Swagger document, because the server route was registered first.
+    A reload is exactly what somebody does after expanding a tag, so the page
+    changed out from under them. The console owns the path now and the raw
+    document lives at /swagger, which stays reachable without a session.
+    """
+    docs = await client.get("/docs")
+
+    assert docs.status_code == 200
+    # The SPA shell, not the generated document: no swagger-ui bootstrap in it.
+    assert "SwaggerUIBundle" not in docs.text
+    assert "/openapi.json?lang=" not in docs.text
+
+
+async def test_the_raw_document_is_still_served_without_a_session(api_app: Any) -> None:
+    """The console page needs a login. A public instance's callers do not have one."""
+    async with anonymous_client(api_app) as caller:
+        for path in ("/swagger", "/redoc", "/openapi.json"):
+            assert (await caller.get(path)).status_code == 200, path
 
 
 async def test_error_messages_are_localized_while_the_code_is_not(client: Any) -> None:

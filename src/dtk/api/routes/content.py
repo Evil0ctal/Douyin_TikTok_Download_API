@@ -86,7 +86,13 @@ REFRESH_QUERY = Query(
         "identical task that is already running or recently finished, and it "
         "caches the shaped body - and this turns off both. The fresh answer is "
         "still cached. It costs an identity and an upstream request, so it is "
-        "for checking whether something changed, not for every call."
+        "for checking whether something changed, not for every call. How long "
+        "the cached answer lives depends on what was asked for and is set in "
+        "the console: cache.content_ttl for one post (30 minutes by default), "
+        "cache.author_ttl for a profile (15 minutes), cache.list_ttl for "
+        "anything paged (5 minutes). Entries expire on their own and Redis is "
+        "capped below its container limit, dropping the least recently used "
+        "expiring keys before it fills, so the cache cannot grow without bound."
     ),
 )
 IDENTITY_QUERY = Query(
@@ -403,8 +409,10 @@ async def video(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.content_ttl` (30 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -465,8 +473,10 @@ async def comments(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -530,8 +540,10 @@ async def comment_replies(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -593,8 +605,10 @@ async def user(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.author_ttl` (15 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -656,8 +670,10 @@ async def user_posts(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -724,8 +740,10 @@ async def user_likes(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -784,8 +802,10 @@ async def mix_posts(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -849,8 +869,10 @@ async def user_followers(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 
@@ -913,8 +935,10 @@ async def user_following(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
-      Costs an identity and a request.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
 
     **Returns**
 

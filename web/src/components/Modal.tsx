@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { Children, useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -62,6 +62,11 @@ export function Modal({
 
   if (!open) return null
 
+  // `children` is routinely an array of conditionals - {a}{b} where both are
+  // null - so truthiness is not the question; whether anything survives
+  // rendering is.
+  const hasBody = Children.toArray(children).length > 0
+
   return createPortal(
     <div
       className={styles.backdrop}
@@ -93,7 +98,12 @@ export function Modal({
             <CrossIcon />
           </button>
         </header>
-        <div className={styles.overlayBody}>{children}</div>
+        {/* A dialog with nothing to say renders no body at all. The header
+            draws a rule under itself and the footer draws one over itself, so
+            an empty padded div between them reads as two stray lines with a
+            gap - which is exactly what a confirm with only a title and a
+            description looked like. */}
+        {hasBody ? <div className={styles.overlayBody}>{children}</div> : null}
         {footer ? <footer className={styles.overlayFooter}>{footer}</footer> : null}
       </div>
     </div>,
