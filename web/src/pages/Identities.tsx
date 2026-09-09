@@ -15,7 +15,6 @@ import {
   Input,
   LockIcon,
   MaskedSecret,
-  MetricTile,
   Modal,
   PageHeader,
   Select,
@@ -26,7 +25,7 @@ import {
   useToast,
   type Column,
 } from '@/components'
-import { apiDelete, apiPost, waitForTask, type ApiError } from '@/lib/api'
+import { apiDelete, apiPost, apiPut, waitForTask, type ApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
 import { POLL } from '@/lib/query'
@@ -39,7 +38,7 @@ import {
   type Outcome,
   type Platform,
 } from '@/lib/types'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
+import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
 
 import styles from './identities.module.css'
 
@@ -206,6 +205,8 @@ function SessionCell({ identity }: { identity: Identity }) {
 /* Automatic refill                                                            */
 /* -------------------------------------------------------------------------- */
 
+const POOL_KEY = ['admin', 'identities', 'pool'] as const
+
 interface PoolPlatform {
   platform: string
   usable: number
@@ -236,54 +237,151 @@ interface PoolLevel {
  */
 function RefillCard() {
   const { t } = useTranslation(['console', 'common'])
+  const toast = useToast()
+  const invalidate = useInvalidate()
+  const session = useSession()
 
   const query = useApiQuery<PoolLevel>({
-    key: ['admin', 'identities', 'pool'],
+    key: POOL_KEY,
     path: paths.identities.pool,
     poll: POLL.slow,
   })
 
+  // Held as text, not as numbers: an input the operator has emptied on the way
+  // to typing "12" is not the number zero, and coercing it would fight them
+  // mid-keystroke.
+  const [draft, setDraft] = useState<{ minimum: string; target: string } | null>(null)
+
+  const save = useApiMutation<unknown, { minimum: number; target: number }>(
+    async ({ minimum, target }) => {
+      // Two settings, one button. Only what actually changed is written, so
+      // saving one number does not stamp the other with an identical value and
+      // move it from "default" to "set by hand" in the settings audit.
+      if (minimum !== query.data?.min_size) {
+        await apiPut(paths.settings.byKey('pool.min_size'), { value: minimum, confirm: false })
+      }
+      if (target !== query.data?.target_size) {
+        await apiPut(paths.settings.byKey('pool.target_size'), { value: target, confirm: false })
+      }
+      return null
+    },
+    {
+      onSuccess: () => {
+        setDraft(null)
+        void invalidate(POOL_KEY)
+        // The scheduler page renders the same two settings, so it must not be
+        // left showing the numbers this card just replaced.
+        void invalidate(['admin', 'settings'])
+        toast.success(t('console:identity.refill.saved'))
+      },
+      onError: (error) => {
+        toast.apiError(error, t('console:identity.refill.saveFailed'))
+      },
+    },
+  )
+
   if (query.isLoading) {
     return (
-      <Card title={t('console:identity.refill.title')}>
-        <Skeleton height={44} />
+      <Card flush>
+        <div className={styles.refill}>
+          <Skeleton height={20} width={280} />
+        </div>
       </Card>
     )
   }
   if (query.isError || !query.data) return null
 
   const { min_size: minimum, target_size: target, can_mint: canMint, platforms } = query.data
+  // A viewer sees the numbers and cannot change them. With no session payload
+  // the server is still the authority, so the controls show and its refusal is
+  // what explains itself - the same rule the scheduler page follows.
+  const role = session.data?.role ?? null
+  const canWrite = role === null || role !== 'viewer'
+
+  const shown = draft ?? { minimum: String(minimum), target: String(target) }
+  const parsed = { minimum: Number(shown.minimum), target: Number(shown.target) }
+  const valid =
+    Number.isInteger(parsed.minimum) &&
+    Number.isInteger(parsed.target) &&
+    parsed.minimum >= 0 &&
+    // Not merely "both are numbers": a target under the mark is a pool the
+    // filler would top up to less than it just decided was too few, so the
+    // worker clamps it - and a field that silently means something else is
+    // worse than one that will not save.
+    parsed.target >= parsed.minimum
+  const dirty =
+    draft !== null && (parsed.minimum !== minimum || parsed.target !== target) && valid
 
   return (
-    <Card
-      title={t('console:identity.refill.title')}
-      description={
-        canMint
-          ? t('console:identity.refill.description', { minimum, target })
-          : t('console:identity.refill.noBrowser')
-      }
-    >
-      <div className="u-grid-metrics">
-        {platforms.map((row) => (
-          <MetricTile
-            key={row.platform}
-            label={row.platform}
-            value={String(row.usable)}
-            footer={
-              <span className="u-xs u-muted">
-                {!canMint
+    <Card flush>
+      <div className={styles.refill}>
+        <span className={styles.refillTitle}>{t('console:identity.refill.title')}</span>
+
+        <span className={styles.refillPools}>
+          {platforms.map((row) => (
+            <span
+              key={row.platform}
+              className={styles.pool}
+              data-low={canMint && row.below_minimum}
+              title={
+                !canMint
                   ? t('console:identity.refill.manualOnly')
                   : row.minting > 0
                     ? t('console:identity.refill.minting', { count: row.minting })
                     : row.below_minimum
                       ? t('console:identity.refill.below', { minimum })
-                      : t('console:identity.refill.satisfied', { minimum })}
-              </span>
-            }
-          />
-        ))}
+                      : t('console:identity.refill.satisfied', { minimum })
+              }
+            >
+              <span className="u-mono">{row.platform}</span>
+              <b>{row.usable}</b>
+              {canMint && row.minting > 0 ? (
+                <span className="u-xs u-muted">+{row.minting}</span>
+              ) : null}
+            </span>
+          ))}
+        </span>
+
+        <span className={styles.refillSpacer} />
+
+        {canMint ? (
+          <>
+            {(['minimum', 'target'] as const).map((field) => (
+              <label key={field} className={styles.refillField}>
+                <span className="u-xs u-muted">{t(`console:identity.refill.${field}`)}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={999}
+                  inputMode="numeric"
+                  className={styles.refillInput}
+                  disabled={!canWrite || save.isPending}
+                  value={shown[field]}
+                  onChange={(event) => {
+                    setDraft({ ...shown, [field]: event.target.value })
+                  }}
+                />
+              </label>
+            ))}
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!dirty || !canWrite}
+              loading={save.isPending}
+              onClick={() => {
+                save.mutate(parsed)
+              }}
+            >
+              {t('common:action.save')}
+            </Button>
+          </>
+        ) : null}
       </div>
-      <p className="u-xs u-muted" style={{ marginTop: 'var(--space-3)', marginBottom: 0 }}>
+
+      <p className={styles.refillHint}>
+        {canMint
+          ? t('console:identity.refill.description')
+          : t('console:identity.refill.noBrowser')}{' '}
         {t('console:identity.refill.usableHint', { streak: query.data.max_fail_streak })}
       </p>
     </Card>
@@ -636,6 +734,8 @@ export default function Identities() {
         }
       />
 
+      <RefillCard />
+
       {view.unusable > 0 || showAll ? (
         <SuppressionNotice
           retired={view.retired}
@@ -653,8 +753,6 @@ export default function Identities() {
       <p className="u-xs u-muted" style={{ margin: 0 }}>
         {t('console:identity.columnsDiffer')}
       </p>
-
-      <RefillCard />
 
       <Card flush>
         <DataTable

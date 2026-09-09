@@ -336,13 +336,17 @@
     "columnsDiffer": "Credential and health measure different things. A complete credential whose requests keep failing means the jar is fine and the signature or the exit is not - which is the fastest read on this page.",
     "refill": {
       "title": "Automatic refill",
-      "description": "The worker checks each platform every minute and mints one identity at a time whenever fewer than {minimum} are usable, until {target} are. Both marks are on the Scheduler page.",
+      "description": "The worker checks each platform every minute and mints one identity at a time while fewer than the mark are usable.",
       "noBrowser": "No browser container is configured, so nothing can be minted. The pool is whatever you import by hand, and the low-water marks have no effect.",
       "below": "Below {minimum}. Minting.",
       "satisfied": "At or above {minimum}.",
       "minting": "{count, plural, one {# being minted} other {# being minted}}",
       "manualOnly": "Imported by hand",
-      "usableHint": "Usable means live with fewer than {streak} consecutive failures - not the row count, because an identity that fails every request still counts as live."
+      "usableHint": "Usable means live with fewer than {streak} consecutive failures - not the row count, because an identity that fails every request still counts as live.",
+      "minimum": "Mint below",
+      "target": "Top up to",
+      "saved": "Refill thresholds updated",
+      "saveFailed": "Could not update the refill thresholds"
     }
   },
   "proxy": {

@@ -42,3 +42,107 @@
   color: var(--text-secondary);
   white-space: nowrap;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Automatic refill                                                            */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * One strip, not a grid of tiles.
+ *
+ * It sits above everything else on the page, which is the right place for it -
+ * "is the pool topping itself up" is the question you arrive with - and that
+ * only works if it costs two lines rather than a screenful. The counts are
+ * chips instead of MetricTiles for the same reason: three numbers do not need
+ * three cards.
+ */
+.refill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.refillTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.refillPools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pool {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.pool b {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+
+/* Under the mark and minting. Coloured rather than badged: the row is a status
+   line, and a second badge style here would compete with the table below it. */
+.pool[data-low='true'] {
+  border-color: var(--caution);
+}
+
+.pool[data-low='true'] b {
+  color: var(--caution);
+}
+
+.refillSpacer {
+  flex: 1 1 auto;
+}
+
+.refillField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+/* A bare input rather than the Input component: that one stacks a label above
+   and reserves room for an error below, which is three rows of height for a
+   two-digit number. */
+.refillInput {
+  width: 4.5rem;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.refillInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.refillInput:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.refillHint {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}

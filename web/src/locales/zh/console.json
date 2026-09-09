@@ -336,13 +336,17 @@
     "columnsDiffer": "「会话凭据」和「健康度」量的不是同一件事。凭据完整但请求一直失败，说明 Cookie 没问题、是签名或出口有问题——这是本页最快的判断依据。",
     "refill": {
       "title": "自动补充",
-      "description": "worker 每分钟检查一次各平台，可用身份少于 {minimum} 个时每次锻造一个，补到 {target} 个为止。这两个阈值在调度器页面。",
+      "description": "worker 每分钟检查一次各平台，可用身份低于下限时每次锻造一个，直到补满。",
       "noBrowser": "没有配置浏览器容器，无法锻造。池子里只有手动导入的身份，两个阈值不起作用。",
       "below": "低于 {minimum}，正在补充。",
       "satisfied": "已达到 {minimum}。",
       "minting": "正在锻造 {count} 个",
       "manualOnly": "仅手动导入",
-      "usableHint": "可用指的是存活且连续失败次数少于 {streak} 次，不是行数——一个每次请求都失败的身份依然算存活。"
+      "usableHint": "可用指的是存活且连续失败次数少于 {streak} 次，不是行数——一个每次请求都失败的身份依然算存活。",
+      "minimum": "低于",
+      "target": "补到",
+      "saved": "补充阈值已更新",
+      "saveFailed": "补充阈值更新失败"
     }
   },
   "proxy": {
