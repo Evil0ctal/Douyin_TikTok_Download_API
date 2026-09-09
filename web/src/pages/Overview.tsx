@@ -17,7 +17,6 @@ import {
   TimeSeriesChart,
   type ChartSeries,
   type Column,
-  Sponsor,
 } from '@/components'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
@@ -522,13 +521,6 @@ export default function Overview() {
           }
         />
       </div>
-
-      <Card title={t('console:about.sponsor.title')} description={t('console:about.sponsor.body')}>
-        {/* On the page everyone lands on. Below the numbers rather than above
-            them: the operator opened this to see whether their instance is
-            healthy, and answering that first is what earns the look. */}
-        <Sponsor />
-      </Card>
 
       <Card title={t('console:overview.poolDistribution')} description={t('console:overview.poolHint')}>
         {system.error ? (
