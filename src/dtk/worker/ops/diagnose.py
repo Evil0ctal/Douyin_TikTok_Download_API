@@ -106,7 +106,9 @@ async def run(
         "meta": {
             "endpoint": "diagnose",
             "passed": report.passed,
+            "verdict": report.verdict,
             "failures": len(report.failures),
+            "warnings": len(report.warnings),
             "smoke_test": include_smoke,
             "duration_ms": round(
                 (report.finished_at - report.started_at).total_seconds() * 1000, 2

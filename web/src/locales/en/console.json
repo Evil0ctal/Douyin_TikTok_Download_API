@@ -686,6 +686,7 @@
     },
     "verdict": {
       "pass": "PASS",
+      "warn": "WARN",
       "fail": "FAIL"
     },
     "report": {
@@ -1121,7 +1122,8 @@
       "userAgent": "User-Agent",
       "msToken": "msToken",
       "link": "Link",
-      "proxy": "Proxy"
+      "proxy": "Proxy",
+      "cookies": "Cookie jar"
     },
     "sign": {
       "title": "Sign a platform API URL",
@@ -1138,7 +1140,11 @@
       "checkCookies": "Send a cookie jar. A correct signature with no cookies still returns an empty body, because the platform answers a session. Mint one on the next tab.",
       "signedUrl": "Signed URL",
       "added": "Parameters added ({algorithm})",
-      "userAgentEcho": "Send the request with this exact string."
+      "userAgentEcho": "Send the request with this exact string.",
+      "cookiesHint": "The jar the request will be sent with, in any paste format. Douyin signs over the visitor id inside it, so without one no signature headers are produced.",
+      "cookiesPlaceholder": "UIFID_TEMP=...; s_v_web_id=...; msToken=...",
+      "headers": "Headers the signature requires",
+      "headersHint": "Send every one of these alongside the signed query. Douyin refuses a sign-protected endpoint without them."
     },
     "parse": {
       "title": "Identify a link",

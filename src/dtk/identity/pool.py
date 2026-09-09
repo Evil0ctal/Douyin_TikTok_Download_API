@@ -70,6 +70,57 @@ _HEALTH_WINDOWS_SQL = text(
 )
 
 
+#: The same two windows, keyed by identity rather than by pool. The scheduler
+#: reads whole pools because it ranks them; the console reads the page it is
+#: about to render, which may span platforms and states.
+_HEALTH_BY_ID_SQL = text(
+    "SELECT h.identity_id, "
+    "coalesce(sum(h.total) FILTER (WHERE h.bucket >= now() - "
+    f"INTERVAL '{HEALTH_RECENT_MINUTES} minutes'), 0) AS recent_total, "
+    "coalesce(sum(h.ok) FILTER (WHERE h.bucket >= now() - "
+    f"INTERVAL '{HEALTH_RECENT_MINUTES} minutes'), 0) AS recent_ok, "
+    "coalesce(sum(h.total), 0) AS window_total, "
+    "coalesce(sum(h.risk), 0) AS window_risk "
+    "FROM identity_health_5m h "
+    "WHERE h.identity_id = ANY(:identity_ids) "
+    f"AND h.bucket >= now() - INTERVAL '{HEALTH_RISK_MINUTES} minutes' "
+    "GROUP BY h.identity_id"
+)
+
+
+async def health_inputs(
+    session: AsyncSession, identity_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, HealthInput]:
+    """The health-score inputs for named identities, for a reader rather than the ranker.
+
+    The scheduler reads one pool at a time because it ranks within one; a
+    console page is whatever the operator filtered to. Same aggregate, same
+    windows, same savepoint discipline: the view is absent without TimescaleDB,
+    and a statement that raises would poison the request's transaction.
+
+    Identities the aggregate has nothing on are simply missing from the result.
+    That is not zero health - it is no history, which the caller has to
+    distinguish, because scoring a freshly minted identity as dead would send
+    an operator hunting for a fault that is only a lack of traffic.
+    """
+    if not identity_ids:
+        return {}
+    try:
+        async with session.begin_nested():
+            rows = (
+                await session.execute(_HEALTH_BY_ID_SQL, {"identity_ids": list(identity_ids)})
+            ).all()
+    except Exception as exc:
+        log.debug(
+            "identity.health_windows_unavailable",
+            error=f"{type(exc).__name__}: {exc}"[:200],
+        )
+        return {}
+    return {
+        row[0]: HealthInput(int(row[1]), int(row[2]), int(row[3]), int(row[4]), 0) for row in rows
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class LiveIdentity:
     """A decrypted identity, ready to make a request. Never persisted."""
@@ -521,4 +572,4 @@ async def purge_retired(session: AsyncSession, *, days: int) -> int:
     return count
 
 
-__all__ = ["IdentityPool", "LiveIdentity", "purge_retired"]
+__all__ = ["IdentityPool", "LiveIdentity", "health_inputs", "purge_retired"]

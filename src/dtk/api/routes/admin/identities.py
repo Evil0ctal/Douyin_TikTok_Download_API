@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
+from dataclasses import replace
 from types import MappingProxyType
 from typing import Any, Final
 
@@ -40,8 +41,10 @@ from dtk.core.logging import get_logger
 from dtk.core.types import IdentitySource, IdentityState, Language, Platform
 from dtk.db.models import Identity
 from dtk.i18n.catalog import t
+from dtk.identity import pool
 from dtk.identity.importing import ImportReport, build_report
 from dtk.identity.pool import IdentityPool
+from dtk.scheduler.health import score
 
 log = get_logger(__name__)
 
@@ -102,11 +105,19 @@ def _session_health(platform: str, cookies: Mapping[str, str]) -> dict[str, Any]
     return {"cookie": name, "verdict": verdict, "held": bool(value)}
 
 
-def _row(identity: Identity, session: dict[str, Any] | None = None) -> dict[str, Any]:
+def _row(
+    identity: Identity,
+    session: dict[str, Any] | None = None,
+    health: float | None = None,
+) -> dict[str, Any]:
     """The console view of one identity. Never widens to the cookie column."""
     fingerprint = identity.fingerprint or {}
     return {
         "session": session or {"cookie": None, "verdict": "unknown"},
+        # None where the aggregate has no traffic for this identity. The
+        # console falls back to the failure streak there rather than drawing a
+        # number that would read as measured.
+        "health": health,
         "id": str(identity.id),
         "platform": identity.platform,
         "state": identity.state,
@@ -168,7 +179,8 @@ async def list_identities(
     **Returns**
 
     Each identity's id, platform, state, proxy, when it was minted and last
-    used, and its recent success rate.
+    used, and its health score over the last 15 and 60 minutes - `null` for an
+    identity the aggregate has no traffic for, which is not the same as zero.
     """
     stmt = select(Identity)
     if platform is not None:
@@ -190,7 +202,23 @@ async def list_identities(
             sessions.append({"cookie": None, "verdict": "unknown"})
             continue
         sessions.append(_session_health(row.platform, _parse_cookies(header)))
-    return ok(request, [_row(row, session) for row, session in zip(rows, sessions, strict=True)])
+    # The same score the scheduler ranks on, over the same two windows, so the
+    # column an operator reads and the ordering the pool actually uses cannot
+    # disagree. The streak comes from the row rather than the aggregate: it is
+    # written on every outcome, while the aggregate lags by up to one bucket.
+    windows = await pool.health_inputs(request.state.db, [row.id for row in rows])
+    health = {
+        row.id: score(replace(windows[row.id], consecutive_fails=row.consecutive_fails))
+        for row in rows
+        if row.id in windows
+    }
+    return ok(
+        request,
+        [
+            _row(row, session, health.get(row.id))
+            for row, session in zip(rows, sessions, strict=True)
+        ],
+    )
 
 
 @router.post("/mint", summary="Mint guest identities")

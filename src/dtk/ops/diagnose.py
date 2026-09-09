@@ -275,7 +275,16 @@ class StepResult:
 
     @property
     def ok(self) -> bool:
-        return self.status in (StepStatus.PASS, StepStatus.SKIP)
+        """Whether this step found nothing wrong enough to act on.
+
+        WARN counts. A warning is a step that ran, reached its answer and
+        wants an operator to know something - a pool running thin, a setting
+        left at a development default. Folding it in with FAIL made the whole
+        report read "verdict FAIL" over a note, and an operator who is told
+        their instance failed when it is serving traffic stops reading the
+        verdict at all.
+        """
+        return self.status is not StepStatus.FAIL
 
     @property
     def action_code(self) -> StepCode | None:
@@ -325,11 +334,27 @@ class DiagnosticReport:
 
     @property
     def passed(self) -> bool:
+        """No step failed. Warnings do not clear it and do not break it."""
         return all(step.ok for step in self.steps)
 
     @property
     def failures(self) -> tuple[StepResult, ...]:
         return tuple(step for step in self.steps if step.status is StepStatus.FAIL)
+
+    @property
+    def warnings(self) -> tuple[StepResult, ...]:
+        return tuple(step for step in self.steps if step.status is StepStatus.WARN)
+
+    @property
+    def verdict(self) -> str:
+        """``fail``, ``warn`` or ``pass`` - the worst status any step reached.
+
+        Three, because a run with a warning is neither of the other two, and
+        collapsing it into either one loses the reason someone ran this.
+        """
+        if self.failures:
+            return "fail"
+        return "warn" if self.warnings else "pass"
 
     def as_dict(self, language: Language | str = DEFAULT_LANGUAGE) -> dict[str, Any]:
         """The wire shape, redacted, with the prose in one language.
@@ -342,6 +367,7 @@ class DiagnosticReport:
             "started_at": self.started_at.isoformat(),
             "finished_at": self.finished_at.isoformat(),
             "passed": self.passed,
+            "verdict": self.verdict,
             "steps": [step.as_dict(language) for step in self.steps],
         }
         payload["text"] = _render_text(payload)
@@ -677,7 +703,12 @@ async def run_diagnostics(ctx: DiagnoseContext | None = None) -> DiagnosticRepor
         finished_at=datetime.now(UTC),
         steps=tuple(results),
     )
-    log.info("ops.diagnose.completed", passed=report.passed, failures=len(report.failures))
+    log.info(
+        "ops.diagnose.completed",
+        verdict=report.verdict,
+        failures=len(report.failures),
+        warnings=len(report.warnings),
+    )
     return report
 
 
@@ -760,7 +791,7 @@ def _render_text(payload: Mapping[str, Any]) -> str:
         f"dtk diagnostics {payload.get('version', '')}",
         f"started  {payload.get('started_at', '')}",
         f"finished {payload.get('finished_at', '')}",
-        f"verdict  {'PASS' if payload.get('passed') else 'FAIL'}",
+        f"verdict  {str(payload.get('verdict') or ('pass' if payload.get('passed') else 'fail')).upper()}",
         "",
     ]
     for step in payload.get("steps") or []:

@@ -17,6 +17,9 @@
     "TASK_NOT_FOUND": "No task exists with that id, or its result has already expired.",
     "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
     "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",
+    "CANCELLED": "The task was cancelled before it finished.",
+    "METHOD_NOT_ALLOWED": "That endpoint does not accept this HTTP method.",
+    "UNSUPPORTED_MEDIA_TYPE": "The request body was sent in a format this endpoint does not accept.",
     "INTERNAL": "An unexpected internal error occurred.",
     "NOT_CONFIGURED": "Not configured",
     "QUEUE_FULL": "Queue full"
@@ -38,6 +41,9 @@
     "TASK_NOT_FOUND": "Submit the request again.",
     "SETUP_ALREADY_DONE": "Sign in instead.",
     "SETUP_TOKEN_INVALID": "Restart the api container to print a fresh token in the logs.",
+    "CANCELLED": "Submit it again if you still want the result.",
+    "METHOD_NOT_ALLOWED": "Check the method against the API documentation; retrying will not help.",
+    "UNSUPPORTED_MEDIA_TYPE": "Send the body as JSON with a Content-Type of application/json.",
     "INTERNAL": "Report the issue with the request id and check the server logs.",
     "NOT_CONFIGURED": "This instance does not have that component set up. It is a deployment setting, not a temporary failure, so retrying will not help.",
     "QUEUE_FULL": "More work is queued than this instance is configured to hold. It is shedding load on purpose; raise sched.queue_max if the instance can take it, or wait for the backlog to drain."

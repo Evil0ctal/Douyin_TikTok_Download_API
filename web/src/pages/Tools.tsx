@@ -88,6 +88,7 @@ function SignForm() {
   const [url, setUrl] = useState('')
   const [userAgent, setUserAgent] = useState('')
   const [msToken, setMsToken] = useState('')
+  const [cookies, setCookies] = useState('')
 
   const sign = useApiMutation<SignResult, void>(
     () =>
@@ -96,6 +97,7 @@ function SignForm() {
         url: url.trim(),
         user_agent: userAgent.trim() || null,
         ms_token: msToken.trim() || null,
+        cookies: cookies.trim() || null,
       }),
     { onError: (error) => toast.apiError(error) },
   )
@@ -139,6 +141,19 @@ function SignForm() {
             />
           </Field>
 
+          <Field
+            id="sign-cookies"
+            label={t('tools.field.cookies')}
+            description={t('tools.sign.cookiesHint')}
+          >
+            <Textarea
+              rows={3}
+              value={cookies}
+              onChange={(event) => setCookies(event.target.value)}
+              placeholder={t('tools.sign.cookiesPlaceholder')}
+            />
+          </Field>
+
           <Button
             variant="primary"
             loading={sign.isPending}
@@ -166,6 +181,11 @@ function SignForm() {
           <Card title={t('tools.sign.added', { algorithm: sign.data.algorithm })}>
             <CodeBlock json={sign.data.params} />
           </Card>
+          {Object.keys(sign.data.headers).length > 0 && (
+            <Card title={t('tools.sign.headers')} description={t('tools.sign.headersHint')}>
+              <CodeBlock json={sign.data.headers} />
+            </Card>
+          )}
           <Card title={t('tools.field.userAgent')} description={t('tools.sign.userAgentEcho')}>
             <CodeBlock code={sign.data.user_agent} language="text" />
           </Card>

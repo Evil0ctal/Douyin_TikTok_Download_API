@@ -37,6 +37,9 @@ export const ERROR_CODES = [
   'SETUP_TOKEN_INVALID',
   'NOT_CONFIGURED',
   'QUEUE_FULL',
+  'CANCELLED',
+  'METHOD_NOT_ALLOWED',
+  'UNSUPPORTED_MEDIA_TYPE',
   'INTERNAL',
 ] as const
 
@@ -63,6 +66,9 @@ export const NON_RETRYABLE_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'UPSTREAM_CHANGED',
   'SETUP_ALREADY_DONE',
   'SETUP_TOKEN_INVALID',
+  'CANCELLED',
+  'METHOD_NOT_ALLOWED',
+  'UNSUPPORTED_MEDIA_TYPE',
 ])
 
 /**

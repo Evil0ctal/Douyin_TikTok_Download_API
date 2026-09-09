@@ -212,6 +212,54 @@ def test_the_cli_and_the_logs_stay_english() -> None:
     assert step.action == step.localized_action(Language.EN)
 
 
+def test_a_warning_alone_is_not_a_failed_run() -> None:
+    """A pool running thin is a note, not a broken instance.
+
+    Folding WARN in with FAIL made a healthy instance report "verdict FAIL"
+    and exit 1, and a verdict that cries wolf is one an operator stops reading.
+    """
+    report = _report(
+        diagnose.StepResult(number=4, step="pool", status=StepStatus.WARN, code=StepCode.POOL_BELOW_MINIMUM)
+    )
+
+    assert report.verdict == "warn"
+    assert report.passed is True
+    assert report.failures == ()
+    assert len(report.warnings) == 1
+    assert "verdict  WARN" in report.render_text()
+
+
+def test_a_failure_outranks_a_warning() -> None:
+    report = diagnose.DiagnosticReport(
+        version="5.0.0",
+        started_at=diagnose.datetime.now(diagnose.UTC),
+        finished_at=diagnose.datetime.now(diagnose.UTC),
+        steps=(
+            diagnose.StepResult(
+                number=4, step="pool", status=StepStatus.WARN, code=StepCode.POOL_BELOW_MINIMUM
+            ),
+            diagnose.StepResult(
+                number=1,
+                step="components",
+                status=StepStatus.FAIL,
+                code=StepCode.COMPONENTS_UNREACHABLE,
+            ),
+        ),
+    )
+
+    assert report.verdict == "fail"
+    assert report.passed is False
+
+
+def test_every_step_passing_is_a_pass() -> None:
+    report = _report(
+        diagnose.StepResult(number=4, step="pool", status=StepStatus.PASS, code=StepCode.POOL_OK)
+    )
+
+    assert report.verdict == "pass"
+    assert "verdict  PASS" in report.render_text()
+
+
 def test_a_stored_report_can_be_rendered_again(monkeypatch: pytest.MonkeyPatch) -> None:
     """The worker stores the report; the reader's language arrives afterwards."""
     monkeypatch.setattr(diagnose, "t", _recording_t([]))

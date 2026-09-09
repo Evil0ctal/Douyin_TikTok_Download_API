@@ -262,7 +262,15 @@ async def test_result_matches_the_diagnostic_report_interface(
 
     # web/src/pages/Diagnose.tsx reads run.data.data as the report itself.
     report = result["data"]
-    assert set(report) == {"version", "started_at", "finished_at", "passed", "steps", "text"}
+    assert set(report) == {
+        "version",
+        "started_at",
+        "finished_at",
+        "passed",
+        "verdict",
+        "steps",
+        "text",
+    }
     assert isinstance(report["text"], str)
     assert set(report["steps"][0]) == {
         "number",
@@ -287,7 +295,9 @@ async def test_result_carries_the_meta_the_worker_logs(
 
     assert result["meta"]["endpoint"] == "diagnose"
     assert result["meta"]["passed"] is False
+    assert result["meta"]["verdict"] == "fail"
     assert result["meta"]["failures"] == 1
+    assert result["meta"]["warnings"] == 0
     assert isinstance(result["meta"]["duration_ms"], float)
 
 

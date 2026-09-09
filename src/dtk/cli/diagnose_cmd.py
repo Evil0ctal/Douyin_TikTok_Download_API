@@ -108,8 +108,14 @@ def diagnose(
         report_path.write_text(report.render_text(), encoding="utf-8")
         output.info(f"text report written to {report_path}")
 
-    if not report.passed:
+    if report.failures:
         output.fail(f"{len(report.failures)} step(s) failed")
+    if report.warnings:
+        # Exit 0. A warning is something to look at, not a broken instance, and
+        # failing the command over one turns every scripted health check into a
+        # false alarm the operator learns to ignore.
+        output.warn(f"{len(report.warnings)} step(s) raised a warning")
+        return
     output.ok("all steps passed")
 
 

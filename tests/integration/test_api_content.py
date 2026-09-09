@@ -278,6 +278,33 @@ async def test_share_text_around_a_blocked_link_is_still_rejected(client: Any) -
     assert envelope(response)["error"]["details"]["reason"] == "host_not_allowed"
 
 
+async def test_parse_url_identifies_a_link_inside_share_text(client: Any) -> None:
+    """The dry-run tool has to accept what the endpoint it previews accepts.
+
+    /tools/parse-url documents "a share link, or the whole clipboard text with
+    a link in it", and answered `allowed: false` for the second one - so the
+    tool told operators their paste was unsupported while /parse fetched it.
+    """
+    await signed_in(client)
+    response = await client.get("/api/v1/tools/parse-url", params={"url": SHARE_TEXT})
+    assert response.status_code == 200, response.text
+    data = envelope(response)["data"]
+    assert data["allowed"] is True
+    assert data["platform"] == "douyin"
+    assert data["needs_expansion"] is True
+
+
+async def test_parse_url_still_refuses_a_blocked_link_inside_share_text(client: Any) -> None:
+    """Extraction widens what is recognized, never what the allowlist permits."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tools/parse-url",
+        params={"url": "look at this http://169.254.169.254/latest/meta-data/ now"},
+    )
+    assert response.status_code == 200
+    assert envelope(response)["data"]["allowed"] is False
+
+
 async def test_wait_returns_the_result_once_the_task_is_done(client: Any) -> None:
     await signed_in(client)
     submitted = await client.get("/api/v1/douyin/user", params={"url": DOUYIN_USER})

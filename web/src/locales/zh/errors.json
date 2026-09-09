@@ -17,6 +17,9 @@
     "TASK_NOT_FOUND": "任务不存在，或结果已过期。",
     "SETUP_ALREADY_DONE": "本实例已完成初始化。",
     "SETUP_TOKEN_INVALID": "初始化令牌无效或已过期。",
+    "CANCELLED": "任务在完成前已被取消。",
+    "METHOD_NOT_ALLOWED": "该接口不接受此 HTTP 方法。",
+    "UNSUPPORTED_MEDIA_TYPE": "请求体的格式不被该接口接受。",
     "INTERNAL": "服务器内部错误。",
     "NOT_CONFIGURED": "未配置",
     "QUEUE_FULL": "队列已满"
@@ -38,6 +41,9 @@
     "TASK_NOT_FOUND": "请重新提交该请求。",
     "SETUP_ALREADY_DONE": "请直接登录。",
     "SETUP_TOKEN_INVALID": "重启 api 容器可在日志中生成新的令牌。",
+    "CANCELLED": "如果仍需要结果，请重新提交。",
+    "METHOD_NOT_ALLOWED": "请对照接口文档核对请求方法，重试无济于事。",
+    "UNSUPPORTED_MEDIA_TYPE": "请以 JSON 发送请求体，并将 Content-Type 设为 application/json。",
     "INTERNAL": "请附上 request_id 反馈，并查看服务端日志。",
     "NOT_CONFIGURED": "本实例没有配置该组件。这是部署层面的设置而不是临时故障，重试不会有帮助。",
     "QUEUE_FULL": "排队的任务已超过本实例配置的上限。这是有意的过载保护；如果机器扛得住可以调高 sched.queue_max，否则等待积压消化。"

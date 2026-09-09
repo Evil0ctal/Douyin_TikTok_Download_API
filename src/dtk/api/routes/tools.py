@@ -35,11 +35,12 @@ from dtk.api.routes.support import ok
 from dtk.core.errors import InvalidParam, NotConfigured, UpstreamRiskControl
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
+from dtk.identity.importing import parse_cookies
 from dtk.identity.minting import BrowserRpcClient, BrowserRpcUnavailable
 from dtk.signing import SigningSession, native_signers
 from dtk.signing.base import RequestSpec as SigningRequest
 from dtk.signing.base import StaticFingerprint
-from dtk.urls import identify
+from dtk.urls import first_url, identify
 
 log = get_logger(__name__)
 
@@ -71,6 +72,15 @@ class SignRequest(BaseModel):
         default=None,
         max_length=512,
         description="TikTok session token to seal into the signature.",
+    )
+    cookies: str | None = Field(
+        default=None,
+        max_length=8192,
+        description=(
+            "The jar the request will be sent with, in any paste format. "
+            "Douyin's own signature is computed over the visitor id inside it, "
+            "so without it the signature headers cannot be produced."
+        ),
     )
 
 
@@ -113,11 +123,19 @@ async def sign(
       used if you omit it.
     - `ms_token` - TikTok only. Sealed into the signature, so it must be the
       token the request will carry. An invented value is worse than none.
+    - `cookies` - the jar the request will be sent with, in any paste format
+      (`Cookie:` header, DevTools JSON, Netscape). Douyin computes
+      `x-secsdk-web-signature` over the visitor id inside it, so without it
+      `headers` comes back empty and the sign-protected endpoints refuse the
+      request naming `uifid`. `/tools/identity` mints a jar that has it.
 
     **Returns**
 
     The signed query string, the parameters that were added, any headers the
     signature requires, and the User-Agent the signature was computed with.
+
+    Send `query` byte for byte - re-encoding it changes the bytes the signature
+    covers - and send every header in `headers` alongside it.
     """
     principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
     platform = body.platform
@@ -136,13 +154,31 @@ async def sign(
         name, _, value = pair.partition("=")
         params[name] = value
 
+    # The jar is an input to the signature, not decoration. Douyin's
+    # x-secsdk-web-signature is an md5 over the visitor id from these cookies,
+    # so a caller who sends none gets a_bogus and nothing else - which is what
+    # this endpoint used to do unconditionally, while its own documentation
+    # told the reader a jar was required to send the result anywhere.
+    cookies: dict[str, str] = {}
+    if body.cookies:
+        _fmt, cookies = parse_cookies(body.cookies)
+    if body.ms_token:
+        cookies["msToken"] = body.ms_token
+
     signer = native_signers()[platform]
     signed = await signer.sign(
         SigningRequest(method="GET", url=base, params=params),
         StaticFingerprint(user_agent=user_agent, browser_platform="Win32"),
-        SigningSession(cookies={"msToken": body.ms_token} if body.ms_token else {}),
+        SigningSession(cookies=cookies),
     )
-    log.info("tools.sign", platform=platform.value, algorithm=signed.algorithm.value)
+    # Never the cookie names, never their values: this is the one endpoint a
+    # caller hands a live jar to, and a log line is the easiest place to lose it.
+    log.info(
+        "tools.sign",
+        platform=platform.value,
+        algorithm=signed.algorithm.value,
+        with_cookies=bool(cookies),
+    )
     return ok(
         request,
         {
@@ -195,7 +231,17 @@ async def parse_url(
     expanding, and whether it is a supported target at all.
     """
     principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+    # The same second pass /parse makes. Both apps put a caption, a numeric
+    # code and the link on the clipboard together, and that whole string is
+    # what a paste into the console sends - so an endpoint documented as
+    # accepting "text with one inside it" has to actually look inside it. The
+    # extracted candidate goes back through identify(), which keeps the
+    # allowlist the only thing deciding what is recognized.
     kind = identify(url)
+    if not kind.allowed:
+        candidate = first_url(url)
+        if candidate is not None:
+            kind = identify(candidate)
     return ok(
         request,
         {

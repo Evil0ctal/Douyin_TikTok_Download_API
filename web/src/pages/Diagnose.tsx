@@ -60,6 +60,8 @@ interface DiagnosticReport {
   started_at: string
   finished_at: string
   passed: boolean
+  /** `pass`, `warn` or `fail`. Absent on reports stored before it existed. */
+  verdict?: 'pass' | 'warn' | 'fail' | null
   steps: ReportStep[]
   /** Present when the server renders the plain-text report for us. */
   text?: string | null
@@ -146,13 +148,20 @@ function Banner({ tone, icon, children }: { tone: 'accent' | 'caution'; icon: Re
   )
 }
 
+/** The worst status any step reached, for reports that predate the server sending it. */
+function verdictOf(report: DiagnosticReport): 'pass' | 'warn' | 'fail' {
+  if (report.verdict) return report.verdict
+  if (report.steps.some((step) => step.status === 'fail')) return 'fail'
+  return report.steps.some((step) => step.status === 'warn') ? 'warn' : 'pass'
+}
+
 /** Fallback renderer, byte-compatible with DiagnosticReport.render_text on the server. */
 function renderReport(report: DiagnosticReport): string {
   const lines = [
     `dtk diagnostics ${report.version}`,
     `started  ${report.started_at}`,
     `finished ${report.finished_at}`,
-    `verdict  ${report.passed ? 'PASS' : 'FAIL'}`,
+    `verdict  ${verdictOf(report).toUpperCase()}`,
     '',
   ]
   for (const step of report.steps) {
@@ -381,7 +390,7 @@ export default function Diagnose() {
         description={
           report
             ? t('diagnose.steps.finished', {
-                verdict: report.passed ? t('diagnose.verdict.pass') : t('diagnose.verdict.fail'),
+                verdict: t(`diagnose.verdict.${verdictOf(report)}`),
                 when: formatters.dateTime(report.finished_at),
               })
             : running
