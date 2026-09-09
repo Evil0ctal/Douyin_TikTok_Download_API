@@ -1313,7 +1313,10 @@
         "headersAdded": "这一层新增的请求头",
         "noParams": "这一层没有新增参数。",
         "preimageUnverified": "校验时该原文无法复现这个签名，因此不予展示：一个无法验证的原文会被当作算法文档来引用。"
-      }
+      },
+      "exampleLabel": "从示例开始",
+      "exampleHint": "用一个真实浏览器请求填好下面所有字段。签名参数被去掉了，因为它们正是这个工具算出来的；Cookie 的值是占位符——一份 Cookie 就是一个活的登录态。真实的可以在“身份”标签页里铸造。",
+      "loadExample": "{platform} 主页请求"
     },
     "parse": {
       "title": "识别链接",

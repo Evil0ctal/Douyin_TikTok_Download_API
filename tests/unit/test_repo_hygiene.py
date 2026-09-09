@@ -236,6 +236,36 @@ class TestConsoleHygiene:
         # platforms and undoes the contrast the pair was measured for.
         assert "--selection-text" in body
 
+    def test_the_signing_examples_carry_no_credential(self):
+        """They were built from real browser requests, which is the whole risk.
+
+        A cookie jar is a live login, and `msToken`, `uifid` and the per-visitor
+        ids are the same thing by another name. The examples exist to show the
+        SHAPE of a request - which parameters, which cookie names - so anything
+        that looks like a real value is a mistake, and one that would be
+        committed to a public repository.
+
+        Checked by name and by shape rather than against a denylist of the
+        values that happened to be pasted once: the next example will be pasted
+        from a different browser.
+        """
+        source = (WEB / "lib" / "signingExamples.ts").read_text(encoding="utf-8")
+        # Strip the comments, which legitimately name these parameters while
+        # explaining why they are absent.
+        code = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+        code = re.sub(r"^\s*//.*$", "", code, flags=re.M)
+
+        secrets = ("a_bogus", "verifyFp", "X-Gnarly", "X-Bogus", "X-Dynosaur", "odinId")
+        present = [name for name in secrets if name in code]
+        assert not present, f"signature parameters in the examples: {present}"
+
+        # Every cookie value is a placeholder. A real one is long and random;
+        # these say what they are.
+        for pair in re.findall(r"(\w+)=([A-Za-z0-9_%+./-]+)", code):
+            name, value = pair
+            if name in {"msToken", "ttwid", "odin_tt", "UIFID_TEMP", "tt_csrf_token", "uifid"}:
+                assert value.startswith("REPLACE_"), f"{name} has a real-looking value"
+
     def test_no_cjk_outside_the_chinese_locale(self):
         offenders = []
         for path in list(WEB.rglob("*.tsx")) + list(WEB.rglob("*.ts")):

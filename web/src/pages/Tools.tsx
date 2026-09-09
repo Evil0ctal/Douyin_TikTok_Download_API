@@ -22,6 +22,7 @@ import { apiGet, apiPost, isApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
 import type { SigningStage } from '@/components'
+import { SIGNING_EXAMPLES } from '@/lib/signingExamples'
 import type { Platform } from '@/lib/types'
 
 
@@ -112,10 +113,40 @@ function SignForm() {
     { onError: (error) => toast.apiError(error) },
   )
 
+  /** Fill every field from a real browser request, credentials stripped. */
+  const loadExample = (name: Platform): void => {
+    const example = SIGNING_EXAMPLES[name]
+    setPlatform(example.platform)
+    setUrl(example.url)
+    setUserAgent(example.userAgent)
+    setMsToken(example.msToken)
+    setCookies(example.cookies)
+  }
+
   return (
     <>
       <Card title={t('tools.sign.title')} description={t('tools.sign.description')}>
         <div className="u-stack">
+          {/* Above the fields, not beside the submit button: the question it
+              answers - "what does a real one of these look like" - is the one
+              somebody has before they start typing, not after. */}
+          <Field id="sign-example" label={t('tools.sign.exampleLabel')} description={t('tools.sign.exampleHint')}>
+            <div className="u-row">
+              {PLATFORMS.map((name) => (
+                <Button
+                  key={name}
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    loadExample(name)
+                  }}
+                >
+                  {t('tools.sign.loadExample', { platform: name })}
+                </Button>
+              ))}
+            </div>
+          </Field>
+
           <Field id="sign-platform" label={t('tools.field.platform')}>
             <Select value={platform} onChange={(event) => setPlatform(event.target.value as Platform)}>
               {PLATFORMS.map((name) => (

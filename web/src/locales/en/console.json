@@ -1313,7 +1313,10 @@
         "headersAdded": "Headers this layer added",
         "noParams": "This layer added no parameters.",
         "preimageUnverified": "The preimage did not reproduce this signature when it was checked, so it is not shown: an unverifiable one would be read as documentation of the algorithm."
-      }
+      },
+      "exampleLabel": "Start from an example",
+      "exampleHint": "Fills every field below from a real browser request. The signature parameters are left out because they are what this tool produces, and the cookie values are placeholders - a jar is a live login. Mint a real one on the Identity tab.",
+      "loadExample": "{platform} profile request"
     },
     "parse": {
       "title": "Identify a link",
