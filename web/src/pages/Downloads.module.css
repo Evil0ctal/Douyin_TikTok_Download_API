@@ -132,3 +132,54 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
+
+/* -------------------------------------------------------------------------- */
+/* What this page can fetch                                                    */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A tab row rather than a button per feature. Three buttons under one input
+ * were already hiding two of them, and the list is going to grow: a mode costs
+ * a row in the catalogue and no extra room on the card.
+ */
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  padding: 3px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mode {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mode:hover {
+  color: var(--text);
+}
+
+.mode[aria-selected='true'] {
+  background: var(--bg-raised);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.mode:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: -1px;
+}
+
+.startOptions {
+  margin-top: var(--space-3);
+}

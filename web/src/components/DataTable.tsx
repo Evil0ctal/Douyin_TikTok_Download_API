@@ -489,14 +489,24 @@ export function DataTable<T>({
                   {...(rowActivation(row) ?? {})}
                 >
                   {selectable ? (
-                    <td className={cn(styles.cell, styles.selectCell)}>
+                    // The guard belongs on the cell, not on the input.
+                    // `Checkbox` renders a label wrapping a visually hidden
+                    // input and a styled span, and the span is what anyone
+                    // actually clicks - so a click on it bubbled label -> td ->
+                    // tr and opened the row, while the input's own
+                    // stopPropagation only ever saw the synthetic click the
+                    // label forwards. Ticking a box is not asking to open
+                    // anything.
+                    <td
+                      className={cn(styles.cell, styles.selectCell)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                      }}
+                    >
                       <Checkbox
                         checked={selected.has(id)}
                         onChange={() => {
                           toggleRow(id)
-                        }}
-                        onClick={(event) => {
-                          event.stopPropagation()
                         }}
                         aria-label={id}
                       />

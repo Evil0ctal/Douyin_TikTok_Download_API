@@ -9,12 +9,13 @@ directories the policy chooses, not whether Go can delete a folder.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from dtk.core.db import session_scope
 from dtk.core.types import Scope
@@ -279,9 +280,14 @@ async def test_starting_one_records_the_plan_and_queues_a_task(api_app, db_engin
         assert str(row.task_id) == data["task_id"]
 
 
-async def test_two_requests_for_the_same_post_are_not_coalesced(api_app, db_engine, redis_client):
-    """The second is usually "the first did not work"; joining them would answer
-    it with the failure it was retrying."""
+async def test_a_settled_attempt_is_retried_rather_than_coalesced(api_app, db_engine, redis_client):
+    """The second request is usually "the first did not work".
+
+    Joining them onto one task would answer it with the failure it was
+    retrying, so a SETTLED attempt never blocks a new one - which is what this
+    always said. What changed is that a still-running attempt is now joined
+    instead: retrying that one cannot help and races it on the same directory.
+    """
     await archive_a_post()
     user_id = await make_user()
     key = await media_key(user_id)
@@ -291,11 +297,23 @@ async def test_two_requests_for_the_same_post_are_not_coalesced(api_app, db_engi
             json={"platform": "douyin", "content_id": CONTENT_ID},
             headers={"X-API-Key": key},
         )
+        # Settle it, the way the worker would.
+        async with session_scope() as session:
+            await session.execute(
+                update(MediaDownload)
+                .where(MediaDownload.id == uuid.UUID(envelope(first)["data"]["download_id"]))
+                .values(state="failed")
+            )
+            await session.commit()
+
         second = await caller.post(
             "/api/v1/downloads",
             json={"platform": "douyin", "content_id": CONTENT_ID},
             headers={"X-API-Key": key},
         )
+
+    assert second.status_code == 202
+    assert envelope(second)["data"]["reused"] is None
     assert envelope(first)["data"]["task_id"] != envelope(second)["data"]["task_id"]
 
 
@@ -992,3 +1010,193 @@ async def test_a_download_that_cannot_be_fetched_ends_as_failed(api_app, db_engi
         assert settled is not None
         assert settled.state == "failed"
         assert settled.error == "nothing to fetch"
+
+
+# --------------------------------------------------------------------------
+# Not downloading the same post twice at once, or twice at all
+# --------------------------------------------------------------------------
+
+
+async def test_a_download_already_in_flight_is_joined(api_app, db_engine, redis_client):
+    """Two of them write into one directory, and one loses the rename.
+
+    Measured on a live instance: three requests for one post finished within
+    10ms of each other and one came back `partial` with "rename cover.jpeg.part:
+    no such file or directory". Joining is not a preference, so no flag turns it
+    off - and it is what the caller wanted anyway, since the media they are
+    waiting for is already on its way.
+    """
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    async with anonymous_client(api_app) as caller:
+        first = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": CONTENT_ID},
+            headers={"X-API-Key": key},
+        )
+        second = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": CONTENT_ID},
+            headers={"X-API-Key": key},
+        )
+
+    assert first.status_code == 202
+    assert second.status_code == 200
+    assert envelope(second)["data"]["reused"] == "in_flight"
+    assert envelope(second)["data"]["download_id"] == envelope(first)["data"]["download_id"]
+    async with session_scope() as session:
+        assert len((await session.scalars(select(MediaDownload))).all()) == 1
+
+
+async def test_skip_existing_hands_back_what_is_already_stored(api_app, db_engine, redis_client):
+    """What re-running a feed wants: three new posts, forty already here."""
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    stored = await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": CONTENT_ID, "skip_existing": True},
+            headers={"X-API-Key": key},
+        )
+
+    assert response.status_code == 200
+    assert envelope(response)["data"]["reused"] == "already_stored"
+    assert envelope(response)["data"]["download_id"] == str(stored)
+
+
+async def test_without_the_flag_a_stored_post_is_downloaded_again(api_app, db_engine, redis_client):
+    """Re-downloading is how you refresh a post, so it stays the default."""
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": CONTENT_ID},
+            headers={"X-API-Key": key},
+        )
+
+    assert response.status_code == 202
+    assert envelope(response)["data"]["reused"] is None
+
+
+async def test_skip_existing_ignores_an_evicted_copy(api_app, db_engine, redis_client):
+    """The record is kept on purpose; the bytes are gone. There is nothing to skip."""
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC), evicted=True)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": CONTENT_ID, "skip_existing": True},
+            headers={"X-API-Key": key},
+        )
+
+    assert response.status_code == 202
+
+
+async def test_a_finished_failure_can_still_be_retried(api_app, db_engine, redis_client):
+    """ "The first one did not work" is the usual reason for a second request."""
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    await _record(
+        CONTENT_ID, directory="d/a/1", created=datetime.now(UTC), state="failed", bytes_total=0
+    )
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": CONTENT_ID, "skip_existing": True},
+            headers={"X-API-Key": key},
+        )
+
+    assert response.status_code == 202
+
+
+async def test_simultaneous_requests_cannot_both_start(api_app, db_engine, redis_client):
+    """The case the pre-check cannot catch.
+
+    Three requests arriving together all read "none in flight" before any of
+    them writes, so the check passes for all three. `ux_media_downloads_in_flight`
+    is the only place that sees all three, and the loser gets the same answer
+    the check would have given.
+
+    This is not hypothetical: three requests for one post on a live instance
+    finished within 10ms of each other and one came back `partial` with
+    "rename cover.jpeg.part: no such file or directory".
+    """
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    async with anonymous_client(api_app) as caller:
+        responses = await asyncio.gather(
+            *(
+                caller.post(
+                    "/api/v1/downloads",
+                    json={"platform": "douyin", "content_id": CONTENT_ID},
+                    headers={"X-API-Key": key},
+                )
+                for _ in range(3)
+            )
+        )
+
+    started = [r for r in responses if r.status_code == 202]
+    joined = [r for r in responses if r.status_code == 200]
+    assert len(started) == 1
+    assert len(joined) == 2
+    assert all(envelope(r)["data"]["reused"] == "in_flight" for r in joined)
+    # One download, and everyone was told about the same one.
+    ids = {envelope(r)["data"]["download_id"] for r in responses}
+    assert len(ids) == 1
+    async with session_scope() as session:
+        assert len((await session.scalars(select(MediaDownload))).all()) == 1
+
+
+async def test_a_settled_download_does_not_block_the_next_one(api_app, db_engine, redis_client):
+    """The index is partial, so only in-flight rows collide."""
+    await archive_a_post()
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    await _record(CONTENT_ID, directory="d/a/1", created=now, state="failed", bytes_total=0)
+    await _record(CONTENT_ID, directory="d/a/1", created=now, state="cancelled", bytes_total=0)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": CONTENT_ID},
+            headers={"X-API-Key": key},
+        )
+
+    assert response.status_code == 202
+
+
+async def test_two_different_posts_are_unaffected(api_app, db_engine, redis_client):
+    await archive_a_post(content_id="7000000000000000001")
+    await archive_a_post(content_id="7000000000000000002")
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    async with anonymous_client(api_app) as caller:
+        first = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": "7000000000000000001"},
+            headers={"X-API-Key": key},
+        )
+        second = await caller.post(
+            "/api/v1/downloads",
+            json={"platform": "douyin", "content_id": "7000000000000000002"},
+            headers={"X-API-Key": key},
+        )
+
+    assert first.status_code == second.status_code == 202

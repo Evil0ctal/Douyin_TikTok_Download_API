@@ -30,6 +30,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import FileResponse
+from sqlalchemy.exc import IntegrityError
 
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
@@ -118,6 +119,15 @@ async def start_download(
     - `platform`, `content_id` - the post key, if you already have it. A link
       supplies both; giving both a link and a key that disagree is refused
       rather than guessed at.
+    - `skip_existing` - hand back the download this instance already has rather
+      than fetching the post again. What re-running a feed wants: the author
+      added three posts and the other forty are on the disk already.
+
+    A download already in flight for the same post is joined whatever
+    `skip_existing` says, and that is not a preference. Two downloads of one
+    post write into one directory, and the sidecar renames `name.part` to
+    `name` as it finishes - so the loser of that race renames a file the winner
+    has already moved, and comes back `partial` with a file missing.
 
     **Returns**
 
@@ -141,18 +151,36 @@ async def start_download(
         )
 
     session = request.state.db
+
+    # Two reasons not to start a second one, and only one of them is optional.
+    live, stored = await downloads.existing_for(session, platform.value, content_id)
+    if live is not None:
+        # Never optional. Two downloads of a post write to one directory - it is
+        # keyed by platform, author and post - and the sidecar renames
+        # `name.part` to `name` on the way out, so the loser renames a file the
+        # winner has already moved and comes back `partial`. Measured here:
+        # three requests for one post finished within 10ms and one lost a cover
+        # that way. Joining is also what the caller wanted; they are waiting for
+        # this post's media, and it is already on its way.
+        return _existing(request, live, reason="in_flight")
+    if body.skip_existing and stored is not None:
+        return _existing(request, stored, reason="already_stored")
+
     row = await archive.get(session, platform.value, content_id)
     planned: list[dict[str, str]] = []
     skipped: list[str] = []
     if row is None:
         # Never seen. The worker fetches it before downloading, so there is
         # nothing to plan from yet and nothing to refuse on.
-        download = await downloads.create_pending(
-            session,
-            platform=platform.value,
-            content_id=content_id,
-            requested_by=principal.api_key_id,
-        )
+        try:
+            download = await downloads.create_pending(
+                session,
+                platform=platform.value,
+                content_id=content_id,
+                requested_by=principal.api_key_id,
+            )
+        except IntegrityError:
+            return await _joined(request, session, platform.value, content_id)
     else:
         # Planned here as well as in the worker, so a post that IS archived and
         # has nothing fetchable is a 400 the caller reads now rather than a task
@@ -165,7 +193,10 @@ async def start_download(
             )
         planned = [{"name": item.name, "kind": item.kind} for item in plan.items]
         skipped = list(plan.skipped)
-        download = await downloads.create(session, row, requested_by=principal.api_key_id)
+        try:
+            download = await downloads.create(session, row, requested_by=principal.api_key_id)
+        except IntegrityError:
+            return await _joined(request, session, platform.value, content_id)
     task_id, state = await operations.submit(
         request,
         principal,
@@ -181,7 +212,10 @@ async def start_download(
         publish=False,
     )
     download.task_id = task_id
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        return await _joined(request, session, platform.value, content_id)
     await tasks.enqueue(task_id, endpoint=operations.Maintenance.MEDIA_DOWNLOAD.value)
 
     log.info(
@@ -200,11 +234,62 @@ async def start_download(
             "directory": download.directory,
             "planned": planned,
             "skipped": skipped,
+            "reused": None,
             # False means the worker has to fetch the post before it can
             # download anything, which is a slower first response.
             "archived": row is not None,
         },
         status_code=202,
+    )
+
+
+async def _joined(request: Request, session: Any, platform: str, content_id: str) -> Any:
+    """Answer a request the in-flight index refused.
+
+    `ux_media_downloads_in_flight` fires when another request for this post got
+    there first, in the window between our check and our insert. A check cannot
+    close that window - simultaneous requests all read "none in flight" before
+    any of them writes - so the index is the guarantee and this is how it reads
+    to a caller: the same answer the check would have given.
+
+    The insert raises at the flush inside `create`, not at the commit, so this
+    is called from three places rather than wrapped once around the end.
+    """
+    await session.rollback()
+    live, _ = await downloads.existing_for(session, platform, content_id)
+    if live is None:
+        # The other request settled and cleared the way between the refusal and
+        # this lookup. Nothing to join, and pretending otherwise would hand back
+        # a download that is already over.
+        raise QueueFull(
+            "another download of this post was in flight; try again",
+            retry_after=1,
+        )
+    return _existing(request, live, reason="in_flight")
+
+
+def _existing(request: Request, download: Any, *, reason: str) -> Any:
+    """Answer with a download that already exists, saying which one and why."""
+    log.info(
+        "media.download.reused",
+        download_id=str(download.id),
+        platform=download.platform,
+        reason=reason,
+    )
+    return ok(
+        request,
+        {
+            "download_id": str(download.id),
+            "task_id": str(download.task_id) if download.task_id else None,
+            "state": download.state,
+            "directory": download.directory,
+            "planned": [],
+            "skipped": [],
+            "archived": True,
+            # 200 rather than 202: nothing was accepted for processing, and the
+            # caller is being handed something that already exists.
+            "reused": reason,
+        },
     )
 
 

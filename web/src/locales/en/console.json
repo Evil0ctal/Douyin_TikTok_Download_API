@@ -1389,16 +1389,13 @@
     },
     "start": {
       "title": "Store a post's media",
-      "description": "Paste a link or a post id. If this instance has never seen the post it fetches it first, then downloads it. A link is not a host this dials: it is matched against the platforms this build knows, and only the post id inside it is used.",
       "action": "Store",
       "sinkNote": "Files are written to the server's media volume. Nothing is fetched on demand - saving one serves the copy already on the disk, behind media:read. This is an archive on your disk, not a proxy."
     },
     "field": {
       "platform": "Platform",
       "contentId": "Content id",
-      "contentIdHint": "The post id as the archive holds it. Parse the post first if it is not there yet.",
-      "target": "Link or post id",
-      "targetHint": "A share link, the share text around one, or a bare post id. A link says which platform it is; a bare id needs the menu beside it."
+      "contentIdHint": "The post id as the archive holds it. Parse the post first if it is not there yet."
     },
     "column": {
       "content": "Post",
@@ -1420,7 +1417,11 @@
       "startFailed": "Could not start the download",
       "pinned": "Pinned; the cleanup will skip it",
       "unpinned": "Unpinned",
-      "fetchingFirst": "Fetching the post first, then downloading it"
+      "fetchingFirst": "Fetching the post first, then downloading it",
+      "reused": {
+        "in_flight": "Already downloading this post",
+        "already_stored": "Already downloaded; nothing to do"
+      }
     },
     "file": {
       "sha256": "sha256",
@@ -1449,16 +1450,13 @@
       "done": "{count, plural, one {# duplicate removed} other {# duplicates removed}}, {size} freed"
     },
     "comments": {
-      "action": "Save the comments",
-      "hint": "Reads up to {pages} pages through the identity pool and saves them as a JSON file. Comments are data rather than media, so they come to your browser, not the media volume.",
       "done": "{count, plural, one {# comment saved} other {# comments saved}}",
       "failed": "Could not save the comments"
     },
     "author": {
-      "action": "Save this author's posts",
-      "hint": "Queues a download for the author's most recent {count} posts. Paste their profile link.",
       "done": "{queued} of {posts} queued",
-      "failed": "Could not queue the author's posts"
+      "failed": "Could not queue the author's posts",
+      "doneSkipping": "{queued} of {posts} queued, {skipped} already here"
     },
     "target": {
       "unrecognised": "That is not a link this instance recognises",
@@ -1466,6 +1464,36 @@
         "video": "That is a profile link. Paste a post link, or use \"Save this author's posts\".",
         "user": "That is a post link. Paste the author's profile link instead."
       }
+    },
+    "mode": {
+      "post": {
+        "label": "A post",
+        "description": "Paste a link or a post id. If this instance has never seen the post it fetches it first, then downloads it. A link is not a host this dials: it is matched against the platforms this build knows, and only the post id inside it is used.",
+        "field": "Link or post id",
+        "hint": "A share link, the share text around one, or a bare post id. A link says which platform it is; a bare id needs the menu beside it.",
+        "placeholder": "https://www.douyin.com/video/7408915107113127220",
+        "action": "Save the media"
+      },
+      "comments": {
+        "label": "Comments",
+        "description": "Read a post's comments and save them as a JSON file. Comments are data rather than media, so they come to your browser, not to the server's media volume.",
+        "field": "Link or post id",
+        "hint": "Reads up to 5 pages of 50 through the identity pool. Each page is a real request.",
+        "placeholder": "https://www.douyin.com/video/7408915107113127220",
+        "action": "Save the comments"
+      },
+      "author": {
+        "label": "An author's posts",
+        "description": "Queue a download for everything on an author's most recent page. Paste their profile link; the platform comes from the link.",
+        "field": "Profile link",
+        "hint": "Reads one page of the author's feed - up to 20 posts - and queues a download for each. This is the control here that can spend the identity pool dozens of times from one click.",
+        "placeholder": "https://www.douyin.com/user/MS4wLjABAAAA…",
+        "action": "Queue their posts"
+      }
+    },
+    "skipExisting": {
+      "label": "Skip what is already downloaded",
+      "hint": "Hands back the copy this instance already has instead of fetching the post again. What re-running a feed wants: the author added three posts and the other forty are here already. An evicted copy does not count - there are no bytes left to skip."
     }
   },
   "library": {

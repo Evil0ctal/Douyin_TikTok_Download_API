@@ -565,6 +565,21 @@ class MediaDownload(Base):
             text("finished_at ASC"),
             postgresql_where=text("files_removed_at IS NULL AND bytes_total > 0"),
         ),
+        # At most one download of a post in flight at a time. Two write into
+        # one directory and the sidecar renames `name.part` to `name` as it
+        # finishes, so the loser renames a file the winner has already moved.
+        # The API checks before starting one and that check cannot be enough on
+        # its own - simultaneous requests all read "none in flight" before any
+        # of them writes - so the guarantee lives here, which is the only place
+        # that sees them all. Partial, so a settled download never blocks a
+        # retry.
+        Index(
+            "ux_media_downloads_in_flight",
+            "platform",
+            "content_id",
+            unique=True,
+            postgresql_where=text("state IN ('queued', 'running')"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

@@ -220,6 +220,11 @@ class DownloadRequest(Body):
     content_id: str | None = Field(default=None, min_length=1, max_length=64)
     #: A share link, or the share text with one inside it.
     url: str | None = Field(default=None, max_length=4096)
+    #: Return the existing download instead of fetching the post again, when
+    #: this instance already has its media. What a feed being re-run wants: an
+    #: author has added three posts since last time and the other forty are
+    #: already on the disk.
+    skip_existing: bool = False
 
 
 class DedupeRequest(Body):

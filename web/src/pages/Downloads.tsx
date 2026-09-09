@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Button,
   Card,
+  Checkbox,
   CopyableId,
   ConfirmDialog,
   DataTable,
@@ -58,6 +59,35 @@ function videoOf(row: DownloadRow): string | null {
   const file = row.files.find((entry) => entry.kind === 'video' && entry.state === 'done')
   return file ? paths.downloads.file(row.id, file.name) : null
 }
+
+/**
+ * What this page can fetch, as a table rather than as buttons.
+ *
+ * Three buttons under one input was already hiding two of them, and the list
+ * is going to grow. A mode is a row here: what it takes, what it does, what to
+ * call it. Adding the next one is adding an entry.
+ *
+ * `wants` is the shape of the thing pasted, and it is the only reason the
+ * modes cannot share one submit button: a post link and a profile link are
+ * different inputs, and a form that accepted either and guessed would download
+ * the wrong thing quietly.
+ */
+type DownloadMode = 'post' | 'comments' | 'author'
+
+interface ModeSpec {
+  id: DownloadMode
+  wants: 'post' | 'author'
+  /** Whether "skip what is already downloaded" means anything for this mode. */
+  skippable: boolean
+}
+
+const POST_MODE: ModeSpec = { id: 'post', wants: 'post', skippable: true }
+
+const MODES: readonly ModeSpec[] = [
+  POST_MODE,
+  { id: 'comments', wants: 'post', skippable: false },
+  { id: 'author', wants: 'author', skippable: true },
+]
 
 /** One page of comments, as the read endpoint returns it. */
 interface CommentPage {
@@ -178,6 +208,15 @@ export default function Downloads() {
   const [target, setTarget] = useState('')
   //: How many duplicates a dry run found, while the confirmation is up.
   const [deduping, setDeduping] = useState<number | null>(null)
+  const [mode, setMode] = useState<DownloadMode>('post')
+  //: Shared by every mode that can act on more than one thing, which is what
+  //: makes re-running a feed cheap: the author added three posts and the other
+  //: forty are already here.
+  const [skipExisting, setSkipExisting] = useState(true)
+
+  // Written as a lookup with a literal fallback rather than MODES[0], which
+  // TypeScript cannot prove is there and eslint will not let us assert.
+  const active = MODES.find((entry) => entry.id === mode) ?? POST_MODE
   const [stateFilter, setStateFilter] = useState<DownloadState | ''>('')
   const [inspecting, setInspecting] = useState<DownloadRow | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
@@ -215,15 +254,15 @@ export default function Downloads() {
   const looksLikeId = /^\d+$/.test(target.trim())
 
   const start = useApiMutation<
-    { download_id: string; skipped?: string[]; archived?: boolean },
+    { download_id: string; skipped?: string[]; archived?: boolean; reused?: string | null },
     void
   >(
     () =>
       apiPost(
         paths.downloads.create,
         looksLikeId
-          ? { platform, content_id: target.trim() }
-          : { url: target.trim() },
+          ? { platform, content_id: target.trim(), skip_existing: skipExisting }
+          : { url: target.trim(), skip_existing: skipExisting },
         { awaitTask: false },
       ),
     {
@@ -231,11 +270,14 @@ export default function Downloads() {
         setTarget('')
         refresh()
         toast.success(
-          // A post this instance has never seen has to be fetched before
-          // anything can be downloaded, which is a slower first result. Saying
-          // so beats a progress row that sits at "queued" for longer than the
-          // last one did.
-          result.archived === false ? t('downloads.toast.fetchingFirst') : t('downloads.toast.started'),
+          // Three outcomes worth telling apart: it is already here, it has to
+          // be fetched before it can be downloaded (a slower first result), or
+          // it started normally.
+          result.reused
+            ? t(`downloads.toast.reused.${result.reused}`)
+            : result.archived === false
+              ? t('downloads.toast.fetchingFirst')
+              : t('downloads.toast.started'),
           { description: result.skipped?.length ? result.skipped.join('; ') : undefined },
         )
       },
@@ -293,33 +335,43 @@ export default function Downloads() {
    * dozens of times from one click, and a number the operator can see beats a
    * "download everything" button whose cost is discovered afterwards.
    */
-  const saveAuthor = useApiMutation<{ queued: number; posts: number }, void>(
+  const saveAuthor = useApiMutation<{ queued: number; posts: number; skipped: number }, void>(
     async () => {
       const { platform: which, id } = await resolveTarget({ author: true })
       const feed: AuthorPage = await apiGet(`${API_V1}/${which}/user/posts`, {
         params: { sec_user_id: id, count: String(AUTHOR_PAGE_SIZE) },
       })
       let queued = 0
+      let skipped = 0
       for (const post of feed.items) {
         try {
-          await apiPost(
+          // The server decides what "already downloaded" means, so this and a
+          // single post's button cannot drift apart about it - and it also
+          // joins anything already in flight, which is what stops a feed
+          // racing itself into the same directory twice.
+          const result: { reused?: string | null } = await apiPost(
             paths.downloads.create,
-            { platform: which, content_id: post.content_id },
+            { platform: which, content_id: post.content_id, skip_existing: skipExisting },
             { awaitTask: false },
           )
-          queued += 1
+          if (result.reused) skipped += 1
+          else queued += 1
         } catch {
           // One post with nothing fetchable must not abandon the rest; the
-          // count reported at the end is what actually got queued.
+          // counts reported at the end are what actually happened.
         }
       }
-      return { queued, posts: feed.items.length }
+      return { queued, posts: feed.items.length, skipped }
     },
     {
-      onSuccess: ({ queued, posts }) => {
+      onSuccess: ({ queued, posts, skipped }) => {
         setTarget('')
         refresh()
-        toast.success(t('downloads.author.done', { queued, posts }))
+        toast.success(
+          skipped > 0
+            ? t('downloads.author.doneSkipping', { queued, posts, skipped })
+            : t('downloads.author.done', { queued, posts }),
+        )
       },
       onError: (error) => {
         toast.apiError(error, t('downloads.author.failed'))
@@ -591,27 +643,48 @@ export default function Downloads() {
         </Card>
       ) : null}
 
-      <Card title={t('downloads.start.title')} description={t('downloads.start.description')}>
-        {/* u-form-row, not u-row. `Field` stacks a label over its control and
-            a description under it, so three of them in a flex row put the
-            controls on three different lines - measured 20px apart, because
-            only the content id has a hint. The shared row hands all three a
-            subgrid so the controls land together. */}
+      <Card title={t('downloads.start.title')} description={t(`downloads.mode.${mode}.description`)}>
+        {/* Modes as a tab row, not three buttons under one input.
+            Three buttons were already hiding two of them, and the list is
+            going to grow - so what this page can fetch is a table now, and
+            adding the next thing is adding a row to it rather than another
+            button nobody notices. */}
+        <div className={styles.modes} role="tablist" aria-label={t('downloads.start.title')}>
+          {MODES.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              role="tab"
+              aria-selected={mode === entry.id}
+              className={styles.mode}
+              onClick={() => {
+                setMode(entry.id)
+              }}
+            >
+              {t(`downloads.mode.${entry.id}.label`)}
+            </button>
+          ))}
+        </div>
+
         <form
           className={cn('u-form-row', styles.startForm)}
           onSubmit={(event) => {
             event.preventDefault()
-            if (target.trim()) start.mutate()
+            if (!target.trim()) return
+            if (mode === 'post') start.mutate()
+            else if (mode === 'comments') saveComments.mutate()
+            else saveAuthor.mutate()
           }}
         >
-          {/* Only consulted for a bare id. A link says which platform it is,
-              and the API refuses one that disagrees with this rather than
-              guessing - so the menu is disabled while a link is in the box,
-              which says that without a sentence. */}
+          {/* Only consulted for a bare id, and only a post can be named by
+              one - an author is a sec_user_id, which is not digits. A link
+              says which platform it is, and the API refuses one that disagrees
+              with this rather than guessing, so the menu is disabled while a
+              link is in the box. */}
           <Field id="download-platform" label={t('downloads.field.platform')}>
             <Select
               value={platform}
-              disabled={target.trim().length > 0 && !looksLikeId}
+              disabled={active.wants === 'author' || (target.trim().length > 0 && !looksLikeId)}
               onChange={(event) => {
                 setPlatform(event.target.value as Platform)
               }}
@@ -625,8 +698,8 @@ export default function Downloads() {
           </Field>
           <Field
             id="download-content"
-            label={t('downloads.field.target')}
-            description={t('downloads.field.targetHint')}
+            label={t(`downloads.mode.${mode}.field`)}
+            description={t(`downloads.mode.${mode}.hint`)}
           >
             <Input
               value={target}
@@ -634,45 +707,34 @@ export default function Downloads() {
                 setTarget(event.target.value)
               }}
               mono
-              placeholder="https://www.douyin.com/video/7408915107113127220"
+              placeholder={t(`downloads.mode.${mode}.placeholder`)}
             />
           </Field>
           <Button
             type="submit"
             variant="primary"
-            loading={start.isPending}
+            loading={start.isPending || saveComments.isPending || saveAuthor.isPending}
             disabled={!target.trim()}
           >
-            {t('downloads.start.action')}
+            {t(`downloads.mode.${mode}.action`)}
           </Button>
         </form>
-        {/* The same box, two more things to do with it. Kept on the card
-            rather than in their own: they take the identical input and
-            splitting them up would ask somebody to paste the link twice. */}
-        <div className={styles.moreActions}>
-          <Button
-            variant="secondary"
-            loading={saveComments.isPending}
-            disabled={!target.trim()}
-            title={t('downloads.comments.hint', { pages: COMMENT_PAGES })}
-            onClick={() => {
-              saveComments.mutate()
-            }}
-          >
-            {t('downloads.comments.action')}
-          </Button>
-          <Button
-            variant="secondary"
-            loading={saveAuthor.isPending}
-            disabled={!target.trim()}
-            title={t('downloads.author.hint', { count: AUTHOR_PAGE_SIZE })}
-            onClick={() => {
-              saveAuthor.mutate()
-            }}
-          >
-            {t('downloads.author.action')}
-          </Button>
-        </div>
+
+        {/* One option, shared by every mode it means anything for. Comments are
+            saved to your browser rather than to the volume, so there is nothing
+            here for it to skip. */}
+        {active.skippable ? (
+          <div className={styles.startOptions}>
+            <Checkbox
+              checked={skipExisting}
+              onChange={(event) => {
+                setSkipExisting(event.target.checked)
+              }}
+              label={t('downloads.skipExisting.label')}
+              hint={t('downloads.skipExisting.hint')}
+            />
+          </div>
+        ) : null}
 
         <p className={styles.startNote}>{t('downloads.start.sinkNote')}</p>
       </Card>

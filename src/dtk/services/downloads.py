@@ -141,6 +141,47 @@ def pending_directory(platform: str, content_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+async def existing_for(
+    session: AsyncSession, platform: str, content_id: str
+) -> tuple[MediaDownload | None, MediaDownload | None]:
+    """The live download for this post, and the newest stored one.
+
+    Two questions with two different answers.
+
+    A LIVE one means a second request would write to the same directory at the
+    same time. Two downloads of a post share a directory - it is keyed by
+    platform, author and post - and the sidecar renames `name.part` to `name`
+    when it finishes, so the loser of that race renames a file the winner has
+    already moved. Measured on this instance: three requests for one post
+    finished within 10ms of each other and one came back `partial` with
+    "rename cover.jpeg.part: no such file or directory".
+
+    A STORED one means the bytes are already here. That is a preference rather
+    than a hazard - re-downloading is how you refresh a post - so the caller
+    decides, and the caller that wants it most is a feed being re-run for the
+    handful of posts an author has added since last time.
+    """
+    rows = (
+        (
+            await session.execute(
+                select(MediaDownload)
+                .where(
+                    MediaDownload.platform == platform,
+                    MediaDownload.content_id == content_id,
+                )
+                .order_by(MediaDownload.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    live = next((row for row in rows if row.state in LIVE_STATES), None)
+    stored = next(
+        (row for row in rows if row.state == "done" and row.files_removed_at is None), None
+    )
+    return live, stored
+
+
 async def create(
     session: AsyncSession,
     row: ArchivedContent,
@@ -163,6 +204,14 @@ async def create(
     session.add(download)
     await session.flush()
     return download
+
+
+class AlreadyInFlight(DownloadError):
+    """Another download of this post is already running.
+
+    Raised by the index rather than by a check, because a check cannot see the
+    other two requests that arrived in the same millisecond.
+    """
 
 
 async def create_pending(
@@ -783,6 +832,7 @@ __all__ = [
     "MAX_PAGE",
     "PENDING_AUTHOR",
     "TERMINAL_STATES",
+    "AlreadyInFlight",
     "DownloadError",
     "DownloadFilter",
     "Duplicate",
@@ -795,6 +845,7 @@ __all__ = [
     "create",
     "create_pending",
     "directory_of",
+    "existing_for",
     "fail",
     "find_duplicates",
     "get",
