@@ -355,6 +355,7 @@ async def submit_and_wait(
     wait: float,
     proxy: str | None = None,
     identity: str | None = None,
+    refresh: bool = False,
     coalesce: bool = True,
 ) -> JSONResponse:
     """Submit, then optionally hold the connection until the task settles.
@@ -373,16 +374,27 @@ async def submit_and_wait(
     the same reason, with more at stake: a pinned request is asking what one
     session can see, so joining it onto an unpinned task for the same post
     would answer it from whichever identity that task happened to draw.
+
+    ``refresh`` turns off both mechanisms that make a repeat call return the
+    earlier answer - the coalescing here and the response cache in the fetch
+    service - and costs an identity and an upstream request for it.
     """
-    envelope_params = {
+    envelope_params: dict[str, Any] = {
         key: value for key, value in (("proxy", proxy), ("identity", identity)) if value is not None
     }
+    if refresh:
+        # In the params so the worker sees it, and in the digest so a refreshed
+        # call cannot be handed the answer a cached one just produced.
+        envelope_params["refresh"] = True
     task_id, state = await submit(
         request,
         principal,
         endpoint=endpoint,
         params={**params, **envelope_params} if envelope_params else params,
-        coalesce=coalesce,
+        # Coalescing is the other half of "give me the same answer again": it
+        # joins an identical task already running or recently finished, and
+        # asking for a refresh is asking for neither.
+        coalesce=coalesce and not refresh,
     )
     if wait <= 0:
         return accepted(request, task_id, state)

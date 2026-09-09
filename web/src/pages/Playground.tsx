@@ -155,6 +155,19 @@ const IDENTITY_PARAM: ParamDef = {
   where: 'query',
   section: 'request',
 }
+/**
+ * Ask again for real. Two separate mechanisms make a repeat call cheap - the
+ * task layer joins an identical run that is already going or has just
+ * finished, and the fetch layer caches the shaped body - and both are correct
+ * defaults right up until the question is "has this changed since I last
+ * looked", which is the question a workbench exists to answer.
+ */
+const REFRESH_PARAM: ParamDef = {
+  name: 'refresh',
+  kind: 'boolean',
+  where: 'query',
+  section: 'request',
+}
 const SEC_UID_PARAM: ParamDef = {
   name: 'sec_user_id',
   kind: 'text',
@@ -176,8 +189,14 @@ const AWEME_ID_PARAM: ParamDef = {
   placeholder: '7300000000000000000',
 }
 
-/** The three that every read endpoint carries, in the order the API declares them. */
-const ENVELOPE_PARAMS: readonly ParamDef[] = [RAW_PARAM, WAIT_PARAM, PROXY_PARAM, IDENTITY_PARAM]
+/** The ones every read endpoint carries, in the order the API declares them. */
+const ENVELOPE_PARAMS: readonly ParamDef[] = [
+  RAW_PARAM,
+  WAIT_PARAM,
+  PROXY_PARAM,
+  IDENTITY_PARAM,
+  REFRESH_PARAM,
+]
 const PAGE_PARAMS: readonly ParamDef[] = [CURSOR_PARAM, COUNT_PARAM]
 
 const CATALOG: readonly EndpointDef[] = [
@@ -200,6 +219,7 @@ const CATALOG: readonly EndpointDef[] = [
       WAIT_PARAM,
       PROXY_PARAM,
       IDENTITY_PARAM,
+      REFRESH_PARAM,
     ],
   },
   {

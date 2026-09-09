@@ -108,6 +108,10 @@ class FetchContext:
     #: Requires `identity:manage`; see
     #: :func:`dtk.api.routes.support.resolve_request_identity`.
     identity_id: str | None = None
+    #: Ignore whatever is in the response cache and go upstream. The fresh
+    #: answer is still WRITTEN back, because "do not read the cache" and "do not
+    #: keep this" are different requests and only the first one was asked for.
+    refresh: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -374,7 +378,7 @@ class FetchService:
         # cache several other code paths can reach, for a saving that does not
         # exist - pinning is a deliberate, low-volume act.
         cacheable = cache_ttl > 0 and ctx.identity_id is None
-        hit = await cache.get(digest) if cacheable else None
+        hit = await cache.get(digest) if cacheable and not ctx.refresh else None
         if hit is not None:
             # A cache hit costs no identity quota; it is the cheapest protection
             # the pool has. It is still a request the caller made, and a Logs

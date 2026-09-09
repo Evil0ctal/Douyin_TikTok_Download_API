@@ -439,3 +439,87 @@ async def test_batch_rejects_an_oversized_request(client: Any) -> None:
     )
     assert response.status_code == 400
     assert error_code(response) == "INVALID_PARAM"
+
+
+# --------------------------------------------------------------------------
+# Asking again
+# --------------------------------------------------------------------------
+
+
+async def test_a_repeat_call_joins_the_finished_task(client: Any) -> None:
+    """The behaviour behind "I ran it twice and the second one had no data".
+
+    Coalescing onto a task that has already finished is correct and cheap - it
+    is what stops two callers paying twice for one post - but the 202 it
+    answers with is a receipt, not a result. What made it look broken was the
+    console treating that receipt as the answer; the shape below is what it has
+    to poll from.
+    """
+    await signed_in(client)
+    first = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123456789012345678"})
+    task_id = envelope(first)["data"]["task_id"]
+    await finish_task(task_id, {"data": {"title": "the real payload"}, "meta": {}})
+
+    second = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123456789012345678"})
+
+    assert second.status_code == 202
+    body = envelope(second)["data"]
+    assert body["task_id"] == task_id
+    assert body["state"] == "done"
+    # The receipt carries no result at all. Everything downstream has to know
+    # the difference between "no data key" and "data is null".
+    assert "data" not in body
+
+
+async def test_refresh_refuses_to_join_and_starts_its_own_task(client: Any) -> None:
+    await signed_in(client)
+    first = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123456789012345678"})
+    task_id = envelope(first)["data"]["task_id"]
+    await finish_task(task_id, {"data": {"title": "stale"}, "meta": {}})
+
+    refreshed = await client.get(
+        "/api/v1/douyin/video", params={"aweme_id": "7123456789012345678", "refresh": "true"}
+    )
+
+    assert envelope(refreshed)["data"]["task_id"] != task_id
+    assert envelope(refreshed)["data"]["state"] == "queued"
+
+
+async def test_refresh_reaches_the_worker_as_a_stored_parameter(client: Any) -> None:
+    """It has to survive into the task row: the response cache is bypassed in
+    the fetch service, which only ever sees what was stored."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/video", params={"aweme_id": "7123456789012345678", "refresh": "true"}
+    )
+
+    async with session_scope() as session:
+        row = await session.get(Task, uuid.UUID(envelope(response)["data"]["task_id"]))
+    assert row is not None
+    assert row.params["refresh"] is True
+
+
+async def test_two_refreshed_calls_do_not_join_each_other(client: Any) -> None:
+    """Otherwise the second refresh is served by the first one's task, which is
+    the thing refresh exists to prevent."""
+    await signed_in(client)
+    params = {"aweme_id": "7123456789012345678", "refresh": "true"}
+
+    first = await client.get("/api/v1/douyin/video", params=params)
+    second = await client.get("/api/v1/douyin/video", params=params)
+
+    assert envelope(first)["data"]["task_id"] != envelope(second)["data"]["task_id"]
+
+
+async def test_an_ordinary_call_still_joins_a_refreshed_one_it_did_not_ask_for(
+    client: Any,
+) -> None:
+    """A refreshed task is a different question, so a plain call must not be
+    handed it - and must not be handed the plain task either way round."""
+    await signed_in(client)
+    refreshed = await client.get(
+        "/api/v1/douyin/video", params={"aweme_id": "7123456789012345678", "refresh": "true"}
+    )
+    plain = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123456789012345678"})
+
+    assert envelope(plain)["data"]["task_id"] != envelope(refreshed)["data"]["task_id"]

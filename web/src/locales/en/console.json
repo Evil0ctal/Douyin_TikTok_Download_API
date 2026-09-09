@@ -976,7 +976,8 @@
       "wait": "Seconds the server may hold the connection before answering with a task id instead.",
       "proxy": "Send the upstream request through this proxy. Refused unless an administrator has enabled security.request_proxy.",
       "mix_id": "The collection's id, from a mix or playlist link.",
-      "identity": "Send as one named identity and no other. For content only that account can see. The request is never served from another identity and never from the cache."
+      "identity": "Send as one named identity and no other. For content only that account can see. The request is never served from another identity and never from the cache.",
+      "refresh": "Ignore any cached or in-flight answer and ask upstream again. Costs an identity and a real request, so use it to check whether something changed rather than on every call."
     },
     "required": "Required.",
     "oneOfRequired": "Fill in one of these.",

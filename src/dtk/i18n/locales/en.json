@@ -496,6 +496,7 @@
       "platform": "Which platform the request is addressed to: douyin or tiktok. It must match the link you pass.",
       "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy.",
       "q": "Substring of the title or description. Matched as a substring rather than by word, so it behaves the same in Chinese as in English.",
+      "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call.",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid.",
       "tag": "Only posts carrying this tag.",
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",

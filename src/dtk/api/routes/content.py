@@ -78,6 +78,17 @@ PROXY_QUERY = Query(
         "unless an administrator has enabled security.request_proxy."
     ),
 )
+REFRESH_QUERY = Query(
+    default=False,
+    description=(
+        "Ignore any cached or in-flight answer and make the request again. Two "
+        "things make a repeat return the same thing - this instance joins an "
+        "identical task that is already running or recently finished, and it "
+        "caches the shaped body - and this turns off both. The fresh answer is "
+        "still cached. It costs an identity and an upstream request, so it is "
+        "for checking whether something changed, not for every call."
+    ),
+)
 IDENTITY_QUERY = Query(
     default=None,
     max_length=36,
@@ -231,6 +242,7 @@ async def parse(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """The front door: hand it a link or the share text around one.
@@ -260,6 +272,7 @@ async def parse(
         },
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         # The platform comes from the link rather than from the path here, and
         # is None for a short link that has not been expanded yet. The pin is
         # still checked for existence and retirement; the platform check falls
@@ -281,6 +294,7 @@ async def batch(
     body: BatchRequest,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One round trip, N independent tasks.
@@ -369,6 +383,7 @@ async def video(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One post: a video, or an image album, with its author and statistics.
@@ -388,6 +403,8 @@ async def video(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -404,6 +421,7 @@ async def video(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -424,6 +442,7 @@ async def comments(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of top level comments on a post.
@@ -446,6 +465,8 @@ async def comments(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -462,6 +483,7 @@ async def comments(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -483,6 +505,7 @@ async def comment_replies(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of replies underneath a single comment.
@@ -507,6 +530,8 @@ async def comment_replies(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -530,6 +555,7 @@ async def comment_replies(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -548,6 +574,7 @@ async def user(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One author's public profile.
@@ -566,6 +593,8 @@ async def user(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -582,6 +611,7 @@ async def user(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -602,6 +632,7 @@ async def user_posts(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of an author's own posts, newest first.
@@ -625,6 +656,8 @@ async def user_posts(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -641,6 +674,7 @@ async def user_posts(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -661,6 +695,7 @@ async def user_likes(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts an author has publicly liked.
@@ -689,6 +724,8 @@ async def user_likes(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -704,6 +741,7 @@ async def user_likes(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -723,6 +761,7 @@ async def mix_posts(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts collected in a mix.
@@ -745,6 +784,8 @@ async def mix_posts(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -763,6 +804,7 @@ async def mix_posts(
         },
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -783,6 +825,7 @@ async def user_followers(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts that follow an author.
@@ -806,6 +849,8 @@ async def user_followers(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -823,6 +868,7 @@ async def user_followers(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -843,6 +889,7 @@ async def user_following(
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts an author follows.
@@ -866,6 +913,8 @@ async def user_following(
       id to poll.
     - `identity` - send the request as this identity and no other. For content
       only one account can see. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+      Costs an identity and a request.
 
     **Returns**
 
@@ -882,6 +931,7 @@ async def user_following(
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 

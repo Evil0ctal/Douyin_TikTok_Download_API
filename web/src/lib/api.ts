@@ -585,14 +585,26 @@ export async function waitForTask<T>(
   for (;;) {
     if (task) {
       options.onState?.(task)
-      if (task.state === 'done') return (task.data ?? null) as T
+      // `data` has to be PRESENT, not merely non-null. The 202 that starts this
+      // is a submission receipt - {task_id, state} and nothing else - and when
+      // a request coalesces onto a task that has already finished, that receipt
+      // says `done` while carrying no result at all. Returning `task.data ??
+      // null` on it handed the caller null and the playground rendered
+      // "finished" over an empty panel. A genuinely null result is a different
+      // thing and still returns immediately, because the task endpoint always
+      // includes the key.
+      if (task.state === 'done' && 'data' in task) return (task.data ?? null) as T
       if (task.state === 'failed') {
-        throw task.error
-          ? toApiError(task.error, 200, taskId)
-          : ApiError.localized('INTERNAL', 'common:task.failed', {
-              messageArgs: { taskId },
-              details: { task_id: taskId },
-            })
+        // Same rule on this side: a receipt saying `failed` carries no reason,
+        // and "the task failed" with no code is a worse answer than one more
+        // round trip. Only a body that actually has the key is terminal.
+        if (task.error) throw toApiError(task.error, 200, taskId)
+        if ('error' in task) {
+          throw ApiError.localized('INTERNAL', 'common:task.failed', {
+            messageArgs: { taskId },
+            details: { task_id: taskId },
+          })
+        }
       }
     }
 

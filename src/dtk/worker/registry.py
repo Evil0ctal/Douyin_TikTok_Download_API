@@ -147,6 +147,9 @@ ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
         # HOW the call is made and is never a parameter of the call itself.
         "identity",
         "include_raw",
+        # "go upstream even if the answer is already cached". Like the others
+        # here it decides HOW the call is made, never what is asked for.
+        "refresh",
         "lang",
         "language",
         "platform",

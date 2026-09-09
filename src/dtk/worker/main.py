@@ -549,6 +549,7 @@ class TaskWorker:
             # between submission and execution, and refuses rather than
             # substituting.
             identity_id=run.params.get("identity") or None,
+            refresh=bool(run.params.get("refresh")),
         )
 
         async with self._session_factory() as session:

@@ -822,3 +822,82 @@ class TestCacheKeyDiscriminators:
         first = cache.cache_key(ENDPOINT, {"aweme_id": "7123"}, egress="http://a:1")
         second = cache.cache_key(ENDPOINT, {"aweme_id": "7123"}, egress="http://a:1")
         assert first == second
+
+
+class TestRefresh:
+    """``refresh=true``: do not read the cache, do write it.
+
+    The two halves are separate requests. "Give me a fresh answer" is what the
+    caller asked for; "and throw it away afterwards" is not, and honouring the
+    second would make every refreshed call a permanent cache miss for everybody
+    who follows.
+    """
+
+    @pytest.fixture
+    def store(self, monkeypatch):
+        """A cache that answers, and records what it was asked."""
+        entries: dict[str, dict[str, Any]] = {}
+        reads: list[str] = []
+        writes: list[str] = []
+
+        async def fake_get(digest: str):
+            reads.append(digest)
+            return entries.get(digest)
+
+        async def fake_put(digest: str, payload: dict[str, Any], ttl: int) -> None:
+            writes.append(digest)
+            entries[digest] = payload
+
+        monkeypatch.setattr(cache, "get", fake_get)
+        monkeypatch.setattr(cache, "put", fake_put)
+        return SimpleNamespace(entries=entries, reads=reads, writes=writes)
+
+    async def test_a_second_plain_call_is_served_from_the_cache(self, store):
+        svc = service(response(200, {"aweme_detail": {"aweme_id": "7123"}}))
+
+        first = await run_fetch(svc, FakeSession(), cache_ttl=60)
+        second = await run_fetch(svc, FakeSession(), cache_ttl=60)
+
+        assert first.cached is False
+        assert second.cached is True
+        assert len(store.reads) == 2
+
+    async def test_refresh_does_not_read_the_cache(self, store):
+        svc = service(response(200, {"aweme_detail": {"aweme_id": "7123"}}))
+        await run_fetch(svc, FakeSession(), cache_ttl=60)
+        store.reads.clear()
+
+        again = await run_fetch(svc, FakeSession(), cache_ttl=60, ctx=FetchContext(refresh=True))
+
+        assert again.cached is False
+        assert store.reads == []
+
+    async def test_refresh_still_writes_what_it_found(self, store):
+        svc = service(response(200, {"aweme_detail": {"aweme_id": "7123"}}))
+
+        await run_fetch(svc, FakeSession(), cache_ttl=60, ctx=FetchContext(refresh=True))
+        after = await run_fetch(svc, FakeSession(), cache_ttl=60)
+
+        assert store.writes  # the refreshed answer went in
+        assert after.cached is True  # and the next plain caller got it
+
+    async def test_refresh_spends_an_identity(self, store):
+        """The point of the flag: it costs a real upstream request."""
+        scheduler = FakeScheduler()
+        svc = service(response(200, {"aweme_detail": {"aweme_id": "7123"}}), scheduler=scheduler)
+        await run_fetch(svc, FakeSession(), cache_ttl=60)
+        spent = len(scheduler.asked_for)
+
+        await run_fetch(svc, FakeSession(), cache_ttl=60)  # cached: costs nothing
+        assert len(scheduler.asked_for) == spent
+
+        await run_fetch(svc, FakeSession(), cache_ttl=60, ctx=FetchContext(refresh=True))
+        assert len(scheduler.asked_for) == spent + 1
+
+    async def test_an_uncacheable_endpoint_is_unaffected(self, store):
+        """cache_ttl=0 never touched the cache, with or without the flag."""
+        svc = service(response(200, {"aweme_detail": {"aweme_id": "7123"}}))
+
+        await run_fetch(svc, FakeSession(), ctx=FetchContext(refresh=True))
+
+        assert store.reads == [] and store.writes == []
