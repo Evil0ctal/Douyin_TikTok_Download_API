@@ -1418,7 +1418,8 @@
       "music": "音乐",
       "location": "位置",
       "openOnPlatform": "在平台上打开",
-      "goneHint": "这个作品在平台上已经没有了。这里保留的是本实例当时看到的样子。"
+      "goneHint": "这个作品在平台上已经没有了。这里保留的是本实例当时看到的样子。",
+      "savedNoVideo": "这个作品的媒体已保存，但没有视频文件——图集类作品保存的是图片。"
     },
     "page": {
       "previous": "上一页",
@@ -1430,7 +1431,7 @@
       "description": "作品会在被解析时自动归档。用解析工具或接口解析一个作品，它就会出现在这里。"
     },
     "toast": {
-      "stored": "已开始下载",
+      "stored": "已开始保存。完成后会出现在「下载」列表里，这里也会出现播放器。",
       "storeFailed": "无法开始下载",
       "exported": "{count, plural, other {已导出 # 条}}",
       "exportFailed": "导出失败",
@@ -1459,7 +1460,26 @@
     "recheck": "重新检查",
     "recheckHint": "验证最久没检查过的作品是否还在平台上。每个都是一次真实请求，所以在后台运行。",
     "backfill": "回溯这位作者的历史",
-    "backfillHint": "翻过第一页，把这位作者的历史作品全部归档。"
+    "backfillHint": "翻过第一页，把这位作者的历史作品全部归档。",
+    "view": {
+      "label": "视图",
+      "grid": "封面",
+      "table": "表格"
+    },
+    "group": {
+      "label": "分组方式",
+      "none": "不分组",
+      "author": "按作者",
+      "saved": "按保存日期",
+      "unsaved": "未保存到本地",
+      "count": "{count} 个作品"
+    },
+    "card": {
+      "noCover": "没有封面",
+      "savedHint": "已存在本实例磁盘上"
+    },
+    "storeAgain": "已保存 · 重新抓取",
+    "storedHint": "已经在本实例磁盘上，{size}。重新抓取会用新的一份替换它。"
   },
   "watchlist": {
     "title": "关注列表",

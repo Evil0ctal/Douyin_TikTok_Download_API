@@ -71,3 +71,145 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Cover grid                                                                   */
+/*                                                                              */
+/* Modelled on the platform's own profile page, because that is the shape the   */
+/* material already has: a portrait cover, the caption under it, and the counts */
+/* on top of it. The list view is kept for the questions a grid cannot answer   */
+/* - sort by duration, scan availability down a column - but a wall of posts is */
+/* what an archive of posts looks like.                                         */
+/* -------------------------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--space-4);
+}
+
+.groupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text);
+}
+
+.groupCount {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--weight-normal);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card:hover .thumb,
+.card:focus-visible .thumb {
+  border-color: var(--border-strong);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 3:4, which is what both platforms shoot and what their own grids use. */
+.thumb {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Shown when there is no local cover: a remote one may be an expired CDN link,
+ * and a broken image icon is worse than saying so. */
+.thumbEmpty {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.badges {
+  position: absolute;
+  inset-inline: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-base) 78%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.cardTitle {
+  font-size: var(--text-xs);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Player                                                                       */
+/* -------------------------------------------------------------------------- */
+
+/* Only ever pointed at /downloads/{id}/files/{name}: the bytes are local, so
+ * there is no CDN link to expire and no third party told what is being watched. */
+.player {
+  width: 100%;
+  max-height: 60vh;
+  border-radius: var(--radius);
+  background: var(--bg-base);
+  display: block;
+}

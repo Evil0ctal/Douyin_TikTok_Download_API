@@ -5,12 +5,16 @@ import {
   Button,
   Card,
   DataTable,
+  DownloadIcon,
   Drawer,
   EmptyState,
+  ErrorState,
   Input,
   MetricTile,
   PageHeader,
+  PlayIcon,
   Select,
+  Skeleton,
   type Column,
   useToast,
 } from '@/components'
@@ -70,6 +74,30 @@ interface ArchivedRow {
   availability: string
   first_seen_at: string
   last_seen_at: string
+  /**
+   * What this instance has on its own disk for the post, or null. Null also
+   * when the caller lacks `media:read` - the archive and the volume are
+   * separate scopes on purpose.
+   */
+  stored: StoredMedia | null
+}
+
+type ViewMode = 'grid' | 'table'
+
+/**
+ * How the wall is broken up. Author is the platform's own grouping and the one
+ * an operator thinks in; "saved" groups by when this instance stored the media,
+ * which is the question "what did I pull down last night".
+ */
+type GroupBy = 'none' | 'author' | 'saved'
+
+interface StoredMedia {
+  download_id: string
+  bytes_total: number
+  /** File names, as `GET /downloads/{id}/files/{name}` takes them. */
+  video: string | null
+  cover: string | null
+  images: string[]
 }
 
 interface ArchivePage {
@@ -93,6 +121,9 @@ interface Filters {
   q: string
 }
 
+/** How long a small download usually takes to land, measured on a 9MB post. */
+const STORE_SETTLE_MS = 4000
+
 const NO_FILTERS: Filters = { platform: '', kind: '', duration_bucket: '', availability: '', q: '' }
 
 function queryOf(filters: Filters, cursor: string | null): Record<string, string> {
@@ -115,6 +146,12 @@ export default function Library() {
   const [trail, setTrail] = useState<Array<string | null>>([null])
   const [page, setPage] = useState(0)
   const [inspecting, setInspecting] = useState<ArchivedRow | null>(null)
+  // Covers by default: an archive of posts looks like a wall of posts, and the
+  // material for it - title, cover, author, duration - is already on the row.
+  // The table stays for the questions a grid cannot answer, like sorting by
+  // duration or scanning availability down a column.
+  const [view, setView] = useState<ViewMode>('grid')
+  const [groupBy, setGroupBy] = useState<GroupBy>('none')
 
   const cursor = trail[page] ?? null
 
@@ -145,6 +182,19 @@ export default function Library() {
     {
       onSuccess: () => {
         void invalidate(['downloads'])
+        // The archive list too, because it is what carries `stored` - without
+        // this the card never learned it had been saved, and a click produced
+        // a toast over a page identical to the one before it.
+        void invalidate(['archive'])
+        // Downloading is a queued task, so the row is not stored yet when the
+        // submission returns. One follow-up refresh covers the ordinary case;
+        // a large video lands later and the next poll or navigation picks it
+        // up, which is why the toast says where to look rather than promising
+        // it is already there.
+        window.setTimeout(() => {
+          void invalidate(['archive'])
+          void invalidate(['downloads'])
+        }, STORE_SETTLE_MS)
         toast.success(t('library.toast.stored'))
       },
       onError: (error) => {
@@ -212,6 +262,31 @@ export default function Library() {
       },
     },
   )
+
+  const items = useMemo(() => list.data?.items ?? [], [list.data])
+
+  /**
+   * Sections for the grid. "saved" buckets by the day this instance stored the
+   * media rather than by when the platform published it - the question it
+   * answers is "what did I pull down last night", and a post from 2023 saved
+   * this morning belongs in this morning.
+   */
+  const groups = useMemo(() => {
+    if (groupBy === 'none') return [{ key: 'all', label: null, rows: items }]
+    const buckets = new Map<string, { label: string; rows: ArchivedRow[] }>()
+    for (const row of items) {
+      const [key, label] =
+        groupBy === 'author'
+          ? [row.author.uid || 'unknown', row.author.nickname || row.author.uid || '—']
+          : row.stored
+            ? [row.last_seen_at.slice(0, 10), row.last_seen_at.slice(0, 10)]
+            : ['unsaved', t('library.group.unsaved')]
+      const bucket = buckets.get(key)
+      if (bucket) bucket.rows.push(row)
+      else buckets.set(key, { label, rows: [row] })
+    }
+    return [...buckets.entries()].map(([key, value]) => ({ key, ...value }))
+  }, [items, groupBy, t])
 
   const columns: Array<Column<ArchivedRow>> = useMemo(
     () => [
@@ -442,20 +517,97 @@ export default function Library() {
         <p className="u-xs u-muted">{t('library.filter.searchHint')}</p>
       </Card>
 
-      <DataTable
-        columns={columns}
-        rows={list.data?.items}
-        getRowId={(row) => `${row.platform}:${row.content_id}`}
-        loading={list.isLoading}
-        error={list.error}
-        onRetry={() => {
-          void list.refetch()
-        }}
-        onRowClick={setInspecting}
-        storageKey="library"
-        emptyTitle={t('library.empty.title')}
-        emptyDescription={t('library.empty.description')}
-      />
+      <div className="u-row-between u-wrap">
+        <div className="u-row" role="tablist" aria-label={t('library.view.label')}>
+          {(['grid', 'table'] as const).map((mode) => (
+            <Button
+              key={mode}
+              size="sm"
+              role="tab"
+              aria-selected={view === mode}
+              variant={view === mode ? 'secondary' : 'ghost'}
+              onClick={() => {
+                setView(mode)
+              }}
+            >
+              {t(`library.view.${mode}`)}
+            </Button>
+          ))}
+        </div>
+        {view === 'grid' ? (
+          <Select
+            aria-label={t('library.group.label')}
+            value={groupBy}
+            onChange={(event) => {
+              setGroupBy(event.target.value as GroupBy)
+            }}
+            options={(['none', 'author', 'saved'] as const).map((value) => ({
+              value,
+              label: t(`library.group.${value}`),
+            }))}
+            style={{ width: '190px' }}
+          />
+        ) : null}
+      </div>
+
+      {view === 'table' ? (
+        <DataTable
+          columns={columns}
+          rows={items}
+          getRowId={(row) => `${row.platform}:${row.content_id}`}
+          loading={list.isLoading}
+          error={list.error}
+          onRetry={() => {
+            void list.refetch()
+          }}
+          onRowClick={setInspecting}
+          storageKey="library"
+          emptyTitle={t('library.empty.title')}
+          emptyDescription={t('library.empty.description')}
+        />
+      ) : list.isLoading ? (
+        <div className={styles.grid}>
+          {Array.from({ length: 12 }, (_, index) => (
+            <Skeleton key={index} height={230} />
+          ))}
+        </div>
+      ) : list.error ? (
+        <ErrorState
+          error={list.error}
+          onRetry={() => {
+            void list.refetch()
+          }}
+        />
+      ) : items.length === 0 ? (
+        <Card>
+          <EmptyState
+            title={t('library.empty.title')}
+            description={t('library.empty.description')}
+          />
+        </Card>
+      ) : (
+        groups.map((group) => (
+          <div key={group.key} className="u-stack">
+            {group.label ? (
+              <h2 className={styles.groupTitle}>
+                {group.label}
+                <span className={styles.groupCount}>
+                  {t('library.group.count', { count: group.rows.length })}
+                </span>
+              </h2>
+            ) : null}
+            <div className={styles.grid}>
+              {group.rows.map((row) => (
+                <CoverCard
+                  key={`${row.platform}:${row.content_id}`}
+                  row={row}
+                  onOpen={setInspecting}
+                />
+              ))}
+            </div>
+          </div>
+        ))
+      )}
 
       {(page > 0 || list.data?.has_more) && (
         <div className="u-row-between">
@@ -504,14 +656,26 @@ export default function Library() {
               >
                 {t('library.backfill')}
               </Button>
+              {/* The button that said nothing. Saving a post fired a toast and
+                  left a page that looked exactly as it had a second earlier,
+                  which reads as the click not having registered. It now says
+                  what is already on the disk, and offers to fetch it again
+                  rather than pretending the post has never been saved. */}
               <Button
-                variant="primary"
+                variant={inspecting.stored ? 'secondary' : 'primary'}
                 loading={store.isPending}
+                title={
+                  inspecting.stored
+                    ? t('library.storedHint', {
+                        size: formatters.bytes(inspecting.stored.bytes_total),
+                      })
+                    : undefined
+                }
                 onClick={() => {
                   store.mutate(inspecting)
                 }}
               >
-                {t('library.storeMedia')}
+                {inspecting.stored ? t('library.storeAgain') : t('library.storeMedia')}
               </Button>
             </>
           ) : undefined
@@ -531,9 +695,76 @@ export default function Library() {
  * from the stored payload if a rule changes. Showing it is how someone can
  * tell that "long" means a duration bucket and not a judgement.
  */
+/**
+ * One post as a cover tile.
+ *
+ * The cover comes from the disk when the post has been saved and from the
+ * platform otherwise, and that order matters: an archived `cover_url` is a CDN
+ * link that expires and may be hotlink-protected, so the copy this instance
+ * kept is the one that still renders a year later. With neither, the tile says
+ * so rather than showing a broken image.
+ */
+function CoverCard({
+  row,
+  onOpen,
+}: {
+  row: ArchivedRow
+  onOpen: (row: ArchivedRow) => void
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const formatters = useFormatters()
+  const local = row.stored?.cover
+    ? paths.downloads.file(row.stored.download_id, row.stored.cover)
+    : null
+  const cover = local ?? row.cover_url
+
+  return (
+    <button type="button" className={styles.card} onClick={() => onOpen(row)}>
+      <span className={styles.thumb}>
+        {cover ? (
+          <img src={cover} alt="" loading="lazy" />
+        ) : (
+          <span className={styles.thumbEmpty}>{t('library.card.noCover')}</span>
+        )}
+        <span className={styles.badges}>
+          <span className={styles.chip}>
+            {row.duration_ms ? formatters.duration(row.duration_ms) : row.kind}
+          </span>
+          {row.stored ? (
+            <span className={styles.chip} title={t('library.card.savedHint')}>
+              {row.stored.video ? <PlayIcon size={10} /> : <DownloadIcon size={10} />}
+              {formatters.bytes(row.stored.bytes_total)}
+            </span>
+          ) : null}
+        </span>
+      </span>
+      <span className={styles.cardTitle}>{row.title || t('library.untitled')}</span>
+      <span className={styles.cardMeta}>
+        <span className="u-truncate">{row.author.nickname || row.author.uid}</span>
+        <span className="u-mono">{row.platform}</span>
+      </span>
+    </button>
+  )
+}
+
+
 function Detail({ row }: { row: ArchivedRow }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
+
+  /**
+   * Played from this instance's own disk, never from the platform. The source
+   * is `/downloads/{id}/files/{name}`, so there is no CDN link to expire, no
+   * hotlink check to fail, and nobody outside this machine is told what is
+   * being watched. `preload="metadata"` because a 240MB video should not start
+   * transferring just because a drawer opened.
+   */
+  const video = row.stored?.video
+    ? paths.downloads.file(row.stored.download_id, row.stored.video)
+    : null
+  const poster = row.stored?.cover
+    ? paths.downloads.file(row.stored.download_id, row.stored.cover)
+    : (row.cover_url ?? undefined)
 
   const facts: Array<[string, string]> = [
     [t('library.detail.author'), row.author.nickname || row.author.uid],
@@ -572,6 +803,12 @@ function Detail({ row }: { row: ArchivedRow }) {
 
   return (
     <div className="u-stack">
+      {video ? (
+        <video className={styles.player} src={video} poster={poster} controls preload="metadata" />
+      ) : row.stored ? (
+        <p className="u-xs u-muted">{t('library.detail.savedNoVideo')}</p>
+      ) : null}
+
       {row.description ? <p className={styles.description}>{row.description}</p> : null}
 
       <dl className={styles.facts}>

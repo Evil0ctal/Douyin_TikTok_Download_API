@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.logging import get_logger
@@ -313,6 +313,59 @@ async def search(
     return list(rows), total
 
 
+async def stored_for(
+    session: AsyncSession, keys: Sequence[tuple[str, str]]
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Which of these posts have media on the volume, in one query.
+
+    The library lists archived posts and had no way to know which of them this
+    instance had already stored - so saving one produced a toast and then a page
+    that looked exactly as it had a second earlier, which reads as nothing
+    having happened. It is also what lets the grid use the downloaded cover
+    rather than the platform's: an archived `cover_url` is a CDN link that
+    expires, and the copy on disk does not.
+
+    Keyed by (platform, content_id) because that is what the archive has; the
+    newest live download per key wins, since re-downloading a post leaves the
+    older rows behind.
+    """
+    if not keys:
+        return {}
+    rows = (
+        (
+            await session.execute(
+                select(MediaDownload)
+                .where(
+                    tuple_(MediaDownload.platform, MediaDownload.content_id).in_(list(keys)),
+                    MediaDownload.files_removed_at.is_(None),
+                    MediaDownload.state == "done",
+                )
+                .order_by(MediaDownload.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    found: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        key = (row.platform, row.content_id)
+        if key in found:
+            continue
+        files = [_file_row(item) for item in (row.files or [])]
+        found[key] = {
+            "download_id": str(row.id),
+            "bytes_total": int(row.bytes_total or 0),
+            "video": next(
+                (f["name"] for f in files if f["kind"] == "video" and f["state"] == "done"), None
+            ),
+            "cover": next(
+                (f["name"] for f in files if f["kind"] == "cover" and f["state"] == "done"), None
+            ),
+            "images": [f["name"] for f in files if f["kind"] == "image" and f["state"] == "done"],
+        }
+    return found
+
+
 async def stats(session: AsyncSession) -> dict[str, Any]:
     """Totals for the console's storage panel.
 
@@ -522,4 +575,5 @@ __all__ = [
     "search",
     "set_pinned",
     "stats",
+    "stored_for",
 ]

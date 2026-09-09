@@ -433,6 +433,15 @@ export function DownloadIcon(props: IconProps) {
   )
 }
 
+/** Filled, unlike its neighbours: a hollow triangle at 10px reads as a chevron. */
+export function PlayIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 3.5v9l7.5-4.5z" fill="currentColor" />
+    </Svg>
+  )
+}
+
 export function BookIcon(props: IconProps) {
   return (
     <Svg {...props}>

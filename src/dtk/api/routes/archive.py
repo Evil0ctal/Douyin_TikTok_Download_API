@@ -35,7 +35,7 @@ from dtk.core.errors import NotFound
 from dtk.core.logging import get_logger
 from dtk.core.types import Availability, ContentKind, DurationBucket, Platform, Scope
 from dtk.db.models import ArchivedContent
-from dtk.services import archive
+from dtk.services import archive, downloads
 
 log = get_logger(__name__)
 
@@ -93,8 +93,20 @@ def _filter(
     )
 
 
-def _row(content: ArchivedContent, *, include_media: bool = True) -> dict[str, Any]:
-    """One archived post, shaped the way the API's own content records are."""
+def _row(
+    content: ArchivedContent,
+    *,
+    include_media: bool = True,
+    stored: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """One archived post, shaped the way the API's own content records are.
+
+    ``stored`` is what this instance has on its own disk for the post, or None.
+    It is not part of the archive - the archive is what was seen, the download
+    is what was kept - but a reader looking at a list of posts wants to know
+    which of them they already have, and the console cannot answer that without
+    it. The names it carries are what `GET /downloads/{id}/files/{name}` takes.
+    """
     payload: dict[str, Any] = {
         "platform": content.platform,
         "content_id": content.content_id,
@@ -123,6 +135,7 @@ def _row(content: ArchivedContent, *, include_media: bool = True) -> dict[str, A
     }
     if include_media:
         payload["media"] = content.media
+    payload["stored"] = stored
     return payload
 
 
@@ -165,10 +178,19 @@ async def list_archive(
     rows, next_cursor = await archive.search(
         request.state.db, spec, limit=limit or archive.DEFAULT_PAGE, cursor=cursor
     )
+    # One query for the whole page rather than one per row: the console renders
+    # this as a grid of covers and asks the same question of every card.
+    stored = (
+        await downloads.stored_for(
+            request.state.db, [(row.platform, row.content_id) for row in rows]
+        )
+        if principal.permits(Scope.MEDIA_READ, Scope.ADMIN)
+        else {}
+    )
     return ok(
         request,
         {
-            "items": [_row(row) for row in rows],
+            "items": [_row(row, stored=stored.get((row.platform, row.content_id))) for row in rows],
             "cursor": next_cursor,
             "has_more": bool(next_cursor),
         },

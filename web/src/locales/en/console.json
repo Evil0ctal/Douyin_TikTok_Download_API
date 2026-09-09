@@ -1418,7 +1418,8 @@
       "music": "Music",
       "location": "Location",
       "openOnPlatform": "Open on the platform",
-      "goneHint": "This post is no longer available on the platform. What is here is what this instance saw while it still was."
+      "goneHint": "This post is no longer available on the platform. What is here is what this instance saw while it still was.",
+      "savedNoVideo": "The media for this post is stored, but it has no video file - an image post keeps its pictures instead."
     },
     "page": {
       "previous": "Previous",
@@ -1430,7 +1431,7 @@
       "description": "Posts are archived automatically as they are parsed. Parse one from the parse tool or the API and it will appear here."
     },
     "toast": {
-      "stored": "Download started",
+      "stored": "Saving started. The row appears under Downloads and the player here once it lands.",
       "storeFailed": "Could not start the download",
       "exported": "{count, plural, one {Exported # post} other {Exported # posts}}",
       "exportFailed": "Export failed",
@@ -1459,7 +1460,26 @@
     "recheck": "Re-check",
     "recheckHint": "Verify that the oldest-unchecked posts are still on the platform. Each is a real request, so it runs in the background.",
     "backfill": "Archive their history",
-    "backfillHint": "Walk this author's posts past the first page and archive every one."
+    "backfillHint": "Walk this author's posts past the first page and archive every one.",
+    "view": {
+      "label": "View",
+      "grid": "Covers",
+      "table": "Table"
+    },
+    "group": {
+      "label": "Group by",
+      "none": "No grouping",
+      "author": "By author",
+      "saved": "By the day it was saved",
+      "unsaved": "Not saved to disk",
+      "count": "{count, plural, one {# post} other {# posts}}"
+    },
+    "card": {
+      "noCover": "No cover stored",
+      "savedHint": "Stored on this instance's disk"
+    },
+    "storeAgain": "Saved · fetch again",
+    "storedHint": "Already on this instance's disk, {size}. Fetching again replaces it with a fresh copy."
   },
   "watchlist": {
     "title": "Watchlist",

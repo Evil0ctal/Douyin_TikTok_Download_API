@@ -574,3 +574,125 @@ async def test_serving_a_file_needs_media_read(
         )
 
     assert error_code(response) == "FORBIDDEN_SCOPE"
+
+
+# --------------------------------------------------------------------------
+# What the library can see
+# --------------------------------------------------------------------------
+
+
+async def test_the_archive_says_which_posts_are_already_stored(api_app, db_engine, redis_client):
+    """The gap this closes: saving a post produced a toast and then a page that
+    looked exactly as it had a second earlier, which reads as nothing having
+    happened. The library had no way to ask what was already on the disk."""
+    async with session_scope() as session:
+        session.add(
+            ArchivedContent(
+                platform="douyin",
+                content_id=CONTENT_ID,
+                kind="video",
+                web_url=f"https://www.douyin.com/video/{CONTENT_ID}",
+                title="a post",
+                author_uid=AUTHOR_UID,
+                media={},
+                first_seen_at=datetime.now(UTC),
+                last_seen_at=datetime.now(UTC),
+            )
+        )
+        session.add(
+            MediaDownload(
+                id=uuid.uuid4(),
+                platform="douyin",
+                content_id=CONTENT_ID,
+                author_uid=AUTHOR_UID,
+                state="done",
+                directory=f"douyin/{AUTHOR_UID}/{CONTENT_ID}",
+                bytes_total=4096,
+                file_count=2,
+                files=[
+                    {"name": "video.mp4", "kind": "video", "state": "done", "bytes": 4000},
+                    {"name": "cover.jpeg", "kind": "cover", "state": "done", "bytes": 96},
+                ],
+            )
+        )
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.ARCHIVE_READ, Scope.MEDIA_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get("/api/v1/archive", headers={"X-API-Key": key})
+
+    row = envelope(response)["data"]["items"][0]
+    assert row["stored"]["video"] == "video.mp4"
+    assert row["stored"]["cover"] == "cover.jpeg"
+    assert row["stored"]["bytes_total"] == 4096
+
+
+async def test_an_unstored_post_says_so_rather_than_omitting_the_field(
+    api_app, db_engine, redis_client
+):
+    """null, not missing: a card that has to branch on undefined reads the same
+    as one whose request failed."""
+    async with session_scope() as session:
+        session.add(
+            ArchivedContent(
+                platform="douyin",
+                content_id="7000000000000000009",
+                kind="video",
+                web_url="https://www.douyin.com/video/7000000000000000009",
+                title="never fetched",
+                author_uid=AUTHOR_UID,
+                media={},
+                first_seen_at=datetime.now(UTC),
+                last_seen_at=datetime.now(UTC),
+            )
+        )
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.ARCHIVE_READ, Scope.MEDIA_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get("/api/v1/archive", headers={"X-API-Key": key})
+
+    row = envelope(response)["data"]["items"][0]
+    assert "stored" in row
+    assert row["stored"] is None
+
+
+async def test_a_caller_without_media_read_is_told_nothing_about_the_disk(
+    api_app, db_engine, redis_client
+):
+    """`archive:read` is deliberately separate from `media:read`. A key that can
+    read the archive must not learn what is on the operator's volume."""
+    async with session_scope() as session:
+        session.add(
+            ArchivedContent(
+                platform="douyin",
+                content_id=CONTENT_ID,
+                kind="video",
+                web_url=f"https://www.douyin.com/video/{CONTENT_ID}",
+                title="a post",
+                author_uid=AUTHOR_UID,
+                media={},
+                first_seen_at=datetime.now(UTC),
+                last_seen_at=datetime.now(UTC),
+            )
+        )
+        session.add(
+            MediaDownload(
+                id=uuid.uuid4(),
+                platform="douyin",
+                content_id=CONTENT_ID,
+                author_uid=AUTHOR_UID,
+                state="done",
+                directory=f"douyin/{AUTHOR_UID}/{CONTENT_ID}",
+                bytes_total=4096,
+                file_count=1,
+                files=[{"name": "video.mp4", "kind": "video", "state": "done", "bytes": 4000}],
+            )
+        )
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.ARCHIVE_READ)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.get("/api/v1/archive", headers={"X-API-Key": key})
+
+    assert envelope(response)["data"]["items"][0]["stored"] is None
