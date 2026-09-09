@@ -199,6 +199,43 @@ class TestConsoleHygiene:
                     offenders.append(f"{path.relative_to(REPO)}:{lineno}: {line.strip()[:70]}")
         assert not offenders, "literal colours outside tokens:\n" + "\n".join(offenders[:20])
 
+    def test_both_themes_define_the_same_tokens(self):
+        """A token in one palette and not the other breaks exactly one theme.
+
+        The failure is quiet: the missing side inherits whatever the dark
+        default block set, so the theme that was not tested looks nearly right
+        and is wrong in one colour. Doc 12 says both themes are complete
+        implementations rather than a base plus a filter; this is that sentence
+        as a check.
+        """
+        tokens = (WEB / "styles" / "tokens.css").read_text(encoding="utf-8")
+        blocks = re.split(r"^:root[^{]*\{", tokens, flags=re.M)[1:]
+        assert len(blocks) >= 2, "expected a dark block and a light block"
+        names = [set(re.findall(r"^\s*(--[a-z0-9-]+)\s*:", block, flags=re.M)) for block in blocks]
+        dark, light = names[0], names[1]
+        assert dark == light, (
+            "tokens defined in only one theme: "
+            f"dark only {sorted(dark - light)}, light only {sorted(light - dark)}"
+        )
+
+    def test_selected_text_is_not_the_hover_wash(self):
+        """`--accent-subtle` is a 10% tint: right for hover, invisible as a highlight.
+
+        It was what ::selection used, measuring 1.17:1 against the page in dark
+        and 1.11:1 in light - and lower still inside an input, which is where
+        text actually gets selected. The fix is a token of its own, so this
+        guards the regression of reaching for the wash again.
+        """
+        base = (WEB / "styles" / "base.css").read_text(encoding="utf-8")
+        rule = re.search(r"::selection\s*\{([^}]*)\}", base)
+        assert rule is not None, "no ::selection rule"
+        body = rule.group(1)
+        assert "--accent-subtle" not in body
+        assert "--selection-bg" in body
+        # Both halves, or the browser picks its own text colour on some
+        # platforms and undoes the contrast the pair was measured for.
+        assert "--selection-text" in body
+
     def test_no_cjk_outside_the_chinese_locale(self):
         offenders = []
         for path in list(WEB.rglob("*.tsx")) + list(WEB.rglob("*.ts")):

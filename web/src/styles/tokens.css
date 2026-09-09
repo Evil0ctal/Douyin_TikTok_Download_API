@@ -35,6 +35,22 @@
   --accent-subtle: #4cc9d91a;
   --accent-text: #0b0d10;
 
+  /* Selected text. Its own token rather than --accent-subtle, which is a 10%
+     wash: correct for a hover tint and invisible as a highlight. Measured
+     against #0b0d10 it was 1.17:1, and inside an input - on the darker
+     --bg-inset, which is where it gets noticed - 1.19:1. Both read as "nothing
+     happened".
+
+     Solid, not an alpha, so the highlight is the same colour on all four
+     surfaces. An alpha composites differently over the page, a card, a modal
+     and an input, which is how the faintest case ended up being the one people
+     select text in most.
+
+     The value is the accent at 50% over the page background: 3.21:1 against it,
+     3.27:1 inside an input, and 4.97:1 for --text sitting on it. */
+  --selection-bg: #2c6b74;
+  --selection-text: #e4e9f0;
+
   /* Status. One mapping for the whole console: badges, charts, logs. */
   --success: #3fb950;
   --warning: #d29922;
@@ -80,6 +96,15 @@
   --accent-hover: #0a6373;
   --accent-subtle: #0e7c8c14;
   --accent-text: #ffffff;
+
+  /* Same reasoning as the dark palette. The 8% wash measured 1.11:1 against the
+     page and 1.05:1 inside an input - effectively invisible. This is the accent
+     at 80%, which needs to be stronger here than in the dark theme because it
+     is darkening a near-white ground rather than lightening a near-black one:
+     3.36:1 against the page, 3.19:1 inside an input, 5.23:1 for the near-black
+     --text on top. */
+  --selection-bg: #3d96a3;
+  --selection-text: #101720;
 
   --success: #1a7f37;
   --warning: #9a6700;

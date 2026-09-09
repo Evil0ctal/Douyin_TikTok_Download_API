@@ -146,9 +146,12 @@ th {
   outline: none;
 }
 
+/* Both halves are named. Setting only the background leaves the text colour to
+   the browser, which picks its own on some platforms and undoes the contrast
+   measured for this pair. */
 ::selection {
-  background: var(--accent-subtle);
-  color: var(--text);
+  background: var(--selection-bg);
+  color: var(--selection-text);
 }
 
 ::placeholder {
