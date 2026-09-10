@@ -68,6 +68,11 @@ class MintedProfile:
     screen: str | None = None
     language: str | None = None
     timezone: str | None = None
+    #: `navigator.hardwareConcurrency` and `navigator.deviceMemory` (GiB). Both
+    #: are echoed back in the platforms' query strings, so a guess here becomes
+    #: a claim the User-Agent cannot support.
+    hardware_concurrency: int | None = None
+    device_memory: int | None = None
     #: Filled in by the backend only when it measured the exit itself; the
     #: service falls back to its own probe.
     exit_ip: str | None = None

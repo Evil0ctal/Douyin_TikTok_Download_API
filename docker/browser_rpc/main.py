@@ -104,6 +104,8 @@ def create_app(
             screen=profile.screen,
             language=profile.language or outcome.geo.languages,
             timezone=profile.timezone or outcome.geo.timezone,
+            hardware_concurrency=profile.hardware_concurrency,
+            device_memory=profile.device_memory,
             exit_ip=outcome.exit_ip,
             country=outcome.geo.country,
             locale=outcome.geo.locale,

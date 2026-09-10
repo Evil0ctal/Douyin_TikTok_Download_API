@@ -102,6 +102,9 @@ CHROMIUM_ARGS: tuple[str, ...] = (
 #: Read once per session. `navigator.webdriver` is not asked for on purpose: the
 #: backend's job is to make it absent, and reading it back here would only
 #: confirm what the platform already checks.
+#: `deviceMemory` is Chromium-only and absent elsewhere; `_string_fields` drops
+#: an undefined value, so a Firefox mint simply carries no memory and the query
+#: keeps its default rather than claiming a machine nobody measured.
 FINGERPRINT_SCRIPT = """() => ({
   userAgent: navigator.userAgent,
   platform: navigator.platform,
@@ -109,6 +112,8 @@ FINGERPRINT_SCRIPT = """() => ({
   language: navigator.language,
   languages: (navigator.languages || []).join(','),
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  hardwareConcurrency: navigator.hardwareConcurrency,
+  deviceMemory: navigator.deviceMemory,
 })"""
 
 #: Injected before any page script runs, so it sits BENEATH the platform SDK.
@@ -564,6 +569,8 @@ class CloakBackend:
                 screen=fingerprint.get("screen"),
                 language=fingerprint.get("languages") or fingerprint.get("language"),
                 timezone=fingerprint.get("timezone"),
+                hardware_concurrency=_as_int(fingerprint.get("hardwareConcurrency")),
+                device_memory=_as_int(fingerprint.get("deviceMemory")),
             )
         finally:
             # Single use, always. A profile that survives its session carries
@@ -715,6 +722,18 @@ async def _collect_cookies(context: Any) -> dict[str, str]:
         if isinstance(name, str) and name and value is not None:
             cookies[name] = str(value)
     return cookies
+
+
+def _as_int(value: str | None) -> int | None:
+    """A numeric fingerprint field, or None when the browser did not report one."""
+    if value is None:
+        return None
+    try:
+        # `navigator.deviceMemory` is a float in the spec (0.25, 0.5, ...), and
+        # every value the platforms echo back is a whole number of GiB.
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _string_fields(value: Any) -> dict[str, str]:

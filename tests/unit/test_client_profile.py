@@ -49,6 +49,8 @@ class Fake:
     screen: str | None = None
     language: str | None = None
     timezone: str | None = None
+    hardware_concurrency: object = None
+    device_memory: object = None
 
 
 WINDOWS = Fake(CHROME_WINDOWS, "Win32", "1920x1080", "en-US", "America/New_York")
@@ -233,3 +235,38 @@ class TestBothPlatforms:
         assert fields[-1] == profile.browser_platform
         assert fields[-2] == str(profile.screen_height)
         assert fields[-3] == str(profile.screen_width)
+
+
+class TestHardware:
+    """`cpu_core_num` and `device_memory` are echoed back like everything else.
+
+    They were constants for longer than the rest because nothing collected
+    them. A guess here is cheaper to make than the others and no less of a
+    contradiction: a page reporting 12 cores from a machine with 4 is a claim
+    the platform can check against everything else it is told.
+    """
+
+    def test_the_measured_values_reach_the_query(self) -> None:
+        fingerprint = Fake(CHROME_WINDOWS, "Win32", "2560x1440", "zh-CN", "Asia/Shanghai", 20, 8)
+        params = douyin.base_params(douyin.profile_for(fingerprint))
+        assert params["cpu_core_num"] == "20"
+        assert params["device_memory"] == "8"
+
+    def test_a_browser_that_reports_nothing_keeps_the_default(self) -> None:
+        """Firefox and Safari have no `navigator.deviceMemory` at all."""
+        params = douyin.base_params(douyin.profile_for(WINDOWS))
+        assert params["cpu_core_num"] == str(douyin.DEFAULT_PROFILE.cpu_core_num)
+        assert params["device_memory"] == str(douyin.DEFAULT_PROFILE.device_memory)
+
+    @pytest.mark.parametrize("value", [0, -1, True, "8", None])
+    def test_a_value_that_is_not_a_count_is_ignored(self, value: object) -> None:
+        """Zero cores is not a machine, and `True` is not eight of anything."""
+        fingerprint = Fake(CHROME_WINDOWS, "Win32", "1920x1080", "en-US", "UTC", value, value)
+        profile = douyin.profile_for(fingerprint)
+        assert profile.cpu_core_num == douyin.DEFAULT_PROFILE.cpu_core_num
+        assert profile.device_memory == douyin.DEFAULT_PROFILE.device_memory
+
+    def test_both_platforms_carry_them(self) -> None:
+        fingerprint = Fake(CHROME_WINDOWS, "Win32", "1920x1080", "en-US", "UTC", 4, 4)
+        assert douyin.base_params(douyin.profile_for(fingerprint))["cpu_core_num"] == "4"
+        assert tiktok.profile_for(fingerprint).cpu_core_num == 4

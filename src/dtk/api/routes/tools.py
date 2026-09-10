@@ -44,7 +44,7 @@ from dtk.signing import SigningSession, native_signers
 from dtk.signing.base import MS_TOKEN_PARAM, SignedParams, StaticFingerprint
 from dtk.signing.base import RequestSpec as SigningRequest
 from dtk.signing.native import decoding, tiktok_sign, websign
-from dtk.urls import first_url, identify, read_content_id
+from dtk.urls import extract_urls, first_url, identify, read_content_id
 
 log = get_logger(__name__)
 
@@ -711,10 +711,15 @@ async def parse_batch(
     items: list[dict[str, Any]] = []
     for raw in body.text.splitlines():
         line = raw.strip()
-        if not line or line in seen:
+        if not line:
             continue
-        seen.add(line)
-        items.append(_identify_line(line))
+        for candidate in _candidates(line):
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            items.append(_identify_line(candidate))
+            if len(items) >= MAX_BATCH_LINES:
+                break
         if len(items) >= MAX_BATCH_LINES:
             break
 
@@ -732,8 +737,28 @@ async def parse_batch(
     )
 
 
+def _candidates(line: str) -> list[str]:
+    """Every item one pasted line holds, in the order it holds them.
+
+    Splitting a line on whitespace is the obvious thing and it is wrong, because
+    the input people actually have is a share caption::
+
+        2.84 nqe:/ <title with spaces and CJK> https://v.douyin.com/L4FJNR3/ ...
+
+    which is ONE link surrounded by prose. Splitting that produced four rows,
+    three of them nonsense and the fourth carrying the caption glued to the
+    front of the URL.
+
+    So: pull the URLs out. A line with none is passed through whole, because it
+    may still be a bare post id - and a line with several yields several, which
+    is the case splitting was reaching for in the first place.
+    """
+    found = extract_urls(line)
+    return found or [line]
+
+
 def _identify_line(line: str) -> dict[str, Any]:
-    """One line, as a link if it is one and as a post id otherwise.
+    """One item, as a link if it is one and as a post id otherwise.
 
     Links win. A bare 19-digit number inside a URL is the post id either way,
     and going through `identify` keeps the host allowlist the only thing that

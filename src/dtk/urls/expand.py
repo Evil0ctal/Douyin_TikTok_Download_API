@@ -74,9 +74,14 @@ async def expand(
     Returns:
         The canonical URL of the final destination.
 
+    Returns the canonical URL as soon as a hop lands on one already seen: at
+    that point the chain has arrived, because two URLs sharing a canonical form
+    are the same resource. That is also what bounds a genuine loop, alongside
+    ``max_hops``.
+
     Raises:
-        InvalidUrl: the start URL, or any hop, is not an allowed target; the
-            chain loops; or it is still redirecting after ``max_hops``.
+        InvalidUrl: the start URL, or any hop, is not an allowed target, or it
+            is still redirecting after ``max_hops``.
     """
     if max_hops < 1:
         raise ValueError("max_hops must be at least 1")
@@ -108,11 +113,22 @@ async def expand(
 
         canonical = normalize(candidate, extra_hosts=extra_hosts)
         if canonical in seen:
-            logger.warning("urls.expand.loop", hop=hop)
-            raise InvalidUrl(
-                "short link redirect loop",
-                details={"reason": "redirect_loop", "hop": hop},
-            )
+            # Arrived, not looping. Two URLs with the same canonical form ARE
+            # the same resource by this package's own definition, so there is
+            # nothing further to learn by fetching one of them again.
+            #
+            # This used to raise, and it broke the single most common share
+            # link there is. Douyin's chain is
+            # `v.douyin.com/X` -> `iesdouyin.com/share/video/123?...` ->
+            # `douyin.com/video/123?previous_page=...`, and the last two
+            # normalize to the same canonical URL - so every two-hop Douyin
+            # share link was reported to the user as a redirect loop.
+            #
+            # A real loop still terminates here, and terminates better: the
+            # caller gets the short link back, and `resolve` names it
+            # `unresolved_short_link`, which says what actually happened.
+            logger.debug("urls.expand.settled", hops=hop + 1, reason="canonical_repeat")
+            return canonical
         seen.add(canonical)
         current = candidate
         logger.debug("urls.expand.hop", hop=hop)
@@ -157,8 +173,10 @@ async def resolve(
             details={"reason": "host_not_allowed"},
         )
 
+    expanded = False
     if kind.needs_expansion and kind.url is not None:
         final = await expand(kind.url, fetcher, max_hops=max_hops, extra_hosts=extra_hosts)
+        expanded = True
         kind = identify(final, extra_hosts=extra_hosts)
         logger.info("urls.resolve.expanded", resource=kind.resource.value)
 
@@ -168,6 +186,18 @@ async def resolve(
             details={"reason": "unresolved_short_link"},
         )
     if not kind.recognized:
+        if expanded:
+            # Worth telling apart from a URL nobody recognises. Measured
+            # 2026-09-10: `www.tiktok.com/t/<slug>` answers a server-side client
+            # with a 302 to `https://www.tiktok.com/?_r=1` - the site's own front
+            # page. The link is fine and the paste is fine; TikTok declined to
+            # resolve it for this caller, and "does not point at a known
+            # resource" sends the reader off to check their own input.
+            raise InvalidUrl(
+                "the short link resolved to a page this instance cannot fetch; "
+                "it has probably expired, or the platform will only resolve it in a browser",
+                details={"reason": "short_link_dead_end", "resolved_to": kind.url},
+            )
         raise InvalidUrl(
             "URL is on a supported platform but does not point at a known resource",
             details={"reason": "unknown_resource"},

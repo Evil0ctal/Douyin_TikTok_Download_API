@@ -925,16 +925,47 @@ async def test_expand_rejects_a_disallowed_start_without_fetching() -> None:
     assert fetcher.calls == []
 
 
-async def test_expand_detects_a_redirect_loop() -> None:
+async def test_expand_stops_when_a_loop_comes_back_round() -> None:
+    """It terminates, and hands back what it has rather than an error.
+
+    A short link that leads back to itself is not a URL problem, and calling it
+    one used to hide the real answer: `resolve` sees a SHORT_LINK come out and
+    reports `unresolved_short_link`, which is what actually happened.
+    """
     fetcher = FakeRedirects(
         {
             "https://v.douyin.com/abc123": "https://www.douyin.com/hop/1",
             "https://www.douyin.com/hop/1": "https://v.douyin.com/abc123",
         }
     )
-    with pytest.raises(InvalidUrl) as excinfo:
-        await expand("https://v.douyin.com/abc123", fetcher)
-    assert excinfo.value.details["reason"] == "redirect_loop"
+    assert await expand("https://v.douyin.com/abc123", fetcher) == "https://v.douyin.com/abc123"
+
+
+async def test_the_two_hop_douyin_share_chain_is_not_a_loop() -> None:
+    """The regression this exists for: the commonest share link there is.
+
+    `iesdouyin.com/share/video/123` and `douyin.com/video/123` normalize to one
+    canonical URL, so comparing canonical forms called the second hop a repeat
+    of the first and refused every `v.douyin.com` link with `redirect_loop`.
+    """
+    fetcher = FakeRedirects(
+        {
+            "https://v.douyin.com/L4NpDJ6/": (
+                "https://www.iesdouyin.com/share/video/6914948781100338440/"
+                "?region=CN&from=web_code_link"
+            ),
+            # Keyed with the query the first hop's Location actually carries:
+            # `expand` follows the raw URL, not its canonical form, so a key
+            # without it would settle a hop early and never walk the chain.
+            "https://www.iesdouyin.com/share/video/6914948781100338440/"
+            "?region=CN&from=web_code_link": (
+                "https://www.douyin.com/video/6914948781100338440?previous_page=web_code_link"
+            ),
+        }
+    )
+    final = await expand("https://v.douyin.com/L4NpDJ6/", fetcher)
+    assert final == "https://www.douyin.com/video/6914948781100338440"
+    assert len(fetcher.calls) == 2, "both hops have to be walked for this to prove anything"
 
 
 async def test_expand_stops_after_max_hops() -> None:
@@ -1035,10 +1066,13 @@ async def test_resolve_rejects_an_off_platform_url() -> None:
 
 
 async def test_resolve_rejects_a_short_link_landing_on_a_page_we_cannot_use() -> None:
+    """Named apart from a URL nobody recognises: the paste was fine, the chain
+    was not, and only one of those is the reader's to fix."""
     fetcher = FakeRedirects({"https://v.douyin.com/abc123": "https://www.douyin.com/"})
     with pytest.raises(InvalidUrl) as excinfo:
         await resolve("https://v.douyin.com/abc123/", fetcher)
-    assert excinfo.value.details["reason"] == "unknown_resource"
+    assert excinfo.value.details["reason"] == "short_link_dead_end"
+    assert excinfo.value.details["resolved_to"] == "https://www.douyin.com/"
 
 
 async def test_resolve_refuses_a_chain_that_ends_on_an_allowlisted_host() -> None:
@@ -1046,7 +1080,7 @@ async def test_resolve_refuses_a_chain_that_ends_on_an_allowlisted_host() -> Non
     fetcher = FakeRedirects({"https://v.douyin.com/abc123": "https://cdn.example.com/landing"})
     with pytest.raises(InvalidUrl) as excinfo:
         await resolve("https://v.douyin.com/abc123/", fetcher, extra_hosts=EXTRA)
-    assert excinfo.value.details["reason"] == "unknown_resource"
+    assert excinfo.value.details["reason"] == "short_link_dead_end"
 
 
 async def test_resolve_errors_are_not_retryable() -> None:
@@ -1054,3 +1088,22 @@ async def test_resolve_errors_are_not_retryable() -> None:
         await resolve("https://example.com/", FakeRedirects())
     assert excinfo.value.http_status == 400
     assert excinfo.value.retryable is False
+
+
+async def test_a_short_link_that_lands_on_the_front_page_says_so() -> None:
+    """Measured against TikTok: `/t/<slug>` answers a server-side client with a
+    302 to its own home page. The link is fine and the paste is fine, so an
+    error that reads "you pasted something unrecognisable" sends the reader off
+    to check the one thing that is not wrong."""
+    # Keyed on the canonical form, which is what `resolve` hands to `expand`.
+    fetcher = FakeRedirects({"https://www.tiktok.com/t/ZTR9nkkmL": "https://www.tiktok.com/?_r=1"})
+    with pytest.raises(InvalidUrl) as excinfo:
+        await resolve("https://www.tiktok.com/t/ZTR9nkkmL/", fetcher)
+    assert excinfo.value.details["reason"] == "short_link_dead_end"
+
+
+async def test_an_unrecognised_url_that_was_never_expanded_keeps_its_own_reason() -> None:
+    fetcher = FakeRedirects()
+    with pytest.raises(InvalidUrl) as excinfo:
+        await resolve("https://www.douyin.com/discover", fetcher)
+    assert excinfo.value.details["reason"] == "unknown_resource"

@@ -124,6 +124,12 @@ RISK_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
 BUSINESS_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
     {
         2053: "aweme unavailable",
+        # Measured 2026-09-10 against `tiktok.content_detail`: both a post that
+        # was deleted and an id that never existed answer HTTP 200, 205 bytes,
+        # `statusCode: 10204` and no `itemInfo`. TikTok does not distinguish the
+        # two, so neither does this - what matters is that it is an answer about
+        # the content and not a refusal of the caller.
+        10204: "item not found or not viewable",
     }
 )
 
@@ -289,18 +295,40 @@ class ResponseView:
 
     @property
     def envelope_status(self) -> int | None:
+        """The platform's own return code, preferring one that says something.
+
+        A body may carry more than one of these keys, and taking the first
+        present one is how the meaningful value gets hidden. Measured
+        2026-09-10: TikTok answers a post that does not exist with HTTP 200 and
+        ``{"statusCode": 10204, "status_code": 0, "status_msg": ""}`` - two
+        status fields, and the one this used to read is the one set to zero.
+
+        The response then reached ``payload.bare_envelope``, which saw an
+        envelope of nothing but metadata and called it risk control. So looking
+        up a deleted video cooled the identity that asked and counted toward the
+        endpoint's risk rate - the exact failure this module's docstring opens
+        by warning about.
+
+        Zero means "nothing went wrong" in both platforms' vocabulary, so a
+        non-zero sibling is the field that is speaking.
+        """
         envelope = self.envelope
         if envelope is None:
             return None
+        zero_seen = False
         for key in ENVELOPE_STATUS_KEYS:
             value = envelope.get(key)
             if isinstance(value, bool):
                 continue
-            if isinstance(value, int):
-                return value
             if isinstance(value, str) and value.lstrip("-").isdigit():
-                return int(value)
-        return None
+                value = int(value)
+            if not isinstance(value, int):
+                continue
+            if value == 0:
+                zero_seen = True
+                continue
+            return value
+        return 0 if zero_seen else None
 
     @property
     def envelope_message(self) -> str | None:

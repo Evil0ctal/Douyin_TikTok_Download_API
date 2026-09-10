@@ -257,26 +257,8 @@ def _as_uuid(value: str) -> uuid.UUID:
 
 
 def signing_view(fingerprint: Fingerprint) -> StaticFingerprint:
-    """The slice of a fingerprint the signers need."""
-    width: int | None = None
-    height: int | None = None
-    if fingerprint.screen and "x" in fingerprint.screen:
-        raw_width, _, raw_height = fingerprint.screen.partition("x")
-        width = _as_int(raw_width)
-        height = _as_int(raw_height)
-    return StaticFingerprint(
-        user_agent=fingerprint.user_agent or "",
-        browser_platform=fingerprint.platform,
-        screen_width=width,
-        screen_height=height,
-    )
-
-
-def _as_int(value: str) -> int | None:
-    try:
-        return int(value.strip())
-    except (TypeError, ValueError):
-        return None
+    """The slice of a fingerprint the signers need. Kept as the name callers use."""
+    return StaticFingerprint.of(fingerprint)
 
 
 def build_registry(
@@ -342,7 +324,13 @@ async def call_endpoint(
 ) -> RawResponse:
     """Sign and issue one request as ``identity``. No retry, no bookkeeping."""
     adapter = get_adapter(call.platform)
-    spec = adapter.build_request(call.endpoint, **call.params)
+    # Same reason as `dtk.services.fetch`: the query echoes the screen, the
+    # language, the OS and the browser version straight back to the platform,
+    # beside a User-Agent carrying the same facts. A constant profile hands them
+    # a contradiction no browser could produce.
+    spec = adapter.build_request(
+        call.endpoint, profile=adapter.profile_for(identity.fingerprint), **call.params
+    )
 
     # Built before signing and reused for the request, because the two have to
     # describe the same visitor. Douyin's `verifyFp` is the `s_v_web_id` of

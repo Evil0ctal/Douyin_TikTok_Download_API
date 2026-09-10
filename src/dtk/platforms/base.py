@@ -116,6 +116,9 @@ class ClientProfile:
             region=region_of(language) or self.region,
             os_name=operating[0] if operating else self.os_name,
             os_version=operating[1] if operating else self.os_version,
+            cpu_core_num=_positive(getattr(source, "hardware_concurrency", None))
+            or self.cpu_core_num,
+            device_memory=_positive(getattr(source, "device_memory", None)) or self.device_memory,
         )
 
 
@@ -142,6 +145,17 @@ class ProfileSource(Protocol):
 
     @property
     def timezone(self) -> str | None: ...
+
+    @property
+    def hardware_concurrency(self) -> int | None: ...
+
+    @property
+    def device_memory(self) -> int | None: ...
+
+
+def _positive(value: object) -> int | None:
+    """A count the browser reported, or None. Zero is not a machine."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
 
 
 def screen_size(screen: str | None) -> tuple[int, int] | None:

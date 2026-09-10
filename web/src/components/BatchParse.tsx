@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +9,7 @@ import {
   isApiError,
   isErrorCode,
   NON_RETRYABLE_CODES,
+  type ApiError,
   type TaskEnvelope,
 } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
@@ -154,6 +156,15 @@ type RowState = 'pending' | TaskState
 interface RowError {
   code: string
   message: string
+  /**
+   * The server's own `details.reason`, when it named one.
+   *
+   * A code alone stops one question short. `INVALID_URL` on a link that is
+   * plainly a link reads as "the console cannot parse this", when what happened
+   * is that the platform resolved the short link to its own front page - and
+   * those two send the reader to completely different places.
+   */
+  reason?: string | null
 }
 
 interface ParseRow {
@@ -184,6 +195,10 @@ interface BatchResponse {
 const TERMINAL: ReadonlySet<RowState> = new Set<RowState>(['done', 'failed'])
 
 /** Server ceiling for one batch (MAX_BATCH_ITEMS); longer pastes are chunked. */
+//: Long enough that a paste does not fire a request per keystroke, short enough
+//: that the button's count settles before anybody reaches for it.
+const PREVIEW_DEBOUNCE_MS = 300
+
 const BATCH_CHUNK = 50
 const MAX_LINKS = 500
 const POLL_INTERVAL_MS = 1_500
@@ -196,23 +211,36 @@ function nextRowId(): string {
   return `row-${rowSequence}`
 }
 
-/** Splits a paste into links: one per line, or several per line, or comma separated. */
-function splitLinks(input: string): { urls: string[]; duplicates: number } {
-  const seen = new Set<string>()
-  const urls: string[] = []
-  let duplicates = 0
+/**
+ * One item a paste holds, as `/tools/parse-batch` reports it.
+ *
+ * `kind` is the verdict: `link` and `short_link` are submittable, `content_id`
+ * is a post id with no platform attached to it, and the rest are things the
+ * allowlist does not recognise.
+ */
+interface PastedItem {
+  input: string
+  kind: 'link' | 'short_link' | 'content_id' | 'bad_id' | 'unknown'
+  platform: Platform | null
+  resource: string | null
+  resource_id: string | null
+  url: string | null
+  needs_expansion: boolean
+}
 
-  for (const candidate of input.split(/[\s,;]+/)) {
-    const value = candidate.trim()
-    if (!value) continue
-    if (seen.has(value)) {
-      duplicates += 1
-      continue
-    }
-    seen.add(value)
-    urls.push(value)
-  }
-  return { urls, duplicates }
+interface PastedBatch {
+  items: PastedItem[]
+  total: number
+  truncated: boolean
+}
+
+/** Kinds that can be sent upstream. Everything else is answered locally. */
+const SUBMITTABLE: ReadonlySet<PastedItem['kind']> = new Set(['link', 'short_link'])
+
+/** The `reason` slug an error carries, when it carries one. */
+function reasonOf(details: Record<string, unknown> | null | undefined): string | null {
+  const reason = details?.['reason']
+  return typeof reason === 'string' && reason ? reason : null
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -325,11 +353,72 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
   const trackingRef = useRef(false)
   const cursorRef = useRef(0)
 
-  const parsed = useMemo(() => splitLinks(input), [input])
+  /**
+   * What the instance makes of the paste, asked as it is typed.
+   *
+   * This used to be a client-side split on whitespace, and that is the wrong
+   * shape for the input people actually have. A Douyin share caption -
+   * `2.84 nqe:/ <title> https://v.douyin.com/L4FJNR3/ <sentence>` - is one
+   * link surrounded by prose, and splitting it produced four rows, three of
+   * them nonsense and the fourth carrying the caption glued to the URL.
+   *
+   * (The caption ends in a Chinese sentence telling the reader to open the app;
+   * it is not written out here because this file is English only.)
+   *
+   * Extracting links needs the host allowlist, and the allowlist lives on the
+   * server and is a security control; a second copy of it in TypeScript would
+   * be a second thing to keep in step. So the server is asked, and the answer
+   * is also worth more than a count: a line it does not recognise is named
+   * before anything is submitted rather than after a task has failed.
+   */
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebounced(input)
+    }, PREVIEW_DEBOUNCE_MS)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [input])
 
-  const submit = useApiMutation<ParseRow[], string[]>(
-    async (urls) => {
+  // useQuery directly rather than useApiQuery: this endpoint is a POST, because
+  // the text it takes can run to half a megabyte, and that hook issues GETs.
+  const inspect = useQuery<PastedBatch, ApiError>({
+    queryKey: ['tools', 'parse-batch', debounced],
+    queryFn: ({ signal }) =>
+      apiPost<PastedBatch>(paths.tools.parseBatch, { text: debounced }, { signal }),
+    enabled: debounced.trim().length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+
+  const items = useMemo(() => inspect.data?.items ?? [], [inspect.data])
+  const sendable = useMemo(() => items.filter((item) => SUBMITTABLE.has(item.kind)), [items])
+  const rejected = items.length - sendable.length
+
+  const submit = useApiMutation<ParseRow[], PastedItem[]>(
+    async (pasted) => {
       const created: ParseRow[] = []
+      // Answered here rather than sent: an item the allowlist does not
+      // recognise fails the same way whoever asks, and spending a task to be
+      // told so costs a round trip and a row in the request log.
+      for (const item of pasted.filter((entry) => !SUBMITTABLE.has(entry.kind))) {
+        created.push({
+          id: nextRowId(),
+          url: item.input,
+          taskId: null,
+          state: 'failed',
+          error: { code: 'INVALID_URL', message: t(`parse.rejected.${item.kind}`) },
+          data: null,
+          submittedAt: Date.now(),
+          finishedAt: Date.now(),
+          attempts: 1,
+        })
+      }
+      // The extracted URL, not the line it came out of.
+      const urls = pasted
+        .filter((entry) => SUBMITTABLE.has(entry.kind))
+        .map((entry) => entry.url ?? entry.input)
       for (const group of chunk(urls, BATCH_CHUNK)) {
         const response = await apiPost<BatchResponse>(
           paths.tasks.batch,
@@ -444,6 +533,7 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
                 error: {
                   code: task.error?.code ?? 'INTERNAL',
                   message: task.error?.message ?? t('parse.taskFailed'),
+                  reason: reasonOf(task.error?.details),
                 },
               }
             }
@@ -791,6 +881,9 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
           row.error ? (
             <span className="u-row u-wrap" title={row.error.message}>
               <ErrorCodeBadge code={row.error.code} />
+              {row.error.reason ? (
+                <span className="u-xs u-muted u-mono">{row.error.reason}</span>
+              ) : null}
             </span>
           ) : (
             <span className="u-muted">—</span>
@@ -884,22 +977,29 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
               setInput(event.target.value)
             }}
             error={
-              parsed.urls.length > MAX_LINKS ? t('parse.tooMany', { max: MAX_LINKS }) : undefined
+              items.length > MAX_LINKS ? t('parse.tooMany', { max: MAX_LINKS }) : undefined
             }
           />
           <div className="u-row u-wrap">
             <Button
               variant="primary"
               loading={submit.isPending}
-              disabled={parsed.urls.length === 0 || parsed.urls.length > MAX_LINKS}
+              disabled={items.length === 0 || items.length > MAX_LINKS || inspect.isFetching}
               onClick={() => {
-                submit.mutate(parsed.urls)
+                submit.mutate(items)
               }}
             >
-              {t('parse.submit', { count: parsed.urls.length })}
+              {t('parse.submit', { count: sendable.length })}
             </Button>
+            {/* What the instance made of the paste, before anything is spent.
+                `rejected` is the number this used to submit anyway and let the
+                platform refuse one at a time. */}
             <span className="u-xs u-muted">
-              {t('parse.detected', { count: parsed.urls.length, duplicates: parsed.duplicates })}
+              {inspect.isFetching
+                ? t('common:loading')
+                : rejected > 0
+                  ? t('parse.detectedWithRejects', { count: sendable.length, rejected })
+                  : t('parse.detectedItems', { count: sendable.length })}
             </span>
             {/* The tally the page header used to carry. It belongs beside the
                 button that changes it now that this shares a page. */}
@@ -925,7 +1025,7 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
               error={submit.error}
               compact
               onRetry={() => {
-                submit.mutate(parsed.urls)
+                submit.mutate(items)
               }}
             />
           ) : null}

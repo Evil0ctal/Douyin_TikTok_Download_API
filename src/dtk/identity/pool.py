@@ -154,6 +154,11 @@ def _fingerprint_from_json(data: dict) -> Fingerprint:
         screen=data.get("screen"),
         language=data.get("language"),
         timezone=data.get("timezone"),
+        # Absent on every identity minted before these were collected, and
+        # `None` is the honest reading of that: the query keeps its default
+        # rather than claiming a machine nobody measured.
+        hardware_concurrency=data.get("hardware_concurrency"),
+        device_memory=data.get("device_memory"),
     )
 
 
@@ -166,6 +171,8 @@ def _fingerprint_to_json(fp: Fingerprint) -> dict:
         "screen": fp.screen,
         "language": fp.language,
         "timezone": fp.timezone,
+        "hardware_concurrency": fp.hardware_concurrency,
+        "device_memory": fp.device_memory,
     }
 
 

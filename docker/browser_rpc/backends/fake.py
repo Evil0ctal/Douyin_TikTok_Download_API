@@ -164,6 +164,10 @@ class FakeBackend:
             screen="1920x1080",
             language=plan.geo.locale,
             timezone=plan.geo.timezone,
+            # The same shape a Chromium mint reports, so the fake backend
+            # exercises the whole field set rather than half of it.
+            hardware_concurrency=8,
+            device_memory=8,
             exit_ip=None,
         )
 

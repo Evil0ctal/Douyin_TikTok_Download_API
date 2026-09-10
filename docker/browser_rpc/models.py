@@ -35,8 +35,8 @@ class MintResponse(BaseModel):
     """The identity a session produced.
 
     `BrowserRpcClient.mint` reads `cookies`, `browser_family`, `browser_major`,
-    `user_agent`, `platform_hint`, `screen`, `language`, `timezone` and
-    `exit_ip`. `platform_hint` is `navigator.platform`; the top-level `platform`
+    `user_agent`, `platform_hint`, `screen`, `language`, `timezone`,
+    `hardware_concurrency`, `device_memory` and `exit_ip`. `platform_hint` is `navigator.platform`; the top-level `platform`
     is the platform that was minted for, and the two must not be confused.
     """
 
@@ -49,6 +49,10 @@ class MintResponse(BaseModel):
     screen: str | None = None
     language: str | None = None
     timezone: str | None = None
+    #: `navigator.hardwareConcurrency` and `navigator.deviceMemory` (GiB), which
+    #: both platforms echo back in their query strings.
+    hardware_concurrency: int | None = None
+    device_memory: int | None = None
     exit_ip: str | None = None
     country: str | None = None
     locale: str | None = None

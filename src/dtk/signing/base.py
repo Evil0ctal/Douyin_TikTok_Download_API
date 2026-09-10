@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlencode, urlsplit
 
 from dtk.core.types import Platform
@@ -241,6 +241,40 @@ class StaticFingerprint:
     browser_platform: str | None = None
     screen_width: int | None = None
     screen_height: int | None = None
+
+    @classmethod
+    def of(cls, source: Any) -> StaticFingerprint:
+        """The slice of an identity's fingerprint the signers need.
+
+        Structural, like the protocol above: anything carrying ``user_agent``,
+        ``platform`` and a ``"1920x1080"`` ``screen`` will do, so this stays
+        free of the transport's own ``Fingerprint`` type.
+
+        Worth having in one place. A-Bogus carries the screen geometry inside
+        the signature, and a caller that passed only the User-Agent made every
+        signature claim the fallback desktop whatever the identity was - which
+        contradicts the ``screen_width`` the same request sends in its query.
+        Two call sites did this and only one of them got it right.
+        """
+        width: int | None = None
+        height: int | None = None
+        screen = getattr(source, "screen", None)
+        if isinstance(screen, str) and "x" in screen:
+            raw_width, _, raw_height = screen.partition("x")
+            width, height = _as_int(raw_width), _as_int(raw_height)
+        return cls(
+            user_agent=getattr(source, "user_agent", None) or "",
+            browser_platform=getattr(source, "platform", None),
+            screen_width=width,
+            screen_height=height,
+        )
+
+
+def _as_int(value: str) -> int | None:
+    try:
+        return int(value.strip())
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(frozen=True, slots=True)

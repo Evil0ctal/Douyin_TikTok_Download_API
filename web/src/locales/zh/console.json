@@ -1224,7 +1224,6 @@
     "inputLabel": "粘贴链接",
     "inputHint": "单次最多 {max} 条，按每批 {chunk} 条提交。",
     "tooMany": "链接过多：请控制在 {max} 条以内。",
-    "detected": "已识别 {count} 条链接 · 去重 {duplicates} 条",
     "submit": "解析 {count} 条链接",
     "submitFailed": "批量提交失败",
     "notSubmitted": "服务端在建立任务之前就拒绝了这条链接。",
@@ -1275,6 +1274,13 @@
       "detail": "{joined, plural, =0 {} other {# 个已经在这里了。}} {failed, plural, =0 {} other {# 个无法排队。}}",
       "watch": "完成后会出现在下方列表里。",
       "failed": "无法排队这些下载"
+    },
+    "detectedItems": "{count, plural, other {# 条链接}}待提交",
+    "detectedWithRejects": "{count, plural, other {# 条链接}}待提交 · {rejected, plural, other {# 行无法识别}}",
+    "rejected": {
+      "content_id": "只有作品 ID，没有平台信息。请改为粘贴链接，或指明它属于哪个平台。",
+      "bad_id": "看起来像作品 ID，但不可能是：两个平台的 ID 高位都是签发时的那一秒。",
+      "unknown": "这一行里没有抖音或 TikTok 链接。"
     }
   },
   "logs": {

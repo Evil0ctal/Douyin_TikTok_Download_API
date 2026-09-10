@@ -1224,7 +1224,6 @@
     "inputLabel": "Paste links",
     "inputHint": "Up to {max} links per run, submitted in batches of {chunk}.",
     "tooMany": "Too many links: keep it under {max}.",
-    "detected": "{count, plural, one {# link} other {# links}} ready · {duplicates, plural, one {# duplicate removed} other {# duplicates removed}}",
     "submit": "Parse {count, plural, one {# link} other {# links}}",
     "submitFailed": "Could not submit the batch",
     "notSubmitted": "The server rejected this link before it became a task.",
@@ -1275,6 +1274,13 @@
       "detail": "{joined, plural, =0 {} one {1 was already here.} other {# were already here.}} {failed, plural, =0 {} one {1 could not be queued.} other {# could not be queued.}}",
       "watch": "They appear in the list below as they finish.",
       "failed": "Could not queue these downloads"
+    },
+    "detectedItems": "{count, plural, one {# link} other {# links}} ready",
+    "detectedWithRejects": "{count, plural, one {# link} other {# links}} ready · {rejected, plural, one {# line not recognised} other {# lines not recognised}}",
+    "rejected": {
+      "content_id": "A post id with no platform on it. Paste the link instead, or say which platform it belongs to.",
+      "bad_id": "This looks like a post id but cannot be one — both platforms mint ids whose high bits are the second they were issued.",
+      "unknown": "No Douyin or TikTok link in this line."
     }
   },
   "logs": {

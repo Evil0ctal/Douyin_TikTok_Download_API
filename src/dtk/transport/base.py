@@ -91,6 +91,15 @@ class Fingerprint:
     language: str | None = None
     #: IANA zone aligned with the proxy exit, e.g. "Europe/Berlin".
     timezone: str | None = None
+    #: ``navigator.hardwareConcurrency``: logical cores the page was told about.
+    #: Douyin echoes it back as ``cpu_core_num``.
+    hardware_concurrency: int | None = None
+    #: ``navigator.deviceMemory``, in GiB. Chromium only, and deliberately
+    #: coarse - the spec caps it and rounds to a power of two, so 8 on a 64GiB
+    #: machine is the correct answer rather than a wrong one. Absent on Firefox
+    #: and Safari, which is why it is optional rather than defaulted: a value
+    #: invented for a browser that does not report one is a contradiction.
+    device_memory: int | None = None
 
     @property
     def emulatable(self) -> bool:

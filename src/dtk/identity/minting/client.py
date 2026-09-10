@@ -140,6 +140,11 @@ class BrowserRpcClient:
             screen=body.get("screen"),
             language=body.get("language"),
             timezone=body.get("timezone"),
+            # Absent from an older browser-rpc, and from a browser that does not
+            # report them; None means the query keeps its default rather than
+            # claiming hardware nobody measured.
+            hardware_concurrency=_as_int(body.get("hardware_concurrency")),
+            device_memory=_as_int(body.get("device_memory")),
         )
         log.info(
             "identity.mint.succeeded",
