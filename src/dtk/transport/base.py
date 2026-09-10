@@ -317,6 +317,8 @@ class Transport(Protocol):
         self,
         response: RawResponse | None = None,
         exception: BaseException | None = None,
+        *,
+        empty_body_is_normal: bool = False,
     ) -> Classification: ...
 
     async def request(

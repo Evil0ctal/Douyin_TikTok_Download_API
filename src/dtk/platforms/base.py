@@ -289,6 +289,14 @@ class EndpointSpec:
     risk_weight: float = 1.0
     #: Whether the signing layer must append platform signature parameters.
     signed: bool = True
+    #: Whether a 200 with no body at all is one of this endpoint's normal
+    #: answers rather than a refusal.
+    #:
+    #: Almost nowhere. A body-less 200 is the canonical shape of a platform
+    #: withholding a payload from an identity, and reading it as anything else
+    #: is how a burnt identity stays in rotation. The exception is an endpoint
+    #: whose "no" IS silence - and that has to be measured, not assumed.
+    empty_body_is_normal: bool = False
     #: Endpoint-specific headers merged over the adapter defaults.
     headers: tuple[tuple[str, str], ...] = ()
     summary: str = ""

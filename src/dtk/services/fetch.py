@@ -359,7 +359,7 @@ class FetchService:
                 self._timeout,
             )
             status = response.status
-            classification, payload = self._classify(adapter, response)
+            classification, payload = self._classify(adapter, endpoint, response)
             outcome = classification.outcome
             error_code = _error_code_for(classification, payload)
         except TransportFailure as exc:
@@ -409,7 +409,7 @@ class FetchService:
         )
 
     def _classify(
-        self, adapter: PlatformAdapter, response: RawResponse
+        self, adapter: PlatformAdapter, endpoint: str, response: RawResponse
     ) -> tuple[Classification, dict[str, Any] | None]:
         """Judge one response, decoding it only when the verdict needs the body.
 
@@ -422,7 +422,15 @@ class FetchService:
         markers table is what speaks to that - so it is reported as a missing
         payload and the caller turns it into ``UpstreamChanged``.
         """
-        classification = self._transport.classify(response)
+        spec = adapter.endpoints.specs.get(endpoint)
+        classification = self._transport.classify(
+            response,
+            # The endpoint speaking about its own silence. Douyin answers a
+            # private likes list with zero bytes, and without this every such
+            # lookup - most of them, because most likes lists are private -
+            # cooled the identity that asked.
+            empty_body_is_normal=bool(spec is not None and spec.empty_body_is_normal),
+        )
         if classification.outcome is not Outcome.OK:
             return classification, None
         try:

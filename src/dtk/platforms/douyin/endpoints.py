@@ -251,6 +251,14 @@ ENDPOINTS: Final = EndpointTable.of(
         required=("sec_user_id",),
         build=author_likes_params,
         risk_weight=1.8,
+        # Douyin says "these likes are private" by answering 200 with no body at
+        # all. Measured 2026-09-10 against two different authors: zero bytes
+        # both times, while `author_posts` for the same author on the same
+        # identity returned 230KB and 439KB in the request immediately after.
+        # So the silence belongs to this endpoint, not to the identity - and
+        # without this flag, looking up anyone's likes cooled the identity that
+        # asked, which is most of them, because most likes lists are private.
+        empty_body_is_normal=True,
         summary="Posts an author has publicly liked",
     ),
     EndpointSpec(

@@ -332,9 +332,13 @@ class WreqTransport:
         self,
         response: RawResponse | None = None,
         exception: BaseException | None = None,
+        *,
+        empty_body_is_normal: bool = False,
     ) -> Classification:
         """Classify a response or failure with this transport's ruleset."""
-        return self._classifier.classify(response, exception)
+        return self._classifier.classify(
+            response, exception, empty_body_is_normal=empty_body_is_normal
+        )
 
     async def request(
         self,

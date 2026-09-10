@@ -119,17 +119,31 @@ RISK_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
     }
 )
 
-#: Body-level status codes that describe the content. Provisional; extend from
-#: captured samples. 2053 is Douyin for an aweme that is no longer available.
+#: Body-level status codes that describe the content. Every entry below the
+#: first was measured on 2026-09-10 by asking each platform for something that
+#: is not there; the matrix is in ``docs/design/16-salvage-and-debug.md``.
+#:
+#: They are here to name a verdict `envelope.nonzero` would reach anyway. That
+#: matters less than it looks: the value of a table entry is the sentence in the
+#: log, and the value of the *rule* is that a platform saying "no such thing" is
+#: never read as a platform refusing the caller.
 BUSINESS_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
     {
         2053: "aweme unavailable",
-        # Measured 2026-09-10 against `tiktok.content_detail`: both a post that
-        # was deleted and an id that never existed answer HTTP 200, 205 bytes,
-        # `statusCode: 10204` and no `itemInfo`. TikTok does not distinguish the
-        # two, so neither does this - what matters is that it is an answer about
-        # the content and not a refusal of the caller.
+        # Douyin, `author_profile` with a sec_user_id nobody has: 200, 129
+        # bytes, `status_msg` naming the id as invalid, empty `user`.
+        2: "user id not valid",
+        # TikTok, `author_posts` with a sec_uid nobody has. The only case in the
+        # matrix that is not a 200 - HTTP 400, 129 bytes.
+        10201: "user not found",
+        # TikTok, `content_detail`: both a post that was deleted and an id that
+        # never existed answer HTTP 200, 205 bytes, `statusCode: 10204` and no
+        # `itemInfo`. TikTok does not distinguish the two, so neither does this.
         10204: "item not found or not viewable",
+        # TikTok, `author_profile` with a handle nobody has: 200, 220 bytes,
+        # empty `userInfo`. Without the status key fix above this one read as
+        # risk control, because the empty payload is all that was left to see.
+        100002: "user not found",
     }
 )
 
@@ -255,10 +269,21 @@ class ResponseView:
     envelope; without this the chain would decode a large body several times.
     """
 
-    __slots__ = ("_head", "_payload", "_payload_parsed", "_text", "response")
+    __slots__ = (
+        "_head",
+        "_payload",
+        "_payload_parsed",
+        "_text",
+        "empty_body_is_normal",
+        "response",
+    )
 
-    def __init__(self, response: RawResponse) -> None:
+    def __init__(self, response: RawResponse, *, empty_body_is_normal: bool = False) -> None:
         self.response = response
+        #: What the endpoint said about its own silence. Carried on the view
+        #: rather than passed to each rule because it is a fact about the
+        #: request, like the status is - and only one rule reads it today.
+        self.empty_body_is_normal = empty_body_is_normal
         self._text: str | None = None
         self._head: str | None = None
         self._payload: Any = None
@@ -447,7 +472,41 @@ def _nonzero_envelope(view: ResponseView) -> RuleResult:
     return f"{status}: {message}" if message else str(status)
 
 
+def _silent_answer(view: ResponseView) -> RuleResult:
+    """An empty body from the one kind of endpoint that answers "no" with silence.
+
+    Douyin's ``author_likes`` is such an endpoint: a private likes list is zero
+    bytes. Measured 2026-09-10 against two different authors - zero bytes both
+    times, while ``author_posts`` for the same author on the same identity
+    returned 230KB and 439KB in the request immediately after. The silence
+    belongs to the endpoint, not to the identity.
+
+    BUSINESS_ERROR rather than OK, and that is the whole point: this module's
+    four categories define a business error as "the platform answered, the
+    content is gone or private", which is exactly what this is. Calling it OK
+    would hand the parser an empty payload, and both parsers raise on one -
+    correctly, because everywhere else an empty payload IS the refusal.
+
+    Only an endpoint that declares it
+    (:attr:`dtk.platforms.base.EndpointSpec.empty_body_is_normal`) gets this
+    reading. Silence carries no evidence on its own, so the default has to stay
+    the expensive-to-ignore one.
+    """
+    if not view.empty_body_is_normal:
+        return False
+    if not view.response.ok or view.status in BODYLESS_STATUS_CODES:
+        return False
+    if not view.response.body:
+        return "empty body, which is how this endpoint says the list is private"
+    return False
+
+
 def _empty_body(view: ResponseView) -> RuleResult:
+    """A 200 with nothing in it: the plainest refusal there is.
+
+    The operator's own rule, and the default for every endpoint that has not
+    measured itself out of it.
+    """
     if not view.response.ok or view.status in BODYLESS_STATUS_CODES:
         return False
     if not view.response.body:
@@ -572,6 +631,9 @@ DEFAULT_RULES: Final[tuple[ClassificationRule, ...]] = (
     ClassificationRule("http.business_status", Outcome.BUSINESS_ERROR, _business_status),
     ClassificationRule("envelope.nonzero", Outcome.BUSINESS_ERROR, _nonzero_envelope),
     ClassificationRule("signature.rejected", Outcome.RISK_CONTROL, _signature_rejected),
+    # Before `body.empty`, and the only thing between them is whether the
+    # endpoint has said in advance that its silence means something.
+    ClassificationRule("body.silent_answer", Outcome.BUSINESS_ERROR, _silent_answer),
     ClassificationRule("body.empty", Outcome.RISK_CONTROL, _empty_body),
     ClassificationRule("payload.explained", Outcome.BUSINESS_ERROR, _explained_absence),
     ClassificationRule("payload.withheld", Outcome.RISK_CONTROL, _withheld_payload),
@@ -613,13 +675,22 @@ class Classifier:
         self,
         response: RawResponse | None = None,
         exception: BaseException | None = None,
+        *,
+        empty_body_is_normal: bool = False,
     ) -> Classification:
+        """Judge one response.
+
+        ``empty_body_is_normal`` is the endpoint speaking about itself; see
+        :func:`_empty_body`. Keyword-only and defaulted off, so a caller that
+        has not thought about it gets the reading that costs least to be wrong
+        about.
+        """
         if exception is not None:
             return classify_exception(exception)
         if response is None:
             raise ValueError("classify needs either a response or an exception")
 
-        view = ResponseView(response)
+        view = ResponseView(response, empty_body_is_normal=empty_body_is_normal)
         for rule in self._rules:
             result = rule.test(view)
             if result:

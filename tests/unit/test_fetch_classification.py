@@ -125,7 +125,7 @@ class FakeTransport:
         #: Every identity the transport was asked to send as.
         self.senders: list[Any] = []
 
-    def classify(self, response=None, exception=None):
+    def classify(self, response=None, exception=None, *, empty_body_is_normal=False):
         return classify_detailed(response, exception)
 
     async def request(self, identity: Any, spec: Any, timeout: float | None = None) -> RawResponse:
@@ -214,7 +214,7 @@ class TestClassification:
 
     def test_a_healthy_payload_is_ok(self, adapter):
         payload = {"status_code": 0, "aweme_detail": {"aweme_id": "1", "desc": "x"}}
-        classification, decoded = service()._classify(adapter, response(200, payload))
+        classification, decoded = service()._classify(adapter, "douyin.content_detail", response(200, payload))
         assert classification.outcome is Outcome.OK
         assert decoded == payload
 
@@ -223,26 +223,26 @@ class TestClassification:
         """The platform refusing this caller. Filing these as business errors is
         what left nothing to cool the identity and nothing to trip the circuit -
         the outage the console could not see."""
-        classification, _ = service()._classify(adapter, response(status, {}))
+        classification, _ = service()._classify(adapter, "douyin.content_detail", response(status, {}))
         assert classification.outcome is Outcome.RISK_CONTROL
 
     @pytest.mark.parametrize("status", [400, 404, 410, 451])
     def test_content_statuses_are_business_errors(self, adapter, status):
         """A 404 is a fact about the content. Counting it against the identity
         is exactly the V4 bug this project exists to avoid."""
-        classification, _ = service()._classify(adapter, response(status, {}))
+        classification, _ = service()._classify(adapter, "douyin.content_detail", response(status, {}))
         assert classification.outcome is Outcome.BUSINESS_ERROR
 
     @pytest.mark.parametrize("status", [407, 408, 500, 502, 503, 504])
     def test_unreachable_statuses_are_network_errors(self, adapter, status):
         """407 is the proxy, not the platform: a lapsed subscription has to reach
         the health probe rather than look like missing content."""
-        classification, _ = service()._classify(adapter, response(status, {}))
+        classification, _ = service()._classify(adapter, "douyin.content_detail", response(status, {}))
         assert classification.outcome is Outcome.NETWORK_ERROR
 
     def test_a_challenge_page_is_risk_control(self, adapter):
         page = b"<html><script src='/verify_center/captcha.js'></script></html>"
-        classification, decoded = service()._classify(adapter, response(200, body=page))
+        classification, decoded = service()._classify(adapter, "douyin.content_detail", response(200, body=page))
         assert classification.outcome is Outcome.RISK_CONTROL
         assert decoded is None
 
@@ -250,7 +250,7 @@ class TestClassification:
         """No challenge marker, no envelope, just not JSON. The identity did get
         served, so the caller hears about a changed response and the pool is left
         alone; cooling on this would burn identities over a shape change."""
-        classification, decoded = service()._classify(adapter, response(200, body=b"<html>hi"))
+        classification, decoded = service()._classify(adapter, "douyin.content_detail", response(200, body=b"<html>hi"))
         assert classification.outcome is Outcome.OK
         assert decoded is None
 
@@ -258,7 +258,7 @@ class TestClassification:
         """The platform's tell is a structurally valid 200 with the payload
         hollowed out, which is why status alone is not enough."""
         empty = {"status_code": 0, "aweme_detail": None}
-        classification, _ = service()._classify(adapter, response(200, empty))
+        classification, _ = service()._classify(adapter, "douyin.content_detail", response(200, empty))
         assert classification.outcome is Outcome.RISK_CONTROL
 
 
