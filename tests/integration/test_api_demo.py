@@ -36,11 +36,19 @@ pytestmark = pytest.mark.integration
 DEMO_PASSWORD = "demo-password-for-the-test"
 
 
-async def _provision() -> demo.DemoCredentials:
+async def _provision(app: Any = None) -> demo.DemoCredentials:
     from dtk.api.routes.passwords import hash_password
+    from dtk.core.crypto import Cipher
 
+    cipher = app.state.cipher if app is not None else Cipher(_test_secret())
     async with session_scope() as session:
-        return await demo.provision(session, hash_password=hash_password)
+        return await demo.provision(session, hash_password=hash_password, cipher=cipher)
+
+
+def _test_secret() -> str:
+    from tests.integration.test_api_support import bootstrap_settings
+
+    return bootstrap_settings().secret_key
 
 
 def _set_demo(app: Any, enabled: bool) -> None:
@@ -64,7 +72,7 @@ def _set_demo(app: Any, enabled: bool) -> None:
 
 
 async def test_provisioning_creates_one_account_with_the_two_read_scopes(api_app: Any) -> None:
-    credentials = await _provision()
+    credentials = await _provision(api_app)
 
     assert credentials.username == demo.DEMO_USERNAME
     assert credentials.password
@@ -80,8 +88,8 @@ async def test_provisioning_creates_one_account_with_the_two_read_scopes(api_app
 
 async def test_provisioning_twice_leaves_one_live_key(api_app: Any) -> None:
     """Otherwise an instance cannot answer "which of these is published"."""
-    first = await _provision()
-    second = await _provision()
+    first = await _provision(api_app)
+    second = await _provision(api_app)
     assert first.api_key != second.api_key
 
     async with session_scope() as session:
@@ -106,7 +114,7 @@ async def test_provisioning_twice_leaves_one_live_key(api_app: Any) -> None:
 
 
 async def test_the_demo_cannot_log_in_while_the_switch_is_off(api_app: Any, client: Any) -> None:
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, False)
 
     response = await login(client, demo.DEMO_USERNAME, credentials.password or "")
@@ -117,7 +125,7 @@ async def test_the_demo_cannot_log_in_while_the_switch_is_off(api_app: Any, clie
 
 
 async def test_the_demo_can_log_in_while_the_switch_is_on(api_app: Any, client: Any) -> None:
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
 
     response = await login(client, demo.DEMO_USERNAME, credentials.password or "")
@@ -133,7 +141,7 @@ async def test_turning_the_switch_off_locks_out_a_session_already_open(
     A session cookie is good until it expires, so a demo visitor who was
     already inside would stay inside. The check runs on every request instead.
     """
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
     assert (await login(client, demo.DEMO_USERNAME, credentials.password or "")).status_code == 200
     assert (await client.get("/api/v1/system/status")).status_code == 200
@@ -144,7 +152,7 @@ async def test_turning_the_switch_off_locks_out_a_session_already_open(
 
 
 async def test_the_published_key_stops_working_when_the_switch_goes_off(api_app: Any) -> None:
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
     headers = {"X-API-Key": credentials.api_key or ""}
 
@@ -166,7 +174,6 @@ async def test_the_published_key_stops_working_when_the_switch_goes_off(api_app:
     [
         "/api/v1/admin/identities",
         "/api/v1/admin/proxies",
-        "/api/v1/admin/api-keys",
         "/api/v1/admin/users",
         "/api/v1/admin/settings",
     ],
@@ -174,8 +181,14 @@ async def test_the_published_key_stops_working_when_the_switch_goes_off(api_app:
 async def test_the_demo_console_cannot_read_the_credential_pages(
     api_app: Any, client: Any, path: str
 ) -> None:
-    """The reason the role ranks below viewer rather than beside it."""
-    credentials = await _provision()
+    """The reason the role ranks below viewer rather than beside it.
+
+    `/admin/api-keys` is deliberately absent from this list: a visitor has to be
+    able to copy the published key or the demo API is unusable. It is opened and
+    then filtered to that one row - see
+    :func:`test_the_demo_sees_only_its_own_key_on_the_keys_page`.
+    """
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
     await login(client, demo.DEMO_USERNAME, credentials.password or "")
 
@@ -190,7 +203,7 @@ async def test_the_demo_console_cannot_read_the_credential_pages(
 async def test_the_demo_console_can_read_the_pages_it_is_meant_to(
     api_app: Any, client: Any, path: str
 ) -> None:
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
     await login(client, demo.DEMO_USERNAME, credentials.password or "")
 
@@ -206,7 +219,7 @@ async def test_the_published_key_cannot_read_the_logs_even_though_the_console_ca
     Same role, same instance; the session is unscoped and the key holds two
     platform read scopes, so this is refused without a second rule saying so.
     """
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
     async with anonymous_client(api_app) as http:
         response = await http.get(
@@ -229,7 +242,7 @@ async def test_the_demo_console_cannot_write(
     api_app: Any, client: Any, method: str, path: str
 ) -> None:
     """Read-only means read-only, including for the unscoped console session."""
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
     await login(client, demo.DEMO_USERNAME, credentials.password or "")
 
@@ -255,7 +268,7 @@ async def test_an_administrator_is_unaffected_by_the_read_only_rule(
 
 async def test_a_demo_task_is_marked_and_a_real_one_is_not(api_app: Any, client: Any) -> None:
     """The mark is what the worker and the sweep both read later."""
-    credentials = await _provision()
+    credentials = await _provision(api_app)
     _set_demo(api_app, True)
     await login(client, demo.DEMO_USERNAME, credentials.password or "")
 
@@ -344,3 +357,113 @@ async def test_the_demo_role_cannot_be_assigned_by_hand(api_app: Any, client: An
     )
     assert response.status_code == 400
     assert error_code(response) == "INVALID_PARAM"
+
+
+# --------------------------------------------------------------------------
+# The published pair, which is readable on purpose
+# --------------------------------------------------------------------------
+
+
+async def test_the_login_page_is_told_the_demo_credentials(api_app: Any) -> None:
+    """Unauthenticated, because the login page is."""
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+
+    async with anonymous_client(api_app) as http:
+        response = await http.get("/api/v1/auth/demo")
+    assert response.status_code == 200
+    data = envelope(response)["data"]
+    assert data["enabled"] is True
+    assert data["username"] == demo.DEMO_USERNAME
+    assert data["password"] == credentials.password
+
+
+async def test_the_login_page_is_told_nothing_when_the_demo_is_off(api_app: Any) -> None:
+    """An instance that runs no demo must look like one that never could."""
+    await _provision(api_app)
+    _set_demo(api_app, False)
+
+    async with anonymous_client(api_app) as http:
+        response = await http.get("/api/v1/auth/demo")
+    data = envelope(response)["data"]
+    assert data == {"enabled": False}
+
+
+async def test_the_demo_key_is_listed_in_full_and_others_are_not(api_app: Any, client: Any) -> None:
+    """The asymmetry the API keys page explains.
+
+    An operator's key has no plaintext anywhere in this system, so `secret` is
+    null for it - not redacted, absent.
+    """
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    admin_id = await signed_in(client)
+    await support.make_api_key(admin_id, name="an operator's key")
+
+    rows = envelope(await client.get("/api/v1/admin/api-keys"))["data"]
+    by_name = {row["name"]: row for row in rows}
+
+    published = by_name[demo.DEMO_KEY_NAME]
+    assert published["demo"] is True
+    assert published["secret"] == credentials.api_key
+
+    ordinary = by_name["an operator's key"]
+    assert ordinary["demo"] is False
+    assert ordinary["secret"] is None
+
+
+async def test_the_demo_key_stops_being_readable_when_the_demo_is_off(
+    api_app: Any, client: Any
+) -> None:
+    await _provision(api_app)
+    _set_demo(api_app, False)
+    await signed_in(client)
+
+    rows = envelope(await client.get("/api/v1/admin/api-keys"))["data"]
+    published = next(row for row in rows if row["name"] == demo.DEMO_KEY_NAME)
+    assert published["secret"] is None
+    assert published["demo"] is False
+
+
+async def test_a_rotation_changes_what_the_login_page_offers(api_app: Any) -> None:
+    """Otherwise a rotated demo would leave the login page prefilling a password
+    that no longer works, which is worse than not prefilling at all."""
+    first = await _provision(api_app)
+    _set_demo(api_app, True)
+    second = await _provision(api_app)
+
+    async with anonymous_client(api_app) as http:
+        data = envelope(await http.get("/api/v1/auth/demo"))["data"]
+    assert data["password"] == second.password
+    assert data["password"] != first.password
+
+
+async def test_the_demo_sees_only_its_own_key_on_the_keys_page(api_app: Any, client: Any) -> None:
+    """A visitor may copy the published key. The operator's inventory - names,
+    scopes, rate limits, last used - is not a visitor's business, and is
+    filtered in the query so those rows are never loaded."""
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+
+    # An operator's key exists alongside the demo's.
+    async with anonymous_client(api_app) as other:
+        admin_id = await signed_in(other, username="owner", password="correct horse battery")
+    await support.make_api_key(admin_id, name="private key")
+
+    await login(client, demo.DEMO_USERNAME, credentials.password or "")
+    rows = envelope(await client.get("/api/v1/admin/api-keys"))["data"]
+
+    assert [row["name"] for row in rows] == [demo.DEMO_KEY_NAME]
+    assert rows[0]["secret"] == credentials.api_key
+
+
+async def test_the_demo_still_cannot_create_or_revoke_a_key(api_app: Any, client: Any) -> None:
+    """Reading the page is not permission to change it."""
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    await login(client, demo.DEMO_USERNAME, credentials.password or "")
+
+    created = await client.post(
+        "/api/v1/admin/api-keys", json={"name": "mine", "scopes": ["douyin:read"]}
+    )
+    assert created.status_code == 403

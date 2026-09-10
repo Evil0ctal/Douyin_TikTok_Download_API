@@ -180,7 +180,12 @@
       "timeout": "The API did not answer in time. Try again.",
       "generic": "Sign in failed. Try again."
     },
-    "source": "Source on GitHub"
+    "source": "Source on GitHub",
+    "demo": {
+      "title": "This site is running in demo mode.",
+      "body": "The username and password below are filled in for you — just sign in. The demo account is read-only and shared with everyone; for the full thing, deploy your own.",
+      "deploy": "Deploy your own"
+    }
   },
   "setupWizard": {
     "stepsLabel": "Setup steps",
@@ -1139,7 +1144,9 @@
     "revokeSelected": "Revoke {count, plural, one {# key} other {# keys}}",
     "bulkRevokeTitle": "Revoke the selected keys?",
     "bulkRevokeBody": "{count, plural, one {# key stops working immediately} other {# keys stop working immediately}}. Anything using them starts getting 401 on its next call. Revoking cannot be undone; mint a replacement instead.",
-    "bulkRevokedToast": "{count, plural, one {# key revoked} other {# keys revoked}}"
+    "bulkRevokedToast": "{count, plural, one {# key revoked} other {# keys revoked}}",
+    "demoNote": "The demo key is shown in full because it is published — anyone trying this instance is meant to copy it. It calls the Douyin and TikTok endpoints and nothing else.",
+    "demoWhy": "Every other key shows only its prefix, and that is not a setting: the server stores a digest, so there is no plaintext to reveal."
   },
   "playground": {
     "endpointLabel": "Endpoint",
@@ -2127,5 +2134,12 @@
       "rest": "The same operations over REST"
     },
     "toolCount": "{count, plural, one {# tool} other {# tools}}"
+  },
+  "demo": {
+    "banner": {
+      "title": "Demo mode.",
+      "body": "This account is shared, read-only and for trying the project out. Nothing you do here is saved, and the pages that hold credentials are hidden. Deploy your own instance for the full console.",
+      "deploy": "Deploy your own"
+    }
   }
 }

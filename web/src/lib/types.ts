@@ -146,6 +146,16 @@ export interface ApiKeySummary {
   revoked_at?: string | null
   last_used_at?: string | null
   created_at: string
+  /**
+   * The published demo key, and only ever that one.
+   *
+   * `secret` is null for every key an operator created, because the server has
+   * no plaintext to send: it stores a digest. The demo key is the exception -
+   * it is meant to be copied off this page by anybody trying the instance - so
+   * it is the one row where these two are populated.
+   */
+  demo?: boolean
+  secret?: string | null
 }
 
 /** Returned once, at creation time, and never again. */

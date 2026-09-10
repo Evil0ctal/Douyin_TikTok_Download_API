@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
 
 import {
@@ -14,7 +14,7 @@ import {
   ThemeToggle,
 } from '@/components'
 import shell from '@/components/shell.module.css'
-import { apiPost, isApiError, type ApiError } from '@/lib/api'
+import { apiGet, apiPost, isApiError, type ApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { SESSION_KEY, useApiMutation, useSession } from '@/hooks'
 
@@ -26,6 +26,13 @@ const REPO = 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API'
 interface Credentials {
   username: string
   password: string
+}
+
+/** What GET /auth/demo answers. Absent fields when the demo is off. */
+interface DemoOffer {
+  enabled: boolean
+  username?: string | null
+  password?: string | null
 }
 
 /**
@@ -45,6 +52,32 @@ export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const alertId = useId()
+
+  /**
+   * The demo, if this instance runs one.
+   *
+   * Unauthenticated by necessity - this is the page you are on before you have
+   * anything. It answers `enabled: false` on every instance that is not running
+   * a demo, so the block below renders nowhere else.
+   */
+  const demo = useQuery<DemoOffer>({
+    queryKey: ['auth', 'demo'],
+    queryFn: () => apiGet(paths.auth.demo, { redirectOnUnauthenticated: false }),
+    retry: false,
+    staleTime: 60_000,
+  })
+  const offer = demo.data?.enabled ? demo.data : null
+
+  // Prefilled rather than merely displayed: a visitor who has to retype a
+  // generated password off the screen above the box has been given a puzzle,
+  // not a demo. Left editable, because the same page still has to log in the
+  // operator who deployed it.
+  useEffect(() => {
+    if (offer?.username && offer.password) {
+      setUsername((current) => (current ? current : offer.username ?? ''))
+      setPassword((current) => (current ? current : offer.password ?? ''))
+    }
+  }, [offer])
 
   const signIn = useApiMutation<unknown, Credentials>(
     (credentials) =>
@@ -90,6 +123,22 @@ export default function Login() {
           </div>
 
           <Card title={t('console:page.login.title')} description={t('console:login.subtitle')}>
+            {/* Above the form, because it changes what the form means: the
+                boxes are already filled and the visitor only has to click. */}
+            {offer ? (
+              <div className={styles.demoNotice} role="note">
+                <strong>{t('console:login.demo.title')}</strong>
+                <span>{t('console:login.demo.body')}</span>
+                <a
+                  href="https://github.com/Evil0ctal/Douyin_TikTok_Download_API"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <ExternalIcon size={12} />
+                  {t('console:login.demo.deploy')}
+                </a>
+              </div>
+            ) : null}
             <form className="u-stack" onSubmit={onSubmit} noValidate>
               <Input
                 label={t('console:field.username')}

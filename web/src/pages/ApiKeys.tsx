@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next'
 
 import {
   AlertIcon,
+  Banner,
   Button,
   Card,
   Checkbox,
   ConfirmDialog,
   DataTable,
+  InfoIcon,
   Input,
   KeyIcon,
   MaskedSecret,
@@ -231,7 +233,17 @@ export default function ApiKeys() {
         id: 'prefix',
         header: t('apiKeys.field.prefix'),
         mono: true,
-        cell: (row) => <MaskedSecret value={`dtk_${row.prefix}_...`} />,
+        // The demo key shows in full; every other key shows the prefix and
+        // an ellipsis, because a prefix is all the server has. That asymmetry
+        // is the point rather than an oversight, and the note under the table
+        // says so - otherwise it reads as "keys are readable here", which is
+        // the impression this page must never give.
+        cell: (row) =>
+          row.demo && row.secret ? (
+            <MaskedSecret value={row.secret} copyable />
+          ) : (
+            <MaskedSecret value={`dtk_${row.prefix}_...`} />
+          ),
         sortValue: (row) => row.prefix,
       },
       {
@@ -426,6 +438,17 @@ export default function ApiKeys() {
           <li>{t('apiKeys.noteRevoke')}</li>
         </ul>
       </Card>
+
+      {/* Only when there is actually a readable key in the table. Explaining an
+          exception nobody can see would just make the rule sound softer. */}
+      {rows.some((row) => row.demo && row.secret) ? (
+        <Banner tone="accent" icon={<InfoIcon size={14} />}>
+          <div className="u-stack-sm">
+            <span>{t('apiKeys.demoNote')}</span>
+            <span className="u-xs u-muted">{t('apiKeys.demoWhy')}</span>
+          </div>
+        </Banner>
+      ) : null}
 
       <DataTable
         columns={columns}

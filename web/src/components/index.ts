@@ -12,6 +12,7 @@ export type { ButtonProps, ButtonSize, ButtonVariant } from './Button'
 
 export { Card } from './Card'
 export { DemoCard } from './DemoCard'
+export { DemoNotice } from './DemoNotice'
 export type { DemoCardProps } from './DemoCard'
 export type { CardProps } from './Card'
 

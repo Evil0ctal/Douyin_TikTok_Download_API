@@ -19,27 +19,40 @@ from typing import Any
 from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy import select
 
-from dtk.api.deps import Principal
+from dtk.api.deps import Principal, demo_mode_on
 from dtk.api.routes.openapi import CREATED_RESPONSES, I18N_KEY
 from dtk.api.routes.schemas import ApiKeyCreate
-from dtk.api.routes.support import audit, iso, manage_pool, ok, read_admin
+from dtk.api.routes.support import audit, iso, manage_pool, ok, read_admin_demo
 from dtk.core.crypto import new_api_key
 from dtk.core.errors import ForbiddenScope, InvalidParam, NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import Scope
+from dtk.core.types import Scope, UserRole
 from dtk.db.models import ApiKey
 from dtk.db.repositories import ApiKeyRepository
+from dtk.services import demo
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api-keys")
 
 
-def _row(key: ApiKey) -> dict[str, Any]:
-    """Everything about a key except the two things that authenticate it."""
+def _row(key: ApiKey, *, secret: str | None = None) -> dict[str, Any]:
+    """Everything about a key except the two things that authenticate it.
+
+    ``secret`` is the one exception and it is only ever non-None for the
+    published demo key. It is not a permission this function checks: an
+    operator's key has no readable plaintext anywhere in this system, so there
+    is nothing a caller could be granted. See
+    :mod:`dtk.db.migrations.versions.0009_demo_readable_credentials`.
+    """
     now = datetime.now(UTC)
     expired = key.expires_at is not None and key.expires_at <= now
     return {
+        # Present and non-null only for the demo key. `demo` also drives the
+        # console's explanation of why this one is readable and the others are
+        # not, so the page never has to infer it from the name.
+        "demo": secret is not None,
+        "secret": secret,
         "id": str(key.id),
         "name": key.name,
         "prefix": key.prefix,
@@ -60,7 +73,7 @@ async def list_keys(
     mine_only: bool = Query(
         default=False, description="Only list keys you created, rather than everyone's."
     ),
-    principal: Principal = Depends(read_admin),
+    principal: Principal = Depends(read_admin_demo),
 ) -> Any:
     """Every API key on this instance, newest first.
 
@@ -79,8 +92,30 @@ async def list_keys(
     stmt = select(ApiKey).order_by(ApiKey.created_at.desc())
     if mine_only:
         stmt = stmt.where(ApiKey.user_id == principal.user_id)
+    # The demo account reaches this page so a visitor can copy the published key
+    # and try the API. It sees that key and no other: the rest of this table is
+    # the operator's - names, scopes, rate limits, when each was last used -
+    # which is inventory of somebody else's instance and none of a visitor's
+    # business. Filtered in the query rather than in the renderer, so a row that
+    # must not be seen is never loaded rather than merely not drawn.
+    if principal.role is UserRole.DEMO:
+        stmt = stmt.where(ApiKey.user_id == principal.user_id)
     rows = (await request.state.db.scalars(stmt)).all()
-    return ok(request, [_row(row) for row in rows])
+
+    # The demo key is shown in full while the demo is running. Two conditions,
+    # both required: the row has to carry a decryptable plaintext, which only
+    # the provisioner ever writes, and the demo has to be on - a key from a
+    # demo that was switched off is listed like any other, masked.
+    published: str | None = None
+    if demo_mode_on(request):
+        revealed = await demo.reveal(request.state.db, request.app.state.cipher)
+        published = revealed.api_key if revealed else None
+
+    def render(row: ApiKey) -> dict[str, Any]:
+        readable = published if (published and row.demo_secret_encrypted) else None
+        return _row(row, secret=readable)
+
+    return ok(request, [render(row) for row in rows])
 
 
 def _refuse_escalation(principal: Principal, requested: Sequence[Scope]) -> None:

@@ -222,6 +222,10 @@
         "summary": "Read the audit trail",
         "description": "Sensitive operations, newest first."
       },
+      "auth_demo": {
+        "summary": "The demo credentials, for the login page",
+        "description": "When this instance runs a public demo, the username and password to prefill the login form with. Answers `enabled: false` and nothing else when demo mode is off."
+      },
       "auth_login": {
         "summary": "Exchange a password for a session cookie",
         "description": "Sign in to the console and receive a session cookie."

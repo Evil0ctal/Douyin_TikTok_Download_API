@@ -78,7 +78,9 @@ async def rotate_demo(request: Request, principal: Principal = Depends(admin_onl
 
     The new password and the new API key, in the clear and for the only time.
     """
-    credentials = await demo.provision(request.state.db, hash_password=hash_password)
+    credentials = await demo.provision(
+        request.state.db, hash_password=hash_password, cipher=request.app.state.cipher
+    )
     dropped = await demo.end_sessions(request.state.db)
     await audit(
         request,

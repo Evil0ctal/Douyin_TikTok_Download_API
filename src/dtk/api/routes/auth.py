@@ -41,6 +41,7 @@ from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.core.types import UserRole
 from dtk.db.repositories import UserRepository
+from dtk.services import demo
 
 log = get_logger(__name__)
 
@@ -269,6 +270,51 @@ async def login(request: Request, body: LoginRequest) -> Any:
     )
     sessions.attach_cookie(response, request, token)
     return response
+
+
+@router.get(
+    "/demo",
+    summary="The demo credentials, for the login page",
+    openapi_extra={I18N_KEY: "auth_demo"},
+)
+async def demo_credentials(request: Request) -> Any:
+    """What to prefill the login form with, when this instance runs a demo.
+
+    Unauthenticated, because the login page is: a visitor who has to sign in to
+    learn how to sign in has not been given a demo. That is safe only because of
+    what it can return, and the boundaries are worth stating plainly.
+
+    It returns exactly one account's password - the one whose whole purpose is
+    to be published - and only while ``demo.enabled`` is on. With the demo off
+    it answers ``enabled: false`` and nothing else, so an instance that has
+    never run a demo, or has stopped, leaks nothing and looks the same as one
+    that was never built with the feature.
+
+    There is no other account this endpoint can name. It resolves the demo user
+    by role, and the role cannot be assigned by hand
+    (:func:`dtk.api.routes.admin.users._refuse_hand_made_demo`), so there is no
+    way to make it print somebody else's password by creating a user.
+
+    **Returns**
+
+    ``enabled``, and when it is true the username and password to prefill.
+    """
+    if not demo_mode_on(request):
+        return ok(request, {"enabled": False})
+    credentials = await demo.reveal(request.state.db, request.app.state.cipher)
+    if credentials is None or not credentials.password:
+        # Enabled but not provisioned, or provisioned before a key rotation.
+        # Reported as "on, nothing to prefill" so the console can still show the
+        # demo banner and let somebody type credentials they were given.
+        return ok(request, {"enabled": True, "username": None, "password": None})
+    return ok(
+        request,
+        {
+            "enabled": True,
+            "username": credentials.username,
+            "password": credentials.password,
+        },
+    )
 
 
 @router.post(

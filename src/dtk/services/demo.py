@@ -44,7 +44,7 @@ from typing import Final
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dtk.core.crypto import new_api_key
+from dtk.core.crypto import Cipher, new_api_key
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.core.types import Scope, UserRole
@@ -151,7 +151,7 @@ async def find_key(session: AsyncSession, user_id: uuid.UUID) -> ApiKey | None:
 
 
 async def provision(
-    session: AsyncSession, *, hash_password: Callable[[str], str]
+    session: AsyncSession, *, hash_password: Callable[[str], str], cipher: Cipher
 ) -> DemoCredentials:
     """Create or reset the demo account and its key, returning both in the clear.
 
@@ -164,6 +164,13 @@ async def provision(
     ``hash_password`` is injected rather than imported: it lives in
     :mod:`dtk.cli.users` next to the argon2 parameters, and importing the CLI
     from a service would drag Typer into the API process.
+
+    Both secrets are stored twice and the two copies do different jobs. The
+    argon2 digest and the sha256 digest are what *authenticate*, unchanged from
+    any other account or key. The encrypted copies are what let the login page
+    and the API keys page *display* what this instance has published - which is
+    the whole feature, and is why the demo pair is the one place in this schema
+    where a credential is recoverable.
     """
     now = datetime.now(UTC)
     password = generate_password()
@@ -176,11 +183,13 @@ async def provision(
             role=UserRole.DEMO.value,
         )
         session.add(user)
+        # Flushed before encrypting: the row id is the AAD, so it has to exist.
         await session.flush()
         log.info("demo.user_created", user_id=str(user.id))
     else:
         user.password_hash = hash_password(password)
         log.info("demo.user_password_rotated", user_id=str(user.id))
+    user.demo_password_encrypted = cipher.encrypt(password, aad=str(user.id))
 
     # Revoke rather than delete: the key id is referenced by task and
     # request_log rows, and a demo instance that cannot answer "which key made
@@ -190,15 +199,16 @@ async def provision(
         existing.revoked_at = now
 
     full, prefix, digest = new_api_key()
-    session.add(
-        ApiKey(
-            user_id=user.id,
-            name=DEMO_KEY_NAME,
-            prefix=prefix,
-            key_hash=digest,
-            scopes=[s.value for s in DEMO_KEY_SCOPES],
-        )
+    key = ApiKey(
+        user_id=user.id,
+        name=DEMO_KEY_NAME,
+        prefix=prefix,
+        key_hash=digest,
+        scopes=[s.value for s in DEMO_KEY_SCOPES],
     )
+    session.add(key)
+    await session.flush()
+    key.demo_secret_encrypted = cipher.encrypt(full, aad=str(key.id))
     await session.flush()
     log.info("demo.key_minted", user_id=str(user.id), prefix=prefix)
 
@@ -221,6 +231,51 @@ async def describe(session: AsyncSession) -> DemoCredentials | None:
         username=user.username,
         password=None,
         api_key=None,
+        api_key_prefix=key.prefix if key else "",
+        scopes=tuple(key.scopes or ()) if key else (),
+    )
+
+
+async def reveal(session: AsyncSession, cipher: Cipher) -> DemoCredentials | None:
+    """The published pair, decrypted, or None if there is nothing to publish.
+
+    This is what the login page prefills from and what the API keys page shows.
+    It is deliberately not gated on who is asking, because the answer is already
+    public - it is printed on a page an unauthenticated visitor is looking at -
+    and a check here would only create the impression that it is not.
+
+    What it IS gated on is the switch, at every call site: with the demo off
+    there is nothing to publish, and the routes below return nothing rather than
+    handing out a credential for an account that cannot log in.
+
+    A ciphertext that will not decrypt is treated as absent rather than raised.
+    That happens when the instance key has been rotated since the demo was
+    provisioned, and the honest recovery is to reissue the pair, not to fail the
+    login page for everyone.
+    """
+    user = await find_user(session)
+    if user is None:
+        return None
+    key = await find_key(session, user.id)
+
+    password: str | None = None
+    if user.demo_password_encrypted:
+        try:
+            password = cipher.decrypt(user.demo_password_encrypted, aad=str(user.id))
+        except Exception:
+            log.warning("demo.password_undecryptable", user_id=str(user.id))
+
+    api_key: str | None = None
+    if key is not None and key.demo_secret_encrypted:
+        try:
+            api_key = cipher.decrypt(key.demo_secret_encrypted, aad=str(key.id))
+        except Exception:
+            log.warning("demo.key_undecryptable", key_id=str(key.id))
+
+    return DemoCredentials(
+        username=user.username,
+        password=password,
+        api_key=api_key,
         api_key_prefix=key.prefix if key else "",
         scopes=tuple(key.scopes or ()) if key else (),
     )
@@ -267,4 +322,5 @@ __all__ = [
     "find_user",
     "generate_password",
     "provision",
+    "reveal",
 ]

@@ -417,3 +417,39 @@
   background: var(--bg-raised);
   color: var(--text);
 }
+
+/*
+ * The demo banner, at the top of every console page for the demo account.
+ *
+ * Accent rather than caution: a visitor on a public demo has not made a
+ * mistake and nothing is wrong, so the colour that says "note" is the honest
+ * one. Warning colours here would train the operator's own eye to ignore them
+ * on the pages where they mean something.
+ */
+.demoBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-accent-border, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft, var(--color-surface-2));
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.demoBar strong {
+  color: var(--color-text);
+}
+
+.demoBar a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  color: var(--color-accent-text, var(--color-text));
+  white-space: nowrap;
+}

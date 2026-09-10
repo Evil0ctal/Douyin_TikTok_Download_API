@@ -10,6 +10,7 @@ import {
   ErrorState,
   LanguageSwitcher,
   PageHeader,
+  DemoNotice,
   Sidebar,
   Skeleton,
   ThemeToggle,
@@ -168,6 +169,10 @@ function Shell() {
           }}
         />
         <main className={styles.content} id="main">
+          {/* Inside the scroll area rather than pinned above it: a visitor
+              needs to be told once, on arrival, not to have a strip of the
+              viewport taken from them on every page for the rest of the visit. */}
+          <DemoNotice />
           <ErrorBoundary>
             <ConsoleRoutes />
           </ErrorBoundary>

@@ -50,7 +50,15 @@ PG = postgresql.dialect()
 #: Exactly the columns doc 05 specifies, per table. Compared as a set, so both a
 #: missing column and an unannounced extra one fail.
 EXPECTED_COLUMNS: dict[str, set[str]] = {
-    "users": {"id", "username", "password_hash", "role", "created_at", "last_login_at"},
+    "users": {
+        "id",
+        "username",
+        "password_hash",
+        "role",
+        "demo_password_encrypted",
+        "created_at",
+        "last_login_at",
+    },
     "api_keys": {
         "id",
         "user_id",
@@ -63,6 +71,7 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
         "revoked_at",
         "last_used_at",
         "created_at",
+        "demo_secret_encrypted",
     },
     "proxies": {
         "id",

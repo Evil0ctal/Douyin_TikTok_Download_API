@@ -222,6 +222,10 @@
         "summary": "读取审计日志",
         "description": "敏感操作记录，最新的在前。"
       },
+      "auth_demo": {
+        "summary": "登录页用的 demo 凭据",
+        "description": "当这台实例开着公开演示时，返回用来预填登录表单的用户名和密码。演示模式关闭时只返回 `enabled: false`，不含其它任何内容。"
+      },
       "auth_login": {
         "summary": "用密码换取会话 Cookie",
         "description": "登录控制台并获得会话 Cookie。"

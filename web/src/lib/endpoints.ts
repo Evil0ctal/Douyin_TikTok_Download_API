@@ -20,6 +20,8 @@ export const paths = {
     logout: `${API_V1}/auth/logout`,
     password: `${API_V1}/auth/password`,
     sessions: `${API_V1}/auth/sessions`,
+    /** Unauthenticated. Answers `enabled: false` unless a demo is running. */
+    demo: `${API_V1}/auth/demo`,
   },
   tasks: {
     /**

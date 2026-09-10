@@ -250,7 +250,9 @@ async def _apply_demo_switch(
             existing = await demo.describe(request.state.db)
             if existing is not None and existing.api_key_prefix:
                 return existing.as_dict()
-            credentials = await demo.provision(request.state.db, hash_password=hash_password)
+            credentials = await demo.provision(
+                request.state.db, hash_password=hash_password, cipher=request.app.state.cipher
+            )
             await audit(
                 request,
                 principal,

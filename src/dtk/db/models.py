@@ -114,6 +114,21 @@ class User(Base):
     #: argon2id digest. Never logged, never returned by any endpoint.
     password_hash: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text, server_default=text(f"'{UserRole.ADMIN.value}'"))
+    #: The demo account's password, encrypted, and NULL for every other account.
+    #:
+    #: A password stored recoverably is normally the bug. This one is the
+    #: exception the demo exists for: it is printed on the login page so a
+    #: visitor can click straight through, which means it is public by design
+    #: and keeping only a digest would make the feature impossible rather than
+    #: safer. argon2 is still what authenticates - `password_hash` is unchanged
+    #: and is what login verifies; this column only lets the instance display
+    #: what it already published.
+    #:
+    #: Encrypted with the instance key and the row id as AAD, like every other
+    #: secret here, so a database dump on its own does not carry it. NULL on
+    #: every non-demo account, which is what makes "reveal a user's password"
+    #: structurally impossible rather than merely forbidden.
+    demo_password_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
@@ -149,6 +164,14 @@ class ApiKey(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+    #: The published demo key, encrypted. NULL for every key but that one.
+    #:
+    #: "Shown once at creation" is the rule for every key an operator makes, and
+    #: it stays the rule: this column is NULL for all of them, so the console
+    #: cannot show a plaintext that does not exist. The demo key is the single
+    #: exception, because it is meant to be copied off a public page by anyone
+    #: who wants to try the instance, and a key nobody can read is not that.
+    demo_secret_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
 
     def __repr__(self) -> str:
         return _repr("ApiKey", id=self.id, prefix=self.prefix, revoked=self.revoked_at is not None)

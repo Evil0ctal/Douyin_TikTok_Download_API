@@ -180,7 +180,12 @@
       "timeout": "API 未在超时前响应，请重试。",
       "generic": "登录失败，请重试。"
     },
-    "source": "GitHub 源码"
+    "source": "GitHub 源码",
+    "demo": {
+      "title": "本站运行在演示模式下。",
+      "body": "下面的用户名和密码已经替你填好，直接点登录即可。演示账号是所有人共用的只读账号，仅供体验；需要完整功能请自行部署。",
+      "deploy": "自行部署"
+    }
   },
   "setupWizard": {
     "stepsLabel": "初始化步骤",
@@ -1139,7 +1144,9 @@
     "revokeSelected": "吊销选中的 {count} 个",
     "bulkRevokeTitle": "确定吊销选中的密钥？",
     "bulkRevokeBody": "这 {count} 个密钥会立即失效，正在使用它们的程序下一次调用就会收到 401。吊销无法撤销，需要的话请另行创建。",
-    "bulkRevokedToast": "已吊销 {count} 个密钥"
+    "bulkRevokedToast": "已吊销 {count} 个密钥",
+    "demoNote": "演示 Key 之所以显示完整明文，是因为它本来就是公开的——任何试用这台实例的人都可以直接复制。它只能调用抖音和 TikTok 的爬虫接口，别的都不行。",
+    "demoWhy": "其它所有 Key 只显示前缀，这不是一个开关：服务端存的是摘要，根本没有明文可以还原。"
   },
   "playground": {
     "endpointLabel": "接口",
@@ -2127,5 +2134,12 @@
       "rest": "同样这些能力的 REST 版本"
     },
     "toolCount": "{count} 个工具"
+  },
+  "demo": {
+    "banner": {
+      "title": "演示模式。",
+      "body": "当前是所有人共用的只读体验账号。你在这里做的任何操作都不会被保存，涉及凭据的页面也已隐藏。需要完整控制台请自行部署一套。",
+      "deploy": "自行部署"
+    }
   }
 }

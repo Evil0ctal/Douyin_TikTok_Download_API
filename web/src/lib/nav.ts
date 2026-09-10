@@ -62,7 +62,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/docs', labelKey: 'nav.apiDocs', group: 'tools', icon: 'book', demo: true },
   // Not '/mcp': that path is the MCP endpoint itself, mounted on the API.
   { path: '/mcp-guide', labelKey: 'nav.mcp', group: 'tools', icon: 'plug', demo: true },
-  { path: '/api-keys', labelKey: 'nav.apiKeys', group: 'access', icon: 'key' },
+  { path: '/api-keys', labelKey: 'nav.apiKeys', group: 'access', icon: 'key', demo: true },
   { path: '/endpoint-access', labelKey: 'nav.endpointAccess', group: 'access', icon: 'lock' },
   { path: '/users', labelKey: 'nav.users', group: 'access', icon: 'users' },
   { path: '/logs', labelKey: 'nav.logs', group: 'operations', icon: 'list', demo: true },
