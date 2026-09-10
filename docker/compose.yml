@@ -19,7 +19,11 @@
 name: dtk
 
 x-app-image: &app-image
-  image: dtk-app:${DTK_IMAGE_TAG:-dev}
+  # Overridable so an operator can run a published image instead of building
+  # one. Left as a local name by default: the repository is the source of
+  # truth, and `up` on a clean machine should produce something runnable
+  # without depending on a registry being reachable or current.
+  image: ${DTK_IMAGE:-dtk-app}:${DTK_IMAGE_TAG:-dev}
   build:
     context: ..
     dockerfile: docker/Dockerfile
@@ -482,7 +486,7 @@ services:
     pids_limit: 128
     profiles:
       - downloader
-    image: dtk-downloader:${DTK_IMAGE_TAG:-dev}
+    image: ${DTK_DOWNLOADER_IMAGE:-dtk-downloader}:${DTK_IMAGE_TAG:-dev}
     build:
       context: ..
       dockerfile: docker/Dockerfile.downloader

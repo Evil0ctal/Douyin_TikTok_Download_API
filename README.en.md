@@ -14,6 +14,10 @@
 [![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 <br>
+[![CI](https://img.shields.io/github/actions/workflow/status/Evil0ctal/Douyin_TikTok_Download_API/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/actions/workflows/ci.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api)
+[![Docker Image Size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api/latest?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags)
+<br>
 [![爱发电](https://img.shields.io/badge/爱发电-evil0ctal-blue.svg?style=flat-square&color=ea4aaa&logo=github-sponsors)](https://afdian.net/@evil0ctal)
 [![Kofi](https://img.shields.io/badge/Kofi-evil0ctal-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/evil0ctal)
 [![Patreon](https://img.shields.io/badge/Patreon-evil0ctal-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/evil0ctal)
@@ -78,6 +82,60 @@ It does three things:
   Redis can already do
 - ❌ Proxying video bytes through the server
 
+## What it can fetch
+
+| Capability | Douyin | TikTok |
+|---|:---:|:---:|
+| One post (video or image album) | ✅ | ✅ |
+| Author profile | ✅ | ✅ |
+| An author's posts | ✅ | ✅ |
+| An author's liked posts | ✅ | ✅ |
+| Mixes / playlists | ✅ | ✅ |
+| Comments | ✅ | ✅ |
+| Comment replies | ✅ | ✅ |
+| Followers | ❌ | ✅ |
+| Following | ❌ | ✅ |
+
+Douyin serves its follower and following lists only to a signed-in session, so
+those two endpoints are not registered at all — which is more honest than
+registering one that would always return an empty page. Importing your own
+logged-in cookies widens what the rest can see, too.
+
+Media downloads, the content archive, counter snapshots, collections and a
+watchlist are built in; none of them needs another service.
+
+## What links it accepts
+
+Paste whatever you have — a short link, a post URL, or the whole caption a
+platform app puts on your clipboard:
+
+```
+https://v.douyin.com/L4NpDJ6/
+https://www.douyin.com/video/7126745726494821640
+https://www.douyin.com/jingxuan?modal_id=7660875690212492466
+https://www.tiktok.com/@evil0ctal/video/7156033831819037994
+https://www.tiktok.com/t/ZTR9nkkmL/
+2.84 nqe:/ <caption> https://v.douyin.com/L4FJNR3/ <sentence telling you to open the app>
+```
+
+Short links are followed, a link buried in a caption is extracted, and a post id
+is checked against the platform's own encoding before anything is sent — so an
+id that cannot exist is refused here rather than costing an upstream request.
+
+## Built with
+
+| | |
+|---|---|
+| Service | Python 3.12 · FastAPI · SQLAlchemy 2.0 (async) · Alembic · Typer |
+| Transport | wreq (browser TLS fingerprint emulation) · httpx |
+| Data | PostgreSQL + TimescaleDB · Redis |
+| Console | React 19 · TypeScript · Vite · TanStack Query · wouter · i18next |
+| Signing | a_bogus, X-Bogus, X-Gnarly and X-Dynosaur in pure Python, with a browser fallback |
+| Packaging | Docker Compose; three images — app, downloader, browser |
+
+Nothing beyond Postgres and Redis is required. No Kafka, no Elasticsearch, no
+object store, no Kubernetes.
+
 ## Quick start
 
 You need Docker and Docker Compose. Nothing in the repository ships a default
@@ -102,6 +160,28 @@ docker compose -p dtk -f docker/compose.yml logs api   # prints the setup token
 
 Open <http://127.0.0.1:8000> and use the token from the log to create the first
 administrator.
+
+### Where the image comes from
+
+By default it is built locally: the first `up` compiles the application image
+from the Dockerfile in this repository, which takes a few minutes. To skip that,
+point compose at the published image instead:
+
+```bash
+export DTK_IMAGE=evil0ctal/douyin_tiktok_download_api
+export DTK_IMAGE_TAG=latest
+docker compose -p dtk -f docker/compose.yml pull
+docker compose -p dtk -f docker/compose.yml up -d
+```
+
+The `pull` is not optional: these services declare both `image` and `build`, so
+compose builds from the local Dockerfile whenever the image is not already on
+the machine rather than reaching for a registry.
+
+Images are published for `linux/amd64` and `linux/arm64`, so Apple Silicon and a
+Raspberry Pi both run natively. The browser container is not published: it
+installs CloakBrowser from a pinned commit, and that pin is a security control
+that should be yours to choose, so it stays a local build.
 
 For the browser container, the downloader sidecar, reverse proxies and backups,
 see [docker/README.md](./docker/README.md).
@@ -155,6 +235,24 @@ at `/docs` inside the console, or at `/swagger`, `/redoc` and `/openapi.json`
 without a login. Both languages.
 
 中文文档：[`documents/README.zh-CN.md`](./documents/README.zh-CN.md)
+## Contact
+
+| | |
+|---|---|
+| Issues | [GitHub Issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues) — public, keeps its history, and anyone who has hit the same thing can answer |
+| Email | `Evil0ctal1985@gmail.com` — reaches one person; best for anything that does not belong in public |
+| Author | [@Evil0ctal](https://github.com/Evil0ctal) |
+
+Before asking, read [Troubleshooting](./documents/en/14-troubleshooting.md) and
+include the output of the Diagnose page or `dtk diagnose`. It answers most of
+what a maintainer would otherwise have to ask you.
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
+
+> Started 2021/11/06 · GitHub [@Evil0ctal](https://github.com/Evil0ctal)
+
 ## Licence
 
 [Apache License 2.0](./LICENSE).

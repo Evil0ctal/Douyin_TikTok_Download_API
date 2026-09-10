@@ -14,23 +14,31 @@
 # The healthcheck is the binary itself (`downloader healthcheck`), because a
 # scratch image has no curl and adding one would undo the first property.
 
-FROM golang:1.23-alpine AS build
+# Built on the runner's own architecture and cross-compiled to the target: Go
+# needs no toolchain per architecture, so emulating one would only make the
+# build slower. `TARGETARCH` and `BUILDPLATFORM` are supplied by buildx.
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS build
 
 ARG VERSION=dev
+ARG TARGETARCH
 WORKDIR /src
 COPY docker/downloader/ ./
 
 # CGO off so the result is a static binary a scratch image can execute at all.
 # -trimpath keeps build machine paths out of the binary; the symbol table and
 # DWARF go with -s -w because nothing debugs this in production.
-RUN CGO_ENABLED=0 GOFLAGS=-mod=mod go build \
+# Verified before it is built, and on the build architecture: a cross-compiled
+# test binary cannot be executed here, and the code under test is pure standard
+# library with no architecture-dependent behaviour to catch.
+#
+# A build that compiles but fails its own tests is not a build worth pushing to
+# a machine that will run it unattended.
+RUN go vet ./... && go test ./...
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GOFLAGS=-mod=mod go build \
         -trimpath \
         -ldflags="-s -w -X main.version=${VERSION}" \
         -o /out/downloader .
-
-# Verify what ships. A build that compiles but fails its own tests is not a
-# build worth pushing to a machine that will run it unattended.
-RUN go vet ./... && go test ./...
 
 # An empty directory to seed the media volume with. Docker initialises a fresh
 # named volume from whatever the image has at the mount point, ownership

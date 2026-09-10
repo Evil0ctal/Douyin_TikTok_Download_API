@@ -25,7 +25,12 @@ ARG PYTHON_BASE=python:${PYTHON_VERSION}-slim-bookworm
 # --------------------------------------------------------------------------
 # Stage 1: the console
 # --------------------------------------------------------------------------
-FROM node:${NODE_VERSION}-alpine AS console
+# `--platform=$BUILDPLATFORM`: this stage emits JavaScript, CSS and HTML, none of
+# which is architecture-specific, so it is built once on the runner's own
+# architecture and its output copied into every target image. Without it a
+# two-platform build runs `npm ci` and vite twice, once under QEMU emulation,
+# which is by far the slowest thing in the whole build for no gain at all.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS console
 
 WORKDIR /build
 

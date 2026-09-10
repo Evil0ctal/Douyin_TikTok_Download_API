@@ -14,6 +14,10 @@
 [![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)
 [![GitHub issues](https://img.shields.io/github/issues/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues)
 <br>
+[![CI](https://img.shields.io/github/actions/workflow/status/Evil0ctal/Douyin_TikTok_Download_API/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/actions/workflows/ci.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api)
+[![Docker Image Size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api/latest?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags)
+<br>
 [![爱发电](https://img.shields.io/badge/爱发电-evil0ctal-blue.svg?style=flat-square&color=ea4aaa&logo=github-sponsors)](https://afdian.net/@evil0ctal)
 [![Kofi](https://img.shields.io/badge/Kofi-evil0ctal-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/evil0ctal)
 [![Patreon](https://img.shields.io/badge/Patreon-evil0ctal-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/evil0ctal)
@@ -26,22 +30,21 @@
 
 <div align="center">
     <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme" target="_blank" rel="sponsored noopener">
-        <img src="https://tikhub.io/logo.jpeg" width="100" alt="TikHub.io - Global Social Data & API Marketplace">
+        <img src="https://tikhub.io/logo.jpeg" width="100" alt="TikHub.io - 全球社交媒体数据与 API 市场"/>
     </a>
     <div>
         <h2><b>TikHub.io</b></h2>
-        <p>Your Ultimate Social Media Data & API Marketplace</p>
+        <p>你的一站式社交媒体数据与 API 市场</p>
         <p>
-            Professional data solutions for Douyin, Xiaohongshu, TikTok, Instagram, YouTube, 
-            Twitter, and more.<br>
-            Real-time Data | Flexible APIs | Seamless Integration | Competitive Pricing with Discounts
+            为抖音、小红书、TikTok、Instagram、YouTube、Twitter 等平台提供专业数据方案。<br>
+            实时数据 · 灵活接口 · 无缝集成 · 有竞争力的价格与折扣
         </p>
         <p>
-            <b>Discover TikHub.io Marketplace</b><br>
-            Buy and sell custom APIs, services, and social media solutions.<br>
-            Join a thriving ecosystem of developers, businesses, and content creators.
+            <b>探索 TikHub.io 市场</b><br>
+            在这里买卖定制 API、服务与社交媒体解决方案，<br>
+            加入一个由开发者、企业与内容创作者组成的活跃生态。
         </p>
-        <p><em>Trusted by leading global influencer marketing and social media intelligence platforms</em></p>
+        <p><em>多家全球领先的红人营销与社交媒体情报平台正在使用</em></p>
     </div>
 </div>
 
@@ -70,6 +73,56 @@ V4 最大的问题不是功能少，是**接口会悄悄死掉而没人知道**�
 - ❌ Kafka、Elasticsearch、MinIO、k8s。Postgres + Redis 能解决的不引入新组件
 - ❌ 服务器中转视频流量
 
+## 它能取什么
+
+| 能力 | 抖音 | TikTok |
+|---|:---:|:---:|
+| 单条作品详情（视频 / 图集） | ✅ | ✅ |
+| 作者资料 | ✅ | ✅ |
+| 作者作品列表 | ✅ | ✅ |
+| 作者喜欢列表 | ✅ | ✅ |
+| 合集 / 播放列表 | ✅ | ✅ |
+| 评论 | ✅ | ✅ |
+| 评论回复 | ✅ | ✅ |
+| 粉丝列表 | ❌ | ✅ |
+| 关注列表 | ❌ | ✅ |
+
+抖音的粉丝与关注列表只对已登录会话开放，访客身份拿不到，所以这两个接口没有注册——
+比注册一个永远返回空页的接口诚实。导入你自己的已登录 Cookie 之后，其余接口能看到的
+内容也会更多。
+
+媒体下载、内容归档、计数快照、合集、定时监控都是内置的，不需要额外服务。
+
+## 它认得什么链接
+
+粘贴什么都行——分享短链、作品页地址，或者 App 复制出来的一整段带文案的口令：
+
+```
+https://v.douyin.com/L4NpDJ6/
+https://www.douyin.com/video/7126745726494821640
+https://www.douyin.com/jingxuan?modal_id=7660875690212492466
+https://www.tiktok.com/@evil0ctal/video/7156033831819037994
+https://www.tiktok.com/t/ZTR9nkkmL/
+2.84 nqe:/ 骑白马的也可以是公主%%百万转场变身 https://v.douyin.com/L4FJNR3/ 复制此链接，打开Dou音搜索
+```
+
+短链会被自动跟随展开，文案里的链接会被提取出来，作品 ID 会先按平台自己的编码规则校验
+一遍——一个不可能存在的 ID 在这里就被拒绝，不会浪费一次上游请求。
+
+## 技术栈
+
+| | |
+|---|---|
+| 服务端 | Python 3.12 · FastAPI · SQLAlchemy 2.0（async）· Alembic · Typer |
+| 传输 | wreq（浏览器 TLS 指纹模拟）· httpx |
+| 数据 | PostgreSQL + TimescaleDB · Redis |
+| 控制台 | React 19 · TypeScript · Vite · TanStack Query · wouter · i18next |
+| 签名 | 纯 Python 实现的 a_bogus / X-Bogus / X-Gnarly / X-Dynosaur，另有浏览器兜底 |
+| 打包 | Docker Compose；应用、下载器、浏览器三个镜像 |
+
+除了 Postgres 和 Redis，不需要任何其它基础设施——没有 Kafka、没有 Elasticsearch、
+没有对象存储、没有 k8s。
+
 ## 快速开始
 
 需要 Docker 和 Docker Compose。仓库里不带任何默认密码或密钥，先生成 `.env`：
@@ -92,6 +145,25 @@ docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化�
 ```
 
 打开 <http://127.0.0.1:8000>，用日志里的令牌创建第一个管理员账号。
+
+### 镜像从哪来
+
+默认是本地构建：`up` 第一次会用仓库里的 Dockerfile 把应用镜像编出来，几分钟。
+如果你不想在自己机器上编译，把 compose 指向已发布的镜像即可：
+
+```bash
+export DTK_IMAGE=evil0ctal/douyin_tiktok_download_api
+export DTK_IMAGE_TAG=latest
+docker compose -p dtk -f docker/compose.yml pull
+docker compose -p dtk -f docker/compose.yml up -d
+```
+
+`pull` 这一步不能省：compose 里这些服务同时写了 `image` 和 `build`，本机没有这个镜像时
+它会自己去编，而不是去拉。
+
+镜像同时提供 `linux/amd64` 与 `linux/arm64`，所以 Apple Silicon 和树莓派上都是原生运行。
+浏览器容器不发布——它会从一个指定的 commit 安装 CloakBrowser，那个 pin 是安全控制，
+应当由你自己决定，所以它一直是本地构建。
 
 更多部署细节（浏览器容器、下载器 sidecar、反向代理、备份）见 [docker/README.md](./docker/README.md)。
 
@@ -140,6 +212,23 @@ docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化�
 以及 `/swagger`、`/redoc`、`/openapi.json`（无需登录）提供，中英双语。
 
 English documentation: [`documents/README.md`](./documents/README.md)
+## 联系方式
+
+| | |
+|---|---|
+| 问题反馈 | [GitHub Issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues) —— 公开、有记录，遇到过同样问题的人也能回答你 |
+| 邮箱 | `Evil0ctal1985@gmail.com` —— 直达作者本人，适合不方便公开的内容 |
+| 作者 | [@Evil0ctal](https://github.com/Evil0ctal) |
+
+提问之前请先看[故障排查](./documents/zh/14-troubleshooting.md)，并附上自检页面或
+`dtk diagnose` 的输出。它能回答维护者原本要反过来问你的大部分问题。
+
+## Star 历史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
+
+> 起始于 2021/11/06 · GitHub [@Evil0ctal](https://github.com/Evil0ctal)
+
 ## 许可协议
 
 [Apache License 2.0](./LICENSE)。

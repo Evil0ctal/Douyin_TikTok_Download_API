@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [v5]
+    # `main` as well as `v5`: v5 is what `main` will hold, and a workflow that
+    # only watches the old branch name goes quiet at exactly the moment the
+    # rename makes it matter.
+    branches: [v5, main]
   pull_request:
-    branches: [v5]
+    branches: [v5, main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
