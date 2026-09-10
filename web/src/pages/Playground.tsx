@@ -17,12 +17,13 @@ import {
   useErrorInfo,
   type SelectOption,
 } from '@/components'
-import { useApiQuery, useFormatters } from '@/hooks'
+import { useApiQuery, useFormatters, useSession } from '@/hooks'
 import type { DecodedParameter } from '@/components'
 import { useApiMutation } from '@/hooks'
 import { apiPost, apiRequest, isApiError, type ApiError, type ResponseMeta } from '@/lib/api'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
+import { atLeast } from '@/lib/roles'
 import {
   IDENTITY_STATES,
   PLATFORMS,
@@ -31,6 +32,7 @@ import {
   type Platform,
   type RequestLogRow,
   type TaskState,
+  type UserRole,
 } from '@/lib/types'
 import styles from './playground.module.css'
 
@@ -79,6 +81,17 @@ interface ParamDef {
   min?: number
   max?: number
   defaultValue?: string
+  /**
+   * The role this parameter needs, when it needs more than reading does.
+   *
+   * Disables the control and keeps the value out of the request. It is not the
+   * gate - `resolve_explain` and `resolve_request_identity` are, and they run
+   * again for every call whatever the console did. What this buys is that a
+   * demo visitor is told the parameter needs an operator instead of ticking a
+   * box and being answered 403 by a workbench whose whole job is to make a
+   * request legible.
+   */
+  minRole?: UserRole
 }
 
 interface EndpointDef {
@@ -154,6 +167,9 @@ const IDENTITY_PARAM: ParamDef = {
   kind: 'text',
   where: 'query',
   section: 'request',
+  // Pinning reveals which jar served a call and lets a caller aim at one
+  // account, so the API gates it exactly as `explain` is gated.
+  minRole: 'operator',
 }
 /**
  * Ask again for real. Two separate mechanisms make a repeat call cheap - the
@@ -202,6 +218,7 @@ const EXPLAIN_PARAM: ParamDef = {
   kind: 'boolean',
   where: 'query',
   section: 'request',
+  minRole: 'operator',
 }
 
 /** The ones every read endpoint carries, in the order the API declares them. */
@@ -558,13 +575,25 @@ function SignatureParams({ pairs }: { pairs: readonly [string, string][] }) {
 function ExplainPrompt({
   enabled,
   running,
+  permitted,
   onRun,
 }: {
   enabled: boolean
   running: boolean
+  /** False below operator. The panel then says why instead of offering a
+   *  button whose only possible answer is 403. */
+  permitted: boolean
   onRun: () => void
 }) {
   const { t } = useTranslation('console')
+
+  if (!permitted) {
+    return (
+      <p className="u-xs u-muted" style={{ margin: 0 }}>
+        {t('playground.explainForbidden')}
+      </p>
+    )
+  }
 
   return (
     <div className="u-stack-sm">
@@ -858,6 +887,12 @@ export default function Playground() {
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const abortRef = useRef<AbortController | null>(null)
 
+  /** Which controls this session may operate. Null until /auth/me answers, and
+   *  null reads as "below everything" - see `atLeast`. */
+  const session = useSession()
+  const role = session.data?.role ?? null
+  const allows = (param: ParamDef): boolean => !param.minRole || atLeast(role, param.minRole)
+
   const endpoint = useMemo(
     () => CATALOG.find((entry) => entry.id === endpointId) ?? DEFAULT_ENDPOINT,
     [endpointId],
@@ -953,6 +988,11 @@ export default function Playground() {
     const groupsFilled = new Set<string>()
 
     for (const param of endpoint.params) {
+      // A parameter the session may not use never reaches the query, even if a
+      // value survived in state from before the role was known. The API would
+      // refuse it anyway; this is what stops the refusal from being the way a
+      // reader finds out.
+      if (!allows(param)) continue
       const raw = valueOf(param, overrides).trim()
       if (param.oneOf) {
         groupsSeen.add(param.oneOf)
@@ -1155,14 +1195,23 @@ export default function Playground() {
     endpoint.params.filter((param) => param.section === section)
 
   const renderParam = (param: ParamDef) => {
+    const permitted = allows(param)
+    /* Say which role it takes, in place of what the parameter does. A reader
+       who cannot use a control is not helped by a description of it. */
+    const describe = (key: string): string =>
+      permitted
+        ? t(key)
+        : t('playground.param.needsRole', { role: param.minRole as UserRole })
+
     if (param.name === 'identity') {
       return (
         <Select
           key={param.name}
           label={<span className="u-mono">{param.name}</span>}
-          description={t('playground.param.identity')}
-          value={valueOf(param)}
+          description={describe('playground.param.identity')}
+          value={permitted ? valueOf(param) : ''}
           options={identityOptions}
+          disabled={!permitted}
           onChange={(event) => {
             setValue(param.name, event.target.value)
           }}
@@ -1173,12 +1222,13 @@ export default function Playground() {
       return (
         <Checkbox
           key={param.name}
-          checked={valueOf(param) === 'true'}
+          checked={permitted && valueOf(param) === 'true'}
+          disabled={!permitted}
           onChange={(event) => {
             setValue(param.name, event.target.checked ? 'true' : 'false')
           }}
           label={<span className="u-mono">{param.name}</span>}
-          hint={t(`playground.param.${param.name}`)}
+          hint={describe(`playground.param.${param.name}`)}
         />
       )
     }
@@ -1186,14 +1236,15 @@ export default function Playground() {
       <Input
         key={param.name}
         label={<span className="u-mono">{param.name}</span>}
-        description={t(`playground.param.${param.name}`)}
+        description={describe(`playground.param.${param.name}`)}
         required={param.required}
         showOptional={!param.required && !param.oneOf}
         mono
         inputMode={param.kind === 'number' ? 'numeric' : undefined}
         placeholder={param.placeholder}
-        value={valueOf(param)}
+        value={permitted ? valueOf(param) : ''}
         error={fieldErrors[param.name]}
+        disabled={!permitted}
         onChange={(event) => {
           setValue(param.name, event.target.value)
         }}
@@ -1612,6 +1663,7 @@ export default function Playground() {
                 <ExplainPrompt
                   enabled={values['explain'] === 'true'}
                   running={running}
+                  permitted={allows(EXPLAIN_PARAM)}
                   onRun={() => {
                     setValue('explain', 'true')
                     void send({ explain: 'true' })

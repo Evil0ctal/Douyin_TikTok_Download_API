@@ -467,3 +467,59 @@ async def test_the_demo_still_cannot_create_or_revoke_a_key(api_app: Any, client
         "/api/v1/admin/api-keys", json={"name": "mine", "scopes": ["douyin:read"]}
     )
     assert created.status_code == 403
+
+
+async def test_the_demo_console_can_read_its_own_principal(api_app: Any, client: Any) -> None:
+    """`/auth/me` is how the console finds out it is a demo.
+
+    It was behind `authenticated`, whose floor is viewer, so a demo session got
+    403 here and the console never learned its own role. Nothing was protected
+    by that: `/auth/demo` publishes the account and its scopes in plaintext to
+    anonymous callers while the switch is on. What it cost was the trimming -
+    `navItemsFor` in `web/src/lib/nav.ts` filters on this role, so with no role
+    it rendered every page, including Identities, Users, Settings and Backup,
+    each of which then answered 403 when pressed.
+    """
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    await login(client, demo.DEMO_USERNAME, credentials.password or "")
+
+    response = await client.get("/api/v1/auth/me")
+    assert response.status_code == 200, response.text
+    user = response.json()["data"]["user"]
+    assert user["role"] == "demo"
+    assert user["username"] == demo.DEMO_USERNAME
+    assert user["via"] == "session"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("explain", "true"),
+        ("identity", "00000000-0000-0000-0000-000000000000"),
+    ],
+)
+async def test_the_demo_cannot_ask_for_an_identitys_own_credentials(
+    api_app: Any, client: Any, field: str, value: str
+) -> None:
+    """Both parameters hand back a jar, so both are operator-only.
+
+    `explain` returns the signed upstream URL - which carries the identity's
+    msToken - together with the cookie header itself; `identity` picks which
+    account answers. A redacted `explain` was considered and is not offered:
+    with the URL and the jar removed, what is left is the method, the endpoint
+    and the identity id, all of which the demo console can already read off the
+    logs page. The refusal names the field so the caller knows which one to drop.
+    """
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    await login(client, demo.DEMO_USERNAME, credentials.password or "")
+
+    response = await client.get(
+        f"/api/v1/douyin/video?aweme_id=7300000000000000000&{field}={value}"
+    )
+    assert response.status_code == 403, response.text
+    assert error_code(response) == "FORBIDDEN_SCOPE"
+    details = response.json()["error"]["details"]
+    assert details["required_role"] == "operator"
+    assert details["field"] == field

@@ -32,6 +32,7 @@ from dtk.api.routes.support import (
     authenticated,
     client_ip,
     client_ip_is_trustworthy,
+    demo_read,
     iso,
     ok,
     user_agent,
@@ -331,11 +332,19 @@ async def logout(request: Request) -> Any:
 
 
 @router.get("/me", summary="The authenticated principal", openapi_extra={I18N_KEY: "auth_me"})
-async def me(request: Request, principal: Principal = Depends(authenticated)) -> Any:
+async def me(request: Request, principal: Principal = Depends(demo_read)) -> Any:
     """Who the current credential belongs to.
 
     Works with either a session cookie or an API key, so it doubles as a way to
     check that a key is live and to see what it is allowed to do.
+
+    Open to the demo role, unlike everything else behind :data:`authenticated`.
+    This endpoint is how the console learns which role it is running as, and the
+    console trims itself with that answer - the sidebar a demo visitor gets, and
+    the controls a page offers. Refusing it did not hide anything: the demo
+    account and its scopes are published in plaintext by ``/auth/demo`` while the
+    switch is on. What it did was leave the console unable to tell it was a demo,
+    so it rendered the full navigation and every link in it answered 403.
 
     **Returns**
 
