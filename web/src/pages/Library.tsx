@@ -454,6 +454,12 @@ export default function Library() {
     return [...buckets.entries()].map(([key, value]) => ({ key, ...value }))
   }, [items, groupBy, t])
 
+  /** The stored video of whatever is open in the drawer, as a URL, or null. */
+  const exportableVideo =
+    inspecting?.stored?.video != null
+      ? paths.downloads.file(inspecting.stored.download_id, inspecting.stored.video)
+      : null
+
   const columns: Array<Column<ArchivedRow>> = useMemo(
     () => [
       {
@@ -957,6 +963,22 @@ export default function Library() {
               >
                 {inspecting.stored ? t('library.storeAgain') : t('library.storeMedia')}
               </Button>
+              {/* Two different destinations, one drawer, so both say where
+                  they put things. The button above fetches a post onto the
+                  server's media volume; this one takes what is already there
+                  and puts it on the reader's own computer. They used to be
+                  "store the media" and nothing, which left one verb covering
+                  the only action available. */}
+              {exportableVideo ? (
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    exportFile(exportableVideo)
+                  }}
+                >
+                  {t('library.exportVideo')}
+                </Button>
+              ) : null}
             </>
           ) : undefined
         }
@@ -1294,6 +1316,23 @@ function CoverCard({
 }
 
 
+/**
+ * Hand the browser a file this instance already holds.
+ *
+ * `download` with no value on purpose: same-origin, so the browser takes the
+ * name out of the API's Content-Disposition - `dtk-<platform>-<id>-video.mp4`
+ * - and the naming policy stays in one place, in dtk.media.plan, where curl
+ * and every other client gets it too.
+ */
+function exportFile(url: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = ''
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
 function Detail({ row }: { row: ArchivedRow }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
@@ -1311,6 +1350,17 @@ function Detail({ row }: { row: ArchivedRow }) {
   const poster = row.stored?.cover
     ? paths.downloads.file(row.stored.download_id, row.stored.cover)
     : (row.cover_url ?? undefined)
+
+  /**
+   * The stored files worth handing over, in the order somebody wants them.
+   *
+   * The video is not here: it has a button of its own in the footer, and a
+   * second link to the same bytes is clutter rather than a choice. The cover
+   * is, because "the thumbnail" is a thing people ask for.
+   */
+  const stored = row.stored
+    ? [...row.stored.images, ...(row.stored.cover ? [row.stored.cover] : [])]
+    : []
 
   const facts: Array<[string, string]> = [
     [t('library.detail.author'), row.author.nickname || row.author.uid],
@@ -1353,6 +1403,24 @@ function Detail({ row }: { row: ArchivedRow }) {
         <video className={styles.player} src={video} poster={poster} controls preload="metadata" />
       ) : row.stored ? (
         <p className="u-xs u-muted">{t('library.detail.savedNoVideo')}</p>
+      ) : null}
+
+      {/* An image post has no video, so the footer's export button never
+          appears for one - and the slides are just as stored and just as
+          worth taking. One link each rather than one button: a browser will
+          not start several downloads from a single click, and pretending
+          otherwise would silently save one file out of thirty. */}
+      {stored.length > 0 ? (
+        <div className="u-stack-sm">
+          <span className={styles.sub}>{t('library.detail.exportFiles')}</span>
+          <ul className={styles.exports}>
+            {stored.map((file) => (
+              <li key={file}>
+                <a href={paths.downloads.file(row.stored?.download_id ?? '', file)}>{file}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {row.description ? <p className={styles.description}>{row.description}</p> : null}

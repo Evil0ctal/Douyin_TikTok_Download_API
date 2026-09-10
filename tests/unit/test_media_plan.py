@@ -153,3 +153,55 @@ def test_the_sidecar_carries_identity_but_no_signed_link() -> None:
     # Signed CDN links expire within hours, so a sidecar carrying one would be
     # the single misleading field in a file meant to still make sense in a year.
     assert VIDEO not in str(meta)
+
+
+# --------------------------------------------------------------------------
+# Export names
+#
+# On the volume a post owns a directory, so `video.mp4` is unambiguous. In a
+# browser's downloads folder it is not: fifty saved posts are fifty files
+# called `video.mp4`, and the second is `video (1).mp4`.
+# --------------------------------------------------------------------------
+
+
+def test_an_exported_file_says_where_it_came_from() -> None:
+    assert (
+        planner.export_name("douyin", "7408915107113127220", "video.mp4")
+        == "dtk-douyin-7408915107113127220-video.mp4"
+    )
+
+
+def test_the_stored_name_is_kept_so_an_albums_slides_stay_apart() -> None:
+    """Replacing it with a guessed extension would collapse a 30-slide album."""
+    names = {
+        planner.export_name("tiktok", "7300", stored)
+        for stored in ("video.mp4", "cover.jpg", "image-01.jpg", "image-02.jpg")
+    }
+    assert names == {
+        "dtk-tiktok-7300-video.mp4",
+        "dtk-tiktok-7300-cover.jpg",
+        "dtk-tiktok-7300-image-01.jpg",
+        "dtk-tiktok-7300-image-02.jpg",
+    }
+
+
+def test_nothing_reaches_a_filename_that_could_leave_the_directory() -> None:
+    """Both parts are ours and already validated; this is the belt.
+
+    The name goes into a Content-Disposition header and then onto somebody
+    else's disk, which is one place too far to rely on an upstream check.
+    """
+    assert planner.export_name("douyin", "../../etc/passwd", "video.mp4") == (
+        "dtk-douyin-etc-passwd-video.mp4"
+    )
+    assert "\r" not in planner.export_name("douyin", "7408\r\nX-Evil: 1", "video.mp4")
+    assert "/" not in planner.export_name("../x", "../y", "../z.mp4")
+
+
+def test_a_part_that_sanitises_away_is_dropped_rather_than_left_empty() -> None:
+    assert planner.export_name("douyin", "", "video.mp4") == "dtk-douyin-video.mp4"
+
+
+def test_a_name_that_sanitises_to_nothing_still_comes_out_usable() -> None:
+    """Never a bare prefix: `dtk` is not a filename anybody can do anything with."""
+    assert planner.export_name("", "", "/") == "dtk-file"

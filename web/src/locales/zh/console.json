@@ -1436,10 +1436,12 @@
       "size": "大小",
       "finished": "完成时间",
       "keep": "保留",
-      "retry": "重试"
+      "retry": "重试",
+      "platform": "平台"
     },
     "filter": {
-      "allStates": "全部状态"
+      "allStates": "全部状态",
+      "allPlatforms": "全部平台"
     },
     "empty": {
       "title": "还没有保存任何内容",
@@ -1558,7 +1560,7 @@
     "description": "本实例已经采集到的全部内容，直接从本地存储返回。不消耗身份、不发起请求，作品即使已经被平台删除，这里也还在。",
     "untitled": "无标题",
     "export": "导出",
-    "storeMedia": "保存媒体到本地",
+    "storeMedia": "保存到本实例",
     "metric": {
       "posts": "作品数",
       "postsHint": "除非你删除，否则一直保留",
@@ -1621,7 +1623,8 @@
       "location": "位置",
       "openOnPlatform": "在平台上打开",
       "goneHint": "这个作品在平台上已经没有了。这里保留的是本实例当时看到的样子。",
-      "savedNoVideo": "这个作品的媒体已保存，但没有视频文件——图集类作品保存的是图片。"
+      "savedNoVideo": "这个作品的媒体已保存，但没有视频文件——图集类作品保存的是图片。",
+      "exportFiles": "导出已保存的文件"
     },
     "page": {
       "previous": "上一页",
@@ -1717,7 +1720,8 @@
       "title": "确定删除这些作品？",
       "body": "将从本实例删除 {count} 个作品，以及为它们保存的所有媒体文件。平台上的原作品不受影响。此操作不可撤销，也没有回收站。",
       "action": "删除"
-    }
+    },
+    "exportVideo": "导出视频文件"
   },
   "watchlist": {
     "title": "关注列表",

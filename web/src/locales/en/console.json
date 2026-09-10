@@ -1436,10 +1436,12 @@
       "size": "Size",
       "finished": "Finished",
       "keep": "Keep",
-      "retry": "Retry"
+      "retry": "Retry",
+      "platform": "Platform"
     },
     "filter": {
-      "allStates": "Any state"
+      "allStates": "Any state",
+      "allPlatforms": "Every platform"
     },
     "empty": {
       "title": "Nothing stored yet",
@@ -1558,7 +1560,7 @@
     "description": "Everything this instance has already collected, answered from local storage. No identity is spent, nothing is fetched, and a post that has since been deleted is still here.",
     "untitled": "Untitled",
     "export": "Export",
-    "storeMedia": "Store the media",
+    "storeMedia": "Store on this instance",
     "metric": {
       "posts": "Posts",
       "postsHint": "Kept until you delete them",
@@ -1621,7 +1623,8 @@
       "location": "Location",
       "openOnPlatform": "Open on the platform",
       "goneHint": "This post is no longer available on the platform. What is here is what this instance saw while it still was.",
-      "savedNoVideo": "The media for this post is stored, but it has no video file - an image post keeps its pictures instead."
+      "savedNoVideo": "The media for this post is stored, but it has no video file - an image post keeps its pictures instead.",
+      "exportFiles": "Export the stored files"
     },
     "page": {
       "previous": "Previous",
@@ -1717,7 +1720,8 @@
       "title": "Delete these posts?",
       "body": "{count, plural, one {# post and any media stored for it will be deleted from this instance.} other {# posts and any media stored for them will be deleted from this instance.}} The posts stay on the platform. This cannot be undone and there is no trash.",
       "action": "Delete"
-    }
+    },
+    "exportVideo": "Export the video file"
   },
   "watchlist": {
     "title": "Watchlist",

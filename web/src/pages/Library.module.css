@@ -375,3 +375,29 @@
   color: var(--accent);
   text-decoration: underline;
 }
+
+/*
+ * Export links for a stored album.
+ *
+ * Links rather than buttons, and the same shape the downloads drawer uses:
+ * what happens is a navigation to a file this instance already holds, and
+ * anything button-shaped would promise work being done.
+ */
+.exports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exports a {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.exports a:hover {
+  text-decoration: underline;
+}

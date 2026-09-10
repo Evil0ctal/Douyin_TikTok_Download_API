@@ -46,6 +46,7 @@ from dtk.core.config import BootstrapSettings
 from dtk.core.errors import DownloaderDown, InvalidParam, NotConfigured, NotFound, QueueFull
 from dtk.core.logging import get_logger
 from dtk.core.types import DownloadState, Platform, Scope
+from dtk.media import plan
 from dtk.ops import capacity
 from dtk.services import archive, downloads, tasks
 from dtk.urls import ResourceKind, first_url, identify, require_content_id
@@ -765,10 +766,13 @@ async def get_file(
             details={"download_id": str(download_id), "name": name},
         )
 
+    # Not `name`: on the volume that is `video.mp4`, which is fine inside the
+    # post's own directory and useless in a browser's downloads folder. The
+    # naming policy lives with the rest of it in dtk.media.plan.
     return FileResponse(
         target,
         media_type=str(entry.get("content_type") or "application/octet-stream"),
-        filename=name,
+        filename=plan.export_name(str(row.platform), str(row.content_id), name),
     )
 
 

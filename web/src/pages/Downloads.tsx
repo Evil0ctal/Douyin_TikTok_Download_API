@@ -302,6 +302,10 @@ export default function Downloads() {
   // TypeScript cannot prove is there and eslint will not let us assert.
   const active = MODES.find((entry) => entry.id === mode) ?? POST_MODE
   const [stateFilter, setStateFilter] = useState<DownloadState | ''>('')
+  //: Server side, like the state filter, because "the most recent TikTok
+  //: downloads" has to mean the most recent of all of them and not the most
+  //: recent of whatever page happened to load.
+  const [platformFilter, setPlatformFilter] = useState<Platform | ''>('')
   const [inspecting, setInspecting] = useState<DownloadRow | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [confirming, setConfirming] = useState<'delete' | null>(null)
@@ -314,9 +318,12 @@ export default function Downloads() {
   })
 
   const list = useApiQuery<DownloadList>({
-    key: [...DOWNLOADS_KEY, stateFilter],
+    key: [...DOWNLOADS_KEY, stateFilter, platformFilter],
     path: paths.downloads.list,
-    params: stateFilter ? { state: stateFilter } : undefined,
+    params: {
+      ...(stateFilter ? { state: stateFilter } : {}),
+      ...(platformFilter ? { platform: platformFilter } : {}),
+    },
     // Fast while something is in flight, slow otherwise: a transfer is the one
     // thing on this page that changes on its own.
     poll: (storage.data?.in_flight ?? 0) > 0 ? POLL.fast : POLL.slow,
@@ -670,6 +677,17 @@ export default function Downloads() {
         sortValue: (row) => row.state,
       },
       {
+        // Also in the content cell, under the title. Repeated as a column
+        // because that one is a label and this one is a key: sorting by it
+        // groups a mixed list, and the filter beside the table narrows it.
+        id: 'platform',
+        header: t('downloads.column.platform'),
+        width: '110px',
+        mono: true,
+        cell: (row) => row.platform,
+        sortValue: (row) => row.platform,
+      },
+      {
         id: 'files',
         header: t('downloads.column.files'),
         width: '120px',
@@ -995,6 +1013,20 @@ export default function Downloads() {
                 </option>
               ))}
             </Select>
+            <Select
+              aria-label={t('downloads.column.platform')}
+              value={platformFilter}
+              onChange={(event) => {
+                setPlatformFilter(event.target.value as Platform | '')
+              }}
+            >
+              <option value="">{t('downloads.filter.allPlatforms')}</option>
+              {PLATFORMS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
             {unpinned.length > 0 ? (
               <Button
                 size="sm"
@@ -1125,11 +1157,13 @@ function Detail({ row }: { row: DownloadRow }) {
             ) : null}
             {file.error ? <span className={styles.sub}>{file.error}</span> : null}
             {row.on_disk && file.state === 'done' ? (
-              <a
-                className={styles.open}
-                href={paths.downloads.file(row.id, file.name)}
-                download={file.name}
-              >
+              // No `download` attribute: the API answers with a
+              // Content-Disposition that names the file `dtk-<platform>-<id>-`
+              // and that wins over the attribute anyway. Spelling the name
+              // here too would be a second copy of the naming policy, free to
+              // drift from the one in dtk.media.plan that everything else -
+              // curl, the MCP tools, another client - already gets.
+              <a className={styles.open} href={paths.downloads.file(row.id, file.name)}>
                 {t('downloads.file.open')}
               </a>
             ) : null}

@@ -16,6 +16,7 @@ object key, not a title, and half of them have no extension at all.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Final
 from urllib.parse import urlsplit
@@ -98,6 +99,49 @@ class Plan:
     @property
     def total_ceiling(self) -> int:
         return sum(item.max_bytes for item in self.items)
+
+
+#: Stamped on every file that leaves this instance, so a video sitting in
+#: somebody's Downloads folder still says what produced it.
+EXPORT_PREFIX: Final = "dtk"
+
+#: What survives into an exported filename. Everything else becomes a hyphen.
+#: The parts are ours - a platform name and a post id the API has already
+#: validated - so this is a belt on top of braces rather than the only check,
+#: which is the right amount of paranoia for a string that becomes a filename
+#: on somebody else's computer.
+_EXPORT_SAFE: Final = re.compile(r"[^A-Za-z0-9._-]+")
+
+#: Long enough for the longest real id with room to spare, short enough that
+#: prefix + platform + id + stored name cannot approach a filesystem's limit.
+_EXPORT_PART_MAX: Final = 64
+
+
+def export_name(platform: str, content_id: str, stored: str) -> str:
+    """What one stored file is called once it leaves this instance.
+
+    On the volume every post owns a directory, so its files can be ``video.mp4``
+    and ``cover.jpg`` and never collide with anything. A browser's downloads
+    folder has no such directory: fifty saved posts are fifty files called
+    ``video.mp4``, the second one is ``video (1).mp4``, and nothing in either
+    name says which post it came from. The two facts that would say so - the
+    platform and the post id - are already on the row being served.
+
+    The stored name is kept as the tail rather than replaced by a guess at an
+    extension, because it is what tells an album's slides apart from each other
+    and the video apart from its cover.
+    """
+
+    def part(value: str) -> str:
+        return _EXPORT_SAFE.sub("-", value).strip("-.")[:_EXPORT_PART_MAX]
+
+    # A piece that sanitises away entirely is dropped rather than left as an
+    # empty segment, so a missing content id gives `dtk-douyin-video.mp4`
+    # rather than `dtk-douyin--video.mp4`. The tail is the exception: it is
+    # what carries the extension, and a name that is only a prefix is not a
+    # filename anybody can use.
+    pieces = [EXPORT_PREFIX, part(platform), part(content_id), part(stored) or "file"]
+    return "-".join(piece for piece in pieces if piece)
 
 
 def _extension(url: str, allowed: frozenset[str], fallback: str) -> str:
@@ -271,6 +315,7 @@ def sidecar(row: Any, plan: Plan) -> dict[str, Any]:
 
 
 __all__ = [
+    "EXPORT_PREFIX",
     "IMAGE_ACCEPT",
     "IMAGE_MAX_BYTES",
     "MAX_ITEMS",
@@ -280,5 +325,6 @@ __all__ = [
     "Plan",
     "PlannedItem",
     "build",
+    "export_name",
     "sidecar",
 ]
