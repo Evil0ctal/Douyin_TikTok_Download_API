@@ -25,7 +25,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk --version
 ```
 
 ```text
-dtk 5.0.0.dev0
+dtk 5.0.0
 ```
 
 本页所有例子用的都是不带 `-T` 的 `exec`，其余文档也统一是这个写法。这一点对会提问的命令最要紧——`dtk user create`、`dtk user passwd` 和 `dtk backup restore` 都会提问，需要一个终端。只有写脚本、用管道或者往命令里重定向输入时才加 `-T`，就像下面那几段配方那样：

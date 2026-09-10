@@ -25,7 +25,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk --version
 ```
 
 ```text
-dtk 5.0.0.dev0
+dtk 5.0.0
 ```
 
 Every example on this page uses plain `exec`, the same spelling the rest of these documents use. It matters most for the commands that prompt — `dtk user create`, `dtk user passwd` and `dtk backup restore` all ask for something and need a terminal. Add `-T` only when you are scripting, piping or redirecting input into the command, as the recipes below do:

@@ -24,6 +24,7 @@ import {
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
 import { apiPut } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
+import { isNewerRelease } from '@/lib/version'
 import { POLL } from '@/lib/query'
 
 /**
@@ -111,10 +112,16 @@ interface ReleaseError {
   args?: Record<string, number | string>
 }
 
-/** "v5.0.0" and "5.0.0" are the same release; anything else is treated as newer. */
+/**
+ * Kept as a thin wrapper so this page reads the same as before, but the
+ * comparison itself now lives in lib/version.ts and is shared with the notice
+ * that appears after signing in. The old implementation here was an equality
+ * check that called anything different "newer", which told an instance built
+ * from main at 5.1.0.dev0 to upgrade to the older 5.0.0.
+ */
 function sameVersion(tag: string, version: string | undefined): boolean {
   if (!version) return false
-  return tag.replace(/^v/i, '').trim() === version.replace(/^v/i, '').trim()
+  return !isNewerRelease(tag, version)
 }
 
 function toComponentRows(components: Record<string, RawComponent>): ComponentRow[] {

@@ -269,6 +269,41 @@ The main capabilities:
 - **Watch** an author or a post and re-collect it on a timer
 - **iOS Shortcut** support at `/api/v1/ios/shortcut`
 
+## 🔄 Updating
+
+The console keeps an eye out for you: `system.check_updates` is on by default,
+and if a newer release exists you get one notice after signing in, at most once
+a day. That request goes from **your browser** to GitHub — the server never
+sends anything outward, so it does not tell anyone this instance exists. Turn it
+off in Settings if you would rather it did not.
+
+Updating is a pull and a restart:
+
+```bash
+cd /opt/dtk && git pull
+
+# Running the published images (recommended): point DTK_IMAGE_TAG at the new one
+docker compose -p dtk -f docker/compose.yml pull api worker downloader
+docker compose -p dtk -f docker/compose.yml run --rm migrate
+docker compose -p dtk -f docker/compose.yml up -d
+```
+
+Building locally instead? Swap `pull` for `build`. `migrate` runs on every start
+and Alembic is idempotent, so running it separately is only about getting the
+schema up before the containers switch over.
+
+**Your data stays put.** The named volumes (`postgres-data`, `redis-data`,
+`media-data`) survive a rebuild, so the identity pool, the archive, the settings
+and the API keys are all where you left them.
+
+The browser image only needs rebuilding when `docker/Dockerfile.browser` or the
+CloakBrowser pin changes, which a normal version bump does not touch.
+
+To go back, set `DTK_IMAGE_TAG` to the previous `sha-` or version and `up -d`
+again. Migrations have no automatic downgrade — back the database up before
+upgrading, which is the only rollback that always works.
+
+
 ## 📖 Documentation
 
 The full documentation lives in [`documents/`](./documents/README.md) — 17 pages, in

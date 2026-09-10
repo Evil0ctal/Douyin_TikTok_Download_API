@@ -2141,5 +2141,13 @@
       "body": "This account is shared, read-only and for trying the project out. Nothing you do here is saved, and the pages that hold credentials are hidden. Deploy your own instance for the full console.",
       "deploy": "Deploy your own"
     }
+  },
+  "updates": {
+    "notice": {
+      "title": "A newer release is available",
+      "body": "This instance runs {current}. The latest release is {latest}.",
+      "how": "Updating is a pull and a restart — see \"Updating\" in the README. Your data, settings and identity pool are untouched by it.",
+      "releaseNotes": "Release notes"
+    }
   }
 }

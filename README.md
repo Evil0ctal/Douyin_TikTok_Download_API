@@ -251,6 +251,36 @@ docker compose -p dtk -f docker/compose.yml up -d
 - **关注列表**：定期重新收集某个作者或作品
 - **iOS 快捷指令**：`/api/v1/ios/shortcut`
 
+## 🔄 更新
+
+控制台会替你留意：`system.check_updates` 默认开着，登录后如果有新版本会弹一次，
+每 24 小时最多一次。那个请求是**你的浏览器**发给 GitHub 的，服务器不会往外发任何东西
+——所以它不会告诉任何人你这台实例存在。气人的话在设置里关掉。
+
+更新本身就是拉镜像加重启：
+
+```bash
+cd /opt/dtk && git pull
+
+# 用已发布镜像的（推荐）：把 .env 里的 DTK_IMAGE_TAG 改成新版本
+docker compose -p dtk -f docker/compose.yml pull api worker downloader
+docker compose -p dtk -f docker/compose.yml run --rm migrate
+docker compose -p dtk -f docker/compose.yml up -d
+```
+
+自己构建的话把 `pull` 换成 `build`。`migrate` 每次启动都会跑，Alembic 是幂等的，
+所以单独跑那一步只是想在切换容器之前先把库升上去。
+
+**你的数据不会动。** 命名卷（`postgres-data`、`redis-data`、`media-data`）不随容器
+重建而消失，身份池、归档、设置和 API Key 都在原地。
+
+浏览器镜像只有在 `docker/Dockerfile.browser` 或 CloakBrowser 的 pin 变了才需要重建，
+一般的版本更新不用管它。
+
+想回退就把 `DTK_IMAGE_TAG` 改回上一个 `sha-` 或版本号再 `up -d`。
+迁移不提供自动降级——升级前备份数据库，这是唯一稳妥的回退路径。
+
+
 ## 📖 文档
 
 完整文档在 [`documents/`](./documents/README.zh-CN.md)，中英双语，共 17 篇。

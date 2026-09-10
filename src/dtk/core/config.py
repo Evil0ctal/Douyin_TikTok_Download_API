@@ -601,10 +601,15 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         # --- misc -----------------------------------------------------------
         SettingSpec(
             "system.check_updates",
-            False,
+            True,
             Scope.RUNTIME,
             bool,
-            "Outbound request; the user opts in rather than being opted in.",
+            "Let the console ask GitHub, once a day, whether a newer release "
+            "exists. The request is made by the operator's browser and never by "
+            "this server, so it carries no information about the deployment - "
+            "which is what makes it defensible to have on by default. An "
+            "instance that never learns it is out of date is the more common "
+            "harm on a self-hosted tool. Turn it off for an air-gapped box.",
         ),
     ]
 }

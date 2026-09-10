@@ -12,6 +12,7 @@ import {
   PageHeader,
   DemoNotice,
   Sidebar,
+  UpdateNotice,
   Skeleton,
   ThemeToggle,
   ToastProvider,
@@ -173,6 +174,7 @@ function Shell() {
               needs to be told once, on arrival, not to have a strip of the
               viewport taken from them on every page for the rest of the visit. */}
           <DemoNotice />
+          <UpdateNotice />
           <ErrorBoundary>
             <ConsoleRoutes />
           </ErrorBoundary>
