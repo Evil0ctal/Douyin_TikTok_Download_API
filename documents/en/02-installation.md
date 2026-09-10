@@ -964,6 +964,204 @@ That is useful for exercising the RPC surface, not for producing usable identiti
 backend produces synthetic cookies no platform accepts, which is exactly why nothing falls back to
 it on its own.
 
+### A production install without Docker
+
+What is above is the development path — it points you at the test fixture, and
+that fixture keeps its data on tmpfs. To run this on a server you install the
+database and Redis yourself. The steps below were run end to end on a clean
+Ubuntu 24.04 host.
+
+**1. PostgreSQL and TimescaleDB**
+
+TimescaleDB is not in Ubuntu's repositories, so two of them get added. Without it
+the first migration refuses to run and says why — the request log, identity
+events and content snapshots are all hypertables.
+
+```bash
+sudo apt-get install -y curl ca-certificates gnupg lsb-release
+
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+  | sudo tee /etc/apt/sources.list.d/pgdg.list
+
+curl -fsSL https://packagecloud.io/timescale/timescaledb/gpgkey \
+  | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/timescaledb.gpg
+echo "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/timescaledb.list
+
+sudo apt-get update
+sudo apt-get install -y postgresql-17 timescaledb-2-postgresql-17 redis-server
+```
+
+**2. Actually load TimescaleDB**
+
+Skip this and `CREATE EXTENSION` fails with an error that does not point here:
+
+```bash
+echo "shared_preload_libraries = 'timescaledb'" \
+  | sudo tee -a /etc/postgresql/17/main/postgresql.conf
+sudo systemctl restart postgresql
+```
+
+**3. Database, user, extension**
+
+```bash
+PGPASS=$(openssl rand -hex 24)
+sudo -u postgres psql -c "CREATE USER dtk WITH PASSWORD '${PGPASS}';"
+sudo -u postgres createdb -O dtk dtk
+sudo -u postgres psql -d dtk -c 'CREATE EXTENSION IF NOT EXISTS timescaledb;'
+
+# Confirm the extension is really there before going further
+sudo -u postgres psql -d dtk -tAc \
+  "SELECT extname, extversion FROM pg_extension WHERE extname='timescaledb';"
+```
+
+**4. The code and its Python dependencies**
+
+Run it as a dedicated non-root account — the first thing a bare-metal install has
+to put back, because the container did it for you.
+
+```bash
+sudo useradd --system --create-home --home-dir /opt/dtk --shell /usr/sbin/nologin dtk
+sudo -u dtk git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git /opt/dtk/app
+cd /opt/dtk/app
+
+curl -LsSf https://astral.sh/uv/install.sh | sudo -u dtk sh
+sudo -u dtk /opt/dtk/.local/bin/uv sync --frozen --no-dev
+```
+
+`--frozen` installs exactly what `uv.lock` pins rather than re-resolving; `--no-dev`
+skips the test and lint toolchain.
+
+**5. Build the console**
+
+The API serves the console, so skipping this leaves you with a working API and a
+404 where the front page should be.
+
+```bash
+sudo apt-get install -y nodejs npm     # Node 22
+cd /opt/dtk/app/web && sudo -u dtk npm ci && sudo -u dtk npm run build
+```
+
+From a source checkout the API finds `web/dist` with no configuration. Point
+`DTK_CONSOLE_DIR` at it if your layout differs.
+
+**6. Configuration**
+
+```bash
+sudo -u dtk tee /opt/dtk/app/.env >/dev/null <<EOF
+DTK_SECRET_KEY=$(openssl rand -base64 48)
+DTK_DATABASE_URL=postgresql+asyncpg://dtk:${PGPASS}@127.0.0.1:5432/dtk
+DTK_REDIS_URL=redis://127.0.0.1:6379/0
+DTK_BIND_HOST=127.0.0.1
+DTK_BIND_PORT=8000
+DTK_BACKUP_DIR=/opt/dtk/backups
+EOF
+sudo chmod 600 /opt/dtk/app/.env
+sudo -u dtk mkdir -p /opt/dtk/backups
+```
+
+Redis has no password by default. That is defensible while it only listens on
+loopback, but you are already writing credentials, so set one anyway: add
+`requirepass` to `/etc/redis/redis.conf` and make `DTK_REDIS_URL`
+`redis://:<password>@127.0.0.1:6379/0`.
+
+**7. Migrate, and create the first administrator**
+
+```bash
+cd /opt/dtk/app
+sudo -u dtk /opt/dtk/.local/bin/uv run dtk migrate
+
+# Password over stdin rather than in argv: argv is visible to every process on the box
+printf '%s' 'your-password-here' \
+  | sudo -u dtk /opt/dtk/.local/bin/uv run dtk user create admin --role admin --stdin
+```
+
+**8. Two systemd services**
+
+`api` and `worker` are two processes and each needs a unit.
+
+```ini
+# /etc/systemd/system/dtk-api.service
+[Unit]
+Description=DTK API
+After=network.target postgresql.service redis-server.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+User=dtk
+WorkingDirectory=/opt/dtk/app
+ExecStart=/opt/dtk/.local/bin/uv run dtk serve
+Restart=always
+RestartSec=5
+# Some of what the container gave you, put back by hand
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/dtk/backups
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```ini
+# /etc/systemd/system/dtk-worker.service
+[Unit]
+Description=DTK worker
+After=network.target postgresql.service redis-server.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+User=dtk
+WorkingDirectory=/opt/dtk/app
+ExecStart=/opt/dtk/.local/bin/uv run dtk worker
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now dtk-api dtk-worker
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/healthz    # expect 200
+```
+
+**What you gave up, and how to get it back**
+
+The container gave you a read-only root filesystem, dropped capabilities, memory
+and PID ceilings, and an internal network on which Postgres and Redis are simply
+not reachable from outside. Those are properties of the compose file, not of the
+code. The units above restore part of it through `ProtectSystem` and
+`NoNewPrivileges`; the rest comes from leaving Postgres and Redis on `127.0.0.1`
+(the default — do not change it) and leaving `DTK_BIND_HOST` alone. The full list
+is in [Security](./15-security.md).
+
+**The two optional components**
+
+`browser-rpc` (automatic identity minting) and `downloader` (media on disk) are
+**two more processes** on bare metal, each with its own dependencies: a separate
+Python environment plus CloakBrowser and Chromium for the first, a Go toolchain
+for the second. Both are optional — without the browser you import cookies by
+hand, and without the downloader `POST /api/v1/downloads` answers `501` and says
+why.
+
+Mixing is entirely fine if you want one of them without installing it by hand:
+run the application on bare metal and start those two sidecars with
+`docker compose --profile browser --profile downloader`, then point
+`DTK_BROWSER_RPC_URL` and `DTK_DOWNLOADER_URL` at them. They speak HTTP and do
+not care where the other side runs.
+
+
 ## Running the worker on its own
 
 The worker is the same image as the API with a different first argument, and the same code as

@@ -870,6 +870,188 @@ PYTHONPATH=docker DTK_BROWSER_BACKEND=fake DTK_BROWSER_BIND_PORT=19000 \
 这对练习 RPC 接口有用，但产不出可用的身份——fake 后端产出的是任何平台都不认的合成 cookie，而这正是没有任何
 东西会自动退回到它的原因。
 
+### 在裸机上做生产部署
+
+上面那套是开发流程——它让你用测试夹具，而那个夹具把数据放在 tmpfs 上。要在一台服务器上长期跑，
+数据库和 Redis 得自己装。下面这套步骤在一台干净的 Ubuntu 24.04 上实跑验证过。
+
+**1. PostgreSQL 与 TimescaleDB**
+
+TimescaleDB 不在 Ubuntu 默认源里，得加两个仓库。缺了它第一个迁移脚本会带着解释拒绝执行——
+请求日志、身份事件和内容快照都是超表。
+
+```bash
+sudo apt-get install -y curl ca-certificates gnupg lsb-release
+
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+  | sudo tee /etc/apt/sources.list.d/pgdg.list
+
+curl -fsSL https://packagecloud.io/timescale/timescaledb/gpgkey \
+  | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/timescaledb.gpg
+echo "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/timescaledb.list
+
+sudo apt-get update
+sudo apt-get install -y postgresql-17 timescaledb-2-postgresql-17 redis-server
+```
+
+**2. 让 TimescaleDB 真正加载**
+
+这一步漏了的话，`CREATE EXTENSION` 会失败，而错误信息不会告诉你原因在这里：
+
+```bash
+echo "shared_preload_libraries = 'timescaledb'" \
+  | sudo tee -a /etc/postgresql/17/main/postgresql.conf
+sudo systemctl restart postgresql
+```
+
+**3. 建库、建用户、启用扩展**
+
+```bash
+PGPASS=$(openssl rand -hex 24)
+sudo -u postgres psql -c "CREATE USER dtk WITH PASSWORD '${PGPASS}';"
+sudo -u postgres createdb -O dtk dtk
+sudo -u postgres psql -d dtk -c 'CREATE EXTENSION IF NOT EXISTS timescaledb;'
+
+# 确认扩展真的启用了，再往下走
+sudo -u postgres psql -d dtk -tAc \
+  "SELECT extname, extversion FROM pg_extension WHERE extname='timescaledb';"
+```
+
+**4. 代码与 Python 依赖**
+
+用一个专用的非 root 账号跑它——这是裸机部署要自己补回来的第一件事，容器本来替你做了。
+
+```bash
+sudo useradd --system --create-home --home-dir /opt/dtk --shell /usr/sbin/nologin dtk
+sudo -u dtk git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git /opt/dtk/app
+cd /opt/dtk/app
+
+curl -LsSf https://astral.sh/uv/install.sh | sudo -u dtk sh
+sudo -u dtk /opt/dtk/.local/bin/uv sync --frozen --no-dev
+```
+
+`--frozen` 是照 `uv.lock` 装，不重新解析依赖；`--no-dev` 跳过测试和 lint 工具链。
+
+**5. 构建控制台**
+
+API 自己提供控制台，所以这一步不做的话，你会得到一个能用的接口和一个 404 的首页。
+
+```bash
+sudo apt-get install -y nodejs npm     # 需要 Node 22
+cd /opt/dtk/app/web && sudo -u dtk npm ci && sudo -u dtk npm run build
+```
+
+从源码检出运行时 API 无需配置就能找到 `web/dist`。目录结构不同就用 `DTK_CONSOLE_DIR` 指过去。
+
+**6. 配置**
+
+```bash
+sudo -u dtk tee /opt/dtk/app/.env >/dev/null <<EOF
+DTK_SECRET_KEY=$(openssl rand -base64 48)
+DTK_DATABASE_URL=postgresql+asyncpg://dtk:${PGPASS}@127.0.0.1:5432/dtk
+DTK_REDIS_URL=redis://127.0.0.1:6379/0
+DTK_BIND_HOST=127.0.0.1
+DTK_BIND_PORT=8000
+DTK_BACKUP_DIR=/opt/dtk/backups
+EOF
+sudo chmod 600 /opt/dtk/app/.env
+sudo -u dtk mkdir -p /opt/dtk/backups
+```
+
+Redis 默认没有口令。它只监听回环时可以接受，但既然连它的凭据你已经在写了，不如一并设上：
+在 `/etc/redis/redis.conf` 里加 `requirepass`，然后把 `DTK_REDIS_URL` 改成
+`redis://:<口令>@127.0.0.1:6379/0`。
+
+**7. 迁移，建第一个管理员**
+
+```bash
+cd /opt/dtk/app
+sudo -u dtk /opt/dtk/.local/bin/uv run dtk migrate
+
+# 口令走 stdin 而不是命令行参数：argv 对同机任何进程可见
+printf '%s' 'your-password-here' \
+  | sudo -u dtk /opt/dtk/.local/bin/uv run dtk user create admin --role admin --stdin
+```
+
+**8. 两个 systemd 服务**
+
+`api` 和 `worker` 是两个进程，各自需要一个单元文件。
+
+```ini
+# /etc/systemd/system/dtk-api.service
+[Unit]
+Description=DTK API
+After=network.target postgresql.service redis-server.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+User=dtk
+WorkingDirectory=/opt/dtk/app
+ExecStart=/opt/dtk/.local/bin/uv run dtk serve
+Restart=always
+RestartSec=5
+# 容器本来提供的那部分收敛，在这里手工补回来
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/dtk/backups
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```ini
+# /etc/systemd/system/dtk-worker.service
+[Unit]
+Description=DTK worker
+After=network.target postgresql.service redis-server.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+User=dtk
+WorkingDirectory=/opt/dtk/app
+ExecStart=/opt/dtk/.local/bin/uv run dtk worker
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now dtk-api dtk-worker
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/healthz    # 期望 200
+```
+
+**你放弃了什么，以及怎么补**
+
+容器提供的是只读根文件系统、丢弃的 capability、内存与 PID 上限，以及一个让 Postgres 和 Redis
+根本无法从外部访问到的内部网络。这些是 compose 文件的属性，不是代码的属性。上面的单元文件用
+`ProtectSystem` / `NoNewPrivileges` 补回了一部分；剩下的靠 Postgres 和 Redis 只监听 `127.0.0.1`
+（默认如此，别改），以及别把 `DTK_BIND_HOST` 改成 `0.0.0.0`。完整清单见[安全](./15-security.md)。
+
+**两个可选组件**
+
+`browser-rpc`（自动铸造身份）和 `downloader`（媒体落盘）在裸机上是**两个额外的进程**，各有各的依赖：
+前者要一份独立的 Python 环境加 CloakBrowser 和 Chromium，后者要 Go 工具链编一个二进制。两个都可以不装——
+不装浏览器就靠手工导入 Cookie，不装下载器则 `POST /api/v1/downloads` 返回 `501` 并说明原因。
+
+只想要其中一个而不想手工装的话，混着来是完全可以的：应用跑在裸机上，这两个 sidecar 用
+`docker compose --profile browser --profile downloader` 起，然后把 `DTK_BROWSER_RPC_URL` 和
+`DTK_DOWNLOADER_URL` 指过去。它们之间只通过 HTTP 说话，不在乎对方跑在哪。
+
+
 ## 单独运行 worker
 
 worker 和 API 是同一个镜像，只是第一个参数不同；它和 `uv run dtk worker` 也是同一份代码。它只需要三样东西：
