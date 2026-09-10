@@ -66,3 +66,7 @@ docker/compose.test.yml
 logs
 downloads
 *.log
+# A host `go build` leaves the binary beside its source. The image compiles its
+# own, so shipping the developer's copy into the context only makes it 9 MB
+# slower to send.
+docker/downloader/downloader

@@ -24,56 +24,70 @@
 
 </div>
 
-## 赞助商
+## 💖 赞助商
 
 这些赞助商已付费放置在这里，**Douyin_TikTok_Download_API** 项目将永远免费且开源。如果您希望成为该项目的赞助商，请查看我的 [GitHub 赞助商页面](https://github.com/sponsors/evil0ctal)。
 
 <div align="center">
-    <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme" target="_blank" rel="sponsored noopener">
+    <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_logo" target="_blank" rel="sponsored noopener">
         <img src="https://tikhub.io/logo.jpeg" width="100" alt="TikHub.io - 全球社交媒体数据与 API 市场"/>
     </a>
-    <div>
-        <h2><b>TikHub.io</b></h2>
-        <p>你的一站式社交媒体数据与 API 市场</p>
-        <p>
-            为抖音、小红书、TikTok、Instagram、YouTube、Twitter 等平台提供专业数据方案。<br>
-            实时数据 · 灵活接口 · 无缝集成 · 有竞争力的价格与折扣
-        </p>
-        <p>
-            <b>探索 TikHub.io 市场</b><br>
-            在这里买卖定制 API、服务与社交媒体解决方案，<br>
-            加入一个由开发者、企业与内容创作者组成的活跃生态。
-        </p>
-        <p><em>多家全球领先的红人营销与社交媒体情报平台正在使用</em></p>
-    </div>
+    <h2>
+        <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_name" target="_blank" rel="sponsored noopener"><b>TikHub.io</b></a>
+    </h2>
+    <p>你的一站式社交媒体数据与 API 市场</p>
+    <p>
+        为抖音、小红书、TikTok、Instagram、YouTube、Twitter 等平台提供专业数据方案。<br>
+        实时数据 · 灵活接口 · 无缝集成 · 有竞争力的价格与折扣
+    </p>
+    <p>
+        在 TikHub.io 市场买卖定制 API、服务与社交媒体解决方案，<br>
+        加入一个由开发者、企业与内容创作者组成的活跃生态。
+    </p>
+    <p><em>多家全球领先的红人营销与社交媒体情报平台正在使用</em></p>
+    <p>
+        <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_cta" target="_blank" rel="sponsored noopener"><b>→ 前往 TikHub.io</b></a>
+        &nbsp;·&nbsp;
+        <a href="https://api.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_docs" target="_blank" rel="sponsored noopener">API 文档</a>
+    </p>
 </div>
 
+## 🚀 v4 与 v5
 
-## v5 是什么
+v5 是一次重写，从空分支起步，没有继承 v4 的任何代码。
 
-v5 是一次重写，从空分支起步，不继承 V4 的代码。
+v4 最大的问题从来不是功能少，而是**接口会悄悄死掉，而你不知道**。Cookie 过期、签名算法变更、
+某个接口被风控，通常都要等到有人来提 issue 才发现。v5 把"看得见"和"能自愈"排在功能前面。
 
-V4 最大的问题不是功能少，是**接口会悄悄死掉而没人知道**：cookie 过期了、签名算法变了、
-某个接口被风控了，你只有在别人报错时才发现。v5 把"可观测 + 可自愈"排在功能前面。
+| | v4 | v5 |
+|---|---|---|
+| 身份从哪来 | 从浏览器里抠 Cookie，粘进 `config.yaml` | 无头浏览器自动铸造游客身份，可用数不够时自己补 |
+| 请求怎么发 | 有请求就发出去 | 健康度分层、量化 LRU 轮换、每身份独占锁、每（身份，接口）令牌桶、接口级熔断 |
+| 出了问题 | 等别人报错 | 每次请求一条结构化记录，身份和接口都有实时健康度，控制台上看得见 |
+| 调用方式 | 同步，发出去等着 | 默认异步（`202` + `task_id`），加 `?wait=` 就退回同步 |
+| 数据留存 | 解析完即弃 | PostgreSQL + Redis；解析过的内容自动归档，平台删了这里还在 |
+| 访问控制 | 没有，谁都能调 | API Key + 作用域 + 角色，控制台里管 |
+| 界面 | PyWebIO 单页 | React 控制台：身份池、调度器、资料库、下载、日志、诊断 |
+| 接入方式 | REST | REST + MCP + CLI，共用同一个 service 层 |
+| 签名 | X-Bogus、A_Bogus | a_bogus、X-Bogus、X-Gnarly、X-Dynosaur，纯 Python 实现，另有浏览器兜底 |
+| 部署 | `pip install -r requirements.txt` + `python start.py` | `docker compose up`，三个镜像 |
+| 平台 | 抖音、TikTok、哔哩哔哩 | 抖音、TikTok |
 
-它做三件事：
+哔哩哔哩是唯一退步的一项：v5 暂时没有。它和抖音 / TikTok 不共用签名和身份体系，
+重写时先放下了，之后再说。
 
-1. **自己维护身份。** 用无头浏览器铸造游客身份（cookie + 指纹 + 代理），
-   健康度低于阈值自动补充。你不用再从浏览器里抠 cookie 粘进配置文件。
-2. **把请求摊开。** 调度器按健康度分层、量化 LRU 轮换、每身份独占锁、
-   每（身份，接口）令牌桶、接口级熔断器。单个身份不会承担大量请求。
-3. **把发生的事记下来。** 每次请求一条结构化记录，每个身份和接口都有实时健康度，
-   风控信号触发冷却与熔断，控制台上看得见。
+### 还在用 v4？
 
-### 明确不做的事
+v4 的代码保留在 [`v4` 分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/v4)，
+镜像也还在，按版本号拉就行：
 
-- ❌ AI 内容分析 / 生成 / 向量检索
-- ❌ **任何商业化功能**：计费、套餐、配额售卖、订阅、多租户。
-  文档里的 `rate_limit`、`quota` 一律指防滥用限额，与收费无关
-- ❌ Kafka、Elasticsearch、MinIO、k8s。Postgres + Redis 能解决的不引入新组件
-- ❌ 服务器中转视频流量
+```bash
+docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
+```
 
-## 它能取什么
+`main` 现在是 v5，`latest` 跟着 `main` 走。想留在 v4 上就固定版本号 tag，别用 `latest`。
+
+## 📦 它能取什么
 
 | 能力 | 抖音 | TikTok |
 |---|:---:|:---:|
@@ -87,13 +101,12 @@ V4 最大的问题不是功能少，是**接口会悄悄死掉而没人知道**�
 | 粉丝列表 | ❌ | ✅ |
 | 关注列表 | ❌ | ✅ |
 
-抖音的粉丝与关注列表只对已登录会话开放，访客身份拿不到，所以这两个接口没有注册——
-比注册一个永远返回空页的接口诚实。导入你自己的已登录 Cookie 之后，其余接口能看到的
-内容也会更多。
+抖音的粉丝和关注列表只对已登录会话开放，游客身份拿不到，所以这两个接口干脆没注册：
+注册一个永远返回空页的接口没意义。导入你自己的登录 Cookie 之后，其余接口能看到的内容也会更多。
 
 媒体下载、内容归档、计数快照、合集、定时监控都是内置的，不需要额外服务。
 
-## 它认得什么链接
+## 🔗 它认得什么链接
 
 粘贴什么都行——分享短链、作品页地址，或者 App 复制出来的一整段带文案的口令：
 
@@ -106,24 +119,71 @@ https://www.tiktok.com/t/ZTR9nkkmL/
 2.84 nqe:/ 骑白马的也可以是公主%%百万转场变身 https://v.douyin.com/L4FJNR3/ 复制此链接，打开Dou音搜索
 ```
 
-短链会被自动跟随展开，文案里的链接会被提取出来，作品 ID 会先按平台自己的编码规则校验
-一遍——一个不可能存在的 ID 在这里就被拒绝，不会浪费一次上游请求。
+短链会自动跟随展开，文案里的链接会被提取出来。作品 ID 还会先按平台自己的编码规则校验一遍，
+一个不可能存在的 ID 在这里就被拒掉，不会浪费一次上游请求。
 
-## 技术栈
+## ⚗️ 技术栈
 
 | | |
 |---|---|
-| 服务端 | Python 3.12 · FastAPI · SQLAlchemy 2.0（async）· Alembic · Typer |
+| 服务端 | Python 3.12 · FastAPI · SQLAlchemy 2.0（async）· Alembic · Typer · structlog |
 | 传输 | wreq（浏览器 TLS 指纹模拟）· httpx |
 | 数据 | PostgreSQL + TimescaleDB · Redis |
 | 控制台 | React 19 · TypeScript · Vite · TanStack Query · wouter · i18next |
-| 签名 | 纯 Python 实现的 a_bogus / X-Bogus / X-Gnarly / X-Dynosaur，另有浏览器兜底 |
-| 打包 | Docker Compose；应用、下载器、浏览器三个镜像 |
+| 签名 | a_bogus / X-Bogus / X-Gnarly / X-Dynosaur，纯 Python 实现 |
+| 身份铸造 | CloakBrowser 无头浏览器，单独一个容器，通过 HTTP 调用 |
+| 下载器 | Go 1.23，只用标准库，静态编译进 scratch 镜像 |
+| 鉴权 | argon2id 口令哈希 · API Key + 作用域 |
+| 对外协议 | REST（OpenAPI）· MCP（streamable-http）· CLI |
+| 工程 | uv · ruff · mypy · pytest · Docker Compose |
 
 除了 Postgres 和 Redis，不需要任何其它基础设施——没有 Kafka、没有 Elasticsearch、
 没有对象存储、没有 k8s。
 
-## 快速开始
+CloakBrowser 的版本 pin 在一个指定的 commit 上。这是一项安全控制，见
+[docker/Dockerfile.browser](./docker/Dockerfile.browser)。
+
+## 🗂 项目结构
+
+```
+Douyin_TikTok_Download_API/
+├── src/dtk/                服务端，代码全在这
+│   ├── api/                FastAPI 路由、鉴权、OpenAPI 本地化
+│   ├── platforms/          抖音 / TikTok 适配器：接口定义、参数、解析
+│   ├── signing/            a_bogus / X-Bogus / X-Gnarly / X-Dynosaur
+│   ├── transport/          出站请求、响应分类（正常 / 业务错误 / 风控 / 网络）
+│   ├── identity/           身份铸造与健康度
+│   ├── scheduler/          身份选取、令牌桶、熔断器
+│   ├── services/           业务层，REST、MCP、CLI 共用
+│   ├── worker/             异步任务、回调、定时收集
+│   ├── db/                 SQLAlchemy 模型与 Alembic 迁移
+│   ├── ops/                诊断、备份、健康检查、告警通知
+│   ├── media/              下载器客户端
+│   ├── models/             跨平台统一的内容模型
+│   ├── urls/               链接识别、短链展开、ID 校验
+│   ├── mcp/                MCP server
+│   ├── cli/                dtk 命令行
+│   ├── i18n/               服务端中英文案
+│   └── core/               配置、日志、错误类型
+├── web/                    React 控制台，构建产物打进应用镜像
+│   └── src/
+│       ├── pages/          每个控制台页面一个文件
+│       ├── components/     设计系统与共用组件
+│       └── locales/        控制台中英文案
+├── docker/                 三个 Dockerfile、compose 与两个 sidecar
+│   ├── browser_rpc/        Python，包装 CloakBrowser
+│   ├── downloader/         Go，媒体下载 sidecar
+│   └── compose.yml
+├── documents/              用户文档，中英各 17 篇
+├── tests/                  unit / integration / contract / replay
+├── scripts/                smoke.sh
+├── .github/workflows/      CI 与 Docker 镜像发布
+├── alembic.ini
+├── pyproject.toml
+└── Makefile
+```
+
+## ⚡️ 快速开始
 
 需要 Docker 和 Docker Compose。仓库里不带任何默认密码或密钥，先生成 `.env`：
 
@@ -167,14 +227,14 @@ docker compose -p dtk -f docker/compose.yml up -d
 
 更多部署细节（浏览器容器、下载器 sidecar、反向代理、备份）见 [docker/README.md](./docker/README.md)。
 
-## 用它做什么
+## 🖥 用它做什么
 
 | 入口 | 地址 | 说明 |
 |---|---|---|
 | Web 控制台 | `/` | 身份池、调度器、资料库、下载、日志、诊断 |
 | 接口文档 | `/docs` | 控制台内的 Swagger UI，中英双语 |
 | 裸接口文档 | `/swagger`、`/redoc` | 无需登录 |
-| REST API | `/api/v1/...` | 88 个操作 |
+| REST API | `/api/v1/...` | 93 个操作 |
 | MCP | `/mcp` | 与 REST 共用同一个 service 层，配置方法见控制台 `/mcp-guide` |
 | CLI | `dtk --help` | 同上 |
 
@@ -186,7 +246,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 - **关注列表**：定期重新收集某个作者或作品
 - **iOS 快捷指令**：`/api/v1/ios/shortcut`
 
-## 文档
+## 📖 文档
 
 完整文档在 [`documents/`](./documents/README.zh-CN.md)，中英双语，共 17 篇。
 
@@ -212,7 +272,8 @@ docker compose -p dtk -f docker/compose.yml up -d
 以及 `/swagger`、`/redoc`、`/openapi.json`（无需登录）提供，中英双语。
 
 English documentation: [`documents/README.md`](./documents/README.md)
-## 联系方式
+
+## 📮 联系方式
 
 | | |
 |---|---|
@@ -223,13 +284,13 @@ English documentation: [`documents/README.md`](./documents/README.md)
 提问之前请先看[故障排查](./documents/zh/14-troubleshooting.md)，并附上自检页面或
 `dtk diagnose` 的输出。它能回答维护者原本要反过来问你的大部分问题。
 
-## Star 历史
+## ⭐️ Star 历史
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
 > 起始于 2021/11/06 · GitHub [@Evil0ctal](https://github.com/Evil0ctal)
 
-## 许可协议
+## 📄 许可协议
 
 [Apache License 2.0](./LICENSE)。
 
@@ -247,7 +308,7 @@ English documentation: [`documents/README.md`](./documents/README.md)
 
 这是一个请求，不是协议条款——Apache 2.0 允许商业用途，上面这段话不会把这项权利收回去。
 
-## 赞赏作者
+## ☕️ 赞赏作者
 
 上面的赞助商付的是**项目**的钱；这一节是给**维护它的人**的，完全自愿。
 
