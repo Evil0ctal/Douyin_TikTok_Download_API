@@ -92,6 +92,14 @@ docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
 
 `main` 现在是 v5，`latest` 跟着 `main` 走。想留在 v4 上就固定版本号 tag，别用 `latest`。
 
+### 一起写点什么
+
+有几个开源项目的交流群，想一起做这个项目、或者只是想聊聊技术的，
+都可以加微信 **`Evil0ctal`**，备注 **github 交流**，我拉你进群。
+
+群里可以互相交流学习，**不允许发广告以及违法的东西**，纯粹交朋友和技术交流。
+
+
 ## 📦 它能取什么
 
 | 能力 | 抖音 | TikTok |

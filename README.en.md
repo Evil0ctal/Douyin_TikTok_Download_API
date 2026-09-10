@@ -99,6 +99,16 @@ docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
 `main` is v5 now, and `latest` follows `main`. To stay on v4, pin the version tag
 rather than using `latest`.
 
+### Building this together
+
+There are a few group chats around my open-source projects. If you want to work
+on this one, or just talk shop, add me on WeChat at **`Evil0ctal`** with the note
+**github 交流** and I will add you.
+
+The groups are for learning from each other. **No advertising and nothing
+illegal** — they are for making friends and talking about the work.
+
+
 ## 📦 What it can fetch
 
 | Capability | Douyin | TikTok |
