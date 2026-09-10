@@ -355,7 +355,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=24.4" },
     { name = "typer", specifier = ">=0.12" },
     { name = "types-redis", marker = "extra == 'dev'" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
     { name = "wreq", specifier = ">=0.12,<1.0" },
 ]
 provides-extras = ["dev"]
