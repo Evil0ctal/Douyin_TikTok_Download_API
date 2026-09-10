@@ -753,3 +753,105 @@ def test_the_mcp_guide_lists_the_tools_the_server_registers() -> None:
             f"{language} console.json describes {sorted(described)}, "
             f"expected {sorted(TOOL_METHODS)}"
         )
+
+
+class TestInstallScripts:
+    """The two guided installers have to stay the same program.
+
+    They are a translation of each other, not two implementations. A fix that
+    lands in one and not the other is how a Chinese-speaking user ends up
+    running the version with the bug still in it - and nobody would notice,
+    because both keep working.
+    """
+
+    SCRIPTS = (REPO / "install" / "install.sh", REPO / "install" / "install.zh.sh")
+
+    #: Control-flow words. The sequence of these plus the function names is the
+    #: structure of the program, independent of every string it prints.
+    _KEYWORDS = re.compile(
+        r"\b(if|then|elif|else|fi|for|while|until|do|done|case|esac"
+        r"|return|exit|local|readonly|trap)\b"
+    )
+
+    @classmethod
+    def _signature(cls, path):
+        lines: list[str] = []
+        in_heredoc = False
+        tag = ""
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if in_heredoc:
+                # A heredoc body is prose for the reader, not code, and the
+                # English one contains words like "for" and "then".
+                if line.strip() == tag:
+                    in_heredoc = False
+                continue
+            opened = re.search(r"<<-?\s*([A-Za-z_]\w*)", line)
+            if opened:
+                in_heredoc, tag = True, opened.group(1)
+                lines.append(line[: opened.start()])
+                continue
+            if line.strip().startswith("#"):
+                continue
+            lines.append(line)
+        body = "\n".join(lines)
+        body = re.sub(r'"(?:[^"\\]|\\.)*"', '""', body, flags=re.S)
+        body = re.sub(r"'(?:[^'\\]|\\.)*'", "''", body, flags=re.S)
+        signature: list[str] = []
+        for line in body.splitlines():
+            named = re.match(r"^(\w+)\(\)", line)
+            if named:
+                signature.append(f"fn:{named.group(1)}")
+            signature.extend(cls._KEYWORDS.findall(line))
+        return signature
+
+    def test_both_scripts_exist_and_are_executable(self):
+        for path in self.SCRIPTS:
+            assert path.exists(), f"{path.relative_to(REPO)} is missing"
+            assert path.stat().st_mode & 0o111, f"{path.relative_to(REPO)} is not executable"
+
+    def test_the_two_installers_have_the_same_structure(self):
+        english, chinese = (self._signature(p) for p in self.SCRIPTS)
+        assert english == chinese, (
+            "install.sh and install.zh.sh have diverged. They are a translation "
+            "of each other: a change to one belongs in the other."
+        )
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    def test_a_variable_is_braced_before_non_ascii(self, script):
+        """`$var` followed by a CJK character eats the character.
+
+        Bash takes the multi-byte character as part of the name in some
+        locales, so a `$env_file` followed by a full-width bracket reads as an
+        unbound variable and the script
+        dies under `set -u`. It happened, in the Chinese installer, on the line
+        that reports where .env was written. `${var}` is immune.
+        """
+        offenders = [
+            f"{script.name}:{number}: {line.strip()[:80]}"
+            for number, line in enumerate(script.read_text(encoding="utf-8").splitlines(), 1)
+            if re.search(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]", line)
+        ]
+        assert not offenders, "brace these:\n" + "\n".join(offenders)
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    def test_no_installer_pipes_a_download_into_a_shell(self, script):
+        """Download, check, then run - never `curl … | sh`.
+
+        A pipe cannot be inspected and a truncated download becomes a
+        half-executed script. The one place this project fetches remote code is
+        Docker's own installer, and it writes it to a file first. The README's
+        own `curl … | bash` examples are documentation, not execution.
+        """
+        # Blank out every string literal first, including the multi-line ones:
+        # the scripts *document* the `curl … | bash` form inside their own help
+        # text, and quoting it is not running it.
+        body = script.read_text(encoding="utf-8")
+        body = "\n".join(l for l in body.splitlines() if not l.strip().startswith("#"))
+        body = re.sub(r'"(?:[^"\\]|\\.)*"', '""', body, flags=re.S)
+        body = re.sub(r"'(?:[^'\\]|\\.)*'", "''", body, flags=re.S)
+        offenders = [
+            f"{script.name}: {line.strip()[:80]}"
+            for line in body.splitlines()
+            if re.search(r"(curl|wget)[^|#]*\|\s*(sudo\s+)?(ba)?sh\b", line)
+        ]
+        assert not offenders, "pipes remote code into a shell:\n" + "\n".join(offenders)

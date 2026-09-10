@@ -211,6 +211,18 @@ Douyin_TikTok_Download_API/
 
 ## ⚡️ Quick start
 
+If you would rather not think about it, the guided script asks a few questions and
+brings the stack up — it works out your distribution, checks for Docker, and
+scales the resource limits to the machine:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.sh -o install.sh
+less install.sh    # reading it first is a good habit
+bash install.sh
+```
+
+Details in [install/README.md](./install/README.md). The manual route follows.
+
 There are two ways to install this; below is the recommended one. For the by-hand route, see
 [Without Docker](#without-docker).
 

@@ -198,6 +198,17 @@ Douyin_TikTok_Download_API/
 
 ## ⚡️ 快速开始
 
+怕麻烦就用一键脚本，它会问你几个问题然后把整套跑起来 —— 会自己识别发行版、
+检测有没有 Docker、按机器大小调好资源上限：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.zh.sh -o install.zh.sh
+less install.zh.sh    # 先读一遍再跑，这是个好习惯
+bash install.zh.sh
+```
+
+细节见 [install/README.md](./install/README.md)。下面是手动的做法。
+
 装法有两种，下面走的是推荐的那种。手动装依赖的路子见 [不用 Docker](#不用-docker)。
 
 | 装法 | 适合谁 | 详细步骤 |
