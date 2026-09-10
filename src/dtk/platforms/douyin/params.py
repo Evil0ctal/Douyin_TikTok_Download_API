@@ -2,8 +2,7 @@
 
 The parameter names and default values are the distilled form of V4's
 ``crawlers/douyin/web/models.py`` and ``app/api/endpoints/douyin_web.py``
-(``vendor_salvage/douyin_web_models.py`` and ``vendor_salvage/REF_douyin_web.py``
-here). That knowledge is not documented anywhere by the platform, which is why
+on branch ``main`` (commit ``8c98fb7``). That knowledge is not documented anywhere by the platform, which is why
 the salvage doc lists those two files as read-only references worth mining.
 
 Two deliberate differences from V4:

@@ -1,7 +1,7 @@
 """TikTok web endpoint URLs and the P0 endpoint table.
 
-Ported from V4 ``crawlers/tiktok/web/endpoints.py`` (branch ``main``, file
-``vendor_salvage/tiktok_web_endpoints.py`` in this tree). URL constants are
+Ported from V4 ``crawlers/tiktok/web/endpoints.py`` (branch ``main``, commit
+``8c98fb7``). URL constants are
 reproduced verbatim; the comments were translated to English per
 ``docs/design/16-salvage-and-debug.md``.
 

@@ -1,8 +1,8 @@
 """Query parameter construction for the TikTok web P0 endpoints.
 
 Distilled from V4's ``crawlers/tiktok/web/models.py`` and
-``app/api/endpoints/tiktok_web.py`` (``vendor_salvage/tiktok_web_models.py`` and
-``vendor_salvage/REF_tiktok_web.py`` here) - the only record of which parameters
+``app/api/endpoints/tiktok_web.py`` on branch ``main`` (commit ``8c98fb7``) -
+the only record of which parameters
 each endpoint actually needs.
 
 Differences from V4, for the same reasons as the Douyin module:

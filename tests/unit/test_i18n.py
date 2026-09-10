@@ -46,6 +46,7 @@ from dtk.i18n.negotiate import (
     parse_accept_language,
     resolve_language,
 )
+from tests.support.marks import is_project_mark
 
 WAN = "\u4e07"  # ten-thousands unit
 YI = "\u4ebf"  # hundred-millions unit
@@ -589,7 +590,10 @@ def test_python_sources_contain_no_cjk_characters():
     sources = sorted((root / "src").rglob("*.py")) + sorted((root / "tests").rglob("*.py"))
     assert len(sources) > 10, "source discovery is broken; the check would pass vacuously"
     for path in sources:
-        assert not _CJK_RE.search(path.read_text(encoding="utf-8")), path
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            # The project's mark is the one exception, and it is recognised by
+            # its own alphabet rather than by which file it is in.
+            assert not _CJK_RE.search(line) or is_project_mark(line), f"{path}:{lineno}"
 
 
 def _leaves(document, path=""):

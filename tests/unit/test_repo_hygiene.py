@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from dtk.signing.native.abogus import structure_error
+from tests.support.marks import is_project_mark as _is_project_mark
 
 REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "src" / "dtk"
@@ -21,7 +22,6 @@ TESTS = REPO / "tests"
 WEB = REPO / "web" / "src"
 
 CJK = re.compile("[\\u4e00-\\u9fff\\u3040-\\u30ff]")
-
 #: Key names that would mean a fixture carries a real credential.
 CREDENTIAL_KEYS = re.compile(
     r"^(cookie|cookies|set-cookie|sessionid|sessionid_ss|sid_tt|sid_guard|uid_tt|"
@@ -56,10 +56,20 @@ class TestSourceLanguage:
     """
 
     def test_no_cjk_in_python_sources(self):
+        """Source is English, with one deliberate exception.
+
+        The rule exists so that prose - comments, names, messages - stays
+        readable to everyone who works on this. It is not a ban on the project's
+        own mark, which is drawn partly in katakana and half-width forms and
+        carries no meaning to translate. Exempted by shape rather than by file,
+        so it cannot become a place to park a sentence: only lines that are
+        entirely box-drawing, punctuation and the few characters the cat is made
+        of pass, and a line with a word in it does not.
+        """
         offenders = []
         for path in _python_sources(SRC):
             for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if CJK.search(line):
+                if CJK.search(line) and not _is_project_mark(line):
                     offenders.append(f"{path.relative_to(REPO)}:{lineno}: {line.strip()[:80]}")
         assert not offenders, "CJK found in source:\n" + "\n".join(offenders[:20])
 

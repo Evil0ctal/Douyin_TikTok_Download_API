@@ -9,7 +9,8 @@ X-Bogus and the token helpers are pinned to values this repository generated and
 pasted in. Those pin *behaviour*, not correctness: they catch a refactor that
 changes a byte, which is the failure V4 could not detect, and they say nothing
 about whether the platform still accepts the value. They are backed by a diff
-against the V4 originals in ``vendor_salvage/`` across several User-Agents,
+against the V4 originals on branch ``main`` (commit ``8c98fb7``) across
+several User-Agents,
 queries and timestamps, so they carry V4's production-tested behaviour forward.
 
 A-Bogus is deliberately not built that way. Its expectations are anchored on

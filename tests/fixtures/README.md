@@ -7,7 +7,7 @@ fed straight into a parser.
 ## These are hand-built. They must be replaced before release.
 
 **Every file here was written by hand from V4's parsing and request code
-(`vendor_salvage/`), not captured from a live platform.** They reproduce the response
+(branch `main`, commit `8c98fb7`), not captured from a live platform.** They reproduce the response
 shapes that code demonstrably worked against, so the parsers are exercised against a
 realistic structure - but a hand-built fixture can only contain the fields whoever wrote
 it already knew about. It cannot tell you that the platform renamed a key last week, and

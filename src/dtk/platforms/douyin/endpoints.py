@@ -1,7 +1,7 @@
 """Douyin web endpoint URLs and the P0 endpoint table.
 
-Ported from V4 ``crawlers/douyin/web/endpoints.py`` (branch ``main``, file
-``vendor_salvage/douyin_web_endpoints.py`` in this tree). The URL constants are
+Ported from V4 ``crawlers/douyin/web/endpoints.py`` (branch ``main``, commit
+``8c98fb7``). The URL constants are
 the product of long trial and error and are reproduced verbatim; only the
 comments were translated to English, per ``docs/design/16-salvage-and-debug.md``.
 
