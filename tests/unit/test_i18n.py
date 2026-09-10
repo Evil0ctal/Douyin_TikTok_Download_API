@@ -772,3 +772,23 @@ def test_documented_operations_describe_every_parameter_they_accept() -> None:
         + "\n".join(bare)
         + "\nSet description= on the Query/Path declaration."
     )
+
+
+def test_every_written_diagnose_action_is_one_a_step_can_reach() -> None:
+    """A catalogue entry nothing renders is a paragraph nobody reads.
+
+    `signing_not_comparable` was written in both languages and left out of
+    ACTIONABLE_CODES, so the self-check showed "cannot compare native and
+    browser signing for douyin" with no explanation under it - which reads as a
+    fault the operator introduced, over a step that is working as designed.
+    """
+    from dtk.ops.diagnose import ACTIONABLE_CODES
+
+    for language in ("en", "zh"):
+        catalogue = json.loads((LOCALES / f"{language}.json").read_text(encoding="utf-8"))
+        written = set(catalogue["diagnose"]["action"])
+        unreachable = sorted(written - ACTIONABLE_CODES)
+        assert not unreachable, (
+            f"{language}: diagnose actions written but unreachable, because their "
+            f"code is not in ACTIONABLE_CODES: {unreachable}"
+        )

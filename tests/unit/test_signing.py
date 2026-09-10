@@ -1964,8 +1964,43 @@ async def test_shadow_skips_when_nothing_is_comparable() -> None:
     result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
     assert result is not None
     assert result.compared is False
-    assert result.detail == "every parameter skipped"
+    # Named, so an operator reading the self-check knows which parameter went
+    # unjudged. "every parameter skipped" was true and unactionable.
+    assert result.detail == "nothing comparable (msToken)"
     assert registry.native_enabled(Platform.DOUYIN) is True
+
+
+#: One real a_bogus, taken from the browser behind browser-rpc on 2026-09-09.
+#: It decodes cleanly and fails `structure_error` at noise byte 2 - which is
+#: the whole point of it being here: the reference breaks a rule we derived
+#: from an older bundle, so no hand-written string would reproduce the case.
+BROWSER_A_BOGUS = (
+    "Dv0fkFtEOZRcaVFGYOGuHc1lpoyANT8yvTixSHFTHPY4yw0bDRPrOPeUGxuys0WfSuM0h11H8x0AYdxcq4Xwp9"
+    "nkzmpkSsGjctVc9gmLZqw4GzJQEHjkewvzzw0xUc4q-554iARIMUro6jVAwqQu/p-yyKLe5cWBPpOjkZYbE9Bh"
+    "ZMgAgZnaPdbkYXkzUnA6"
+)
+
+
+async def test_a_stale_invariant_says_so_rather_than_blaming_the_signer() -> None:
+    """The skip that happens in the field, and the message it has to produce.
+
+    Measured on 2026-09-09: the live Douyin bundle's own a_bogus fails our
+    derived prefix masks at noise byte 2, and its frame carries a varying byte
+    where V4 saw the constant 44. The comparator is right to skip - a rule the
+    reference breaks cannot judge agreement with the reference - but the
+    self-check then told an operator "every parameter skipped", which names
+    neither the parameter nor the cause and reads like something they broke.
+    """
+    native = FakeSigner(SIGNER_NATIVE, param="a_bogus", value=BROWSER_A_BOGUS)
+    rpc = FakeSigner(SIGNER_BROWSER, param="a_bogus", value=BROWSER_A_BOGUS)
+    registry, _, _, _ = build_registry(native=native, rpc=rpc)
+
+    await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT)
+    result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
+    assert result is not None and result.compared is False
+    detail = result.detail or ""
+    assert "a_bogus" in detail
+    assert "stale" in detail and "re-derive" in detail
 
 
 async def test_shadow_skips_when_the_parameters_do_not_overlap() -> None:

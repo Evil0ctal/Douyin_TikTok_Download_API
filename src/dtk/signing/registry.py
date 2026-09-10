@@ -590,8 +590,12 @@ class SignerRegistry:
                 return self._record_shadow(key, False, True, "no comparable parameter")
             if Comparison.MISMATCH not in verdicts.values():
                 if Comparison.MATCH not in verdicts.values():
+                    # Naming them, and why. "every parameter skipped" was true
+                    # and told an operator nothing they could act on: which
+                    # parameters, and whether this is a rule of ours that has
+                    # gone stale or a signature nobody claims to compare.
                     return self._record_shadow(
-                        key, False, True, "every parameter skipped", verdicts
+                        key, False, True, self._skip_reason(remote_signed, verdicts), verdicts
                     )
                 return self._record_shadow(key, True, True, None, verdicts)
             detail = ", ".join(
@@ -614,6 +618,32 @@ class SignerRegistry:
             {"platform": key[0].value, "endpoint": key[1], "parameters": detail},
         )
         return self._record_shadow(key, True, False, detail, verdicts)
+
+    def _skip_reason(self, remote: SignedParams, verdicts: Mapping[str, Comparison]) -> str:
+        """Why nothing could be compared, in the words of the thing that skipped.
+
+        The comparators return a verdict and not a reason, which is right for
+        them - they answer one question about two strings. The reason for the
+        one skip that actually happens in the field is recoverable here, from
+        the remote signature this call already holds: A-Bogus is skipped when
+        the *reference* breaks an invariant we derived, which says our rule is
+        out of date and says nothing about the native signer.
+        """
+        names = ", ".join(sorted(verdicts))
+        value = remote.params.get(SignatureAlgorithm.A_BOGUS.value)
+        if isinstance(value, str):
+            # The same alphabet the comparator judged with, so the reason
+            # reported here is the reason it actually skipped for.
+            comparator = self._comparators.get(SignatureAlgorithm.A_BOGUS.value)
+            alphabet = getattr(comparator, "alphabet", "s4")
+            problem = structure_error(value, alphabet=alphabet)
+            if problem is not None:
+                return (
+                    f"nothing comparable ({names}): the browser's own a_bogus breaks "
+                    f"our derived invariant at {problem}, so the rule is stale and "
+                    "cannot judge agreement - re-derive it from the current bundle"
+                )
+        return f"nothing comparable ({names})"
 
     def _compare(
         self, natives: tuple[SignedParams, ...], remote: SignedParams

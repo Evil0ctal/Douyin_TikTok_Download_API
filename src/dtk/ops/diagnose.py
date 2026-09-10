@@ -241,6 +241,12 @@ ACTIONABLE_CODES: Final[frozenset[str]] = frozenset(
         StepCode.POOL_BELOW_MINIMUM,
         StepCode.SIGNING_NO_BROWSER_RPC,
         StepCode.SIGNING_MISMATCH,
+        # The sentence for this one was written and never wired up, so the step
+        # showed a warning and the terse per-platform detail under it with
+        # nothing saying what it meant or whether anything was broken. It is the
+        # code most in need of its paragraph: "cannot compare" reads as a fault
+        # and is not one.
+        StepCode.SIGNING_NOT_COMPARABLE,
         StepCode.SMOKE_FAILED,
         StepCode.STEP_CRASHED,
     )

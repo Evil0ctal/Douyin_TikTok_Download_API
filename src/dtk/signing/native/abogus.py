@@ -94,6 +94,27 @@ FRAME_CONSTANTS: Final[Mapping[int, int]] = MappingProxyType(
 
 #: ``(and_mask, or_mask)`` per structured prefix byte: ``byte == (noise & and) | or``.
 #: Derived from the ``list_1`` / ``list_2`` / ``list_3`` arguments below.
+#:
+#: **Stale against the bundle Douyin serves now, and left alone deliberately.**
+#: Twenty-four signatures taken from the browser behind browser-rpc on
+#: 2026-09-09 agree with bytes 0, 1 and 6 and disagree with the other nine -
+#: byte 2, for instance, holds 0b01010000 fixed with 0b00101010 varying where
+#: this table says the opposite. `FRAME_CONSTANTS[0]` has drifted the same way:
+#: V4 saw the constant 44, and the live bundle produces eight values there
+#: (102, 103, 118, 119, 230, 231, 246, 247 - a masked noise byte, not a
+#: constant).
+#:
+#: They are not re-fitted from those samples on purpose. These rules exist to
+#: judge whether the native signer has drifted, and a rule curve-fitted to two
+#: dozen samples would encode whichever bits happened not to vary in them; the
+#: cost of getting that wrong is `MISMATCH`, which permanently disables the
+#: native signer for the platform. A rule that cannot judge is reported as one
+#: (`dtk.signing.registry.ABogusComparator`, which skips rather than accuses)
+#: until somebody re-derives it from the current bundle's own arguments, which
+#: is where the existing values came from.
+#:
+#: None of this says the native signer is wrong: Douyin answers its signatures
+#: with full payloads on all four endpoints, which is the evidence that counts.
 PREFIX_MASKS: Final[tuple[tuple[int, int], ...]] = (
     (170, 1), (85, 2), (170, 5), (85, 45 & 170),
     (170, 1), (85, 0), (170, 0), (85, 0),
