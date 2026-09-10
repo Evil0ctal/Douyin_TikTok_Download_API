@@ -123,6 +123,17 @@ interface CookieInventory {
   cookies: CookieEntry[]
 }
 
+/** What the session check reports once its task finishes. */
+interface SessionCheck {
+  logged_in: boolean
+  account_id: string | null
+  /** `live`, `expired`, `guest`, `refused` or `unreachable`. */
+  reason: string
+  status: number | null
+  latency_ms: number | null
+  detail: string | null
+}
+
 /** What `POST /admin/identities/export` writes, and what the file import reads. */
 interface IdentityBundleFile {
   version: number
@@ -2144,6 +2155,77 @@ function RevealRow({ identity }: { identity: Identity }) {
   )
 }
 
+/**
+ * Ask the platform whether this login is still a login.
+ *
+ * `authenticated` on an identity says a session cookie was in the paste, which
+ * is a fact about the paste. Whether the platform still honours it is a
+ * different fact, and the only symptom of the two diverging was logged-in-only
+ * data quietly missing from otherwise successful responses.
+ *
+ * Offered for guest identities too, and it answers "guest" for them. Hiding
+ * the button there would mean the one case where somebody imported a login and
+ * it silently did not take is also the case with nothing to press.
+ */
+function SessionCheckButton({ identity }: { identity: Identity }) {
+  const { t } = useTranslation(['console', 'common'])
+  const toast = useToast()
+  const [result, setResult] = useState<SessionCheck | null>(null)
+
+  useEffect(() => {
+    setResult(null)
+  }, [identity.id])
+
+  const check = useApiMutation<SessionCheck, void>(
+    async () => {
+      const { task_id } = await apiPost<{ task_id: string }>(
+        paths.identities.session(identity.id),
+        {},
+        { awaitTask: false },
+      )
+      return await waitForTask<SessionCheck>(task_id)
+    },
+    {
+      onSuccess: (answer) => {
+        setResult(answer)
+      },
+      onError: (error) => {
+        toast.apiError(error, t('console:identity.session.checkFailed'))
+      },
+    },
+  )
+
+  return (
+    <div className="u-row u-wrap">
+      {result ? (
+        <span className="u-row" style={{ gap: 'var(--space-1)' }}>
+          <StatusBadge
+            kind="health"
+            value={result.logged_in ? 'healthy' : 'unhealthy'}
+            flash={false}
+          />
+          <span className="u-xs u-secondary">
+            {t(`console:identity.session.reason.${result.reason}`, {
+              defaultValue: result.reason,
+            })}
+          </span>
+          {result.account_id ? <CopyableId value={result.account_id} /> : null}
+        </span>
+      ) : null}
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={check.isPending}
+        onClick={() => {
+          check.mutate()
+        }}
+      >
+        {t('console:identity.session.check')}
+      </Button>
+    </div>
+  )
+}
+
 function IdentityContents({
   identity,
   jar,
@@ -2162,7 +2244,11 @@ function IdentityContents({
     .join(' ')
 
   return (
-    <Card title={t('console:identity.contents.title')} description={t('console:identity.contents.hint')}>
+    <Card
+      title={t('console:identity.contents.title')}
+      description={t('console:identity.contents.hint')}
+      actions={<SessionCheckButton identity={identity} />}
+    >
       <div className="u-stack">
         <div className="u-row u-wrap">
           <Fact label={t('console:field.platform')} value={identity.platform} mono />

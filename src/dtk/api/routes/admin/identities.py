@@ -898,6 +898,51 @@ async def test_identity(
 
 
 @router.post(
+    "/{identity_id}/session",
+    summary="Check whether an identity's login is still valid",
+    openapi_extra={I18N_KEY: "identities_session", **ACCEPTED_RESPONSES},
+)
+async def check_session(
+    request: Request,
+    identity_id: uuid.UUID = Path(description="The identity to check."),
+    principal: Principal = Depends(manage_pool),
+) -> Any:
+    """Ask the platform whose session this identity is carrying.
+
+    ``authenticated`` on an identity is a statement about the paste it came
+    from - a `sessionid` was present - and not about the account. The cookie is
+    there whether or not the platform still honours it, and the difference only
+    ever surfaced later, as logged-in-only data quietly missing from otherwise
+    successful responses.
+
+    This asks the platform. Both publish an endpoint that answers about the
+    cookies that asked rather than about a user named in the request, which is
+    what makes it a login check and not a lookup.
+
+    Queued rather than answered inline, like the probe beside it: it is a real
+    upstream call with a real timeout.
+
+    **Returns**
+
+    A task id. Its result carries `logged_in`, the `account_id` the platform
+    named, and a `reason` - `live`, `expired`, `guest`, `refused` or
+    `unreachable` - because "the session is over" and "the platform said
+    nothing" send an operator to different places.
+    """
+    identity = await request.state.db.get(Identity, identity_id)
+    if identity is None:
+        raise NotFound("no such identity", details={"identity_id": str(identity_id)})
+    task_id, _state = await operations.submit(
+        request,
+        principal,
+        endpoint=Maintenance.IDENTITY_SESSION.value,
+        params={"identity_id": str(identity_id)},
+        coalesce=False,
+    )
+    return ok(request, {"task_id": str(task_id)}, status_code=202)
+
+
+@router.post(
     "/{identity_id}/reset",
     summary="Return an identity to rotation",
     openapi_extra={I18N_KEY: "identities_reset"},

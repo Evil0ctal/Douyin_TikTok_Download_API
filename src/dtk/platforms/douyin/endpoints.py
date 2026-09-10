@@ -24,6 +24,7 @@ from dtk.platforms.douyin.params import (
     comments_params,
     content_detail_params,
     mix_posts_params,
+    session_check_params,
 )
 
 
@@ -56,6 +57,13 @@ class DouyinAPIEndpoints:
 
     # User detail info
     USER_DETAIL: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/user/profile/other/"
+
+    # Who the platform thinks the caller is. Answers about the client that
+    # asked rather than about a user named in the request - but it answers for
+    # a guest too, with a device uid of its own, so it identifies the client
+    # and does not establish a login. The measurement is in
+    # dtk.ops.probes.read_session.
+    QUERY_USER: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/query/user/"
 
     # Post base
     BASE_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/"
@@ -188,6 +196,7 @@ COMMENTS: Final = "douyin.comments"
 COMMENT_REPLIES: Final = "douyin.comment_replies"
 AUTHOR_LIKES: Final = "douyin.author_likes"
 MIX_POSTS: Final = "douyin.mix_posts"
+SESSION_CHECK: Final = "douyin.session_check"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -203,6 +212,15 @@ DEFAULT_HEADERS: Final[dict[str, str]] = {
 #: cheapest call a real user makes, while paging through someone's timeline or
 #: comment tree is the pattern platforms watch for.
 ENDPOINTS: Final = EndpointTable.of(
+    EndpointSpec(
+        name=SESSION_CHECK,
+        path=DouyinAPIEndpoints.QUERY_USER,
+        # No caller arguments at all: the cookies are the whole question.
+        required=(),
+        build=session_check_params,
+        risk_weight=1.0,
+        summary="Which uid the platform binds to the caller's own client",
+    ),
     EndpointSpec(
         name=CONTENT_DETAIL,
         path=DouyinAPIEndpoints.POST_DETAIL,

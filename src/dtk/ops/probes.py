@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Final
 
 import httpx
@@ -166,6 +166,160 @@ async def probe_identity(
     )
 
 
+#: The endpoint that answers "whose session is this", per platform.
+SESSION_CHECKS: Final[dict[Platform, str]] = {
+    Platform.DOUYIN: "douyin.session_check",
+    Platform.TIKTOK: "tiktok.session_check",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class SessionCall:
+    """The three fields :func:`dtk.ops.pipeline.call_endpoint` actually reads.
+
+    Not a :class:`dtk.worker.registry.ResolvedCall`. That table is keyed by
+    `Capability` and requires a non-empty argument map, and a session check has
+    no arguments at all - the cookies are the whole question. Registering one
+    would mean inventing a capability, a cache TTL key and a scope for an
+    endpoint no caller may name, and putting it on the endpoint health board
+    where an operator would read it as something the API serves.
+
+    The platform's own endpoint table still holds the path, the parameters and
+    whether it is signed, so this bypasses the worker's registry and nothing
+    else.
+    """
+
+    platform: Platform
+    endpoint: str
+    params: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class SessionProbe:
+    """Whether an identity's login is still a login.
+
+    Separate from :class:`IdentityProbe` because it answers a different
+    question and a caller must not be able to confuse them. A guest identity
+    passes an identity probe - the platform talks to it perfectly well - and
+    fails this one, which is the whole point: a jar imported for its login is
+    worthless the day the login expires, and until now the only symptom was
+    logged-in-only data quietly going missing.
+    """
+
+    #: True only where a platform actually confirmed a login. False covers a
+    #: guest jar, a lapsed one, a platform that refused to answer and one that
+    #: cannot tell - `reason` separates those and this flag does not.
+    logged_in: bool
+    #: The account the platform says the cookies belong to, when it says.
+    account_id: str | None = None
+    #: `live`, `signed_out`, `indeterminate`, `refused` or `unreachable`.
+    reason: str = "unreachable"
+    status: int | None = None
+    latency_ms: int | None = None
+    detail: str | None = None
+
+
+def read_session(platform: Platform, payload: Any) -> tuple[bool, str | None, str, str | None]:
+    """Read a session-check answer: (logged in, account id, reason, detail).
+
+    Neither platform uses an HTTP status to say it - a live session and a dead
+    one both come back 200 - and only one of them says it at all.
+
+    **TikTok's ``/passport/token/beat/web/`` is a real check.** Measured in both
+    directions on 2026-09-09: a logged-in jar answers ``error_code: 0`` with the
+    account in ``user_id_str``; a guest jar answers ``error_code: 401``,
+    ``error_name: "session_expired"``, ``user_id_str: "0"``. That last shape is
+    also what a lapsed login returns, so this reports ``signed_out`` rather than
+    guessing which of the two it was - the platform does not distinguish them
+    and neither should this.
+
+    **Douyin's ``/aweme/v1/web/query/user/`` is not.** It looks like one, and it
+    was proposed as one, but it answers a guest jar with the same fields and a
+    ``user_uid`` of its own: measured, a freshly minted guest got
+    ``status_code: 0`` and a 16-digit uid where a logged-in browser gets a
+    19-digit account uid. Nothing in the response separates them -
+    ``user_uid_type`` is 0 for both - and ``/passport/token/beat/`` answers
+    ``{"message": "success"}`` for both as well.
+
+    So Douyin returns ``indeterminate`` with the uid it named. That is worth
+    something - the jar reached the platform and the platform recognised the
+    client - and it is not a login, and saying otherwise would send somebody to
+    re-import a jar over a verdict this endpoint cannot give.
+    """
+    if not isinstance(payload, dict):
+        return False, None, "refused", None
+
+    if platform is Platform.DOUYIN:
+        if int(payload.get("status_code") or 0) != 0:
+            return False, None, "refused", None
+        return False, _text(payload.get("user_uid")), "indeterminate", None
+
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return False, None, "refused", None
+    account = _text(data.get("user_id_str"))
+    # "0" is how the passport service spells "nobody", and it is a string.
+    if account == "0":
+        account = None
+    if int(data.get("error_code") or 0) != 0:
+        return False, account, "signed_out", _text(data.get("error_name"))
+    return (True, account, "live", None) if account else (False, None, "signed_out", None)
+
+
+async def probe_session(
+    transport: Any,
+    signers: Any,
+    identity: LiveIdentity,
+    call: Any,
+    *,
+    timeout: float = PROBE_TIMEOUT_SECONDS,
+) -> SessionProbe:
+    """Ask the platform whose session this identity is carrying.
+
+    Runs through the same pipeline as every other call, so it spends the
+    identity exactly as real traffic would and a refusal here is a refusal
+    everywhere. Nothing is recorded against the identity, for the same reason
+    ``probe_identity`` records nothing: a check that cooled what it measured
+    would move the state the operator is reading.
+    """
+    from dtk.ops.pipeline import call_endpoint
+    from dtk.transport.base import TransportFailure
+
+    started = time.perf_counter()
+    try:
+        response = await call_endpoint(transport, signers, identity, call, timeout=timeout)
+    except TransportFailure as exc:
+        return SessionProbe(
+            logged_in=False,
+            reason="unreachable",
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            detail=scrub(str(exc)),
+        )
+
+    classification = transport.classify(response)
+    if classification.outcome is Outcome.RISK_CONTROL:
+        # The platform said nothing at all, which is not the same as saying the
+        # session is over. Reporting it as expired would send somebody to
+        # re-import a jar that is fine.
+        return SessionProbe(
+            logged_in=False,
+            reason="refused",
+            status=response.status,
+            latency_ms=response.elapsed_ms,
+            detail=scrub(classification.detail) if classification.detail else None,
+        )
+
+    logged_in, account, reason, detail = read_session(identity.platform, response.json())
+    return SessionProbe(
+        logged_in=logged_in,
+        account_id=account,
+        reason=reason,
+        status=response.status,
+        latency_ms=response.elapsed_ms,
+        detail=detail,
+    )
+
+
 def _text(value: Any) -> str | None:
     if value is None:
         return None
@@ -176,9 +330,14 @@ def _text(value: Any) -> str | None:
 __all__ = [
     "DEFAULT_PROXY_PROBE_URL",
     "PROBE_TIMEOUT_SECONDS",
+    "SESSION_CHECKS",
     "SMOKE_URLS",
     "IdentityProbe",
     "ProxyProbe",
+    "SessionCall",
+    "SessionProbe",
     "probe_identity",
     "probe_proxy",
+    "probe_session",
+    "read_session",
 ]

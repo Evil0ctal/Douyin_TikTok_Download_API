@@ -97,6 +97,16 @@ def base_params(profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     }
 
 
+def session_check_params(*, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/query/user/``.
+
+    The base set and nothing else. The question this endpoint answers - whose
+    session is this - is asked entirely by the cookies and the signature, so
+    there is nothing to name in the query string.
+    """
+    return base_params(profile)
+
+
 def content_detail_params(
     *, aweme_id: str, profile: ClientProfile = DEFAULT_PROFILE
 ) -> dict[str, str]:

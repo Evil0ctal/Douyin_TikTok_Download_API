@@ -80,6 +80,7 @@ class Maintenance(StrEnum):
 
     IDENTITY_MINT = "identity.mint"
     IDENTITY_TEST = "identity.test"
+    IDENTITY_SESSION = "identity.session"
     PROXY_TEST = "proxy.test"
     DIAGNOSE = "diagnose"
     BACKUP = "backup"

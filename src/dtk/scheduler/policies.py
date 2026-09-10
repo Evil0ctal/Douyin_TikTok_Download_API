@@ -39,6 +39,15 @@ class EndpointPolicy:
 _POLICIES: dict[str, EndpointPolicy] = {
     p.endpoint: p
     for p in [
+        # The session checks read nothing and page nothing, so the quota is
+        # the guard that matters: nobody needs to ask whose session this is
+        # five times a second. The risk weight stays at the floor every other
+        # endpoint sits at or above - a probe records no outcome against the
+        # identity it measures, so a lighter weight here would protect nothing
+        # and would quietly discount a real refusal if the endpoint were ever
+        # called through the ordinary pipeline.
+        EndpointPolicy("douyin.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("tiktok.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("douyin.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         EndpointPolicy("douyin.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("douyin.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),

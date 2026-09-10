@@ -41,6 +41,8 @@ export const paths = {
     import: `${API_V1}/admin/identities/import`,
     byId: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}`,
     test: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/test`,
+    /** Asks the platform whose session this identity carries. */
+    session: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/session`,
     /** Clears a cooldown and a failure streak. Refused on a retired identity. */
     reset: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/reset`,
     /** Cookie names, roles and masked values. Never the values themselves. */

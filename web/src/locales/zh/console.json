@@ -331,7 +331,16 @@
       "missing": "缺失",
       "too_short": "仅引导值",
       "unknown": "未知",
-      "checked": "检查了 {cookie}：{verdict}"
+      "checked": "检查了 {cookie}：{verdict}",
+      "check": "检查登录态",
+      "checkFailed": "登录态检查没能完成",
+      "reason": {
+        "live": "平台确认登录态有效。",
+        "signed_out": "没有有效登录态。平台对「从来没登录过」和「登录已失效」的回答是一样的，所以分不出是哪一种。",
+        "indeterminate": "抖音没有能区分访客和登录态的接口——两种情况的回答完全相同，都会给出一个 uid。这次能确认的是：这份 Cookie 到达了平台并被认了下来。",
+        "refused": "平台拒绝了这次检查而不是回答它，所以这一次说明不了会话的状态。",
+        "unreachable": "检查没拿到任何回应。是网络或代理的问题，不是会话的问题。"
+      }
     },
     "hidden": {
       "title": "已隐藏 {count} 个身份",

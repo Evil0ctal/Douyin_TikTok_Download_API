@@ -410,6 +410,10 @@
         "summary": "退役一个身份",
         "description": "退役并清除。统计数据保留，凭据不保留（见文档 05）。"
       },
+      "identities_session": {
+        "summary": "检查身份的登录态是否仍然有效",
+        "description": "向平台询问这个身份携带的是谁的会话。"
+      },
       "identities_test": {
         "summary": "探测单个身份",
         "description": "用该身份排入一次真实请求。"

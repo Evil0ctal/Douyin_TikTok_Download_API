@@ -20,7 +20,7 @@ Differences from V4, for the same reasons as the Douyin module:
 from __future__ import annotations
 
 import random
-from typing import Final
+from typing import Any, Final
 
 from dtk.core.errors import InvalidParam
 from dtk.platforms.base import ClientProfile
@@ -121,6 +121,16 @@ def base_params(profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
         "tz_name": profile.timezone,
         "webcast_language": profile.language,
     }
+
+
+def session_check_params(**_: Any) -> dict[str, str]:
+    """Parameters for ``/passport/token/beat/web/``.
+
+    Not the shared base set. This is the passport service rather than the web
+    app's own API, and a capture of the call the page makes carries three
+    parameters - the rest of the base set is not sent and is not expected.
+    """
+    return {"device_platform": "web", "aid": "1459", "scene": "active"}
 
 
 def content_detail_params(

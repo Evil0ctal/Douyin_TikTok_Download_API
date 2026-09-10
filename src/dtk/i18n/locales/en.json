@@ -410,6 +410,10 @@
         "summary": "Retire an identity",
         "description": "Retire and wipe. The statistics stay, the credential does not (doc 05)."
       },
+      "identities_session": {
+        "summary": "Check whether an identity's login is still valid",
+        "description": "Asks the platform whose session this identity carries."
+      },
       "identities_test": {
         "summary": "Probe one identity",
         "description": "Queue a single real request on this identity."

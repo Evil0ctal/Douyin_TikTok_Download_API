@@ -331,7 +331,16 @@
       "missing": "None",
       "too_short": "Bootstrap only",
       "unknown": "Unknown",
-      "checked": "Checked {cookie}: {verdict}"
+      "checked": "Checked {cookie}: {verdict}",
+      "check": "Check the login",
+      "checkFailed": "The login check did not complete",
+      "reason": {
+        "live": "The platform confirmed a live login.",
+        "signed_out": "No live login. The platform answers the same way for a jar that never had one and one that has lapsed, so it cannot say which.",
+        "indeterminate": "Douyin has no endpoint that separates a guest from a login - it answers both the same way, with a uid of its own. What this confirms is that the jar reached the platform and was recognised.",
+        "refused": "The platform refused the check rather than answering it, so this says nothing about the session.",
+        "unreachable": "The check never got an answer. A network or proxy problem, not a session one."
+      }
     },
     "hidden": {
       "title": "{count, plural, one {# identity hidden} other {# identities hidden}}",

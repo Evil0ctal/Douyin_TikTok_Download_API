@@ -25,6 +25,7 @@ from dtk.platforms.tiktok.params import (
     comments_params,
     content_detail_params,
     mix_posts_params,
+    session_check_params,
 )
 
 
@@ -39,6 +40,10 @@ class TikTokAPIEndpoints:
 
     # Login
     LOGIN_ENDPOINT: Final = f"{TIKTOK_DOMAIN}/login/"
+
+    # Whether the caller's own session is still alive. The passport service
+    # answers about the cookies that asked, so nothing needs naming.
+    PASSPORT_BEAT: Final = f"{TIKTOK_DOMAIN}/passport/token/beat/web/"
 
     # Home recommendation feed
     HOME_RECOMMEND: Final = f"{TIKTOK_DOMAIN}/api/recommend/item_list/"
@@ -92,6 +97,7 @@ AUTHOR_LIKES: Final = "tiktok.author_likes"
 MIX_POSTS: Final = "tiktok.mix_posts"
 AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
+SESSION_CHECK: Final = "tiktok.session_check"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -104,6 +110,19 @@ DEFAULT_HEADERS: Final[dict[str, str]] = {
 #: The P0 endpoint set. Risk weights mirror the Douyin table so the scheduler
 #: treats equivalent capabilities equivalently across platforms.
 ENDPOINTS: Final = EndpointTable.of(
+    EndpointSpec(
+        name=SESSION_CHECK,
+        path=TikTokAPIEndpoints.PASSPORT_BEAT,
+        required=(),
+        build=session_check_params,
+        # Unsigned on purpose. The passport service takes the cookies and
+        # nothing else - a captured call carries no msToken, no X-Bogus and no
+        # _signature - and appending them would make this the one probe whose
+        # failure could mean either "the session is dead" or "the signer is".
+        signed=False,
+        risk_weight=1.0,
+        summary="Whether the caller's own session is still alive",
+    ),
     EndpointSpec(
         name=CONTENT_DETAIL,
         path=TikTokAPIEndpoints.POST_DETAIL,
