@@ -86,7 +86,7 @@ jobs:
               Go binary on scratch.
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The version stamped into the image comes from `git describe`, which
           # needs the tags and enough history to find the nearest one.
@@ -114,12 +114,12 @@ jobs:
         id: version
         run: echo "app_version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
         if: steps.mode.outputs.push == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -136,7 +136,7 @@ jobs:
       # after the branch.
       - name: Tags and labels
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ matrix.image }}
           # Explicit, rather than leaning on `latest=auto`: the rule below says
@@ -156,7 +156,7 @@ jobs:
             org.opencontainers.image.version=${{ steps.version.outputs.app_version }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
