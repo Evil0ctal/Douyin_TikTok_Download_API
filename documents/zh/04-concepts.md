@@ -444,7 +444,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 
 ### 角色约束控制台账号
 
-`viewer` < `operator` < `admin`，是一条阶梯而不是一个集合：管理员能做操作员能做的一切。
+`demo` < `viewer` < `operator` < `admin`，是一条阶梯而不是一个集合：管理员能做操作员能做的一切。最底下的 `demo` 只在演示模式开启时存在。
 
 | 界面 | 需要 |
 | --- | --- |

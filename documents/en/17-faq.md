@@ -595,7 +595,7 @@ precise definition elsewhere, the linked page has it.
 
 | Term | What it means |
 | --- | --- |
-| **Role** | What a console account may do: `viewer` < `operator` < `admin`, a ladder rather than a set. |
+| **Role** | What a console account may do: `demo` < `viewer` < `operator` < `admin`, a ladder rather than a set. `demo` is created by demo mode and sits at the bottom. |
 | **Scope** | What an API key may do: `douyin:read`, `tiktok:read`, `archive:read`, `archive:export`, `media:read`, `media:write`, `identity:manage`, `admin`. A key is bounded by its scopes **even when it belongs to an administrator**. |
 | **API key** | The credential a script or agent sends in `X-API-Key` or `Authorization: Bearer`. Shown once at creation; only a prefix and a SHA-256 digest are stored. May carry its own per-minute rate limit, otherwise `api.default_rate_limit_per_min` (120) applies. |
 | **Rate limit** | Abuse protection, never metering and never billing. Its only purpose is stopping one runaway script from draining the identity pool. |

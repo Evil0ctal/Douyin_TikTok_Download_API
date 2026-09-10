@@ -18,13 +18,22 @@ You do not need a headless browser to develop. `browser-rpc` is an optional comp
 
 ## Setting up
 
-v5 lives on the `v5` branch. `main` still holds V4 and shares no code with it; CI is wired to run on pushes and pull requests against `v5`.
+v5 is `main`, so a clone gives it to you by default.
 
 ```bash
 git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
-git checkout v5
 ```
+
+The repository has three branches and they do different jobs:
+
+| Branch | What it is | Takes pull requests |
+|---|---|---|
+| `main` | v5, the development trunk | Yes — every pull request goes here |
+| `release` | The commit currently published as a Docker image | No; it is only fast-forwarded from `main` |
+| `v4` | The old code, frozen | Yes, but only for security and blocking fixes |
+
+`main` and `v4` share no common ancestor — v5 was rewritten from an empty branch — so merging or cherry-picking between them is not a thing that exists.
 
 Python side:
 
@@ -495,7 +504,9 @@ The body is where this project's commit history earns its keep, and long bodies 
 
 ## Opening a pull request
 
-Pull requests target **`v5`**. CI runs on `push` and `pull_request` against that branch, and `main` is V4.
+Pull requests target **`main`**. CI runs on `push` and `pull_request` against it, and also checks pull requests aimed at `v4` — that branch is frozen but still takes security fixes, and accepting a change without checking it would be worse than not accepting it.
+
+Pushing to `main` does **not** build a Docker image. Publishing is its own act: fast-forward `main` to `release`, or tag `v*`. That way `latest` names a commit somebody decided to publish rather than whatever was merged an hour ago.
 
 There is no pull-request template. Before you open one:
 

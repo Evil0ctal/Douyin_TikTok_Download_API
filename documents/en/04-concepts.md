@@ -444,7 +444,7 @@ Reading a task result requires the scope that creating it required, so a key hol
 
 ### Roles bound a console account
 
-`viewer` < `operator` < `admin`, a ladder rather than a set: an administrator can do anything an operator can.
+`demo` < `viewer` < `operator` < `admin`, a ladder rather than a set: an administrator can do anything an operator can. The `demo` role at the bottom exists only while demo mode is on.
 
 | Surface | Requires |
 | --- | --- |

@@ -34,38 +34,55 @@ never softened because the key happens to belong to an administrator — see
 The relevant code is `src/dtk/api/deps.py`, which is short and worth reading if
 you want the exact resolution order.
 
-## The three roles
+## The four roles
 
-Three roles, no groups and no per-object permissions. A self-hosted instance has
+Four roles, no groups and no per-object permissions. A self-hosted instance has
 a handful of users, and a rule set that fits in one table is one people actually
 follow. The same table is rendered on the console's **Users** page so an
 administrator can see it while handing a role out.
 
-| Capability | admin | operator | viewer |
-|---|---|---|---|
-| Read the overview, logs and diagnostics | yes | yes | yes |
-| Manage identities and proxies | yes | yes | no |
-| Create and revoke API keys | yes | yes | no |
-| Run the self check | yes | yes | no |
-| Change runtime settings | yes | yes | no |
-| Change sensitive settings: allowlist, CORS, download proxy | yes | no | no |
-| Manage accounts and roles | yes | no | no |
-| Create and restore backups | yes | no | no |
+| Capability | admin | operator | viewer | demo |
+|---|---|---|---|---|
+| Call the platform endpoints | yes | yes | yes | yes |
+| Read the overview, library, downloads, logs and system pages | yes | yes | yes | yes |
+| Read identities, proxies, API keys and settings | yes | yes | yes | no |
+| Manage identities and proxies | yes | yes | no | no |
+| Create and revoke API keys | yes | yes | no | no |
+| Run the self check | yes | yes | no | no |
+| Change runtime settings | yes | yes | no | no |
+| Change sensitive settings: allowlist, CORS, download proxy | yes | no | no | no |
+| Manage accounts and roles | yes | no | no | no |
+| Create and restore backups | yes | no | no | no |
 
-Roles are a ladder, not a set: `viewer < operator < admin`, so an administrator
-can do everything an operator can and no endpoint has to list three roles.
+Roles are a ladder, not a set: `demo < viewer < operator < admin`, so an
+administrator can do everything an operator can and no endpoint has to list four
+roles.
 
-Two things follow that surprise people:
+`demo` sitting *below* viewer is where demo mode's safety comes from. Every gate
+is written as "viewer or better", so a role numbered underneath is refused by all
+of them without a call site being touched, and a route added later is closed to a
+demo instance until somebody opens it deliberately. It is also bound by a
+separate read-only rule: every write is refused except the handful that are
+read-shaped — parsing a link, the tools that compute an answer locally. See
+[Security](./15-security.md#demo-mode).
+
+Three things follow that surprise people:
 
 - **A role change takes effect on the next request.** The principal is rebuilt
   from the database on every call, so there is no cache to wait out and no need
   to sign the person out.
-- **The console does not hide pages by role.** Every signed-in user can open
-  every page in the navigation; the server is what refuses the action. The
-  exception is the Users page, which hides the account list and disables its
-  buttons for a non-administrator, because a page whose every control errors is
-  worse than a page that says why. If you consider a page's mere existence
-  sensitive, do not hand out the account.
+- **The console does not hide pages by role** — `demo` is the one exception.
+  Every signed-in user can open every page in the navigation; the server is what
+  refuses the action. The demo account's sidebar is trimmed, because a stranger
+  learns nothing from a list of links that all answer 403, while an operator
+  being refused the Users page learns something true about their own instance.
+  The Users page hides the account list and disables its buttons for a
+  non-administrator, because a page whose every control errors is worse than a
+  page that says why.
+- **The `demo` role cannot be assigned by hand.** It is created by the
+  `demo.enabled` switch, and the users API refuses to create or move any account
+  into it — otherwise you would get a second demo account with a password an
+  administrator chose and no key to go with it.
 
 ## Managing console accounts
 

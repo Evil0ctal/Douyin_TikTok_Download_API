@@ -75,7 +75,7 @@ curl -sS "$DTK_BASE_URL/api/v1/auth/me" -H "X-API-Key: $DTK_API_KEY"
 - **即使 key 的所有者是管理员，key 依然只受自身权限范围的约束。** 在自部署实例上几乎所有 key 都属于管理员账号；一个纯 `douyin:read` 的 key 仍然够不到身份管理，也够不到 `archive:export`。
 - **读取任务结果所需的权限范围，与创建它时相同。** `GET /api/v1/tasks/{task_id}` 会按任务提交时的接口去校验权限范围，所以低权限 key 拿到一个任务 ID 也读不出高权限的结果。
 
-部分操作在权限范围之外还要求**角色**（`viewer` < `operator` < `admin`）——`identity` 和 `explain` 都至少需要 `operator`。角色属于凭据所归属的账号。`?proxy=` 不在其列：它完全不做权限范围或角色检查，只由 `security.request_proxy` 这个设置把守，见下文的 [`?proxy=<url>`](#proxyurl)。
+部分操作在权限范围之外还要求**角色**（`demo` < `viewer` < `operator` < `admin`）——`identity` 和 `explain` 都至少需要 `operator`。角色属于凭据所归属的账号。`?proxy=` 不在其列：它完全不做权限范围或角色检查，只由 `security.request_proxy` 这个设置把守，见下文的 [`?proxy=<url>`](#proxyurl)。
 
 ### 被开放的接口
 

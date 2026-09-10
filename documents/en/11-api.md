@@ -75,7 +75,7 @@ Two rules are worth knowing because they surprise people:
 - **A key is bounded by its scopes even when its owner is an administrator.** On a self-hosted instance almost every key belongs to the admin account; a plain `douyin:read` key still cannot reach identity management or `archive:export`.
 - **Reading a task's result costs the same scope that creating it did.** `GET /api/v1/tasks/{task_id}` checks the scope for the endpoint the task was submitted to, so a low-scope key cannot read a high-scope result out of a task id it was handed.
 
-Some operations additionally require a **role** (`viewer` < `operator` < `admin`) on top of a scope — `identity` and `explain` both need at least `operator`. Roles apply to the account the credential belongs to. `?proxy=` is not one of them: it carries no scope or role check at all and is gated solely by the `security.request_proxy` setting, as [`?proxy=<url>`](#proxyurl) below describes.
+Some operations additionally require a **role** (`demo` < `viewer` < `operator` < `admin`) on top of a scope — `identity` and `explain` both need at least `operator`. Roles apply to the account the credential belongs to. `?proxy=` is not one of them: it carries no scope or role check at all and is gated solely by the `security.request_proxy` setting, as [`?proxy=<url>`](#proxyurl) below describes.
 
 ### Opened endpoints
 

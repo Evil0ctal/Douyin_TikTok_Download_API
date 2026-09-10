@@ -1,0 +1,84 @@
+# Static analysis for the three languages this repository actually ships.
+#
+# v4 scanned Python only, which was right for v4 — it was a Python project. v5
+# is three: the service in Python, the media sidecar in Go, and the console in
+# TypeScript. A scan that covered one of them would report a clean bill of
+# health for two thirds of the code it never read.
+#
+# It runs on `main` and on pull requests, and NOT on `release` — the release
+# branch is a fast-forward of a commit `main` already scanned, so scanning it
+# again spends minutes to re-derive the same answer.
+#
+# The weekly run matters more than it looks. Most findings here will arrive not
+# because the code changed but because the queries did: CodeQL ships new rules,
+# and a repository that only scans on push learns about them the next time
+# somebody happens to edit a file.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Wednesday 07:22 UTC, inherited from the v4 workflow. Off the hour on
+    # purpose: GitHub's scheduler is busiest exactly on it.
+    - cron: "22 7 * * 3"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: go
+            build-mode: autobuild
+          # One CodeQL language covers both, and `javascript-typescript` is the
+          # identifier it wants; `typescript` alone is rejected.
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # security-extended adds the rules that are accurate but not in the
+          # default set. This project's whole job is fetching URLs somebody else
+          # supplied, so the extra SSRF and injection queries are the ones worth
+          # having - they are what caught the v4 crawlers.
+          queries: security-extended
+
+      # Go is the only one that needs compiling. It has no dependencies at all
+      # (see docker/downloader/go.mod), so autobuild finds the module and builds
+      # it without a network fetch.
+      - name: Set up Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: docker/downloader/go.mod
+          # No cache: the module has zero dependencies, so there is no go.sum
+          # to key one on and nothing to restore.
+          cache: false
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

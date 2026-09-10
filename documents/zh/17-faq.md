@@ -511,7 +511,7 @@ Ethereum (ERC20)、BNB Smart Chain (BEP20) 和 Bitcoin 的加密货币地址列�
 
 | 术语 | 含义 |
 | --- | --- |
-| **角色（role）** | 控制台账号能做什么：`viewer` < `operator` < `admin`，是阶梯而不是集合。 |
+| **角色（role）** | 控制台账号能做什么：`demo` < `viewer` < `operator` < `admin`，是阶梯而不是集合。`demo` 由演示模式生成，排在最底下。 |
 | **权限范围（scope）** | 一把 API key 能做什么：`douyin:read`、`tiktok:read`、`archive:read`、`archive:export`、`media:read`、`media:write`、`identity:manage`、`admin`。**即使这把 key 属于管理员**，它也仍然受自己的权限范围限制。 |
 | **API key** | 脚本或 agent 在 `X-API-Key` 或 `Authorization: Bearer` 里发送的凭据。创建时只显示一次，库里只存前缀和 SHA-256 摘要。可以带自己的每分钟限流值，否则套用 `api.default_rate_limit_per_min`（120）。 |
 | **限流（rate limit）** | 防滥用手段，与计量和收费无关。它唯一的目的是不让一个跑飞的脚本把身份池抽干。 |

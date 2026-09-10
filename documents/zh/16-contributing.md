@@ -18,13 +18,22 @@
 
 ## 准备环境
 
-v5 在 `v5` 分支上。`main` 仍然是 V4，两者不共享任何代码；CI 只对 `v5` 的 push 和 pull request 生效。
+v5 就在 `main` 上，clone 下来默认就是它。
 
 ```bash
 git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
-git checkout v5
 ```
+
+仓库有三个分支，各自的角色不同：
+
+| 分支 | 是什么 | 会不会收 PR |
+|---|---|---|
+| `main` | v5，开发主线 | 会——所有 PR 都提到这里 |
+| `release` | 已发布为 Docker 镜像的那个提交 | 不会，它只从 `main` 快进 |
+| `v4` | 旧代码，已冻结 | 收，但只收安全和阻塞性修复 |
+
+`main` 和 `v4` 之间没有共同祖先——v5 是从空分支重写的，所以两者之间不存在 merge 或 cherry-pick 这回事。
 
 Python 这一侧：
 
@@ -495,7 +504,9 @@ feat(console): add an MCP page to the console
 
 ## 提交 Pull Request
 
-PR 提到 **`v5`**。CI 只对该分支的 `push` 和 `pull_request` 生效，`main` 是 V4。
+PR 提到 **`main`**。CI 对 `main` 的 `push` 和 `pull_request` 生效，另外也检查提到 `v4` 的 PR——那个分支冻结了，但仍然收安全修复，而收 PR 却不检查是说不过去的。
+
+推 `main` **不会**构建 Docker 镜像。发布是单独一个动作：把 `main` 快进到 `release`，或者打一个 `v*` 标签。这样 `latest` 指向的是有人决定要发布的那个提交，而不是一小时前刚合进去的东西。
 
 仓库里没有 PR 模板。开 PR 之前：
 
