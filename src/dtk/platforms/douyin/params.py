@@ -23,9 +23,10 @@ once, because the signature is computed over the encoded query string.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Final
 
-from dtk.platforms.base import ClientProfile
+from dtk.platforms.base import ClientProfile, ProfileSource, browser_version
 
 #: Douyin's web client identifies itself as a Chinese-locale desktop browser.
 #: A profile whose language does not match the rest of the fingerprint is itself
@@ -47,6 +48,54 @@ DEFAULT_PROFILE: Final = ClientProfile(
     timezone="Asia/Shanghai",
     region="CN",
 )
+
+#: How Douyin's own page names an engine, given the browser it decided on. Its
+#: detector (``chunk-43693``) reports ``Chrome`` for anything carrying
+#: ``Chrome/`` - Edge and the Chromium-based Chinese browsers included - so the
+#: engine table only needs the three real engines.
+_ENGINES: Final[dict[str, str]] = {"Chrome": "Blink", "Firefox": "Gecko", "Safari": "WebKit"}
+
+#: The browser names Douyin's detector can produce, in the order it tries them.
+#: Only the desktop ones are reachable from an identity this project mints; the
+#: rest of its table (``qqbrowser``, ``weixin``, ``TTWebView``, ``xiaomi``) is
+#: for in-app webviews.
+_BROWSERS: Final[tuple[str, ...]] = ("Chrome", "Firefox", "Safari")
+
+
+def profile_for(source: ProfileSource) -> ClientProfile:
+    """The query values that agree with one identity's User-Agent.
+
+    Every field here is echoed straight back to Douyin beside the User-Agent
+    that carries the same facts, so a profile that disagrees with it is a free
+    signal: a request claiming Chrome 130 in the query while its own header says
+    Chrome 146 could not have come from a browser. That was the state of this
+    module until now - the profile was a constant, and only the constant.
+
+    Read out of the User-Agent rather than invented, using the platform's own
+    vocabulary: :func:`dtk.platforms.base.operating_system` follows the OS table
+    from Douyin's ``chunk-43693`` bundle, and the browser version is the same
+    substring its detector takes. Anything the User-Agent does not state keeps
+    :data:`DEFAULT_PROFILE`'s value.
+    """
+    profile = DEFAULT_PROFILE.with_fingerprint(source)
+    # Douyin has no separate bare-subtag field: `browser_language` is the only
+    # language it asks for, and `language` rides along unread.
+    profile = replace(profile, language=profile.browser_language)
+    for name in _BROWSERS:
+        version = browser_version(source.user_agent, name)
+        if version is None:
+            continue
+        return replace(
+            profile,
+            browser_name=name,
+            browser_version=version,
+            engine_name=_ENGINES[name],
+            # Chromium reports its Blink version as its own; the browser
+            # fixture captured from a live page carries 130.0.0.0 in both.
+            engine_version=version,
+        )
+    return profile
+
 
 #: Web client build identifiers. Douyin rejects requests whose ``version_code``
 #: is far behind the live web build, so these need refreshing when the platform
@@ -267,4 +316,5 @@ __all__ = [
     "comment_replies_params",
     "comments_params",
     "content_detail_params",
+    "profile_for",
 ]

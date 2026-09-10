@@ -1074,6 +1074,7 @@ export default function Playground() {
         elapsedMs,
         httpStatus: apiError?.status ?? null,
         error,
+        resultMeta: apiError?.resultMeta,
         requestId: apiError?.requestId ?? null,
         healthEndpoint: healthEndpointName,
       })
@@ -1418,7 +1419,18 @@ export default function Playground() {
               <dl className={styles.facts}>
                 <dt className="u-xs u-muted">{t('playground.servedBy')}</dt>
                 <dd>
-                  {result.requestId === null ? (
+                  {/* The explanation first when there is one: it names the
+                      identity the moment the task finishes, where the request
+                      log lags behind it and has a "not caught up yet" state
+                      with a refresh button. Same answer, sooner. */}
+                  {explanation?.identity_id ? (
+                    <span className="u-row u-wrap">
+                      <CopyableId value={explanation.identity_id} />
+                      {explanation.signer ? (
+                        <span className="u-xs u-muted u-mono">{explanation.signer}</span>
+                      ) : null}
+                    </span>
+                  ) : result.requestId === null ? (
                     <span className="u-muted u-xs">{t('playground.servedByUnknown')}</span>
                   ) : logLookupRows.isLoading ? (
                     <span className="u-muted u-xs">{t('common:loading')}</span>

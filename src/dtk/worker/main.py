@@ -58,7 +58,7 @@ from dtk.db.models import Task as TaskRow
 from dtk.models import Author, Content, Page
 from dtk.ops import webhooks
 from dtk.services import archive, snapshots, tasks
-from dtk.services.fetch import FetchContext, FetchResult, FetchService
+from dtk.services.fetch import Explanation, FetchContext, FetchResult, FetchService
 from dtk.worker import parsing, registry
 from dtk.worker.ops import OperationRunner
 
@@ -119,7 +119,28 @@ class TaskStore(Protocol):
 
     async def complete(self, task_id: uuid.UUID, result: dict[str, Any]) -> None: ...
 
-    async def fail(self, task_id: uuid.UUID, error: dict[str, Any]) -> None: ...
+    async def fail(
+        self, task_id: uuid.UUID, error: dict[str, Any], meta: dict[str, Any] | None = None
+    ) -> None: ...
+
+
+def explain_meta(explanation: Explanation) -> dict[str, Any]:
+    """The request this instance made, in the shape the API hands back.
+
+    One function because a failed task carries the same block a successful one
+    does, and the case a reader actually has - "it was refused, show me what we
+    sent" - is the failed one.
+    """
+    return {
+        "method": explanation.method,
+        "url": explanation.url,
+        "headers": dict(explanation.headers),
+        "cookie_header": explanation.cookie_header,
+        "identity_id": explanation.identity_id,
+        "signer": explanation.signer,
+        "endpoint": explanation.endpoint,
+        "proxy": explanation.proxy,
+    }
 
 
 def serialize_error(exc: BaseException) -> dict[str, Any]:
@@ -228,9 +249,23 @@ class DatabaseTaskStore:
             await tasks.finish(session, task_id, result=result)
         await self._clear_attempts(task_id)
 
-    async def fail(self, task_id: uuid.UUID, error: dict[str, Any]) -> None:
+    async def fail(
+        self, task_id: uuid.UUID, error: dict[str, Any], meta: dict[str, Any] | None = None
+    ) -> None:
+        # A failed task has no data and may still have metadata worth keeping.
+        # `finish` decides the state from `error` alone, so storing a result
+        # beside it leaves the task FAILED - which is what makes the same
+        # scope-gated `explain` block available on both outcomes.
         async with self._session_factory() as session:
-            await tasks.finish(session, task_id, error=error)
+            # `{"data": ..., "meta": ...}` even though the data is nothing:
+            # that is the shape `dtk.api.routes.operations.unwrap` reads, and a
+            # failed task genuinely has no payload.
+            await tasks.finish(
+                session,
+                task_id,
+                result={"data": None, "meta": meta} if meta else None,
+                error=error,
+            )
         await self._clear_attempts(task_id)
 
     async def _clear_attempts(self, task_id: uuid.UUID) -> None:
@@ -383,6 +418,10 @@ class TaskWorker:
         # attempt() or start() leaves nothing to notify about, and a NameError
         # there would replace a real error with a confusing one.
         run: TaskRun | None = None
+        # Filled in by `_execute` when the caller asked what request was made
+        # and the request failed. Owned here because the handlers below are
+        # where a failure is stored, and `_execute` no longer exists by then.
+        diagnostics: dict[str, Any] = {}
         try:
             attempt = await self._store.attempt(task_id)
             if attempt > self._options.max_attempts:
@@ -409,7 +448,7 @@ class TaskWorker:
                 # the orphan sweep's job (`requeue_orphaned_tasks`).
                 return
 
-            result = await self._execute(run)
+            result = await self._execute(run, diagnostics)
             await self._store.complete(task_id, result)
             await self._notify(run, state=TaskState.DONE.value)
             # A maintenance job may store its payload bare - the task contract
@@ -434,11 +473,11 @@ class TaskWorker:
             raise
         except DtkError as exc:
             log.info("worker.task.failed", task_id=str(task_id), code=exc.code.value)
-            await self._finish_failed(task_id, exc)
+            await self._finish_failed(task_id, exc, diagnostics)
             await self._notify(run, state=TaskState.FAILED.value, error=serialize_error(exc))
         except Exception as exc:
             log.exception("worker.task.crashed", task_id=str(task_id), error=type(exc).__name__)
-            await self._finish_failed(task_id, exc)
+            await self._finish_failed(task_id, exc, diagnostics)
             await self._notify(run, state=TaskState.FAILED.value, error=serialize_error(exc))
         finally:
             self._gate.release()
@@ -489,9 +528,11 @@ class TaskWorker:
                 error=f"{type(exc).__name__}: {exc}"[:200],
             )
 
-    async def _finish_failed(self, task_id: uuid.UUID, exc: BaseException) -> None:
+    async def _finish_failed(
+        self, task_id: uuid.UUID, exc: BaseException, meta: dict[str, Any] | None = None
+    ) -> None:
         try:
-            await self._store.fail(task_id, serialize_error(exc))
+            await self._store.fail(task_id, serialize_error(exc), meta or None)
         except Exception as inner:
             # The database is unreachable; the task stays RUNNING and the
             # maintenance sweep re-queues it. Saying so beats a silent drop.
@@ -532,7 +573,9 @@ class TaskWorker:
         extra = {k: v for k, v in run.params.items() if k != "url"}
         return endpoint, {**extra, **resolved}
 
-    async def _execute(self, run: TaskRun) -> dict[str, Any]:
+    async def _execute(
+        self, run: TaskRun, diagnostics: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         config = self._config()
         # Maintenance first: these endpoints are local jobs with no platform,
         # no signature and no token bucket, so the endpoint registry has nothing
@@ -585,6 +628,12 @@ class TaskWorker:
                 # session scope rolls the transaction back.
                 with contextlib.suppress(Exception):
                     await session.commit()
+                # And hand back the explanation on the way out. The caller
+                # cannot read it off the result - there is no result - and it
+                # must not travel inside the error, which is rendered to every
+                # reader while this is gated on `identity:manage`.
+                if diagnostics is not None and ctx.explained is not None:
+                    diagnostics["explain"] = explain_meta(ctx.explained)
                 raise
             if parsed:
                 await self._record_snapshots(session, parsed[-1], config)
@@ -659,16 +708,7 @@ def _result_payload(
         # `dtk.api.routes.tasks` strips it for any reader who could not have
         # revealed the jar directly - and stripping one key is a rule that can
         # be written down, where stripping fields out of a merged dict is not.
-        meta["explain"] = {
-            "method": result.explain.method,
-            "url": result.explain.url,
-            "headers": dict(result.explain.headers),
-            "cookie_header": result.explain.cookie_header,
-            "identity_id": result.explain.identity_id,
-            "signer": result.explain.signer,
-            "endpoint": result.explain.endpoint,
-            "proxy": result.explain.proxy,
-        }
+        meta["explain"] = explain_meta(result.explain)
     if pinned and result.identity_id:
         # Echoed only when the caller named it, and then only back to them.
         # The identity id is not a secret - it is logged in the clear on every

@@ -16,8 +16,15 @@ from typing import Any
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
 from dtk.models import Author, Comment, Content, Page
-from dtk.platforms.base import EndpointTable, PlatformAdapter, RequestSpec
+from dtk.platforms.base import (
+    ClientProfile,
+    EndpointTable,
+    PlatformAdapter,
+    ProfileSource,
+    RequestSpec,
+)
 from dtk.platforms.douyin import endpoints, parser
+from dtk.platforms.douyin import params as params_module
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +39,9 @@ class DouyinAdapter:
 
     def build_request(self, endpoint: str, /, **params: Any) -> RequestSpec:
         return self.endpoints[endpoint].to_request(default_headers=self.default_headers, **params)
+
+    def profile_for(self, source: ProfileSource) -> ClientProfile:
+        return params_module.profile_for(source)
 
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:
         return parser.detect_risk_control(payload)

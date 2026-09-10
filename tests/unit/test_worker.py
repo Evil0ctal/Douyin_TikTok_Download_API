@@ -34,7 +34,7 @@ from dtk.core.types import IdentityState, Language, Outcome, Platform, Scope, Ta
 from dtk.ops import webhooks
 from dtk.platforms import get_adapter
 from dtk.platforms.tiktok.params import DEVICE_ID_DIGITS
-from dtk.services.fetch import FetchResult
+from dtk.services.fetch import Explanation, FetchResult
 from dtk.services.tasks import TaskView
 from dtk.worker import maintenance as maintenance_module
 from dtk.worker import registry
@@ -138,6 +138,7 @@ class FakeStore:
         self.queue: list[uuid.UUID] = list(self.runs)
         self.completed: dict[uuid.UUID, dict[str, Any]] = {}
         self.failed: dict[uuid.UUID, dict[str, Any]] = {}
+        self.failed_meta: dict[uuid.UUID, dict[str, Any]] = {}
         self.requeued: list[uuid.UUID] = []
         self.started: list[uuid.UUID] = []
         self.attempts: dict[uuid.UUID, int] = {}
@@ -168,8 +169,12 @@ class FakeStore:
     async def complete(self, task_id: uuid.UUID, result: dict[str, Any]) -> None:
         self.completed[task_id] = result
 
-    async def fail(self, task_id: uuid.UUID, error: dict[str, Any]) -> None:
+    async def fail(
+        self, task_id: uuid.UUID, error: dict[str, Any], meta: dict[str, Any] | None = None
+    ) -> None:
         self.failed[task_id] = error
+        if meta:
+            self.failed_meta[task_id] = meta
 
 
 @dataclass
@@ -180,6 +185,8 @@ class FakeFetch:
     gate: asyncio.Event | None = None
     entered: asyncio.Event | None = None
     calls: list[Any] = field(default_factory=list)
+    #: What the real service writes onto the context before it raises.
+    explains: Explanation | None = None
 
     async def fetch(
         self,
@@ -201,6 +208,8 @@ class FakeFetch:
             self.entered.set()
         if self.gate is not None:
             await self.gate.wait()
+        if self.explains is not None:
+            ctx.explained = self.explains
         if self.error is not None:
             raise self.error
         if self.parse_payload is not None:
@@ -561,6 +570,73 @@ async def test_a_task_that_raises_is_failed_not_lost() -> None:
     assert store.failed[run.id]["code"] == ErrorCode.UPSTREAM_RISK_CONTROL.value
     assert run.id not in store.completed
     assert store.requeued == []
+
+
+AN_EXPLANATION = Explanation(
+    method="GET",
+    url="https://www.douyin.com/aweme/v1/web/aweme/detail/?aweme_id=1&a_bogus=x",
+    headers={"User-Agent": "Mozilla/5.0"},
+    cookie_header="ttwid=not-a-real-value",
+    identity_id="11111111-1111-1111-1111-111111111111",
+    signer="native",
+    endpoint="douyin.content_detail",
+    proxy=None,
+)
+
+
+async def test_a_refused_request_still_says_what_was_sent() -> None:
+    """The case `explain` exists for.
+
+    A successful fetch hands its explanation back on the result. A refused one
+    raises, and the answer a reader needs - "show me the request that got
+    refused" - is only available if it survives the exception.
+    """
+    run = a_run()
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(
+        store,
+        FakeFetch(error=UpstreamRiskControl("blocked", retry_after=60), explains=AN_EXPLANATION),
+    )
+
+    runner = asyncio.create_task(worker.run())
+    await _until(lambda: run.id in store.failed)
+    worker.request_stop()
+    await asyncio.wait_for(runner, timeout=5)
+
+    assert store.failed[run.id]["code"] == ErrorCode.UPSTREAM_RISK_CONTROL.value
+    explain = store.failed_meta[run.id]["explain"]
+    assert explain["url"] == AN_EXPLANATION.url
+    assert explain["cookie_header"] == AN_EXPLANATION.cookie_header
+    assert explain["identity_id"] == AN_EXPLANATION.identity_id
+
+
+async def test_the_jar_never_travels_inside_the_error() -> None:
+    """It is gated on `identity:manage`; the error is rendered to everyone."""
+    run = a_run()
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(
+        store, FakeFetch(error=UpstreamRiskControl("blocked"), explains=AN_EXPLANATION)
+    )
+
+    runner = asyncio.create_task(worker.run())
+    await _until(lambda: run.id in store.failed)
+    worker.request_stop()
+    await asyncio.wait_for(runner, timeout=5)
+
+    assert AN_EXPLANATION.cookie_header not in json.dumps(store.failed[run.id])
+
+
+async def test_a_failure_nobody_asked_to_explain_stores_no_metadata() -> None:
+    run = a_run()
+    store = FakeStore({run.id: run})
+    worker, _ = make_worker(store, FakeFetch(error=UpstreamRiskControl("blocked")))
+
+    runner = asyncio.create_task(worker.run())
+    await _until(lambda: run.id in store.failed)
+    worker.request_stop()
+    await asyncio.wait_for(runner, timeout=5)
+
+    assert run.id not in store.failed_meta
 
 
 async def test_an_unexpected_crash_still_finishes_the_task() -> None:

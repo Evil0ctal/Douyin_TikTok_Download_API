@@ -20,10 +20,12 @@ Differences from V4, for the same reasons as the Douyin module:
 from __future__ import annotations
 
 import random
+import re
+from dataclasses import replace
 from typing import Any, Final
 
 from dtk.core.errors import InvalidParam
-from dtk.platforms.base import ClientProfile
+from dtk.platforms.base import ClientProfile, ProfileSource, base_language
 
 #: TikTok's web client presents as a US-English desktop browser. TikTok reports
 #: ``browser_name``/``browser_version`` as the navigator product strings rather
@@ -45,6 +47,55 @@ DEFAULT_PROFILE: Final = ClientProfile(
     timezone="America/Los_Angeles",
     region="US",
 )
+
+#: What TikTok calls each operating system in its ``os`` parameter, keyed by the
+#: name :func:`dtk.platforms.base.operating_system` reports. TikTok's vocabulary
+#: is its own and shorter than Douyin's: ``os=windows`` is corroborated by a
+#: capture, the rest follow the same one-word pattern and are not.
+_OS_NAMES: Final[dict[str, str]] = {
+    "Windows": "Windows",
+    "Mac OS X": "Mac",
+    "Mac OS": "Mac",
+    "Linux": "Linux",
+    "Android": "Android",
+    "iOS": "iOS",
+    "Sun OS": "Linux",
+}
+
+#: ``navigator.appVersion``, as TikTok truncates it: the version, then the first
+#: word of the platform token. ``Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...``
+#: becomes ``5.0 (Windows)``, which is exactly what a live capture sends. Only
+#: the Windows form is corroborated; the others follow the same rule.
+_APP_VERSION = re.compile(r"Mozilla/([\d.]+) \(([^;)]+)")
+
+
+def profile_for(source: ProfileSource) -> ClientProfile:
+    """The query values that agree with one identity's User-Agent.
+
+    Same purpose as Douyin's, different vocabulary, and the difference is the
+    reason each platform owns this rather than sharing one function: TikTok
+    reports the navigator product strings - ``browser_name`` is always the
+    constant ``Mozilla`` and ``browser_version`` is a truncated
+    ``navigator.appVersion`` - where Douyin reports the marketing name and the
+    real version number.
+
+    Anything the User-Agent does not state keeps :data:`DEFAULT_PROFILE`'s
+    value, because a query parameter nobody can vouch for is worth no more than
+    one that is simply wrong.
+    """
+    profile = DEFAULT_PROFILE.with_fingerprint(source)
+    profile = replace(
+        profile,
+        # `browser_language` carries the full tag and `language` the bare
+        # subtag; TikTok sends both, and sends the bare one three times.
+        language=base_language(profile.browser_language) or profile.language,
+        os_name=_OS_NAMES.get(profile.os_name, profile.os_name),
+    )
+    match = _APP_VERSION.match(source.user_agent or "")
+    if match is None:
+        return profile
+    return replace(profile, browser_version=f"{match.group(1)} ({match.group(2).split()[0]})")
+
 
 APP_ID: Final = "1988"
 APP_NAME: Final = "tiktok_web"
@@ -351,4 +402,5 @@ __all__ = [
     "comment_replies_params",
     "comments_params",
     "content_detail_params",
+    "profile_for",
 ]

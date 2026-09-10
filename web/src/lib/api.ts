@@ -189,6 +189,16 @@ export class ApiError extends Error {
   readonly details: Record<string, unknown>
   /** Set when the message is the console's own copy rather than the server's. */
   readonly messageKey: string | null
+  /**
+   * The finished task's own metadata, when this failure came from a task.
+   *
+   * Not readonly, and set after construction, because it is not part of the
+   * error: the server keeps it in a scope-gated block beside the error rather
+   * than inside it, and the client keeps that separation. A refused request is
+   * the case `explain` exists for, so this is how the panels that describe a
+   * request reach one that failed.
+   */
+  resultMeta?: ResponseMeta
 
   constructor(code: ErrorCode, message: string, init: ApiErrorInit = {}) {
     super(message)
@@ -540,16 +550,24 @@ export async function apiRequest<T>(
     // returned, and its `result_meta` is the only place the worker's own report
     // appears; `waitForTask` returns the payload alone.
     let resultMeta: ResponseMeta | undefined
-    const finished = await waitForTask<T>(payload.data.task_id, {
-      signal: options.signal,
-      timeoutMs: options.taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS,
-      onState: (task) => {
-        if (task.result_meta) resultMeta = task.result_meta
-        options.onTaskState?.(task)
-      },
-      initial: payload.data,
-    })
-    return { data: finished, meta, resultMeta, status: response.status, rateLimit: limits }
+    try {
+      const finished = await waitForTask<T>(payload.data.task_id, {
+        signal: options.signal,
+        timeoutMs: options.taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS,
+        onState: (task) => {
+          if (task.result_meta) resultMeta = task.result_meta
+          options.onTaskState?.(task)
+        },
+        initial: payload.data,
+      })
+      return { data: finished, meta, resultMeta, status: response.status, rateLimit: limits }
+    } catch (error) {
+      // A failed task carries metadata too, and the terminal envelope goes past
+      // `onState` on its way to being thrown. Losing it here would mean the
+      // console could describe every request except the ones that went wrong.
+      if (resultMeta && error instanceof ApiError) error.resultMeta = resultMeta
+      throw error
+    }
   }
 
   return { data: payload.data as T, meta, status: response.status, rateLimit: limits }

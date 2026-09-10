@@ -28,11 +28,12 @@ generating them needs an identity and, for ``msToken``, a network round trip.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from types import MappingProxyType
-from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
+from typing import Any, Final, Literal, Protocol, TypedDict, runtime_checkable
 
 from dtk.core.errors import InvalidParam
 from dtk.core.types import Platform
@@ -86,6 +87,164 @@ class ClientProfile:
     language: str = "en"
     timezone: str = "America/Los_Angeles"
     region: str = "US"
+
+    def with_fingerprint(self, source: ProfileSource) -> ClientProfile:
+        """This profile, with every field the identity actually determines replaced.
+
+        Only the platform-neutral half. ``navigator.platform``, the screen size,
+        the language and the zone mean the same thing to both platforms and come
+        straight off the fingerprint; the OS is derived from the User-Agent by
+        :func:`operating_system`. What each platform *calls* a browser and how it
+        spells its version differ, and are left to the platform's own
+        ``profile_for``.
+
+        A field the fingerprint cannot state keeps this profile's value. That is
+        deliberate: a request whose query contradicts its own User-Agent is a
+        free signal to hand the platform, and so is one carrying a value nobody
+        can vouch for.
+        """
+        screen = screen_size(source.screen)
+        operating = operating_system(source.user_agent)
+        language = primary_language(source.language)
+        return replace(
+            self,
+            browser_platform=source.platform or self.browser_platform,
+            screen_width=screen[0] if screen else self.screen_width,
+            screen_height=screen[1] if screen else self.screen_height,
+            browser_language=language or self.browser_language,
+            timezone=source.timezone or self.timezone,
+            region=region_of(language) or self.region,
+            os_name=operating[0] if operating else self.os_name,
+            os_version=operating[1] if operating else self.os_version,
+        )
+
+
+@runtime_checkable
+class ProfileSource(Protocol):
+    """The slice of an identity's fingerprint a query string echoes back.
+
+    Structural on purpose, like ``dtk.signing.base.SigningFingerprint``: the
+    transport owns the real ``Fingerprint`` and ``platforms/`` must not import
+    it. Anything exposing these attributes will do.
+    """
+
+    @property
+    def user_agent(self) -> str | None: ...
+
+    @property
+    def platform(self) -> str | None: ...
+
+    @property
+    def screen(self) -> str | None: ...
+
+    @property
+    def language(self) -> str | None: ...
+
+    @property
+    def timezone(self) -> str | None: ...
+
+
+def screen_size(screen: str | None) -> tuple[int, int] | None:
+    """``"1920x1080"`` as a pair, or None when it is not that."""
+    if not screen:
+        return None
+    width, _, height = screen.partition("x")
+    try:
+        return int(width), int(height)
+    except ValueError:
+        return None
+
+
+def primary_language(language: str | None) -> str | None:
+    """The first tag of an Accept-Language value: ``"en-US,en;q=0.9"`` -> ``"en-US"``.
+
+    A fingerprint may hold either a bare tag or a whole header, because both are
+    things a minting browser reports. The query string carries
+    ``navigator.language``, which is the first one.
+    """
+    if not language:
+        return None
+    tag = language.split(",", 1)[0].partition(";")[0].strip()
+    return tag or None
+
+
+def base_language(language: str | None) -> str | None:
+    """The primary subtag of a BCP-47 tag: ``"en-US"`` -> ``"en"``."""
+    if not language:
+        return None
+    return language.partition("-")[0].strip() or None
+
+
+def region_of(language: str | None) -> str | None:
+    """The region subtag of a BCP-47 tag: ``"en-US"`` -> ``"US"``."""
+    if not language or "-" not in language:
+        return None
+    region = language.rsplit("-", 1)[1].strip()
+    return region.upper() if len(region) == 2 and region.isalpha() else None
+
+
+#: How Douyin's own page names an operating system, and the pattern it matches
+#: on. Lifted verbatim from its ``chunk-43693`` bundle, where the table reads
+#: ``[{s:"Windows 10",r:/(Windows 10.0|Windows NT 10.0|Windows NT 10.1)/}, ...]``
+#: - so this is the platform's vocabulary rather than ours, which is the whole
+#: point of echoing it back.
+#:
+#: The label carries the version inside it (``"Windows 10"``), and the page
+#: splits the two apart; :func:`operating_system` does the same. Entries are
+#: tried in order, so the specific ones come first.
+_OS_TABLE: Final[tuple[tuple[str, str, str], ...]] = (
+    ("Windows 10.0|Windows NT 10.0|Windows NT 10.1", "Windows", "10"),
+    ("Windows 8.1|Windows NT 6.3", "Windows", "8.1"),
+    ("Windows 8|Windows NT 6.2", "Windows", "8"),
+    ("Windows 7|Windows NT 6.1", "Windows", "7"),
+    ("Android", "Android", ""),
+    ("SunOS", "Sun OS", ""),
+    ("iPhone|iPad|iPod", "iOS", ""),
+    ("Mac OS X", "Mac OS X", ""),
+    ("MacPPC|MacIntel|Mac_PowerPC|Macintosh", "Mac OS", ""),
+    ("Linux|X11", "Linux", ""),
+)
+
+#: Versions that live in the User-Agent rather than in the label above.
+_OS_VERSION_PATTERNS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "Mac OS X": r"Mac OS X (\d+(?:[._]\d+)*)",
+        "Android": r"Android ([\d.]+)",
+        "iOS": r"OS (\d+(?:[._]\d+)*) like Mac OS X",
+    }
+)
+
+
+def operating_system(user_agent: str | None) -> tuple[str, str] | None:
+    """``(os_name, os_version)`` as the platform's own detector would report them.
+
+    None when the User-Agent names nothing in the table, which is the honest
+    answer: an OS invented here would contradict the User-Agent sent beside it.
+    """
+    if not user_agent:
+        return None
+    for pattern, name, version in _OS_TABLE:
+        if not re.search(pattern, user_agent):
+            continue
+        if version:
+            return name, version
+        found = _OS_VERSION_PATTERNS.get(name)
+        match = re.search(found, user_agent) if found else None
+        return name, (match.group(1).replace("_", ".") if match else "")
+    return None
+
+
+def browser_version(user_agent: str | None, browser_name: str) -> str | None:
+    """The full version the User-Agent states for ``browser_name``.
+
+    ``Chrome/146.0.0.0`` -> ``146.0.0.0``. The query string carries the same
+    number the User-Agent does, because the platform reads it out of the User-Agent
+    - so deriving it here is not a guess, it is the only value that can agree.
+    """
+    if not user_agent:
+        return None
+    match = re.search(rf"{re.escape(browser_name)}/([\d.]+)", user_agent)
+    return match.group(1) if match else None
 
 
 def _is_blank(value: Any) -> bool:
@@ -225,6 +384,17 @@ class PlatformAdapter(Protocol):
 
     def build_request(self, endpoint: str, /, **params: Any) -> RequestSpec:
         """Describe one upstream call. No IO happens here."""
+        ...
+
+    def profile_for(self, source: ProfileSource) -> ClientProfile:
+        """The query values that agree with this identity's User-Agent.
+
+        Pass the result to :meth:`build_request` as ``profile``. It exists on
+        the adapter rather than as one shared function because the two platforms
+        report the same facts in different vocabularies - Douyin sends the
+        marketing name and the real version, TikTok the navigator product
+        strings - and a caller has no business knowing which.
+        """
         ...
 
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:

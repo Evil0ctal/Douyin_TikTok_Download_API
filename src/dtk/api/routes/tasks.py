@@ -146,6 +146,16 @@ def _view_payload(
             payload["result_meta"] = meta
     if view.state is TaskState.FAILED:
         payload["error"] = _localized_error(view.error, language)
+        # A failed task has no data and may still carry metadata - the worker
+        # stores the `explain` block on both outcomes, because "the request was
+        # refused, show me what we sent" is the case it exists for. Through the
+        # same gate: this is the one path where the scope check could have been
+        # quietly skipped, since nothing else about a failure is privileged.
+        if include_result:
+            _, meta = unwrap(view.result)
+            meta = _visible_meta(meta, principal) if meta else meta
+            if meta:
+                payload["result_meta"] = meta
     return payload
 
 

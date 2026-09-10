@@ -155,6 +155,19 @@ class FetchContext:
     #: other identity, and explaining THAT request while returning THIS payload
     #: would be a lie in the most confusing possible place.
     explain: bool = False
+    #: Filled in by the service when :attr:`explain` is on, on the way past.
+    #:
+    #: An out-parameter, and deliberately so. A successful fetch hands its
+    #: explanation back on :class:`FetchResult`; a refused one raises, and the
+    #: one place this must never travel is inside the error - errors are
+    #: serialized into the task row and rendered to any reader, while an
+    #: explanation contains a cookie jar and is gated on ``identity:manage``.
+    #: Writing it onto the context the caller already owns keeps it out of the
+    #: exception and delivers it to exactly the caller that asked.
+    #:
+    #: "The request was refused, show me what we sent" is the case this whole
+    #: feature exists for, so it had better survive the refusal.
+    explained: Explanation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,7 +313,16 @@ class FetchService:
                 return _Attempt(lease=lease, outcome=outcome, error_code=error_code)
             proxy_id = await _proxy_id_of(session, identity.id)
 
-            spec = adapter.build_request(endpoint, **params)
+            # The identity's own browser values, not a constant. Douyin and
+            # TikTok both echo the screen, the language, the OS and the browser
+            # version back in the query string, right beside a User-Agent
+            # carrying the same facts - so a profile that does not follow the
+            # fingerprint hands them a contradiction for free. It did: every
+            # request claimed Chrome 130 on a zh-CN Windows box whatever the
+            # identity actually was.
+            spec = adapter.build_request(
+                endpoint, profile=adapter.profile_for(identity.fingerprint), **params
+            )
             # Built once and used twice, deliberately: the signature and the
             # request have to describe the same visitor, and building the
             # identity separately for each is how they came to disagree.
@@ -484,6 +506,11 @@ class FetchService:
         for attempt in range(attempts):
             call = await self._call_once(session, adapter, endpoint, params, ctx, started=started)
             duration_ms = _elapsed_ms(started)
+            # Before any raise below, and overwritten by each attempt: what is
+            # described is the last attempt made, which is the one whose failure
+            # the caller is holding.
+            if call.explain is not None:
+                ctx.explained = call.explain
 
             if call.outcome is Outcome.NETWORK_ERROR:
                 last_error = call.error_code or "network_error"

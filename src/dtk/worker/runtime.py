@@ -31,6 +31,7 @@ from dtk.core.types import Platform
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import Proxy as ProxyRow
 from dtk.identity.pool import IdentityPool
+from dtk.platforms.base import screen_size
 from dtk.services.fetch import FetchService
 from dtk.worker.loop import PeriodicLoop
 from dtk.worker.main import DatabaseTaskStore, SessionFactory, TaskWorker, WorkerOptions
@@ -193,9 +194,20 @@ async def build_runtime(
         # Returned whole rather than as a bare parameter dict: `.signer` is a
         # request_log column the Logs page renders, and unwrapping here is what
         # used to drop it.
+        # The whole fingerprint, not just its User-Agent. A-Bogus carries the
+        # screen geometry inside the signature, and passing only the UA meant
+        # every signature claimed the fallback 1920x1080 Win32 desktop however
+        # the identity had actually been minted - a contradiction with the
+        # `screen_width` the same request echoes in its query string.
+        screen = screen_size(sender.fingerprint.screen)
         return await signer_registry.sign(
             SigningRequestSpec.get(url, {k: str(v) for k, v in params.items()}),
-            StaticFingerprint(user_agent=sender.fingerprint.user_agent or ""),
+            StaticFingerprint(
+                user_agent=sender.fingerprint.user_agent or "",
+                browser_platform=sender.fingerprint.platform,
+                screen_width=screen[0] if screen else None,
+                screen_height=screen[1] if screen else None,
+            ),
             # The identity's own session, so the browser signs in a page holding
             # exactly the cookies this request will be sent with.
             SigningSession(
