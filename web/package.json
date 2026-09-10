@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",
-    "i18next": "^24.0.5",
+    "i18next": "^26.4.2",
     "i18next-icu": "^2.3.0",
     "intl-messageformat": "^10.7.7",
     "react": "^19.0.0",
