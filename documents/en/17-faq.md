@@ -505,9 +505,8 @@ than that you configured something wrong: `UPSTREAM_CHANGED`, and any
 
 ### How do I sponsor the project?
 
-Through [GitHub Sponsors](https://github.com/sponsors/evil0ctal),
-[Afdian](https://afdian.net/@evil0ctal), [Ko-fi](https://ko-fi.com/evil0ctal) or
-[Patreon](https://www.patreon.com/evil0ctal). Cryptocurrency addresses for
+Through [GitHub Sponsors](https://github.com/sponsors/evil0ctal).
+Cryptocurrency addresses for
 Solana, Tron (TRC20), Ethereum (ERC20), BNB Smart Chain (BEP20) and Bitcoin are
 listed in the README and on the console's About page — copy them from there
 rather than from anywhere else, and **send only on the network an address is

@@ -48,9 +48,11 @@ web/.vite
 # kept for reference, including files that once carried real cookies.
 tests
 docs
+documents
 vendor_salvage
 todo
 Screenshots
+screenshots
 logo
 docker/browser_rpc/tests
 docker/compose.test.yml

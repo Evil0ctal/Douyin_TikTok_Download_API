@@ -4,6 +4,10 @@
 
 **English documentation: [README.md](./README.md)** —— 这里的每一页都有中英两个版本，内容完全一致。
 
+<div align="center">
+    <img src="../screenshots/console-zh.gif" width="860" alt="DTK 控制台"/>
+</div>
+
 ---
 
 ## 从这里开始

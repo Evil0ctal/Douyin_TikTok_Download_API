@@ -6,6 +6,10 @@ Everything you need to run, use, operate and contribute to a self-hosted
 **中文文档：[README.zh-CN.md](./README.zh-CN.md)** — every page here exists in both
 languages and they say the same thing.
 
+<div align="center">
+    <img src="../screenshots/console-en.gif" width="860" alt="The DTK console"/>
+</div>
+
 ---
 
 ## Start here

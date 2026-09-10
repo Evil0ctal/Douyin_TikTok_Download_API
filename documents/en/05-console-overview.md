@@ -2,6 +2,12 @@
 
 After reading this you will be able to get into the console for the first time, find your way around its sidebar, and read the four pages that tell you whether the instance is healthy — Overview, System, Logs and Diagnose — including what every panel on them means and what you should do about what it shows.
 
+<div align="center">
+    <img src="../../screenshots/console-en.gif" width="860" alt="A tour of the console: overview, identities, scheduler, playground, library, downloads, API docs and MCP"/>
+</div>
+
+The recording above walks through every page this document describes.
+
 ## What the console is
 
 The console is a single-page React application that the **api** container serves itself. It is not a separate service, has no port of its own, and shares an origin with the API, which is why the session cookie works for both. With the default compose file the whole thing lives at `http://127.0.0.1:8000/`.

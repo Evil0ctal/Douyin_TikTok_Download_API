@@ -425,9 +425,7 @@ git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 
 ### 怎么赞助这个项目？
 
-可以通过 [GitHub Sponsors](https://github.com/sponsors/evil0ctal)、
-[爱发电](https://afdian.net/@evil0ctal)、[Ko-fi](https://ko-fi.com/evil0ctal) 或
-[Patreon](https://www.patreon.com/evil0ctal)。Solana、Tron (TRC20)、
+可以通过 [GitHub Sponsors](https://github.com/sponsors/evil0ctal)。Solana、Tron (TRC20)、
 Ethereum (ERC20)、BNB Smart Chain (BEP20) 和 Bitcoin 的加密货币地址列在 README 和
 控制台的"关于"页上——请从那里复制，不要从别处，并且**只能按地址所属的网络转账**，
 因为转错链的资产任何人都无法找回。

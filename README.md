@@ -17,10 +17,6 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/Evil0ctal/Douyin_TikTok_Download_API/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/actions/workflows/ci.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api)
 [![Docker Image Size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api/latest?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags)
-<br>
-[![爱发电](https://img.shields.io/badge/爱发电-evil0ctal-blue.svg?style=flat-square&color=ea4aaa&logo=github-sponsors)](https://afdian.net/@evil0ctal)
-[![Kofi](https://img.shields.io/badge/Kofi-evil0ctal-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/evil0ctal)
-[![Patreon](https://img.shields.io/badge/Patreon-evil0ctal-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/evil0ctal)
 
 </div>
 
@@ -51,6 +47,15 @@
         <a href="https://api.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_docs" target="_blank" rel="sponsored noopener">API 文档</a>
     </p>
 </div>
+
+## 🎬 长这样
+
+<div align="center">
+    <img src="./screenshots/console-zh.gif" width="900" alt="DTK 控制台：总览、身份池、调度器、调试台、资料库、下载、接口文档与 MCP"/>
+</div>
+
+一次真实的调用：粘链接、发请求、拿到归一化后的结果，途中经过的身份池、调度器和接口文档都在同一个控制台里。
+界面跟着浏览器语言走，中英文都是手写的，不是机翻。[English UI](./screenshots/console-en.gif)
 
 ## 🚀 v4 与 v5
 
@@ -325,7 +330,7 @@ English documentation: [`documents/README.md`](./documents/README.md)
 > **只能按地址所属的网络转账。** 转错链的资产任何人都无法找回。
 > 以太坊和 BNB Smart Chain 共用同一个地址是正常的：两者都是 EVM 链，由同一把私钥控制。
 
-也可以走 [GitHub Sponsors](https://github.com/sponsors/evil0ctal) 或 [爱发电](https://afdian.net/@evil0ctal)。
+也可以走 [GitHub Sponsors](https://github.com/sponsors/evil0ctal)。
 
 ### 你需要自己负责的部分
 

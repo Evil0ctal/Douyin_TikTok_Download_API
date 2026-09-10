@@ -17,10 +17,6 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/Evil0ctal/Douyin_TikTok_Download_API/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/actions/workflows/ci.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api)
 [![Docker Image Size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api/latest?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags)
-<br>
-[![爱发电](https://img.shields.io/badge/爱发电-evil0ctal-blue.svg?style=flat-square&color=ea4aaa&logo=github-sponsors)](https://afdian.net/@evil0ctal)
-[![Kofi](https://img.shields.io/badge/Kofi-evil0ctal-orange.svg?style=flat-square&logo=kofi)](https://ko-fi.com/evil0ctal)
-[![Patreon](https://img.shields.io/badge/Patreon-evil0ctal-red.svg?style=flat-square&logo=patreon)](https://www.patreon.com/evil0ctal)
 
 </div>
 
@@ -52,6 +48,17 @@ These sponsors paid to be here, and **Douyin_TikTok_Download_API** stays free an
         <a href="https://api.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_docs" target="_blank" rel="sponsored noopener">API docs</a>
     </p>
 </div>
+
+## 🎬 What it looks like
+
+<div align="center">
+    <img src="./screenshots/console-en.gif" width="900" alt="The DTK console: overview, identities, scheduler, playground, library, downloads, API docs and MCP"/>
+</div>
+
+One real call: paste a link, send it, get the normalised result back. The identity pool, the
+scheduler and the API reference it passed through on the way are all in the same console.
+The interface follows the browser's language, and both are written by hand rather than
+machine-translated. [中文界面](./screenshots/console-zh.gif)
 
 ## 🚀 v4 vs v5
 
@@ -351,8 +358,7 @@ easiest to receive, and the cheapest to send.
 > Ethereum and BNB Smart Chain share one address on purpose: both are EVM chains, and
 > the same key controls it.
 
-[GitHub Sponsors](https://github.com/sponsors/evil0ctal) and
-[Afdian](https://afdian.net/@evil0ctal) work too.
+[GitHub Sponsors](https://github.com/sponsors/evil0ctal) works too.
 
 ### What you are responsible for
 
