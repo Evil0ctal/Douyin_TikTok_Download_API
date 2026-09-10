@@ -563,6 +563,9 @@ class TaskWorker:
             # substituting.
             identity_id=run.params.get("identity") or None,
             refresh=bool(run.params.get("refresh")),
+            # Permitted at the edge, where the scope check and the audit line
+            # are. By the time it reaches a stored task it has been allowed.
+            explain=bool(run.params.get("explain")),
         )
 
         async with self._session_factory() as session:
@@ -651,6 +654,21 @@ def _result_payload(
         "duration_ms": result.duration_ms,
         "request_id": str(result.request_id),
     }
+    if result.explain is not None:
+        # Under its own key rather than folded into the metadata above, because
+        # `dtk.api.routes.tasks` strips it for any reader who could not have
+        # revealed the jar directly - and stripping one key is a rule that can
+        # be written down, where stripping fields out of a merged dict is not.
+        meta["explain"] = {
+            "method": result.explain.method,
+            "url": result.explain.url,
+            "headers": dict(result.explain.headers),
+            "cookie_header": result.explain.cookie_header,
+            "identity_id": result.explain.identity_id,
+            "signer": result.explain.signer,
+            "endpoint": result.explain.endpoint,
+            "proxy": result.explain.proxy,
+        }
     if pinned and result.identity_id:
         # Echoed only when the caller named it, and then only back to them.
         # The identity id is not a secret - it is logged in the clear on every

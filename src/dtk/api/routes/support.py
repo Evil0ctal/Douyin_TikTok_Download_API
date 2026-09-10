@@ -285,6 +285,38 @@ def resolve_request_proxy(request: Request, value: str | None) -> str | None:
 _PIN_SCOPES: Final[tuple[Scope, ...]] = (Scope.ADMIN, Scope.IDENTITY_MANAGE)
 
 
+async def resolve_explain(request: Request, principal: Principal, value: bool) -> bool:
+    """Vet a request for the outbound call to be described back.
+
+    Gated like pool management and not like reading, for the same reason
+    :func:`resolve_request_identity` is: the answer contains the identity's
+    cookie jar. A `douyin:read` key may ask this instance to *use* a jar; it
+    may not ask to be handed one, and "show me the request you made" is the
+    same disclosure by a longer route.
+
+    Audited, because a credential leaving the instance should leave a record
+    behind it - the same bargain :func:`reveal_cookies` makes on the identities
+    page. The audit line names no jar: it says who asked and for which
+    endpoint, which is what an operator reading it later needs.
+    """
+    if not value:
+        return False
+    principal.require(*_PIN_SCOPES)
+    if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.OPERATOR]:
+        raise ForbiddenScope(
+            "explaining a request requires an operator role",
+            details={"required_role": UserRole.OPERATOR.value, "field": "explain"},
+        )
+    await audit(
+        request,
+        principal,
+        "request.explained",
+        target_type="endpoint",
+        target_id=request.url.path,
+    )
+    return True
+
+
 async def resolve_request_identity(
     request: Request,
     principal: Principal,

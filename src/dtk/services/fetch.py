@@ -33,6 +33,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol, cast
+from urllib.parse import urlencode
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +49,7 @@ from dtk.core.types import Outcome, Platform
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import RequestLog
 from dtk.identity.pool import IdentityPool
+from dtk.ops.masking import mask_url
 from dtk.platforms import PlatformAdapter, get_adapter
 from dtk.platforms.base import RequestSpec as PlatformRequestSpec
 from dtk.scheduler.leases import Lease
@@ -71,6 +73,35 @@ log = get_logger(__name__)
 MAX_TRANSPORT_ATTEMPTS = 3
 
 
+@dataclass(frozen=True, slots=True)
+class Explanation:
+    """The request as it actually left this instance.
+
+    Everything here is normally invisible on purpose. The signed URL carries
+    the identity's ``msToken``, and ``cookie_header`` is the jar itself - so
+    this is assembled only when a caller asks for it, behind the same scope
+    that reveals a jar on the identities page, and it is never written to the
+    request log.
+
+    It exists because the console could show which identity served a call and
+    could not show what that call *was*. Reproducing a platform request by hand
+    - the thing anybody debugging one ends up doing - meant guessing at the
+    query, the headers and the jar. `curl` is that guesswork removed.
+    """
+
+    method: str
+    #: The full platform URL, signature parameters included.
+    url: str
+    headers: Mapping[str, str]
+    #: The jar as one ``Cookie:`` header, ready to paste.
+    cookie_header: str
+    identity_id: str | None
+    signer: str | None
+    endpoint: str
+    #: Masked. The exit is an operator credential and stays one.
+    proxy: str | None
+
+
 @dataclass(slots=True)
 class FetchResult:
     payload: dict[str, Any]
@@ -80,6 +111,8 @@ class FetchResult:
     duration_ms: int
     request_id: uuid.UUID
     signer: str | None = None
+    #: Present only when the caller asked, and had the scope to.
+    explain: Explanation | None = None
 
 
 @dataclass(slots=True)
@@ -112,6 +145,13 @@ class FetchContext:
     #: answer is still WRITTEN back, because "do not read the cache" and "do not
     #: keep this" are different requests and only the first one was asked for.
     refresh: bool = False
+    #: Return the request as it went out - signed URL, headers and jar - so the
+    #: caller can reproduce it outside this instance. Requires `identity:manage`
+    #: and is audited, because the answer contains a credential. Implies
+    #: `refresh`: a cached answer was signed by some earlier call with some
+    #: other identity, and explaining THAT request while returning THIS payload
+    #: would be a lie in the most confusing possible place.
+    explain: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +168,7 @@ class _Attempt:
     payload: dict[str, Any] | None = None
     error_code: str | None = None
     signer: str | None = None
+    explain: Explanation | None = None
 
 
 class SignedRequest(Protocol):
@@ -229,6 +270,7 @@ class FetchService:
         payload: dict[str, Any] | None = None
         status: int | None = None
         signer: str | None = None
+        explanation: Explanation | None = None
         outcome = Outcome.NETWORK_ERROR
         error_code: str | None = None
 
@@ -269,9 +311,26 @@ class FetchService:
             signed = await self._sign(platform, spec["url"], dict(spec.get("params") or {}), sender)
             signer = signed.signer
 
+            outbound = _to_transport_spec(spec, signed, endpoint)
+            if ctx.explain:
+                # Built here rather than from the response, because this is the
+                # only point where the signed request and the jar that signed it
+                # are both in scope. The transport is free to retry on another
+                # identity; what is described is the attempt that was made.
+                explanation = Explanation(
+                    method=outbound.method,
+                    url=_full_url(outbound),
+                    headers=dict(outbound.headers or {}),
+                    cookie_header=_cookie_header(identity.cookies),
+                    identity_id=str(lease.identity_id),
+                    signer=signer,
+                    endpoint=endpoint,
+                    proxy=mask_url(identity.proxy_url),
+                )
+
             response = await self._transport.request(
                 sender,
-                _to_transport_spec(spec, signed, endpoint),
+                outbound,
                 self._timeout,
             )
             status = response.status
@@ -321,6 +380,7 @@ class FetchService:
             payload=payload,
             error_code=error_code,
             signer=signer,
+            explain=explanation,
         )
 
     def _classify(
@@ -378,7 +438,12 @@ class FetchService:
         # cache several other code paths can reach, for a saving that does not
         # exist - pinning is a deliberate, low-volume act.
         cacheable = cache_ttl > 0 and ctx.identity_id is None
-        hit = await cache.get(digest) if cacheable and not ctx.refresh else None
+        # `explain` reads the cache the way `refresh` does - not at all. An
+        # explanation is a description of the call that produced the answer
+        # being returned; served from cache there is no such call, and
+        # describing the one that filled the cache hours ago, on some other
+        # identity, would be wrong in the one place a reader is trusting it.
+        hit = await cache.get(digest) if cacheable and not (ctx.refresh or ctx.explain) else None
         if hit is not None:
             # A cache hit costs no identity quota; it is the cheapest protection
             # the pool has. It is still a request the caller made, and a Logs
@@ -457,6 +522,7 @@ class FetchService:
                 duration_ms=duration_ms,
                 request_id=ctx.request_id,
                 signer=call.signer,
+                explain=call.explain,
             )
 
         raise Internal("unreachable")
@@ -503,6 +569,23 @@ class FetchService:
                 reject_reason=reject_reason,
             )
         )
+
+
+def _full_url(spec: TransportRequestSpec) -> str:
+    """The URL as it goes on the wire, query included.
+
+    The signers hand back a ready-made query string when the signature is over
+    exact bytes, and a parameter mapping when it is not; both shapes reach the
+    transport and both have to reach `curl` the same way round.
+    """
+    if spec.params:
+        return f"{spec.url}?{urlencode(spec.params)}" if "?" not in spec.url else spec.url
+    return spec.url
+
+
+def _cookie_header(cookies: Mapping[str, str] | None) -> str:
+    """One ``Cookie:`` header from a jar, in the order the jar holds them."""
+    return "; ".join(f"{name}={value}" for name, value in (cookies or {}).items())
 
 
 def _to_transport_spec(

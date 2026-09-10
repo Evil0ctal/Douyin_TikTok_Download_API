@@ -36,6 +36,7 @@ from dtk.api.routes.support import (
     language,
     ok,
     resolve_count,
+    resolve_explain,
     resolve_request_identity,
     resolve_request_proxy,
     resolve_wait,
@@ -76,6 +77,18 @@ PROXY_QUERY = Query(
     description=(
         "Send the upstream request through this proxy, as a full URL. Refused "
         "unless an administrator has enabled security.request_proxy."
+    ),
+)
+EXPLAIN_QUERY = Query(
+    default=False,
+    description=(
+        "Return the request as it went out - the signed URL, the headers and "
+        "the identity's cookie jar - so it can be replayed outside this "
+        "instance. The answer contains a credential, so it needs "
+        "`identity:manage` and an operator role, it is written to the audit "
+        "log, and it is stripped from the stored task result for any reader "
+        "without that scope. Implies `refresh`: an explanation of a cached "
+        "answer would describe a call this request did not make."
     ),
 )
 REFRESH_QUERY = Query(
@@ -249,6 +262,7 @@ async def parse(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """The front door: hand it a link or the share text around one.
@@ -279,6 +293,7 @@ async def parse(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         # The platform comes from the link rather than from the path here, and
         # is None for a short link that has not been expanded yet. The pin is
         # still checked for existence and retirement; the platform check falls
@@ -301,6 +316,7 @@ async def batch(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One round trip, N independent tasks.
@@ -390,6 +406,7 @@ async def video(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One post: a video, or an image album, with its author and statistics.
@@ -430,6 +447,7 @@ async def video(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -451,6 +469,7 @@ async def comments(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of top level comments on a post.
@@ -494,6 +513,7 @@ async def comments(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -516,6 +536,7 @@ async def comment_replies(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of replies underneath a single comment.
@@ -568,6 +589,7 @@ async def comment_replies(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -587,6 +609,7 @@ async def user(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One author's public profile.
@@ -626,6 +649,7 @@ async def user(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -647,6 +671,7 @@ async def user_posts(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of an author's own posts, newest first.
@@ -691,6 +716,7 @@ async def user_posts(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -712,6 +738,7 @@ async def user_likes(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts an author has publicly liked.
@@ -760,6 +787,7 @@ async def user_likes(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -780,6 +808,7 @@ async def mix_posts(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the posts collected in a mix.
@@ -825,6 +854,7 @@ async def mix_posts(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -846,6 +876,7 @@ async def user_followers(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts that follow an author.
@@ -891,6 +922,7 @@ async def user_followers(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 
@@ -912,6 +944,7 @@ async def user_following(
     proxy: str | None = PROXY_QUERY,
     identity: str | None = IDENTITY_QUERY,
     refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
     """One page of the accounts an author follows.
@@ -956,6 +989,7 @@ async def user_following(
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
 

@@ -357,6 +357,7 @@ async def submit_and_wait(
     proxy: str | None = None,
     identity: str | None = None,
     refresh: bool = False,
+    explain: bool = False,
     coalesce: bool = True,
 ) -> JSONResponse:
     """Submit, then optionally hold the connection until the task settles.
@@ -387,6 +388,11 @@ async def submit_and_wait(
         # In the params so the worker sees it, and in the digest so a refreshed
         # call cannot be handed the answer a cached one just produced.
         envelope_params["refresh"] = True
+    if explain:
+        # Same reasoning, and one more: an explained call must not be joined to
+        # an unexplained one already in flight, or the caller waits for a task
+        # that was never going to record what they asked to see.
+        envelope_params["explain"] = True
     task_id, state = await submit(
         request,
         principal,
@@ -395,7 +401,7 @@ async def submit_and_wait(
         # Coalescing is the other half of "give me the same answer again": it
         # joins an identical task already running or recently finished, and
         # asking for a refresh is asking for neither.
-        coalesce=coalesce and not refresh,
+        coalesce=coalesce and not (refresh or explain),
     )
     if wait <= 0:
         return accepted(request, task_id, state)

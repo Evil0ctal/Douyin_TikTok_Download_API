@@ -15,9 +15,10 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from time import monotonic
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import StreamingResponse
@@ -31,7 +32,7 @@ from dtk.core.db import session_scope
 from dtk.core.errors import ErrorCode, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Language, TaskState
+from dtk.core.types import Language, Scope, TaskState
 from dtk.i18n.messages import render
 from dtk.services import tasks as task_service
 
@@ -93,14 +94,42 @@ def _localized_data(endpoint: str, data: Any, language: Language) -> Any:
     return localize_report(data, language)
 
 
+#: Metadata that costs more to read than the task itself did.
+#:
+#: Reading a result normally costs exactly the scope that created it, which is
+#: the rule that stops a low-scope key becoming a way around every other scope.
+#: `explain` breaks that symmetry on purpose: it describes the request as it
+#: went out, jar included, so it is a credential sitting inside an answer a
+#: `douyin:read` key is entitled to. Stripped unless the reader could have
+#: revealed that jar directly.
+_PRIVILEGED_META: Final[Mapping[str, Scope]] = MappingProxyType({"explain": Scope.IDENTITY_MANAGE})
+
+
+def _visible_meta(meta: Mapping[str, Any], principal: Principal | None) -> dict[str, Any]:
+    """The result metadata this reader is allowed to see."""
+    out = dict(meta)
+    for key, scope in _PRIVILEGED_META.items():
+        if key in out and (principal is None or not principal.permits(scope)):
+            del out[key]
+    return out
+
+
 def _view_payload(
-    view: task_service.TaskView, language: Language, *, include_result: bool = True
+    view: task_service.TaskView,
+    language: Language,
+    *,
+    include_result: bool = True,
+    principal: Principal | None = None,
 ) -> dict[str, Any]:
     """The wire shape of a task.
 
     ``data`` rather than ``result`` because that is what doc 06 documents, and
     it stays absent until the task is finished so a caller cannot mistake a
     queued task for an empty answer.
+
+    ``principal`` gates the metadata that is worth more than the task - see
+    :data:`_PRIVILEGED_META`. Passing None strips all of it, which is the right
+    default for any caller that has not thought about the question.
     """
     payload: dict[str, Any] = {
         "task_id": str(view.id),
@@ -112,6 +141,7 @@ def _view_payload(
     if include_result and view.state is TaskState.DONE:
         data, meta = unwrap(view.result)
         payload["data"] = _localized_data(view.endpoint, data, language)
+        meta = _visible_meta(meta, principal) if meta else meta
         if meta:
             payload["result_meta"] = meta
     if view.state is TaskState.FAILED:
@@ -153,7 +183,7 @@ async def get_task(
         # The row outlives its payload by design; say so rather than handing
         # back a success with nothing in it.
         raise TaskNotFound("this task finished but its result has expired")
-    return ok(request, _view_payload(view, language(request)))
+    return ok(request, _view_payload(view, language(request), principal=principal))
 
 
 @router.delete("/{task_id}", summary="Cancel a task", openapi_extra={I18N_KEY: "task_cancel"})
@@ -255,6 +285,9 @@ async def task_events(
                         "state", _view_payload(view, caller_language, include_result=False)
                     )
                 if view.state in TERMINAL:
+                    # principal deliberately omitted: the stream is long-lived and the
+                    # privileged metadata is fetched once, over the ordinary
+                    # GET, where the scope check is right beside the read.
                     yield _event("result", _view_payload(view, caller_language))
                     yield _event("end", {"task_id": str(task_id)})
                     return

@@ -143,6 +143,9 @@ ALIASES: Final[Mapping[str, str]] = MappingProxyType(
 ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
     {
         "callback_url",
+        # "describe the request you made". It changes what comes back about the
+        # call, never what the call asks the platform for.
+        "explain",
         # The identity the caller pinned. Like the proxy below it, it decides
         # HOW the call is made and is never a parameter of the call itself.
         "identity",
