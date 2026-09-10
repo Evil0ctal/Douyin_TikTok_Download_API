@@ -74,6 +74,7 @@ export default function Login() {
   // operator who deployed it.
   useEffect(() => {
     if (offer?.username && offer.password) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- prefills the demo credentials once the async offer arrives
       setUsername((current) => (current ? current : offer.username ?? ''))
       setPassword((current) => (current ? current : offer.password ?? ''))
     }

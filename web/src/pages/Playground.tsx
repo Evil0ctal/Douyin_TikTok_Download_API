@@ -1183,6 +1183,7 @@ export default function Playground() {
     if (!pinned) return
     const row = (identities.data ?? []).find((entry) => entry.id === pinned)
     if (row && endpoint.platformScoped && row.platform !== platform) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- drops an identity pin the newly selected platform cannot serve
       setValue('identity', '')
     }
     // Only the platform and the roster can invalidate a pin.

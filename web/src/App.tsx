@@ -129,6 +129,7 @@ function Shell() {
   // A route change closes the mobile drawer; otherwise it covers the page it
   // just navigated to.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- closing the mobile drawer is a reaction to navigation, not derivable from it
     setNavOpen(false)
   }, [location])
 

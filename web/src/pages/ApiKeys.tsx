@@ -218,7 +218,17 @@ export default function ApiKeys() {
     }))
   }
 
-  const now = Date.now()
+
+  /**
+   * The clock used to classify a key as expired.
+   *
+   * `dataUpdatedAt` rather than `Date.now()`: reading the clock during render
+   * makes every render produce a new value, so a memo listing it as a
+   * dependency memoised nothing - which is what `react-hooks/purity` objects
+   * to. This timestamp moves exactly when the list is refetched, which is also
+   * the honest answer to "expired as of when": as of when this list was read.
+   */
+  const asOf = keys.dataUpdatedAt
 
   const columns = useMemo<Array<Column<ApiKeyRow>>>(
     () => [
@@ -249,8 +259,8 @@ export default function ApiKeys() {
       {
         id: 'status',
         header: t('console:field.state'),
-        cell: (row) => <StatusBadge kind="key" value={keyStatus(row, Date.now())} />,
-        sortValue: (row) => keyStatus(row, Date.now()),
+        cell: (row) => <StatusBadge kind="key" value={keyStatus(row, asOf)} />,
+        sortValue: (row) => keyStatus(row, asOf),
       },
       {
         id: 'scopes',
@@ -336,7 +346,7 @@ export default function ApiKeys() {
           <Button
             size="sm"
             variant="ghost"
-            disabled={keyStatus(row, Date.now()) === 'revoked'}
+            disabled={keyStatus(row, asOf) === 'revoked'}
             onClick={(event) => {
               event.stopPropagation()
               setRevoking(row)
@@ -347,7 +357,7 @@ export default function ApiKeys() {
         ),
       },
     ],
-    [t, format],
+    [t, format, asOf],
   )
 
   const all = keys.data
@@ -360,7 +370,7 @@ export default function ApiKeys() {
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase()
     return (all ?? []).filter((row) => {
-      if (statusFilter !== 'all' && keyStatus(row, now) !== statusFilter) return false
+      if (statusFilter !== 'all' && keyStatus(row, asOf) !== statusFilter) return false
       if (scopeFilter !== 'all' && !row.scopes.includes(scopeFilter)) return false
       if (!needle) return true
       return [row.name, row.prefix, ...row.scopes]
@@ -368,18 +378,18 @@ export default function ApiKeys() {
         .toLowerCase()
         .includes(needle)
     })
-  }, [all, search, statusFilter, scopeFilter, now])
+  }, [all, search, statusFilter, scopeFilter, asOf])
 
   const hidden = (all?.length ?? 0) - rows.length
   const activeCount = useMemo(
-    () => (all ?? []).filter((row) => keyStatus(row, now) === 'active').length,
-    [all, now],
+    () => (all ?? []).filter((row) => keyStatus(row, asOf) === 'active').length,
+    [all, asOf],
   )
 
   /** Selected keys that are still worth revoking; a revoked one is a no-op. */
   const revocable = useMemo(
-    () => rows.filter((row) => selected.has(row.id) && keyStatus(row, now) !== 'revoked'),
-    [rows, selected, now],
+    () => rows.filter((row) => selected.has(row.id) && keyStatus(row, asOf) !== 'revoked'),
+    [rows, selected, asOf],
   )
 
   /**
@@ -517,7 +527,7 @@ export default function ApiKeys() {
         }}
         storageKey="api-keys"
         defaultSort={{ columnId: 'createdAt', direction: 'desc' }}
-        flashValue={(row) => keyStatus(row, Date.now())}
+        flashValue={(row) => keyStatus(row, asOf)}
         emptyTitle={t('apiKeys.emptyTitle')}
         emptyDescription={t('apiKeys.emptyDescription')}
         emptyAction={

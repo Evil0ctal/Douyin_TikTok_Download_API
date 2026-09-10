@@ -315,6 +315,7 @@ export default function ApiDocs() {
 
   useEffect(() => {
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- marks the async asset load in flight before awaiting it
     setAssets('loading')
 
     const load = async (): Promise<void> => {

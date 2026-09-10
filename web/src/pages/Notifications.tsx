@@ -387,6 +387,7 @@ function ChannelEditor({ open, draft, existingNames, saving, onChange, onClose, 
   const [touched, setTouched] = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets 'touched' when the editor closes, so a reopen is not pre-validated
     if (!open) setTouched(false)
   }, [open])
 

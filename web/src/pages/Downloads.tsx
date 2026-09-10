@@ -389,6 +389,33 @@ export default function Downloads() {
   )
 
   /**
+   * Turn whatever is in the box into a platform and an id.
+   *
+   * A bare id is taken at face value with the platform menu beside it; anything
+   * else goes to /tools/parse-url, which is the same allowlist the download
+   * endpoint uses, so an unrecognised host never becomes a request.
+   */
+  const resolveTarget = async (
+    opts: { author?: boolean } = {},
+  ): Promise<{ platform: Platform; id: string }> => {
+    const text = target.trim()
+    if (/^\d+$/.test(text) && !opts.author) return { platform, id: text }
+    // A bare author id, which is what the archive and the playground hand you
+    // and what a scrape of somebody else's list contains. Douyin's is
+    // `MS4wLjABAAAA…` and TikTok's is the same shape, so the prefix is the
+    // test; anything else goes to the parser as a link.
+    if (opts.author && SEC_UID.test(text)) return { platform, id: text }
+
+    const kind: ParsedLink = await apiGet(paths.tools.parseUrl, { params: { url: text } })
+    if (!kind.allowed || !kind.platform || !kind.resource_id) {
+      throw new Error(t('downloads.target.unrecognised'))
+    }
+    const wanted = opts.author ? 'user' : 'video'
+    if (kind.resource !== wanted) throw new Error(t(`downloads.target.expected.${wanted}`))
+    return { platform: kind.platform as Platform, id: kind.resource_id }
+  }
+
+  /**
    * Save a post's comments as a JSON file, through the browser.
    *
    * Comments are data, not media: the sidecar downloads files onto the
@@ -498,33 +525,6 @@ export default function Downloads() {
       },
     },
   )
-
-  /**
-   * Turn whatever is in the box into a platform and an id.
-   *
-   * A bare id is taken at face value with the platform menu beside it; anything
-   * else goes to /tools/parse-url, which is the same allowlist the download
-   * endpoint uses, so an unrecognised host never becomes a request.
-   */
-  const resolveTarget = async (
-    opts: { author?: boolean } = {},
-  ): Promise<{ platform: Platform; id: string }> => {
-    const text = target.trim()
-    if (/^\d+$/.test(text) && !opts.author) return { platform, id: text }
-    // A bare author id, which is what the archive and the playground hand you
-    // and what a scrape of somebody else's list contains. Douyin's is
-    // `MS4wLjABAAAA…` and TikTok's is the same shape, so the prefix is the
-    // test; anything else goes to the parser as a link.
-    if (opts.author && SEC_UID.test(text)) return { platform, id: text }
-
-    const kind: ParsedLink = await apiGet(paths.tools.parseUrl, { params: { url: text } })
-    if (!kind.allowed || !kind.platform || !kind.resource_id) {
-      throw new Error(t('downloads.target.unrecognised'))
-    }
-    const wanted = opts.author ? 'user' : 'video'
-    if (kind.resource !== wanted) throw new Error(t(`downloads.target.expected.${wanted}`))
-    return { platform: kind.platform as Platform, id: kind.resource_id }
-  }
 
   /**
    * Start a settled download over.

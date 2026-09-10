@@ -1598,6 +1598,7 @@ function ImportDialog({ open, proxies, onClose, onDone }: ImportDialogProps) {
   useEffect(() => {
     const text = cookies.trim()
     if (!open || text.length < 8) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clears the debounced preview when the paste is too short to dry-run
       setPreview({ loading: false })
       return
     }
@@ -2082,6 +2083,7 @@ function RevealRow({ identity }: { identity: Identity }) {
   // Cleared when the drawer moves to a different identity, or one jar would be
   // shown under another's name.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- drops the revealed jar when the drawer moves to another identity
     setJar(null)
   }, [identity.id])
 
@@ -2173,6 +2175,7 @@ function SessionCheckButton({ identity }: { identity: Identity }) {
   const [result, setResult] = useState<SessionCheck | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the session-check result belongs to one identity and must not outlive it
     setResult(null)
   }, [identity.id])
 

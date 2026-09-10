@@ -41,6 +41,7 @@ export function ConfirmDialog({
   const [typed, setTyped] = useState('')
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the typed confirmation resets when the dialog closes, so reopening starts blank
     if (!open) setTyped('')
   }, [open])
 
