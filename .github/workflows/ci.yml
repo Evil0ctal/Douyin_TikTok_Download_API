@@ -68,11 +68,29 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 20
+    needs: console
     env:
       DTK_DATABASE_URL: postgresql+asyncpg://dtk:dtk_test_password@127.0.0.1:55432/dtk_test
       DTK_REDIS_URL: redis://127.0.0.1:56379/0
+      # Never dialled. The download endpoints refuse with 501 NOT_CONFIGURED
+      # when this is empty, and the work they queue is done by the worker,
+      # which these tests do not run - so a port with nothing behind it is
+      # enough to exercise the routes. Without it the suite passes only on a
+      # machine that happens to have a .env, which is how thirty of these
+      # tests stayed green locally and red here.
+      DTK_DOWNLOADER_URL: http://127.0.0.1:59999
+      DTK_CONSOLE_DIR: ${{ github.workspace }}/web/dist
     steps:
       - uses: actions/checkout@v4
+      # The console is part of what the API serves, so the integration suite
+      # asks for it: language negotiation rewrites index.html, and /docs is a
+      # console route rather than a Swagger one. Taken from the console job
+      # rather than built again, so there is one build and one place to change.
+      - name: Console build from the console job
+        uses: actions/download-artifact@v4
+        with:
+          name: console-dist
+          path: web/dist
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
@@ -99,6 +117,14 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
+      # The integration job serves this rather than building its own copy.
+      - name: Publish the build for the integration job
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-dist
+          path: web/dist
+          retention-days: 1
+          if-no-files-found: error
 
   image:
     name: Image build
