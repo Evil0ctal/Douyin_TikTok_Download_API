@@ -119,6 +119,31 @@ class XBogus:
         """Two rounds of MD5 over the query string."""
         return cls.md5_str_to_array(cls.md5(cls.md5_str_to_array(cls.md5(url_path))))
 
+    @classmethod
+    def empty_digest(cls) -> list[int]:
+        """The second chain, which hashes nothing and is therefore a constant.
+
+        Its bytes 14 and 15 are in every X-Bogus ever produced. A decoder that
+        finds something else there is not looking at an X-Bogus.
+        """
+        return cls.md5_str_to_array(cls.md5(cls.md5_str_to_array(EMPTY_MD5)))
+
+    def user_agent_digest(self) -> list[int]:
+        """The third chain: RC4 the User-Agent, base64 it, hash it twice-over.
+
+        Split out of :meth:`sign` so that a decoder can recompute it for a
+        candidate User-Agent and check it against the two bytes a captured
+        signature carries. That check is the whole of what those two bytes
+        support: they are a digest, and two bytes of one do not come back.
+        """
+        return self.md5_str_to_array(
+            self.md5(
+                base64.b64encode(rc4_encrypt(UA_KEY, self.user_agent.encode("ISO-8859-1"))).decode(
+                    "ISO-8859-1"
+                )
+            )
+        )
+
     # -- payload assembly --------------------------------------------------
 
     @staticmethod
@@ -165,14 +190,8 @@ class XBogus:
                 in the same second produce the same signature, which is what
                 makes X-Bogus comparable against a browser's own output.
         """
-        ua_digest = self.md5_str_to_array(
-            self.md5(
-                base64.b64encode(rc4_encrypt(UA_KEY, self.user_agent.encode("ISO-8859-1"))).decode(
-                    "ISO-8859-1"
-                )
-            )
-        )
-        empty_digest = self.md5_str_to_array(self.md5(self.md5_str_to_array(EMPTY_MD5)))
+        ua_digest = self.user_agent_digest()
+        empty_digest = self.empty_digest()
         query_digest = self.md5_encrypt(query)
 
         timer = int(time.time()) if timestamp is None else timestamp
@@ -211,9 +230,34 @@ class XBogus:
         return f"{query}&X-Bogus={self.sign(query, timestamp=timestamp)}"
 
 
+#: The payload slots that carry something a decoder can name, as
+#: ``(first index, meaning)``. Written here because :meth:`XBogus.sign` builds
+#: the list positionally and a reader taking a capture apart needs the map.
+PAYLOAD_LEAD: Final[tuple[int, ...]] = (64, 0, 1, 12)
+QUERY_DIGEST_SLOTS: Final[tuple[int, int]] = (4, 5)
+EMPTY_DIGEST_SLOTS: Final[tuple[int, int]] = (6, 7)
+UA_DIGEST_SLOTS: Final[tuple[int, int]] = (8, 9)
+TIMER_SLOTS: Final[tuple[int, int, int, int]] = (10, 11, 12, 13)
+CONSTANT_SLOTS: Final[tuple[int, int, int, int]] = (14, 15, 16, 17)
+CHECKSUM_SLOT: Final = 18
+#: The two bytes each digest chain contributes, as indices into that digest.
+DIGEST_INDICES: Final[tuple[int, int]] = (14, 15)
+#: The two plaintext bytes the envelope opens with, before the ciphertext.
+ENVELOPE_LEAD: Final[tuple[int, int]] = (2, 255)
+
+
 __all__ = [
     "CHARACTER",
+    "CHECKSUM_SLOT",
+    "CONSTANT_SLOTS",
     "DEFAULT_USER_AGENT",
+    "DIGEST_INDICES",
+    "EMPTY_DIGEST_SLOTS",
+    "ENVELOPE_LEAD",
+    "PAYLOAD_LEAD",
+    "QUERY_DIGEST_SLOTS",
+    "TIMER_SLOTS",
+    "UA_DIGEST_SLOTS",
     "X_BOGUS_LENGTH",
     "XBogus",
     "rc4_encrypt",

@@ -183,8 +183,10 @@ EMPTY_BODY_MD5: Final = "d41d8cd98f00b204e9800998ecf8427e"
 
 #: The SDK's two byte encoders, as ``(xor_base, add_base, pre_xor, rot, post_add)``.
 #: A encodes every field but the checksum; B encodes the checksum and three flags.
-_ENCODER_A: Final = (103, 1, None, 2, 1)
-_ENCODER_B: Final = (102, 0, 165, 1, 0)
+#: Public because :func:`decode_field` is the inverse and a reader taking a
+#: captured X-Dynosaur apart needs to know which of the two a field used.
+ENCODER_A: Final = (103, 1, None, 2, 1)
+ENCODER_B: Final = (102, 0, 165, 1, 0)
 
 
 #: The only characters a browser escapes inside a query string. Chrome leaves
@@ -249,7 +251,7 @@ def hash_state(text: str) -> int:
     return value
 
 
-def _encode_bytes(text: str, config: tuple[int, int, int | None, int, int]) -> bytes:
+def encode_field(text: str, config: tuple[int, int, int | None, int, int]) -> bytes:
     """One payload field: a per-position byte scramble, padded, length-tagged.
 
     The output is always at least 6 bytes, ends with ``0x00`` and the original
@@ -298,13 +300,13 @@ def _be(value: int, size: int) -> bytes:
     return int(value).to_bytes(size, "big")
 
 
-def _mix(timestamp: int, nonce: int, env_code: int) -> int:
+def mix_state(timestamp: int, nonce: int, env_code: int) -> int:
     """Fold two 32-bit values into 16 bits and stamp the environment on top."""
     folded = ((timestamp >> 16) ^ (nonce >> 16) ^ timestamp ^ nonce) & 0xFFFF
     return folded | (env_code << 16)
 
 
-def _checksum(values: Sequence[int | str], mode: int) -> int:
+def fold_checksum(values: Sequence[int | str], mode: int) -> int:
     """XOR fold of the X-Gnarly field values, seeded with all ones.
 
     Two modes, differing only in how a string contributes: mode 1 treats it as
@@ -451,7 +453,7 @@ def unpack_payload(payload: bytes, *, lead_count: bool = False) -> dict[int, byt
 
 
 def decode_field(raw: bytes, config: tuple[int, int, int | None, int, int]) -> str:
-    """Read back a string field. The inverse of :func:`_encode_bytes`."""
+    """Read back a string field. The inverse of :func:`encode_field`."""
     xor_base, add_base, pre_xor, rotate, post_add = config
     out = []
     for index in range(raw[-1]):
@@ -483,39 +485,39 @@ def dynosaur_payload(
     the request is sent with.
     """
     fields: dict[int, bytes] = {
-        0x21: _encode_bytes("1", _ENCODER_B),
-        0x22: _encode_bytes("1", _ENCODER_B),
-        0x23: _encode_bytes("0", _ENCODER_A),
-        0x24: _encode_bytes(str(_mix(timestamp, nonce, env_code)), _ENCODER_A),
-        0x25: _encode_bytes(str(sequence), _ENCODER_A),
-        0x26: _encode_bytes(str(env_code), _ENCODER_A),
-        0x27: _encode_bytes(str(timestamp), _ENCODER_A),
-        0x28: _encode_bytes(WEBGL_HASH, _ENCODER_A),
-        0x29: _encode_bytes("0", _ENCODER_A),
-        0x2A: _encode_bytes(SDK_VERSION, _ENCODER_A),
+        0x21: encode_field("1", ENCODER_B),
+        0x22: encode_field("1", ENCODER_B),
+        0x23: encode_field("0", ENCODER_A),
+        0x24: encode_field(str(mix_state(timestamp, nonce, env_code)), ENCODER_A),
+        0x25: encode_field(str(sequence), ENCODER_A),
+        0x26: encode_field(str(env_code), ENCODER_A),
+        0x27: encode_field(str(timestamp), ENCODER_A),
+        0x28: encode_field(WEBGL_HASH, ENCODER_A),
+        0x29: encode_field("0", ENCODER_A),
+        0x2A: encode_field(SDK_VERSION, ENCODER_A),
         0x2B: _be(hash_state(""), 4),
-        0x2C: _encode_bytes(CANVAS_HASH, _ENCODER_A),
-        0x2D: _encode_bytes("0", _ENCODER_A),
+        0x2C: encode_field(CANVAS_HASH, ENCODER_A),
+        0x2D: encode_field("0", ENCODER_A),
         0x2E: _be(hash_state(query), 4),
-        0x2F: _encode_bytes(str(sequence), _ENCODER_A),
+        0x2F: encode_field(str(sequence), ENCODER_A),
         0x30: _be(hash_state(user_agent), 4),
-        0x31: _encode_bytes(SCM_VERSION, _ENCODER_A),
-        0x32: _encode_bytes(COMPONENT_VERSION, _ENCODER_A),
-        0x33: _encode_bytes(DEVICE_HASH, _ENCODER_A),
-        0x34: _encode_bytes(str(nonce), _ENCODER_A),
-        0x35: _encode_bytes(PAGE, _ENCODER_A),
-        0x36: _encode_bytes(str(ub_code), _ENCODER_A),
-        0x37: _encode_bytes("0", _ENCODER_A),
+        0x31: encode_field(SCM_VERSION, ENCODER_A),
+        0x32: encode_field(COMPONENT_VERSION, ENCODER_A),
+        0x33: encode_field(DEVICE_HASH, ENCODER_A),
+        0x34: encode_field(str(nonce), ENCODER_A),
+        0x35: encode_field(PAGE, ENCODER_A),
+        0x36: encode_field(str(ub_code), ENCODER_A),
+        0x37: encode_field("0", ENCODER_A),
         0x38: _be(VM_STATE_HASH, 4),
         # Placeholder while the checksum below is computed over every field.
         # Any one-character string works, because byte 1 of a one-character
         # field is the constant pad byte; the SDK uses "0" and so do we.
-        0x20: _encode_bytes("0", _ENCODER_A),
+        0x20: encode_field("0", ENCODER_A),
     }
     checksum = 0
     for key in sorted(fields):
         checksum ^= fields[key][1]
-    fields[0x20] = _encode_bytes(str(checksum), _ENCODER_B)
+    fields[0x20] = encode_field(str(checksum), ENCODER_B)
     return pack_payload(fields)
 
 
@@ -545,7 +547,7 @@ def gnarly_fields(
     query_md5 = hashlib.md5(signed_query.encode("utf-8")).hexdigest()
     body_md5 = hashlib.md5(body).hexdigest()
     agent_md5 = hashlib.md5(user_agent.encode("utf-8")).hexdigest()
-    mixed = _mix(timestamp, nonce, env_code)
+    mixed = mix_state(timestamp, nonce, env_code)
     covered: list[int | str] = [
         0,
         env_code,
@@ -564,8 +566,8 @@ def gnarly_fields(
         mixed,
         nonce2,
     ]
-    first = _checksum(covered, 2)
-    second = _checksum([*covered, first], 1)
+    first = fold_checksum(covered, 2)
+    second = fold_checksum([*covered, first], 1)
     return {
         0x00: _be(second, 4),
         0x01: _be(env_code, 2),
@@ -713,6 +715,8 @@ __all__ = [
     "BOGUS_VALUE",
     "CALL_SEQUENCE_START",
     "DYNOSAUR_PARAM",
+    "ENCODER_A",
+    "ENCODER_B",
     "ENV_CODE",
     "GNARLY_PARAM",
     "MS_TOKEN_PARAM",
@@ -721,10 +725,13 @@ __all__ = [
     "UB_CODE",
     "decode_field",
     "dynosaur_payload",
+    "encode_field",
     "encode_query",
+    "fold_checksum",
     "gnarly_fields",
     "gnarly_payload",
     "hash_state",
+    "mix_state",
     "pack_payload",
     "pick_ms_token",
     "seal",

@@ -59,7 +59,9 @@ from __future__ import annotations
 
 import random
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any, Final
 
 from dtk.signing.native.sm3 import sm3_to_array
@@ -126,6 +128,38 @@ FIELD_ORDER: Final[tuple[str, ...]] = (
 #: writing the sentinel itself is how the SDK reports that its own environment
 #: probe flagged something. We always write the honest value.
 CANARIES: Final[tuple[tuple[int, int, int], ...]] = ((3, 11, 12), (4, 8, 9), (5, 12, 13))
+
+
+@dataclass(frozen=True, slots=True)
+class DigestChain:
+    """Where one hashed input leaves its three bytes in the fifty scalars.
+
+    ``slots`` are names in :data:`FIELD_ORDER`, ``indices`` the two digest
+    positions written verbatim, and ``canary`` the sentinel triple the third
+    slot follows.
+    """
+
+    slots: tuple[str, str, str]
+    indices: tuple[int, int]
+    canary: tuple[int, int, int]
+
+
+#: The three hashed inputs and where each one lands. Read by the generator and
+#: by :mod:`dtk.signing.native.decoding` alike, so a decoder cannot drift from
+#: the thing it decodes.
+#:
+#: Three bytes per input is the whole binding, and that asymmetry is the point:
+#: enough to *prove* that a given query, body or User-Agent is the one a
+#: signature sealed, nowhere near enough to run the hash backwards. A decoder
+#: that reported these as "the query" would be inventing; one that checks a
+#: candidate against them is telling the truth.
+DIGEST_CHAINS: Final[Mapping[str, DigestChain]] = MappingProxyType(
+    {
+        "query": DigestChain(("L48", "L49", "L51"), (9, 18), CANARIES[0]),
+        "body": DigestChain(("L52", "L53", "L55"), (10, 19), CANARIES[1]),
+        "user_agent": DigestChain(("L56", "L57", "L59"), (11, 21), CANARIES[2]),
+    }
+)
 
 #: What an untouched browser reports about itself. ``fn150`` reads six probes
 #: and a bot-detection bitset; a real page that has not been instrumented
@@ -456,7 +490,7 @@ def _le_bytes(value: int, count: int) -> list[int]:
     return [(value >> (8 * index)) & 0xFF for index in range(count)]
 
 
-def _canary(digest: list[int], offset: int, sentinel: int, fallback: int) -> int:
+def canary(digest: Sequence[int], offset: int, sentinel: int, fallback: int) -> int:
     """First digest byte at or after ``offset`` that is not ``sentinel``.
 
     The sentinel is reserved: writing it is how the SDK tells the server its own
@@ -469,9 +503,31 @@ def _canary(digest: list[int], offset: int, sentinel: int, fallback: int) -> int
     return fallback
 
 
-def _digest_of(text: str) -> list[int]:
+def digest_of(text: str) -> list[int]:
     """``SM3(SM3(text + SALT))``, as 32 integers."""
     return sm3_to_array(sm3_to_array(text + SALT))
+
+
+def user_agent_digest(user_agent: str) -> list[int]:
+    """The third chain: RC4 the User-Agent, base64 it, hash it once.
+
+    Single SM3, unlike the other two. The RC4 key is three bytes built from the
+    environment probes, so it is constant for a given identity rather than per
+    call.
+    """
+    key = bytes((ENV_FLAGS // 256, ENV_FLAGS % 256, DETECT_FLAGS % 256))
+    # Code units, not UTF-8: the cipher reads `charCodeAt` unmasked and the
+    # base64 after it masks to eight bits, so the keystream advances once per
+    # code unit. UTF-8 would advance three times on a Chinese character and give
+    # a different digest - measured, 43/43 against 40/43.
+    sealed = rc4(key, bytes(byte & 0xFF for byte in js_bytes(user_agent.strip())))
+    return sm3_to_array(encode_base64(sealed, "s3"))
+
+
+def chain_bytes(chain: DigestChain, digest: Sequence[int]) -> tuple[int, int, int]:
+    """The three bytes ``chain`` contributes, given that chain's own digest."""
+    first, second = chain.indices
+    return digest[first], digest[second], canary(digest, *chain.canary)
 
 
 # --------------------------------------------------------------------------
@@ -502,26 +558,13 @@ class ABogus:
         self.aid = aid
         self._rng = rng or random.Random()
 
-    def _user_agent_digest(self) -> list[int]:
-        """The third chain: RC4 the User-Agent, base64 it, hash it once.
-
-        Single SM3, unlike the other two. The RC4 key is three bytes built from
-        the environment probes, so it is constant for a given identity rather
-        than per call.
-        """
-        key = bytes((ENV_FLAGS // 256, ENV_FLAGS % 256, DETECT_FLAGS % 256))
-        # Code units, not UTF-8: the cipher reads `charCodeAt` unmasked and the
-        # base64 after it masks to eight bits, so the keystream advances once
-        # per code unit. UTF-8 would advance three times on a Chinese character
-        # and give a different digest - measured, 43/43 against 40/43.
-        sealed = rc4(key, bytes(byte & 0xFF for byte in js_bytes(self.user_agent.strip())))
-        return sm3_to_array(encode_base64(sealed, "s3"))
-
     def _fields(self, query: str, body: str, now_ms: int) -> dict[str, int]:
         """The fifty scalars, by the names the offline decoder prints."""
-        query_digest = _digest_of(query)
-        body_digest = _digest_of(body)
-        ua_digest = self._user_agent_digest()
+        digests = {
+            "query": digest_of(query),
+            "body": digest_of(body),
+            "user_agent": user_agent_digest(self.user_agent),
+        }
 
         # `ink` is Date.now() - 1, planted on navigator's prototype by the SDK
         # one call earlier. It is a liveness check on itself: a payload whose
@@ -545,15 +588,6 @@ class ABogus:
             "L36": (ENV_FLAGS // 256) & 0xFF,
             "L38": NR_FLAGS & 0xFF,
             "L39": (NR_FLAGS >> 8) & 0xFF,
-            "L48": query_digest[9],
-            "L49": query_digest[18],
-            "L51": _canary(query_digest, *CANARIES[0]),
-            "L52": body_digest[10],
-            "L53": body_digest[19],
-            "L55": _canary(body_digest, *CANARIES[1]),
-            "L56": ua_digest[11],
-            "L57": ua_digest[21],
-            "L59": _canary(ua_digest, *CANARIES[2]),
             "L66": TRIPWIRE_LOCKED,
             "L79": len(info_bytes) & 0xFF,
             "L80": (len(info_bytes) >> 8) & 0xFF,
@@ -572,6 +606,13 @@ class ABogus:
             fields[f"L{67 + index}"] = byte
         for index, byte in enumerate(_le_bytes(self.aid, 4)):
             fields[f"L{71 + index}"] = byte
+        # The three hashed inputs, written through the same table the decoder
+        # reads. Nine slots that used to be spelled out one at a time here, and
+        # were the one place a decoder could silently disagree with us.
+        for name, chain in DIGEST_CHAINS.items():
+            written = chain_bytes(chain, digests[name])
+            for slot, value in zip(chain.slots, written, strict=True):
+                fields[slot] = value
         return fields
 
     def get_value(
@@ -769,6 +810,7 @@ __all__ = [
     "ALPHABETS",
     "CANARIES",
     "DEFAULT_BROWSER_INFO",
+    "DIGEST_CHAINS",
     "FIELD_ORDER",
     "HEADER_MAGIC",
     "PAGE_ID",
@@ -776,12 +818,17 @@ __all__ = [
     "SALT",
     "SDK_VERSION",
     "ABogus",
+    "DigestChain",
     "browser_info_from_screen",
     "build_browser_info",
+    "canary",
+    "chain_bytes",
     "decode",
     "decode_base64",
+    "digest_of",
     "encode_base64",
     "is_decode_problem",
     "rc4",
     "structure_error",
+    "user_agent_digest",
 ]

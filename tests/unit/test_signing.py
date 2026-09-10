@@ -3171,11 +3171,11 @@ class TestTikTokSignature:
         fields = tiktok_sign.unpack_payload(payload)
         decode = tiktok_sign.decode_field
 
-        assert int(decode(fields[0x26], tiktok_sign._ENCODER_A)) == tiktok_sign.ENV_CODE
-        assert int(decode(fields[0x36], tiktok_sign._ENCODER_A)) == tiktok_sign.UB_CODE
+        assert int(decode(fields[0x26], tiktok_sign.ENCODER_A)) == tiktok_sign.ENV_CODE
+        assert int(decode(fields[0x36], tiktok_sign.ENCODER_A)) == tiktok_sign.UB_CODE
         # The same capture pins the three version-ish constants beside them.
-        assert decode(fields[0x2A], tiktok_sign._ENCODER_A) == tiktok_sign.SDK_VERSION
-        assert decode(fields[0x31], tiktok_sign._ENCODER_A) == tiktok_sign.SCM_VERSION
+        assert decode(fields[0x2A], tiktok_sign.ENCODER_A) == tiktok_sign.SDK_VERSION
+        assert decode(fields[0x31], tiktok_sign.ENCODER_A) == tiktok_sign.SCM_VERSION
         assert int.from_bytes(fields[0x38], "big") == tiktok_sign.VM_STATE_HASH
 
     def test_unseal_recovers_what_seal_produced(self) -> None:

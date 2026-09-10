@@ -514,6 +514,10 @@
         "summary": "Sign a platform API URL",
         "description": "Compute the signature parameters a platform API URL needs. Pure arithmetic - nothing is fetched and no identity is spent. The User-Agent is hashed into the signature, so send the request with the same one the response echoes back; TikTok also checks that the TLS fingerprint agrees with it."
       },
+      "tools_decode": {
+        "summary": "Read a signature parameter back",
+        "description": "Take a signature parameter apart and say what is inside it - the inverse of /tools/sign. Paste a whole signed URL and every parameter in it is decoded against the exact string that parameter seals. Values that are hashes are labelled as hashes and checked against a candidate rather than guessed at; values the platform issues rather than computes are named as such."
+      },
       "users_create": {
         "summary": "Create a console account",
         "description": "Create a console account."

@@ -43,7 +43,7 @@ from dtk.identity.minting import BrowserRpcClient, BrowserRpcUnavailable
 from dtk.signing import SigningSession, native_signers
 from dtk.signing.base import MS_TOKEN_PARAM, SignedParams, StaticFingerprint
 from dtk.signing.base import RequestSpec as SigningRequest
-from dtk.signing.native import tiktok_sign, websign
+from dtk.signing.native import decoding, tiktok_sign, websign
 from dtk.urls import first_url, identify, read_content_id
 
 log = get_logger(__name__)
@@ -443,6 +443,150 @@ async def sign(
             "user_agent": user_agent,
             "algorithm": signed.algorithm.value,
             "stages": _stages(platform, params, signed),
+        },
+    )
+
+
+#: Ceiling on one value. An a_bogus runs to a few hundred characters and a whole
+#: signed URL to a couple of thousand; this is generous for both and small
+#: enough that no amount of it is worth arithmetic.
+MAX_DECODE_VALUE: Final = 8192
+
+#: What the caller gave us, as the response reports it back.
+SOURCE_URL = "url"
+SOURCE_PARAMETER = "parameter"
+
+
+class DecodeRequest(BaseModel):
+    """One thing to take apart."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: str = Field(
+        max_length=MAX_DECODE_VALUE,
+        description=(
+            "A signed URL, a query string, a `name=value` pair, or one "
+            "parameter's value on its own."
+        ),
+    )
+    parameter: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Which parameter the value is, when its shape is ambiguous.",
+    )
+    user_agent: str | None = Field(
+        default=None,
+        max_length=512,
+        description="A candidate User-Agent, to check against the one that was signed.",
+    )
+
+
+def _decode_target(body: DecodeRequest) -> tuple[str, list[decoding.Decoded]]:
+    """Work out what was pasted, then decode it. Order is cheapest-first.
+
+    An explicit ``parameter`` wins over every guess: the caller knows, and a
+    value whose shape is ambiguous is exactly when they would say so.
+    """
+    text = body.value.strip()
+    if body.parameter:
+        return SOURCE_PARAMETER, [
+            decoding.decode_parameter(body.parameter, text, user_agent=body.user_agent)
+        ]
+    if "?" in text or "&" in text:
+        found = decoding.decode_url(text, user_agent=body.user_agent)
+        if found:
+            return SOURCE_URL, found
+    name, separator, raw = text.partition("=")
+    if separator and name.lower() in decoding.PARAMETERS:
+        return SOURCE_PARAMETER, [decoding.decode_parameter(name, raw, user_agent=body.user_agent)]
+    guess = decoding.identify(text)
+    if guess is None:
+        raise InvalidParam(
+            "value is not a signature parameter this build recognises",
+            details={"field": "value", "known": sorted(set(decoding.PARAMETERS.values()))},
+        )
+    return SOURCE_PARAMETER, [decoding.decode_parameter(guess, text, user_agent=body.user_agent)]
+
+
+@router.post(
+    "/decode",
+    summary="Read a signature parameter back",
+    openapi_extra={I18N_KEY: "tools_decode"},
+)
+async def decode(
+    request: Request,
+    body: DecodeRequest,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Take a signature parameter apart and say what is inside it.
+
+    The inverse of `/tools/sign`, and the reason this project reversed these
+    algorithms itself rather than vendoring somebody's port: an implementation
+    you own can be explained. Paste a whole signed URL and every parameter in it
+    is decoded against the exact string that parameter seals.
+
+    Pure arithmetic. Nothing is fetched, no identity is spent, and the result
+    depends only on what you send.
+
+    **What "decode" means here** - three different things, and every field says
+    which one it is, because running them together is how a tool like this
+    starts lying.
+
+    - **Recovered** (`plain`, `time`, `environment`). In the payload, and it
+      comes back exactly: clocks, `aid`, `page_id`, the screen geometry the page
+      reported, SDK and SCM versions, call counters, nonces.
+    - **Bound but not recoverable** (`digest`). The payload carries a hash *of*
+      something - three SM3 bytes of the query in `a_bogus`, a whole md5 of it
+      in `X-Gnarly`. A hash does not run backwards and this endpoint will not
+      pretend it does. Instead it *checks*: send `user_agent`, or a URL that
+      carries the query, and `checks` says whether that candidate is the one the
+      signature was computed over, and how many bits say so.
+    - **Not computed at all**. `msToken` and the visitor tokens are issued or
+      drawn, not derived. There is no plaintext under them; `reason` says
+      `not_computed` rather than reporting a failure.
+
+    **Parameters**
+
+    - `value` - a signed URL, a query string, a `name=value` pair, or a bare
+      parameter value. A URL is much the most useful form: only then is the
+      covered string known exactly, so only then can the checks run.
+    - `parameter` - name it yourself when the shape is ambiguous. Otherwise it
+      is identified by properties no other parameter in the set has.
+    - `user_agent` - a candidate to check against the signature. Both platforms
+      hash the UA in, so this is how to find out whether the UA you are sending
+      is the one you signed with.
+
+    **Returns**
+
+    One entry per parameter found, each with `fields` (what is inside),
+    `checks` (whether your candidate inputs are the ones it sealed, with the
+    exact `covered` string when they are) and `notes` (internal checksums this
+    endpoint recomputed).
+
+    A `checks` entry is `match`, `differs`, or `not_supplied` - and the third is
+    not the second. Nothing is reported as wrong because you did not send it.
+
+    Fields are labelled, not translated: `name` is a stable slug, so a client
+    may key off it.
+    """
+    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+    source, decoded = _decode_target(body)
+    platform = next((item.platform for item in decoded if item.platform), None)
+    # Never the value, never a cookie: this endpoint is handed live signatures
+    # and a log line is the easiest place to lose one.
+    log.info(
+        "tools.decode",
+        source=source,
+        platform=platform,
+        parameters=[item.parameter for item in decoded],
+    )
+    return ok(
+        request,
+        {
+            "source": source,
+            "platform": platform,
+            "user_agent": body.user_agent,
+            "parameters": [item.as_dict() for item in decoded],
         },
     )
 
