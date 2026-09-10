@@ -30,10 +30,39 @@ import styles from './sponsor.module.css'
 
 export const SPONSOR = {
   name: 'TikHub.io',
-  href: 'https://www.tikhub.io/',
   /** Local. Never the sponsor's host - see the note above. */
   logo: '/sponsors/tikhub.jpeg',
 } as const
+
+/**
+ * Where the campaign parameters point. Deliberately not part of `SPONSOR`:
+ * every link to the sponsor has to carry them, and the way to guarantee that
+ * is to leave nothing else for a call site to reach for.
+ */
+const HOME = 'https://www.tikhub.io/'
+
+/**
+ * The sponsor's link, tagged so they can see what this project sends them.
+ *
+ * They are paying for placement without being able to tell whether the
+ * placement works, which makes renewal a guess on their side and leaves this
+ * project's funding resting on that guess. Three standard parameters fix it,
+ * and they describe the deployment rather than the person using it: no
+ * identifier of the operator, the instance or the visitor crosses over, and
+ * every self-hosted copy sends exactly the same string.
+ *
+ * `placement` is where in this console the link was, so a strip that earns
+ * nothing can be told from a card that does rather than both being "the admin
+ * panel".
+ */
+export function sponsorHref(placement: string): string {
+  const url = new URL(HOME)
+  url.searchParams.set('utm_source', 'douyin_tiktok_download_api')
+  url.searchParams.set('utm_medium', 'referral')
+  url.searchParams.set('utm_campaign', 'sponsor')
+  url.searchParams.set('utm_content', placement)
+  return url.toString()
+}
 
 export interface SponsorProps {
   /**
@@ -41,17 +70,23 @@ export interface SponsorProps {
    * the sidebar on every page, where the whole budget is one line.
    */
   variant?: 'full' | 'compact'
+  /**
+   * Which placement this is, for the sponsor's own reporting. Defaults to the
+   * one each variant currently has; pass it when adding a third.
+   */
+  placement?: string
   className?: string
 }
 
-export function Sponsor({ variant = 'full', className }: SponsorProps) {
+export function Sponsor({ variant = 'full', placement, className }: SponsorProps) {
   const { t } = useTranslation('console')
+  const href = sponsorHref(placement ?? (variant === 'compact' ? 'sidebar' : 'about'))
 
   if (variant === 'compact') {
     return (
       <a
         className={cn(styles.compact, className)}
-        href={SPONSOR.href}
+        href={href}
         target="_blank"
         rel="noreferrer noopener sponsored"
         title={t('about.sponsor.pitch')}
@@ -69,7 +104,7 @@ export function Sponsor({ variant = 'full', className }: SponsorProps) {
   return (
     <a
       className={cn(styles.full, className)}
-      href={SPONSOR.href}
+      href={href}
       target="_blank"
       rel="noreferrer noopener sponsored"
     >
