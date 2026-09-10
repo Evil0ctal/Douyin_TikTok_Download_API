@@ -208,7 +208,15 @@ Douyin_TikTok_Download_API/
 > **在中国大陆的机器上装？** 先换源再动手，不然多半卡在拉镜像那一步：
 > [中国大陆的网络准备](./documents/zh/02-installation.md#中国大陆的网络准备)。
 
-需要 Docker 和 Docker Compose。仓库里不带任何默认密码或密钥，先生成 `.env`：
+需要 Docker 和 Docker Compose。先把仓库拉下来——compose 文件、Dockerfile 和迁移脚本都在里面，
+默认分支就是 v5：
+
+```bash
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+cd Douyin_TikTok_Download_API
+```
+
+仓库里不带任何默认密码或密钥，接着生成 `.env`：
 
 ```bash
 POSTGRES_PASSWORD=$(openssl rand -hex 24)

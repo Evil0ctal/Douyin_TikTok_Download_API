@@ -223,8 +223,15 @@ There are two ways to install this; below is the recommended one. For the by-han
 > most likely time out:
 > [Network preparation in mainland China](./documents/en/02-installation.md#network-preparation-in-mainland-china).
 
-You need Docker and Docker Compose. Nothing in the repository ships a default password
-or key, so write `.env` first:
+You need Docker and Docker Compose. Start by cloning the repository — the compose file,
+the Dockerfiles and the migrations all live in it, and the default branch is v5:
+
+```bash
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+cd Douyin_TikTok_Download_API
+```
+
+Nothing in the repository ships a default password or key, so write `.env` next:
 
 ```bash
 POSTGRES_PASSWORD=$(openssl rand -hex 24)

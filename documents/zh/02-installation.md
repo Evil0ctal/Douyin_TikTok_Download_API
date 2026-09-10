@@ -362,9 +362,21 @@ npm config get registry
 
 ## 首次安装
 
-下面的命令都在仓库根目录执行。
+**1. 把仓库拉下来。** compose 文件、Dockerfile 和迁移脚本都在里面，默认分支就是 v5。下面的命令
+一律在仓库根目录执行：
 
-**1. 写 `.env`。** 两个密码用 hex 而不是 base64，因为它们最终会出现在连接 URL 里，而 `+` 和 `/` 在那里需要转义：
+```bash
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+cd Douyin_TikTok_Download_API
+```
+
+拿到的是不是对的代码树，看一眼这个文件就知道——它不存在说明你在 `v4` 分支上，本页一条都不适用：
+
+```bash
+ls docker/compose.yml
+```
+
+**2. 写 `.env`。** 两个密码用 hex 而不是 base64，因为它们最终会出现在连接 URL 里，而 `+` 和 `/` 在那里需要转义：
 
 ```bash
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
@@ -386,7 +398,7 @@ EOF
 地址，要么什么都不改。见下文 [Compose 读取 `.env` 的两种方式](#compose-读取-env-的两种方式)。
 `.env` 已被 git 忽略，也在 `.dockerignore` 里排除，所以它是以 env 文件的形式送进容器的，从不会成为镜像内容。
 
-**2. 把整套栈拉起来。** 第一次会构建 `dtk-app` 镜像，其中包含一次 `npm ci` 和一次 `uv sync`，需要几分钟：
+**3. 把整套栈拉起来。** 第一次会构建 `dtk-app` 镜像，其中包含一次 `npm ci` 和一次 `uv sync`，需要几分钟：
 
 ```bash
 docker compose -p dtk -f docker/compose.yml up -d --wait
@@ -395,7 +407,7 @@ docker compose -p dtk -f docker/compose.yml up -d --wait
 `--wait` 只有在每个服务都报告健康之后才返回。`api` 的健康检查是就绪探针，所以 `--wait` 成功返回意味着
 API 真的能处理请求了。
 
-**3. 从日志里读出初始化令牌：**
+**4. 从日志里读出初始化令牌：**
 
 ```bash
 docker compose -p dtk -f docker/compose.yml logs api
@@ -1012,6 +1024,13 @@ Postgres 没有 CPU 上限，Redis 是整套栈里最小的东西，所以这两
 | PostgreSQL | 17，且 **timescaledb** 扩展可用 |
 | Redis | 8 |
 | Node | 22，仅在你想构建控制台时需要 |
+
+先把仓库拉下来，下面的命令都在仓库根目录执行：
+
+```bash
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+cd Douyin_TikTok_Download_API
+```
 
 如果你手上还没有数据库和 Redis，先起一套。仓库里带了一个测试夹具用的 compose 文件，把它们发布在非默认端口上，
 不会和任何东西冲突：

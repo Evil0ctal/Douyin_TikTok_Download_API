@@ -19,7 +19,14 @@ docker/
 
 ## Quick start
 
-Write `.env` at the repository root first - nothing in the stack ships a default
+Everything here runs from a checkout, so start with one if you do not have it:
+
+```bash
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+cd Douyin_TikTok_Download_API
+```
+
+Write `.env` at the repository root next - nothing in the stack ships a default
 password or key. Hex rather than base64 for the two passwords because they end
 up inside URLs, where `+` and `/` would need escaping:
 

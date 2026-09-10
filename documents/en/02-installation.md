@@ -398,9 +398,22 @@ Two networks:
 
 ## First install
 
-Everything below runs from the repository root.
+**1. Clone the repository.** The compose file, the Dockerfiles and the migrations all live in it,
+and the default branch is v5. Everything below runs from the repository root:
 
-**1. Write `.env`.** Hex rather than base64 for the two passwords, because they end up inside
+```bash
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+cd Douyin_TikTok_Download_API
+```
+
+One file tells you whether you have the right tree — if it is missing you are on the `v4` branch and
+nothing on this page applies:
+
+```bash
+ls docker/compose.yml
+```
+
+**2. Write `.env`.** Hex rather than base64 for the two passwords, because they end up inside
 connection URLs where `+` and `/` would need escaping:
 
 ```bash
@@ -427,7 +440,7 @@ copies in this file move the published port through interpolation or not at all.
 `.env` is git-ignored and excluded by `.dockerignore`, so it reaches the containers as an env file
 and never as image content.
 
-**2. Bring the stack up.** The first run builds the `dtk-app` image, which includes an `npm ci` and
+**3. Bring the stack up.** The first run builds the `dtk-app` image, which includes an `npm ci` and
 a `uv sync`, so expect a few minutes:
 
 ```bash
@@ -437,7 +450,7 @@ docker compose -p dtk -f docker/compose.yml up -d --wait
 `--wait` returns only when every service reports healthy. The `api` healthcheck is a readiness
 probe, so a successful `--wait` means the API can actually serve a request.
 
-**3. Read the setup token out of the log:**
+**4. Read the setup token out of the log:**
 
 ```bash
 docker compose -p dtk -f docker/compose.yml logs api
@@ -1124,6 +1137,13 @@ Supported, and how the project is developed. You need:
 | PostgreSQL | 17 with the **timescaledb** extension available |
 | Redis | 8 |
 | Node | 22, only if you want to build the console |
+
+Clone the repository first; everything below runs from its root:
+
+```bash
+git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+cd Douyin_TikTok_Download_API
+```
 
 Bring up a database and a Redis if you do not already have them. The repository ships a test-fixture
 compose file that publishes them on non-default ports so they cannot collide with anything:
