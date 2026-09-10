@@ -1,0 +1,6 @@
+# Everything is reviewed by the maintainer. One line, because there is one of him.
+#
+# The value of this file for a single-maintainer project is not the routing - it
+# is that GitHub requests the review automatically, so a pull request never sits
+# unassigned because nobody pressed a button.
+*   @Evil0ctal

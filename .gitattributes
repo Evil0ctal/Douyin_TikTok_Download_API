@@ -1,0 +1,30 @@
+# Normalise line endings in the repository, check out native.
+#
+# Without this a contributor on Windows can commit CRLF into a shell script, and
+# the container then fails with `/usr/local/bin/entrypoint: not found` - which
+# names the file rather than the invisible \r at the end of its shebang.
+* text=auto eol=lf
+
+# Files that must stay LF whatever the platform, because something executes them.
+*.sh            text eol=lf
+Dockerfile*     text eol=lf
+Makefile        text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+
+# Binary, so git does not try to diff or convert them.
+*.png           binary
+*.jpg           binary
+*.gif           binary
+*.ico           binary
+*.woff          binary
+*.woff2         binary
+
+# Language statistics. These are real files that belong in the repository, but
+# counting them tells a reader the wrong thing about what this project is.
+uv.lock                             linguist-generated
+web/package-lock.json               linguist-generated
+src/dtk/db/migrations/script.py.mako  linguist-generated
+tests/fixtures/**                   linguist-generated
+documents/**                        linguist-documentation
+docs/**                             linguist-documentation

@@ -508,7 +508,7 @@ PR 提到 **`main`**。CI 对 `main` 的 `push` 和 `pull_request` 生效，另�
 
 推 `main` **不会**构建 Docker 镜像。发布是单独一个动作：把 `main` 快进到 `release`，或者打一个 `v*` 标签。这样 `latest` 指向的是有人决定要发布的那个提交，而不是一小时前刚合进去的东西。
 
-仓库里没有 PR 模板。开 PR 之前：
+开 PR 时会自动带出一份中英双语模板，下面这份清单就在里面。只想要一种语言的话，在 compare 链接后面加 `?template=zh.md` 或 `?template=en.md`。开 PR 之前：
 
 1. `make fmt`——这样格式门禁是通过，而不是败在空白字符上。
 2. `make lint && make type`——ruff 和 mypy。

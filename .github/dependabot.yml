@@ -1,0 +1,58 @@
+# Dependency updates.
+#
+# Monthly rather than weekly, and grouped rather than one pull request per
+# package. A single-maintainer project drowns in the default settings, and a
+# stack of ignored bots is worse than no bot: it teaches you to skim past the
+# security ones too.
+#
+# `open-pull-requests-limit` is the backstop. If you want this quieter still,
+# delete an ecosystem block; if you want it gone, delete the file.
+version: 2
+
+updates:
+  # The workflows themselves. This is the one that matters most: a pinned action
+  # that stops getting updates is how a supply-chain problem reaches a repository
+  # that never changed a line of its own code.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      console:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore"
+
+  # Base images: python, node, redis, timescaledb, golang.
+  - package-ecosystem: docker
+    directories:
+      - /docker
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore"

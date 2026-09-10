@@ -508,7 +508,7 @@ Pull requests target **`main`**. CI runs on `push` and `pull_request` against it
 
 Pushing to `main` does **not** build a Docker image. Publishing is its own act: fast-forward `main` to `release`, or tag `v*`. That way `latest` names a commit somebody decided to publish rather than whatever was merged an hour ago.
 
-There is no pull-request template. Before you open one:
+Opening a pull request gives you a bilingual template with this list in it. If you would rather have one language, append `?template=en.md` or `?template=zh.md` to the compare URL. Before you open one:
 
 1. `make fmt` — then the format gate passes rather than failing on whitespace.
 2. `make lint && make type` — ruff and mypy.
