@@ -23,8 +23,8 @@ jobs:
     name: Lint and types
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - run: uv sync --all-extras
@@ -39,8 +39,8 @@ jobs:
     name: Unit and replay tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - run: uv sync --all-extras
@@ -80,17 +80,17 @@ jobs:
       DTK_DOWNLOADER_URL: http://127.0.0.1:59999
       DTK_CONSOLE_DIR: ${{ github.workspace }}/web/dist
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The console is part of what the API serves, so the integration suite
       # asks for it: language negotiation rewrites index.html, and /docs is a
       # console route rather than a Swagger one. Taken from the console job
       # rather than built again, so there is one build and one place to change.
       - name: Console build from the console job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: console-dist
           path: web/dist
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - run: uv sync --all-extras
@@ -106,8 +106,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -118,7 +118,7 @@ jobs:
       - run: npm run build
       # The integration job serves this rather than building its own copy.
       - name: Publish the build for the integration job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: console-dist
           path: web/dist
@@ -129,7 +129,7 @@ jobs:
     name: Image build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate compose files
         run: |
           docker compose -f docker/compose.yml config -q
@@ -148,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --all-extras
       - run: uv run pytest tests/contract -q -m live || true

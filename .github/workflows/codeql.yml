@@ -53,7 +53,7 @@ jobs:
             build-mode: none
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -71,7 +71,7 @@ jobs:
       # it without a network fetch.
       - name: Set up Go
         if: matrix.language == 'go'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: docker/downloader/go.mod
           # No cache: the module has zero dependencies, so there is no go.sum
