@@ -440,7 +440,7 @@ export default function ApiDocs() {
         ) : (
           <div className="u-row u-wrap u-xs">
             <span>
-              {t('docs.specUrl')} <CopyableId value={specUrl} length={40} />
+              {t('docs.specUrl')} <CopyableId value={specUrl} />
             </span>
             <span className="u-muted">
               {t('docs.operationCount', {

@@ -459,7 +459,7 @@ function BatchForm() {
                   width: '25%',
                   cell: (row) =>
                     row.resource_id ? (
-                      <CopyableId value={row.resource_id} length={22} />
+                      <CopyableId value={row.resource_id} />
                     ) : (
                       <span className="u-muted">{MISSING}</span>
                     ),

@@ -135,7 +135,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           meta: (
             <>
               {error.kind === 'api' ? <ErrorCodeBadge code={error.code} /> : null}
-              {error.requestId ? <CopyableId value={error.requestId} length={10} /> : null}
+              {error.requestId ? <CopyableId value={error.requestId} /> : null}
             </>
           ),
         })

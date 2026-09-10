@@ -6,6 +6,7 @@ import {
   AlertIcon,
   Button,
   Card,
+  CopyableId,
   DataTable,
   EmptyState,
   ErrorState,
@@ -341,7 +342,11 @@ export default function Overview() {
           system.data ? (
             <span className="u-mono u-xs u-muted">
               {system.data.version}
-              {system.data.commit ? ` · ${system.data.commit.slice(0, 7)}` : ''}
+              {/* The whole commit, not git's seven-character short form. It is
+                  what you paste into a bug report, and a short sha has to be
+                  expanded before it is any use to anyone who was not standing
+                  at this checkout. */}
+              {system.data.commit ? <CopyableId value={system.data.commit} /> : null}
             </span>
           ) : null
         }

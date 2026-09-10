@@ -803,6 +803,29 @@ async def titles_for(
     }
 
 
+def _with_export_name(row: MediaDownload, item: Any) -> Any:
+    """The stored entry, plus what the file is called once it leaves here.
+
+    Derived on read rather than stored on the row. It is a function of the
+    platform, the post id and the stored name, all three of which are already
+    here - persisting it would mean a change to the naming policy silently
+    applying to new downloads and not to old ones, which is the kind of split
+    nobody discovers until they have two files named two ways.
+
+    A record from before this field existed, or a malformed one, comes back
+    untouched: the console falls back to the stored name, which is what it
+    used to show.
+    """
+    if not isinstance(item, dict) or not item.get("name"):
+        return item
+    return {
+        **item,
+        "export_name": planner.export_name(
+            str(row.platform), str(row.content_id), str(item["name"])
+        ),
+    }
+
+
 def as_dict(row: MediaDownload) -> dict[str, Any]:
     """One download, shaped for the API and the console."""
     return {
@@ -814,7 +837,7 @@ def as_dict(row: MediaDownload) -> dict[str, Any]:
         "directory": row.directory,
         "bytes_total": int(row.bytes_total),
         "file_count": int(row.file_count),
-        "files": row.files or [],
+        "files": [_with_export_name(row, item) for item in (row.files or [])],
         "pinned": bool(row.pinned),
         "on_disk": row.files_removed_at is None,
         "files_removed_at": row.files_removed_at.isoformat() if row.files_removed_at else None,

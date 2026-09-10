@@ -725,7 +725,7 @@ function SmokeStep({ onNext }: { onNext: () => void }) {
               <SmokeFact label={t('console:field.platform')} value={result.content.platform ?? MISSING} mono />
               <SmokeFact
                 label={t('console:setupWizard.smoke.contentId')}
-                value={<CopyableId value={result.content.content_id} length={19} />}
+                value={<CopyableId value={result.content.content_id} />}
               />
               <SmokeFact
                 label={t('console:field.duration')}
@@ -734,7 +734,7 @@ function SmokeStep({ onNext }: { onNext: () => void }) {
               />
               <SmokeFact
                 label={t('console:field.requestId')}
-                value={<CopyableId value={result.requestId} length={12} middle />}
+                value={<CopyableId value={result.requestId} />}
               />
             </div>
             {result.content.title ? <p className="u-truncate">{result.content.title}</p> : null}

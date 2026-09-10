@@ -1459,7 +1459,7 @@
       }
     },
     "file": {
-      "sha256": "sha256",
+      "sha256": "SHA-256",
       "none": "No files were stored for this post.",
       "open": "Save this file"
     },

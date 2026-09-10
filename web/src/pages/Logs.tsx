@@ -190,9 +190,16 @@ export default function Logs() {
       },
       {
         id: 'requestId',
+        // A floor, not a width: auto layout treats `width` as a suggestion
+        // and overrode it, leaving the last six characters cut - which is
+        // where two uuids from the same second differ least visibly. If the
+        // table now wants more room than it has, it scrolls, which is a cost
+        // paid by the reader who can see it rather than one hidden in an
+        // ellipsis.
+        minWidth: '292px',
         header: t('console:field.requestId'),
         mono: true,
-        cell: (row) => <CopyableId value={row.request_id} length={12} middle />,
+        cell: (row) => <CopyableId value={row.request_id} />,
       },
       {
         id: 'httpStatus',
@@ -212,16 +219,30 @@ export default function Logs() {
       },
       {
         id: 'identity',
+        // A floor, not a width: auto layout treats `width` as a suggestion
+        // and overrode it, leaving the last six characters cut - which is
+        // where two uuids from the same second differ least visibly. If the
+        // table now wants more room than it has, it scrolls, which is a cost
+        // paid by the reader who can see it rather than one hidden in an
+        // ellipsis.
+        minWidth: '292px',
         header: t('console:field.identity'),
         mono: true,
-        cell: (row) => <CopyableId value={row.identity_id} length={10} middle />,
+        cell: (row) => <CopyableId value={row.identity_id} />,
       },
       {
         id: 'proxy',
+        // A floor, not a width: auto layout treats `width` as a suggestion
+        // and overrode it, leaving the last six characters cut - which is
+        // where two uuids from the same second differ least visibly. If the
+        // table now wants more room than it has, it scrolls, which is a cost
+        // paid by the reader who can see it rather than one hidden in an
+        // ellipsis.
+        minWidth: '292px',
         header: t('console:field.proxy'),
         mono: true,
         defaultHidden: true,
-        cell: (row) => <CopyableId value={row.proxy_id} length={10} middle />,
+        cell: (row) => <CopyableId value={row.proxy_id} />,
       },
       {
         id: 'errorCode',
@@ -296,11 +317,11 @@ export default function Logs() {
           row.username ? (
             <span className="u-truncate">{row.username}</span>
           ) : row.user_id ? (
-            <CopyableId value={row.user_id} length={10} middle />
+            <CopyableId value={row.user_id} />
           ) : row.api_key_id ? (
             <span className="u-row">
               <span className="u-xs u-muted">{t('logs.byApiKey')}</span>
-              <CopyableId value={row.api_key_id} length={8} middle />
+              <CopyableId value={row.api_key_id} />
             </span>
           ) : (
             <span className="u-muted">{t('logs.bySystem')}</span>
@@ -315,7 +336,7 @@ export default function Logs() {
           row.target_type ? (
             <span className="u-row">
               <span>{row.target_type}</span>
-              <CopyableId value={row.target_id} length={10} middle />
+              <CopyableId value={row.target_id} />
             </span>
           ) : (
             <span className="u-muted">—</span>
@@ -599,11 +620,11 @@ export default function Logs() {
             >
               <dt className="u-xs u-muted">{t('console:field.requestId')}</dt>
               <dd style={{ margin: 0 }}>
-                <CopyableId value={openRequest.request_id} length={24} middle />
+                <CopyableId value={openRequest.request_id} />
               </dd>
               <dt className="u-xs u-muted">{t('console:field.taskId')}</dt>
               <dd style={{ margin: 0 }}>
-                <CopyableId value={openRequest.task_id} length={24} middle />
+                <CopyableId value={openRequest.task_id} />
               </dd>
               <dt className="u-xs u-muted">{t('console:field.endpoint')}</dt>
               <dd className="u-mono" style={{ margin: 0 }}>
@@ -611,11 +632,11 @@ export default function Logs() {
               </dd>
               <dt className="u-xs u-muted">{t('console:field.identity')}</dt>
               <dd style={{ margin: 0 }}>
-                <CopyableId value={openRequest.identity_id} length={24} middle />
+                <CopyableId value={openRequest.identity_id} />
               </dd>
               <dt className="u-xs u-muted">{t('console:field.proxy')}</dt>
               <dd style={{ margin: 0 }}>
-                <CopyableId value={openRequest.proxy_id} length={24} middle />
+                <CopyableId value={openRequest.proxy_id} />
               </dd>
               <dt className="u-xs u-muted">{t('console:field.signer')}</dt>
               <dd className="u-mono" style={{ margin: 0 }}>

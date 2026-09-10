@@ -89,7 +89,7 @@ export function ErrorState({ error, onRetry, title, className, compact = false }
         {info.error && info.error.kind === 'api' ? <ErrorCodeBadge code={info.error.code} /> : null}
         {info.requestId ? (
           <span>
-            {t('errors:label.requestId')} <CopyableId value={info.requestId} length={10} />
+            {t('errors:label.requestId')} <CopyableId value={info.requestId} />
           </span>
         ) : null}
       </div>

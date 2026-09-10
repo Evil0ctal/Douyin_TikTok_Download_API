@@ -398,7 +398,7 @@ export default function System() {
           status.data ? (
             <span className="u-row u-xs u-muted" style={{ gap: 'var(--space-2)' }}>
               <span className="u-mono">{status.data.version}</span>
-              {status.data.commit ? <CopyableId value={status.data.commit} length={10} /> : null}
+              {status.data.commit ? <CopyableId value={status.data.commit} /> : null}
             </span>
           ) : null
         }

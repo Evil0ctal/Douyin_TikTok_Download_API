@@ -374,9 +374,15 @@ export default function Proxies() {
     {
       id: 'id',
       header: t('console:proxy.column.id'),
+      // A uuid is 36 characters and every one of them carries; the last few
+      // are where two ids issued in the same second differ. A floor rather
+      // than a width, because auto layout overrides a width the moment the
+      // columns want more room than the container has - measured at this
+      // font, 292px is the whole id plus the copy affordance.
+      minWidth: '292px',
       mono: true,
       defaultHidden: true,
-      cell: (row) => <CopyableId value={row.id} middle length={12} />,
+      cell: (row) => <CopyableId value={row.id} />,
     },
     {
       id: 'created',

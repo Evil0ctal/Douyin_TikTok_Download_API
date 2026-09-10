@@ -23,6 +23,16 @@ export interface Column<T> {
   sortValue?: (row: T) => string | number | null | undefined
   align?: 'left' | 'right'
   width?: string
+  /**
+   * A floor the table may not shrink below, unlike `width`, which auto layout
+   * treats as a suggestion and overrides the moment the columns want more room
+   * than the container has.
+   *
+   * For a column whose value is worthless partly shown - a uuid, a digest -
+   * where the honest outcome of not enough room is a horizontal scrollbar
+   * rather than four missing characters.
+   */
+  minWidth?: string
   /** Renders the cell in the mono face; use for every id, hash and timestamp. */
   mono?: boolean
   hideable?: boolean
@@ -347,7 +357,11 @@ export function DataTable<T>({
             <tr>
               {selectable ? <th className={cn(styles.headCell, styles.selectCell)} /> : null}
               {visibleColumns.map((column) => (
-                <th key={column.id} className={styles.headCell} style={{ width: column.width }}>
+                <th
+                  key={column.id}
+                  className={styles.headCell}
+                  style={{ width: column.width, minWidth: column.minWidth }}
+                >
                   {column.header}
                 </th>
               ))}
@@ -437,7 +451,7 @@ export function DataTable<T>({
                   <th
                     key={column.id}
                     className={cn(styles.headCell, column.align === 'right' && styles.headCellRight)}
-                    style={{ width: column.width }}
+                    style={{ width: column.width, minWidth: column.minWidth }}
                     aria-sort={column.sortValue ? ariaSort : undefined}
                     scope="col"
                   >

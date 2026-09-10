@@ -314,7 +314,7 @@ export default function Diagnose() {
           taskId ? (
             <span className="u-row u-xs u-muted" style={{ gap: 'var(--space-2)' }}>
               <span>{t('field.taskId')}</span>
-              <CopyableId value={taskId} length={10} middle />
+              <CopyableId value={taskId} />
             </span>
           ) : null
         }

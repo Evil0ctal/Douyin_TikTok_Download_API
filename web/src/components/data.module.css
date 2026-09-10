@@ -106,6 +106,30 @@
   white-space: nowrap;
 }
 
+/* What the value is, for the values that do not say so themselves. Dimmer
+   than the value and never selected by a copy, because what gets copied is
+   the id and nobody wants "SHA-256 " in front of it. */
+.copyableLabel {
+  color: var(--text-muted);
+  flex: none;
+  user-select: none;
+}
+
+/* Wrapped rather than ellipsised: a sha256 is 64 characters and the last four
+   are as load bearing as the first four, so cutting either end makes it
+   useless for the one thing it is for. */
+.copyableWrap {
+  align-items: flex-start;
+  text-align: start;
+}
+
+.copyableTextWrap {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-all;
+}
+
 .copyableIcon {
   flex: none;
   opacity: 0;

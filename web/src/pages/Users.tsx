@@ -280,9 +280,17 @@ export default function Users() {
     {
       id: 'id',
       header: t('users.column.id'),
+      // A uuid is 36 characters and every one of them carries; the last few
+      // are where two ids issued in the same second differ. A floor rather
+      // than a width, because auto layout overrides a width the moment the
+      // columns want more room than the container has - measured at this
+      // font, 292px is the whole id plus the copy affordance.
+      minWidth: '292px',
       mono: true,
-      cell: (row) => <CopyableId value={row.id} length={10} middle />,
-      width: '150px',
+      cell: (row) => <CopyableId value={row.id} />,
+      // No width: 150px cut a 36-character uuid in half on a table that had
+      // the room for it. Left to size itself, the column shows the whole id
+      // where it fits and ellipsises only where it genuinely does not.
       defaultHidden: true,
     },
     {
@@ -349,9 +357,14 @@ export default function Users() {
       id: 'id',
       header: t('users.column.session'),
       mono: true,
+      // The whole identifier plus the "this one" marker beside it. Safe to
+      // show: it is a truncated sha256 of the session token and not the token
+      // - the cookie itself never reaches this page - so there is nothing here
+      // to protect by hiding half of it.
+      minWidth: '220px',
       cell: (row) => (
         <span className="u-row" style={{ gap: 'var(--space-2)' }}>
-          <CopyableId value={row.id} length={12} />
+          <CopyableId value={row.id} />
           {row.current ? (
             <span className="u-xs" style={{ color: 'var(--accent)' }}>
               {t('users.sessions.current')}

@@ -730,7 +730,7 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
         id: 'contentId',
         header: t('parse.field.contentId'),
         mono: true,
-        cell: (row) => <CopyableId value={asContent(row.data)?.content_id} length={19} />,
+        cell: (row) => <CopyableId value={asContent(row.data)?.content_id} />,
       },
       {
         id: 'plays',
@@ -1021,7 +1021,7 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
             <div className="u-row u-wrap u-xs u-muted">
               <span className="u-mono">{previewContent.platform}</span>
               <span className="u-mono">{previewContent.kind}</span>
-              <CopyableId value={previewContent.content_id} length={19} />
+              <CopyableId value={previewContent.content_id} />
               {previewContent.created_at ? (
                 <span className="u-mono">{format.dateTime(previewContent.created_at)}</span>
               ) : null}

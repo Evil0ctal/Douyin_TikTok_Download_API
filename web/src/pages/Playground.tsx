@@ -836,7 +836,11 @@ export default function Playground() {
       ...rows.map((row) => ({
         value: row.id,
         label: [
-          row.id.slice(0, 8),
+          // Whole. Two identities sharing their first eight characters is
+          // unlikely and picking the wrong one because of it is silent, and
+          // an <option> is one of the few places with no hover and no copy
+          // button to fall back on.
+          row.id,
           row.state,
           row.authenticated ? t('playground.identityLoggedIn') : row.source,
         ].join(' · '),
@@ -1098,7 +1102,7 @@ export default function Playground() {
               <span>
                 {t('console:field.requestId')}{' '}
                 {result.requestId ? (
-                  <CopyableId value={result.requestId} length={14} middle />
+                  <CopyableId value={result.requestId} />
                 ) : (
                   <span className="u-muted">{t('playground.noRequestId')}</span>
                 )}
@@ -1138,7 +1142,7 @@ export default function Playground() {
                     <span className="u-muted u-xs">{t('common:loading')}</span>
                   ) : servedBy ? (
                     <span className="u-row u-wrap">
-                      <CopyableId value={servedBy.identity_id} length={12} middle />
+                      <CopyableId value={servedBy.identity_id} />
                       <StatusBadge kind="outcome" value={servedBy.outcome} size="sm" flash={false} />
                       {servedBy.signer ? (
                         <span className="u-xs u-muted u-mono">{servedBy.signer}</span>

@@ -732,6 +732,12 @@ export default function Identities() {
     {
       id: 'id',
       header: t('console:field.identityId'),
+      // A uuid is 36 characters and every one of them carries; the last few
+      // are where two ids issued in the same second differ. A floor rather
+      // than a width, because auto layout overrides a width the moment the
+      // columns want more room than the container has - measured at this
+      // font, 292px is the whole id plus the copy affordance.
+      minWidth: '292px',
       mono: true,
       // Not hideable. Pinning a request names one identity by its id, and this
       // cell is where that id gets copied from; a column preference persisted
@@ -739,7 +745,7 @@ export default function Identities() {
       // answer the question it is now most often opened for.
       hideable: false,
       sortValue: (row) => row.id,
-      cell: (row) => <CopyableId value={row.id} middle length={14} />,
+      cell: (row) => <CopyableId value={row.id} />,
     },
     {
       id: 'proxy',
@@ -762,7 +768,7 @@ export default function Identities() {
               {row.proxy_label}
             </span>
           ) : (
-            <CopyableId value={row.proxy_id} middle length={12} />
+            <CopyableId value={row.proxy_id} />
           )
         ) : (
           <span className="u-muted u-truncate">{t('console:identity.noProxy')}</span>

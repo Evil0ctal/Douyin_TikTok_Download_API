@@ -170,7 +170,17 @@ const STORAGE_KEY = ['downloads', 'storage'] as const
 const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
 
 interface DownloadFile {
+  /** As it sits in the post's directory on the volume: `video.mp4`. */
   name: string
+  /**
+   * What saving it produces: `dtk-douyin-7679881326543487611-video.mp4`.
+   *
+   * Derived by the API from the same policy that writes the
+   * Content-Disposition, so the drawer cannot promise one name and the browser
+   * write another. Optional because a response from an older build has not got
+   * it, and `name` is the honest fallback there.
+   */
+  export_name?: string
   kind: string
   state: string
   bytes: number
@@ -1145,15 +1155,23 @@ function Detail({ row }: { row: DownloadRow }) {
         {row.files.map((file) => (
           <li key={file.name} className={styles.file}>
             <div className="u-row-between">
-              <span className="u-mono u-truncate" title={file.name}>
-                {file.name}
+              {/* The name the reader will end up with, not the one on the
+                  volume. Showing `video.mp4` next to a button that saves
+                  `dtk-douyin-…-video.mp4` was the drawer contradicting the
+                  download it was about to start. */}
+              <span className="u-mono u-truncate" title={file.export_name ?? file.name}>
+                {file.export_name ?? file.name}
               </span>
               <span className="u-mono u-xs u-muted">
                 {file.state === 'done' ? formatters.bytes(file.bytes) : file.state}
               </span>
             </div>
+            {/* Whole, wrapped, and named. A truncated digest verifies nothing -
+                checking a file against one is the only reason it is here - and
+                an unlabelled 64-character hex string does not say which
+                algorithm produced it. */}
             {file.sha256 ? (
-              <CopyableId value={file.sha256} label={t('downloads.file.sha256')} />
+              <CopyableId value={file.sha256} label={t('downloads.file.sha256')} wrap />
             ) : null}
             {file.error ? <span className={styles.sub}>{file.error}</span> : null}
             {row.on_disk && file.state === 'done' ? (
