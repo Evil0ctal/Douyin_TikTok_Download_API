@@ -351,7 +351,7 @@ requires-dist = [
     { name = "redis", extras = ["hiredis"], specifier = ">=5.2" },
     { name = "rich", specifier = ">=13.7" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
     { name = "structlog", specifier = ">=24.4" },
     { name = "typer", specifier = ">=0.12" },
     { name = "types-redis", marker = "extra == 'dev'" },
