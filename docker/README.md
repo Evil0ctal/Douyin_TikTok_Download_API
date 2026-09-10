@@ -233,6 +233,42 @@ git pull && docker compose -p dtk -f docker/compose.yml build && \
 identity pool, not by the worker count: workers beyond the number of identities
 only queue.
 
+### Small hosts
+
+The `cpus` and `mem_limit` values in `compose.yml` are written for a machine
+with room. On a small VPS two of them stop the stack rather than slowing it:
+
+* `browser-rpc` asks for `cpus: 4.0`, and Docker **refuses to start a container
+  asking for more CPUs than exist** — `range of CPUs is from 0.01 to 2.00, as
+  there are only 2 CPUs available`. It is a hard error, not a cap.
+* the limits total about 7.5 GB. They are ceilings rather than reservations, so
+  the stack fits in far less day to day; what does not fit is the peak. A mint
+  drives Chromium up while postgres is holding its buffers, and with no swap the
+  kernel picks a victim — usually postgres, not the process that grew.
+
+Override per host rather than editing `compose.yml`, so the repository keeps
+describing a normal machine and the deviation stays visible:
+
+```yaml
+# compose.host.yml
+services:
+  postgres:   { mem_limit: 1g,    memswap_limit: 2g }
+  redis:      { mem_limit: 320m,  memswap_limit: 512m }
+  api:        { mem_limit: 448m,  memswap_limit: 768m,  cpus: 1.5 }
+  worker:     { mem_limit: 448m,  memswap_limit: 768m }
+  browser-rpc:{ mem_limit: 1200m, memswap_limit: 2400m, cpus: 1.5 }
+  downloader: { mem_limit: 192m,  memswap_limit: 384m,  cpus: 1.0 }
+```
+
+```bash
+COMPOSE_ENV_FILES=.env docker compose -p dtk \
+  -f docker/compose.yml -f compose.host.yml up -d
+```
+
+Give such a host swap as well. A 2 GB file with `vm.swappiness=10` is enough:
+it is not there to be used, it is there so that a mint peak becomes a slow
+second instead of a killed database.
+
 Healthchecks: `pg_isready` for postgres, an authenticated `redis-cli ping` for
 redis, `GET /readyz` for api (readiness, so `up --wait` returns when the API can
 actually serve), a Redis TCP probe for the worker, which has no port of its own,
