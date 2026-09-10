@@ -85,13 +85,21 @@ export function Sidebar({
       className={cn(!embedded && styles.sidebar, collapsed && styles.collapsed, className)}
       aria-label={t('common:nav.primary')}
     >
+      {/* The mark is a link home, because it is the one thing on every screen
+          that already looks like one. Collapsed, it is the only thing left in
+          this row, which is exactly when a way back matters most. */}
       {!embedded ? (
-        <div className={styles.brand}>
+        <Link
+          href="/"
+          className={cn(styles.brand, location === '/' && styles.brandActive)}
+          onClick={onNavigate}
+          aria-label={t('console:nav.overview')}
+        >
           <span className={styles.brandMark} aria-hidden="true">
             <Logo size={24} />
           </span>
           <span className={styles.brandName}>{t('common:app.name')}</span>
-        </div>
+        </Link>
       ) : null}
 
       <div className={styles.navScroll}>

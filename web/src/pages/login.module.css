@@ -1,0 +1,40 @@
+/*
+ * The sign-in screen's own two pieces.
+ *
+ * Everything else here is the shared centred panel; these are the mark above
+ * the card and the line under it, which exist because this is the only page in
+ * the console reachable without an account. A stranger who lands on it should
+ * be able to find out what this is and who wrote it without signing in first.
+ */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent);
+  min-width: 0;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}

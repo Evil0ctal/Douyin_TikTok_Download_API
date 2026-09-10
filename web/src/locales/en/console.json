@@ -179,7 +179,8 @@
       "network": "Cannot reach the API. Check that the api container is running.",
       "timeout": "The API did not answer in time. Try again.",
       "generic": "Sign in failed. Try again."
-    }
+    },
+    "source": "Source on GitHub"
   },
   "setupWizard": {
     "stepsLabel": "Setup steps",

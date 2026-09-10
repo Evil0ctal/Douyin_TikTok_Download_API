@@ -31,6 +31,25 @@
   border-bottom: 1px solid var(--border-subtle);
   flex: none;
   min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Enough to say it can be clicked, and not enough to compete with the nav
+   row that is actually selected. No underline: the brand name is a wordmark
+   here, not a piece of prose with a link in it. */
+.brand:hover {
+  background: var(--bg-raised);
+  text-decoration: none;
+}
+
+.brand:hover .brandMark {
+  color: var(--accent-hover);
+}
+
+/* Already home. The row stays quiet rather than looking like a dead link. */
+.brandActive {
+  cursor: default;
 }
 
 /*

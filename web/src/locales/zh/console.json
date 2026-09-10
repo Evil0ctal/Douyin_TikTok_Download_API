@@ -179,7 +179,8 @@
       "network": "无法连接 API，请确认 api 容器正在运行。",
       "timeout": "API 未在超时前响应，请重试。",
       "generic": "登录失败，请重试。"
-    }
+    },
+    "source": "GitHub 源码"
   },
   "setupWizard": {
     "stepsLabel": "初始化步骤",

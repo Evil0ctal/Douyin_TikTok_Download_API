@@ -7,14 +7,21 @@ import {
   AlertIcon,
   Button,
   Card,
+  ExternalIcon,
   Input,
   LanguageSwitcher,
+  Logo,
   ThemeToggle,
 } from '@/components'
 import shell from '@/components/shell.module.css'
 import { apiPost, isApiError, type ApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { SESSION_KEY, useApiMutation, useSession } from '@/hooks'
+
+import styles from './login.module.css'
+
+/** Where the source lives. The same address the About page links to. */
+const REPO = 'https://github.com/Evil0ctal/Douyin_TikTok_Download_API'
 
 interface Credentials {
   username: string
@@ -68,8 +75,14 @@ export default function Login() {
     <div className={shell.centered}>
       <div className={shell.centeredPanel}>
         <div className="u-stack">
+          {/* The mark, because this is the one screen with no sidebar and the
+              first one a stranger sees: a bare wordmark over a password field
+              says less about what they have reached than the glyph does. */}
           <div className="u-row-between">
-            <span className="u-mono u-secondary">{t('common:app.name')}</span>
+            <span className={styles.brand}>
+              <Logo size={22} />
+              <span className="u-mono u-secondary">{t('common:app.name')}</span>
+            </span>
             <span className="u-row">
               <LanguageSwitcher />
               <ThemeToggle />
@@ -130,6 +143,28 @@ export default function Login() {
           </Card>
 
           <p className="u-xs u-muted">{t('console:login.recoveryHint')}</p>
+
+          {/* Where this came from, from the one screen anybody can reach.
+              Somebody looking at a login they did not expect should be able to
+              find out what it is without having an account for it.
+
+              Both links leave the console on purpose. The About page inside it
+              needs a session - it reads /system/status, which is not public -
+              so linking it here would land a signed-out reader back on this
+              screen, which is the one place they already were. */}
+          <div className={styles.footer}>
+            <a href={REPO} target="_blank" rel="noreferrer noopener">
+              <ExternalIcon size={11} />
+              {t('console:login.source')}
+            </a>
+            <a href={`${REPO}/blob/main/LICENSE`} target="_blank" rel="noreferrer noopener">
+              <ExternalIcon size={11} />
+              {t('console:about.link.license')}
+            </a>
+            <span className="u-muted">
+              {t('console:about.copyright', { year: new Date().getFullYear() })}
+            </span>
+          </div>
         </div>
       </div>
     </div>
