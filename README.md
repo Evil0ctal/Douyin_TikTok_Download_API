@@ -48,7 +48,7 @@
 
 ## v5 是什么
 
-v5 是一次重写，从空分支起步，不继承 V4 的代码（V4 保留在 `main` 分支）。
+v5 是一次重写，从空分支起步，不继承 V4 的代码。
 
 V4 最大的问题不是功能少，是**接口会悄悄死掉而没人知道**：cookie 过期了、签名算法变了、
 某个接口被风控了，你只有在别人报错时才发现。v5 把"可观测 + 可自愈"排在功能前面。
@@ -114,29 +114,32 @@ docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化�
 - **关注列表**：定期重新收集某个作者或作品
 - **iOS 快捷指令**：`/api/v1/ios/shortcut`
 
-## 设计文档
+## 文档
 
-`docs/design/` 下是完整的设计文档（中文），共 18 篇：
+完整文档在 [`documents/`](./documents/README.zh-CN.md)，中英双语，共 17 篇。
 
-[架构](./docs/design/01-architecture.md) ·
-[身份池](./docs/design/02-identity-pool.md) ·
-[调度器](./docs/design/03-scheduler.md) ·
-[传输与签名](./docs/design/04-transport-signing.md) ·
-[数据模型](./docs/design/05-data-model.md) ·
-[API / 认证 / MCP](./docs/design/06-api-auth-mcp.md) ·
-[前端](./docs/design/07-frontend.md) ·
-[安全](./docs/design/08-security.md) ·
-[部署](./docs/design/09-deployment.md) ·
-[配置](./docs/design/10-configuration.md) ·
-[数据契约](./docs/design/11-data-contracts.md) ·
-[设计系统](./docs/design/12-design-system.md) ·
-[测试](./docs/design/13-testing.md) ·
-[国际化](./docs/design/14-i18n.md) ·
-[运维](./docs/design/15-operations.md) ·
-[排障](./docs/design/16-salvage-and-debug.md) ·
-[签名逆向](./docs/design/17-signature-reversing.md) ·
-[存储与采集](./docs/design/18-storage-media-and-collection.md)
+**新手从这里开始：**
+[快速开始](./documents/zh/01-quickstart.md) ·
+[核心概念](./documents/zh/04-concepts.md) ·
+[控制台总览](./documents/zh/05-console-overview.md)
 
+**部署与运维：**
+[安装与部署](./documents/zh/02-installation.md) ·
+[配置参考](./documents/zh/03-configuration.md) ·
+[运维](./documents/zh/10-operations.md) ·
+[故障排查](./documents/zh/14-troubleshooting.md) ·
+[安全](./documents/zh/15-security.md)
+
+**开发对接：**
+[REST API 指南](./documents/zh/11-api.md) ·
+[MCP 与 AI 客户端](./documents/zh/12-mcp.md) ·
+[命令行参考](./documents/zh/13-cli.md) ·
+[参与开发](./documents/zh/16-contributing.md)
+
+接口参考手册不在文档里，而是由代码直接生成的：你自己的实例在 `/docs`（控制台内）
+以及 `/swagger`、`/redoc`、`/openapi.json`（无需登录）提供，中英双语。
+
+English documentation: [`documents/README.md`](./documents/README.md)
 ## 许可协议
 
 [Apache License 2.0](./LICENSE)。

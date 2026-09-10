@@ -84,9 +84,16 @@ P0_CAPABILITIES: Final[tuple[Capability, ...]] = (
 )
 
 #: Everything beyond the core. A platform declares what it can actually serve,
-#: and `GET /api/v1/system/status` reports the difference so a caller can see
-#: which endpoints exist for which platform rather than discovering it from an
-#: empty page.
+#: and nobody has to discover the difference from an empty page:
+#: `GET /api/v1/admin/endpoints/health` walks every adapter's own endpoint table,
+#: so it lists exactly what each platform declares, and a caller asking for a
+#: capability a platform does not have gets `UNSUPPORTED_CONTENT` naming the
+#: platform and the capability in `details`.
+#:
+#: This comment previously named `GET /api/v1/system/status` as the place to see
+#: the difference. It never reported capabilities - the payload is version,
+#: uptime, components, pool and storage - so the one instruction it gave a reader
+#: was the one thing that would not work.
 OPTIONAL_CAPABILITIES: Final[tuple[Capability, ...]] = tuple(
     c for c in Capability if c not in P0_CAPABILITIES
 )

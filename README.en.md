@@ -48,8 +48,7 @@ These sponsors paid to be here, and **Douyin_TikTok_Download_API** stays free an
 
 ## What v5 is
 
-v5 is a rewrite. It started from an empty branch and inherits no V4 code; V4 stays
-on `main`.
+v5 is a rewrite. It started from an empty branch and inherits no V4 code.
 
 V4's real problem was never a shortage of features - it was that **the API would
 die quietly and nobody would know**. A cookie expires, a signature algorithm
@@ -127,14 +126,35 @@ The main capabilities:
 - **Watch** an author or a post and re-collect it on a timer
 - **iOS Shortcut** support at `/api/v1/ios/shortcut`
 
-## Design documents
+## Documentation
 
-`docs/design/` holds the full design, in Chinese, across 18 documents covering
-architecture, the identity pool, the scheduler, transport and signing, the data
-model, API/auth/MCP, frontend, security, deployment, configuration, data
-contracts, the design system, testing, i18n, operations, debugging, signature
-reversing, and storage.
+The full documentation lives in [`documents/`](./documents/README.md) — 17 pages,
+in English and Chinese.
 
+**New here:**
+[Quick start](./documents/en/01-quickstart.md) ·
+[Concepts](./documents/en/04-concepts.md) ·
+[Console overview](./documents/en/05-console-overview.md)
+
+**Running it:**
+[Installation and deployment](./documents/en/02-installation.md) ·
+[Configuration reference](./documents/en/03-configuration.md) ·
+[Operations](./documents/en/10-operations.md) ·
+[Troubleshooting](./documents/en/14-troubleshooting.md) ·
+[Security](./documents/en/15-security.md)
+
+**Building against it:**
+[REST API guide](./documents/en/11-api.md) ·
+[MCP and AI agents](./documents/en/12-mcp.md) ·
+[CLI reference](./documents/en/13-cli.md) ·
+[Contributing](./documents/en/16-contributing.md)
+
+The endpoint reference is not in there: it is generated from the code that serves
+the requests, so your own instance is the copy that is never out of date. Find it
+at `/docs` inside the console, or at `/swagger`, `/redoc` and `/openapi.json`
+without a login. Both languages.
+
+中文文档：[`documents/README.zh-CN.md`](./documents/README.zh-CN.md)
 ## Licence
 
 [Apache License 2.0](./LICENSE).
