@@ -60,3 +60,4 @@ dist/
 # source; the image builds it from scratch, so a committed copy is 9 MB of
 # nothing and would be wrong for every architecture but the one that made it.
 /docker/downloader/downloader
+/Depoly_SSH/
