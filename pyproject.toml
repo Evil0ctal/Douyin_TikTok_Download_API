@@ -22,7 +22,7 @@ dependencies = [
     "argon2-cffi>=23.1",
     "typer>=0.12",
     "rich>=13.7",
-    "mcp>=1.1",
+    "mcp>=2.2.0",
     "python-multipart>=0.0.20",
 ]
 
