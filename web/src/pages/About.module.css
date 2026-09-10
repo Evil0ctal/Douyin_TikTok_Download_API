@@ -116,3 +116,43 @@
     margin-top: var(--space-3);
   }
 }
+
+/*
+ * Wallet addresses, network first.
+ *
+ * The chain leads because it is the part that has to be read: an address in the
+ * wrong network is lost money, and a reader scanning for "which of these is
+ * Solana" should not have to parse a 44-character string to find out. The
+ * addresses wrap rather than ellipsise for the same reason the ids elsewhere do
+ * - a prefix cannot be pasted.
+ */
+.wallets {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  align-items: baseline;
+}
+
+.wallets dt {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.wallets dd {
+  margin: 0;
+  min-width: 0;
+}
+
+@media (max-width: 599px) {
+  .wallets {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+
+  .wallets dt {
+    margin-top: var(--space-3);
+  }
+}

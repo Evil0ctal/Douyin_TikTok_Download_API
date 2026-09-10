@@ -33,6 +33,24 @@ QUERY = (
     "&aweme_id=7300000000000000000&pc_client_type=1&version_code=290100"
 )
 
+#: A pinned clock, for the same reason `test_signing.AB_NOW_MS` is pinned, and
+#: it has to be repeated rather than shared because this file is about the
+#: decoder rather than the signer.
+#:
+#: The SDK's 3->4 expansion has a tail branch that drops a trailing zero byte -
+#: recovered from the bundle, where `b` is a byte array and `if (b[i+1])` is
+#: therefore falsy on zero exactly as in Python. So when the body length leaves
+#: a remainder of two, which is the tail's clock byte printing as two digits,
+#: and the checksum happens to be zero, the checksum cannot be recovered and
+#: `structure_error` correctly reports the declared lengths overrunning the
+#: frame. Measured: 1 in 690.
+#:
+#: That is a property of the format, not a defect, and `ABogusComparator` is
+#: built around it. Left unpinned here it is a test that fails one run in a few
+#: hundred and reads like flake, which is how a real regression would end up
+#: dismissed. This clock's tail is three digits.
+NOW_MS = 1789010742989
+
 FIXTURE = pathlib.Path(__file__).parents[1] / "fixtures" / "signing" / "abogus_browser.json"
 
 
@@ -46,7 +64,7 @@ def _checks(decoded: decoding.Decoded) -> dict[str, str]:
 
 class TestABogus:
     def test_a_signature_decodes_to_the_constants_that_made_it(self) -> None:
-        decoded = decoding.decode_a_bogus(abogus.ABogus(CHROME).get_value(QUERY))
+        decoded = decoding.decode_a_bogus(abogus.ABogus(CHROME).get_value(QUERY, now_ms=NOW_MS))
         fields = _fields(decoded)
         assert decoded.recovered
         assert fields["aid"] == str(abogus.AID)
@@ -55,7 +73,7 @@ class TestABogus:
         assert "checksum_verified" in decoded.notes
 
     def test_the_three_chains_confirm_the_inputs_that_produced_them(self) -> None:
-        value = abogus.ABogus(CHROME).get_value(QUERY)
+        value = abogus.ABogus(CHROME).get_value(QUERY, now_ms=NOW_MS)
         decoded = decoding.decode_a_bogus(value, query=QUERY, body="", user_agent=CHROME)
         assert _checks(decoded) == {
             "query": decoding.CHECK_MATCH,
@@ -65,7 +83,7 @@ class TestABogus:
 
     @pytest.mark.parametrize("changed", ["query", "user_agent"])
     def test_a_different_input_is_reported_as_different(self, changed: str) -> None:
-        value = abogus.ABogus(CHROME).get_value(QUERY)
+        value = abogus.ABogus(CHROME).get_value(QUERY, now_ms=NOW_MS)
         inputs = {"query": QUERY, "user_agent": CHROME}
         inputs[changed] += "x"
         decoded = decoding.decode_a_bogus(value, body="", **inputs)  # type: ignore[arg-type]
@@ -73,7 +91,7 @@ class TestABogus:
 
     def test_an_unsupplied_input_is_not_reported_as_a_mismatch(self) -> None:
         """The distinction the whole panel rests on: unknown is not wrong."""
-        decoded = decoding.decode_a_bogus(abogus.ABogus(CHROME).get_value(QUERY))
+        decoded = decoding.decode_a_bogus(abogus.ABogus(CHROME).get_value(QUERY, now_ms=NOW_MS))
         assert set(_checks(decoded).values()) == {decoding.CHECK_NOT_SUPPLIED}
 
     def test_the_clock_comes_back_as_the_one_that_went_in(self) -> None:
@@ -83,7 +101,7 @@ class TestABogus:
 
     def test_the_screen_a_fingerprint_claims_is_what_comes_back(self) -> None:
         info = "1512|778|1512|860|1512|860|1512|982|MacIntel"
-        value = abogus.ABogus(CHROME, browser_info=info).get_value(QUERY)
+        value = abogus.ABogus(CHROME, browser_info=info).get_value(QUERY, now_ms=NOW_MS)
         assert _fields(decoding.decode_a_bogus(value))["browser_info"] == info
 
     @pytest.mark.parametrize("junk", ["", "hello", "%%%%", "a" * 400, "=" * 8])
@@ -278,14 +296,10 @@ class TestTheOtherParameters:
 class TestIdentify:
     def test_each_parameter_is_recognised_from_its_value_alone(self) -> None:
         _query, params = tiktok_sign.sign([("aid", "1988")], CHROME, ms_token="")
-        assert decoding.identify(abogus.ABogus(CHROME).get_value(QUERY)) == "a_bogus"
+        assert decoding.identify(abogus.ABogus(CHROME).get_value(QUERY, now_ms=NOW_MS)) == "a_bogus"
         assert decoding.identify(xbogus.XBogus(EDGE).sign(QUERY)) == "X-Bogus"
-        assert (
-            decoding.identify(params[tiktok_sign.GNARLY_PARAM]) == tiktok_sign.GNARLY_PARAM
-        )
-        assert (
-            decoding.identify(params[tiktok_sign.DYNOSAUR_PARAM]) == tiktok_sign.DYNOSAUR_PARAM
-        )
+        assert decoding.identify(params[tiktok_sign.GNARLY_PARAM]) == tiktok_sign.GNARLY_PARAM
+        assert decoding.identify(params[tiktok_sign.DYNOSAUR_PARAM]) == tiktok_sign.DYNOSAUR_PARAM
         assert decoding.identify(tokens.gen_verify_fp()) == "verifyFp"
         assert decoding.identify("0" * 32) == websign.SIGNATURE_PARAM
         assert decoding.identify(tokens.gen_false_ms_token()) == tiktok_sign.MS_TOKEN_PARAM
@@ -299,7 +313,10 @@ class TestDecodeUrl:
     def test_a_signed_tiktok_url_yields_every_parameter_confirmed(self) -> None:
         pairs = [("aid", "1988"), ("app_language", "en")]
         query, _ = tiktok_sign.sign(pairs, CHROME, ms_token="")
-        found = {item.parameter: item for item in decoding.decode_url(f"/api/?{query}", user_agent=CHROME)}
+        found = {
+            item.parameter: item
+            for item in decoding.decode_url(f"/api/?{query}", user_agent=CHROME)
+        }
         assert set(found) >= {
             tiktok_sign.DYNOSAUR_PARAM,
             tiktok_sign.GNARLY_PARAM,
@@ -310,21 +327,35 @@ class TestDecodeUrl:
             assert _checks(found[name])["user_agent"] == decoding.CHECK_MATCH
 
     def test_a_signed_douyin_url_yields_a_bogus_and_the_web_signature(self) -> None:
+        """Through the real signer, which reads the clock and cannot be pinned.
+
+        Signed twice when the first lands on the tail case documented on
+        `NOW_MS` - the same thing `SignerRegistry` does before it believes a
+        mismatch, and for the same reason: two independent draws never both fall
+        in it, so a retry tells a one-in-690 format property apart from a
+        regression instead of leaving the test to fail occasionally.
+        """
         base = "https://www.douyin.com/aweme/v1/web/aweme/detail/"
         params = {"device_platform": "webapp", "aid": "6383", "aweme_id": "7300000000000000000"}
         jar = {"UIFID_TEMP": "abc123def456", websign.VERIFY_FP_COOKIE: tokens.gen_verify_fp()}
         signer = native_signers()[Platform.DOUYIN]
-        signed = asyncio.run(
-            signer.sign(
-                RequestSpec(method="GET", url=base, params=params),
-                StaticFingerprint(user_agent=CHROME, browser_platform="Win32"),
-                SigningSession(cookies=jar),
+
+        def sign_once() -> dict[str, decoding.Decoded]:
+            signed = asyncio.run(
+                signer.sign(
+                    RequestSpec(method="GET", url=base, params=params),
+                    StaticFingerprint(user_agent=CHROME, browser_platform="Win32"),
+                    SigningSession(cookies=jar),
+                )
             )
-        )
-        found = {
-            item.parameter: item
-            for item in decoding.decode_url(signed.signed_url(base), user_agent=CHROME)
-        }
+            return {
+                item.parameter: item
+                for item in decoding.decode_url(signed.signed_url(base), user_agent=CHROME)
+            }
+
+        found = sign_once()
+        if not found["a_bogus"].recovered:
+            found = sign_once()
         assert _checks(found["a_bogus"])["query"] == decoding.CHECK_MATCH
         assert _checks(found["a_bogus"])["user_agent"] == decoding.CHECK_MATCH
         assert _checks(found[websign.SIGNATURE_PARAM])["query"] == decoding.CHECK_MATCH
@@ -333,7 +364,7 @@ class TestDecodeUrl:
         """It travels escaped, because its alphabet contains `/` and `-`."""
         from urllib.parse import quote
 
-        value = abogus.ABogus(CHROME).get_value(QUERY)
+        value = abogus.ABogus(CHROME).get_value(QUERY, now_ms=NOW_MS)
         url = f"https://www.douyin.com/x?{QUERY}&a_bogus={quote(value, safe='')}"
         found = decoding.decode_url(url, user_agent=CHROME)
         assert [item.recovered for item in found] == [True]

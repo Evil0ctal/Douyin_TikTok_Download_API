@@ -162,3 +162,59 @@ def test_a_parameter_may_be_worded_per_operation_where_the_name_is_ambiguous(
             if isinstance(parameter, dict) and parameter.get("name") == "identity_id":
                 seen.setdefault("identity_id", set()).add(parameter.get("description", ""))
     assert len(seen.get("identity_id", set())) > 1, "the per-operation override stopped working"
+
+
+class TestTheFrontPage:
+    """The description Swagger renders above everything else.
+
+    It lives in two places by necessity - `_translate` declines on the default
+    language, so `app.DESCRIPTION` is the English document's own text and the
+    catalogue entry is its translation - which makes drift between them the
+    obvious failure. Pinned rather than deduplicated, because collapsing them
+    would mean the English text going through a translation lookup that is
+    documented to decline.
+    """
+
+    def test_the_english_front_page_is_the_catalogue_entry(self) -> None:
+        from dtk.api.app import DESCRIPTION
+        from dtk.i18n import catalog
+
+        assert catalog.t("openapi.description", Language.EN) == DESCRIPTION
+
+    def test_it_says_how_to_make_a_call_synchronous(
+        self, documents: dict[Language, dict[str, Any]]
+    ) -> None:
+        """The gap that prompted this: async-first is the default and nothing
+        told the reader how to opt out of it, or what a 202 after a wait means."""
+        for language in Language:
+            text = documents[language]["info"]["description"]
+            assert "?wait=" in text, language
+            assert "202" in text and "200" in text, language
+            assert "callback_url" in text, language
+
+    def test_the_english_wait_wording_is_the_catalogue_entry(self) -> None:
+        """Same arrangement as the front page, and the same failure mode.
+
+        A parameter's English text comes from the route, not the catalogue, so
+        `?wait=` had a one-line summary in English long after the Chinese
+        explained the whole thing.
+        """
+        from dtk.api.routes.content import WAIT_QUERY
+        from dtk.i18n import catalog
+
+        assert WAIT_QUERY.description == catalog.t("openapi.param.wait", Language.EN)
+
+    def test_the_wait_parameter_carries_this_instances_ceiling(
+        self, documents: dict[Language, dict[str, Any]]
+    ) -> None:
+        """`api.max_wait_seconds` is editable at runtime, and the document
+        describes this instance rather than the defaults it shipped with."""
+        found = [
+            parameter
+            for _, _, operation in _operations(documents[Language.EN])
+            for parameter in operation.get("parameters", []) or []
+            if isinstance(parameter, dict) and parameter.get("name") == "wait"
+        ]
+        assert found, "no endpoint declares ?wait="
+        for parameter in found:
+            assert "maximum" in (parameter.get("schema") or {}), parameter

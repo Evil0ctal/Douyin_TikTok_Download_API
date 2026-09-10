@@ -156,6 +156,30 @@ of only taking.**
 This is a request, not a licence condition - Apache 2.0 permits commercial use,
 and nothing above takes that back.
 
+## Support the author
+
+The sponsors above pay for the **project**. This section is for the **person who
+maintains it**, and is entirely optional.
+
+| Network | Address |
+|---|---|
+| Solana | `HvtkxmDERbNXfCoojpdFAYN5mSWowjpXgedsG9eF7y9z` |
+| Tron (TRC20) | `TQwSM2vjcnrdRU7gY7KNp2tCgMnK33azkT` |
+| Ethereum (ERC20) | `0x2f210FdfD981B59eC130370E5b1Aa8A6a06fb5Ad` |
+| BNB Smart Chain (BEP20) | `0x2f210FdfD981B59eC130370E5b1Aa8A6a06fb5Ad` |
+| Bitcoin | `bc1q785j55cxlnjqe8lkwy8cq57t8t9vn3ak9tlsfy` |
+
+These networks carry the usual major tokens. **USDT on Tron (TRC20) or Solana**
+is the easiest to receive, and the cheapest to send.
+
+> **Send only on the network an address is listed under.** A transfer on the
+> wrong chain cannot be recovered by anybody.
+> Ethereum and BNB Smart Chain share one address on purpose: both are EVM
+> chains, and the same key controls it.
+
+[GitHub Sponsors](https://github.com/sponsors/evil0ctal) and
+[Afdian](https://afdian.net/@evil0ctal) work too.
+
 ### What you are responsible for
 
 This fetches data from platforms that have their own terms, and it runs on your

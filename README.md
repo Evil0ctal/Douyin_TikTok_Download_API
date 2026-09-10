@@ -155,6 +155,25 @@ docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化�
 
 这是一个请求，不是协议条款——Apache 2.0 允许商业用途，上面这段话不会把这项权利收回去。
 
+## 赞赏作者
+
+上面的赞助商付的是**项目**的钱；这一节是给**维护它的人**的，完全自愿。
+
+| 网络 | 地址 |
+|---|---|
+| Solana | `HvtkxmDERbNXfCoojpdFAYN5mSWowjpXgedsG9eF7y9z` |
+| Tron (TRC20) | `TQwSM2vjcnrdRU7gY7KNp2tCgMnK33azkT` |
+| Ethereum (ERC20) | `0x2f210FdfD981B59eC130370E5b1Aa8A6a06fb5Ad` |
+| BNB Smart Chain (BEP20) | `0x2f210FdfD981B59eC130370E5b1Aa8A6a06fb5Ad` |
+| Bitcoin | `bc1q785j55cxlnjqe8lkwy8cq57t8t9vn3ak9tlsfy` |
+
+这些网络都支持常见的主流代币。**TRC20 或 Solana 上的 USDT** 最方便接收，手续费也最低。
+
+> **只能按地址所属的网络转账。** 转错链的资产任何人都无法找回。
+> 以太坊和 BNB Smart Chain 共用同一个地址是正常的：两者都是 EVM 链，由同一把私钥控制。
+
+也可以走 [GitHub Sponsors](https://github.com/sponsors/evil0ctal) 或 [爱发电](https://afdian.net/@evil0ctal)。
+
 ### 你需要自己负责的部分
 
 本项目从有自己服务条款的平台抓取数据，并且运行在你自己控制的机器上。

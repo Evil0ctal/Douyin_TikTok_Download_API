@@ -62,7 +62,12 @@ router = APIRouter(prefix="/api/v1", tags=["content"])
 WAIT_QUERY = Query(
     default=None,
     ge=0,
-    description="Seconds to wait for the result before answering 202 with a task id.",
+    # THE English text: `_translate` declines on the default language, so the
+    # catalogue's `openapi.param.wait` is this sentence's translation and not
+    # its source. `test_openapi_completeness` pins the two together.
+    description=(
+        "Hold the connection until the task finishes, up to this many seconds - this is how to make the call synchronous. Finished in time gives 200 with the result; not finished gives 202 with the task id and `state: running`, which is not an error and loses nothing. Above the instance ceiling shown as `maximum` it is a 400, rejected rather than shortened. Omitted or 0 returns 202 at once. See the description at the top of this document."
+    ),
 )
 COUNT_QUERY = Query(default=None, ge=1, le=MAX_PAGE_SIZE, description="Items per page.")
 CURSOR_QUERY = Query(

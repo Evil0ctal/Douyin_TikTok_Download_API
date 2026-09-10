@@ -2026,6 +2026,13 @@
       "pitch": "Social media data and API marketplace — Douyin, TikTok, Xiaohongshu, Instagram, YouTube and more.",
       "become": "To sponsor this project, see github.com/sponsors/evil0ctal.",
       "label": "Sponsor"
+    },
+    "donate": {
+      "title": "Support the author",
+      "body": "The sponsor above pays for the project. This is for the person who maintains it.",
+      "tokens": "These networks carry the usual major tokens. USDT on Tron (TRC20) or Solana is the easiest to receive, and the cheapest to send.",
+      "network": "Send only on the network an address is listed under. A transfer on the wrong chain cannot be recovered by anybody.",
+      "evm": "Ethereum and BNB Smart Chain share one address on purpose: both are EVM chains, and the same key controls it."
     }
   },
   "mcp": {

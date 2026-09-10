@@ -49,11 +49,48 @@ from dtk.core.redis import close_redis, init_redis
 
 log = get_logger(__name__)
 
-DESCRIPTION = (
-    "Self-hosted Douyin and TikTok data API. Requests are served from a pool of "
-    "rotating identities; responses share one envelope and a stable error-code "
-    "enum. Set `?lang=zh` or send `Accept-Language: zh` for Chinese messages."
-)
+#: The front page of the API document, rendered as Markdown by Swagger.
+#:
+#: The one place a reader learns how a request actually works here, and it has
+#: to be here rather than only in the catalogue: `_translate` declines on the
+#: default language, so this IS the English document's text and
+#: `openapi.description` is its translation.
+#:
+#: It grew because it was missing the thing people hit first. The endpoints are
+#: asynchronous, `?wait=` is how to make one synchronous, and neither fact was
+#: written down anywhere a caller reads - so a 202 after a wait looked like a
+#: failure and the parameter's one-line summary did not say otherwise.
+DESCRIPTION = """Self-hosted data API for Douyin and TikTok. Submit a link, get normalized content back.
+
+Every response has the same envelope, errors included: `success`, `data`, `error`, `meta`. Error codes are stable and never translated; the message beside them is rendered in the language you asked for. Append `?lang=zh` to any endpoint, including this document, for Chinese.
+
+### How a request works
+
+Fetching from a platform costs a real upstream call on a real identity, and it can take seconds. So the data endpoints are **asynchronous by default**: they queue the work and answer `202` immediately with a task id.
+
+```
+POST /api/v1/parse            -> 202 {"task_id": "...", "state": "queued"}
+GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
+```
+
+There are three ways to get the result, and they differ only in who does the waiting.
+
+**Poll the task.** `GET /api/v1/tasks/{task_id}` until `state` is `done` or `failed`. Always works, and is what a client with its own event loop should do.
+
+**Let the server wait — `?wait=`.** Add `?wait=10` and the connection is held until the task settles, up to that many seconds. This is how you make the call synchronous, and it is meant for clients that cannot poll at all: an iOS Shortcut, a shell one-liner, a spreadsheet.
+
+- Finished in time: `200`, with the result in `data` exactly as the task endpoint would have returned it. A task that failed comes back as a normal failure envelope, with its own status code.
+- Not finished in time: `202` with the task id and `state: "running"`. **This is not an error and nothing was lost** - the work is still running, and the same task id fetches it a moment later.
+- Above the instance's ceiling (`api.max_wait_seconds`, shown as `maximum` on the parameter): `400`. Rejected rather than quietly shortened, because a caller that asked to block for five minutes needs to learn it cannot, or it will read the early `202` as a failure.
+- Omitted, `0`, or negative: `0` and negative behave differently - `0` and omitting it both return `202` at once, and a negative value is a `400`.
+
+Nothing changes internally: the work goes through the same queue either way. `?wait=` only decides who holds the connection.
+
+**Get called back — `callback_url`.** Supply one on submit and the finished result is POSTed there, so nothing polls and nothing blocks. The host must be on the operator's `security.url_allowlist`.
+
+### Reading a result twice
+
+A task result is kept for `retention.task_result_hours` and can be fetched as often as you like within it. Two identical requests made close together are joined onto one task rather than run twice; `?refresh=true` opts out of that and of the response cache, and spends an identity to do it."""
 
 
 @contextlib.asynccontextmanager

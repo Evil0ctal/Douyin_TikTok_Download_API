@@ -2026,6 +2026,13 @@
       "pitch": "社交媒体数据与 API 市场——抖音、TikTok、小红书、Instagram、YouTube 等。",
       "become": "想赞助这个项目，请访问 github.com/sponsors/evil0ctal。",
       "label": "赞助商"
+    },
+    "donate": {
+      "title": "赞赏作者",
+      "body": "上面的赞助商付的是项目的钱，这里是给维护它的人的。",
+      "tokens": "这些网络都支持常见的主流代币。TRC20 或 Solana 上的 USDT 最方便接收，手续费也最低。",
+      "network": "只能按地址所属的网络转账。转错链的资产任何人都无法找回。",
+      "evm": "以太坊和 BNB Smart Chain 共用同一个地址，这是正常的：两者都是 EVM 链，由同一把私钥控制。"
     }
   },
   "mcp": {

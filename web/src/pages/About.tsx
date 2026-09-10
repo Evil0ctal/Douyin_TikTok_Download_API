@@ -1,6 +1,17 @@
+import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Banner, Card, ExternalIcon, InfoIcon, Logo, PageHeader, Sponsor } from '@/components'
+import {
+  AlertIcon,
+  Banner,
+  Card,
+  CopyableId,
+  ExternalIcon,
+  InfoIcon,
+  Logo,
+  PageHeader,
+  Sponsor,
+} from '@/components'
 import { useApiQuery } from '@/hooks'
 import { paths } from '@/lib/endpoints'
 
@@ -45,6 +56,32 @@ const LINKS = [
  */
 /** A username and an address. Identifiers, so neither is translated. */
 const AUTHOR_NAME = 'Evil0ctal'
+
+/**
+ * Where a donation can be sent, by network.
+ *
+ * The network is not decoration: these are different chains, and an address
+ * pasted into the wrong one loses the money with nobody able to return it. So
+ * each row leads with the chain rather than with the address, and the note
+ * under the list says it plainly.
+ *
+ * Ethereum and BNB Smart Chain share one address because both are EVM chains
+ * and the same key controls it. That looks like a mistake unless it is said, so
+ * it is said.
+ */
+interface Wallet {
+  /** Chain name as a wallet's own network picker spells it. */
+  network: string
+  address: string
+}
+
+const WALLETS: readonly Wallet[] = [
+  { network: 'Solana', address: 'HvtkxmDERbNXfCoojpdFAYN5mSWowjpXgedsG9eF7y9z' },
+  { network: 'Tron (TRC20)', address: 'TQwSM2vjcnrdRU7gY7KNp2tCgMnK33azkT' },
+  { network: 'Ethereum (ERC20)', address: '0x2f210FdfD981B59eC130370E5b1Aa8A6a06fb5Ad' },
+  { network: 'BNB Smart Chain (BEP20)', address: '0x2f210FdfD981B59eC130370E5b1Aa8A6a06fb5Ad' },
+  { network: 'Bitcoin', address: 'bc1q785j55cxlnjqe8lkwy8cq57t8t9vn3ak9tlsfy' },
+]
 const AUTHOR_EMAIL = 'Evil0ctal1985@gmail.com'
 const AUTHOR_GITHUB = 'https://github.com/Evil0ctal'
 
@@ -165,6 +202,37 @@ export default function About() {
         <p className="u-xs u-muted" style={{ margin: 'var(--space-3) 0 0' }}>
           {t('console:about.sponsor.become')}
         </p>
+      </Card>
+
+      <Card title={t('console:about.donate.title')} description={t('console:about.donate.body')}>
+        <div className="u-stack">
+          <p className="u-secondary" style={{ margin: 0 }}>
+            {t('console:about.donate.tokens')}
+          </p>
+
+          <dl className={styles.wallets}>
+            {WALLETS.map((wallet) => (
+              <Fragment key={wallet.network}>
+                <dt>{wallet.network}</dt>
+                <dd>
+                  {/* Whole and copyable. A truncated wallet address is worse
+                      than none: the only thing anybody does with one is paste
+                      it, and a prefix cannot be pasted. */}
+                  <CopyableId value={wallet.address} label={wallet.network} wrap />
+                </dd>
+              </Fragment>
+            ))}
+          </dl>
+
+          {/* Last, and as a warning rather than a footnote: sending on the
+              wrong chain is the one mistake here that cannot be undone. */}
+          <Banner tone="caution" icon={<AlertIcon size={14} />}>
+            <div className="u-stack-sm">
+              <span>{t('console:about.donate.network')}</span>
+              <span className="u-xs u-muted">{t('console:about.donate.evm')}</span>
+            </div>
+          </Banner>
+        </div>
       </Card>
     </div>
   )
