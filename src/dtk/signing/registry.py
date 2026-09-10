@@ -28,14 +28,18 @@ produce a permanent switch on the first sample:
   either side and accepts a match against either. The remote clock necessarily
   falls inside that bracket, which is what makes a second boundary harmless. A
   plain retry would not be: a retry is an independent draw, not a bracket.
-* **A-Bogus** embeds millisecond timings and three random words, so it can never
-  match byte for byte. Compared structurally, by
-  :func:`dtk.signing.native.abogus.structure_error`, against invariants the
-  algorithm fixes: alphabet, the noise-prefix bit patterns, the frame constants,
-  and two internally redundant fields (the repeated ``len(browser_info)`` and the
-  frame checksum). Deliberately **not** the length: A-Bogus length follows the
-  window geometry, and the browser behind browser-rpc has its own, so comparing
-  lengths would fail on every correct sample.
+* **A-Bogus** embeds two millisecond clocks and some thirty-eight noise draws, so
+  it can never match byte for byte. Compared structurally, by
+  :func:`dtk.signing.native.abogus.structure_error`, against the part of the
+  format noise cannot reach: the ``s4`` alphabet, the masked header magic, the
+  SDK version block, the two declared lengths that bound the frame, and the XOR
+  checksum the body carries over its own version block and fifty scalars. Those
+  rules come from the same reversing of ``bdms.js`` v1.0.1.19-fix.01 that the
+  native signer is built on, so a browser value that decodes and then breaks one
+  is drift and counts as a mismatch. A value that does not decode at all is
+  browser-rpc failing rather than Douyin moving, and is skipped. Deliberately
+  **not** compared: the length, which follows the window geometry, and the
+  browser behind browser-rpc has its own.
 * **msToken** is per-identity. Not compared - and pinned before sampling, see
   :data:`SHADOW_MS_TOKEN`, so both signers sign the same bytes.
 
@@ -178,61 +182,128 @@ class SkipComparator:
 class ABogusComparator:
     """Structural comparison for A-Bogus.
 
-    Byte equality is impossible - millisecond timings and three random words go
-    into every value - so both signatures are checked against the invariants the
-    algorithm itself fixes (see
-    :func:`dtk.signing.native.abogus.structure_error`). A changed algorithm
-    breaks at least one of them; two correct implementations break none, whatever
-    browser produced them.
+    Byte equality is impossible - two signatures of one query differ in two
+    millisecond clocks and in the thirty-odd ``Math.random`` draws the format is
+    built to discard - so both values go through
+    :func:`dtk.signing.native.abogus.structure_error`, which checks only what
+    noise cannot reach: the ``s4`` alphabet, the header magic under its mask, the
+    SDK version block, the two declared lengths bounding the frame, and the XOR
+    checksum the body carries over its own version block and fifty scalars.
+
+    The checksum is what makes a verdict possible rather than merely plausible.
+    It is computed over fields that are themselves inside the payload, so
+    anything that passes it agreed with us about the version block, the
+    fifty-slot permutation, the 3->4 noise expansion and the modified RC4 - all
+    four at once, since getting any one of them wrong scrambles the bytes the
+    others are read from. Nothing short of the real algorithm passes by accident.
+
+    There is exactly one way a *correct* value fails, and it is worth knowing
+    before trusting a verdict. The SDK's 3->4 expansion has a tail branch that
+    drops a trailing zero byte, so when the body length leaves a remainder of two
+    - the clock byte in the tail string printing as two digits, 90 of 256 values
+    - and the checksum happens to be zero, the checksum is not recoverable and
+    ``structure_error`` reports ``declared lengths overrun the frame``. Measured
+    over 60,000 signatures: 1 in 690, against 90/65536 = 1 in 728 predicted. Two
+    independent draws never both fell in it. That is what the bracketing pair and
+    ``shadow_retries`` are for here as much as for X-Bogus's second boundary:
+    both sides of a sample are re-taken before a mismatch is believed, which puts
+    a spurious disable at roughly one in a million samples - one per endpoint per
+    some thousands of years at the default ten-minute interval.
 
     Notably absent: a length comparison. A-Bogus length follows
     ``len(browser_info)``, and the browser behind browser-rpc reports its own
     window geometry rather than the identity's, so requiring equal lengths would
     mismatch on every correct sample and disable the native path permanently.
-
-    The remote value is checked FIRST, and its failure is inconclusive rather
-    than a mismatch. Measured 2026-09-08: the live browser's own a_bogus fails
-    `structure_error` at noise byte 2, and nine of the twelve prefix bytes carry
-    values our masks forbid - while Douyin answers our native signature with a
-    full payload on all four endpoints. So the invariant is wrong, not the
-    signer, and reporting MISMATCH there told an operator "the native algorithm
-    has drifted" when the evidence said the opposite. A rule the reference
-    implementation itself breaks cannot judge agreement with the reference; it
-    can only report that it is not fit to judge.
     """
 
     def __init__(self, alphabet: str = "s4") -> None:
         self.alphabet = alphabet
 
     def compare(self, native: str, remote: str) -> Comparison:
-        remote_problem = structure_error(remote, alphabet=self.alphabet)
-        if is_decode_problem(remote_problem):
-            # Not an a_bogus at all - truncated, wrong alphabet, wrong length.
-            # That is browser-rpc handing back something broken, which is worth
-            # failing on however stale our derived rules may be.
-            logger.info("signing.shadow.a_bogus_structure", side="remote", problem=remote_problem)
+        native_problem = structure_error(native, alphabet=self.alphabet)
+        if native_problem is not None:
+            # Checked first, which reverses the old order: back when a remote
+            # failure was the excuse to skip, it had to be looked at before
+            # anything else or the skip never happened. Now the native side is
+            # the finding that needs no second opinion. The generator and the
+            # checker are both ours and share their constants, so a value of
+            # ours that our own checker rejects is a fault in this process - a
+            # geometry string longer than its declared length, an aid that does
+            # not fit four bytes - and says nothing about Douyin. Disabling the
+            # native signer is the right response to a signer that cannot pass
+            # its own structural check.
+            logger.error(
+                "signing.shadow.a_bogus_native_malformed",
+                problem=native_problem,
+                detail="the native signer produced a value its own structural check rejects",
+            )
             return Comparison.MISMATCH
-        if remote_problem is not None:
-            # Decodable, but breaks a rule we derived. Loud, because a stale
-            # invariant should be fixed rather than lived with - and not a
-            # verdict on the native signer.
+
+        remote_problem = structure_error(remote, alphabet=self.alphabet)
+        if remote_problem is None:
+            return Comparison.MATCH
+
+        if is_decode_problem(remote_problem):
+            # Not an a_bogus of any version: a foreign alphabet, a length no
+            # base64 emits, too few bytes to hold a header. A Douyin bundle that
+            # moved on would still hand back a signature; a browser-rpc that
+            # returned an empty string, an error token or a truncated read hands
+            # back this. So the reference is broken, not the signer - and a
+            # mismatch here would move every request on the platform onto the
+            # component that has just demonstrated it cannot produce a
+            # signature, which is the one response that makes things worse.
             logger.warning(
-                "signing.shadow.a_bogus_invariant_stale",
+                "signing.shadow.a_bogus_remote_unusable",
                 problem=remote_problem,
-                detail=(
-                    "the reference implements a different version of a_bogus; "
-                    "re-derive the invariants from the current bundle"
-                ),
+                detail="browser-rpc returned a value that is not an a_bogus; check the browser",
             )
             return Comparison.SKIPPED
-        problem = structure_error(native, alphabet=self.alphabet)
-        if problem is not None:
-            logger.info("signing.shadow.a_bogus_structure", side="native", problem=problem)
-            return Comparison.MISMATCH
-        return Comparison.MATCH
+
+        # Decodes as an a_bogus and then breaks a rule - the finding this
+        # comparator exists for, and a mismatch now where it used to be a skip.
+        #
+        # The skip was right while the rules were V4's: they were written apart
+        # from the generator and against an older bundle, and on 2026-09-08 the
+        # live browser's own value broke them at noise byte 2 while Douyin
+        # answered our native signature with full payloads on all four
+        # endpoints. A rule the reference itself breaks can only report that it
+        # is unfit to judge. These rules are not those: they were derived on
+        # 2026-09-09 from the bundle this browser runs, three of its own
+        # captures pass every check, and they are the same constants the
+        # generator signs with. So a decodable value that fails one means the
+        # bundle moved past the checker and the signer together, which is
+        # exactly the drift the shadow comparison is here to catch and exactly
+        # what SKIPPED would hide.
+        #
+        # The cost is affordable in the case that actually fires. A mismatch
+        # disables the native signer for the platform and routes it to
+        # browser-rpc - that is, to the browser running the bundle we have just
+        # been told we no longer match, which is where the traffic belongs until
+        # somebody re-derives. And `shadow_retries` re-signs and re-fetches
+        # before the disable lands, so the one-in-690 tail case in the class
+        # docstring does not cost a platform its native signer, while a real
+        # drift, being a pure function of the format, reproduces every time.
+        logger.error(
+            "signing.shadow.a_bogus_drift",
+            problem=remote_problem,
+            detail=(
+                "the browser's own a_bogus breaks a rule derived from bdms.js "
+                "v1.0.1.19-fix.01; the bundle has changed, re-derive it"
+            ),
+        )
+        return Comparison.MISMATCH
 
 
 #: Comparator per query parameter. Keys are the parameter names as sent.
+#:
+#: The two skips stay skips, and for a reason that did not change when A-Bogus
+#: got a real verdict. ``_signature`` is webmssdk's seal over the identity's own
+#: ``msToken`` and URL, and ``msToken`` is a session token minted per identity;
+#: neither carries any information about an *algorithm*. Pinning ``msToken``
+#: before a sample (:data:`SHADOW_MS_TOKEN`) makes the two signers hash the same
+#: bytes, but that only means an exact comparison of the token would pass
+#: tautologically - it would report agreement without ever having looked at
+#: anything either signer computes.
 DEFAULT_COMPARATORS: Mapping[str, SignatureComparator] = {
     SignatureAlgorithm.A_BOGUS.value: ABogusComparator(),
     SignatureAlgorithm.X_BOGUS.value: ExactComparator(),
@@ -623,15 +694,21 @@ class SignerRegistry:
         """Why nothing could be compared, in the words of the thing that skipped.
 
         The comparators return a verdict and not a reason, which is right for
-        them - they answer one question about two strings. The reason for the
-        one skip that actually happens in the field is recoverable here, from
-        the remote signature this call already holds: A-Bogus is skipped when
-        the *reference* breaks an invariant we derived, which says our rule is
-        out of date and says nothing about the native signer.
+        them - they answer one question about two strings. The one A-Bogus skip
+        that survives is recoverable here from the remote signature this call
+        already holds: it happens when the browser's value is not an a_bogus at
+        all, which points at browser-rpc rather than at the native signer. Saying
+        which is the difference between an operator restarting a browser and an
+        operator re-reversing a bundle that never moved.
         """
         names = ", ".join(sorted(verdicts))
         value = remote.params.get(SignatureAlgorithm.A_BOGUS.value)
-        if isinstance(value, str):
+        # Only when A-Bogus is what skipped. Everything else in `verdicts` skips
+        # by design (per-identity values), and blaming the browser for those
+        # would send an operator after a fault that is not there.
+        if verdicts.get(SignatureAlgorithm.A_BOGUS.value) is Comparison.SKIPPED and isinstance(
+            value, str
+        ):
             # The same alphabet the comparator judged with, so the reason
             # reported here is the reason it actually skipped for.
             comparator = self._comparators.get(SignatureAlgorithm.A_BOGUS.value)
@@ -639,9 +716,9 @@ class SignerRegistry:
             problem = structure_error(value, alphabet=alphabet)
             if problem is not None:
                 return (
-                    f"nothing comparable ({names}): the browser's own a_bogus breaks "
-                    f"our derived invariant at {problem}, so the rule is stale and "
-                    "cannot judge agreement - re-derive it from the current bundle"
+                    f"nothing comparable ({names}): browser-rpc returned a value that is "
+                    f"not an a_bogus ({problem}), so the sample had no reference to compare "
+                    "against - check the browser, not the native signer"
                 )
         return f"nothing comparable ({names})"
 

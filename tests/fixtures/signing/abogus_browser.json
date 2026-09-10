@@ -1,0 +1,35 @@
+{
+  "captured_at": "2026-09-09",
+  "source": "dtk-browser-rpc-1, cloakbrowser 0.5.10 / chromium 146, cookies={}",
+  "what": "Real a_bogus values produced by Douyin's own bdms.js, with every input that feeds them. These are the oracle: a_bogus embeds no session value, so nothing here is a credential.",
+  "how_to_refresh": "docs/design/tools/douyin/verify_abogus.py",
+  "samples": [
+    {
+      "a_bogus": "QyUVhFWEmq5nFd/tmcJuHtnlDFgMNTSySTi2WjKPyOu8LheY58Pe/PGbaxLLshEybbBzho372xMAYEdcpUUhp9HpLmkkuBGSCGVc960Lhqw4G0kQLHb0euvzowMxUcGqaAV4ilU6gUrogfxAkHdm/dl9yKoK5bWBPZOWk/ucE9sg1MyAgpnePpbdOhPxUJOf",
+      "query": "device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id=7372484719365098803&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1920&screen_height=1080&browser_language=zh-CN&browser_platform=Win32&browser_name=Chrome&browser_version=130.0.0.0&browser_online=true&engine_name=Blink&engine_version=130.0.0.0&os_name=Windows&os_version=10&cpu_core_num=8&device_memory=8&platform=PC",
+      "body": "",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "browser_info": "1920|947|1920|1032|1920|1032|1920|1080|Win32",
+      "sibling_timestamp": 1789010742,
+      "bdms_version": "1.0.1.19-fix.01"
+    },
+    {
+      "a_bogus": "d6UnDHtLd2AbCdFSYcJmHtrlhF9lNP8ySTidWGOPtOK0yqFYCWPr/OGbnxLwsZjybbpzhFV70xM/YddcpsXkpCHkFmkfuQsjctV59X8LMqq4TFiQEqbkewvzuw0nU5sqlQ5GiAWI2Uro6fnAkqdE/BAyeKoeQc8BFZxSkMYbO9BhZFyAgZc1PQtdxXTYUCcj",
+      "query": "device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id=7372484719365098803&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1920&screen_height=1080&browser_language=zh-CN&browser_platform=Win32&browser_name=Chrome&browser_version=130.0.0.0&browser_online=true&engine_name=Blink&engine_version=130.0.0.0&os_name=Windows&os_version=10&cpu_core_num=8&device_memory=8&platform=PC",
+      "body": "",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "browser_info": "1920|947|1920|1032|1920|1032|1920|1080|Win32",
+      "sibling_timestamp": 1789010742,
+      "bdms_version": "1.0.1.19-fix.01"
+    },
+    {
+      "a_bogus": "Ey05hH7wQNR5cVKGYCJDHSrlhFL/NsuybGTQWbPT9OK0LwlYc8P-/Otcbxo74hEybbpThqVHhxMlbdncq0UwpH9kwmkfuQ4yctV596moMqqRT0kQgNjzewvzuwMn0bTql/5Ui1WI/UJogjnAirdE/p5yyKLeQcuBFZObkMzbP9BXZFgADZnlPQbDTXTz06dy",
+      "query": "device_platform=webapp&aid=6383&channel=channel_pc_web&aweme_id=7372484719365098803&pc_client_type=1&version_code=190500&version_name=19.5.0&cookie_enabled=true&screen_width=1920&screen_height=1080&browser_language=zh-CN&browser_platform=Win32&browser_name=Chrome&browser_version=130.0.0.0&browser_online=true&engine_name=Blink&engine_version=130.0.0.0&os_name=Windows&os_version=10&cpu_core_num=8&device_memory=8&platform=PC",
+      "body": "",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "browser_info": "1920|947|1920|1032|1920|1032|1920|1080|Win32",
+      "sibling_timestamp": 1789010742,
+      "bdms_version": "1.0.1.19-fix.01"
+    }
+  ]
+}

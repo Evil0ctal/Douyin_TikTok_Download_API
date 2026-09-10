@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from dtk.signing.native.abogus import structure_error
+
 REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "src" / "dtk"
 TESTS = REPO / "tests"
@@ -120,9 +122,27 @@ class TestFixtureSafety:
         offenders = []
         for path in self._fixture_files():
             text = path.read_text(encoding="utf-8")
+            # Every string in the file that is provably an a_bogus signature.
+            # Collected whole, because the pattern above breaks on the '/' and
+            # '=' an a_bogus contains and would otherwise only ever see a
+            # fragment of one.
+            signatures = [
+                token
+                for token in re.findall(r'"([A-Za-z0-9_/+=-]{150,})"', text)
+                if structure_error(token) is None
+            ]
             for match in suspicious.findall(text):
                 # sec_user_id values are legitimately long and are public ids.
                 if match.startswith("MS4wLjAB"):
+                    continue
+                # An a_bogus signature is 192 opaque characters and carries no
+                # session value - it is a function of the query, the clock and
+                # the window geometry, and nothing else. Allowed on proof
+                # rather than on filename: `structure_error` returns None only
+                # for something that decodes under the real format, verifies
+                # its own internal checksum, and therefore cannot be a cookie
+                # that happened to land in a signing fixture.
+                if any(match in signature for signature in signatures):
                     continue
                 offenders.append(f"{path.relative_to(REPO)}: {match[:40]}...")
         assert not offenders, "long opaque strings in fixtures:\n" + "\n".join(offenders[:10])

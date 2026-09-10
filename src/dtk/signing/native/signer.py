@@ -62,7 +62,7 @@ from dtk.signing.native import tiktok_sign, websign
 from dtk.signing.native.abogus import (
     DEFAULT_BROWSER_INFO,
     ABogus,
-    build_browser_info,
+    browser_info_from_screen,
 )
 from dtk.signing.native.tokens import (
     DOUYIN_MS_TOKEN_LENGTH,
@@ -91,24 +91,24 @@ BROWSER_CHROME_PX = 122
 
 
 def browser_info_for(fingerprint: SigningFingerprint) -> str:
-    """Build the ``navigator`` geometry string A-Bogus hashes.
+    """Build the ``navigator``/``screen`` geometry string A-Bogus carries.
 
-    Falls back to V4's constant when the fingerprint does not carry a screen
-    size: a plausible default beats a randomised one, because a value that
-    changes per request is itself a signal.
+    Nine fields, and they are not independent of one another: the viewport sits
+    inside the window, the window inside the work area, the work area inside the
+    screen. :func:`browser_info_from_screen` derives all of them from the one
+    number a fingerprint actually holds, so the set stays self-consistent.
+
+    Falls back to a constant when the fingerprint carries no screen size. A
+    plausible default beats a randomised one - a geometry that changes per
+    request is itself a signal, and this string travels verbatim inside every
+    signature.
     """
     width = fingerprint.screen_width
     height = fingerprint.screen_height
     platform = fingerprint.browser_platform
     if width is None or height is None or not platform:
         return DEFAULT_BROWSER_INFO
-    return build_browser_info(
-        inner_width=width,
-        inner_height=max(height - BROWSER_CHROME_PX, 1),
-        outer_width=width,
-        outer_height=height,
-        platform=platform,
-    )
+    return browser_info_from_screen(width, height, platform)
 
 
 class NativeSigner:
@@ -309,14 +309,21 @@ class NativeSigner:
         params: Mapping[str, str],
         fingerprint: SigningFingerprint,
     ) -> tuple[str, str]:
-        # The value itself has to be percent-encoded on the way back in: it can
-        # contain + and /.
+        # The value has to be percent-encoded on the way back in: the s4
+        # alphabet contains '/' and '-', and the padding is a literal '='.
         query = encode_query(params, SignatureAlgorithm.A_BOGUS)
+        # No method: this revision of A-Bogus hashes the query and the body and
+        # not the verb. `spec` still carries it because every other signer here
+        # needs it.
         bogus = ABogus(
             fingerprint.user_agent,
             browser_info=browser_info_for(fingerprint),
             rng=self._rng,
-        ).get_value(query, method=spec.method)
+        ).get_value(
+            query,
+            body=(spec.body or b"").decode("utf-8", "replace"),
+            content_type=(spec.headers or {}).get("Content-Type", ""),
+        )
         return f"{query}&{SignatureAlgorithm.A_BOGUS.value}={quote(bogus, safe='')}", bogus
 
     def _sign_x_bogus(
