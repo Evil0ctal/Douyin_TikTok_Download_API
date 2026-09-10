@@ -44,9 +44,17 @@ from dtk.core.types import IdentitySource, IdentityState, Language, Platform
 from dtk.db.models import Identity, Proxy
 from dtk.i18n.catalog import t
 from dtk.identity import mint_log, pool
-from dtk.identity.importing import ImportReport, build_report
+from dtk.identity.importing import (
+    REQUIRED,
+    SESSION_MARKERS,
+    USEFUL,
+    ImportReport,
+    build_report,
+    mask_value,
+)
 from dtk.identity.pool import IdentityPool
 from dtk.scheduler.health import score
+from dtk.signing.native.websign import UIFID_COOKIE_NAMES, VERIFY_FP_COOKIE
 
 log = get_logger(__name__)
 
@@ -105,6 +113,32 @@ def _session_health(platform: str, cookies: Mapping[str, str]) -> dict[str, Any]
     else:
         verdict = "ok"
     return {"cookie": name, "verdict": verdict, "held": bool(value)}
+
+
+#: Cookies the signer reads even though the importer does not judge a paste on
+#: them. `UIFID_TEMP` is what a Douyin mint yields and what the web signature
+#: SDK signs with; without these here it came back as "other", and the console
+#: rendered "not something this build reads" over a cookie this build cannot
+#: sign without.
+_SIGNING_COOKIES: Final[frozenset[str]] = frozenset({*UIFID_COOKIE_NAMES, VERIFY_FP_COOKIE})
+
+
+def _cookie_role(name: str) -> str:
+    """Why this cookie matters, using the sets the rest of the build judges by.
+
+    Four buckets rather than a description per cookie: the platforms add and
+    retire cookies constantly, and a server-side glossary would be a list to
+    keep current in a file nobody opens. What the server knows for certain is
+    which names this build treats as load bearing; the console renders the
+    prose, and an unknown name still gets an honest "other".
+    """
+    if name in SESSION_MARKERS:
+        return "session"
+    if any(name in required for required in REQUIRED.values()):
+        return "required"
+    if name in USEFUL or name in _SIGNING_COOKIES:
+        return "useful"
+    return "other"
 
 
 async def _proxy_labels(
@@ -455,6 +489,90 @@ async def import_identity(
         request,
         {"stored": True, "identity_id": str(identity_id), "report": summary},
         status_code=201,
+    )
+
+
+@router.get(
+    "/{identity_id}/cookies",
+    summary="What one identity's jar holds",
+    openapi_extra={I18N_KEY: "identities_cookies"},
+)
+async def identity_cookies(
+    request: Request,
+    identity_id: uuid.UUID = Path(description="The identity to inspect."),
+    principal: Principal = Depends(read_admin),
+) -> Any:
+    """The names, roles and masked values of the cookies this identity holds.
+
+    An identity was a row of verdicts. When one stopped working the console
+    could say *that* the session was spent and never *what the jar contained*,
+    so the next step was always the same: open a shell, decrypt the column by
+    hand, and read it there. This is that step, done in the place the question
+    was asked.
+
+    **The values stay masked, and that is not an oversight.** A cookie jar is
+    the credential - a logged-in one is somebody's account - and this module's
+    rule is that no response carries one. What comes back instead is everything
+    that makes the jar diagnosable: which cookies are present, which of them
+    this build considers required, session-bearing or merely useful, how long
+    each value is, and its first and last four characters, which is enough to
+    tell two jars apart and useless to anyone who steals the response.
+
+    `length` is here where ``GET /identities`` deliberately withholds it. On
+    that endpoint it would be a number per row on a listing polled every five
+    seconds; here it is the answer to "is this token truncated", which is a
+    real failure and one that looks exactly like a wrong token from outside.
+
+    **Returns**
+
+    The identity's platform and source, whether its jar carries a logged-in
+    session, and one entry per cookie: `name`, `role`, `masked`, `length`.
+    """
+    # `read_admin` already demands admin or identity:manage, which is the same
+    # gate the listing sits behind - a read key cannot reach either.
+    identity = await request.state.db.get(Identity, identity_id)
+    if identity is None:
+        raise NotFound("no such identity", details={"identity_id": str(identity_id)})
+
+    cookies: dict[str, str] = {}
+    readable = True
+    if identity.cookies_encrypted:
+        try:
+            cookies = _parse_cookies(
+                request.app.state.cipher.decrypt(identity.cookies_encrypted, aad=str(identity.id))
+            )
+        except Exception:
+            # A jar this instance can no longer decrypt is a real state - the
+            # secret key was rotated without re-encrypting - and it is worth
+            # saying so rather than rendering an identity that appears to hold
+            # nothing.
+            readable = False
+
+    return ok(
+        request,
+        {
+            "identity_id": str(identity.id),
+            "platform": identity.platform,
+            "source": identity.source,
+            "authenticated": identity.authenticated,
+            "readable": readable,
+            "retired": identity.retired_at is not None,
+            "session": _session_health(identity.platform, cookies),
+            "missing_required": [
+                name
+                for name in REQUIRED.get(Platform(identity.platform), ())
+                if not cookies.get(name)
+            ],
+            "cookies": [
+                {
+                    "name": name,
+                    "role": _cookie_role(name),
+                    "masked": mask_value(value),
+                    "length": len(value),
+                }
+                for name, value in sorted(cookies.items())
+            ],
+        },
     )
 
 

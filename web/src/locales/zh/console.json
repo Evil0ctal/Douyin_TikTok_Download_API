@@ -400,7 +400,72 @@
       "oneRefusedHint": "其他接口仍然正常响应它，说明会话还活着。只有单个接口拒绝，通常是本程序在那条路径上的签名有问题，或者那是个需要 visitor id 的签名保护接口——不是 Cookie 废了。",
       "everythingRefused": "这个身份碰过的每个接口都拒绝了它。",
       "everythingRefusedHint": "问题在身份本身而不在某条路径：会话已经用尽，或者被平台标记了。通常的做法是退休它，让身份池锻造一个新的。"
-    }
+    },
+    "contents": {
+      "title": "这个身份由什么组成",
+      "hint": "该身份签名和发请求时携带的 Cookie，在不泄露内容的前提下尽可能展示。",
+      "browser": "浏览器",
+      "timezone": "时区",
+      "chars": "{count} 字符",
+      "unavailable": "读取不到这个身份的 Cookie。上面的信息仍然有效。",
+      "unreadable": "这份 Cookie 用的密钥本实例已经没有了——密钥轮换时没有重新加密。这个身份同样无法再签名，退休它并铸造一个新的。",
+      "empty": "这个身份一条 Cookie 都没有，发出去只会被拒。",
+      "wiped": "已退休的身份会清空 Cookie，所以这里没有内容可看。",
+      "missing": "缺少本程序视为必需的 Cookie：{names}。不管其余部分如何，用这个身份的请求都会被拒。",
+      "maskNote": "只显示每个值的首尾各四位。完整值从不会发到这个页面——Cookie 本身就是凭证，带登录态的那份等于别人的账号。"
+    },
+    "cookieRole": {
+      "required": "必需",
+      "session": "登录态",
+      "useful": "有用",
+      "other": "其他"
+    },
+    "cookieRoleAbout": {
+      "required": "本程序拒绝使用缺少它的身份。",
+      "session": "带有登录态。比访客 Cookie 值钱得多，泄露的代价也大得多。",
+      "useful": "不是必需的，但带上它的身份被拒的次数会少一些。",
+      "other": "平台下发的，原样保留。本程序不读它。"
+    },
+    "cookieAbout": {
+      "__ac_nonce": "反爬层下发的一次性质询，与 __ac_signature 配对使用。",
+      "__ac_signature": "对 __ac_nonce 质询的应答，由页面内计算得出。",
+      "ak_bmsc": "Akamai Bot Manager 的会话 Cookie，由 CDN 下发而非 TikTok 本身。",
+      "architecture": "页面记录下来的运行环境硬件信息。本程序发的是自己那套指纹值，不会读回这些。",
+      "bd_ticket_guard_client_data": "字节 ticket guard 的客户端证明数据。",
+      "biz_trace_id": "Web 端给自己的调用附带的链路 id。",
+      "bm_sv": "Akamai Bot Manager 的短期校验 Cookie。",
+      "csrf_session_id": "把 CSRF 令牌绑定到某一个会话。",
+      "delay_guest_mode_vid": "Web 端访客模式的记账信息。",
+      "device_web_cpu_core": "页面看到的 CPU 核心数。属于指纹信息，本程序不读回。",
+      "device_web_memory_size": "页面看到的内存大小。属于指纹信息，本程序不读回。",
+      "g_state": "Google 登录组件的状态，和平台接口无关。",
+      "IsDouyinActive": "页面判断标签页是否处于前台。",
+      "msToken": "页面自己的 JS 定期刷新的短期令牌，参与请求签名。本程序的 TikTok 签名需要它，一旦过期接口就开始返回空数据。",
+      "odin_tt": "长期设备标识。风控用它把不同的请求归到同一台设备。",
+      "passport_csrf_token": "账号服务的 CSRF 令牌，写操作时带回；对读接口无影响。",
+      "s_v_web_id": "抖音的访客校验 id。本程序把它原样作为 `verifyFp` 和 `fp` 发出去。",
+      "sessionid": "登录态。拿到它的人就是以那个账号的身份登录。",
+      "sessionid_ss": "登录态的 secure-only 那一半。",
+      "sid_guard": "带签发时间和有效期的会话 id，本程序从中读取过期时间。",
+      "sid_tt": "登录态会话 id 的另一种形式。",
+      "sid_ucp_v1": "较新的登录态封装形式。",
+      "store-country-code": "TikTok 判定这个客户端所在的区域。",
+      "store-idc": "这个账号的数据落在哪个机房。改错了请求就会被发到错误的区域。",
+      "tiktok_webapp_theme": "站点的明暗主题偏好，和请求无关。",
+      "tiktok_webapp_theme_source": "该主题是手动选的还是跟随系统。",
+      "tt-target-idc": "Web 端希望由哪个机房来服务。",
+      "tt_chain_token": "让请求继续走上一次的同一条边缘链路。",
+      "tt_csrf_token": "Web 端自己调用时带回的 CSRF 令牌。",
+      "ttwid": "字节跳动的设备级访客标识，由 CDN 边缘节点下发。没有它，请求看起来就是平台从没见过的客户端。",
+      "uid_tt": "账号的用户 id，随登录态一起下发。",
+      "UIFID": "设备与用户的融合标识。TikTok 签名会和 msToken 一起带上它。",
+      "uifid": "设备与用户的融合标识。TikTok 签名会和 msToken 一起带上它。",
+      "UIFID_TEMP": "抖音铸造出来的访客 id，也是网页签名 SDK 用来签名的那个值。本程序会按六种拼写去找它，找不到任何一种就无法给抖音请求签名。",
+      "uifid_temp": "抖音铸造出来的访客 id，网页签名 SDK 用它签名。",
+      "UIFIDTEMP": "抖音铸造出来的访客 id，SDK 接受的另一种拼写。",
+      "uifidtemp": "抖音铸造出来的访客 id，SDK 接受的另一种拼写。"
+    },
+    "drawerTitle": "身份详情"
   },
   "proxy": {
     "column": {

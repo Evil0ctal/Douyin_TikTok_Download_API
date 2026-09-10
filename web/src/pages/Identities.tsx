@@ -28,6 +28,7 @@ import {
   type Column,
 } from '@/components'
 import { apiDelete, apiPost, apiPut, waitForTask, type ApiError } from '@/lib/api'
+import { cn } from '@/lib/cn'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
 import { POLL } from '@/lib/query'
@@ -82,6 +83,36 @@ interface ProbeState {
   running: boolean
   result?: IdentityProbeResult
   error?: ApiError
+}
+
+/**
+ * What one identity's cookie jar holds, from
+ * `GET /admin/identities/{id}/cookies`.
+ *
+ * Masked values, never real ones - the endpoint is built that way and the
+ * console could not show a real value if it wanted to. What is here is enough
+ * to answer the questions an operator actually has when an identity stops
+ * working: is the cookie there at all, is it the length it should be, and is
+ * it the same jar as the one that works.
+ */
+interface CookieEntry {
+  name: string
+  role: 'required' | 'session' | 'useful' | 'other'
+  masked: string
+  length: number
+}
+
+interface CookieInventory {
+  identity_id: string
+  platform: Platform
+  source: string
+  authenticated: boolean
+  /** False when the jar cannot be decrypted - the secret key was rotated. */
+  readable: boolean
+  retired: boolean
+  session: { cookie: string | null; verdict: string; held?: boolean }
+  missing_required: string[]
+  cookies: CookieEntry[]
 }
 
 interface ProxyOption {
@@ -1780,6 +1811,134 @@ const HISTORY_LIMIT = 200
  * path; every endpoint refusing at once is the identity itself. Those want
  * opposite responses, and a flat list of thirty rows does not tell them apart.
  */
+/**
+ * What this identity is and what it is made of.
+ *
+ * The drawer used to open on a request history, which answers "what has this
+ * been doing" and never "what is this". When an identity stops working the
+ * second question is the one people have, and answering it meant opening a
+ * shell and decrypting the column by hand - so the console said the session
+ * was spent and the operator went somewhere else to find out why.
+ *
+ * Values are masked and stay masked. The jar is the credential; the endpoint
+ * does not return it and this component could not show it if it did. What is
+ * here is what makes a jar diagnosable: which cookies are in it, which of them
+ * this build needs, how long each value is - a truncated token and a wrong
+ * token look identical from outside, and the length is what tells them apart -
+ * and the first and last four characters, which is enough to say whether two
+ * identities hold the same jar.
+ */
+function IdentityContents({
+  identity,
+  jar,
+  loading,
+}: {
+  identity: Identity
+  jar: CookieInventory | undefined
+  loading: boolean
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const format = useFormatters()
+
+  const fingerprint = identity.fingerprint ?? {}
+  const browser = [fingerprint.browser_family, fingerprint.browser_major]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <Card title={t('console:identity.contents.title')} description={t('console:identity.contents.hint')}>
+      <div className="u-stack">
+        <div className="u-row u-wrap">
+          <Fact label={t('console:field.platform')} value={identity.platform} mono />
+          <Fact
+            label={t('console:field.source')}
+            value={t(`console:identity.source.${identity.source}`, {
+              defaultValue: identity.source,
+            })}
+          />
+          <Fact
+            label={t('console:field.authenticated')}
+            value={
+              identity.authenticated
+                ? t('common:value.yes')
+                : t('common:value.no')
+            }
+          />
+          <Fact label={t('console:identity.column.minted')} value={format.relative(identity.minted_at)} />
+          {browser ? (
+            <Fact label={t('console:identity.contents.browser')} value={browser} mono />
+          ) : null}
+          {fingerprint.timezone ? (
+            <Fact
+              label={t('console:identity.contents.timezone')}
+              value={String(fingerprint.timezone)}
+              mono
+            />
+          ) : null}
+        </div>
+
+        {loading ? (
+          <Skeleton height={18} />
+        ) : !jar ? (
+          <p className="u-xs u-muted" style={{ margin: 0 }}>
+            {t('console:identity.contents.unavailable')}
+          </p>
+        ) : !jar.readable ? (
+          <Banner tone="caution" icon={<AlertIcon size={14} />}>
+            {t('console:identity.contents.unreadable')}
+          </Banner>
+        ) : jar.cookies.length === 0 ? (
+          <p className="u-xs u-muted" style={{ margin: 0 }}>
+            {jar.retired
+              ? t('console:identity.contents.wiped')
+              : t('console:identity.contents.empty')}
+          </p>
+        ) : (
+          <>
+            {jar.missing_required.length > 0 ? (
+              <Banner tone="caution" icon={<AlertIcon size={14} />}>
+                {t('console:identity.contents.missing', {
+                  names: jar.missing_required.join(', '),
+                })}
+              </Banner>
+            ) : null}
+
+            <ul className={styles.cookieList}>
+              {jar.cookies.map((cookie) => (
+                <li key={cookie.name} className={styles.cookieRow}>
+                  <span className={styles.cookieHead}>
+                    <span className="u-mono">{cookie.name}</span>
+                    <span className={cn(styles.cookieRole, styles[`role_${cookie.role}`])}>
+                      {t(`console:identity.cookieRole.${cookie.role}`)}
+                    </span>
+                    <span className="u-xs u-muted u-mono">
+                      {t('console:identity.contents.chars', { count: cookie.length })}
+                    </span>
+                  </span>
+                  {/* What each one is for. Keyed by cookie name with the role's
+                      own sentence as the fallback, because the platforms add
+                      and retire these constantly and a name this build has
+                      never heard of still deserves an answer. */}
+                  <span className={styles.cookieAbout}>
+                    {t(`console:identity.cookieAbout.${cookie.name}`, {
+                      defaultValue: t(`console:identity.cookieRoleAbout.${cookie.role}`),
+                    })}
+                  </span>
+                  <span className="u-mono u-xs u-muted">{cookie.masked}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p className="u-xs u-muted" style={{ margin: 0 }}>
+              {t('console:identity.contents.maskNote')}
+            </p>
+          </>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 function IdentityDrawer({
   identity,
   probe,
@@ -1802,6 +1961,19 @@ function IdentityDrawer({
           limit: String(HISTORY_LIMIT),
         }
       : undefined,
+    enabled: Boolean(identity),
+  })
+
+  /**
+   * What the identity actually holds.
+   *
+   * Fetched only while the drawer is open, and not polled: a cookie jar does
+   * not change while somebody is reading it, and this is the one endpoint on
+   * the page that decrypts a credential column to answer.
+   */
+  const jar = useApiQuery<CookieInventory>({
+    key: ['admin', 'identities', 'cookies', identity?.id ?? 'none'],
+    path: identity ? paths.identities.cookies(identity.id) : paths.identities.list,
     enabled: Boolean(identity),
   })
 
@@ -1837,7 +2009,7 @@ function IdentityDrawer({
     <Drawer
       open={identity !== null}
       onClose={onClose}
-      title={t('console:identity.history.title')}
+      title={t('console:identity.drawerTitle')}
       description={identity?.id}
     >
       {identity ? (
@@ -1862,6 +2034,8 @@ function IdentityDrawer({
               />
             ) : null}
           </div>
+
+          <IdentityContents identity={identity} jar={jar.data} loading={jar.isLoading} />
 
           {/* The answer to "what caused the risk control", stated rather than
               left to be inferred from a list. */}

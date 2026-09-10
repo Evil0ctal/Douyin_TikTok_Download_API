@@ -108,10 +108,18 @@ class ImportReport:
 
     def masked(self) -> dict[str, str]:
         """Cookie names with masked values, for display. Never the real values."""
-        return {k: _mask(v) for k, v in self.cookies.items()}
+        return {k: mask_value(v) for k, v in self.cookies.items()}
 
 
-def _mask(value: str) -> str:
+def mask_value(value: str) -> str:
+    """A cookie value shown without being disclosed.
+
+    First four and last four, with a fixed run of stars between them. Fixed
+    because a variable one would leak the length, and the ends because they are
+    what lets a person confirm two jars are the same jar - a mask that showed
+    nothing would be indistinguishable from an empty cookie, which is a state
+    that actually happens.
+    """
     if len(value) <= 8:
         return "*" * len(value)
     return f"{value[:4]}{'*' * 8}{value[-4:]}"
@@ -329,6 +337,7 @@ __all__ = [
     "build_report",
     "detect_format",
     "infer_browser",
+    "mask_value",
     "parse_cookies",
     "session_expiry",
     "to_cookie_header",

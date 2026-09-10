@@ -370,6 +370,10 @@
         "summary": "实例健康状态",
         "description": "报告数据库、缓存、浏览器 RPC 与身份池的健康状况，可供监控系统轮询。"
       },
+      "identities_cookies": {
+        "summary": "查看某个身份的 Cookie 组成",
+        "description": "返回该身份持有的 Cookie 名称、作用分类与掩码后的值，绝不返回真实值。"
+      },
       "identities_import": {
         "summary": "导入已登录的 Cookie",
         "description": "识别粘贴格式，报告解析结果，然后加密存储。"

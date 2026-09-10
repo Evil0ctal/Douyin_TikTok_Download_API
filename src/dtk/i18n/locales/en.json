@@ -370,6 +370,10 @@
         "summary": "Instance health",
         "description": "Reports database, cache, browser RPC and identity pool health. Safe to poll from an uptime monitor."
       },
+      "identities_cookies": {
+        "summary": "What one identity's jar holds",
+        "description": "Cookie names, roles and masked values for one identity. Never the values themselves."
+      },
       "identities_import": {
         "summary": "Import a logged-in cookie jar",
         "description": "Detect the paste format, report what was understood, then store it."

@@ -43,6 +43,8 @@ export const paths = {
     test: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/test`,
     /** Clears a cooldown and a failure streak. Refused on a retired identity. */
     reset: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/reset`,
+    /** Cookie names, roles and masked values. Never the values themselves. */
+    cookies: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/cookies`,
   },
   proxies: {
     list: `${API_V1}/admin/proxies`,

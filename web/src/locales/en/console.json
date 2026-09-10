@@ -400,7 +400,72 @@
       "oneRefusedHint": "The others still answer it, so the session is alive. One endpoint refusing on its own is usually a signature this build gets wrong on that path, or a sign-protected endpoint the identity has no visitor id for - not a burnt cookie.",
       "everythingRefused": "Every endpoint this identity touched refused it.",
       "everythingRefusedHint": "That is the identity rather than any one path: the session is spent, or the platform has flagged it. Retiring it and letting the pool mint a replacement is the usual answer."
-    }
+    },
+    "contents": {
+      "title": "What this identity is made of",
+      "hint": "The cookie jar this identity signs and sends with, as far as it can be shown without disclosing it.",
+      "browser": "Browser",
+      "timezone": "Time zone",
+      "chars": "{count} chars",
+      "unavailable": "The jar could not be read. The listing above still describes the identity.",
+      "unreadable": "This jar is encrypted with a key this instance no longer holds - the secret key was rotated without re-encrypting. The identity cannot sign anything either; retire it and mint a new one.",
+      "empty": "This identity holds no cookies at all, which means it can only ever be refused.",
+      "wiped": "Retired identities have their jar wiped, so there is nothing left to show.",
+      "missing": "Missing a cookie this build treats as required: {names}. Requests on this identity will be refused whatever else is in the jar.",
+      "maskNote": "Values are shown as their first and last four characters. The full values are never sent to this page - the jar is the credential, and a logged-in one is somebody's account."
+    },
+    "cookieRole": {
+      "required": "required",
+      "session": "logged in",
+      "useful": "useful",
+      "other": "other"
+    },
+    "cookieRoleAbout": {
+      "required": "This build refuses to use an identity without it.",
+      "session": "Carries a logged-in session. Far more valuable than a guest jar, and far more damaging to leak.",
+      "useful": "Not required, but an identity carrying it is refused less often.",
+      "other": "Set by the platform and kept as it was received. Not something this build reads."
+    },
+    "cookieAbout": {
+      "__ac_nonce": "A one-time challenge from the anti-crawler layer. Paired with __ac_signature.",
+      "__ac_signature": "The answer to the __ac_nonce challenge, computed in the page.",
+      "ak_bmsc": "Akamai Bot Manager's session cookie, set by the CDN rather than by TikTok.",
+      "architecture": "A hardware hint the page recorded about the browser it ran in. This build sends its own fingerprint values rather than reading these back.",
+      "bd_ticket_guard_client_data": "Client attestation data for ByteDance's ticket guard.",
+      "biz_trace_id": "A trace id the web app attaches to its own calls.",
+      "bm_sv": "Akamai Bot Manager's short-lived validation cookie.",
+      "csrf_session_id": "Ties a CSRF token to one session.",
+      "delay_guest_mode_vid": "Guest-mode bookkeeping from the web app.",
+      "device_web_cpu_core": "How many CPU cores the page saw. A fingerprint hint, not something this build reads back.",
+      "device_web_memory_size": "How much memory the page saw. A fingerprint hint, not something this build reads back.",
+      "g_state": "State for Google's sign-in widget. Nothing to do with the platform's API.",
+      "IsDouyinActive": "Whether the page thought the tab was in the foreground.",
+      "msToken": "A short-lived token the page's own JavaScript refreshes. It takes part in request signing; TikTok signing in this build needs it, and requests start coming back empty once it goes stale.",
+      "odin_tt": "A long-lived device id. Risk control uses it to tie separate requests back to one device.",
+      "passport_csrf_token": "A CSRF token from the account service. Sent back on writes; harmless to read requests.",
+      "s_v_web_id": "Douyin's visitor verification id. This build sends it verbatim as both `verifyFp` and `fp`.",
+      "sessionid": "A logged-in session. Anyone holding this is signed in as that account.",
+      "sessionid_ss": "The secure-only half of the logged-in session.",
+      "sid_guard": "The session id with its issue time and lifetime attached; this build reads the expiry out of it.",
+      "sid_tt": "Another form of the logged-in session id.",
+      "sid_ucp_v1": "A newer wrapper around the logged-in session.",
+      "store-country-code": "The region TikTok decided this client is in.",
+      "store-idc": "Which datacentre this account's data lives in. Changing it sends requests to the wrong region.",
+      "tiktok_webapp_theme": "The site's light-or-dark preference. Nothing to do with requests.",
+      "tiktok_webapp_theme_source": "Whether that theme was chosen or inherited from the system.",
+      "tt-target-idc": "The datacentre the web app asks to be served by.",
+      "tt_chain_token": "Routes a request through the same edge chain as the one before it.",
+      "tt_csrf_token": "A CSRF token the web app sends back with its own calls.",
+      "ttwid": "ByteDance's device-level visitor id, issued by the CDN edge. Without it a request looks like a client the platform has never seen.",
+      "uid_tt": "The account's user id, sent alongside a logged-in session.",
+      "UIFID": "A fused device-and-user id. TikTok signing carries it alongside msToken.",
+      "uifid": "A fused device-and-user id. TikTok signing carries it alongside msToken.",
+      "UIFID_TEMP": "The visitor id a Douyin mint produces, and what the web signature SDK signs with. This build looks for it under six spellings and cannot sign a Douyin request without one of them.",
+      "uifid_temp": "The visitor id a Douyin mint produces, and what the web signature SDK signs with.",
+      "UIFIDTEMP": "The visitor id a Douyin mint produces, under another of the spellings the SDK accepts.",
+      "uifidtemp": "The visitor id a Douyin mint produces, under another of the spellings the SDK accepts."
+    },
+    "drawerTitle": "Identity"
   },
   "proxy": {
     "column": {
