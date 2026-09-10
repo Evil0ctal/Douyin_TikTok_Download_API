@@ -1,21 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Button,
-  Card,
-  CodeBlock,
-  CopyableId,
-  DataTable,
-  Drawer,
-  ErrorCodeBadge,
-  ErrorState,
-  PageHeader,
-  StatusBadge,
-  Textarea,
-  useToast,
-  type Column,
-} from '@/components'
 import { useApiMutation, useFormatters } from '@/hooks'
 import {
   apiPost,
@@ -26,10 +11,25 @@ import {
   type TaskEnvelope,
 } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
-import type { TaskState } from '@/lib/types'
+import type { Platform, TaskState } from '@/lib/types'
+
+import { Button } from './Button'
+import { Card } from './Card'
+import { CodeBlock } from './CodeBlock'
+import { CopyableId } from './CopyableId'
+import { DataTable, type Column } from './DataTable'
+import { Drawer } from './Drawer'
+import { ErrorState } from './ErrorState'
+import { ErrorCodeBadge, StatusBadge } from './StatusBadge'
+import { Textarea } from './Textarea'
+import { useToast } from './Toast'
 
 /**
- * Batch parse tool.
+ * Paste many links, parse them all, keep what came back.
+ *
+ * This was its own page and is now a mode of the downloads page, because the
+ * two answer one question - "I have some links, get me the videos" - and
+ * splitting it across two menu entries meant picking the wrong one first.
  *
  * The split that matters: submission is batched, tracking is not. One round
  * trip hands the server N links and gets N task ids back, and from then on each
@@ -37,11 +37,20 @@ import type { TaskState } from '@/lib/types'
  * synchronous bulk endpoint would smear one dead link into a single error for
  * the whole paste (docs/design/07-frontend.md).
  *
- * Downloads go browser-to-CDN. The server never relays media: it costs
- * bandwidth, it turns the instance into an open proxy, and the signed CDN links
- * are more likely to work from the browser than from a datacentre. The cost is
- * that some CDNs refuse cross-origin reads, so the mirrors are tried in order
- * and a blocked download says so in words instead of failing silently.
+ * There are two different downloads here and they are not interchangeable.
+ *
+ * **To this computer**, from the drawer: browser-to-CDN, so the file lands in
+ * the reader's own downloads folder and the server never relays media - that
+ * costs bandwidth, turns the instance into an open proxy, and a signed CDN link
+ * is likelier to work from a browser than from a datacentre. The cost is that
+ * some CDNs refuse cross-origin reads, so the mirrors are tried in order and a
+ * blocked download says so in words instead of failing silently.
+ *
+ * **To the instance**, from the toolbar: the same request the single-post mode
+ * makes, so these rows land in the archive with the progress, retry, dedupe and
+ * skip-what-is-already-here that everything else on the page has. This is what
+ * "batch parse and download" means, and it is the reason a parse result knows
+ * its platform and content id at all.
  */
 
 /* -------------------------------------------------------------------------- */
@@ -293,7 +302,18 @@ function filenameFor(url: string, fallback: string): string {
   return fallback
 }
 
-export default function ParseTool() {
+export interface BatchParseProps {
+  /**
+   * Whether queuing a row should join what is already downloaded rather than
+   * fetching it again. Owned by the page, because it is the same choice the
+   * other modes make and one checkbox for all of them is the point of it.
+   */
+  skipExisting: boolean
+  /** Called after rows are queued, so the download list can refresh itself. */
+  onQueued: () => void
+}
+
+export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
   const toast = useToast()
@@ -572,6 +592,74 @@ export default function ParseTool() {
     [t, toast],
   )
 
+  /**
+   * Send parsed rows to the instance's downloader.
+   *
+   * Exactly the request a single post makes, once per row: the server decides
+   * what "already here" means and joins anything in flight, so a paste that
+   * overlaps yesterday's paste costs nothing and cannot race itself into the
+   * same directory twice.
+   *
+   * One failure does not abandon the rest, and the counts reported at the end
+   * are what actually happened rather than what was attempted - a paste of
+   * fifty links where three posts have been deleted should queue forty-seven
+   * and say so.
+   */
+  const queue = useApiMutation<{ queued: number; joined: number; failed: number }, ParseRow[]>(
+    async (targets) => {
+      let queued = 0
+      let joined = 0
+      let failed = 0
+      for (const row of targets) {
+        const content = asContent(row.data)
+        if (!content?.platform || !content.content_id) {
+          failed += 1
+          continue
+        }
+        try {
+          const result: { reused?: string | null } = await apiPost(
+            paths.downloads.create,
+            {
+              platform: content.platform as Platform,
+              content_id: content.content_id,
+              skip_existing: skipExisting,
+            },
+            { awaitTask: false },
+          )
+          if (result.reused) joined += 1
+          else queued += 1
+        } catch {
+          failed += 1
+        }
+      }
+      return { queued, joined, failed }
+    },
+    {
+      onSuccess: ({ queued: started, joined, failed }) => {
+        onQueued()
+        toast.success(t('parse.queue.done', { count: started }), {
+          description:
+            joined || failed
+              ? t('parse.queue.detail', { joined, failed })
+              : t('parse.queue.watch'),
+        })
+      },
+      onError: (error) => {
+        toast.apiError(error, t('parse.queue.failed'))
+      },
+    },
+  )
+
+  /** Rows that named a post the downloader could actually be pointed at. */
+  const downloadable = useMemo(
+    () =>
+      rows.filter((row) => {
+        const content = asContent(row.data)
+        return row.state === 'done' && Boolean(content?.platform) && Boolean(content?.content_id)
+      }),
+    [rows],
+  )
+
   /* ------------------------------------------------------------ columns --- */
 
   const columns = useMemo<Array<Column<ParseRow>>>(
@@ -717,16 +805,31 @@ export default function ParseTool() {
         cell: (row) => (
           <span className="u-row" style={{ justifyContent: 'flex-end' }}>
             {row.state === 'done' ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setPreview(row.id)
-                }}
-              >
-                {t('common:action.view')}
-              </Button>
+              <>
+                {/* One row rather than the whole paste. The toolbar button is
+                    for "keep all of these"; this is for the one you came for. */}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={queue.isPending || !asContent(row.data)?.content_id}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    queue.mutate([row])
+                  }}
+                >
+                  {t('parse.queue.one')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setPreview(row.id)
+                  }}
+                >
+                  {t('common:action.view')}
+                </Button>
+              </>
             ) : null}
             <Button
               size="sm"
@@ -744,7 +847,7 @@ export default function ParseTool() {
         ),
       },
     ],
-    [t, format, retryRow, retryable],
+    [t, format, retryRow, retryable, queue],
   )
 
   /* ------------------------------------------------------------- render --- */
@@ -767,31 +870,8 @@ export default function ParseTool() {
   const failedRetryable = rows.filter((row) => retryable(row))
 
   return (
-    <div className="u-page">
-      <PageHeader
-        title={t('page.parseTool.title')}
-        description={t('page.parseTool.description')}
-        badge={
-          rows.length > 0 ? (
-            <span className="u-row u-wrap">
-              <span className="u-row" style={{ gap: 'var(--space-1)' }}>
-                <StatusBadge kind="task" value="done" size="sm" flash={false} />
-                <span className="u-mono">{counts.done}</span>
-              </span>
-              <span className="u-row" style={{ gap: 'var(--space-1)' }}>
-                <StatusBadge kind="task" value="running" size="sm" flash={false} />
-                <span className="u-mono">{counts.running}</span>
-              </span>
-              <span className="u-row" style={{ gap: 'var(--space-1)' }}>
-                <StatusBadge kind="task" value="failed" size="sm" flash={false} />
-                <span className="u-mono">{counts.failed}</span>
-              </span>
-            </span>
-          ) : null
-        }
-      />
-
-      <Card title={t('parse.inputTitle')} description={t('parse.inputDescription')}>
+    <div className="u-stack">
+      <div className="u-stack">
         <div className="u-stack">
           <Textarea
             label={t('parse.inputLabel')}
@@ -821,6 +901,24 @@ export default function ParseTool() {
             <span className="u-xs u-muted">
               {t('parse.detected', { count: parsed.urls.length, duplicates: parsed.duplicates })}
             </span>
+            {/* The tally the page header used to carry. It belongs beside the
+                button that changes it now that this shares a page. */}
+            {rows.length > 0 ? (
+              <span className="u-row u-wrap" style={{ marginInlineStart: 'auto' }}>
+                <span className="u-row" style={{ gap: 'var(--space-1)' }}>
+                  <StatusBadge kind="task" value="done" size="sm" flash={false} />
+                  <span className="u-mono u-xs">{counts.done}</span>
+                </span>
+                <span className="u-row" style={{ gap: 'var(--space-1)' }}>
+                  <StatusBadge kind="task" value="running" size="sm" flash={false} />
+                  <span className="u-mono u-xs">{counts.running}</span>
+                </span>
+                <span className="u-row" style={{ gap: 'var(--space-1)' }}>
+                  <StatusBadge kind="task" value="failed" size="sm" flash={false} />
+                  <span className="u-mono u-xs">{counts.failed}</span>
+                </span>
+              </span>
+            ) : null}
           </div>
           {submit.isError ? (
             <ErrorState
@@ -835,7 +933,7 @@ export default function ParseTool() {
             {t('parse.trackingNote')}
           </p>
         </div>
-      </Card>
+      </div>
 
       <DataTable
         columns={columns}
@@ -849,9 +947,22 @@ export default function ParseTool() {
         flashValue={(row) => row.state}
         emptyTitle={t('parse.emptyTitle')}
         emptyDescription={t('parse.emptyDescription')}
-        caption={t('page.parseTool.title')}
+        caption={t('downloads.mode.batch.label')}
         toolbar={
           <>
+            {/* First, because it is what the paste was for. Parsing on its own
+                answers "what are these"; this is "keep them". */}
+            <Button
+              size="sm"
+              variant="primary"
+              loading={queue.isPending}
+              disabled={downloadable.length === 0}
+              onClick={() => {
+                queue.mutate(downloadable)
+              }}
+            >
+              {t('parse.queue.action', { count: downloadable.length })}
+            </Button>
             <Button
               size="sm"
               variant="secondary"

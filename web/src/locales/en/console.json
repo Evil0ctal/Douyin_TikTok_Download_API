@@ -12,7 +12,6 @@
     "proxies": "Proxies",
     "apiKeys": "API keys",
     "playground": "Playground",
-    "parseTool": "Parse tool",
     "apiDocs": "API docs",
     "logs": "Logs",
     "settings": "Settings",
@@ -49,10 +48,6 @@
     "playground": {
       "title": "Playground",
       "description": "Call an endpoint and compare the normalized result with the raw response."
-    },
-    "parseTool": {
-      "title": "Parse tool",
-      "description": "Paste a batch of links, parse them and export the results."
     },
     "logs": {
       "title": "Logs",
@@ -1164,7 +1159,15 @@
     "mirrorBlocked": "Blocked by the CDN",
     "downloadBlockedTitle": "The browser could not fetch the file",
     "downloadBlockedBody": "All {count} mirrors refused a cross-origin read, which is CORS or hotlink protection rather than a broken link. The first mirror was opened in a new tab: save it from there, or enable the optional server-side download proxy.",
-    "downloadNote": "A blocked download rarely means a dead file. Open the link and save it from the new tab instead."
+    "downloadNote": "A blocked download rarely means a dead file. Open the link and save it from the new tab instead.",
+    "queue": {
+      "action": "{count, plural, =0 {Save to this instance} one {Save 1 to this instance} other {Save # to this instance}}",
+      "one": "Save",
+      "done": "{count, plural, =0 {Nothing new queued} one {1 download queued} other {# downloads queued}}",
+      "detail": "{joined, plural, =0 {} one {1 was already here.} other {# were already here.}} {failed, plural, =0 {} one {1 could not be queued.} other {# could not be queued.}}",
+      "watch": "They appear in the list below as they finish.",
+      "failed": "Could not queue these downloads"
+    }
   },
   "logs": {
     "tab": {
@@ -1503,6 +1506,14 @@
         "hint": "A share link, the share text around one, or a bare post id. A link says which platform it is; a bare id needs the menu beside it.",
         "placeholder": "https://www.douyin.com/video/7408915107113127220",
         "action": "Save the media"
+      },
+      "batch": {
+        "label": "Many posts",
+        "description": "Paste as many post links as you have. Each one is parsed on its own - one dead link does not spoil the paste - and what came back can then be saved to this instance in one go.",
+        "field": "Links",
+        "hint": "One per line, or separated by spaces or commas.",
+        "placeholder": "",
+        "action": "Parse"
       },
       "comments": {
         "label": "Comments",

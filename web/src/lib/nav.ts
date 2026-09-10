@@ -42,7 +42,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/proxies', labelKey: 'nav.proxies', group: 'pool', icon: 'globe' },
   { path: '/scheduler', labelKey: 'nav.scheduler', group: 'pool', icon: 'sliders' },
   { path: '/playground', labelKey: 'nav.playground', group: 'tools', icon: 'terminal' },
-  { path: '/parse', labelKey: 'nav.parseTool', group: 'tools', icon: 'link' },
   { path: '/tools', labelKey: 'nav.tools', group: 'tools', icon: 'terminal' },
   { path: '/library', labelKey: 'nav.library', group: 'tools', icon: 'archive' },
   { path: '/watchlist', labelKey: 'nav.watchlist', group: 'tools', icon: 'clock' },

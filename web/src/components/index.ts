@@ -5,6 +5,8 @@
  * individual files, so a component can be reshaped without touching pages.
  */
 
+export { BatchParse } from './BatchParse'
+export type { BatchParseProps } from './BatchParse'
 export { Button } from './Button'
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button'
 
@@ -46,7 +48,7 @@ export * from './Icons'
 
 export { Input } from './Input'
 export { Logo } from './Logo'
-export { Sponsor, SPONSOR } from './Sponsor'
+export { Sponsor, SPONSOR, sponsorHref } from './Sponsor'
 export type { InputProps } from './Input'
 
 export { LanguageSwitcher } from './LanguageSwitcher'

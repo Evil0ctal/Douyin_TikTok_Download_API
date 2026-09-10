@@ -12,7 +12,6 @@
     "proxies": "代理",
     "apiKeys": "API Key",
     "playground": "调试台",
-    "parseTool": "解析工具",
     "apiDocs": "接口文档",
     "logs": "日志",
     "settings": "设置",
@@ -49,10 +48,6 @@
     "playground": {
       "title": "调试台",
       "description": "调用接口并同时查看归一化结果与原始响应。"
-    },
-    "parseTool": {
-      "title": "解析工具",
-      "description": "粘贴一批链接，批量解析并导出结果。"
     },
     "logs": {
       "title": "日志",
@@ -1164,7 +1159,15 @@
     "mirrorBlocked": "被 CDN 拦截",
     "downloadBlockedTitle": "浏览器无法直接取回该文件",
     "downloadBlockedBody": "{count} 个直链全部拒绝跨域读取，这是 CORS 或防盗链限制，而不是链接失效。已在新标签页打开第一个直链：可以从那里另存为，或者开启可选的服务端下载代理。",
-    "downloadNote": "下载被拦截通常不代表文件失效：打开链接后在新标签页另存即可。"
+    "downloadNote": "下载被拦截通常不代表文件失效：打开链接后在新标签页另存即可。",
+    "queue": {
+      "action": "{count, plural, =0 {保存到本实例} other {保存 # 个到本实例}}",
+      "one": "保存",
+      "done": "{count, plural, =0 {没有新增排队} other {已排队 # 个下载}}",
+      "detail": "{joined, plural, =0 {} other {# 个已经在这里了。}} {failed, plural, =0 {} other {# 个无法排队。}}",
+      "watch": "完成后会出现在下方列表里。",
+      "failed": "无法排队这些下载"
+    }
   },
   "logs": {
     "tab": {
@@ -1503,6 +1506,14 @@
         "hint": "可以是分享链接、包含链接的分享文案，或者纯作品 ID。链接自带平台信息；纯 ID 需要用左边的菜单指定。",
         "placeholder": "https://www.douyin.com/video/7408915107113127220",
         "action": "保存媒体"
+      },
+      "batch": {
+        "label": "批量作品",
+        "description": "有多少作品链接就粘多少。每条单独解析——一条失效不会连累整批——解析完可以一次性全部保存到本实例。",
+        "field": "链接",
+        "hint": "一行一条，或用空格、逗号分隔。",
+        "placeholder": "",
+        "action": "解析"
       },
       "comments": {
         "label": "评论",

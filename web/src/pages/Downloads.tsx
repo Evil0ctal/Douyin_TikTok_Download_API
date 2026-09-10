@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  BatchParse,
   Button,
   Card,
   Checkbox,
@@ -72,11 +73,17 @@ function videoOf(row: DownloadRow): string | null {
  * different inputs, and a form that accepted either and guessed would download
  * the wrong thing quietly.
  */
-type DownloadMode = 'post' | 'comments' | 'author'
+type DownloadMode = 'post' | 'comments' | 'author' | 'batch'
 
 interface ModeSpec {
   id: DownloadMode
-  wants: 'post' | 'author'
+  /**
+   * The shape of the thing pasted. `posts` - plural - takes over the whole
+   * form rather than sharing the one-line one, which is why it is a value here
+   * and not a boolean: the next mode that wants its own form says so the same
+   * way.
+   */
+  wants: 'post' | 'author' | 'posts'
   /** Whether "skip what is already downloaded" means anything for this mode. */
   skippable: boolean
 }
@@ -85,6 +92,7 @@ const POST_MODE: ModeSpec = { id: 'post', wants: 'post', skippable: true }
 
 const MODES: readonly ModeSpec[] = [
   POST_MODE,
+  { id: 'batch', wants: 'posts', skippable: true },
   { id: 'comments', wants: 'post', skippable: false },
   { id: 'author', wants: 'author', skippable: true },
 ]
@@ -818,6 +826,15 @@ export default function Downloads() {
           ))}
         </div>
 
+        {/* The batch tool brings its own textarea, its own results table and
+            its own idea of what a submit button does, so it replaces the
+            one-line form rather than trying to share it. What it does not
+            bring is the skip-existing checkbox below: that stays shared, which
+            is the whole reason it was lifted out of the modes in the first
+            place. */}
+        {active.wants === 'posts' ? (
+          <BatchParse skipExisting={skipExisting} onQueued={refresh} />
+        ) : (
         <form
           className={cn('u-form-row', styles.startForm)}
           onSubmit={(event) => {
@@ -871,6 +888,7 @@ export default function Downloads() {
             {t(`downloads.mode.${mode}.action`)}
           </Button>
         </form>
+        )}
 
         {/* How far to go, and what to skip. Both belong under the form rather
             than in it: they are settings for the run, not another thing to

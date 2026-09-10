@@ -39,7 +39,6 @@ const Library = lazy(() => import('@/pages/Library'))
 const Downloads = lazy(() => import('@/pages/Downloads'))
 const Watchlist = lazy(() => import('@/pages/Watchlist'))
 const Playground = lazy(() => import('@/pages/Playground'))
-const ParseTool = lazy(() => import('@/pages/ParseTool'))
 const Logs = lazy(() => import('@/pages/Logs'))
 const Settings = lazy(() => import('@/pages/Settings'))
 const Notifications = lazy(() => import('@/pages/Notifications'))
@@ -91,7 +90,12 @@ function ConsoleRoutes() {
         <Route path="/scheduler" component={Scheduler} />
         <Route path="/endpoint-access" component={EndpointAccess} />
         <Route path="/playground" component={Playground} />
-        <Route path="/parse" component={ParseTool} />
+        {/* The parse tool is a mode of the downloads page now. Kept as a
+            redirect rather than dropped: this path has been in the nav
+            for the life of v5 and is in people's bookmarks. */}
+        <Route path="/parse">
+          <Redirect to="/downloads" />
+        </Route>
         <Route path="/tools" component={Tools} />
         <Route path="/library" component={Library} />
         <Route path="/downloads" component={Downloads} />

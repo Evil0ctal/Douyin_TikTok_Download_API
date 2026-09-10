@@ -9,7 +9,7 @@ That split is deliberate. A downloader that decided its own filenames would be
 a downloader deciding where bytes land, and a downloader that decided its own
 ceiling would be one whose limits could not be changed from the console.
 
-Naming is ours, always. ``ParseTool.tsx`` already demonstrates why the CDN's
+Naming is ours, always. ``BatchParse.tsx`` already demonstrates why the CDN's
 own filename is not usable: the path component of a signed URL is an opaque
 object key, not a title, and half of them have no extension at all.
 """
