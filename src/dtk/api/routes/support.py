@@ -44,10 +44,19 @@ log = get_logger(__name__)
 
 #: Roles are a ladder, not a set: an administrator can do anything an operator
 #: can. Comparing ranks keeps every endpoint from listing three roles.
+#:
+#: DEMO sits at the bottom, and the gap below VIEWER is doing real work. Every
+#: guard in this file defaults to ``min_role=VIEWER``, so a role numbered under
+#: it is refused everywhere by default and each page a demo instance is meant
+#: to show has to say so - :data:`demo_read` and :data:`read_admin_demo` below.
+#: The alternative, giving demo the same rank as viewer and denying pages one at
+#: a time, fails the wrong way round: a route added next year would be public on
+#: a demo box until somebody remembered it.
 ROLE_RANK: dict[UserRole, int] = {
-    UserRole.VIEWER: 0,
-    UserRole.OPERATOR: 1,
-    UserRole.ADMIN: 2,
+    UserRole.DEMO: 0,
+    UserRole.VIEWER: 1,
+    UserRole.OPERATOR: 2,
+    UserRole.ADMIN: 3,
 }
 
 #: Page size ceiling for every list endpoint. A caller that wants more pages
@@ -214,7 +223,8 @@ def guard(
     return dependency
 
 
-#: Any authenticated caller, including a read-only viewer.
+#: Any authenticated caller, including a read-only viewer. Not the demo
+#: account: see :data:`demo_read` for the endpoints a demo instance opens.
 authenticated = guard()
 #: Console-side read access to the administrative surface.
 read_admin = guard(scopes=(Scope.ADMIN, Scope.IDENTITY_MANAGE))
@@ -222,6 +232,26 @@ read_admin = guard(scopes=(Scope.ADMIN, Scope.IDENTITY_MANAGE))
 manage_pool = guard(scopes=(Scope.ADMIN, Scope.IDENTITY_MANAGE), min_role=UserRole.OPERATOR)
 #: Users, SENSITIVE settings, backup and restore: administrators only.
 admin_only = guard(scopes=(Scope.ADMIN,), min_role=UserRole.ADMIN)
+
+#: Reachable by the public demo account as well as by every real role.
+#:
+#: Put this on an endpoint only after deciding it is safe for a stranger, and
+#: note what the two demo credentials can do with it, because they are not the
+#: same caller:
+#:
+#: * the demo **session** is unscoped, like any console session, so this gate
+#:   alone decides what the demo console can read;
+#: * the demo **API key** carries `douyin:read` and `tiktok:read` and nothing
+#:   else, so it reaches only the endpoints whose scopes it also satisfies.
+#:
+#: That is why the pages below keep their scope tuple unchanged and lower only
+#: the role: the scope check is what stops the published API key from reading
+#: the request log, without a second rule having to say so.
+demo_read = guard(min_role=UserRole.DEMO)
+#: An administrative *read* a demo instance shows: the logs, endpoint health and
+#: pool counters behind the overview. Same scopes as :data:`read_admin`, so a
+#: session passes and the published key does not.
+read_admin_demo = guard(scopes=(Scope.ADMIN, Scope.IDENTITY_MANAGE), min_role=UserRole.DEMO)
 
 
 # --------------------------------------------------------------------------

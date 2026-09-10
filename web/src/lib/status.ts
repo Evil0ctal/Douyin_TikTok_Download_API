@@ -116,6 +116,7 @@ export const ROLE_STATUS: Record<UserRole, StatusMeta> = {
   admin: { tone: 'accent', icon: 'dot', labelKey: 'state.role.admin' },
   operator: { tone: 'success', icon: 'dot', labelKey: 'state.role.operator' },
   viewer: { tone: 'neutral', icon: 'dot', labelKey: 'state.role.viewer' },
+  demo: { tone: 'caution', icon: 'dot', labelKey: 'state.role.demo' },
 }
 
 const UNKNOWN_STATUS: StatusMeta = { tone: 'neutral', icon: 'minus', labelKey: 'state.unknown' }

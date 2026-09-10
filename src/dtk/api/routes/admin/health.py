@@ -25,7 +25,7 @@ from sqlalchemy import text
 
 from dtk.api.deps import Principal
 from dtk.api.routes.openapi import I18N_KEY
-from dtk.api.routes.support import language, ok, read_admin
+from dtk.api.routes.support import language, ok, read_admin_demo
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.platforms import get_adapter
@@ -68,7 +68,7 @@ _TIMESERIES_SQL = text(
     summary="Per-endpoint health and circuit state",
     openapi_extra={I18N_KEY: "endpoints_health"},
 )
-async def endpoint_health(request: Request, principal: Principal = Depends(read_admin)) -> Any:
+async def endpoint_health(request: Request, principal: Principal = Depends(read_admin_demo)) -> Any:
     """Every declared endpoint, whether or not it has traffic.
 
     Listing the quiet ones too is deliberate: V4's failure mode was an endpoint
@@ -134,7 +134,7 @@ async def metrics_timeseries(
         default=None, max_length=128, description="Only traffic to this endpoint."
     ),
     platform: Platform | None = Query(default=None, description="Only this platform."),
-    principal: Principal = Depends(read_admin),
+    principal: Principal = Depends(read_admin_demo),
 ) -> Any:
     """Raw buckets. Series selection and zooming happen in the browser (doc 07)."""
     result = await request.state.db.execute(

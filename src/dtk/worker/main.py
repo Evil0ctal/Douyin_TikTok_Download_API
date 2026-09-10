@@ -99,6 +99,13 @@ class TaskRun:
     params: dict[str, Any]
     api_key_id: uuid.UUID | None = None
     attempt: int = 1
+    #: Started by the public demo account. Carried on the row rather than
+    #: recomputed, because by the time the worker runs there is no request and
+    #: no principal left to ask. It suppresses two writes - the archive row and
+    #: the request-log row - and nothing else: the fetch itself, the identity
+    #: it spends and the health it folds back are all unchanged, because a demo
+    #: that behaved differently would not be demonstrating this instance.
+    is_demo: bool = False
 
 
 class TaskStore(Protocol):
@@ -242,6 +249,7 @@ class DatabaseTaskStore:
                 endpoint=row.endpoint,
                 params=dict(row.params or {}),
                 api_key_id=row.api_key_id,
+                is_demo=bool(row.is_demo),
             )
 
     async def complete(self, task_id: uuid.UUID, result: dict[str, Any]) -> None:
@@ -609,6 +617,7 @@ class TaskWorker:
             # Permitted at the edge, where the scope check and the audit line
             # are. By the time it reaches a stored task it has been allowed.
             explain=bool(run.params.get("explain")),
+            is_demo=run.is_demo,
         )
 
         async with self._session_factory() as session:
@@ -635,7 +644,11 @@ class TaskWorker:
                 if diagnostics is not None and ctx.explained is not None:
                     diagnostics["explain"] = explain_meta(ctx.explained)
                 raise
-            if parsed:
+            # Neither write happens for the demo account. A snapshot is a
+            # counter reading of somebody else's post and an archive row is a
+            # copy of it, and a public instance that kept both would grow a
+            # database out of whatever strangers happened to paste.
+            if parsed and not run.is_demo:
                 await self._record_snapshots(session, parsed[-1], config)
                 await self._archive(session, parsed[-1], config)
 

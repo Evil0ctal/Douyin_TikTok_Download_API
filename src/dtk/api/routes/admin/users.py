@@ -66,6 +66,23 @@ async def list_users(request: Request, principal: Principal = Depends(admin_only
     return ok(request, [_row(user) for user in users])
 
 
+def _refuse_hand_made_demo(role: UserRole | None) -> None:
+    """The demo role is provisioned, never assigned.
+
+    `demo.enabled` mints exactly one demo account with a generated password and
+    a key scoped to the two platform reads, and the console shows that pair
+    once. An administrator hand-making a second one would get an account with a
+    password of their choosing and no key, break the "there is one of each"
+    invariant that `dtk.services.demo.find_user` relies on, and produce a login
+    that looks like the published demo and is not.
+    """
+    if role is not None and role is UserRole.DEMO:
+        raise InvalidParam(
+            "the demo account is created by turning on demo.enabled, not here",
+            details={"field": "role", "setting": "demo.enabled"},
+        )
+
+
 @router.post(
     "",
     summary="Create a console account",
@@ -91,6 +108,7 @@ async def create_user(
 
     The created account, without its password.
     """
+    _refuse_hand_made_demo(body.role)
     users = UserRepository(request.state.db)
     if await users.get_by_username(body.username) is not None:
         raise InvalidParam(
@@ -131,6 +149,7 @@ async def update_user(
     demands the current one; that check is meaningless here and would only
     stop an administrator from helping a user who forgot theirs.
     """
+    _refuse_hand_made_demo(body.role)
     session = request.state.db
     users = UserRepository(session)
     user = await users.get(user_id)

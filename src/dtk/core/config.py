@@ -277,6 +277,28 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             int,
             "How long a retired identity's row survives its retirement",
         ),
+        # --- demo ----------------------------------------------------------
+        SettingSpec(
+            "demo.enabled",
+            False,
+            Scope.SENSITIVE,
+            bool,
+            "Publish a shared read-only account and API key so strangers can "
+            "try this instance. Turning it on mints both and prints them once; "
+            "turning it off ends every demo session and stops the key working, "
+            "without deleting anything. SENSITIVE because it is the one switch "
+            "that lets an unauthenticated person become an authenticated one.",
+        ),
+        SettingSpec(
+            "demo.task_retention_minutes",
+            30,
+            Scope.RUNTIME,
+            int,
+            "How long a task started by the demo account is kept. The row "
+            "cannot be skipped - it is what a task id refers to - so it is "
+            "swept instead, on a window measured in minutes rather than the "
+            "90 days a real caller's task gets.",
+        ),
         # --- api -----------------------------------------------------------
         SettingSpec(
             "api.default_rate_limit_per_min",

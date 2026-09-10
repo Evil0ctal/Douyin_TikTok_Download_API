@@ -181,6 +181,13 @@ async def update_setting(
     await settings_store.set_value(key, value, updated_by=principal.user_id)
     await _reload(request)
 
+    # Turning the demo switch has to do more than store a boolean: on, it mints
+    # the account and the key and hands them back once; off, it drops the
+    # sessions that are already open. Done after the reload so the new value is
+    # what everything downstream reads, and returned in `demo` on this response
+    # because there is no second chance to see the password.
+    demo_payload = await _apply_demo_switch(request, key, value, principal)
+
     # AuditRepository.record: never a credential in detail. The audit trail is
     # read by humans, returned verbatim by GET /admin/audit and never trimmed by
     # retention, so a bot token written here outlives the channel it belongs to.
@@ -206,14 +213,67 @@ async def update_setting(
             detail=change,
         )
     log.info("settings.updated", key=key, sensitive=spec.scope is Scope.SENSITIVE)
-    return ok(
-        request,
-        {
-            "key": key,
-            "value": redact_setting(value, key),
-            "version": request.app.state.config.version,
-        },
-    )
+    payload: dict[str, Any] = {
+        "key": key,
+        "value": redact_setting(value, key),
+        "version": request.app.state.config.version,
+    }
+    if demo_payload is not None:
+        payload["demo"] = demo_payload
+    return ok(request, payload)
+
+
+async def _apply_demo_switch(
+    request: Request, key: str, value: Any, principal: Principal
+) -> dict[str, Any] | None:
+    """Provision or withdraw the demo account when its switch moves.
+
+    Returns the credentials on the transition to on, and None otherwise -
+    including when the setting written was some other key, and including when
+    the demo was already on and is being written on again, because reprovisioning
+    on every save would invalidate a password the operator had already published.
+
+    Nothing here raises into the caller's response. The setting is already
+    stored and reloaded by the time this runs, so a failure to mint leaves the
+    switch on with no account behind it - which the console shows as "on, no
+    credentials" and an administrator fixes by rotating. Raising instead would
+    report the whole update as failed while having applied half of it.
+    """
+    from dtk.api.routes.passwords import hash_password
+    from dtk.services import demo
+
+    if key != demo.SETTING_KEY:
+        return None
+
+    try:
+        if bool(value):
+            existing = await demo.describe(request.state.db)
+            if existing is not None and existing.api_key_prefix:
+                return existing.as_dict()
+            credentials = await demo.provision(request.state.db, hash_password=hash_password)
+            await audit(
+                request,
+                principal,
+                "demo.provisioned",
+                target_type="user",
+                target_id=credentials.username,
+                detail={"api_key_prefix": credentials.api_key_prefix},
+            )
+            return credentials.as_dict()
+
+        dropped = await demo.end_sessions(request.state.db)
+        await audit(
+            request,
+            principal,
+            "demo.disabled",
+            target_type="user",
+            target_id=demo.DEMO_USERNAME,
+            detail={"sessions_ended": dropped},
+        )
+        return None
+    except Exception as exc:
+        log.error("demo.switch_failed", error=f"{type(exc).__name__}: {exc}", enabled=bool(value))
+        return None
 
 
 @router.delete(

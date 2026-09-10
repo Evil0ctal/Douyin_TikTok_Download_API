@@ -566,6 +566,31 @@ class TaskRepository(Repository):
             log.info("tasks.rows_deleted", rows=deleted)
         return int(deleted)
 
+    async def delete_old_demo(self, *, older_than: timedelta) -> int:
+        """Delete finished demo tasks past their much shorter window.
+
+        Same shape as :meth:`delete_old` and deliberately a second method
+        rather than a flag on the first: the two windows differ by three orders
+        of magnitude, and a single call with a parameter would eventually be
+        given the wrong one. The state filter is here for the same reason it is
+        there - a running task whose row is deleted becomes a worker popping an
+        id that no longer exists.
+        """
+        cutoff = utcnow() - older_than
+        stmt = (
+            delete(Task)
+            .where(
+                Task.is_demo.is_(True),
+                Task.created_at < cutoff,
+                Task.state.in_((TaskState.DONE.value, TaskState.FAILED.value)),
+            )
+            .execution_options(**_NO_SYNC)
+        )
+        deleted = affected(await self.session.execute(stmt))
+        if deleted:
+            log.info("tasks.demo_rows_deleted", rows=deleted)
+        return int(deleted)
+
 
 class SettingsRepository(Repository):
     """The runtime configuration layer, plus the version every process polls.

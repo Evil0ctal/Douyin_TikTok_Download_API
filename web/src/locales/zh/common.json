@@ -83,7 +83,8 @@
     "role": {
       "admin": "管理员",
       "operator": "运维",
-      "viewer": "只读"
+      "viewer": "只读",
+      "demo": "演示"
     },
     "unknown": "未知",
     "download": {

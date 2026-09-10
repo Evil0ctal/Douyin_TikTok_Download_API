@@ -53,6 +53,11 @@ TASK_ROW_SETTING: Final[str] = "retention.task_days"
 #: and reads its window from here, with the rest of them.
 RETIRED_IDENTITY_SETTING: Final[str] = "retention.retired_identity_days"
 
+#: The demo account's task window, in minutes. Declared beside the others so
+#: the maintenance pass has one place to read retention from, even though this
+#: one is owned by the demo feature rather than by the retention settings.
+DEMO_TASK_SETTING: Final[str] = "demo.task_retention_minutes"
+
 
 @dataclass(frozen=True, slots=True)
 class PolicyChange:
@@ -232,6 +237,19 @@ async def delete_expired_tasks(session: AsyncSession, *, days: int) -> int:
     return await TaskRepository(session).delete_old(older_than=timedelta(days=window))
 
 
+async def delete_expired_demo_tasks(session: AsyncSession, *, minutes: int) -> int:
+    """Delete demo task rows older than ``minutes``.
+
+    Minutes, not days: these rows exist only so a demo caller can poll for the
+    answer to the request they just made, and once they have it the row is a
+    record of a stranger's curiosity that nobody will read. Floored at one
+    minute so a mistyped zero cannot delete a task while its caller is still
+    waiting for it.
+    """
+    window = max(1, int(minutes))
+    return await TaskRepository(session).delete_old_demo(older_than=timedelta(minutes=window))
+
+
 async def apply_retention(session: AsyncSession, config: Any) -> tuple[PolicyChange, ...]:
     """Bring every hypertable policy in line with the current settings.
 
@@ -287,13 +305,22 @@ async def run_maintenance(
         deleted = await delete_expired_tasks(session, days=int(config.get(TASK_ROW_SETTING)))
     except Exception as exc:
         errors["task_rows"] = str(exc)[:200]
+    # Unconditional: it reads the demo window rather than `demo.enabled`,
+    # because turning the demo off must still clear what it left behind.
+    try:
+        demo_deleted = await delete_expired_demo_tasks(
+            session, minutes=int(config.get(DEMO_TASK_SETTING))
+        )
+    except Exception as exc:
+        demo_deleted = 0
+        errors["demo_task_rows"] = str(exc)[:200]
 
     compressed = await apply_compression_policy(session, compression_after_days)
 
     report = RetentionReport(
         policies=policies,
         task_payloads_cleared=cleared,
-        task_rows_deleted=deleted,
+        task_rows_deleted=deleted + demo_deleted,
         compression_after_days=compressed,
         errors=errors,
     )
@@ -332,6 +359,7 @@ def _days_from_interval(value: Any) -> int | None:
 
 
 __all__ = [
+    "DEMO_TASK_SETTING",
     "MAX_RETENTION_DAYS",
     "MIN_RETENTION_DAYS",
     "PROTECTED_TABLES",
@@ -346,6 +374,7 @@ __all__ = [
     "apply_retention",
     "blank_expired_task_payloads",
     "current_policies",
+    "delete_expired_demo_tasks",
     "delete_expired_tasks",
     "run_maintenance",
     "validate_days",

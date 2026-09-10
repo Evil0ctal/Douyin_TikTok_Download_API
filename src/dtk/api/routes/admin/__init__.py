@@ -22,6 +22,7 @@ from fastapi import APIRouter
 from dtk.api.routes.admin import (
     access,
     api_keys,
+    demo,
     health,
     identities,
     logs,
@@ -38,6 +39,7 @@ router.include_router(identities.router)
 router.include_router(proxies.router)
 router.include_router(api_keys.router)
 router.include_router(settings.router)
+router.include_router(demo.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(access.router)

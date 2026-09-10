@@ -83,7 +83,8 @@
     "role": {
       "admin": "Admin",
       "operator": "Operator",
-      "viewer": "Viewer"
+      "viewer": "Viewer",
+      "demo": "Demo"
     },
     "unknown": "Unknown",
     "download": {

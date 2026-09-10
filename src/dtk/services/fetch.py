@@ -126,6 +126,14 @@ class FetchContext:
     api_key_id: uuid.UUID | None = None
     task_id: uuid.UUID | None = None
     include_raw: bool = False
+    #: The public demo account made this call, so no row is appended to
+    #: ``request_log`` for it. Everything else about the request is identical -
+    #: it spends an identity, its outcome cools or clears that identity, and it
+    #: counts toward the endpoint's circuit - because all of that lives in
+    #: Redis and none of it is what fills a disk. What is suppressed is only
+    #: the durable per-request row, which on a public instance is the table
+    #: that grows without bound and tells the operator nothing they wanted.
+    is_demo: bool = False
     #: An egress the caller asked for, already validated by
     #: :mod:`dtk.api.request_proxy`. It REPLACES the identity's own exit, which
     #: is a real cost and not a free option: the identity's cookies were minted
@@ -587,7 +595,12 @@ class FetchService:
         The four that used to be left out - the egress, the signer, the cache
         flag and the refusal reason - are the ones an outage is diagnosed with,
         and this is the only writer the table has.
+
+        Being the only writer is also what makes the demo suppression one line:
+        there is nowhere else a request row can come from.
         """
+        if ctx.is_demo:
+            return
         session.add(
             RequestLog(
                 ts=datetime.now(UTC),

@@ -27,7 +27,7 @@ from dtk.api.deps import Principal
 from dtk.api.routes import operations
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.operations import unwrap
-from dtk.api.routes.support import authenticated, iso, language, ok
+from dtk.api.routes.support import demo_read, iso, language, ok
 from dtk.core.db import session_scope
 from dtk.core.errors import ErrorCode, TaskNotFound
 from dtk.core.logging import get_logger
@@ -166,7 +166,7 @@ TASK_ID_PATH = Path(description="The task id returned when the work was submitte
 async def get_task(
     request: Request,
     task_id: uuid.UUID = TASK_ID_PATH,
-    principal: Principal = Depends(authenticated),
+    principal: Principal = Depends(demo_read),
 ) -> Any:
     """The state of one task, and its result once it has finished.
 
@@ -200,7 +200,7 @@ async def get_task(
 async def cancel_task(
     request: Request,
     task_id: uuid.UUID = TASK_ID_PATH,
-    principal: Principal = Depends(authenticated),
+    principal: Principal = Depends(demo_read),
 ) -> Any:
     """Give up on a task that has not started.
 
@@ -239,7 +239,7 @@ async def task_events(
         le=SSE_MAX_SECONDS,
         description="Seconds to hold the stream open before closing it.",
     ),
-    principal: Principal = Depends(authenticated),
+    principal: Principal = Depends(demo_read),
 ) -> StreamingResponse:
     """Server-sent events until the task settles or the deadline passes.
 

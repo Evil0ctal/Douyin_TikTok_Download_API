@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'wouter'
 
 import { cn } from '@/lib/cn'
-import { NAV_GROUPS, NAV_ITEMS, type NavIconName } from '@/lib/nav'
+import { useSession } from '@/hooks'
+import { NAV_GROUPS, type NavIconName, navItemsFor } from '@/lib/nav'
 
 import {
   ActivityIcon,
@@ -78,6 +79,10 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const { t } = useTranslation(['console', 'common'])
+  // The demo account gets a trimmed sidebar. Trimming a link is presentation,
+  // not protection: the API refuses these pages for a demo caller regardless.
+  const session = useSession()
+  const visible = navItemsFor(session.data?.role)
   const [location] = useLocation()
 
   return (
@@ -104,7 +109,7 @@ export function Sidebar({
 
       <div className={styles.navScroll}>
         {NAV_GROUPS.map((group) => {
-          const items = NAV_ITEMS.filter((item) => item.group === group)
+          const items = visible.filter((item) => item.group === group)
           if (items.length === 0) return null
           return (
             <div key={group} className={styles.navGroup}>

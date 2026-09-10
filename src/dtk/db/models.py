@@ -97,8 +97,12 @@ class User(Base):
 
     __tablename__ = "users"
     __table_args__ = (
+        # Spelled out rather than generated from UserRole: this is a database
+        # constraint, so it has to match what the migrations built, and a value
+        # added to the enum without a migration should fail loudly here rather
+        # than diverge silently.
         CheckConstraint(
-            "role IN ('admin','operator','viewer')",
+            "role IN ('admin','operator','viewer','demo')",
             name="ck_users_role",
         ),
     )
@@ -236,6 +240,14 @@ class Task(Base):
         # Drives the result-eviction sweep: finished long enough ago and still
         # holding a payload.
         Index("ix_tasks_finished_at", "finished_at"),
+        # Drives the demo sweep, which runs on a window of minutes and would
+        # otherwise scan the whole table to find a handful of rows. Partial, so
+        # it costs nothing on an instance that never turns the demo on.
+        Index(
+            "ix_tasks_demo_created_at",
+            "created_at",
+            postgresql_where=text("is_demo"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -254,6 +266,19 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    #: Started by the public demo account.
+    #:
+    #: A column rather than a lookup through ``api_key_id``, because the demo
+    #: console has no key at all - it holds a session - and because the worker
+    #: reads this on every task to decide whether to archive what it parsed. A
+    #: join per task to answer a boolean that never changes is the wrong shape,
+    #: and the alternative of stashing it in ``params`` would put a security
+    #: decision inside caller-supplied JSON.
+    #:
+    #: Two things read it: the archive step in the worker skips demo results,
+    #: and the maintenance sweep deletes these rows on
+    #: ``demo.task_retention_minutes`` rather than ``retention.task_days``.
+    is_demo: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
 
     def __repr__(self) -> str:
         return _repr("Task", id=self.id, endpoint=self.endpoint, state=self.state)

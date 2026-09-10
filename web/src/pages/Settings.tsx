@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Button,
   Card,
+  DemoCard,
   EmptyState,
   ErrorState,
   PageHeader,
@@ -57,6 +58,7 @@ const GROUP_ORDER = [
   'watchlist',
   'capacity',
   'retention',
+  'demo',
   'api',
   'security',
   'notify',
@@ -161,6 +163,10 @@ export default function Settings() {
           {t('settings.readOnly')}
         </Banner>
       ) : null}
+
+      {/* Above the generic editors. The switch below edits the same setting,
+          but only this card can show what turning it on produced. */}
+      <DemoCard canWrite={canWriteSensitive} />
 
       {query.isError ? (
         <Card>

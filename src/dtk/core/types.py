@@ -108,6 +108,24 @@ class UserRole(StrEnum):
     ADMIN = "admin"
     OPERATOR = "operator"
     VIEWER = "viewer"
+    #: The public account on a demo deployment, and the lowest rank there is.
+    #:
+    #: It exists because "let strangers look at the console" and "let a colleague
+    #: read the console" are different asks that VIEWER cannot both serve: a
+    #: viewer reads the identity pool, the proxies, the API keys and the
+    #: settings, which on a machine anybody can log into is the whole instance.
+    #:
+    #: Ranking it *below* viewer rather than beside it is what makes that safe.
+    #: Every existing gate is written as "viewer or better", so a role added
+    #: underneath is refused by all of them without a single call site being
+    #: touched, and reaching a page becomes something a route has to opt into
+    #: rather than something it has to remember to forbid. See
+    #: :data:`dtk.api.routes.support.ROLE_RANK`.
+    #:
+    #: The role is inert unless ``demo.enabled`` is on: both the login and the
+    #: credential lookup refuse it otherwise, so turning the setting off is
+    #: enough to end public access without deleting anything.
+    DEMO = "demo"
 
 
 class RejectReason(StrEnum):

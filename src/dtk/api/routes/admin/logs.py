@@ -33,7 +33,7 @@ from dtk.api.routes.support import (
     MAX_ADMIN_PAGE_SIZE,
     iso,
     ok,
-    read_admin,
+    read_admin_demo,
 )
 from dtk.core.types import Outcome
 from dtk.db.models import RequestLog
@@ -110,7 +110,7 @@ async def list_request_log(
         le=MAX_ADMIN_PAGE_SIZE,
         description="Maximum rows to return.",
     ),
-    principal: Principal = Depends(read_admin),
+    principal: Principal = Depends(read_admin_demo),
 ) -> Any:
     """Recent requests, newest first, filtered.
 

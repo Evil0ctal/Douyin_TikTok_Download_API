@@ -22,7 +22,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Request
 
-from dtk.api.deps import Principal
+from dtk.api.deps import Principal, demo_mode_on
 from dtk.api.routes import sessions
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.passwords import hash_password, needs_rehash, verify_password
@@ -39,6 +39,7 @@ from dtk.api.routes.support import (
 from dtk.core.errors import InvalidParam, NotFound, RateLimited, Unauthenticated
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
+from dtk.core.types import UserRole
 from dtk.db.repositories import UserRepository
 
 log = get_logger(__name__)
@@ -238,6 +239,17 @@ async def login(request: Request, body: LoginRequest) -> Any:
 
     if user is None:  # unreachable: a missing account never verifies
         raise Unauthenticated("incorrect username or password")
+
+    # The demo account exists whether or not the demo is running, so the switch
+    # is what decides. Answered as a plain credential failure rather than
+    # "demo mode is off": the password is published in a README, so a truthful
+    # message here would tell anyone who read it that the account is real and
+    # waiting - which is a thing to say on the login page, not to a caller
+    # holding a working password.
+    if UserRole(user.role) is UserRole.DEMO and not demo_mode_on(request):
+        log.info("auth.login_refused_demo_off", username=body.username[:64], ip=ip)
+        raise Unauthenticated("incorrect username or password")
+
     await _clear_failures(body.username, ip)
     if needs_rehash(user.password_hash):
         # Parameters moved on since this digest was written; upgrade it now

@@ -638,7 +638,8 @@
       "archive": "Content archive",
       "capacity": "Capacity",
       "media": "Media",
-      "watchlist": "Watchlist"
+      "watchlist": "Watchlist",
+      "demo": "Demo"
     },
     "groupHint": {
       "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
@@ -655,7 +656,8 @@
       "archive": "What this instance keeps after a task result expires. The archive holds the current state of a post; the metric history beside it holds how it changed.",
       "capacity": "How this instance behaves as the disk fills. It warns, then pauses background writers - it never deletes.",
       "media": "Where downloaded video and images live, how much disk they may take, and what happens when they reach it. Nothing here is deleted except stored files, and never a pinned one.",
-      "watchlist": "Which targets this instance re-collects on a timer, and how much of the queue that may take. Scheduled runs go through the same queue and identity pool as everything else, so they always yield to a caller who is waiting."
+      "watchlist": "Which targets this instance re-collects on a timer, and how much of the queue that may take. Scheduled runs go through the same queue and identity pool as everything else, so they always yield to a caller who is waiting.",
+      "demo": "The public account a demo deployment publishes, and how long its tasks are kept."
     },
     "choice": {
       "signing.mode": {
@@ -667,6 +669,26 @@
         "deny": "Refuse it (recommended) - callers cannot choose an egress",
         "public": "Allow, public addresses only - loopback and private ranges are refused",
         "any": "Allow anything - an API key holder can reach this server's own network"
+      }
+    },
+    "demo": {
+      "title": "Demo mode",
+      "body": "Publish a shared read-only account and API key so anyone can try this instance.",
+      "turnOn": "Turn demo mode on",
+      "turnOff": "Turn demo mode off",
+      "rotate": "Reissue credentials",
+      "username": "Username",
+      "keyPrefix": "API key prefix",
+      "scopes": "Key scopes",
+      "shownOnce": "Copy these now — they are shown once and are not stored.",
+      "password": "Password",
+      "apiKey": "API key",
+      "enabledButMissing": "Demo mode is on but no account exists. Reissue the credentials to mint one.",
+      "note": "The demo account is read-only: it calls the platform endpoints and reads the pages that carry no credential. It cannot download, change a setting or see the identity pool. Its requests are not written to the request log or the archive, and its tasks are swept within minutes. Turning demo mode off ends every open demo session and stops the key working, without deleting anything.",
+      "toast": {
+        "on": "Demo mode is on",
+        "off": "Demo mode is off",
+        "rotated": "New demo credentials issued"
       }
     }
   },
@@ -986,14 +1008,16 @@
       "capability": "Capability"
     },
     "capability": {
-      "read": "Read the overview, logs and diagnostics",
-      "pool": "Manage identities and proxies",
-      "keys": "Create and revoke API keys",
+      "backup": "Create and restore backups",
       "diagnose": "Run the self check",
-      "settings": "Change runtime settings",
+      "fetch": "Call the platform endpoints",
+      "keys": "Create and revoke API keys",
+      "pool": "Manage identities and proxies",
+      "read": "Read the pool, proxies, keys and settings",
+      "readPublic": "Read the overview, library, downloads, logs and system pages",
       "sensitive": "Change sensitive settings: allowlist, CORS, download proxy",
-      "users": "Manage accounts and roles",
-      "backup": "Create and restore backups"
+      "settings": "Change runtime settings",
+      "users": "Manage accounts and roles"
     },
     "password": {
       "title": "Your password",

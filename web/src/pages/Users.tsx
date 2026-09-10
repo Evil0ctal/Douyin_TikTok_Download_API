@@ -63,9 +63,18 @@ interface SessionRow {
   current: boolean
 }
 
-/** Capabilities per role, straight from docs/design/15-operations.md. */
+/**
+ * Capabilities per role, straight from docs/design/15-operations.md.
+ *
+ * `demo` appears on two rows and no others, which is the point of it: it calls
+ * the platforms and reads the boards that carry no credential, and it is
+ * refused everywhere else - including on every write, whatever the row says,
+ * because the account is read-only by a separate rule.
+ */
 const CAPABILITIES: ReadonlyArray<{ id: string; roles: readonly UserRole[] }> = [
+  { id: 'fetch', roles: ['admin', 'operator', 'viewer', 'demo'] },
   { id: 'read', roles: ['admin', 'operator', 'viewer'] },
+  { id: 'readPublic', roles: ['admin', 'operator', 'viewer', 'demo'] },
   { id: 'pool', roles: ['admin', 'operator'] },
   { id: 'keys', roles: ['admin', 'operator'] },
   { id: 'diagnose', roles: ['admin', 'operator'] },
@@ -80,6 +89,7 @@ interface CapabilityRow {
   admin: boolean
   operator: boolean
   viewer: boolean
+  demo: boolean
 }
 
 const CAPABILITY_ROWS: CapabilityRow[] = CAPABILITIES.map((capability) => ({
@@ -87,6 +97,7 @@ const CAPABILITY_ROWS: CapabilityRow[] = CAPABILITIES.map((capability) => ({
   admin: capability.roles.includes('admin'),
   operator: capability.roles.includes('operator'),
   viewer: capability.roles.includes('viewer'),
+  demo: capability.roles.includes('demo'),
 }))
 
 /** Colour, icon and word: a matrix of bare ticks is unreadable when pasted. */
@@ -447,6 +458,16 @@ export default function Users() {
         </span>
       ),
       cell: (row) => <YesNo value={row.viewer} />,
+      width: '150px',
+    },
+    {
+      id: 'demo',
+      header: (
+        <span className="u-row" style={{ gap: 'var(--space-1)' }}>
+          {t('common:state.role.demo')} <span className="u-mono u-xs u-muted">demo</span>
+        </span>
+      ),
+      cell: (row) => <YesNo value={row.demo} />,
       width: '150px',
     },
   ]

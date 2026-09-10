@@ -51,8 +51,14 @@ async def create(
     params: dict[str, Any],
     *,
     api_key_id: uuid.UUID | None = None,
+    is_demo: bool = False,
 ) -> uuid.UUID:
     """Write the task row. It is not runnable until :func:`enqueue` publishes it.
+
+    ``is_demo`` travels with the row rather than being re-derived later: the
+    worker reads it to decide whether to archive, and the sweep reads it to
+    decide how long to keep the row, and both run long after the request that
+    knew who the caller was has gone.
 
     The queue write is deliberately NOT here, and this split is the whole
     lesson of the incident on 2026-09-08. The two steps commit at different
@@ -77,6 +83,7 @@ async def create(
             params=params,
             state=TaskState.QUEUED.value,
             created_at=datetime.now(UTC),
+            is_demo=is_demo,
         )
     )
     await session.flush()
@@ -99,6 +106,7 @@ async def submit_now(
     params: dict[str, Any],
     *,
     api_key_id: uuid.UUID | None = None,
+    is_demo: bool = False,
 ) -> uuid.UUID:
     """Write, commit and publish, for a caller with no transaction of its own.
 
@@ -108,7 +116,7 @@ async def submit_now(
     from dtk.core.db import session_scope
 
     async with session_scope() as session:
-        task_id = await create(session, endpoint, params, api_key_id=api_key_id)
+        task_id = await create(session, endpoint, params, api_key_id=api_key_id, is_demo=is_demo)
     await enqueue(task_id, endpoint=endpoint)
     return task_id
 

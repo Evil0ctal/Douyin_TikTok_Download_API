@@ -156,7 +156,11 @@
       "archive.recheck_after_days": "How old a post's last existence check may be before it is checked again. This is what makes \"which of the things I saved are gone\" answerable at all - without it, a post deleted the day after it was archived stays marked live forever. 0 turns rechecking off.",
       "archive.recheck_batch": "How many posts one recheck pass verifies. Each is a real request through the identity pool, so this is the knob that decides what the answer costs.",
       "archive.recheck_pause_seconds": "Seconds between the individual requests a recheck or backfill makes. The scheduler paces requests per identity, which does nothing about a platform limit that counts requests per address - measured: 20 requests in 13 seconds were all rejected, while one a minute later succeeded. Nobody is waiting on these passes, so slow costs nothing.",
-      "security.webhook_secret": "Shared secret used to sign task callbacks, sent as X-Dtk-Signature: sha256=<hmac of the exact body>. Without it a receiver has no way to tell a real notification from anyone who guessed the callback URL. Leave empty to send callbacks unsigned."
+      "security.webhook_secret": "Shared secret used to sign task callbacks, sent as X-Dtk-Signature: sha256=<hmac of the exact body>. Without it a receiver has no way to tell a real notification from anyone who guessed the callback URL. Leave empty to send callbacks unsigned.",
+      "demo": {
+        "enabled": "Publish a shared read-only account and API key so anyone can try this instance. Turning it on mints both and shows them once; turning it off ends every demo session and stops the key working, without deleting anything.",
+        "task_retention_minutes": "How long a task started by the demo account is kept before the maintenance sweep removes it. Minutes, not days: the row exists so the caller can collect their answer, and after that nobody reads it."
+      }
     }
   },
   "openapi": {
@@ -317,6 +321,14 @@
       "content_detail": {
         "summary": "One post, video or image album",
         "description": "One post - a video or an image album - with its media URLs, caption, statistics and author. Identify it by either url or aweme_id."
+      },
+      "demo_rotate": {
+        "summary": "Reissue the demo credentials",
+        "description": "Generate a new demo password and API key, revoke the old key and end every open demo session. Both secrets are returned in the clear, for the only time."
+      },
+      "demo_show": {
+        "summary": "Show the demo account",
+        "description": "What this instance publishes as its demo: whether it is on, the account name, the API key prefix and its scopes. Never the password or the key itself."
       },
       "diagnose": {
         "summary": "Run the six-step self check",
@@ -498,6 +510,10 @@
         "summary": "Fetch a task",
         "description": "Returns the task state and, once it is done, its result. Results expire; re-submit if the task is gone."
       },
+      "tools_decode": {
+        "summary": "Read a signature parameter back",
+        "description": "Take a signature parameter apart and say what is inside it - the inverse of /tools/sign. Paste a whole signed URL and every parameter in it is decoded against the exact string that parameter seals. Values that are hashes are labelled as hashes and checked against a candidate rather than guessed at; values the platform issues rather than computes are named as such."
+      },
       "tools_identity": {
         "summary": "Mint a guest identity and return it",
         "description": "Drive a real browser to the platform and hand back the cookies it was issued - the half of the work no algorithm can produce. Takes tens of seconds, requires the identity:manage scope, and stores nothing: use the admin mint endpoint instead to add one to this instance's own pool."
@@ -513,10 +529,6 @@
       "tools_sign": {
         "summary": "Sign a platform API URL",
         "description": "Compute the signature parameters a platform API URL needs. Pure arithmetic - nothing is fetched and no identity is spent. The User-Agent is hashed into the signature, so send the request with the same one the response echoes back; TikTok also checks that the TLS fingerprint agrees with it."
-      },
-      "tools_decode": {
-        "summary": "Read a signature parameter back",
-        "description": "Take a signature parameter apart and say what is inside it - the inverse of /tools/sign. Paste a whole signed URL and every parameter in it is decoded against the exact string that parameter seals. Values that are hashes are labelled as hashes and checked against a candidate rather than guessed at; values the platform issues rather than computes are named as such."
       },
       "users_create": {
         "summary": "Create a console account",

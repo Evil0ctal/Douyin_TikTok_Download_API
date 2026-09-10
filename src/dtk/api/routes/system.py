@@ -28,7 +28,7 @@ from sqlalchemy import func, select, text
 from dtk import __version__
 from dtk.api.deps import Principal
 from dtk.api.routes.openapi import I18N_KEY
-from dtk.api.routes.support import authenticated, ok
+from dtk.api.routes.support import demo_read, ok
 from dtk.core.db import session_scope
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
@@ -129,7 +129,7 @@ async def readyz() -> JSONResponse:
     summary="Instance status",
     openapi_extra={I18N_KEY: "health"},
 )
-async def system_status(request: Request, principal: Principal = Depends(authenticated)) -> Any:
+async def system_status(request: Request, principal: Principal = Depends(demo_read)) -> Any:
     """Version, component health, pool census and storage use.
 
     Authenticated: it names component versions and row counts, which is more

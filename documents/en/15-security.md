@@ -430,21 +430,29 @@ The same list is available at `GET /api/v1/admin/endpoints/access`.
 
 ## Roles, scopes, and the calls that hand back a credential
 
-Roles are a ladder — `viewer < operator < admin` — and scopes bound a key.
+Roles are a ladder — `demo < viewer < operator < admin` — and scopes bound a key.
 A console session is bounded by the role only; an API key is bounded by both,
 **and the scope half never softens because the key belongs to an
 administrator**. Almost every key on a self-hosted box does belong to the admin
 user, so an admin short-circuit there would have made `archive:export`
 unenforceable in exactly the deployment it was written for.
 
-Four guards cover the administrative surface:
+Six guards cover the administrative surface:
 
 | Guard | Scopes | Minimum role | Used for |
 | --- | --- | --- | --- |
+| `demo_read` | any | demo | The pages a public demo shows: tasks, system status |
+| `read_admin_demo` | `admin` or `identity:manage` | demo | Reads a demo shows that carry no credential: request log, endpoint health |
 | `authenticated` | any | viewer | Any signed-in caller |
 | `read_admin` | `admin` or `identity:manage` | viewer | Reading the admin surface: listings, settings, audit, endpoint access |
 | `manage_pool` | `admin` or `identity:manage` | operator | Identity, proxy and API key maintenance |
 | `admin_only` | `admin` | admin | Users, SENSITIVE settings, backup and restore |
+
+`demo` sitting *below* viewer rather than beside it is the whole safety
+argument. Every guard defaults to `min_role=viewer`, so a role numbered
+underneath is refused by all of them without a call site being touched, and a
+route added next year is closed to a demo instance until somebody opens it on
+purpose. The two demo guards are the opt-in.
 
 A SENSITIVE setting write is bounded twice — `admin` scope **and** the admin
 role **and** `confirm: true` — because the endpoint that writes settings is
@@ -490,6 +498,63 @@ instance-wide and has no owners, so naming a row is asking to send a request as
 whoever imported that jar. It is validated at submission — unknown id, retired,
 wrong platform — so a mistyped uuid is a `400` naming the field rather than a
 task that queues, runs and dies.
+
+## Demo mode
+
+An instance put on a public server so strangers can try it has a problem the
+role ladder alone does not solve: somebody has to be able to log in, and
+whoever that is has their password written in a README. `demo.enabled` is the
+switch for that, and it publishes exactly two credentials.
+
+Turn it on from **Settings → Demo mode**. It mints an account called `demo` and
+one API key, and shows the password and the key **once** — nothing stores
+either in readable form, so a lost one is reissued rather than looked up.
+
+| | The demo session | The published API key |
+| --- | --- | --- |
+| Bounded by | the role, which ranks below viewer | `douyin:read` and `tiktok:read` |
+| Can call the platforms | yes | yes |
+| Can read the overview, library, downloads, logs, system | yes | no — the scope check refuses it |
+| Can read identities, proxies, keys, users, settings | no | no |
+| Can change anything | no | no |
+
+Two separate rules produce that table, and it is worth knowing which is which.
+The **scope** check is what stops the published key from reading the request
+log. The **read-only** rule is what stops the console session, which is
+unscoped like every console session, from starting a download or changing the
+password: every write is refused unless its route is on a short allowlist in
+`dtk/api/demo_readonly.py`, so an endpoint added later is closed by default.
+
+### What a demo request leaves behind
+
+Almost nothing, because a public instance's database is filled by whatever
+strangers happen to paste:
+
+- **no `request_log` row.** The scheduler is unaffected — identity health and
+  the endpoint circuit are folded in through Redis, so a demo caller still
+  cools a burnt identity exactly like anybody else.
+- **no archive and no counter snapshot.** What a demo user parses is returned
+  to them and not kept.
+- **a `tasks` row, which cannot be skipped** — a task id has to refer to
+  something for `202` plus polling to work. It is marked `is_demo` and swept on
+  `demo.task_retention_minutes`, 30 by default, rather than the 90 days a real
+  caller's task gets.
+
+Demo requests also never join a real caller's in-flight task, and vice versa.
+Sharing one would break the guarantee in both directions.
+
+### Turning it off
+
+Off is enforced on **every request**, not only at login. A session cookie is
+good until it expires and an API key until it is revoked, so a check that ran
+once at the door would leave whoever was already inside there. Instead both
+demo credentials stop resolving the moment the setting goes false, every open
+demo session is dropped, and nothing is deleted — turning it back on works with
+the same password and the same key.
+
+Rate limiting is not part of this. Demo mode decides *what* the account may do;
+how often is a job for the per-key rate limit or for whatever sits in front of
+the instance.
 
 ## The audit log
 

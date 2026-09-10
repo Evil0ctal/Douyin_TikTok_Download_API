@@ -38,7 +38,7 @@ export const REJECT_REASONS = [
 ] as const
 export type RejectReason = (typeof REJECT_REASONS)[number]
 
-export const USER_ROLES = ['admin', 'operator', 'viewer'] as const
+export const USER_ROLES = ['admin', 'operator', 'viewer', 'demo'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
 export const SCOPES = [

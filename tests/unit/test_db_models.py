@@ -101,6 +101,7 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
         "created_at",
         "started_at",
         "finished_at",
+        "is_demo",
     },
     "settings": {"key", "value", "updated_at", "updated_by"},
     "settings_version": {"id", "version"},

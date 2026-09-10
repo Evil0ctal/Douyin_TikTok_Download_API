@@ -41,7 +41,7 @@ from dtk.api.routes.support import language, ok, request_id
 from dtk.core.errors import ErrorCode, Internal, QueueFull, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Platform, RejectReason, Scope, TaskState
+from dtk.core.types import Platform, RejectReason, Scope, TaskState, UserRole
 from dtk.services import cache, tasks
 
 # The worker package's declared surface, not its internals: this route and
@@ -110,8 +110,20 @@ def endpoint_name(platform: Platform, operation: Operation) -> str:
     return f"{platform.value}.{operation.value}"
 
 
-def _digest(endpoint: str, params: dict[str, Any]) -> str:
-    return cache.cache_key(f"{INFLIGHT_NAMESPACE}:{endpoint}", params)
+def _digest(endpoint: str, params: dict[str, Any], *, is_demo: bool = False) -> str:
+    """The key two identical in-flight requests share.
+
+    Demo requests get their own namespace, so they coalesce with each other and
+    never across the boundary. Sharing one would break the guarantee in both
+    directions: a demo caller joining an operator's task would have its result
+    archived and logged after all, and an operator joining a demo task would
+    quietly lose the archive row they were entitled to. The cost of separating
+    them is one extra upstream call in the rare moment both ask for the same
+    thing at once, which is a fair price for a rule that holds without
+    exceptions.
+    """
+    prefix = f"{INFLIGHT_NAMESPACE}:demo" if is_demo else INFLIGHT_NAMESPACE
+    return cache.cache_key(f"{prefix}:{endpoint}", params)
 
 
 def _clean(params: dict[str, Any]) -> dict[str, Any]:
@@ -209,7 +221,8 @@ async def submit(
     """
     session = request.state.db
     cleaned = _clean(params)
-    digest = _digest(endpoint, cleaned)
+    is_demo = principal.role is UserRole.DEMO
+    digest = _digest(endpoint, cleaned, is_demo=is_demo)
 
     if coalesce:
         joined = await _attach(session, digest)
@@ -222,7 +235,9 @@ async def submit(
     # a failure for callers who were about to get an answer for free.
     await _refuse_when_the_queue_is_full(request, endpoint)
 
-    task_id = await tasks.create(session, endpoint, cleaned, api_key_id=principal.api_key_id)
+    task_id = await tasks.create(
+        session, endpoint, cleaned, api_key_id=principal.api_key_id, is_demo=is_demo
+    )
     # Commit before the worker can pop the id off the queue: the row has to be
     # visible to another process by the time it looks the task up. This is now
     # true rather than merely intended - `create` writes the row and nothing

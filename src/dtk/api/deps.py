@@ -16,7 +16,7 @@ from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dtk.api import public_endpoints
+from dtk.api import demo_readonly, public_endpoints
 from dtk.core.crypto import hash_api_key
 from dtk.core.errors import ForbiddenScope, RateLimited, Unauthenticated
 from dtk.core.redis import get_redis
@@ -148,6 +148,20 @@ def _bearer(request: Request) -> str | None:
     return request.headers.get(API_KEY_HEADER.lower())
 
 
+def demo_mode_on(request: Request) -> bool:
+    """Whether this instance is currently publishing a demo account.
+
+    Defaults to False on any failure to read the setting. The direction matters:
+    a config lookup that raises must not be the thing that opens a public login.
+    """
+    from dtk.services import demo
+
+    try:
+        return bool(request.app.state.config.get(demo.SETTING_KEY))
+    except Exception:
+        return False
+
+
 async def current_principal(request: Request) -> Principal:
     """Resolve the caller, or reject.
 
@@ -164,6 +178,20 @@ async def current_principal(request: Request) -> Principal:
         cookie = request.cookies.get(SESSION_COOKIE)
         if cookie:
             principal = await _from_session(session, cookie)
+
+    # The demo switch is enforced here, on every request, rather than only at
+    # login. A session cookie is good until it expires and an API key until it
+    # is revoked, so a check that ran once at the door would leave whoever was
+    # already inside there after the operator turned the demo off. Both demo
+    # credentials therefore stop resolving the moment the setting goes false,
+    # and resolve again - unchanged - if it goes back true.
+    if principal is not None and principal.role is UserRole.DEMO:
+        if not demo_mode_on(request):
+            raise Unauthenticated("demo mode is off on this instance")
+        # And it may not change anything. Enforced here, on the one path every
+        # authenticated request passes through, rather than as a gate per route:
+        # see dtk.api.demo_readonly for why the default has to be closed.
+        demo_readonly.refuse_write(request, principal.role)
 
     if principal is None:
         principal = _anonymous_if_opened(request)
@@ -278,6 +306,7 @@ __all__ = [
     "SESSION_KEY",
     "Principal",
     "current_principal",
+    "demo_mode_on",
     "enforce_rate_limit",
     "require_role",
     "require_scopes",

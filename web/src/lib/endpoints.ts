@@ -124,6 +124,12 @@ export const paths = {
     list: `${API_V1}/admin/settings`,
     byKey: (key: string) => `${API_V1}/admin/settings/${encodeURIComponent(key)}`,
   },
+  /** The public demo account. The switch itself is a setting; these two are
+   *  what a setting cannot express - what is published, and replacing it. */
+  demo: {
+    show: `${API_V1}/admin/demo`,
+    rotate: `${API_V1}/admin/demo/rotate`,
+  },
   users: {
     list: `${API_V1}/admin/users`,
     byId: (id: string) => `${API_V1}/admin/users/${encodeURIComponent(id)}`,
