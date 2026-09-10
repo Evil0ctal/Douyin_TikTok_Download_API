@@ -1,0 +1,24 @@
+# 空白 issue 关掉了，不是为了设门槛，是因为没有版本号和诊断输出的报告，
+# 第一轮回复只能是"请补充信息"，对双方都是浪费。
+#
+# Blank issues are off. Not to raise a barrier — a report with no version and no
+# diagnose output can only be answered with "please add more information", which
+# wastes a round trip for both sides.
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 提问与讨论 / Questions and discussion
+    url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions
+    about: 用法、部署求助、想法交流。来回讨论的事情放 Discussions 比 issue 合适。/ Usage, deployment help, ideas. Discussions handles a back-and-forth better than an issue does.
+
+  - name: 🔧 先看故障排查 / Read Troubleshooting first
+    url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/14-troubleshooting.md
+    about: 症状、原因、修复，附完整错误码对照表。多数问题这里已经有答案。/ Symptom, cause, fix, and the complete error-code table. Most questions are already answered here.
+
+  - name: 📦 安装与部署 / Installation and deployment
+    url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md
+    about: 两种部署方式、配置、升级，以及中国大陆用户的换源准备。/ Both install paths, configuration, upgrading, and mirrors for mainland China.
+
+  - name: 🔒 安全问题请私下报告 / Report security issues privately
+    url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/security/advisories/new
+    about: 漏洞不要公开提交。走私密安全公告，或发邮件到 Evil0ctal1985@gmail.com。/ Do not file a vulnerability in public. Use a private advisory, or email Evil0ctal1985@gmail.com.

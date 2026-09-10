@@ -1,0 +1,46 @@
+name: 📖 文档问题（中文）
+description: 文档写错了、过时了、看不懂，或者少了一块
+title: "[Docs] "
+labels: ["type: docs", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        文档里的每条命令、每个配置名、每个默认值都对照过源码，所以**写错了就是 bug**，
+        值得单独提一条。
+
+  - type: input
+    id: page
+    attributes:
+      label: 哪一页
+      description: 给链接最好，或者写文件名加行号。
+      placeholder: "documents/zh/02-installation.md 第 210 行，或 README 的「快速开始」"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 是什么问题
+      options:
+        - 写错了（和代码实际行为不符）
+        - 过时了（以前对，现在不对）
+        - 看不懂 / 有歧义
+        - 少了一块（该讲没讲）
+        - 中英文两版对不上
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: 具体说明
+      description: 原文怎么写的、你按它做了什么、实际是什么样。
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 你觉得该怎么写
+      description: 有想法就直接写，没有也没关系。

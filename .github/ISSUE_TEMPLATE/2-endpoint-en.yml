@@ -1,0 +1,102 @@
+name: 🔌 Endpoint broken or platform changed (English)
+description: A platform endpoint returns nothing, changed shape, or fails to sign
+title: "[Endpoint] "
+labels: ["type: endpoint", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is separate from a normal bug because it usually is not a coding mistake — the platform
+        changed something — and the information needed is different.
+
+        **Do not paste cookies, `msToken`, `ttwid` or any identity credential.** Redact screenshots
+        of network traffic too.
+
+        Check one thing first: **is every endpoint failing, or only this one?** If it is all of them,
+        the pool is usually empty or rate-limited, and
+        [Troubleshooting](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/14-troubleshooting.md)
+        has a section on it.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file this
+      options:
+        - label: Nothing below contains a cookie, msToken, ttwid or any other identity credential
+          required: true
+        - label: I checked `/identities` in the console and the pool has usable identities
+          required: true
+        - label: I searched the existing issues and this is not a duplicate
+          required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Douyin
+        - TikTok
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: Which endpoint
+      description: The REST path, or the internal name from the endpoint health board (`douyin.author_posts`).
+      placeholder: "GET /api/v1/douyin/author/posts  or  douyin.author_posts"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From `/system` in the console, or `dtk --version`.
+      placeholder: "5.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Input that reproduces it
+      description: |
+        A publicly reachable link, or a post or author id. **Confirm it still opens in a browser** —
+        content the platform deleted comes back empty, and that is correct behaviour, not a defect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: What you got
+      description: |
+        The error code and the response envelope, or a fragment of the response whose shape changed.
+        Run it once in `/playground` with `explain` turned on: it reports which identity was used,
+        whether the answer came from cache, and what the upstream status was. That output is the
+        most useful thing you can paste here.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: identity
+    attributes:
+      label: Which kind of identity
+      options:
+        - Guest identity minted by the browser container
+        - A logged-in cookie jar I imported myself
+        - Tried both, same result
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: |
+        If you already know what the platform changed — a new parameter, a new signature field, a
+        different host — put it here. That turns a fix from days into hours.

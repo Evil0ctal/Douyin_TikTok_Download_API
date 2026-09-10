@@ -1,0 +1,46 @@
+name: 📖 Documentation problem (English)
+description: Something in the docs is wrong, out of date, unclear, or missing
+title: "[Docs] "
+labels: ["type: docs", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every command, setting name and default value in the documentation was checked against the
+        source it describes, so **something wrong there is a bug** and worth its own issue.
+
+  - type: input
+    id: page
+    attributes:
+      label: Which page
+      description: A link is best; a filename and line number works too.
+      placeholder: "documents/en/02-installation.md line 210, or the README's Quick start"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong with it
+      options:
+        - Wrong — it does not match what the code does
+        - Out of date — it used to be right
+        - Unclear or ambiguous
+        - Missing — it should cover this and does not
+        - The English and Chinese editions disagree
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Details
+      description: What it says, what you did because of it, and what actually happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What you think it should say
+      description: Write it out if you have a view. No problem if you do not.

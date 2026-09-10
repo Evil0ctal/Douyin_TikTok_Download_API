@@ -1,0 +1,49 @@
+name: ✨ Feature request (English)
+description: A new endpoint, a new page, or a change to how something works
+title: "[Feature] "
+labels: ["type: feature", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are welcome. Two things up front to save a round trip:
+
+        - **Describing the problem beats describing the solution.** Often something already does it
+          and is only hard to find.
+        - **Better still if you want to build it.**
+          [Contributing](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/16-contributing.md)
+          has sections on adding a platform endpoint, a console page and a translated string. Follow
+          those and I will review it properly.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve
+      description: Not "I want X" but "when I do Y, I get stuck at Z".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How you would like it to work
+      description: What the endpoint looks like, where it sits in the console, how the CLI calls it. Concrete is better.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: How are you working around it now, and why is that not enough?
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you build it
+      options:
+        - Yes — point me at the right place if needed
+        - Yes, but I would need a fair amount of guidance
+        - No, just raising the idea
+    validations:
+      required: true

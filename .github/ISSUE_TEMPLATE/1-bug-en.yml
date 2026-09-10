@@ -1,0 +1,95 @@
+name: 🐞 Bug report (English)
+description: Something in v5 behaves differently from what it says it does
+title: "[Bug] "
+labels: ["type: bug", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things before you start:
+
+        - **Do not paste credentials.** `DTK_SECRET_KEY`, database and Redis passwords, API keys,
+          platform cookies, proxy URLs with a username and password in them — pasting one here
+          publishes it. Replace them before you paste.
+        - **v4 is no longer maintained.** Its code lives on the
+          [`v4` branch](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/v4) and only
+          security reports are accepted there. This template is for v5.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file this
+      options:
+        - label: I read [Troubleshooting](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/14-troubleshooting.md) and it does not cover this
+          required: true
+        - label: I searched the existing issues, closed ones included, and this is not a duplicate
+          required: true
+        - label: I have checked that nothing below contains a key, password, cookie or API key
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From `/system` in the console, or `dtk --version`. "latest" does not let me place the problem.
+      placeholder: "5.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How it is deployed
+      options:
+        - Docker Compose, using docker/compose.yml as shipped
+        - Docker Compose, with my own edits to the compose file
+        - Bare metal / dependencies installed by hand
+        - Something else (say so below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead. All three.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      description: The more concrete the better. One runnable `curl` beats three paragraphs of description.
+      placeholder: |
+        1. Open /playground in the console
+        2. Call GET /api/v1/douyin/... with ...
+        3. It returns ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: Diagnose output
+      description: |
+        The `/diagnose` page in the console, or `dtk diagnose` on the command line.
+        It answers most of what I would otherwise have to ask you, which is why this field is required.
+        If the stack will not start there is no api container to run the self-check in — send
+        `docker compose -p dtk -f docker/compose.yml logs` instead and say that is what happened.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and error code
+      description: The matching row from `/logs` in the console, or the `code` from the response envelope.
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, what you have already tried, where you suspect the problem is.

@@ -1,0 +1,47 @@
+name: ✨ 功能建议（中文）
+description: 想要一个新接口、新页面，或者改一改现有行为
+title: "[Feature] "
+labels: ["type: feature", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        欢迎提。有两件事先说在前面，省得来回：
+
+        - **说清楚你想解决什么问题**，比直接给方案有用。很多时候现有的东西已经能做到，
+          只是不好找。
+        - **愿意自己动手就更好了。** [参与开发](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/16-contributing.md)
+          里有"新增平台接口""新增控制台页面""新增翻译字符串"三节，照着走就行，我会认真 review。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题
+      description: 不是"我想要 X"，而是"我在做 Y 的时候卡在 Z"。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望它怎么工作
+      description: 接口长什么样、页面上放在哪、命令行怎么调——能具体就具体。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 你试过什么替代办法
+      description: 现在你是怎么绕过去的？为什么不够用？
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: 你愿意自己实现吗
+      options:
+        - 愿意，需要的话给我指个方向
+        - 愿意，但需要比较多的指导
+        - 不了，只是提个想法
+    validations:
+      required: true

@@ -1,0 +1,93 @@
+name: 🐞 程序缺陷（中文）
+description: v5 的某个行为和预期不符
+title: "[Bug] "
+labels: ["type: bug", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        动手之前先看两句：
+
+        - **不要粘贴任何凭据。** `DTK_SECRET_KEY`、数据库口令、Redis 口令、API Key、平台 Cookie、
+          带账号密码的代理地址——贴出来就是公开了。粘之前先替换掉。
+        - **v4 已经停止维护。** v4 的代码在 [`v4` 分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/v4)，
+          只接受安全问题。这个模板是给 v5 的。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交之前
+      options:
+        - label: 我读过[故障排查](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/14-troubleshooting.md)，里面没有这个问题的答案
+          required: true
+        - label: 我搜过已有的 issue（含已关闭的），没有重复
+          required: true
+        - label: 我确认下面贴出的内容里没有密钥、口令、Cookie 或 API Key
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 控制台 `/system` 页面，或者 `dtk --version`。写 "latest" 我没法定位问题。
+      placeholder: "5.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: 怎么部署的
+      options:
+        - Docker Compose，用仓库里的 docker/compose.yml
+        - Docker Compose，但我改过 compose 文件
+        - 裸机 / 手动安装依赖
+        - 其他（请在下面说明）
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么
+      description: 你做了什么、期望看到什么、实际看到什么。三件事都要有。
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 怎么复现
+      description: 越具体越好。一条能直接跑的 `curl` 命令胜过三段描述。
+      placeholder: |
+        1. 打开控制台的 /playground
+        2. 调用 GET /api/v1/douyin/... ，参数是 ...
+        3. 返回 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: 诊断输出
+      description: |
+        控制台 `/diagnose` 页面，或者命令行 `dtk diagnose`。
+        它能回答我原本要反过来问你的大部分问题，所以这一栏是必填的。
+        如果整套栈根本起不来，就没有 api 容器可以跑自检——那就改贴
+        `docker compose -p dtk -f docker/compose.yml logs` 的输出，并在上面说明这一点。
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与错误码
+      description: 控制台 `/logs` 里对应的那条请求记录，或者接口返回信封里的 `code`。
+      render: text
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他
+      description: 截图、你已经试过哪些办法、你怀疑是哪里的问题。

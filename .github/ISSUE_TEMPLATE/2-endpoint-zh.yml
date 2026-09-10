@@ -1,0 +1,99 @@
+name: 🔌 接口失效或平台变更（中文）
+description: 某个平台接口不返回数据、返回结构变了，或者签名过不去
+title: "[Endpoint] "
+labels: ["type: endpoint", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这类问题和普通 bug 分开，因为它多半不是代码写错了，而是平台那边改了东西——
+        需要的信息也不一样。
+
+        **不要粘贴 Cookie、`msToken`、`ttwid` 或任何身份凭据。** 抓包截图也请先打码。
+
+        先自己确认一件事：**是所有接口都不行，还是只有这一个？** 如果是全部，
+        那通常是身份池空了或者被风控，[故障排查](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/14-troubleshooting.md)
+        里有这一节。
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交之前
+      options:
+        - label: 我确认贴出的内容里没有 Cookie、msToken、ttwid 或其他身份凭据
+          required: true
+        - label: 我在控制台 `/identities` 看过，池子里有可用身份
+          required: true
+        - label: 我搜过已有 issue，没有重复
+          required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台
+      options:
+        - 抖音 Douyin
+        - TikTok
+        - 两个都是
+    validations:
+      required: true
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: 哪个接口
+      description: REST 路径，或者控制台接口健康页上那个内部名字（形如 `douyin.author_posts`）。
+      placeholder: "GET /api/v1/douyin/author/posts  或  douyin.author_posts"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 控制台 `/system` 页面，或 `dtk --version`。
+      placeholder: "5.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: 能复现的输入
+      description: |
+        一条公开可访问的链接或作品 / 作者 ID。**请确认它现在还能在浏览器里打开**——
+        平台删掉的内容返回空，是正确行为而不是缺陷。
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: 拿到的是什么
+      description: |
+        错误码和信封原文，或者结构变了之后的响应片段。
+        在控制台 `/playground` 里跑一次并打开 `explain`，它会告诉你这次用了哪个身份、
+        走没走缓存、上游返回了什么状态码——那段输出是最有用的。
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: identity
+    attributes:
+      label: 用的是什么身份
+      options:
+        - 浏览器自动铸造的游客身份
+        - 我自己导入的登录 Cookie
+        - 两种都试过，结果一样
+        - 不确定
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他
+      description: |
+        如果你已经知道平台改了什么（新的参数、新的签名字段、换了域名），写在这里——
+        这类信息能把修复时间从几天缩短到几小时。
