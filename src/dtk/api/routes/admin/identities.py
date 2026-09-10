@@ -16,6 +16,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import Any, Final
 
@@ -27,7 +28,13 @@ from dtk.api.deps import Principal
 from dtk.api.routes import operations
 from dtk.api.routes.openapi import ACCEPTED_RESPONSES, CREATED_RESPONSES, I18N_KEY
 from dtk.api.routes.operations import Maintenance
-from dtk.api.routes.schemas import IdentityImport, MintRequest, RetireRequest
+from dtk.api.routes.schemas import (
+    IdentityBundle,
+    IdentityExport,
+    IdentityImport,
+    MintRequest,
+    RetireRequest,
+)
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
     MAX_ADMIN_PAGE_SIZE,
@@ -51,6 +58,8 @@ from dtk.identity.importing import (
     ImportReport,
     build_report,
     mask_value,
+    session_expiry,
+    to_cookie_header,
 )
 from dtk.identity.pool import IdentityPool
 from dtk.scheduler.health import score
@@ -121,6 +130,35 @@ def _session_health(platform: str, cookies: Mapping[str, str]) -> dict[str, Any]
 #: rendered "not something this build reads" over a cookie this build cannot
 #: sign without.
 _SIGNING_COOKIES: Final[frozenset[str]] = frozenset({*UIFID_COOKIE_NAMES, VERIFY_FP_COOKIE})
+
+
+#: The export document's shape. Bumped when an entry gains or loses a field,
+#: so an importer can refuse a file it would silently read wrong rather than
+#: dropping a fingerprint and producing an identity the platform can tell apart
+#: from the browser it came from.
+EXPORT_VERSION: Final = 1
+
+
+def _text(value: Any) -> str | None:
+    """A field from an imported document, when it is a string worth passing on."""
+    return value if isinstance(value, str) and value else None
+
+
+def _decrypt(request: Request, identity: Identity) -> dict[str, str] | None:
+    """This identity's jar, or None when it cannot be read.
+
+    None is a real answer rather than an empty jar: the secret key was rotated
+    without re-encrypting, the identity cannot sign anything either, and an
+    empty mapping would render as "holds no cookies" - a different fault with a
+    different fix.
+    """
+    if not identity.cookies_encrypted:
+        return {}
+    try:
+        header = request.app.state.cipher.decrypt(identity.cookies_encrypted, aad=str(identity.id))
+    except Exception:
+        return None
+    return _parse_cookies(header)
 
 
 def _cookie_role(name: str) -> str:
@@ -534,19 +572,9 @@ async def identity_cookies(
     if identity is None:
         raise NotFound("no such identity", details={"identity_id": str(identity_id)})
 
-    cookies: dict[str, str] = {}
-    readable = True
-    if identity.cookies_encrypted:
-        try:
-            cookies = _parse_cookies(
-                request.app.state.cipher.decrypt(identity.cookies_encrypted, aad=str(identity.id))
-            )
-        except Exception:
-            # A jar this instance can no longer decrypt is a real state - the
-            # secret key was rotated without re-encrypting - and it is worth
-            # saying so rather than rendering an identity that appears to hold
-            # nothing.
-            readable = False
+    decrypted = _decrypt(request, identity)
+    readable = decrypted is not None
+    cookies = decrypted or {}
 
     return ok(
         request,
@@ -572,6 +600,270 @@ async def identity_cookies(
                 }
                 for name, value in sorted(cookies.items())
             ],
+        },
+    )
+
+
+@router.post(
+    "/import/bundle",
+    summary="Import an export document",
+    openapi_extra={I18N_KEY: "identities_import_bundle", **CREATED_RESPONSES},
+)
+async def import_bundle(
+    request: Request,
+    body: IdentityBundle,
+    principal: Principal = Depends(manage_pool),
+) -> Any:
+    """Restore identities from a file this build exported.
+
+    The other import takes a paste, which is what somebody has when they copy a
+    jar out of a browser. This takes what somebody has when they exported a
+    pool: many identities at once, each already carrying the fingerprint it was
+    minted or imported with.
+
+    Carrying the fingerprint is the point. Re-pasting an exported jar through
+    the paste route infers the browser from a user agent that is no longer
+    beside it, so a restored identity signs with a different fingerprint from
+    the one the platform first saw it with - which is exactly the difference
+    risk control is looking for.
+
+    Every entry is judged on its own. One jar that has expired since it was
+    exported does not stop the rest: the response says what was stored, what
+    was skipped and why, and `dry_run` answers that question without writing.
+
+    **Parameters**
+
+    - `version` - the document's shape. A newer one is refused rather than
+      read on a guess.
+    - `identities` - the entries, as `POST /identities/export` wrote them.
+    - `proxy_id` - bind every restored identity to this egress. Optional.
+    - `dry_run` - report without storing.
+
+    **Returns**
+
+    `stored`, and one result per entry: its platform, whether it was usable,
+    and the id it was given.
+    """
+    if body.version > EXPORT_VERSION:
+        raise InvalidParam(
+            "this file was written by a newer build than this instance",
+            details={"version": body.version, "supported": EXPORT_VERSION},
+        )
+
+    proxy_id = _as_uuid(body.proxy_id, "proxy_id") if body.proxy_id else None
+    lang = language(request)
+    results: list[dict[str, Any]] = []
+    stored = 0
+
+    for index, entry in enumerate(body.identities):
+        outcome: dict[str, Any] = {"index": index}
+        platform_value = entry.get("platform")
+        cookies = entry.get("cookies")
+        if not isinstance(cookies, dict) or not cookies:
+            # A retired identity exports with an empty jar on purpose, so this
+            # is the ordinary case rather than a malformed file.
+            results.append({**outcome, "usable": False, "reason": "no_cookies"})
+            continue
+        try:
+            platform = Platform(str(platform_value))
+        except ValueError:
+            results.append({**outcome, "usable": False, "reason": "unknown_platform"})
+            continue
+
+        report = build_report(
+            to_cookie_header({str(k): str(v) for k, v in cookies.items()}),
+            platform,
+            user_agent=_text(entry.get("user_agent")),
+            language=_text(entry.get("language")),
+            timezone=_text(entry.get("timezone")),
+        )
+        outcome |= {
+            "platform": platform.value,
+            "authenticated": report.authenticated,
+            "usable": report.usable,
+            "missing_required": list(report.missing_required),
+            "warnings": _warnings(report, lang),
+        }
+        if not report.usable:
+            results.append({**outcome, "reason": "unusable"})
+            continue
+        if body.dry_run:
+            results.append(outcome)
+            continue
+
+        identity_id = await _pool(request).add(
+            request.state.db,
+            platform=platform,
+            cookies=report.cookies,
+            fingerprint=report.fingerprint,
+            source=IdentitySource.IMPORTED,
+            proxy_id=proxy_id,
+            authenticated=report.authenticated,
+        )
+        stored += 1
+        results.append({**outcome, "identity_id": str(identity_id)})
+
+    if not body.dry_run and stored:
+        await audit(
+            request,
+            principal,
+            "identity.bundle_imported",
+            target_type="identity",
+            target_id=",".join(
+                str(result["identity_id"]) for result in results if "identity_id" in result
+            )[:512],
+            detail={"stored": stored, "submitted": len(body.identities)},
+        )
+
+    return ok(
+        request,
+        {"stored": stored, "submitted": len(body.identities), "results": results},
+        status_code=201 if stored else 200,
+    )
+
+
+@router.get(
+    "/{identity_id}/cookies/reveal",
+    summary="Read one identity's cookies in full",
+    openapi_extra={I18N_KEY: "identities_cookies_reveal"},
+)
+async def reveal_cookies(
+    request: Request,
+    identity_id: uuid.UUID = Path(description="The identity to read."),
+    principal: Principal = Depends(manage_pool),
+) -> Any:
+    """The jar as it will be sent, values and all.
+
+    A deliberate exception to this module's rule, and the reason it is a route
+    of its own rather than a flag on the inventory: the masked view is what the
+    drawer loads on every open and this is what somebody asks for on purpose.
+    Separating them means the audit line records the second and is not drowned
+    by the first, and the wider scope - operator, not any admin reader - is
+    enforced by the dependency rather than by a branch inside a handler.
+
+    Why it exists at all: an operator debugging a jar ends up comparing it
+    against a browser's, and a mask cannot be compared. The alternative on
+    offer was a shell and a hand-rolled decrypt, which is the same disclosure
+    with no audit line and no scope check in front of it.
+
+    **Returns**
+
+    The cookies as a mapping, the same jar as one ``Cookie:`` header, and the
+    expiry read out of the session cookie where there is one.
+    """
+    identity = await request.state.db.get(Identity, identity_id)
+    if identity is None:
+        raise NotFound("no such identity", details={"identity_id": str(identity_id)})
+
+    cookies = _decrypt(request, identity)
+    if cookies is None:
+        raise InvalidParam(
+            "this identity's cookies cannot be decrypted with the current secret key"
+        )
+
+    await audit(
+        request,
+        principal,
+        "identity.cookies_revealed",
+        target_type="identity",
+        target_id=str(identity_id),
+        detail={"platform": identity.platform, "count": len(cookies)},
+    )
+    return ok(
+        request,
+        {
+            "identity_id": str(identity.id),
+            "platform": identity.platform,
+            "authenticated": identity.authenticated,
+            "cookies": cookies,
+            "header": to_cookie_header(cookies),
+            "expires_at": iso(session_expiry(cookies)),
+        },
+    )
+
+
+@router.post(
+    "/export",
+    summary="Export identities as a file",
+    openapi_extra={I18N_KEY: "identities_export"},
+)
+async def export_identities(
+    request: Request,
+    body: IdentityExport,
+    principal: Principal = Depends(manage_pool),
+) -> Any:
+    """Hand back whole identities - jars, fingerprints and all - as a document.
+
+    The console could import a jar and never get one back out, so an operator
+    who had built a working pool could not move it to a second instance, keep a
+    copy before a risky change, or hand one identity to somebody debugging.
+    The only route out was the database.
+
+    **What comes back is a credential file.** Every jar in it works until the
+    platform expires it, and a logged-in one is somebody's account. It is
+    audited by identity, and the document says so in a field the importer
+    ignores, so a person who finds one later knows what they are holding.
+
+    **Parameters**
+
+    - `identity_ids` - which identities. Between one and 200.
+
+    **Returns**
+
+    A document with a `version`, the export time, and one entry per identity.
+    Retired identities export as an entry with an empty jar rather than being
+    dropped: silently returning fewer than were asked for is how an operator
+    finds out mid-restore.
+    """
+    wanted = [_as_uuid(value, "identity_ids") for value in body.identity_ids]
+    rows = (
+        (await request.state.db.execute(select(Identity).where(Identity.id.in_(wanted))))
+        .scalars()
+        .all()
+    )
+    found = {row.id: row for row in rows}
+    missing = [str(value) for value in wanted if value not in found]
+    if missing:
+        raise NotFound("no such identity", details={"identity_ids": missing})
+
+    entries = []
+    for identity_id in wanted:
+        identity = found[identity_id]
+        cookies = _decrypt(request, identity) or {}
+        fingerprint = identity.fingerprint or {}
+        entries.append(
+            {
+                "identity_id": str(identity.id),
+                "platform": identity.platform,
+                "source": identity.source,
+                "authenticated": identity.authenticated,
+                "minted_at": iso(identity.minted_at),
+                "retired_at": iso(identity.retired_at),
+                "cookies": cookies,
+                "user_agent": fingerprint.get("user_agent"),
+                "language": fingerprint.get("language"),
+                "timezone": fingerprint.get("timezone"),
+            }
+        )
+
+    await audit(
+        request,
+        principal,
+        "identity.exported",
+        target_type="identity",
+        target_id=",".join(str(value) for value in wanted[:20]),
+        detail={"count": len(entries)},
+    )
+    return ok(
+        request,
+        {
+            "version": EXPORT_VERSION,
+            "exported_at": iso(datetime.now(UTC)),
+            "warning": (
+                "This file contains working credentials. Anyone holding it can "
+                "make requests as these identities."
+            ),
+            "identities": entries,
         },
     )
 

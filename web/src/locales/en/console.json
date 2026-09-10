@@ -412,7 +412,15 @@
       "empty": "This identity holds no cookies at all, which means it can only ever be refused.",
       "wiped": "Retired identities have their jar wiped, so there is nothing left to show.",
       "missing": "Missing a cookie this build treats as required: {names}. Requests on this identity will be refused whatever else is in the jar.",
-      "maskNote": "Values are shown as their first and last four characters. The full values are never sent to this page - the jar is the credential, and a logged-in one is somebody's account."
+      "maskNote": "Values are shown as their first and last four characters. The full values are never sent to this page - the jar is the credential, and a logged-in one is somebody's account.",
+      "reveal": "Show the real values",
+      "revealFailed": "Could not read this jar",
+      "revealed": "These are working credentials. Anyone who sees this screen can make requests as this identity. Reading them was recorded in the audit log.",
+      "copyHeader": "Copy as a Cookie header",
+      "copyJson": "Copy as JSON",
+      "copiedHeader": "Cookie header copied",
+      "copiedJson": "Cookies copied as JSON",
+      "hide": "Hide them again"
     },
     "cookieRole": {
       "required": "required",
@@ -465,7 +473,22 @@
       "UIFIDTEMP": "The visitor id a Douyin mint produces, under another of the spellings the SDK accepts.",
       "uifidtemp": "The visitor id a Douyin mint produces, under another of the spellings the SDK accepts."
     },
-    "drawerTitle": "Identity"
+    "drawerTitle": "Identity",
+    "export": {
+      "action": "{count, plural, one {Export 1} other {Export #}}",
+      "done": "{count, plural, one {1 identity exported} other {# identities exported}}",
+      "failed": "Could not export these identities"
+    },
+    "restore": {
+      "label": "Restore from a file",
+      "hint": "A document written by Export. Cookies and fingerprints come back together, which re-pasting them cannot do.",
+      "loaded": "{file} · {count, plural, one {1 identity} other {# identities}}. The paste form below is off while a file is loaded.",
+      "submit": "{count, plural, one {Restore 1 identity} other {Restore # identities}}",
+      "done": "{count, plural, =0 {Nothing was restored} one {1 identity restored} other {# identities restored}}",
+      "skipped": "{count, plural, one {1 was skipped - its jar had expired or was empty.} other {# were skipped - their jars had expired or were empty.}}",
+      "failed": "Could not restore from this file",
+      "unreadable": "This is not a file Export wrote."
+    }
   },
   "proxy": {
     "column": {

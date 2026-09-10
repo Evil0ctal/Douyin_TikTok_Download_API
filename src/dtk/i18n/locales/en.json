@@ -374,9 +374,21 @@
         "summary": "What one identity's jar holds",
         "description": "Cookie names, roles and masked values for one identity. Never the values themselves."
       },
+      "identities_cookies_reveal": {
+        "summary": "Read one identity's cookies in full",
+        "description": "The jar as it will be sent, values included. Audited."
+      },
+      "identities_export": {
+        "summary": "Export identities as a file",
+        "description": "Whole identities, jars included. The result is a credential file."
+      },
       "identities_import": {
         "summary": "Import a logged-in cookie jar",
         "description": "Detect the paste format, report what was understood, then store it."
+      },
+      "identities_import_bundle": {
+        "summary": "Import an export document",
+        "description": "Restore identities from a file this build exported, fingerprints and all."
       },
       "identities_list": {
         "summary": "List identities with state and health",

@@ -16,6 +16,7 @@ import {
   LockIcon,
   Banner,
   Drawer,
+  InfoIcon,
   MaskedSecret,
   Modal,
   PageHeader,
@@ -27,7 +28,7 @@ import {
   useToast,
   type Column,
 } from '@/components'
-import { apiDelete, apiPost, apiPut, waitForTask, type ApiError } from '@/lib/api'
+import { apiDelete, apiGet, apiPost, apiPut, waitForTask, type ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
@@ -41,7 +42,14 @@ import {
   type Outcome,
   type Platform,
 } from '@/lib/types'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
+import {
+  useApiMutation,
+  useApiQuery,
+  useCopy,
+  useFormatters,
+  useInvalidate,
+  useSession,
+} from '@/hooks'
 
 import styles from './identities.module.css'
 
@@ -113,6 +121,59 @@ interface CookieInventory {
   session: { cookie: string | null; verdict: string; held?: boolean }
   missing_required: string[]
   cookies: CookieEntry[]
+}
+
+/** What `POST /admin/identities/export` writes, and what the file import reads. */
+interface IdentityBundleFile {
+  version: number
+  exported_at: string
+  warning: string
+  identities: Array<Record<string, unknown>>
+}
+
+interface BundleImportResult {
+  stored: number
+  submitted: number
+  results: Array<{
+    index: number
+    platform?: string
+    usable?: boolean
+    reason?: string
+    identity_id?: string
+    warnings?: string[]
+  }>
+}
+
+/**
+ * Hand the browser a JSON file.
+ *
+ * The same shape the archive export and the comment save use. Revoked a tick
+ * later rather than immediately: Safari cancels an in-flight save otherwise.
+ */
+function saveJson(data: unknown, filename: string): void {
+  const href = URL.createObjectURL(
+    new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+  )
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => {
+    URL.revokeObjectURL(href)
+  }, 1_000)
+}
+
+/** `GET /admin/identities/{id}/cookies/reveal` - the jar, values and all. */
+interface RevealedJar {
+  identity_id: string
+  platform: Platform
+  authenticated: boolean
+  cookies: Record<string, string>
+  /** The same jar as one `Cookie:` header, ready to paste into curl. */
+  header: string
+  expires_at: string | null
 }
 
 interface ProxyOption {
@@ -914,6 +975,32 @@ export default function Identities() {
     },
   ]
 
+  /**
+   * Write the selected identities to a file.
+   *
+   * The pool could be filled and never emptied: an operator who had built one
+   * that works could not move it to a second instance, keep a copy before a
+   * risky change, or hand one identity to somebody debugging. The only way out
+   * was the database.
+   *
+   * What lands in the downloads folder is a credential file. The name says the
+   * date so two exports do not overwrite each other, and the document carries
+   * a warning field for whoever finds it later.
+   */
+  const exporting = useApiMutation<IdentityBundleFile, string[]>(
+    (ids) => apiPost<IdentityBundleFile>(paths.identities.export, { identity_ids: ids }),
+    {
+      onSuccess: (bundle) => {
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+        saveJson(bundle, `dtk-identities-${stamp}.json`)
+        toast.success(t('console:identity.export.done', { count: bundle.identities.length }))
+      },
+      onError: (error) => {
+        toast.apiError(error, t('console:identity.export.failed'))
+      },
+    },
+  )
+
   const selectedRows = rows.filter((row) => selected.has(row.id))
   // The pool is not empty, this view is. Offering "mint your first identity"
   // here would answer a question nobody asked and hide the one that matters:
@@ -1103,6 +1190,18 @@ export default function Identities() {
                   {t('console:identity.reset.bulk', {
                     count: selectedRows.filter(needsReset).length,
                   })}
+                </Button>
+              ) : null}
+              {selected.size > 0 ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={exporting.isPending}
+                  onClick={() => {
+                    exporting.mutate([...selected])
+                  }}
+                >
+                  {t('console:identity.export.action', { count: selected.size })}
                 </Button>
               ) : null}
               {selected.size > 0 ? (
@@ -1472,6 +1571,11 @@ function ImportDialog({ open, proxies, onClose, onDone }: ImportDialogProps) {
   const [userAgent, setUserAgent] = useState('')
   const [proxyId, setProxyId] = useState('')
   const [acknowledged, setAcknowledged] = useState(false)
+  //: A file this build exported, once it has been read and understood. The
+  //: paste path and this one cannot both be armed: they mean different things
+  //: - one jar typed in, or a pool restored - and a dialog that guessed which
+  //: was intended would guess wrong on the day it mattered.
+  const [bundle, setBundle] = useState<{ file: string; doc: IdentityBundleFile } | null>(null)
   const [preview, setPreview] = useState<{
     loading: boolean
     report?: CookieReport
@@ -1512,6 +1616,55 @@ function ImportDialog({ open, proxies, onClose, onDone }: ImportDialogProps) {
       controller.abort()
     }
   }, [open, cookies, platform, userAgent])
+
+  /**
+   * Restore a whole document, fingerprints and all.
+   *
+   * Not the paste route with the jars re-serialised through it: that infers
+   * the browser from a user agent no longer beside the cookies, so a restored
+   * identity would sign with a different fingerprint from the one the platform
+   * first saw it with - which is the difference risk control looks for.
+   */
+  const restore = useApiMutation<BundleImportResult, void>(
+    () =>
+      apiPost<BundleImportResult>(paths.identities.importBundle, {
+        version: bundle?.doc.version ?? 0,
+        identities: bundle?.doc.identities ?? [],
+        proxy_id: proxyId || null,
+        dry_run: false,
+      }),
+    {
+      onSuccess: async (result) => {
+        const failed = result.submitted - result.stored
+        toast.success(t('console:identity.restore.done', { count: result.stored }), {
+          description: failed
+            ? t('console:identity.restore.skipped', { count: failed })
+            : undefined,
+        })
+        close()
+        await onDone()
+      },
+      onError: (error) => {
+        toast.apiError(error, t('console:identity.restore.failed'))
+      },
+    },
+  )
+
+  /** Read a chosen file and check it is one of ours before arming the button. */
+  const readBundle = async (file: File): Promise<void> => {
+    try {
+      const parsed: unknown = JSON.parse(await file.text())
+      const doc = parsed as IdentityBundleFile
+      if (typeof doc?.version !== 'number' || !Array.isArray(doc.identities)) {
+        throw new Error('shape')
+      }
+      setBundle({ file: file.name, doc })
+      setCookies('')
+    } catch {
+      setBundle(null)
+      toast.error(t('console:identity.restore.unreadable'))
+    }
+  }
 
   const store = useApiMutation<ImportResponse, void>(
     () =>
@@ -1558,16 +1711,29 @@ function ImportDialog({ open, proxies, onClose, onDone }: ImportDialogProps) {
           <Button variant="ghost" onClick={close}>
             {t('common:action.cancel')}
           </Button>
-          <Button
-            variant="primary"
-            loading={store.isPending}
-            disabled={!canStore}
-            onClick={() => {
-              store.mutate()
-            }}
-          >
-            {t('console:identity.import.submit')}
-          </Button>
+          {bundle ? (
+            <Button
+              variant="primary"
+              loading={restore.isPending}
+              disabled={!acknowledged}
+              onClick={() => {
+                restore.mutate()
+              }}
+            >
+              {t('console:identity.restore.submit', { count: bundle.doc.identities.length })}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              loading={store.isPending}
+              disabled={!canStore}
+              onClick={() => {
+                store.mutate()
+              }}
+            >
+              {t('console:identity.import.submit')}
+            </Button>
+          )}
         </>
       }
     >
@@ -1591,6 +1757,49 @@ function ImportDialog({ open, proxies, onClose, onDone }: ImportDialogProps) {
           <p className="u-xs u-secondary">{t('console:identity.import.risk.dedicated')}</p>
         </div>
 
+        {/* A file first, because restoring a pool is one action and pasting a
+            jar is a dozen. Everything below is for the paste, and a loaded
+            file hides it rather than leaving two half-filled forms. */}
+        <div className="u-stack-sm">
+          <label className="u-xs u-secondary">{t('console:identity.restore.label')}</label>
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="u-xs"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void readBundle(file)
+              // Cleared so choosing the same file twice fires again, which is
+              // what somebody who just fixed the file expects.
+              event.target.value = ''
+            }}
+          />
+          <span className="u-xs u-muted">{t('console:identity.restore.hint')}</span>
+        </div>
+
+        {bundle ? (
+          <Banner tone="accent" icon={<InfoIcon size={14} />}>
+            <div className="u-stack-sm">
+              <span>
+                {t('console:identity.restore.loaded', {
+                  file: bundle.file,
+                  count: bundle.doc.identities.length,
+                })}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setBundle(null)
+                }}
+              >
+                {t('common:action.clear')}
+              </Button>
+            </div>
+          </Banner>
+        ) : null}
+
+        {bundle ? null : (
         <Select
           label={t('console:field.platform')}
           value={platform}
@@ -1599,6 +1808,7 @@ function ImportDialog({ open, proxies, onClose, onDone }: ImportDialogProps) {
           }}
           options={PLATFORMS.map((value) => ({ value, label: value }))}
         />
+        )}
 
         <Textarea
           label={t('console:identity.import.cookies')}
@@ -1828,6 +2038,112 @@ const HISTORY_LIMIT = 200
  * and the first and last four characters, which is enough to say whether two
  * identities hold the same jar.
  */
+/**
+ * The masked jar, and a way past the mask.
+ *
+ * Masked by default because the drawer opens on every click and a screenshot
+ * of an admin panel should not be a credential. Revealed on purpose, through a
+ * route of its own that writes an audit line and demands the operator role -
+ * so the disclosure is a decision somebody made and a record somebody can
+ * read, rather than the shell-and-hand-rolled-decrypt it replaces.
+ *
+ * Both copy shapes are here because both are what people actually do next: the
+ * header goes into curl, the JSON goes into another tool.
+ */
+function RevealRow({ identity }: { identity: Identity }) {
+  const { t } = useTranslation(['console', 'common'])
+  const toast = useToast()
+  const { copy } = useCopy()
+  const [jar, setJar] = useState<RevealedJar | null>(null)
+
+  const reveal = useApiMutation<RevealedJar, void>(
+    () => apiGet<RevealedJar>(paths.identities.reveal(identity.id)),
+    {
+      onSuccess: (result) => {
+        setJar(result)
+      },
+      onError: (error) => {
+        toast.apiError(error, t('console:identity.contents.revealFailed'))
+      },
+    },
+  )
+
+  // Cleared when the drawer moves to a different identity, or one jar would be
+  // shown under another's name.
+  useEffect(() => {
+    setJar(null)
+  }, [identity.id])
+
+  if (!jar) {
+    return (
+      <div className="u-stack-sm">
+        <p className="u-xs u-muted" style={{ margin: 0 }}>
+          {t('console:identity.contents.maskNote')}
+        </p>
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={reveal.isPending}
+          onClick={() => {
+            reveal.mutate()
+          }}
+        >
+          {t('console:identity.contents.reveal')}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="u-stack-sm">
+      <Banner tone="caution" icon={<AlertIcon size={14} />}>
+        {t('console:identity.contents.revealed')}
+      </Banner>
+      <ul className={styles.cookieList}>
+        {Object.entries(jar.cookies).map(([name, value]) => (
+          <li key={name} className={styles.cookieRow}>
+            <span className={styles.cookieHead}>
+              <span className="u-mono">{name}</span>
+            </span>
+            <CopyableId value={value} wrap />
+          </li>
+        ))}
+      </ul>
+      <div className="u-row u-wrap">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            void copy(jar.header)
+            toast.success(t('console:identity.contents.copiedHeader'))
+          }}
+        >
+          {t('console:identity.contents.copyHeader')}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            void copy(JSON.stringify(jar.cookies, null, 2))
+            toast.success(t('console:identity.contents.copiedJson'))
+          }}
+        >
+          {t('console:identity.contents.copyJson')}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setJar(null)
+          }}
+        >
+          {t('console:identity.contents.hide')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function IdentityContents({
   identity,
   jar,
@@ -1929,9 +2245,7 @@ function IdentityContents({
               ))}
             </ul>
 
-            <p className="u-xs u-muted" style={{ margin: 0 }}>
-              {t('console:identity.contents.maskNote')}
-            </p>
+            <RevealRow identity={identity} />
           </>
         )}
       </div>

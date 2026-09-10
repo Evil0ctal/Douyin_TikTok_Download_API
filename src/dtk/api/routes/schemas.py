@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -109,6 +110,34 @@ class IdentityImport(Body):
     proxy_id: str | None = None
     #: Preview only. The console shows what was understood before anything is
     #: stored, because a mistyped cookie jar is easier to spot than to debug.
+    dry_run: bool = False
+
+
+class IdentityExport(Body):
+    """Which identities to write into an export document.
+
+    Bounded at 200 because the response carries every jar in full and is
+    assembled in memory; a pool larger than that is exported in pages, which is
+    a request the caller can see the size of.
+    """
+
+    identity_ids: list[str] = Field(min_length=1, max_length=200)
+
+
+class IdentityBundle(Body):
+    """An export document, on its way back in.
+
+    `version` is checked rather than trusted: a file from a future build may
+    describe fields this one would drop silently, and dropping a fingerprint
+    turns a working identity into one the platform can tell apart from the
+    browser it was taken from.
+    """
+
+    version: int
+    identities: list[dict[str, Any]] = Field(min_length=1, max_length=200)
+    proxy_id: str | None = None
+    #: Preview only, exactly as on a paste: the console says what it found
+    #: before anything is written.
     dry_run: bool = False
 
 

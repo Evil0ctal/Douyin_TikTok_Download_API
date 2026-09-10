@@ -136,3 +136,108 @@ async def test_an_unknown_identity_is_a_404_rather_than_an_empty_jar(client: Any
     )
     assert response.status_code == 404
     assert envelope(response)["error"]["code"] == "NOT_FOUND"
+
+
+# --------------------------------------------------------------------------
+# Reveal, export, restore
+#
+# The masked inventory above is what the drawer loads on every open. These are
+# the routes somebody asks for on purpose, and they hand back credentials - so
+# what is pinned here is that they do it under the wider scope, that the export
+# says what it is, and that a document survives the round trip with the
+# fingerprint attached.
+# --------------------------------------------------------------------------
+
+
+async def test_the_reveal_hands_back_the_jar_as_it_will_be_sent(client: Any) -> None:
+    await signed_in(client)
+    identity_id = await make_identity(client)
+
+    response = await client.get(f"/api/v1/admin/identities/{identity_id}/cookies/reveal")
+    assert response.status_code == 200, response.text
+    data = envelope(response)["data"]
+
+    assert data["cookies"]["ttwid"] == TTWID
+    assert data["cookies"]["UIFID_TEMP"] == UIFID
+    # The header is the same jar in the shape curl takes, not a second source
+    # of truth about what it holds.
+    for name, value in data["cookies"].items():
+        assert f"{name}={value}" in data["header"]
+
+
+async def test_an_export_says_what_it_is(client: Any) -> None:
+    """The document is a credential file and has to read as one.
+
+    A file found on a laptop a year from now is the case this is for: without
+    a line saying what it holds, an export looks like configuration.
+    """
+    await signed_in(client)
+    identity_id = await make_identity(client)
+
+    response = await client.post(
+        "/api/v1/admin/identities/export", json={"identity_ids": [identity_id]}
+    )
+    assert response.status_code == 200, response.text
+    document = envelope(response)["data"]
+
+    assert document["version"] == 1
+    assert "credentials" in document["warning"]
+    entry = document["identities"][0]
+    assert entry["cookies"]["ttwid"] == TTWID
+    # The fingerprint travels with the jar. Without it a restore re-infers the
+    # browser and signs as a different client than the platform first saw.
+    assert entry["user_agent"] == CHROME_UA
+
+
+async def test_a_document_survives_the_round_trip(client: Any) -> None:
+    await signed_in(client)
+    exported = await client.post(
+        "/api/v1/admin/identities/export",
+        json={"identity_ids": [await make_identity(client)]},
+    )
+    document = envelope(exported)["data"]
+
+    response = await client.post(
+        "/api/v1/admin/identities/import/bundle",
+        json={"version": document["version"], "identities": document["identities"]},
+    )
+    assert response.status_code == 201, response.text
+    result = envelope(response)["data"]
+    assert result["stored"] == 1
+    assert result["results"][0]["authenticated"] is True
+
+
+async def test_a_file_from_a_newer_build_is_refused_rather_than_guessed_at(client: Any) -> None:
+    """Reading it anyway would drop the fields this build does not know about.
+
+    Dropping a fingerprint is not a visible failure - it produces an identity
+    that works and signs as somebody else, which is the failure risk control is
+    built to find.
+    """
+    await signed_in(client)
+    response = await client.post(
+        "/api/v1/admin/identities/import/bundle",
+        json={"version": 99, "identities": [{"platform": "douyin", "cookies": {"ttwid": "x"}}]},
+    )
+    assert response.status_code == 400
+    assert envelope(response)["error"]["code"] == "INVALID_PARAM"
+
+
+async def test_an_entry_that_cannot_be_used_does_not_stop_the_others(client: Any) -> None:
+    await signed_in(client)
+    exported = await client.post(
+        "/api/v1/admin/identities/export",
+        json={"identity_ids": [await make_identity(client)]},
+    )
+    document = envelope(exported)["data"]
+    # A retired identity exports with an empty jar; this is that entry.
+    document["identities"].insert(0, {"platform": "douyin", "cookies": {}})
+
+    response = await client.post(
+        "/api/v1/admin/identities/import/bundle",
+        json={"version": document["version"], "identities": document["identities"]},
+    )
+    result = envelope(response)["data"]
+    assert result["stored"] == 1
+    assert result["submitted"] == 2
+    assert result["results"][0]["reason"] == "no_cookies"

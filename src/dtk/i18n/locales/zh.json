@@ -374,9 +374,21 @@
         "summary": "查看某个身份的 Cookie 组成",
         "description": "返回该身份持有的 Cookie 名称、作用分类与掩码后的值，绝不返回真实值。"
       },
+      "identities_cookies_reveal": {
+        "summary": "读取某个身份的完整 Cookie",
+        "description": "返回将要发出的完整 Cookie，含真实值。该操作会被审计记录。"
+      },
+      "identities_export": {
+        "summary": "导出身份为文件",
+        "description": "导出完整身份，包含 Cookie。产物是一份凭证文件。"
+      },
       "identities_import": {
         "summary": "导入已登录的 Cookie",
         "description": "识别粘贴格式，报告解析结果，然后加密存储。"
+      },
+      "identities_import_bundle": {
+        "summary": "导入身份文件",
+        "description": "从本程序导出的文件恢复身份，连同指纹一并还原。"
       },
       "identities_list": {
         "summary": "列出身份及其状态与健康度",

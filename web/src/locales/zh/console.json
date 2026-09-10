@@ -412,7 +412,15 @@
       "empty": "这个身份一条 Cookie 都没有，发出去只会被拒。",
       "wiped": "已退休的身份会清空 Cookie，所以这里没有内容可看。",
       "missing": "缺少本程序视为必需的 Cookie：{names}。不管其余部分如何，用这个身份的请求都会被拒。",
-      "maskNote": "只显示每个值的首尾各四位。完整值从不会发到这个页面——Cookie 本身就是凭证，带登录态的那份等于别人的账号。"
+      "maskNote": "只显示每个值的首尾各四位。完整值从不会发到这个页面——Cookie 本身就是凭证，带登录态的那份等于别人的账号。",
+      "reveal": "显示真实内容",
+      "revealFailed": "读不出这份 Cookie",
+      "revealed": "这些是可用的凭证。看到这个屏幕的人都能以这个身份发请求。本次读取已写入审计日志。",
+      "copyHeader": "复制为 Cookie 请求头",
+      "copyJson": "复制为 JSON",
+      "copiedHeader": "已复制 Cookie 请求头",
+      "copiedJson": "已按 JSON 复制 Cookie",
+      "hide": "重新隐藏"
     },
     "cookieRole": {
       "required": "必需",
@@ -465,7 +473,22 @@
       "UIFIDTEMP": "抖音铸造出来的访客 id，SDK 接受的另一种拼写。",
       "uifidtemp": "抖音铸造出来的访客 id，SDK 接受的另一种拼写。"
     },
-    "drawerTitle": "身份详情"
+    "drawerTitle": "身份详情",
+    "export": {
+      "action": "导出 {count} 个",
+      "done": "已导出 {count} 个身份",
+      "failed": "导出失败"
+    },
+    "restore": {
+      "label": "从文件恢复",
+      "hint": "「导出」写出的文件。Cookie 和指纹会一起还原，重新粘贴做不到这一点。",
+      "loaded": "{file} · {count} 个身份。载入文件后，下面的粘贴表单会关闭。",
+      "submit": "恢复 {count} 个身份",
+      "done": "{count, plural, =0 {没有恢复任何身份} other {已恢复 # 个身份}}",
+      "skipped": "{count} 个被跳过——它们的 Cookie 已过期或为空。",
+      "failed": "无法从这个文件恢复",
+      "unreadable": "这不是「导出」写出的文件。"
+    }
   },
   "proxy": {
     "column": {

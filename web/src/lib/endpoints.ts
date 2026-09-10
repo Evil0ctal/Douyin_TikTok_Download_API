@@ -45,6 +45,13 @@ export const paths = {
     reset: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/reset`,
     /** Cookie names, roles and masked values. Never the values themselves. */
     cookies: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/cookies`,
+    /** The same jar with its real values. Audited; operator role only. */
+    reveal: (id: string) =>
+      `${API_V1}/admin/identities/${encodeURIComponent(id)}/cookies/reveal`,
+    /** Whole identities as a document. The result is a credential file. */
+    export: `${API_V1}/admin/identities/export`,
+    /** An export document on its way back in, fingerprints included. */
+    importBundle: `${API_V1}/admin/identities/import/bundle`,
   },
   proxies: {
     list: `${API_V1}/admin/proxies`,
