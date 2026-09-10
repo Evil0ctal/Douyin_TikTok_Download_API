@@ -7,12 +7,16 @@ and observable, and an invalid stored value must degrade rather than crash.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import get_args
 
 import pytest
 
 from dtk.core.config import RUNTIME_SETTINGS, Config, Scope, coerce
 from dtk.core.types import Platform
+
+#: Repository root, for the source scan below.
+REPO = Path(__file__).resolve().parents[2]
 
 # Mostly pure validation logic, so no services; the signing-mode class below
 # marks its own coroutines rather than putting the whole module on a loop.
@@ -66,11 +70,41 @@ class TestRegistry:
         assert RUNTIME_SETTINGS["security.enable_task_webhook"].scope is Scope.SENSITIVE
 
     def test_dangerous_defaults_are_off(self):
+        """The three settings that widen what THIS SERVER will do for a caller.
+
+        `system.check_updates` used to be asserted here too and is deliberately
+        not any more. It does not belong: the other three decide what the server
+        itself will connect to or accept, and off is the only safe default for
+        each. The update check is a `fetch` the operator's own browser makes to
+        github.com while they have the console open - it is not server-side
+        attack surface, and the server never makes it at all, which is asserted
+        directly in :meth:`test_the_update_check_never_runs_on_the_server`
+        rather than approximated by a boolean.
+        """
         cfg = Config.defaults()
         assert cfg.get("security.url_allowlist") == []
         assert cfg.get("security.enable_task_webhook") is False
         assert cfg.get("security.cors_allow_origins") == []
-        assert cfg.get("system.check_updates") is False
+
+    def test_the_update_check_never_runs_on_the_server(self):
+        """No Python in this project talks to GitHub.
+
+        This is the property that made "off by default" feel necessary, and it
+        is worth asserting for its own sake: an instance that phoned home would
+        be reporting that this deployment exists, how many people use it and how
+        often. Keeping the check in the browser is what makes it defensible to
+        have on by default, so a server-side release check should fail here
+        before anybody has to notice it in review.
+        """
+        offenders = []
+        for path in (REPO / "src" / "dtk").rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            for marker in ("api.github.com", "github.com/Evil0ctal"):
+                # A URL inside a comment or docstring is prose, not a request;
+                # what matters is whether it reaches an HTTP client.
+                if marker in text and ("httpx." in text or "requests." in text):
+                    offenders.append(f"{path.relative_to(REPO)} ({marker})")
+        assert offenders == [], f"the server must not call GitHub: {offenders}"
 
 
 class TestSnapshot:
