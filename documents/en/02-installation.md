@@ -8,6 +8,59 @@ front of the API, upgrade without losing data, and run the whole thing without D
 If you only want the shortest path to a working instance, read [Quick start](./01-quickstart.md)
 first and come back here when something needs changing.
 
+## Which path
+
+There are two ways to install this. Pick one before reading further.
+
+| | Docker Compose | By hand |
+|---|---|---|
+| Who it is for | Almost everyone, production included | Environments where Docker is not an option, or you are changing the code |
+| You install on the host | Docker, and nothing else | PostgreSQL 17 + TimescaleDB, Redis 8, Python 3.12, uv — plus Node 22 if you build the console |
+| Time to a running stack | However long the pull takes | Half an hour and up, half of it on TimescaleDB |
+| Upgrading | Change the tag, `pull`, migrate, `up -d` | `git pull`, `uv sync`, migrate, restart the systemd units |
+| Resource ceilings, read-only rootfs, dropped capabilities, non-root user | Already in the compose file | You rebuild them yourself with systemd |
+| When you ask me about a problem | I can reproduce it exactly | Your box is one of a kind and I am guessing |
+| Start reading at | [First install](#first-install) | [Running without Docker](#running-without-docker) for development, [A production install without Docker](#a-production-install-without-docker) for a server |
+
+**Docker is the recommendation**, not because containers are fashionable but because everything this
+stack is fussy about is already pinned in the compose file: the database has to be Postgres 17 with
+the TimescaleDB extension (a plain `postgres:17` image will not do), the browser image pins
+CloakBrowser to one commit, the four services are sequenced by health checks, and every container's
+memory, CPU and PID ceilings and read-only root filesystem are written down. By hand you rebuild all
+of that yourself — [A production install without Docker](#a-production-install-without-docker) lists
+what you are putting back, and it is worth reading before you choose.
+
+### Contents
+
+**Before you start**
+
+- [What you need](#what-you-need) — sizing, disk, and the two things to know before pointing this at your own database
+- [What the shipped defaults are written for](#what-the-shipped-defaults-are-written-for) · [Three sizes](#three-sizes) · [Changing the limits](#changing-the-limits)
+- [Network preparation in mainland China](#network-preparation-in-mainland-china) — switch your mirrors first; without them the install usually dies on the image pull
+- [The stack at a glance](#the-stack-at-a-glance) — how many containers, and which talks to which
+
+**With Docker**
+
+- [First install](#first-install) — empty directory to a console you can log in to
+- [The compose file, service by service](#the-compose-file-service-by-service) — read this before editing it
+- [The two optional profiles](#the-two-optional-profiles) — whether you want `browser` and `downloader`
+- [Building the browser image: the CloakBrowser pin](#building-the-browser-image-the-cloakbrowser-pin) — this image is not published; you build it
+- [Environment variables](#environment-variables) — including the two ways Compose reads `.env`, which catches everyone once
+- [Volumes](#volumes) · [Ports and binding](#ports-and-binding) · [Behind a reverse proxy](#behind-a-reverse-proxy)
+- [Verifying an install](#verifying-an-install) — run these; do not judge it by whether the page loads
+- [Upgrading](#upgrading) · [Scaling: more workers](#scaling-more-workers)
+
+**By hand**
+
+- [Running without Docker](#running-without-docker) — how the project is developed: uv for dependencies, containers still for Postgres and Redis
+- [A production install without Docker](#a-production-install-without-docker) — all of it by hand, systemd units included, verified on a clean Ubuntu 24.04
+- [Running the worker on its own](#running-the-worker-on-its-own)
+
+**When something is wrong**
+
+- [Starting over](#starting-over) — stopping with the data intact, and stopping with it gone
+- [Where to go next](#where-to-go-next)
+
 ## What you need
 
 | Requirement | Why |
@@ -144,6 +197,184 @@ Knobs worth turning, most effective first:
   concurrent-transfer ceiling is their product. Drop both to 2 on one core.
 - **`pool.target_size` (a console setting).** A bigger pool means more mints and
   more rows in Postgres. 8 is a sensible number on a small box.
+
+## Network preparation in mainland China
+
+Skip this section unless you are installing from a machine in mainland China.
+
+The short version: **change your mirrors before you start.** Almost everything this install pulls
+lives outside the Great Firewall — Docker Hub, PyPI, the npm registry, GitHub, Debian's apt
+repositories. Without mirrors it is not slower, it usually times out on the image pull, and you
+conclude the project is broken.
+
+Treat the mirrors below as leads that worked when this page was written, not as guarantees. Public
+mirrors have a history of disappearing — a wave of university sites dropped their Docker Hub proxies
+in 2024 — so each part ends with a way to check for yourself.
+
+### Docker images
+
+On the recommended path, where you only pull prebuilt images, there are four to fetch from Docker Hub:
+
+| Image | Used by |
+|---|---|
+| `evil0ctal/douyin_tiktok_download_api` | `api`, `worker` and `migrate`, which share one image |
+| `evil0ctal/douyin_tiktok_download_api-downloader` | `downloader` (optional profile) |
+| `timescale/timescaledb-ha:pg17` | `postgres` |
+| `redis:8-alpine` | `redis` |
+
+Mirrors go in `/etc/docker/daemon.json`:
+
+```json
+{
+  "registry-mirrors": ["https://<your-account-id>.mirror.aliyuncs.com"]
+}
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl restart docker
+docker info | grep -A3 "Registry Mirrors"   # nothing printed means it did not take
+```
+
+Sources, most to least reliable:
+
+- **Your own cloud provider's accelerator.** Aliyun issues a per-account address from the Container
+  Registry console; Tencent Cloud is `https://mirror.ccs.tencentyun.com` but only resolves inside
+  Tencent Cloud's network; Huawei Cloud and Volcengine are the same idea. These are the steady ones,
+  because they are a vendor serving its own customers rather than a volunteer site.
+- **Public accelerators**, such as `https://docker.m.daocloud.io`. Use one while it works.
+  `registry-mirrors` takes a list and Docker tries them in order.
+- **When none of them work**: `docker pull` on a machine outside, then `docker save` / `docker load`
+  across. Or run a registry proxy on a host outside. It sounds primitive; it costs less time than
+  cycling through accelerators that time out.
+
+**Note that the `browser-rpc` image is not published** and has to be built locally — see
+[Building the browser image: the CloakBrowser pin](#building-the-browser-image-the-cloakbrowser-pin).
+Its build reaches Debian's apt repositories, PyPI, GitHub (CloakBrowser installs as
+`pip install "cloakbrowser @ git+https://github.com/…"`) and then downloads a browser binary.
+**This is the most network-sensitive step in the whole install**, and most of what follows exists for
+it. If you do not need minted identities yet, leave the `browser` profile off — importing your own
+cookies works without it.
+
+### System package mirrors
+
+[The bare-metal install](#a-production-install-without-docker) installs PostgreSQL 17, TimescaleDB
+and Redis from their official apt repositories.
+
+One Ubuntu 24.04 trap worth calling out: sources moved to the deb822 format at
+`/etc/apt/sources.list.d/ubuntu.sources`. The `/etc/apt/sources.list` that older guides edit no
+longer does anything, and editing it fails silently — you will believe you switched mirrors.
+
+```bash
+# Ubuntu 24.04, switching to the Tsinghua mirror
+sudo sed -i \
+  -e 's|http://archive.ubuntu.com/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
+  -e 's|http://security.ubuntu.com/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
+  -e 's|http://ports.ubuntu.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' \
+  /etc/apt/sources.list.d/ubuntu.sources
+sudo apt-get update
+```
+
+The third expression is for arm64 — ARM Ubuntu uses `ports.ubuntu.com` rather than
+`archive.ubuntu.com`. On x86 it matches nothing and is harmless.
+
+Common hosts, interchangeable by domain: `mirrors.tuna.tsinghua.edu.cn` (Tsinghua),
+`mirrors.ustc.edu.cn` (USTC), `mirrors.aliyun.com` (Aliyun), `repo.huaweicloud.com` (Huawei),
+`mirrors.cloud.tencent.com` (Tencent). On a given cloud, prefer that cloud's own — it stays on the
+internal network, which is both faster and not metered.
+
+The PostgreSQL apt repository (`apt.postgresql.org`) is mirrored at Tsinghua and elsewhere, on a path
+like `https://mirrors.tuna.tsinghua.edu.cn/postgresql/repos/apt/` — check the mirror's own help page,
+these paths do move.
+
+TimescaleDB's packages are on packagecloud.io, which as far as I know has no mirror in China. If that
+step stalls, either put apt behind a proxy (`sudo -E apt-get …` with `https_proxy` set) or go the
+Docker route — pulling `timescale/timescaledb-ha:pg17` through an accelerator beats installing
+packages from packagecloud by a wide margin. That is one of the reasons Docker is the recommendation.
+
+### Python, pip and uv
+
+Dependencies are managed with [uv](https://docs.astral.sh/uv/).
+
+```bash
+# uv itself: the official install script goes through GitHub, so install from PyPI when it drags
+pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# The dependency index: uv reads this variable
+export UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+uv sync --frozen --no-dev
+```
+
+Put it in `~/.bashrc`, or in a systemd unit's `Environment=`. Older uv reads `UV_INDEX_URL`; setting
+both does no harm.
+
+For pip itself:
+
+```bash
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+Common PyPI mirrors: Tsinghua `https://pypi.tuna.tsinghua.edu.cn/simple`, Aliyun
+`https://mirrors.aliyun.com/pypi/simple/`, USTC `https://mirrors.ustc.edu.cn/pypi/simple`, Tencent
+`https://mirrors.cloud.tencent.com/pypi/simple`, Huawei
+`https://repo.huaweicloud.com/repository/pypi/simple`.
+
+One that is easy to miss: `uv python install` downloads its interpreter from GitHub Releases. Set
+`UV_PYTHON_INSTALL_MIRROR`, or just use the system Python — this project wants `>=3.12,<3.14`, and
+Ubuntu 24.04 ships 3.12.
+
+### Node and npm
+
+Only needed if you build the console or the application image yourself; pulling prebuilt images needs
+no Node at all.
+
+```bash
+npm config set registry https://registry.npmmirror.com
+```
+
+`npm ci` pulls packages with native binaries such as esbuild and rollup. In current versions those
+ship as platform-specific npm packages, so switching the registry is enough — there is no separate
+binary mirror to configure.
+
+While on the subject: the Go `downloader` service needs **no** `GOPROXY`. It has no third-party
+dependencies at all, only the standard library, so its build fetches no modules.
+
+### GitHub, and proxies at build time
+
+`git clone` and CloakBrowser's `pip install "… @ git+https://github.com/…"` both reach GitHub. The
+least intrusive fix is a proxy scoped to GitHub rather than a global one:
+
+```bash
+git config --global http.https://github.com.proxy http://127.0.0.1:7890
+```
+
+Network access inside a Docker build does not read the host's git configuration; the proxy has to be
+passed as a build argument (`HTTP_PROXY` and `HTTPS_PROXY` are BuildKit predefined arguments, so the
+Dockerfile does not declare them):
+
+```bash
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml build \
+  --build-arg HTTP_PROXY=http://172.17.0.1:7890 \
+  --build-arg HTTPS_PROXY=http://172.17.0.1:7890 \
+  browser-rpc
+```
+
+`172.17.0.1` is the host as seen from the default bridge network. A common trap here: a proxy
+listening only on `127.0.0.1` is unreachable from inside the container — it has to listen on
+`0.0.0.0`, or at least on the docker0 address.
+
+### Check it took
+
+Do not go by feel:
+
+```bash
+docker info | grep -A5 "Registry Mirrors"    # did it read the accelerator
+time docker pull redis:8-alpine              # fast or not, this answers it
+pip config get global.index-url
+npm config get registry
+```
+
+If a step still fails after switching mirrors, run that step alone and read its own error before
+suspecting the project — everything listed here names the host it could not reach when it fails.
 
 ## The stack at a glance
 

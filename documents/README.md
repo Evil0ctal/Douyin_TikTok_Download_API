@@ -28,6 +28,10 @@ half an hour and leave you with a working instance you understand.
 **Deploy and configure it**
 
 - [Installation and deployment](./en/02-installation.md) — the compose file service by service, every `DTK_*` variable, profiles, reverse proxies, upgrading, running without Docker
+  - Choose a route first: [Which path](./en/02-installation.md#which-path) — what Docker and a by-hand install each cost you
+  - With Docker (recommended): [First install](./en/02-installation.md#first-install)
+  - By hand: [for development](./en/02-installation.md#running-without-docker) · [on bare metal](./en/02-installation.md#a-production-install-without-docker)
+  - Installing from mainland China: [Network preparation](./en/02-installation.md#network-preparation-in-mainland-china) — switch mirrors first, or the image pull will time out
 - [Configuration reference](./en/03-configuration.md) — the two configuration layers, and all 54 runtime settings with defaults and when to change them
 - [Security](./en/15-security.md) — what the software protects, what you are responsible for, and which operations hand out a credential
 
@@ -67,7 +71,7 @@ in Operations.
 | | Page | |
 |---|---|---|
 | 01 | [Quick start](./en/01-quickstart.md) | From nothing to a first successful request |
-| 02 | [Installation and deployment](./en/02-installation.md) | Compose, environment, profiles, upgrades |
+| 02 | [Installation and deployment](./en/02-installation.md) | Two ways to install, compose, environment, profiles, upgrades |
 | 03 | [Configuration reference](./en/03-configuration.md) | All 54 runtime settings |
 | 04 | [Concepts](./en/04-concepts.md) | The mental model |
 | 05 | [Console overview](./en/05-console-overview.md) | Shell, Overview, System, Logs, Diagnose |

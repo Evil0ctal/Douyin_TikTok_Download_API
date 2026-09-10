@@ -198,6 +198,16 @@ Douyin_TikTok_Download_API/
 
 ## ⚡️ 快速开始
 
+装法有两种，下面走的是推荐的那种。手动装依赖的路子见 [不用 Docker](#不用-docker)。
+
+| 装法 | 适合谁 | 详细步骤 |
+|---|---|---|
+| **Docker Compose**（推荐） | 绝大多数人，生产也包括在内 | [安装与部署 · 首次安装](./documents/zh/02-installation.md#首次安装) |
+| 手动装依赖 | 不能用 Docker，或者你要改代码 | [开发方式](./documents/zh/02-installation.md#不用-docker-运行) · [裸机生产部署](./documents/zh/02-installation.md#在裸机上做生产部署) |
+
+> **在中国大陆的机器上装？** 先换源再动手，不然多半卡在拉镜像那一步：
+> [中国大陆的网络准备](./documents/zh/02-installation.md#中国大陆的网络准备)。
+
 需要 Docker 和 Docker Compose。仓库里不带任何默认密码或密钥，先生成 `.env`：
 
 ```bash
@@ -238,7 +248,27 @@ docker compose -p dtk -f docker/compose.yml up -d
 浏览器容器不发布——它会从一个指定的 commit 安装 CloakBrowser，那个 pin 是安全控制，
 应当由你自己决定，所以它一直是本地构建。
 
-更多部署细节（浏览器容器、下载器 sidecar、反向代理、备份）见 [docker/README.md](./docker/README.md)。
+### 不用 Docker
+
+也支持，而且这就是这个项目本身的开发方式。你要自己准备 PostgreSQL 17（**必须带 TimescaleDB 扩展**，
+普通 `postgres:17` 不行）、Redis 8、Python 3.12 和 uv；要构建控制台还需要 Node 22。两份步骤：
+
+- [不用 Docker 运行](./documents/zh/02-installation.md#不用-docker-运行) —— 开发用，数据库和 Redis 仍然用容器起
+- [在裸机上做生产部署](./documents/zh/02-installation.md#在裸机上做生产部署) —— 全手工，含 systemd unit，在干净的 Ubuntu 24.04 上实跑验证过
+
+容器本来替你做的那些事——非 root 用户、内存和 CPU 上限、只读根文件系统、进程守护——裸机上都得自己补回来，
+那一节把它们逐条列了出来。
+
+### 还想知道什么
+
+| 想做的事 | 去哪看 |
+|---|---|
+| 改容器规格、算机器要多大 | [三档配置](./documents/zh/02-installation.md#三档配置) · [怎么改这些上限](./documents/zh/02-installation.md#怎么改这些上限) |
+| 开浏览器容器、下载器 sidecar | [两个可选 profile](./documents/zh/02-installation.md#两个可选-profile) |
+| 挂 TLS、放到反向代理后面 | [放在反向代理后面](./documents/zh/02-installation.md#放在反向代理后面) |
+| 环境变量到底怎么读的 | [环境变量](./documents/zh/02-installation.md#环境变量) |
+| 装完确认它真的好了 | [验证安装](./documents/zh/02-installation.md#验证安装) |
+| compose 文件本身逐行解释 | [docker/README.md](./docker/README.md) |
 
 ## 🖥 用它做什么
 

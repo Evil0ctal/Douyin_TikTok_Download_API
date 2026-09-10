@@ -6,6 +6,57 @@
 
 如果你只想用最短的路径先跑起来，先看 [快速开始](./01-quickstart.md)，等到需要改点什么时再回到这里。
 
+## 走哪条路
+
+安装有两条路，先选一条再往下读。
+
+| | Docker Compose | 手动部署 |
+|---|---|---|
+| 适合谁 | 绝大多数人，生产也包括在内 | 不能用 Docker 的环境，或者你要改代码 |
+| 宿主机上要自己装 | 只有 Docker | PostgreSQL 17 + TimescaleDB、Redis 8、Python 3.12、uv；要构建控制台还得有 Node 22 |
+| 起一套要多久 | 拉镜像的时间 | 半小时起步，其中一半花在 TimescaleDB 上 |
+| 升级 | 改 tag、`pull`、跑迁移、`up -d` | `git pull`、`uv sync`、跑迁移、重启 systemd |
+| 资源上限、只读根文件系统、能力裁剪、非 root 用户 | compose 文件里已经写好 | 你自己用 systemd 补回来 |
+| 出问题来问我 | 我这边能一比一复现 | 你那台机器是独一份，我只能猜 |
+| 从这里开始读 | [首次安装](#首次安装) | [不用 Docker 运行](#不用-docker-运行)（开发）、[在裸机上做生产部署](#在裸机上做生产部署)（生产） |
+
+**推荐 Docker**，理由不是容器时髦，而是这套东西对环境挑剔的地方，compose 文件已经替你固定住了：数据库必须是带
+TimescaleDB 扩展的 Postgres 17（普通 `postgres:17` 镜像不行），浏览器镜像里的 CloakBrowser 钉在具体某个 commit 上，
+四个服务的启动顺序靠健康检查串起来，每个容器的内存、CPU、PID 上限和只读根文件系统都是写死的。手动部署这些都得你自己
+重建一遍——[在裸机上做生产部署](#在裸机上做生产部署) 那一节把要补的东西逐条列了出来，翻过去看一眼要补多少，
+再决定走哪条路也不迟。
+
+### 全文目录
+
+**先做准备**
+
+- [你需要准备什么](#你需要准备什么) —— 机器规格、磁盘、以及换自己的数据库前必须知道的两件事
+- [这套默认值是按什么机器写的](#这套默认值是按什么机器写的) · [三档配置](#三档配置) · [怎么改这些上限](#怎么改这些上限)
+- [中国大陆的网络准备](#中国大陆的网络准备) —— 从大陆机器上装，先换源，不换大概率卡在拉镜像那步
+- [整体结构一览](#整体结构一览) —— 一共几个容器、谁跟谁说话
+
+**Docker 部署**
+
+- [首次安装](#首次安装) —— 从空目录到能访问控制台
+- [compose 文件逐个服务讲解](#compose-文件逐个服务讲解) —— 改它之前先读这节
+- [两个可选 profile](#两个可选-profile) —— `browser` 和 `downloader` 到底要不要开
+- [构建浏览器镜像：CloakBrowser 版本固定](#构建浏览器镜像cloakbrowser-版本固定) —— 这个镜像不发布，只能本地构建
+- [环境变量](#环境变量) —— 包括 compose 读 `.env` 的两种方式，踩过的人都记得
+- [数据卷](#数据卷) · [端口与监听地址](#端口与监听地址) · [放在反向代理后面](#放在反向代理后面)
+- [验证安装](#验证安装) —— 装完跑这几条，别靠"页面打得开"判断
+- [升级](#升级) · [扩容：增加 worker](#扩容增加-worker)
+
+**手动部署**
+
+- [不用 Docker 运行](#不用-docker-运行) —— 开发方式：依赖用 uv 装，数据库和 Redis 仍然用容器
+- [在裸机上做生产部署](#在裸机上做生产部署) —— 全手工，含 systemd unit，在干净的 Ubuntu 24.04 上实跑验证过
+- [单独运行 worker](#单独运行-worker)
+
+**出问题的时候**
+
+- [推倒重来](#推倒重来) —— 保留数据地停，和连数据一起删
+- [接下来看什么](#接下来看什么)
+
 ## 你需要准备什么
 
 | 要求 | 原因 |
@@ -130,6 +181,165 @@ chmod +x dtkctl
   并发传输数是两者相乘。1 核机器上降到 2 和 2。
 - **`pool.target_size`（控制台里的设置）。** 身份池越大，铸造总次数越多、
   Postgres 里的行越多。小机器上 8 是个合适的数。
+
+## 中国大陆的网络准备
+
+这一节只对从中国大陆的机器上安装的人有用，其他地方跳过就好。
+
+先说结论：**动手之前先把源换掉。** 这一路要拉的东西基本都在墙外——Docker Hub、PyPI、npm registry、GitHub、
+Debian 的 apt 源——不换源不是慢一点的问题，而是十有八九在拉镜像那步超时，然后你会以为是项目坏了。
+
+下面列的镜像站请当成"写这篇文档时能用"的线索，不是保证。公共镜像源这几年停了不少（2024 年就有一批高校站点关掉了
+Docker Hub 代理），所以每节末尾都给了一条自己验证的办法。
+
+### Docker 镜像
+
+走推荐路径、只拉预构建镜像的话，需要从 Docker Hub 拉的是四个：
+
+| 镜像 | 谁在用 |
+|---|---|
+| `evil0ctal/douyin_tiktok_download_api` | `api`、`worker`、`migrate` 共用同一个 |
+| `evil0ctal/douyin_tiktok_download_api-downloader` | `downloader`（可选 profile） |
+| `timescale/timescaledb-ha:pg17` | `postgres` |
+| `redis:8-alpine` | `redis` |
+
+加速器写在 `/etc/docker/daemon.json`：
+
+```json
+{
+  "registry-mirrors": ["https://<你的专属ID>.mirror.aliyuncs.com"]
+}
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl restart docker
+docker info | grep -A3 "Registry Mirrors"   # 没打印出来就是没生效
+```
+
+几种来源，可靠性从高到低：
+
+- **你所在云厂商自己的加速器。** 阿里云在容器镜像服务控制台给每个账号一个专属地址；腾讯云是
+  `https://mirror.ccs.tencentyun.com`，但只在腾讯云机器的内网里能用；华为云、火山引擎同理。
+  这类最稳，因为它是厂商发给自己客户的，不是公益站点。
+- **公共加速器**，比如 `https://docker.m.daocloud.io`。能用就用，说停就停，`registry-mirrors`
+  里可以一次写好几个，Docker 会依次试。
+- **一个都用不了的时候**：在境外机器上 `docker pull`，然后 `docker save` / `docker load` 搬过来；
+  或者在境外机器上跑一个 registry 代理。听着笨，但比反复试超时的加速器省时间。
+
+**注意 `browser-rpc` 镜像不发布**，只能本地构建（见
+[构建浏览器镜像：CloakBrowser 版本固定](#构建浏览器镜像cloakbrowser-版本固定)）。它的构建过程要访问 Debian
+的 apt 源、PyPI、GitHub（CloakBrowser 是用 `pip install "cloakbrowser @ git+https://github.com/…"` 装的），
+还要再下一个浏览器二进制。**这是整条链路上对网络最挑剔的一步**，下面几节多半是为它准备的。如果你暂时不需要自动铸造
+身份，可以先不开 `browser` profile——导入自己的 Cookie 一样能跑。
+
+### 系统软件源
+
+[裸机部署](#在裸机上做生产部署) 那节要装 PostgreSQL 17、TimescaleDB 和 Redis，用的都是官方 apt 源。
+
+Ubuntu 24.04 换源有个坑值得单说：源文件已经换成 deb822 格式，路径是 `/etc/apt/sources.list.d/ubuntu.sources`，
+不是老教程里的 `/etc/apt/sources.list`。改后者不会有任何效果，也不会报错，只会让你以为换过了。
+
+```bash
+# Ubuntu 24.04，换成清华源
+sudo sed -i \
+  -e 's|http://archive.ubuntu.com/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
+  -e 's|http://security.ubuntu.com/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/ubuntu|g' \
+  -e 's|http://ports.ubuntu.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' \
+  /etc/apt/sources.list.d/ubuntu.sources
+sudo apt-get update
+```
+
+第三条是给 arm64 机器的——ARM 版 Ubuntu 用的是 `ports.ubuntu.com` 而不是 `archive.ubuntu.com`，
+在 x86 机器上那条不会匹配到任何东西，留着无害。
+
+常用的几家，换掉域名就行：`mirrors.tuna.tsinghua.edu.cn`（清华）、`mirrors.ustc.edu.cn`（中科大）、
+`mirrors.aliyun.com`（阿里云）、`repo.huaweicloud.com`（华为云）、`mirrors.cloud.tencent.com`（腾讯云）。
+在哪家云的机器上就优先用哪家的，走内网既快又不计流量。
+
+PostgreSQL 官方源（`apt.postgresql.org`）清华等站点有镜像，路径形如 `https://mirrors.tuna.tsinghua.edu.cn/postgresql/repos/apt/`——具体以镜像站自己的帮助页为准，这类路径偶尔会调整。
+
+TimescaleDB 的包在 packagecloud.io 上，据我所知没有国内镜像。这一步卡住的话，要么给 apt 挂代理
+（`sudo -E apt-get …` 配合 `https_proxy`），要么干脆走 Docker——`timescale/timescaledb-ha:pg17`
+从加速器拉，比从 packagecloud 一个个装包快得多。这也是我推荐 Docker 的理由之一。
+
+### Python、pip 和 uv
+
+项目用 [uv](https://docs.astral.sh/uv/) 管依赖。
+
+```bash
+# uv 自己：官方安装脚本走 GitHub，慢就从 PyPI 装
+pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 依赖索引：uv 认这个环境变量
+export UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+uv sync --frozen --no-dev
+```
+
+写进 `~/.bashrc`，或者写进 systemd unit 的 `Environment=` 里更省事。老版本 uv 认的是 `UV_INDEX_URL`，
+两个都设上没有坏处。
+
+pip 自己：
+
+```bash
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+常用的 PyPI 镜像：清华 `https://pypi.tuna.tsinghua.edu.cn/simple`、阿里云
+`https://mirrors.aliyun.com/pypi/simple/`、中科大 `https://mirrors.ustc.edu.cn/pypi/simple`、腾讯云
+`https://mirrors.cloud.tencent.com/pypi/simple`、华为云 `https://repo.huaweicloud.com/repository/pypi/simple`。
+
+还有一个容易漏的：`uv python install` 下载的解释器来自 GitHub Releases，慢的话设 `UV_PYTHON_INSTALL_MIRROR`；
+或者直接用系统自带的 Python——本项目要求 `>=3.12,<3.14`，Ubuntu 24.04 自带的 3.12 就满足。
+
+### Node 和 npm
+
+只有你要自己构建控制台、或者自己构建 app 镜像时才用得上；拉预构建镜像不需要 Node。
+
+```bash
+npm config set registry https://registry.npmmirror.com
+```
+
+`npm ci` 会拉 esbuild、rollup 这类带原生二进制的包。它们在现在的版本里是以平台专属的 npm 包发布的，
+所以换 registry 就够了，不用再单独配二进制镜像地址。
+
+顺带一提，`downloader` 那个 Go 服务**不需要** `GOPROXY`：它一个第三方依赖都没有，只用标准库，
+构建时不会去拉任何模块。
+
+### GitHub 与构建时代理
+
+`git clone` 和 CloakBrowser 的 `pip install "… @ git+https://github.com/…"` 都要访问 GitHub。
+最省事的是给 git 配一个只对 GitHub 生效的代理，而不是把全局都代理掉：
+
+```bash
+git config --global http.https://github.com.proxy http://127.0.0.1:7890
+```
+
+Docker 构建里的网络访问不走宿主机的 git 配置，代理要通过 build 参数传进去（`HTTP_PROXY` /
+`HTTPS_PROXY` 是 BuildKit 的预定义参数，Dockerfile 里不用声明）：
+
+```bash
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml build \
+  --build-arg HTTP_PROXY=http://172.17.0.1:7890 \
+  --build-arg HTTPS_PROXY=http://172.17.0.1:7890 \
+  browser-rpc
+```
+
+`172.17.0.1` 是默认 bridge 网络里宿主机的地址。这里有个常见的坑：如果你的代理只监听 `127.0.0.1`，
+容器里是连不上它的——得让它监听 `0.0.0.0`，或者至少监听 docker0 那个地址。
+
+### 换完之后确认一遍
+
+别靠感觉，跑一遍：
+
+```bash
+docker info | grep -A5 "Registry Mirrors"    # 加速器读到了吗
+time docker pull redis:8-alpine              # 快不快，一试便知
+pip config get global.index-url
+npm config get registry
+```
+
+如果换完源某一步还是失败，先把那一步单独跑一遍看它自己的报错，再来怀疑项目——这一节列的每样东西，
+失败时都会说出是哪个域名连不上。
 
 ## 整体结构一览
 

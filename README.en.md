@@ -211,6 +211,18 @@ Douyin_TikTok_Download_API/
 
 ## ⚡️ Quick start
 
+There are two ways to install this; below is the recommended one. For the by-hand route, see
+[Without Docker](#without-docker).
+
+| How | Who for | Full steps |
+|---|---|---|
+| **Docker Compose** (recommended) | Almost everyone, production included | [Installation · First install](./documents/en/02-installation.md#first-install) |
+| By hand | Docker is not an option, or you are changing the code | [For development](./documents/en/02-installation.md#running-without-docker) · [On bare metal](./documents/en/02-installation.md#a-production-install-without-docker) |
+
+> **Installing from mainland China?** Switch your mirrors before you start, or the pull will
+> most likely time out:
+> [Network preparation in mainland China](./documents/en/02-installation.md#network-preparation-in-mainland-china).
+
 You need Docker and Docker Compose. Nothing in the repository ships a default password
 or key, so write `.env` first:
 
@@ -256,8 +268,30 @@ Raspberry Pi both run natively. The browser container is not published: it insta
 CloakBrowser from a pinned commit, and that pin is a security control that should be
 yours to choose, so it stays a local build.
 
-For the browser container, the downloader sidecar, reverse proxies and backups, see
-[docker/README.md](./docker/README.md).
+### Without Docker
+
+Supported, and it is how the project itself is developed. You provide PostgreSQL 17 (**with the
+TimescaleDB extension** — a plain `postgres:17` will not do), Redis 8, Python 3.12 and uv, plus
+Node 22 if you build the console. Two sets of steps:
+
+- [Running without Docker](./documents/en/02-installation.md#running-without-docker) — for
+  development; Postgres and Redis still come from containers
+- [A production install without Docker](./documents/en/02-installation.md#a-production-install-without-docker)
+  — all of it by hand, systemd units included, verified on a clean Ubuntu 24.04
+
+What the containers were doing for you — a non-root user, memory and CPU ceilings, a read-only root
+filesystem, process supervision — you put back yourself. That section lists them one by one.
+
+### Where to look next
+
+| What you want to do | Where |
+|---|---|
+| Size a machine, change the container limits | [Three sizes](./documents/en/02-installation.md#three-sizes) · [Changing the limits](./documents/en/02-installation.md#changing-the-limits) |
+| Turn on the browser container or the downloader sidecar | [The two optional profiles](./documents/en/02-installation.md#the-two-optional-profiles) |
+| Put TLS and a reverse proxy in front | [Behind a reverse proxy](./documents/en/02-installation.md#behind-a-reverse-proxy) |
+| Understand how the environment is actually read | [Environment variables](./documents/en/02-installation.md#environment-variables) |
+| Confirm an install is genuinely healthy | [Verifying an install](./documents/en/02-installation.md#verifying-an-install) |
+| Read the compose file line by line | [docker/README.md](./docker/README.md) |
 
 ## 🖥 What you get
 

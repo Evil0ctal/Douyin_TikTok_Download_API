@@ -25,6 +25,10 @@
 **部署与配置**
 
 - [安装与部署](./zh/02-installation.md) —— 逐个服务讲清 compose 文件、全部 `DTK_*` 环境变量、profile、反向代理、升级、不用 Docker 怎么跑
+  - 先选路线：[走哪条路](./zh/02-installation.md#走哪条路) —— Docker 和手动部署各自要付出什么
+  - 用 Docker（推荐）：[首次安装](./zh/02-installation.md#首次安装)
+  - 手动装依赖：[开发方式](./zh/02-installation.md#不用-docker-运行) · [裸机生产部署](./zh/02-installation.md#在裸机上做生产部署)
+  - 机器在中国大陆：[中国大陆的网络准备](./zh/02-installation.md#中国大陆的网络准备) —— 先换源，不然多半卡在拉镜像
 - [配置参考](./zh/03-configuration.md) —— 两层配置的区别，以及全部 54 项运行时配置的默认值和该在什么时候改
 - [安全](./zh/15-security.md) —— 软件已经替你做了什么、什么是你自己的责任，以及哪些操作会交出凭据
 
@@ -59,7 +63,7 @@
 | | 页面 | |
 |---|---|---|
 | 01 | [快速开始](./zh/01-quickstart.md) | 从零到第一次成功请求 |
-| 02 | [安装与部署](./zh/02-installation.md) | compose、环境变量、profile、升级 |
+| 02 | [安装与部署](./zh/02-installation.md) | 两种部署方式、compose、环境变量、profile、升级 |
 | 03 | [配置参考](./zh/03-configuration.md) | 全部 54 项运行时配置 |
 | 04 | [核心概念](./zh/04-concepts.md) | 心智模型 |
 | 05 | [控制台总览](./zh/05-console-overview.md) | 外壳、总览、系统信息、日志、诊断 |
