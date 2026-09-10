@@ -14,6 +14,7 @@ import {
   MetricTile,
   PageHeader,
   Select,
+  SignatureDecode,
   Textarea,
   useToast,
 } from '@/components'
@@ -21,7 +22,7 @@ import { useApiMutation, useFormatters } from '@/hooks'
 import { apiGet, apiPost, isApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
-import type { SigningStage } from '@/components'
+import type { DecodedParameter, SigningStage } from '@/components'
 import { SIGNING_EXAMPLES } from '@/lib/signingExamples'
 import type { Platform } from '@/lib/types'
 
@@ -40,13 +41,28 @@ import type { Platform } from '@/lib/types'
  * says what else has to line up, and the minting form is what produces it.
  */
 
-type ToolTab = 'sign' | 'parse' | 'batch' | 'identity'
+type ToolTab = 'sign' | 'decode' | 'parse' | 'batch' | 'identity'
 
 const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
+
+/**
+ * What the decode tab starts with when the sign tab hands off to it.
+ *
+ * The two forms are inverses, and the most useful thing anyone can do with them
+ * is run one straight into the other - sign a URL, then read the result back
+ * and watch every check come out green. Retyping a 2,000 character signed URL
+ * to do that is not a thing anybody would do, so the sign result offers a
+ * button instead.
+ */
+interface DecodeSeed {
+  value: string
+  userAgent: string
+}
 
 export default function Tools() {
   const { t } = useTranslation('console')
   const [tab, setTab] = useState<ToolTab>('sign')
+  const [seed, setSeed] = useState<DecodeSeed | null>(null)
 
   return (
     <div className="u-page">
@@ -54,7 +70,7 @@ export default function Tools() {
 
       <Card>
         <div className="u-row" role="tablist" aria-label={t('tools.title')}>
-          {(['sign', 'parse', 'batch', 'identity'] as const).map((id) => (
+          {(['sign', 'decode', 'parse', 'batch', 'identity'] as const).map((id) => (
             <Button
               key={id}
               role="tab"
@@ -68,7 +84,15 @@ export default function Tools() {
         </div>
       </Card>
 
-      {tab === 'sign' && <SignForm />}
+      {tab === 'sign' && (
+        <SignForm
+          onDecode={(next) => {
+            setSeed(next)
+            setTab('decode')
+          }}
+        />
+      )}
+      {tab === 'decode' && <DecodeForm seed={seed} />}
       {tab === 'parse' && <ParseForm />}
       {tab === 'batch' && <BatchForm />}
       {tab === 'identity' && <IdentityForm />}
@@ -92,7 +116,7 @@ interface SignResult {
   stages?: readonly SigningStage[]
 }
 
-function SignForm() {
+function SignForm({ onDecode }: { onDecode: (seed: DecodeSeed) => void }) {
   const { t } = useTranslation('console')
   const toast = useToast()
   const [platform, setPlatform] = useState<Platform>('douyin')
@@ -218,6 +242,20 @@ function SignForm() {
         <>
           <Card title={t('tools.sign.signedUrl')}>
             <CodeBlock code={sign.data.signed_url} language="text" />
+            <div className="u-row" style={{ marginTop: 'var(--space-3)' }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  onDecode({
+                    value: sign.data.signed_url,
+                    userAgent: sign.data.user_agent,
+                  })
+                }}
+              >
+                {t('tools.sign.decodeThis')}
+              </Button>
+            </div>
           </Card>
           {sign.data.stages && sign.data.stages.length > 0 ? (
             <Card
@@ -248,6 +286,139 @@ function SignForm() {
 /* -------------------------------------------------------------------------- */
 /* Stages                                                                      */
 /* -------------------------------------------------------------------------- */
+
+
+/* -------------------------------------------------------------------------- */
+/* Decode                                                                      */
+/* -------------------------------------------------------------------------- */
+
+interface DecodeResult {
+  source: 'url' | 'parameter'
+  platform: string | null
+  user_agent: string | null
+  parameters: readonly DecodedParameter[]
+}
+
+/** The parameters the endpoint can be told to read a value as. `auto` is the default. */
+const DECODE_PARAMETERS = [
+  'a_bogus',
+  'X-Bogus',
+  'X-Gnarly',
+  'X-Dynosaur',
+  'msToken',
+  'x-secsdk-web-signature',
+  'verifyFp',
+] as const
+
+/**
+ * The inverse of the form above it.
+ *
+ * It exists because this project reversed these algorithms itself rather than
+ * vendoring somebody's port, and the dividend of owning them is that they can
+ * be explained. A reader who has only ever seen `a_bogus` as 160 opaque
+ * characters can watch a clock, a screen size and Douyin's own `aid` come back
+ * out of it.
+ *
+ * The User-Agent field is not decoration and is worth filling in even when the
+ * answer seems obvious. Both platforms hash the UA into the signature, and "the
+ * UA I am sending is not the UA I signed with" is the single most common way a
+ * hand-built request fails while looking perfectly correct.
+ */
+function DecodeForm({ seed }: { seed: DecodeSeed | null }) {
+  const { t } = useTranslation('console')
+  const toast = useToast()
+  const [value, setValue] = useState(seed?.value ?? '')
+  const [userAgent, setUserAgent] = useState(seed?.userAgent ?? '')
+  const [parameter, setParameter] = useState('')
+
+  const decode = useApiMutation<DecodeResult, void>(
+    () =>
+      apiPost<DecodeResult>(paths.tools.decode, {
+        value: value.trim(),
+        user_agent: userAgent.trim() || null,
+        parameter: parameter || null,
+      }),
+    { onError: (error) => toast.apiError(error) },
+  )
+
+  return (
+    <>
+      <Card title={t('tools.decode.title')} description={t('tools.decode.description')}>
+        <div className="u-stack">
+          <Field
+            id="decode-value"
+            label={t('tools.decode.valueLabel')}
+            description={t('tools.decode.valueHint')}
+          >
+            <Textarea
+              rows={4}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder={t('tools.decode.valuePlaceholder')}
+            />
+          </Field>
+
+          <Field
+            id="decode-ua"
+            label={t('tools.field.userAgent')}
+            description={t('tools.decode.userAgentHint')}
+          >
+            <Input
+              value={userAgent}
+              onChange={(event) => setUserAgent(event.target.value)}
+              placeholder={t('tools.sign.userAgentPlaceholder')}
+            />
+          </Field>
+
+          <Field
+            id="decode-parameter"
+            label={t('tools.decode.parameterLabel')}
+            description={t('tools.decode.parameterHint')}
+          >
+            <Select value={parameter} onChange={(event) => setParameter(event.target.value)}>
+              <option value="">{t('tools.decode.parameterAuto')}</option>
+              {DECODE_PARAMETERS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Button
+            variant="primary"
+            loading={decode.isPending}
+            disabled={!value.trim()}
+            onClick={() => decode.mutate()}
+          >
+            {t('tools.decode.action')}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Said before the result rather than after somebody has misread one.
+          Three different things arrive looking like table rows, and taking the
+          second for the first is the mistake this panel exists to prevent. */}
+      <Card title={t('tools.decode.meaningTitle')}>
+        <ul className="u-stack-sm">
+          <li>{t('tools.decode.meaningRecovered')}</li>
+          <li>{t('tools.decode.meaningBound')}</li>
+          <li>{t('tools.decode.meaningIssued')}</li>
+        </ul>
+      </Card>
+
+      {decode.data ? (
+        <Card
+          title={t('tools.decode.resultTitle', { count: decode.data.parameters.length })}
+          description={t(`tools.decode.source.${decode.data.source}`)}
+          flush
+        >
+          <SignatureDecode parameters={decode.data.parameters} />
+        </Card>
+      ) : null}
+    </>
+  )
+}
 
 
 /* -------------------------------------------------------------------------- */

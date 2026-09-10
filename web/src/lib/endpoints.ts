@@ -104,6 +104,7 @@ export const paths = {
   },
   tools: {
     sign: `${API_V1}/tools/sign`,
+    decode: `${API_V1}/tools/decode`,
     parseUrl: `${API_V1}/tools/parse-url`,
     /** The same recognition, over a pasted list. No network calls. */
     parseBatch: `${API_V1}/tools/parse-batch`,

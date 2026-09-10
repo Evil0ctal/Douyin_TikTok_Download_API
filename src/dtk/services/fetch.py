@@ -57,6 +57,7 @@ from dtk.scheduler.policies import policy_for
 from dtk.scheduler.scheduler import Scheduler
 from dtk.services import cache
 from dtk.transport.base import (
+    Fingerprint,
     RawResponse,
     Transport,
     TransportFailure,
@@ -64,6 +65,8 @@ from dtk.transport.base import (
 )
 from dtk.transport.base import RequestSpec as TransportRequestSpec
 from dtk.transport.classify import Classification
+from dtk.transport.emulation import UnsupportedFingerprint
+from dtk.transport.headers import build_headers
 
 log = get_logger(__name__)
 
@@ -320,7 +323,7 @@ class FetchService:
                 explanation = Explanation(
                     method=outbound.method,
                     url=_full_url(outbound),
-                    headers=dict(outbound.headers or {}),
+                    headers=_outbound_headers(identity.fingerprint, outbound.headers),
                     cookie_header=_cookie_header(identity.cookies),
                     identity_id=str(lease.identity_id),
                     signer=signer,
@@ -581,6 +584,24 @@ def _full_url(spec: TransportRequestSpec) -> str:
     if spec.params:
         return f"{spec.url}?{urlencode(spec.params)}" if "?" not in spec.url else spec.url
     return spec.url
+
+
+def _outbound_headers(fingerprint: Fingerprint, extra: Mapping[str, str] | None) -> dict[str, str]:
+    """The headers the transport is about to send, not just the signer's.
+
+    The signer contributes a handful; the User-Agent, the language and the
+    client hints come from the identity's fingerprint and are added a few lines
+    below this by the transport itself. Reporting only the signer's half would
+    produce a curl that is missing the one header both platforms hash into the
+    signature - which would fail, and look like the signature was wrong.
+
+    A fingerprint with no User-Agent makes the transport raise in a moment
+    anyway; explaining a request must not be the thing that raises first.
+    """
+    try:
+        return build_headers(fingerprint, extra)
+    except UnsupportedFingerprint:
+        return dict(extra or {})
 
 
 def _cookie_header(cookies: Mapping[str, str] | None) -> str:

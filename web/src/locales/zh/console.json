@@ -1143,7 +1143,8 @@
       "proxy": "让上游请求走这个代理。除非管理员开启了 security.request_proxy，否则会被拒绝。",
       "mix_id": "合集 ID，可从合集或播放列表链接中获取。",
       "identity": "只用指定的这一个身份发送，不会换成别的。用于只有该账号能看到的内容。该请求永远不会由其他身份代发，也不会走缓存。",
-      "refresh": "忽略缓存和正在进行的相同任务，重新向上游请求一次。不勾选时，在缓存窗口内重复调用是免费的：单个作品 30 分钟、作者主页 15 分钟、分页接口 5 分钟（设置页 cache.* 可改）。刷新会消耗一个身份和一次真实请求。"
+      "refresh": "忽略缓存和正在进行的相同任务，重新向上游请求一次。不勾选时，在缓存窗口内重复调用是免费的：单个作品 30 分钟、作者主页 15 分钟、分页接口 5 分钟（设置页 cache.* 可改）。刷新会消耗一个身份和一次真实请求。",
+      "explain": "报告本次请求由哪个身份发出、使用了哪份 cookie，以及确切的上游 URL。会跳过缓存，且需要 operator 角色。"
     },
     "required": "必填。",
     "oneOfRequired": "以下字段任填其一。",
@@ -1203,10 +1204,19 @@
     "nextPage": "获取下一页",
     "nextPageHint": "这一页带有游标。获取下一页会再消耗一次请求。",
     "signatureTitle": "签名",
-    "signatureDescription": "上面那次调用的签名是在 worker 里对平台自己的地址算出来的，而那个地址不会返回给调用方。可以在这里复现：粘贴一个平台 API 地址，就能看到每一层各自贡献了什么。请求日志追上之后，实际使用的签名器会显示在这个面板的标题栏里。",
-    "signatureUrlHint": "平台的 API 地址，含查询串。不会发起任何请求，纯算术运算。",
-    "signatureCookiesHint": "选填。抖音的签名是对 Cookie 里的访客 ID 计算的，不提供就不会生成签名请求头。",
-    "signatureAction": "计算签名"
+    "signatureDescription": "本次请求实际携带的签名参数，由 worker 针对平台自己的 URL 生成。",
+    "signatureNone": "本次请求没有携带任何签名参数。",
+    "signatureDecode": "反解这些签名",
+    "signatureDecodeHint": "纯算术运算——不发起任何请求，也不消耗身份。",
+    "explainAbsent": "本次运行没有要求说明发出的是什么请求，所以这里没有内容可看。请求确实发生过，本实例也确切知道自己向上游发了什么。",
+    "explainPending": "已开启 explain。发起请求后，此面板就会填上内容。",
+    "explainCost": "开启它会导致一次缓存未命中——说明描述的是一次真实尝试，而命中缓存的响应并没有发起任何尝试——并会返回该身份自己的 cookie。",
+    "explainRun": "重新发起并说明本次请求",
+    "cookieLabel": "本次发送的 cookie",
+    "cookieReveal": "显示完整 cookie",
+    "cookieCount": "{count, plural, other {# 条 cookie}}",
+    "upstreamCurl": "本次上游请求的 curl",
+    "upstreamCurlNote": "指向的是平台自己的接口，不是本 API。query 必须逐字节原样发送——重新编码就会改变签名覆盖的内容——并保留 User-Agent，两个平台都会把它计入签名。TikTok 还会校验 TLS 指纹与 User-Agent 是否自洽，因此无论签名多正确，裸 curl 在 TikTok 上都会被拒。"
   },
   "parse": {
     "inputTitle": "链接",
@@ -1372,7 +1382,8 @@
       "sign": "计算签名",
       "parse": "解析链接",
       "identity": "铸造身份",
-      "batch": "批量"
+      "batch": "批量",
+      "decode": "反解签名"
     },
     "field": {
       "platform": "平台",
@@ -1448,7 +1459,70 @@
       },
       "exampleLabel": "从示例开始",
       "exampleHint": "用一个真实浏览器请求填好下面所有字段。签名参数被去掉了，因为它们正是这个工具算出来的；Cookie 的值是占位符——一份 Cookie 就是一个活的登录态。真实的可以在“身份”标签页里铸造。",
-      "loadExample": "{platform} 主页请求"
+      "loadExample": "{platform} 主页请求",
+      "decodeThis": "反解这个签名"
+    },
+    "decode": {
+      "title": "反解签名",
+      "description": "与旁边那个表单互为逆运算。粘贴一条已签名的 URL，其中每个签名参数都会按它实际封住的那段字符串被拆开来读。",
+      "valueLabel": "签名值或已签名的 URL",
+      "valueHint": "粘贴完整的已签名 URL 最有用：只有这样才能确切知道每个参数覆盖了哪段字符串，也只有这样校验才跑得起来。单个参数值，或者 name=value 这样一对，同样可以。",
+      "valuePlaceholder": "https://www.douyin.com/aweme/v1/web/aweme/detail/?…&a_bogus=…",
+      "userAgentHint": "两个平台都会把 User-Agent 计入签名。填上它，结果就会告诉你正在发送的 UA 是不是签名时用的那个——这是手工构造请求时看起来完全正确却失败的最常见原因。",
+      "parameterLabel": "按什么参数解读",
+      "parameterHint": "保持自动时，会按其他参数都不具备的特征来识别。手里拿着不常见的东西时可以自己指定。",
+      "parameterAuto": "自动识别",
+      "action": "反解",
+      "resultTitle": "{count, plural, other {# 个参数}}",
+      "meaningTitle": "这里的「反解」指什么",
+      "meaningRecovered": "可还原——本来就在载荷里，原样取回：时钟、aid、page_id、页面上报的屏幕尺寸、SDK 版本、调用计数、随机数。",
+      "meaningBound": "已绑定但不可还原——载荷里带的是 query 或 User-Agent 的哈希，而不是它们本身。哈希不能倒推，所以这里不猜，而是拿你给的候选值去比对。",
+      "meaningIssued": "根本不是算出来的——msToken 和访客令牌由平台下发或随机生成，底下没有明文可挖，如实说明本身就是答案。",
+      "mismatch": "对不上",
+      "source": {
+        "url": "从你粘贴的 URL 中读出，因此每个参数都是按它实际封住的那段字符串校验的。",
+        "parameter": "按单个参数解读。粘贴完整的已签名 URL，才能校验它与所覆盖 query 是否一致。"
+      },
+      "checks": {
+        "title": "已校验的输入",
+        "bits": "{count} 位",
+        "covered": "本次签名实际覆盖的 {input} 原文。它复现出了上面的值，所以才展示出来。"
+      },
+      "check": {
+        "query": "Query",
+        "body": "请求体",
+        "user_agent": "User-Agent"
+      },
+      "column": {
+        "field": "字段",
+        "value": "值",
+        "kind": "类型"
+      },
+      "kind": {
+        "plain": "已还原",
+        "time": "时钟",
+        "digest": "哈希",
+        "checksum": "校验和",
+        "environment": "环境上报",
+        "opaque": "未解释"
+      },
+      "reason": {
+        "malformed": "这不是该参数的合法取值。未通过的结构检查是：",
+        "one_way": "这是一个 md5，里面没有可还原的内容。能做的是把它覆盖的那段字符串重建出来并加以确认——这其实更有用，因为你要自己签一个出来，需要复现的正是那段字符串。",
+        "not_computed": "由平台下发而非计算得出，底下没有明文。但它的形态仍然值得检查。",
+        "unknown_parameter": "当前版本不认识这个参数。"
+      },
+      "note": {
+        "checksum_verified": "内部校验和可复算通过。它的每一项输入本身都是载荷中的字段，所以能对上就意味着整个布局都正确还原了。",
+        "checksum_disagrees": "内部校验和复算不通过。要么该值在传输中被改动过，要么它出自与本实现不匹配的 SDK 版本。",
+        "mixed_verified": "折叠后的时间戳与随机数，和它们所折叠的那些字段是自洽的。",
+        "mixed_disagrees": "折叠后的时间戳与随机数，和旁边的字段对不上。",
+        "noise_not_recoverable": "有些字节是每次调用随机抽取的，不携带任何含义。同一毫秒内生成的两个签名大部分字节都不同，含义却完全一样。",
+        "key_travels_in_the_envelope": "信封里带着自己的密钥——平台正是这样解密它的，我们也正是因此才能读得懂。",
+        "constant_placeholder": "TikTok 网页端在每个 HTTP 请求上这里发的都是一个字面量；同名的真实算法只用于 websocket 握手。",
+        "superseded_by_a_bogus": "抖音已改用 a_bogus。TikTok 网页端仍接受这个参数，部分抖音接口也还认。",
+        "issued_by_the_platform": "由平台为浏览器签发。它算不出来，只能取得——在「身份」标签页铸造一个身份。"
+      }
     },
     "parse": {
       "title": "识别链接",

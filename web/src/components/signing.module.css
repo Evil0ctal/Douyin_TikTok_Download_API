@@ -160,3 +160,23 @@
   max-width: 60ch;
   overflow-wrap: anywhere;
 }
+
+/* Decoded parameters ---------------------------------------------------------- */
+
+/*
+ * The check tags wrap rather than scroll. There are at most three and each is a
+ * verdict, so a reader must be able to see all of them at once - a row that
+ * scrolls sideways hides the one that failed.
+ */
+.checkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* How much evidence a match rests on, kept quieter than the verdict itself. */
+.bits {
+  margin-left: var(--space-1);
+  opacity: 0.7;
+  font-family: var(--font-mono);
+}

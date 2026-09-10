@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -11,14 +11,14 @@ import {
   ErrorCodeBadge,
   Input,
   Select,
-  SigningStages,
+  SignatureDecode,
   SplitPane,
   StatusBadge,
   useErrorInfo,
   type SelectOption,
 } from '@/components'
 import { useApiQuery, useFormatters } from '@/hooks'
-import type { SigningStage } from '@/components'
+import type { DecodedParameter } from '@/components'
 import { useApiMutation } from '@/hooks'
 import { apiPost, apiRequest, isApiError, type ApiError, type ResponseMeta } from '@/lib/api'
 import { API_V1, paths } from '@/lib/endpoints'
@@ -189,6 +189,21 @@ const AWEME_ID_PARAM: ParamDef = {
   placeholder: '7300000000000000000',
 }
 
+/**
+ * Ask what request this instance actually made.
+ *
+ * Costs a cache miss - an explanation describes an attempt, and a cached answer
+ * made none - and returns the identity's own cookie jar, so it is gated on the
+ * console's own role rather than on a read scope. Off by default for both
+ * reasons; the panels below say what turning it on buys.
+ */
+const EXPLAIN_PARAM: ParamDef = {
+  name: 'explain',
+  kind: 'boolean',
+  where: 'query',
+  section: 'request',
+}
+
 /** The ones every read endpoint carries, in the order the API declares them. */
 const ENVELOPE_PARAMS: readonly ParamDef[] = [
   RAW_PARAM,
@@ -196,6 +211,7 @@ const ENVELOPE_PARAMS: readonly ParamDef[] = [
   PROXY_PARAM,
   IDENTITY_PARAM,
   REFRESH_PARAM,
+  EXPLAIN_PARAM,
 ]
 const PAGE_PARAMS: readonly ParamDef[] = [CURSOR_PARAM, COUNT_PARAM]
 
@@ -220,6 +236,7 @@ const CATALOG: readonly EndpointDef[] = [
       PROXY_PARAM,
       IDENTITY_PARAM,
       REFRESH_PARAM,
+      EXPLAIN_PARAM,
     ],
   },
   {
@@ -383,14 +400,277 @@ interface SystemStatusLike {
 }
 
 /**
- * What /tools/sign answers. Only the parts this panel draws: the flat fields
- * are the tools page's business, the stages are what a reader debugging a
- * refused call is here for.
+ * The request this instance actually made, as `explain` reports it.
+ *
+ * The panels used to offer a signature calculator here, which was an honest
+ * admission of a gap and not a fix for it: the signature that mattered was
+ * computed in the worker against the platform's own URL, and that URL never
+ * came back. Now it does, and with it the jar that signed it - so the panels
+ * show this request rather than an unrelated one computed on demand.
  */
-interface SignResult {
-  algorithm: string
-  query: string
-  stages?: readonly SigningStage[]
+interface Explanation {
+  method: string
+  /** The full platform URL, signature parameters included. */
+  url: string
+  headers: Record<string, string>
+  /** The identity's jar as one Cookie header, ready to paste. */
+  cookie_header: string
+  identity_id: string | null
+  signer: string | null
+  endpoint: string
+  /** Masked. The exit is an operator credential and stays one. */
+  proxy: string | null
+}
+
+/** What /tools/decode answers, as this page reads it. */
+interface DecodeResult {
+  parameters: readonly DecodedParameter[]
+}
+
+/**
+ * The signature parameters, picked out of the URL the request was sent to.
+ *
+ * Spelled here rather than fetched: the panel has to be able to show what this
+ * request signed without spending a round trip on it, and the names are a fixed
+ * property of the two platforms. Decoding them into plaintext is a separate,
+ * deliberate click.
+ */
+const SIGNATURE_PARAMS: readonly string[] = [
+  'a_bogus',
+  'X-Bogus',
+  'X-Gnarly',
+  'X-Dynosaur',
+  'msToken',
+  'x-secsdk-web-signature',
+  'verifyFp',
+  'fp',
+  'uifid',
+]
+
+/** Only ever null when the caller did not ask, or may not see it. */
+function readExplanation(meta: ResponseMeta | undefined): Explanation | null {
+  const value = meta?.['explain']
+  if (!value || typeof value !== 'object') return null
+  const explanation = value as Partial<Explanation>
+  if (typeof explanation.url !== 'string') return null
+  return {
+    method: explanation.method ?? 'GET',
+    url: explanation.url,
+    headers: explanation.headers ?? {},
+    cookie_header: explanation.cookie_header ?? '',
+    identity_id: explanation.identity_id ?? null,
+    signer: explanation.signer ?? null,
+    endpoint: explanation.endpoint ?? '',
+    proxy: explanation.proxy ?? null,
+  }
+}
+
+/**
+ * The User-Agent out of a header map, whatever case the sender spelled it.
+ *
+ * Worth finding: both platforms hash it into the signature, so it is the input
+ * the decoder most needs, and "the UA I am sending is not the UA I signed with"
+ * is the most common way a reproduced request fails while looking correct.
+ */
+function userAgentOf(headers: Record<string, string>): string | null {
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === 'user-agent') return value
+  }
+  return null
+}
+
+/** Signature parameters in the order the platform appended them. */
+function signatureParamsOf(url: string): [string, string][] {
+  const query = url.split('?').slice(1).join('?')
+  const out: [string, string][] = []
+  for (const pair of query.split('&')) {
+    if (!pair) continue
+    const index = pair.indexOf('=')
+    const name = index === -1 ? pair : pair.slice(0, index)
+    if (!SIGNATURE_PARAMS.includes(name)) continue
+    out.push([name, decodeURIComponent(index === -1 ? '' : pair.slice(index + 1))])
+  }
+  return out
+}
+
+/** Single-quote a value for a POSIX shell, the only way that is safe for all input. */
+function shellQuote(value: string): string {
+  // End the quoted run, emit an escaped quote, start a new one. The only
+  // escaping a POSIX shell accepts inside single quotes, and cookies do
+  // occasionally carry one.
+  return `'${value.split("'").join("'\\''")}'`
+}
+
+/**
+ * The upstream request as a curl line - the platform's own endpoint, not this
+ * API's.
+ *
+ * This is the thing anybody debugging a refused call ends up building by hand,
+ * and building it by hand is where it goes wrong: the query has to be sent byte
+ * for byte because the signature covers it, the User-Agent has to be the one it
+ * was hashed with, and the jar has to be the identity's own. All three are
+ * known here and none of them were guessable before.
+ */
+function upstreamCurl(explanation: Explanation): string {
+  const lines = [`curl -X ${explanation.method} ${shellQuote(explanation.url)} \\`]
+  for (const [name, value] of Object.entries(explanation.headers)) {
+    lines.push(`  -H ${shellQuote(`${name}: ${value}`)} \\`)
+  }
+  lines.push(`  -H ${shellQuote(`Cookie: ${explanation.cookie_header}`)}`)
+  return lines.join('\n')
+}
+
+/**
+ * What this request signed, straight out of the URL it was sent to.
+ *
+ * Values are shown whole. They run to a couple of hundred characters and an
+ * elided one is useless: the reason to look at a signature is to compare it
+ * with something, and half of one compares with nothing.
+ */
+function SignatureParams({ pairs }: { pairs: readonly [string, string][] }) {
+  const { t } = useTranslation('console')
+  if (pairs.length === 0) {
+    return <p className="u-xs u-muted" style={{ margin: 0 }}>{t('playground.signatureNone')}</p>
+  }
+
+  return (
+    <dl className={styles.facts}>
+      {pairs.map(([name, value]) => (
+        <Fragment key={name}>
+          <dt className="u-xs u-muted u-mono">{name}</dt>
+          <dd className="u-mono u-xs" style={{ overflowWrap: 'anywhere' }}>
+            {value === '' ? <span className="u-muted">{t('common:value.none')}</span> : value}
+          </dd>
+        </Fragment>
+      ))}
+    </dl>
+  )
+}
+
+/**
+ * What to do when the run did not ask for an explanation.
+ *
+ * An empty panel would read as "there is nothing to show", which is wrong: the
+ * request happened and this instance knows exactly what it sent. It just was
+ * not asked. So the panel says what turning it on costs and offers the button
+ * rather than making the reader find a checkbox.
+ */
+function ExplainPrompt({
+  enabled,
+  running,
+  onRun,
+}: {
+  enabled: boolean
+  running: boolean
+  onRun: () => void
+}) {
+  const { t } = useTranslation('console')
+
+  return (
+    <div className="u-stack-sm">
+      <p className="u-xs u-secondary" style={{ margin: 0 }}>
+        {t(enabled ? 'playground.explainPending' : 'playground.explainAbsent')}
+      </p>
+      <p className="u-xs u-muted" style={{ margin: 0 }}>
+        {t('playground.explainCost')}
+      </p>
+      <div>
+        <Button size="sm" variant="secondary" loading={running} onClick={onRun}>
+          {t('playground.explainRun')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Which identity served this call, what jar it used, and how to send the same
+ * request by hand.
+ *
+ * The identity id alone was already here on a failure. It answers "who" and
+ * nothing else, and "who" is rarely the question - a jar that has gone stale
+ * and a jar that was never logged in look identical from the id. The cookie and
+ * the curl are what make the answer actionable, and both are why this panel is
+ * gated behind an explicit `explain`.
+ */
+function ServingIdentity({
+  explanation,
+  identityId,
+  pending,
+}: {
+  explanation: Explanation | null
+  identityId: string | null
+  pending: boolean
+}) {
+  const { t } = useTranslation('console')
+  const [showCookie, setShowCookie] = useState(false)
+
+  if (!identityId && !explanation) {
+    return pending ? (
+      <span className="u-xs u-muted">{t('common:loading')}</span>
+    ) : null
+  }
+
+  return (
+    <div className="u-stack-sm">
+      <span className="u-xs u-muted">{t('playground.servedBy')}</span>
+      <div className="u-row u-wrap">
+        {identityId ? (
+          <CopyableId value={identityId} />
+        ) : (
+          <span className="u-muted u-xs">{t('playground.servedByUnknown')}</span>
+        )}
+        {explanation?.signer ? (
+          <span className="u-xs u-muted u-mono">{explanation.signer}</span>
+        ) : null}
+        {explanation?.proxy ? (
+          <span className="u-xs u-muted u-mono">{explanation.proxy}</span>
+        ) : null}
+      </div>
+
+      {explanation ? (
+        <>
+          <span className="u-xs u-muted">{t('playground.cookieLabel')}</span>
+          {/* Behind a click, not behind a mask. Half a cookie helps nobody, and
+              the reader has already asked for the jar by name; what the click
+              buys is that it is not sitting open on a shared screen. */}
+          {showCookie ? (
+            <CodeBlock code={explanation.cookie_header} language="text" />
+          ) : (
+            <div className="u-row u-wrap">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setShowCookie(true)
+                }}
+              >
+                {t('playground.cookieReveal')}
+              </Button>
+              <span className="u-xs u-muted">
+                {t('playground.cookieCount', {
+                  count: explanation.cookie_header
+                    ? explanation.cookie_header.split(';').length
+                    : 0,
+                })}
+              </span>
+            </div>
+          )}
+
+          <span className="u-xs u-muted">{t('playground.upstreamCurl')}</span>
+          <CodeBlock
+            code={upstreamCurl(explanation)}
+            language="text"
+            title={t('playground.upstreamCurl')}
+            collapsible={false}
+          />
+          <p className="u-xs u-muted" style={{ margin: 0 }}>
+            {t('playground.upstreamCurlNote')}
+          </p>
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 function asRows<T>(payload: unknown): T[] {
@@ -541,6 +821,8 @@ interface RunResult {
   httpStatus: number | null
   data?: unknown
   meta?: ResponseMeta
+  /** What the worker recorded, as opposed to what this HTTP call did. */
+  resultMeta?: ResponseMeta
   error?: unknown
   requestId: string | null
   healthEndpoint: string | null
@@ -574,8 +856,6 @@ export default function Playground() {
   const [result, setResult] = useState<RunResult | null>(null)
   const [snippet, setSnippet] = useState<SnippetLanguage>('curl')
   const [history, setHistory] = useState<HistoryEntry[]>([])
-  const [signUrl, setSignUrl] = useState('')
-  const [signCookies, setSignCookies] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
   const endpoint = useMemo(
@@ -615,22 +895,23 @@ export default function Playground() {
   })
 
   /**
-   * The signature panel signs a platform URL on demand. It is deliberately not
-   * tied to the call above it: this page talks to this API, and the signature
-   * that mattered was computed in the worker against the platform's own URL,
-   * which never comes back. What the run DOES tell you is which signer ran -
-   * that is read off the request log below - and this is where you reproduce
-   * the arithmetic behind it.
+   * Read this request's own signature parameters back into plaintext.
+   *
+   * On demand rather than on arrival. The panel can already show WHAT was sent
+   * without asking anything - the parameters are in the URL - and decoding them
+   * is a separate question a reader either has or does not. Firing it
+   * automatically would spend a round trip on every run to answer a question
+   * most runs do not ask.
    */
-  const signature = useApiMutation<SignResult, void>(() =>
-    apiPost<SignResult>(paths.tools.sign, {
-      platform,
-      url: signUrl.trim(),
-      cookies: signCookies.trim() || null,
+  const decodeSignature = useApiMutation<DecodeResult, Explanation>((explanation) =>
+    apiPost<DecodeResult>(paths.tools.decode, {
+      value: explanation.url,
+      user_agent: userAgentOf(explanation.headers),
     }),
   )
 
   const requestId = result?.requestId ?? null
+  const explanation = useMemo(() => readExplanation(result?.resultMeta), [result?.resultMeta])
 
   const logLookupRows = useApiQuery<unknown>({
     key: ['playground', 'request-log', requestId ?? 'none'],
@@ -777,6 +1058,7 @@ export default function Playground() {
         httpStatus: response.status,
         data: response.data,
         meta: response.meta,
+        resultMeta: response.resultMeta,
         requestId: response.meta.request_id ?? null,
         healthEndpoint: healthEndpointName,
       })
@@ -1277,56 +1559,53 @@ export default function Playground() {
           <div className={styles.panels}>
             <Disclosure
               title={t('playground.signatureTitle')}
+              defaultOpen={explanation !== null}
               meta={
-                servedBy?.signer ? (
-                  <span className="u-mono u-xs u-muted">{servedBy.signer}</span>
+                explanation?.signer ?? servedBy?.signer ? (
+                  <span className="u-mono u-xs u-muted">
+                    {explanation?.signer ?? servedBy?.signer}
+                  </span>
                 ) : null
               }
             >
-              <div className="u-stack-sm">
-                <p className="u-xs u-muted" style={{ margin: 0 }}>
-                  {t('playground.signatureDescription')}
-                </p>
-                <Input
-                  label={<span className="u-mono">url</span>}
-                  description={t('playground.signatureUrlHint')}
-                  mono
-                  placeholder="https://www.douyin.com/aweme/v1/web/aweme/detail/?aid=6383&aweme_id=..."
-                  value={signUrl}
-                  onChange={(event) => {
-                    setSignUrl(event.target.value)
-                  }}
-                />
-                <Input
-                  label={<span className="u-mono">cookies</span>}
-                  description={t('playground.signatureCookiesHint')}
-                  mono
-                  // Cookie names, not prose: these are the wire spellings the
-                  // signer looks for and translating them would be wrong.
-                  // eslint-disable-next-line local/no-untranslated-text
-                  placeholder="UIFID_TEMP=...; s_v_web_id=..."
-                  value={signCookies}
-                  onChange={(event) => {
-                    setSignCookies(event.target.value)
-                  }}
-                />
-                <div>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    loading={signature.isPending}
-                    disabled={!signUrl.trim()}
-                    onClick={() => {
-                      signature.mutate()
-                    }}
-                  >
-                    {t('playground.signatureAction')}
-                  </Button>
+              {/* The signature this request carried, not one computed on
+                  demand. The calculator that used to live here answered a
+                  different question - it signed a URL you typed, while the one
+                  that mattered was built in the worker - and it is still on the
+                  tools page, where signing a URL is the whole point. */}
+              {explanation ? (
+                <div className="u-stack-sm">
+                  <p className="u-xs u-muted" style={{ margin: 0 }}>
+                    {t('playground.signatureDescription')}
+                  </p>
+                  <SignatureParams pairs={signatureParamsOf(explanation.url)} />
+                  <div className="u-row u-wrap">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={decodeSignature.isPending}
+                      onClick={() => {
+                        decodeSignature.mutate(explanation)
+                      }}
+                    >
+                      {t('playground.signatureDecode')}
+                    </Button>
+                    <span className="u-xs u-muted">{t('playground.signatureDecodeHint')}</span>
+                  </div>
+                  {decodeSignature.data ? (
+                    <SignatureDecode parameters={decodeSignature.data.parameters} />
+                  ) : null}
                 </div>
-                {signature.data?.stages && signature.data.stages.length > 0 ? (
-                  <SigningStages stages={signature.data.stages} />
-                ) : null}
-              </div>
+              ) : (
+                <ExplainPrompt
+                  enabled={values['explain'] === 'true'}
+                  running={running}
+                  onRun={() => {
+                    setValue('explain', 'true')
+                    void send({ explain: 'true' })
+                  }}
+                />
+              )}
             </Disclosure>
           </div>
 
@@ -1359,6 +1638,17 @@ export default function Playground() {
               }
             >
               <div className="u-stack-sm">
+                {/* This call first, the pool second. "Which identity served
+                    this, and with what jar" is a fact about the run in front of
+                    you; the circuit and the pool are the background it happened
+                    against, and a reader who has just made a request wants the
+                    foreground. */}
+                <ServingIdentity
+                  explanation={explanation}
+                  identityId={explanation?.identity_id ?? servedBy?.identity_id ?? null}
+                  pending={result !== null && requestId !== null && logLookupRows.isLoading}
+                />
+
                 <span className="u-xs u-muted">{t('playground.circuitLabel')}</span>
                 {health.isError ? (
                   <span className="u-xs" style={{ color: 'var(--caution)' }}>

@@ -1143,7 +1143,8 @@
       "proxy": "Send the upstream request through this proxy. Refused unless an administrator has enabled security.request_proxy.",
       "mix_id": "The collection's id, from a mix or playlist link.",
       "identity": "Send as one named identity and no other. For content only that account can see. The request is never served from another identity and never from the cache.",
-      "refresh": "Ignore any cached or in-flight answer and ask upstream again. Without it a repeat inside the cache window is free: 30 minutes for one post, 15 for a profile, 5 for anything paged (cache.* in Settings). A refresh costs an identity and a real request."
+      "refresh": "Ignore any cached or in-flight answer and ask upstream again. Without it a repeat inside the cache window is free: 30 minutes for one post, 15 for a profile, 5 for anything paged (cache.* in Settings). A refresh costs an identity and a real request.",
+      "explain": "Report which identity served the request, the cookie jar it used, and the exact upstream URL. Skips the cache and needs the operator role."
     },
     "required": "Required.",
     "oneOfRequired": "Fill in one of these.",
@@ -1203,10 +1204,19 @@
     "nextPage": "Fetch the next page",
     "nextPageHint": "This page has a cursor. Fetching the next one spends another request.",
     "signatureTitle": "Signature",
-    "signatureDescription": "The signature that served the call above was computed in the worker against the platform's own URL, which never comes back. Reproduce it here: paste a platform API URL and see which layer contributed what. The signer that actually ran is shown in this panel's header once the request log catches up.",
-    "signatureUrlHint": "A platform API URL, query included. Nothing is fetched: this is arithmetic.",
-    "signatureCookiesHint": "Optional. Douyin computes its own signature over the visitor id inside the jar, so without one no signature headers are produced.",
-    "signatureAction": "Compute"
+    "signatureDescription": "The signature parameters this request actually carried, as the worker built them against the platform's own URL.",
+    "signatureNone": "This request carried no signature parameters.",
+    "signatureDecode": "Read them back",
+    "signatureDecodeHint": "Pure arithmetic — nothing is fetched and no identity is spent.",
+    "explainAbsent": "This run did not ask what request was made, so there is nothing to show. It happened, and this instance knows exactly what it sent upstream.",
+    "explainPending": "Explain is on. Send the request and this panel fills in.",
+    "explainCost": "Asking costs a cache miss — an explanation describes an attempt, and a cached answer made none — and returns the identity's own cookie jar.",
+    "explainRun": "Send again and explain it",
+    "cookieLabel": "Cookie jar sent",
+    "cookieReveal": "Show the jar",
+    "cookieCount": "{count, plural, one {# cookie} other {# cookies}}",
+    "upstreamCurl": "The upstream request as curl",
+    "upstreamCurlNote": "The platform's own endpoint, not this API. Send the query byte for byte — re-encoding it changes what the signature covers — and keep the User-Agent, which both platforms hash in. TikTok also checks that the TLS fingerprint agrees with the User-Agent, so plain curl is refused there whatever the signature says."
   },
   "parse": {
     "inputTitle": "Links",
@@ -1372,7 +1382,8 @@
       "sign": "Sign a URL",
       "parse": "Parse a link",
       "identity": "Mint an identity",
-      "batch": "Batch"
+      "batch": "Batch",
+      "decode": "Decode"
     },
     "field": {
       "platform": "Platform",
@@ -1448,7 +1459,70 @@
       },
       "exampleLabel": "Start from an example",
       "exampleHint": "Fills every field below from a real browser request. The signature parameters are left out because they are what this tool produces, and the cookie values are placeholders - a jar is a live login. Mint a real one on the Identity tab.",
-      "loadExample": "{platform} profile request"
+      "loadExample": "{platform} profile request",
+      "decodeThis": "Read this signature back"
+    },
+    "decode": {
+      "title": "Read a signature back",
+      "description": "The inverse of the form beside it. Paste a signed URL and every signature parameter in it is taken apart against the exact string that parameter seals.",
+      "valueLabel": "Signature or signed URL",
+      "valueHint": "A whole signed URL is the most useful form: only then is the string each parameter covers known exactly, so only then can the checks run. A single parameter value, or a name=value pair, works too.",
+      "valuePlaceholder": "https://www.douyin.com/aweme/v1/web/aweme/detail/?…&a_bogus=…",
+      "userAgentHint": "Both platforms hash the User-Agent into the signature. Fill this in and the result says whether the UA you are sending is the one the signature was computed with — which is the most common way a hand-built request fails while looking correct.",
+      "parameterLabel": "Read it as",
+      "parameterHint": "Left on auto, the value is identified by properties no other parameter has. Name it yourself if you are holding something unusual.",
+      "parameterAuto": "Identify it automatically",
+      "action": "Decode",
+      "resultTitle": "{count, plural, one {# parameter} other {# parameters}}",
+      "meaningTitle": "What \"decode\" means here",
+      "meaningRecovered": "Recovered — in the payload and back exactly: clocks, aid, page_id, the screen the page reported, SDK versions, call counters, nonces.",
+      "meaningBound": "Bound but not recoverable — the payload carries a hash of the query or the User-Agent, not the thing itself. A hash does not run backwards, so instead of guessing, your candidate is checked against it.",
+      "meaningIssued": "Not computed at all — msToken and the visitor tokens are issued by the platform or drawn at random. There is no plaintext under them, and saying so is the answer.",
+      "mismatch": "Does not match",
+      "source": {
+        "url": "Read out of the URL you pasted, so each parameter was checked against the exact string it seals.",
+        "parameter": "Read as a single parameter. Paste the whole signed URL to check it against the query it was computed over."
+      },
+      "checks": {
+        "title": "Inputs checked",
+        "bits": "{count} bits",
+        "covered": "The exact {input} this signature was computed over. It reproduced the value above, which is why it is shown."
+      },
+      "check": {
+        "query": "Query",
+        "body": "Body",
+        "user_agent": "User-Agent"
+      },
+      "column": {
+        "field": "Field",
+        "value": "Value",
+        "kind": "Kind"
+      },
+      "kind": {
+        "plain": "Recovered",
+        "time": "Clock",
+        "digest": "Hash",
+        "checksum": "Checksum",
+        "environment": "Environment",
+        "opaque": "Unexplained"
+      },
+      "reason": {
+        "malformed": "This is not a well-formed value of that parameter. The structural test it failed:",
+        "one_way": "An md5, so there is nothing inside it to recover. What can be done is rebuild the string it covers and confirm it — which is more useful anyway, because that string is what you have to reproduce to sign one yourself.",
+        "not_computed": "Issued by the platform rather than computed, so there is no plaintext under it. Its shape is still worth checking.",
+        "unknown_parameter": "This build does not know this parameter."
+      },
+      "note": {
+        "checksum_verified": "The internal checksum recomputes. Every input to it is itself a field of the payload, so agreement means the whole layout came back correctly.",
+        "checksum_disagrees": "The internal checksum does not recompute. Either the value was altered in transit or it came from a build of the SDK this one does not match.",
+        "mixed_verified": "The folded timestamp and nonce agree with the fields they were folded from.",
+        "mixed_disagrees": "The folded timestamp and nonce do not agree with the fields beside them.",
+        "noise_not_recoverable": "Some bytes are drawn per call and carry nothing. Two signatures made in the same millisecond differ in most of their bytes and mean the same thing.",
+        "key_travels_in_the_envelope": "The envelope carries its own key — which is how the platform decrypts it, and how this can be read at all.",
+        "constant_placeholder": "TikTok Web sends a literal here on every HTTP request; the real algorithm of this name is only used for websocket handshakes.",
+        "superseded_by_a_bogus": "Douyin has moved on to a_bogus. TikTok Web still accepts this one, and some Douyin endpoints do.",
+        "issued_by_the_platform": "Minted by the platform for a browser. It cannot be computed, only obtained — mint an identity on the identity tab."
+      }
     },
     "parse": {
       "title": "Identify a link",

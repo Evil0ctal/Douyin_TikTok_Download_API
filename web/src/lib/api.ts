@@ -124,6 +124,16 @@ export interface RateLimit {
 export interface ApiResponse<T> {
   data: T
   meta: ResponseMeta
+  /**
+   * The finished task's own metadata, when the call went through a task.
+   *
+   * Kept separate from `meta` rather than merged into it. `meta` describes this
+   * HTTP round trip - its request id, whether the submission was cached - and
+   * the task describes the upstream work, which happened in a different process
+   * at a different time. Merging them would let one silently shadow the other's
+   * `duration_ms` and leave no way to tell which reading you were looking at.
+   */
+  resultMeta?: ResponseMeta
   status: number
   rateLimit: RateLimit | null
 }
@@ -132,6 +142,12 @@ export interface TaskEnvelope<T = unknown> {
   task_id: string
   state: TaskState
   data?: T | null
+  /**
+   * What the worker recorded about the run, as opposed to what this HTTP call
+   * did. Present on a finished task and gated by scope: `explain` is only here
+   * for a reader who may see a cookie.
+   */
+  result_meta?: ResponseMeta
   error?: ApiErrorPayload | null
   created_at?: string
   started_at?: string | null
@@ -520,13 +536,20 @@ export async function apiRequest<T>(
     isTaskEnvelope(payload.data) &&
     payload.data.data == null
   ) {
+    // The terminal envelope passes through `onState` on its way to being
+    // returned, and its `result_meta` is the only place the worker's own report
+    // appears; `waitForTask` returns the payload alone.
+    let resultMeta: ResponseMeta | undefined
     const finished = await waitForTask<T>(payload.data.task_id, {
       signal: options.signal,
       timeoutMs: options.taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS,
-      onState: options.onTaskState,
+      onState: (task) => {
+        if (task.result_meta) resultMeta = task.result_meta
+        options.onTaskState?.(task)
+      },
       initial: payload.data,
     })
-    return { data: finished, meta, status: response.status, rateLimit: limits }
+    return { data: finished, meta, resultMeta, status: response.status, rateLimit: limits }
   }
 
   return { data: payload.data as T, meta, status: response.status, rateLimit: limits }
