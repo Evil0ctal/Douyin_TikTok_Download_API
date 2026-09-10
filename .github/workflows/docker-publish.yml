@@ -23,7 +23,7 @@ name: Publish Docker images
 
 on:
   push:
-    branches: [v5, main]
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
     inputs:

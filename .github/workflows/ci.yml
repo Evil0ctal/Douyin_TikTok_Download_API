@@ -2,12 +2,11 @@ name: CI
 
 on:
   push:
-    # `main` as well as `v5`: v5 is what `main` will hold, and a workflow that
-    # only watches the old branch name goes quiet at exactly the moment the
-    # rename makes it matter.
-    branches: [v5, main]
+    branches: [main]
   pull_request:
-    branches: [v5, main]
+    # v4 too: the old code lives on that branch now and still takes pull
+    # requests, so a change proposed against it should still be checked.
+    branches: [main, v4]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
