@@ -43,6 +43,94 @@
 也给得宽，因为对 Postgres 收紧上限损害的是正确性而不是保护了谁——那 2g 是为了不让一条失控的查询拖垮宿主机，
 不是让它在这个预算里过日子。
 
+### 这套默认值是按什么机器写的
+
+把上表的上限加起来：**约 8 GiB 内存**，而 `browser-rpc` 要 4 个核。也就是说
+`docker/compose.yml` 描述的是一台 **4 vCPU / 8 GiB** 的机器——在那种机器上直接
+`up -d`，什么都不用改。
+
+上限是天花板不是预留，所以日常占用远低于它。但**它在小机器上不是"慢一点"，是起不来**：
+
+```
+Error response from daemon: range of CPUs is from 0.01 to 2.00,
+as there are only 2 CPUs available
+```
+
+Docker 拒绝启动一个要求的核数多于宿主机的容器。这是硬报错，不会自动降级。
+
+### 三档配置
+
+| 档位 | 规格 | 能做什么 | 要不要改 compose |
+|---|---|---|---|
+| 不跑浏览器 | 1 vCPU / 2 GiB | 手动导入 cookie，无自动铸造。四个核心容器静息合计约 295 MiB | 不用，别加 `--profile browser` 就行 |
+| 完整（最低） | 2 vCPU / 4 GiB **+ swap** | 全部功能 | **要**，见下面的覆盖文件 |
+| 完整（推荐） | 4 vCPU / 8 GiB | 全部功能 | 不用 |
+
+最低那一档是实测过的，不是估的。一台 2 vCPU / 3.8 GiB 的 VPS，开着浏览器 profile
+跑满整套栈：
+
+| | 静息 | 铸造峰值 |
+|---|---|---|
+| `browser-rpc` | 234 MiB | **845 MiB** |
+| `api` | 115 MiB | 128 MiB |
+| `postgres` | 80 MiB | 88 MiB |
+| `worker` / `redis` / `downloader` | 82 / 4 / 4 MiB | 基本不变 |
+| **宿主机合计** | **1.0 GiB** | **1.1 GiB** |
+
+决定这一档下限的是铸造峰值，不是静息值：Chromium 起一个上下文时会短时间冲高，
+而那一刻 Postgres 正握着自己的缓冲区。**给这种机器加 swap**——2 GiB、
+`vm.swappiness=10` 就够。它不是拿来用的，是为了让那个峰值变成慢一秒，
+而不是内核挑一个进程杀掉（挑中的通常是 Postgres，而不是真正在涨的那个）。
+
+### 怎么改这些上限
+
+不要改 `docker/compose.yml`。它描述的是一台正常机器，你的机器和它的差异应该是
+看得见的、单独一份文件。在仓库根目录建 `compose.host.yml`：
+
+```yaml
+services:
+  postgres:    { mem_limit: 1g,    memswap_limit: 2g }
+  redis:       { mem_limit: 320m,  memswap_limit: 512m }
+  api:         { mem_limit: 448m,  memswap_limit: 768m,  cpus: 1.5 }
+  worker:      { mem_limit: 448m,  memswap_limit: 768m }
+  browser-rpc: { mem_limit: 1200m, memswap_limit: 2400m, cpus: 1.5 }
+  downloader:  { mem_limit: 192m,  memswap_limit: 384m,  cpus: 1.0 }
+```
+
+然后每条命令都带上它：
+
+```bash
+COMPOSE_ENV_FILES=.env docker compose -p dtk \
+  -f docker/compose.yml -f compose.host.yml --profile browser up -d
+```
+
+三个参数一个都不能少，忘一个就出怪事，所以值得包一个脚本：
+
+```bash
+cat > dtkctl <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+export COMPOSE_ENV_FILES=.env
+exec docker compose -p dtk -f docker/compose.yml -f compose.host.yml \
+  --profile browser --profile downloader "$@"
+EOF
+chmod +x dtkctl
+./dtkctl up -d
+./dtkctl logs -f api
+```
+
+几个调参的方向，按效果排序：
+
+- **`cpus` 给 `browser-rpc` 留少一点。** 签名和铸造都不在请求路径上，机器忙的时候
+  该让路的正是它。给它 1.5 而不是 2.0，`api` 才有核可用。
+- **`DTK_BROWSER_WARM_CONTEXTS`（默认 1）。** 每加一个常驻签名页大约多 300 MiB。
+  小机器保持 1。
+- **`DTK_DOWNLOADER_WORKERS` / `DTK_DOWNLOADER_ITEM_WORKERS`（默认各 4）。**
+  并发传输数是两者相乘。1 核机器上降到 2 和 2。
+- **`pool.target_size`（控制台里的设置）。** 身份池越大，铸造总次数越多、
+  Postgres 里的行越多。小机器上 8 是个合适的数。
+
 ## 整体结构一览
 
 | 服务 | 镜像 | profile | 可选 | 干什么 |

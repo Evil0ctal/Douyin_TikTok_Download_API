@@ -50,6 +50,101 @@ exception with no CPU cap and a loose memory cap, because a tight ceiling on Pos
 correctness rather than protecting anything — its 2g is there to stop a runaway query taking the
 host, not to be a budget it has to live inside.
 
+### What the shipped defaults are written for
+
+Add up the ceilings in the table above: **about 8 GiB of memory**, and
+`browser-rpc` asks for 4 CPUs. So `docker/compose.yml` describes a
+**4 vCPU / 8 GiB** machine — on one of those, `up -d` needs no changes at all.
+
+Ceilings are not reservations, so day-to-day usage sits far below them. But on
+a smaller box this is **not "slower", it is "will not start"**:
+
+```
+Error response from daemon: range of CPUs is from 0.01 to 2.00,
+as there are only 2 CPUs available
+```
+
+Docker refuses to start a container asking for more CPUs than the host has. It
+is a hard error, not a cap that degrades quietly.
+
+### Three sizes
+
+| Size | Spec | What you get | Compose changes |
+|---|---|---|---|
+| No browser | 1 vCPU / 2 GiB | Manual cookie import, no automatic minting. The four core containers idle at about 295 MiB | None — just leave `--profile browser` off |
+| Full, minimum | 2 vCPU / 4 GiB **plus swap** | Everything | **Yes**, see the override below |
+| Full, recommended | 4 vCPU / 8 GiB | Everything | None |
+
+The minimum row is measured rather than estimated. A 2 vCPU / 3.8 GiB VPS
+running the whole stack with the browser profile on:
+
+| | Idle | Peak during a mint |
+|---|---|---|
+| `browser-rpc` | 234 MiB | **845 MiB** |
+| `api` | 115 MiB | 128 MiB |
+| `postgres` | 80 MiB | 88 MiB |
+| `worker` / `redis` / `downloader` | 82 / 4 / 4 MiB | barely move |
+| **Host total** | **1.0 GiB** | **1.1 GiB** |
+
+What sets the floor is the mint peak, not the idle figure: Chromium spikes while
+it opens a context, and that is the same moment Postgres is holding its buffers.
+**Give a box this size swap** — 2 GiB with `vm.swappiness=10` is enough. It is
+not there to be used; it is there so that peak becomes a slow second instead of
+the kernel picking a process to kill, which is usually Postgres rather than the
+one that actually grew.
+
+### Changing the limits
+
+Do not edit `docker/compose.yml`. It describes a normal machine, and the way
+yours differs should be visible in a file of its own. Write `compose.host.yml`
+at the repository root:
+
+```yaml
+services:
+  postgres:    { mem_limit: 1g,    memswap_limit: 2g }
+  redis:       { mem_limit: 320m,  memswap_limit: 512m }
+  api:         { mem_limit: 448m,  memswap_limit: 768m,  cpus: 1.5 }
+  worker:      { mem_limit: 448m,  memswap_limit: 768m }
+  browser-rpc: { mem_limit: 1200m, memswap_limit: 2400m, cpus: 1.5 }
+  downloader:  { mem_limit: 192m,  memswap_limit: 384m,  cpus: 1.0 }
+```
+
+Then pass it on every command:
+
+```bash
+COMPOSE_ENV_FILES=.env docker compose -p dtk \
+  -f docker/compose.yml -f compose.host.yml --profile browser up -d
+```
+
+Three arguments, none of them optional, all of them easy to forget — which is
+what a wrapper is for:
+
+```bash
+cat > dtkctl <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+export COMPOSE_ENV_FILES=.env
+exec docker compose -p dtk -f docker/compose.yml -f compose.host.yml \
+  --profile browser --profile downloader "$@"
+EOF
+chmod +x dtkctl
+./dtkctl up -d
+./dtkctl logs -f api
+```
+
+Knobs worth turning, most effective first:
+
+- **Give `browser-rpc` fewer `cpus`.** Signing and minting are both off the
+  request path, so it is exactly the service that should yield when the machine
+  is busy. 1.5 rather than 2.0 leaves `api` a core to answer on.
+- **`DTK_BROWSER_WARM_CONTEXTS` (default 1).** Each resident signing page costs
+  roughly 300 MiB. Leave it at 1 on a small host.
+- **`DTK_DOWNLOADER_WORKERS` / `DTK_DOWNLOADER_ITEM_WORKERS` (4 each).** The
+  concurrent-transfer ceiling is their product. Drop both to 2 on one core.
+- **`pool.target_size` (a console setting).** A bigger pool means more mints and
+  more rows in Postgres. 8 is a sensible number on a small box.
+
 ## The stack at a glance
 
 | Service | Image | Profile | Optional | What it does |

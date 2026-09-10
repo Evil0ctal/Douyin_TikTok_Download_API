@@ -97,6 +97,45 @@ somebody rebuilds one of them.
 **`Dockerfile.browser`** builds browser-rpc. It is separate because it is the
 only container that carries a browser, and it is optional.
 
+### Publishing: the `release` branch
+
+Images are built and pushed by `.github/workflows/docker-publish.yml`, and it
+watches `release` and `v*` tags — **not `main`**.
+
+That split exists because publishing on every merge gets two things wrong at
+once. The `latest` tag ends up naming whatever was pushed a few minutes ago, so
+somebody following the README pulls work in progress; and every commit spends
+several minutes of buildx and QEMU producing an image nobody asked for.
+
+`main` is still tested on every push by `ci.yml`. What became deliberate is
+publishing:
+
+```bash
+# main is green and you want it to be `latest`
+git push origin main:release
+```
+
+Fast-forward only, so `release` is always a commit that already passed CI on
+`main`. For a version people should be able to come back to, tag instead:
+
+```bash
+git tag -a v5.1.0 -m "…" && git push origin v5.1.0
+```
+
+Which tags each event produces:
+
+| Event | Tags pushed |
+|---|---|
+| push to `release` | `latest`, `release`, `sha-<40 char commit>` |
+| `v5.1.0` tag | `latest`, `5.1.0`, `5.1`, `sha-<commit>` |
+| anything else | nothing is built |
+
+`sha-<commit>` is the one to pin in a deployment: it names one build and cannot
+move under you. `latest` is for people trying the project, not for servers.
+
+A manual run (`workflow_dispatch`) defaults to build-only, so the workflow can
+be exercised without publishing anything; tick `push` to actually push.
+
 ### Runtime posture
 
 | Rule | Where |
