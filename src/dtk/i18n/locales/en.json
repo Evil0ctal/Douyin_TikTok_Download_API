@@ -556,23 +556,252 @@
       }
     },
     "param": {
+      "action": "Only this action, such as `settings.update`.",
+      "audit_list.user_id": "Only what this console account did.",
       "author_uid": "Only this author's posts.",
+      "availability": "Only posts with this upstream status.",
       "aweme_id": "The post id, as an alternative to url. Provide exactly one of the two.",
+      "before": "Only entries older than this timestamp. Page with it.",
+      "collection": "Only posts in this collection, by id. Unlike every other filter here this one is not a property of the post: somebody put them in it.",
+      "collection_id": "The collection to act on.",
       "comment_id": "The parent comment whose replies you want. Ids come from the comments endpoint.",
+      "confirm": "Required for settings flagged as disruptive.",
+      "content_id": "The post id.",
       "count": "Items per page.",
       "cursor": "Opaque cursor from the previous page; omit for the first page.",
+      "download_id": "The download id returned when it was started.",
+      "duration_bucket": "Only posts in this length class.",
+      "enabled": "Only enabled entries, or only paused ones.",
+      "endpoint": "Only this endpoint.",
+      "entry_id": "The watchlist entry id.",
+      "explain": "Return the request as it went out - the signed URL, the headers and the identity's cookie jar - so it can be replayed outside this instance. The answer contains a credential, so it needs `identity:manage` and an operator role, it is written to the audit log, and it is stripped from the stored task result for any reader without that scope. Implies `refresh`: an explanation of a cached answer would describe a call this request did not make.",
+      "healthy_only": "Only list proxies that passed their last probe.",
+      "hours": "How far back the window reaches.",
       "identity": "Send the request as this identity and no other, by id. For content only that account can see, such as your own private posts, fetched with a jar you imported from your own browser. Requires identity:manage; the request is never served from another identity and never from the response cache.",
+      "identity_id": "The identity to act on.",
       "include_raw": "Also return the platform's own untouched payload alongside the normalized record.",
+      "key": "The setting to act on, as shown by the list endpoint.",
+      "key_id": "The key to revoke.",
+      "kind": "Only entries of this kind.",
       "lang": "Response language for human-readable text. One of en or zh; anything else falls back to en.",
+      "limit": "Maximum rows to return.",
+      "mine_only": "Only list keys you created, rather than everyone's.",
+      "minutes": "How far back to look. Rows older than the log's retention are gone.",
       "mix_id": "The mix or playlist to read. Douyin returns it as mix_info, TikTok as playlistId.",
+      "name": "The file's name, exactly as the download record lists it.",
+      "offset": "Rows to skip.",
+      "on_disk": "True for downloads whose files are still stored.",
+      "outcome": "Only these outcomes. Repeat the parameter to allow several.",
+      "pinned": "Only pinned downloads, or only unpinned.",
       "platform": "Which platform the request is addressed to: douyin or tiktok. It must match the link you pass.",
       "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy.",
+      "proxy_id": "The proxy to act on.",
       "q": "Substring of the title or description. Matched as a substring rather than by word, so it behaves the same in Chinese as in English.",
       "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call. How long the cached answer lives depends on what was asked for and is set in the console: cache.content_ttl for one post (30 minutes by default), cache.author_ttl for a profile (15 minutes), cache.list_ttl for anything paged (5 minutes). Entries expire on their own and Redis is capped below its container limit, dropping the least recently used expiring keys before it fills, so the cache cannot grow without bound.",
+      "request_id": "Only the request with this id.",
+      "request_log.identity_id": "Only requests made with this identity.",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid.",
+      "session_ref": "The session digest from the list endpoint.",
+      "state": "Only entries in this state.",
+      "step": "Bucket width in seconds.",
+      "stored": "True for posts whose media this instance is holding right now, false for the rest. Like `collection` this describes what was kept rather than the post.",
       "tag": "Only posts carrying this tag.",
+      "task_id": "The task id returned when the work was submitted.",
+      "timeout": "Seconds to hold the stream open before closing it.",
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",
+      "user_id": "The console account to act on.",
       "wait": "Seconds to wait for the task before returning 202 with a task id."
+    },
+    "field": {
+      "ApiKeyCreate": {
+        "expires_at": "When the key stops working. Must be in the future; null never expires.",
+        "name": "What the key is for. Shown in the list and in the audit log.",
+        "rate_limit": "Requests per minute. Null means the instance default. Abuse protection only - this project has no billing.",
+        "scopes": "What the key may do. A key can never be given a scope its creator does not hold, so this is bounded by your own."
+      },
+      "ArchiveDelete": {
+        "items": "The posts to act on. Past this limit make two calls rather than hold one transaction open across the archive.",
+        "media": "Also delete the stored media files. True because that is what \"delete this\" means when the thing on screen is a video on disk; false keeps the files and removes only the record."
+      },
+      "BackfillRequest": {
+        "author_id": "The author's stable id - `sec_user_id` on Douyin, `secUid` on TikTok - and not the handle, which users edit.",
+        "pages": "How many pages of their posts to walk. Each page is one upstream request.",
+        "platform": "Which platform the author is on."
+      },
+      "BackupRequest": {
+        "include_identities": "Include the identity pool and its cookie jars. Off by default: an identity is bound to one exit and one fingerprint, so restoring it onto another machine revives a credential that must not be used from a new address."
+      },
+      "BatchItem": {
+        "include_raw": "Also return this item's unparsed platform response.",
+        "url": "One link, in any of the forms `/parse` accepts."
+      },
+      "BatchParseRequest": {
+        "text": "Links, post ids, or whole share-sheet paste, one item per line. Blank lines and duplicates are dropped."
+      },
+      "BatchRequest": {
+        "callback_url": "Where to POST each result as it finishes. Allowlisted hosts only.",
+        "items": "The links to submit. Each becomes its own task with its own id and its own fate, so one bad link cannot smear the whole request into a single error."
+      },
+      "CollectionCreate": {
+        "name": "What to call it. Unique case-insensitively, enforced by the database.",
+        "note": "Free text, for your own use."
+      },
+      "CollectionUpdate": {
+        "name": "Rename it. Omit the field entirely to leave the name alone.",
+        "note": "Replace the note. Omitting the field leaves it alone; sending null clears it - the two are told apart, so nothing is erased that nobody mentioned."
+      },
+      "ContentRef": {
+        "content_id": "`aweme_id` or its TikTok equivalent. Text, never an integer: a 19-digit id exceeds the JavaScript safe range and a JSON parser would round it.",
+        "platform": "Which platform the post is on."
+      },
+      "ContentSelection": {
+        "items": "The posts to act on. Past this limit make two calls rather than hold one transaction open across the archive."
+      },
+      "DecodeRequest": {
+        "parameter": "Which parameter the value is, when its shape is ambiguous.",
+        "user_agent": "A candidate User-Agent, to check against the one that was signed.",
+        "value": "A signed URL, a query string, a `name=value` pair, or one parameter's value on its own."
+      },
+      "DedupeRequest": {
+        "dry_run": "Report what would go without deleting anything."
+      },
+      "DiagnoseRequest": {
+        "include_smoke_test": "Run the end-to-end step, which fetches one fixed public link and therefore spends an identity. Skipping it keeps the whole diagnosis local."
+      },
+      "DownloadRequest": {
+        "content_id": "The post id, as the archive holds it. Text, never an integer: a 19-digit id exceeds the JavaScript safe range.",
+        "platform": "Which platform the post is on. Implied by `url` when given.",
+        "skip_existing": "Return the existing download instead of fetching the post again, when this instance already holds its media. What re-running a feed wants: three new posts and forty already on disk.",
+        "url": "A share link, or the share text with one inside it. Only the post id it yields is used; nothing here decides which host gets contacted."
+      },
+      "DtkError": {
+        "code": "Stable machine-readable identifier. Never translated.",
+        "details": "What the error was about, keyed by name - the field that failed, the endpoint that refused, the id that was not found. Shape varies by code; never contains a credential.",
+        "message": "Human sentence, rendered in the caller's language.",
+        "retry_after": "Seconds to wait, when the error is one that clears.",
+        "retryable": "Whether sending the same request again could succeed. False for anything about the request itself, so an agent reading this does not retry a URL that will never work."
+      },
+      "DtkResponse": {
+        "data": "The endpoint's payload.",
+        "error": "What went wrong, or null. Present on every failure.",
+        "meta": "About the call rather than its result: the request id to quote in a bug report, whether the answer was cached, how long it took, and the paging cursor when there is one.",
+        "success": "False whenever `error` is set, and never otherwise."
+      },
+      "IdentityBundle": {
+        "dry_run": "Report what the file holds without storing anything.",
+        "identities": "The `identities` array from the export document, unchanged.",
+        "proxy_id": "Bind every imported identity to this exit.",
+        "version": "The export document's format version. Checked rather than trusted: a file from a newer build may carry fields this one would drop silently."
+      },
+      "IdentityExport": {
+        "identity_ids": "The identities to write out. The document carries every jar in full, so treat it as a credential file."
+      },
+      "IdentityImport": {
+        "cookies": "The jar, in any of the shapes people actually hold: a `Cookie:` header, DevTools JSON, a cookies.txt file, or `name=value` pairs. The format is detected rather than declared.",
+        "dry_run": "Report what was understood without storing anything. A mistyped cookie jar is far easier to spot than to debug.",
+        "language": "That browser's `navigator.language`, e.g. `zh-CN`.",
+        "platform": "Which platform the jar belongs to.",
+        "proxy_id": "Send as this identity only through this exit.",
+        "timezone": "That browser's IANA zone, e.g. `Asia/Shanghai`. Should agree with the exit.",
+        "user_agent": "The User-Agent of the browser the jar came from. Both platforms hash it into their signatures, so a jar sent under a different one is a contradiction they can see."
+      },
+      "IdentityRequest": {
+        "platform": "Which platform to mint a guest session for.",
+        "proxy": "Mint behind this egress, so the jar matches the address you will use it from."
+      },
+      "LoginRequest": {
+        "password": "Its password. A wrong one is rate limited per account and per address.",
+        "username": "The console account."
+      },
+      "MintRequest": {
+        "count": "How many to mint. Each one drives a real headless browser against the platform, so this takes tens of seconds per identity.",
+        "platform": "Which platform the new identities are for.",
+        "proxy_id": "Mint behind this exit and bind the identities to it. An identity is minted from one address and must keep using it; omitting this mints direct."
+      },
+      "NotificationTest": {
+        "channel": "Which configured channel to send a test through. Omitted sends through every channel that is configured."
+      },
+      "ParseRequest": {
+        "callback_url": "Where to POST the result when the task finishes, instead of polling for it. The host must be on the operator's `security.url_allowlist`.",
+        "include_raw": "Also return the platform's own response, unparsed. Large - a single post runs to hundreds of kilobytes - so it is off unless asked for.",
+        "url": "A share link, a bare post URL, or the whole clipboard text a platform app produces with the link buried in it. Short links are followed."
+      },
+      "PasswordChange": {
+        "current_password": "The password in use now. Checked even for an administrator changing their own.",
+        "new_password": "The replacement. Every other session for this account is signed out."
+      },
+      "PinRequest": {
+        "pinned": "True exempts this download from the size-based cleanup for good; false puts it back in scope."
+      },
+      "ProxyCreate": {
+        "country": "ISO country code of the exit. Used to give an identity minted behind it a coherent locale; measured on the first probe when omitted.",
+        "label": "What to call it in the console.",
+        "timezone": "IANA zone of the exit, for the same reason as `country`.",
+        "url": "The exit, as `scheme://user:pass@host:port`. Stored encrypted and never returned in full."
+      },
+      "ProxyImport": {
+        "label": "Applied to every proxy in the paste, numbered when there is more than one.",
+        "text": "The proxies, one per line, in any of the common shapes - `host:port:user:pass`, `user:pass@host:port`, or a full URL."
+      },
+      "ProxyUpdate": {
+        "country": "Correct the country.",
+        "healthy": "Override what the last probe concluded. For an exit you know is fine but that fails the probe, or the reverse.",
+        "label": "Rename it.",
+        "timezone": "Correct the zone.",
+        "url": "Replace the exit address."
+      },
+      "RecheckRequest": {
+        "limit": "How many posts to check. Every one is a real request through the identity pool, so the batch is bounded here rather than left to the caller.",
+        "older_than_days": "Only re-check posts last seen at least this many days ago."
+      },
+      "RestoreRequest": {
+        "confirm": "Required. A restore inserts archived users, API keys and settings into a live instance and cannot be undone from the console.",
+        "path": "The file name the backup listing returned - a name, never a path. The server joins it onto the backup directory, so anything carrying a directory is refused rather than resolved."
+      },
+      "RetireRequest": {
+        "reason": "Recorded on the identity's timeline, so a later reader knows why it went."
+      },
+      "RetryRequest": {
+        "download_id": "The download to start over, from the download list."
+      },
+      "SettingUpdate": {
+        "confirm": "Required for a setting flagged SENSITIVE. Widening the URL allowlist or turning on the download proxy must not be a stray click.",
+        "value": "The new value, typed as the setting declares it. A string where a number is expected is refused rather than coerced."
+      },
+      "SetupInit": {
+        "password": "Password for that account. Stored hashed and never returned.",
+        "token": "The setup token this instance printed to its log on first start. It is spent once and never issued again.",
+        "username": "Username for the first administrator. Letters, digits, dot, dash, underscore."
+      },
+      "SignRequest": {
+        "cookies": "The jar the request will be sent with, in any paste format. Douyin's own signature is computed over the visitor id inside it, so without it the signature headers cannot be produced.",
+        "ms_token": "TikTok session token to seal into the signature.",
+        "platform": "Whose algorithm to sign with.",
+        "url": "The API URL to sign, query included.",
+        "user_agent": "The User-Agent the request will be sent with."
+      },
+      "UserCreate": {
+        "password": "Their initial password. Stored hashed and never returned.",
+        "role": "What the account may do. You cannot create an account with a role above your own.",
+        "username": "Letters, digits, dot, dash and underscore. Unique, and not renameable."
+      },
+      "UserUpdate": {
+        "password": "Set a new password, signing every session for that account out.",
+        "role": "Change what the account may do. The last administrator cannot be demoted."
+      },
+      "WatchCreate": {
+        "interval_seconds": "How often to run it. Omitted means `watchlist.default_interval_seconds`. Anything under `watchlist.min_interval_seconds` is refused rather than silently raised to a number you did not ask for.",
+        "kind": "`author` to watch someone's posts for new ones, `content` to watch one post's counters.",
+        "label": "What to call it in the console. Filled in from the first successful run when omitted, so pasting a bare id is fine.",
+        "pages": "Pages of an author's posts one run walks. One is the useful default: a watchlist is for what is new, and a backfill is a different job.",
+        "platform": "Which platform the target is on.",
+        "target_id": "`sec_user_id` or `aweme_id`, as the platform spells it."
+      },
+      "WatchUpdate": {
+        "enabled": "Pause it or start it again. A paused entry keeps its history.",
+        "interval_seconds": "Change how often it runs. Same floor as on create.",
+        "pages": "Change how many pages one run walks."
+      }
     },
     "response": {
       "200": "The result.",

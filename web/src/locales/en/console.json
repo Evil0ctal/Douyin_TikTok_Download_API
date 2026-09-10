@@ -1994,6 +1994,16 @@
       "issues": "Report an issue",
       "license": "Read the licence"
     },
+    "contact": {
+      "title": "Contact",
+      "body": "Two routes, in the order worth trying.",
+      "issuesLabel": "Issues",
+      "issuesAction": "GitHub issue tracker",
+      "issuesWhy": "Public, keeps its history, and anyone who has hit the same thing can answer.",
+      "emailLabel": "Email",
+      "emailWhy": "Reaches one person. Best for anything that does not belong in public.",
+      "authorLabel": "Author"
+    },
     "licence": {
       "title": "Licence: Apache 2.0",
       "body": "You may use, modify and distribute this software, including commercially and inside closed-source products. The grant is irrevocable. Three things are asked of you in return:",

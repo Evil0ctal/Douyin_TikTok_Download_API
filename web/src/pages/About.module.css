@@ -61,3 +61,58 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/*
+ * Contact routes, as a definition list: each is a label and an address, and the
+ * note beside each one says when to use it rather than the other. A row of
+ * links would have made them look interchangeable, which is the one thing they
+ * are not.
+ */
+.contact {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  align-items: baseline;
+}
+
+.contact dt {
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-muted);
+}
+
+.contact dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+
+.contact dd a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.contact dd a:hover {
+  color: var(--accent);
+}
+
+/* On a phone the label sits above its address rather than beside it: a 6rem
+   first column leaves an email nowhere to go. */
+@media (max-width: 599px) {
+  .contact {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+
+  .contact dt {
+    margin-top: var(--space-3);
+  }
+}

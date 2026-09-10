@@ -72,7 +72,7 @@ class SignRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    platform: Platform
+    platform: Platform = Field(description="Whose algorithm to sign with.")
     url: str = Field(max_length=4096, description="The API URL to sign, query included.")
     user_agent: str | None = Field(
         default=None,
@@ -822,7 +822,7 @@ class IdentityRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    platform: Platform
+    platform: Platform = Field(description="Which platform to mint a guest session for.")
     proxy: str | None = Field(
         default=None,
         max_length=512,

@@ -1994,6 +1994,16 @@
       "issues": "反馈问题",
       "license": "阅读许可协议"
     },
+    "contact": {
+      "title": "联系方式",
+      "body": "两个渠道，按建议尝试的先后排列。",
+      "issuesLabel": "问题反馈",
+      "issuesAction": "GitHub Issues",
+      "issuesWhy": "公开、有记录，遇到过同样问题的人也能回答你。",
+      "emailLabel": "邮箱",
+      "emailWhy": "直达作者本人。适合不方便公开的内容。",
+      "authorLabel": "作者"
+    },
     "licence": {
       "title": "许可协议：Apache 2.0",
       "body": "你可以使用、修改和分发这个软件，包括商业用途，也包括放进闭源产品里。这项授权是不可撤销的。作为交换，它对你有三点要求：",

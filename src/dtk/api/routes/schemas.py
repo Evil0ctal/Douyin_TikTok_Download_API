@@ -46,19 +46,45 @@ class Body(BaseModel):
 
 
 class SetupInit(Body):
-    token: str = Field(min_length=8, max_length=256)
-    username: str = Field(pattern=USERNAME_PATTERN)
-    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+    token: str = Field(
+        min_length=8,
+        max_length=256,
+        description=(
+            "The setup token this instance printed to its log on first start. "
+            "It is spent once and never issued again."
+        ),
+    )
+    username: str = Field(
+        pattern=USERNAME_PATTERN,
+        description="Username for the first administrator. Letters, digits, dot, dash, underscore.",
+    )
+    password: str = Field(
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="Password for that account. Stored hashed and never returned.",
+    )
 
 
 class LoginRequest(Body):
-    username: str = Field(min_length=1, max_length=128)
-    password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
+    username: str = Field(min_length=1, max_length=128, description="The console account.")
+    password: str = Field(
+        min_length=1,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="Its password. A wrong one is rate limited per account and per address.",
+    )
 
 
 class PasswordChange(Body):
-    current_password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
-    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+    current_password: str = Field(
+        min_length=1,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="The password in use now. Checked even for an administrator changing their own.",
+    )
+    new_password: str = Field(
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="The replacement. Every other session for this account is signed out.",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -69,19 +95,56 @@ class PasswordChange(Body):
 class ParseRequest(Body):
     """A link, or the share text a platform app puts on the clipboard."""
 
-    url: str = Field(min_length=1, max_length=4096)
-    include_raw: bool = False
-    callback_url: str | None = Field(default=None, max_length=2048)
+    url: str = Field(
+        min_length=1,
+        max_length=4096,
+        description=(
+            "A share link, a bare post URL, or the whole clipboard text a platform app "
+            "produces with the link buried in it. Short links are followed."
+        ),
+    )
+    include_raw: bool = Field(
+        default=False,
+        description=(
+            "Also return the platform's own response, unparsed. Large - a single post "
+            "runs to hundreds of kilobytes - so it is off unless asked for."
+        ),
+    )
+    callback_url: str | None = Field(
+        default=None,
+        max_length=2048,
+        description=(
+            "Where to POST the result when the task finishes, instead of polling for it. "
+            "The host must be on the operator's `security.url_allowlist`."
+        ),
+    )
 
 
 class BatchItem(Body):
-    url: str = Field(min_length=1, max_length=4096)
-    include_raw: bool = False
+    url: str = Field(
+        min_length=1,
+        max_length=4096,
+        description="One link, in any of the forms `/parse` accepts.",
+    )
+    include_raw: bool = Field(
+        default=False, description="Also return this item's unparsed platform response."
+    )
 
 
 class BatchRequest(Body):
-    items: list[BatchItem] = Field(min_length=1, max_length=MAX_BATCH_ITEMS)
-    callback_url: str | None = Field(default=None, max_length=2048)
+    items: list[BatchItem] = Field(
+        min_length=1,
+        max_length=MAX_BATCH_ITEMS,
+        description=(
+            "The links to submit. Each becomes its own task with its own id and its own "
+            "fate, so one bad link cannot smear the whole request into a single error."
+        ),
+    )
+    callback_url: str | None = Field(
+        default=None,
+        max_length=2048,
+        description="Where to POST each result as it finishes. Allowlisted hosts only.",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -90,9 +153,23 @@ class BatchRequest(Body):
 
 
 class MintRequest(Body):
-    platform: Platform
-    count: int = Field(default=1, ge=1, le=10)
-    proxy_id: str | None = None
+    platform: Platform = Field(description="Which platform the new identities are for.")
+    count: int = Field(
+        default=1,
+        ge=1,
+        le=10,
+        description=(
+            "How many to mint. Each one drives a real headless browser against the "
+            "platform, so this takes tens of seconds per identity."
+        ),
+    )
+    proxy_id: str | None = Field(
+        default=None,
+        description=(
+            "Mint behind this exit and bind the identities to it. An identity is minted "
+            "from one address and must keep using it; omitting this mints direct."
+        ),
+    )
 
 
 class IdentityImport(Body):
@@ -102,15 +179,46 @@ class IdentityImport(Body):
     the user which of four shapes they hold is how an import flow fails.
     """
 
-    platform: Platform
-    cookies: str = Field(min_length=1, max_length=MAX_PASTE_CHARS)
-    user_agent: str | None = Field(default=None, max_length=1024)
-    language: str | None = Field(default=None, max_length=64)
-    timezone: str | None = Field(default=None, max_length=64)
-    proxy_id: str | None = None
-    #: Preview only. The console shows what was understood before anything is
-    #: stored, because a mistyped cookie jar is easier to spot than to debug.
-    dry_run: bool = False
+    platform: Platform = Field(description="Which platform the jar belongs to.")
+    cookies: str = Field(
+        min_length=1,
+        max_length=MAX_PASTE_CHARS,
+        description=(
+            "The jar, in any of the shapes people actually hold: a `Cookie:` header, "
+            "DevTools JSON, a cookies.txt file, or `name=value` pairs. The format is "
+            "detected rather than declared."
+        ),
+    )
+    user_agent: str | None = Field(
+        default=None,
+        max_length=1024,
+        description=(
+            "The User-Agent of the browser the jar came from. Both platforms hash it "
+            "into their signatures, so a jar sent under a different one is a "
+            "contradiction they can see."
+        ),
+    )
+    language: str | None = Field(
+        default=None,
+        max_length=64,
+        description="That browser's `navigator.language`, e.g. `zh-CN`.",
+    )
+    timezone: str | None = Field(
+        default=None,
+        max_length=64,
+        description="That browser's IANA zone, e.g. `Asia/Shanghai`. Should agree with the exit.",
+    )
+    proxy_id: str | None = Field(
+        default=None,
+        description="Send as this identity only through this exit.",
+    )
+    dry_run: bool = Field(
+        default=False,
+        description=(
+            "Report what was understood without storing anything. A mistyped cookie jar "
+            "is far easier to spot than to debug."
+        ),
+    )
 
 
 class IdentityExport(Body):
@@ -121,7 +229,14 @@ class IdentityExport(Body):
     a request the caller can see the size of.
     """
 
-    identity_ids: list[str] = Field(min_length=1, max_length=200)
+    identity_ids: list[str] = Field(
+        min_length=1,
+        max_length=200,
+        description=(
+            "The identities to write out. The document carries every jar in full, so "
+            "treat it as a credential file."
+        ),
+    )
 
 
 class IdentityBundle(Body):
@@ -133,16 +248,32 @@ class IdentityBundle(Body):
     browser it was taken from.
     """
 
-    version: int
-    identities: list[dict[str, Any]] = Field(min_length=1, max_length=200)
-    proxy_id: str | None = None
-    #: Preview only, exactly as on a paste: the console says what it found
-    #: before anything is written.
-    dry_run: bool = False
+    version: int = Field(
+        description=(
+            "The export document's format version. Checked rather than trusted: a file "
+            "from a newer build may carry fields this one would drop silently."
+        )
+    )
+    identities: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=200,
+        description="The `identities` array from the export document, unchanged.",
+    )
+    proxy_id: str | None = Field(
+        default=None, description="Bind every imported identity to this exit."
+    )
+    dry_run: bool = Field(
+        default=False,
+        description="Report what the file holds without storing anything.",
+    )
 
 
 class RetireRequest(Body):
-    reason: str = Field(default="retired from the console", max_length=256)
+    reason: str = Field(
+        default="retired from the console",
+        max_length=256,
+        description="Recorded on the identity's timeline, so a later reader knows why it went.",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -151,25 +282,64 @@ class RetireRequest(Body):
 
 
 class ProxyCreate(Body):
-    url: str = Field(min_length=3, max_length=2048)
-    label: str | None = Field(default=None, max_length=128)
-    country: str | None = Field(default=None, max_length=8)
-    timezone: str | None = Field(default=None, max_length=64)
+    url: str = Field(
+        min_length=3,
+        max_length=2048,
+        description=(
+            "The exit, as `scheme://user:pass@host:port`. Stored encrypted and never "
+            "returned in full."
+        ),
+    )
+    label: str | None = Field(
+        default=None, max_length=128, description="What to call it in the console."
+    )
+    country: str | None = Field(
+        default=None,
+        max_length=8,
+        description=(
+            "ISO country code of the exit. Used to give an identity minted behind it a "
+            "coherent locale; measured on the first probe when omitted."
+        ),
+    )
+    timezone: str | None = Field(
+        default=None,
+        max_length=64,
+        description="IANA zone of the exit, for the same reason as `country`.",
+    )
 
 
 class ProxyUpdate(Body):
-    url: str | None = Field(default=None, min_length=3, max_length=2048)
-    label: str | None = Field(default=None, max_length=128)
-    country: str | None = Field(default=None, max_length=8)
-    timezone: str | None = Field(default=None, max_length=64)
-    healthy: bool | None = None
+    url: str | None = Field(
+        default=None, min_length=3, max_length=2048, description="Replace the exit address."
+    )
+    label: str | None = Field(default=None, max_length=128, description="Rename it.")
+    country: str | None = Field(default=None, max_length=8, description="Correct the country.")
+    timezone: str | None = Field(default=None, max_length=64, description="Correct the zone.")
+    healthy: bool | None = Field(
+        default=None,
+        description=(
+            "Override what the last probe concluded. For an exit you know is fine but "
+            "that fails the probe, or the reverse."
+        ),
+    )
 
 
 class ProxyImport(Body):
     """Several dozen lines pasted at once, in any of the common shapes."""
 
-    text: str = Field(min_length=1, max_length=MAX_PASTE_CHARS)
-    label: str | None = Field(default=None, max_length=128)
+    text: str = Field(
+        min_length=1,
+        max_length=MAX_PASTE_CHARS,
+        description=(
+            "The proxies, one per line, in any of the common shapes - "
+            "`host:port:user:pass`, `user:pass@host:port`, or a full URL."
+        ),
+    )
+    label: str | None = Field(
+        default=None,
+        max_length=128,
+        description="Applied to every proxy in the paste, numbered when there is more than one.",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -178,31 +348,77 @@ class ProxyImport(Body):
 
 
 class ApiKeyCreate(Body):
-    name: str = Field(min_length=1, max_length=128)
-    scopes: list[Scope] = Field(default_factory=list)
-    #: Requests per minute. Null means the instance default; abuse protection
-    #: only, this project has no billing.
-    rate_limit: int | None = Field(default=None, ge=1, le=100_000)
-    expires_at: datetime | None = None
+    name: str = Field(
+        min_length=1,
+        max_length=128,
+        description="What the key is for. Shown in the list and in the audit log.",
+    )
+    scopes: list[Scope] = Field(
+        default_factory=list,
+        description=(
+            "What the key may do. A key can never be given a scope its creator does not "
+            "hold, so this is bounded by your own."
+        ),
+    )
+    rate_limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=100_000,
+        description=(
+            "Requests per minute. Null means the instance default. Abuse protection "
+            "only - this project has no billing."
+        ),
+    )
+    expires_at: datetime | None = Field(
+        default=None,
+        description="When the key stops working. Must be in the future; null never expires.",
+    )
 
 
 class SettingUpdate(Body):
-    value: object
-    #: Required for a SENSITIVE key. Widening the URL allowlist or turning on
-    #: the download proxy must not be a stray click (doc 10).
-    confirm: bool = False
+    value: object = Field(
+        description=(
+            "The new value, typed as the setting declares it. A string where a number "
+            "is expected is refused rather than coerced."
+        )
+    )
+    confirm: bool = Field(
+        default=False,
+        description=(
+            "Required for a setting flagged SENSITIVE. Widening the URL allowlist or "
+            "turning on the download proxy must not be a stray click."
+        ),
+    )
 
 
 class UserCreate(Body):
-    username: str = Field(pattern=USERNAME_PATTERN)
-    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
-    role: UserRole = UserRole.VIEWER
+    username: str = Field(
+        pattern=USERNAME_PATTERN,
+        description="Letters, digits, dot, dash and underscore. Unique, and not renameable.",
+    )
+    password: str = Field(
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="Their initial password. Stored hashed and never returned.",
+    )
+    role: UserRole = Field(
+        default=UserRole.VIEWER,
+        description=(
+            "What the account may do. You cannot create an account with a role above your own."
+        ),
+    )
 
 
 class UserUpdate(Body):
-    role: UserRole | None = None
+    role: UserRole | None = Field(
+        default=None,
+        description="Change what the account may do. The last administrator cannot be demoted.",
+    )
     password: str | None = Field(
-        default=None, min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH
+        default=None,
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="Set a new password, signing every session for that account out.",
     )
 
 
@@ -212,21 +428,33 @@ class UserUpdate(Body):
 
 
 class BackupRequest(Body):
-    #: Off by default: identities are bound to an egress and a fingerprint, so
-    #: restoring them onto another machine revives credentials that should not
-    #: be used from a new exit address (doc 15).
-    include_identities: bool = False
+    include_identities: bool = Field(
+        default=False,
+        description=(
+            "Include the identity pool and its cookie jars. Off by default: an identity "
+            "is bound to one exit and one fingerprint, so restoring it onto another "
+            "machine revives a credential that must not be used from a new address."
+        ),
+    )
 
 
 class RestoreRequest(Body):
-    #: The file name the listing returned, never a path. The server joins it
-    #: onto the backup directory, so anything with a directory in it is refused
-    #: rather than resolved.
-    path: str = Field(min_length=1, max_length=255)
-    #: A restore inserts archived users, API keys and settings into a live
-    #: instance and cannot be undone from the console, so it is confirmed the
-    #: way a SENSITIVE setting write is (doc 08).
-    confirm: bool = False
+    path: str = Field(
+        min_length=1,
+        max_length=255,
+        description=(
+            "The file name the backup listing returned - a name, never a path. The "
+            "server joins it onto the backup directory, so anything carrying a "
+            "directory is refused rather than resolved."
+        ),
+    )
+    confirm: bool = Field(
+        default=False,
+        description=(
+            "Required. A restore inserts archived users, API keys and settings into a "
+            "live instance and cannot be undone from the console."
+        ),
+    )
 
 
 class DownloadRequest(Body):
@@ -244,17 +472,34 @@ class DownloadRequest(Body):
     platform disagrees with the one named.
     """
 
-    platform: Platform | None = None
-    #: As the archive holds it. Text, never an integer: a 19-digit aweme_id
-    #: exceeds the JavaScript safe range.
-    content_id: str | None = Field(default=None, min_length=1, max_length=64)
-    #: A share link, or the share text with one inside it.
-    url: str | None = Field(default=None, max_length=4096)
-    #: Return the existing download instead of fetching the post again, when
-    #: this instance already has its media. What a feed being re-run wants: an
-    #: author has added three posts since last time and the other forty are
-    #: already on the disk.
-    skip_existing: bool = False
+    platform: Platform | None = Field(
+        default=None, description="Which platform the post is on. Implied by `url` when given."
+    )
+    content_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description=(
+            "The post id, as the archive holds it. Text, never an integer: a 19-digit "
+            "id exceeds the JavaScript safe range."
+        ),
+    )
+    url: str | None = Field(
+        default=None,
+        max_length=4096,
+        description=(
+            "A share link, or the share text with one inside it. Only the post id it "
+            "yields is used; nothing here decides which host gets contacted."
+        ),
+    )
+    skip_existing: bool = Field(
+        default=False,
+        description=(
+            "Return the existing download instead of fetching the post again, when this "
+            "instance already holds its media. What re-running a feed wants: three new "
+            "posts and forty already on disk."
+        ),
+    )
 
 
 class RetryRequest(Body):
@@ -266,7 +511,9 @@ class RetryRequest(Body):
     answers 403.
     """
 
-    download_id: uuid.UUID
+    download_id: uuid.UUID = Field(
+        description="The download to start over, from the download list."
+    )
 
 
 class DedupeRequest(Body):
@@ -278,13 +525,19 @@ class DedupeRequest(Body):
     same directory, which is the disk filling up with the same bytes.
     """
 
-    #: Report what would go without touching anything.
-    dry_run: bool = False
+    dry_run: bool = Field(
+        default=False, description="Report what would go without deleting anything."
+    )
 
 
 class PinRequest(Body):
-    #: True exempts this download from the size-based cleanup for good.
-    pinned: bool = True
+    pinned: bool = Field(
+        default=True,
+        description=(
+            "True exempts this download from the size-based cleanup for good; false "
+            "puts it back in scope."
+        ),
+    )
 
 
 class RecheckRequest(Body):
@@ -294,24 +547,53 @@ class RecheckRequest(Body):
     batch is bounded here rather than left to whatever the caller asks for.
     """
 
-    limit: int | None = Field(default=None, ge=1, le=200)
-    older_than_days: int | None = Field(default=None, ge=0, le=3650)
+    limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=200,
+        description=(
+            "How many posts to check. Every one is a real request through the identity "
+            "pool, so the batch is bounded here rather than left to the caller."
+        ),
+    )
+    older_than_days: int | None = Field(
+        default=None,
+        ge=0,
+        le=3650,
+        description="Only re-check posts last seen at least this many days ago.",
+    )
 
 
 class BackfillRequest(Body):
-    platform: Platform
-    #: The author's stable id, not the handle: users edit handles.
-    author_id: str = Field(min_length=1, max_length=128)
-    pages: int = Field(default=5, ge=1, le=20)
+    platform: Platform = Field(description="Which platform the author is on.")
+    author_id: str = Field(
+        min_length=1,
+        max_length=128,
+        description=(
+            "The author's stable id - `sec_user_id` on Douyin, `secUid` on TikTok - and "
+            "not the handle, which users edit."
+        ),
+    )
+    pages: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="How many pages of their posts to walk. Each page is one upstream request.",
+    )
 
 
 class ContentRef(Body):
     """One archived post, by the pair the archive is keyed on."""
 
-    platform: Platform
-    #: aweme_id or its TikTok equivalent. Text, never an integer: a 19-digit id
-    #: exceeds the JavaScript safe range and the console would round it.
-    content_id: str = Field(min_length=1, max_length=128)
+    platform: Platform = Field(description="Which platform the post is on.")
+    content_id: str = Field(
+        min_length=1,
+        max_length=128,
+        description=(
+            "`aweme_id` or its TikTok equivalent. Text, never an integer: a 19-digit id "
+            "exceeds the JavaScript safe range and a JSON parser would round it."
+        ),
+    )
 
 
 class CollectionCreate(Body):
@@ -322,8 +604,14 @@ class CollectionCreate(Body):
     a check here would still lose a race between two console tabs.
     """
 
-    name: str = Field(min_length=1, max_length=collections.MAX_NAME)
-    note: str | None = Field(default=None, max_length=collections.MAX_NOTE)
+    name: str = Field(
+        min_length=1,
+        max_length=collections.MAX_NAME,
+        description="What to call it. Unique case-insensitively, enforced by the database.",
+    )
+    note: str | None = Field(
+        default=None, max_length=collections.MAX_NOTE, description="Free text, for your own use."
+    )
 
 
 class CollectionUpdate(Body):
@@ -335,8 +623,20 @@ class CollectionUpdate(Body):
     quietly erase text nobody mentioned.
     """
 
-    name: str | None = Field(default=None, min_length=1, max_length=collections.MAX_NAME)
-    note: str | None = Field(default=None, max_length=collections.MAX_NOTE)
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=collections.MAX_NAME,
+        description="Rename it. Omit the field entirely to leave the name alone.",
+    )
+    note: str | None = Field(
+        default=None,
+        max_length=collections.MAX_NOTE,
+        description=(
+            "Replace the note. Omitting the field leaves it alone; sending null clears "
+            "it - the two are told apart, so nothing is erased that nobody mentioned."
+        ),
+    )
 
 
 class ContentSelection(Body):
@@ -346,7 +646,14 @@ class ContentSelection(Body):
     calls, not hold one transaction open across the archive.
     """
 
-    items: list[ContentRef] = Field(min_length=1, max_length=collections.MAX_ITEMS)
+    items: list[ContentRef] = Field(
+        min_length=1,
+        max_length=collections.MAX_ITEMS,
+        description=(
+            "The posts to act on. Past this limit make two calls rather than hold one "
+            "transaction open across the archive."
+        ),
+    )
 
 
 class ArchiveDelete(ContentSelection):
@@ -358,7 +665,14 @@ class ArchiveDelete(ContentSelection):
     might want and is not the obvious reading of the button.
     """
 
-    media: bool = True
+    media: bool = Field(
+        default=True,
+        description=(
+            "Also delete the stored media files. True because that is what "
+            '"delete this" means when the thing on screen is a video on disk; false '
+            "keeps the files and removes only the record."
+        ),
+    )
 
 
 class WatchCreate(Body):
@@ -369,37 +683,79 @@ class WatchCreate(Body):
     hours, which is why it is administrative rather than a data endpoint.
     """
 
-    platform: Platform
-    #: author or content.
-    kind: str = Field(pattern="^(author|content)$")
-    #: sec_user_id or aweme_id, as the platform spells it.
-    target_id: str = Field(min_length=1, max_length=128)
-    #: What to call it in the console. Filled in from the first successful run
-    #: when it is omitted, so pasting a bare id is fine.
-    label: str | None = Field(default=None, max_length=128)
-    #: Omitted means watchlist.default_interval_seconds. The server refuses
-    #: anything under watchlist.min_interval_seconds rather than silently
-    #: substituting a number the caller did not ask for.
-    interval_seconds: int | None = Field(default=None, ge=1)
-    #: Pages of an author's posts one run walks. One is the useful default: a
-    #: watchlist is for what is new, and a backfill is a different job.
-    pages: int = Field(default=1, ge=1, le=10)
+    platform: Platform = Field(description="Which platform the target is on.")
+    kind: str = Field(
+        pattern="^(author|content)$",
+        description=(
+            "`author` to watch someone's posts for new ones, `content` to watch one "
+            "post's counters."
+        ),
+    )
+    target_id: str = Field(
+        min_length=1,
+        max_length=128,
+        description="`sec_user_id` or `aweme_id`, as the platform spells it.",
+    )
+    label: str | None = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "What to call it in the console. Filled in from the first successful run "
+            "when omitted, so pasting a bare id is fine."
+        ),
+    )
+    interval_seconds: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "How often to run it. Omitted means `watchlist.default_interval_seconds`. "
+            "Anything under `watchlist.min_interval_seconds` is refused rather than "
+            "silently raised to a number you did not ask for."
+        ),
+    )
+    pages: int = Field(
+        default=1,
+        ge=1,
+        le=10,
+        description=(
+            "Pages of an author's posts one run walks. One is the useful default: a "
+            "watchlist is for what is new, and a backfill is a different job."
+        ),
+    )
 
 
 class WatchUpdate(Body):
-    interval_seconds: int | None = Field(default=None, ge=1)
-    enabled: bool | None = None
-    pages: int | None = Field(default=None, ge=1, le=10)
+    interval_seconds: int | None = Field(
+        default=None, ge=1, description="Change how often it runs. Same floor as on create."
+    )
+    enabled: bool | None = Field(
+        default=None,
+        description="Pause it or start it again. A paused entry keeps its history.",
+    )
+    pages: int | None = Field(
+        default=None, ge=1, le=10, description="Change how many pages one run walks."
+    )
 
 
 class NotificationTest(Body):
-    channel: str | None = Field(default=None, max_length=64)
+    channel: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Which configured channel to send a test through. Omitted sends through "
+            "every channel that is configured."
+        ),
+    )
 
 
 class DiagnoseRequest(Body):
-    #: The end-to-end step fetches one fixed public link; skipping it keeps the
-    #: diagnosis entirely local.
-    include_smoke_test: bool = True
+    include_smoke_test: bool = Field(
+        default=True,
+        description=(
+            "Run the end-to-end step, which fetches one fixed public link and therefore "
+            "spends an identity. Skipping it keeps the whole diagnosis local."
+        ),
+    )
 
 
 __all__ = [

@@ -42,6 +42,9 @@ API_KEY_DESCRIPTION_KEY = "openapi.security.api_key"
 SESSION_DESCRIPTION_KEY = "openapi.security.session"
 OP_PREFIX = "openapi.op."
 PARAM_PREFIX = "openapi.param."
+#: Request-body fields, keyed ``openapi.field.<Schema>.<field>``. Schema names
+#: come from the Pydantic model, so they are as stable as the model is.
+FIELD_PREFIX = "openapi.field."
 DESCRIPTION_KEY = "openapi.description"
 #: The one sentence that explains the uniform envelope to a reader of the docs.
 ENVELOPE_DESCRIPTION_KEY = "openapi.envelope"
@@ -125,6 +128,27 @@ def _annotate_wait(parameter: dict[str, Any], ceiling: float | None) -> None:
         schema["maximum"] = ceiling
 
 
+def _parameter_text(name: Any, operation_key: Any, language: Language) -> str | None:
+    """One parameter's prose: the operation's own wording, else the shared one.
+
+    Keying by name alone is right for most of them - a `cursor` is a cursor
+    wherever it appears - and wrong for the handful whose name says nothing
+    about their role. `identity_id` is a filter on the logs and the thing being
+    retired on the pool; `user_id` is "whose actions to show" and "which account
+    to delete". One sentence cannot be both, and the English source is already
+    two different sentences on those routes.
+
+    So a route may override with ``openapi.param.<operation key>.<name>``.
+    Only where the meaning genuinely differs: an override that merely rewords
+    the shared entry is a second place for it to go stale.
+    """
+    if isinstance(operation_key, str) and operation_key:
+        specific = _translate(f"{PARAM_PREFIX}{operation_key}.{name}", language)
+        if specific:
+            return specific
+    return _translate(f"{PARAM_PREFIX}{name}", language)
+
+
 def _localize_operation(
     operation: dict[str, Any], language: Language, wait_ceiling: float | None = None
 ) -> None:
@@ -143,7 +167,7 @@ def _localize_operation(
         if not isinstance(parameter, dict):
             continue
         name = parameter.get("name")
-        text = _translate(f"{PARAM_PREFIX}{name}", language)
+        text = _parameter_text(name, key, language)
         if text:
             parameter["description"] = text
         if name == "wait":
@@ -260,13 +284,28 @@ def _envelope_components(language: Language) -> dict[str, Any]:
                     "type": "string",
                     "description": "Human sentence, rendered in the caller's language.",
                 },
-                "details": {"type": "object", "additionalProperties": True},
+                "details": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "description": (
+                        "What the error was about, keyed by name - the field that failed, "
+                        "the endpoint that refused, the id that was not found. Shape "
+                        "varies by code; never contains a credential."
+                    ),
+                },
                 "retry_after": {
                     "type": "integer",
                     "nullable": True,
                     "description": "Seconds to wait, when the error is one that clears.",
                 },
-                "retryable": {"type": "boolean"},
+                "retryable": {
+                    "type": "boolean",
+                    "description": (
+                        "Whether sending the same request again could succeed. False for "
+                        "anything about the request itself, so an agent reading this "
+                        "does not retry a URL that will never work."
+                    ),
+                },
             },
         },
         _ENVELOPE_SCHEMA: {
@@ -278,16 +317,31 @@ def _envelope_components(language: Language) -> dict[str, Any]:
                 "the endpoint's own payload and is null whenever `success` is false."
             ),
             "properties": {
-                "success": {"type": "boolean"},
+                "success": {
+                    "type": "boolean",
+                    "description": "False whenever `error` is set, and never otherwise.",
+                },
                 "data": {"nullable": True, "description": "The endpoint's payload."},
                 "error": {
                     "oneOf": [{"$ref": f"#/components/schemas/{_ERROR_SCHEMA}"}],
                     "nullable": True,
+                    "description": "What went wrong, or null. Present on every failure.",
                 },
                 "meta": {
                     "type": "object",
                     "additionalProperties": True,
-                    "properties": {"request_id": {"type": "string", "format": "uuid"}},
+                    "description": (
+                        "About the call rather than its result: the request id to quote "
+                        "in a bug report, whether the answer was cached, how long it "
+                        "took, and the paging cursor when there is one."
+                    ),
+                    "properties": {
+                        "request_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "Correlates this response with the request log.",
+                        }
+                    },
                 },
             },
         },
@@ -373,6 +427,36 @@ def _type_responses(schema: dict[str, Any], language: Language) -> None:
                 )
 
 
+def _localize_schema_fields(schema: dict[str, Any], language: Language) -> None:
+    """Swap the request-body field descriptions.
+
+    The last part of the document that was English only. Operations, tags and
+    parameters were translated; the fields a caller actually fills in were not,
+    so the Chinese document explained what an endpoint did and then asked for
+    `skip_existing` with no sentence beside it.
+
+    Keyed by model and field rather than by field alone, unlike parameters. A
+    parameter name is global - a `cursor` is a cursor wherever it appears - and
+    a field name is not: `url` is a share link on `ParseRequest` and a proxy
+    address on `ProxyCreate`.
+    """
+    schemas = schema.get("components", {}).get("schemas", {})
+    if not isinstance(schemas, dict):
+        return
+    for name, definition in schemas.items():
+        if not isinstance(definition, dict):
+            continue
+        properties = definition.get("properties")
+        if not isinstance(properties, dict):
+            continue
+        for field, spec in properties.items():
+            if not isinstance(spec, dict):
+                continue
+            text = _translate(f"{FIELD_PREFIX}{name}.{field}", language)
+            if text:
+                spec["description"] = text
+
+
 def _wait_ceiling(app: FastAPI) -> float | None:
     """``api.max_wait_seconds`` if this app has a configuration to read it from."""
     config = getattr(app.state, "config", None)
@@ -409,6 +493,10 @@ def build_schema(app: FastAPI, language: Language) -> dict[str, Any]:
     _localize_tags(schema, language)
     _declare_security(schema, language)
     _type_responses(schema, language)
+    # After `_type_responses`, which is where the envelope schemas are added.
+    # Running it earlier translated every request body and left the two schemas
+    # every single response is described by in English.
+    _localize_schema_fields(schema, language)
     schema["info"]["x-language"] = language.value
     return schema
 
@@ -474,6 +562,7 @@ def install(app: FastAPI) -> None:
 
 __all__ = [
     "DESCRIPTION_KEY",
+    "FIELD_PREFIX",
     "I18N_KEY",
     "LANG_PARAMETER_KEY",
     "OP_PREFIX",

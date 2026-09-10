@@ -30,6 +30,24 @@ const LINKS = [
   { id: 'license', href: `${REPO}/blob/main/LICENSE` },
 ] as const
 
+/**
+ * How to reach the author, and what each route is for.
+ *
+ * Two of them, in the order they should be tried. An issue is public, keeps its
+ * own history and can be answered by anybody who has hit the same thing; email
+ * reaches one person's inbox. Saying which is which here is worth more than
+ * listing both and leaving the reader to guess - most of what arrives by email
+ * would have been answered faster in the tracker.
+ *
+ * The address is spelled out rather than hidden behind a mailto: label. It is
+ * already public on the repository, and a reader who wants to copy it should
+ * not have to hover a link to find out what they are copying.
+ */
+/** A username and an address. Identifiers, so neither is translated. */
+const AUTHOR_NAME = 'Evil0ctal'
+const AUTHOR_EMAIL = 'Evil0ctal1985@gmail.com'
+const AUTHOR_GITHUB = 'https://github.com/Evil0ctal'
+
 interface SystemStatus {
   version: string
   commit?: string | null
@@ -79,6 +97,37 @@ export default function About() {
             </a>
           ))}
         </div>
+      </Card>
+
+      <Card title={t('console:about.contact.title')} description={t('console:about.contact.body')}>
+        <dl className={styles.contact}>
+          <dt>{t('console:about.contact.issuesLabel')}</dt>
+          <dd>
+            <a href={`${REPO}/issues`} target="_blank" rel="noreferrer noopener">
+              <ExternalIcon size={12} />
+              {t('console:about.contact.issuesAction')}
+            </a>
+            <span className="u-xs u-muted">{t('console:about.contact.issuesWhy')}</span>
+          </dd>
+
+          <dt>{t('console:about.contact.emailLabel')}</dt>
+          <dd>
+            {/* A real address, copyable as text. `mailto:` is the convenience,
+                not the answer. */}
+            <a className="u-mono" href={`mailto:${AUTHOR_EMAIL}`}>
+              {AUTHOR_EMAIL}
+            </a>
+            <span className="u-xs u-muted">{t('console:about.contact.emailWhy')}</span>
+          </dd>
+
+          <dt>{t('console:about.contact.authorLabel')}</dt>
+          <dd>
+            <a href={AUTHOR_GITHUB} target="_blank" rel="noreferrer noopener">
+              <ExternalIcon size={12} />
+              {AUTHOR_NAME}
+            </a>
+          </dd>
+        </dl>
       </Card>
 
       <Card title={t('console:about.licence.title')}>
