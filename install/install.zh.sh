@@ -1026,8 +1026,20 @@ show_status() {
   fi
 }
 
-do_upgrade() {
+# GitHub 上的 release tag 是 `v5.0.1`，而它产出的镜像叫 `5.0.1`。
+# docker/metadata-action 的 `{{version}}` 会把 v 去掉，所以原样拿 release tag
+# 去钉，等于向 Docker Hub 要一个从来没发布过的东西。
+image_tag_for() {
   local target="$1"
+  case "$target" in
+    v[0-9]*) printf '%s' "${target#v}" ;;
+    *) printf '%s' "$target" ;;
+  esac
+}
+
+do_upgrade() {
+  local target
+  target="$(image_tag_for "$1")"
   step "升级到 $target"
   info "数据不受影响：命名卷不会随这次操作消失。"
   printf '\n'
@@ -1037,11 +1049,22 @@ do_upgrade() {
   git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
     || warn "本地有改动，保持原样不动。"
 
+  # 先拉，再钉。反过来的话，一旦拉取失败，部署就指向了一个不存在的镜像 ——
+  # 已经起着的容器照常跑，但下一次 `up -d` 起不来。这次拉取的 tag 只挂在命令上，
+  # 确认镜像确实存在之前不碰 .env。
+  info "正在拉取。"
+  local services=(api worker)
+  [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
+  if ! DTK_IMAGE_TAG="$target" "$CTL" pull "${services[@]}"; then
+    die "拉不到 ${target}。什么都没改，旧版本还在正常运行。
+    去确认这个 tag 是否存在：https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags"
+  fi
+
   # 钉住具体的 tag，而不是跟着 `latest` 跑：运维应当说得出现在跑的是哪个构建，
   # 也应当能把它换回去。
   if grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
     local tmp
-    tmp="$(mktemp)" || die "Could not create a temporary file."
+    tmp="$(mktemp)" || die "创建临时文件失败。"
     TMP_FILES+=("$tmp")
     sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$target|" "$INSTALL_DIR/.env" >"$tmp"
     cat "$tmp" >"$INSTALL_DIR/.env"
@@ -1049,8 +1072,6 @@ do_upgrade() {
     ok "已把 DTK_IMAGE_TAG 钉在 $target"
   fi
 
-  info "正在拉取。"
-  "$CTL" pull api worker 2>&1 | tail -3 || die "拉取失败。旧版本还在正常运行。"
   info "正在迁移。"
   "$CTL" run --rm migrate || die "迁移失败。旧容器还在跑，什么都没有被替换。"
   info "正在重启。"

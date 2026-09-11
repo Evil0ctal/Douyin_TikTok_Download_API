@@ -1053,8 +1053,20 @@ show_status() {
   fi
 }
 
-do_upgrade() {
+# A GitHub release is tagged `v5.0.1`; the image it produces is `5.0.1`.
+# docker/metadata-action's `{{version}}` strips the v, so pinning the release
+# tag verbatim asks Docker Hub for something that was never published.
+image_tag_for() {
   local target="$1"
+  case "$target" in
+    v[0-9]*) printf '%s' "${target#v}" ;;
+    *) printf '%s' "$target" ;;
+  esac
+}
+
+do_upgrade() {
+  local target
+  target="$(image_tag_for "$1")"
   step "Upgrading to $target"
   info "Your data is untouched: the named volumes survive this."
   printf '\n'
@@ -1063,6 +1075,19 @@ do_upgrade() {
   git -C "$INSTALL_DIR" fetch --quiet origin main || warn "Could not fetch; using the checkout as it is."
   git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
     || warn "The checkout has local changes; leaving it alone."
+
+  # Pull BEFORE pinning. Writing the tag first and then failing to fetch it
+  # leaves the deployment pointing at an image that does not exist - the stack
+  # keeps running on what is already up, but the next `up -d` cannot start. The
+  # tag goes on the command for this pull only; .env is not touched until the
+  # image is known to be there.
+  info "Pulling."
+  local services=(api worker)
+  [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
+  if ! DTK_IMAGE_TAG="$target" "$CTL" pull "${services[@]}"; then
+    die "Could not pull $target. Nothing was changed and the old version is still running.
+    Check the tag exists: https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags"
+  fi
 
   # Pin the tag rather than following `latest`: an operator should be able to
   # say which build is running, and to put it back.
@@ -1076,8 +1101,6 @@ do_upgrade() {
     ok "Pinned DTK_IMAGE_TAG=$target"
   fi
 
-  info "Pulling."
-  "$CTL" pull api worker 2>&1 | tail -3 || die "Pull failed. The old version is still running."
   info "Migrating."
   "$CTL" run --rm migrate || die "Migrations failed. The old containers are still up; nothing was swapped."
   info "Restarting."
