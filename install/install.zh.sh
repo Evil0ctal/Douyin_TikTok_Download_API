@@ -77,6 +77,7 @@ fi
 
 ASSUME_YES=0
 CHECK_ONLY=0
+MANAGE_ONLY=0
 
 # 凡是建在安装目录之外的东西都登记在这里，这样中途 Ctrl-C 也不会留下垃圾。
 TMP_FILES=()
@@ -872,6 +873,459 @@ show_result() {
   printf '\n'
 }
 
+# ------------------------------------------------------------------ 管理 --
+#
+# 下面这些都是针对「已经装好」的实例。一个脚本干两件事是刻意的：半年前用它部署的
+# 人，不该为了改个口令去学 `docker compose`。
+#
+# 每个操作都委托给 `dtkctl` 或 api 容器里的 `dtk` 命令。这里不重新实现项目已经
+# 有的东西，所以菜单项不会和它背后那条命令走散。
+
+CTL=""   # 正在管理的那套安装的 dtkctl 路径
+
+# 已有部署在哪 —— 问 Docker，不靠猜。Compose 记录了它是从哪个配置文件起来的，
+# 安装目录就是那个文件的上上级。
+find_existing_install() {
+  local config dir
+  config="$(docker compose ls --all --format json 2>/dev/null | python3 -c "
+import sys, json
+try:
+    projects = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for project in projects:
+    if project.get('Name') == '$PROJECT':
+        print(project.get('ConfigFiles', '').split(',')[0])
+        break
+" 2>/dev/null || true)"
+  [ -n "$config" ] || return 1
+  dir="$(dirname "$(dirname "$config")")"
+  [ -f "$dir/docker/compose.yml" ] || return 1
+  printf '%s' "$dir"
+}
+
+# 运行中的实例自己报的版本。只有这个算数：磁盘上的代码可能比真正在服务的那个
+# 镜像更新。
+running_version() {
+  "$CTL" exec -T api dtk --version 2>/dev/null | tr -d '\r' | awk 'NF{print $NF}' | tail -1
+}
+
+latest_release() {
+  curl -fsSL --proto '=https' --tlsv1.2 -m 10 \
+    "https://api.github.com/repos/Evil0ctal/Douyin_TikTok_Download_API/releases/latest" 2>/dev/null \
+    | python3 -c "
+import sys, json
+try:
+    print(json.load(sys.stdin).get('tag_name', ''))
+except Exception:
+    pass
+" 2>/dev/null || true
+}
+
+# $1 比 $2 新时返回真。带预发布后缀的版本比同样数字但没后缀的旧，所以
+# 5.1.0.dev0 排在 5.1.0 前面 —— 和控制台里 web/src/lib/version.ts 同一套规则。
+version_is_newer() {
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 1
+  python3 - "$1" "$2" <<'PY' 2>/dev/null
+import re, sys
+
+def parse(raw):
+    text = re.sub(r"^[vV]", "", raw.strip())
+    m = re.match(r"^(\d+(?:\.\d+)*)(.*)$", text)
+    if not m:
+        return ([0], "")
+    return ([int(p or 0) for p in m.group(1).split(".")],
+            re.sub(r"^[.\-_]", "", m.group(2)).strip())
+
+a, b = parse(sys.argv[1]), parse(sys.argv[2])
+width = max(len(a[0]), len(b[0]))
+left = a[0] + [0] * (width - len(a[0]))
+right = b[0] + [0] * (width - len(b[0]))
+if left != right:
+    sys.exit(0 if left > right else 1)
+if a[1] == b[1]:
+    sys.exit(1)
+if not a[1]:
+    sys.exit(0)
+if not b[1]:
+    sys.exit(1)
+sys.exit(0 if a[1] > b[1] else 1)
+PY
+}
+
+ask_choice() {
+  local prompt="$1" reply
+  printf '\n    %s ' "$prompt" >&2
+  reply="$(read_line)"
+  printf '%s' "$(printf '%s' "$reply" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+}
+
+# 不回显地读两遍口令。调用方把它从标准输入喂给命令；绝不作为参数传 ——
+# argv 对同机任何进程都可见。
+read_password_twice() {
+  local first second
+  while true; do
+    printf '    新口令（至少 8 位）：' >&2
+    IFS= read -rs first <"$TTY_IN" || first=""
+    printf '\n' >&2
+    if [ "${#first}" -lt 8 ]; then
+      warn "太短了。"
+      continue
+    fi
+    printf '    再输一遍：' >&2
+    IFS= read -rs second <"$TTY_IN" || second=""
+    printf '\n' >&2
+    if [ "$first" != "$second" ]; then
+      warn "两次不一致。"
+      continue
+    fi
+    printf '%s' "$first"
+    return 0
+  done
+}
+
+# 破坏性操作要求打出一个词。和前面五个 y/n 一样节奏地再敲一个 y，那不叫决定。
+confirm_word() {
+  local word="$1" reply
+  printf '    打出 %s 确认，输别的即取消：' "$word" >&2
+  reply="$(read_line)"
+  [ "$reply" = "$word" ]
+}
+
+pause_for_reader() {
+  [ -n "$TTY_IN" ] || return 0
+  printf '\n    回车返回。' >&2
+  read_line >/dev/null
+}
+
+# ------------------------------------------------------------------ 操作 --
+
+show_status() {
+  step "状态"
+  local installed latest
+  installed="$(running_version || true)"
+  if [ -n "$installed" ]; then
+    ok "运行中的版本 $installed"
+  else
+    warn "没有东西在跑，或者 api 容器没应答。"
+  fi
+  printf '\n'
+  "$CTL" ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+
+  printf '\n'
+  info "Docker 占用的磁盘："
+  docker system df 2>/dev/null | sed 's/^/      /'
+
+  latest="$(latest_release)"
+  if [ -n "$latest" ] && [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
+    printf '\n'
+    warn "已经有 $latest 了，这个实例还在 ${installed}。"
+  elif [ -n "$latest" ]; then
+    printf '\n'
+    ok "已经是最新发布版（${latest}）。"
+  fi
+}
+
+do_upgrade() {
+  local target="$1"
+  step "升级到 $target"
+  info "数据不受影响：命名卷不会随这次操作消失。"
+  printf '\n'
+
+  info "正在更新代码。"
+  git -C "$INSTALL_DIR" fetch --quiet origin main || warn "拉取失败，就用现有的代码。"
+  git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
+    || warn "本地有改动，保持原样不动。"
+
+  # 钉住具体的 tag，而不是跟着 `latest` 跑：运维应当说得出现在跑的是哪个构建，
+  # 也应当能把它换回去。
+  if grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
+    local tmp
+    tmp="$(mktemp)" || die "Could not create a temporary file."
+    TMP_FILES+=("$tmp")
+    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$target|" "$INSTALL_DIR/.env" >"$tmp"
+    cat "$tmp" >"$INSTALL_DIR/.env"
+    rm -f "$tmp"
+    ok "已把 DTK_IMAGE_TAG 钉在 $target"
+  fi
+
+  info "正在拉取。"
+  "$CTL" pull api worker 2>&1 | tail -3 || die "拉取失败。旧版本还在正常运行。"
+  info "正在迁移。"
+  "$CTL" run --rm migrate || die "迁移失败。旧容器还在跑，什么都没有被替换。"
+  info "正在重启。"
+  "$CTL" up -d --wait || die "新版本没能进入健康状态。看一下：$CTL logs api"
+  ok "现在是 $(running_version || echo "$target")。"
+}
+
+act_change_password() {
+  step "修改口令"
+  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "读取账号列表失败。"
+  printf '\n'
+  local who password
+  who="$(ask_value "改哪个账号？" "admin")"
+  [ -n "$who" ] || return 0
+  password="$(read_password_twice)"
+  if printf '%s' "$password" | "$CTL" exec -T api dtk user passwd "$who" --stdin; then
+    ok "$who 的口令已修改。"
+  else
+    warn "没成功。对照上面的列表核一下账号名。"
+  fi
+  unset password
+}
+
+act_add_admin() {
+  step "添加管理员"
+  dim "没有改名这个功能：账号只能新建和重置口令，不能改名。想弃用一个名字，"
+  dim "就建一个新账号，然后别再用旧的。"
+  printf '\n'
+  local who password
+  who="$(ask_value "新账号名？" "")"
+  [ -n "$who" ] || { warn "没给名字。"; return 0; }
+  password="$(read_password_twice)"
+  if printf '%s' "$password" | "$CTL" exec -T api dtk user create "$who" --role admin --stdin; then
+    ok "已创建管理员 ${who}。"
+  else
+    warn "没成功。这个名字可能已经被占用了。"
+  fi
+  unset password
+}
+
+act_list_users() {
+  step "账号列表"
+  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
+}
+
+act_backup() {
+  step "备份"
+  dim "备份文件写进备份卷，重建容器不会丢。"
+  # -o 在这里不是可选项。不给它的话 CLI 会写到工作目录旁边，而容器的根文件系统
+  # 按设计就是只读的，于是备份以 "Read-only file system" 失败，还没人说清原因。
+  # DTK_BACKUP_DIR 在容器内部解析，这样它跟着 compose 走。
+  # 单引号：DTK_BACKUP_DIR 要在容器里展开，不是在这里。
+  # shellcheck disable=SC2016
+  if "$CTL" exec -T api sh -c 'dtk backup create -o "$DTK_BACKUP_DIR"'; then
+    printf '\n'
+    # 单引号：DTK_BACKUP_DIR 要在容器里展开，不是在这里。
+    # shellcheck disable=SC2016
+    "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' || true
+  else
+    warn "备份失败，请看上面的输出。"
+  fi
+}
+
+act_restore() {
+  step "恢复"
+  # 单引号：DTK_BACKUP_DIR 要在容器里展开，不是在这里。
+  # shellcheck disable=SC2016
+  "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' \
+    || { warn "没有找到备份文件。"; return 0; }
+  printf '\n'
+  warn "恢复会替换当前数据库。现在里面的东西会没。"
+  local archive
+  archive="$(ask_value "备份文件路径（照上面列的填）？" "")"
+  [ -n "$archive" ] || return 0
+  confirm_word "restore" || { info "已取消。"; return 0; }
+  "$CTL" exec -T api dtk backup restore "$archive" --yes || warn "恢复失败，请看上面的输出。"
+}
+
+act_diagnose() {
+  step "自检"
+  "$CTL" exec -T api dtk diagnose 2>&1 | sed 's/^/    /' || warn "自检没能跑起来。"
+}
+
+act_logs() {
+  step "日志"
+  dim "每个服务最后 60 行。想实时跟踪：$CTL logs -f api"
+  printf '\n'
+  "$CTL" logs --tail 60 2>&1 | tail -80
+}
+
+act_restart() {
+  step "重启"
+  "$CTL" restart || warn "重启失败。"
+  "$CTL" ps --format "table {{.Service}}\t{{.Status}}" 2>/dev/null || true
+}
+
+act_setting() {
+  step "设置"
+  dim "运行时设置存在数据库里，改完不用重启就生效。"
+  dim "比如保留期：retention.request_log_days、retention.task_days。"
+  printf '\n'
+  local key value
+  key="$(ask_value "设置项名字（留空则列出全部）？" "")"
+  if [ -z "$key" ]; then
+    "$CTL" exec -T api dtk config list 2>&1 | sed 's/^/    /' | head -80
+    return 0
+  fi
+  "$CTL" exec -T api dtk config get "$key" 2>&1 | sed 's/^/    /' || { warn "没有这个设置项。"; return 0; }
+  printf '\n'
+  value="$(ask_value "新的值（留空则不改）？" "")"
+  [ -n "$value" ] || return 0
+  "$CTL" exec -T api dtk config set "$key" "$value" 2>&1 | sed 's/^/    /' || warn "被拒绝了。上面的校验信息说明了原因。"
+}
+
+# 磁盘。这里真正在涨的是镜像和构建缓存，不是日志：每个服务都把 json-file 钉在
+# 10m × 3，整套栈的容器日志过不了 180 MB 左右。旧的镜像 tag 和 buildx 缓存
+# 没有这个上限。
+#
+# 刻意只针对本项目。直接 `docker image prune -a` 会把同一台机器上别的栈的镜像
+# 一起端掉，那不是这个脚本该替人做的决定。
+act_free_disk() {
+  step "释放磁盘空间"
+  info "清理前："
+  docker system df 2>/dev/null | sed 's/^/      /'
+
+  printf '\n'
+  dim "容器日志已经被 compose 文件按每服务 10 MB × 3 封顶了。真正没有上限、"
+  dim "会一直涨的是旧的镜像 tag 和构建缓存。"
+  printf '\n'
+
+  # 「在用」= 被任何一个存在的容器引用，无论它在跑还是停着 —— 不是「和 .env 里的
+  # tag 对得上」。从源码构建的安装 .env 里压根没有 tag，用那个当过滤条件时，
+  # 这里会提议删掉正在服务的那个镜像。栈开着时 Docker 会拒绝，栈一停就照删不误。
+  local in_use images=""
+  in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
+  images="$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
+    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app)' \
+    | while read -r ref id; do
+        printf '%s\n' "$in_use" | grep -qxF "$ref" || printf '%s %s\n' "$ref" "$id"
+      done || true)"
+
+  if [ -n "$images" ]; then
+    info "本项目中、当前没有被任何容器使用的镜像："
+    printf '%s\n' "$images" | sed 's/^/      /'
+    printf '\n'
+    if ask_yes_no "删掉它们吗？" "y"; then
+      printf '%s\n' "$images" | awk '{print $2}' | sort -u | while read -r id; do
+        docker rmi "$id" >/dev/null 2>&1 && info "已删除 $id" || true
+      done
+    fi
+  else
+    ok "本项目没有可清理的陈旧镜像。"
+  fi
+
+  printf '\n'
+  dim "构建缓存能极大加快浏览器镜像的重建 —— 小改动后重建只要几秒，全靠它。"
+  dim "清掉就没这个便宜了。"
+  if ask_yes_no "顺便清掉构建缓存吗？" "n"; then
+    docker builder prune -af 2>&1 | tail -2 | sed 's/^/    /'
+  fi
+
+  printf '\n'
+  info "清理后："
+  docker system df 2>/dev/null | sed 's/^/      /'
+}
+
+# ------------------------------------------------------------------ 菜单 --
+
+menu_uninstall() {
+  while true; do
+    step "停止或移除"
+    info "  1  停掉服务，数据一个字节都不动"
+    info "  2  停掉并删除数据卷 —— 数据库、媒体、备份"
+    info "  3  在 2 的基础上，连 $INSTALL_DIR 一起删掉"
+    info "  b  返回"
+    case "$(ask_choice "选哪个？")" in
+      1) "$CTL" down --remove-orphans && ok "已停止。要再启动：$CTL up -d" ; return 0 ;;
+      2)
+        warn "这会删掉数据库、媒体卷，以及里面的每一份备份。"
+        confirm_word "delete" || { info "已取消。"; continue; }
+        "$CTL" down -v --remove-orphans && ok "已停止，数据卷已删除。"
+        return 0 ;;
+      3)
+        warn "这会删掉数据卷，还会删掉 ${INSTALL_DIR}，包括你的 .env。"
+        warn "反正没有那个 .env，数据本来也解不开。"
+        confirm_word "delete" || { info "已取消。"; continue; }
+        "$CTL" down -v --remove-orphans || true
+        # 不信任变量，而是加护栏：这是整个脚本唯一一处删目录树的地方，
+        # 空值或者离谱的值绝不能走到 rm 那一步。
+        case "$INSTALL_DIR" in
+          ""|"/"|"/usr"|"/etc"|"/var"|"/home"|"/root"|"/opt")
+            die "拒绝删除 ${INSTALL_DIR}。" ;;
+        esac
+        [ -f "$INSTALL_DIR/docker/compose.yml" ] || die "$INSTALL_DIR 看着不像一份安装，不删。"
+        rm -rf -- "$INSTALL_DIR" && ok "已删除 ${INSTALL_DIR}。"
+        return 0 ;;
+      b|"") return 0 ;;
+      *) warn "请选 1、2、3 或 b。" ;;
+    esac
+  done
+}
+
+menu_manage() {
+  while true; do
+    step "管理"
+    info "  1  修改口令                6  自检"
+    info "  2  添加管理员              7  日志"
+    info "  3  账号列表                8  重启服务"
+    info "  4  立即备份                9  设置"
+    info "  5  从备份恢复             10  释放磁盘空间"
+    info "  b  返回"
+    case "$(ask_choice "选哪个？")" in
+      1) act_change_password; pause_for_reader ;;
+      2) act_add_admin; pause_for_reader ;;
+      3) act_list_users; pause_for_reader ;;
+      4) act_backup; pause_for_reader ;;
+      5) act_restore; pause_for_reader ;;
+      6) act_diagnose; pause_for_reader ;;
+      7) act_logs; pause_for_reader ;;
+      8) act_restart; pause_for_reader ;;
+      9) act_setting; pause_for_reader ;;
+      10) act_free_disk; pause_for_reader ;;
+      b|"") return 0 ;;
+      *) warn "请从上面挑一个编号，或者 b。" ;;
+    esac
+  done
+}
+
+menu_existing() {
+  local installed latest upgrade_line=""
+  installed="$(running_version || true)"
+  latest="$(latest_release)"
+
+  step "这里已经有一份安装了"
+  ok "$INSTALL_DIR"
+  if [ -n "$installed" ]; then
+    ok "运行中：$installed"
+  else
+    warn "没在跑，或者 api 还没开始应答。"
+  fi
+  if [ -n "$latest" ] && [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
+    upgrade_line="$latest"
+    warn "有新版本 ${latest}。"
+  fi
+
+  while true; do
+    printf '\n'
+    info "  1  状态 —— 版本、容器、磁盘"
+    if [ -n "$upgrade_line" ]; then
+      info "  2  升级到 $upgrade_line"
+    else
+      info "  2  重装当前版本（拉取、迁移、重启）"
+    fi
+    info "  3  管理 —— 口令、备份、设置、磁盘"
+    info "  4  停止或移除这份安装"
+    info "  q  退出"
+    case "$(ask_choice "选哪个？")" in
+      1) show_status; pause_for_reader ;;
+      2)
+        if [ -n "$upgrade_line" ]; then
+          do_upgrade "$upgrade_line"
+        else
+          local tag
+          tag="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || echo latest)"
+          do_upgrade "${tag:-latest}"
+        fi
+        pause_for_reader ;;
+      3) menu_manage ;;
+      4) menu_uninstall; return 0 ;;
+      q|"") return 0 ;;
+      *) warn "请选 1、2、3、4 或 q。" ;;
+    esac
+  done
+}
+
 # ------------------------------------------------------------------ 主流程 --
 
 usage() {
@@ -881,7 +1335,11 @@ usage() {
   --yes, -y      所有问题都取默认答案。发布在 127.0.0.1:8000，开下载器，
                  不建浏览器容器。
   --check        只探测系统并打印将会发生什么，然后停下。不改任何东西。
+  --manage       直接进入已有安装的管理菜单。
   --help, -h     这段说明。
+
+不带任何选项运行时它会自己判断该做哪件事：没装过就安装，装过就打开菜单 ——
+查看状态、升级、改口令、备份、改设置、清磁盘。
 
 环境变量（每一个都能预设一个答案，配合 --yes 就是无人值守安装）：
   DTK_PROJECT            Compose 项目名。默认：dtk。
@@ -899,6 +1357,7 @@ main() {
     case "$1" in
       -y|--yes)   ASSUME_YES=1 ;;
       --check)    CHECK_ONLY=1 ;;
+      --manage)   MANAGE_ONLY=1 ;;
       -h|--help)  usage; exit 0 ;;
       *)          die "无法识别的选项：$1（试试 --help）" ;;
     esac
@@ -933,6 +1392,30 @@ main() {
   ensure_docker_running
   check_compose || die "需要 Compose v2 $COMPOSE_MIN 或更新的版本。"
 
+  # 已经装过的话，这个脚本就从"安装器"变成"管理工具"。位置是问 Docker 要的，
+  # 所以不管当初装在哪都能找到 —— 不只是这个脚本会建议的那两个目录。
+  local found=""
+  if [ -z "${DTK_INSTALL_DIR:-}" ] && [ "$ASSUME_YES" = 0 ]; then
+    found="$(find_existing_install || true)"
+  elif [ "$MANAGE_ONLY" = 1 ]; then
+    found="${DTK_INSTALL_DIR:-$(find_existing_install || true)}"
+  fi
+  if [ "$MANAGE_ONLY" = 1 ] && { [ -z "$found" ] || [ ! -x "$found/dtkctl" ]; }; then
+    die "没有找到项目 '${PROJECT}' 的安装。
+    去掉 --manage 可以新建一个；或者用 DTK_INSTALL_DIR 指定它在哪。"
+  fi
+  if [ -n "$found" ] && [ -x "$found/dtkctl" ]; then
+    INSTALL_DIR="$found"
+    CTL="$found/dtkctl"
+    if [ -z "$TTY_IN" ]; then
+      warn "${INSTALL_DIR} 已经有一份安装了。"
+      info "想管理它请在终端里跑这个脚本，或者直接用 ${CTL}。"
+      exit 0
+    fi
+    menu_existing
+    exit 0
+  fi
+
   if [ -z "$TTY_IN" ] && [ "$ASSUME_YES" = 0 ]; then
     die "没有终端可以提问。
     要么把脚本下载下来再运行：
@@ -947,6 +1430,7 @@ main() {
   write_env
   write_host_override
   write_control_script
+  CTL="${INSTALL_DIR}/dtkctl"
   bring_up
   show_result
 }

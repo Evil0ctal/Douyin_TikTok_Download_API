@@ -81,6 +81,7 @@ fi
 
 ASSUME_YES=0
 CHECK_ONLY=0
+MANAGE_ONLY=0
 
 # Anything we create outside the install directory is registered here, so an
 # interrupt does not leave it behind.
@@ -893,6 +894,470 @@ show_result() {
   printf '\n'
 }
 
+# ----------------------------------------------------------------- manage --
+#
+# Everything below runs against an install that already exists. One script for
+# both jobs on purpose: somebody who deployed with it six months ago should not
+# have to learn `docker compose` to change a password.
+#
+# Every action delegates to `dtkctl` or to the `dtk` CLI inside the api
+# container. Nothing here reimplements what the project already does, so a menu
+# entry cannot drift away from the command it stands for.
+
+CTL=""   # path to the dtkctl of the install being managed
+
+# Where an existing deployment lives, asked of Docker rather than guessed.
+# Compose records the config file it was started from, and the install
+# directory is that file's grandparent.
+find_existing_install() {
+  local config dir
+  config="$(docker compose ls --all --format json 2>/dev/null | python3 -c "
+import sys, json
+try:
+    projects = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for project in projects:
+    if project.get('Name') == '$PROJECT':
+        print(project.get('ConfigFiles', '').split(',')[0])
+        break
+" 2>/dev/null || true)"
+  [ -n "$config" ] || return 1
+  dir="$(dirname "$(dirname "$config")")"
+  [ -f "$dir/docker/compose.yml" ] || return 1
+  printf '%s' "$dir"
+}
+
+# The version the running instance reports. The only one that counts: the
+# checkout on disk can be ahead of the image that is actually serving.
+running_version() {
+  "$CTL" exec -T api dtk --version 2>/dev/null | tr -d '\r' | awk 'NF{print $NF}' | tail -1
+}
+
+latest_release() {
+  curl -fsSL --proto '=https' --tlsv1.2 -m 10 \
+    "https://api.github.com/repos/Evil0ctal/Douyin_TikTok_Download_API/releases/latest" 2>/dev/null \
+    | python3 -c "
+import sys, json
+try:
+    print(json.load(sys.stdin).get('tag_name', ''))
+except Exception:
+    pass
+" 2>/dev/null || true
+}
+
+# True when $1 is newer than $2. A pre-release suffix makes a version older
+# than the same numbers without one, so 5.1.0.dev0 is behind 5.1.0 - the same
+# rule web/src/lib/version.ts applies in the console.
+version_is_newer() {
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 1
+  python3 - "$1" "$2" <<'PY' 2>/dev/null
+import re, sys
+
+def parse(raw):
+    text = re.sub(r"^[vV]", "", raw.strip())
+    m = re.match(r"^(\d+(?:\.\d+)*)(.*)$", text)
+    if not m:
+        return ([0], "")
+    return ([int(p or 0) for p in m.group(1).split(".")],
+            re.sub(r"^[.\-_]", "", m.group(2)).strip())
+
+a, b = parse(sys.argv[1]), parse(sys.argv[2])
+width = max(len(a[0]), len(b[0]))
+left = a[0] + [0] * (width - len(a[0]))
+right = b[0] + [0] * (width - len(b[0]))
+if left != right:
+    sys.exit(0 if left > right else 1)
+if a[1] == b[1]:
+    sys.exit(1)
+if not a[1]:
+    sys.exit(0)
+if not b[1]:
+    sys.exit(1)
+sys.exit(0 if a[1] > b[1] else 1)
+PY
+}
+
+ask_choice() {
+  local prompt="$1" reply
+  printf '\n    %s ' "$prompt" >&2
+  reply="$(read_line)"
+  printf '%s' "$(printf '%s' "$reply" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+}
+
+# Read a password without echoing it, twice. The caller pipes it to a command
+# on stdin; it is never an argument, because argv is readable by every process
+# on the host.
+read_password_twice() {
+  local first second
+  while true; do
+    printf '    New password (at least 8 characters): ' >&2
+    IFS= read -rs first <"$TTY_IN" || first=""
+    printf '\n' >&2
+    if [ "${#first}" -lt 8 ]; then
+      warn "Too short."
+      continue
+    fi
+    printf '    Again: ' >&2
+    IFS= read -rs second <"$TTY_IN" || second=""
+    printf '\n' >&2
+    if [ "$first" != "$second" ]; then
+      warn "They do not match."
+      continue
+    fi
+    printf '%s' "$first"
+    return 0
+  done
+}
+
+# A destructive action asks for a word to be typed. A y/n in the same rhythm as
+# five other y/n answers is not a decision.
+confirm_word() {
+  local word="$1" reply
+  printf '    Type %s to confirm, anything else to cancel: ' "$word" >&2
+  reply="$(read_line)"
+  [ "$reply" = "$word" ]
+}
+
+pause_for_reader() {
+  [ -n "$TTY_IN" ] || return 0
+  printf '\n    Press enter to go back. ' >&2
+  read_line >/dev/null
+}
+
+# --------------------------------------------------------------- actions --
+
+show_status() {
+  step "Status"
+  local installed latest
+  installed="$(running_version || true)"
+  if [ -n "$installed" ]; then
+    ok "Running version $installed"
+  else
+    warn "Nothing is running, or the API container is not answering."
+  fi
+  printf '\n'
+  "$CTL" ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+
+  printf '\n'
+  info "Disk used by Docker:"
+  docker system df 2>/dev/null | sed 's/^/      /'
+
+  latest="$(latest_release)"
+  if [ -n "$latest" ] && [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
+    printf '\n'
+    warn "$latest is out; this instance is on $installed."
+  elif [ -n "$latest" ]; then
+    printf '\n'
+    ok "Up to date with the latest release ($latest)."
+  fi
+}
+
+do_upgrade() {
+  local target="$1"
+  step "Upgrading to $target"
+  info "Your data is untouched: the named volumes survive this."
+  printf '\n'
+
+  info "Updating the checkout."
+  git -C "$INSTALL_DIR" fetch --quiet origin main || warn "Could not fetch; using the checkout as it is."
+  git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
+    || warn "The checkout has local changes; leaving it alone."
+
+  # Pin the tag rather than following `latest`: an operator should be able to
+  # say which build is running, and to put it back.
+  if grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
+    local tmp
+    tmp="$(mktemp)" || die "Could not create a temporary file."
+    TMP_FILES+=("$tmp")
+    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$target|" "$INSTALL_DIR/.env" >"$tmp"
+    cat "$tmp" >"$INSTALL_DIR/.env"
+    rm -f "$tmp"
+    ok "Pinned DTK_IMAGE_TAG=$target"
+  fi
+
+  info "Pulling."
+  "$CTL" pull api worker 2>&1 | tail -3 || die "Pull failed. The old version is still running."
+  info "Migrating."
+  "$CTL" run --rm migrate || die "Migrations failed. The old containers are still up; nothing was swapped."
+  info "Restarting."
+  "$CTL" up -d --wait || die "The new version did not come up healthy. Try: $CTL logs api"
+  ok "Now on $(running_version || echo "$target")."
+}
+
+act_change_password() {
+  step "Change a password"
+  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
+  printf '\n'
+  local who password
+  who="$(ask_value "Which account?" "admin")"
+  [ -n "$who" ] || return 0
+  password="$(read_password_twice)"
+  if printf '%s' "$password" | "$CTL" exec -T api dtk user passwd "$who" --stdin; then
+    ok "Password changed for $who."
+  else
+    warn "That did not work. Check the account name above."
+  fi
+  unset password
+}
+
+act_add_admin() {
+  step "Add an administrator"
+  dim "There is no rename: accounts are created and their passwords reset, not"
+  dim "renamed. To retire a name, make the new account and stop using the old."
+  printf '\n'
+  local who password
+  who="$(ask_value "New account name?" "")"
+  [ -n "$who" ] || { warn "No name given."; return 0; }
+  password="$(read_password_twice)"
+  if printf '%s' "$password" | "$CTL" exec -T api dtk user create "$who" --role admin --stdin; then
+    ok "Created $who as an administrator."
+  else
+    warn "That did not work. The name may already be taken."
+  fi
+  unset password
+}
+
+act_list_users() {
+  step "Accounts"
+  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
+}
+
+act_backup() {
+  step "Back up"
+  dim "The archive lands in the backup volume, which survives a container rebuild."
+  # -o is not optional here. Without it the CLI writes beside the working
+  # directory, and the container's root filesystem is read-only by design, so
+  # the backup fails with "Read-only file system" and nothing says why.
+  # DTK_BACKUP_DIR is resolved inside the container so it follows compose.
+  # Single quotes: DTK_BACKUP_DIR expands inside the container, not here.
+  # shellcheck disable=SC2016
+  if "$CTL" exec -T api sh -c 'dtk backup create -o "$DTK_BACKUP_DIR"'; then
+    printf '\n'
+    # Single quotes: DTK_BACKUP_DIR expands inside the container, not here.
+    # shellcheck disable=SC2016
+    "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' || true
+  else
+    warn "The backup failed. Read the output above."
+  fi
+}
+
+act_restore() {
+  step "Restore"
+  # Single quotes: DTK_BACKUP_DIR expands inside the container, not here.
+  # shellcheck disable=SC2016
+  "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' \
+    || { warn "No archives found."; return 0; }
+  printf '\n'
+  warn "Restoring replaces the current database. What is in it now is gone."
+  local archive
+  archive="$(ask_value "Archive path (as listed above)?" "")"
+  [ -n "$archive" ] || return 0
+  confirm_word "restore" || { info "Cancelled."; return 0; }
+  "$CTL" exec -T api dtk backup restore "$archive" --yes || warn "The restore failed. Read the output above."
+}
+
+act_diagnose() {
+  step "Self check"
+  "$CTL" exec -T api dtk diagnose 2>&1 | sed 's/^/    /' || warn "The self check could not run."
+}
+
+act_logs() {
+  step "Logs"
+  dim "Last 60 lines of each service. Follow them live with: $CTL logs -f api"
+  printf '\n'
+  "$CTL" logs --tail 60 2>&1 | tail -80
+}
+
+act_restart() {
+  step "Restart"
+  "$CTL" restart || warn "Restart failed."
+  "$CTL" ps --format "table {{.Service}}\t{{.Status}}" 2>/dev/null || true
+}
+
+act_setting() {
+  step "Settings"
+  dim "Runtime settings live in the database and take effect without a restart."
+  dim "Retention, for example: retention.request_log_days, retention.task_days."
+  printf '\n'
+  local key value
+  key="$(ask_value "Setting name (empty to list them all)?" "")"
+  if [ -z "$key" ]; then
+    "$CTL" exec -T api dtk config list 2>&1 | sed 's/^/    /' | head -80
+    return 0
+  fi
+  "$CTL" exec -T api dtk config get "$key" 2>&1 | sed 's/^/    /' || { warn "No such setting."; return 0; }
+  printf '\n'
+  value="$(ask_value "New value (empty to leave it)?" "")"
+  [ -n "$value" ] || return 0
+  "$CTL" exec -T api dtk config set "$key" "$value" 2>&1 | sed 's/^/    /' || warn "Rejected. The validator says why above."
+}
+
+# Disk. The thing that actually grows here is images and build cache, not logs:
+# every service pins json-file to 10m x 3, so container logs cannot pass about
+# 180 MB for the whole stack. Old image tags and buildx cache have no such
+# ceiling.
+#
+# Scoped to this project on purpose. A plain `docker image prune -a` would take
+# unrelated images off a host that runs other stacks, which is not this
+# script's to decide.
+act_free_disk() {
+  step "Free disk space"
+  info "Before:"
+  docker system df 2>/dev/null | sed 's/^/      /'
+
+  printf '\n'
+  dim "Container logs are already capped at 10 MB x 3 per service by the compose"
+  dim "file. What grows without a ceiling is old image tags and build cache."
+  printf '\n'
+
+  # In use means referenced by a container that exists, running or stopped -
+  # not "matches the tag in .env". The .env of a build-from-source install has
+  # no tag at all, and with that as the filter this offered to delete the image
+  # the stack was serving from. Docker would have refused while it was up, and
+  # obliged the moment it was down.
+  local in_use images=""
+  in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
+  images="$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
+    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app)' \
+    | while read -r ref id; do
+        printf '%s\n' "$in_use" | grep -qxF "$ref" || printf '%s %s\n' "$ref" "$id"
+      done || true)"
+
+  if [ -n "$images" ]; then
+    info "Images from this project that are not the version in use:"
+    printf '%s\n' "$images" | sed 's/^/      /'
+    printf '\n'
+    if ask_yes_no "Remove them?" "y"; then
+      printf '%s\n' "$images" | awk '{print $2}' | sort -u | while read -r id; do
+        docker rmi "$id" >/dev/null 2>&1 && info "removed $id" || true
+      done
+    fi
+  else
+    ok "No stale images from this project."
+  fi
+
+  printf '\n'
+  dim "Build cache speeds up rebuilding the browser image enormously - it is why"
+  dim "a rebuild after a small change takes seconds. Clearing it costs that."
+  if ask_yes_no "Clear the build cache too?" "n"; then
+    docker builder prune -af 2>&1 | tail -2 | sed 's/^/    /'
+  fi
+
+  printf '\n'
+  info "After:"
+  docker system df 2>/dev/null | sed 's/^/      /'
+}
+
+# ----------------------------------------------------------------- menus --
+
+menu_uninstall() {
+  while true; do
+    step "Stop or remove"
+    info "  1  Stop the stack, keep every byte of data"
+    info "  2  Stop and delete the data volumes - database, media, backups"
+    info "  3  As 2, and remove $INSTALL_DIR as well"
+    info "  b  Back"
+    case "$(ask_choice "Which?")" in
+      1) "$CTL" down --remove-orphans && ok "Stopped. Start it again with: $CTL up -d" ; return 0 ;;
+      2)
+        warn "This deletes the database, the media volume and every backup in it."
+        confirm_word "delete" || { info "Cancelled."; continue; }
+        "$CTL" down -v --remove-orphans && ok "Stopped and the volumes are gone."
+        return 0 ;;
+      3)
+        warn "This deletes the volumes AND $INSTALL_DIR, including your .env."
+        warn "Without that .env the data could not be decrypted anyway."
+        confirm_word "delete" || { info "Cancelled."; continue; }
+        "$CTL" down -v --remove-orphans || true
+        # Guarded rather than trusting the variable: this is the one place the
+        # script removes a tree, and an empty or silly value must not reach rm.
+        case "$INSTALL_DIR" in
+          ""|"/"|"/usr"|"/etc"|"/var"|"/home"|"/root"|"/opt")
+            die "Refusing to remove $INSTALL_DIR." ;;
+        esac
+        [ -f "$INSTALL_DIR/docker/compose.yml" ] || die "$INSTALL_DIR does not look like an install; not removing it."
+        rm -rf -- "$INSTALL_DIR" && ok "Removed $INSTALL_DIR."
+        return 0 ;;
+      b|"") return 0 ;;
+      *) warn "Pick 1, 2, 3 or b." ;;
+    esac
+  done
+}
+
+menu_manage() {
+  while true; do
+    step "Manage"
+    info "  1  Change a password          6  Self check"
+    info "  2  Add an administrator       7  Logs"
+    info "  3  List accounts              8  Restart services"
+    info "  4  Back up now                9  Settings"
+    info "  5  Restore a backup          10  Free disk space"
+    info "  b  Back"
+    case "$(ask_choice "Which?")" in
+      1) act_change_password; pause_for_reader ;;
+      2) act_add_admin; pause_for_reader ;;
+      3) act_list_users; pause_for_reader ;;
+      4) act_backup; pause_for_reader ;;
+      5) act_restore; pause_for_reader ;;
+      6) act_diagnose; pause_for_reader ;;
+      7) act_logs; pause_for_reader ;;
+      8) act_restart; pause_for_reader ;;
+      9) act_setting; pause_for_reader ;;
+      10) act_free_disk; pause_for_reader ;;
+      b|"") return 0 ;;
+      *) warn "Pick a number from the list, or b." ;;
+    esac
+  done
+}
+
+menu_existing() {
+  local installed latest upgrade_line=""
+  installed="$(running_version || true)"
+  latest="$(latest_release)"
+
+  step "An install is already here"
+  ok "$INSTALL_DIR"
+  if [ -n "$installed" ]; then
+    ok "Running $installed"
+  else
+    warn "Not running, or the API is not answering yet."
+  fi
+  if [ -n "$latest" ] && [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
+    upgrade_line="$latest"
+    warn "$latest is available."
+  fi
+
+  while true; do
+    printf '\n'
+    info "  1  Status - versions, containers, disk"
+    if [ -n "$upgrade_line" ]; then
+      info "  2  Upgrade to $upgrade_line"
+    else
+      info "  2  Reinstall the current version (pull, migrate, restart)"
+    fi
+    info "  3  Manage - passwords, backups, settings, disk"
+    info "  4  Stop or remove this install"
+    info "  q  Quit"
+    case "$(ask_choice "Which?")" in
+      1) show_status; pause_for_reader ;;
+      2)
+        if [ -n "$upgrade_line" ]; then
+          do_upgrade "$upgrade_line"
+        else
+          local tag
+          tag="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || echo latest)"
+          do_upgrade "${tag:-latest}"
+        fi
+        pause_for_reader ;;
+      3) menu_manage ;;
+      4) menu_uninstall; return 0 ;;
+      q|"") return 0 ;;
+      *) warn "Pick 1, 2, 3, 4 or q." ;;
+    esac
+  done
+}
+
 # -------------------------------------------------------------------- main --
 
 usage() {
@@ -903,7 +1368,12 @@ Usage: bash install.sh [options]
                  127.0.0.1:8000, downloader on, browser container off.
   --check        Detect the system and print what would happen, then stop.
                  Changes nothing.
+  --manage       Go straight to the menu for an install that already exists.
   --help, -h     This text.
+
+Run it with no options and it works out which job it is doing: it installs when
+there is nothing here, and opens a menu when there is - status, upgrade,
+passwords, backups, settings, disk.
 
 Environment (each one presets an answer, so --yes becomes unattended):
   DTK_PROJECT            Compose project name. Default: dtk.
@@ -921,6 +1391,7 @@ main() {
     case "$1" in
       -y|--yes)   ASSUME_YES=1 ;;
       --check)    CHECK_ONLY=1 ;;
+      --manage)   MANAGE_ONLY=1 ;;
       -h|--help)  usage; exit 0 ;;
       *)          die "Unknown option: $1  (try --help)" ;;
     esac
@@ -955,6 +1426,32 @@ main() {
   ensure_docker_running
   check_compose || die "Compose v2 $COMPOSE_MIN or newer is required."
 
+  # An install that is already here turns this into a management tool rather
+  # than an installer. Asked of Docker, so it is found wherever it was put -
+  # not only in the two directories this script would have suggested.
+  local found=""
+  if [ -z "${DTK_INSTALL_DIR:-}" ] && [ "$ASSUME_YES" = 0 ]; then
+    found="$(find_existing_install || true)"
+  elif [ "$MANAGE_ONLY" = 1 ]; then
+    found="${DTK_INSTALL_DIR:-$(find_existing_install || true)}"
+  fi
+  if [ "$MANAGE_ONLY" = 1 ] && { [ -z "$found" ] || [ ! -x "$found/dtkctl" ]; }; then
+    die "No install found for project '$PROJECT'.
+    Run this script without --manage to create one, or set DTK_INSTALL_DIR
+    to where it lives."
+  fi
+  if [ -n "$found" ] && [ -x "$found/dtkctl" ]; then
+    INSTALL_DIR="$found"
+    CTL="$found/dtkctl"
+    if [ -z "$TTY_IN" ]; then
+      warn "An install is already at $INSTALL_DIR."
+      info "Run this from a terminal to manage it, or use $CTL directly."
+      exit 0
+    fi
+    menu_existing
+    exit 0
+  fi
+
   if [ -z "$TTY_IN" ] && [ "$ASSUME_YES" = 0 ]; then
     die "No terminal to ask questions on.
     Either download and run the script:
@@ -969,6 +1466,7 @@ main() {
   write_env
   write_host_override
   write_control_script
+  CTL="$INSTALL_DIR/dtkctl"
   bring_up
   show_result
 }

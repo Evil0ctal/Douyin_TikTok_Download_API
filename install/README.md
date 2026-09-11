@@ -17,7 +17,7 @@ script: [documents/en/02-installation.md](../documents/en/02-installation.md).
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.sh -o install.sh
-less install.sh          # it is 900 lines and every one of them is commented
+less install.sh          # 1500 lines, every one of them commented
 bash install.sh
 ```
 
@@ -36,6 +36,58 @@ Piping still works, including the questions — the script reads answers from yo
 terminal rather than from stdin, because with `curl | bash` stdin is the script
 itself. If there is no terminal at all it says so instead of quietly taking
 defaults.
+
+## Run it again to manage the instance
+
+The script works out which job it is doing. If there is already an install —
+found by asking Docker, so it does not matter where you put it — it opens a
+menu instead of installing:
+
+```
+==> An install is already here
+    ✓ /opt/dtk
+    ✓ Running 5.0.0
+    ! v5.0.1 is available.
+
+      1  Status - versions, containers, disk
+      2  Upgrade to v5.0.1
+      3  Manage - passwords, backups, settings, disk
+      4  Stop or remove this install
+      q  Quit
+```
+
+**Upgrading** compares the running version against the latest GitHub release —
+a pre-release suffix counts as older, so `5.1.0.dev0` is behind `5.1.0`. It
+pins `DTK_IMAGE_TAG` to the version rather than following `latest`, so you can
+say what is running and put it back. The data is untouched: the named volumes
+survive, and if migrations fail the old containers are still up and nothing was
+swapped.
+
+**Manage** covers the things people otherwise ask how to do:
+
+| | |
+|---|---|
+| Change a password | `dtk user passwd`, read without echo and passed on stdin |
+| Add an administrator | There is no rename — accounts are created and reset, not renamed |
+| List accounts | |
+| Back up / restore | Into the backup volume, which survives a rebuild |
+| Self check | `dtk diagnose`, the six-step one |
+| Logs, restart | |
+| Settings | Any runtime setting, including `retention.*` — no restart needed |
+| Free disk space | Stale images from **this project only**, and optionally build cache |
+
+That last one is worth a note. Container logs are already capped by the compose
+file at 10 MB × 3 per service, so the whole stack cannot pass about 180 MB of
+logs. What grows without a ceiling is old image tags and buildx cache, and the
+cleanup is scoped to this project's images — a plain `docker image prune -a`
+would take unrelated images off a host running other stacks.
+
+**Stop or remove** has three levels: stop and keep everything, stop and delete
+the volumes, or that plus the install directory. The last two require typing
+`delete`, not a y/n, and the directory removal refuses anything that does not
+look like an install.
+
+`--manage` goes straight there.
 
 ## What it asks
 
@@ -95,6 +147,7 @@ already has something in it.
             browser container off.
 --check     Detect the system and print what would happen, then stop. Changes
             nothing — good for seeing what it thinks of your machine first.
+--manage    Go straight to the menu for an install that already exists.
 --help, -h  Everything above, shorter.
 ```
 
@@ -137,7 +190,7 @@ the details.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.zh.sh -o install.zh.sh
-less install.zh.sh       # 九百行，每一行都有注释
+less install.zh.sh       # 一千五百行，每一行都有注释
 bash install.zh.sh
 ```
 
@@ -154,6 +207,53 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
 管道运行时提问依然正常 —— 脚本是从你的终端读答案的，不是从标准输入读，因为
 `curl | bash` 的时候标准输入就是脚本本身。如果压根没有终端，它会明说，而不是
 默默取默认值。
+
+## 再跑一次就是管理工具
+
+脚本自己判断该做哪件事。如果已经有一份安装 —— 位置是问 Docker 要的，所以装在哪
+都能找到 —— 它打开菜单而不是重新安装：
+
+```
+==> 这里已经有一份安装了
+    ✓ /opt/dtk
+    ✓ 运行中：5.0.0
+    ! 有新版本 v5.0.1。
+
+      1  状态 —— 版本、容器、磁盘
+      2  升级到 v5.0.1
+      3  管理 —— 口令、备份、设置、磁盘
+      4  停止或移除这份安装
+      q  退出
+```
+
+**升级**会把运行中的版本和 GitHub 最新 Release 比一下 —— 带预发布后缀的算旧，
+所以 `5.1.0.dev0` 排在 `5.1.0` 前面。它把 `DTK_IMAGE_TAG` 钉在具体版本上而不是
+跟着 `latest` 跑，这样你说得出现在跑的是哪个，也换得回去。数据不受影响：命名卷
+不会消失；万一迁移失败，旧容器还在跑，什么都没被替换。
+
+**管理**覆盖的就是大家平时会来问怎么做的那些事：
+
+| | |
+|---|---|
+| 修改口令 | 走 `dtk user passwd`，不回显读入，从标准输入喂进去 |
+| 添加管理员 | 没有改名功能 —— 账号只能新建和重置，不能改名 |
+| 账号列表 | |
+| 备份 / 恢复 | 写进备份卷，重建容器不会丢 |
+| 自检 | `dtk diagnose`，六步那个 |
+| 日志、重启 | |
+| 设置 | 任何运行时设置，包括 `retention.*`，改完不用重启 |
+| 释放磁盘空间 | **只针对本项目**的陈旧镜像，构建缓存可选 |
+
+最后一项值得说一句。容器日志已经被 compose 文件按每服务 10 MB × 3 封顶了，整套栈
+的日志过不了 180 MB 左右。真正没有上限、会一直涨的是旧的镜像 tag 和 buildx 缓存；
+而这里的清理只针对本项目的镜像 —— 直接 `docker image prune -a` 会把同一台机器上
+别的栈的镜像一起端掉。
+
+**停止或移除**分三档：停掉但什么都不删、停掉并删数据卷、以及在此基础上连安装目录
+一起删。后两档要求打出 `delete` 而不是 y/n，删目录那一步还会拒绝任何看着不像安装
+的路径。
+
+加 `--manage` 可以直接进这个菜单。
 
 ## 它会问什么
 
@@ -205,6 +305,7 @@ git 仓库，也拒绝装进一个已经有东西的目录。
 --yes, -y   全部取默认值。发布在 127.0.0.1:8000，开下载器，不建浏览器容器。
 --check     只探测系统并打印将会发生什么，然后停下。不改任何东西 ——
             适合先看看它对你这台机器的判断。
+--manage    直接进入已有安装的管理菜单。
 --help, -h  上面这些，更短的版本。
 ```
 
