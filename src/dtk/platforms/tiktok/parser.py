@@ -144,6 +144,11 @@ def author_from_web_node(
     return Author(
         platform=_PLATFORM,
         uid=node.id("id"),
+        # The id every TikTok author endpoint keys on, and a different value
+        # from `uid`. Optional rather than required: it is present in every
+        # author node measured so far, but a missing one should degrade to
+        # "look this author up" rather than fail the whole parse.
+        sec_uid=optional_str(node.get("secUid")),
         unique_id=unique_id,
         nickname=node.text("nickname"),
         signature=optional_str(node.get("signature")),
@@ -167,6 +172,9 @@ def author_from_comment_node(node: Node, *, include_raw: bool = False) -> Author
     return Author(
         platform=_PLATFORM,
         uid=node.id("uid"),
+        # snake_case here: the comment endpoints are the one place TikTok keeps
+        # the aweme spelling, `sec_uid` included.
+        sec_uid=optional_str(node.get("sec_uid")),
         unique_id=unique_id,
         nickname=node.text("nickname"),
         signature=optional_str(node.get("signature")),

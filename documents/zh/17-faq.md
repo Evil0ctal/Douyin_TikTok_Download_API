@@ -530,8 +530,8 @@ Ethereum (ERC20)、BNB Smart Chain (BEP20) 和 Bitcoin 的加密货币地址列�
 | --- | --- |
 | **`aweme_id`** | 抖音的作品 ID，19 位数字。全程按字符串处理，因为它超出了 JavaScript 的安全整数范围，用整数会在界面上悄悄丢精度。抖音的评论回复接口把同一个值拼作 `item_id`；评论列表接口仍然叫它 `aweme_id`。 |
 | **`content_id`** | 本项目对作品 ID 的中立命名，两个平台通用。 |
-| **`sec_user_id`** | 抖音稳定的作者主键，也是归一化模型里作者的 `uid`。抖音自己那个会变的 `uid` 被刻意弃用，用户名同样不作为键。 |
-| **`secUid`** | TikTok 的不透明作者键，它自己的接口会用它（有时与用户名二选一）。归一化模型把 TikTok 的数字 id 存为作者的 `uid`，并把 `secUid` 保留在 `raw` 里；从 URL 出发的主页查询用的是 `@handle`（`uniqueId`），因为那是 TikTok 用户详情接口无需先抓一次就能接受的输入。 |
+| **`sec_user_id`** | 抖音稳定的作者主键，在归一化模型里同时存进作者的 `uid` 和 `sec_uid`。这个重复是故意的：读 `sec_uid` 在两个平台上都成立，不必先判断自己面对的是哪一个。抖音自己那个会变的 `uid` 被刻意弃用，用户名同样不作为键。 |
+| **`secUid`** | TikTok 的不透明作者键，也是 TikTok 全部作者接口认的那个 id。归一化模型把 TikTok 的数字 id 存为作者的 `uid`，把这个值存为 `sec_uid` —— 在 TikTok 上两者不同，在抖音上两者同值，所以**打算拿回去再请求的时候读 `sec_uid`**。从 URL 出发只能拿到 `@handle`，`author_profile` 直接收；作品列表、点赞列表和关注关系则会先把 handle 解析成 `secUid`，代价是一次可缓存的查询。 |
 | **`unique_id`** | 就是 `@` 用户名。从不作为键使用，因为用户可以改。 |
 | **内容类型（content kind）** | `video`、`image_album` 或 `live`。只有详情响应才能定下来是哪一种——URL 的形状只是提示，永远不作数。 |
 

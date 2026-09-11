@@ -581,6 +581,96 @@ class TaskWorker:
         extra = {k: v for k, v in run.params.items() if k != "url"}
         return endpoint, {**extra, **resolved}
 
+    async def _resolve_author_handle(
+        self, endpoint: str, params: dict[str, Any], run: TaskRun
+    ) -> dict[str, Any]:
+        """Turn an @handle into the id the target endpoint actually keys on.
+
+        A TikTok profile link is ``/@handle`` and carries nothing else, so every
+        URL-shaped author lookup arrives holding a handle. Only
+        ``author_profile`` accepts one; ``author_posts``, ``author_likes``,
+        ``followers`` and ``following`` all key on ``secUid`` and refuse a
+        handle by name rather than sending it somewhere it silently cannot work
+        (TikTok answers a handle in the ``secUid`` slot with an empty user and a
+        200, which classifies as success).
+
+        Refusing was correct and also a dead end: the caller was told to look
+        the author up first, and there was no way to do that and come back with
+        an id, because the profile they would get did not carry one either. With
+        ``Author.sec_uid`` carried through, the lookup is now a real answer, so
+        do it for them instead of handing back homework.
+
+        Douyin never reaches here - its profile links contain the
+        ``sec_user_id`` literally, so the extracted identifier is already the
+        right one.
+
+        The lookup costs one upstream call and one identity, behind
+        ``author_profile``'s own cache, so a second page of the same author is
+        free. Failure is left to `registry.resolve` below: if the profile cannot
+        be read, the caller gets the same InvalidParam naming the handle that it
+        got before, rather than a second error about a call they did not make.
+        """
+        value = params.get(registry.AUTHOR_ID) or params.get("sec_user_id")
+        if not isinstance(value, str) or not value or registry.looks_like_sec_uid(value):
+            return params
+
+        definition = registry.definition_for(endpoint)
+        if registry.UNIQUE_ID in definition.accepts:
+            # The endpoint takes the handle as it stands; `_route_handle` will
+            # put it in the right slot and no lookup is needed.
+            return params
+
+        profile_endpoint = registry.endpoint_name(
+            definition.platform, registry.Capability.AUTHOR_PROFILE
+        )
+        handle = value.lstrip("@")
+        lookup = registry.resolve(profile_endpoint, {registry.UNIQUE_ID: handle}, self._config())
+
+        found: list[Any] = []
+
+        def parse(payload: dict[str, Any]) -> Any:
+            model = lookup.parse(payload)
+            found.append(model)
+            return model
+
+        try:
+            async with self._session_factory() as session:
+                await self._fetch.fetch(
+                    session,
+                    lookup.platform,
+                    lookup.endpoint,
+                    lookup.params,
+                    parse=parse,
+                    cache_ttl=lookup.cache_ttl,
+                    ctx=FetchContext(
+                        task_id=run.id,
+                        api_key_id=run.api_key_id,
+                        # This call exists to find an id. Nothing about the
+                        # caller's own request - raw payloads, a pinned
+                        # identity, explain - belongs on it, and a pinned
+                        # identity especially: the id is the same whoever asks.
+                        is_demo=run.is_demo,
+                    ),
+                )
+        except DtkError as exc:
+            log.info(
+                "worker.author_handle.lookup_failed",
+                endpoint=endpoint,
+                handle=handle,
+                error=f"{type(exc).__name__}",
+            )
+            return params
+
+        sec_uid = getattr(found[0], "sec_uid", None) if found else None
+        if not isinstance(sec_uid, str) or not sec_uid:
+            return params
+
+        log.info("worker.author_handle.resolved", endpoint=endpoint, handle=handle)
+        resolved = dict(params)
+        resolved.pop("sec_user_id", None)
+        resolved[registry.AUTHOR_ID] = sec_uid
+        return resolved
+
     async def _execute(
         self, run: TaskRun, diagnostics: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -592,6 +682,7 @@ class TaskWorker:
             return await self._operations.run(run.endpoint, dict(run.params))
 
         endpoint, params = await self._resolve_endpoint(run)
+        params = await self._resolve_author_handle(endpoint, params, run)
         call = registry.resolve(endpoint, params, config)
         parsed: list[Any] = []
 

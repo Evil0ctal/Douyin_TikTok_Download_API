@@ -291,3 +291,36 @@ def test_fixture_readme_states_they_are_hand_built() -> None:
     readme = (FIXTURES / "README.md").read_text(encoding="utf-8")
     assert "hand-built" in readme.lower()
     assert "16-salvage-and-debug.md" in readme
+
+
+def test_tiktok_carries_the_id_its_own_author_endpoints_need() -> None:
+    """`sec_uid` is not a duplicate of `uid` on TikTok, and that is the point.
+
+    Every TikTok author endpoint keys on `secUid`; `uid` carries the numeric
+    `id`, which none of them accept. Before this field existed the API returned
+    nothing that could be fed back into itself - parsing a video gave a numeric
+    id and an @handle, and `author_posts` refuses both.
+    """
+    adapter = get_adapter("tiktok")
+    author = adapter.parse_content(load("tiktok", "video_normal"), fetched_at=FETCHED_AT).author
+
+    assert author.sec_uid, "TikTok author lost its secUid on the way through the parser"
+    assert author.sec_uid != author.uid, (
+        "sec_uid and uid are the same on TikTok, which means one of them is wrong: "
+        "uid is the numeric id and sec_uid is what the author endpoints key on"
+    )
+    assert author.sec_uid.startswith("MS4wLjAB"), (
+        f"sec_uid does not look like a stable author id: {author.sec_uid!r}"
+    )
+
+
+def test_douyin_reports_the_same_id_in_both_fields() -> None:
+    """On Douyin the duplication is deliberate.
+
+    A caller reading `sec_uid` should not have to know which platform it is
+    looking at to know which field holds an id the author endpoints accept.
+    """
+    adapter = get_adapter("douyin")
+    author = adapter.parse_content(load("douyin", "video_normal"), fetched_at=FETCHED_AT).author
+
+    assert author.sec_uid == author.uid != ""

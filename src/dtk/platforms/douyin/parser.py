@@ -159,6 +159,10 @@ def author_from_node(node: Node, *, include_raw: bool = False) -> Author:
     return Author(
         platform=_PLATFORM,
         uid=sec_uid,
+        # Same value as `uid` here, deliberately. See `Author.sec_uid`: a caller
+        # reading this field should not have to know which platform it is
+        # looking at to know which field holds a usable id.
+        sec_uid=sec_uid,
         unique_id=optional_str(node.get("unique_id")) or optional_id(node.get("short_id")),
         nickname=node.text("nickname"),
         signature=optional_str(node.get("signature")),

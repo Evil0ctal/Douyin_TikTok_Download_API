@@ -14,6 +14,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -1743,3 +1744,77 @@ async def test_turning_the_setting_off_stops_delivery(monkeypatch: Any) -> None:
 
     await worker._run_one(run.id)
     assert run.id in store.completed
+
+
+# --------------------------------------------------------------------------
+# @handle -> secUid
+# --------------------------------------------------------------------------
+
+
+#: The captured profile response. Real shape rather than a hand-made dict: the
+#: point of the test is that the parser finds `secUid` where TikTok puts it.
+_PROFILE_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "tiktok" / "user_profile.json"
+
+
+def _tiktok_profile_payload() -> dict[str, Any]:
+    return json.loads(_PROFILE_FIXTURE.read_text(encoding="utf-8"))
+
+
+async def test_a_tiktok_handle_is_resolved_before_the_call_that_cannot_use_it() -> None:
+    """`?url=https://www.tiktok.com/@handle` has to reach the post list.
+
+    A TikTok profile link carries only the handle, and `author_posts` keys on
+    `secUid`. It used to refuse and tell the caller to look the author up
+    first - advice that led nowhere, because the profile it would have returned
+    carried no usable id either. Now the worker does the lookup itself.
+    """
+    fetch = FakeFetch(parse_payload=_tiktok_profile_payload())
+    worker, _ = make_worker(FakeStore(), fetch)
+    run = a_run("tiktok.author_posts", sec_user_id="owlcitymusic")
+
+    resolved = await worker._resolve_author_handle("tiktok.author_posts", dict(run.params), run)
+
+    assert len(fetch.calls) == 1, "the profile lookup did not happen"
+    assert fetch.calls[0].endpoint == "tiktok.author_profile"
+    assert fetch.calls[0].params == {"unique_id": "owlcitymusic"}
+    assert resolved["author_id"].startswith("MS4wLjAB")
+    assert "sec_user_id" not in resolved
+
+
+async def test_an_id_that_is_already_a_sec_uid_costs_no_lookup() -> None:
+    """The common case must not pay for a request it does not need."""
+    fetch = FakeFetch()
+    worker, _ = make_worker(FakeStore(), fetch)
+    run = a_run("tiktok.author_posts", sec_user_id="MS4wLjABAAAAsomething")
+
+    resolved = await worker._resolve_author_handle("tiktok.author_posts", dict(run.params), run)
+
+    assert fetch.calls == []
+    assert resolved == dict(run.params)
+
+
+async def test_an_endpoint_that_accepts_a_handle_is_left_alone() -> None:
+    """`author_profile` takes the handle as it stands; looking it up first
+    would be one upstream call to save making the same one."""
+    fetch = FakeFetch()
+    worker, _ = make_worker(FakeStore(), fetch)
+    run = a_run("tiktok.author_profile", sec_user_id="owlcitymusic")
+
+    resolved = await worker._resolve_author_handle("tiktok.author_profile", dict(run.params), run)
+
+    assert fetch.calls == []
+    assert resolved == dict(run.params)
+
+
+async def test_a_failed_lookup_leaves_the_original_refusal_in_place() -> None:
+    """When the profile cannot be read the caller should get the error about
+    the parameter they passed, not a second one about a call they never made."""
+    fetch = FakeFetch(error=UpstreamChanged("user object moved"))
+    worker, _ = make_worker(FakeStore(), fetch)
+    run = a_run("tiktok.author_posts", sec_user_id="owlcitymusic")
+
+    resolved = await worker._resolve_author_handle("tiktok.author_posts", dict(run.params), run)
+
+    assert resolved == dict(run.params)
+    with pytest.raises(InvalidParam):
+        registry.resolve("tiktok.author_posts", resolved, Config.defaults())
