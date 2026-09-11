@@ -974,3 +974,30 @@ def test_no_documentation_link_points_at_a_missing_file() -> None:
         if not (page.parent / target).resolve().exists()
     ]
     assert not broken, "documentation links that go nowhere:\n  " + "\n  ".join(broken)
+
+
+def test_the_download_platform_menu_is_not_disabled_where_it_is_needed() -> None:
+    """A control must be enabled exactly where its value is read.
+
+    `resolveTarget` in the downloads page reads the platform menu for a bare
+    author id, because Douyin's `sec_user_id` and TikTok's `secUid` are the same
+    `MS4wLjABAAAA…` shape and the string says nothing about which platform it
+    came from. The menu was nonetheless disabled for the whole of author mode,
+    so it sat at its default and every author download went to Douyin -
+    TikTok was not reachable, and the control that would have changed it could
+    not be opened.
+
+    Pinned by shape rather than by reading the condition: what must not come
+    back is disabling the menu on the mode alone.
+    """
+    page = (WEB / "pages" / "Downloads.tsx").read_text(encoding="utf-8")
+
+    assert "usesPlatformMenu" in page, (
+        "the downloads page no longer decides the platform menu's state from the "
+        "input; if that moved, move this check with it"
+    )
+    assert "disabled={active.wants === 'author'" not in page, (
+        "the platform menu is disabled for all of author mode again. A bare author "
+        "id is ambiguous between the two platforms, so the menu is the only thing "
+        "that can say which one - disabling it makes TikTok unreachable."
+    )
