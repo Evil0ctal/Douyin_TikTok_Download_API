@@ -21,6 +21,8 @@ Open source, free, and it runs on your own machine — no signup, no quota, nobo
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/Evil0ctal/Douyin_TikTok_Download_API/codeql.yml?branch=main&style=flat-square&label=CodeQL)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/actions/workflows/codeql.yml)
 [![Last commit](https://img.shields.io/github/last-commit/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&label=last%20commit)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/commits/main)
 <br>
+[![Website](https://img.shields.io/badge/docs-douyin.wtf-2f6feb?style=flat-square&logo=readthedocs&logoColor=white)](https://douyin.wtf)
+[![Live demo](https://img.shields.io/badge/demo-demo.douyin.wtf-22c55e?style=flat-square&logo=rocket&logoColor=white)](https://demo.douyin.wtf)
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white)](./pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-ready-8A63D2?style=flat-square)](./documents/en/12-mcp.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api)
@@ -86,7 +88,7 @@ machine-translated. [中文界面](./screenshots/console-zh.gif)
 
 ### Try it without installing anything
 
-**<https://douyin.wtf>** is a live instance, open to everyone. Sign in — the login page
+**<https://demo.douyin.wtf>** is a live instance, open to everyone. Sign in — the login page
 fills the demo account in for you — and use the console: the playground, the scheduler,
 the library, the API reference. The same account comes with an API key you can call the
 scraping endpoints with, shown in plaintext on the API keys page.
@@ -429,8 +431,10 @@ upgrading, which is the only rollback that always works.
 
 ## 📖 Documentation
 
-The full documentation lives in [`documents/`](./documents/README.md) — 17 pages, in
-English and Chinese.
+**Read it online at [douyin.wtf](https://douyin.wtf)** — the same 17 pages, rendered,
+searchable and in both languages. The markdown source is in
+[`documents/`](./documents/README.md) and is what the site is built from, so the two
+never disagree.
 
 **New here:**
 [Quick start](./documents/en/01-quickstart.md) ·

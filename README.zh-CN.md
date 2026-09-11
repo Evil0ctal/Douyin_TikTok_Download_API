@@ -21,6 +21,8 @@
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/Evil0ctal/Douyin_TikTok_Download_API/codeql.yml?branch=main&style=flat-square&label=CodeQL)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/actions/workflows/codeql.yml)
 [![Last commit](https://img.shields.io/github/last-commit/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&label=last%20commit)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/commits/main)
 <br>
+[![Website](https://img.shields.io/badge/docs-douyin.wtf-2f6feb?style=flat-square&logo=readthedocs&logoColor=white)](https://douyin.wtf)
+[![Live demo](https://img.shields.io/badge/demo-demo.douyin.wtf-22c55e?style=flat-square&logo=rocket&logoColor=white)](https://demo.douyin.wtf)
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white)](./pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-ready-8A63D2?style=flat-square)](./documents/zh/12-mcp.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api)
@@ -81,7 +83,7 @@
 
 ### 不用装任何东西就能试
 
-**<https://douyin.wtf>** 是一个对所有人开放的在线实例。登录进去即可 —— 登录页会替你
+**<https://demo.douyin.wtf>** 是一个对所有人开放的在线实例。登录进去即可 —— 登录页会替你
 填好演示账号 —— 然后随便用：调试台、调度器、资料库、接口文档。同一个账号还带一把
 API Key，可以直接调爬虫接口，在 API Key 页面上是明文显示的。
 
@@ -392,7 +394,9 @@ docker compose -p dtk -f docker/compose.yml up -d
 
 ## 📖 文档
 
-完整文档在 [`documents/`](./documents/README.zh-CN.md)，中英双语，共 17 篇。
+**在线阅读：[douyin.wtf](https://douyin.wtf)** —— 同样的 17 篇，渲染好、可搜索、中英双语。
+markdown 源文件在 [`documents/`](./documents/README.zh-CN.md)，站点就是拿它构建的，
+所以两边永远不会对不上。
 
 **新手从这里开始：**
 [快速开始](./documents/zh/01-quickstart.md) ·
