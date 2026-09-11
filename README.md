@@ -5,9 +5,9 @@
 
 <div align="center">
 
-[English](./README.en.md) | [简体中文](./README.md)
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
-🚀 自部署的[抖音](https://www.douyin.com) / [TikTok](https://www.tiktok.com)数据接口服务。一条 `docker compose up`，自动维护身份池，对外提供 REST API、MCP 与 Web 控制台。
+🚀 A self-hosted data API for [Douyin](https://www.douyin.com) and [TikTok](https://www.tiktok.com). One `docker compose up`, an identity pool that maintains itself, and a REST API, MCP server and web console on top.
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
@@ -20,114 +20,160 @@
 [![Last commit](https://img.shields.io/github/last-commit/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&label=last%20commit)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/commits/main)
 <br>
 [![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white)](./pyproject.toml)
-[![MCP](https://img.shields.io/badge/MCP-ready-8A63D2?style=flat-square)](./documents/zh/12-mcp.md)
+[![MCP](https://img.shields.io/badge/MCP-ready-8A63D2?style=flat-square)](./documents/en/12-mcp.md)
 [![Docker Pulls](https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api)
 [![Docker Image Size](https://img.shields.io/docker/image-size/evil0ctal/douyin_tiktok_download_api/latest?style=flat-square&logo=docker&color=2496ed)](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags)
 
 </div>
 
-## 💖 赞助商
+## 💖 Sponsors
 
-这些赞助商已付费放置在这里，**Douyin_TikTok_Download_API** 项目将永远免费且开源。如果您希望成为该项目的赞助商，请查看我的 [GitHub 赞助商页面](https://github.com/sponsors/evil0ctal)。
+These sponsors paid to be here, and **Douyin_TikTok_Download_API** stays free and open because of it. To sponsor the project, see my [GitHub Sponsors page](https://github.com/sponsors/evil0ctal).
 
 <div align="center">
     <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_logo" target="_blank" rel="sponsored noopener">
-        <img src="https://tikhub.io/logo.jpeg" width="100" alt="TikHub.io - 全球社交媒体数据与 API 市场"/>
+        <img src="https://tikhub.io/logo.jpeg" width="100" alt="TikHub.io - Global Social Data & API Marketplace">
     </a>
     <h2>
         <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_name" target="_blank" rel="sponsored noopener"><b>TikHub.io</b></a>
     </h2>
-    <p>你的一站式社交媒体数据与 API 市场</p>
+    <p>Your Ultimate Social Media Data &amp; API Marketplace</p>
     <p>
-        为抖音、小红书、TikTok、Instagram、YouTube、Twitter 等平台提供专业数据方案。<br>
-        实时数据 · 灵活接口 · 无缝集成 · 有竞争力的价格与折扣
+        Professional data solutions for Douyin, Xiaohongshu, TikTok, Instagram, YouTube,
+        Twitter, and more.<br>
+        Real-time Data | Flexible APIs | Seamless Integration | Competitive Pricing with Discounts
     </p>
     <p>
-        在 TikHub.io 市场买卖定制 API、服务与社交媒体解决方案，<br>
-        加入一个由开发者、企业与内容创作者组成的活跃生态。
+        Buy and sell custom APIs, services, and social media solutions on the<br>
+        TikHub.io Marketplace, alongside developers, businesses and content creators.
     </p>
-    <p><em>多家全球领先的红人营销与社交媒体情报平台正在使用</em></p>
+    <p><em>Trusted by leading global influencer marketing and social media intelligence platforms</em></p>
     <p>
-        <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_cta" target="_blank" rel="sponsored noopener"><b>→ 前往 TikHub.io</b></a>
+        <a href="https://www.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_cta" target="_blank" rel="sponsored noopener"><b>→ Visit TikHub.io</b></a>
         &nbsp;·&nbsp;
-        <a href="https://api.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_docs" target="_blank" rel="sponsored noopener">API 文档</a>
+        <a href="https://api.tikhub.io/?utm_source=douyin_tiktok_download_api&amp;utm_medium=referral&amp;utm_campaign=sponsor&amp;utm_content=readme_docs" target="_blank" rel="sponsored noopener">API docs</a>
     </p>
 </div>
 
-## 🎬 长这样
+## 🧩 REER — a forum for reverse engineering
 
 <div align="center">
-    <img src="./screenshots/console-zh.gif" width="900" alt="DTK 控制台：总览、身份池、调度器、调试台、资料库、下载、接口文档与 MCP"/>
+    <a href="https://reer.dev" target="_blank" rel="noopener">
+        <img src="./logo/reer.png" width="88" alt="REER">
+    </a>
+    <h3><a href="https://reer.dev" target="_blank" rel="noopener"><b>reer.dev</b></a></h3>
 </div>
 
-一次真实的调用：粘链接、发请求、拿到归一化后的结果，途中经过的身份池、调度器和接口文档都在同一个控制台里。
-界面跟着浏览器语言走，中英文都是手写的，不是机翻。[English UI](./screenshots/console-en.gif)
+Somewhere to put what you work out. This project exists because people wrote down
+how a signature was built; the forum is for the next round of that — signatures,
+protocols, packers, anything taken apart.
 
-## 🚀 v4 与 v5
+Free, no advertising, and close to no rules beyond the obvious. Bilingual, English
+and Chinese. Register and post; nothing is gated.
 
-v5 是一次重写，从空分支起步，没有继承 v4 的任何代码。
+## 🎬 What it looks like
 
-v4 最大的问题从来不是功能少，而是**接口会悄悄死掉，而你不知道**。Cookie 过期、签名算法变更、
-某个接口被风控，通常都要等到有人来提 issue 才发现。v5 把"看得见"和"能自愈"排在功能前面。
+<div align="center">
+    <img src="./screenshots/console-en.gif" width="900" alt="The DTK console: overview, identities, scheduler, playground, library, downloads, API docs and MCP"/>
+</div>
+
+One real call: paste a link, send it, get the normalised result back. The identity pool, the
+scheduler and the API reference it passed through on the way are all in the same console.
+The interface follows the browser's language, and both are written by hand rather than
+machine-translated. [中文界面](./screenshots/console-zh.gif)
+
+### Try it without installing anything
+
+**<https://douyin.wtf>** is a live instance, open to everyone. Sign in — the login page
+fills the demo account in for you — and use the console: the playground, the scheduler,
+the library, the API reference. The same account comes with an API key you can call the
+scraping endpoints with, shown in plaintext on the API keys page.
+
+It is read-only. Demo requests are not written to the request log or the archive, so the
+database of a public instance cannot be filled by strangers, and switching demo mode off
+ends every demo session and kills the key immediately.
+
+**Rate limit: 30 requests per 10 seconds.** Go over it and you are cooled down for 10
+seconds, during which every request is refused. It is a shared instance, and the identity
+pool behind it is the ceiling for everybody using it at once.
+
+What the demo is for is deciding whether to run your own. It is not a service to build
+on — it can go down, be reset, or be switched off, and none of that will be announced.
+
+## 🚀 v4 vs v5
+
+v5 is a rewrite. It started from an empty branch and inherits no v4 code.
+
+v4's real problem was never a shortage of features — it was that **the API would die
+quietly and nobody would know**. A cookie expires, a signature algorithm changes, an
+endpoint gets rate-limited, and you find out when someone files an issue. v5 puts
+"you can see it" and "it heals itself" ahead of features.
 
 | | v4 | v5 |
 |---|---|---|
-| 身份从哪来 | 从浏览器里抠 Cookie，粘进 `config.yaml` | 无头浏览器自动铸造游客身份，可用数不够时自己补 |
-| 请求怎么发 | 有请求就发出去 | 健康度分层、量化 LRU 轮换、每身份独占锁、每（身份，接口）令牌桶、接口级熔断 |
-| 出了问题 | 等别人报错 | 每次请求一条结构化记录，身份和接口都有实时健康度，控制台上看得见 |
-| 调用方式 | 同步，发出去等着 | 默认异步（`202` + `task_id`），加 `?wait=` 就退回同步 |
-| 数据留存 | 解析完即弃 | PostgreSQL + Redis；解析过的内容自动归档，平台删了这里还在 |
-| 访问控制 | 没有，谁都能调 | API Key + 作用域 + 角色，控制台里管 |
-| 界面 | PyWebIO 单页 | React 控制台：身份池、调度器、资料库、下载、日志、诊断 |
-| 接入方式 | REST | REST + MCP + CLI，共用同一个 service 层 |
-| 签名 | X-Bogus、A_Bogus | a_bogus、X-Bogus、X-Gnarly、X-Dynosaur，纯 Python 实现，另有浏览器兜底 |
-| 部署 | `pip install -r requirements.txt` + `python start.py` | `docker compose up`，三个镜像 |
-| 平台 | 抖音、TikTok、哔哩哔哩 | 抖音、TikTok |
+| Where identities come from | You copy cookies out of a browser into `config.yaml` | A headless browser mints guest identities, and the pool tops itself up when usable ones run low |
+| How requests go out | Straight out, as they arrive | Health tiers, quantised LRU rotation, one in-flight lock per identity, a token bucket per (identity, endpoint), a circuit breaker per endpoint |
+| When something breaks | You wait for a bug report | One structured record per request, live health for every identity and endpoint, visible in the console |
+| Call style | Synchronous — send and wait | Asynchronous by default (`202` + `task_id`); add `?wait=` to go back to synchronous |
+| What is kept | Nothing; parsed and discarded | PostgreSQL + Redis. Everything parsed is archived, so a post deleted upstream is still here |
+| Access control | None; anyone can call it | API keys with scopes and roles, managed in the console |
+| Interface | A single PyWebIO page | A React console: identity pool, scheduler, library, downloads, logs, diagnostics |
+| Ways in | REST | REST, MCP and a CLI, all over the same service layer |
+| Signing | X-Bogus, A_Bogus | a_bogus, X-Bogus, X-Gnarly, X-Dynosaur in pure Python, with a browser fallback |
+| Deployment | `pip install -r requirements.txt` + `python start.py` | `docker compose up`, three images |
+| Platforms | Douyin, TikTok, Bilibili | Douyin, TikTok |
 
-哔哩哔哩是唯一退步的一项：v5 暂时没有。它和抖音 / TikTok 不共用签名和身份体系，
-重写时先放下了，之后再说。
+Bilibili is the one thing that went backwards: v5 does not have it yet. It shares
+neither the signing nor the identity machinery with Douyin and TikTok, so the rewrite
+left it out for now.
 
-### 还在用 v4？
+### Still on v4?
 
-v4 的代码保留在 [`v4` 分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/v4)，
-镜像也还在，按版本号拉就行：
+v4's code stays on the [`v4` branch](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/v4),
+and the image is still there — pull it by version:
 
 ```bash
 docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
 ```
 
-`main` 现在是 v5，`latest` 跟着 `main` 走。想留在 v4 上就固定版本号 tag，别用 `latest`。
+`main` is v5 now, and `latest` follows `main`. To stay on v4, pin the version tag
+rather than using `latest`.
 
-### 一起写点什么
+### Building this together
 
-有几个开源项目的交流群，想一起做这个项目、或者只是想聊聊技术的，
-都可以加微信 **`Evil0ctal`**，备注 **github 交流**，我拉你进群。
+There are a few group chats around my open-source projects. If you want to work
+on this one, or just talk shop, add me on WeChat at **`Evil0ctal`** with the note
+**github 交流** and I will add you.
 
-群里可以互相交流学习，**不允许发广告以及违法的东西**，纯粹交朋友和技术交流。
+The groups are for learning from each other. **No advertising and nothing
+illegal** — they are for making friends and talking about the work.
 
 
-## 📦 它能取什么
+## 📦 What it can fetch
 
-| 能力 | 抖音 | TikTok |
+| Capability | Douyin | TikTok |
 |---|:---:|:---:|
-| 单条作品详情（视频 / 图集） | ✅ | ✅ |
-| 作者资料 | ✅ | ✅ |
-| 作者作品列表 | ✅ | ✅ |
-| 作者喜欢列表 | ✅ | ✅ |
-| 合集 / 播放列表 | ✅ | ✅ |
-| 评论 | ✅ | ✅ |
-| 评论回复 | ✅ | ✅ |
-| 粉丝列表 | ❌ | ✅ |
-| 关注列表 | ❌ | ✅ |
+| One post (video or image album) | ✅ | ✅ |
+| Author profile | ✅ | ✅ |
+| An author's posts | ✅ | ✅ |
+| An author's liked posts | ✅ | ✅ |
+| Mixes / playlists | ✅ | ✅ |
+| Comments | ✅ | ✅ |
+| Comment replies | ✅ | ✅ |
+| Followers | ❌ | ✅ |
+| Following | ❌ | ✅ |
 
-抖音的粉丝和关注列表只对已登录会话开放，游客身份拿不到，所以这两个接口干脆没注册：
-注册一个永远返回空页的接口没意义。导入你自己的登录 Cookie 之后，其余接口能看到的内容也会更多。
+Douyin serves its follower and following lists only to a signed-in session, so those
+two endpoints are not registered at all: an endpoint that always returns an empty page
+is worth nothing. Importing your own logged-in cookies widens what the rest can see, too.
 
-媒体下载、内容归档、计数快照、合集、定时监控都是内置的，不需要额外服务。
+Media downloads, the content archive, counter snapshots, collections and a watchlist
+are built in; none of them needs another service.
 
-## 🔗 它认得什么链接
+## 🔗 What links it accepts
 
-粘贴什么都行——分享短链、作品页地址，或者 App 复制出来的一整段带文案的口令：
+Paste whatever you have — a short link, a post URL, or the whole caption a platform app
+puts on your clipboard:
 
 ```
 https://v.douyin.com/L4NpDJ6/
@@ -135,114 +181,120 @@ https://www.douyin.com/video/7126745726494821640
 https://www.douyin.com/jingxuan?modal_id=7660875690212492466
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 https://www.tiktok.com/t/ZTR9nkkmL/
-2.84 nqe:/ 骑白马的也可以是公主%%百万转场变身 https://v.douyin.com/L4FJNR3/ 复制此链接，打开Dou音搜索
+2.84 nqe:/ <caption> https://v.douyin.com/L4FJNR3/ <sentence telling you to open the app>
 ```
 
-短链会自动跟随展开，文案里的链接会被提取出来。作品 ID 还会先按平台自己的编码规则校验一遍，
-一个不可能存在的 ID 在这里就被拒掉，不会浪费一次上游请求。
+Short links are followed and a link buried in a caption is extracted. A post id is also
+checked against the platform's own encoding first, so an id that cannot exist is refused
+here rather than costing an upstream request.
 
-## ⚗️ 技术栈
+## ⚗️ Built with
 
 | | |
 |---|---|
-| 服务端 | Python 3.12 · FastAPI · SQLAlchemy 2.0（async）· Alembic · Typer · structlog |
-| 传输 | wreq（浏览器 TLS 指纹模拟）· httpx |
-| 数据 | PostgreSQL + TimescaleDB · Redis |
-| 控制台 | React 19 · TypeScript · Vite · TanStack Query · wouter · i18next |
-| 签名 | a_bogus / X-Bogus / X-Gnarly / X-Dynosaur，纯 Python 实现 |
-| 身份铸造 | CloakBrowser 无头浏览器，单独一个容器，通过 HTTP 调用 |
-| 下载器 | Go 1.23，只用标准库，静态编译进 scratch 镜像 |
-| 鉴权 | argon2id 口令哈希 · API Key + 作用域 |
-| 对外协议 | REST（OpenAPI）· MCP（streamable-http）· CLI |
-| 工程 | uv · ruff · mypy · pytest · Docker Compose |
+| Service | Python 3.12 · FastAPI · SQLAlchemy 2.0 (async) · Alembic · Typer · structlog |
+| Transport | wreq (browser TLS fingerprint emulation) · httpx |
+| Data | PostgreSQL + TimescaleDB · Redis |
+| Console | React 19 · TypeScript · Vite · TanStack Query · wouter · i18next |
+| Signing | a_bogus, X-Bogus, X-Gnarly and X-Dynosaur in pure Python |
+| Identity minting | CloakBrowser, headless, in a container of its own, called over HTTP |
+| Downloader | Go 1.23, standard library only, statically linked into a scratch image |
+| Auth | argon2id password hashing · API keys with scopes |
+| Protocols | REST (OpenAPI) · MCP (streamable-http) · CLI |
+| Tooling | uv · ruff · mypy · pytest · Docker Compose |
 
-除了 Postgres 和 Redis，不需要任何其它基础设施——没有 Kafka、没有 Elasticsearch、
-没有对象存储、没有 k8s。
+Nothing beyond Postgres and Redis is required. No Kafka, no Elasticsearch, no object
+store, no Kubernetes.
 
-CloakBrowser 的版本 pin 在一个指定的 commit 上。这是一项安全控制，见
-[docker/Dockerfile.browser](./docker/Dockerfile.browser)。
+CloakBrowser is pinned to a specific commit. That pin is a security control — see
+[docker/Dockerfile.browser](./docker/Dockerfile.browser).
 
-## 🗂 项目结构
+## 🗂 Project layout
 
-**先说一句 `dtk` 是什么。** 仓库全称 `Douyin_TikTok_Download_API` 念起来太长，所以代码里一律用
-**DTK**：**D**ouyin + **T**i**K**Tok，只取那两个平台，下载器和 API 那两截没进来。
+**First, what `dtk` is.** `Douyin_TikTok_Download_API` is a mouthful, so the code
+says **DTK** instead: **D**ouyin + **T**i**K**Tok. The two platforms, and not the
+download or API halves of the name.
 
-它是 Python 包名（`src/dtk/`）、命令行（`dtk --help`）、每个环境变量的前缀（`DTK_SECRET_KEY` 这些）、
-compose 的项目名（`-p dtk`），也是控制台标题栏里那三个字母。看到 `dtk`，说的就是
-`Douyin_TikTok_Download_API`。
+It is the Python package (`src/dtk/`), the command (`dtk --help`), the prefix on
+every environment variable (`DTK_SECRET_KEY` and friends), the Compose project
+name (`-p dtk`), and the three letters in the console's title bar. Where you see
+`dtk`, it means `Douyin_TikTok_Download_API`.
 
 ```
 Douyin_TikTok_Download_API/
-├── src/dtk/                服务端，代码全在这
-│   ├── api/                FastAPI 路由、鉴权、OpenAPI 本地化
-│   ├── platforms/          抖音 / TikTok 适配器：接口定义、参数、解析
+├── src/dtk/                the service; all of it lives here
+│   ├── api/                FastAPI routes, auth, OpenAPI localisation
+│   ├── platforms/          Douyin and TikTok adapters: endpoints, params, parsers
 │   ├── signing/            a_bogus / X-Bogus / X-Gnarly / X-Dynosaur
-│   ├── transport/          出站请求、响应分类（正常 / 业务错误 / 风控 / 网络）
-│   ├── identity/           身份铸造与健康度
-│   ├── scheduler/          身份选取、令牌桶、熔断器
-│   ├── services/           业务层，REST、MCP、CLI 共用
-│   ├── worker/             异步任务、回调、定时收集
-│   ├── db/                 SQLAlchemy 模型与 Alembic 迁移
-│   ├── ops/                诊断、备份、健康检查、告警通知
-│   ├── media/              下载器客户端
-│   ├── models/             跨平台统一的内容模型
-│   ├── urls/               链接识别、短链展开、ID 校验
+│   ├── transport/          outbound requests, response classification
+│   ├── identity/           identity minting and health
+│   ├── scheduler/          identity selection, token buckets, circuit breakers
+│   ├── services/           the business layer, shared by REST, MCP and the CLI
+│   ├── worker/             async tasks, callbacks, scheduled collection
+│   ├── db/                 SQLAlchemy models and Alembic migrations
+│   ├── ops/                diagnostics, backups, health checks, alerting
+│   ├── media/              downloader client
+│   ├── models/             one content model across both platforms
+│   ├── urls/               link recognition, short-link expansion, id validation
 │   ├── mcp/                MCP server
-│   ├── cli/                dtk 命令行
-│   ├── i18n/               服务端中英文案
-│   └── core/               配置、日志、错误类型
-├── web/                    React 控制台，构建产物打进应用镜像
+│   ├── cli/                the dtk command line
+│   ├── i18n/               server-side English and Chinese strings
+│   └── core/               settings, logging, error types
+├── web/                    the React console, built into the app image
 │   └── src/
-│       ├── pages/          每个控制台页面一个文件
-│       ├── components/     设计系统与共用组件
-│       └── locales/        控制台中英文案
-├── docker/                 三个 Dockerfile、compose 与两个 sidecar
-│   ├── browser_rpc/        Python，包装 CloakBrowser
-│   ├── downloader/         Go，媒体下载 sidecar
+│       ├── pages/          one file per console page
+│       ├── components/     design system and shared components
+│       └── locales/        console English and Chinese strings
+├── docker/                 three Dockerfiles, compose, and two sidecars
+│   ├── browser_rpc/        Python, wrapping CloakBrowser
+│   ├── downloader/         Go, the media download sidecar
 │   └── compose.yml
-├── documents/              用户文档，中英各 17 篇
+├── documents/              user documentation, 17 pages in each language
 ├── tests/                  unit / integration / contract / replay
 ├── scripts/                smoke.sh
-├── .github/workflows/      CI 与 Docker 镜像发布
+├── .github/workflows/      CI and Docker image publishing
 ├── alembic.ini
 ├── pyproject.toml
 └── Makefile
 ```
 
-## ⚡️ 快速开始
+## ⚡️ Quick start
 
-怕麻烦就用一键脚本，它会问你几个问题然后把整套跑起来 —— 会自己识别发行版、
-检测有没有 Docker、按机器大小调好资源上限：
+If you would rather not think about it, the guided script asks a few questions and
+brings the stack up — it works out your distribution, checks for Docker, and
+scales the resource limits to the machine:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.zh.sh -o install.zh.sh
-less install.zh.sh    # 先读一遍再跑，这是个好习惯
-bash install.zh.sh
+curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.sh -o install.sh
+less install.sh    # reading it first is a good habit
+bash install.sh
 ```
 
-**装完之后，这个脚本就是运维工具。** 再跑一次它会发现已有安装，打开菜单：看状态、升级（和 GitHub 最新 Release 比版本）、改口令、加管理员、备份恢复、改运行时设置、清磁盘、停止或卸载。`--manage` 直达菜单。
+**Afterwards the same script is the operations tool.** Run it again and it finds the install and opens a menu: status, upgrade (compared against the latest GitHub release), passwords, an extra administrator, backup and restore, runtime settings, disk cleanup, stop or uninstall. `--manage` goes straight there.
 
-细节见 [install/README.md](./install/README.md)。下面是手动的做法。
+Details in [install/README.md](./install/README.md). The manual route follows.
 
-装法有两种，下面走的是推荐的那种。手动装依赖的路子见 [不用 Docker](#不用-docker)。
+There are two ways to install this; below is the recommended one. For the by-hand route, see
+[Without Docker](#without-docker).
 
-| 装法 | 适合谁 | 详细步骤 |
+| How | Who for | Full steps |
 |---|---|---|
-| **Docker Compose**（推荐） | 绝大多数人，生产也包括在内 | [安装与部署 · 首次安装](./documents/zh/02-installation.md#首次安装) |
-| 手动装依赖 | 不能用 Docker，或者你要改代码 | [开发方式](./documents/zh/02-installation.md#不用-docker-运行) · [裸机生产部署](./documents/zh/02-installation.md#在裸机上做生产部署) |
+| **Docker Compose** (recommended) | Almost everyone, production included | [Installation · First install](./documents/en/02-installation.md#first-install) |
+| By hand | Docker is not an option, or you are changing the code | [For development](./documents/en/02-installation.md#running-without-docker) · [On bare metal](./documents/en/02-installation.md#a-production-install-without-docker) |
 
-> **在中国大陆的机器上装？** 先换源再动手，不然多半卡在拉镜像那一步：
-> [中国大陆的网络准备](./documents/zh/02-installation.md#中国大陆的网络准备)。
+> **Installing from mainland China?** Switch your mirrors before you start, or the pull will
+> most likely time out:
+> [Network preparation in mainland China](./documents/en/02-installation.md#network-preparation-in-mainland-china).
 
-需要 Docker 和 Docker Compose。先把仓库拉下来——compose 文件、Dockerfile 和迁移脚本都在里面，
-默认分支就是 v5：
+You need Docker and Docker Compose. Start by cloning the repository — the compose file,
+the Dockerfiles and the migrations all live in it, and the default branch is v5:
 
 ```bash
 git clone https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 cd Douyin_TikTok_Download_API
 ```
 
-仓库里不带任何默认密码或密钥，接着生成 `.env`：
+Nothing in the repository ships a default password or key, so write `.env` next:
 
 ```bash
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
@@ -258,15 +310,17 @@ EOF
 
 ```bash
 docker compose -p dtk -f docker/compose.yml up -d
-docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化令牌
+docker compose -p dtk -f docker/compose.yml logs api   # prints the setup token
 ```
 
-打开 <http://127.0.0.1:8000>，用日志里的令牌创建第一个管理员账号。
+Open <http://127.0.0.1:8000> and use the token from the log to create the first
+administrator.
 
-### 镜像从哪来
+### Where the image comes from
 
-默认是本地构建：`up` 第一次会用仓库里的 Dockerfile 把应用镜像编出来，几分钟。
-如果你不想在自己机器上编译，把 compose 指向已发布的镜像即可：
+By default it is built locally: the first `up` compiles the application image from the
+Dockerfile in this repository, which takes a few minutes. To skip that, point compose at
+the published image instead:
 
 ```bash
 export DTK_IMAGE=evil0ctal/douyin_tiktok_download_api
@@ -275,157 +329,176 @@ docker compose -p dtk -f docker/compose.yml pull
 docker compose -p dtk -f docker/compose.yml up -d
 ```
 
-`pull` 这一步不能省：compose 里这些服务同时写了 `image` 和 `build`，本机没有这个镜像时
-它会自己去编，而不是去拉。
+The `pull` is not optional: these services declare both `image` and `build`, so compose
+builds from the local Dockerfile whenever the image is not already on the machine rather
+than reaching for a registry.
 
-镜像同时提供 `linux/amd64` 与 `linux/arm64`，所以 Apple Silicon 和树莓派上都是原生运行。
-浏览器容器不发布——它会从一个指定的 commit 安装 CloakBrowser，那个 pin 是安全控制，
-应当由你自己决定，所以它一直是本地构建。
+Images are published for `linux/amd64` and `linux/arm64`, so Apple Silicon and a
+Raspberry Pi both run natively. The browser container is not published: it installs
+CloakBrowser from a pinned commit, and that pin is a security control that should be
+yours to choose, so it stays a local build.
 
-### 不用 Docker
+### Without Docker
 
-也支持，而且这就是这个项目本身的开发方式。你要自己准备 PostgreSQL 17（**必须带 TimescaleDB 扩展**，
-普通 `postgres:17` 不行）、Redis 8、Python 3.12 和 uv；要构建控制台还需要 Node 22。两份步骤：
+Supported, and it is how the project itself is developed. You provide PostgreSQL 17 (**with the
+TimescaleDB extension** — a plain `postgres:17` will not do), Redis 8, Python 3.12 and uv, plus
+Node 22 if you build the console. Two sets of steps:
 
-- [不用 Docker 运行](./documents/zh/02-installation.md#不用-docker-运行) —— 开发用，数据库和 Redis 仍然用容器起
-- [在裸机上做生产部署](./documents/zh/02-installation.md#在裸机上做生产部署) —— 全手工，含 systemd unit，在干净的 Ubuntu 24.04 上实跑验证过
+- [Running without Docker](./documents/en/02-installation.md#running-without-docker) — for
+  development; Postgres and Redis still come from containers
+- [A production install without Docker](./documents/en/02-installation.md#a-production-install-without-docker)
+  — all of it by hand, systemd units included, verified on a clean Ubuntu 24.04
 
-容器本来替你做的那些事——非 root 用户、内存和 CPU 上限、只读根文件系统、进程守护——裸机上都得自己补回来，
-那一节把它们逐条列了出来。
+What the containers were doing for you — a non-root user, memory and CPU ceilings, a read-only root
+filesystem, process supervision — you put back yourself. That section lists them one by one.
 
-### 还想知道什么
+### Where to look next
 
-| 想做的事 | 去哪看 |
+| What you want to do | Where |
 |---|---|
-| 改容器规格、算机器要多大 | [三档配置](./documents/zh/02-installation.md#三档配置) · [怎么改这些上限](./documents/zh/02-installation.md#怎么改这些上限) |
-| 开浏览器容器、下载器 sidecar | [两个可选 profile](./documents/zh/02-installation.md#两个可选-profile) |
-| 挂 TLS、放到反向代理后面 | [放在反向代理后面](./documents/zh/02-installation.md#放在反向代理后面) |
-| 环境变量到底怎么读的 | [环境变量](./documents/zh/02-installation.md#环境变量) |
-| 装完确认它真的好了 | [验证安装](./documents/zh/02-installation.md#验证安装) |
-| compose 文件本身逐行解释 | [docker/README.md](./docker/README.md) |
+| Size a machine, change the container limits | [Three sizes](./documents/en/02-installation.md#three-sizes) · [Changing the limits](./documents/en/02-installation.md#changing-the-limits) |
+| Turn on the browser container or the downloader sidecar | [The two optional profiles](./documents/en/02-installation.md#the-two-optional-profiles) |
+| Put TLS and a reverse proxy in front | [Behind a reverse proxy](./documents/en/02-installation.md#behind-a-reverse-proxy) |
+| Understand how the environment is actually read | [Environment variables](./documents/en/02-installation.md#environment-variables) |
+| Confirm an install is genuinely healthy | [Verifying an install](./documents/en/02-installation.md#verifying-an-install) |
+| Read the compose file line by line | [docker/README.md](./docker/README.md) |
 
-## 🖥 用它做什么
+## 🖥 What you get
 
-| 入口 | 地址 | 说明 |
+| Entry point | Where | What it is |
 |---|---|---|
-| Web 控制台 | `/` | 身份池、调度器、资料库、下载、日志、诊断 |
-| 接口文档 | `/docs` | 控制台内的 Swagger UI，中英双语 |
-| 裸接口文档 | `/swagger`、`/redoc` | 无需登录 |
-| REST API | `/api/v1/...` | 93 个操作 |
-| MCP | `/mcp` | 与 REST 共用同一个 service 层，配置方法见控制台 `/mcp-guide` |
-| CLI | `dtk --help` | 同上 |
+| Web console | `/` | Identity pool, scheduler, library, downloads, logs, diagnostics |
+| API reference | `/docs` | Swagger UI inside the console, English and Chinese |
+| Bare reference | `/swagger`, `/redoc` | No login required |
+| REST API | `/api/v1/...` | 93 operations |
+| MCP | `/mcp` | Shares the service layer with REST; client setup at `/mcp-guide` in the console |
+| CLI | `dtk --help` | Same |
 
-主要能力：
+The main capabilities:
 
-- **解析**：链接、分享文案、短链、作品 ID 都吃
-- **归档**：解析过的内容自动入库，平台删了这里还在
-- **下载**：媒体存到自己磁盘，支持按作者批量、跳过已下载、去重
-- **关注列表**：定期重新收集某个作者或作品
-- **iOS 快捷指令**：`/api/v1/ios/shortcut`
+- **Parse** a link, share text, short link, or a bare post id
+- **Archive** everything parsed, so a post deleted upstream is still here
+- **Download** media to your own disk, in bulk by author, skipping what you have,
+  with duplicate cleanup
+- **Watch** an author or a post and re-collect it on a timer
+- **iOS Shortcut** support at `/api/v1/ios/shortcut`
 
-## 🔄 更新
+## 🔄 Updating
 
-控制台会替你留意：`system.check_updates` 默认开着，登录后如果有新版本会弹一次，
-每 24 小时最多一次。那个请求是**你的浏览器**发给 GitHub 的，服务器不会往外发任何东西
-——所以它不会告诉任何人你这台实例存在。气人的话在设置里关掉。
+The console keeps an eye out for you: `system.check_updates` is on by default,
+and if a newer release exists you get one notice after signing in, at most once
+a day. That request goes from **your browser** to GitHub — the server never
+sends anything outward, so it does not tell anyone this instance exists. Turn it
+off in Settings if you would rather it did not.
 
-更新本身就是拉镜像加重启。用脚本装的话，再跑一次选「升级」就行：
+Updating is a pull and a restart. If you installed with the script, run it
+again and pick Upgrade:
 
 ```bash
-bash install.zh.sh --manage    # 选 2
+bash install.sh --manage    # pick 2
 ```
 
-手工版是这样：
+By hand it is:
 
 ```bash
 cd /opt/dtk && git pull
 
-# 用已发布镜像的（推荐）：把 .env 里的 DTK_IMAGE_TAG 改成新版本
+# Running the published images (recommended): point DTK_IMAGE_TAG at the new one
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
 ```
 
-自己构建的话把 `pull` 换成 `build`。`migrate` 每次启动都会跑，Alembic 是幂等的，
-所以单独跑那一步只是想在切换容器之前先把库升上去。
+Building locally instead? Swap `pull` for `build`. `migrate` runs on every start
+and Alembic is idempotent, so running it separately is only about getting the
+schema up before the containers switch over.
 
-**你的数据不会动。** 命名卷（`postgres-data`、`redis-data`、`media-data`）不随容器
-重建而消失，身份池、归档、设置和 API Key 都在原地。
+**Your data stays put.** The named volumes (`postgres-data`, `redis-data`,
+`media-data`) survive a rebuild, so the identity pool, the archive, the settings
+and the API keys are all where you left them.
 
-浏览器镜像只有在 `docker/Dockerfile.browser` 或 CloakBrowser 的 pin 变了才需要重建，
-一般的版本更新不用管它。
+The browser image only needs rebuilding when `docker/Dockerfile.browser` or the
+CloakBrowser pin changes, which a normal version bump does not touch.
 
-想回退就把 `DTK_IMAGE_TAG` 改回上一个 `sha-` 或版本号再 `up -d`。
-迁移不提供自动降级——升级前备份数据库，这是唯一稳妥的回退路径。
+To go back, set `DTK_IMAGE_TAG` to the previous `sha-` or version and `up -d`
+again. Migrations have no automatic downgrade — back the database up before
+upgrading, which is the only rollback that always works.
 
 
-## 📖 文档
+## 📖 Documentation
 
-完整文档在 [`documents/`](./documents/README.zh-CN.md)，中英双语，共 17 篇。
+The full documentation lives in [`documents/`](./documents/README.md) — 17 pages, in
+English and Chinese.
 
-**新手从这里开始：**
-[快速开始](./documents/zh/01-quickstart.md) ·
-[核心概念](./documents/zh/04-concepts.md) ·
-[控制台总览](./documents/zh/05-console-overview.md)
+**New here:**
+[Quick start](./documents/en/01-quickstart.md) ·
+[Concepts](./documents/en/04-concepts.md) ·
+[Console overview](./documents/en/05-console-overview.md)
 
-**部署与运维：**
-[安装与部署](./documents/zh/02-installation.md) ·
-[配置参考](./documents/zh/03-configuration.md) ·
-[运维](./documents/zh/10-operations.md) ·
-[故障排查](./documents/zh/14-troubleshooting.md) ·
-[安全](./documents/zh/15-security.md)
+**Running it:**
+[Installation and deployment](./documents/en/02-installation.md) ·
+[Configuration reference](./documents/en/03-configuration.md) ·
+[Operations](./documents/en/10-operations.md) ·
+[Troubleshooting](./documents/en/14-troubleshooting.md) ·
+[Security](./documents/en/15-security.md)
 
-**开发对接：**
-[REST API 指南](./documents/zh/11-api.md) ·
-[MCP 与 AI 客户端](./documents/zh/12-mcp.md) ·
-[命令行参考](./documents/zh/13-cli.md) ·
-[参与开发](./documents/zh/16-contributing.md)
+**Building against it:**
+[REST API guide](./documents/en/11-api.md) ·
+[MCP and AI agents](./documents/en/12-mcp.md) ·
+[CLI reference](./documents/en/13-cli.md) ·
+[Contributing](./documents/en/16-contributing.md)
 
-接口参考手册不在文档里，而是由代码直接生成的：你自己的实例在 `/docs`（控制台内）
-以及 `/swagger`、`/redoc`、`/openapi.json`（无需登录）提供，中英双语。
+The endpoint reference is not in there: it is generated from the code that serves the
+requests, so your own instance is the copy that is never out of date. Find it at `/docs`
+inside the console, or at `/swagger`, `/redoc` and `/openapi.json` without a login. Both
+languages.
 
-English documentation: [`documents/README.md`](./documents/README.md)
+中文文档：[`documents/README.zh-CN.md`](./documents/README.zh-CN.md)
 
-## 📮 联系方式
+## 📮 Contact
 
 | | |
 |---|---|
-| 问题反馈 | [GitHub Issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues) —— 公开、有记录，遇到过同样问题的人也能回答你 |
-| 邮箱 | `Evil0ctal1985@gmail.com` —— 直达作者本人，适合不方便公开的内容 |
-| 作者 | [@Evil0ctal](https://github.com/Evil0ctal) |
+| Issues | [GitHub Issues](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/issues) — public, keeps its history, and anyone who has hit the same thing can answer |
+| Email | `Evil0ctal1985@gmail.com` — reaches one person; best for anything that does not belong in public |
+| Author | [@Evil0ctal](https://github.com/Evil0ctal) |
 
-提问之前请先看[故障排查](./documents/zh/14-troubleshooting.md)，并附上自检页面或
-`dtk diagnose` 的输出。它能回答维护者原本要反过来问你的大部分问题。
+Before asking, read [Troubleshooting](./documents/en/14-troubleshooting.md) and include
+the output of the Diagnose page or `dtk diagnose`. It answers most of what a maintainer
+would otherwise have to ask you.
 
-## ⭐️ Star 历史
+## ⭐️ Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Evil0ctal/Douyin_TikTok_Download_API&type=Timeline)](https://star-history.com/#Evil0ctal/Douyin_TikTok_Download_API&Timeline)
 
-> 起始于 2021/11/06 · GitHub [@Evil0ctal](https://github.com/Evil0ctal)
+> Started 2021/11/06 · GitHub [@Evil0ctal](https://github.com/Evil0ctal)
 
-## 📄 许可协议
+## 📄 Licence
 
-[Apache License 2.0](./LICENSE)。
+[Apache License 2.0](./LICENSE).
 
-你可以使用、修改、分发本项目，**包括商业用途，也包括放进闭源产品**。这项授权不可撤销。
-作为交换，协议要求你：
+You may use, modify and distribute this project, **including commercially and inside
+closed-source products**. The grant is irrevocable. In return the licence asks you to:
 
-- 分发副本时保留版权声明和协议全文
-- 在你改动过的文件里说明改了什么
-- 接受它不提供任何担保
+- Keep the copyright notice and the licence text with any copy you distribute
+- State what you changed, in files you modified
+- Accept that it comes with no warranty
 
-### 作者的一个请求
+### A request from the author
 
-这个项目是免费送出去的，它能一直免费是因为有赞助商，而不是因为向用户收费。
-**如果你靠它赚到了钱，请考虑也赞助一下，而不是只拿。**
+This project is given away, and it stays free because sponsors pay for it rather than
+users. **If you are making money from it, please consider sponsoring instead of only
+taking.**
 
-这是一个请求，不是协议条款——Apache 2.0 允许商业用途，上面这段话不会把这项权利收回去。
+This is a request, not a licence condition — Apache 2.0 permits commercial use, and
+nothing above takes that back.
 
-## ☕️ 赞赏作者
+## ☕️ Support the author
 
-上面的赞助商付的是**项目**的钱；这一节是给**维护它的人**的，完全自愿。
+The sponsors above pay for the **project**. This section is for the **person who
+maintains it**, and is entirely optional.
 
-| 网络 | 地址 |
+| Network | Address |
 |---|---|
 | Solana | `HvtkxmDERbNXfCoojpdFAYN5mSWowjpXgedsG9eF7y9z` |
 | Tron (TRC20) | `TQwSM2vjcnrdRU7gY7KNp2tCgMnK33azkT` |
@@ -433,15 +506,19 @@ English documentation: [`documents/README.md`](./documents/README.md)
 | BNB Smart Chain (BEP20) | `0x2f210FdfD981B59eC130370E5b1Aa8A6a06fb5Ad` |
 | Bitcoin | `bc1q785j55cxlnjqe8lkwy8cq57t8t9vn3ak9tlsfy` |
 
-这些网络都支持常见的主流代币。**TRC20 或 Solana 上的 USDT** 最方便接收，手续费也最低。
+These networks carry the usual major tokens. **USDT on Tron (TRC20) or Solana** is the
+easiest to receive, and the cheapest to send.
 
-> **只能按地址所属的网络转账。** 转错链的资产任何人都无法找回。
-> 以太坊和 BNB Smart Chain 共用同一个地址是正常的：两者都是 EVM 链，由同一把私钥控制。
+> **Send only on the network an address is listed under.** A transfer on the wrong chain
+> cannot be recovered by anybody.
+> Ethereum and BNB Smart Chain share one address on purpose: both are EVM chains, and
+> the same key controls it.
 
-也可以走 [GitHub Sponsors](https://github.com/sponsors/evil0ctal)。
+[GitHub Sponsors](https://github.com/sponsors/evil0ctal) works too.
 
-### 你需要自己负责的部分
+### What you are responsible for
 
-本项目从有自己服务条款的平台抓取数据，并且运行在你自己控制的机器上。
-请遵守平台条款和所在地法律，尊重你所收集内容背后的人，
-不要拿它去骚扰任何人，也不要拿它去二次分发不属于你的作品。这些没有别人能替你把关。
+This fetches data from platforms that have their own terms, and it runs on your machine
+under your control. Respect those terms and applicable law, respect the people whose
+content you collect, do not use it to harass anyone, and do not redistribute work that
+is not yours. Nobody else can enforce any of that for you.

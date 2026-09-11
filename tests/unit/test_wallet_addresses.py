@@ -32,7 +32,7 @@ WALLETS: dict[str, str] = {
 }
 
 #: Everywhere they are published.
-PUBLISHED = ("README.md", "README.en.md", "web/src/pages/About.tsx")
+PUBLISHED = ("README.md", "README.zh-CN.md", "web/src/pages/About.tsx")
 
 #: Anything shaped like an address on one of these chains. Used to catch a
 #: fourth address appearing somewhere without passing through this file.
