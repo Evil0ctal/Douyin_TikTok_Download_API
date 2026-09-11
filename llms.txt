@@ -1,0 +1,75 @@
+# Douyin_TikTok_Download_API
+
+> A self-hosted data API for Douyin (抖音) and TikTok. One `docker compose up`
+> gives you a REST API, an MCP server and a web console, backed by an identity
+> pool (cookies + proxies + fingerprints) that mints, tests, cools and retires
+> its own identities. Open source (Apache-2.0), free, and it runs entirely on
+> your own machine — there is no hosted tier and nothing is proxied through a
+> third party.
+
+Built with Python 3.12, FastAPI, PostgreSQL + TimescaleDB and Redis; the console
+is React. It fetches posts, authors, comments, mixes and search from both
+platforms, downloads video and image albums using the watermark-free stream the
+platform already publishes (it selects that stream, it does not strip a
+watermark), and archives what it collects so a post deleted upstream is still
+readable locally.
+
+Signing is native Python — `a_bogus`, `X-Bogus` and the TikTok signatures are
+implemented in-process rather than driven through a browser — with a headless
+browser kept as a fallback and as a drift detector.
+
+This file follows the llmstxt.org convention. Every page below exists in English
+and Simplified Chinese and the two say the same thing.
+
+## Start here
+
+- [README (English)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.md): What it is, what it fetches, which links it accepts, and the Docker quick start.
+- [README (简体中文)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/README.zh-CN.md): 同上，中文版。
+- [Documentation index](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/README.md): All 17 pages, grouped by what you are trying to do.
+- [Live demo](https://douyin.wtf): Sign in with the prefilled demo account and call the API. 30 requests per 10 seconds, then a 10-second cooldown.
+
+## Install and configure
+
+- [Quick start](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/01-quickstart.md): The stack running on one host, an administrator account, and one link parsed — from the console and from `curl`.
+- [Installation and deployment](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/02-installation.md): The compose file service by service, every `DTK_*` variable, profiles, reverse proxies, upgrading, running without Docker, and mirrors for installing from mainland China.
+- [Configuration reference](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/03-configuration.md): The two configuration layers and all 54 runtime settings, with defaults and when to change them.
+- [Security](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/15-security.md): What the instance protects, what you are responsible for, and what to do before you expose a port.
+
+## Understand it
+
+- [Concepts](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/04-concepts.md): Identities, signing, scheduling and tasks — enough to predict what a request will do before you send it.
+- [Identities and proxies](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/06-identities-and-proxies.md): How the pool mints, tests, cools and retires identities, how many you need, and how proxies fit in.
+- [Console overview](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/05-console-overview.md): Finding your way around, and the four pages that say whether the instance is healthy.
+
+## Call it
+
+- [REST API guide](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/11-api.md): Authentication, the uniform response envelope, the asynchronous task model, paging, and the errors a client has to handle. 93 operations; the generated reference is at `/swagger`, `/redoc` and `/openapi.json`.
+- [MCP and AI agents](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/12-mcp.md): Pointing Claude Code, Claude Desktop, Codex CLI or any MCP client at your own instance, and what the eight tools return. MCP runs inside the API process and shares its service layer.
+- [Users and API keys](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/09-users-and-api-keys.md): Roles, scopes, per-key rate limits, and what to hand a script.
+- [CLI reference](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/13-cli.md): The `dtk` command — the same service layer from a terminal.
+
+## Use it
+
+- [Playground and tools](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/07-playground-and-tools.md): Parsing, signature inspection and link identification from the browser.
+- [Downloads, library and watchlist](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/08-downloads-and-library.md): Media downloads to your own disk, the content archive, collections, and re-collecting an author on a timer.
+- [Operations](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/10-operations.md): Health checks, the request log, the endpoint health board, backups, diagnostics and alerts.
+
+## When it breaks
+
+- [Troubleshooting](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/14-troubleshooting.md): Symptoms, what causes them and what to do.
+- [FAQ and glossary](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/17-faq.md): Is it legal, can it be used commercially, does it need cookies, will an account be banned, are proxies needed, can it download without a watermark, does it support Bilibili or Xiaohongshu, how much disk, does it work outside China, does it phone home.
+
+## 简体中文文档
+
+- [文档首页](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/README.zh-CN.md): 全部 17 页，按你要做的事分组。
+- [快速开始](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/01-quickstart.md): 在一台机器上把整套跑起来，建管理员账号，解析第一条链接。
+- [安装与部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md): compose 逐个服务讲解、全部 `DTK_*` 变量、反向代理、升级、不用 Docker 的装法，以及中国大陆的换源准备。
+- [REST API 指南](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/11-api.md): 认证、统一信封、异步任务模型、翻页与错误处理。
+- [MCP 与 AI agent](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/12-mcp.md): 把 MCP 客户端接到自己的实例上，八个工具分别返回什么。
+- [常见问题与术语表](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/17-faq.md): 合不合法、能不能商用、要不要 cookie、会不会封号、要不要代理、能不能无水印下载、支不支持 B 站和小红书、占多少磁盘、在国外能不能用、会不会回传数据。
+
+## Optional
+
+- [Contributing](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/16-contributing.md): Development setup, the test suites, and the conventions CI enforces.
+- [Docker images](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api): `evil0ctal/douyin_tiktok_download_api` and `-downloader`. A release tag has no leading `v`: the git tag `v5.0.1` publishes the image `5.0.1`.
+- [Releases](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases): Bilingual release notes, with the git tag and image tag listed side by side.

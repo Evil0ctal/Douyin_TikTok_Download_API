@@ -1,5 +1,10 @@
 # FAQ and glossary
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/17-faq.md)
+
 This page answers the questions people ask before and just after they deploy this
 project, and then defines every term the rest of the documentation uses. After
 reading it you should be able to decide whether this software fits your situation

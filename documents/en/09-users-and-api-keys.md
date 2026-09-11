@@ -1,5 +1,10 @@
 # Users and API keys
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/09-users-and-api-keys.md)
+
 This page is about who can do what on your instance. After reading it you will
 know which console account to give a colleague, how to mint a key that lets a
 script read Douyin and nothing else, how to take a leaked credential out of

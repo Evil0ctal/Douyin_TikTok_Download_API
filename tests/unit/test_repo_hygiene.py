@@ -894,3 +894,83 @@ def test_the_mark_alphabet_is_the_same_on_both_sides():
         f"  only in Python:     {sorted(python - javascript)}\n"
         f"  only in TypeScript: {sorted(javascript - python)}"
     )
+
+
+DOCUMENTS = REPO / "documents"
+
+#: The line every page under `documents/` carries directly under its H1.
+#:
+#: It does three jobs at once, which is why it is worth a check rather than a
+#: convention: it names the project in every page so a fragment quoted out of
+#: context is still attributable, it is the only route between a page and its
+#: translation, and it links back to the index so no page is a dead end.
+DOC_CRUMB = (
+    "> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)**"
+)
+
+#: Markdown link to a sibling `.md`, ignoring any `#anchor`.
+RELATIVE_MD_LINK = re.compile(r"\]\((\.\.?/[^)#\s]+\.md)")
+
+
+def _doc_pages(language: str) -> list[Path]:
+    return sorted((DOCUMENTS / language).glob("*.md"))
+
+
+@pytest.mark.parametrize("language", ["en", "zh"])
+def test_every_documentation_page_names_the_project(language: str) -> None:
+    """A page lifted out of context still has to say what it documents.
+
+    Twelve of these seventeen pages used to open with "the stack" or "the
+    software" and no noun anywhere above the fold. That reads fine to somebody
+    who arrived from the index and badly to everything else: a search result, a
+    deep link from an issue, or a retrieval system that took the first chunk of
+    the file and nothing around it.
+    """
+    for page in _doc_pages(language):
+        lines = page.read_text(encoding="utf-8").splitlines()
+        assert lines and lines[0].startswith("# "), f"{page.name}: does not open with an H1"
+        head = "\n".join(lines[:6])
+        assert DOC_CRUMB in head, (
+            f"documents/{language}/{page.name} has no project line under its H1. "
+            "Copy the block from any sibling page."
+        )
+
+
+def test_every_documentation_page_links_to_its_translation() -> None:
+    """en and zh are the same seventeen pages, and each points at its twin.
+
+    The two directories drifting apart is the failure this is really for: a page
+    added in one language and not the other leaves a link in the other half
+    pointing at nothing, and nobody notices until a reader follows it.
+    """
+    english = {page.stem for page in _doc_pages("en")}
+    chinese = {page.stem for page in _doc_pages("zh")}
+    assert english == chinese, (
+        "documents/en and documents/zh no longer hold the same pages:\n"
+        f"  only English: {sorted(english - chinese)}\n"
+        f"  only Chinese: {sorted(chinese - english)}"
+    )
+
+    for language, other in (("en", "zh"), ("zh", "en")):
+        for page in _doc_pages(language):
+            expected = f"](../{other}/{page.stem}.md)"
+            assert expected in page.read_text(encoding="utf-8"), (
+                f"documents/{language}/{page.name} does not link to its "
+                f"{other} translation; expected a link ending {expected}"
+            )
+
+
+def test_no_documentation_link_points_at_a_missing_file() -> None:
+    """Relative links inside `documents/` have to resolve.
+
+    Written after adding the project line to all thirty-four pages with
+    `](./README.md)` in it - correct from `documents/`, wrong from
+    `documents/en/`, and wrong thirty-four times before anything said so.
+    """
+    broken = [
+        f"{page.relative_to(REPO)} -> {target}"
+        for page in sorted(DOCUMENTS.rglob("*.md"))
+        for target in RELATIVE_MD_LINK.findall(page.read_text(encoding="utf-8"))
+        if not (page.parent / target).resolve().exists()
+    ]
+    assert not broken, "documentation links that go nowhere:\n  " + "\n  ".join(broken)

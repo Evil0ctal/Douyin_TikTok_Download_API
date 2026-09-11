@@ -9,6 +9,8 @@
 
 🚀 自部署的[抖音](https://www.douyin.com) / [TikTok](https://www.tiktok.com)数据接口服务。一条 `docker compose up`，自动维护身份池，对外提供 REST API、MCP 与 Web 控制台。
 
+开源、免费、跑在你自己的机器上 —— 不用注册、没有配额、链路上没有第三方。它能取作品、作者、评论和搜索，下载视频和图集时拿到的是**无水印**的流（它挑的是平台本来就提供的那条干净流，而不是「去掉」了什么），采集到的内容存在你自己的 PostgreSQL 里。
+
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
 [![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)
@@ -135,7 +137,7 @@ docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
 群里可以互相交流学习，**不允许发广告以及违法的东西**，纯粹交朋友和技术交流。
 
 
-## 📦 它能取什么
+## 📦 它能从抖音和 TikTok 取什么
 
 | 能力 | 抖音 | TikTok |
 |---|:---:|:---:|
@@ -154,7 +156,7 @@ docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
 
 媒体下载、内容归档、计数快照、合集、定时监控都是内置的，不需要额外服务。
 
-## 🔗 它认得什么链接
+## 🔗 它认得哪些抖音 / TikTok 链接
 
 粘贴什么都行——分享短链、作品页地址，或者 App 复制出来的一整段带文案的口令：
 
@@ -238,7 +240,7 @@ Douyin_TikTok_Download_API/
 └── Makefile
 ```
 
-## ⚡️ 快速开始
+## ⚡️ 快速开始：用 Docker 自部署
 
 怕麻烦就用一键脚本，它会问你几个问题然后把整套跑起来 —— 会自己识别发行版、
 检测有没有 Docker、按机器大小调好资源上限：
@@ -333,7 +335,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 | 装完确认它真的好了 | [验证安装](./documents/zh/02-installation.md#验证安装) |
 | compose 文件本身逐行解释 | [docker/README.md](./docker/README.md) |
 
-## 🖥 用它做什么
+## 🖥 用它做什么：控制台、REST API、MCP 和 CLI
 
 | 入口 | 地址 | 说明 |
 |---|---|---|
@@ -352,7 +354,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 - **关注列表**：定期重新收集某个作者或作品
 - **iOS 快捷指令**：`/api/v1/ios/shortcut`
 
-## 🔄 更新
+## 🔄 更新到新版本
 
 控制台会替你留意：`system.check_updates` 默认开着，登录后如果有新版本会弹一次，
 每 24 小时最多一次。那个请求是**你的浏览器**发给 GitHub 的，服务器不会往外发任何东西
@@ -414,6 +416,9 @@ docker compose -p dtk -f docker/compose.yml up -d
 以及 `/swagger`、`/redoc`、`/openapi.json`（无需登录）提供，中英双语。
 
 English documentation: [`documents/README.md`](./documents/README.md)
+
+**用 LLM 读这个项目？** [`llms.txt`](./llms.txt) 把整套文档整理成了一份带注解的索引，
+格式是 [llmstxt.org](https://llmstxt.org) 约定的那种。
 
 ## 📮 联系方式
 

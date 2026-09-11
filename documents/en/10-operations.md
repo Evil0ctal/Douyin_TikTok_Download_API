@@ -1,5 +1,10 @@
 # Operations
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/10-operations.md)
+
 This page is about day two and everything after it: keeping an instance healthy for months without babysitting it. After reading it you will know what the background loops do, how a settings change reaches a running process, how to take and restore a backup (and prove the restore works), how alerting is wired, what gets pruned and when, what to watch, and how to upgrade without losing anything.
 
 Everything here assumes the compose deployment from [Installation and deployment](./02-installation.md). Commands are run from the repository root and always name the compose project:

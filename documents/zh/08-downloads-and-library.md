@@ -1,5 +1,9 @@
 # 下载、资料库与关注列表
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/08-downloads-and-library.md)
+
 这一篇讲的是「留下来」而不只是「看一眼」：把视频和图片存到你自己的磁盘上、几个月后还能找回来、以及按定时反复采集同一个目标。读完之后你会清楚这三个页面各自的代价、字节到底落在哪里、容量上限会拿走什么，以及怎样保住那个你真正舍不得丢的作品。
 
 ## 三个页面各管什么

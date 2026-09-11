@@ -1,5 +1,9 @@
 # 安装与部署
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/02-installation.md)
+
 这篇文档带你从一台空机器走到一个可以放着不管的实例，并把 compose 文件讲清楚到你敢改它的程度。读完之后，
 你应该能够：估算机器规格、决定那两个可选容器到底要不要、在 API 前面挂上 TLS、在不丢数据的前提下升级，
 以及在你更喜欢的情况下完全不用 Docker 跑起来。

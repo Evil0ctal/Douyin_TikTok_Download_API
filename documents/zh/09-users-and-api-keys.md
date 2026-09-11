@@ -1,5 +1,9 @@
 # 用户与 API 密钥
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/09-users-and-api-keys.md)
+
 这一篇讲的是"谁能在你的实例上做什么"。读完之后，你会知道该给同事开哪种控制台账号、怎么签发一把只能读抖音、别的什么都干不了的密钥、怎么让泄露的凭据立刻失效，以及如果你真的决定把某个端点开放给不带凭据的调用方，会发生什么。
 
 ## 两类凭据

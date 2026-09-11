@@ -1,5 +1,10 @@
 # REST API guide
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/11-api.md)
+
 This page explains how to *call* the HTTP API from a program: how to authenticate, how the uniform envelope is shaped, how the asynchronous task model works, how to page, and which errors your code has to handle. After reading it you should be able to write a client that submits work, collects results and backs off correctly when the instance pushes back.
 
 It complements the generated reference rather than repeating it. The reference — `/swagger`, `/redoc` and `/openapi.json` — lists every endpoint, every parameter and every constraint, and it is generated from the same code that serves the requests, so it is never out of date. This page explains the parts a list of endpoints cannot: what a `202` means, when to retry, and what a parameter costs you.

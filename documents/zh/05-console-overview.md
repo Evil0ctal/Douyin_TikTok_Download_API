@@ -1,5 +1,9 @@
 # 控制台总览
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/05-console-overview.md)
+
 读完这篇，你就能完成首次进入控制台的全过程、看懂侧边栏的组织方式，并读懂四个用来判断实例是否健康的页面——总览、系统信息、日志、诊断——包括每个面板的含义，以及看到某个结果之后该做什么。
 
 <div align="center">

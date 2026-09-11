@@ -1,5 +1,9 @@
 # 安全
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/15-security.md)
+
 这一篇讲的是你和这套软件之间的分工。读完之后，你会知道实例自己已经保护了什么、它刻意不替你做什么、哪些调用会把一份可用的凭据交到你手上，以及在端口能被你自己的笔记本以外的东西访问到之前，你该检查些什么。
 
 ## 它面向的威胁模型

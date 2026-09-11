@@ -1,5 +1,10 @@
 # Configuration reference
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/03-configuration.md)
+
 After reading this you will know which settings need a restart and which do not, how to read and change the ones that do not from the console, the CLI or the API, and what every one of the 54 runtime settings does.
 
 ## The two layers

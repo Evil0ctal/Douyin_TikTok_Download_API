@@ -1,5 +1,9 @@
 # MCP 与 AI 客户端
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/12-mcp.md)
+
 这一页讲怎么把 AI 客户端——Claude Code、Claude Desktop、Codex CLI、Cherry Studio，或者任何支持 MCP 的工具——接到你自己的实例上，八个工具各自做什么，以及返回的东西该怎么读。读完你应该能配好一个客户端、用 `curl` 验证连通性，并且认得出导致大部分连接失败的那两个错误。
 
 ## MCP 接入点是什么

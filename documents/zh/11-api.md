@@ -1,5 +1,9 @@
 # REST API 指南
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/11-api.md)
+
 本文讲的是如何从程序里**调用** HTTP API：怎么认证、统一信封长什么样、异步任务模型怎么工作、怎么翻页、以及你的代码必须处理哪些错误。读完之后，你应该能写出一个客户端：提交任务、取回结果，并在实例开始拒绝你时正确地退避。
 
 它是生成式接口参考的补充，而不是重复。`/swagger`、`/redoc` 和 `/openapi.json` 列出了每一个接口、每一个参数和每一条约束，而且它们是由处理请求的同一份代码生成的，永远不会过期。本文解释的是接口清单说不清的部分：一个 `202` 到底意味着什么、什么时候该重试、以及某个参数会让你付出什么代价。

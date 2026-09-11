@@ -1,5 +1,9 @@
 # 故障排查
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/14-troubleshooting.md)
+
 按症状定位，用一条命令或一个控制台页面确认原因，然后修好它。这篇同时收录了本实例可能返回的全部错误码，写明每个码是什么意思、以及重试是否有可能起作用。
 
 下面所有命令都默认在仓库根目录执行。compose 命令一律带上 compose 文件（`-f docker/compose.yml`）——仓库根目录没有 `compose.yml`，少了它 compose 根本找不到要操作的东西——以及项目名（`-p dtk`）。compose 文件里已经写了 `name: dtk`，所以 `-p dtk` 只是把目标写明；但仍然建议保留，因为它同时会覆盖你 shell 里可能已经设好的 `COMPOSE_PROJECT_NAME`。

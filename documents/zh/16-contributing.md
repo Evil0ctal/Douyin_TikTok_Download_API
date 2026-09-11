@@ -1,5 +1,9 @@
 # 参与开发
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/16-contributing.md)
+
 这一页写给想改代码的人。读完你应该能搭好开发环境、认得清目录结构、在本地跑起 API、worker 和控制台，跑通测试套件的每一层，并让一次改动通过 CI 的全部门禁。
 
 ## 你需要什么

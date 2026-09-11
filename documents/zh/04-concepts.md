@@ -1,5 +1,9 @@
 # 核心概念
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/04-concepts.md)
+
 本页讲的是整套系统背后的心智模型。读完之后，你应该能在发出请求之前就预判实例会怎么处理它，并且能区分三种从外部看起来完全一样的失败：真正的 bug、平台改动，以及系统完全按设计工作。
 
 跑通第一个请求并不需要这些内容，那是[快速开始](./01-quickstart.md)的事。但在你动[配置参考](./03-configuration.md)里的任何一项之前、在你看控制台的「日志」页面（/logs）之前、在你判断某个错误值不值得提 issue 之前，你需要这一页。

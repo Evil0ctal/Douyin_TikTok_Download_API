@@ -1,5 +1,10 @@
 # Installation and deployment
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/02-installation.md)
+
 This page takes you from an empty host to a running instance you can leave alone, and explains
 enough of the compose file that you can change it without breaking it. After reading it you should
 be able to size a machine, decide which of the two optional containers you actually want, put TLS in

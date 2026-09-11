@@ -1,5 +1,10 @@
 # Contributing
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/16-contributing.md)
+
 This page is for someone who wants to change the code. After reading it you will be able to set up a development environment, find your way around the tree, run the API, the worker and the console locally, run every layer of the test suite, and get a change past the gates CI enforces.
 
 ## What you need

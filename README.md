@@ -9,6 +9,8 @@
 
 🚀 A self-hosted data API for [Douyin](https://www.douyin.com) and [TikTok](https://www.tiktok.com). One `docker compose up`, an identity pool that maintains itself, and a REST API, MCP server and web console on top.
 
+Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors, comments and search, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL.
+
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
 [![GitHub Star](https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/stargazers)
@@ -149,7 +151,7 @@ The groups are for learning from each other. **No advertising and nothing
 illegal** — they are for making friends and talking about the work.
 
 
-## 📦 What it can fetch
+## 📦 What it can fetch from Douyin and TikTok
 
 | Capability | Douyin | TikTok |
 |---|:---:|:---:|
@@ -170,7 +172,7 @@ is worth nothing. Importing your own logged-in cookies widens what the rest can 
 Media downloads, the content archive, counter snapshots, collections and a watchlist
 are built in; none of them needs another service.
 
-## 🔗 What links it accepts
+## 🔗 Which Douyin and TikTok links it accepts
 
 Paste whatever you have — a short link, a post URL, or the whole caption a platform app
 puts on your clipboard:
@@ -258,7 +260,7 @@ Douyin_TikTok_Download_API/
 └── Makefile
 ```
 
-## ⚡️ Quick start
+## ⚡️ Quick start: self-host it with Docker
 
 If you would rather not think about it, the guided script asks a few questions and
 brings the stack up — it works out your distribution, checks for Docker, and
@@ -363,7 +365,7 @@ filesystem, process supervision — you put back yourself. That section lists th
 | Confirm an install is genuinely healthy | [Verifying an install](./documents/en/02-installation.md#verifying-an-install) |
 | Read the compose file line by line | [docker/README.md](./docker/README.md) |
 
-## 🖥 What you get
+## 🖥 What you get: console, REST API, MCP and CLI
 
 | Entry point | Where | What it is |
 |---|---|---|
@@ -383,7 +385,7 @@ The main capabilities:
 - **Watch** an author or a post and re-collect it on a timer
 - **iOS Shortcut** support at `/api/v1/ios/shortcut`
 
-## 🔄 Updating
+## 🔄 Updating to a new release
 
 The console keeps an eye out for you: `system.check_updates` is on by default,
 and if a newer release exists you get one notice after signing in, at most once
@@ -454,6 +456,9 @@ inside the console, or at `/swagger`, `/redoc` and `/openapi.json` without a log
 languages.
 
 中文文档：[`documents/README.zh-CN.md`](./documents/README.zh-CN.md)
+
+**Reading this with an LLM?** [`llms.txt`](./llms.txt) is the whole documentation set
+as one annotated index, in the [llmstxt.org](https://llmstxt.org) format.
 
 ## 📮 Contact
 

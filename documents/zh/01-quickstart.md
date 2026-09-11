@@ -1,5 +1,9 @@
 # 快速开始
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/01-quickstart.md)
+
 读完这一页，你会在一台主机上跑起整套服务、创建好管理员账号，并成功解析第一条链接——
 先在 Web 控制台里解析一次，再用 `curl` 加 API Key 解析一次。大约需要十分钟，
 外加第一次构建镜像的时间。

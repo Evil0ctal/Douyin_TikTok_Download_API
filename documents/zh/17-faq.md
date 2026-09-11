@@ -1,5 +1,9 @@
 # 常见问题与术语表
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/17-faq.md)
+
 这一页回答的是人们在部署前后真正会问的问题，然后把本套文档用到的每个术语解释
 一遍。读完之后，你应该能判断这套软件是否适合你的场景，也能在读其它页面时不必
 停下来查名词。

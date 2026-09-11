@@ -1,5 +1,9 @@
 # 配置参考
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/03-configuration.md)
+
 读完本文，你会知道哪些配置需要重启、哪些不需要，如何从控制台、命令行或 API 三个入口读取和修改不需要重启的那些，以及全部 54 个运行时配置项各自的作用。
 
 ## 两层配置

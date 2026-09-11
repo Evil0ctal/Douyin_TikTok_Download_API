@@ -1,5 +1,9 @@
 # 命令行参考
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/13-cli.md)
+
 `dtk` 是随应用镜像一起发布的运维与救援命令行工具。读完本文你会知道如何在运行中的部署里调用它、每条命令和每个选项的作用，以及哪些命令可以随手对线上实例执行、哪些只有在出事时才该动。
 
 ## 这个 CLI 是什么，不是什么

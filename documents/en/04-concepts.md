@@ -1,5 +1,10 @@
 # Concepts
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/04-concepts.md)
+
 This page is the mental model behind the whole system. After reading it you should be able to predict what the instance will do with a request before you send it, and to tell apart the three kinds of failure that look identical from the outside: a bug, a platform change, and the system working exactly as designed.
 
 Nothing here is required to make your first call — [Quick start](./01-quickstart.md) covers that. It is what you need before you tune anything in [Configuration](./03-configuration.md), before you read the Logs page in the console, and before you decide whether an error is worth reporting.
