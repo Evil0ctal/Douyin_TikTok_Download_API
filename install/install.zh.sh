@@ -1310,12 +1310,23 @@ menu_existing() {
     case "$(ask_choice "选哪个？")" in
       1) show_status; pause_for_reader ;;
       2)
+        local target current
+        current="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
         if [ -n "$upgrade_line" ]; then
-          do_upgrade "$upgrade_line"
+          target="$(ask_value "用哪个 tag？" "$upgrade_line")"
         else
-          local tag
-          tag="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || echo latest)"
-          do_upgrade "${tag:-latest}"
+          # 没有更新的 Release，不等于无处可去。钉在 sha- 构建上的实例 —— 自述文档
+          # 就是这么建议生产环境做的 —— 否则会永远停在这里：latest 跟着 Release 走，
+          # 而 Release 得有人去发。同一个输入框填个更旧的 tag，就是回滚。
+          dim "没有更新的 Release。你仍然可以换到另一个已发布的 tag："
+          dim "某个 sha-… 构建，或者 latest。Docker Hub 上能看到有哪些。"
+          target="$(ask_value "用哪个 tag？" "${current:-latest}")"
+        fi
+        if [ -n "$target" ] && [ "$target" != "$current" ]; then
+          do_upgrade "$target"
+        elif [ -n "$target" ]; then
+          info "本来就是 ${target}。仍然重新拉取并重启一次。"
+          do_upgrade "$target"
         fi
         pause_for_reader ;;
       3) menu_manage ;;

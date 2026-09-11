@@ -1342,12 +1342,25 @@ menu_existing() {
     case "$(ask_choice "Which?")" in
       1) show_status; pause_for_reader ;;
       2)
+        local target current
+        current="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
         if [ -n "$upgrade_line" ]; then
-          do_upgrade "$upgrade_line"
+          target="$(ask_value "Which tag?" "$upgrade_line")"
         else
-          local tag
-          tag="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || echo latest)"
-          do_upgrade "${tag:-latest}"
+          # No newer release does not mean nowhere to go. An instance pinned to
+          # a sha- build - which is what the README tells you to do in
+          # production - sits here permanently otherwise: `latest` follows
+          # releases, and a release only appears when somebody cuts one. The
+          # same field takes an older tag, which is how you roll back.
+          dim "No newer release. You can still move to another published tag:"
+          dim "a sha-… build, or latest. Docker Hub lists what exists."
+          target="$(ask_value "Which tag?" "${current:-latest}")"
+        fi
+        if [ -n "$target" ] && [ "$target" != "$current" ]; then
+          do_upgrade "$target"
+        elif [ -n "$target" ]; then
+          info "Already on $target. Re-pulling and restarting anyway."
+          do_upgrade "$target"
         fi
         pause_for_reader ;;
       3) menu_manage ;;
