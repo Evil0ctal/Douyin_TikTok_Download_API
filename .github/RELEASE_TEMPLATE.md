@@ -35,7 +35,8 @@ Delete this header block before publishing.
 
 ```bash
 cd /opt/dtk && git pull
-# set DTK_IMAGE_TAG=X.Y.Z in .env
+# set DTK_IMAGE_TAG=X.Y.Z in .env — no `v`, see the tag table at the bottom
+export COMPOSE_ENV_FILES=.env   # without this, `image:` ignores the root .env
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -80,7 +81,8 @@ pool, the archive, the settings and the API keys stay where they are.
 
 ```bash
 cd /opt/dtk && git pull
-# 在 .env 里把 DTK_IMAGE_TAG 改成 X.Y.Z
+# 在 .env 里把 DTK_IMAGE_TAG 改成 X.Y.Z —— 不带 v，见文末标签表
+export COMPOSE_ENV_FILES=.env   # 不加这句，image: 的插值读不到根目录的 .env
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -113,6 +115,25 @@ docker compose -p dtk -f docker/compose.yml up -d
 
 ---
 
-**Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/compare/vPREV...vTHIS
+### Tags / 标签
 
-**Docker**: `evil0ctal/douyin_tiktok_download_api:X.Y.Z`
+<!-- The sha is the 40-character commit the tag points at:
+     `git rev-list -n1 vX.Y.Z`. It is the tag to pin in production. -->
+
+|  |  |
+|---|---|
+| Git tag / Git 标签 | `vX.Y.Z` |
+| `DTK_IMAGE_TAG` — this release / 这个版本 | `X.Y.Z` |
+| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-<40-char commit>` |
+
+The Docker tag drops the `v`: `docker/metadata-action` strips it when publishing,
+so `:vX.Y.Z` was never pushed. One value names both published images. `latest`
+and `X.Y` move with every release — pin a row above instead.
+
+镜像标签不带 `v`：发布时 `docker/metadata-action` 会把它剥掉，`:vX.Y.Z` 从来没有被
+推送过。这一个值同时决定两个已发布镜像的标签。`latest` 和 `X.Y`
+会随每次发布移动，要钉死请用上面两行之一。
+
+**Images / 镜像**: `evil0ctal/douyin_tiktok_download_api` · `evil0ctal/douyin_tiktok_download_api-downloader`
+
+**Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/compare/vPREV...vTHIS

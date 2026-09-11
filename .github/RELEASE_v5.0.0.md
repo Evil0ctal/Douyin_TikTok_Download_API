@@ -139,6 +139,22 @@ v4 继续可用。代码保留在 [`v4` 分支](https://github.com/Evil0ctal/Dou
 
 ---
 
-**Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/commits/v5.0.0
+### Tags / 标签
 
-**Docker**: `evil0ctal/douyin_tiktok_download_api:5.0.0`
+|  |  |
+|---|---|
+| Git tag / Git 标签 | `v5.0.0` |
+| `DTK_IMAGE_TAG` — this release / 这个版本 | `5.0.0` |
+| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-33a02ba71d3689ae9a05ccb90d6e6a9c19942067` |
+
+The Docker tag drops the `v`: `docker/metadata-action` strips it when publishing,
+so `:v5.0.0` was never pushed. One value names both published images. `latest`
+and `5.0` move with every release — pin a row above instead.
+
+镜像标签不带 `v`：发布时 `docker/metadata-action` 会把它剥掉，`:v5.0.0` 从来没有被
+推送过。这一个值同时决定两个已发布镜像的标签。`latest` 和 `5.0`
+会随每次发布移动，要钉死请用上面两行之一。
+
+**Images / 镜像**: `evil0ctal/douyin_tiktok_download_api` · `evil0ctal/douyin_tiktok_download_api-downloader`
+
+**Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/commits/v5.0.0

@@ -8,7 +8,8 @@ whole sidebar and answering 403 on most of it.
 
 ```bash
 cd /opt/dtk && git pull
-# set DTK_IMAGE_TAG=5.0.1 in .env
+# set DTK_IMAGE_TAG=5.0.1 in .env — no `v`, see the tag table at the bottom
+export COMPOSE_ENV_FILES=.env   # without this, `image:` ignores the root .env
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -95,7 +96,8 @@ migrations in this release.
 
 ```bash
 cd /opt/dtk && git pull
-# 在 .env 里把 DTK_IMAGE_TAG 改成 5.0.1
+# 在 .env 里把 DTK_IMAGE_TAG 改成 5.0.1 —— 不带 v，见文末标签表
+export COMPOSE_ENV_FILES=.env   # 不加这句，image: 的插值读不到根目录的 .env
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -158,6 +160,22 @@ bash install/install.zh.sh --manage
 
 ---
 
-**Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/compare/v5.0.0...v5.0.1
+### Tags / 标签
 
-**Docker**: `evil0ctal/douyin_tiktok_download_api:5.0.1`
+|  |  |
+|---|---|
+| Git tag / Git 标签 | `v5.0.1` |
+| `DTK_IMAGE_TAG` — this release / 这个版本 | `5.0.1` |
+| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-1b9478a97f89a606a7147fc1acb4461b06dc3af6` |
+
+The Docker tag drops the `v`: `docker/metadata-action` strips it when publishing,
+so `:v5.0.1` was never pushed. One value names both published images. `latest`
+and `5.0` move with every release — pin a row above instead.
+
+镜像标签不带 `v`：发布时 `docker/metadata-action` 会把它剥掉，`:v5.0.1` 从来没有被
+推送过。这一个值同时决定两个已发布镜像的标签。`latest` 和 `5.0`
+会随每次发布移动，要钉死请用上面两行之一。
+
+**Images / 镜像**: `evil0ctal/douyin_tiktok_download_api` · `evil0ctal/douyin_tiktok_download_api-downloader`
+
+**Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/compare/v5.0.0...v5.0.1
