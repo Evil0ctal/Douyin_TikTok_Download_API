@@ -35,7 +35,7 @@ from dtk.core.types import IdentityState, Language, Outcome, Platform, Scope, Ta
 from dtk.ops import webhooks
 from dtk.platforms import get_adapter
 from dtk.platforms.tiktok.params import DEVICE_ID_DIGITS
-from dtk.services.fetch import Explanation, FetchResult
+from dtk.services.fetch import Explanation, FetchResult, _dump
 from dtk.services.tasks import TaskView
 from dtk.worker import maintenance as maintenance_module
 from dtk.worker import registry
@@ -1757,7 +1757,17 @@ _PROFILE_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "tiktok" /
 
 
 def _tiktok_profile_payload() -> dict[str, Any]:
-    return json.loads(_PROFILE_FIXTURE.read_text(encoding="utf-8"))
+    """What `FetchService.fetch` actually hands back for a profile lookup.
+
+    Derived rather than hand-written, and that is the point. `fetch` parses the
+    upstream body, serialises the model, caches the serialised form and returns
+    *that* - on both the fresh and the cached path. A double that answered with
+    the raw upstream body instead is a double that cannot fail the way
+    production does, which is how the first two attempts at this lookup passed
+    their tests and did not work.
+    """
+    upstream = json.loads(_PROFILE_FIXTURE.read_text(encoding="utf-8"))
+    return _dump(get_adapter("tiktok").parse_author(upstream), include_raw=False)
 
 
 async def test_a_tiktok_handle_is_resolved_before_the_call_that_cannot_use_it() -> None:
@@ -1768,10 +1778,7 @@ async def test_a_tiktok_handle_is_resolved_before_the_call_that_cannot_use_it() 
     first - advice that led nowhere, because the profile it would have returned
     carried no usable id either. Now the worker does the lookup itself.
     """
-    # Both set: a fresh fetch returns the payload *and* runs the callback. The
-    # cache-hit case, which only returns the payload, is the test below.
-    payload = _tiktok_profile_payload()
-    fetch = FakeFetch(payload=payload, parse_payload=payload)
+    fetch = FakeFetch(payload=_tiktok_profile_payload())
     worker, _ = make_worker(FakeStore(), fetch)
     run = a_run("tiktok.author_posts", sec_user_id="owlcitymusic")
 
@@ -1794,8 +1801,8 @@ async def test_a_cached_profile_still_yields_the_id() -> None:
     shipped in 5.0.2 appeared to work when it was tested and not when it was
     used.
     """
-    # payload set, parse_payload left None: FakeFetch answers without ever
-    # invoking the callback, which is exactly what a cache hit does.
+    # `parse_payload` left None, so the double never invokes the callback -
+    # which is exactly what a cache hit does.
     fetch = FakeFetch(payload=_tiktok_profile_payload())
     worker, _ = make_worker(FakeStore(), fetch)
     run = a_run("tiktok.author_posts", sec_user_id="owlcitymusic")

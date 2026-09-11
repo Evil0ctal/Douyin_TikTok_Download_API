@@ -645,12 +645,6 @@ class TaskWorker:
                         is_demo=run.is_demo,
                     ),
                 )
-            # Parsed from what came back, not collected from the `parse`
-            # callback. A cache hit returns the stored payload and never calls
-            # it, so a callback-collected author was present on the first
-            # lookup of a handle and absent on every one after - which is a
-            # failure that gets better when you stop looking at it.
-            author = lookup.parse(result.payload)
         except DtkError as exc:
             log.info(
                 "worker.author_handle.lookup_failed",
@@ -660,7 +654,15 @@ class TaskWorker:
             )
             return params
 
-        sec_uid = getattr(author, "sec_uid", None)
+        # `FetchResult.payload` is the *dumped* model, not the upstream body -
+        # `fetch` parses, serialises, caches the serialised form and returns
+        # that, on both paths. So the id is a key here, and reading it this way
+        # is the only version that survives a cache hit: the `parse` callback
+        # fires on a miss and never on a hit, and re-parsing the payload as if
+        # it were an upstream response raises UpstreamChanged. Both of those
+        # were tried, in that order, and the first looked like it worked for
+        # exactly as long as the cache was cold.
+        sec_uid = result.payload.get("sec_uid") if isinstance(result.payload, dict) else None
         if not isinstance(sec_uid, str) or not sec_uid:
             log.info("worker.author_handle.no_id", endpoint=endpoint, handle=handle)
             return params
