@@ -123,13 +123,60 @@ v4 最大的问题从来不是功能少，而是**接口会悄悄死掉，而你
 ### 还在用 v4？
 
 v4 的代码保留在 [`v4` 分支](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/v4)，
-镜像也还在，按版本号拉就行：
+镜像也还在推，一条命令就能起：
 
 ```bash
-docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
+docker run -d --name dtk-v4 --restart unless-stopped \
+  -p 8080:80 evil0ctal/douyin_tiktok_download_api:V4.1.2
 ```
 
-`main` 现在是 v5，`latest` 跟着 `main` 走。想留在 v4 上就固定版本号 tag，别用 `latest`。
+然后打开 <http://localhost:8080>，接口文档在 `/docs`。端口特意错开成 8080，v5 占的是
+8000，两个版本可以在同一台机器上一起跑。
+
+**用之前先把抖音 cookie 换掉。** v4 没有身份池，镜像里那份 cookie 是打包时带的，早就
+过期了，不换的话抖音那边一律返回 `400`：
+
+```bash
+docker cp dtk-v4:/app/crawlers/douyin/web/config.yaml ./douyin-web.yaml
+# 把文件里的 Cookie 换成浏览器里的，保存
+docker rm -f dtk-v4
+docker run -d --name dtk-v4 --restart unless-stopped -p 8080:80 \
+  -v "$PWD/douyin-web.yaml:/app/crawlers/douyin/web/config.yaml" \
+  evil0ctal/douyin_tiktok_download_api:V4.1.2
+```
+
+TikTok 的两份配置在 `/app/crawlers/tiktok/web/config.yaml` 和
+`/app/crawlers/tiktok/app/config.yaml`，要改的话一样挂进去。
+
+想用 compose 管着，写一个文件就够 —— 前提是 `douyin-web.yaml` 已经按上面拷到同级目录，
+不然 docker 会按这个名字建一个**目录**，程序读配置直接起不来：
+
+```yaml
+# compose.yml
+services:
+  app:
+    image: evil0ctal/douyin_tiktok_download_api:V4.1.2
+    container_name: dtk-v4
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./douyin-web.yaml:/app/crawlers/douyin/web/config.yaml
+```
+
+```bash
+docker rm -f dtk-v4   # 上面 docker run 起的那个占着同一个名字
+docker compose -p dtk-v4 up -d
+```
+
+`main` 现在是 v5，`latest` 跟着 `main` 走，**想留在 v4 就固定 tag，别用 `latest`**。
+`V4.1.2` 是 v4 最后一个发布版；之后 v4 分支又合了几个 PR（B 站下载、cookie 热更新），
+那份代码对应的镜像 tag 是 commit sha `5be4838`。
+
+v4 没有一键脚本，下面「快速开始」里那个装的是 v5。v4 就上面这些：分支还收 PR，但不会
+再往上加东西了，新装的话直接上 v5。
 
 ### 一起写点什么
 

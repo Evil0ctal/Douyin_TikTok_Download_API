@@ -134,14 +134,63 @@ left it out for now.
 ### Still on v4?
 
 v4's code stays on the [`v4` branch](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/tree/v4),
-and the image is still there — pull it by version:
+the image is still published, and one command brings it up:
 
 ```bash
-docker pull evil0ctal/douyin_tiktok_download_api:V4.1.2
+docker run -d --name dtk-v4 --restart unless-stopped \
+  -p 8080:80 evil0ctal/douyin_tiktok_download_api:V4.1.2
 ```
 
-`main` is v5 now, and `latest` follows `main`. To stay on v4, pin the version tag
-rather than using `latest`.
+Then open <http://localhost:8080>; the API reference is at `/docs`. Port 8080 is
+deliberate — v5 binds 8000, so the two versions can run side by side on one machine.
+
+**Replace the Douyin cookie before you use it.** v4 has no identity pool, and the cookie
+baked into the image expired long ago, so Douyin endpoints answer `400` until you put
+your own in:
+
+```bash
+docker cp dtk-v4:/app/crawlers/douyin/web/config.yaml ./douyin-web.yaml
+# replace the Cookie line with one from your browser, then save
+docker rm -f dtk-v4
+docker run -d --name dtk-v4 --restart unless-stopped -p 8080:80 \
+  -v "$PWD/douyin-web.yaml:/app/crawlers/douyin/web/config.yaml" \
+  evil0ctal/douyin_tiktok_download_api:V4.1.2
+```
+
+TikTok's two config files are at `/app/crawlers/tiktok/web/config.yaml` and
+`/app/crawlers/tiktok/app/config.yaml`, and are mounted the same way.
+
+To keep it under Compose instead, one file is enough — with `douyin-web.yaml` already
+copied out next to it, or Docker will create a *directory* under that name and the app
+will fail to read its config:
+
+```yaml
+# compose.yml
+services:
+  app:
+    image: evil0ctal/douyin_tiktok_download_api:V4.1.2
+    container_name: dtk-v4
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./douyin-web.yaml:/app/crawlers/douyin/web/config.yaml
+```
+
+```bash
+docker rm -f dtk-v4   # the container from the run above holds the name
+docker compose -p dtk-v4 up -d
+```
+
+`main` is v5 now and `latest` follows `main`, so **pin the tag to stay on v4**. `V4.1.2`
+is the last v4 release; the branch merged a few PRs after it (Bilibili downloads, cookie
+hot-reload), and that code is published under the commit tag `5be4838`.
+
+There is no guided installer for v4 — the script in Quick start below installs v5. What
+is above is all v4 gets: the branch still takes PRs, but nothing new is built on it, and
+a fresh install should start on v5.
 
 ### Building this together
 
