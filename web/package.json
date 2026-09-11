@@ -1,7 +1,7 @@
 {
   "name": "dtk-console",
   "private": true,
-  "version": "5.0.1",
+  "version": "5.0.2",
   "type": "module",
   "description": "Web console for the dtk self-hosted Douyin/TikTok data API.",
   "scripts": {
