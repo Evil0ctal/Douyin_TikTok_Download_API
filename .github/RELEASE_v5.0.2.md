@@ -141,7 +141,7 @@ bash install/install.zh.sh --manage
 |---|---|
 | Git tag / Git 标签 | `v5.0.2` |
 | `DTK_IMAGE_TAG` — this release / 这个版本 | `5.0.2` |
-| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-03ea5d912159456722c7d5adcda39aaa4d679dda` |
+| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-<the commit `v5.0.2` points at — `git rev-list -n1 v5.0.2`>` |
 
 The Docker tag drops the `v`: `docker/metadata-action` strips it when publishing,
 so `:v5.0.2` was never pushed. One value names both published images. `latest`
