@@ -59,6 +59,34 @@ async def sign(platform: Platform, url: str, cookies: str | None = None) -> dict
     return cast(dict[str, Any], json.loads(bytes(response.body))["data"])
 
 
+#: Draws until the signature is one the decoder can take apart.
+#:
+#: About one Douyin signature in 690 cannot be, and the reason is documented in
+#: `ABogusComparator`: the SDK's 3->4 noise expansion drops a trailing zero
+#: byte, the body length leaves a remainder of two, and a signature whose
+#: checksum happens to be zero therefore comes back a byte short. What the
+#: decoder then reports depends on which door the test came in - `identify`
+#: returns None for a bare value, and a URL decode simply has no fields to
+#: report - so the same one draw in 690 fails different tests different ways,
+#: which is how it went unnoticed as flakiness for a while.
+#:
+#: Every test here that signs and then decodes wants a signature that decodes.
+#: None of them is about that boundary; `ABogusComparator` owns it and carries
+#: its own retries.
+MAX_DRAWS = 20
+
+
+async def sign_decodable(
+    platform: Platform, url: str, cookies: str | None = None
+) -> dict[str, Any]:
+    for _ in range(MAX_DRAWS):
+        signed = await sign(platform, url, cookies)
+        candidate = signed.get("params", {}).get("a_bogus")
+        if candidate is None or abogus.structure_error(candidate) is None:
+            return signed
+    raise AssertionError(f"no decodable signature in {MAX_DRAWS} draws")
+
+
 async def decode(value: str, **extra: Any) -> dict[str, Any]:
     response = await tools.decode(_request(), tools.DecodeRequest(value=value, **extra), PRINCIPAL)
     return cast(dict[str, Any], json.loads(bytes(response.body))["data"])
@@ -81,7 +109,7 @@ def statuses(entry: dict[str, Any]) -> dict[str, str]:
 
 async def test_a_signed_douyin_url_round_trips_through_both_endpoints() -> None:
     """The pair that matters: sign, paste the result back, get every check green."""
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL, DOUYIN_JAR)
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL, DOUYIN_JAR)
     data = await decode(signed["signed_url"], user_agent=signed["user_agent"])
 
     assert data["source"] == tools.SOURCE_URL
@@ -115,14 +143,14 @@ async def test_the_x_bogus_tiktok_sends_is_reported_as_a_constant() -> None:
 
 
 async def test_a_bare_value_is_identified_without_being_named() -> None:
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL)
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL)
     data = await decode(signed["params"]["a_bogus"])
     assert data["source"] == tools.SOURCE_PARAMETER
     assert named(data, "a_bogus")["recovered"]
 
 
 async def test_a_name_equals_value_pair_is_accepted_as_pasted() -> None:
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL)
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL)
     data = await decode(f"a_bogus={signed['params']['a_bogus']}")
     assert data["source"] == tools.SOURCE_PARAMETER
     assert named(data, "a_bogus")["recovered"]
@@ -165,20 +193,14 @@ async def test_an_input_that_was_not_supplied_is_not_reported_as_wrong() -> None
     this test is about what a bare value reports, not about that boundary, and
     a one-in-690 failure in CI is just noise that teaches people to re-run.
     """
-    for _ in range(20):
-        signed = await sign(Platform.DOUYIN, DOUYIN_URL)
-        candidate = signed["params"]["a_bogus"]
-        if abogus.structure_error(candidate) is None:
-            break
-    else:  # pragma: no cover - 20 consecutive draws is 1 in 690^20
-        raise AssertionError("no structurally verifiable a_bogus in 20 attempts")
-    entry = named(await decode(candidate), "a_bogus")
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL)
+    entry = named(await decode(signed["params"]["a_bogus"]), "a_bogus")
     assert set(statuses(entry).values()) == {decoding.CHECK_NOT_SUPPLIED}
     assert all(check["covered"] is None for check in entry["checks"])
 
 
 async def test_a_wrong_user_agent_is_named_as_wrong() -> None:
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL)
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL)
     entry = named(
         await decode(signed["signed_url"], user_agent="Mozilla/5.0 (something else)"), "a_bogus"
     )
@@ -188,7 +210,7 @@ async def test_a_wrong_user_agent_is_named_as_wrong() -> None:
 
 async def test_a_covered_string_is_only_ever_published_when_it_verifies() -> None:
     """Same discipline as the websign preimage: a wrong one would be derived from."""
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL)
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL)
     entry = named(await decode(signed["signed_url"], user_agent="wrong"), "a_bogus")
     for check in entry["checks"]:
         assert (check["covered"] is None) == (check["status"] != decoding.CHECK_MATCH)
@@ -201,7 +223,7 @@ async def test_a_covered_string_is_only_ever_published_when_it_verifies() -> Non
 
 async def test_every_field_declares_which_kind_of_value_it_is() -> None:
     """A number with no kind beside it reads as recovered whether it is or not."""
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL, DOUYIN_JAR)
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL, DOUYIN_JAR)
     kinds = {
         decoding.KIND_PLAIN,
         decoding.KIND_TIME,
@@ -217,7 +239,7 @@ async def test_every_field_declares_which_kind_of_value_it_is() -> None:
 
 
 async def test_the_response_keeps_its_published_shape() -> None:
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL)
+    signed = await sign_decodable(Platform.DOUYIN, DOUYIN_URL)
     data = await decode(signed["signed_url"])
     assert set(data) == {"source", "platform", "user_agent", "parameters"}
     for entry in data["parameters"]:
