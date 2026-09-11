@@ -626,21 +626,14 @@ class TaskWorker:
         handle = value.lstrip("@")
         lookup = registry.resolve(profile_endpoint, {registry.UNIQUE_ID: handle}, self._config())
 
-        found: list[Any] = []
-
-        def parse(payload: dict[str, Any]) -> Any:
-            model = lookup.parse(payload)
-            found.append(model)
-            return model
-
         try:
             async with self._session_factory() as session:
-                await self._fetch.fetch(
+                result = await self._fetch.fetch(
                     session,
                     lookup.platform,
                     lookup.endpoint,
                     lookup.params,
-                    parse=parse,
+                    parse=lookup.parse,
                     cache_ttl=lookup.cache_ttl,
                     ctx=FetchContext(
                         task_id=run.id,
@@ -652,6 +645,12 @@ class TaskWorker:
                         is_demo=run.is_demo,
                     ),
                 )
+            # Parsed from what came back, not collected from the `parse`
+            # callback. A cache hit returns the stored payload and never calls
+            # it, so a callback-collected author was present on the first
+            # lookup of a handle and absent on every one after - which is a
+            # failure that gets better when you stop looking at it.
+            author = lookup.parse(result.payload)
         except DtkError as exc:
             log.info(
                 "worker.author_handle.lookup_failed",
@@ -661,11 +660,17 @@ class TaskWorker:
             )
             return params
 
-        sec_uid = getattr(found[0], "sec_uid", None) if found else None
+        sec_uid = getattr(author, "sec_uid", None)
         if not isinstance(sec_uid, str) or not sec_uid:
+            log.info("worker.author_handle.no_id", endpoint=endpoint, handle=handle)
             return params
 
-        log.info("worker.author_handle.resolved", endpoint=endpoint, handle=handle)
+        log.info(
+            "worker.author_handle.resolved",
+            endpoint=endpoint,
+            handle=handle,
+            cached=result.cached,
+        )
         resolved = dict(params)
         resolved.pop("sec_user_id", None)
         resolved[registry.AUTHOR_ID] = sec_uid

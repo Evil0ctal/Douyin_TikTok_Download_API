@@ -1768,7 +1768,10 @@ async def test_a_tiktok_handle_is_resolved_before_the_call_that_cannot_use_it() 
     first - advice that led nowhere, because the profile it would have returned
     carried no usable id either. Now the worker does the lookup itself.
     """
-    fetch = FakeFetch(parse_payload=_tiktok_profile_payload())
+    # Both set: a fresh fetch returns the payload *and* runs the callback. The
+    # cache-hit case, which only returns the payload, is the test below.
+    payload = _tiktok_profile_payload()
+    fetch = FakeFetch(payload=payload, parse_payload=payload)
     worker, _ = make_worker(FakeStore(), fetch)
     run = a_run("tiktok.author_posts", sec_user_id="owlcitymusic")
 
@@ -1777,6 +1780,29 @@ async def test_a_tiktok_handle_is_resolved_before_the_call_that_cannot_use_it() 
     assert len(fetch.calls) == 1, "the profile lookup did not happen"
     assert fetch.calls[0].endpoint == "tiktok.author_profile"
     assert fetch.calls[0].params == {"unique_id": "owlcitymusic"}
+    assert resolved["author_id"].startswith("MS4wLjAB")
+    assert "sec_user_id" not in resolved
+
+
+async def test_a_cached_profile_still_yields_the_id() -> None:
+    """The lookup must read what came back, not what the callback collected.
+
+    `FetchService.fetch` returns a cache hit straight from storage and never
+    calls `parse`. Collecting the author through that callback therefore worked
+    on the first lookup of a handle and failed on every one afterwards - a bug
+    that got better when you stopped looking at it, and the reason the fix
+    shipped in 5.0.2 appeared to work when it was tested and not when it was
+    used.
+    """
+    # payload set, parse_payload left None: FakeFetch answers without ever
+    # invoking the callback, which is exactly what a cache hit does.
+    fetch = FakeFetch(payload=_tiktok_profile_payload())
+    worker, _ = make_worker(FakeStore(), fetch)
+    run = a_run("tiktok.author_posts", sec_user_id="owlcitymusic")
+
+    resolved = await worker._resolve_author_handle("tiktok.author_posts", dict(run.params), run)
+
+    assert len(fetch.calls) == 1
     assert resolved["author_id"].startswith("MS4wLjAB")
     assert "sec_user_id" not in resolved
 
