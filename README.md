@@ -158,6 +158,13 @@ CloakBrowser 的版本 pin 在一个指定的 commit 上。这是一项安全控
 
 ## 🗂 项目结构
 
+**先说一句 `dtk` 是什么。** 仓库全称 `Douyin_TikTok_Download_API` 念起来太长，所以代码里一律用
+**DTK**：**D**ouyin + **T**i**K**Tok，只取那两个平台，下载器和 API 那两截没进来。
+
+它是 Python 包名（`src/dtk/`）、命令行（`dtk --help`）、每个环境变量的前缀（`DTK_SECRET_KEY` 这些）、
+compose 的项目名（`-p dtk`），也是控制台标题栏里那三个字母。看到 `dtk`，说的就是
+`Douyin_TikTok_Download_API`。
+
 ```
 Douyin_TikTok_Download_API/
 ├── src/dtk/                服务端，代码全在这

@@ -171,6 +171,15 @@ CloakBrowser is pinned to a specific commit. That pin is a security control — 
 
 ## 🗂 Project layout
 
+**First, what `dtk` is.** `Douyin_TikTok_Download_API` is a mouthful, so the code
+says **DTK** instead: **D**ouyin + **T**i**K**Tok. The two platforms, and not the
+download or API halves of the name.
+
+It is the Python package (`src/dtk/`), the command (`dtk --help`), the prefix on
+every environment variable (`DTK_SECRET_KEY` and friends), the Compose project
+name (`-p dtk`), and the three letters in the console's title bar. Where you see
+`dtk`, it means `Douyin_TikTok_Download_API`.
+
 ```
 Douyin_TikTok_Download_API/
 ├── src/dtk/                the service; all of it lives here
