@@ -8,9 +8,10 @@ routes never branch on how the caller authenticated.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 from fastapi import Depends, Request
 from sqlalchemy import select
@@ -81,11 +82,46 @@ class Principal:
             return True
         return bool(set(needed) & self.scopes)
 
+    def denial(
+        self,
+        *,
+        roles: Iterable[UserRole] = (),
+        scopes: Iterable[Scope] = (),
+    ) -> dict[str, Any]:
+        """The `details` every 403 carries, in one shape.
+
+        Eleven places raise this error and they used to disagree about what to
+        say: some reported what the endpoint needs, one reported only what the
+        caller is, and the key was spelled `required` in some and
+        `required_role` in others. A caller could not write one piece of code to
+        read them, and the one that named only the caller's role left them with
+        nowhere to go.
+
+        Both halves are here on purpose. What the endpoint requires is static
+        metadata that `/openapi.json` already publishes, and what this caller
+        holds is what `/auth/me` already returns - so neither is a secret, and
+        withholding either only costs a round trip. What must never appear is
+        anything about the resource being asked for: whether it exists is a
+        different question, answered by a different status.
+        """
+        detail: dict[str, Any] = {}
+        if roles:
+            detail["required_roles"] = sorted(r.value for r in roles)
+        if scopes:
+            detail["required_scopes"] = sorted(s.value for s in scopes)
+        detail["have_role"] = self.role.value
+        detail["have_scopes"] = sorted(s.value for s in self.scopes)
+        # Which gate applies at all: an API key is bounded by its scopes, a
+        # console session by its role. Saying so stops a reader chasing a
+        # requirement that was never going to be checked for them.
+        detail["via"] = "api_key" if self.scoped else "session"
+        return detail
+
     def require(self, *needed: Scope) -> None:
         if not self.permits(*needed):
             raise ForbiddenScope(
                 "this credential lacks the scope required for this endpoint",
-                details={"required": sorted(s.value for s in needed)},
+                details=self.denial(scopes=needed),
             )
 
 
@@ -293,7 +329,7 @@ def require_role(*roles: UserRole):
         if principal.role not in roles and principal.role is not UserRole.ADMIN:
             raise ForbiddenScope(
                 "this operation requires a higher role",
-                details={"required": sorted(r.value for r in roles)},
+                details=principal.denial(roles=roles),
             )
         return principal
 

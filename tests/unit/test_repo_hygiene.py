@@ -1001,3 +1001,54 @@ def test_the_download_platform_menu_is_not_disabled_where_it_is_needed() -> None
         "id is ambiguous between the two platforms, so the menu is the only thing "
         "that can say which one - disabling it makes TikTok unreachable."
     )
+
+
+def test_every_forbidden_scope_says_what_is_required_and_what_is_held() -> None:
+    """One shape for all eleven refusals.
+
+    They used to disagree. Most named what the endpoint requires, one named only
+    the caller's own role and left them nowhere to go, and the key was spelled
+    `required` in some places and `required_role` in others - so no client could
+    read them with one piece of code.
+
+    Both halves belong in the answer. What an endpoint requires is static
+    metadata `/openapi.json` already publishes; what the caller holds is what
+    `/auth/me` already returns. Neither is a secret, and withholding either only
+    costs a round trip.
+    """
+    sources = [
+        SRC / "api" / "deps.py",
+        SRC / "api" / "demo_readonly.py",
+        SRC / "api" / "routes" / "support.py",
+        SRC / "api" / "routes" / "content.py",
+        SRC / "mcp" / "http.py",
+    ]
+    offenders = [
+        f"{path.relative_to(REPO)}"
+        for path in sources
+        if 'details={"required"' in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, (
+        "a 403 is back to the old `required` key, which says what the endpoint "
+        f"needs and nothing about the caller: {offenders}. Use Principal.denial()."
+    )
+
+
+def test_the_forbidden_message_does_not_claim_a_credential_it_may_not_have() -> None:
+    """The catalogue entry is one sentence for eleven different refusals.
+
+    It used to read "This API key lacks the scope required by this endpoint" -
+    wrong for a console session, which has no API key, and wrong for the role
+    gates, which are not scopes. The details carry the specifics precisely
+    because the message cannot: templates here are `str.format_map`, not ICU,
+    so there is nothing to branch on.
+    """
+    for language in ("en", "zh"):
+        catalogue = json.loads(
+            (SRC / "i18n" / "locales" / f"errors.{language}.json").read_text(encoding="utf-8")
+        )
+        message = catalogue["FORBIDDEN_SCOPE"]
+        assert "API key" not in message and "API Key" not in message, (
+            f"the {language} FORBIDDEN_SCOPE message names an API key again; a "
+            "console session hitting a role gate has none"
+        )

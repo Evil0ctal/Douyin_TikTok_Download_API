@@ -195,7 +195,7 @@ def authorize(principal: Principal, platform: Platform) -> None:
     if not has_scope(principal, (read_scope(platform),)):
         raise ForbiddenScope(
             "this credential lacks the scope required for this platform",
-            details={"required": [read_scope(platform).value]},
+            details={**principal.denial(scopes=[read_scope(platform)]), "platform": platform.value},
         )
 
 
@@ -278,7 +278,7 @@ async def parse(
     if not has_scope(principal, (Scope.DOUYIN_READ, Scope.TIKTOK_READ)):
         raise ForbiddenScope(
             "this credential lacks read access to any platform",
-            details={"required": [Scope.DOUYIN_READ.value, Scope.TIKTOK_READ.value]},
+            details=principal.denial(scopes=(Scope.DOUYIN_READ, Scope.TIKTOK_READ)),
         )
 
     kind = vet_url(body.url)
@@ -333,7 +333,7 @@ async def batch(
     if not has_scope(principal, (Scope.DOUYIN_READ, Scope.TIKTOK_READ)):
         raise ForbiddenScope(
             "this credential lacks read access to any platform",
-            details={"required": [Scope.DOUYIN_READ.value, Scope.TIKTOK_READ.value]},
+            details=principal.denial(scopes=(Scope.DOUYIN_READ, Scope.TIKTOK_READ)),
         )
     callback = validate_callback_url(request, body.callback_url)
     # Vetted once for the whole batch rather than per item: the answer cannot

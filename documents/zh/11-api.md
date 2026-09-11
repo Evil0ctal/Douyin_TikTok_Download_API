@@ -374,7 +374,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `UNSUPPORTED_CONTENT` | 400 | 否 | 该平台不提供这个操作；`details.supported` 列出哪些平台提供 |
 | `INVALID_PARAM` | 400 | 否 | 某个参数不对，`details` 指出字段。请求体超过 1 MiB 上限也用它（HTTP 状态为 413） |
 | `UNAUTHENTICATED` | 401 | 否 | 没有凭据，或凭据被拒绝 |
-| `FORBIDDEN_SCOPE` | 403 | 否 | 凭据缺少所需权限范围或角色；`details.required` 说明缺哪个 |
+| `FORBIDDEN_SCOPE` | 403 | 否 | 凭据没有权限；`details` 两边都给：`required_scopes` 或 `required_roles`，以及 `have_role` / `have_scopes` / `via` |
 | `CONTENT_PRIVATE` | 403 | 否 | 私密内容，或已被作者删除 |
 | `NOT_FOUND` | 404 | 否 | 没有这个资源 |
 | `TASK_NOT_FOUND` | 404 | **是** | 没有这个任务，或结果已过期。就这个标志的含义而言它可重试——但过期的结果不会因为重试而回来，请重新提交 |
@@ -410,7 +410,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 
 1. **退避后重试**：`RATE_LIMITED`、`QUEUE_FULL`、`IDENTITY_POOL_EXHAUSTED`、`ENDPOINT_CIRCUIT_OPEN`、`UPSTREAM_RISK_CONTROL`、`SIGNING_FAILED`、`INTERNAL`、`DOWNLOADER_UNAVAILABLE`。有 `retry_after` 就遵守它，没有就用指数退避。
 2. **绝不重发同一个请求**：`INVALID_URL`、`UNSUPPORTED_CONTENT`、`INVALID_PARAM`、`NOT_FOUND`、`CONTENT_PRIVATE`、`METHOD_NOT_ALLOWED`、`UNSUPPORTED_MEDIA_TYPE`、`CANCELLED`、`NOT_CONFIGURED`、`UPSTREAM_CHANGED`。在这些上面打转，只是烧身份去换同一句话。
-3. **修凭据**：`UNAUTHENTICATED`、`FORBIDDEN_SCOPE`。读 `details.required`——它写明了你缺的权限范围或角色。
+3. **修凭据**：`UNAUTHENTICATED`、`FORBIDDEN_SCOPE`。`details` 把两边都写出来了：`required_scopes` 或 `required_roles` 是接口要什么，`have_role`、`have_scopes`、`via` 是你发过去的是什么。先看 `via`——它说明这个调用方是按 scope 判定（`api_key`）还是按角色判定（`session`），而管理员的 key 同样受它自己的 scope 约束。
 4. **重新提交工作**：`TASK_NOT_FOUND`。结果窗口已经过去，这个任务 ID 死了。
 
 ## 速率限制

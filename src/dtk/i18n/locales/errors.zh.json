@@ -3,7 +3,7 @@
   "UNSUPPORTED_CONTENT": "暂不支持该内容类型。",
   "INVALID_PARAM": "请求参数不合法。",
   "UNAUTHENTICATED": "身份验证失败。请在 X-API-Key 请求头中提供有效的 API Key，或登录控制台。",
-  "FORBIDDEN_SCOPE": "该 API Key 缺少调用此接口所需的权限范围。",
+  "FORBIDDEN_SCOPE": "当前凭据没有调用此接口的权限。`details` 里写明了它需要什么、以及你当前有什么。",
   "NOT_FOUND": "请求的资源不存在。",
   "CONTENT_PRIVATE": "该内容为私密或已被作者删除。",
   "RATE_LIMITED": "请求过于频繁，请在 {retry_after} 秒后重试。",

@@ -359,7 +359,7 @@ curl -H 'Authorization: Bearer dtk_9f3c1a7b2e08_...' \
 | 状态码 | `error.code` | 含义 |
 |---|---|---|
 | `401` | `UNAUTHENTICATED` | 没有凭据，或服务端不认识的凭据，或已过期、已撤销的凭据。在 `/mcp` 上响应还会带 `WWW-Authenticate: Bearer realm="dtk"`。 |
-| `403` | `FORBIDDEN_SCOPE` | 凭据有效，但缺少所需的 scope（`error.details.required` 会列出能通过的 scope），或者账号角色不够（`error.details.required_role` 会指出需要的角色）。 |
+| `403` | `FORBIDDEN_SCOPE` | 凭据有效，但没有权限。`error.details` 会写明什么能通过（`required_scopes` 或 `required_roles`）以及你发的是什么（`have_role`、`have_scopes`），外加 `via`——按 scope 判定时是 `api_key`，按角色判定时是 `session`。 |
 | `429` | `RATE_LIMITED` | 超过了每分钟限额。`Retry-After` 给出需要等待的时长。 |
 
 所有错误使用与成功响应相同的信封：`success`、`data`、`error`、`meta`。请按 `error.code` 分支判断，绝不要解析 `error.message`——那是本地化文本。

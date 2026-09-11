@@ -521,5 +521,10 @@ async def test_the_demo_cannot_ask_for_an_identitys_own_credentials(
     assert response.status_code == 403, response.text
     assert error_code(response) == "FORBIDDEN_SCOPE"
     details = response.json()["error"]["details"]
-    assert details["required_role"] == "operator"
+    assert details["required_roles"] == ["operator"]
     assert details["field"] == field
+    # Both halves, in the one shape every 403 now uses: what the endpoint needs
+    # and what this caller holds. A demo visitor told only "operator required"
+    # still has to go and ask what they are.
+    assert details["have_role"] == "demo"
+    assert details["via"] == "session"

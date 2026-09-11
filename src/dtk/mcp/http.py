@@ -116,7 +116,7 @@ def authorize_platform(platform: Platform, caller: Any) -> None:
     if not has_scope(caller, (scope,)):
         raise ForbiddenScope(
             "this credential lacks the scope required for this platform",
-            details={"required": [scope.value], "platform": platform.value},
+            details={**caller.denial(scopes=[scope]), "platform": platform.value},
         )
 
 
@@ -180,7 +180,7 @@ class ApiKeyGuard:
         if not has_scope(principal, self._scopes):
             raise ForbiddenScope(
                 "this credential lacks read access to any platform",
-                details={"required": [scope.value for scope in self._scopes]},
+                details=principal.denial(scopes=self._scopes),
             )
         await enforce_rate_limit(request, principal)
         # The tool bodies re-check the platform they were actually asked for, and

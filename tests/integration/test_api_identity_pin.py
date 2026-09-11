@@ -111,7 +111,10 @@ async def test_a_viewer_session_cannot_name_an_identity(client: Any) -> None:
     )
 
     assert error_code(response) == "FORBIDDEN_SCOPE"
-    assert envelope(response)["error"]["details"]["required_role"] == "operator"
+    details = envelope(response)["error"]["details"]
+    assert details["required_roles"] == ["operator"]
+    assert details["have_role"] == "viewer"
+    assert details["field"] == "identity"
 
 
 # --------------------------------------------------------------------------

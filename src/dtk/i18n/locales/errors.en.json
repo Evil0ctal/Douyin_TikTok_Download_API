@@ -3,7 +3,7 @@
   "UNSUPPORTED_CONTENT": "That content type is not supported yet.",
   "INVALID_PARAM": "One or more request parameters are invalid.",
   "UNAUTHENTICATED": "Authentication failed. Send a valid API key in the X-API-Key header, or sign in to the console.",
-  "FORBIDDEN_SCOPE": "This API key lacks the scope required by this endpoint.",
+  "FORBIDDEN_SCOPE": "This credential is not permitted to use this endpoint. `details` says what it requires and what this credential holds.",
   "NOT_FOUND": "The requested resource does not exist.",
   "CONTENT_PRIVATE": "This content is private or has been removed by its author.",
   "RATE_LIMITED": "Too many requests; retry in {retry_after} seconds.",

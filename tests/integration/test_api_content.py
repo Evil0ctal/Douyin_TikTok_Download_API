@@ -165,7 +165,12 @@ async def test_a_tiktok_key_cannot_read_douyin(client: Any) -> None:
     assert response.status_code == 403
     body = envelope(response)
     assert body["error"]["code"] == "FORBIDDEN_SCOPE"
-    assert body["error"]["details"]["required"] == ["douyin:read"]
+    details = body["error"]["details"]
+    assert details["required_scopes"] == ["douyin:read"]
+    # A key is bounded by the scopes it was minted with, whoever owns it, so the
+    # refusal has to say that is the gate being applied.
+    assert details["via"] == "api_key"
+    assert "douyin:read" not in details["have_scopes"]
 
 
 async def test_a_read_key_cannot_reach_the_admin_surface(client: Any) -> None:

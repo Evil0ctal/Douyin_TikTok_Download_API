@@ -375,7 +375,7 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `UNSUPPORTED_CONTENT` | 400 | no | This platform does not serve that operation; `details.supported` names the ones that do |
 | `INVALID_PARAM` | 400 | no | A parameter is wrong; `details` names the field. Also used for a body over the 1 MiB ceiling (with HTTP 413) |
 | `UNAUTHENTICATED` | 401 | no | No credential, or one that was rejected |
-| `FORBIDDEN_SCOPE` | 403 | no | The credential lacks the scope or role; `details.required` says which |
+| `FORBIDDEN_SCOPE` | 403 | no | The credential is not permitted; `details` names both halves - `required_scopes` or `required_roles`, and `have_role` / `have_scopes` / `via` |
 | `CONTENT_PRIVATE` | 403 | no | Private, or removed by its author |
 | `NOT_FOUND` | 404 | no | No such resource |
 | `TASK_NOT_FOUND` | 404 | **yes** | No such task, or its result has expired. Retryable in the sense the flag means — but no retry brings an expired result back, so resubmit the work |
@@ -411,7 +411,7 @@ Anything else can reasonably be treated as "log it and stop", but these four dec
 
 1. **Back off and retry**: `RATE_LIMITED`, `QUEUE_FULL`, `IDENTITY_POOL_EXHAUSTED`, `ENDPOINT_CIRCUIT_OPEN`, `UPSTREAM_RISK_CONTROL`, `SIGNING_FAILED`, `INTERNAL`, `DOWNLOADER_UNAVAILABLE`. Honour `retry_after` where present; use exponential backoff where it is not.
 2. **Never retry the same request**: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `NOT_FOUND`, `CONTENT_PRIVATE`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `CANCELLED`, `NOT_CONFIGURED`, `UPSTREAM_CHANGED`. A loop on one of these burns identities to be told the same thing.
-3. **Fix the credential**: `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`. Read `details.required` — it names the scope or role you are missing.
+3. **Fix the credential**: `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`. `details` carries both sides: `required_scopes` or `required_roles` for what the endpoint wants, and `have_role`, `have_scopes` and `via` for what you sent. `via` is the one to read first — it says whether this caller is judged by its scopes (`api_key`) or by its role (`session`), and an administrator's key is still bounded by its scopes.
 4. **Resubmit the work**: `TASK_NOT_FOUND`. The result window has passed; the task id is dead.
 
 ## Rate limits

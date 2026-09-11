@@ -540,7 +540,7 @@ The two are answering different questions, and telling them apart takes one look
 
 **403 checklist.**
 
-- Scopes are `douyin:read`, `tiktok:read`, `identity:manage`, `archive:read`, `archive:export`, `media:read`, `media:write`, `admin`. `error.details.required` names what the endpoint wanted.
+- Scopes are `douyin:read`, `tiktok:read`, `identity:manage`, `archive:read`, `archive:export`, `media:read`, `media:write`, `admin`. `error.details.required_scopes` names what the endpoint wanted, and `have_scopes` what you sent.
 - **An admin-owned key is still bounded by its scopes.** This is on purpose: almost every key on a self-hosted instance belongs to the admin user, so an admin short-circuit would make `archive:export` — the one call that hands back a copy of the database — unenforceable in exactly the deployment it was written for.
 - A console *session* is bounded by the account's role instead, not by scopes.
 - A few things need both a scope and an operator role: `?explain=true` and pinning `?identity=` need `identity:manage` **and** operator, because the answer contains a cookie jar. Those requests are written to the audit trail.

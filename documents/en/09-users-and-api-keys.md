@@ -532,7 +532,7 @@ it was actually asked for. See [MCP and AI agents](./12-mcp.md).
 | Status | `error.code` | Meaning |
 |---|---|---|
 | `401` | `UNAUTHENTICATED` | No credential, or one the server does not recognise, or one that is expired or revoked. On `/mcp` the response also carries `WWW-Authenticate: Bearer realm="dtk"`. |
-| `403` | `FORBIDDEN_SCOPE` | The credential is valid but lacks the scope (`error.details.required` names the scopes that would have passed), or the account lacks the role (`error.details.required_role` names the role it needed). |
+| `403` | `FORBIDDEN_SCOPE` | The credential is valid but not permitted. `error.details` names what would have passed (`required_scopes` or `required_roles`) and what was sent (`have_role`, `have_scopes`), plus `via` — `api_key` when scopes are the gate, `session` when the role is. |
 | `429` | `RATE_LIMITED` | Over the per-minute limit. `Retry-After` says how long to wait. |
 
 Every error is the same envelope as every success: `success`, `data`, `error`,
