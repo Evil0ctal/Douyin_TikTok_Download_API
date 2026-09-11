@@ -110,11 +110,17 @@ class Principal:
         if scopes:
             detail["required_scopes"] = sorted(s.value for s in scopes)
         detail["have_role"] = self.role.value
-        detail["have_scopes"] = sorted(s.value for s in self.scopes)
         # Which gate applies at all: an API key is bounded by its scopes, a
         # console session by its role. Saying so stops a reader chasing a
         # requirement that was never going to be checked for them.
         detail["via"] = "api_key" if self.scoped else "session"
+        # Only for a caller scopes actually bind. `permits` lets every console
+        # session through a scope gate, so a session can only ever be refused on
+        # its role - and the demo account nominally carries `admin` among its
+        # scopes, so listing them here read as "I hold admin and still cannot
+        # read this". True, irrelevant, and the worst combination to print.
+        if self.scoped:
+            detail["have_scopes"] = sorted(s.value for s in self.scopes)
         return detail
 
     def require(self, *needed: Scope) -> None:

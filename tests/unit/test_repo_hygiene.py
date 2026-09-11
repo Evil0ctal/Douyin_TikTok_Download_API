@@ -1052,3 +1052,19 @@ def test_the_forbidden_message_does_not_claim_a_credential_it_may_not_have() -> 
             f"the {language} FORBIDDEN_SCOPE message names an API key again; a "
             "console session hitting a role gate has none"
         )
+
+
+def test_a_session_refusal_does_not_list_scopes_that_were_never_the_gate() -> None:
+    """`have_scopes` belongs only to a caller that scopes actually bind.
+
+    `Principal.permits` lets every console session through a scope gate, so a
+    session can only ever be refused on its role. Listing its scopes anyway was
+    worse than useless on the demo account, which nominally carries `admin`: the
+    refusal read as "I hold admin and still cannot read this".
+    """
+    source = (SRC / "api" / "deps.py").read_text(encoding="utf-8")
+    guarded = re.search(r"if self\.scoped:\s*\n\s*detail\[\"have_scopes\"\]", source)
+    assert guarded, (
+        "have_scopes is no longer behind `if self.scoped` in Principal.denial; a "
+        "console session would list scopes that could not have refused it"
+    )
