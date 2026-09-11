@@ -207,6 +207,8 @@ less install.zh.sh    # 先读一遍再跑，这是个好习惯
 bash install.zh.sh
 ```
 
+**装完之后，这个脚本就是运维工具。** 再跑一次它会发现已有安装，打开菜单：看状态、升级（和 GitHub 最新 Release 比版本）、改口令、加管理员、备份恢复、改运行时设置、清磁盘、停止或卸载。`--manage` 直达菜单。
+
 细节见 [install/README.md](./install/README.md)。下面是手动的做法。
 
 装法有两种，下面走的是推荐的那种。手动装依赖的路子见 [不用 Docker](#不用-docker)。
@@ -314,7 +316,13 @@ docker compose -p dtk -f docker/compose.yml up -d
 每 24 小时最多一次。那个请求是**你的浏览器**发给 GitHub 的，服务器不会往外发任何东西
 ——所以它不会告诉任何人你这台实例存在。气人的话在设置里关掉。
 
-更新本身就是拉镜像加重启：
+更新本身就是拉镜像加重启。用脚本装的话，再跑一次选「升级」就行：
+
+```bash
+bash install.zh.sh --manage    # 选 2
+```
+
+手工版是这样：
 
 ```bash
 cd /opt/dtk && git pull

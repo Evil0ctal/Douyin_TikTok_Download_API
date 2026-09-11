@@ -221,6 +221,8 @@ less install.sh    # reading it first is a good habit
 bash install.sh
 ```
 
+**Afterwards the same script is the operations tool.** Run it again and it finds the install and opens a menu: status, upgrade (compared against the latest GitHub release), passwords, an extra administrator, backup and restore, runtime settings, disk cleanup, stop or uninstall. `--manage` goes straight there.
+
 Details in [install/README.md](./install/README.md). The manual route follows.
 
 There are two ways to install this; below is the recommended one. For the by-hand route, see
@@ -340,7 +342,14 @@ a day. That request goes from **your browser** to GitHub — the server never
 sends anything outward, so it does not tell anyone this instance exists. Turn it
 off in Settings if you would rather it did not.
 
-Updating is a pull and a restart:
+Updating is a pull and a restart. If you installed with the script, run it
+again and pick Upgrade:
+
+```bash
+bash install.sh --manage    # pick 2
+```
+
+By hand it is:
 
 ```bash
 cd /opt/dtk && git pull

@@ -34,6 +34,7 @@ what you are putting back, and it is worth reading before you choose.
 
 **Before you start**
 
+- [Installing and managing it with the script](#installing-and-managing-it-with-the-script) — the guided install, and the operations menu afterwards
 - [What you need](#what-you-need) — sizing, disk, and the two things to know before pointing this at your own database
 - [What the shipped defaults are written for](#what-the-shipped-defaults-are-written-for) · [Three sizes](#three-sizes) · [Changing the limits](#changing-the-limits)
 - [Network preparation in mainland China](#network-preparation-in-mainland-china) — switch your mirrors first; without them the install usually dies on the image pull
@@ -170,7 +171,10 @@ COMPOSE_ENV_FILES=.env docker compose -p dtk \
 ```
 
 Three arguments, none of them optional, all of them easy to forget — which is
-what a wrapper is for:
+what a wrapper is for. (The [guided script](#installing-and-managing-it-with-the-script)
+writes this file, and the `compose.host.yml` above it, with the numbers worked
+out for your machine. What follows is what it does, and how to write it
+yourself.)
 
 ```bash
 cat > dtkctl <<'EOF'
@@ -197,6 +201,50 @@ Knobs worth turning, most effective first:
   concurrent-transfer ceiling is their product. Drop both to 2 on one core.
 - **`pool.target_size` (a console setting).** A bigger pool means more mints and
   more rows in Postgres. 8 is a sensible number on a small box.
+
+## Installing and managing it with the script
+
+There is a guided script that walks the Docker route above for you, and then
+manages the instance afterwards. It exists in both languages — see
+[install/README.md](../../install/README.md).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.sh -o install.sh
+less install.sh    # read it before you run it
+bash install.sh
+```
+
+**The first run** works out the distribution, checks for Docker (and offers to
+install it), sizes the resource ceilings to this machine's cores and memory,
+then asks six questions: where, which address and port, the browser container,
+media downloads, published images or a build. It writes three things, and they
+are exactly the three this page goes on to teach you to write by hand:
+
+| What it writes | The section here |
+|---|---|
+| `.env`, secrets from `openssl rand`, mode 0600 | [First install](#first-install), step 2 |
+| `compose.host.yml`, ceilings scaled to this host | [Changing the limits](#changing-the-limits) |
+| `dtkctl`, carrying the project name, both compose files and `COMPOSE_ENV_FILES` | the same section |
+
+**Run it again** and it finds the install — by asking Docker, so it does not
+matter where you put it — and opens a menu instead of installing:
+
+- **Status** — versions, containers, disk, and a comparison against the latest
+  GitHub release
+- **Upgrade** — pins `DTK_IMAGE_TAG` to the target, pulls, migrates, restarts.
+  Migrations run before the swap, so a failure leaves the old containers up
+  with nothing changed
+- **Manage** — passwords, an extra administrator, account list, backup,
+  restore, self check, logs, restart, any runtime setting, disk cleanup
+- **Stop or remove** — three levels: stop, stop and delete the volumes, or that
+  plus the install directory. The last two require typing `delete`, not a y/n
+
+`bash install.sh --manage` goes straight to that menu.
+
+**The rest of this page is still worth reading.** What the script does is what
+follows; it just does it for you. When you want to know why it chose something,
+or to deviate from it, the answer is below.
+
 
 ## Network preparation in mainland China
 
@@ -1049,6 +1097,12 @@ Because it uses the same compose file, it publishes the same `127.0.0.1:8000`. S
 first, or the port is already taken.
 
 ## Upgrading
+
+The least effort is the [guided script](#installing-and-managing-it-with-the-script):
+run it again and pick Upgrade. It compares against the latest GitHub release,
+pins `DTK_IMAGE_TAG`, pulls, migrates and restarts — with the migration before
+the swap, so a failure leaves the old containers running. What follows is every
+step of that, by hand.
 
 **Back up first.** The archive is a logical export, not a volume snapshot, and restoring it needs
 the same `DTK_SECRET_KEY` — credentials are exported still encrypted.
