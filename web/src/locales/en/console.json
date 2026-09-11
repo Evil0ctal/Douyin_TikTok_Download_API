@@ -2018,15 +2018,6 @@
     "overrides": "{count, plural, =0 {Every value on this page is the built-in default or an environment seed.} one {# value is stored in the database and overrides its environment seed.} other {# values are stored in the database and override their environment seeds.}}"
   },
   "about": {
-    "title": "About",
-    "description": "What this is, who made it, and what you may do with it.",
-    "tagline": "A self-hosted API for Douyin and TikTok data, and a console for running it.",
-    "copyright": "© 2022–{year} Evil0ctal and contributors",
-    "link": {
-      "repo": "Source on GitHub",
-      "issues": "Report an issue",
-      "license": "Read the licence"
-    },
     "contact": {
       "title": "Contact",
       "body": "Two routes, in the order worth trying.",
@@ -2037,12 +2028,39 @@
       "emailWhy": "Reaches one person. Best for anything that does not belong in public.",
       "authorLabel": "Author"
     },
+    "copyright": "© 2022–{year} Evil0ctal and contributors",
+    "description": "What this is, who made it, and what you may do with it.",
+    "donate": {
+      "title": "Support the author",
+      "body": "The sponsor above pays for the project. This is for the person who maintains it.",
+      "tokens": "These networks carry the usual major tokens. USDT on Tron (TRC20) or Solana is the easiest to receive, and the cheapest to send.",
+      "network": "Send only on the network an address is listed under. A transfer on the wrong chain cannot be recovered by anybody.",
+      "evm": "Ethereum and BNB Smart Chain share one address on purpose: both are EVM chains, and the same key controls it."
+    },
+    "egg": {
+      "hint": "Every project has one.",
+      "found": "Found it. These load from shields.io, which is why they were not here a moment ago — every other screen in this console talks to nobody.",
+      "privacy": "Clear the site data to put it back.",
+      "shield": {
+        "stars": "Stars on GitHub",
+        "forks": "Forks on GitHub",
+        "commit": "Last commit",
+        "release": "Latest release",
+        "pulls": "Docker Hub pulls",
+        "licence": "Licence"
+      }
+    },
     "licence": {
       "title": "Licence: Apache 2.0",
       "body": "You may use, modify and distribute this software, including commercially and inside closed-source products. The grant is irrevocable. Three things are asked of you in return:",
       "notice": "Keep the copyright notice and the licence text with any copy you distribute.",
       "changes": "State what you changed, in files you modified.",
       "warranty": "Accept that it comes with no warranty. If it breaks something, that is on you."
+    },
+    "link": {
+      "repo": "Source on GitHub",
+      "issues": "Report an issue",
+      "license": "Read the licence"
     },
     "request": {
       "title": "A request from the author",
@@ -2060,13 +2078,8 @@
       "become": "To sponsor this project, see github.com/sponsors/evil0ctal.",
       "label": "Sponsor"
     },
-    "donate": {
-      "title": "Support the author",
-      "body": "The sponsor above pays for the project. This is for the person who maintains it.",
-      "tokens": "These networks carry the usual major tokens. USDT on Tron (TRC20) or Solana is the easiest to receive, and the cheapest to send.",
-      "network": "Send only on the network an address is listed under. A transfer on the wrong chain cannot be recovered by anybody.",
-      "evm": "Ethereum and BNB Smart Chain share one address on purpose: both are EVM chains, and the same key controls it."
-    }
+    "tagline": "A self-hosted API for Douyin and TikTok data, and a console for running it.",
+    "title": "About"
   },
   "mcp": {
     "title": "MCP",

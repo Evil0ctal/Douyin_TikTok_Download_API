@@ -322,12 +322,20 @@ class TestConsoleHygiene:
         assert "open={pending !== null}" in source
 
     def test_no_cjk_outside_the_chinese_locale(self):
+        """The console half of the same rule the Python sources live under.
+
+        The mark is the one exception, recognised by shape through
+        `tests/support/marks.py` - the same function and the same alphabet the
+        Python check uses, so the two cannot come to disagree about what the cat
+        is. `web/eslint.config.js` carries the third copy of this rule and
+        `test_the_mark_alphabet_is_the_same_on_both_sides` keeps it in step.
+        """
         offenders = []
         for path in list(WEB.rglob("*.tsx")) + list(WEB.rglob("*.ts")):
             if "locales" in path.parts:
                 continue
             for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if CJK.search(line):
+                if CJK.search(line) and not _is_project_mark(line):
                     offenders.append(f"{path.relative_to(REPO)}:{lineno}")
         assert not offenders, "CJK outside locales/zh:\n" + "\n".join(offenders[:20])
 
@@ -855,3 +863,34 @@ class TestInstallScripts:
             if re.search(r"(curl|wget)[^|#]*\|\s*(sudo\s+)?(ba)?sh\b", line)
         ]
         assert not offenders, "pipes remote code into a shell:\n" + "\n".join(offenders)
+
+
+def test_the_mark_alphabet_is_the_same_on_both_sides():
+    """Two languages, two no-CJK checks, one exemption.
+
+    `tests/support/marks.py` lets the cat through the Python checks and a rule
+    in `web/eslint.config.js` lets it through the TypeScript one. Both are
+    written by shape rather than by filename, which is what stops either
+    becoming a place to park a sentence - and which only holds while the two
+    shapes agree. Nothing shares them at runtime: one is Python, the other is a
+    flat config file read by eslint.
+
+    Only the drawing is compared. The syntax around it differs on purpose: a
+    Python line starts with `#`, a TypeScript one is a quoted string in a list.
+    """
+    from tests.support.marks import MARK_DRAWING
+
+    config = (REPO / "web" / "eslint.config.js").read_text(encoding="utf-8")
+    block = re.search(r"const MARK_DRAWING = \[(.*?)\]", config, re.S)
+    assert block, "MARK_DRAWING is gone from eslint.config.js; the cat exemption moved or died"
+    javascript = {
+        chr(int(code, 16)) for code in re.findall(r"'\\u([0-9a-fA-F]{4})'", block.group(1))
+    }
+    assert javascript, "MARK_DRAWING parsed to nothing; the escape format changed"
+
+    python = set(MARK_DRAWING)
+    assert javascript == python, (
+        "the mark's alphabet has drifted between the two no-CJK checks:\n"
+        f"  only in Python:     {sorted(python - javascript)}\n"
+        f"  only in TypeScript: {sorted(javascript - python)}"
+    )

@@ -56,6 +56,7 @@ export { Sponsor, SPONSOR, sponsorHref } from './Sponsor'
 export type { InputProps } from './Input'
 
 export { LanguageSwitcher } from './LanguageSwitcher'
+export { Konami } from './Konami'
 
 export { MaskedSecret } from './MaskedSecret'
 export type { MaskedSecretProps } from './MaskedSecret'

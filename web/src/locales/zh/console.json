@@ -2018,15 +2018,6 @@
     "overrides": "{count, plural, =0 {本页的每个值都来自内置默认或环境变量种子。} other {其中 # 项已存进数据库，覆盖了对应的环境变量种子。}}"
   },
   "about": {
-    "title": "关于",
-    "description": "这是什么、谁做的，以及你可以拿它做什么。",
-    "tagline": "自部署的抖音与 TikTok 数据接口，以及运行它的控制台。",
-    "copyright": "© 2022–{year} Evil0ctal 及贡献者",
-    "link": {
-      "repo": "GitHub 源码",
-      "issues": "反馈问题",
-      "license": "阅读许可协议"
-    },
     "contact": {
       "title": "联系方式",
       "body": "两个渠道，按建议尝试的先后排列。",
@@ -2037,12 +2028,39 @@
       "emailWhy": "直达作者本人。适合不方便公开的内容。",
       "authorLabel": "作者"
     },
+    "copyright": "© 2022–{year} Evil0ctal 及贡献者",
+    "description": "这是什么、谁做的，以及你可以拿它做什么。",
+    "donate": {
+      "title": "赞赏作者",
+      "body": "上面的赞助商付的是项目的钱，这里是给维护它的人的。",
+      "tokens": "这些网络都支持常见的主流代币。TRC20 或 Solana 上的 USDT 最方便接收，手续费也最低。",
+      "network": "只能按地址所属的网络转账。转错链的资产任何人都无法找回。",
+      "evm": "以太坊和 BNB Smart Chain 共用同一个地址，这是正常的：两者都是 EVM 链，由同一把私钥控制。"
+    },
+    "egg": {
+      "hint": "每个项目都有一个。",
+      "found": "找到了。这些图是从 shields.io 拉的，所以刚才它们不在这儿 —— 这个控制台的其他每一个页面都不对外说话。",
+      "privacy": "清掉站点数据就能收回去。",
+      "shield": {
+        "stars": "GitHub 星标数",
+        "forks": "GitHub fork 数",
+        "commit": "最近一次提交",
+        "release": "最新发布版",
+        "pulls": "Docker Hub 拉取数",
+        "licence": "许可协议"
+      }
+    },
     "licence": {
       "title": "许可协议：Apache 2.0",
       "body": "你可以使用、修改和分发这个软件，包括商业用途，也包括放进闭源产品里。这项授权是不可撤销的。作为交换，它对你有三点要求：",
       "notice": "分发任何副本时，保留版权声明和许可协议全文。",
       "changes": "在你改动过的文件里，说明你改了什么。",
       "warranty": "接受它不提供任何担保。出了问题由你自己承担。"
+    },
+    "link": {
+      "repo": "GitHub 源码",
+      "issues": "反馈问题",
+      "license": "阅读许可协议"
     },
     "request": {
       "title": "作者的一个请求",
@@ -2060,13 +2078,8 @@
       "become": "想赞助这个项目，请访问 github.com/sponsors/evil0ctal。",
       "label": "赞助商"
     },
-    "donate": {
-      "title": "赞赏作者",
-      "body": "上面的赞助商付的是项目的钱，这里是给维护它的人的。",
-      "tokens": "这些网络都支持常见的主流代币。TRC20 或 Solana 上的 USDT 最方便接收，手续费也最低。",
-      "network": "只能按地址所属的网络转账。转错链的资产任何人都无法找回。",
-      "evm": "以太坊和 BNB Smart Chain 共用同一个地址，这是正常的：两者都是 EVM 链，由同一把私钥控制。"
-    }
+    "tagline": "自部署的抖音与 TikTok 数据接口，以及运行它的控制台。",
+    "title": "关于"
   },
   "mcp": {
     "title": "MCP",

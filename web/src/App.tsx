@@ -8,6 +8,7 @@ import {
   Drawer,
   ErrorBoundary,
   ErrorState,
+  Konami,
   LanguageSwitcher,
   PageHeader,
   DemoNotice,
@@ -145,6 +146,12 @@ function Shell() {
           setCollapsed((value) => !value)
         }}
       />
+
+      {/* Two seconds of stars for anyone who still remembers the sequence.
+          Mounted on the shell so it works from any page, and rendering null
+          until it fires - there is no listener cost worth measuring and no
+          element in the tree. */}
+      <Konami />
 
       {isMobile ? (
         <Drawer

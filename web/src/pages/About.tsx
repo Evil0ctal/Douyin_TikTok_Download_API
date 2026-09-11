@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -12,7 +12,7 @@ import {
   PageHeader,
   Sponsor,
 } from '@/components'
-import { useApiQuery } from '@/hooks'
+import { useApiQuery, useLocalStorageState } from '@/hooks'
 import { paths } from '@/lib/endpoints'
 
 import styles from './About.module.css'
@@ -90,13 +90,71 @@ interface SystemStatus {
   commit?: string | null
 }
 
+/**
+ * Shields for the repository, shown only once somebody has gone looking.
+ *
+ * They are images from shields.io, which means loading one tells shields.io
+ * that a browser somewhere opened this page. Every other screen in this
+ * console makes no outbound request at all, and the README says so about the
+ * update check - "the server never sends anything outward, so it does not tell
+ * anyone this instance exists". A row of badges on a page everybody opens would
+ * have quietly made that untrue.
+ *
+ * So they are behind the easter egg. Open About and nothing is fetched; tap the
+ * version five times and you have asked.
+ */
+const SHIELDS: readonly { id: string; src: string }[] = [
+  { id: 'stars', src: 'https://img.shields.io/github/stars/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&logo=github&label=stars' },
+  { id: 'forks', src: 'https://img.shields.io/github/forks/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&logo=github&label=forks' },
+  { id: 'commit', src: 'https://img.shields.io/github/last-commit/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&label=last%20commit' },
+  { id: 'release', src: 'https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&label=release' },
+  { id: 'pulls', src: 'https://img.shields.io/docker/pulls/evil0ctal/douyin_tiktok_download_api?style=flat-square&logo=docker&label=docker%20pulls' },
+  { id: 'licence', src: 'https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square&label=licence' },
+]
+
+/** How many taps on the version it takes. Five: enough not to happen by
+ *  accident, few enough that somebody who suspects there is something here
+ *  finds it on the first try. */
+const TAPS_TO_UNLOCK = 5
+
+/**
+ * The mark, as it appears at the top of the signing modules.
+ *
+ * Written as a string rather than as JSX so the eslint rule that bans literal
+ * text in markup does not have to decide whether a cat is prose.
+ */
+const CAT = [
+  '　　　　 　　  ＿＿',
+  '　　　 　　 ／＞　　フ',
+  '　　　 　　| 　_　 _ l',
+  '　 　　 　／` ミ＿xノ',
+  '　　 　 /　　　 　 |',
+  '　　　 /　 ヽ　　 ﾉ',
+  '　 　 │　　|　|　|',
+  '　／￣|　　 |　|　|',
+  '　| (￣ヽ＿_ヽ_)__)',
+  '　＼二つ',
+].join('\n')
+
 export default function About() {
   const { t } = useTranslation(['console', 'common'])
+  const [unlocked, setUnlocked] = useLocalStorageState('about.egg', false)
+  // A ref, not state: the count is never rendered, and state here was a bug.
+  // React batches the clicks of somebody tapping quickly - which is exactly
+  // what a person does when they suspect there is something to find - so every
+  // tap in the burst read the same stale zero and the fifth never arrived.
+  const taps = useRef(0)
 
   const system = useApiQuery<SystemStatus>({
     key: ['system', 'status'],
     path: paths.system.status,
   })
+
+  const tapVersion = (): void => {
+    if (unlocked) return
+    taps.current += 1
+    if (taps.current >= TAPS_TO_UNLOCK) setUnlocked(true)
+  }
 
   return (
     <div className="u-page">
@@ -105,7 +163,14 @@ export default function About() {
         description={t('console:about.description')}
         badge={
           system.data?.version ? (
-            <span className="u-mono u-xs u-muted">v{system.data.version}</span>
+            <button
+              type="button"
+              className={styles.version}
+              onClick={tapVersion}
+              title={unlocked ? undefined : t('console:about.egg.hint')}
+            >
+              <span className="u-mono u-xs u-muted">v{system.data.version}</span>
+            </button>
           ) : null
         }
       />
@@ -134,6 +199,35 @@ export default function About() {
             </a>
           ))}
         </div>
+
+        {unlocked ? (
+          <div className={styles.egg}>
+            <pre className={styles.cat} aria-hidden="true">
+              {CAT}
+            </pre>
+            <div className="u-stack-sm" style={{ minWidth: 0 }}>
+              <p className="u-xs u-secondary" style={{ margin: 0 }}>
+                {t('console:about.egg.found')}
+              </p>
+              <div className={styles.shields}>
+                {SHIELDS.map((shield) => (
+                  <a
+                    key={shield.id}
+                    href={REPO}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    aria-label={t(`console:about.egg.shield.${shield.id}`)}
+                  >
+                    <img src={shield.src} alt={t(`console:about.egg.shield.${shield.id}`)} />
+                  </a>
+                ))}
+              </div>
+              <p className="u-xs u-muted" style={{ margin: 0 }}>
+                {t('console:about.egg.privacy')}
+              </p>
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card title={t('console:about.contact.title')} description={t('console:about.contact.body')}>

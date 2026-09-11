@@ -156,3 +156,74 @@
     margin-top: var(--space-3);
   }
 }
+
+/*
+ * The version in the page header, which is also the way in.
+ *
+ * Styled as the text it replaced rather than as a button: the point is that it
+ * does not advertise itself. It keeps a focus ring and a hover, because
+ * something clickable that gives the keyboard no sign of it is a worse idea
+ * than no easter egg at all.
+ */
+.version {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-1);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.version:hover {
+  border-color: var(--border-subtle);
+}
+
+.version:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.egg {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+/* The mark, at the size it is drawn for. `pre` keeps the full-width spaces the
+   cat is built out of; anything that collapses whitespace flattens it. */
+.cat {
+  margin: 0;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.15;
+  color: var(--text-muted);
+  white-space: pre;
+}
+
+.shields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.shields img {
+  display: block;
+  height: 20px;
+}
+
+@media (max-width: 767px) {
+  .egg {
+    gap: var(--space-3);
+  }
+
+  .cat {
+    font-size: 10px;
+  }
+}
