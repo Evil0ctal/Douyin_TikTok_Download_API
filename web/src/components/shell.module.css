@@ -91,6 +91,22 @@
  * so a cut-off group reads as cut off. Most macOS users never saw the bar
  * anyway - overlay scrollbars are the default there.
  */
+/*
+ * The sidebar inside the mobile drawer.
+ *
+ * It drops `.sidebar` because the drawer supplies the frame - border,
+ * background, sticky positioning - but it still has to be a column that fills
+ * the height it is given. Without that, `.navScroll` sizes to its content and
+ * the pinned foot underneath it floats up against the last nav group instead
+ * of sitting at the bottom of the drawer.
+ */
+.embedded {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
 .navScroll {
   overflow-y: auto;
   padding: var(--space-2) var(--space-2) var(--space-4);

@@ -45,6 +45,24 @@
 }
 
 /*
+ * A row that wraps rather than running off the side.
+ *
+ * `.u-row` does not wrap, which is right for a label beside its control - they
+ * belong on one line or the layout is wrong. It is not right for a strip of
+ * tabs: the Tools page has five, and on a 360px phone the last one sat 62px
+ * past the right edge of the screen, unreachable and dragging the page into a
+ * horizontal scroll.
+ *
+ * Wrapping rather than `overflow-x: auto` because these are navigation. A tab
+ * hidden behind a scroll nobody can see is a tab that does not exist; a second
+ * line is merely a second line.
+ */
+.u-row-wrap {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+/*
  * A row of form controls whose controls actually line up.
  *
  * Three shared rows - label, control, help text - handed to every field through

@@ -1590,7 +1590,7 @@ export default function Playground() {
 
               <Disclosure title={t('playground.snippetTitle')}>
                 <div className="u-stack-sm">
-                  <div className="u-row" role="tablist" aria-label={t('playground.snippetTitle')}>
+                  <div className="u-row u-row-wrap" role="tablist" aria-label={t('playground.snippetTitle')}>
                     {SNIPPET_LANGUAGES.map((language) => (
                       <Button
                         key={language}

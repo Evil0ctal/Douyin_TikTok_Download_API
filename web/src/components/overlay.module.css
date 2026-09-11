@@ -316,4 +316,20 @@
   .drawer {
     width: 100vw;
   }
+
+  /*
+   * ...except the navigation, which stays narrow.
+   *
+   * `.drawerStart` sets this above, but that rule and the one right here have
+   * the same specificity and this file wins on order, so under 768px the menu
+   * was taking the whole screen - covering the page you were navigating away
+   * from and leaving a column of empty space to the right of labels that are
+   * never more than a few words.
+   *
+   * What the remaining strip buys: you can see where you are, and tapping it
+   * closes the menu, which is the gesture people try first.
+   */
+  .drawerStart {
+    width: min(300px, 80vw);
+  }
 }
