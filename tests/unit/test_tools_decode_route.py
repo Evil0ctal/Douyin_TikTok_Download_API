@@ -24,7 +24,7 @@ from dtk.api.deps import Principal
 from dtk.api.routes import tools
 from dtk.core.errors import InvalidParam
 from dtk.core.types import Platform, Scope, UserRole
-from dtk.signing.native import decoding, tiktok_sign
+from dtk.signing.native import abogus, decoding, tiktok_sign
 
 pytestmark = pytest.mark.anyio
 
@@ -154,9 +154,25 @@ async def test_an_unsigned_url_is_refused_rather_than_returned_empty() -> None:
 
 
 async def test_an_input_that_was_not_supplied_is_not_reported_as_wrong() -> None:
-    """The distinction the panel rests on: silence is not a mismatch."""
-    signed = await sign(Platform.DOUYIN, DOUYIN_URL)
-    entry = named(await decode(signed["params"]["a_bogus"]), "a_bogus")
+    """The distinction the panel rests on: silence is not a mismatch.
+
+    Signs until the value is one this build can identify from its shape alone.
+    About one signature in 690 cannot be: the SDK's 3->4 expansion drops a
+    trailing zero byte, so a signature whose checksum happens to be zero comes
+    back a byte short and `structure_error` reports "declared lengths overrun
+    the frame". That is documented and deliberate - see `ABogusComparator` in
+    `dtk/signing/registry.py`, which carries retries for the same reason - but
+    this test is about what a bare value reports, not about that boundary, and
+    a one-in-690 failure in CI is just noise that teaches people to re-run.
+    """
+    for _ in range(20):
+        signed = await sign(Platform.DOUYIN, DOUYIN_URL)
+        candidate = signed["params"]["a_bogus"]
+        if abogus.structure_error(candidate) is None:
+            break
+    else:  # pragma: no cover - 20 consecutive draws is 1 in 690^20
+        raise AssertionError("no structurally verifiable a_bogus in 20 attempts")
+    entry = named(await decode(candidate), "a_bogus")
     assert set(statuses(entry).values()) == {decoding.CHECK_NOT_SUPPLIED}
     assert all(check["covered"] is None for check in entry["checks"])
 
