@@ -846,7 +846,7 @@ class TestInstallScripts:
         # the scripts *document* the `curl … | bash` form inside their own help
         # text, and quoting it is not running it.
         body = script.read_text(encoding="utf-8")
-        body = "\n".join(l for l in body.splitlines() if not l.strip().startswith("#"))
+        body = "\n".join(line for line in body.splitlines() if not line.strip().startswith("#"))
         body = re.sub(r'"(?:[^"\\]|\\.)*"', '""', body, flags=re.S)
         body = re.sub(r"'(?:[^'\\]|\\.)*'", "''", body, flags=re.S)
         offenders = [
