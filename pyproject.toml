@@ -1,6 +1,6 @@
 [project]
 name = "dtk"
-version = "5.0.2"
+version = "5.0.3"
 description = "Self-hosted Douyin / TikTok data API with an identity pool, scheduler, MCP and web console"
 requires-python = ">=3.12,<3.14"
 license = { text = "Apache-2.0" }
