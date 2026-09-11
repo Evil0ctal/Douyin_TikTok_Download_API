@@ -8,7 +8,7 @@ whole sidebar and answering 403 on most of it.
 
 ```bash
 cd /opt/dtk && git pull
-# set DTK_IMAGE_TAG=v5.0.1 in .env
+# set DTK_IMAGE_TAG=5.0.1 in .env
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -95,7 +95,7 @@ migrations in this release.
 
 ```bash
 cd /opt/dtk && git pull
-# 在 .env 里把 DTK_IMAGE_TAG 改成 v5.0.1
+# 在 .env 里把 DTK_IMAGE_TAG 改成 5.0.1
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -160,4 +160,4 @@ bash install/install.zh.sh --manage
 
 **Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/compare/v5.0.0...v5.0.1
 
-**Docker**: `evil0ctal/douyin_tiktok_download_api:v5.0.1`
+**Docker**: `evil0ctal/douyin_tiktok_download_api:5.0.1`

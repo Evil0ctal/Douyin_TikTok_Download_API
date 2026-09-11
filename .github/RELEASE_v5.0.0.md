@@ -141,4 +141,4 @@ v4 继续可用。代码保留在 [`v4` 分支](https://github.com/Evil0ctal/Dou
 
 **Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/commits/v5.0.0
 
-**Docker**: `evil0ctal/douyin_tiktok_download_api:v5.0.0`
+**Docker**: `evil0ctal/douyin_tiktok_download_api:5.0.0`

@@ -13,6 +13,11 @@ Rules that keep these useful rather than ceremonial:
   names a change makes the reader open the diff.
 * **No "various bug fixes".** Either it is worth a line or it belongs to the
   commit log, which is linked at the bottom anyway.
+* **The git tag carries a `v`; the Docker tag does not.** `git tag v5.0.1`
+  publishes `evil0ctal/douyin_tiktok_download_api:5.0.1` - docker/metadata-action's
+  `{{version}}` strips the leading `v`. Writing `:v5.0.1` in these notes sends
+  the reader to a tag that was never published, and a `DTK_IMAGE_TAG=v5.0.1` in
+  their `.env` leaves their deployment pointing at nothing. It has happened.
 * Keep the two languages in step. Same sections, same entries, same order — a
   reader comparing them should never wonder which one is current.
 
@@ -30,7 +35,7 @@ Delete this header block before publishing.
 
 ```bash
 cd /opt/dtk && git pull
-# set DTK_IMAGE_TAG=vX.Y.Z in .env
+# set DTK_IMAGE_TAG=X.Y.Z in .env
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -75,7 +80,7 @@ pool, the archive, the settings and the API keys stay where they are.
 
 ```bash
 cd /opt/dtk && git pull
-# 在 .env 里把 DTK_IMAGE_TAG 改成 vX.Y.Z
+# 在 .env 里把 DTK_IMAGE_TAG 改成 X.Y.Z
 docker compose -p dtk -f docker/compose.yml pull api worker downloader
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
@@ -110,4 +115,4 @@ docker compose -p dtk -f docker/compose.yml up -d
 
 **Full changelog / 完整提交记录**: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/compare/vPREV...vTHIS
 
-**Docker**: `evil0ctal/douyin_tiktok_download_api:vX.Y.Z`
+**Docker**: `evil0ctal/douyin_tiktok_download_api:X.Y.Z`
