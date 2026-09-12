@@ -7,6 +7,7 @@ and divergence is easiest to spot when the tests line up.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime
 
 import pytest
@@ -323,6 +324,116 @@ def test_empty_post_list_is_not_risk_control() -> None:
 
 
 # --------------------------------------------------------------------------
+# Author bookmark folders (collections)
+#
+# TikTok-only, like the follower graph below, so these payloads are inline
+# literals rather than files in tests/fixtures/tiktok/: that directory's
+# fixture set is the cross-platform P0 parity set
+# (test_every_platform_ships_the_full_fixture_set), and a capability only one
+# platform offers does not belong in it.
+# --------------------------------------------------------------------------
+
+_COLLECTIONS_PAGE1 = {
+    "collectionList": [
+        {
+            "collectionId": "6910000000000000201",
+            "name": "Recipes to try",
+            "cover": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+            "synthetic-collection-cover-1~tplv-photomode.jpeg",
+            "total": 42,
+        },
+        {
+            "collectionId": "6910000000000000202",
+            "name": "Travel inspo",
+            "cover": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+            "synthetic-collection-cover-2~tplv-photomode.jpeg",
+            "total": 7,
+        },
+    ],
+    "hasMore": True,
+    "cursor": "2",
+    "statusCode": 0,
+}
+
+
+def test_user_collections_page1() -> None:
+    page = parser.parse_author_collections(deepcopy(_COLLECTIONS_PAGE1))
+
+    assert [item.collection_id for item in page.items] == [
+        "6910000000000000201",
+        "6910000000000000202",
+    ]
+    assert page.cursor == "2"
+    assert page.has_more is True
+
+    first = page.items[0]
+    assert first.platform is Platform.TIKTOK
+    assert first.name == "Recipes to try"
+    assert first.item_count == 42
+    assert first.cover is not None
+    assert first.cover.url == (
+        "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+        "synthetic-collection-cover-1~tplv-photomode.jpeg"
+    )
+    assert first.raw is not None
+
+
+def test_last_collections_page_has_no_cursor() -> None:
+    payload = deepcopy(_COLLECTIONS_PAGE1)
+    payload["hasMore"] = False
+    page = parser.parse_author_collections(payload)
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_an_absent_collection_list_is_an_empty_page_not_a_broken_payload() -> None:
+    """A guest identity gets no folders back at all, not an empty list key."""
+    page = parser.parse_author_collections({"hasMore": False, "statusCode": 0})
+    assert page.items == []
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_a_present_collection_list_is_still_strict() -> None:
+    with pytest.raises(UpstreamChanged):
+        parser.parse_author_collections({"collectionList": [{"name": "x"}], "hasMore": False})
+
+
+def test_collections_claiming_more_without_a_cursor_raises() -> None:
+    payload = deepcopy(_COLLECTIONS_PAGE1)
+    del payload["cursor"]
+    with pytest.raises(UpstreamChanged) as excinfo:
+        parser.parse_author_collections(payload)
+    assert excinfo.value.path == "cursor"
+
+
+def test_broken_collection_entry_reports_its_index() -> None:
+    payload = deepcopy(_COLLECTIONS_PAGE1)
+    del payload["collectionList"][0]["collectionId"]
+    with pytest.raises(UpstreamChanged) as excinfo:
+        parser.parse_author_collections(payload)
+    assert excinfo.value.path == "collectionList[0].collectionId"
+
+
+def test_a_null_collection_in_the_list_is_reported_not_skipped() -> None:
+    payload = deepcopy(_COLLECTIONS_PAGE1)
+    payload["collectionList"].insert(1, None)
+    with pytest.raises(UpstreamChanged) as excinfo:
+        parser.parse_author_collections(payload)
+    assert excinfo.value.path == "collectionList[1]"
+
+
+def test_build_author_collections_request() -> None:
+    spec = ADAPTER.build_request(endpoints.AUTHOR_COLLECTIONS, sec_uid=AUTHOR_SEC_UID)
+    assert spec["url"] == "https://www.tiktok.com/api/user/collection_list/"
+    assert spec["params"]["secUid"] == AUTHOR_SEC_UID
+    assert spec["params"]["cursor"] == "0"
+    assert spec["params"]["count"] == "30"
+    assert spec["params"]["coverFormat"] == "2"
+    assert spec["params"]["publicOnly"] == "false"
+
+
+# --------------------------------------------------------------------------
 # Comments
 # --------------------------------------------------------------------------
 
@@ -436,6 +547,7 @@ def test_risk_control_is_reported_as_risk_control(name: str, signal: str) -> Non
 def test_healthy_payloads_carry_no_risk_signal() -> None:
     for name in ("video_normal", "user_profile", "user_posts_page1", "comments_with_replies"):
         assert parser.detect_risk_control(fixture(name)) is None
+    assert parser.detect_risk_control(_COLLECTIONS_PAGE1) is None
 
 
 def test_taken_down_video_is_not_mistaken_for_risk_control() -> None:

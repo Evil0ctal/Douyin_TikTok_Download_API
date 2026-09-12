@@ -147,6 +147,23 @@ class Comment(_Base):
     raw: dict | None = None
 
 
+class Collection(_Base):
+    """A named folder a user has organized posts into.
+
+    TikTok calls this a collection, Douyin a collects folder; both are private
+    bookmark groupings rather than the author's own uploaded playlist (that is
+    ``mix_id``/``Content`` paged through ``mix_posts``).
+    """
+
+    platform: Platform
+    collection_id: str
+    name: str
+    cover: Image | None = None
+    #: Posts filed in the folder. None when the platform did not state a count.
+    item_count: int | None = None
+    raw: dict | None = None
+
+
 class Page[T](BaseModel):
     """A page of results with an opaque cursor.
 
@@ -164,6 +181,7 @@ class Page[T](BaseModel):
 __all__ = [
     "Author",
     "AuthorStats",
+    "Collection",
     "Comment",
     "Content",
     "ContentStats",

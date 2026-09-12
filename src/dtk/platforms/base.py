@@ -37,7 +37,7 @@ from typing import Any, Final, Literal, Protocol, TypedDict, runtime_checkable
 
 from dtk.core.errors import InvalidParam
 from dtk.core.types import Platform
-from dtk.models import Author, Comment, Content, Page
+from dtk.models import Author, Collection, Comment, Content, Page
 
 HttpMethod = Literal["GET", "POST"]
 
@@ -432,6 +432,8 @@ class PlatformAdapter(Protocol):
     ) -> Page[Content]: ...
 
     def parse_author_list(self, payload: Mapping[str, Any]) -> Page[Author]: ...
+
+    def parse_author_collections(self, payload: Mapping[str, Any]) -> Page[Collection]: ...
 
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None

@@ -798,6 +798,73 @@ async def user_likes(
 
 
 @router.get(
+    "/{platform}/user/collections",
+    summary="The folders an author has organized bookmarked posts into",
+    openapi_extra={I18N_KEY: "author_collections", **ASYNC_RESPONSES},
+)
+async def user_collections(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the folders an author has organized bookmarked posts into.
+
+    **TikTok only.** These folders are private, the same way `/user/likes` is
+    on both platforms: a guest identity gets an empty page rather than an
+    error, which is not evidence the author has none. Reading someone's own
+    folders needs `identity` pointed at an identity imported from that
+    account's browser session.
+
+    **Parameters**
+
+    - `platform` - must be `tiktok`.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - folders per page.
+    - `include_raw` - include each folder's untouched platform payload.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+    - `identity` - send the request as this identity and no other. Requires
+      `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
+
+    **Returns**
+
+    Each folder's id, name, cover and item count, plus the cursor for the next
+    page.
+    """
+    authorize(principal, platform)
+    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=supported(platform, Operation.AUTHOR_COLLECTIONS),
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
     "/{platform}/mix/posts",
     summary="Posts inside a mix or playlist",
     openapi_extra={I18N_KEY: "mix_posts", **ASYNC_RESPONSES},

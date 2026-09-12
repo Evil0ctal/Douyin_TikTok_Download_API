@@ -31,6 +31,7 @@ from dtk.core.types import ContentKind, Platform
 from dtk.models import (
     Author,
     AuthorStats,
+    Collection,
     Comment,
     Content,
     ContentStats,
@@ -460,6 +461,36 @@ def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def _collection_from_node(node: Node) -> Collection:
+    return Collection(
+        platform=_PLATFORM,
+        collection_id=node.id("collectionId"),
+        name=node.text("name"),
+        cover=image_from_urls(node.get("cover")),
+        item_count=optional_int(node.get("total")),
+        raw=node.raw(),
+    )
+
+
+def parse_author_collections(payload: Mapping[str, Any]) -> Page[Collection]:
+    """Parse ``/api/user/collection_list/``.
+
+    Same paging shape as :func:`parse_author_posts`: a list under one key, an
+    honest ``hasMore``, and a cursor only when there is a next page. TikTok
+    hides these folders from anyone but their owner, so an empty list is the
+    normal answer for a guest identity rather than a sign of a broken parser -
+    see ``empty_body_is_normal`` on the endpoint spec.
+    """
+    root = _guard(payload)
+    entries = root.children("collectionList") if root.has("collectionList") else []
+    items = [_collection_from_node(entry) for entry in entries]
+    has_more = optional_bool(root.present("hasMore"))
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -547,6 +578,7 @@ __all__ = [
     "content_web_url",
     "detect_risk_control",
     "parse_author",
+    "parse_author_collections",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",

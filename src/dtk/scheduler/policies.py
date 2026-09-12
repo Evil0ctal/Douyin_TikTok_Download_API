@@ -61,6 +61,9 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("tiktok.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.author_likes", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy(
+            "tiktok.author_collections", capacity=3, refill_per_sec=0.12, risk_weight=1.8
+        ),
         EndpointPolicy("tiktok.mix_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.author_followers", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.author_following", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
