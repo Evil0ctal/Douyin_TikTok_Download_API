@@ -16,6 +16,7 @@ from typing import Final
 
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.tiktok.params import (
+    author_collections_params,
     author_followers_params,
     author_following_params,
     author_likes_params,
@@ -60,6 +61,9 @@ class TikTokAPIEndpoints:
     # Posts the user bookmarked
     USER_COLLECT: Final = f"{TIKTOK_DOMAIN}/api/user/collect/item_list/"
 
+    # The folders a user has organized bookmarked posts into
+    USER_COLLECTION_LIST: Final = f"{TIKTOK_DOMAIN}/api/user/collection_list/"
+
     # User playlists
     USER_PLAY_LIST: Final = f"{TIKTOK_DOMAIN}/api/user/playlist/"
 
@@ -94,6 +98,7 @@ AUTHOR_POSTS: Final = "tiktok.author_posts"
 COMMENTS: Final = "tiktok.comments"
 COMMENT_REPLIES: Final = "tiktok.comment_replies"
 AUTHOR_LIKES: Final = "tiktok.author_likes"
+AUTHOR_COLLECTIONS: Final = "tiktok.author_collections"
 MIX_POSTS: Final = "tiktok.mix_posts"
 AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
@@ -158,6 +163,30 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts an author has publicly liked",
     ),
     EndpointSpec(
+        name=AUTHOR_COLLECTIONS,
+        path=TikTokAPIEndpoints.USER_COLLECTION_LIST,
+        required=("sec_uid",),
+        build=author_collections_params,
+        risk_weight=1.8,
+        # No empty_body_is_normal: TikTok answers a hidden list with a real
+        # envelope carrying cursor/hasMore and simply omitting the list key
+        # (see tests/unit/test_absence_matrix.py, "a private likes list is an
+        # empty page not a silence") rather than the zero-byte body that is
+        # Douyin author_likes's one measured exception. parse_author_collections
+        # treats an absent collectionList the same way parse_author_list treats
+        # an absent userList.
+        #
+        # The request side (secUid/cursor/count/coverFormat/needPinnedItemIds/
+        # publicOnly) matches this project's own V4 crawler for this same path
+        # (`fetch_user_collection_list`, added 2026-08-27), which needed a
+        # caller-supplied cookie to get anything back at all. The response
+        # envelope and field names below were never captured by that crawler
+        # and are inferred by analogy to author_posts/author_likes - flagged
+        # here the same way RISK_STATUS_CODES is flagged in parser.py, and
+        # must be confirmed against a live capture before release.
+        summary="The folders a user has organized bookmarked posts into",
+    ),
+    EndpointSpec(
         name=MIX_POSTS,
         path=TikTokAPIEndpoints.USER_MIX,
         required=("mix_id",),
@@ -201,6 +230,7 @@ ENDPOINTS: Final = EndpointTable.of(
 
 
 __all__ = [
+    "AUTHOR_COLLECTIONS",
     "AUTHOR_FOLLOWERS",
     "AUTHOR_FOLLOWING",
     "AUTHOR_LIKES",
