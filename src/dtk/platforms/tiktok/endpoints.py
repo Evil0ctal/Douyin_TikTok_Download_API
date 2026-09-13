@@ -180,10 +180,9 @@ ENDPOINTS: Final = EndpointTable.of(
         # publicOnly) matches this project's own V4 crawler for this same path
         # (`fetch_user_collection_list`, added 2026-08-27), which needed a
         # caller-supplied cookie to get anything back at all. The response
-        # envelope and field names below were never captured by that crawler
-        # and are inferred by analogy to author_posts/author_likes - flagged
-        # here the same way RISK_STATUS_CODES is flagged in parser.py, and
-        # must be confirmed against a live capture before release.
+        # envelope and field names below were confirmed against a live
+        # capture (PR #753): cover is a {"urlList": [...]} container, not a
+        # bare string, and total arrives as a numeric string.
         summary="The folders a user has organized bookmarked posts into",
     ),
     EndpointSpec(

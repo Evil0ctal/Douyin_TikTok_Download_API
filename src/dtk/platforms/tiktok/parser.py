@@ -466,7 +466,7 @@ def _collection_from_node(node: Node) -> Collection:
         platform=_PLATFORM,
         collection_id=node.id("collectionId"),
         name=node.text("name"),
-        cover=image_from_urls(node.get("cover")),
+        cover=image_from_urls((node.get("cover") or {}).get("urlList")),
         item_count=optional_int(node.get("total")),
         raw=node.raw(),
     )
@@ -478,8 +478,7 @@ def parse_author_collections(payload: Mapping[str, Any]) -> Page[Collection]:
     Same paging shape as :func:`parse_author_posts`: a list under one key, an
     honest ``hasMore``, and a cursor only when there is a next page. TikTok
     hides these folders from anyone but their owner, so an empty list is the
-    normal answer for a guest identity rather than a sign of a broken parser -
-    see ``empty_body_is_normal`` on the endpoint spec.
+    normal answer for a guest identity rather than a sign of a broken parser.
     """
     root = _guard(payload)
     entries = root.children("collectionList") if root.has("collectionList") else []

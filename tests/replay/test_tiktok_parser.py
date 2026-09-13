@@ -338,16 +338,32 @@ _COLLECTIONS_PAGE1 = {
         {
             "collectionId": "6910000000000000201",
             "name": "Recipes to try",
-            "cover": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
-            "synthetic-collection-cover-1~tplv-photomode.jpeg",
-            "total": 42,
+            "cover": {
+                "urlList": [
+                    "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+                    "synthetic-collection-cover-1~tplv-photomode.jpeg",
+                    "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+                    "synthetic-collection-cover-1b~tplv-photomode.jpeg",
+                ]
+            },
+            "total": "42",
+            "status": 1,
+            "userId": "redacted-user-id",
+            "userName": "redacted-user-name",
         },
         {
             "collectionId": "6910000000000000202",
             "name": "Travel inspo",
-            "cover": "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
-            "synthetic-collection-cover-2~tplv-photomode.jpeg",
-            "total": 7,
+            "cover": {
+                "urlList": [
+                    "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+                    "synthetic-collection-cover-2~tplv-photomode.jpeg",
+                ]
+            },
+            "total": "7",
+            "status": 1,
+            "userId": "redacted-user-id",
+            "userName": "redacted-user-name",
         },
     ],
     "hasMore": True,
@@ -375,6 +391,12 @@ def test_user_collections_page1() -> None:
         "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
         "synthetic-collection-cover-1~tplv-photomode.jpeg"
     )
+    assert first.cover.urls == [
+        "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+        "synthetic-collection-cover-1~tplv-photomode.jpeg",
+        "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+        "synthetic-collection-cover-1b~tplv-photomode.jpeg",
+    ]
     assert first.raw is not None
 
 
