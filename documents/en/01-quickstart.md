@@ -1,5 +1,10 @@
 # Quick start
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/01-quickstart.md)
+
 By the end of this page you will have the stack running on one host, an
 administrator account, and one link parsed successfully — first from the web
 console, then from `curl` with an API key. Budget about ten minutes of your

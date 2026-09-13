@@ -1,5 +1,10 @@
 # Downloads, library and watchlist
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/08-downloads-and-library.md)
+
 This page is about keeping things rather than just reading them: putting video and images on your own disk, finding them again months later, and collecting the same target on a timer. After reading it you will know what each of the three pages costs, where the bytes actually go, what the size ceiling will take away from you, and how to stop it taking the one post you meant to keep.
 
 ## The three pages at a glance

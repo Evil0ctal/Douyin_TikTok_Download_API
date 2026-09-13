@@ -322,12 +322,20 @@ class TestConsoleHygiene:
         assert "open={pending !== null}" in source
 
     def test_no_cjk_outside_the_chinese_locale(self):
+        """The console half of the same rule the Python sources live under.
+
+        The mark is the one exception, recognised by shape through
+        `tests/support/marks.py` - the same function and the same alphabet the
+        Python check uses, so the two cannot come to disagree about what the cat
+        is. `web/eslint.config.js` carries the third copy of this rule and
+        `test_the_mark_alphabet_is_the_same_on_both_sides` keeps it in step.
+        """
         offenders = []
         for path in list(WEB.rglob("*.tsx")) + list(WEB.rglob("*.ts")):
             if "locales" in path.parts:
                 continue
             for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-                if CJK.search(line):
+                if CJK.search(line) and not _is_project_mark(line):
                     offenders.append(f"{path.relative_to(REPO)}:{lineno}")
         assert not offenders, "CJK outside locales/zh:\n" + "\n".join(offenders[:20])
 
@@ -753,3 +761,310 @@ def test_the_mcp_guide_lists_the_tools_the_server_registers() -> None:
             f"{language} console.json describes {sorted(described)}, "
             f"expected {sorted(TOOL_METHODS)}"
         )
+
+
+class TestInstallScripts:
+    """The two guided installers have to stay the same program.
+
+    They are a translation of each other, not two implementations. A fix that
+    lands in one and not the other is how a Chinese-speaking user ends up
+    running the version with the bug still in it - and nobody would notice,
+    because both keep working.
+    """
+
+    SCRIPTS = (REPO / "install" / "install.sh", REPO / "install" / "install.zh.sh")
+
+    #: Control-flow words. The sequence of these plus the function names is the
+    #: structure of the program, independent of every string it prints.
+    _KEYWORDS = re.compile(
+        r"\b(if|then|elif|else|fi|for|while|until|do|done|case|esac"
+        r"|return|exit|local|readonly|trap)\b"
+    )
+
+    @classmethod
+    def _signature(cls, path):
+        lines: list[str] = []
+        in_heredoc = False
+        tag = ""
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if in_heredoc:
+                # A heredoc body is prose for the reader, not code, and the
+                # English one contains words like "for" and "then".
+                if line.strip() == tag:
+                    in_heredoc = False
+                continue
+            opened = re.search(r"<<-?\s*([A-Za-z_]\w*)", line)
+            if opened:
+                in_heredoc, tag = True, opened.group(1)
+                lines.append(line[: opened.start()])
+                continue
+            if line.strip().startswith("#"):
+                continue
+            lines.append(line)
+        body = "\n".join(lines)
+        body = re.sub(r'"(?:[^"\\]|\\.)*"', '""', body, flags=re.S)
+        body = re.sub(r"'(?:[^'\\]|\\.)*'", "''", body, flags=re.S)
+        signature: list[str] = []
+        for line in body.splitlines():
+            named = re.match(r"^(\w+)\(\)", line)
+            if named:
+                signature.append(f"fn:{named.group(1)}")
+            signature.extend(cls._KEYWORDS.findall(line))
+        return signature
+
+    def test_both_scripts_exist_and_are_executable(self):
+        for path in self.SCRIPTS:
+            assert path.exists(), f"{path.relative_to(REPO)} is missing"
+            assert path.stat().st_mode & 0o111, f"{path.relative_to(REPO)} is not executable"
+
+    def test_the_two_installers_have_the_same_structure(self):
+        english, chinese = (self._signature(p) for p in self.SCRIPTS)
+        assert english == chinese, (
+            "install.sh and install.zh.sh have diverged. They are a translation "
+            "of each other: a change to one belongs in the other."
+        )
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    def test_a_variable_is_braced_before_non_ascii(self, script):
+        """`$var` followed by a CJK character eats the character.
+
+        Bash takes the multi-byte character as part of the name in some
+        locales, so a `$env_file` followed by a full-width bracket reads as an
+        unbound variable and the script
+        dies under `set -u`. It happened, in the Chinese installer, on the line
+        that reports where .env was written. `${var}` is immune.
+        """
+        offenders = [
+            f"{script.name}:{number}: {line.strip()[:80]}"
+            for number, line in enumerate(script.read_text(encoding="utf-8").splitlines(), 1)
+            if re.search(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]", line)
+        ]
+        assert not offenders, "brace these:\n" + "\n".join(offenders)
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    def test_no_installer_pipes_a_download_into_a_shell(self, script):
+        """Download, check, then run - never `curl … | sh`.
+
+        A pipe cannot be inspected and a truncated download becomes a
+        half-executed script. The one place this project fetches remote code is
+        Docker's own installer, and it writes it to a file first. The README's
+        own `curl … | bash` examples are documentation, not execution.
+        """
+        # Blank out every string literal first, including the multi-line ones:
+        # the scripts *document* the `curl … | bash` form inside their own help
+        # text, and quoting it is not running it.
+        body = script.read_text(encoding="utf-8")
+        body = "\n".join(line for line in body.splitlines() if not line.strip().startswith("#"))
+        body = re.sub(r'"(?:[^"\\]|\\.)*"', '""', body, flags=re.S)
+        body = re.sub(r"'(?:[^'\\]|\\.)*'", "''", body, flags=re.S)
+        offenders = [
+            f"{script.name}: {line.strip()[:80]}"
+            for line in body.splitlines()
+            if re.search(r"(curl|wget)[^|#]*\|\s*(sudo\s+)?(ba)?sh\b", line)
+        ]
+        assert not offenders, "pipes remote code into a shell:\n" + "\n".join(offenders)
+
+
+def test_the_mark_alphabet_is_the_same_on_both_sides():
+    """Two languages, two no-CJK checks, one exemption.
+
+    `tests/support/marks.py` lets the cat through the Python checks and a rule
+    in `web/eslint.config.js` lets it through the TypeScript one. Both are
+    written by shape rather than by filename, which is what stops either
+    becoming a place to park a sentence - and which only holds while the two
+    shapes agree. Nothing shares them at runtime: one is Python, the other is a
+    flat config file read by eslint.
+
+    Only the drawing is compared. The syntax around it differs on purpose: a
+    Python line starts with `#`, a TypeScript one is a quoted string in a list.
+    """
+    from tests.support.marks import MARK_DRAWING
+
+    config = (REPO / "web" / "eslint.config.js").read_text(encoding="utf-8")
+    block = re.search(r"const MARK_DRAWING = \[(.*?)\]", config, re.S)
+    assert block, "MARK_DRAWING is gone from eslint.config.js; the cat exemption moved or died"
+    javascript = {
+        chr(int(code, 16)) for code in re.findall(r"'\\u([0-9a-fA-F]{4})'", block.group(1))
+    }
+    assert javascript, "MARK_DRAWING parsed to nothing; the escape format changed"
+
+    python = set(MARK_DRAWING)
+    assert javascript == python, (
+        "the mark's alphabet has drifted between the two no-CJK checks:\n"
+        f"  only in Python:     {sorted(python - javascript)}\n"
+        f"  only in TypeScript: {sorted(javascript - python)}"
+    )
+
+
+DOCUMENTS = REPO / "documents"
+
+#: The line every page under `documents/` carries directly under its H1.
+#:
+#: It does three jobs at once, which is why it is worth a check rather than a
+#: convention: it names the project in every page so a fragment quoted out of
+#: context is still attributable, it is the only route between a page and its
+#: translation, and it links back to the index so no page is a dead end.
+DOC_CRUMB = (
+    "> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)**"
+)
+
+#: Markdown link to a sibling `.md`, ignoring any `#anchor`.
+RELATIVE_MD_LINK = re.compile(r"\]\((\.\.?/[^)#\s]+\.md)")
+
+
+def _doc_pages(language: str) -> list[Path]:
+    return sorted((DOCUMENTS / language).glob("*.md"))
+
+
+@pytest.mark.parametrize("language", ["en", "zh"])
+def test_every_documentation_page_names_the_project(language: str) -> None:
+    """A page lifted out of context still has to say what it documents.
+
+    Twelve of these seventeen pages used to open with "the stack" or "the
+    software" and no noun anywhere above the fold. That reads fine to somebody
+    who arrived from the index and badly to everything else: a search result, a
+    deep link from an issue, or a retrieval system that took the first chunk of
+    the file and nothing around it.
+    """
+    for page in _doc_pages(language):
+        lines = page.read_text(encoding="utf-8").splitlines()
+        assert lines and lines[0].startswith("# "), f"{page.name}: does not open with an H1"
+        head = "\n".join(lines[:6])
+        assert DOC_CRUMB in head, (
+            f"documents/{language}/{page.name} has no project line under its H1. "
+            "Copy the block from any sibling page."
+        )
+
+
+def test_every_documentation_page_links_to_its_translation() -> None:
+    """en and zh are the same seventeen pages, and each points at its twin.
+
+    The two directories drifting apart is the failure this is really for: a page
+    added in one language and not the other leaves a link in the other half
+    pointing at nothing, and nobody notices until a reader follows it.
+    """
+    english = {page.stem for page in _doc_pages("en")}
+    chinese = {page.stem for page in _doc_pages("zh")}
+    assert english == chinese, (
+        "documents/en and documents/zh no longer hold the same pages:\n"
+        f"  only English: {sorted(english - chinese)}\n"
+        f"  only Chinese: {sorted(chinese - english)}"
+    )
+
+    for language, other in (("en", "zh"), ("zh", "en")):
+        for page in _doc_pages(language):
+            expected = f"](../{other}/{page.stem}.md)"
+            assert expected in page.read_text(encoding="utf-8"), (
+                f"documents/{language}/{page.name} does not link to its "
+                f"{other} translation; expected a link ending {expected}"
+            )
+
+
+def test_no_documentation_link_points_at_a_missing_file() -> None:
+    """Relative links inside `documents/` have to resolve.
+
+    Written after adding the project line to all thirty-four pages with
+    `](./README.md)` in it - correct from `documents/`, wrong from
+    `documents/en/`, and wrong thirty-four times before anything said so.
+    """
+    broken = [
+        f"{page.relative_to(REPO)} -> {target}"
+        for page in sorted(DOCUMENTS.rglob("*.md"))
+        for target in RELATIVE_MD_LINK.findall(page.read_text(encoding="utf-8"))
+        if not (page.parent / target).resolve().exists()
+    ]
+    assert not broken, "documentation links that go nowhere:\n  " + "\n  ".join(broken)
+
+
+def test_the_download_platform_menu_is_not_disabled_where_it_is_needed() -> None:
+    """A control must be enabled exactly where its value is read.
+
+    `resolveTarget` in the downloads page reads the platform menu for a bare
+    author id, because Douyin's `sec_user_id` and TikTok's `secUid` are the same
+    `MS4wLjABAAAA…` shape and the string says nothing about which platform it
+    came from. The menu was nonetheless disabled for the whole of author mode,
+    so it sat at its default and every author download went to Douyin -
+    TikTok was not reachable, and the control that would have changed it could
+    not be opened.
+
+    Pinned by shape rather than by reading the condition: what must not come
+    back is disabling the menu on the mode alone.
+    """
+    page = (WEB / "pages" / "Downloads.tsx").read_text(encoding="utf-8")
+
+    assert "usesPlatformMenu" in page, (
+        "the downloads page no longer decides the platform menu's state from the "
+        "input; if that moved, move this check with it"
+    )
+    assert "disabled={active.wants === 'author'" not in page, (
+        "the platform menu is disabled for all of author mode again. A bare author "
+        "id is ambiguous between the two platforms, so the menu is the only thing "
+        "that can say which one - disabling it makes TikTok unreachable."
+    )
+
+
+def test_every_forbidden_scope_says_what_is_required_and_what_is_held() -> None:
+    """One shape for all eleven refusals.
+
+    They used to disagree. Most named what the endpoint requires, one named only
+    the caller's own role and left them nowhere to go, and the key was spelled
+    `required` in some places and `required_role` in others - so no client could
+    read them with one piece of code.
+
+    Both halves belong in the answer. What an endpoint requires is static
+    metadata `/openapi.json` already publishes; what the caller holds is what
+    `/auth/me` already returns. Neither is a secret, and withholding either only
+    costs a round trip.
+    """
+    sources = [
+        SRC / "api" / "deps.py",
+        SRC / "api" / "demo_readonly.py",
+        SRC / "api" / "routes" / "support.py",
+        SRC / "api" / "routes" / "content.py",
+        SRC / "mcp" / "http.py",
+    ]
+    offenders = [
+        f"{path.relative_to(REPO)}"
+        for path in sources
+        if 'details={"required"' in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, (
+        "a 403 is back to the old `required` key, which says what the endpoint "
+        f"needs and nothing about the caller: {offenders}. Use Principal.denial()."
+    )
+
+
+def test_the_forbidden_message_does_not_claim_a_credential_it_may_not_have() -> None:
+    """The catalogue entry is one sentence for eleven different refusals.
+
+    It used to read "This API key lacks the scope required by this endpoint" -
+    wrong for a console session, which has no API key, and wrong for the role
+    gates, which are not scopes. The details carry the specifics precisely
+    because the message cannot: templates here are `str.format_map`, not ICU,
+    so there is nothing to branch on.
+    """
+    for language in ("en", "zh"):
+        catalogue = json.loads(
+            (SRC / "i18n" / "locales" / f"errors.{language}.json").read_text(encoding="utf-8")
+        )
+        message = catalogue["FORBIDDEN_SCOPE"]
+        assert "API key" not in message and "API Key" not in message, (
+            f"the {language} FORBIDDEN_SCOPE message names an API key again; a "
+            "console session hitting a role gate has none"
+        )
+
+
+def test_a_session_refusal_does_not_list_scopes_that_were_never_the_gate() -> None:
+    """`have_scopes` belongs only to a caller that scopes actually bind.
+
+    `Principal.permits` lets every console session through a scope gate, so a
+    session can only ever be refused on its role. Listing its scopes anyway was
+    worse than useless on the demo account, which nominally carries `admin`: the
+    refusal read as "I hold admin and still cannot read this".
+    """
+    source = (SRC / "api" / "deps.py").read_text(encoding="utf-8")
+    guarded = re.search(r"if self\.scoped:\s*\n\s*detail\[\"have_scopes\"\]", source)
+    assert guarded, (
+        "have_scopes is no longer behind `if self.scoped` in Principal.denial; a "
+        "console session would list scopes that could not have refused it"
+    )

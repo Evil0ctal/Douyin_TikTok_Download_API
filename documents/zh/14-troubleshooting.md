@@ -1,5 +1,9 @@
 # 故障排查
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/14-troubleshooting.md)
+
 按症状定位，用一条命令或一个控制台页面确认原因，然后修好它。这篇同时收录了本实例可能返回的全部错误码，写明每个码是什么意思、以及重试是否有可能起作用。
 
 下面所有命令都默认在仓库根目录执行。compose 命令一律带上 compose 文件（`-f docker/compose.yml`）——仓库根目录没有 `compose.yml`，少了它 compose 根本找不到要操作的东西——以及项目名（`-p dtk`）。compose 文件里已经写了 `name: dtk`，所以 `-p dtk` 只是把目标写明；但仍然建议保留，因为它同时会覆盖你 shell 里可能已经设好的 `COMPOSE_PROJECT_NAME`。
@@ -535,7 +539,7 @@ docker compose -p dtk -f docker/compose.yml up -d --scale worker=4
 
 **403 检查清单。**
 
-- scope 有 `douyin:read`、`tiktok:read`、`identity:manage`、`archive:read`、`archive:export`、`media:read`、`media:write`、`admin`。`error.details.required` 会指名接口想要哪一个。
+- scope 有 `douyin:read`、`tiktok:read`、`identity:manage`、`archive:read`、`archive:export`、`media:read`、`media:write`、`admin`。`error.details.required_scopes` 会指名接口想要哪一个，`have_scopes` 是你实际带了哪些。
 - **管理员拥有的密钥同样受它自己的 scope 约束。** 这是刻意的：自部署实例上几乎每一个密钥都属于管理员用户，如果对管理员短路，`archive:export`——那个能把整个数据库副本交出去的调用——恰恰会在它被写出来针对的那种部署里完全失效。
 - 控制台**会话**则是按账号角色约束，而不是按 scope。
 - 有几件事同时要 scope 和 operator 角色：`?explain=true` 和用 `?identity=` 指定身份，都需要 `identity:manage` **且**是 operator，因为返回内容里包含 cookie。这类请求会写进审计日志。

@@ -87,7 +87,11 @@ export function Sidebar({
 
   return (
     <nav
-      className={cn(!embedded && styles.sidebar, collapsed && styles.collapsed, className)}
+      className={cn(
+        embedded ? styles.embedded : styles.sidebar,
+        collapsed && styles.collapsed,
+        className,
+      )}
       aria-label={t('common:nav.primary')}
     >
       {/* The mark is a link home, because it is the one thing on every screen
@@ -151,30 +155,36 @@ export function Sidebar({
         this: measured with 214px of nav still below the fold, the first pinned
         row sat under the "operations" heading and looked like part of it.
       */}
-      {!embedded ? (
-        <div className={styles.pinned}>
-          {/* Copyright and the licence, from every page. An Apache-2.0 project
-              that never says so anywhere in its own interface is asking people
-              to go and find out. */}
-          <Link
-            href="/about"
-            className={cn(styles.about, location === '/about' && styles.aboutActive)}
-            title={collapsed ? t('common:nav.about') : undefined}
-            onClick={onNavigate}
-          >
-            <span className={styles.navIcon}>
-              <InfoIcon size={14} />
-            </span>
-            <span className={cn(styles.navLabel, 'u-truncate')}>{t('common:nav.about')}</span>
-          </Link>
+      {/*
+        Rendered in the drawer too. It used to be desktop-only, so on a phone
+        About and the sponsor were not cut off - they were never in the markup,
+        and the only route to either was typing the URL. They are the two rows
+        this console has that are not a place you work, which is a reason to
+        pin them at the bottom, not a reason to drop them on the surface where
+        the sidebar is the only navigation there is.
+      */}
+      <div className={styles.pinned}>
+        {/* Copyright and the licence, from every page. An Apache-2.0 project
+            that never says so anywhere in its own interface is asking people
+            to go and find out. */}
+        <Link
+          href="/about"
+          className={cn(styles.about, location === '/about' && styles.aboutActive)}
+          title={collapsed ? t('common:nav.about') : undefined}
+          onClick={onNavigate}
+        >
+          <span className={styles.navIcon}>
+            <InfoIcon size={14} />
+          </span>
+          <span className={cn(styles.navLabel, 'u-truncate')}>{t('common:nav.about')}</span>
+        </Link>
 
-          {/* Sponsors keep this free, so they are visible from every page
-              rather than only from the page about them. Collapsed, the sidebar
-              is icons and this would be a logo with no room to say what it is,
-              so it goes with the labels. */}
-          {!collapsed ? <Sponsor variant="compact" /> : null}
-        </div>
-      ) : null}
+        {/* Sponsors keep this free, so they are visible from every page
+            rather than only from the page about them. Collapsed, the sidebar
+            is icons and this would be a logo with no room to say what it is,
+            so it goes with the labels. */}
+        {!collapsed ? <Sponsor variant="compact" /> : null}
+      </div>
 
       {!embedded && onToggleCollapse ? (
         <div className={styles.sidebarFooter}>

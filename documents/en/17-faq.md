@@ -1,5 +1,10 @@
 # FAQ and glossary
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/17-faq.md)
+
 This page answers the questions people ask before and just after they deploy this
 project, and then defines every term the rest of the documentation uses. After
 reading it you should be able to decide whether this software fits your situation
@@ -610,8 +615,8 @@ precise definition elsewhere, the linked page has it.
 | --- | --- |
 | **`aweme_id`** | Douyin's post id, a 19-digit number. Handled as a string everywhere, because it exceeds JavaScript's safe integer range and an int would silently lose precision in the UI. Douyin's comment-replies endpoint spells the same value `item_id`; its comment list still calls it `aweme_id`. |
 | **`content_id`** | This project's neutral name for a post id, on either platform. |
-| **`sec_user_id`** | Douyin's stable author key, and what the normalized model stores as the author's `uid`. Douyin's own mutable `uid` is deliberately not used, and neither is the handle. |
-| **`secUid`** | TikTok's opaque author key, which its own endpoints take alongside or instead of the handle. The normalized model stores TikTok's numeric id as the author's `uid` and preserves `secUid` in `raw`; a URL-shaped profile lookup uses the `@handle` (`uniqueId`), because that is what TikTok's user-detail endpoint accepts without a prior fetch. |
+| **`sec_user_id`** | Douyin's stable author key, stored as both the author's `uid` and its `sec_uid` - the duplication is deliberate, so that reading `sec_uid` works on either platform without first asking which one you are looking at. Douyin's own mutable `uid` is deliberately not used, and neither is the handle. |
+| **`secUid`** | TikTok's opaque author key, and the id every TikTok author endpoint takes. The normalized model stores TikTok's numeric id as the author's `uid` and this value as `sec_uid` - the two differ on TikTok and are the same on Douyin, so `sec_uid` is the field to read when you intend to pass it back. A URL-shaped lookup carries only the `@handle`, which `author_profile` accepts directly; for the post list, the likes list and the follow graph the handle is resolved to a `secUid` first, at the cost of one cached lookup. |
 | **`unique_id`** | The `@handle`. Never used as a key, because users edit it. |
 | **Content kind** | `video`, `image_album` or `live`. Only the detail response settles which — a URL shape is a hint, never authoritative. |
 

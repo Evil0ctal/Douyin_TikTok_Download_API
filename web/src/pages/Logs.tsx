@@ -376,7 +376,7 @@ export default function Logs() {
         }
       />
 
-      <div className="u-row" role="tablist" aria-label={t('page.logs.title')}>
+      <div className="u-row u-row-wrap" role="tablist" aria-label={t('page.logs.title')}>
         {tabs.map((entry) => (
           <Button
             key={entry.id}

@@ -99,9 +99,18 @@ def refuse_write(request: Request, role: UserRole) -> None:
         return
     if is_allowed(request.method, route_template(request)):
         return
+    # Named the caller and the method and stopped there, which told a reader
+    # what they were and nothing about what would work. `required_role` is the
+    # floor of the ladder above DEMO: every other role may write.
     raise ForbiddenScope(
         "the demo account is read-only",
-        details={"role": UserRole.DEMO.value, "method": request.method.upper()},
+        details={
+            "required_roles": [UserRole.VIEWER.value],
+            "have_role": UserRole.DEMO.value,
+            "have_scopes": [],
+            "via": "session",
+            "method": request.method.upper(),
+        },
     )
 
 

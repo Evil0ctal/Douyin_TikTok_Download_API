@@ -1,5 +1,10 @@
 # Users and API keys
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/09-users-and-api-keys.md)
+
 This page is about who can do what on your instance. After reading it you will
 know which console account to give a colleague, how to mint a key that lets a
 script read Douyin and nothing else, how to take a leaked credential out of
@@ -527,7 +532,7 @@ it was actually asked for. See [MCP and AI agents](./12-mcp.md).
 | Status | `error.code` | Meaning |
 |---|---|---|
 | `401` | `UNAUTHENTICATED` | No credential, or one the server does not recognise, or one that is expired or revoked. On `/mcp` the response also carries `WWW-Authenticate: Bearer realm="dtk"`. |
-| `403` | `FORBIDDEN_SCOPE` | The credential is valid but lacks the scope (`error.details.required` names the scopes that would have passed), or the account lacks the role (`error.details.required_role` names the role it needed). |
+| `403` | `FORBIDDEN_SCOPE` | The credential is valid but not permitted. `error.details` names what would have passed (`required_scopes` or `required_roles`) and what was sent (`have_role`, `have_scopes`), plus `via` — `api_key` when scopes are the gate, `session` when the role is. |
 | `429` | `RATE_LIMITED` | Over the per-minute limit. `Retry-After` says how long to wait. |
 
 Every error is the same envelope as every success: `success`, `data`, `error`,

@@ -1,0 +1,55 @@
+/*
+ * Two seconds of stars, over everything, catching nothing.
+ *
+ * `pointer-events: none` on the layer is the load-bearing line: this sits above
+ * the whole console, and an overlay that swallowed a click during an incident
+ * would be a genuinely bad joke.
+ */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-toast);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.star {
+  position: absolute;
+  top: -6%;
+  color: var(--accent);
+  opacity: 0;
+  animation-name: fall;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+  will-change: transform, opacity;
+}
+
+@keyframes fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(220deg);
+    opacity: 0;
+  }
+}
+
+/*
+ * Somebody who has asked the system not to animate things has asked for a
+ * reason, and an easter egg is the last thing entitled to ignore it. They still
+ * get the stars, briefly, without the fall.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .star {
+    animation: none;
+    opacity: 0.9;
+    top: 12%;
+  }
+}

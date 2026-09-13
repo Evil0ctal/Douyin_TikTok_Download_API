@@ -768,7 +768,7 @@ export default function Library() {
       />
 
       <div className="u-row-between u-wrap">
-        <div className="u-row" role="tablist" aria-label={t('library.view.label')}>
+        <div className="u-row u-row-wrap" role="tablist" aria-label={t('library.view.label')}>
           {(['grid', 'table'] as const).map((mode) => (
             <Button
               key={mode}

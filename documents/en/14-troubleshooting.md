@@ -1,5 +1,10 @@
 # Troubleshooting
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/14-troubleshooting.md)
+
 Find your symptom, confirm the cause with one command or one console page, and apply the fix. This page also carries the complete list of error codes this instance can return, with what each one means and whether retrying it can ever help.
 
 Every command below is written to be run from the repository root. Compose commands always carry the compose file (`-f docker/compose.yml`) — there is no `compose.yml` at the repository root, so without it compose finds nothing to act on — and the project name (`-p dtk`). The compose file already declares `name: dtk`, so `-p dtk` only makes the target explicit; keep it anyway, because it is also what overrides a `COMPOSE_PROJECT_NAME` already set in your shell.
@@ -535,7 +540,7 @@ The two are answering different questions, and telling them apart takes one look
 
 **403 checklist.**
 
-- Scopes are `douyin:read`, `tiktok:read`, `identity:manage`, `archive:read`, `archive:export`, `media:read`, `media:write`, `admin`. `error.details.required` names what the endpoint wanted.
+- Scopes are `douyin:read`, `tiktok:read`, `identity:manage`, `archive:read`, `archive:export`, `media:read`, `media:write`, `admin`. `error.details.required_scopes` names what the endpoint wanted, and `have_scopes` what you sent.
 - **An admin-owned key is still bounded by its scopes.** This is on purpose: almost every key on a self-hosted instance belongs to the admin user, so an admin short-circuit would make `archive:export` — the one call that hands back a copy of the database — unenforceable in exactly the deployment it was written for.
 - A console *session* is bounded by the account's role instead, not by scopes.
 - A few things need both a scope and an operator role: `?explain=true` and pinning `?identity=` need `identity:manage` **and** operator, because the answer contains a cookie jar. Those requests are written to the audit trail.

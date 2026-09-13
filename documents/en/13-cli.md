@@ -1,5 +1,10 @@
 # CLI reference
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/13-cli.md)
+
 `dtk` is the operations and rescue command line that ships inside the application image. After reading this you will know how to reach it on a running deployment, what every command and option does, and which commands are safe to fire at a live instance versus which ones you only reach for during an incident.
 
 ## What the CLI is, and what it is not

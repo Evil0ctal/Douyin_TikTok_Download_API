@@ -1,5 +1,10 @@
 # Identities and proxies
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/06-identities-and-proxies.md)
+
 The pool is the part of this system that decides whether it works at all. After
 reading this you will be able to read the Identities table and its state
 machine, mint or import identities, bind them to proxies, understand the

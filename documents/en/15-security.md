@@ -1,5 +1,10 @@
 # Security
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/15-security.md)
+
 This page is the division of labour between you and the software. After reading
 it you will know what the instance already protects on its own, what it
 deliberately refuses to do for you, which calls hand back a live credential, and

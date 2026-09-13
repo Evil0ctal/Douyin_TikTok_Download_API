@@ -1,5 +1,9 @@
 # 运维
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/10-operations.md)
+
 这一页讲的是上线之后的日子：怎样让一个实例在几个月里不用人盯着也保持健康。读完之后你会知道后台循环在做什么、改一个设置多久才会生效、怎么做备份和恢复（以及怎么证明恢复真的有效）、告警是怎么接的、哪些数据会在什么时候被清理、该盯哪些指标，以及怎样升级才不会丢东西。
 
 本页默认你用的是[安装与部署](./02-installation.md)里的 compose 部署方式。所有命令都在仓库根目录执行，并且始终带上 compose 项目名：

@@ -211,12 +211,12 @@ def guard(
         if not has_scope(principal, scopes):
             raise ForbiddenScope(
                 "this credential lacks the scope required for this endpoint",
-                details={"required": sorted(s.value for s in scopes)},
+                details=principal.denial(scopes=scopes),
             )
         if ROLE_RANK[principal.role] < ROLE_RANK[min_role]:
             raise ForbiddenScope(
                 "this operation requires a higher role",
-                details={"required_role": min_role.value},
+                details=principal.denial(roles=[min_role]),
             )
         return principal
 
@@ -335,7 +335,7 @@ async def resolve_explain(request: Request, principal: Principal, value: bool) -
     if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.OPERATOR]:
         raise ForbiddenScope(
             "explaining a request requires an operator role",
-            details={"required_role": UserRole.OPERATOR.value, "field": "explain"},
+            details={**principal.denial(roles=[UserRole.OPERATOR]), "field": "explain"},
         )
     await audit(
         request,
@@ -374,7 +374,7 @@ async def resolve_request_identity(
     if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.OPERATOR]:
         raise ForbiddenScope(
             "naming an identity requires an operator role",
-            details={"required_role": UserRole.OPERATOR.value, "field": "identity"},
+            details={**principal.denial(roles=[UserRole.OPERATOR]), "field": "identity"},
         )
     try:
         identity_id = uuid.UUID(value.strip())

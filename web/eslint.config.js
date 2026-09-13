@@ -11,6 +11,54 @@ const HEX_COLOUR = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/
 // and user-visible Chinese belongs in src/locales/zh/*.json (docs/design/14-i18n.md).
 const CJK = /[\u3000-\u303F\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uFF00-\uFFEF]/gu
 
+// The one exception, and it is the same one the Python side makes: the cat that
+// has sat at the top of this project's entry points since v1 is drawn in
+// katakana and half-width forms, so a blanket rule rejects it.
+//
+// Exempted by SHAPE, not by filename or by a disable comment - a line qualifies
+// only if every character on it comes from the mark's own alphabet, so it cannot
+// become somewhere to park a Chinese sentence.
+//
+// Split in two because only the first half can be shared. The glyphs the cat is
+// drawn from are the same in both languages and
+// `tests/unit/test_repo_hygiene.py` asserts this list and the one in
+// `tests/support/marks.py` are identical. What differs is the syntax around
+// them: a Python line starts with `#`, a TypeScript one is a quoted string in
+// an array.
+const MARK_DRAWING = [
+  '\u2502',
+  '\u2b50',
+  '\ufe0f',
+  '\u3000',
+  '\u3064',
+  '\u30ce',
+  '\u30d5',
+  '\u30df',
+  '\u30fd',
+  '\u4e8c',
+  '\uff09',
+  '\uff0f',
+  '\uff1e',
+  '\uff3c',
+  '\uff3f',
+  '\uff89',
+  '\uffe3',
+]
+
+//: ASCII the mark uses, plus what TypeScript wraps it in: quotes, a comma, and
+//: the `#` a Python comment would have started with.
+const MARK_SYNTAX = " \t#'(),/=FS_`adelmrstx|"
+
+const MARK_GLYPHS = new Set([...MARK_DRAWING, ...MARK_SYNTAX])
+
+/** Whether the line this character sits on is the mark rather than prose. */
+const onMarkLine = (text, index) => {
+  const start = text.lastIndexOf('\n', index) + 1
+  const lineEnd = text.indexOf('\n', index)
+  const line = text.slice(start, lineEnd === -1 ? text.length : lineEnd)
+  return line.trim().length > 0 && [...line].every((char) => MARK_GLYPHS.has(char))
+}
+
 // Attributes that reach a human's eyes. Anything else (className, id, href,
 // data-*, aria-controls) is machinery and stays a literal.
 const TRANSLATABLE_ATTRS = new Set([
@@ -206,6 +254,7 @@ const local = {
             CJK.lastIndex = 0
             let match
             while ((match = CJK.exec(text)) !== null) {
+              if (onMarkLine(text, match.index)) continue
               context.report({
                 loc: source.getLocFromIndex(match.index),
                 messageId: 'cjk',

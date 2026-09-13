@@ -49,6 +49,8 @@ web/.vite
 tests
 docs
 documents
+# The guided installer runs on the host, before there is an image to build.
+install
 vendor_salvage
 todo
 Screenshots

@@ -69,7 +69,7 @@ export default function Tools() {
       <PageHeader title={t('tools.title')} description={t('tools.description')} />
 
       <Card>
-        <div className="u-row" role="tablist" aria-label={t('tools.title')}>
+        <div className="u-row u-row-wrap" role="tablist" aria-label={t('tools.title')}>
           {(['sign', 'decode', 'parse', 'batch', 'identity'] as const).map((id) => (
             <Button
               key={id}

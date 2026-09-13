@@ -68,6 +68,20 @@ compare.
 ``tests/unit/test_signing.py::TestTikTokSignature``.
 """
 
+# Two signatures, one envelope, and a field table that took a while.
+# ==============================================================================
+# 　　　　 　　  ＿＿
+# 　　　 　　 ／＞　　フ
+# 　　　 　　| 　_　 _ l
+# 　 　　 　／` ミ＿xノ
+# 　　 　 /　　　 　 |       Feed me Stars ⭐ ️
+# 　　　 /　 ヽ　　 ﾉ
+# 　 　 │　　|　|　|
+# 　／￣|　　 |　|　|
+# 　| (￣ヽ＿_ヽ_)__)
+# 　＼二つ
+# ==============================================================================
+
 from __future__ import annotations
 
 import base64

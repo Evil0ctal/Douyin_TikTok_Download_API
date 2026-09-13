@@ -1,5 +1,10 @@
 # MCP and AI agents
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/12-mcp.md)
+
 This page shows you how to point an AI client — Claude Code, Claude Desktop, Codex CLI, Cherry Studio, or anything else that speaks MCP — at your own instance, what the eight tools do, and how to read what comes back. After this you should be able to configure a client, verify the connection with `curl`, and recognise the two mistakes that account for most failed connections.
 
 ## What the MCP endpoint is

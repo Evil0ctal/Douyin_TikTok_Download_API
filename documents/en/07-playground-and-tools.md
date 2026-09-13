@@ -1,5 +1,10 @@
 # Playground and tools
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
+> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
+> an identity pool that maintains itself.
+> [All docs](../README.md) · [中文](../zh/07-playground-and-tools.md)
+
 Three console pages let you learn this system by using it: `/playground` drives any
 read endpoint from the browser and tells you whose fault a failure was, `/tools`
 exposes the primitives the service uses on every request, and `/docs` is the API

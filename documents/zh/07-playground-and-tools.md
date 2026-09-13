@@ -1,5 +1,9 @@
 # 调试台与工具
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/07-playground-and-tools.md)
+
 控制台里有三个页面，可以让你在使用中把这套系统摸清楚：`/playground` 用表单驱动任意读取接口，并在失败时告诉你问题出在谁身上；`/tools` 把服务每次请求都要用到的几块能力直接暴露出来；`/docs` 则是由你正在运行的这个实例自己生成的 API 参考。读完这一页，你应当能发起一次调用、在失败时读懂失败、把那次上游请求原样在本实例之外复现出来，并把一个签名拆开来看。
 
 ## 这三个页面各自解决什么问题

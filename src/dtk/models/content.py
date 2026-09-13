@@ -94,6 +94,21 @@ class Author(_Base):
     #: The platform's stable primary key: Douyin ``sec_user_id`` (not ``uid``,
     #: which rotates), TikTok's numeric id. Never ``unique_id`` - users edit it.
     uid: str
+    #: The id this project's own author endpoints key on.
+    #:
+    #: On Douyin it is the same value as :attr:`uid` and the duplication is the
+    #: point: a caller should not have to know which platform puts its usable id
+    #: in which field. On TikTok they differ, and that difference is why this
+    #: field exists - ``author_posts``, ``author_likes``, ``followers`` and
+    #: ``following`` all key on ``secUid``, and ``uid`` carries the numeric
+    #: ``id``, which none of them accept. Without this the API returned nothing
+    #: that could be fed back into itself: parsing a TikTok video gave you a
+    #: numeric id and an @handle, and every author endpoint refuses both.
+    #:
+    #: Optional because a parser may meet an author node that omits it; a
+    #: response carrying `None` here means "ask the profile endpoint", not
+    #: "this author has no id".
+    sec_uid: str | None = None
     unique_id: str | None = None
     nickname: str
     signature: str | None = None

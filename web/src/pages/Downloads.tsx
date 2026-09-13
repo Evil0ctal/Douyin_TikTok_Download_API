@@ -169,6 +169,28 @@ const STORAGE_KEY = ['downloads', 'storage'] as const
 
 const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
 
+/**
+ * Whether the platform menu decides this input's platform.
+ *
+ * It mirrors `resolveTarget` exactly, and it has to: the menu should be
+ * enabled precisely when its value is the one that gets used. It used to be
+ * disabled for the whole of author mode on the grounds that an author is named
+ * by a `sec_user_id` rather than by digits - but `resolveTarget` reads the menu
+ * for a bare author id too, because Douyin's `sec_user_id` and TikTok's
+ * `secUid` are the same `MS4wLjABAAAA…` shape and nothing in the string says
+ * which platform it came from. With the menu greyed out at its default, every
+ * author download went to Douyin and TikTok was unreachable.
+ *
+ * An empty box counts as using the menu: it is the platform whatever is typed
+ * next will be read as. A link does not - the link settles it, and the API
+ * refuses a link that disagrees with the menu rather than guessing.
+ */
+function usesPlatformMenu(text: string, wantsAuthor: boolean): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return true
+  return wantsAuthor ? SEC_UID.test(trimmed) : /^\d+$/.test(trimmed)
+}
+
 interface DownloadFile {
   /** As it sits in the post's directory on the volume: `video.mp4`. */
   name: string
@@ -873,15 +895,15 @@ export default function Downloads() {
             else saveAuthor.mutate()
           }}
         >
-          {/* Only consulted for a bare id, and only a post can be named by
-              one - an author is a sec_user_id, which is not digits. A link
-              says which platform it is, and the API refuses one that disagrees
-              with this rather than guessing, so the menu is disabled while a
-              link is in the box. */}
+          {/* Enabled exactly when `resolveTarget` reads it - see
+              `usesPlatformMenu`. A link says which platform it is and the API
+              refuses one that disagrees with this rather than guessing, so the
+              menu is disabled while a link is in the box; a bare id says
+              nothing, so it is not. */}
           <Field id="download-platform" label={t('downloads.field.platform')}>
             <Select
               value={platform}
-              disabled={active.wants === 'author' || (target.trim().length > 0 && !looksLikeId)}
+              disabled={!usesPlatformMenu(target, active.wants === 'author')}
               onChange={(event) => {
                 setPlatform(event.target.value as Platform)
               }}

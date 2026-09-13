@@ -1,5 +1,9 @@
 # 身份与代理
 
+> **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
+> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> [文档首页](../README.zh-CN.md) · [English](../en/06-identities-and-proxies.md)
+
 身份池是决定这套系统能不能跑起来的关键部分。读完本文，你将能够读懂身份列表和它的状态机、铸造或导入身份、把身份绑到代理上、理解消耗它们的调度器、按自己的流量规模估算池子大小，并且在「什么都不响应了」时分清三种完全不同的故障。
 
 ## 为什么需要身份池

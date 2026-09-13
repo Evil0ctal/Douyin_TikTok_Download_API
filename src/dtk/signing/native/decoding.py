@@ -34,6 +34,20 @@ Nothing here is used to sign anything. It runs against values the caller
 already holds, touches no network and spends no identity.
 """
 
+# Taking them apart again, which is how the rest of this directory got written.
+# ==============================================================================
+# 　　　　 　　  ＿＿
+# 　　　 　　 ／＞　　フ
+# 　　　 　　| 　_　 _ l
+# 　 　　 　／` ミ＿xノ
+# 　　 　 /　　　 　 |       Feed me Stars ⭐ ️
+# 　　　 /　 ヽ　　 ﾉ
+# 　 　 │　　|　|　|
+# 　／￣|　　 |　|　|
+# 　| (￣ヽ＿_ヽ_)__)
+# 　＼二つ
+# ==============================================================================
+
 from __future__ import annotations
 
 import binascii

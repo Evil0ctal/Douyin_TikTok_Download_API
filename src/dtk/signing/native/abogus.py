@@ -55,6 +55,21 @@ back out. Writing uniform random there is a tell, and :data:`_HEADER_NOISE_BANDS
 and :func:`_tripwire_noise` are what stop it being one.
 """
 
+# The most-read file in this repository, by a distance. If you got this far
+# down a pure-Python a_bogus, the cat would like something for the trouble.
+# ==============================================================================
+# 　　　　 　　  ＿＿
+# 　　　 　　 ／＞　　フ
+# 　　　 　　| 　_　 _ l
+# 　 　　 　／` ミ＿xノ
+# 　　 　 /　　　 　 |       Feed me Stars ⭐ ️
+# 　　　 /　 ヽ　　 ﾉ
+# 　 　 │　　|　|　|
+# 　／￣|　　 |　|　|
+# 　| (￣ヽ＿_ヽ_)__)
+# 　＼二つ
+# ==============================================================================
+
 from __future__ import annotations
 
 import random
