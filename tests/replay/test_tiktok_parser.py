@@ -871,3 +871,36 @@ def test_a_present_user_list_is_still_strict() -> None:
     """Tolerating an absent key must not tolerate a malformed present one."""
     with pytest.raises(UpstreamChanged):
         parser.parse_author_list({"userList": [{"user": {}}], "hasMore": False})
+
+
+# --------------------------------------------------------------------------
+# Saved posts (the Saved tab's other half)
+# --------------------------------------------------------------------------
+
+
+def test_build_author_bookmarks_request() -> None:
+    """Every parameter here is from a capture of the signed-in page.
+
+    `needPinnedItemIds` and `post_item_list_request_type` are sent for this path
+    and are not part of the shared base set, so a builder that only copied
+    `author_likes` would be missing both.
+    """
+    spec = ADAPTER.build_request(endpoints.AUTHOR_BOOKMARKS, sec_uid=AUTHOR_SEC_UID)
+
+    assert spec["url"] == "https://www.tiktok.com/api/user/collect/item_list/"
+    assert spec["params"]["secUid"] == AUTHOR_SEC_UID
+    assert spec["params"]["cursor"] == "0"
+    assert spec["params"]["needPinnedItemIds"] == "true"
+    assert spec["params"]["post_item_list_request_type"] == "0"
+
+
+def test_saved_posts_parse_as_ordinary_posts() -> None:
+    """The envelope is the item_list one, so `author_posts`' parser answers.
+
+    Asserted here rather than assumed in the registry: if TikTok ever gives this
+    path an envelope of its own, this is where it shows up rather than as an
+    empty page in production.
+    """
+    page = ADAPTER.parse_author_posts(load(PLATFORM, "user_posts_page1"), fetched_at=FETCHED_AT)
+    assert page.items
+    assert all(item.platform is Platform.TIKTOK for item in page.items)

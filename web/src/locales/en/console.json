@@ -1168,6 +1168,7 @@
       "posts": "Author posts",
       "likes": "Author likes",
       "collections": "Author bookmark folders",
+      "bookmarks": "Author saved posts",
       "mix": "Mix / playlist posts",
       "followers": "Author followers",
       "following": "Author following"

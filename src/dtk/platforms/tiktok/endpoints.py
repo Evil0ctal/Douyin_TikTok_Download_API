@@ -16,6 +16,7 @@ from typing import Final
 
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.tiktok.params import (
+    author_bookmarks_params,
     author_collections_params,
     author_followers_params,
     author_following_params,
@@ -99,6 +100,7 @@ COMMENTS: Final = "tiktok.comments"
 COMMENT_REPLIES: Final = "tiktok.comment_replies"
 AUTHOR_LIKES: Final = "tiktok.author_likes"
 AUTHOR_COLLECTIONS: Final = "tiktok.author_collections"
+AUTHOR_BOOKMARKS: Final = "tiktok.author_bookmarks"
 MIX_POSTS: Final = "tiktok.mix_posts"
 AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
@@ -161,6 +163,21 @@ ENDPOINTS: Final = EndpointTable.of(
         build=author_likes_params,
         risk_weight=1.8,
         summary="Posts an author has publicly liked",
+    ),
+    EndpointSpec(
+        name=AUTHOR_BOOKMARKS,
+        path=TikTokAPIEndpoints.USER_COLLECT,
+        required=("sec_uid",),
+        build=author_bookmarks_params,
+        risk_weight=1.8,
+        # The request side is from a capture of the signed-in page; the response
+        # side is the itemList/hasMore/cursor envelope every other item_list
+        # endpoint on this host returns, and the items are ordinary posts rather
+        # than a new object - which is why parse_author_posts is reused instead
+        # of a parser of its own. Weaker than the assumption that put cover: null
+        # into #753, but still an assumption: what would settle it is one
+        # response from an account that has saved something.
+        summary="Posts an author has saved, across every folder",
     ),
     EndpointSpec(
         name=AUTHOR_COLLECTIONS,
@@ -229,6 +246,7 @@ ENDPOINTS: Final = EndpointTable.of(
 
 
 __all__ = [
+    "AUTHOR_BOOKMARKS",
     "AUTHOR_COLLECTIONS",
     "AUTHOR_FOLLOWERS",
     "AUTHOR_FOLLOWING",

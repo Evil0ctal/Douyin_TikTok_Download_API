@@ -71,6 +71,7 @@ class Operation(StrEnum):
     COMMENT_REPLIES = "comment_replies"
     AUTHOR_LIKES = "author_likes"
     AUTHOR_COLLECTIONS = "author_collections"
+    AUTHOR_BOOKMARKS = "author_bookmarks"
     MIX_POSTS = "mix_posts"
     AUTHOR_FOLLOWERS = "author_followers"
     AUTHOR_FOLLOWING = "author_following"

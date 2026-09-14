@@ -898,6 +898,79 @@ async def user_collections(
 
 
 @router.get(
+    "/{platform}/user/bookmarks",
+    summary="Posts an author has saved",
+    openapi_extra={I18N_KEY: "author_bookmarks", **ASYNC_RESPONSES},
+)
+async def user_bookmarks(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts an author has saved, across every folder.
+
+    **TikTok only**, and **only ever the account's own list**. This is the other
+    half of the Saved tab: `/user/collections` lists the folders, this lists
+    what is in the tab regardless of folder.
+
+    A guest identity gets an empty page rather than an error, and an empty page
+    is indistinguishable from an account that has saved nothing - so point
+    `identity` at an identity imported from that account's browser session, or
+    the answer means nothing either way.
+
+    **Parameters**
+
+    - `platform` - must be `tiktok`.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page. TikTok refuses more than 35.
+    - `include_raw` - include each post's untouched platform payload.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+    - `identity` - send the request as this identity and no other. Requires
+      `identity:manage`, and is the whole point of this endpoint.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+
+    **Returns**
+
+    The same post shape as `/video`, one entry per saved post, plus the cursor
+    for the next page.
+    """
+    authorize(principal, platform)
+    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params.update(
+        {
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        }
+    )
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=supported(platform, Operation.AUTHOR_BOOKMARKS),
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
     "/{platform}/mix/posts",
     summary="Posts inside a mix or playlist",
     openapi_extra={I18N_KEY: "mix_posts", **ASYNC_RESPONSES},

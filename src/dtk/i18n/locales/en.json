@@ -254,6 +254,10 @@
         "summary": "Log out every other device",
         "description": "Sign out everywhere except here."
       },
+      "author_bookmarks": {
+        "summary": "Posts an author has saved",
+        "description": "One page of the posts an author has saved, across every folder - the other half of the Saved tab, where /user/collections lists the folders. TikTok only, and only ever the account's own list: a guest identity gets an empty page, which is indistinguishable from an account that has saved nothing, so point identity at an identity imported from that account's session or the answer means nothing either way."
+      },
       "author_collections": {
         "summary": "The folders an author has organized bookmarked posts into",
         "description": "One page of an author's bookmark folders. TikTok only. These folders are private the same way an author's likes are, so an empty page from a guest identity usually means the account is not signed in as the folders' owner rather than that the author has none - read them with identity pointed at an imported identity for that account."

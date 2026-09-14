@@ -318,6 +318,14 @@ const CATALOG: readonly EndpointDef[] = [
     params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
   {
+    id: 'bookmarks',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/user/bookmarks`,
+    operation: 'author_bookmarks',
+    platformScoped: true,
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+  },
+  {
     id: 'mix',
     method: 'GET',
     path: (platform) => `${API_V1}/${platform}/mix/posts`,

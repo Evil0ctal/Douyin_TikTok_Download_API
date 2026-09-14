@@ -261,6 +261,41 @@ def author_likes_params(
     }
 
 
+def author_bookmarks_params(
+    *,
+    sec_uid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/user/collect/item_list/``.
+
+    The posts an account saved, all of them, regardless of which folder they
+    were filed in - the Saved tab's other half. ``author_collections`` lists the
+    folders; this lists the contents of the tab.
+
+    Every parameter here is from a capture of the page making this call while
+    signed in, rather than copied from a sibling: ``needPinnedItemIds`` and
+    ``post_item_list_request_type`` are sent for this path and are not part of
+    the shared base set.
+
+    Only ever answers the account that owns the list, so this needs an imported
+    identity - a guest gets an empty page, which is indistinguishable from an
+    account that has saved nothing.
+    """
+    return {
+        **base_params(profile),
+        "secUid": str(sec_uid),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+        "needPinnedItemIds": "true",
+        # 0 default order, as the page sends it. Shared with author_posts, which
+        # documents the other values.
+        "post_item_list_request_type": "0",
+    }
+
+
 def author_collections_params(
     *,
     sec_uid: str,
@@ -425,6 +460,7 @@ __all__ = [
     "COVER_FORMAT",
     "DEFAULT_PAGE_SIZE",
     "DEFAULT_PROFILE",
+    "author_bookmarks_params",
     "author_collections_params",
     "author_posts_params",
     "author_profile_params",
