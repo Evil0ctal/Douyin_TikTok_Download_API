@@ -656,3 +656,52 @@ async def test_an_ordinary_call_still_joins_a_refreshed_one_it_did_not_ask_for(
     plain = await client.get("/api/v1/douyin/video", params={"aweme_id": "7123456789012345678"})
 
     assert envelope(plain)["data"]["task_id"] != envelope(refreshed)["data"]["task_id"]
+
+
+# --------------------------------------------------------------------------
+# Page sizes the platform will not serve
+# --------------------------------------------------------------------------
+
+
+SEC_UID = "MS4wLjABAAAA" + "x" * 40
+
+
+async def test_a_page_size_tiktok_refuses_never_leaves_this_process(client: Any) -> None:
+    """TikTok stops at 35 and answers 36 in a shape that reads as "nothing here".
+
+    Refusing it at the edge is the whole point: sent upstream it costs a pooled
+    identity to be told the author has no posts, which is false and which the
+    caller has no way to distinguish from the truth. `le=50` on the parameter
+    cannot express this because the platform is a path parameter.
+    """
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/user/posts", params={"sec_user_id": SEC_UID, "count": 36}
+    )
+
+    assert error_code(response) == "INVALID_PARAM"
+    details = envelope(response)["error"]["details"]
+    assert details["field"] == "count"
+    assert details["maximum"] == 35
+    async with session_scope() as session:
+        assert (await session.scalars(select(Task))).all() == []
+
+
+async def test_the_same_page_size_is_fine_on_douyin(client: Any) -> None:
+    """The ceiling is TikTok's, not ours - Douyin served 50 when measured."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/user/posts", params={"sec_user_id": SEC_UID, "count": 36}
+    )
+
+    assert response.status_code == 202, response.text
+
+
+async def test_tiktok_serves_its_own_ceiling(client: Any) -> None:
+    """35 is accepted; the refusal starts at 36 and not before it."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/user/posts", params={"sec_user_id": SEC_UID, "count": 35}
+    )
+
+    assert response.status_code == 202, response.text
