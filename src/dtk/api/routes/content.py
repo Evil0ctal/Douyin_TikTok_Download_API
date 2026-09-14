@@ -52,6 +52,7 @@ from dtk.core.errors import (
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
 from dtk.i18n.messages import render_error
+from dtk.platforms.paging import max_page_size
 from dtk.urls import ResourceKind, UrlKind, first_url, identify, require_content_id
 from dtk.worker import registry
 
@@ -69,7 +70,21 @@ WAIT_QUERY = Query(
         "Hold the connection until the task finishes, up to this many seconds - this is how to make the call synchronous. Finished in time gives 200 with the result; not finished gives 202 with the task id and `state: running`, which is not an error and loses nothing. Above the instance ceiling shown as `maximum` it is a 400, rejected rather than shortened. Omitted or 0 returns 202 at once. See the description at the top of this document."
     ),
 )
-COUNT_QUERY = Query(default=None, ge=1, le=MAX_PAGE_SIZE, description="Items per page.")
+COUNT_QUERY = Query(
+    default=None,
+    ge=1,
+    le=MAX_PAGE_SIZE,
+    # `le` is this project's ceiling and the only one OpenAPI can state,
+    # because the platform is a path parameter and the real limit differs
+    # between them. TikTok refuses more than 35 - see dtk.platforms.paging -
+    # so the route checks again and answers 400 rather than letting the call
+    # go upstream to be read back as "this author has nothing".
+    description=(
+        "Items per page. The ceiling depends on the platform: Douyin serves up to 50, "
+        "TikTok refuses more than 35. Above it this is a 400 naming the maximum, "
+        "rejected rather than shortened."
+    ),
+)
 CURSOR_QUERY = Query(
     default=None,
     max_length=512,
@@ -509,7 +524,13 @@ async def comments(
     """
     authorize(principal, platform)
     params = _content_params(platform, url=url, aweme_id=aweme_id)
-    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
+    params.update(
+        {
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        }
+    )
     return await operations.submit_and_wait(
         request,
         principal,
@@ -582,7 +603,7 @@ async def comment_replies(
         {
             "comment_id": comment_id,
             "cursor": cursor,
-            "count": resolve_count(count),
+            "count": resolve_count(count, maximum=max_page_size(platform)),
             "include_raw": include_raw,
         }
     )
@@ -712,7 +733,13 @@ async def user_posts(
     """
     authorize(principal, platform)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
+    params.update(
+        {
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        }
+    )
     return await operations.submit_and_wait(
         request,
         principal,
@@ -783,7 +810,13 @@ async def user_likes(
     """
     authorize(principal, platform)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
+    params.update(
+        {
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        }
+    )
     return await operations.submit_and_wait(
         request,
         principal,
@@ -920,7 +953,7 @@ async def mix_posts(
         params={
             "mix_id": mix_id,
             "cursor": cursor,
-            "count": resolve_count(count),
+            "count": resolve_count(count, maximum=max_page_size(platform)),
             "include_raw": include_raw,
         },
         wait=resolve_wait(request, wait),
@@ -985,7 +1018,13 @@ async def user_followers(
     authorize(principal, platform)
     endpoint = supported(platform, Operation.AUTHOR_FOLLOWERS)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
+    params.update(
+        {
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        }
+    )
     return await operations.submit_and_wait(
         request,
         principal,
@@ -1052,7 +1091,13 @@ async def user_following(
     authorize(principal, platform)
     endpoint = supported(platform, Operation.AUTHOR_FOLLOWING)
     params = _author_params(platform, url=url, sec_user_id=sec_user_id)
-    params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
+    params.update(
+        {
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        }
+    )
     return await operations.submit_and_wait(
         request,
         principal,

@@ -587,7 +587,7 @@
       "comment_id": "The parent comment whose replies you want. Ids come from the comments endpoint.",
       "confirm": "Required for settings flagged as disruptive.",
       "content_id": "The post id.",
-      "count": "Items per page.",
+      "count": "Items per page. The ceiling depends on the platform: Douyin serves up to 50, TikTok refuses more than 35. Above it this is a 400 naming the maximum, rejected rather than shortened.",
       "cursor": "Opaque cursor from the previous page; omit for the first page.",
       "download_id": "The download id returned when it was started.",
       "duration_bucket": "Only posts in this length class.",

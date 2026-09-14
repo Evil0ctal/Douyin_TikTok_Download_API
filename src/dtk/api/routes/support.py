@@ -282,11 +282,27 @@ def resolve_wait(request: Request, requested: float | None) -> float:
 def resolve_count(
     value: int | None, *, default: int = DEFAULT_PAGE_SIZE, maximum: int = MAX_PAGE_SIZE
 ) -> int:
+    """Vet a caller's page size against the ceiling that actually applies.
+
+    Rejected rather than shortened, which is the same choice `wait` makes and
+    for the same reason: a caller who asked for fifty and silently received
+    thirty-five has no way to tell that from an author who only had
+    thirty-five, and the second page they never ask for is the one with the
+    rest of the data in it.
+
+    `maximum` is the *platform's* limit where one is known - see
+    :mod:`dtk.platforms.paging` - not this project's own.
+    """
     if value is None:
-        return default
+        return min(default, maximum)
     if value < 1:
         raise InvalidParam("count must be at least 1", details={"field": "count"})
-    return min(value, maximum)
+    if value > maximum:
+        raise InvalidParam(
+            f"count must be at most {maximum} for this platform",
+            details={"field": "count", "value": value, "maximum": maximum},
+        )
+    return value
 
 
 def resolve_request_proxy(request: Request, value: str | None) -> str | None:
