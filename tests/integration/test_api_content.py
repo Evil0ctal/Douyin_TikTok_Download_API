@@ -767,3 +767,22 @@ async def test_reposts_honour_the_tiktok_page_ceiling(client: Any) -> None:
 
     assert error_code(response) == "INVALID_PARAM"
     assert envelope(response)["error"]["details"]["maximum"] == 35
+
+
+async def test_collection_detail_takes_only_the_folder_id(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/collection", params={"collection_id": COLLECTION_ID}
+    )
+
+    assert response.status_code == 202, response.text
+
+
+async def test_collection_detail_is_not_offered_on_douyin(client: Any) -> None:
+    """Douyin has no folder-by-id path; #759 tracks wiring the folders at all."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/collection", params={"collection_id": COLLECTION_ID}
+    )
+
+    assert error_code(response) == "UNSUPPORTED_CONTENT"

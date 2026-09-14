@@ -1169,6 +1169,7 @@
       "likes": "Author likes",
       "reposts": "Author reposts",
       "collections": "Bookmark folders (collections)",
+      "collectionDetail": "One folder's details",
       "bookmarks": "Saved posts (every folder)",
       "collectionPosts": "Saved posts (one folder)",
       "mix": "Author's own series (mix / playlist)",

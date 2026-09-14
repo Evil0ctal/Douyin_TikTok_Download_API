@@ -419,6 +419,34 @@ def collection_posts_params(
     }
 
 
+#: ``scene`` for ``/api/collection/detail/``. Only one value has ever been
+#: observed, so what this constant records is "the page sends 116", not what
+#: any other value would select.
+COLLECTION_DETAIL_SCENE: Final = "116"
+
+
+def collection_detail_params(
+    *,
+    collection_id: str,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/collection/detail/``.
+
+    One saved folder's own metadata - the thing ``author_collections`` returns
+    a list of, asked for by id instead of by owner. That difference is the
+    point: ``author_collections`` needs the owner's ``secUid``, so given only a
+    collection id, which is all a shared link carries, there was previously no
+    way to find out what it is.
+
+    No ``secUid`` here, the same as ``collection_posts``, and not paged.
+    """
+    return {
+        **base_params(profile),
+        "collectionId": str(collection_id),
+        "scene": COLLECTION_DETAIL_SCENE,
+    }
+
+
 def mix_posts_params(
     *,
     mix_id: str,
@@ -551,6 +579,7 @@ def _cursor(cursor: str | None) -> str:
 
 __all__ = [
     "APP_ID",
+    "COLLECTION_DETAIL_SCENE",
     "COLLECTION_SOURCE_TYPE",
     "COVER_FORMAT",
     "DEFAULT_PAGE_SIZE",
@@ -561,6 +590,7 @@ __all__ = [
     "author_profile_params",
     "author_reposts_params",
     "base_params",
+    "collection_detail_params",
     "collection_posts_params",
     "comment_replies_params",
     "comments_params",

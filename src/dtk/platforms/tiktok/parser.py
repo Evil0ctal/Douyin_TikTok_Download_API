@@ -469,13 +469,46 @@ def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+#: The ``status`` value on a collection node that means "anyone can open this".
+#:
+#: Measured 2026-09-13 on one account holding two folders it had set either
+#: way: the public one came back 3 and the private one 1, on both
+#: ``/api/user/collection_list/`` and ``/api/collection/detail/``. Two samples
+#: on one axis is enough to name 3 and not enough to claim what else exists,
+#: which is why :func:`_is_public` returns None rather than False for a value
+#: nobody has seen - "I do not know" and "no" are different answers, and a
+#: caller deciding whether to bother asking deserves the honest one.
+_STATUS_PUBLIC: Final = 3
+_STATUS_PRIVATE: Final = 1
+
+
+def _is_public(node: Node) -> bool | None:
+    """Whether this folder is open to anyone, or None when unmeasured."""
+    status = optional_int(node.get("status"))
+    if status == _STATUS_PUBLIC:
+        return True
+    if status == _STATUS_PRIVATE:
+        return False
+    return None
+
+
 def _collection_from_node(node: Node) -> Collection:
+    """One folder, from the node shape both collection endpoints share.
+
+    ``/api/collection/detail/`` returns this same object under
+    ``collectionInfo`` that ``/api/user/collection_list/`` returns a list of -
+    same keys, same types - so one builder answers for both. Verified against
+    live responses from each, 2026-09-13.
+    """
     return Collection(
         platform=_PLATFORM,
         collection_id=node.id("collectionId"),
         name=node.text("name"),
         cover=image_from_urls((node.get("cover") or {}).get("urlList")),
         item_count=optional_int(node.get("total")),
+        is_public=_is_public(node),
+        owner_id=optional_id(node.get("userId")),
+        owner_name=optional_str(node.get("userName")),
         raw=node.raw(),
     )
 
@@ -484,9 +517,11 @@ def parse_author_collections(payload: Mapping[str, Any]) -> Page[Collection]:
     """Parse ``/api/user/collection_list/``.
 
     Same paging shape as :func:`parse_author_posts`: a list under one key, an
-    honest ``hasMore``, and a cursor only when there is a next page. TikTok
-    hides these folders from anyone but their owner, so an empty list is the
-    normal answer for a guest identity rather than a sign of a broken parser.
+    honest ``hasMore``, and a cursor only when there is a next page.
+
+    A guest sees the folders their owner made public and no others, so an empty
+    list means "none public" rather than "none" - and never means a broken
+    parser. Each entry says which it is; see :func:`_is_public`.
     """
     root = _guard(payload)
     entries = root.children("collectionList") if root.has("collectionList") else []
@@ -496,6 +531,22 @@ def parse_author_collections(payload: Mapping[str, Any]) -> Page[Collection]:
     if has_more and cursor is None:
         raise root.missing("cursor")
     return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def parse_collection_detail(payload: Mapping[str, Any]) -> Collection:
+    """Parse ``/api/collection/detail/``.
+
+    One folder, asked for by id rather than by owner, which is the whole reason
+    this exists alongside :func:`parse_author_collections`: given only a
+    collection id - all a shared link carries - that one cannot help, because
+    it needs a ``secUid`` to ask with.
+
+    The payload wraps the same node in ``collectionInfo``. It is not optional
+    the way ``collectionList`` is: a response that reached here at all was a
+    success, so a missing wrapper is a changed upstream, not an absence.
+    """
+    root = _guard(payload)
+    return _collection_from_node(root.child("collectionInfo"))
 
 
 def comment_from_node(

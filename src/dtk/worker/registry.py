@@ -63,6 +63,7 @@ class Capability(StrEnum):
     AUTHOR_BOOKMARKS = "author_bookmarks"
     COLLECTION_POSTS = "collection_posts"
     AUTHOR_REPOSTS = "author_reposts"
+    COLLECTION_DETAIL = "collection_detail"
     MIX_POSTS = "mix_posts"
     AUTHOR_FOLLOWERS = "author_followers"
     AUTHOR_FOLLOWING = "author_following"
@@ -222,6 +223,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             COUNT: "count",
         },
         Capability.AUTHOR_REPOSTS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        Capability.COLLECTION_DETAIL: {COLLECTION_ID: "collection_id"},
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
@@ -242,6 +244,8 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.AUTHOR_BOOKMARKS: "cache.list_ttl",
         Capability.COLLECTION_POSTS: "cache.list_ttl",
         Capability.AUTHOR_REPOSTS: "cache.list_ttl",
+        # A folder's name and cover change far less often than its contents.
+        Capability.COLLECTION_DETAIL: "cache.author_ttl",
         Capability.MIX_POSTS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWERS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWING: "cache.list_ttl",
@@ -425,6 +429,8 @@ class EndpointDefinition:
                 return adapter.parse_author_list(payload)
             case Capability.AUTHOR_COLLECTIONS:
                 return adapter.parse_author_collections(payload)
+            case Capability.COLLECTION_DETAIL:
+                return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
                 return adapter.parse_comments(payload, content_id=content_id)
             case Capability.COMMENT_REPLIES:

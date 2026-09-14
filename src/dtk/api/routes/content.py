@@ -1056,6 +1056,68 @@ async def user_bookmarks(
 
 
 @router.get(
+    "/{platform}/collection",
+    summary="One saved folder's own name, cover and size",
+    openapi_extra={I18N_KEY: "collection_detail", **ASYNC_RESPONSES},
+)
+async def collection_detail(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    collection_id: str = COLLECTION_ID_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One saved folder's own metadata, asked for by id.
+
+    **TikTok only.** `/user/collections` lists an author's folders, but it has
+    to be asked by way of an owner - you give it a `sec_user_id`. This one
+    takes the folder's id alone, which is all a shared link carries, and is
+    therefore the only way to find out what an unknown collection id is.
+
+    It also tells you **who owns it** and **whether it is public**, neither of
+    which you can get from the id by any other route.
+
+    A public folder is readable with a guest identity; a private one needs
+    `identity` pointed at an identity imported from its owner's session.
+
+    **Parameters**
+
+    - `platform` - must be `tiktok`.
+    - `collection_id` - the folder to describe.
+    - `include_raw` - include the untouched platform payload.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+    - `identity` - send the request as this identity and no other. Needed only
+      for a folder that is not public. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.author_ttl` is answered from the
+      cache and costs nothing.
+
+    **Returns**
+
+    The folder's id, name, cover, item count, owner and whether it is public.
+    To read the posts inside it, pass the same id to `/collection/posts`.
+    """
+    authorize(principal, platform)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=supported(platform, Operation.COLLECTION_DETAIL),
+        params={"collection_id": collection_id, "include_raw": include_raw},
+        wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
     "/{platform}/collection/posts",
     summary="Posts inside one of an author's saved folders",
     openapi_extra={I18N_KEY: "collection_posts", **ASYNC_RESPONSES},

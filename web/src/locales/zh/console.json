@@ -1169,6 +1169,7 @@
       "likes": "作者点赞列表",
       "reposts": "作者转发的作品",
       "collections": "收藏夹列表",
+      "collectionDetail": "单个收藏夹的信息",
       "bookmarks": "收藏的作品（跨全部收藏夹）",
       "collectionPosts": "收藏的作品（单个收藏夹）",
       "mix": "作者自建合集（合辑 / 播放列表）",

@@ -987,3 +987,101 @@ def test_reposts_are_not_the_same_path_as_posts() -> None:
         ADAPTER.endpoints.specs[endpoints.AUTHOR_REPOSTS].path
         != ADAPTER.endpoints.specs[endpoints.AUTHOR_POSTS].path
     )
+
+
+# --------------------------------------------------------------------------
+# One collection's own metadata
+# --------------------------------------------------------------------------
+
+
+#: The live `/api/collection/detail/` envelope, values replaced the way
+#: `_COLLECTIONS_PAGE1` replaces them - the real response names a real account.
+#: Shape, key names and types are verbatim: `cover` is a camelCase `urlList`
+#: container, `total` is a numeric string, `status` is an int.
+_COLLECTION_DETAIL = {
+    "collectionInfo": {
+        "collectionId": "6910000000000000201",
+        "cover": {
+            "urlList": [
+                "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+                "synthetic-collection-cover-1~tplv-photomode.image",
+                "https://p19-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+                "synthetic-collection-cover-1b~tplv-photomode.image",
+                "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-p-0068/"
+                "synthetic-collection-cover-1c~tplv-photomode.jpeg",
+            ]
+        },
+        "name": "Recipes to try",
+        "status": 3,
+        "total": "42",
+        "userId": "redacted-user-id",
+        "userName": "redacted-user-name",
+    },
+    "shareMeta": {
+        "desc": "Watch amazing videos in this curated collection Recipes to try",
+        "title": "Collection Recipes to try created by redacted-user-name",
+    },
+    "statusCode": 0,
+}
+
+
+def test_build_collection_detail_request() -> None:
+    spec = ADAPTER.build_request(endpoints.COLLECTION_DETAIL, collection_id="6910000000000000201")
+
+    assert spec["url"] == "https://www.tiktok.com/api/collection/detail/"
+    assert spec["params"]["collectionId"] == "6910000000000000201"
+    assert spec["params"]["scene"] == "116"
+    assert "secUid" not in spec["params"]
+    # Not a paged endpoint; sending a cursor would be inventing a contract.
+    assert "cursor" not in spec["params"]
+    assert "count" not in spec["params"]
+
+
+def test_collection_detail_carries_owner_and_visibility() -> None:
+    """The two things `author_collections` cannot tell you from an id alone."""
+    collection = ADAPTER.parse_collection_detail(deepcopy(_COLLECTION_DETAIL))
+
+    assert collection.platform is Platform.TIKTOK
+    assert collection.collection_id == "6910000000000000201"
+    assert collection.name == "Recipes to try"
+    assert collection.item_count == 42
+    assert collection.is_public is True
+    assert collection.owner_id == "redacted-user-id"
+    assert collection.owner_name == "redacted-user-name"
+    # Same camelCase container that made #753 ship `cover: null`.
+    assert collection.cover is not None
+    assert len(collection.cover.urls) == 3
+
+
+def test_a_private_collection_says_so() -> None:
+    payload = deepcopy(_COLLECTION_DETAIL)
+    payload["collectionInfo"]["status"] = 1
+    assert ADAPTER.parse_collection_detail(payload).is_public is False
+
+
+def test_an_unmeasured_status_is_unknown_not_private() -> None:
+    """`None` and `False` are different answers and this endpoint can say both.
+
+    Only 3 and 1 have ever been observed. Reporting anything else as "private"
+    would be a guess presented as a measurement, and it is the guess that would
+    stop a caller bothering to ask.
+    """
+    payload = deepcopy(_COLLECTION_DETAIL)
+    payload["collectionInfo"]["status"] = 99
+    assert ADAPTER.parse_collection_detail(payload).is_public is None
+
+    del payload["collectionInfo"]["status"]
+    assert ADAPTER.parse_collection_detail(payload).is_public is None
+
+
+def test_a_missing_collection_info_is_a_changed_upstream() -> None:
+    """Unlike `collectionList`, this wrapper is not optional."""
+    with pytest.raises(UpstreamChanged):
+        ADAPTER.parse_collection_detail({"statusCode": 0})
+
+
+def test_collection_list_entries_report_visibility_too() -> None:
+    """Same node shape, so the list gained this for free - assert it did."""
+    page = ADAPTER.parse_author_collections(deepcopy(_COLLECTIONS_PAGE1))
+    assert all(c.is_public is False for c in page.items)
+    assert all(c.owner_name == "redacted-user-name" for c in page.items)

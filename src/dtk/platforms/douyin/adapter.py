@@ -91,6 +91,18 @@ class DouyinAdapter:
             details={"platform": self.platform.value, "capability": "author_collections"},
         )
 
+    def parse_collection_detail(self, payload: Mapping[str, Any]) -> Collection:
+        """Not wired, for the same reason as ``parse_author_collections``.
+
+        Douyin has no per-folder visibility to expose and no path that answers
+        about a folder without naming its owner, so there is nothing for this
+        to mean here until the folders themselves are wired (#759).
+        """
+        raise UnsupportedContent(
+            "Douyin bookmark folders are not wired into this build yet",
+            details={"platform": self.platform.value, "capability": "collection_detail"},
+        )
+
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None
     ) -> Page[Comment]:

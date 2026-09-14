@@ -302,6 +302,10 @@
         "summary": "Submit many links at once",
         "description": "Submits many links in one call and returns a task id per link. Each link is scheduled independently, so one failure does not hold up the rest."
       },
+      "collection_detail": {
+        "summary": "One saved folder's own name, cover and size",
+        "description": "One saved folder's own metadata, asked for by id. TikTok only. /user/collections lists an author's folders but has to be asked by way of an owner; this takes the folder id alone - all a shared link carries - and is therefore the only way to find out what an unknown collection id is. It also reports who owns the folder and whether it is public. A public folder is readable with a guest identity; a private one needs an identity imported from its owner's session."
+      },
       "collection_posts": {
         "summary": "Posts inside one of an author's saved folders",
         "description": "One page of the posts inside a single saved folder. TikTok only. The third of the Saved tab's three views: /user/collections lists the folders, /user/bookmarks returns every saved post across all of them, and this returns what is in one folder. The request names the folder rather than the account, which is why a folder its owner has made public is readable by a guest identity with no import needed. collection_id comes from /user/collections."

@@ -334,6 +334,17 @@ const CATALOG: readonly EndpointDef[] = [
     params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
   {
+    id: 'collectionDetail',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/collection`,
+    operation: 'collection_detail',
+    platformScoped: true,
+    params: [
+      { name: 'collection_id', kind: 'text', where: 'query', section: 'target', required: true },
+      ...ENVELOPE_PARAMS,
+    ],
+  },
+  {
     id: 'collectionPosts',
     method: 'GET',
     path: (platform) => `${API_V1}/${platform}/collection/posts`,

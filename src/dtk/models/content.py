@@ -165,9 +165,14 @@ class Comment(_Base):
 class Collection(_Base):
     """A named folder a user has organized posts into.
 
-    TikTok calls this a collection, Douyin a collects folder; both are private
-    bookmark groupings rather than the author's own uploaded playlist (that is
-    ``mix_id``/``Content`` paged through ``mix_posts``).
+    TikTok calls this a collection, Douyin a collects folder; either way it is
+    a grouping of OTHER people's posts, which is what separates it from the
+    author's own uploaded playlist (that is ``mix_id``/``Content`` paged
+    through ``mix_posts``).
+
+    Not necessarily private. TikTok lets each folder be public or private
+    individually, and a public one is readable by anyone - see ``is_public``.
+    Douyin's web client only ever shows you your own.
     """
 
     platform: Platform
@@ -176,6 +181,14 @@ class Collection(_Base):
     cover: Image | None = None
     #: Posts filed in the folder. None when the platform did not state a count.
     item_count: int | None = None
+    #: Whether anyone can open this folder, or None when the platform did not
+    #: say. See the TikTok parser for what "did not say" covers.
+    is_public: bool | None = None
+    #: The account the folder belongs to. TikTok states both on every folder
+    #: node; Douyin states neither, because you can only ever ask about your
+    #: own.
+    owner_id: str | None = None
+    owner_name: str | None = None
     raw: dict | None = None
 
 

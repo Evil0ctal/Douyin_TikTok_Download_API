@@ -24,6 +24,7 @@ from dtk.platforms.tiktok.params import (
     author_posts_params,
     author_profile_params,
     author_reposts_params,
+    collection_detail_params,
     collection_posts_params,
     comment_replies_params,
     comments_params,
@@ -75,6 +76,9 @@ class TikTokAPIEndpoints:
     # account and this is keyed by the folder.
     COLLECTION_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/collection/item_list/"
 
+    # One folder's own metadata, by id and without naming its owner
+    COLLECTION_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/collection/detail/"
+
     # User playlists
     USER_PLAY_LIST: Final = f"{TIKTOK_DOMAIN}/api/user/playlist/"
 
@@ -113,6 +117,7 @@ AUTHOR_COLLECTIONS: Final = "tiktok.author_collections"
 AUTHOR_BOOKMARKS: Final = "tiktok.author_bookmarks"
 COLLECTION_POSTS: Final = "tiktok.collection_posts"
 AUTHOR_REPOSTS: Final = "tiktok.author_reposts"
+COLLECTION_DETAIL: Final = "tiktok.collection_detail"
 MIX_POSTS: Final = "tiktok.mix_posts"
 AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
@@ -240,6 +245,14 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="The folders a user has organized bookmarked posts into",
     ),
     EndpointSpec(
+        name=COLLECTION_DETAIL,
+        path=TikTokAPIEndpoints.COLLECTION_DETAIL,
+        required=("collection_id",),
+        build=collection_detail_params,
+        risk_weight=1.2,
+        summary="One saved folder's own name, cover and size",
+    ),
+    EndpointSpec(
         name=COLLECTION_POSTS,
         path=TikTokAPIEndpoints.COLLECTION_ITEM_LIST,
         required=("collection_id",),
@@ -310,6 +323,7 @@ __all__ = [
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
     "AUTHOR_REPOSTS",
+    "COLLECTION_DETAIL",
     "COLLECTION_POSTS",
     "COMMENTS",
     "COMMENT_REPLIES",

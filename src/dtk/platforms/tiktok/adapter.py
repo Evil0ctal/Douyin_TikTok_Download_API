@@ -60,6 +60,9 @@ class TikTokAdapter:
     def parse_author_collections(self, payload: Mapping[str, Any]) -> Page[Collection]:
         return parser.parse_author_collections(payload)
 
+    def parse_collection_detail(self, payload: Mapping[str, Any]) -> Collection:
+        return parser.parse_collection_detail(payload)
+
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None
     ) -> Page[Comment]:
