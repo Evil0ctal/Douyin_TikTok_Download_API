@@ -1167,6 +1167,7 @@
       "user": "Author profile",
       "posts": "Author posts",
       "likes": "Author likes",
+      "collections": "Author bookmark folders",
       "mix": "Mix / playlist posts",
       "followers": "Author followers",
       "following": "Author following"

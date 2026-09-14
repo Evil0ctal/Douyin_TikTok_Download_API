@@ -261,6 +261,35 @@ def author_likes_params(
     }
 
 
+def author_collections_params(
+    *,
+    sec_uid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/user/collection_list/``.
+
+    ``secUid``/``cursor``/``count``/``coverFormat`` match every other paged
+    list here. ``needPinnedItemIds`` and ``publicOnly`` are specific to this
+    endpoint; both come from this project's own V4 crawler for the same path
+    (``fetch_user_collection_list``, added 2026-08-27), which needed a
+    caller-supplied cookie to get a populated answer at all - the collections a
+    user makes are private by default, the same as ``author_likes``.
+    ``publicOnly=false`` asks for the private ones too, which only a signed-in
+    identity actually receives.
+    """
+    return {
+        **base_params(profile),
+        "secUid": str(sec_uid),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+        "needPinnedItemIds": "true",
+        "publicOnly": "false",
+    }
+
+
 def mix_posts_params(
     *,
     mix_id: str,
@@ -396,6 +425,7 @@ __all__ = [
     "COVER_FORMAT",
     "DEFAULT_PAGE_SIZE",
     "DEFAULT_PROFILE",
+    "author_collections_params",
     "author_posts_params",
     "author_profile_params",
     "base_params",

@@ -254,6 +254,10 @@
         "summary": "Log out every other device",
         "description": "Sign out everywhere except here."
       },
+      "author_collections": {
+        "summary": "The folders an author has organized bookmarked posts into",
+        "description": "One page of an author's bookmark folders. TikTok only. These folders are private the same way an author's likes are, so an empty page from a guest identity usually means the account is not signed in as the folders' owner rather than that the author has none - read them with identity pointed at an imported identity for that account."
+      },
       "author_followers": {
         "summary": "Accounts that follow an author",
         "description": "One page of the accounts that follow an author. TikTok only: Douyin serves its follow graph only to a signed-in identity, so asking for it there returns an error naming the platforms that do support it."

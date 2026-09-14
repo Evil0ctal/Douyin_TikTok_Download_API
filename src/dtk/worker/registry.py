@@ -59,6 +59,7 @@ class Capability(StrEnum):
     COMMENTS = "comments"
     COMMENT_REPLIES = "comment_replies"
     AUTHOR_LIKES = "author_likes"
+    AUTHOR_COLLECTIONS = "author_collections"
     MIX_POSTS = "mix_posts"
     AUTHOR_FOLLOWERS = "author_followers"
     AUTHOR_FOLLOWING = "author_following"
@@ -209,6 +210,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             COUNT: "count",
         },
         Capability.AUTHOR_LIKES: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        Capability.AUTHOR_COLLECTIONS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
@@ -225,6 +227,7 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.COMMENTS: "cache.list_ttl",
         Capability.COMMENT_REPLIES: "cache.list_ttl",
         Capability.AUTHOR_LIKES: "cache.list_ttl",
+        Capability.AUTHOR_COLLECTIONS: "cache.list_ttl",
         Capability.MIX_POSTS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWERS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWING: "cache.list_ttl",
@@ -399,6 +402,8 @@ class EndpointDefinition:
                 # One endpoint answers both, selected by a `scene` parameter, so
                 # one parser answers for both too.
                 return adapter.parse_author_list(payload)
+            case Capability.AUTHOR_COLLECTIONS:
+                return adapter.parse_author_collections(payload)
             case Capability.COMMENTS:
                 return adapter.parse_comments(payload, content_id=content_id)
             case Capability.COMMENT_REPLIES:

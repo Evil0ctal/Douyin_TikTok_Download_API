@@ -15,7 +15,7 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Comment, Content, Page
+from dtk.models import Author, Collection, Comment, Content, Page
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -75,6 +75,20 @@ class DouyinAdapter:
             "Douyin serves follower and following lists only to a signed-in "
             "identity; import one from the console to read them",
             details={"platform": self.platform.value, "capability": "author_list"},
+        )
+
+    def parse_author_collections(self, payload: Mapping[str, Any]) -> Page[Collection]:
+        """Douyin's bookmark-folder equivalent (``collects/list/``) is not wired.
+
+        The URL constant exists in ``endpoints.py`` - rediscovering it later
+        would be expensive - but no ``EndpointSpec`` registers it yet, so no
+        Douyin ``author_collections`` endpoint is offered. Exists here for the
+        same reason ``parse_author_list`` does: to fail loudly for a capability
+        the protocol declares rather than leave it silently missing.
+        """
+        raise UnsupportedContent(
+            "Douyin bookmark folders are not wired into this build yet",
+            details={"platform": self.platform.value, "capability": "author_collections"},
         )
 
     def parse_comments(

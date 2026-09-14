@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 
 from dtk.core.types import Platform
-from dtk.models import Author, Comment, Content, Page
+from dtk.models import Author, Collection, Comment, Content, Page
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -56,6 +56,9 @@ class TikTokAdapter:
 
     def parse_author_list(self, payload: Mapping[str, Any]) -> Page[Author]:
         return parser.parse_author_list(payload)
+
+    def parse_author_collections(self, payload: Mapping[str, Any]) -> Page[Collection]:
+        return parser.parse_author_collections(payload)
 
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None

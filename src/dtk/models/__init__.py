@@ -1,6 +1,7 @@
 from dtk.models.content import (
     Author,
     AuthorStats,
+    Collection,
     Comment,
     Content,
     ContentStats,
@@ -14,6 +15,7 @@ from dtk.models.content import (
 __all__ = [
     "Author",
     "AuthorStats",
+    "Collection",
     "Comment",
     "Content",
     "ContentStats",

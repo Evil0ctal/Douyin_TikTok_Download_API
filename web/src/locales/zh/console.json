@@ -1167,6 +1167,7 @@
       "user": "作者资料",
       "posts": "作者作品列表",
       "likes": "作者点赞列表",
+      "collections": "作者收藏夹列表",
       "mix": "合辑 / 播放列表作品",
       "followers": "作者粉丝列表",
       "following": "作者关注列表"
