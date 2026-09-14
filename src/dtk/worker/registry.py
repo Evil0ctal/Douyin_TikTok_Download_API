@@ -62,6 +62,7 @@ class Capability(StrEnum):
     AUTHOR_COLLECTIONS = "author_collections"
     AUTHOR_BOOKMARKS = "author_bookmarks"
     COLLECTION_POSTS = "collection_posts"
+    AUTHOR_REPOSTS = "author_reposts"
     MIX_POSTS = "mix_posts"
     AUTHOR_FOLLOWERS = "author_followers"
     AUTHOR_FOLLOWING = "author_following"
@@ -220,6 +221,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        Capability.AUTHOR_REPOSTS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
@@ -239,6 +241,7 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.AUTHOR_COLLECTIONS: "cache.list_ttl",
         Capability.AUTHOR_BOOKMARKS: "cache.list_ttl",
         Capability.COLLECTION_POSTS: "cache.list_ttl",
+        Capability.AUTHOR_REPOSTS: "cache.list_ttl",
         Capability.MIX_POSTS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWERS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWING: "cache.list_ttl",
@@ -410,8 +413,9 @@ class EndpointDefinition:
                 | Capability.MIX_POSTS
                 | Capability.AUTHOR_BOOKMARKS
                 | Capability.COLLECTION_POSTS
+                | Capability.AUTHOR_REPOSTS
             ):
-                # All five are a page of posts in the platform's own list
+                # All six are a page of posts in the platform's own list
                 # envelope - `aweme_list`/`max_cursor` on Douyin, `itemList`/
                 # `cursor` on TikTok - so one parser answers for all of them.
                 return adapter.parse_author_posts(payload, fetched_at=when)

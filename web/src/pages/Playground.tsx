@@ -310,6 +310,14 @@ const CATALOG: readonly EndpointDef[] = [
     params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
   },
   {
+    id: 'reposts',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/user/reposts`,
+    operation: 'author_reposts',
+    platformScoped: true,
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+  },
+  {
     id: 'collections',
     method: 'GET',
     path: (platform) => `${API_V1}/${platform}/user/collections`,

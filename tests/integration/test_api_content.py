@@ -750,3 +750,20 @@ async def test_collection_posts_honours_the_tiktok_page_ceiling(client: Any) -> 
 
     assert error_code(response) == "INVALID_PARAM"
     assert envelope(response)["error"]["details"]["maximum"] == 35
+
+
+async def test_reposts_reach_the_queue(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/tiktok/user/reposts", params={"sec_user_id": SEC_UID})
+
+    assert response.status_code == 202, response.text
+
+
+async def test_reposts_honour_the_tiktok_page_ceiling(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/user/reposts", params={"sec_user_id": SEC_UID, "count": 36}
+    )
+
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["maximum"] == 35

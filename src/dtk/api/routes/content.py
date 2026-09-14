@@ -836,6 +836,81 @@ async def user_likes(
 
 
 @router.get(
+    "/{platform}/user/reposts",
+    summary="Other people's posts an author reposted",
+    openapi_extra={I18N_KEY: "author_reposts", **ASYNC_RESPONSES},
+)
+async def user_reposts(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts an author has reposted onto their own profile.
+
+    **TikTok only.** These are other people's videos, which is what separates
+    this from `/user/posts` - TikTok gives them their own tab on the profile.
+
+    It is a public tab: a guest identity reads it, no import needed.
+
+    **Parameters**
+
+    - `platform` - must be `tiktok`.
+    - `url` - a link to the author's profile page.
+    - `sec_user_id` - the author's stable id, if you already have it.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page. TikTok refuses more than 35.
+    - `include_raw` - include each post's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+    - `identity` - send the request as this identity and no other. Requires
+      `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
+
+    **Returns**
+
+    The same post shape as `/video`, one entry per repost - each carrying its
+    original author, not the account that reposted it - plus the cursor for
+    the next page.
+    """
+    authorize(principal, platform)
+    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params.update(
+        {
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        }
+    )
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=supported(platform, Operation.AUTHOR_REPOSTS),
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
     "/{platform}/user/collections",
     summary="The folders an author has organized bookmarked posts into",
     openapi_extra={I18N_KEY: "author_collections", **ASYNC_RESPONSES},

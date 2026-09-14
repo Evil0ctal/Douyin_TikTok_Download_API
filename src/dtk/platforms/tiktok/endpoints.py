@@ -23,6 +23,7 @@ from dtk.platforms.tiktok.params import (
     author_likes_params,
     author_posts_params,
     author_profile_params,
+    author_reposts_params,
     collection_posts_params,
     comment_replies_params,
     comments_params,
@@ -62,6 +63,9 @@ class TikTokAPIEndpoints:
 
     # Posts the user bookmarked
     USER_COLLECT: Final = f"{TIKTOK_DOMAIN}/api/user/collect/item_list/"
+
+    # Other people's posts the user reposted onto their own profile
+    USER_REPOST: Final = f"{TIKTOK_DOMAIN}/api/repost/item_list/"
 
     # The folders a user has organized bookmarked posts into
     USER_COLLECTION_LIST: Final = f"{TIKTOK_DOMAIN}/api/user/collection_list/"
@@ -108,6 +112,7 @@ AUTHOR_LIKES: Final = "tiktok.author_likes"
 AUTHOR_COLLECTIONS: Final = "tiktok.author_collections"
 AUTHOR_BOOKMARKS: Final = "tiktok.author_bookmarks"
 COLLECTION_POSTS: Final = "tiktok.collection_posts"
+AUTHOR_REPOSTS: Final = "tiktok.author_reposts"
 MIX_POSTS: Final = "tiktok.mix_posts"
 AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
@@ -170,6 +175,22 @@ ENDPOINTS: Final = EndpointTable.of(
         build=author_likes_params,
         risk_weight=1.8,
         summary="Posts an author has publicly liked",
+    ),
+    EndpointSpec(
+        name=AUTHOR_REPOSTS,
+        path=TikTokAPIEndpoints.USER_REPOST,
+        required=("sec_uid",),
+        build=author_reposts_params,
+        risk_weight=1.5,
+        # Request side is from a capture; the notable thing about that capture
+        # is whose profile it was. It was taken from a signed-in browser
+        # looking at a DIFFERENT account, which is what suggested this is a
+        # public tab rather than an owner-only one like author_bookmarks -
+        # confirmed 2026-09-13 by reading it with a minted guest identity.
+        #
+        # Response side is the itemList/hasMore/cursor envelope, so
+        # parse_author_posts answers for it; measured, not assumed.
+        summary="Other people's posts an author reposted",
     ),
     EndpointSpec(
         name=AUTHOR_BOOKMARKS,
@@ -288,6 +309,7 @@ __all__ = [
     "AUTHOR_LIKES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
+    "AUTHOR_REPOSTS",
     "COLLECTION_POSTS",
     "COMMENTS",
     "COMMENT_REPLIES",

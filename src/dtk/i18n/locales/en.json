@@ -282,6 +282,10 @@
         "summary": "Author profile",
         "description": "One author's public profile: nickname, signature, avatar, verification state and follower, following, like and post counts."
       },
+      "author_reposts": {
+        "summary": "Other people's posts an author reposted",
+        "description": "One page of the posts an author has reposted onto their own profile. TikTok only. These are other people's videos, which is what separates this from /user/posts - TikTok gives them their own tab. It is a public tab, so a guest identity reads it with no imported identity needed. Each entry carries its original author rather than the account that reposted it."
+      },
       "backup_create": {
         "summary": "Create a backup archive",
         "description": "Queue an export."

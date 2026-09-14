@@ -957,3 +957,33 @@ def test_the_three_saved_tab_endpoints_are_three_distinct_paths() -> None:
         )
     }
     assert len(set(paths.values())) == 3, paths
+
+
+# --------------------------------------------------------------------------
+# Reposts
+# --------------------------------------------------------------------------
+
+
+def test_build_author_reposts_request() -> None:
+    """Its own path, sharing `author_posts`' request shape.
+
+    `needPinnedItemIds` and `post_item_list_request_type` are both sent for
+    this path, so a builder that copied `author_likes` - the nearest-looking
+    neighbour - would be missing both.
+    """
+    spec = ADAPTER.build_request(endpoints.AUTHOR_REPOSTS, sec_uid=AUTHOR_SEC_UID)
+
+    assert spec["url"] == "https://www.tiktok.com/api/repost/item_list/"
+    assert spec["params"]["secUid"] == AUTHOR_SEC_UID
+    assert spec["params"]["cursor"] == "0"
+    assert spec["params"]["count"] == "30"
+    assert spec["params"]["needPinnedItemIds"] == "true"
+    assert spec["params"]["post_item_list_request_type"] == "0"
+
+
+def test_reposts_are_not_the_same_path_as_posts() -> None:
+    """The two tabs look alike and are not the same endpoint."""
+    assert (
+        ADAPTER.endpoints.specs[endpoints.AUTHOR_REPOSTS].path
+        != ADAPTER.endpoints.specs[endpoints.AUTHOR_POSTS].path
+    )

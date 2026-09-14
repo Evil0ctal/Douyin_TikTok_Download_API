@@ -73,6 +73,7 @@ class Operation(StrEnum):
     AUTHOR_COLLECTIONS = "author_collections"
     AUTHOR_BOOKMARKS = "author_bookmarks"
     COLLECTION_POSTS = "collection_posts"
+    AUTHOR_REPOSTS = "author_reposts"
     MIX_POSTS = "mix_posts"
     AUTHOR_FOLLOWERS = "author_followers"
     AUTHOR_FOLLOWING = "author_following"

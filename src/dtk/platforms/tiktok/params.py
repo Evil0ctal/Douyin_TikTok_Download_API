@@ -305,6 +305,47 @@ def author_bookmarks_params(
     }
 
 
+def author_reposts_params(
+    *,
+    sec_uid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/repost/item_list/``.
+
+    The posts an author reposted onto their own profile - other people's
+    videos, which is what makes this different from ``author_posts``. TikTok
+    surfaces it as its own tab.
+
+    Request shape is ``author_posts``' exactly, down to ``needPinnedItemIds``
+    and ``post_item_list_request_type``, taken from a capture of the page.
+
+    Unlike ``author_bookmarks`` this is not owner-only: the capture was taken
+    from a signed-in browser looking at somebody ELSE's profile, and measured
+    2026-09-13 a minted guest identity with no session cookie read the same
+    tab. A profile tab other people can open is a public one.
+
+    The cursor is NOT what ``author_posts`` uses. There it is a millisecond
+    timestamp; here it is a plain item offset - a first page of 10 came back
+    with ``cursor: "10"``, and asking for that returned the next 6 with no
+    overlap and ``hasMore`` false. Both are opaque to callers and both pass
+    through ``_cursor`` unchanged, so nothing downstream cares, but anyone
+    reading these two builders side by side would otherwise assume they mean
+    the same thing.
+    """
+    return {
+        **base_params(profile),
+        "secUid": str(sec_uid),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+        "needPinnedItemIds": "true",
+        # 0 default order. Shared with author_posts, which documents the rest.
+        "post_item_list_request_type": "0",
+    }
+
+
 def author_collections_params(
     *,
     sec_uid: str,
@@ -518,6 +559,7 @@ __all__ = [
     "author_collections_params",
     "author_posts_params",
     "author_profile_params",
+    "author_reposts_params",
     "base_params",
     "collection_posts_params",
     "comment_replies_params",

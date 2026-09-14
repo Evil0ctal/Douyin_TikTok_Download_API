@@ -282,6 +282,10 @@
         "summary": "获取作者主页信息",
         "description": "获取作者主页公开信息：昵称、签名、头像、认证状态，以及粉丝数、关注数、获赞数与作品数。"
       },
+      "author_reposts": {
+        "summary": "获取作者转发的作品",
+        "description": "分页获取作者转发到自己主页上的作品。仅支持 TikTok。这些是别人的视频，这一点正是它与 /user/posts 的区别——TikTok 为它单独开了一个 tab。这个 tab 是公开的，游客身份即可读取，无需导入身份。每一条携带的是原作者，而不是转发它的那个账号。"
+      },
       "backup_create": {
         "summary": "创建备份归档",
         "description": "排入一次导出任务。"
