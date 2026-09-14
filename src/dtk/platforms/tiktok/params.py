@@ -279,9 +279,18 @@ def author_bookmarks_params(
     ``post_item_list_request_type`` are sent for this path and are not part of
     the shared base set.
 
-    Only ever answers the account that owns the list, so this needs an imported
-    identity - a guest gets an empty page, which is indistinguishable from an
-    account that has saved nothing.
+    Unlike ``author_collections``, this one really is owner-only: the request
+    names an account rather than a folder, and there is no per-folder
+    visibility to fall back on.
+
+    Measured 2026-09-13 with a minted guest identity, against an account known
+    to have saved posts: HTTP 200 with a 104-byte status envelope - no
+    ``itemList`` at all - which classifies as BUSINESS_ERROR and surfaces as
+    NOT_FOUND. Worth writing down because it is the good case: the refusal is
+    explicit, so a caller is not handed an empty page it would have to read as
+    "this account has saved nothing". Reading this needs an imported identity
+    for the account itself; for someone else's public folder, use
+    ``collection_posts``.
     """
     return {
         **base_params(profile),
@@ -308,11 +317,14 @@ def author_collections_params(
     ``secUid``/``cursor``/``count``/``coverFormat`` match every other paged
     list here. ``needPinnedItemIds`` and ``publicOnly`` are specific to this
     endpoint; both come from this project's own V4 crawler for the same path
-    (``fetch_user_collection_list``, added 2026-08-27), which needed a
-    caller-supplied cookie to get a populated answer at all - the collections a
-    user makes are private by default, the same as ``author_likes``.
-    ``publicOnly=false`` asks for the private ones too, which only a signed-in
-    identity actually receives.
+    (``fetch_user_collection_list``, added 2026-08-27).
+
+    ``publicOnly=false`` asks for the private folders as well, and a guest is
+    simply not given them. It is not the parameter that decides: visibility is
+    a property of each folder. Measured 2026-09-13 against an account with one
+    public folder and one private one - a minted guest identity, no session
+    cookie, got the public folder complete with cover and item count, and no
+    trace of the private one.
     """
     return {
         **base_params(profile),
@@ -322,6 +334,47 @@ def author_collections_params(
         "coverFormat": COVER_FORMAT,
         "needPinnedItemIds": "true",
         "publicOnly": "false",
+    }
+
+
+#: ``sourceType`` tells ``/api/collection/item_list/`` which kind of list the
+#: ``collectionId`` names. 113 is a user's saved-posts folder, the only kind
+#: this project asks for.
+#:
+#: The value comes from @BennoCrafter's V4 PR #738, not from a capture taken
+#: here - so what is corroborated is that 113 works, measured 2026-09-13
+#: against a public folder, and not what any other value would mean.
+COLLECTION_SOURCE_TYPE: Final = "113"
+
+
+def collection_posts_params(
+    *,
+    collection_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/collection/item_list/``.
+
+    The posts inside ONE saved folder, where ``author_bookmarks`` returns every
+    saved post regardless of folder and ``author_collections`` returns the
+    folders themselves. ``collection_id`` is the ``collection_id`` that listing
+    hands back.
+
+    Keyed by the folder, not by the author: there is no ``secUid`` here, and
+    that is the whole reason this is a separate endpoint rather than a
+    parameter on one of the other two. It is also why a public folder is
+    readable by a guest - the request names a thing, not a person.
+
+    Measured 2026-09-13 against a folder set to public, with a minted guest
+    identity and no session cookie of any kind.
+    """
+    return {
+        **base_params(profile),
+        "collectionId": str(collection_id),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "sourceType": COLLECTION_SOURCE_TYPE,
     }
 
 
@@ -457,6 +510,7 @@ def _cursor(cursor: str | None) -> str:
 
 __all__ = [
     "APP_ID",
+    "COLLECTION_SOURCE_TYPE",
     "COVER_FORMAT",
     "DEFAULT_PAGE_SIZE",
     "DEFAULT_PROFILE",
@@ -465,6 +519,7 @@ __all__ = [
     "author_posts_params",
     "author_profile_params",
     "base_params",
+    "collection_posts_params",
     "comment_replies_params",
     "comments_params",
     "content_detail_params",

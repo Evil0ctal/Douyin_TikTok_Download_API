@@ -256,11 +256,11 @@
       },
       "author_bookmarks": {
         "summary": "Posts an author has saved",
-        "description": "One page of the posts an author has saved, across every folder - the other half of the Saved tab, where /user/collections lists the folders. TikTok only, and only ever the account's own list: a guest identity gets an empty page, which is indistinguishable from an account that has saved nothing, so point identity at an identity imported from that account's session or the answer means nothing either way."
+        "description": "One page of the posts an author has saved, across every folder - the other half of the Saved tab, where /user/collections lists the folders. TikTok only, and only ever the account's own list: unlike /user/collections there is no public half here, because the request names an account rather than a folder. A guest identity is refused outright, so point identity at an identity imported from that account's session. For someone else's public folder, use /collection/posts."
       },
       "author_collections": {
         "summary": "The folders an author has organized bookmarked posts into",
-        "description": "One page of an author's bookmark folders. TikTok only. These folders are private the same way an author's likes are, so an empty page from a guest identity usually means the account is not signed in as the folders' owner rather than that the author has none - read them with identity pointed at an imported identity for that account."
+        "description": "One page of an author's bookmark folders. TikTok only. Each folder is public or private on its own, and a guest identity sees the public ones complete with name, cover and item count - so an empty page means the account has no public folders, not that it has none. Point identity at an identity imported from that account's session to see the private ones too. To read what is inside a folder, pass its id to /collection/posts."
       },
       "author_followers": {
         "summary": "Accounts that follow an author",
@@ -297,6 +297,10 @@
       "batch": {
         "summary": "Submit many links at once",
         "description": "Submits many links in one call and returns a task id per link. Each link is scheduled independently, so one failure does not hold up the rest."
+      },
+      "collection_posts": {
+        "summary": "Posts inside one of an author's saved folders",
+        "description": "One page of the posts inside a single saved folder. TikTok only. The third of the Saved tab's three views: /user/collections lists the folders, /user/bookmarks returns every saved post across all of them, and this returns what is in one folder. The request names the folder rather than the account, which is why a folder its owner has made public is readable by a guest identity with no import needed. collection_id comes from /user/collections."
       },
       "collections_add": {
         "summary": "Add posts to a collection",

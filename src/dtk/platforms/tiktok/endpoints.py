@@ -23,6 +23,7 @@ from dtk.platforms.tiktok.params import (
     author_likes_params,
     author_posts_params,
     author_profile_params,
+    collection_posts_params,
     comment_replies_params,
     comments_params,
     content_detail_params,
@@ -65,6 +66,11 @@ class TikTokAPIEndpoints:
     # The folders a user has organized bookmarked posts into
     USER_COLLECTION_LIST: Final = f"{TIKTOK_DOMAIN}/api/user/collection_list/"
 
+    # Posts inside one of those folders. A different path from USER_COLLECT,
+    # not the same one with an extra parameter: USER_COLLECT is keyed by the
+    # account and this is keyed by the folder.
+    COLLECTION_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/collection/item_list/"
+
     # User playlists
     USER_PLAY_LIST: Final = f"{TIKTOK_DOMAIN}/api/user/playlist/"
 
@@ -101,6 +107,7 @@ COMMENT_REPLIES: Final = "tiktok.comment_replies"
 AUTHOR_LIKES: Final = "tiktok.author_likes"
 AUTHOR_COLLECTIONS: Final = "tiktok.author_collections"
 AUTHOR_BOOKMARKS: Final = "tiktok.author_bookmarks"
+COLLECTION_POSTS: Final = "tiktok.collection_posts"
 MIX_POSTS: Final = "tiktok.mix_posts"
 AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
@@ -195,12 +202,40 @@ ENDPOINTS: Final = EndpointTable.of(
         #
         # The request side (secUid/cursor/count/coverFormat/needPinnedItemIds/
         # publicOnly) matches this project's own V4 crawler for this same path
-        # (`fetch_user_collection_list`, added 2026-08-27), which needed a
-        # caller-supplied cookie to get anything back at all. The response
+        # (`fetch_user_collection_list`, added 2026-08-27). The response
         # envelope and field names below were confirmed against a live
         # capture (PR #753): cover is a {"urlList": [...]} container, not a
         # bare string, and total arrives as a numeric string.
+        #
+        # #753 landed saying this endpoint "only ever answers its owner" and
+        # that a guest gets nothing. That is wrong, and it was wrong in the way
+        # that matters: it would have stopped anyone from trying. Measured
+        # 2026-09-13 with a minted guest identity and no session cookie, against
+        # an account holding one public folder and one private one, this
+        # returned the public folder with its name, item count and cover, and
+        # omitted the private one. A folder is public or private individually;
+        # a guest sees the public ones. The V4 crawler needed a cookie because
+        # it was asked about private folders, not because the path is gated.
         summary="The folders a user has organized bookmarked posts into",
+    ),
+    EndpointSpec(
+        name=COLLECTION_POSTS,
+        path=TikTokAPIEndpoints.COLLECTION_ITEM_LIST,
+        required=("collection_id",),
+        build=collection_posts_params,
+        risk_weight=1.5,
+        # The third and last of the Saved tab's endpoints, and the one that
+        # closes #754: author_collections lists the folders, author_bookmarks
+        # returns every saved post across all of them, and this returns the
+        # posts in one named folder. They are three distinct paths; the
+        # evidence that they are not one path with different parameters is
+        # BennoCrafter's V4 PR #738, which had already found all four.
+        #
+        # Response side is the itemList/hasMore/cursor envelope shared by every
+        # item_list path on this host, so parse_author_posts is reused. Unlike
+        # author_bookmarks that is measured rather than assumed: verified
+        # 2026-09-13 with a guest identity against a public folder.
+        summary="Posts inside one of an author's saved folders",
     ),
     EndpointSpec(
         name=MIX_POSTS,
@@ -253,6 +288,7 @@ __all__ = [
     "AUTHOR_LIKES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
+    "COLLECTION_POSTS",
     "COMMENTS",
     "COMMENT_REPLIES",
     "CONTENT_DETAIL",

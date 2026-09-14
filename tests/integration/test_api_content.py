@@ -705,3 +705,48 @@ async def test_tiktok_serves_its_own_ceiling(client: Any) -> None:
     )
 
     assert response.status_code == 202, response.text
+
+
+# --------------------------------------------------------------------------
+# The Saved tab's three views
+# --------------------------------------------------------------------------
+
+
+COLLECTION_ID = "7685242413136513823"
+
+
+async def test_collection_posts_reaches_the_queue_without_an_author(client: Any) -> None:
+    """No `sec_user_id`, and that is not an omission.
+
+    This route is keyed by the folder. Requiring an author here would be the
+    easy mistake - every neighbouring route takes one - and it would rule out
+    the case the endpoint exists for: reading somebody else's public folder.
+    """
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/collection/posts", params={"collection_id": COLLECTION_ID}
+    )
+
+    assert response.status_code == 202, response.text
+
+
+async def test_collection_posts_needs_the_folder_id(client: Any) -> None:
+    """And says so in this project's envelope, not FastAPI's 422."""
+    await signed_in(client)
+    response = await client.get("/api/v1/tiktok/collection/posts")
+
+    assert error_code(response) == "INVALID_PARAM"
+    fields = envelope(response)["error"]["details"]["fields"]
+    assert [f["loc"] for f in fields] == [["query", "collection_id"]]
+
+
+async def test_collection_posts_honours_the_tiktok_page_ceiling(client: Any) -> None:
+    """Same 35 as every other TikTok list; see the page-size tests above."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/collection/posts",
+        params={"collection_id": COLLECTION_ID, "count": 36},
+    )
+
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["maximum"] == 35

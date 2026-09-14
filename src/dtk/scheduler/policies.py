@@ -65,6 +65,10 @@ _POLICIES: dict[str, EndpointPolicy] = {
             "tiktok.author_collections", capacity=3, refill_per_sec=0.12, risk_weight=1.8
         ),
         EndpointPolicy("tiktok.author_bookmarks", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        # Keyed by a folder rather than an account, and a public folder is
+        # guest-readable, so this sits with mix_posts rather than with the
+        # owner-only pair above it.
+        EndpointPolicy("tiktok.collection_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.mix_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.author_followers", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.author_following", capacity=3, refill_per_sec=0.12, risk_weight=1.8),

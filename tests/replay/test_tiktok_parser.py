@@ -12,7 +12,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from dtk.core.errors import DtkError, ErrorCode, UpstreamChanged, UpstreamRiskControl
+from dtk.core.errors import (
+    DtkError,
+    ErrorCode,
+    InvalidParam,
+    UpstreamChanged,
+    UpstreamRiskControl,
+)
 from dtk.core.types import ContentKind, Platform
 from dtk.models import AuthorStats, ContentStats
 from dtk.platforms.tiktok import ADAPTER, endpoints, parser
@@ -904,3 +910,50 @@ def test_saved_posts_parse_as_ordinary_posts() -> None:
     page = ADAPTER.parse_author_posts(load(PLATFORM, "user_posts_page1"), fetched_at=FETCHED_AT)
     assert page.items
     assert all(item.platform is Platform.TIKTOK for item in page.items)
+
+
+# --------------------------------------------------------------------------
+# Posts inside one saved folder
+# --------------------------------------------------------------------------
+
+
+def test_build_collection_posts_request() -> None:
+    """Keyed by the folder, and deliberately carrying no `secUid`.
+
+    The absence is the assertion worth making. `collection_id` names a thing
+    rather than a person, which is the whole reason a public folder is readable
+    without an imported identity - a builder that copied `author_bookmarks` and
+    kept its `secUid` would silently turn this back into an owner-only call.
+    """
+    spec = ADAPTER.build_request(endpoints.COLLECTION_POSTS, collection_id="7685242413136513823")
+
+    assert spec["url"] == "https://www.tiktok.com/api/collection/item_list/"
+    assert spec["params"]["collectionId"] == "7685242413136513823"
+    assert spec["params"]["sourceType"] == "113"
+    assert spec["params"]["cursor"] == "0"
+    assert spec["params"]["count"] == "30"
+    assert "secUid" not in spec["params"]
+
+
+def test_collection_posts_needs_a_collection_id() -> None:
+    with pytest.raises(InvalidParam) as excinfo:
+        ADAPTER.build_request(endpoints.COLLECTION_POSTS)
+    assert excinfo.value.details["missing"] == ["collection_id"]
+
+
+def test_the_three_saved_tab_endpoints_are_three_distinct_paths() -> None:
+    """#754: they are not one path with different parameters.
+
+    Filed because the Playground made them look interchangeable, and answered
+    by BennoCrafter's V4 PR #738, which had already found all of them. Pinned
+    here because collapsing any two would look like a harmless simplification.
+    """
+    paths = {
+        name: ADAPTER.endpoints.specs[name].path
+        for name in (
+            endpoints.AUTHOR_COLLECTIONS,
+            endpoints.AUTHOR_BOOKMARKS,
+            endpoints.COLLECTION_POSTS,
+        )
+    }
+    assert len(set(paths.values())) == 3, paths

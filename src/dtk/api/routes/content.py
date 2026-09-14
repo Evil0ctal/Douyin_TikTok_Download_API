@@ -162,6 +162,11 @@ MIX_ID_QUERY = Query(
     max_length=64,
     description="The mix or playlist to read; Douyin calls it mix_info, TikTok playlistId.",
 )
+COLLECTION_ID_QUERY = Query(
+    min_length=1,
+    max_length=64,
+    description="The saved folder to read; ids come from /user/collections.",
+)
 COMMENT_ID_QUERY = Query(
     min_length=1,
     max_length=64,
@@ -852,11 +857,14 @@ async def user_collections(
 ) -> Any:
     """One page of the folders an author has organized bookmarked posts into.
 
-    **TikTok only.** These folders are private, the same way `/user/likes` is
-    on both platforms: a guest identity gets an empty page rather than an
-    error, which is not evidence the author has none. Reading someone's own
-    folders needs `identity` pointed at an identity imported from that
-    account's browser session.
+    **TikTok only.** Each folder is public or private on its own, and a guest
+    identity sees the public ones - name, cover, item count and all. An empty
+    page therefore means "no public folders", which is not the same as "no
+    folders": to see the private ones as well, point `identity` at an identity
+    imported from that account's own browser session.
+
+    To read what is inside one of these folders, pass its id to
+    `/collection/posts`.
 
     **Parameters**
 
@@ -923,10 +931,12 @@ async def user_bookmarks(
     half of the Saved tab: `/user/collections` lists the folders, this lists
     what is in the tab regardless of folder.
 
-    A guest identity gets an empty page rather than an error, and an empty page
-    is indistinguishable from an account that has saved nothing - so point
-    `identity` at an identity imported from that account's browser session, or
-    the answer means nothing either way.
+    Unlike `/user/collections`, there is no public half to this one: the
+    request names an account rather than a folder. Measured with a guest
+    identity against an account that has saved a post, TikTok refuses outright
+    rather than returning an empty page, so point `identity` at an identity
+    imported from that account's own browser session. For someone else's
+    public folder, use `/collection/posts` instead.
 
     **Parameters**
 
@@ -962,6 +972,78 @@ async def user_bookmarks(
         principal,
         endpoint=supported(platform, Operation.AUTHOR_BOOKMARKS),
         params=params,
+        wait=resolve_wait(request, wait),
+        proxy=resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/collection/posts",
+    summary="Posts inside one of an author's saved folders",
+    openapi_extra={I18N_KEY: "collection_posts", **ASYNC_RESPONSES},
+)
+async def collection_posts(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    collection_id: str = COLLECTION_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts inside a single saved folder.
+
+    **TikTok only.** The third of the Saved tab's three views:
+    `/user/collections` lists the folders, `/user/bookmarks` returns every
+    saved post across all of them, and this returns what is in one folder.
+
+    The request names the folder, not the account, which is why this works for
+    other people's folders where `/user/bookmarks` does not: a folder its owner
+    has set to public is readable by a guest identity, no import needed.
+
+    **Parameters**
+
+    - `platform` - must be `tiktok`.
+    - `collection_id` - the folder to read, as returned by `/user/collections`.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page. TikTok refuses more than 35.
+    - `include_raw` - include each post's untouched platform payload. A page
+      carries one per item, so this multiplies the response and everything
+      that stores it; it is off by default for that reason.
+    - `wait` - seconds to wait for the result. Omit it to get `202` and a task
+      id to poll.
+    - `identity` - send the request as this identity and no other. Needed only
+      for a folder that is not public. Requires `identity:manage`.
+    - `refresh` - ignore any cached or in-flight answer and ask upstream
+      again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
+      is answered from the cache and costs nothing; a refresh costs an
+      identity and a real request, and its answer is cached in turn.
+
+    **Returns**
+
+    The same post shape as `/video`, one entry per post in the folder, plus the
+    cursor for the next page.
+    """
+    authorize(principal, platform)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=supported(platform, Operation.COLLECTION_POSTS),
+        params={
+            "collection_id": collection_id,
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        },
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
         refresh=refresh,

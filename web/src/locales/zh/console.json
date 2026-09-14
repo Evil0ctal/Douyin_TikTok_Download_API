@@ -1167,9 +1167,10 @@
       "user": "作者资料",
       "posts": "作者作品列表",
       "likes": "作者点赞列表",
-      "collections": "作者收藏夹列表",
-      "bookmarks": "作者收藏的作品",
-      "mix": "合辑 / 播放列表作品",
+      "collections": "收藏夹列表",
+      "bookmarks": "收藏的作品（跨全部收藏夹）",
+      "collectionPosts": "收藏的作品（单个收藏夹）",
+      "mix": "作者自建合集（合辑 / 播放列表）",
       "followers": "作者粉丝列表",
       "following": "作者关注列表"
     },

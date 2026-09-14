@@ -1167,9 +1167,10 @@
       "user": "Author profile",
       "posts": "Author posts",
       "likes": "Author likes",
-      "collections": "Author bookmark folders",
-      "bookmarks": "Author saved posts",
-      "mix": "Mix / playlist posts",
+      "collections": "Bookmark folders (collections)",
+      "bookmarks": "Saved posts (every folder)",
+      "collectionPosts": "Saved posts (one folder)",
+      "mix": "Author's own series (mix / playlist)",
       "followers": "Author followers",
       "following": "Author following"
     },
