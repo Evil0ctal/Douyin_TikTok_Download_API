@@ -77,6 +77,16 @@ interface ParamDef {
   required?: boolean
   /** Members of a group are alternatives: exactly one has to be filled in. */
   oneOf?: string
+  /**
+   * The platforms whose endpoint actually takes this parameter. Absent means
+   * all of them.
+   *
+   * The platforms are not symmetric: Douyin's bookmark-folder list carries no
+   * user id and answers only about the identity sending it, so an author there
+   * is refused rather than ignored. Hiding the control is what stops that
+   * refusal from being how a reader finds out.
+   */
+  platforms?: Platform[]
   placeholder?: string
   min?: number
   max?: number
@@ -196,6 +206,9 @@ const PROFILE_URL_PARAM: ParamDef = {
   ...URL_PARAM,
   placeholder: 'https://www.douyin.com/user/MS4wLjABAAAA',
 }
+//? Douyin's collects/list/ takes no author at all; see ParamDef.platforms.
+const TIKTOK_ONLY_PROFILE_URL_PARAM: ParamDef = { ...PROFILE_URL_PARAM, platforms: ['tiktok'] }
+const TIKTOK_ONLY_SEC_UID_PARAM: ParamDef = { ...SEC_UID_PARAM, platforms: ['tiktok'] }
 const AWEME_ID_PARAM: ParamDef = {
   name: 'aweme_id',
   kind: 'text',
@@ -323,7 +336,12 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/user/collections`,
     operation: 'author_collections',
     platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+    params: [
+      TIKTOK_ONLY_PROFILE_URL_PARAM,
+      TIKTOK_ONLY_SEC_UID_PARAM,
+      ...PAGE_PARAMS,
+      ...ENVELOPE_PARAMS,
+    ],
   },
   {
     id: 'bookmarks',
@@ -938,7 +956,9 @@ export default function Playground() {
    *  null reads as "below everything" - see `atLeast`. */
   const session = useSession()
   const role = session.data?.role ?? null
-  const allows = (param: ParamDef): boolean => !param.minRole || atLeast(role, param.minRole)
+  const allows = (param: ParamDef): boolean =>
+    (!param.minRole || atLeast(role, param.minRole)) &&
+    (!param.platforms || param.platforms.includes(platform))
 
   const endpoint = useMemo(
     () => CATALOG.find((entry) => entry.id === endpointId) ?? DEFAULT_ENDPOINT,

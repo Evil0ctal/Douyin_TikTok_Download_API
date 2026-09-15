@@ -78,30 +78,26 @@ class DouyinAdapter:
         )
 
     def parse_author_collections(self, payload: Mapping[str, Any]) -> Page[Collection]:
-        """Douyin's bookmark-folder equivalent (``collects/list/``) is not wired.
-
-        The URL constant exists in ``endpoints.py`` - rediscovering it later
-        would be expensive - but no ``EndpointSpec`` registers it yet, so no
-        Douyin ``author_collections`` endpoint is offered. Exists here for the
-        same reason ``parse_author_list`` does: to fail loudly for a capability
-        the protocol declares rather than leave it silently missing.
-        """
-        raise UnsupportedContent(
-            "Douyin bookmark folders are not wired into this build yet",
-            details={"platform": self.platform.value, "capability": "author_collections"},
-        )
+        return parser.parse_author_collections(payload)
 
     def parse_collection_detail(self, payload: Mapping[str, Any]) -> Collection:
-        """Not wired, for the same reason as ``parse_author_collections``.
+        """Douyin has no folder-by-id metadata path.
 
-        Douyin has no per-folder visibility to expose and no path that answers
-        about a folder without naming its owner, so there is nothing for this
-        to mean here until the folders themselves are wired (#759).
+        ``collects/list/`` describes the folders and ``collects/video/list/``
+        returns their contents, but nothing answers "what is this folder"
+        from an id alone the way TikTok's ``/api/collection/detail/`` does.
+        Raising here rather than leaving the capability silently missing is
+        the same choice ``parse_author_list`` makes.
         """
         raise UnsupportedContent(
-            "Douyin bookmark folders are not wired into this build yet",
+            "Douyin has no collection-detail endpoint",
             details={"platform": self.platform.value, "capability": "collection_detail"},
         )
+
+    def parse_collection_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_collection_posts(payload, fetched_at=fetched_at)
 
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None

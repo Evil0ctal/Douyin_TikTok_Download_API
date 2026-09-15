@@ -34,6 +34,7 @@ from dtk.core.types import ContentKind, Platform
 from dtk.models import (
     Author,
     AuthorStats,
+    Collection,
     Comment,
     Content,
     ContentStats,
@@ -394,6 +395,97 @@ def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
     cursor = optional_id(root.get("max_cursor")) if has_more else None
     if has_more and cursor is None:
         raise root.missing("max_cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+#: The ``status`` on a ``collects_list`` entry that means "anyone can open it".
+#:
+#: Measured 2026-09-14 on one account holding two folders it had set either
+#: way: the public one came back 1 and the private one 0.
+#:
+#: NOT the same numbers as TikTok, which uses 3 for public and 1 for private on
+#: a field with the same name. So 1 means public here and private there, and
+#: anything that tried to share one constant between the two platforms would be
+#: wrong in the most quietly damaging direction available - reporting a private
+#: folder as public. They are deliberately defined separately, in each
+#: platform's own parser, and neither is exported.
+_STATUS_PUBLIC: Final = 1
+_STATUS_PRIVATE: Final = 0
+
+
+def _is_public(node: Node) -> bool | None:
+    """Whether this folder is open to anyone, or None when unmeasured."""
+    status = optional_int(node.get("status"))
+    if status == _STATUS_PUBLIC:
+        return True
+    if status == _STATUS_PRIVATE:
+        return False
+    return None
+
+
+def _collection_from_node(node: Node) -> Collection:
+    """One folder from a ``collects_list`` entry.
+
+    Douyin states the id twice, as a JSON number and as ``collects_id_str``.
+    The string is the one taken: a 19-digit id exceeds the JavaScript safe
+    integer range, and the numeric copy has already lost precision by the time
+    it reaches here.
+    """
+    owner = node.child("user_info") if node.has("user_info") else None
+    return Collection(
+        platform=_PLATFORM,
+        collection_id=node.id("collects_id_str"),
+        name=node.text("collects_name"),
+        cover=image_from_url_list(node.get("collects_cover")),
+        item_count=optional_int(node.get("total_number")),
+        is_public=_is_public(node),
+        owner_id=optional_id(node.get("user_id_str")),
+        # Douyin states a display nickname here where TikTok states an
+        # @handle. Both are "what the platform prints beside the folder" and
+        # neither is a stable identifier - that is owner_id.
+        owner_name=optional_str(owner.get("nickname")) if owner is not None else None,
+        raw=node.raw(),
+    )
+
+
+def parse_author_collections(payload: Mapping[str, Any]) -> Page[Collection]:
+    """Parse ``/aweme/v1/web/collects/list/``.
+
+    Always the signed-in identity's own folders - the request carries no user
+    id and cannot be pointed at anyone else. See ``author_collections_params``.
+
+    The cursor is a plain item offset under ``cursor``, not the ``max_cursor``
+    timestamp ``author_posts`` pages by.
+    """
+    root = _guard(payload)
+    entries = root.children("collects_list") if root.has("collects_list") else []
+    items = [_collection_from_node(entry) for entry in entries]
+    has_more = optional_bool(root.present("has_more"))
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def parse_collection_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/aweme/v1/web/collects/video/list/``.
+
+    Ordinary posts in the ordinary ``aweme_list`` envelope, so the items reuse
+    ``content_from_node`` - but this cannot reuse :func:`parse_author_posts`,
+    and the reason is one key: this endpoint pages by ``cursor`` where
+    ``author_posts`` pages by ``max_cursor``.
+
+    Reusing the other parser would have worked on every single-page folder and
+    then raised "missing max_cursor" the first time someone had enough saved
+    posts to need a second page. Measured against the live endpoint, which
+    returned ``cursor`` and no ``max_cursor`` at all.
+    """
+    root = _guard(payload)
+    items = [content_from_node(item, fetched_at=fetched_at) for item in root.children("aweme_list")]
+    has_more = optional_bool(root.present("has_more"))
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 

@@ -259,8 +259,8 @@
         "description": "分页获取作者收藏的作品，跨全部收藏夹——这是「收藏」页的另一半，/user/collections 列的是收藏夹本身。仅支持 TikTok，且只能读账号自己的收藏：与 /user/collections 不同，这里没有公开的那一半，因为请求指名的是账号而不是收藏夹。游客身份会被直接拒绝，所以必须把 identity 指向从该账号导入的身份。想读别人公开的收藏夹，请改用 /collection/posts。"
       },
       "author_collections": {
-        "summary": "获取作者整理的收藏夹列表",
-        "description": "分页获取作者整理书签作品所用的收藏夹。仅支持 TikTok。每个收藏夹是否公开由作者逐个设置，游客身份能看到公开的那些，名称、封面、作品数一应俱全——所以空页意味着这个账号没有公开的收藏夹，而不是它没有收藏夹。想连私密的一起看，需要把 identity 指向从该账号导入的身份。要读取某个收藏夹里的作品，把它的 id 传给 /collection/posts。"
+        "summary": "获取收藏夹列表",
+        "description": "分页获取收藏夹，每一条都会说明自己是否公开。两个平台在「能问谁」这件事上不同：TikTok 接受作者参数，游客身份能看到该作者公开的收藏夹，所以空页意味着没有公开的收藏夹，而不是没有收藏夹。抖音则完全不接受作者参数——它的接口里没有任何用户 id，只回答发出请求的那个会话自己的收藏夹，因此必须把 identity 指向导入的身份；在抖音上传 url 或 sec_user_id 会直接报错，而不是被悄悄忽略。要读取某个收藏夹里的作品，把它的 id 传给 /collection/posts。"
       },
       "author_followers": {
         "summary": "获取作者的粉丝列表",
@@ -308,7 +308,7 @@
       },
       "collection_posts": {
         "summary": "获取某个收藏夹内的作品",
-        "description": "分页获取单个收藏夹里的作品。仅支持 TikTok。这是「收藏」页三个视图中的第三个：/user/collections 列收藏夹，/user/bookmarks 返回跨全部收藏夹的收藏作品，而这个接口返回某一个收藏夹里的内容。请求指名的是收藏夹而不是账号，所以作者设为公开的收藏夹，游客身份也能直接读取，无需导入任何身份。collection_id 来自 /user/collections。"
+        "description": "分页获取单个收藏夹里的作品，两个平台都支持。请求指名的是收藏夹而不是账号，所以作者设为公开的收藏夹用游客身份即可读取，无需导入任何身份；私密的则会被直接拒绝，而不是返回空页。在 TikTok 上，这是「收藏」页三个视图中的第三个，另外两个是 /user/collections 和 /user/bookmarks。"
       },
       "collections_add": {
         "summary": "向合集添加作品",

@@ -437,6 +437,10 @@ class PlatformAdapter(Protocol):
 
     def parse_collection_detail(self, payload: Mapping[str, Any]) -> Collection: ...
 
+    def parse_collection_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]: ...
+
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None
     ) -> Page[Comment]: ...

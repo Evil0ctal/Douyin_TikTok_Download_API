@@ -259,8 +259,8 @@
         "description": "One page of the posts an author has saved, across every folder - the other half of the Saved tab, where /user/collections lists the folders. TikTok only, and only ever the account's own list: unlike /user/collections there is no public half here, because the request names an account rather than a folder. A guest identity is refused outright, so point identity at an identity imported from that account's session. For someone else's public folder, use /collection/posts."
       },
       "author_collections": {
-        "summary": "The folders an author has organized bookmarked posts into",
-        "description": "One page of an author's bookmark folders. TikTok only. Each folder is public or private on its own, and a guest identity sees the public ones complete with name, cover and item count - so an empty page means the account has no public folders, not that it has none. Point identity at an identity imported from that account's session to see the private ones too. To read what is inside a folder, pass its id to /collection/posts."
+        "summary": "Bookmark folders",
+        "description": "One page of bookmark folders, each saying whether it is public. The platforms differ in who you can ask about: TikTok takes an author, and a guest identity sees that author's public folders, so an empty page means no public folders rather than no folders. Douyin takes no author at all - its endpoint carries no user id and answers only about the session sending it, so pin identity to an imported identity; passing url or sec_user_id there is an error rather than being quietly ignored. To read what is inside a folder, pass its id to /collection/posts."
       },
       "author_followers": {
         "summary": "Accounts that follow an author",
@@ -307,8 +307,8 @@
         "description": "One saved folder's own metadata, asked for by id. TikTok only. /user/collections lists an author's folders but has to be asked by way of an owner; this takes the folder id alone - all a shared link carries - and is therefore the only way to find out what an unknown collection id is. It also reports who owns the folder and whether it is public. A public folder is readable with a guest identity; a private one needs an identity imported from its owner's session."
       },
       "collection_posts": {
-        "summary": "Posts inside one of an author's saved folders",
-        "description": "One page of the posts inside a single saved folder. TikTok only. The third of the Saved tab's three views: /user/collections lists the folders, /user/bookmarks returns every saved post across all of them, and this returns what is in one folder. The request names the folder rather than the account, which is why a folder its owner has made public is readable by a guest identity with no import needed. collection_id comes from /user/collections."
+        "summary": "Posts inside one saved folder",
+        "description": "One page of the posts inside a single saved folder, on either platform. The request names the folder rather than the account, so a folder its owner has made public is readable with a guest identity and no import needed; a private one is refused rather than returned empty. On TikTok this is the third of the Saved tab's three views, alongside /user/collections and /user/bookmarks."
       },
       "collections_add": {
         "summary": "Add posts to a collection",

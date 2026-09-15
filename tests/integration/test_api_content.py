@@ -786,3 +786,44 @@ async def test_collection_detail_is_not_offered_on_douyin(client: Any) -> None:
     )
 
     assert error_code(response) == "UNSUPPORTED_CONTENT"
+
+
+async def test_douyin_collections_refuse_an_author(client: Any) -> None:
+    """Rejected, not ignored.
+
+    Douyin's folder list has no user id and answers only about the identity
+    sending it, so accepting a `sec_user_id` and dropping it would hand back
+    the operator's own folders under the stranger's name.
+    """
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/user/collections", params={"sec_user_id": SEC_UID})
+
+    assert error_code(response) == "INVALID_PARAM"
+    details = envelope(response)["error"]["details"]
+    assert details["unexpected"] == ["sec_user_id"]
+    assert details["endpoint"] == "douyin.author_collections"
+
+
+async def test_douyin_collections_without_an_author_reach_the_queue(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/user/collections")
+
+    assert response.status_code == 202, response.text
+
+
+async def test_tiktok_collections_still_require_an_author(client: Any) -> None:
+    """The asymmetry is deliberate; this is the other half of it."""
+    await signed_in(client)
+    response = await client.get("/api/v1/tiktok/user/collections")
+
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["fields"] == ["url", "sec_user_id"]
+
+
+async def test_douyin_collection_posts_reach_the_queue(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/collection/posts", params={"collection_id": COLLECTION_ID}
+    )
+
+    assert response.status_code == 202, response.text

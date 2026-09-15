@@ -63,6 +63,12 @@ class TikTokAdapter:
     def parse_collection_detail(self, payload: Mapping[str, Any]) -> Collection:
         return parser.parse_collection_detail(payload)
 
+    def parse_collection_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        """TikTok serves this in the same itemList envelope as every other list."""
+        return parser.parse_author_posts(payload, fetched_at=fetched_at)
+
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None
     ) -> Page[Comment]:

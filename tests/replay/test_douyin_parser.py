@@ -8,11 +8,17 @@ while the parser silently drops half the payload, which is the exact failure
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime
 
 import pytest
 
-from dtk.core.errors import ErrorCode, UpstreamChanged, UpstreamRiskControl
+from dtk.core.errors import (
+    ErrorCode,
+    UnsupportedContent,
+    UpstreamChanged,
+    UpstreamRiskControl,
+)
 from dtk.core.types import ContentKind, Platform
 from dtk.models import AuthorStats, ContentStats
 from dtk.platforms.douyin import ADAPTER, endpoints, parser
@@ -686,3 +692,145 @@ def test_client_profile_is_injected_not_hardcoded() -> None:
     assert spec["params"]["screen_width"] == "1366"
     assert spec["params"]["screen_height"] == "768"
     assert spec["params"]["browser_language"] == "en-GB"
+
+
+# --------------------------------------------------------------------------
+# Bookmark folders
+# --------------------------------------------------------------------------
+
+
+#: The live `/aweme/v1/web/collects/list/` envelope, ids and names replaced.
+#: Shape and types are verbatim: the id arrives twice (a JSON number that has
+#: already lost precision, and `collects_id_str`), the cover is Douyin's
+#: `url_list` container, and `status` is an int.
+_COLLECTS_LIST = {
+    "collects_list": [
+        {
+            "collects_id": 6910000000000000201,
+            "collects_id_str": "6910000000000000201",
+            "collects_name": "Test-Private",
+            "collects_cover": {
+                "uri": "image-cut-tos/synthetic-a",
+                "url_list": ["https://p3-pc.example-cdn.invalid/obj/image-cut-tos/synthetic-a"],
+            },
+            "total_number": 1,
+            "status": 0,
+            "states": 1,
+            "user_id": 6910000000000000900,
+            "user_id_str": "redacted-user-id",
+            "user_info": {"nickname": "redacted-nickname", "uid": "redacted-user-id"},
+        },
+        {
+            "collects_id": 6910000000000000202,
+            "collects_id_str": "6910000000000000202",
+            "collects_name": "Test-Public",
+            "collects_cover": {
+                "uri": "image-cut-tos/synthetic-b",
+                "url_list": ["https://p3-pc.example-cdn.invalid/obj/image-cut-tos/synthetic-b"],
+            },
+            "total_number": 1,
+            "status": 1,
+            "states": 1,
+            "user_id": 6910000000000000900,
+            "user_id_str": "redacted-user-id",
+            "user_info": {"nickname": "redacted-nickname", "uid": "redacted-user-id"},
+        },
+    ],
+    "cursor": 2,
+    "has_more": False,
+    "status_code": 0,
+    "total_number": 2,
+}
+
+
+def test_build_author_collections_request_takes_no_author() -> None:
+    """The absence is the assertion.
+
+    `collects/list/` carries no user id and answers only about the session
+    sending it. A builder that accepted a `sec_user_id` would let a caller ask
+    a question this endpoint cannot answer, and get the operator's own folders
+    back under a stranger's name.
+    """
+    spec = ADAPTER.build_request(endpoints.AUTHOR_COLLECTIONS)
+
+    assert spec["url"] == "https://www.douyin.com/aweme/v1/web/collects/list/"
+    assert spec["params"]["cursor"] == "0"
+    assert "sec_user_id" not in spec["params"]
+
+
+def test_douyin_collections_report_visibility_and_owner() -> None:
+    page = ADAPTER.parse_author_collections(deepcopy(_COLLECTS_LIST))
+
+    assert [c.name for c in page.items] == ["Test-Private", "Test-Public"]
+    assert [c.is_public for c in page.items] == [False, True]
+    assert page.has_more is False
+    first = page.items[0]
+    assert first.platform is Platform.DOUYIN
+    assert first.collection_id == "6910000000000000201"
+    assert first.item_count == 1
+    assert first.owner_id == "redacted-user-id"
+    assert first.owner_name == "redacted-nickname"
+    assert first.cover is not None
+
+
+def test_douyin_and_tiktok_read_the_same_status_field_differently() -> None:
+    """Same key, opposite meaning for 1 - the trap this pins down.
+
+    Douyin calls a folder public with status 1; TikTok calls it PRIVATE with
+    status 1 and public with 3. Sharing one constant between the platforms
+    would report a private folder as public, which is the worst direction an
+    error here can go.
+    """
+    from dtk.platforms.douyin import parser as douyin_parser
+    from dtk.platforms.tiktok import parser as tiktok_parser
+
+    assert douyin_parser._STATUS_PUBLIC == 1
+    assert tiktok_parser._STATUS_PRIVATE == 1
+    assert tiktok_parser._STATUS_PUBLIC == 3
+
+
+def test_an_unmeasured_status_is_unknown_not_private() -> None:
+    payload = deepcopy(_COLLECTS_LIST)
+    payload["collects_list"][0]["status"] = 99
+    del payload["collects_list"][1]["status"]
+    page = ADAPTER.parse_author_collections(payload)
+    assert [c.is_public for c in page.items] == [None, None]
+
+
+def test_build_collection_posts_request_uses_douyins_spelling() -> None:
+    """`collects_id`, with the s. The canonical name is collection_id."""
+    spec = ADAPTER.build_request(endpoints.COLLECTION_POSTS, collection_id="6910000000000000202")
+
+    assert spec["url"] == "https://www.douyin.com/aweme/v1/web/collects/video/list/"
+    assert spec["params"]["collects_id"] == "6910000000000000202"
+    assert "collection_id" not in spec["params"]
+    assert "collectionId" not in spec["params"]
+
+
+def test_collection_posts_pages_by_cursor_not_max_cursor() -> None:
+    """The reason this cannot reuse `parse_author_posts`.
+
+    That parser demands `max_cursor` when `has_more` is set. This endpoint
+    returns `cursor` and no `max_cursor` at all, so sharing it would have
+    worked on every single-page folder and raised on the first one that needed
+    a second page.
+    """
+    payload = {
+        "aweme_list": [load(PLATFORM, "user_posts_page1")["aweme_list"][0]],
+        "cursor": 10,
+        "has_more": 1,
+        "status_code": 0,
+    }
+    page = ADAPTER.parse_collection_posts(payload, fetched_at=FETCHED_AT)
+
+    assert page.has_more is True
+    assert page.cursor == "10"
+    assert page.items and page.items[0].platform is Platform.DOUYIN
+
+    with pytest.raises(UpstreamChanged):
+        ADAPTER.parse_author_posts(payload, fetched_at=FETCHED_AT)
+
+
+def test_douyin_has_no_collection_detail() -> None:
+    with pytest.raises(UnsupportedContent):
+        ADAPTER.parse_collection_detail({})

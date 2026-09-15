@@ -45,11 +45,12 @@ TIKTOK_GUEST = {
 }
 
 # Douyin, logged in and guest. The shapes are the same; only the values differ,
-# and nothing in either says which is which.
+# and nothing in either says which is which. The identifiers are placeholders
+# for the same reason as the TikTok sample above: they named a real account.
 DOUYIN_LOGGED_IN = {
-    "id": "7515681134195344911",
+    "id": "redacted-webid",
     "create_time": "1749880894",
-    "user_uid": "7673303621286872121",
+    "user_uid": "redacted-user-uid",
     "user_uid_type": 0,
     "browser_name": "Firefox",
     "status_code": 0,
@@ -88,7 +89,7 @@ def test_tiktok_reports_no_session_without_guessing_why() -> None:
 @pytest.mark.parametrize(
     ("payload", "uid"),
     [
-        pytest.param(DOUYIN_LOGGED_IN, "7673303621286872121", id="logged-in"),
+        pytest.param(DOUYIN_LOGGED_IN, "redacted-user-uid", id="logged-in"),
         pytest.param(DOUYIN_GUEST, "4192893283341228", id="guest"),
     ],
 )

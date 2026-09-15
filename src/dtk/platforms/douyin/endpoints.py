@@ -17,9 +17,11 @@ from typing import Final
 
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.douyin.params import (
+    author_collections_params,
     author_likes_params,
     author_posts_params,
     author_profile_params,
+    collection_posts_params,
     comment_replies_params,
     comments_params,
     content_detail_params,
@@ -195,6 +197,8 @@ AUTHOR_POSTS: Final = "douyin.author_posts"
 COMMENTS: Final = "douyin.comments"
 COMMENT_REPLIES: Final = "douyin.comment_replies"
 AUTHOR_LIKES: Final = "douyin.author_likes"
+AUTHOR_COLLECTIONS: Final = "douyin.author_collections"
+COLLECTION_POSTS: Final = "douyin.collection_posts"
 MIX_POSTS: Final = "douyin.mix_posts"
 SESSION_CHECK: Final = "douyin.session_check"
 
@@ -262,6 +266,26 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts an author has publicly liked",
     ),
     EndpointSpec(
+        name=AUTHOR_COLLECTIONS,
+        path=DouyinAPIEndpoints.USER_COLLECTS,
+        # Nothing, and that is the point: this endpoint has no subject but the
+        # session holding it. See author_collections_params.
+        required=(),
+        build=author_collections_params,
+        risk_weight=1.8,
+        summary="The bookmark folders belonging to the signed-in identity",
+    ),
+    EndpointSpec(
+        name=COLLECTION_POSTS,
+        path=DouyinAPIEndpoints.USER_COLLECTS_VIDEO,
+        # The builder keyword, not Douyin's spelling: the platform calls it
+        # collects_id and collection_posts_params does the translating.
+        required=("collection_id",),
+        build=collection_posts_params,
+        risk_weight=1.5,
+        summary="Posts inside one bookmark folder",
+    ),
+    EndpointSpec(
         name=MIX_POSTS,
         path=DouyinAPIEndpoints.MIX_AWEME,
         required=("mix_id",),
@@ -289,9 +313,11 @@ ENDPOINTS: Final = EndpointTable.of(
 
 
 __all__ = [
+    "AUTHOR_COLLECTIONS",
     "AUTHOR_LIKES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
+    "COLLECTION_POSTS",
     "COMMENTS",
     "COMMENT_REPLIES",
     "CONTENT_DETAIL",

@@ -229,6 +229,56 @@ def author_likes_params(
     }
 
 
+def author_collections_params(
+    *,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/collects/list/``.
+
+    Takes no user id, and the absence is the endpoint's entire semantics: it
+    answers about whoever the cookies belong to and there is no way to ask it
+    about anyone else. TikTok's equivalent takes a ``secUid`` and will answer
+    for a stranger's public folders; this one cannot be asked the question.
+
+    So a caller must pin an imported identity, and passing an author id is
+    rejected rather than ignored - see the Douyin entry in ``_ARGUMENTS``. A
+    silently dropped ``sec_user_id`` would return the operator's own folders
+    under someone else's name, which is the worst available answer.
+    """
+    return {
+        **base_params(profile),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
+def collection_posts_params(
+    *,
+    collection_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/collects/video/list/``.
+
+    Douyin spells the folder id ``collects_id``, with the s - not ``collect_id``
+    and not TikTok's ``collectionId``. The canonical name stays
+    ``collection_id`` for both platforms; this is the only place the spelling
+    difference lives.
+
+    Unlike ``author_collections`` above, this one is keyed by the folder rather
+    than by the session, which is the same split TikTok has.
+    """
+    return {
+        **base_params(profile),
+        "collects_id": str(collection_id),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
 def mix_posts_params(
     *,
     mix_id: str,

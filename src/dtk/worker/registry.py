@@ -200,6 +200,17 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         },
         Capability.AUTHOR_LIKES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
+        # No author id, deliberately. `collects/list/` has no subject but
+        # the session holding it, so an author id is not a parameter this
+        # endpoint has - and `canonical_params` rejecting it as unknown is
+        # the honest answer. Dropping it would return the operator's own
+        # folders under a stranger's name.
+        Capability.AUTHOR_COLLECTIONS: {CURSOR: "cursor", COUNT: "count"},
+        Capability.COLLECTION_POSTS: {
+            COLLECTION_ID: "collection_id",
+            CURSOR: "cursor",
+            COUNT: "count",
+        },
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -416,10 +427,9 @@ class EndpointDefinition:
                 | Capability.AUTHOR_LIKES
                 | Capability.MIX_POSTS
                 | Capability.AUTHOR_BOOKMARKS
-                | Capability.COLLECTION_POSTS
                 | Capability.AUTHOR_REPOSTS
             ):
-                # All six are a page of posts in the platform's own list
+                # All five are a page of posts in the platform's own list
                 # envelope - `aweme_list`/`max_cursor` on Douyin, `itemList`/
                 # `cursor` on TikTok - so one parser answers for all of them.
                 return adapter.parse_author_posts(payload, fetched_at=when)
@@ -429,6 +439,11 @@ class EndpointDefinition:
                 return adapter.parse_author_list(payload)
             case Capability.AUTHOR_COLLECTIONS:
                 return adapter.parse_author_collections(payload)
+            case Capability.COLLECTION_POSTS:
+                # Not in the group above: Douyin pages this one by `cursor`
+                # where author_posts pages by `max_cursor`, so sharing the
+                # parser would break on the first folder needing page two.
+                return adapter.parse_collection_posts(payload, fetched_at=when)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:

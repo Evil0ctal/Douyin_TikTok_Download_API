@@ -930,22 +930,29 @@ async def user_collections(
     explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
-    """One page of the folders an author has organized bookmarked posts into.
+    """One page of bookmark folders.
 
-    **TikTok only.** Each folder is public or private on its own, and a guest
-    identity sees the public ones - name, cover, item count and all. An empty
-    page therefore means "no public folders", which is not the same as "no
-    folders": to see the private ones as well, point `identity` at an identity
-    imported from that account's own browser session.
+    The two platforms differ in who you can ask about, and the difference is
+    not cosmetic:
 
-    To read what is inside one of these folders, pass its id to
-    `/collection/posts`.
+    - **TikTok** takes an author. Each folder is public or private on its own
+      and a guest identity sees the public ones, so an empty page means "no
+      public folders" rather than "no folders".
+    - **Douyin** takes no author at all - its endpoint carries no user id and
+      answers only about the session sending it. Pass `identity` pointed at an
+      imported identity; passing `url` or `sec_user_id` is an error rather
+      than being quietly ignored.
+
+    Either way each folder says whether it is public, and to read what is
+    inside one, pass its id to `/collection/posts`.
 
     **Parameters**
 
-    - `platform` - must be `tiktok`.
-    - `url` - a link to the author's profile page.
-    - `sec_user_id` - the author's stable id, if you already have it.
+    - `platform` - `douyin` or `tiktok`.
+    - `url` - a link to the author's profile page. **TikTok only**; Douyin
+      rejects it, because its endpoint cannot be pointed at anyone.
+    - `sec_user_id` - the author's stable id, if you already have it. **TikTok
+      only**, for the same reason.
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - folders per page.
@@ -965,12 +972,19 @@ async def user_collections(
     page.
     """
     authorize(principal, platform)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    endpoint = supported(platform, Operation.AUTHOR_COLLECTIONS)
+    # Douyin's folder list has no subject but the identity sending it, so an
+    # author is neither required nor accepted there; TikTok's needs one.
+    params: dict[str, Any] = (
+        _author_params(platform, url=url, sec_user_id=sec_user_id)
+        if _accepts_author(endpoint)
+        else _refuse_author(endpoint, url=url, sec_user_id=sec_user_id)
+    )
     params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
     return await operations.submit_and_wait(
         request,
         principal,
-        endpoint=supported(platform, Operation.AUTHOR_COLLECTIONS),
+        endpoint=endpoint,
         params=params,
         wait=resolve_wait(request, wait),
         proxy=resolve_request_proxy(request, proxy),
@@ -1138,17 +1152,18 @@ async def collection_posts(
 ) -> Any:
     """One page of the posts inside a single saved folder.
 
-    **TikTok only.** The third of the Saved tab's three views:
-    `/user/collections` lists the folders, `/user/bookmarks` returns every
-    saved post across all of them, and this returns what is in one folder.
+    **Both platforms.** The request names the folder rather than the account,
+    which is why a folder its owner has made public is readable by a guest
+    identity on either platform, with no import needed. Measured against a
+    public and a private folder on each: the public one answers a guest, the
+    private one is refused rather than returned empty.
 
-    The request names the folder, not the account, which is why this works for
-    other people's folders where `/user/bookmarks` does not: a folder its owner
-    has set to public is readable by a guest identity, no import needed.
+    On TikTok this is the third of the Saved tab's three views, alongside
+    `/user/collections` and `/user/bookmarks`.
 
     **Parameters**
 
-    - `platform` - must be `tiktok`.
+    - `platform` - `douyin` or `tiktok`.
     - `collection_id` - the folder to read, as returned by `/user/collections`.
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
@@ -1431,6 +1446,33 @@ def _content_params(platform: Platform, *, url: str | None, aweme_id: str | None
             require_content_id(aweme_id, platform=platform)
         return {"aweme_id": chosen, "url": None if extracted else kind.url}
     return {"aweme_id": require_content_id(str(aweme_id), platform=platform), "url": None}
+
+
+def _accepts_author(endpoint: str) -> bool:
+    """Whether this endpoint can be pointed at somebody in particular.
+
+    Derived from the registry rather than branched on the platform name, so a
+    platform whose endpoint gains or loses an author parameter needs no edit
+    here. Douyin's ``collects/list/`` is the case that forced the question: it
+    carries no user id at all and answers only about the session holding it.
+    """
+    return registry.AUTHOR_ID in registry.ENDPOINTS[endpoint].accepts
+
+
+def _refuse_author(endpoint: str, *, url: str | None, sec_user_id: str | None) -> dict[str, Any]:
+    """Reject an author for an endpoint that has no way to honour one.
+
+    Accepting and ignoring it is the trap: Douyin's ``collects/list/`` would
+    cheerfully return the operator's OWN folders under the stranger's id the
+    caller asked about, and nothing in the response would say so.
+    """
+    given = [name for name, value in (("url", url), ("sec_user_id", sec_user_id)) if value]
+    if given:
+        raise InvalidParam(
+            f"{endpoint} answers only about the identity sending it, so it takes no author",
+            details={"endpoint": endpoint, "unexpected": given, "hint": "pin identity instead"},
+        )
+    return {}
 
 
 def _author_params(
