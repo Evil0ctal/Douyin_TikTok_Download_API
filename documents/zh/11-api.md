@@ -516,11 +516,18 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `GET` | `/api/v1/{platform}/user` | `{platform}:read` | 作者资料。`url` **或** `sec_user_id` |
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | 分页 |
 | `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | 分页。见下面的平台差异说明 |
-| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id`——抖音叫 `mix_info`，TikTok 叫 `playlistId`。分页 |
+| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id`——抖音叫 `mix_info`，TikTok 叫 `playlistId`。是作者自建的合集，不是收藏夹。分页 |
+| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | 收藏夹列表。TikTok 接受作者参数，抖音不接受。分页 |
+| `GET` | `/api/v1/{platform}/collection` | `tiktok:read` | **仅 TikTok。** 按 `collection_id` 查单个收藏夹：名称、封面、作品数、归属、是否公开 |
+| `GET` | `/api/v1/{platform}/collection/posts` | `{platform}:read` | 按 `collection_id` 取某个收藏夹里的作品。分页 |
+| `GET` | `/api/v1/{platform}/user/bookmarks` | `tiktok:read` | **仅 TikTok。** 跨全部收藏夹的收藏作品，只能读本人。分页 |
+| `GET` | `/api/v1/{platform}/user/reposts` | `tiktok:read` | **仅 TikTok。** 作者转发的作品。分页 |
 | `GET` | `/api/v1/{platform}/user/followers` | `tiktok:read` | **仅 TikTok** |
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **仅 TikTok** |
 
 除了核心那五个之外，两个平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。`user/likes` 两个平台都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
+
+收藏夹是这种不对称最尖锐的一处。**两个平台都允许逐个把收藏夹设为公开或私密**，公开的那些用普通的池内身份就能读——两边都不需要登录。但收藏夹**列表**不同：TikTok 的接受作者参数，能回答陌生人公开的收藏夹；抖音的请求里则根本没有用户 id，只回答发出请求的那个身份自己的收藏夹。所以在抖音上，`user/collections` 必须把 `identity` 指向导入的身份，而传 `url` 或 `sec_user_id` 会被拒绝而不是被忽略——忽略它的话，返回的会是你自己的收藏夹，却挂在别人的名下。每个收藏夹都会给出 `is_public` 和归属，所以你不需要猜自己处在哪种情况。
 
 作品用 `url` **或** `aweme_id` 指定，不能都给也不能都不给；作者用 `url` **或** `sec_user_id`（TikTok 里叫 `secUid`）。已经带 ID 的 URL 会在入口处把 ID 提取出来，所以两种写法会合并到同一个任务上。夹着链接的文本也能接受——平台 App 生成的剪贴板内容可以原样发过来。短链接（`v.douyin.com`、`vm.tiktok.com`）会被排队交给 worker 展开，因为跟随一次跳转是一次网络调用，而 API 容器不做网络调用。
 

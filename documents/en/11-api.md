@@ -517,11 +517,18 @@ See [Playground and tools](./07-playground-and-tools.md), which is the console's
 | `GET` | `/api/v1/{platform}/user` | `{platform}:read` | Profile. `url` **or** `sec_user_id` |
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | Paged |
 | `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | Paged. See the platform note below |
-| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id` — Douyin `mix_info`, TikTok `playlistId`. Paged |
+| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id` — Douyin `mix_info`, TikTok `playlistId`. An author's own series, not a bookmark folder. Paged |
+| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | Bookmark folders. Takes an author on TikTok; takes none on Douyin. Paged |
+| `GET` | `/api/v1/{platform}/collection` | `tiktok:read` | **TikTok only.** One folder by `collection_id`: name, cover, count, owner, visibility |
+| `GET` | `/api/v1/{platform}/collection/posts` | `{platform}:read` | Posts in one folder, by `collection_id`. Paged |
+| `GET` | `/api/v1/{platform}/user/bookmarks` | `tiktok:read` | **TikTok only.** Every saved post, across all folders. Owner only. Paged |
+| `GET` | `/api/v1/{platform}/user/reposts` | `tiktok:read` | **TikTok only.** Posts an author reposted. Paged |
 | `GET` | `/api/v1/{platform}/user/followers` | `tiktok:read` | **TikTok only** |
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **TikTok only** |
 
 The platforms are not symmetric past the core five, and the asymmetry is reported rather than papered over. Asking Douyin for `followers` or `following` returns `UNSUPPORTED_CONTENT` with `details.supported` naming the platforms that do serve it — a route that submitted the task anyway would answer with an empty page and let you conclude the author has no followers. `user/likes` is offered on both, but Douyin does not serve that list to a guest identity: it needs an imported logged-in identity, and on TikTok an empty page usually means the author keeps their likes private.
+
+Bookmark folders are the sharpest case of that asymmetry. A folder is public or private **individually on both platforms**, and a public one is readable with an ordinary pooled identity — no login anywhere. But the folder *list* differs: TikTok's takes an author and will answer about a stranger's public folders, while Douyin's request carries no user id at all and answers only about the identity sending it. So on Douyin, `user/collections` needs `identity` pinned to an imported identity, and passing `url` or `sec_user_id` there is refused rather than ignored — ignoring it would hand back your own folders under somebody else's name. Every folder reports `is_public` and its owner, so you never have to guess which case you are in.
 
 Identify a post by **either** `url` **or** `aweme_id`, never both-or-neither; an author by **either** `url` **or** `sec_user_id` (TikTok calls it `secUid`). A URL that already carries the id has it extracted at the edge, so both spellings coalesce onto one task. Text with a link buried in it is accepted — the clipboard content the platform apps produce can be sent unedited. Short links (`v.douyin.com`, `vm.tiktok.com`) are queued for expansion in the worker, because following one is a network call the API container does not make.
 
