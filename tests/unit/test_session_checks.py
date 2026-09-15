@@ -14,7 +14,9 @@ import pytest
 from dtk.core.types import Platform
 from dtk.ops.probes import read_session
 
-# TikTok, logged in. From a browser with a live session.
+# TikTok, logged in. From a browser with a live session, with the account id
+# replaced - it is the one field this payload carries that identifies a real
+# person, and tests/fixtures/README.md redacts it everywhere else.
 TIKTOK_LIVE = {
     "data": {
         "error_code": 0,
@@ -22,7 +24,7 @@ TIKTOK_LIVE = {
         "description": "",
         "name": "success",
         "app_id": 1459,
-        "user_id_str": "7472895737545360430",
+        "user_id_str": "redacted-user-id",
         "session_expired_description": "",
     },
     "message": "success",
@@ -65,7 +67,7 @@ DOUYIN_GUEST = {
 def test_tiktok_confirms_a_live_session_and_names_the_account() -> None:
     logged_in, account, reason, _detail = read_session(Platform.TIKTOK, TIKTOK_LIVE)
     assert logged_in is True
-    assert account == "7472895737545360430"
+    assert account == "redacted-user-id"
     assert reason == "live"
 
 
