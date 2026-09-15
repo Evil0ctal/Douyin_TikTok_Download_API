@@ -44,6 +44,11 @@ class ResourceKind(StrEnum):
     #: they get their own kind rather than being silently mixed into LIVE.
     LIVE_ROOM = "live_room"
     MIX = "mix"
+    #: A bookmark folder - posts a VIEWER filed away, not an author's own
+    #: series. Its own kind rather than MIX for the reason LIVE_ROOM is its
+    #: own kind: it needs different endpoints. Mixing the two was the
+    #: confusion #754 was filed about.
+    COLLECTION = "collection"
     MUSIC = "music"
     CHALLENGE = "challenge"
     SEARCH = "search"
@@ -376,6 +381,12 @@ DOUYIN_ROUTES: tuple[Route, ...] = (
         content_kind=ContentKind.LIVE,
     ),
     Route(
+        # MIX, not COLLECTION, and the two platforms disagree about this word.
+        # Douyin's name for an author's own series is the one that translates
+        # as "collection", and this is its URL; a Douyin bookmark folder has no
+        # public URL at all. TikTok's /@handle/collection/ IS the bookmark
+        # folder. Same path segment, different resource, so they deliberately
+        # map to different kinds.
         re.compile(r"^/collection/(?P<id>\d+)"),
         ResourceKind.MIX,
         "https://www.douyin.com/collection/{id}",
@@ -440,6 +451,16 @@ TIKTOK_ROUTES: tuple[Route, ...] = (
         ResourceKind.LIVE,
         "https://www.tiktok.com/@{handle}/live",
         content_kind=ContentKind.LIVE,
+    ),
+    Route(
+        # `/@handle/collection/Test%20Public-7685242413136513823`, from a real
+        # share link. The folder name sits between the handle and the id and may
+        # itself contain hyphens ("Test-Public-7685..."), so `slug` is lazy and
+        # the id is anchored to the end of the segment - the same reasoning as
+        # the music-slug route below.
+        re.compile(r"^/@(?P<handle>[^/?#]+)/collection/(?P<slug>[^/?#]+?)-(?P<id>\d+)/?(?:[?#]|$)"),
+        ResourceKind.COLLECTION,
+        "https://www.tiktok.com/@{handle}/collection/{slug}-{id}",
     ),
     Route(
         re.compile(r"^/@(?P<handle>[^/?#]+)/?(?:[?#]|$)"),

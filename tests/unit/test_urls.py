@@ -1107,3 +1107,54 @@ async def test_an_unrecognised_url_that_was_never_expanded_keeps_its_own_reason(
     with pytest.raises(InvalidUrl) as excinfo:
         await resolve("https://www.douyin.com/discover", fetcher)
     assert excinfo.value.details["reason"] == "unknown_resource"
+
+
+# --------------------------------------------------------------------------
+# Bookmark folders vs an author's own series
+# --------------------------------------------------------------------------
+
+
+COLLECTION_URL = "https://www.tiktok.com/@cat18565/collection/Test%20Public-7685242413136513823"
+
+
+def test_a_tiktok_collection_link_is_a_collection() -> None:
+    kind = identify(COLLECTION_URL)
+
+    assert kind.platform is Platform.TIKTOK
+    assert kind.resource is ResourceKind.COLLECTION
+    assert kind.resource_id == "7685242413136513823"
+    assert kind.url == COLLECTION_URL
+
+
+@pytest.mark.parametrize(
+    "slug",
+    [
+        "Test-Public",  # the name itself contains a hyphen
+        "Top%2010",  # and ends in digits
+        "a",
+    ],
+)
+def test_the_folder_name_does_not_swallow_the_id(slug: str) -> None:
+    """The id is the last hyphen-separated run of digits, not the first."""
+    kind = identify(f"https://www.tiktok.com/@h/collection/{slug}-7685242413136513823")
+    assert kind.resource is ResourceKind.COLLECTION
+    assert kind.resource_id == "7685242413136513823"
+
+
+def test_a_douyin_collection_link_is_a_mix_not_a_folder() -> None:
+    """Same path segment, different resource - the false friend.
+
+    Douyin's name for an author's own series is the one that translates as
+    "collection", and this is its URL; a Douyin bookmark folder has no public
+    URL at all. Mapping this to COLLECTION would send it to an endpoint Douyin
+    does not have.
+    """
+    kind = identify("https://www.douyin.com/collection/7123456789")
+
+    assert kind.platform is Platform.DOUYIN
+    assert kind.resource is ResourceKind.MIX
+
+
+def test_a_bare_tiktok_profile_is_still_a_profile() -> None:
+    """The collection route sits above the profile route; it must not shadow it."""
+    assert identify("https://www.tiktok.com/@cat18565").resource is ResourceKind.USER

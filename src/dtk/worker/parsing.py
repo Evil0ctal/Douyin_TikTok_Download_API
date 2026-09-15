@@ -77,12 +77,18 @@ ProxySource = Callable[[], Awaitable[str | None]]
 _ENDPOINT_BY_RESOURCE: dict[ResourceKind, str] = {
     ResourceKind.VIDEO: "content_detail",
     ResourceKind.USER: "author_profile",
+    # TikTok only, and that is enforced by the URL layer rather than here: a
+    # Douyin /collection/ link is a MIX, because Douyin's word for an author's
+    # own series is the same word. Nothing produces a Douyin COLLECTION, so
+    # nothing reaches douyin.collection_detail, which does not exist.
+    ResourceKind.COLLECTION: "collection_detail",
 }
 
 #: The canonical parameter each endpoint expects the resolved id under.
 _PARAM_BY_RESOURCE: dict[ResourceKind, str] = {
     ResourceKind.VIDEO: "content_id",
     ResourceKind.USER: "author_id",
+    ResourceKind.COLLECTION: "collection_id",
 }
 
 
