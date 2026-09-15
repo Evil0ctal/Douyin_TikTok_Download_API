@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -1068,3 +1069,55 @@ def test_a_session_refusal_does_not_list_scopes_that_were_never_the_gate() -> No
         "have_scopes is no longer behind `if self.scoped` in Principal.denial; a "
         "console session would list scopes that could not have refused it"
     )
+
+
+class TestVersionStaysInStep:
+    """The version string lives in four files and nothing kept them equal.
+
+    docs/runbook/01-release.md has asked for this test since it was written -
+    its warning is that all five places must be bumped together and nothing
+    tells you when one is missed. The fifth place is uv.lock, which is
+    regenerated rather than edited and so is checked separately.
+
+    A missed file does not fail anything at build time. It surfaces as
+    `dtk --version` disagreeing with the image tag on a server somebody is
+    trying to debug, which is the worst moment to discover it.
+    """
+
+    #: file -> the pattern whose single capture group is the version.
+    SOURCES: ClassVar[dict[str, str]] = {
+        "pyproject.toml": r'^version = "([^"]+)"',
+        "src/dtk/__init__.py": r'^__version__ = "([^"]+)"',
+        "docker/browser_rpc/__init__.py": r'^__version__ = "([^"]+)"',
+        "web/package.json": r'^  "version": "([^"]+)"',
+    }
+
+    def _declared(self) -> dict[str, str]:
+        found: dict[str, str] = {}
+        for relative, pattern in self.SOURCES.items():
+            text = (REPO / relative).read_text(encoding="utf-8")
+            match = re.search(pattern, text, re.MULTILINE)
+            assert match is not None, f"no version line in {relative}"
+            found[relative] = match.group(1)
+        return found
+
+    def test_every_file_declares_the_same_version(self) -> None:
+        declared = self._declared()
+        assert len(set(declared.values())) == 1, declared
+
+    def test_the_version_is_a_plain_semver_without_a_v(self) -> None:
+        """The `v` belongs on the git tag and nowhere else.
+
+        docker/metadata-action strips a leading `v` when it publishes, so a
+        version carrying one here would name an image tag that was never
+        pushed - the failure 01-release.md opens with.
+        """
+        for relative, version in self._declared().items():
+            assert re.fullmatch(r"\d+\.\d+\.\d+", version), (relative, version)
+
+    def test_the_lockfile_agrees(self) -> None:
+        version = next(iter(self._declared().values()))
+        lock = (REPO / "uv.lock").read_text(encoding="utf-8")
+        assert f'name = "dtk"\nversion = "{version}"' in lock, (
+            f"uv.lock still pins another version; run `uv lock` after bumping to {version}"
+        )
