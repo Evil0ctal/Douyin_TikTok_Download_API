@@ -169,7 +169,8 @@ async def setup_init(request: Request, body: SetupInit) -> Any:
         raise SetupAlreadyDone("this instance already has an administrator account")
 
     redis = get_redis()
-    stored = await redis.get(SETUP_TOKEN_KEY)
+    # Atomic get-and-delete: exactly one caller wins the token.
+    stored = await redis.getdel(SETUP_TOKEN_KEY)
     # Compare even when nothing is stored, against a value of the same shape,
     # so a missing token and a wrong token take the same time.
     matches = constant_time_equals(body.token, stored if stored else new_setup_token())
@@ -187,9 +188,17 @@ async def setup_init(request: Request, body: SetupInit) -> Any:
             details={"attempts_remaining": remaining},
         )
 
-    # Single use: burn it before the account is written, so a second request
-    # holding the same token finds nothing to match against.
-    await redis.delete(SETUP_TOKEN_KEY, SETUP_ATTEMPTS_KEY)
+    # Atomic claim guard: only the first caller to INCR gets value 1.
+    # This prevents a race where two requests both see the token before
+    # getdel completes on one of them.
+    claim_key = "setup:claim"
+    claim_count = await redis.incr(claim_key)
+    await redis.expire(claim_key, SETUP_TOKEN_TTL_SECONDS)
+    if claim_count > 1:
+        raise SetupAlreadyDone("this instance already has an administrator account")
+
+    # Token already consumed via getdel above.
+    await redis.delete(SETUP_ATTEMPTS_KEY)
 
     user = await users.create(
         username=body.username,
