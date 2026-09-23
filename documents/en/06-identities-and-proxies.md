@@ -168,7 +168,8 @@ At the top of the page, reading `GET /api/v1/admin/identities/pool`:
   below** and **Top up to**. A platform follows the global `pool.min_size`
   (default 3) and `pool.target_size` (default 8) until you give it numbers of
   its own, and a number that is still following says **default** next to it.
-  Typing the global value back makes it follow again. Switching **Auto** off
+  Typing the global value back makes it follow again, and **Restore default**
+  drops both of the platform's own numbers at once. Switching **Auto** off
   stores `pool.<platform>.min_size = 0`: that platform is never minted for
   automatically and raises no pool alerts, which is what a deployment that only
   serves one platform wants. Saving writes only what you changed. The mark must

@@ -455,8 +455,13 @@ function RefillCard() {
 
   const [drafts, setDrafts] = useState<Drafts>({})
 
-  const afterWrite = (message: string) => {
-    setDrafts({})
+  /** `only` clears one platform's draft, so a reset keeps the other's edits. */
+  const afterWrite = (message: string, only?: Platform) => {
+    setDrafts((current) => {
+      if (only === undefined) return {}
+      const { [only]: _dropped, ...rest } = current
+      return rest
+    })
     void invalidate(POOL_KEY)
     // The scheduler page renders the same settings, so it must not be left
     // showing the numbers this card just replaced.
@@ -478,6 +483,26 @@ function RefillCard() {
     {
       onSuccess: () => {
         afterWrite(t('console:identity.refill.saved'))
+      },
+      onError: (error) => {
+        toast.apiError(error, t('console:identity.refill.saveFailed'))
+      },
+    },
+  )
+
+  // Back to following the global pair. Its own action rather than "type the
+  // global value back in", which cannot express it when an override happens
+  // to equal the global number: that row is unchanged, so nothing was saved,
+  // and it stayed pinned to a value the scheduler page no longer moves.
+  const reset = useApiMutation<unknown, PoolPlatform>(
+    async (row) => {
+      if (!row.min_inherited) await writeSetting(`pool.${row.platform}.min_size`, INHERIT)
+      if (!row.target_inherited) await writeSetting(`pool.${row.platform}.target_size`, INHERIT)
+      return null
+    },
+    {
+      onSuccess: (_data, row) => {
+        afterWrite(t('console:identity.refill.resetDone'), row.platform)
       },
       onError: (error) => {
         toast.apiError(error, t('console:identity.refill.saveFailed'))
@@ -581,9 +606,13 @@ function RefillCard() {
             draft={drafts[row.platform] ?? draftOf(row)}
             canMint={canMint}
             globalMinimum={global.minimum}
-            disabled={!canWrite || save.isPending}
+            disabled={!canWrite || save.isPending || reset.isPending}
+            resetting={reset.isPending && reset.variables.platform === row.platform}
             onChange={(patch) => {
               update(row, patch)
+            }}
+            onReset={() => {
+              reset.mutate(row)
             }}
           />
         ))}
@@ -618,7 +647,9 @@ function RefillRow({
   canMint,
   globalMinimum,
   disabled,
+  resetting,
   onChange,
+  onReset,
 }: {
   row: PoolPlatform
   draft: MarksDraft
@@ -626,7 +657,9 @@ function RefillRow({
   /** Where a platform switched back on from zero starts. */
   globalMinimum: number
   disabled: boolean
+  resetting: boolean
   onChange: (patch: Partial<MarksDraft>) => void
+  onReset: () => void
 }) {
   const { t } = useTranslation(['console', 'common'])
   const invalid = draft.auto && parseDraft(draft, row) === null
@@ -707,6 +740,22 @@ function RefillRow({
             </>
           ) : (
             <span className="u-xs u-muted">{t('console:identity.refill.offHint')}</span>
+          )}
+
+          {/* Only when there is something to reset. A platform switched off is
+              an override too (a stored zero), so this is also how it goes back
+              to following the global marks - switched on, if they are. */}
+          {row.min_inherited && row.target_inherited ? null : (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={disabled}
+              loading={resetting}
+              title={t('console:identity.refill.resetHint')}
+              onClick={onReset}
+            >
+              {t('console:identity.refill.reset')}
+            </Button>
           )}
         </>
       ) : null}

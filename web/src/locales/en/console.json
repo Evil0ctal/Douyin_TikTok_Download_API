@@ -384,7 +384,10 @@
       "offHint": "Off: never minted automatically, and no pool alerts. Imported identities still work.",
       "inherited": "default",
       "inheritedHint": "Following the global value on the Scheduler page",
-      "invalid": "The mark must be at least 1 and the target no lower than the mark"
+      "invalid": "The mark must be at least 1 and the target no lower than the mark",
+      "reset": "Restore default",
+      "resetHint": "Drop this platform's own numbers and follow the global ones on the Scheduler page again",
+      "resetDone": "Back to the global thresholds"
     },
     "mintLog": {
       "inFlight": "Minting a {platform} identity",

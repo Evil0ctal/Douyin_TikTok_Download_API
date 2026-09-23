@@ -384,7 +384,10 @@
       "offHint": "已关闭：不自动锻造，也不发身份池告警。导入的身份照常可用。",
       "inherited": "默认",
       "inheritedHint": "沿用调度页上的全局值",
-      "invalid": "下限至少为 1，补到的数量不能低于下限"
+      "invalid": "下限至少为 1，补到的数量不能低于下限",
+      "reset": "恢复默认",
+      "resetHint": "去掉这个平台单独设置的数字，重新沿用调度页上的全局值",
+      "resetDone": "已恢复为全局阈值"
     },
     "mintLog": {
       "inFlight": "正在锻造 {platform} 身份",
