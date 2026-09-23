@@ -20,6 +20,7 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from dtk.core.crypto import MIN_SECRET_LEN, SecretKeyMissing
+from dtk.core.types import Platform
 
 
 class Scope(StrEnum):
@@ -166,6 +167,41 @@ DEFAULT_MEDIA_CEILING: Final = 2 * 1024**3
 DEFAULT_MEDIA_FILE_CEILING: Final = 512 * 1024**2
 
 
+def _pool_override(value: Any) -> int:
+    """A per-platform pool mark: -1 to inherit the global one, else a count.
+
+    -1 is spelled out rather than "any negative" so that a typo like -3 is
+    refused instead of quietly meaning "inherit" - the operator who typed it
+    meant something, and it was not that.
+    """
+    number = int(value)
+    if number < -1:
+        raise ValueError("must be -1 (use the global value) or a count of 0 or more")
+    return number
+
+
+def _pool_platform_settings() -> list[SettingSpec]:
+    """``pool.<platform>.min_size`` / ``target_size`` for every platform.
+
+    Generated from :class:`Platform` so a new platform gets its own marks the
+    day it is added - and, because tests/unit/test_i18n.py wants a description
+    for every key, cannot get them without someone writing what they mean.
+    """
+    return [
+        SettingSpec(
+            f"pool.{platform.value}.{field}",
+            -1,
+            Scope.RUNTIME,
+            int,
+            f"{platform.value} override of pool.{field}; -1 inherits it, "
+            "min_size 0 turns automatic minting off for this platform",
+            validate=_pool_override,
+        )
+        for platform in Platform
+        for field in ("min_size", "target_size")
+    ]
+
+
 def _watch_floor(value: Any) -> int:
     """A collection interval floor that is actually a floor.
 
@@ -247,6 +283,7 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "Consecutive failures after which an identity stops counting towards "
             "the pool level, so the filler replaces it instead of counting it",
         ),
+        *_pool_platform_settings(),
         SettingSpec(
             "pool.health_prior",
             0.8,

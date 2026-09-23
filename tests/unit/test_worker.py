@@ -889,7 +889,7 @@ def make_filler(
         pool=pool,  # type: ignore[arg-type]
         rpc=rpc,
         cipher=FakeCipher(),
-        config=Config.defaults(),
+        config=kwargs.pop("config", Config.defaults()),
         options=FillerConfig(**kwargs.pop("options", {})),
         session_factory=session_factory_for(session or FakeSession(scalars_results=[[], []])),
         distributed_lock=False,
@@ -1063,6 +1063,62 @@ async def test_an_empty_pool_alerts_even_when_minting_is_disabled() -> None:
 
     events = {event for event, _ in alerter.sent}
     assert "pool_empty" in events
+
+
+class PerPlatformPool(FakePool):
+    """A pool whose level differs by platform, which FakePool cannot say."""
+
+    def __init__(self, counts: dict[Platform, dict[str, int]]) -> None:
+        super().__init__()
+        self._by_platform = counts
+
+    async def counts(self, session: Any, platform: Platform) -> dict[str, int]:
+        return dict(self._by_platform.get(platform, {}))
+
+    async def usable_count(self, session: Any, platform: Platform, *, max_fail_streak: int) -> int:
+        level = self._by_platform.get(platform, {})
+        return int(level.get("active", 0)) + int(level.get("cooling", 0))
+
+
+async def test_a_platform_turned_off_is_neither_minted_nor_alerted_on() -> None:
+    """Issue #763: a Douyin-only deployment kept minting TikTok and failing."""
+    rpc = FakeRpc()
+    alerter = FakeAlerter()
+    pool = PerPlatformPool({})
+    filler = make_filler(rpc, pool, alerter=alerter, config=Config({"pool.tiktok.min_size": 0}))
+
+    result = await filler.tick()
+
+    assert result.minted is True
+    assert result.platform is Platform.DOUYIN
+    assert [added["platform"] for added in pool.added] == [Platform.DOUYIN]
+    alerted = {args["platform"] for _, args in alerter.sent}
+    assert alerted == {Platform.DOUYIN.value}
+
+
+async def test_each_platform_refills_against_its_own_marks() -> None:
+    rpc = FakeRpc()
+    # Five usable on each. Douyin follows the global 3/8 and is satisfied;
+    # TikTok was raised to 6/10 and is under its own mark.
+    pool = PerPlatformPool({Platform.DOUYIN: {"active": 5}, Platform.TIKTOK: {"active": 5}})
+    filler = make_filler(
+        rpc,
+        pool,
+        config=Config({"pool.tiktok.min_size": 6, "pool.tiktok.target_size": 10}),
+    )
+
+    assert await filler.survey() is Platform.TIKTOK
+
+
+async def test_turning_a_platform_off_mid_refill_stops_it() -> None:
+    rpc = FakeRpc()
+    pool = PerPlatformPool({Platform.DOUYIN: {"active": 8}})
+    settings: dict[str, Any] = {}
+    filler = make_filler(rpc, pool, config=lambda: Config(settings))
+
+    assert await filler.survey() is Platform.TIKTOK
+    settings["pool.tiktok.min_size"] = 0
+    assert await filler.survey() is None
 
 
 async def test_pool_alerts_are_delivered_with_no_transaction_open() -> None:

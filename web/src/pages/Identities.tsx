@@ -24,6 +24,7 @@ import {
   Skeleton,
   SlidersIcon,
   StatusBadge,
+  Switch,
   Textarea,
   useToast,
   type Column,
@@ -326,12 +327,20 @@ function needsReset(row: Identity): boolean {
 }
 
 interface PoolPlatform {
-  platform: string
+  platform: Platform
   usable: number
   live: number
   active: number
   minting: number
   below_minimum: boolean
+  /** This platform's marks after inheritance: what the worker compares. */
+  min_size: number
+  target_size: number
+  /** True when the number is the global one rather than an override. */
+  min_inherited: boolean
+  target_inherited: boolean
+  /** False when `min_size` is 0: no automatic minting, no level alerts. */
+  auto: boolean
 }
 
 /** One attempt, as the worker recorded it. `reason` is the code it logs. */
@@ -351,6 +360,7 @@ interface MintActivity {
 }
 
 interface PoolLevel {
+  /** The global pair, which a platform without an override follows. */
   min_size: number
   target_size: number
   max_fail_streak: number
@@ -359,12 +369,70 @@ interface PoolLevel {
   activity: MintActivity
 }
 
+/** The value a per-platform setting stores to follow the global one. */
+const INHERIT = -1
+
+/**
+ * One platform's row as the operator is editing it.
+ *
+ * Numbers are held as text, not as numbers: an input the operator has emptied
+ * on the way to typing "12" is not the number zero, and coercing it would
+ * fight them mid-keystroke.
+ */
+interface MarksDraft {
+  auto: boolean
+  minimum: string
+  target: string
+}
+
+type Drafts = Partial<Record<Platform, MarksDraft>>
+
+function draftOf(row: PoolPlatform): MarksDraft {
+  return { auto: row.auto, minimum: String(row.min_size), target: String(row.target_size) }
+}
+
+/**
+ * The numbers a draft asks for, or null when it cannot be saved.
+ *
+ * With automatic minting on, the mark must be at least one: zero is how "off"
+ * is stored, and a switch that reads "on" over a mark of zero would be lying.
+ * The target may not sit under the mark, because the worker would clamp it -
+ * and a field that silently means something else is worse than one that will
+ * not save. With minting off the target is not asked about and stays as it
+ * was, so switching back on restores it.
+ */
+function parseDraft(
+  draft: MarksDraft,
+  row: PoolPlatform,
+): { minimum: number; target: number } | null {
+  if (!draft.auto) return { minimum: 0, target: row.target_size }
+  const minimum = Number(draft.minimum)
+  const target = Number(draft.target)
+  if (draft.minimum.trim() === '' || draft.target.trim() === '') return null
+  if (!Number.isInteger(minimum) || !Number.isInteger(target)) return null
+  if (minimum < 1 || target < minimum) return null
+  return { minimum, target }
+}
+
+/**
+ * What to store for one mark: the number, or INHERIT when it equals the global
+ * value. Storing a copy of the global number would pin this platform to it, so
+ * a later change on the scheduler page would silently stop applying here.
+ */
+function storedValue(value: number, global: number): number {
+  return value === global ? INHERIT : value
+}
+
 /**
  * What the refill job is doing, on the page where an operator looks for it.
  *
  * The job has always existed - the worker checks every platform once a minute
- * and mints one identity at a time back up to `pool.target_size` - and nothing
- * on this board said so, which made it indistinguishable from not existing.
+ * and mints one identity at a time back up to the target - and nothing on this
+ * board said so, which made it indistinguishable from not existing.
+ *
+ * Each platform has its own switch and marks. They used to be one shared pair,
+ * which meant a deployment that only serves Douyin kept minting TikTok
+ * identities it had no route to, and failing, every minute (issue 763).
  *
  * `usable` rather than a row count, because that is the number the job compares
  * against the mark: an identity that fails every request stays live, so a pool
@@ -385,32 +453,31 @@ function RefillCard() {
     poll: POLL.fast,
   })
 
-  // Held as text, not as numbers: an input the operator has emptied on the way
-  // to typing "12" is not the number zero, and coercing it would fight them
-  // mid-keystroke.
-  const [draft, setDraft] = useState<{ minimum: string; target: string } | null>(null)
+  const [drafts, setDrafts] = useState<Drafts>({})
 
-  const save = useApiMutation<unknown, { minimum: number; target: number }>(
-    async ({ minimum, target }) => {
-      // Two settings, one button. Only what actually changed is written, so
-      // saving one number does not stamp the other with an identical value and
-      // move it from "default" to "set by hand" in the settings audit.
-      if (minimum !== query.data?.min_size) {
-        await apiPut(paths.settings.byKey('pool.min_size'), { value: minimum, confirm: false })
-      }
-      if (target !== query.data?.target_size) {
-        await apiPut(paths.settings.byKey('pool.target_size'), { value: target, confirm: false })
-      }
+  const afterWrite = (message: string) => {
+    setDrafts({})
+    void invalidate(POOL_KEY)
+    // The scheduler page renders the same settings, so it must not be left
+    // showing the numbers this card just replaced.
+    void invalidate(['admin', 'settings'])
+    toast.success(message)
+  }
+
+  const writeSetting = (key: string, value: number) =>
+    apiPut(paths.settings.byKey(key), { value, confirm: false })
+
+  const save = useApiMutation<unknown, Array<{ key: string; value: number }>>(
+    async (writes) => {
+      // Sequential, and only what changed: saving one number must not stamp
+      // the others with identical values and move them from "default" to "set
+      // by hand" in the settings audit.
+      for (const { key, value } of writes) await writeSetting(key, value)
       return null
     },
     {
       onSuccess: () => {
-        setDraft(null)
-        void invalidate(POOL_KEY)
-        // The scheduler page renders the same two settings, so it must not be
-        // left showing the numbers this card just replaced.
-        void invalidate(['admin', 'settings'])
-        toast.success(t('console:identity.refill.saved'))
+        afterWrite(t('console:identity.refill.saved'))
       },
       onError: (error) => {
         toast.apiError(error, t('console:identity.refill.saveFailed'))
@@ -429,85 +496,75 @@ function RefillCard() {
   }
   if (query.isError || !query.data) return null
 
-  const { min_size: minimum, target_size: target, can_mint: canMint, platforms } = query.data
+  const { can_mint: canMint, platforms } = query.data
+  const global = { minimum: query.data.min_size, target: query.data.target_size }
   // A viewer sees the numbers and cannot change them. With no session payload
   // the server is still the authority, so the controls show and its refusal is
   // what explains itself - the same rule the scheduler page follows.
   const role = session.data?.role ?? null
   const canWrite = role === null || role !== 'viewer'
 
-  const shown = draft ?? { minimum: String(minimum), target: String(target) }
-  const parsed = { minimum: Number(shown.minimum), target: Number(shown.target) }
-  const valid =
-    Number.isInteger(parsed.minimum) &&
-    Number.isInteger(parsed.target) &&
-    parsed.minimum >= 0 &&
-    // Not merely "both are numbers": a target under the mark is a pool the
-    // filler would top up to less than it just decided was too few, so the
-    // worker clamps it - and a field that silently means something else is
-    // worse than one that will not save.
-    parsed.target >= parsed.minimum
-  const dirty =
-    draft !== null && (parsed.minimum !== minimum || parsed.target !== target) && valid
+  const writes: Array<{ key: string; value: number }> = []
+  let valid = true
+  for (const row of platforms) {
+    const draft = drafts[row.platform]
+    if (!draft) continue
+    const parsed = parseDraft(draft, row)
+    if (!parsed) {
+      valid = false
+      continue
+    }
+    if (parsed.minimum !== row.min_size) {
+      writes.push({
+        key: `pool.${row.platform}.min_size`,
+        // Off is stored as a literal zero, never as "inherit", even when the
+        // global mark is zero too: inheriting would switch this platform back
+        // on the day someone raised the global mark on the scheduler page.
+        value: parsed.minimum === 0 ? 0 : storedValue(parsed.minimum, global.minimum),
+      })
+    }
+    if (parsed.target !== row.target_size) {
+      writes.push({
+        key: `pool.${row.platform}.target_size`,
+        value: storedValue(parsed.target, global.target),
+      })
+    }
+  }
+  const dirty = valid && writes.length > 0
+
+  const update = (row: PoolPlatform, patch: Partial<MarksDraft>) => {
+    setDrafts((current) => ({
+      ...current,
+      [row.platform]: { ...(current[row.platform] ?? draftOf(row)), ...patch },
+    }))
+  }
 
   return (
     <Card flush>
       <div className={styles.refill}>
         <span className={styles.refillTitle}>{t('console:identity.refill.title')}</span>
-
-        <span className={styles.refillPools}>
-          {platforms.map((row) => (
-            <span
-              key={row.platform}
-              className={styles.pool}
-              data-low={canMint && row.below_minimum}
-              title={
-                !canMint
-                  ? t('console:identity.refill.manualOnly')
-                  : row.minting > 0
-                    ? t('console:identity.refill.minting', { count: row.minting })
-                    : row.below_minimum
-                      ? t('console:identity.refill.below', { minimum })
-                      : t('console:identity.refill.satisfied', { minimum })
-              }
-            >
-              <span className="u-mono">{row.platform}</span>
-              <b>{row.usable}</b>
-              {canMint && row.minting > 0 ? (
-                <span className="u-xs u-muted">+{row.minting}</span>
-              ) : null}
-            </span>
-          ))}
-        </span>
-
         <span className={styles.refillSpacer} />
-
         {canMint ? (
           <>
-            {(['minimum', 'target'] as const).map((field) => (
-              <label key={field} className={styles.refillField}>
-                <span className="u-xs u-muted">{t(`console:identity.refill.${field}`)}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={999}
-                  inputMode="numeric"
-                  className={styles.refillInput}
-                  disabled={!canWrite || save.isPending}
-                  value={shown[field]}
-                  onChange={(event) => {
-                    setDraft({ ...shown, [field]: event.target.value })
-                  }}
-                />
-              </label>
-            ))}
+            {Object.keys(drafts).length > 0 ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={save.isPending}
+                onClick={() => {
+                  setDrafts({})
+                }}
+              >
+                {t('common:action.cancel')}
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant="primary"
               disabled={!dirty || !canWrite}
               loading={save.isPending}
               onClick={() => {
-                save.mutate(parsed)
+                save.mutate(writes)
               }}
             >
               {t('common:action.save')}
@@ -516,15 +573,144 @@ function RefillCard() {
         ) : null}
       </div>
 
+      <div className={styles.refillRows}>
+        {platforms.map((row) => (
+          <RefillRow
+            key={row.platform}
+            row={row}
+            draft={drafts[row.platform] ?? draftOf(row)}
+            canMint={canMint}
+            globalMinimum={global.minimum}
+            disabled={!canWrite || save.isPending}
+            onChange={(patch) => {
+              update(row, patch)
+            }}
+          />
+        ))}
+      </div>
+
       <MintActivityRow activity={query.data.activity} canMint={canMint} />
 
       <p className={styles.refillHint}>
         {canMint
-          ? t('console:identity.refill.description')
+          ? t('console:identity.refill.description', {
+              minimum: global.minimum,
+              target: global.target,
+            })
           : t('console:identity.refill.noBrowser')}{' '}
         {t('console:identity.refill.usableHint', { streak: query.data.max_fail_streak })}
       </p>
     </Card>
+  )
+}
+
+/**
+ * One platform: its level, whether it is minted for at all, and its marks.
+ *
+ * The "default" tag says whether a number is this platform's own or the global
+ * one. Without it, a platform that silently follows the scheduler page looks
+ * exactly like one somebody set by hand, and changing the global value then
+ * moves one row and not the other for no reason the card admits to.
+ */
+function RefillRow({
+  row,
+  draft,
+  canMint,
+  globalMinimum,
+  disabled,
+  onChange,
+}: {
+  row: PoolPlatform
+  draft: MarksDraft
+  canMint: boolean
+  /** Where a platform switched back on from zero starts. */
+  globalMinimum: number
+  disabled: boolean
+  onChange: (patch: Partial<MarksDraft>) => void
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const invalid = draft.auto && parseDraft(draft, row) === null
+
+  const title = !canMint
+    ? t('console:identity.refill.manualOnly')
+    : !row.auto
+      ? t('console:identity.refill.offHint')
+      : row.minting > 0
+        ? t('console:identity.refill.minting', { count: row.minting })
+        : row.below_minimum
+          ? t('console:identity.refill.below', { minimum: row.min_size })
+          : t('console:identity.refill.satisfied', { minimum: row.min_size })
+
+  return (
+    <div className={styles.refillRow} data-off={canMint && !draft.auto}>
+      <span
+        className={styles.pool}
+        data-low={canMint && row.auto && row.below_minimum}
+        title={title}
+      >
+        <span className="u-mono">{row.platform}</span>
+        <b>{row.usable}</b>
+        {canMint && row.minting > 0 ? <span className="u-xs u-muted">+{row.minting}</span> : null}
+      </span>
+
+      {canMint ? (
+        <>
+          <Switch
+            checked={draft.auto}
+            disabled={disabled}
+            aria-label={t('console:identity.refill.autoFor', { platform: row.platform })}
+            label={<span className="u-xs">{t('console:identity.refill.auto')}</span>}
+            onChange={(event) => {
+              const auto = event.target.checked
+              // Switching back on from a stored zero needs a mark to start
+              // from; the global one is the number the operator last chose.
+              onChange(
+                auto && Number(draft.minimum) < 1
+                  ? { auto, minimum: String(Math.max(1, globalMinimum)) }
+                  : { auto },
+              )
+            }}
+          />
+
+          {draft.auto ? (
+            <>
+              {(['minimum', 'target'] as const).map((field) => {
+                const inherited = field === 'minimum' ? row.min_inherited : row.target_inherited
+                return (
+                  <label key={field} className={styles.refillField}>
+                    <span className="u-xs u-muted">{t(`console:identity.refill.${field}`)}</span>
+                    <input
+                      type="number"
+                      min={field === 'minimum' ? 1 : 0}
+                      max={999}
+                      inputMode="numeric"
+                      className={styles.refillInput}
+                      aria-invalid={invalid || undefined}
+                      title={invalid ? t('console:identity.refill.invalid') : undefined}
+                      disabled={disabled}
+                      value={draft[field]}
+                      onChange={(event) => {
+                        onChange({ [field]: event.target.value })
+                      }}
+                    />
+                    {inherited ? (
+                      <span
+                        className={styles.refillInherited}
+                        title={t('console:identity.refill.inheritedHint')}
+                      >
+                        {t('console:identity.refill.inherited')}
+                      </span>
+                    ) : null}
+                  </label>
+                )
+              })}
+            </>
+          ) : (
+            <span className="u-xs u-muted">{t('console:identity.refill.offHint')}</span>
+          )}
+        </>
+      ) : null}
+    </div>
   )
 }
 

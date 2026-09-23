@@ -18,7 +18,7 @@ docker compose -p dtk -f docker/compose.yml ps
 
 | 循环 | 间隔 | 一次 tick 做什么 |
 | --- | --- | --- |
-| `pool_filler` | 60s | 按平台统计身份数量。可用数低于 `pool.min_size` 时开始铸造，直到达到 `pool.target_size`。触发 `pool_empty` / `pool_below_min`。 |
+| `pool_filler` | 60s | 按平台统计身份数量。可用数低于该平台的下限（`pool.<platform>.min_size`，未设置时为 `pool.min_size`）时开始铸造，直到达到它的目标值。触发 `pool_empty` / `pool_below_min`。下限为 0 的平台整个跳过：不铸造，也不告警。 |
 | `proxy_prober` | 300s | 探测每一条代理记录，回写健康状态和出口地址，把失败代理背后的身份冷却 900 秒。触发 `proxy_unhealthy`。 |
 | `maintenance` | 300s | 九个子任务，见下表。 |
 | `watchlist` | 60s | 把到期的关注条目排入队列，每次最多 `watchlist.batch_size` 条；每 6 小时排一次存活性复查。 |

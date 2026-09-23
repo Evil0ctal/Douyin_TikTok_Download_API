@@ -164,9 +164,15 @@ At the top of the page, reading `GET /api/v1/admin/identities/pool`:
   `cooling`) with a failure streak below `pool.max_fail_streak`. Deliberately not
   the row count: an identity that fails every request stays live, so a pool
   counted by rows can sit at its target while serving nothing.
-- Two editable numbers, **Mint below** (`pool.min_size`, default 3) and **Top up
-  to** (`pool.target_size`, default 8). Saving writes only the number you
-  changed. The target may not be lower than the minimum.
+- One row per platform with its own **Auto** switch and two numbers, **Mint
+  below** and **Top up to**. A platform follows the global `pool.min_size`
+  (default 3) and `pool.target_size` (default 8) until you give it numbers of
+  its own, and a number that is still following says **default** next to it.
+  Typing the global value back makes it follow again. Switching **Auto** off
+  stores `pool.<platform>.min_size = 0`: that platform is never minted for
+  automatically and raises no pool alerts, which is what a deployment that only
+  serves one platform wants. Saving writes only what you changed. The mark must
+  be at least 1 while Auto is on, and the target may not be lower than it.
 - A mint activity row: what is being minted right now, the last 20 attempts as a
   strip of ticks with the reason in each tooltip, and the backoff when repeated
   failures have put the sweep to sleep. It comes from the worker through Redis,
@@ -874,6 +880,8 @@ other setting in [Configuration](./03-configuration.md).
 | --- | --- | --- |
 | `pool.min_size` | 3 | Low-water mark per platform. Below it, the refill job mints. |
 | `pool.target_size` | 8 | What it tops up to. Clamped up to `min_size` if set lower. |
+| `pool.<platform>.min_size` | -1 | This platform's own mark (`douyin` or `tiktok`). -1 follows `pool.min_size`; 0 turns automatic minting and pool alerts off for the platform. |
+| `pool.<platform>.target_size` | -1 | This platform's own target. -1 follows `pool.target_size`. |
 | `pool.max_fail_streak` | 3 | Failure streak at which an identity stops counting towards the pool level, so the filler replaces it instead of counting it. |
 | `pool.health_prior` | 0.8 | Assumed success rate for an identity with too little traffic to score. |
 | `sched.max_wait_seconds` | 10 | How long a request waits for an identity before failing. |

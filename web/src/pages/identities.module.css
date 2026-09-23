@@ -70,12 +70,6 @@
   white-space: nowrap;
 }
 
-.refillPools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
 .pool {
   display: inline-flex;
   align-items: baseline;
@@ -137,6 +131,45 @@
 .refillInput:disabled {
   color: var(--text-muted);
   cursor: not-allowed;
+}
+
+/*
+ * A row per platform, because each one now has its own switch and marks
+ * (issue 763). Still one line each: the card's job is to answer "is it topping
+ * itself up" at a glance, not to become a settings form.
+ */
+.refillRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.refillRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Wide enough for "douyin" and a three-digit count, so the switches and
+   inputs of the two rows line up instead of starting wherever the chip ends. */
+.refillRow .pool {
+  min-width: 7.5rem;
+}
+
+.refillRow[data-off='true'] .pool {
+  opacity: 0.6;
+}
+
+/* Following the global value rather than a number set for this platform. */
+.refillInherited {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.refillInput[aria-invalid='true'] {
+  border-color: var(--danger);
 }
 
 .refillHint {

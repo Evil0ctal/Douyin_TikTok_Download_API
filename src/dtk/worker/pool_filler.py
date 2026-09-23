@@ -35,6 +35,7 @@ from dtk.core.logging import get_logger
 from dtk.core.redis import run_script
 from dtk.core.types import IdentitySource, IdentityState, Platform
 from dtk.identity import mint_log
+from dtk.identity.marks import pool_marks
 from dtk.identity.minting import BrowserRpcClient, BrowserRpcUnavailable
 from dtk.identity.pool import IdentityPool
 from dtk.worker.alerts import Alerter, NotifyEvent, raise_alert
@@ -160,14 +161,21 @@ class PoolFiller:
         for as long as that endpoint feels like taking.
         """
         config = self._config()
-        min_size = int(config.get("pool.min_size"))
-        target_size = max(min_size, int(config.get("pool.target_size")))
         max_fail_streak = max(1, int(config.get("pool.max_fail_streak")))
 
         worst: tuple[int, Platform] | None = None
         pending: list[tuple[NotifyEvent, dict[str, Any]]] = []
         async with self._session_factory() as session:
             for platform in self._options.platforms:
+                marks = pool_marks(config, platform)
+                if not marks.auto:
+                    # Turned off for this platform: no mint, and no alert about
+                    # a level the operator has said they do not want. Before
+                    # the marks were per platform, a deployment with no route
+                    # to TikTok minted and failed here every minute (#763).
+                    self._filling.discard(platform)
+                    continue
+                min_size, target_size = marks.min_size, marks.target_size
                 counts = await self._pool.counts(session, platform)
                 active = int(counts.get(IdentityState.ACTIVE.value, 0))
                 live = _live(counts)

@@ -19,6 +19,7 @@ import typer
 from dtk.cli import output, runtime
 from dtk.core.types import Platform
 from dtk.identity import BrowserRpcClient
+from dtk.identity.marks import strictest_min_size
 from dtk.ops import pipeline, probes
 from dtk.ops.diagnose import (
     DiagnoseContext,
@@ -76,7 +77,7 @@ def diagnose(
                 http=http,
                 smoke=None if skip_smoke else _smoke_runner(ctx),
                 smoke_url=None if skip_smoke else (smoke_url or probes.SMOKE_URLS[platform]),
-                min_active=int(ctx.config.get("pool.min_size")),
+                min_active=strictest_min_size(ctx.config),
             )
             if proxy_probe_url:
                 diagnose_ctx.proxy_probe_url = proxy_probe_url

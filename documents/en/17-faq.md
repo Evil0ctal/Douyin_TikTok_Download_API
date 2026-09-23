@@ -183,6 +183,12 @@ The filler starts topping up when the usable count drops below the minimum and
 stops at the target, so a healthy pool sits between them rather than being
 re-triggered every minute.
 
+Each platform can have its own pair: `pool.douyin.min_size` / `target_size` and
+`pool.tiktok.min_size` / `target_size`, which follow the global ones while they
+are `-1`. If you only use one platform, set the other one's `min_size` to `0`
+(or turn its **Auto** switch off on the Identities page) and it will not be
+minted for or alerted on at all.
+
 What an identity is actually worth is set by the token bucket, which is per
 (identity, endpoint):
 

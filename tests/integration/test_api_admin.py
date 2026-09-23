@@ -92,6 +92,37 @@ async def test_pool_level_reports_the_marks_the_refill_job_uses(client: Any) -> 
     assert by_platform[Platform.TIKTOK.value]["below_minimum"] is True
 
 
+async def test_pool_level_reports_each_platforms_own_marks(client: Any) -> None:
+    """Issue 763: a platform can follow the global marks, set its own, or be off."""
+    await signed_in(client)
+    for key, value in (("pool.tiktok.min_size", 0), ("pool.douyin.target_size", 12)):
+        response = await client.put(f"/api/v1/admin/settings/{key}", json={"value": value})
+        assert response.status_code == 200, response.text
+
+    data = envelope(await client.get("/api/v1/admin/identities/pool"))["data"]
+
+    by_platform = {row["platform"]: row for row in data["platforms"]}
+    tiktok = by_platform[Platform.TIKTOK.value]
+    assert tiktok["auto"] is False
+    assert tiktok["min_size"] == 0
+    assert tiktok["min_inherited"] is False
+    # Off is not "under the mark": nothing will be minted, so saying so would lie.
+    assert tiktok["below_minimum"] is False
+    douyin = by_platform[Platform.DOUYIN.value]
+    assert douyin["auto"] is True
+    assert douyin["min_size"] == data["min_size"]
+    assert douyin["min_inherited"] is True
+    assert douyin["target_size"] == 12
+    assert douyin["target_inherited"] is False
+
+
+async def test_a_per_platform_mark_below_inherit_is_refused(client: Any) -> None:
+    await signed_in(client)
+    response = await client.put("/api/v1/admin/settings/pool.tiktok.min_size", json={"value": -2})
+    # -2 is a typo, not a second way of saying "inherit".
+    assert error_code(response) == "INVALID_PARAM"
+
+
 async def test_pool_level_counts_usable_not_rows(client: Any) -> None:
     """A dead identity is still a row. The mark is about what can serve."""
     await signed_in(client)

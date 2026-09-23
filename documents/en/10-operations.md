@@ -19,7 +19,7 @@ Almost all day-two behaviour comes from four loops inside the `worker` container
 
 | Loop | Interval | What one tick does |
 | --- | --- | --- |
-| `pool_filler` | 60s | Counts identities per platform. Mints when the usable count is under `pool.min_size`, until it reaches `pool.target_size`. Raises `pool_empty` / `pool_below_min`. |
+| `pool_filler` | 60s | Counts identities per platform. Mints when the usable count is under that platform's mark (`pool.<platform>.min_size`, else `pool.min_size`), until it reaches its target. Raises `pool_empty` / `pool_below_min`. A platform whose mark is 0 is skipped entirely: no mint, no alert. |
 | `proxy_prober` | 300s | Probes every proxy row, writes back health and exit address, cools identities behind a failed proxy for 900s. Raises `proxy_unhealthy`. |
 | `maintenance` | 300s | Nine jobs, listed below. |
 | `watchlist` | 60s | Queues watchlist entries that are due, at most `watchlist.batch_size` per tick; queues an availability recheck every 6 hours. |

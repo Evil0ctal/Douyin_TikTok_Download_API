@@ -39,6 +39,7 @@ import httpx
 from dtk.core.db import get_engine
 from dtk.core.redis import get_redis
 from dtk.core.types import Platform
+from dtk.identity.marks import strictest_min_size
 from dtk.ops import pipeline
 from dtk.ops.diagnose import STEP_TIMEOUT_SECONDS, DiagnoseContext, SmokeRunner, run_diagnostics
 from dtk.ops.probes import SMOKE_URLS
@@ -97,7 +98,7 @@ async def run(
                 http=http,
                 smoke=smoke,
                 smoke_url=SMOKE_URLS[SMOKE_PLATFORM] if include_smoke else None,
-                min_active=int(config.get("pool.min_size")),
+                min_active=strictest_min_size(config),
             )
         )
 

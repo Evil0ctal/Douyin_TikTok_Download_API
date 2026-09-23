@@ -61,6 +61,7 @@ from dtk.identity.importing import (
     session_expiry,
     to_cookie_header,
 )
+from dtk.identity.marks import pool_marks
 from dtk.identity.pool import IdentityPool
 from dtk.scheduler.health import score
 from dtk.signing.native.websign import UIFID_COOKIE_NAMES, VERIFY_FP_COOKIE
@@ -360,6 +361,9 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
     identical to one nobody asked to refill.
     """
     config = request.app.state.config
+    # The global pair, which is what a platform with no override of its own
+    # follows. Kept at the top level so a client written before the marks were
+    # per platform still reads the numbers it always did.
     min_size = int(config.get("pool.min_size"))
     target_size = max(min_size, int(config.get("pool.target_size")))
     max_fail_streak = max(1, int(config.get("pool.max_fail_streak")))
@@ -368,6 +372,7 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
     identities = IdentityPool(request.app.state.cipher)
     platforms: list[dict[str, Any]] = []
     for platform in Platform:
+        marks = pool_marks(config, platform)
         counts = await identities.counts(request.state.db, platform)
         usable = await identities.usable_count(
             request.state.db, platform, max_fail_streak=max_fail_streak
@@ -387,7 +392,14 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
                 # two is only refilling if it was already under - which this
                 # cannot know from a count alone, and says the honest thing:
                 # below the mark it will mint, at or above it will not.
-                "below_minimum": usable < min_size,
+                "below_minimum": marks.auto and usable < marks.min_size,
+                "min_size": marks.min_size,
+                "target_size": marks.target_size,
+                # Whether each number is this platform's own or the global one,
+                # so the console can offer "back to the default" honestly.
+                "min_inherited": marks.min_inherited,
+                "target_inherited": marks.target_inherited,
+                "auto": marks.auto,
             }
         )
 

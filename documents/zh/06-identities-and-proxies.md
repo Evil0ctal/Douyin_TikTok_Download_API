@@ -108,7 +108,7 @@ health = success_rate × (1 − risk_rate) × 0.5^consecutive_fails
 位于页面顶部，数据来自 `GET /api/v1/admin/identities/pool`：
 
 - 每个平台一个数字，显示**可用**身份数——存活（`active` + `cooling`）且连续失败次数低于 `pool.max_fail_streak` 的那些。刻意不用行数：一个每次请求都失败的身份依然算存活，所以按行数统计的池子可以一边停在目标值上、一边什么都服务不了。
-- 两个可编辑的数字：**低于**（`pool.min_size`，默认 3）和**补到**（`pool.target_size`，默认 8）。保存时只写你改动的那一个。目标值不能低于下限。
+- 每个平台一行，各有一个**自动**开关和两个数字：**低于**和**补到**。没有单独设置的平台沿用全局的 `pool.min_size`（默认 3）和 `pool.target_size`（默认 8），仍在沿用的数字旁边会标着**默认**；把数字改回全局值，它就重新跟随全局。关掉**自动**会写入 `pool.<platform>.min_size = 0`：这个平台不再自动铸造，也不再发身份池告警——只用一个平台的部署要的就是这个。保存时只写你改动的部分。开启自动时下限至少为 1，补到的数量不能低于下限。
 - 一行铸造动态：当前正在铸造什么、最近 20 次尝试（一排小方块，鼠标悬停显示原因），以及连续失败把补充任务打入退避时的等待时间。这些数据由 worker 经 Redis 提供，因为失败的铸造不会留下任何身份行——而这正是「死活补不上来的池子」以前看起来和「根本没人要求补充的池子」一模一样的原因。
 - 如果没有设置 `DTK_BROWSER_RPC_URL`，两个数字输入框会消失，卡片会直接说明：什么都铸造不了，池子里只有你手动导入的身份，两个阈值不起作用。
 
@@ -543,6 +543,8 @@ docker compose -p dtk -f docker/compose.yml exec api dtk identity list --platfor
 | --- | --- | --- |
 | `pool.min_size` | 3 | 每个平台的低水位线。低于它，补充任务开始铸造。 |
 | `pool.target_size` | 8 | 补到多少。设得比 `min_size` 低时会被抬到 `min_size`。 |
+| `pool.<platform>.min_size` | -1 | 单个平台（`douyin` 或 `tiktok`）自己的下限。-1 沿用 `pool.min_size`；0 关闭这个平台的自动铸造和身份池告警。 |
+| `pool.<platform>.target_size` | -1 | 单个平台自己的目标值。-1 沿用 `pool.target_size`。 |
 | `pool.max_fail_streak` | 3 | 连续失败达到该值后，身份不再计入池子水位，补充任务会去补一个新的而不是把它算进来。 |
 | `pool.health_prior` | 0.8 | 流量太少无法评分时，假定的成功率。 |
 | `sched.max_wait_seconds` | 10 | 一个请求在失败前最多等多久拿身份。 |

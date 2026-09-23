@@ -368,7 +368,7 @@
     "columnsDiffer": "「会话凭据」和「健康度」量的不是同一件事。凭据完整但请求一直失败，说明 Cookie 没问题、是签名或出口有问题——这是本页最快的判断依据。",
     "refill": {
       "title": "自动补充",
-      "description": "worker 每分钟检查一次各平台，可用身份低于下限时每次锻造一个，直到补满。",
+      "description": "worker 每分钟检查一次各平台，可用身份低于该平台的下限时每次锻造一个，直到补满。没有单独设置的平台沿用调度页上的全局值 {minimum} / {target}；把数字改回全局值，它就重新跟随全局。",
       "noBrowser": "没有配置浏览器容器，无法锻造。池子里只有手动导入的身份，两个阈值不起作用。",
       "below": "低于 {minimum}，正在补充。",
       "satisfied": "已达到 {minimum}。",
@@ -378,7 +378,13 @@
       "minimum": "低于",
       "target": "补到",
       "saved": "补充阈值已更新",
-      "saveFailed": "补充阈值更新失败"
+      "saveFailed": "补充阈值更新失败",
+      "auto": "自动",
+      "autoFor": "自动锻造 {platform} 身份",
+      "offHint": "已关闭：不自动锻造，也不发身份池告警。导入的身份照常可用。",
+      "inherited": "默认",
+      "inheritedHint": "沿用调度页上的全局值",
+      "invalid": "下限至少为 1，补到的数量不能低于下限"
     },
     "mintLog": {
       "inFlight": "正在锻造 {platform} 身份",

@@ -92,7 +92,15 @@
         "target_size": "How many identities the pool tries to keep per platform.",
         "min_size": "Low-water mark per platform. Dropping below it raises an alert and triggers minting.",
         "health_prior": "Assumed success rate for an identity with no history yet, between 0 and 1. It decides how eagerly a freshly minted identity is scheduled.",
-        "max_fail_streak": "Consecutive failures after which an identity stops counting towards the pool level, so the filler mints a replacement instead of counting a session that serves nothing. The failure streak is used rather than the health score because the score is empty until there is traffic, and scoring a freshly minted identity as unusable would turn the low-water mark into a minting loop."
+        "max_fail_streak": "Consecutive failures after which an identity stops counting towards the pool level, so the filler mints a replacement instead of counting a session that serves nothing. The failure streak is used rather than the health score because the score is empty until there is traffic, and scoring a freshly minted identity as unusable would turn the low-water mark into a minting loop.",
+        "douyin": {
+          "min_size": "Mint-below mark for Douyin only. -1 follows pool.min_size; 0 turns automatic minting off for Douyin, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
+          "target_size": "Top-up target for Douyin only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it."
+        },
+        "tiktok": {
+          "min_size": "Mint-below mark for TikTok only. -1 follows pool.min_size; 0 turns automatic minting off for TikTok, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
+          "target_size": "Top-up target for TikTok only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it."
+        }
       },
       "signing": {
         "mode": "Which signer produces the request signature: the browser, the in-process algorithms, or automatic switching between them.",
@@ -436,7 +444,7 @@
       },
       "identities_pool": {
         "summary": "Pool level against its low-water mark",
-        "description": "What the background refill job compares, per platform. `usable` counts live identities whose consecutive failure streak is still under `pool.max_fail_streak` - not the row count, because an identity that fails every request stays live and would otherwise keep a dead pool looking full. Below `pool.min_size` the worker mints one identity per minute until the pool is back at `pool.target_size`. `can_mint` is false when this deployment has no browser container, in which case the marks have no effect and the pool is whatever was imported by hand."
+        "description": "What the background refill job compares, per platform. `usable` counts live identities whose consecutive failure streak is still under `pool.max_fail_streak` - not the row count, because an identity that fails every request stays live and would otherwise keep a dead pool looking full. Below its `min_size` the worker mints one identity per minute until the pool is back at its `target_size`. Each platform row carries its own pair: `pool.<platform>.min_size` / `target_size` when set, the global `pool.min_size` / `pool.target_size` otherwise (`min_inherited` / `target_inherited` say which). `auto` is false when a platform's `min_size` is 0, which turns its automatic minting and its low-level alerts off. The top-level `min_size` and `target_size` are the global pair. `can_mint` is false when this deployment has no browser container, in which case the marks have no effect and the pool is whatever was imported by hand."
       },
       "identities_reset": {
         "summary": "Return an identity to rotation",
