@@ -7,12 +7,15 @@ account exists the endpoint is closed permanently.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
 
 from dtk.api.routes import setup
+from dtk.core.db import session_scope
 from dtk.core.redis import get_redis
+from dtk.db.repositories import UserRepository
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
     envelope,
@@ -89,6 +92,80 @@ async def test_wrong_token_is_rejected_and_leaves_the_instance_open(client: Any)
 
     status = await client.get("/api/setup/status")
     assert envelope(status)["data"] == {"initialized": False}
+
+
+class BothReadFirst:
+    """Redis, except that no GET returns until two of them have been issued.
+
+    Left to the event loop the two requests usually do not overlap at all - the
+    first has deleted the token before the second reads it - so a test without
+    this passes against the racy code too. This holds both at the one point
+    where the race lives: after the read, before anything is written.
+    """
+
+    def __init__(self, redis: Any) -> None:
+        self._redis = redis
+        self._barrier = asyncio.Barrier(2)
+
+    async def get(self, key: str) -> Any:
+        value = await self._redis.get(key)
+        await self._barrier.wait()
+        return value
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._redis, name)
+
+
+async def test_racing_requests_with_the_real_token_create_one_administrator(
+    client: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only one of two concurrent requests holding the token may win.
+
+    The token used to be read, compared, and only then deleted, with awaits in
+    between, so two requests could both read it before either deleted it and
+    both create an administrator. Deleting it is now the claim: DEL reports
+    whether it removed the key, and only one caller can be the one that did.
+    """
+    token = await issue_token()
+    racing = BothReadFirst(get_redis())
+    monkeypatch.setattr(setup, "get_redis", lambda: racing)
+
+    responses = await asyncio.gather(
+        *(
+            client.post(
+                "/api/setup/init",
+                json={"token": token, "username": name, "password": "a-good-password"},
+            )
+            for name in ("first", "second")
+        )
+    )
+
+    assert sorted(r.status_code for r in responses) == [201, 409], [r.text for r in responses]
+    loser = next(r for r in responses if r.status_code == 409)
+    assert error_code(loser) == "SETUP_ALREADY_DONE"
+    async with session_scope() as session:
+        assert await UserRepository(session).count() == 1
+
+
+async def test_a_wrong_token_does_not_burn_the_real_one(client: Any) -> None:
+    """A wrong guess costs an attempt, never the token itself.
+
+    Consuming the token on every read (GETDEL) would close the race above too,
+    but it would let anyone who can reach the port stop the owner from ever
+    finishing setup, one bad request per restart.
+    """
+    token = await issue_token()
+    wrong = await client.post(
+        "/api/setup/init",
+        json={"token": "not-the-token", "username": "owner", "password": "a-good-password"},
+    )
+    assert wrong.status_code == 403
+
+    right = await client.post(
+        "/api/setup/init",
+        json={"token": token, "username": "owner", "password": "a-good-password"},
+    )
+    assert right.status_code == 201, right.text
 
 
 async def test_five_failures_invalidate_the_token(client: Any) -> None:

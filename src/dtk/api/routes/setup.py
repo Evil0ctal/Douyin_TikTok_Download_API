@@ -161,7 +161,8 @@ async def setup_init(request: Request, body: SetupInit) -> Any:
 
     Ordering matters. The account check comes first so an initialized instance
     answers 409 without ever looking at the token; the token is deleted the
-    moment it verifies, so two racing requests cannot both succeed.
+    moment it verifies, and whichever request's DELETE actually removed it is
+    the one that goes on, so two racing requests cannot both succeed.
     """
     session = request.state.db
     users = UserRepository(session)
@@ -187,9 +188,17 @@ async def setup_init(request: Request, body: SetupInit) -> Any:
             details={"attempts_remaining": remaining},
         )
 
-    # Single use: burn it before the account is written, so a second request
-    # holding the same token finds nothing to match against.
-    await redis.delete(SETUP_TOKEN_KEY, SETUP_ATTEMPTS_KEY)
+    # Single use, and deleting it is the claim. Two requests holding the real
+    # token can both get past the read above before either reaches this line,
+    # and both used to go on to create an administrator. DEL reports whether it
+    # removed the key, and only one caller can be the one that did.
+    #
+    # Not GETDEL on the read: that would close the race too, but it burns the
+    # token on a wrong guess as well, which lets anyone who can reach the port
+    # keep the owner from ever finishing setup.
+    if not await redis.delete(SETUP_TOKEN_KEY):
+        raise SetupAlreadyDone("this instance already has an administrator account")
+    await redis.delete(SETUP_ATTEMPTS_KEY)
 
     user = await users.create(
         username=body.username,
