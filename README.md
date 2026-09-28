@@ -538,7 +538,8 @@ would otherwise have to ask you.
 You may use, modify and distribute this project, **including commercially and inside
 closed-source products**. The grant is irrevocable. In return the licence asks you to:
 
-- Keep the copyright notice and the licence text with any copy you distribute
+- Keep the licence text and the [NOTICE](./NOTICE) file, which carries the copyright
+  notice, with any copy you distribute
 - State what you changed, in files you modified
 - Accept that it comes with no warranty
 
