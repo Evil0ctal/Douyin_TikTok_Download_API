@@ -305,11 +305,13 @@ def resolve_count(
     return value
 
 
-def resolve_request_proxy(request: Request, value: str | None) -> str | None:
+async def resolve_request_proxy(request: Request, value: str | None) -> str | None:
     """Vet a caller-supplied egress against this instance's setting.
 
     The mode lives in ``security.request_proxy`` and defaults to refusing the
     parameter; :mod:`dtk.api.request_proxy` explains why, and does the checking.
+    Async because ``public`` mode resolves the proxy's name and hands back the
+    address it checked, not the name.
     An unrecognised setting value is treated as ``deny`` rather than as a
     permissive default - a typo in an operator's configuration must not be the
     thing that opens their network.
@@ -322,7 +324,7 @@ def resolve_request_proxy(request: Request, value: str | None) -> str | None:
     except ValueError:
         log.warning("api.request_proxy.unknown_mode", configured=raw)
         mode = request_proxy.RequestProxyMode.DENY
-    return request_proxy.normalize(value, mode=mode)
+    return await request_proxy.vet(value, mode=mode)
 
 
 #: The scopes and role a caller needs before they may name an identity. They

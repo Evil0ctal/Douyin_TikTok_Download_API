@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.request_proxy import RequestProxyMode
-from dtk.api.request_proxy import normalize as normalize_proxy
+from dtk.api.request_proxy import vet as vet_proxy
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.support import ok
 from dtk.core.errors import InvalidParam, NotConfigured, UpstreamRiskControl
@@ -888,7 +888,7 @@ async def mint_identity(
         mode = RequestProxyMode(raw_mode)
     except ValueError:
         mode = RequestProxyMode.DENY
-    egress = normalize_proxy(body.proxy, mode=mode)
+    egress = await vet_proxy(body.proxy, mode=mode)
 
     client = BrowserRpcClient(base_url)
     try:

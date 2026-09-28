@@ -122,11 +122,17 @@ def is_private_host(host: str) -> bool:
     Handles address literals (v4, v6, bracketed, IPv4-mapped), the usual local
     names, and single-label intranet names. Decimal or hex integer forms of an
     address (``2130706433``, ``0x7f000001``) are refused as well: they are never
-    a real hostname and exist only to slip past naive string checks.
+    a real hostname and exist only to slip past naive string checks. So is a
+    label that spells a non-global address with hyphens, see
+    :func:`_spells_private_address`.
 
-    DNS is deliberately not consulted. Resolving here would add a network call
-    to a pure function and would still be a time-of-check/time-of-use gap, so
-    the defence is the positive allowlist plus a proxy on every outbound call.
+    DNS is deliberately not consulted, which makes this a judgement of the
+    *text* and nothing more. That is enough where a positive allowlist follows
+    it. It is not enough where the caller picks the host outright: any name can
+    be given an A record of 127.0.0.1, and GHSA-q3h8-73xx-gwqx did exactly that
+    with a public wildcard-DNS service. Such a caller must resolve the name,
+    check every answer here, and dial the answer it checked -
+    :mod:`dtk.api.request_proxy` is the example.
     """
     name = host.strip().strip("[]").rstrip(".").lower()
     if not name:
@@ -145,7 +151,52 @@ def is_private_host(host: str) -> bool:
     if len(labels) == 1:
         # A bare label is an intranet name; it can never be an allowed domain.
         return True
-    return any(NUMERIC_HOST_RE.match(label) for label in labels)
+    return any(NUMERIC_HOST_RE.match(label) or _spells_private_address(label) for label in labels)
+
+
+def _spells_private_address(label: str) -> bool:
+    """True when one DNS label spells a non-global address in hyphens.
+
+    Wildcard-DNS services answer with whatever address the name spells:
+    ``127-0-0-1.sslip.io`` and ``app-10-0-0-1.nip.io`` resolve to exactly what
+    they say, forever, for anyone. The dotted spelling (``127.0.0.1.nip.io``)
+    was always refused by the numeric-label rule; the hyphenated one read as an
+    ordinary public name until GHSA-q3h8-73xx-gwqx.
+
+    Only a non-global address counts. ``ec2-54-12-34-56.compute-1.amazonaws.com``
+    spells a public address and is a perfectly real hostname.
+
+    Hex spellings (``7f000001``) are not decoded. Eight hex digits is also what
+    a CDN's hash label looks like, and about one random label in thirteen
+    decodes to a non-global range - a media host refused for its hash. That
+    spelling, and every name whose owner simply points it at 127.0.0.1, is
+    caught by resolving; :func:`is_private_host` says who has to.
+    """
+    parts = label.split("-")
+    # Every window of four, not just the whole label: the services accept a
+    # prefix (``customer1-app-10-0-0-1``), and a prefix of digits must not hide
+    # the address after it.
+    for start in range(len(parts) - 3):
+        window = parts[start : start + 4]
+        if not all(len(part) <= 3 and part.isascii() and part.isdigit() for part in window):
+            continue
+        # int() drops leading zeros, which ipaddress refuses outright. Reading
+        # ``010`` as ten can only err toward refusing, never toward letting in.
+        try:
+            address = ipaddress.IPv4Address(".".join(str(int(part)) for part in window))
+        except ValueError:
+            continue
+        if not address.is_global:
+            return True
+
+    # sslip.io spells IPv6 with a hyphen per colon: ``--1`` is ``::1``.
+    if "-" in label:
+        try:
+            v6 = ipaddress.IPv6Address(label.replace("-", ":"))
+        except ValueError:
+            return False
+        return not v6.is_global
+    return False
 
 
 def _registrable_domain(host: str) -> str | None:

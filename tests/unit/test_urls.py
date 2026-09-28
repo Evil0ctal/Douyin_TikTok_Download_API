@@ -652,13 +652,36 @@ def test_allowed_targets(url: str) -> None:
         "printer",
         "db.internal",
         "foo.local",
+        # Wildcard DNS that answers with the address spelt in the name
+        # (GHSA-q3h8-73xx-gwqx). The dotted spelling was always caught by the
+        # numeric-label rule; the hyphenated one was not.
+        "127-0-0-1.sslip.io",
+        "169-254-169-254.sslip.io",
+        "app-10-0-0-1.nip.io",
+        "customer1-app-192-168-001-001.nip.io",
+        "--1.sslip.io",
+        "fe80--1.sslip.io",
     ],
 )
 def test_is_private_host(host: str) -> None:
     assert is_private_host(host) is True
 
 
-@pytest.mark.parametrize("host", ["www.douyin.com", "v.douyin.com", "www.tiktok.com", "8.8.8.8"])
+@pytest.mark.parametrize(
+    "host",
+    [
+        "www.douyin.com",
+        "v.douyin.com",
+        "www.tiktok.com",
+        "8.8.8.8",
+        # An address in the name is only a problem when the address is.
+        "8-8-8-8.sslip.io",
+        "ec2-54-12-34-56.compute-1.amazonaws.com",
+        "v26-web.douyinvod.com",
+        "p16-sign-va.tiktokcdn.com",
+        "xn--fiqs8s.cn",
+    ],
+)
 def test_is_private_host_allows_public_names(host: str) -> None:
     assert is_private_host(host) is False
 

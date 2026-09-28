@@ -357,7 +357,7 @@ forgery in its plainest form.
 would already trust with the network the instance runs in. It is the largest
 single widening available in the settings table.
 
-Three details of the implementation are deliberate:
+Four details of the implementation are deliberate:
 
 - **A disabled feature refuses rather than ignores.** Silently dropping the
   parameter would send the request from the instance's own address while the
@@ -368,6 +368,15 @@ Three details of the implementation are deliberate:
 - **The value is never echoed back or logged.** A proxy URL carries
   credentials, and a rejected request is exactly when somebody is most likely to
   have pasted a real one. Only the scheme and the mode are logged.
+- **In `public` mode the name is resolved and the address pinned.** The text of
+  a hostname proves nothing about where it leads: `127-0-0-1.sslip.io`, or any
+  domain whose owner points it at `127.0.0.1`, is a public-looking name for
+  loopback. So every address the name resolves to must be public, and the
+  request is dialled at the address that was checked rather than at the name —
+  a second lookup never happens, so it cannot answer differently. An `https`
+  proxy keeps its name, because its TLS certificate is verified against it and
+  an address the name was rebound to cannot produce one. A name that does not
+  resolve within five seconds is refused with `host_unresolvable`.
 
 Accepted values are at most 512 characters and must use `http`, `https`,
 `socks5` or `socks5h`.

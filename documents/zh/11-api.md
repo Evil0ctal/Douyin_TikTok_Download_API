@@ -480,9 +480,9 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 让上游请求走**你**提供的出口，替换掉该身份自己的出口。
 
 - 除非管理员把 `security.request_proxy` 设为 `public` 或 `any`，否则一律拒绝。默认是 `deny`，而且无法识别的值也按 `deny` 处理——配置里的一个笔误不该成为打开网络的那件事。
-- `public` 只接受公网可路由的目的地；`any` 连回环和私有网段也接受，只有在每一个持有 API key 的人都已经被信任可以访问该实例所在网络时才说得通。
+- `public` 只接受公网可路由的目的地。以域名给出的代理会先被解析，解析出的每一个地址都必须是公网地址，之后请求拨向的是通过检查的那个地址而不是域名——所以 `http://proxy.example.com:8080` 往下传时会变成 `http://<它的地址>:8080`。`https` 代理保留域名，因为它的证书要按域名校验。`any` 连回环和私有网段也接受，只有在每一个持有 API key 的人都已经被信任可以访问该实例所在网络时才说得通。
 - 协议：`http`、`https`、`socks5`、`socks5h`。最长 512 字符。请写成完整 URL，例如 `http://host:port`。
-- 拒绝时返回 `INVALID_PARAM`，`details.reason` 是 `request_proxy_disabled`、`too_long`、`scheme_missing`、`scheme_not_supported`、`host_missing`、`port_invalid`、`host_not_public` 之一。你发的值永远不会被回显或写日志，因为一个被拒的代理 URL 恰恰是最可能刚粘贴了真实凭据的时刻。
+- 拒绝时返回 `INVALID_PARAM`，`details.reason` 是 `request_proxy_disabled`、`too_long`、`scheme_missing`、`scheme_not_supported`、`authority_invalid`、`host_missing`、`port_invalid`、`host_not_public`、`host_unresolvable` 之一。你发的值永远不会被回显或写日志，因为一个被拒的代理 URL 恰恰是最可能刚粘贴了真实凭据的时刻。
 - 功能被关闭时是**拒绝**而不是忽略。悄悄丢掉这个参数，会让请求从实例自己的地址发出去，而你以为它走了你的代理。
 
 代价是真实存在的，不是白送的选项：这个身份的 cookie 是在某个地址后面签发的，现在却从另一个地址出示，这正是平台看得见的那种自相矛盾。两个通过不同代理请求同一条作品的调用方，问的不是同一个问题，所以永远不会被合并。
