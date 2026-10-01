@@ -19,7 +19,7 @@
     "intl-messageformat": "^10.7.7",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-i18next": "^15.2.0",
+    "react-i18next": "^17.0.15",
     "wouter": "^3.11.1"
   },
   "devDependencies": {
