@@ -335,7 +335,7 @@ export function DataTable<T>({
     </div>
   )
 
-  let body: ReactNode = null
+  let body: ReactNode
 
   if (error) {
     body = <ErrorState error={error} onRetry={onRetry} />
