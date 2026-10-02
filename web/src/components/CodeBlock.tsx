@@ -53,7 +53,7 @@ function highlight(source: string): ReactNode[] {
   }
 
   if (lastIndex < source.length) {
-    nodes.push(<span key={key++}>{source.slice(lastIndex)}</span>)
+    nodes.push(<span key={key}>{source.slice(lastIndex)}</span>)
   }
   return nodes
 }

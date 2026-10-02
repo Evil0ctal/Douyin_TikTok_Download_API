@@ -224,7 +224,7 @@ export function SplitPane({
 
   const onGutterKeyDown = (index: number, event: KeyboardEvent<HTMLDivElement>): void => {
     const step = usableWidth > 0 ? (KEY_STEP_PX / usableWidth) * 100 : 0
-    let next: number[] | null = null
+    let next: number[] | null
     switch (event.key) {
       case 'ArrowLeft':
         next = withDelta(sizes, index, -step, usableWidth)
