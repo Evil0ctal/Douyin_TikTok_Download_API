@@ -304,9 +304,10 @@ class TaskWorker:
         self._config: Callable[[], Config] = config if callable(config) else (lambda: config)
         self._options = options or WorkerOptions()
         self._session_factory = session_factory
-        # Where the "parse" endpoint's short-link hop leaves from. Only that hop
-        # uses it, and a worker built without one refuses to expand rather than
-        # falling back to this host's own address - see dtk.worker.parsing.
+        # Where a short-link hop leaves from, whether the link came in through
+        # "parse" or as the url= of an endpoint that names itself. Only those
+        # hops use it, and a worker built without one refuses to expand rather
+        # than falling back to this host's own address - see dtk.worker.parsing.
         self._egress: parsing.ProxySource = egress or parsing.no_egress
         self._stop = asyncio.Event()
         self._gate = asyncio.Semaphore(self._options.concurrency)
@@ -558,25 +559,30 @@ class TaskWorker:
     async def _resolve_endpoint(self, run: TaskRun) -> tuple[str, dict[str, Any]]:
         """Bind a submitted task to a concrete platform endpoint.
 
-        Everything except ``parse`` already names its endpoint. ``parse`` names
-        only a URL, so the link is expanded and identified first; that expansion
-        is a network call, which is why it happens here in the worker rather
-        than at submission time, where it would block the API.
+        ``parse`` names only a URL, so the link is expanded and identified
+        first. Every other endpoint names itself, but may still arrive holding
+        a link in place of the id it keys on (``/douyin/video?url=<short
+        link>``), and gets that id filled in here. Both are network calls,
+        which is why they happen in the worker rather than at submission time,
+        where they would block the API.
         """
-        if run.endpoint != self.PARSE_ENDPOINT:
-            return run.endpoint, dict(run.params)
-
+        named = run.endpoint != self.PARSE_ENDPOINT
         url = str(run.params.get("url") or "").strip()
         if not url:
+            if named:
+                return run.endpoint, dict(run.params)
             raise InvalidParam("parse requires a url", details={"endpoint": run.endpoint})
 
         # One list for both halves: the fetcher re-checks each hop it is handed,
         # and a fetcher that had not heard of the operator's hosts would refuse
         # the hop expansion had just allowed.
         hosts = extra_url_hosts(self._config())
-        endpoint, resolved = await parsing.plan(
-            url, parsing.egress_fetcher(self._egress, extra_hosts=hosts), extra_hosts=hosts
-        )
+        fetcher = parsing.egress_fetcher(self._egress, extra_hosts=hosts)
+        if named:
+            completed = await parsing.complete(run.endpoint, run.params, fetcher, extra_hosts=hosts)
+            return run.endpoint, completed
+
+        endpoint, resolved = await parsing.plan(url, fetcher, extra_hosts=hosts)
         # Pass through anything the caller also set, such as include_raw.
         extra = {k: v for k, v in run.params.items() if k != "url"}
         return endpoint, {**extra, **resolved}

@@ -20,7 +20,7 @@ docs/design/02-identity-pool.md.
 from __future__ import annotations
 
 import random
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Final
 
 import httpx
@@ -30,6 +30,7 @@ from dtk.core.db import session_scope
 from dtk.core.errors import (
     IdentityPoolExhausted,
     Internal,
+    InvalidParam,
     InvalidUrl,
     NotConfigured,
     UnsupportedContent,
@@ -45,6 +46,7 @@ from dtk.urls import (
     is_allowed_host,
     resolve,
 )
+from dtk.worker import registry
 
 log = get_logger(__name__)
 
@@ -309,12 +311,98 @@ async def plan(
     return endpoint, params
 
 
+#: The ids a link can stand in for on an endpoint that already names itself,
+#: and what the link has to turn out to be. A comment reply takes a post and a
+#: comment; only the post has a link, so only the post is here.
+_RESOURCE_BY_PARAM: Final[dict[str, ResourceKind]] = {
+    registry.CONTENT_ID: ResourceKind.VIDEO,
+    registry.AUTHOR_ID: ResourceKind.USER,
+}
+
+
+def _holds(params: Mapping[str, Any], canonical: str) -> bool:
+    """Whether ``params`` already carries ``canonical``, under any alias."""
+    return any(
+        value not in (None, "") and registry.ALIASES.get(key, key) == canonical
+        for key, value in params.items()
+    )
+
+
+async def complete(
+    endpoint: str,
+    params: Mapping[str, Any],
+    fetcher: RedirectFetcher,
+    *,
+    extra_hosts: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
+    """Fill in the id ``endpoint`` keys on from the link it was handed instead.
+
+    The content routes accept ``url`` in place of an id, and a short link gives
+    up its id only by being followed - a network call the API does not make. So
+    the route forwards the link with the id left empty, and the expansion
+    happens here, through the same pool egress as :func:`plan`.
+
+    Only ``parse`` used to do this. Every other endpoint reached the registry
+    holding a ``url`` it drops as an envelope parameter, and
+    ``/douyin/video?url=https://v.douyin.com/...`` - the link the docstring
+    named as working - failed on "missing content_id" (issue #767).
+
+    A caller's own id wins over the link, as it does at the route. A full link
+    is identified without a request; only a short link costs one.
+    """
+    definition = registry.definition_for(endpoint)
+    url = str(params.get("url") or "").strip()
+    wanted = next((name for name in _RESOURCE_BY_PARAM if name in definition.accepts), None)
+    if not url or wanted is None or _holds(params, wanted):
+        return dict(params)
+
+    identified = await resolve(url, fetcher, max_hops=MAX_REDIRECTS, extra_hosts=extra_hosts)
+    if identified.platform is not definition.platform:
+        raise InvalidUrl(
+            "this URL belongs to a different platform than the endpoint addressed",
+            details={
+                "reason": "platform_mismatch",
+                "url_platform": identified.platform.value if identified.platform else None,
+                "endpoint_platform": definition.platform.value,
+            },
+        )
+    expected = _RESOURCE_BY_PARAM[wanted]
+    if identified.resource is not expected:
+        # Used to surface as the same "missing content_id", which told the
+        # caller their id was wrong when it was the link that was.
+        raise InvalidParam(
+            f"the link points at a {identified.resource.value}; "
+            f"{endpoint} takes a link to a {expected.value}",
+            details={
+                "field": "url",
+                "reason": "wrong_resource",
+                "resource": identified.resource.value,
+                "expected": expected.value,
+            },
+        )
+    if not identified.resource_id:
+        raise InvalidUrl(
+            "the link is recognized but carries no identifier",
+            details={"url": url, "resource": identified.resource.value},
+        )
+
+    filled = {
+        key: value
+        for key, value in params.items()
+        if key != "url" and registry.ALIASES.get(key, key) != wanted
+    }
+    filled[wanted] = identified.resource_id
+    log.info("parse.completed", endpoint=endpoint, resource=identified.resource.value)
+    return filled
+
+
 __all__ = [
     "EXPAND_HEADERS",
     "EXPAND_RETRY_AFTER_SECONDS",
     "EXPAND_TIMEOUT_SECONDS",
     "PoolEgress",
     "ProxySource",
+    "complete",
     "egress_fetcher",
     "no_egress",
     "pick_egress",
