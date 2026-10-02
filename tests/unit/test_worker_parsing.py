@@ -25,13 +25,14 @@ from dtk.core.crypto import Cipher
 from dtk.core.errors import (
     IdentityPoolExhausted,
     Internal,
+    InvalidParam,
     InvalidUrl,
     NotConfigured,
     UnsupportedContent,
 )
 from dtk.db.models import Proxy
 from dtk.urls import identify
-from dtk.worker import parsing
+from dtk.worker import parsing, registry
 from dtk.worker.main import TaskRun, TaskWorker
 from dtk.worker.parsing import plan, to_call
 
@@ -311,6 +312,150 @@ class TestWorkerPath:
 
         assert endpoint == "douyin.content_detail"
         assert built == []
+
+
+# --------------------------------------------------------------------------
+# a link sent to an endpoint that names itself
+# --------------------------------------------------------------------------
+
+
+def a_run(endpoint: str, **params: Any) -> TaskRun:
+    return TaskRun(id=uuid.uuid4(), endpoint=endpoint, params=params)
+
+
+class TestLinkOnANamedEndpoint:
+    """Issue #767: ``/douyin/video?url=https://v.douyin.com/...`` never worked.
+
+    The route cannot see through a short link without a network call, so it
+    forwards the link and leaves the id empty, and promises the worker will
+    expand it. Only ``parse`` ever did. Every other endpoint reached the
+    registry holding a ``url`` it drops as an envelope parameter, and the
+    caller got "missing required parameter(s) ...: content_id" for a link the
+    docs said was fine.
+    """
+
+    async def test_a_post_endpoint_gets_the_id_behind_a_short_link(self, monkeypatch):
+        fake_client(monkeypatch, {"abc123": DOUYIN_VIDEO})
+        run = a_run(
+            "douyin.content_detail",
+            aweme_id=None,
+            url="https://v.douyin.com/abc123",
+            include_raw=True,
+        )
+
+        endpoint, params = await a_worker(CountingEgress())._resolve_endpoint(run)
+
+        assert endpoint == "douyin.content_detail"
+        assert params == {"content_id": "7372484719365098803", "include_raw": True}
+        # The step that used to fail.
+        registry.resolve(endpoint, params, Config.defaults())
+
+    async def test_comments_take_the_same_link(self, monkeypatch):
+        fake_client(monkeypatch, {"abc123": DOUYIN_VIDEO})
+        run = a_run("douyin.comments", aweme_id=None, url="https://v.douyin.com/abc123", count=20)
+
+        _, params = await a_worker(CountingEgress())._resolve_endpoint(run)
+
+        assert params == {"content_id": "7372484719365098803", "count": 20}
+
+    async def test_an_author_endpoint_gets_the_author_behind_a_short_link(self, monkeypatch):
+        fake_client(monkeypatch, {"abc123": DOUYIN_USER})
+        run = a_run("douyin.author_posts", sec_user_id=None, url="https://v.douyin.com/abc123")
+
+        _, params = await a_worker(CountingEgress())._resolve_endpoint(run)
+
+        assert params == {"author_id": "MS4wLjABAAAA_synthetic_sec_uid"}
+
+    async def test_a_tiktok_profile_link_hands_on_its_handle(self, monkeypatch):
+        """TikTok profile links carry only ``/@handle``; turning that into the
+        stable id is ``_resolve_author_handle``'s job, which runs next."""
+        fake_client(monkeypatch, {"ZSabc": "https://www.tiktok.com/@some.one"})
+        run = a_run("tiktok.author_posts", sec_user_id=None, url="https://vm.tiktok.com/ZSabc")
+
+        _, params = await a_worker(CountingEgress())._resolve_endpoint(run)
+
+        assert params == {"author_id": "some.one"}
+
+    async def test_the_expansion_leaves_through_the_pool(self, monkeypatch):
+        """Same egress rule as parse: the hop never leaves from this host."""
+        built = fake_client(monkeypatch, {"abc123": DOUYIN_VIDEO})
+        run = a_run("douyin.content_detail", aweme_id=None, url=SHORT_LINK)
+
+        await a_worker(CountingEgress())._resolve_endpoint(run)
+
+        assert built
+        assert [call["proxy"] for call in built] == [PROXY_URL] * len(built)
+
+    async def test_without_an_egress_it_fails_closed(self, monkeypatch):
+        built = fake_client(monkeypatch, {"abc123": DOUYIN_VIDEO})
+        run = a_run("douyin.content_detail", aweme_id=None, url=SHORT_LINK)
+
+        with pytest.raises(NotConfigured):
+            await a_worker()._resolve_endpoint(run)
+
+        assert built == []
+
+    async def test_a_link_to_an_author_sent_for_a_post_is_named(self, monkeypatch):
+        """Was the same "missing content_id", which blamed the caller's id."""
+        fake_client(monkeypatch, {"abc123": DOUYIN_USER})
+        run = a_run("douyin.content_detail", aweme_id=None, url=SHORT_LINK)
+
+        with pytest.raises(InvalidParam) as raised:
+            await a_worker(CountingEgress())._resolve_endpoint(run)
+
+        assert raised.value.details == {
+            "field": "url",
+            "reason": "wrong_resource",
+            "resource": "user",
+            "expected": "video",
+        }
+
+    async def test_a_full_link_of_the_wrong_kind_costs_no_request(self, monkeypatch):
+        built = fake_client(monkeypatch)
+        egress = CountingEgress()
+        run = a_run("douyin.content_detail", aweme_id=None, url=DOUYIN_USER)
+
+        with pytest.raises(InvalidParam):
+            await a_worker(egress)._resolve_endpoint(run)
+
+        assert built == []
+        assert egress.calls == 0
+
+    async def test_a_link_that_lands_on_the_other_platform_is_refused(self, monkeypatch):
+        fake_client(monkeypatch, {"abc123": TIKTOK_VIDEO})
+        run = a_run("douyin.content_detail", aweme_id=None, url=SHORT_LINK)
+
+        with pytest.raises(InvalidUrl) as raised:
+            await a_worker(CountingEgress())._resolve_endpoint(run)
+
+        assert raised.value.details["reason"] == "platform_mismatch"
+
+    async def test_a_callers_own_id_wins_over_the_link(self, monkeypatch):
+        """The route forwards both when the caller sent an id and a short link.
+
+        This is the one shape that worked before the fix, so it is the one the
+        fix must not touch: no expansion, and the params go on as they came.
+        """
+        built = fake_client(monkeypatch, {"abc123": DOUYIN_VIDEO})
+        egress = CountingEgress()
+        run = a_run("douyin.content_detail", aweme_id="7000000000000000001", url=SHORT_LINK)
+
+        endpoint, params = await a_worker(egress)._resolve_endpoint(run)
+
+        assert (endpoint, params) == (run.endpoint, run.params)
+        assert built == []
+        assert egress.calls == 0
+
+    async def test_an_id_the_route_already_extracted_is_left_alone(self, monkeypatch):
+        built = fake_client(monkeypatch)
+        egress = CountingEgress()
+        run = a_run("douyin.content_detail", aweme_id="7372484719365098803", url=None)
+
+        endpoint, params = await a_worker(egress)._resolve_endpoint(run)
+
+        assert (endpoint, params) == (run.endpoint, run.params)
+        assert built == []
+        assert egress.calls == 0
 
 
 # --------------------------------------------------------------------------
