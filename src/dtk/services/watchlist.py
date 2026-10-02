@@ -23,6 +23,7 @@ whoever comes to fix it.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
@@ -404,7 +405,7 @@ def _apply(statement: Any, spec: WatchFilter) -> Any:
 async def search(
     session: AsyncSession, spec: WatchFilter, *, limit: int = 200, offset: int = 0
 ) -> tuple[list[WatchlistEntry], int]:
-    rows = (
+    rows: Sequence[WatchlistEntry] = (
         (
             await session.execute(
                 _apply(select(WatchlistEntry), spec)

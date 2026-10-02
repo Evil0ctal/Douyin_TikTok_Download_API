@@ -405,7 +405,7 @@ async def search(
     total and lets someone jump around. The archive's table is the one that
     grows without bound while a client walks it.
     """
-    rows = (
+    rows: Sequence[MediaDownload] = (
         (
             await session.execute(
                 _apply(select(MediaDownload), spec)
@@ -613,9 +613,11 @@ async def stats(session: AsyncSession) -> dict[str, Any]:
         .group_by(MediaDownload.directory)
         .subquery()
     )
-    stored_bytes = (
-        await session.execute(select(func.coalesce(func.sum(per_directory.c.bytes), 0)))
-    ).scalar_one()
+    stored_bytes = int(
+        (
+            await session.execute(select(func.coalesce(func.sum(per_directory.c.bytes), 0)))
+        ).scalar_one()
+    )
     totals = (
         await session.execute(
             select(
@@ -633,7 +635,7 @@ async def stats(session: AsyncSession) -> dict[str, Any]:
     ).all()
     return {
         "downloads": int(totals[0]),
-        "bytes_total": int(stored_bytes),
+        "bytes_total": stored_bytes,
         "pinned": int(totals[1]),
         "evicted": int(totals[2]),
         "in_flight": int(totals[3]),

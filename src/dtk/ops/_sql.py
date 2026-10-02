@@ -31,7 +31,7 @@ async def safe_execute(
     params: Mapping[str, Any] | None = None,
     *,
     event: str = "ops.sql.failed",
-) -> Sequence[Row[Any]] | None:
+) -> Sequence[Row[*tuple[Any, ...]]] | None:
     """Run one statement in a savepoint. Returns None when it failed."""
     try:
         async with session.begin_nested():
@@ -40,7 +40,11 @@ async def safe_execute(
             # declared return type; a DDL-style call has none.
             if not getattr(result, "returns_rows", False):
                 return []
-            return cast("Sequence[Row[Any]]", result.all())
+            # ``Row[*tuple[Any, ...]]``, not ``Row[Any]``: SQLAlchemy 2.1 made
+            # Row variadic, so ``Row[Any]`` came to mean exactly one column and
+            # every ``for state, count in rows`` among the callers stopped
+            # type-checking.
+            return cast("Sequence[Row[*tuple[Any, ...]]]", result.all())
     except Exception as exc:
         log.debug(event, statement=statement[:120], error=str(exc)[:200])
         return None
