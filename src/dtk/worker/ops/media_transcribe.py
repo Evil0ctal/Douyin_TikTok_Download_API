@@ -124,6 +124,8 @@ async def run(
             row.id,
             str(job.get("error") or "transcription failed"),
             normalization_error=str(job.get("normalization_error") or "") or None,
+            started_at=job.get("started_at"),
+            finished_at=job.get("finished_at"),
         )
     # Commit the durable result before acknowledging the sidecar copy. If the
     # process stops before DELETE, the bounded terminal cache supports restart

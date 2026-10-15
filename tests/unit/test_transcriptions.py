@@ -1,9 +1,20 @@
 """Durable transcription presentation contracts."""
 
+import uuid
 from datetime import UTC, datetime
+from typing import Any, cast
+
+from sqlalchemy.dialects import postgresql
 
 from dtk.db.models import Transcription
 from dtk.services import transcriptions
+
+
+class RecordingSession:
+    statement: Any = None
+
+    async def execute(self, statement: Any) -> None:
+        self.statement = statement
 
 
 def test_listing_never_embeds_the_complete_transcript() -> None:
@@ -25,3 +36,25 @@ def test_listing_never_embeds_the_complete_transcript() -> None:
 
     assert "text" not in result
     assert result["text_preview"] == ("word " * 500)[:160]
+
+
+async def test_apply_result_persists_sidecar_lifecycle_timestamps() -> None:
+    started_at = datetime(2026, 10, 15, 9, 0, 0, tzinfo=UTC)
+    finished_at = datetime(2026, 10, 15, 9, 0, 12, tzinfo=UTC)
+    session = RecordingSession()
+
+    await transcriptions.apply_result(
+        cast(Any, session),
+        uuid.uuid4(),
+        {
+            "text": "finished",
+            "duration_ms": 12_000,
+            "started_at": started_at.isoformat(),
+            "finished_at": finished_at.isoformat(),
+        },
+    )
+
+    assert session.statement is not None
+    params = session.statement.compile(dialect=postgresql.dialect()).params
+    assert params["started_at"] == started_at
+    assert params["finished_at"] == finished_at

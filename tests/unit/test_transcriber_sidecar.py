@@ -6,6 +6,7 @@ import logging
 import subprocess
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -311,6 +312,11 @@ def test_running_job_logs_elapsed_and_media_progress(tmp_path, monkeypatch, capl
         )
         result = _done(client, job_id)
     assert result["state"] == "done"
+    started_at = datetime.fromisoformat(result["started_at"])
+    finished_at = datetime.fromisoformat(result["finished_at"])
+    assert started_at.tzinfo == UTC
+    assert finished_at.tzinfo == UTC
+    assert (finished_at - started_at).total_seconds() >= 0.07
     assert "transcriber.job.progress" in caplog.text
     assert "processed_ms=500" in caplog.text
     assert "progress_percent=50.0" in caplog.text

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
 
@@ -27,6 +28,17 @@ TERMINAL_STATES: Final = ("done", "failed", "cancelled")
 class TranscriptionFilter:
     platform: str | None = None
     state: str | None = None
+
+
+def _sidecar_timestamp(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("transcriber timestamp must be an ISO 8601 string")
+    timestamp = datetime.fromisoformat(value)
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        raise ValueError("transcriber timestamp must include a timezone")
+    return timestamp
 
 
 def validate_normalization_failure_policy(value: str) -> str:
@@ -209,18 +221,22 @@ async def mark_running(session: AsyncSession, transcription_id: uuid.UUID) -> No
 async def apply_result(
     session: AsyncSession, transcription_id: uuid.UUID, result: dict[str, Any]
 ) -> None:
+    values: dict[str, Any] = {
+        "state": "done",
+        "text": str(result.get("text") or ""),
+        "duration_ms": int(result.get("duration_ms") or 0) or None,
+        "normalization_applied": bool(result.get("normalization_applied")),
+        "normalization_error": (str(result.get("normalization_error") or "")[:500] or None),
+        "error": None,
+        "finished_at": _sidecar_timestamp(result.get("finished_at")) or func.now(),
+    }
+    started_at = _sidecar_timestamp(result.get("started_at"))
+    if started_at is not None:
+        values["started_at"] = started_at
     await session.execute(
         update(Transcription)
         .where(Transcription.id == transcription_id)
-        .values(
-            state="done",
-            text=str(result.get("text") or ""),
-            duration_ms=int(result.get("duration_ms") or 0) or None,
-            normalization_applied=bool(result.get("normalization_applied")),
-            normalization_error=(str(result.get("normalization_error") or "")[:500] or None),
-            error=None,
-            finished_at=func.now(),
-        )
+        .values(**values)
     )
 
 
@@ -230,17 +246,23 @@ async def fail(
     reason: str,
     *,
     normalization_error: str | None = None,
+    started_at: str | None = None,
+    finished_at: str | None = None,
 ) -> None:
+    values: dict[str, Any] = {
+        "state": "failed",
+        "error": reason[:500],
+        "normalization_applied": False,
+        "normalization_error": (normalization_error or "")[:500] or None,
+        "finished_at": _sidecar_timestamp(finished_at) or func.now(),
+    }
+    actual_started_at = _sidecar_timestamp(started_at)
+    if actual_started_at is not None:
+        values["started_at"] = actual_started_at
     await session.execute(
         update(Transcription)
         .where(Transcription.id == transcription_id)
-        .values(
-            state="failed",
-            error=reason[:500],
-            normalization_applied=False,
-            normalization_error=(normalization_error or "")[:500] or None,
-            finished_at=func.now(),
-        )
+        .values(**values)
     )
     # Most callers raise immediately afterwards; persist the terminal state
     # before the operation runner rolls its transaction back for that error.

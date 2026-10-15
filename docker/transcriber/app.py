@@ -10,6 +10,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -384,6 +385,7 @@ def create_app(backend: Backend | None = None) -> FastAPI:
                 if job["state"] == "cancelled":
                     continue
                 job["state"] = "running"
+                job["started_at"] = datetime.now(UTC).isoformat()
                 log.info(
                     "transcriber.job.started job_id=%s download_id=%s normalize=%s "
                     "normalization_failure_policy=%s",
@@ -404,6 +406,7 @@ def create_app(backend: Backend | None = None) -> FastAPI:
                 )
                 if job["state"] != "cancelled":
                     job.update(result)
+                    job["finished_at"] = datetime.now(UTC).isoformat()
                     job["processed_ms"] = result.get("duration_ms")
                     job["media_duration_ms"] = result.get("duration_ms")
                     job["progress_percent"] = 100.0
@@ -428,6 +431,7 @@ def create_app(backend: Backend | None = None) -> FastAPI:
             except Exception as exc:
                 if job["state"] != "cancelled":
                     job["state"] = "failed"
+                    job["finished_at"] = datetime.now(UTC).isoformat()
                     job["error"] = str(exc)[:500]
                     job["progress_revision"] += 1
                     if isinstance(exc, NormalizationFailed):
