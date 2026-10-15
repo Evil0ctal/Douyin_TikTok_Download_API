@@ -289,6 +289,7 @@ services:
     networks:
       - data
       - edge
+      - compute
     depends_on:
       postgres:
         condition: service_healthy
@@ -360,7 +361,7 @@ services:
         # publish identically described CloakBrowser repositories, so a floating
         # tag is not a version (docs/design/04-transport-signing.md).
         CLOAKBROWSER_REPO: ${CLOAKBROWSER_REPO:-https://github.com/CloakHQ/cloakbrowser}
-        CLOAKBROWSER_COMMIT: ${CLOAKBROWSER_COMMIT:-}
+        CLOAKBROWSER_COMMIT: ${CLOAKBROWSER_COMMIT:-f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce}
     # Same env file as the rest of the stack, for the same reason: every
     # DTK_BROWSER_* knob the README documents - the backend name above all - has
     # to be settable in one place. `environment:` wins over `env_file:`, so only
@@ -542,11 +543,68 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  transcriber:
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2.0
+    profiles:
+      - transcriber
+    image: ${DTK_TRANSCRIBER_IMAGE:-dtk-transcriber}:${DTK_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.transcriber
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      DTK_SECRET_KEY: ""
+      DTK_DATABASE_URL: ""
+      DTK_REDIS_URL: ""
+      DTK_TRANSCRIBER_MODEL_DIR: /models/funasr
+      DTK_TRANSCRIBER_MEDIA_ROOT: /var/lib/dtk/media
+    expose:
+      - "9200"
+    networks:
+      - compute
+    volumes:
+      - media-data:/var/lib/dtk/media:ro
+      - ${DTK_TRANSCRIBER_MODEL_PATH:-./models/funasr-onnx}:/models/funasr:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import json, os, urllib.request
+          token = os.environ.get("DTK_TRANSCRIBER_TOKEN", "")
+          request = urllib.request.Request("http://127.0.0.1:9200/health")
+          if token:
+              request.add_header("X-Transcriber-Token", token)
+          with urllib.request.urlopen(request, timeout=5) as response:
+              health = json.load(response)
+          if health.get("status") != "ok":
+              raise SystemExit(1)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
 networks:
   # No gateway: postgres and redis cannot reach anything off this host.
   data:
     internal: true
   edge: {}
+  compute:
+    internal: true
 
 volumes:
   postgres-data:

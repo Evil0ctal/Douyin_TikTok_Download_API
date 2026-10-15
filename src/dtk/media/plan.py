@@ -16,12 +16,13 @@ object key, not a title, and half of them have no extension at all.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Final
 from urllib.parse import urlsplit
 
-from dtk.core.types import Platform
+from dtk.core.types import DownloadProfile, Platform
 from dtk.media.domains import allowed_mirrors
 
 #: Covers and album images never approach the video ceiling, and a 500 MB
@@ -190,6 +191,7 @@ def build(
     *,
     max_file_bytes: int,
     include_cover: bool = True,
+    profile: DownloadProfile | str = DownloadProfile.STANDARD,
 ) -> Plan:
     """Plan the files to fetch for one post.
 
@@ -201,6 +203,7 @@ def build(
     if not isinstance(media, dict) or not media:
         return Plan(skipped=("this post has no media manifest; parse it again",))
 
+    profile = DownloadProfile(profile)
     items: list[PlannedItem] = []
     skipped: list[str] = []
 
@@ -214,7 +217,45 @@ def build(
     # any of them is the post, and the first that lands wins. Storing several
     # copies of the same clip is not a feature, it is a full disk.
     streams = _video_streams(media)
-    if streams:
+    if streams and profile is DownloadProfile.TRANSCRIPTION:
+        candidates: list[tuple[float, dict[str, Any]]] = []
+        for stream in streams:
+            raw_size = stream.get("size_bytes")
+            if raw_size is None or isinstance(raw_size, bool):
+                continue
+            try:
+                size = float(raw_size)
+            except (TypeError, ValueError):
+                continue
+            if (
+                not math.isfinite(size)
+                or size <= 0
+                or stream.get("watermark") is True
+                or str(stream.get("format") or "").lower() == "dash"
+            ):
+                continue
+            candidates.append((size, stream))
+        if candidates:
+            _, selected = min(candidates, key=lambda item: item[0])
+            selected_mirrors, refused = _mirrors(selected, platform)
+            note(refused)
+            if selected_mirrors:
+                items.append(
+                    PlannedItem(
+                        name="video-transcription.mp4",
+                        kind="video",
+                        mirrors=tuple(selected_mirrors),
+                        accept=VIDEO_ACCEPT,
+                        max_bytes=max_file_bytes,
+                    )
+                )
+            else:
+                skipped.append("the smallest complete video has no allowed media mirror")
+        else:
+            skipped.append(
+                "no complete watermark-free video stream with a known positive size is available"
+            )
+    elif streams:
         mirrors: list[str] = []
         for stream in streams:
             allowed, refused = _mirrors(stream, platform)
@@ -235,7 +276,7 @@ def build(
 
     # --- album images ---------------------------------------------------
     images = media.get("images")
-    if isinstance(images, list):
+    if profile is DownloadProfile.STANDARD and isinstance(images, list):
         for index, image in enumerate(images, start=1):
             if not isinstance(image, dict) or len(items) >= MAX_ITEMS:
                 continue
@@ -260,7 +301,12 @@ def build(
     # is the least important thing here - it must never be what pushes a post
     # past the item cap and drops an album slide.
     covers = media.get("covers")
-    if include_cover and isinstance(covers, list) and len(items) < MAX_ITEMS:
+    if (
+        profile is DownloadProfile.STANDARD
+        and include_cover
+        and isinstance(covers, list)
+        and len(items) < MAX_ITEMS
+    ):
         for cover in covers:
             if not isinstance(cover, dict):
                 continue

@@ -1,0 +1,7 @@
+fastapi>=0.115
+uvicorn[standard]>=0.54.0
+imageio-ffmpeg==0.6.0
+funasr-onnx==0.4.3
+onnxruntime==1.23.2
+wetext==0.1.8
+kaldifst==1.8.0

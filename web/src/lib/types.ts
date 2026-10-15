@@ -49,6 +49,8 @@ export const SCOPES = [
   'archive:export',
   'media:read',
   'media:write',
+  'transcription:read',
+  'transcription:write',
   'admin',
 ] as const
 export type Scope = (typeof SCOPES)[number]
@@ -67,6 +69,9 @@ export const DOWNLOAD_STATES = [
   'cancelled',
 ] as const
 export type DownloadState = (typeof DOWNLOAD_STATES)[number]
+
+export const TRANSCRIPTION_STATES = ['queued', 'running', 'done', 'failed', 'cancelled'] as const
+export type TranscriptionState = (typeof TRANSCRIPTION_STATES)[number]
 
 export const BROWSER_FAMILIES = ['chrome', 'firefox', 'safari'] as const
 export type BrowserFamily = (typeof BROWSER_FAMILIES)[number]

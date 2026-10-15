@@ -179,6 +179,7 @@
       "auth": "登录、会话，以及当前登录的账号。",
       "content": "与平台无关的读取接口：传入链接或 ID 即可。",
       "downloads": "本实例保存在自己磁盘上的媒体。它只是水槽而不是中继：字节永远不会回传给调用方。",
+      "transcriptions": "对已经保存到磁盘的视频按需生成完整文本转写。",
       "ios": "本实例提供的 iOS 快捷指令，可直接安装。",
       "setup": "首次运行：在管理员账号存在之前，只有这些接口会应答。",
       "system": "健康检查、版本与诊断。",
@@ -186,6 +187,26 @@
       "tools": "基础能力：链接解析、签名计算与游客身份铸造。"
     },
     "op": {
+      "transcriptions_create": {
+        "summary": "转写已下载的视频",
+        "description": "为一个已经下载完成的视频创建或复用完整文本转写。已有结果返回 200，新建或加入仍在运行的任务返回 202。"
+      },
+      "transcriptions_get": {
+        "summary": "读取转写结果",
+        "description": "读取持久化的全文、语言、时长、模型、来源和生命周期元数据。"
+      },
+      "transcriptions_cancel": {
+        "summary": "取消转写任务",
+        "description": "取消排队中或运行中的转写；已经完成的结果保持不变。"
+      },
+      "transcriptions_list": {
+        "summary": "列出转写记录",
+        "description": "按创建时间从新到旧列出持久化转写记录，支持筛选和实时进度，但不在列表中嵌入完整转写全文。"
+      },
+      "transcriptions_delete": {
+        "summary": "删除转写记录",
+        "description": "以原子操作删除已经结束的转写文本和元数据，不删除源下载记录或媒体文件。"
+      },
       "api_keys_create": {
         "summary": "创建 API 密钥",
         "description": "生成密钥，并且只展示这一次。"
@@ -651,6 +672,7 @@
       "stored": "为 true 时仅返回媒体文件当前仍由本实例保存的作品，false 则返回其余的。和 `collection` 一样，它描述的是「留下了什么」而不是作品本身。",
       "tag": "仅返回带该标签的作品。",
       "task_id": "提交任务时返回的任务 ID。",
+      "transcription_id": "发起转写时返回的转写 ID。",
       "timeout": "流保持打开多少秒后关闭。",
       "url": "资源链接。允许直接传入包含链接的整段文本，因此可以把 App 复制的内容原样提交。",
       "user_id": "要操作的控制台账号 ID。",
@@ -715,8 +737,17 @@
       "DownloadRequest": {
         "content_id": "作品 ID，取归档中保存的形式。是字符串而非整数：19 位 ID 超出 JavaScript 安全整数范围。",
         "platform": "作品所在的平台。提供了 `url` 时可由它推断。",
+        "profile": "standard 保存常规媒体集合；transcription 只保存体积最小、无水印的完整视频流。",
         "skip_existing": "当本实例已经保存过该作品的媒体时，直接返回已有的下载记录，而不重新抓取。重跑一个订阅时想要的正是这个：三条新作品，另外四十条已经在硬盘上了。",
         "url": "分享链接，或包含链接的分享文案。只会取出其中的作品 ID 使用；这里的内容不决定去连哪个主机。"
+      },
+      "TranscriptionRequest": {
+        "download_id": "包含源视频的下载记录 UUID。",
+        "normalize": "对数字、日期、金额等表达执行基于上下文的中文逆文本归一化。",
+        "refresh": "创建新的转写记录，而不是复用已有成功结果。"
+      },
+      "TranscriptionDeleteRequest": {
+        "ids": "需要在同一个原子操作中删除的已结束转写记录 ID。"
       },
       "DtkError": {
         "code": "机器可读的稳定标识符，永不翻译。",

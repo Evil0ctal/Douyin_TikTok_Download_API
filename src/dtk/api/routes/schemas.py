@@ -18,7 +18,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from dtk.api.routes.passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
-from dtk.core.types import Platform, Scope, UserRole
+from dtk.core.types import (
+    DownloadProfile,
+    Platform,
+    Scope,
+    UserRole,
+)
 from dtk.services import collections
 
 #: Usernames are local console accounts, not display names: keep them to what
@@ -499,6 +504,37 @@ class DownloadRequest(Body):
             "instance already holds its media. What re-running a feed wants: three new "
             "posts and forty already on disk."
         ),
+    )
+    profile: DownloadProfile = Field(
+        default=DownloadProfile.STANDARD,
+        description=(
+            "standard stores the normal media set; transcription stores only the "
+            "smallest complete watermark-free video stream."
+        ),
+    )
+
+
+class TranscriptionRequest(Body):
+    """Start or reuse a transcription for one stored video."""
+
+    download_id: uuid.UUID = Field(description="Download UUID containing the source video.")
+    normalize: bool = Field(
+        default=True,
+        description="Apply contextual Chinese inverse text normalization to the transcript.",
+    )
+    refresh: bool = Field(
+        default=False,
+        description="Create a new transcription instead of reusing a completed match.",
+    )
+
+
+class TranscriptionDeleteRequest(Body):
+    """Delete settled transcription records without touching their source media."""
+
+    ids: list[uuid.UUID] = Field(
+        min_length=1,
+        max_length=100,
+        description="Settled transcription ids to delete as one atomic operation.",
     )
 
 

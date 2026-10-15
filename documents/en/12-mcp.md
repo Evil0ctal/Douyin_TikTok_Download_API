@@ -5,7 +5,7 @@
 > an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/12-mcp.md)
 
-This page shows you how to point an AI client — Claude Code, Claude Desktop, Codex CLI, Cherry Studio, or anything else that speaks MCP — at your own instance, what the eight tools do, and how to read what comes back. After this you should be able to configure a client, verify the connection with `curl`, and recognise the two mistakes that account for most failed connections.
+This page shows you how to point an AI client at your own instance, what the ten tools do, and how to read what comes back.
 
 ## What the MCP endpoint is
 
@@ -19,10 +19,10 @@ The practical consequences:
 
 Two deliberate limits are worth knowing before you plan an agent around this:
 
-- **Eight tools, and no more.** Every extra tool measurably lowers an agent's ability to pick the right one, so a new capability is expected to arrive as an argument to an existing tool rather than as a ninth. If you want a surface that covers everything this instance can do, use [the REST API](./11-api.md).
+- **Ten focused tools.** Eight read platform or local status data; `download_media` and `transcribe_video` are explicit local write operations and require their own scopes.
 - **No tool touches a credential.** There is no identity tool, no cookie tool, no proxy tool, and `pool_status` reports counts and circuit states rather than rows. This is structural — the tools do not exist — not a permission check somebody has to remember to write. An agent connected to this instance cannot read or export your cookies, and cannot be tricked into it.
 
-Everything the tools do is a read. Downloads, the watchlist, settings, identity management and user administration are console and REST territory; see [Downloads, library and watchlist](./08-downloads-and-library.md) and [Users and API keys](./09-users-and-api-keys.md).
+All platform tools are reads. `download_media` stores a post on this instance and `transcribe_video` processes an already downloaded video; the watchlist, settings, identity management and user administration remain console and REST territory.
 
 ## The endpoint address
 
@@ -35,7 +35,7 @@ Everything the tools do is a read. Downloads, the watchlist, settings, identity 
 | Authentication | an API key, in `Authorization: Bearer …` or `X-API-Key: …` |
 | Required `Accept` | `application/json, text/event-stream` |
 | Server name / version | `dtk` / the installed package version |
-| Tools | 8, all read-only |
+| Tools | 10; `download_media` and `transcribe_video` are the write tools |
 | Language of tool text | always English |
 
 **Keep the trailing slash.** `/mcp/` is the endpoint; `/mcp` answers `307 Temporary Redirect` to it. A well-behaved client re-sends the POST body on a 307 and never notices, but a client that follows the redirect with a GET, or that does not follow it at all, fails with something that reads like an authentication problem. Configure the slash and the question never comes up.
@@ -50,7 +50,7 @@ The endpoint accepts an API key and nothing else.
 
 - **Header:** either `Authorization: Bearer dtk_…` or `X-API-Key: dtk_…`. Both are checked before the JSON-RPC body is looked at.
 - **The console session cookie is refused.** A cookie is presented automatically by a browser; a key is presented deliberately by a program. Accepting the cookie here would make the MCP endpoint reachable by anything able to make a request from inside a signed-in browser.
-- **A key needs read access to at least one platform.** The transport requires `douyin:read`, `tiktok:read`, or `admin`; a key with, say, only `archive:read` is refused with `FORBIDDEN_SCOPE` before any tool runs.
+- **A key needs a scope used by an MCP tool.** The transport accepts platform-read, media, transcription or `admin`; a key with only `archive:read` is refused with `FORBIDDEN_SCOPE` before any tool runs.
 - **Rate limiting is the same limiter as REST**, keyed on the API key: `api.default_rate_limit_per_min` (default **120** requests per minute) unless the key carries its own limit. Note that each JSON-RPC call is one HTTP request, so `initialize`, `tools/list` and every `tools/call` each count.
 - **Opening endpoints to anonymous callers does not open MCP.** The "endpoint access" feature applies to REST paths; the MCP guard requires a real key regardless.
 
@@ -62,7 +62,7 @@ Failures use the REST envelope, so one error handler covers both surfaces:
 
 A 401 also carries `WWW-Authenticate: Bearer realm="dtk"`.
 
-To create a key: console → **Access → API keys**, or `POST /api/v1/admin/api-keys`. Give it `douyin:read`, `tiktok:read`, or both — nothing more. The full key is shown once, at creation, and is never recoverable; if you lose it, revoke it and make another. See [Users and API keys](./09-users-and-api-keys.md).
+To create a key: console → **Access → API keys**, or `POST /api/v1/admin/api-keys`. Give platform tools `douyin:read` and/or `tiktok:read`, downloads `media:write`, and transcription calls `transcription:write`. The matching read scopes can collect task results later.
 
 ## The tools
 
@@ -75,6 +75,8 @@ To create a key: console → **Access → API keys**, or `POST /api/v1/admin/api
 | `list_comments` | Top-level comments on a post, one page | `{platform}.comments` |
 | `get_content_history` | Recorded metric history for a post or author | none — reads the local database |
 | `pool_status` | Identity-pool and endpoint health | none — reads Redis and the local database |
+| `download_media` | Store a post's media on this instance | `media.download` |
+| `transcribe_video` | Transcribe a completed downloaded video | `media.transcribe` |
 | `get_task_result` | Collect a result that did not finish in time | none |
 
 The endpoint names in the third column are the same keys the scheduler, the circuit breaker, the health board and the request log use, so a tool call an agent made is straightforward to find in [Operations](./10-operations.md).
@@ -135,7 +137,7 @@ Returns a page under `data` carrying `cursor` and `has_more`. Stop when `has_mor
 | `cursor` | no | As above |
 | `count` | no | As above, 1–50 |
 
-Top-level comments only. Replies under a comment are a separate capability that this tool set does not expose — that is one of the eight-tool trade-offs. If an agent needs them, fetch them over REST from `/api/v1/{platform}/video/comments/replies`.
+Top-level comments only. Replies under a comment are a separate capability that this focused tool set does not expose. If an agent needs them, fetch them over REST from `/api/v1/{platform}/video/comments/replies`.
 
 ### `get_content_history`
 
@@ -175,6 +177,33 @@ Returns:
 Each endpoint entry carries `endpoint`, `state` (`closed` or `tripped`), `retry_after_seconds`, `reason`, `requests_recent`, `ok_recent`, `risk_control_recent` and `last_success_at`. The three `_recent` counters are over the circuit breaker's rolling **300-second** window; `last_success_at` is looked up over the last **30 days** — bounded in practice by `retention.request_log_days` (**14** by default), because the lookup reads `request_log` — and is `null` if nothing succeeded inside that window.
 
 No credential, identity id, cookie, fingerprint or proxy address appears anywhere in this result.
+
+### `download_media`
+
+Accepts either a full post `url`, or `platform` plus `content_id`. Short links must go through `parse_url` first. `profile` defaults to `standard`; use `transcription` to store only the smallest complete watermark-free non-DASH video stream, with no cover or album images. `skip_existing` defaults to true, so repeated agent calls reuse matching files already on disk.
+
+The tool waits up to `api.mcp_tool_timeout`. A completed call returns the durable download record and `download_id`; a longer download returns `pending` with both `task_id` and `download_id`. Files stay on the server's media volume and are not transferred through MCP.
+
+For transcription, use this chain:
+
+```text
+parse_url → download_media(profile="transcription") → transcribe_video(download_id)
+```
+
+### `transcribe_video`
+
+Pass a download UUID, optional `normalize` (default `true`), and optional `refresh`. FunASR handles mixed Chinese and English; contextual Chinese ITN converts spoken numbers, dates, amounts and similar expressions. Reuse also distinguishes normalization mode, engine version and the instance's fallback/fail policy. The tool waits up to `api.mcp_tool_timeout`, then returns the full text or a pending task and transcription id.
+
+When the client supplies MCP's `_meta.progressToken`, the same tool call also emits
+`notifications/progress` while it waits. Updates name the current pipeline stage
+(`queued`, `decode`, `vad`, `asr`, `punctuation`, `normalization`, or `done`), and ASR updates
+include media progress plus only the newly recognized provisional text. That text is
+append-only raw ASR output: punctuation and Chinese number/date normalization happen
+after recognition, so the final tool result is authoritative and may revise it. Clients
+that do not request or display MCP progress keep the original behaviour and see only the
+final result. Progress is a client UI channel and is not guaranteed to enter the model's
+context. Dify's built-in MCP client currently belongs to this non-live category because it
+does not attach a progress callback to `tools/call` and ignores progress notifications.
 
 ### `get_task_result`
 
@@ -275,6 +304,10 @@ The transport can only check that the key reads *something*, because the platfor
 | --- | --- |
 | `douyin:read` | Opens the endpoint; permits Douyin tool calls |
 | `tiktok:read` | Opens the endpoint; permits TikTok tool calls |
+| `media:write` | Opens the endpoint; permits `download_media` |
+| `media:read` | Opens the endpoint; permits collecting media-download task results |
+| `transcription:write` | Opens the endpoint; permits `transcribe_video` |
+| `transcription:read` | Opens the endpoint; permits collecting transcription task results |
 | `admin` | Permits everything, including both platforms |
 | anything else alone | Endpoint refused with `FORBIDDEN_SCOPE` |
 
@@ -383,12 +416,12 @@ curl -sS -X POST http://127.0.0.1:8000/mcp/ \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-The transport streams its answer, so what comes back is a server-sent-events frame — a `event: message` line followed by `data:` carrying the JSON-RPC payload — rather than a bare JSON body. A successful `tools/list` names all eight tools. Because the server is stateless, `tools/list` and `tools/call` work without an `initialize` handshake first, which makes this a one-line health check.
+The transport streams its answer, so what comes back is a server-sent-events frame — a `event: message` line followed by `data:` carrying the JSON-RPC payload — rather than a bare JSON body. A successful `tools/list` names all ten tools. Because the server is stateless, `tools/list` and `tools/call` work without an `initialize` handshake first, which makes this a one-line health check.
 
 What the failures look like:
 
 - `401` with `"code": "UNAUTHENTICATED"` — no key header, or the key is wrong, revoked or expired.
-- `403` with `"code": "FORBIDDEN_SCOPE"` — the key is valid but has no platform read scope.
+- `403` with `"code": "FORBIDDEN_SCOPE"` — the key is valid but has none of the MCP platform, media or transcription scopes.
 - `307` — you left the trailing slash off.
 - `200` with the console's HTML — you are talking to something that is not this API, or through a proxy that is not passing `/mcp/` through.
 
@@ -409,7 +442,7 @@ curl -sS -X POST http://127.0.0.1:8000/mcp/ \
 | Client reports a connection or auth error, server logs show nothing | The trailing slash is missing; the client did not re-POST on the 307 | Configure `/mcp/`, with the slash |
 | Works on the server, fails from a laptop | `127.0.0.1` in the client config. The default compose binding publishes the API on loopback only | Give the client an address it can reach, and put TLS in front of the instance before you do — see [Security](./15-security.md) |
 | `401 UNAUTHENTICATED` although you are signed in to the console | The session cookie is not accepted here | Create an API key and use a header |
-| `403 FORBIDDEN_SCOPE` at connection time | The key has no `douyin:read`, `tiktok:read` or `admin` | Mint a key with a platform read scope |
+| `403 FORBIDDEN_SCOPE` at connection time | The key has no platform, media or transcription scope accepted by MCP | Mint a key with the scope required by the intended tool |
 | `FORBIDDEN_SCOPE` on some calls only | The key holds one platform's scope and the agent asked for the other | Grant the second scope, or constrain the agent |
 | Client times out around 30 s while the server keeps working | The client's HTTP timeout is below `api.mcp_tool_timeout` | Raise the client timeout, or lower `api.mcp_tool_timeout` |
 | Agent loops on the same failing call | It is ignoring the "retrying will not help" sentence | Tell it in the system prompt to read the error text before retrying |
@@ -421,7 +454,7 @@ If a tool is failing rather than misconfigured, `pool_status` is the first thing
 
 ## Where to go next
 
-- [REST API guide](./11-api.md) — the full surface, including everything the eight tools deliberately leave out.
+- [REST API guide](./11-api.md) — the full surface beyond the focused MCP tool set.
 - [Users and API keys](./09-users-and-api-keys.md) — creating, scoping, rate-limiting and revoking the key an agent uses.
 - [Concepts](./04-concepts.md) — the identity pool, the scheduler and the circuit breaker that `pool_status` reports on.
 - [Operations](./10-operations.md) — finding an agent's calls in the request log and reading the endpoint health board.

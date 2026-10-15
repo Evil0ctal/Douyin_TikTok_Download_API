@@ -40,6 +40,8 @@ const TOOLS = [
   'list_comments',
   'get_content_history',
   'pool_status',
+  'download_media',
+  'transcribe_video',
   'get_task_result',
 ] as const
 

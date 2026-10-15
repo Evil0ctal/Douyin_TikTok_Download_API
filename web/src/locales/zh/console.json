@@ -23,6 +23,7 @@
     "endpointAccess": "接口访问控制",
     "tools": "基础工具",
     "downloads": "下载",
+    "transcriptions": "视频转写",
     "library": "资料库",
     "watchlist": "关注列表",
     "scheduler": "调度器",
@@ -1111,7 +1112,9 @@
       "archiveRead": "读取内容归档",
       "archiveExport": "导出整个归档",
       "mediaRead": "查看已保存的媒体",
-      "mediaWrite": "保存与置顶媒体"
+      "mediaWrite": "保存与置顶媒体",
+      "transcriptionRead": "读取转写结果",
+      "transcriptionWrite": "创建转写任务"
     },
     "scopeHint": {
       "douyinRead": "抖音的作品、作者、评论与解析接口。",
@@ -1121,7 +1124,9 @@
       "archiveRead": "本实例已经采集到的全部内容，直接从本地存储返回。刻意与平台读取权限分开：开放某个平台接口不应等于开放整个数据集。",
       "archiveExport": "一次请求遍历整个归档。这是唯一一个能把只读密钥变成数据库副本的调用。",
       "mediaRead": "列出服务器磁盘上有什么、占用多少空间。文件本身永远不会通过 API 提供。",
-      "mediaWrite": "发起下载、置顶保护、取消下载。它会消耗身份配额并占用磁盘，因此任何只读权限都不隐含它。"
+      "mediaWrite": "发起下载、置顶保护、取消下载。它会消耗身份配额并占用磁盘，因此任何只读权限都不隐含它。",
+      "transcriptionRead": "读取已完成的完整转写文本及来源元数据。",
+      "transcriptionWrite": "按需发起、刷新或取消视频转写。"
     },
     "rateLimitHint": "每分钟请求数。这是防滥用限额，不是计费额度：本项目没有套餐、用量计量或结算。它存在的唯一目的，是防止写错的脚本把整个身份池打穿。留空则沿用实例默认值。",
     "rateLimitInvalid": "请输入 {min} 到 {max} 之间的整数，或者留空。",
@@ -1413,6 +1418,7 @@
       "content": "内容读取",
       "archive": "内容归档",
       "downloads": "媒体下载",
+      "transcriptions": "视频转写",
       "tasks": "任务",
       "tools": "基础工具",
       "admin": "管理",
@@ -1621,12 +1627,73 @@
       }
     }
   },
+  "transcriptions": {
+    "title": "视频转写",
+    "description": "查看和管理由本实例已下载视频生成的持久化转写内容。",
+    "column": {
+      "content": "作品",
+      "state": "状态",
+      "platform": "平台",
+      "preview": "转写内容",
+      "duration": "时长",
+      "model": "模型",
+      "normalization": "文本归一化",
+      "created": "创建时间",
+      "finished": "完成时间"
+    },
+    "filter": { "allStates": "全部状态", "allPlatforms": "全部平台" },
+    "normalization": { "applied": "已应用", "requested": "已请求", "off": "未开启" },
+    "empty": {
+      "title": "还没有转写记录",
+      "description": "请在下载页面打开已保存视频的详情，然后发起转写。"
+    },
+    "detail": {
+      "title": "转写详情",
+      "loading": "正在加载转写内容…",
+      "progress": "{stage} · {percent, number}%",
+      "export": "导出 .txt",
+      "noText": "最终转写文本尚未生成。",
+      "model": "模型",
+      "source": "源文件",
+      "sourceSize": "源文件大小",
+      "sha256": "SHA-256",
+      "downloadId": "下载 ID",
+      "taskId": "任务 ID",
+      "created": "创建时间",
+      "started": "开始时间",
+      "finished": "完成时间"
+    },
+    "cancel": {
+      "action": "取消转写",
+      "title": "确定取消这次转写？",
+      "description": "排队中或运行中的任务将停止，转写记录仍会保留在控制台中。"
+    },
+    "delete": {
+      "selected": "删除选中的 {count} 条记录",
+      "title": "确定删除 {count} 条转写记录？",
+      "description": "转写文本和元数据将被永久删除，源下载记录和视频文件不会受到影响。",
+      "liveHint": "运行中的转写需要先取消才能删除。"
+    },
+    "toast": {
+      "cancelled": "转写已取消",
+      "cancelFailed": "无法取消转写",
+      "deleted": "已删除 {count} 条转写记录",
+      "deleteFailed": "无法删除转写记录"
+    }
+  },
   "downloads": {
     "title": "下载",
     "description": "本实例保存在自己磁盘上的媒体。文件写入服务器的媒体卷，本页面为它们建立索引，已存下的文件也可以从这里保存到本地。",
     "unavailableTitle": "下载器未运行",
     "unavailable": "无法连接到下载器容器。",
     "unavailableHint": "用 --profile downloader 启动它并设置 DTK_DOWNLOADER_URL。本实例的其他功能不受影响，缺的只是抓取文件这一步。",
+    "transcription": {
+      "action": "转写视频",
+      "failed": "无法发起转写",
+      "evicted": "视频文件已被清理，请重新下载后再发起转写。",
+      "unfinished": "请等待下载完成后再发起转写。",
+      "noVideo": "这条下载记录中没有可供转写的已完成视频文件。"
+    },
     "evicted": "已清理",
     "evictedHint": "为了控制媒体容量上限，文件已被删除。记录保留，重新请求一次即可重新下载。",
     "pin": "置顶",
@@ -2153,6 +2220,8 @@
       "list_comments": "分页列出某作品的一级评论。",
       "get_content_history": "读取某作品或作者已记录的指标历史。",
       "pool_status": "身份池与接口健康度，调用开始失败时看这个。",
+      "download_media": "把作品媒体保存到本机；转写时使用 transcription 配置下载最小可用视频。",
+      "transcribe_video": "转写一个已下载的视频并返回完整文本。",
       "get_task_result": "取回没能在限时内完成的那次调用的结果。"
     },
     "usage": {

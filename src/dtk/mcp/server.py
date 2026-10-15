@@ -1,6 +1,6 @@
 """Building and running the MCP server.
 
-The server is a thin registration layer: it binds the eight tool methods to the
+The server is a thin registration layer: it binds the ten tool methods to the
 SDK and hands them a context. Everything else - waiting, prose, routing - lives
 in the modules those tools call, so the transport in use never changes what a
 tool does.
@@ -47,7 +47,13 @@ from dtk.core.logging import configure, get_logger
 from dtk.core.redis import close_redis, init_redis
 from dtk.identity.pool import IdentityPool
 from dtk.mcp.context import McpContext
-from dtk.mcp.gateway import ServiceHistoryReader, ServicePoolReporter, ServiceTaskGateway
+from dtk.mcp.gateway import (
+    ServiceDownloadGateway,
+    ServiceHistoryReader,
+    ServicePoolReporter,
+    ServiceTaskGateway,
+    ServiceTranscriptionGateway,
+)
 from dtk.mcp.tools import TOOL_METHODS, ToolSet
 
 log = get_logger(__name__)
@@ -63,6 +69,9 @@ INSTRUCTIONS: Final = (
     "Start from parse_url when you have a link; use get_video, get_user, "
     "list_user_posts and list_comments when you already have ids. Ids are always "
     "strings.\n"
+    "\n"
+    "Use download_media with profile 'transcription' before transcribe_video when "
+    "the video is not already stored on this instance.\n"
     "\n"
     "Every tool waits for its own answer. If one returns status 'pending', the "
     "work is still running: call get_task_result with the task id it gave you "
@@ -90,13 +99,27 @@ def build_server(context: McpContext, *, name: str = SERVER_NAME) -> MCPServer:
     return server
 
 
-def service_context(cipher: Cipher, config: Callable[[], Config] | None = None) -> McpContext:
+def service_context(
+    cipher: Cipher,
+    config: Callable[[], Config] | None = None,
+    *,
+    downloader_enabled: bool = True,
+    transcriber_enabled: bool = True,
+    transcriber_normalization_failure_policy: str = "fallback",
+) -> McpContext:
     """Wire the tools to the live services layer."""
+    config_reader = config or Config.defaults
     return McpContext(
         tasks=ServiceTaskGateway(),
         pool=ServicePoolReporter(IdentityPool(cipher)),
         history=ServiceHistoryReader(),
-        config=config or Config.defaults,
+        downloads=ServiceDownloadGateway(config_reader, downloader_configured=downloader_enabled),
+        transcriptions=(
+            ServiceTranscriptionGateway(transcriber_normalization_failure_policy)
+            if transcriber_enabled
+            else None
+        ),
+        config=config_reader,
     )
 
 
@@ -129,7 +152,15 @@ async def runtime(settings: BootstrapSettings) -> AsyncIterator[McpContext]:
         holder.state.config = await load_config()
         await start_watcher(holder)
         try:
-            yield service_context(Cipher(settings.secret_key), lambda: holder.state.config)
+            yield service_context(
+                Cipher(settings.secret_key),
+                lambda: holder.state.config,
+                downloader_enabled=bool(settings.downloader_url),
+                transcriber_enabled=bool(settings.transcriber_url),
+                transcriber_normalization_failure_policy=(
+                    settings.transcriber_normalization_failure_policy
+                ),
+            )
         finally:
             await stop_watcher(holder)
     finally:

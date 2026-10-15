@@ -48,6 +48,7 @@ if TYPE_CHECKING:  # imported lazily so worker startup stays light
     from dtk.ops.notify import Notifier
     from dtk.services.fetch import FetchService
     from dtk.signing.registry import SignerRegistry
+    from dtk.transcriber import TranscriberClient
     from dtk.transport.base import Transport
     from dtk.worker.pool_filler import PoolFiller
     from dtk.worker.proxy_prober import ProxyProber
@@ -87,6 +88,8 @@ class OperationDeps:
     rpc: BrowserRpcClient | None = None
     #: The media sidecar, absent unless the downloader profile is running.
     downloader: DownloaderClient | None = None
+    #: The offline FunASR ONNX sidecar, absent unless its compose profile runs.
+    transcriber: TranscriberClient | None = None
     #: The same fetch pipeline the task loop uses. A media download may have to
     #: re-parse a post first, because signed CDN links expire, and doing that
     #: through a second pipeline would spend identities the scheduler is not
@@ -111,6 +114,7 @@ def _handlers() -> Mapping[str, OperationHandler]:
         identity_session,
         identity_test,
         media_download,
+        media_transcribe,
         notify_test,
         proxy_test,
         restore,
@@ -127,6 +131,7 @@ def _handlers() -> Mapping[str, OperationHandler]:
             "proxy.test": proxy_test.run,
             "notify.test": notify_test.run,
             "media.download": media_download.run,
+            "media.transcribe": media_transcribe.run,
             "archive.availability": archive_sweep.run,
             "archive.backfill": archive_sweep.backfill,
         }
@@ -147,6 +152,7 @@ ENDPOINTS: Final[frozenset[str]] = frozenset(
         "proxy.test",
         "notify.test",
         "media.download",
+        "media.transcribe",
         "archive.availability",
         "archive.backfill",
     }

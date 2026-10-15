@@ -10,6 +10,7 @@ docker/
 ├── Dockerfile           api + worker + migrate (one image, three entrypoints)
 ├── Dockerfile.browser   browser-rpc (optional, --profile browser)
 ├── Dockerfile.downloader  media downloader (optional, --profile downloader)
+├── Dockerfile.transcriber offline FunASR ONNX sidecar (optional, --profile transcriber)
 ├── entrypoint.sh        role dispatch and the DTK_SECRET_KEY gate
 ├── compose.yml          the stack
 ├── compose.test.yml     test fixtures only (owned elsewhere; never used here)
@@ -82,6 +83,30 @@ it does not relay media to callers (`docs/design/18-storage-media-and-collection
 Stored media is capped by the `media.max_bytes` setting, 2 GiB by default.
 Past it the oldest unpinned downloads are removed and an alert says what went;
 pinning one in the console exempts it for good.
+
+With offline transcription, prepare quantized FunASR ONNX model directories
+named `asr`, `vad` and `punc` under one host directory. The complete manual
+download and verification procedure is in
+[`documents/en/18-funasr-models.md`](../documents/en/18-funasr-models.md). Then add:
+
+```bash
+cat >> .env <<EOF
+DTK_TRANSCRIBER_URL=http://transcriber:9200
+DTK_TRANSCRIBER_MODEL_PATH=/absolute/path/to/funasr-onnx
+DTK_TRANSCRIBER_THREADS=2
+DTK_TRANSCRIBER_JOB_HISTORY=64
+DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS=30
+DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY=fallback
+EOF
+docker compose -p dtk -f docker/compose.yml --profile transcriber up -d --build
+```
+
+The models are mounted read-only and the container has no internet route. It
+reads `media-data` read-only, decodes video audio through ffmpeg, and keeps no
+intermediate WAV. Transcripts use contextual Chinese ITN by default. Set the
+normalization failure policy to `fail` when an unnormalized fallback must make
+the whole transcription fail. The sidecar retains only the configured number
+of recent terminal jobs for worker-restart recovery; live work is never evicted.
 
 ## What the images are
 

@@ -532,7 +532,7 @@ CI has five gating jobs: `static`, `unit`, `integration`, `console`, `image`. Th
 - [Configuration reference](./03-configuration.md) — every setting, its scope and its default.
 - [Concepts](./04-concepts.md) — identities, the scheduler, outcomes, the circuit breaker.
 - [REST API guide](./11-api.md) — the envelope, scopes, `?wait=`, `?refresh=`, `?explain=`.
-- [MCP and AI agents](./12-mcp.md) — the eight tools and why there are only eight.
+- [MCP and AI agents](./12-mcp.md) — the focused MCP tool set and its permission model.
 - [CLI reference](./13-cli.md) — every command, and which ones are safe against a live instance.
 - [Troubleshooting](./14-troubleshooting.md) — reading a failure before you conclude it is a bug.
 - [Security](./15-security.md) — the master key, the allowlists, what leaves the instance.

@@ -663,13 +663,11 @@ def submit(client: httpx.Client, url: str) -> str:
     """Queue a parse and return the task id, retrying while the instance pushes back."""
     for attempt in range(5):
         try:
-            return unwrap(
-                client.post("/api/v1/parse", json={"url": url})
-            )["task_id"]
+            return unwrap(client.post("/api/v1/parse", json={"url": url}))["task_id"]
         except DtkError as exc:
             if exc.code not in RETRYABLE or attempt == 4:
                 raise
-            time.sleep(exc.retry_after or 2 ** attempt)
+            time.sleep(exc.retry_after or 2**attempt)
     raise RuntimeError("unreachable")
 
 

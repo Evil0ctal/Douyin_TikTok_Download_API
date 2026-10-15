@@ -43,6 +43,7 @@ class TaskView:
     error: dict[str, Any] | None
     created_at: datetime
     finished_at: datetime | None
+    is_demo: bool = False
 
 
 async def create(
@@ -210,6 +211,7 @@ async def get(session: AsyncSession, task_id: uuid.UUID) -> TaskView:
         error=task.error,
         created_at=task.created_at,
         finished_at=task.finished_at,
+        is_demo=task.is_demo,
     )
 
 

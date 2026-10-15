@@ -10,6 +10,8 @@ dist/
 venv/
 env/
 
+.venv-transcriber/
+
 # Tooling caches
 .pytest_cache/
 .mypy_cache/

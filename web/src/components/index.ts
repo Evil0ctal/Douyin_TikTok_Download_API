@@ -23,6 +23,9 @@ export type { CheckboxProps } from './Checkbox'
 export { CodeBlock } from './CodeBlock'
 export type { CodeBlockProps } from './CodeBlock'
 
+export { CompactProgress } from './CompactProgress'
+export type { CompactProgressProps } from './CompactProgress'
+
 export { ConfirmDialog } from './ConfirmDialog'
 export type { ConfirmDialogProps } from './ConfirmDialog'
 

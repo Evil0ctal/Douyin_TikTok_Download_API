@@ -52,6 +52,26 @@ def test_alternate_bitrates_become_mirrors_of_one_file() -> None:
     assert result.items[0].mirrors == (VIDEO, VIDEO_ALT)
 
 
+def test_transcription_profile_keeps_only_the_smallest_suitable_video() -> None:
+    result = planner.build(
+        {
+            "video": {"url": VIDEO, "size_bytes": 8 * MB},
+            "streams": [
+                {"url": VIDEO_ALT, "size_bytes": 2 * MB},
+                {"url": VIDEO + "?watermark", "size_bytes": MB, "watermark": True},
+            ],
+            "images": [{"url": IMAGE}],
+            "covers": [{"url": COVER}],
+        },
+        Platform.DOUYIN,
+        max_file_bytes=512 * MB,
+        profile="transcription",
+    )
+    assert len(result.items) == 1
+    assert result.items[0].name == "video-transcription.mp4"
+    assert result.items[0].mirrors == (VIDEO_ALT,)
+
+
 def test_an_album_numbers_its_slides() -> None:
     result = planner.build(
         {"images": [{"url": IMAGE}, {"url": IMAGE + "?2"}, {"url": IMAGE + "?3"}]},

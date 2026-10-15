@@ -35,6 +35,7 @@ class ErrorCode(StrEnum):
     #: permanent property of the install and this is a service that is down, and
     #: the two want opposite things from the caller.
     DOWNLOADER_UNAVAILABLE = "DOWNLOADER_UNAVAILABLE"
+    TRANSCRIBER_UNAVAILABLE = "TRANSCRIBER_UNAVAILABLE"
     #: The work was given up on deliberately - a task cancelled by its caller.
     #: Its own code because it used to be reported as INVALID_PARAM, which told
     #: the caller their perfectly valid request was malformed, and which is in
@@ -72,6 +73,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.NOT_CONFIGURED: 501,
     ErrorCode.QUEUE_FULL: 503,
     ErrorCode.DOWNLOADER_UNAVAILABLE: 503,
+    ErrorCode.TRANSCRIBER_UNAVAILABLE: 503,
     ErrorCode.CANCELLED: 409,
     ErrorCode.METHOD_NOT_ALLOWED: 405,
     ErrorCode.UNSUPPORTED_MEDIA_TYPE: 415,
@@ -167,6 +169,7 @@ NotConfigured = _err("NotConfigured", ErrorCode.NOT_CONFIGURED)
 #: that will not finish in time to matter.
 QueueFull = _err("QueueFull", ErrorCode.QUEUE_FULL)
 DownloaderDown = _err("DownloaderDown", ErrorCode.DOWNLOADER_UNAVAILABLE)
+TranscriberDown = _err("TranscriberDown", ErrorCode.TRANSCRIBER_UNAVAILABLE)
 #: Given up on deliberately, by whoever asked for it.
 Cancelled = _err("Cancelled", ErrorCode.CANCELLED)
 
@@ -207,6 +210,7 @@ __all__ = [
     "SetupTokenInvalid",
     "SigningFailed",
     "TaskNotFound",
+    "TranscriberDown",
     "Unauthenticated",
     "UnsupportedContent",
     "UpstreamChanged",

@@ -40,6 +40,7 @@ const EndpointAccess = lazy(() => import('@/pages/EndpointAccess'))
 const Tools = lazy(() => import('@/pages/Tools'))
 const Library = lazy(() => import('@/pages/Library'))
 const Downloads = lazy(() => import('@/pages/Downloads'))
+const Transcriptions = lazy(() => import('@/pages/Transcriptions'))
 const Watchlist = lazy(() => import('@/pages/Watchlist'))
 const Playground = lazy(() => import('@/pages/Playground'))
 const Logs = lazy(() => import('@/pages/Logs'))
@@ -102,6 +103,7 @@ function ConsoleRoutes() {
         <Route path="/tools" component={Tools} />
         <Route path="/library" component={Library} />
         <Route path="/downloads" component={Downloads} />
+        <Route path="/transcriptions" component={Transcriptions} />
         <Route path="/watchlist" component={Watchlist} />
         <Route path="/logs" component={Logs} />
         <Route path="/settings" component={Settings} />

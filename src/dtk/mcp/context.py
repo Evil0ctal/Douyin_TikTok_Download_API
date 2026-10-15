@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from dtk.core.config import Config
-from dtk.core.types import Platform, TaskState
+from dtk.core.types import DownloadProfile, Platform, TaskState
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +67,37 @@ class TaskGateway(Protocol):
     async def result(self, task_id: str) -> TaskOutcome:
         """Look up a task without waiting. Raises ``TaskNotFound``."""
         ...
+
+
+class TranscriptionGateway(Protocol):
+    async def start(
+        self,
+        download_id: str,
+        *,
+        normalize: bool,
+        refresh: bool,
+        requested_by: Any | None,
+    ) -> tuple[dict[str, Any], str | None]: ...
+
+    async def get(self, transcription_id: str) -> dict[str, Any]: ...
+
+    async def progress(self, transcription_id: str) -> dict[str, Any] | None: ...
+
+
+class DownloadGateway(Protocol):
+    async def start(
+        self,
+        *,
+        url: str | None,
+        platform: Platform | None,
+        content_id: str | None,
+        profile: DownloadProfile,
+        skip_existing: bool,
+        requested_by: Any | None,
+        is_demo: bool,
+    ) -> dict[str, Any]: ...
+
+    async def get(self, download_id: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +230,8 @@ class McpContext:
     history: HistoryReader
     config: Callable[[], Config] = _default_config
     authorize: PlatformAuthorizer = _allow_any_platform
+    downloads: DownloadGateway | None = None
+    transcriptions: TranscriptionGateway | None = None
 
     @property
     def tool_timeout(self) -> float:
@@ -212,6 +245,7 @@ class McpContext:
 
 
 __all__ = [
+    "DownloadGateway",
     "EndpointHealth",
     "HistoryPoint",
     "HistoryReader",
@@ -221,4 +255,5 @@ __all__ = [
     "PoolSnapshot",
     "TaskGateway",
     "TaskOutcome",
+    "TranscriptionGateway",
 ]

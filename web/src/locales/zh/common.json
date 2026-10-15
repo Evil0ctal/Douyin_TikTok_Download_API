@@ -95,6 +95,13 @@
       "failed": "失败",
       "cancelled": "已取消"
     },
+    "transcription": {
+      "queued": "排队中",
+      "running": "转写中",
+      "done": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消"
+    },
     "credential": {
       "ok": "完整",
       "missing": "缺失",

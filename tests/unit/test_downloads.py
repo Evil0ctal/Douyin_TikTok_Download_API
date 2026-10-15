@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from dtk.core.types import Platform
+from dtk.core.types import DownloadProfile, Platform
 from dtk.services import downloads
 
 MB = 1024 * 1024
@@ -146,6 +146,85 @@ class TestPlanFor:
         with pytest.raises(ValueError):
             downloads.plan_for(content, max_file_bytes=MB)
 
+    @pytest.mark.parametrize(
+        ("platform", "host"),
+        [
+            ("douyin", "v9-v2-mps-cdn.douyinvod.com"),
+            ("tiktok", "v16-webapp-prime.us.tiktok.com"),
+        ],
+    )
+    def test_transcription_selects_only_the_smallest_complete_stream(
+        self, platform: str, host: str
+    ):
+        content = SimpleNamespace(
+            platform=platform,
+            media={
+                "video": {
+                    "url": f"https://{host}/large.mp4",
+                    "format": "mp4",
+                    "size_bytes": 900,
+                },
+                "streams": [
+                    {
+                        "url": f"https://{host}/dash.mp4",
+                        "format": "dash",
+                        "size_bytes": 10,
+                    },
+                    {
+                        "url": f"https://{host}/watermarked.mp4",
+                        "format": "h264",
+                        "size_bytes": 20,
+                        "watermark": True,
+                    },
+                    {
+                        "url": f"https://{host}/small.mp4",
+                        "urls": [f"https://{host}/small-mirror.mp4"],
+                        "format": "h265_hvc1",
+                        "size_bytes": 100,
+                    },
+                    {
+                        "url": f"https://{host}/unknown.mp4",
+                        "format": "h264",
+                    },
+                ],
+                "images": [{"url": f"https://{host}/image.jpg"}],
+                "covers": [{"url": f"https://{host}/cover.jpg"}],
+            },
+        )
+        plan = downloads.plan_for(
+            content,
+            max_file_bytes=MB,
+            profile=DownloadProfile.TRANSCRIPTION,
+        )
+
+        assert len(plan.items) == 1
+        assert plan.items[0].name == "video-transcription.mp4"
+        assert plan.items[0].mirrors == (
+            f"https://{host}/small.mp4",
+            f"https://{host}/small-mirror.mp4",
+        )
+
+    def test_transcription_refuses_when_only_dash_or_unknown_size_exists(self):
+        content = SimpleNamespace(
+            platform="douyin",
+            media={
+                "streams": [
+                    {
+                        "url": "https://v9-v2-mps-cdn.douyinvod.com/dash.mp4",
+                        "format": "dash",
+                        "size_bytes": 10,
+                    },
+                    {
+                        "url": "https://v9-v2-mps-cdn.douyinvod.com/unknown.mp4",
+                        "format": "h264",
+                    },
+                ]
+            },
+        )
+        plan = downloads.plan_for(content, max_file_bytes=MB, profile=DownloadProfile.TRANSCRIPTION)
+        assert plan.empty
+        assert "complete watermark-free" in plan.skipped[0]
+
 
 def test_the_platform_enum_covers_every_media_allowlist() -> None:
     from dtk.media.domains import MEDIA_DOMAINS_BY_PLATFORM
@@ -163,6 +242,7 @@ def test_a_media_download_is_not_exempt_from_the_queue_ceiling() -> None:
     from dtk.api.routes.operations import _OPERATOR_TRIGGERED, Maintenance
 
     assert Maintenance.MEDIA_DOWNLOAD.value not in _OPERATOR_TRIGGERED
+    assert Maintenance.MEDIA_TRANSCRIBE.value not in _OPERATOR_TRIGGERED
     assert Maintenance.DIAGNOSE.value in _OPERATOR_TRIGGERED
 
 

@@ -31,10 +31,8 @@ from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import FileResponse
-from sqlalchemy.exc import IntegrityError
 
 from dtk.api.deps import Principal, enforce_rate_limit
-from dtk.api.routes import operations
 from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
 from dtk.api.routes.schemas import DedupeRequest, DownloadRequest, PinRequest, RetryRequest
 from dtk.api.routes.support import (
@@ -43,22 +41,16 @@ from dtk.api.routes.support import (
     ok,
 )
 from dtk.core.config import BootstrapSettings
-from dtk.core.errors import DownloaderDown, InvalidParam, NotConfigured, NotFound, QueueFull
+from dtk.core.errors import DownloaderDown, InvalidParam, NotConfigured, NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import DownloadState, Platform, Scope
+from dtk.core.types import DownloadProfile, DownloadState, Platform, Scope
 from dtk.media import plan
 from dtk.ops import capacity
-from dtk.services import archive, downloads, tasks
-from dtk.urls import ResourceKind, first_url, identify, require_content_id
+from dtk.services import download_requests, downloads
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/downloads", tags=["downloads"])
-
-#: How long a caller should wait when the disk guard has stopped new jobs. Long
-#: enough that retrying is not a spin, short enough that freeing space is
-#: noticed within a maintenance tick.
-CAPACITY_RETRY_AFTER = 300
 
 PLATFORM_QUERY = Query(default=None, description="Only this platform.")
 STATE_QUERY = Query(default=None, description="Only downloads in this state.")
@@ -67,23 +59,6 @@ ON_DISK_QUERY = Query(default=None, description="True for downloads whose files 
 LIMIT_QUERY = Query(default=None, ge=1, le=MAX_ADMIN_PAGE_SIZE, description="Rows per page.")
 OFFSET_QUERY = Query(default=0, ge=0, description="Rows to skip.")
 DOWNLOAD_ID = Path(description="The download id returned when it was started.")
-
-
-def _configured(request: Request) -> None:
-    """Refuse early when no downloader is running.
-
-    A 501 rather than a 500: the sidecar is an opt-in compose profile, and an
-    instance without it is correctly configured for someone who never wanted
-    it. The message says how to turn it on rather than implying a fault.
-    """
-    settings: BootstrapSettings = request.app.state.settings
-    if not settings.downloader_url:
-        raise NotConfigured(
-            "this instance has no media downloader; start the downloader compose "
-            "profile and set DTK_DOWNLOADER_URL"
-        )
-    if not bool(request.app.state.config.get("media.enabled")):
-        raise NotConfigured("media downloads are disabled in the settings")
 
 
 @router.post(
@@ -138,215 +113,19 @@ async def start_download(
     served back through this API.
     """
     principal.require(Scope.MEDIA_WRITE)
-    _configured(request)
-
-    platform, content_id = _resolve_target(body)
-    config = request.app.state.config
-    verdict = capacity.evaluate(
-        warn_percent=float(config.get("capacity.warn_percent")),
-        hard_stop_percent=float(config.get("capacity.hard_stop_percent")),
+    result = await download_requests.start(
+        request.state.db,
+        config=request.app.state.config,
+        downloader_configured=bool(request.app.state.settings.downloader_url),
+        url=body.url,
+        platform=body.platform,
+        content_id=body.content_id,
+        profile=body.profile,
+        skip_existing=body.skip_existing,
+        requested_by=principal.api_key_id,
+        is_demo=principal.role.value == "demo",
     )
-    if verdict.paused:
-        raise QueueFull(
-            f"new downloads are paused: {verdict.detail}",
-            retry_after=CAPACITY_RETRY_AFTER,
-        )
-
-    session = request.state.db
-
-    # Two reasons not to start a second one, and only one of them is optional.
-    live, stored = await downloads.existing_for(session, platform.value, content_id)
-    if live is not None:
-        # Never optional. Two downloads of a post write to one directory - it is
-        # keyed by platform, author and post - and the sidecar renames
-        # `name.part` to `name` on the way out, so the loser renames a file the
-        # winner has already moved and comes back `partial`. Measured here:
-        # three requests for one post finished within 10ms and one lost a cover
-        # that way. Joining is also what the caller wanted; they are waiting for
-        # this post's media, and it is already on its way.
-        return _existing(request, live, reason="in_flight")
-    if body.skip_existing and stored is not None:
-        return _existing(request, stored, reason="already_stored")
-
-    row = await archive.get(session, platform.value, content_id)
-    planned: list[dict[str, str]] = []
-    skipped: list[str] = []
-    if row is None:
-        # Never seen. The worker fetches it before downloading, so there is
-        # nothing to plan from yet and nothing to refuse on.
-        try:
-            download = await downloads.create_pending(
-                session,
-                platform=platform.value,
-                content_id=content_id,
-                requested_by=principal.api_key_id,
-            )
-        except IntegrityError:
-            return await _joined(request, session, platform.value, content_id)
-    else:
-        # Planned here as well as in the worker, so a post that IS archived and
-        # has nothing fetchable is a 400 the caller reads now rather than a task
-        # that fails in a minute.
-        plan = downloads.plan_for(row, max_file_bytes=int(config.get("media.max_file_bytes")))
-        if plan.empty:
-            raise InvalidParam(
-                "; ".join(plan.skipped) or "this post has no downloadable media",
-                details={"skipped": list(plan.skipped)},
-            )
-        planned = [{"name": item.name, "kind": item.kind} for item in plan.items]
-        skipped = list(plan.skipped)
-        try:
-            download = await downloads.create(session, row, requested_by=principal.api_key_id)
-        except IntegrityError:
-            return await _joined(request, session, platform.value, content_id)
-    task_id, state = await operations.submit(
-        request,
-        principal,
-        endpoint=operations.Maintenance.MEDIA_DOWNLOAD.value,
-        params={"download_id": str(download.id)},
-        # Never coalesced. Two requests for the same post are two deliberate
-        # acts, and the second one is usually "the first did not work" - joining
-        # them onto one task would answer it with the failure it was retrying.
-        coalesce=False,
-        # Held back until the download row carries the task id. Otherwise a
-        # worker can start before that link is written, and a request that dies
-        # in the gap leaves a download nothing points at.
-        publish=False,
-    )
-    download.task_id = task_id
-    try:
-        await session.commit()
-    except IntegrityError:
-        return await _joined(request, session, platform.value, content_id)
-    await tasks.enqueue(task_id, endpoint=operations.Maintenance.MEDIA_DOWNLOAD.value)
-
-    log.info(
-        "media.download.requested",
-        download_id=str(download.id),
-        platform=platform.value,
-        items=len(planned),
-        archived=row is not None,
-    )
-    return ok(
-        request,
-        {
-            "download_id": str(download.id),
-            "task_id": str(task_id),
-            "state": state.value,
-            "directory": download.directory,
-            "planned": planned,
-            "skipped": skipped,
-            "reused": None,
-            # False means the worker has to fetch the post before it can
-            # download anything, which is a slower first response.
-            "archived": row is not None,
-        },
-        status_code=202,
-    )
-
-
-async def _joined(request: Request, session: Any, platform: str, content_id: str) -> Any:
-    """Answer a request the in-flight index refused.
-
-    `ux_media_downloads_in_flight` fires when another request for this post got
-    there first, in the window between our check and our insert. A check cannot
-    close that window - simultaneous requests all read "none in flight" before
-    any of them writes - so the index is the guarantee and this is how it reads
-    to a caller: the same answer the check would have given.
-
-    The insert raises at the flush inside `create`, not at the commit, so this
-    is called from three places rather than wrapped once around the end.
-    """
-    await session.rollback()
-    live, _ = await downloads.existing_for(session, platform, content_id)
-    if live is None:
-        # The other request settled and cleared the way between the refusal and
-        # this lookup. Nothing to join, and pretending otherwise would hand back
-        # a download that is already over.
-        raise QueueFull(
-            "another download of this post was in flight; try again",
-            retry_after=1,
-        )
-    return _existing(request, live, reason="in_flight")
-
-
-def _existing(request: Request, download: Any, *, reason: str) -> Any:
-    """Answer with a download that already exists, saying which one and why."""
-    log.info(
-        "media.download.reused",
-        download_id=str(download.id),
-        platform=download.platform,
-        reason=reason,
-    )
-    return ok(
-        request,
-        {
-            "download_id": str(download.id),
-            "task_id": str(download.task_id) if download.task_id else None,
-            "state": download.state,
-            "directory": download.directory,
-            "planned": [],
-            "skipped": [],
-            "archived": True,
-            # 200 rather than 202: nothing was accepted for processing, and the
-            # caller is being handed something that already exists.
-            "reused": reason,
-        },
-    )
-
-
-def _resolve_target(body: DownloadRequest) -> tuple[Platform, str]:
-    """Work out which post is meant, from a link or a key.
-
-    `identify` is the allowlist: an unrecognised host yields nothing and is
-    refused here, so no URL a caller sends ever becomes a request.
-    """
-    if body.url:
-        kind = identify(body.url)
-        if not kind.allowed:
-            # Both apps put a caption and a numeric code on the clipboard
-            # beside the link, and that whole string is what gets pasted.
-            candidate = first_url(body.url)
-            if candidate is not None:
-                kind = identify(candidate)
-        if not kind.allowed or kind.platform is None:
-            raise InvalidParam(
-                "that link is not a supported Douyin or TikTok post",
-                details={"field": "url"},
-            )
-        if kind.needs_expansion:
-            raise InvalidParam(
-                "a short link has to be expanded before it names a post; send it "
-                "to /api/v1/parse, which follows it in the background",
-                details={"field": "url", "needs_expansion": True},
-            )
-        if kind.resource is not ResourceKind.VIDEO or not kind.resource_id:
-            raise InvalidParam(
-                "that link names a profile rather than a post",
-                details={"field": "url", "resource": kind.resource.value},
-            )
-        if body.platform is not None and body.platform is not kind.platform:
-            # Guessing which one was meant is how you download the wrong post
-            # from the wrong platform and call it a feature.
-            raise InvalidParam(
-                "the link and the platform disagree",
-                details={"url_platform": kind.platform.value, "platform": body.platform.value},
-            )
-        if body.content_id and body.content_id != kind.resource_id:
-            raise InvalidParam(
-                "the link and the content_id name different posts",
-                details={"url_content_id": kind.resource_id, "content_id": body.content_id},
-            )
-        return kind.platform, kind.resource_id
-
-    if body.platform is None or not body.content_id:
-        raise InvalidParam(
-            "provide either url, or platform and content_id",
-            details={"fields": ["url", "platform", "content_id"]},
-        )
-    # Only a typed id is checked: one extracted from a link came out of the
-    # pattern that recognised the link.
-    return body.platform, require_content_id(body.content_id, platform=body.platform)
+    return ok(request, result.as_dict(), status_code=200 if result.reused else 202)
 
 
 #: How many live downloads to ask the sidecar about on one listing. The number
@@ -442,7 +221,6 @@ async def retry_download(
     `202` with the new `download_id` and the task running it.
     """
     principal.require(Scope.MEDIA_WRITE)
-    _configured(request)
 
     session = request.state.db
     row = await downloads.get(session, body.download_id)
@@ -456,7 +234,11 @@ async def retry_download(
 
     return await start_download(
         request,
-        DownloadRequest(platform=Platform(row.platform), content_id=row.content_id),
+        DownloadRequest(
+            platform=Platform(row.platform),
+            content_id=row.content_id,
+            profile=DownloadProfile(row.profile),
+        ),
         principal,
     )
 

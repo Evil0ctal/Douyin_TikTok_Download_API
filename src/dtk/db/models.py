@@ -636,6 +636,8 @@ class MediaDownload(Base):
     platform: Mapped[str] = mapped_column(Text)
     content_id: Mapped[str] = mapped_column(Text)
     author_uid: Mapped[str] = mapped_column(Text)
+    #: standard | transcription. Existing rows are standard downloads.
+    profile: Mapped[str] = mapped_column(Text, server_default=text("'standard'"))
     #: queued | running | done | partial | failed | cancelled
     state: Mapped[str] = mapped_column(Text, server_default=text("'queued'"))
     #: Relative to the media root, as <platform>/<author_uid>/<content_id>.
@@ -672,6 +674,70 @@ class MediaDownload(Base):
         return _repr(
             "MediaDownload", id=self.id, platform=self.platform, content_id=self.content_id
         )
+
+
+class Transcription(Base):
+    """A durable whole-text transcription of one downloaded video."""
+
+    __tablename__ = "transcriptions"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('queued','running','done','failed','cancelled')",
+            name="ck_transcriptions_state",
+        ),
+        CheckConstraint(
+            "normalization_failure_policy IS NULL OR "
+            "normalization_failure_policy IN ('fallback','fail')",
+            name="ck_transcriptions_normalization_failure_policy",
+        ),
+        Index("ix_transcriptions_download", "download_id", text("created_at DESC")),
+        Index("ix_transcriptions_created", text("created_at DESC")),
+        Index("ix_transcriptions_platform_state", "platform", "state"),
+        Index("ix_transcriptions_task", "task_id"),
+        Index(
+            "ux_transcriptions_in_flight",
+            "download_id",
+            "source_sha256",
+            "model",
+            "normalization_requested",
+            text("COALESCE(normalizer, '')"),
+            text("COALESCE(normalization_failure_policy, '')"),
+            unique=True,
+            postgresql_where=text("state IN ('queued', 'running')"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=_NEW_UUID
+    )
+    download_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("media_downloads.id", ondelete="SET NULL"), nullable=True
+    )
+    platform: Mapped[str] = mapped_column(Text)
+    content_id: Mapped[str] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(Text, server_default=text("'queued'"))
+    model: Mapped[str] = mapped_column(Text)
+    normalization_requested: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    normalization_applied: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    normalizer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalization_failure_policy: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalization_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    source_name: Mapped[str] = mapped_column(Text)
+    source_sha256: Mapped[str] = mapped_column(Text)
+    source_bytes: Mapped[int] = mapped_column(BigInteger)
+    task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    requested_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self) -> str:
+        return _repr("Transcription", id=self.id, state=self.state, download_id=self.download_id)
 
 
 class WatchlistEntry(Base):
@@ -869,6 +935,7 @@ TABLE_NAMES: Final[tuple[str, ...]] = (
     "archived_authors",
     "archived_contents",
     "media_downloads",
+    "transcriptions",
     "watchlist",
     "collections",
     "collection_items",

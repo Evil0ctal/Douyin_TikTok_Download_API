@@ -98,6 +98,7 @@ class Maintenance(StrEnum):
     #: because it is dispatched by the same runner, but deliberately NOT exempt
     #: from the queue ceiling below.
     MEDIA_DOWNLOAD = "media.download"
+    MEDIA_TRANSCRIBE = "media.transcribe"
     #: Re-check whether archived posts still exist. Raised by the maintenance
     #: sweep on a timer, and by hand from the Library page.
     ARCHIVE_AVAILABILITY = "archive.availability"
@@ -190,6 +191,8 @@ def scopes_for_task(endpoint: str) -> tuple[Scope, ...]:
         return _READ_ANY_PLATFORM
     if endpoint in (Maintenance.MEDIA_DOWNLOAD.value,):
         return (Scope.MEDIA_READ, Scope.MEDIA_WRITE, *_MAINTENANCE_SCOPES)
+    if endpoint == Maintenance.MEDIA_TRANSCRIBE.value:
+        return (Scope.TRANSCRIPTION_READ, Scope.TRANSCRIPTION_WRITE)
     if endpoint in (
         Maintenance.ARCHIVE_AVAILABILITY.value,
         Maintenance.ARCHIVE_BACKFILL.value,
@@ -278,13 +281,15 @@ async def submit(
 #: self check because the queue is deep would withhold the tool at the moment it
 #: is wanted.
 #:
-#: Media downloads are the exception, and the exception is the point of the
+#: Media downloads and transcriptions are the exceptions, and the exception is the point of the
 #: rule: they are dispatched by the same runner but they are not rare, a caller
 #: can start as many as they have archived posts, and each one holds a worker
 #: slot for as long as a video takes. Exempting them would let one operator's
 #: bulk download starve every read on the instance.
 _OPERATOR_TRIGGERED: Final[frozenset[str]] = frozenset(
-    member.value for member in Maintenance if member is not Maintenance.MEDIA_DOWNLOAD
+    member.value
+    for member in Maintenance
+    if member not in (Maintenance.MEDIA_DOWNLOAD, Maintenance.MEDIA_TRANSCRIBE)
 )
 
 

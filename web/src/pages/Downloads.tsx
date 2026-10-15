@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'wouter'
 
 import {
   BatchParse,
   Button,
   Card,
   Checkbox,
+  CompactProgress,
   CopyableId,
   ConfirmDialog,
   DataTable,
@@ -286,27 +288,22 @@ interface Storage {
 function Progress({ progress }: { progress: DownloadProgress }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
-  const share = progress.files_total > 0 ? progress.files_done / progress.files_total : 0
 
   return (
-    <span className={styles.progress} title={t('downloads.progress.hint')}>
-      <span
-        className={styles.progressTrack}
-        role="progressbar"
-        aria-valuenow={progress.files_done}
-        aria-valuemin={0}
-        aria-valuemax={progress.files_total}
-      >
-        <span className={styles.progressFill} style={{ width: `${Math.round(share * 100)}%` }} />
-      </span>
-      <span className="u-xs u-muted u-mono">
-        {t('downloads.progress.files', {
-          done: progress.files_done,
-          total: progress.files_total,
-        })}
-        {progress.bytes > 0 ? ` · ${formatters.bytes(progress.bytes)}` : ''}
-      </span>
-    </span>
+    <CompactProgress
+      value={progress.files_done}
+      max={progress.files_total}
+      title={t('downloads.progress.hint')}
+      label={
+        <>
+          {t('downloads.progress.files', {
+            done: progress.files_done,
+            total: progress.files_total,
+          })}
+          {progress.bytes > 0 ? ` · ${formatters.bytes(progress.bytes)}` : ''}
+        </>
+      }
+    />
   )
 }
 
@@ -1151,9 +1148,34 @@ export default function Downloads() {
 function Detail({ row }: { row: DownloadRow }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
+  const toast = useToast()
+  const [, navigate] = useLocation()
 
   const video = videoOf(row)
   const cover = coverOf(row)
+  const canTranscribe = Boolean(video) && row.on_disk && (row.state === 'done' || row.state === 'partial')
+  const transcribe = useApiMutation<{ transcription_id: string }, void>(
+    () =>
+      apiPost(
+        paths.transcriptions.create,
+        { download_id: row.id, normalize: true, refresh: false },
+        { awaitTask: false },
+      ),
+    {
+      onSuccess: (result) => {
+        navigate(`/transcriptions?id=${encodeURIComponent(result.transcription_id)}`)
+      },
+      onError: (error) => toast.apiError(error, t('downloads.transcription.failed')),
+    },
+  )
+
+  const unavailableReason = !row.on_disk
+    ? t('downloads.transcription.evicted')
+    : row.state !== 'done' && row.state !== 'partial'
+      ? t('downloads.transcription.unfinished')
+      : !video
+        ? t('downloads.transcription.noVideo')
+        : undefined
 
   return (
     <div className="u-stack">
@@ -1172,6 +1194,19 @@ function Detail({ row }: { row: DownloadRow }) {
 
       {row.error ? <p className="u-muted">{row.error}</p> : null}
       {!row.on_disk ? <p className="u-xs u-muted">{t('downloads.evictedHint')}</p> : null}
+
+      <div>
+        <Button
+          variant="primary"
+          loading={transcribe.isPending}
+          disabled={!canTranscribe || transcribe.isPending}
+          title={unavailableReason}
+          onClick={() => transcribe.mutate()}
+        >
+          {t('downloads.transcription.action')}
+        </Button>
+        {unavailableReason ? <p className="u-xs u-muted">{unavailableReason}</p> : null}
+      </div>
 
       <ul className={styles.files}>
         {row.files.map((file) => (

@@ -196,6 +196,56 @@ async def test_the_demo_console_cannot_read_the_credential_pages(
     assert response.status_code == 403, f"{path} answered {response.status_code}"
 
 
+async def test_the_demo_cannot_read_transcriptions_even_with_a_known_id(
+    api_app: Any, client: Any
+) -> None:
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    await login(client, demo.DEMO_USERNAME, credentials.password or "")
+    transcription_id = uuid.uuid4()
+
+    response = await client.get(f"/api/v1/transcriptions/{transcription_id}")
+    assert response.status_code == 403
+
+    await signed_in(client, username="transcription-viewer", role=UserRole.VIEWER)
+    response = await client.get(f"/api/v1/transcriptions/{transcription_id}")
+    assert response.status_code == 404
+
+
+async def test_the_demo_can_read_only_demo_task_results(api_app: Any, client: Any) -> None:
+    from datetime import UTC, datetime
+
+    from dtk.core.types import TaskState
+
+    real_task_id = uuid.uuid4()
+    demo_task_id = uuid.uuid4()
+    now = datetime.now(UTC)
+    async with session_scope() as session:
+        for task_id, is_demo in ((real_task_id, False), (demo_task_id, True)):
+            session.add(
+                Task(
+                    id=task_id,
+                    endpoint="douyin.content_detail",
+                    params={},
+                    state=TaskState.DONE.value,
+                    result={"secret": "result"},
+                    created_at=now,
+                    finished_at=now,
+                    is_demo=is_demo,
+                )
+            )
+
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    await login(client, demo.DEMO_USERNAME, credentials.password or "")
+
+    assert (await client.get(f"/api/v1/tasks/{real_task_id}")).status_code == 403
+    assert (await client.get(f"/api/v1/tasks/{real_task_id}/events")).status_code == 403
+    allowed = await client.get(f"/api/v1/tasks/{demo_task_id}")
+    assert allowed.status_code == 200
+    assert envelope(allowed)["data"]["data"] == {"secret": "result"}
+
+
 @pytest.mark.parametrize(
     "path",
     ["/api/v1/system/status", "/api/v1/admin/logs/requests", "/api/v1/admin/endpoints/health"],
