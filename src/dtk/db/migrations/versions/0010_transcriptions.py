@@ -1,4 +1,8 @@
-"""Add transcription downloads and durable transcript results.
+"""Add durable transcript results.
+
+One migration for the whole table. The first draft added two console indexes in
+a second revision; neither had been released, so they are folded in here
+rather than leaving every install to run a revision that only adds indexes.
 
 Revision ID: 0010
 Revises: 0009
@@ -18,10 +22,6 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "media_downloads",
-        sa.Column("profile", sa.Text(), server_default="standard", nullable=False),
-    )
     op.create_table(
         "transcriptions",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
@@ -75,6 +75,8 @@ def upgrade() -> None:
         "ix_transcriptions_download", "transcriptions", ["download_id", sa.text("created_at DESC")]
     )
     op.create_index("ix_transcriptions_task", "transcriptions", ["task_id"])
+    op.create_index("ix_transcriptions_created", "transcriptions", [sa.text("created_at DESC")])
+    op.create_index("ix_transcriptions_platform_state", "transcriptions", ["platform", "state"])
     op.create_index(
         "ux_transcriptions_in_flight",
         "transcriptions",
@@ -93,4 +95,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("transcriptions")
-    op.drop_column("media_downloads", "profile")

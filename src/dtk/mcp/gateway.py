@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.core.config import Config
 from dtk.core.db import session_scope
 from dtk.core.errors import TaskNotFound
-from dtk.core.types import DownloadProfile, Outcome, Platform
+from dtk.core.types import Outcome, Platform
 from dtk.db.models import ContentSnapshot, RequestLog
 from dtk.identity.pool import IdentityPool
 from dtk.mcp.context import EndpointHealth, HistoryPoint, PoolSnapshot, TaskOutcome
@@ -180,7 +180,6 @@ class ServiceDownloadGateway:
         url: str | None,
         platform: Platform | None,
         content_id: str | None,
-        profile: DownloadProfile,
         skip_existing: bool,
         requested_by: Any | None,
         is_demo: bool,
@@ -193,7 +192,6 @@ class ServiceDownloadGateway:
                 url=url,
                 platform=platform,
                 content_id=content_id,
-                profile=profile,
                 skip_existing=skip_existing,
                 requested_by=requested_by,
                 is_demo=is_demo,

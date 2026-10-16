@@ -43,7 +43,7 @@ from dtk.api.routes.support import (
 from dtk.core.config import BootstrapSettings
 from dtk.core.errors import DownloaderDown, InvalidParam, NotConfigured, NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import DownloadProfile, DownloadState, Platform, Scope
+from dtk.core.types import DownloadState, Platform, Scope, UserRole
 from dtk.media import plan
 from dtk.ops import capacity
 from dtk.services import download_requests, downloads
@@ -120,10 +120,9 @@ async def start_download(
         url=body.url,
         platform=body.platform,
         content_id=body.content_id,
-        profile=body.profile,
         skip_existing=body.skip_existing,
         requested_by=principal.api_key_id,
-        is_demo=principal.role.value == "demo",
+        is_demo=principal.role is UserRole.DEMO,
     )
     return ok(request, result.as_dict(), status_code=200 if result.reused else 202)
 
@@ -221,6 +220,13 @@ async def retry_download(
     `202` with the new `download_id` and the task running it.
     """
     principal.require(Scope.MEDIA_WRITE)
+    # Before the lookup, as it always was: on an instance with no downloader
+    # the answer to every retry is "not configured", not a 404 or a 400 about
+    # a row that could not be retried anyway.
+    download_requests.ensure_configured(
+        downloader_configured=bool(request.app.state.settings.downloader_url),
+        config=request.app.state.config,
+    )
 
     session = request.state.db
     row = await downloads.get(session, body.download_id)
@@ -234,11 +240,7 @@ async def retry_download(
 
     return await start_download(
         request,
-        DownloadRequest(
-            platform=Platform(row.platform),
-            content_id=row.content_id,
-            profile=DownloadProfile(row.profile),
-        ),
+        DownloadRequest(platform=Platform(row.platform), content_id=row.content_id),
         principal,
     )
 

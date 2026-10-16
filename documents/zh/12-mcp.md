@@ -179,14 +179,14 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 
 ### `download_media`
 
-接受完整作品 `url`，或者 `platform` 加 `content_id`；短链接仍需先调用 `parse_url`。`profile` 默认是 `standard`；转写时使用 `transcription`，它只保存体积最小、完整、无水印且非 DASH 的视频流，不下载封面或图集图片。`skip_existing` 默认是 true，因此代理重复调用会复用磁盘上相同配置的文件。
+接受完整作品 `url`，或者 `platform` 加 `content_id`；短链接仍需先调用 `parse_url`。`skip_existing` 默认是 true，因此代理重复调用会复用磁盘上已有的文件。
 
 工具最多等待 `api.mcp_tool_timeout`。完成时返回持久化下载记录和 `download_id`；耗时更长时返回 `pending`，其中同时包含 `task_id` 与 `download_id`。文件保留在服务端媒体卷上，不通过 MCP 传输。
 
 转写使用以下链路：
 
 ```text
-parse_url → download_media(profile="transcription") → transcribe_video(download_id)
+parse_url → download_media(url) → transcribe_video(download_id)
 ```
 
 ### `transcribe_video`

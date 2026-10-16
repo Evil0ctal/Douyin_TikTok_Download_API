@@ -35,7 +35,7 @@ from sqlalchemy import delete, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.logging import get_logger
-from dtk.core.types import DownloadProfile, Platform
+from dtk.core.types import Platform
 from dtk.db.base import affected
 from dtk.db.models import ArchivedContent, MediaDownload, Transcription
 from dtk.media import domains
@@ -88,15 +88,10 @@ def mirrors_are_stale(row: ArchivedContent, *, max_age_seconds: int) -> bool:
     return datetime.now(UTC) - seen > timedelta(seconds=max_age_seconds)
 
 
-def plan_for(
-    row: ArchivedContent,
-    *,
-    max_file_bytes: int,
-    profile: DownloadProfile | str = DownloadProfile.STANDARD,
-) -> planner.Plan:
+def plan_for(row: ArchivedContent, *, max_file_bytes: int) -> planner.Plan:
     """The files to fetch for one archived post."""
     platform = Platform(row.platform)
-    return planner.build(row.media, platform, max_file_bytes=max_file_bytes, profile=profile)
+    return planner.build(row.media, platform, max_file_bytes=max_file_bytes)
 
 
 def job_payload(
@@ -147,10 +142,7 @@ def pending_directory(platform: str, content_id: str) -> str:
 
 
 async def existing_for(
-    session: AsyncSession,
-    platform: str,
-    content_id: str,
-    profile: DownloadProfile | str = DownloadProfile.STANDARD,
+    session: AsyncSession, platform: str, content_id: str
 ) -> tuple[MediaDownload | None, MediaDownload | None]:
     """The live download for this post, and the newest stored one.
 
@@ -184,14 +176,8 @@ async def existing_for(
         .all()
     )
     live = next((row for row in rows if row.state in LIVE_STATES), None)
-    wanted = DownloadProfile(profile).value
     stored = next(
-        (
-            row
-            for row in rows
-            if row.state == "done" and row.files_removed_at is None and row.profile == wanted
-        ),
-        None,
+        (row for row in rows if row.state == "done" and row.files_removed_at is None), None
     )
     return live, stored
 
@@ -201,7 +187,6 @@ async def create(
     row: ArchivedContent,
     *,
     requested_by: uuid.UUID | None = None,
-    profile: DownloadProfile | str = DownloadProfile.STANDARD,
 ) -> MediaDownload:
     """Record the intent to download, before anything is fetched.
 
@@ -215,7 +200,6 @@ async def create(
         state="queued",
         directory=directory_of(row),
         requested_by=requested_by,
-        profile=DownloadProfile(profile).value,
     )
     session.add(download)
     await session.flush()
@@ -236,7 +220,6 @@ async def create_pending(
     platform: str,
     content_id: str,
     requested_by: uuid.UUID | None = None,
-    profile: DownloadProfile | str = DownloadProfile.STANDARD,
 ) -> MediaDownload:
     """The same, for a post this instance has never seen.
 
@@ -253,7 +236,6 @@ async def create_pending(
         state="queued",
         directory=pending_directory(platform, content_id),
         requested_by=requested_by,
-        profile=DownloadProfile(profile).value,
     )
     session.add(download)
     await session.flush()
@@ -870,7 +852,6 @@ def as_dict(row: MediaDownload) -> dict[str, Any]:
         "platform": row.platform,
         "content_id": row.content_id,
         "author_uid": row.author_uid,
-        "profile": row.profile,
         "state": row.state,
         "directory": row.directory,
         "bytes_total": int(row.bytes_total),

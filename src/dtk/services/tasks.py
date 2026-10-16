@@ -18,10 +18,10 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dtk.core.errors import ErrorCode, TaskNotFound
+from dtk.core.errors import ErrorCode, QueueFull, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import TaskState
+from dtk.core.types import RejectReason, TaskState
 from dtk.db.models import Task
 
 log = get_logger(__name__)
@@ -100,6 +100,34 @@ async def enqueue(task_id: uuid.UUID, *, endpoint: str = "") -> None:
     """
     await get_redis().rpush(QUEUE_KEY, str(task_id))
     log.info("task.submitted", task_id=str(task_id), endpoint=endpoint)
+
+
+async def refuse_when_queue_full(config: Any, *, endpoint: str) -> None:
+    """Shed load rather than accept work nobody will get to.
+
+    ``sched.queue_max`` was a setting the console exposed and nothing read, and
+    RejectReason.QUEUE_FULL was defined and never raised - so the queue grew
+    without bound and every caller waited instead of being told to come back.
+    Doc 03 is explicit that rejecting early beats queueing: a caller left
+    hanging is worse off than one that gets a Retry-After immediately.
+
+    Lives here rather than beside the route that first needed it because the
+    download and transcription starts are services shared with MCP, and a copy
+    of this check in each had already drifted from the original by one log line.
+    """
+    ceiling = int(config.get("sched.queue_max"))
+    if ceiling <= 0:
+        return
+    depth = int(await get_redis().llen(QUEUE_KEY))
+    if depth < ceiling:
+        return
+    retry_after = max(1, int(config.get("sched.max_wait_seconds")))
+    log.warning("task.queue_full", endpoint=endpoint, depth=depth, ceiling=ceiling)
+    raise QueueFull(
+        f"{depth} tasks are already queued, at the configured ceiling of {ceiling}",
+        retry_after=retry_after,
+        details={"reject_reason": RejectReason.QUEUE_FULL.value, "queued": depth},
+    )
 
 
 async def submit_now(
@@ -290,6 +318,7 @@ __all__ = [
     "finish",
     "get",
     "mark_running",
+    "refuse_when_queue_full",
     "serialize",
     "submit_now",
     "wait_for",

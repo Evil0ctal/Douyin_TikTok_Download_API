@@ -38,10 +38,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.api import envelope
 from dtk.api.deps import Principal
 from dtk.api.routes.support import language, ok, request_id
-from dtk.core.errors import ErrorCode, Internal, QueueFull, TaskNotFound
+from dtk.core.errors import ErrorCode, Internal, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Platform, RejectReason, Scope, TaskState, UserRole
+from dtk.core.types import Platform, Scope, TaskState, UserRole
 from dtk.services import cache, tasks
 
 # The worker package's declared surface, not its internals: this route and
@@ -294,29 +294,10 @@ _OPERATOR_TRIGGERED: Final[frozenset[str]] = frozenset(
 
 
 async def _refuse_when_the_queue_is_full(request: Request, endpoint: str) -> None:
-    """Shed load rather than accept work nobody will get to.
-
-    ``sched.queue_max`` was a setting the console exposed and nothing read, and
-    RejectReason.QUEUE_FULL was defined and never raised - so the queue grew
-    without bound and every caller waited instead of being told to come back.
-    Doc 03 is explicit that rejecting early beats queueing: a caller left
-    hanging is worse off than one that gets a Retry-After immediately.
-    """
+    """Apply the queue ceiling to everything but the operator-triggered jobs."""
     if endpoint in _OPERATOR_TRIGGERED:
         return
-    ceiling = int(request.app.state.config.get("sched.queue_max"))
-    if ceiling <= 0:
-        return
-    depth = int(await get_redis().llen(tasks.QUEUE_KEY))
-    if depth < ceiling:
-        return
-    retry_after = max(1, int(request.app.state.config.get("sched.max_wait_seconds")))
-    log.warning("task.queue_full", endpoint=endpoint, depth=depth, ceiling=ceiling)
-    raise QueueFull(
-        f"{depth} tasks are already queued, at the configured ceiling of {ceiling}",
-        retry_after=retry_after,
-        details={"reject_reason": RejectReason.QUEUE_FULL.value, "queued": depth},
-    )
+    await tasks.refuse_when_queue_full(request.app.state.config, endpoint=endpoint)
 
 
 def accepted(request: Request, task_id: uuid.UUID, state: TaskState) -> JSONResponse:

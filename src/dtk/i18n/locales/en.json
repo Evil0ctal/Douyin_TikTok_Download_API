@@ -737,7 +737,6 @@
       "DownloadRequest": {
         "content_id": "The post id, as the archive holds it. Text, never an integer: a 19-digit id exceeds the JavaScript safe range.",
         "platform": "Which platform the post is on. Implied by `url` when given.",
-        "profile": "standard stores the normal media set; transcription stores only the smallest complete watermark-free video stream.",
         "skip_existing": "Return the existing download instead of fetching the post again, when this instance already holds its media. What re-running a feed wants: three new posts and forty already on disk.",
         "url": "A share link, or the share text with one inside it. Only the post id it yields is used; nothing here decides which host gets contacted."
       },

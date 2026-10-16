@@ -18,12 +18,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from dtk.api.routes.passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
-from dtk.core.types import (
-    DownloadProfile,
-    Platform,
-    Scope,
-    UserRole,
-)
+from dtk.core.types import Platform, Scope, UserRole
 from dtk.services import collections
 
 #: Usernames are local console accounts, not display names: keep them to what
@@ -503,13 +498,6 @@ class DownloadRequest(Body):
             "Return the existing download instead of fetching the post again, when this "
             "instance already holds its media. What re-running a feed wants: three new "
             "posts and forty already on disk."
-        ),
-    )
-    profile: DownloadProfile = Field(
-        default=DownloadProfile.STANDARD,
-        description=(
-            "standard stores the normal media set; transcription stores only the "
-            "smallest complete watermark-free video stream."
         ),
     )
 

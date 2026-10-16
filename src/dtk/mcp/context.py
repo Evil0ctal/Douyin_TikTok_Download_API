@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from dtk.core.config import Config
-from dtk.core.types import DownloadProfile, Platform, TaskState
+from dtk.core.types import Platform, TaskState
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,7 +91,6 @@ class DownloadGateway(Protocol):
         url: str | None,
         platform: Platform | None,
         content_id: str | None,
-        profile: DownloadProfile,
         skip_existing: bool,
         requested_by: Any | None,
         is_demo: bool,

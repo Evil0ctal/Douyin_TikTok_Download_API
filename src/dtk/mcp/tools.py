@@ -38,13 +38,7 @@ from dtk.core.errors import (
     TaskNotFound,
 )
 from dtk.core.logging import get_logger
-from dtk.core.types import (
-    DownloadProfile,
-    Platform,
-    Scope,
-    TaskState,
-    UserRole,
-)
+from dtk.core.types import Platform, Scope, TaskState, UserRole
 from dtk.mcp import prose, routing
 from dtk.mcp.context import EndpointHealth, McpContext, PoolSnapshot, TaskOutcome
 from dtk.urls import first_url, identify
@@ -636,16 +630,6 @@ class ToolSet:
             str | None,
             Field(default=None, description="Post id as a string, paired with platform."),
         ] = None,
-        profile: Annotated[
-            DownloadProfile,
-            Field(
-                default=DownloadProfile.STANDARD,
-                description=(
-                    "standard stores the normal media set; transcription stores only the "
-                    "smallest complete watermark-free non-DASH video stream."
-                ),
-            ),
-        ] = DownloadProfile.STANDARD,
         skip_existing: Annotated[
             bool,
             Field(default=True, description="Reuse matching media already stored on disk."),
@@ -654,7 +638,7 @@ class ToolSet:
     ) -> dict[str, Any]:
         """Download a post's media onto this instance's media volume."""
         return await self._guarded(
-            self._download_media(url, platform, content_id, profile, skip_existing, context)
+            self._download_media(url, platform, content_id, skip_existing, context)
         )
 
     async def _download_media(
@@ -662,7 +646,6 @@ class ToolSet:
         url: str | None,
         platform: str | None,
         content_id: str | None,
-        profile: DownloadProfile,
         skip_existing: bool,
         context: Context | None,
     ) -> dict[str, Any]:
@@ -675,7 +658,6 @@ class ToolSet:
             url=url.strip() if url and url.strip() else None,
             platform=target_platform,
             content_id=content_id.strip() if content_id and content_id.strip() else None,
-            profile=profile,
             skip_existing=skip_existing,
             requested_by=getattr(caller, "api_key_id", None),
             is_demo=getattr(caller, "role", None) is UserRole.DEMO,

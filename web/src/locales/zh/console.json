@@ -2220,7 +2220,7 @@
       "list_comments": "分页列出某作品的一级评论。",
       "get_content_history": "读取某作品或作者已记录的指标历史。",
       "pool_status": "身份池与接口健康度，调用开始失败时看这个。",
-      "download_media": "把作品媒体保存到本机；转写时使用 transcription 配置下载最小可用视频。",
+      "download_media": "把作品媒体保存到本机；transcribe_video 使用它返回的 download_id。",
       "transcribe_video": "转写一个已下载的视频并返回完整文本。",
       "get_task_result": "取回没能在限时内完成的那次调用的结果。"
     },

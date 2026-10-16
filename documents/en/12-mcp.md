@@ -180,14 +180,14 @@ No credential, identity id, cookie, fingerprint or proxy address appears anywher
 
 ### `download_media`
 
-Accepts either a full post `url`, or `platform` plus `content_id`. Short links must go through `parse_url` first. `profile` defaults to `standard`; use `transcription` to store only the smallest complete watermark-free non-DASH video stream, with no cover or album images. `skip_existing` defaults to true, so repeated agent calls reuse matching files already on disk.
+Accepts either a full post `url`, or `platform` plus `content_id`. Short links must go through `parse_url` first. `skip_existing` defaults to true, so repeated agent calls reuse the files already on disk.
 
 The tool waits up to `api.mcp_tool_timeout`. A completed call returns the durable download record and `download_id`; a longer download returns `pending` with both `task_id` and `download_id`. Files stay on the server's media volume and are not transferred through MCP.
 
 For transcription, use this chain:
 
 ```text
-parse_url → download_media(profile="transcription") → transcribe_video(download_id)
+parse_url → download_media(url) → transcribe_video(download_id)
 ```
 
 ### `transcribe_video`

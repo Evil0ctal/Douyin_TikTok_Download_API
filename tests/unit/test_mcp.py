@@ -24,7 +24,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from dtk.core.config import Config
 from dtk.core.errors import TaskNotFound
-from dtk.core.types import DownloadProfile, Platform, Scope, TaskState
+from dtk.core.types import Platform, Scope, TaskState
 from dtk.mcp import TOOL_NAMES, build_server, routing
 from dtk.mcp.context import (
     EndpointHealth,
@@ -134,9 +134,8 @@ class FakeDownloads:
         self.read.append(download_id)
         return {
             "id": download_id,
-            "profile": "transcription",
             "state": "done",
-            "files": [{"name": "video-transcription.mp4", "kind": "video"}],
+            "files": [{"name": "video.mp4", "kind": "video"}],
         }
 
 
@@ -268,7 +267,7 @@ class TestRegistration:
 
     def test_download_defaults_are_safe_for_general_use(self, tools):
         schema = tools["download_media"].input_schema
-        assert schema["properties"]["profile"]["default"] == "standard"
+        assert "profile" not in schema["properties"]
         assert schema["properties"]["skip_existing"]["default"] is True
 
     def test_no_tool_touches_credentials(self, tools):
@@ -617,14 +616,10 @@ class TestMediaDownloads:
         downloads = FakeDownloads()
         tools = ToolSet(make_context(tasks, downloads=downloads))
 
-        result = await tools.download_media(
-            None, "douyin", "7100000000000000000", DownloadProfile.TRANSCRIPTION, True
-        )
+        result = await tools.download_media(None, "douyin", "7100000000000000000", True)
 
         assert result["status"] == "ok"
         assert result["data"]["state"] == "done"
-        assert result["data"]["profile"] == "transcription"
-        assert downloads.started[0]["profile"] is DownloadProfile.TRANSCRIPTION
         assert downloads.started[0]["skip_existing"] is True
 
     async def test_download_timeout_returns_both_ids(self):
@@ -634,7 +629,6 @@ class TestMediaDownloads:
             "https://www.douyin.com/video/7100000000000000000",
             None,
             None,
-            DownloadProfile.STANDARD,
             True,
         )
         assert result == {
@@ -647,9 +641,7 @@ class TestMediaDownloads:
         downloads = FakeDownloads(reused="already_stored", task_id=None)
         tasks = FakeTasks()
         tools = ToolSet(make_context(tasks, downloads=downloads))
-        result = await tools.download_media(
-            None, "tiktok", "7100000000000000000", DownloadProfile.STANDARD, True
-        )
+        result = await tools.download_media(None, "tiktok", "7100000000000000000", True)
         assert result["status"] == "ok"
         assert tasks.waited == []
 

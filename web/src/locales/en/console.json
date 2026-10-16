@@ -2220,7 +2220,7 @@
       "list_comments": "Top-level comments on a post, one page at a time.",
       "get_content_history": "Recorded metric history for a post or an author.",
       "pool_status": "Identity-pool and endpoint health, for when calls start failing.",
-      "download_media": "Store a post's media locally; use the transcription profile for the smallest suitable video.",
+      "download_media": "Store a post's media on this instance; transcribe_video takes the download_id it returns.",
       "transcribe_video": "Transcribe an already downloaded video and return its full text.",
       "get_task_result": "Collect a result that did not finish in time."
     },

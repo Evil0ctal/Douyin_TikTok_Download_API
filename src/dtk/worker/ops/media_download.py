@@ -89,11 +89,7 @@ async def run(
     # built from it, which is what reads `directory`.
     await downloads.adopt(session, download, row)
 
-    plan = downloads.plan_for(
-        row,
-        max_file_bytes=int(config.get("media.max_file_bytes")),
-        profile=download.profile,
-    )
+    plan = downloads.plan_for(row, max_file_bytes=int(config.get("media.max_file_bytes")))
     if plan.empty:
         detail = "; ".join(plan.skipped) or "this post has no downloadable media"
         await downloads.fail(session, download_id, detail)

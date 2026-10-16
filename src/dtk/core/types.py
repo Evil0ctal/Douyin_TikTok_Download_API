@@ -35,13 +35,6 @@ class DownloadState(StrEnum):
     CANCELLED = "cancelled"
 
 
-class DownloadProfile(StrEnum):
-    """Which media representation a download is optimized for."""
-
-    STANDARD = "standard"
-    TRANSCRIPTION = "transcription"
-
-
 class TranscriptionState(StrEnum):
     """Lifecycle of one durable video transcription."""
 

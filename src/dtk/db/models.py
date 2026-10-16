@@ -636,8 +636,6 @@ class MediaDownload(Base):
     platform: Mapped[str] = mapped_column(Text)
     content_id: Mapped[str] = mapped_column(Text)
     author_uid: Mapped[str] = mapped_column(Text)
-    #: standard | transcription. Existing rows are standard downloads.
-    profile: Mapped[str] = mapped_column(Text, server_default=text("'standard'"))
     #: queued | running | done | partial | failed | cancelled
     state: Mapped[str] = mapped_column(Text, server_default=text("'queued'"))
     #: Relative to the media root, as <platform>/<author_uid>/<content_id>.
