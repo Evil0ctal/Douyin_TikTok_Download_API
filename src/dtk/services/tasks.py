@@ -188,6 +188,27 @@ async def finish(
     log.info("task.finished", task_id=str(task_id), state=task.state)
 
 
+async def settle_unpublished(session: AsyncSession, task_id: uuid.UUID, reason: str) -> None:
+    """Fail a committed task whose id never reached the queue, as far as possible.
+
+    Called when the publish failed, which almost always means Redis is down -
+    and :func:`finish` ends by waking waiters through Redis. The row write it
+    flushed first is still worth committing; if even that fails, the task stays
+    queued and the orphan sweep picks it up, which is a delay rather than a loss.
+    """
+    from dtk.core.errors import Internal
+    from dtk.worker import serialize_error
+
+    try:
+        await finish(session, task_id, error=serialize_error(Internal(reason)))
+    except Exception as exc:
+        log.warning("task.settle_signal_failed", task_id=str(task_id), error=type(exc).__name__)
+    try:
+        await session.commit()
+    except Exception as exc:
+        log.warning("task.settle_commit_failed", task_id=str(task_id), error=type(exc).__name__)
+
+
 async def _signal(task_id: uuid.UUID) -> None:
     redis = get_redis()
     key = SIGNAL_KEY.format(task_id=task_id)
@@ -320,6 +341,7 @@ __all__ = [
     "mark_running",
     "refuse_when_queue_full",
     "serialize",
+    "settle_unpublished",
     "submit_now",
     "wait_for",
 ]

@@ -457,32 +457,46 @@ async def test_a_transcription_whose_task_ended_without_it_is_failed(db_engine, 
     """
     ended = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
     running = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
+    # DELETE /api/v1/tasks/{id} on a queued task: FAILED, with code CANCELLED.
+    withdrawn = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
     async with session_scope() as session:
         _require(await session.get(Task, ended), "the ended task").state = TaskState.FAILED.value
+        row = _require(await session.get(Task, withdrawn), "the withdrawn task")
+        row.state = TaskState.FAILED.value
+        row.error = {"code": ErrorCode.CANCELLED.value, "message": "cancelled"}
     await _running_since(running, 1)
     orphan = await _transcription(ended, state="running")
     alive = await _transcription(running, state="running")
     settled = await _transcription(ended, state="done")
+    cancelled = await _transcription(withdrawn, state="queued")
 
     job = Maintenance(cipher=Cipher(SECRET), config=Config.defaults())
     report = MaintenanceReport()
     try:
         await job.fail_orphaned_transcriptions(report)
 
-        assert report.orphaned_transcriptions_failed == 1
+        assert report.orphaned_transcriptions_failed == 2
         async with session_scope() as session:
             states = {
                 identifier: _require(await session.get(Transcription, identifier), "a row").state
-                for identifier in (orphan, alive, settled)
+                for identifier in (orphan, alive, settled, cancelled)
             }
-        assert states == {orphan: "failed", alive: "running", settled: "done"}
+        assert states == {
+            orphan: "failed",
+            alive: "running",
+            settled: "done",
+            # Withdrawn by its caller, which "the worker never reported" would misstate.
+            cancelled: "cancelled",
+        }
     finally:
         async with session_scope() as session:
             await session.execute(
-                delete(Transcription).where(Transcription.id.in_((orphan, alive, settled)))
+                delete(Transcription).where(
+                    Transcription.id.in_((orphan, alive, settled, cancelled))
+                )
             )
-        await _drop_task(ended)
-        await _drop_task(running)
+        for task_id in (ended, running, withdrawn):
+            await _drop_task(task_id)
 
 
 async def test_retention_windows_reach_timescaledb(db_engine, redis_client):

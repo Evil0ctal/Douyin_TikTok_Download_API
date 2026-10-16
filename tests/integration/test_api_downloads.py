@@ -135,6 +135,49 @@ async def test_a_post_that_was_never_archived_is_fetched_first(api_app, db_engin
     assert downloads.PENDING_AUTHOR in body["directory"]
 
 
+async def test_a_failed_publish_fails_the_download_too(
+    api_app, db_engine, redis_client, monkeypatch
+):
+    """A download left `queued` behind a failed task held its post for two hours.
+
+    Redis is down for the task's finish as well as the publish: that is what a
+    failed publish means, and finishing a task wakes its waiters through Redis.
+    """
+    from dtk.core.config import Config
+    from dtk.core.db import session_scope
+    from dtk.core.types import Platform
+    from dtk.db.models import MediaDownload
+    from dtk.services import download_requests, tasks
+
+    async def unreachable(*_args, **_kwargs):
+        raise ConnectionError("redis went away")
+
+    monkeypatch.setattr(tasks, "enqueue", unreachable)
+    monkeypatch.setattr(tasks, "_signal", unreachable)
+    with pytest.raises(ConnectionError):
+        async with session_scope() as session:
+            await download_requests.start(
+                session,
+                config=Config.defaults(),
+                downloader_configured=True,
+                url=None,
+                platform=Platform.DOUYIN,
+                content_id=CONTENT_ID,
+            )
+
+    async with session_scope() as session:
+        states = (
+            (
+                await session.execute(
+                    select(MediaDownload.state).where(MediaDownload.content_id == CONTENT_ID)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert states == ["failed"]
+
+
 async def test_a_download_can_be_started_from_a_link(api_app, db_engine, redis_client):
     """The link is not a URL anything fetches: identify() yields the post id."""
     user_id = await make_user()

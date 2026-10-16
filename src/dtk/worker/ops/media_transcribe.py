@@ -114,10 +114,11 @@ async def run(
                 await _clear_progress(row.id)
                 return transcriptions.as_dict(row)
             if row.state in transcriptions.TERMINAL_STATES:
-                # Settled by another worker. The stale sweep hands a task that
-                # has run past its threshold to a second worker, and both poll
-                # the same sidecar job; the first to finish stores the result
-                # and acknowledges the job. Nothing is left for this one to do.
+                # Settled elsewhere: by a second worker the stale sweep handed
+                # this task to, or by the orphan sweep. Acknowledge the job
+                # anyway - the orphan sweep never talks to the sidecar, and a
+                # second DELETE of a job already forgotten is a harmless 404.
+                await client.cancel(row.id.hex)
                 await _clear_progress(row.id)
                 return transcriptions.as_dict(row)
             job = await client.job(row.id.hex)

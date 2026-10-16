@@ -60,6 +60,7 @@ from sqlalchemy import and_, func, or_, select, text, update
 
 from dtk.core.crypto import Cipher
 from dtk.core.db import get_engine, session_scope
+from dtk.core.errors import ErrorCode
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
 from dtk.core.types import IdentitySource, IdentityState, TaskState
@@ -359,23 +360,32 @@ class Maintenance:
         `running` forever, and every later request for the same video and
         settings joins it and waits for nothing.
         """
-        finished = select(TaskRow.id).where(
-            TaskRow.state.in_((TaskState.DONE.value, TaskState.FAILED.value))
-        )
+        finished = TaskRow.state.in_((TaskState.DONE.value, TaskState.FAILED.value))
+        # DELETE /api/v1/tasks/{id} on a queued task fails it with CANCELLED;
+        # its transcription was withdrawn, not abandoned, and says so.
+        withdrawn = TaskRow.error["code"].astext == ErrorCode.CANCELLED.value
+        settled = 0
         async with self._session_factory() as session:
-            result = await session.execute(
-                update(TranscriptionRow)
-                .where(
-                    TranscriptionRow.state.in_(transcriptions.LIVE_STATES),
-                    TranscriptionRow.task_id.in_(finished),
+            for tasks_matching, values in (
+                (and_(finished, withdrawn), {"state": "cancelled"}),
+                (
+                    finished,
+                    {
+                        "state": "failed",
+                        "error": "the worker never reported an outcome for this transcription",
+                    },
+                ),
+            ):
+                result = await session.execute(
+                    update(TranscriptionRow)
+                    .where(
+                        TranscriptionRow.state.in_(transcriptions.LIVE_STATES),
+                        TranscriptionRow.task_id.in_(select(TaskRow.id).where(tasks_matching)),
+                    )
+                    .values(**values, finished_at=func.now())
                 )
-                .values(
-                    state="failed",
-                    error="the worker never reported an outcome for this transcription",
-                    finished_at=func.now(),
-                )
-            )
-        report.orphaned_transcriptions_failed = affected(result)
+                settled += affected(result)
+        report.orphaned_transcriptions_failed = settled
         if report.orphaned_transcriptions_failed:
             log.warning(
                 "worker.maintenance.orphaned_transcriptions",

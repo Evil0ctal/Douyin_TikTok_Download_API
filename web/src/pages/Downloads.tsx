@@ -286,12 +286,6 @@ interface Storage {
  * done out of files planned is a real fraction, and the bytes so far are shown
  * beside it as the number that keeps moving.
  */
-/**
- * By files, not by bytes. The platform declares a size and the sidecar does
- * not trust it - the ceiling is enforced on bytes actually written - so there
- * is no denominator. Files done out of files planned is a real fraction; the
- * bytes sit beside it as the number that keeps moving.
- */
 function Progress({ progress }: { progress: DownloadProgress }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()

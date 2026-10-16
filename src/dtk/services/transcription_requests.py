@@ -16,11 +16,9 @@ from typing import Any, Final
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dtk.core.errors import Internal
 from dtk.core.logging import get_logger
 from dtk.db.models import Transcription
 from dtk.services import tasks, transcriptions
-from dtk.worker import serialize_error
 
 log = get_logger(__name__)
 
@@ -95,8 +93,11 @@ async def start(
         # with nothing behind it.
         log.warning("task.enqueue_failed", task_id=str(task_id), error=type(exc).__name__)
         reason = "the task could not be queued for a worker"
-        await tasks.finish(session, task_id, error=serialize_error(Internal(reason)))
+        # The row first: it commits on its own and needs no Redis. Finishing the
+        # task ends by waking its waiters through Redis - the thing that just
+        # failed - and when it ran first it raised and took the row with it.
         await transcriptions.fail(session, row.id, reason)
+        await tasks.settle_unpublished(session, task_id, reason)
         raise
 
     log.info(

@@ -15,13 +15,12 @@ from typing import Any, Final
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dtk.core.errors import Internal, InvalidParam, NotConfigured, QueueFull
+from dtk.core.errors import InvalidParam, NotConfigured, QueueFull
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, TaskState
 from dtk.ops import capacity
 from dtk.services import archive, downloads, tasks
 from dtk.urls import ResourceKind, first_url, identify, require_content_id
-from dtk.worker import serialize_error
 
 log = get_logger(__name__)
 
@@ -230,8 +229,10 @@ async def start(
         # answered every retry of this post with "still running".
         log.warning("task.enqueue_failed", task_id=str(task_id), error=type(exc).__name__)
         reason = "the task could not be queued for a worker"
-        await tasks.finish(session, task_id, error=serialize_error(Internal(reason)))
+        # The row first, for the reason transcription_requests gives: it needs
+        # no Redis, and the task's finish does.
         await downloads.fail(session, download.id, reason)
+        await tasks.settle_unpublished(session, task_id, reason)
         raise
 
     log.info(

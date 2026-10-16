@@ -121,13 +121,19 @@ async def test_the_queue_ceiling_applies_to_transcriptions(api_app, media_root):
 async def test_a_failed_publish_settles_both_rows(
     api_app, media_root, monkeypatch: pytest.MonkeyPatch
 ):
-    """A live row with no queued task would hold the in-flight index for good."""
+    """A live row with no queued task would hold the in-flight index for good.
+
+    Redis is down for the task's finish as well, since that is what failing the
+    publish means: finishing a task ends by waking its waiters through Redis,
+    and when that ran first it raised and took the row's write down with it.
+    """
     download_id = await _download(media_root)
 
     async def unreachable(*_args: Any, **_kwargs: Any) -> None:
         raise ConnectionError("redis went away")
 
     monkeypatch.setattr(tasks, "enqueue", unreachable)
+    monkeypatch.setattr(tasks, "_signal", unreachable)
     with pytest.raises(ConnectionError):
         await _start(download_id, Settings())
 

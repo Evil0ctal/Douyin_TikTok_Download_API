@@ -367,7 +367,9 @@ async def test_a_row_another_worker_settled_ends_the_poll(monkeypatch: pytest.Mo
     assert result == {"state": "done"}
     assert calls["fail"] == []
     assert calls["apply_result"] == []
-    assert client.acknowledged == []
+    # Acknowledged anyway: the orphan sweep settles rows without touching the
+    # sidecar, and a second DELETE of a forgotten job is a harmless 404.
+    assert client.acknowledged == [row.id.hex]
 
 
 async def test_a_job_acknowledged_by_another_worker_is_not_a_failure(
