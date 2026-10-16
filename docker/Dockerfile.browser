@@ -64,13 +64,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
 # Chromium's shared-library and font dependencies. The CJK fonts are not
 # cosmetic: a browser that cannot render the platform's own script measures text
 # differently from every real visitor, and font metrics are a fingerprint.
-RUN set -eux; \
-    if [ -n "${CLOAKBROWSER_COMMIT}" ]; then \
-      for f in /etc/apt/sources.list /etc/apt/sources.list.d/debian.sources; do \
-        if [ -f "$f" ]; then \
-          sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' "$f"; \
-        fi; \
-      done; \
+RUN if [ -n "${CLOAKBROWSER_COMMIT}" ]; then \
       apt-get update && apt-get install --no-install-recommends -y \
         ca-certificates \
         fonts-liberation \
@@ -100,7 +94,6 @@ RUN set -eux; \
         libxrandr2 \
         xdg-utils \
         git \
-      && apt-get clean \
       && rm -rf /var/lib/apt/lists/*; \
     fi
 

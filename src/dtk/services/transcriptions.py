@@ -234,9 +234,7 @@ async def apply_result(
     if started_at is not None:
         values["started_at"] = started_at
     await session.execute(
-        update(Transcription)
-        .where(Transcription.id == transcription_id)
-        .values(**values)
+        update(Transcription).where(Transcription.id == transcription_id).values(**values)
     )
 
 
@@ -260,9 +258,7 @@ async def fail(
     if actual_started_at is not None:
         values["started_at"] = actual_started_at
     await session.execute(
-        update(Transcription)
-        .where(Transcription.id == transcription_id)
-        .values(**values)
+        update(Transcription).where(Transcription.id == transcription_id).values(**values)
     )
     # Most callers raise immediately afterwards; persist the terminal state
     # before the operation runner rolls its transaction back for that error.

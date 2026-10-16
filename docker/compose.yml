@@ -361,7 +361,7 @@ services:
         # publish identically described CloakBrowser repositories, so a floating
         # tag is not a version (docs/design/04-transport-signing.md).
         CLOAKBROWSER_REPO: ${CLOAKBROWSER_REPO:-https://github.com/CloakHQ/cloakbrowser}
-        CLOAKBROWSER_COMMIT: ${CLOAKBROWSER_COMMIT:-f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce}
+        CLOAKBROWSER_COMMIT: ${CLOAKBROWSER_COMMIT:-}
     # Same env file as the rest of the stack, for the same reason: every
     # DTK_BROWSER_* knob the README documents - the backend name above all - has
     # to be settable in one place. `environment:` wins over `env_file:`, so only
