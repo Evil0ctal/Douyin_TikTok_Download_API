@@ -16,7 +16,7 @@ import contextlib
 import signal
 import uuid
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 
@@ -128,6 +128,7 @@ async def build_runtime(
     from dtk.signing import NativeSigner, RpcSigner, SignerRegistry, native_signers
     from dtk.signing.base import RequestSpec as SigningRequestSpec
     from dtk.signing.base import SignedParams, SigningSession, StaticFingerprint
+    from dtk.transcriber import TranscriberClient
     from dtk.transport import TransportIdentity, WreqTransport
     from dtk.worker.maintenance import Maintenance, MaintenanceConfig
     from dtk.worker.pool_filler import FillerConfig, PoolFiller
@@ -228,10 +229,28 @@ async def build_runtime(
     downloader: DownloaderClient | None = None
     if settings.downloader_url:
         downloader = DownloaderClient(settings.downloader_url, token=settings.downloader_token)
+    transcriber: TranscriberClient | None = None
+    if settings.transcriber_url:
+        transcriber = TranscriberClient(
+            settings.transcriber_url,
+            token=settings.transcriber_token,
+            timeout_seconds=settings.transcriber_timeout_seconds,
+        )
 
     filler_options = FillerConfig()
     prober_options = ProberConfig()
     maintenance_options = MaintenanceConfig()
+    if transcriber is not None:
+        # Its own stale window: the op holds its task for up to the transcriber
+        # timeout, and is only an orphan once it has outlived that by as much
+        # as any other task is given.
+        maintenance_options = replace(
+            maintenance_options,
+            long_task_seconds={
+                "media.transcribe": int(transcriber.timeout_seconds)
+                + maintenance_options.stale_task_seconds,
+            },
+        )
     watcher_options = WatcherConfig()
     filler = PoolFiller(
         pool=pool,
@@ -273,6 +292,7 @@ async def build_runtime(
             notifier=notifier,
             rpc=rpc_client,
             downloader=downloader,
+            transcriber=transcriber,
             fetch=fetch,
         ),
         session_factory=session_scope,
@@ -308,6 +328,8 @@ async def build_runtime(
     closers: list[Callable[[], Any]] = [transport.close, prober.aclose, notifier.aclose]
     if downloader is not None:
         closers.append(downloader.aclose)
+    if transcriber is not None:
+        closers.append(transcriber.aclose)
     if rpc_http is not None:
         # The client was injected, so browser-rpc will not close it for us.
         closers.append(rpc_http.aclose)

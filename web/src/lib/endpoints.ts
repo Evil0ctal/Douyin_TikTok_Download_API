@@ -104,6 +104,12 @@ export const paths = {
     file: (id: string, name: string) =>
       `${API_V1}/downloads/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`,
   },
+  transcriptions: {
+    list: `${API_V1}/transcriptions`,
+    create: `${API_V1}/transcriptions`,
+    delete: `${API_V1}/transcriptions/delete`,
+    byId: (id: string) => `${API_V1}/transcriptions/${encodeURIComponent(id)}`,
+  },
   tools: {
     sign: `${API_V1}/tools/sign`,
     decode: `${API_V1}/tools/decode`,

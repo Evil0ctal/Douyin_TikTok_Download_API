@@ -6,7 +6,7 @@ timeout paths deterministically, without a worker and without sleeping.
 
 Two properties are load bearing enough to be asserted directly:
 
-* the tool surface is exactly eight tools, and none of them names a credential;
+* the tool surface is exactly ten tools, and none of them names a credential;
 * a tool that outlives its timeout returns a task id in prose rather than
   raising, because an agent handed an exception will just repeat the call.
 """
@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -23,7 +24,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from dtk.core.config import Config
 from dtk.core.errors import TaskNotFound
-from dtk.core.types import Platform, TaskState
+from dtk.core.types import Platform, Scope, TaskState
 from dtk.mcp import TOOL_NAMES, build_server, routing
 from dtk.mcp.context import (
     EndpointHealth,
@@ -54,11 +55,13 @@ class FakeTasks:
         wait: TaskOutcome | None = None,
         lookup: TaskOutcome | None = None,
         missing: bool = False,
+        wait_delay: float = 0.0,
     ) -> None:
         self.submitted: list[tuple[str, dict[str, Any]]] = []
         self._wait = wait
         self._lookup = lookup
         self._missing = missing
+        self._wait_delay = wait_delay
         self.waited: list[float] = []
 
     async def submit(self, endpoint: str, params: dict[str, Any]) -> str:
@@ -67,6 +70,8 @@ class FakeTasks:
 
     async def wait(self, task_id: str, seconds: float) -> TaskOutcome | None:
         self.waited.append(seconds)
+        if self._wait_delay:
+            await asyncio.sleep(self._wait_delay)
         return self._wait
 
     async def result(self, task_id: str) -> TaskOutcome:
@@ -109,10 +114,112 @@ class FakeHistory:
         return self.points
 
 
+class FakeDownloads:
+    def __init__(
+        self,
+        *,
+        reused: str | None = None,
+        task_id: str | None = TASK_ID,
+        final_state: str = "done",
+        error: str | None = None,
+    ) -> None:
+        self.reused = reused
+        self.task_id = task_id
+        self.final_state = final_state
+        self.error = error
+        self.started: list[dict[str, Any]] = []
+        self.read: list[str] = []
+
+    async def start(self, **kwargs: Any) -> dict[str, Any]:
+        self.started.append(kwargs)
+        return {
+            "download_id": "8afe9635-9deb-4590-b76a-46a18c38bf7b",
+            "task_id": self.task_id,
+            "state": "done" if self.reused else "queued",
+            "reused": self.reused,
+        }
+
+    async def get(self, download_id: str) -> dict[str, Any]:
+        self.read.append(download_id)
+        return {
+            "id": download_id,
+            "state": self.final_state,
+            "error": self.error,
+            "files": [{"name": "video.mp4", "kind": "video"}],
+        }
+
+
+class FakeTranscriptions:
+    def __init__(
+        self,
+        snapshots: list[dict[str, Any]] | None = None,
+        *,
+        start_state: str = "queued",
+        reused: str | None = None,
+        final_state: str = "done",
+        error: str | None = None,
+    ) -> None:
+        self.snapshots = list(snapshots or [])
+        self.progress_calls = 0
+        self.start_state = start_state
+        self.reused = reused
+        self.final_state = final_state
+        self.error = error
+
+    async def start(self, *_args: Any, **_kwargs: Any) -> tuple[dict[str, Any], str | None]:
+        return (
+            {
+                "transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b",
+                "task_id": TASK_ID,
+                "state": self.start_state,
+                "text": "Final text." if self.start_state == "done" else None,
+            },
+            self.reused,
+        )
+
+    async def get(self, transcription_id: str) -> dict[str, Any]:
+        return {
+            "transcription_id": transcription_id,
+            "task_id": TASK_ID,
+            "state": self.final_state,
+            "text": "Final text." if self.final_state == "done" else None,
+            "error": self.error,
+        }
+
+    async def progress(self, _transcription_id: str) -> dict[str, Any] | None:
+        self.progress_calls += 1
+        if not self.snapshots:
+            return None
+        if len(self.snapshots) == 1:
+            return self.snapshots[0]
+        return self.snapshots.pop(0)
+
+
+class ProgressContext:
+    def __init__(self, *, enabled: bool = True, fail_reports: bool = False) -> None:
+        token = "progress-1" if enabled else None
+        self.fail_reports = fail_reports
+        self.request_context = SimpleNamespace(
+            meta={"progress_token": token} if token is not None else {},
+            params={"_meta": {"progressToken": token}} if token is not None else {},
+            request=None,
+        )
+        self.reports: list[tuple[float, float | None, str | None]] = []
+
+    async def report_progress(
+        self, progress: float, total: float | None = None, message: str | None = None
+    ) -> None:
+        if self.fail_reports:
+            raise RuntimeError("progress transport unavailable")
+        self.reports.append((progress, total, message))
+
+
 def make_context(
     tasks: FakeTasks | None = None,
     pool: FakePool | None = None,
     history: FakeHistory | None = None,
+    downloads: FakeDownloads | None = None,
+    transcriptions: FakeTranscriptions | None = None,
     *,
     timeout: int = 60,
 ) -> McpContext:
@@ -121,6 +228,8 @@ def make_context(
         tasks=tasks or FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"ok": True})),
         pool=pool or FakePool(),
         history=history or FakeHistory(),
+        downloads=downloads,
+        transcriptions=transcriptions,
         config=lambda: config,
     )
 
@@ -161,9 +270,20 @@ class TestRegistration:
             "list_comments",
             "get_content_history",
             "pool_status",
+            "download_media",
+            "transcribe_video",
             "get_task_result",
         }
         assert set(tools) == set(TOOL_NAMES)
+
+    def test_transcription_normalization_is_public_and_enabled_by_default(self, tools):
+        schema = tools["transcribe_video"].input_schema
+        assert schema["properties"]["normalize"]["default"] is True
+
+    def test_download_defaults_are_safe_for_general_use(self, tools):
+        schema = tools["download_media"].input_schema
+        assert "profile" not in schema["properties"]
+        assert schema["properties"]["skip_existing"]["default"] is True
 
     def test_no_tool_touches_credentials(self, tools):
         """An agent must have no way to reach identities, cookies or proxies.
@@ -499,9 +619,319 @@ class TestBlocking:
             await tools.get_video("douyin", "7100000000000000000")
 
 
+class TestMediaDownloads:
+    async def test_download_waits_and_returns_the_persisted_record(self):
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"download_id": "8afe9635-9deb-4590-b76a-46a18c38bf7b", "state": "done"},
+            endpoint="media.download",
+        )
+        tasks = FakeTasks(wait=finished)
+        downloads = FakeDownloads()
+        tools = ToolSet(make_context(tasks, downloads=downloads))
+
+        result = await tools.download_media(None, "douyin", "7100000000000000000", True)
+
+        assert result["status"] == "ok"
+        assert result["data"]["state"] == "done"
+        assert downloads.started[0]["skip_existing"] is True
+
+    async def test_download_timeout_returns_both_ids(self):
+        downloads = FakeDownloads()
+        tools = ToolSet(make_context(FakeTasks(wait=None), downloads=downloads))
+        result = await tools.download_media(
+            "https://www.douyin.com/video/7100000000000000000",
+            None,
+            None,
+            True,
+        )
+        assert result["status"] == "pending"
+        assert result["task_id"] == TASK_ID
+        assert result["download_id"] == "8afe9635-9deb-4590-b76a-46a18c38bf7b"
+        assert f"get_task_result with task_id={TASK_ID}" in result["message"]
+
+    async def test_a_download_that_stored_nothing_is_an_error(self):
+        """The worker records "no fetchable media" as a result, not a raise.
+
+        Reading only the task, this answered status "ok" for a download that
+        stored nothing at all.
+        """
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"download_id": "8afe9635-9deb-4590-b76a-46a18c38bf7b", "state": "failed"},
+            endpoint="media.download",
+        )
+        downloads = FakeDownloads(final_state="failed", error="this post has no downloadable media")
+        tools = ToolSet(make_context(FakeTasks(wait=finished), downloads=downloads))
+
+        with pytest.raises(ToolError) as caught:
+            await tools.download_media(None, "douyin", "7100000000000000000", True)
+
+        assert "failed" in str(caught.value)
+        assert "This post has no downloadable media." in str(caught.value)
+
+    async def test_existing_download_returns_without_waiting(self):
+        downloads = FakeDownloads(reused="already_stored", task_id=None)
+        tasks = FakeTasks()
+        tools = ToolSet(make_context(tasks, downloads=downloads))
+        result = await tools.download_media(None, "tiktok", "7100000000000000000", True)
+        assert result["status"] == "ok"
+        assert tasks.waited == []
+
+    async def test_get_task_result_rehydrates_a_download(self):
+        download_id = "8afe9635-9deb-4590-b76a-46a18c38bf7b"
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"download_id": download_id, "state": "partial"},
+            endpoint="media.download",
+        )
+        downloads = FakeDownloads()
+        tools = ToolSet(make_context(FakeTasks(lookup=finished), downloads=downloads))
+        result = await tools.get_task_result(TASK_ID)
+        assert result["download_id"] == download_id
+        assert result["data"]["id"] == download_id
+        assert downloads.read == [download_id]
+
+
+class TestTranscriptionProgress:
+    async def test_progress_notifications_are_monotonic_and_send_only_text_deltas(
+        self, monkeypatch
+    ):
+        from dtk.mcp import tools as mcp_tools
+
+        monkeypatch.setattr(mcp_tools, "TRANSCRIPTION_PROGRESS_POLL_SECONDS", 0.005)
+        snapshots = [
+            {
+                "stage": "decode",
+                "revision": 1,
+                "processed_ms": 0,
+                "duration_ms": None,
+                "progress_percent": None,
+                "partial_text": "",
+            },
+            {
+                "stage": "asr",
+                "revision": 2,
+                "processed_ms": 250,
+                "duration_ms": 1000,
+                "progress_percent": 25.0,
+                "partial_text": "Hello",
+            },
+            {
+                "stage": "asr",
+                "revision": 3,
+                "processed_ms": 250,
+                "duration_ms": 1000,
+                "progress_percent": 25.0,
+                "partial_text": "Hello world",
+            },
+            {
+                "stage": "asr",
+                "revision": 4,
+                "processed_ms": 750,
+                "duration_ms": 1000,
+                "progress_percent": 75.0,
+                "partial_text": "Hello world",
+            },
+            {
+                "stage": "punctuation",
+                "revision": 5,
+                "processed_ms": 1000,
+                "duration_ms": 1000,
+                "progress_percent": 99.9,
+                "partial_text": "Hello world",
+            },
+        ]
+        transcriptions = FakeTranscriptions(snapshots)
+        tasks = FakeTasks(
+            wait=TaskOutcome(TASK_ID, TaskState.DONE, {"state": "done"}),
+            wait_delay=0.035,
+        )
+        context = ProgressContext()
+        tools = ToolSet(make_context(tasks, transcriptions=transcriptions))
+
+        result = await tools.transcribe_video(
+            "8afe9635-9deb-4590-b76a-46a18c38bf7b",
+            context=context,  # type: ignore[arg-type]
+        )
+
+        assert result["status"] == "ok"
+        assert result["data"]["text"] == "Final text."
+        progress = [entry[0] for entry in context.reports]
+        assert progress == sorted(set(progress))
+        assert progress[0] == 0.0
+        assert progress[-1] == 100.0
+        messages = [entry[2] or "" for entry in context.reports]
+        hello = next(message for message in messages if "Provisional text: Hello" in message)
+        world = next(message for message in messages if "Provisional text:  world" in message)
+        assert "world" not in hello
+        assert "Hello" not in world
+
+    async def test_a_client_without_progress_token_uses_the_original_wait_path(self):
+        transcriptions = FakeTranscriptions(
+            [{"stage": "asr", "revision": 1, "partial_text": "not observed"}]
+        )
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"state": "done"}))
+        context = ProgressContext(enabled=False)
+        tools = ToolSet(make_context(tasks, transcriptions=transcriptions))
+
+        result = await tools.transcribe_video(
+            "8afe9635-9deb-4590-b76a-46a18c38bf7b",
+            context=context,  # type: ignore[arg-type]
+        )
+
+        assert result["status"] == "ok"
+        assert context.reports == []
+        assert transcriptions.progress_calls == 0
+
+    async def test_progress_does_not_change_the_pending_result(self, monkeypatch):
+        from dtk.mcp import tools as mcp_tools
+
+        monkeypatch.setattr(mcp_tools, "TRANSCRIPTION_PROGRESS_POLL_SECONDS", 0.005)
+        transcriptions = FakeTranscriptions(
+            [
+                {
+                    "stage": "asr",
+                    "revision": 1,
+                    "processed_ms": 100,
+                    "duration_ms": 1000,
+                    "progress_percent": 10.0,
+                    "partial_text": "Temporary",
+                }
+            ]
+        )
+        tasks = FakeTasks(wait=None, wait_delay=0.015)
+        context = ProgressContext()
+        tools = ToolSet(make_context(tasks, transcriptions=transcriptions))
+
+        result = await tools.transcribe_video(
+            "8afe9635-9deb-4590-b76a-46a18c38bf7b",
+            context=context,  # type: ignore[arg-type]
+        )
+
+        assert result["status"] == "pending"
+        assert result["task_id"] == TASK_ID
+        assert result["transcription_id"] == "7afe9635-9deb-4590-b76a-46a18c38bf7b"
+        assert f"get_task_result with task_id={TASK_ID}" in result["message"]
+        assert any(
+            "Provisional text: Temporary" in (message or "") for _, _, message in context.reports
+        )
+
+    async def test_reused_completed_transcription_returns_without_progress(self):
+        transcriptions = FakeTranscriptions(start_state="done", reused="completed")
+        tasks = FakeTasks()
+        context = ProgressContext()
+        tools = ToolSet(make_context(tasks, transcriptions=transcriptions))
+
+        result = await tools.transcribe_video(
+            "8afe9635-9deb-4590-b76a-46a18c38bf7b",
+            context=context,  # type: ignore[arg-type]
+        )
+
+        assert result["status"] == "ok"
+        assert result["data"]["text"] == "Final text."
+        assert context.reports == []
+        assert tasks.waited == []
+
+    async def test_failed_transcription_never_reports_completion(self, monkeypatch):
+        from dtk.mcp import tools as mcp_tools
+
+        monkeypatch.setattr(mcp_tools, "TRANSCRIPTION_PROGRESS_POLL_SECONDS", 0.005)
+        transcriptions = FakeTranscriptions(
+            [
+                {
+                    "stage": "asr",
+                    "revision": 1,
+                    "processed_ms": 500,
+                    "duration_ms": 1000,
+                    "progress_percent": 50.0,
+                    "partial_text": "Temporary",
+                }
+            ]
+        )
+        tasks = FakeTasks(
+            wait=TaskOutcome(
+                TASK_ID,
+                TaskState.FAILED,
+                error={"code": "TRANSCRIBER_DOWN", "message": "transcriber stopped"},
+            ),
+            wait_delay=0.015,
+        )
+        context = ProgressContext()
+        tools = ToolSet(make_context(tasks, transcriptions=transcriptions))
+
+        with pytest.raises(ToolError):
+            await tools.transcribe_video(
+                "8afe9635-9deb-4590-b76a-46a18c38bf7b",
+                context=context,  # type: ignore[arg-type]
+            )
+
+        assert context.reports
+        assert context.reports[-1][0] < 100.0
+
+    async def test_progress_transport_failure_does_not_mask_the_final_result(self):
+        transcriptions = FakeTranscriptions()
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"state": "done"}))
+        context = ProgressContext(fail_reports=True)
+        tools = ToolSet(make_context(tasks, transcriptions=transcriptions))
+
+        result = await tools.transcribe_video(
+            "8afe9635-9deb-4590-b76a-46a18c38bf7b",
+            context=context,  # type: ignore[arg-type]
+        )
+
+        assert result["status"] == "ok"
+        assert result["data"]["text"] == "Final text."
+
+
 # ---------------------------------------------------------------------------
 # Error prose
 # ---------------------------------------------------------------------------
+
+
+class TestTranscriptionOutcomes:
+    @pytest.mark.parametrize(
+        ("state", "error", "expected"),
+        [
+            ("failed", "ffmpeg could not decode the first audio track", "failed"),
+            ("cancelled", None, "cancelled"),
+        ],
+    )
+    async def test_a_transcription_without_text_is_an_error(self, state, error, expected):
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b", "state": state},
+            endpoint="media.transcribe",
+        )
+        transcriptions = FakeTranscriptions(final_state=state, error=error)
+        tools = ToolSet(make_context(FakeTasks(wait=finished), transcriptions=transcriptions))
+
+        with pytest.raises(ToolError) as caught:
+            await tools.transcribe_video("8afe9635-9deb-4590-b76a-46a18c38bf7b")
+
+        assert expected in str(caught.value)
+        assert "transcribe_video again" in str(caught.value)
+
+    async def test_collecting_a_transcription_reads_the_stored_record(self):
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b", "state": "done"},
+            endpoint="media.transcribe",
+        )
+        tools = ToolSet(
+            make_context(FakeTasks(lookup=finished), transcriptions=FakeTranscriptions())
+        )
+
+        result = await tools.get_task_result(TASK_ID)
+
+        assert result["status"] == "ok"
+        assert result["transcription_id"] == "7afe9635-9deb-4590-b76a-46a18c38bf7b"
+        assert result["data"]["text"] == "Final text."
 
 
 class TestErrorProse:
@@ -746,21 +1176,27 @@ class TestPlatformScope:
 # ---------------------------------------------------------------------------
 
 
-def _mounted_app(tasks: FakeTasks | None = None, *, real_scopes: bool = False):
+def _mounted_app(
+    tasks: FakeTasks | None = None,
+    downloads: FakeDownloads | None = None,
+    transcriptions: FakeTranscriptions | None = None,
+    *,
+    real_scopes: bool = False,
+):
     from fastapi import FastAPI
 
     from dtk.mcp.http import authorize_platform, mount
 
     app = FastAPI()
     app.state.config = Config.defaults()
-    context = make_context(tasks)
+    context = make_context(tasks, downloads=downloads, transcriptions=transcriptions)
     if real_scopes:
         context = replace(context, authorize=authorize_platform)
     mount(app, context=context)
     return app
 
 
-def _authenticate(monkeypatch) -> None:
+def _authenticate(monkeypatch, scopes: frozenset[Scope] | None = None) -> None:
     """Stand in for the key lookup, which needs PostgreSQL and Redis.
 
     The guard's own logic - header required, key required, scope required - is
@@ -769,13 +1205,13 @@ def _authenticate(monkeypatch) -> None:
     import uuid as uuid_module
 
     from dtk.api.deps import Principal
-    from dtk.core.types import Scope, UserRole
+    from dtk.core.types import UserRole
     from dtk.mcp import http as mcp_http
 
     principal = Principal(
         user_id=uuid_module.uuid4(),
         role=UserRole.OPERATOR,
-        scopes=frozenset({Scope.DOUYIN_READ}),
+        scopes=scopes or frozenset({Scope.DOUYIN_READ}),
         api_key_id=uuid_module.uuid4(),
         rate_limit_per_min=None,
     )
@@ -800,6 +1236,58 @@ def _rpc(client, method: str, params: dict[str, Any] | None = None):
             "X-API-Key": "dtk_test_key",
         },
     )
+
+
+class TestTaskResultScopes:
+    """The transport admits media and transcription keys now; results must not."""
+
+    @pytest.mark.parametrize("scope", [Scope.MEDIA_READ, Scope.TRANSCRIPTION_WRITE])
+    @pytest.mark.parametrize(
+        ("endpoint", "result"),
+        [
+            ("parse", {"data": {"title": "a post this key may not read"}}),
+            ("proxy.test", {"data": {"exit_ip": "203.0.113.9"}}),
+            ("identity.mint", {"data": {"identity_id": "an identity id"}}),
+        ],
+    )
+    def test_a_media_key_cannot_collect_another_kind_of_task(
+        self, monkeypatch, scope, endpoint, result
+    ):
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch, frozenset({scope}))
+        tasks = FakeTasks(lookup=TaskOutcome(TASK_ID, TaskState.DONE, result, endpoint=endpoint))
+        with TestClient(_mounted_app(tasks, real_scopes=True)) as client:
+            response = _rpc(
+                client,
+                "tools/call",
+                {"name": "get_task_result", "arguments": {"task_id": TASK_ID}},
+            )
+        assert "FORBIDDEN_SCOPE" in response.text
+        assert "203.0.113.9" not in response.text
+        assert "an identity id" not in response.text
+
+    def test_a_transcription_key_collects_its_own_kind_of_task(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch, frozenset({Scope.TRANSCRIPTION_READ}))
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b", "state": "done"},
+            endpoint="media.transcribe",
+        )
+        app = _mounted_app(
+            FakeTasks(lookup=finished), transcriptions=FakeTranscriptions(), real_scopes=True
+        )
+        with TestClient(app) as client:
+            response = _rpc(
+                client,
+                "tools/call",
+                {"name": "get_task_result", "arguments": {"task_id": TASK_ID}},
+            )
+        assert "FORBIDDEN_SCOPE" not in response.text
+        assert "Final text." in response.text
 
 
 class TestHttpTransport:
@@ -849,6 +1337,34 @@ class TestHttpTransport:
         assert "dtk" in response.text
         assert "get_task_result" in response.text  # the server instructions
 
+    @pytest.mark.parametrize("scope", [Scope.MEDIA_READ, Scope.MEDIA_WRITE])
+    def test_a_media_only_key_can_reach_the_protocol(self, monkeypatch, scope):
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch, frozenset({scope}))
+        with TestClient(_mounted_app()) as client:
+            response = _rpc(client, "ping")
+        assert response.status_code == 200
+
+    def test_media_read_cannot_start_a_download(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch, frozenset({Scope.MEDIA_READ}))
+        with TestClient(_mounted_app(downloads=FakeDownloads())) as client:
+            response = _rpc(
+                client,
+                "tools/call",
+                {
+                    "name": "download_media",
+                    "arguments": {
+                        "platform": "douyin",
+                        "content_id": "7100000000000000000",
+                    },
+                },
+            )
+        assert response.status_code == 200
+        assert "FORBIDDEN_SCOPE" in response.text
+
     def test_a_key_scoped_to_one_platform_cannot_read_the_other(self, monkeypatch):
         """The real bypass this guards: ``_authenticate`` sees only headers, and
         the platform is in the body. The key here holds douyin:read only."""
@@ -877,3 +1393,66 @@ class TestHttpTransport:
         assert refused.status_code == 200
         assert '"isError":true' in refused.text.replace(" ", "")
         assert "FORBIDDEN_SCOPE" in refused.text
+
+    def test_transcription_progress_is_flushed_before_the_tool_result(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from dtk.mcp import tools as mcp_tools
+
+        monkeypatch.setattr(mcp_tools, "TRANSCRIPTION_PROGRESS_POLL_SECONDS", 0.005)
+        _authenticate(monkeypatch, frozenset({Scope.TRANSCRIPTION_WRITE}))
+        tasks = FakeTasks(
+            wait=TaskOutcome(TASK_ID, TaskState.DONE, {"state": "done"}),
+            wait_delay=0.025,
+        )
+        transcriptions = FakeTranscriptions(
+            [
+                {
+                    "stage": "asr",
+                    "revision": 1,
+                    "processed_ms": 500,
+                    "duration_ms": 1000,
+                    "progress_percent": 50.0,
+                    "partial_text": "Temporary text",
+                }
+            ]
+        )
+        with TestClient(_mounted_app(tasks, transcriptions=transcriptions)) as client:
+            response = _rpc(
+                client,
+                "tools/call",
+                {
+                    "name": "transcribe_video",
+                    "arguments": {"download_id": "8afe9635-9deb-4590-b76a-46a18c38bf7b"},
+                    "_meta": {"progressToken": "progress-1"},
+                },
+            )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        assert "no-cache" in response.headers["cache-control"].lower()
+        assert response.headers["x-accel-buffering"] == "no"
+        assert '"method":"notifications/progress"' in response.text
+        assert response.text.index("Temporary text") < response.text.index("Final text.")
+
+    def test_transcription_without_progress_token_has_no_progress_notification(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch, frozenset({Scope.TRANSCRIPTION_WRITE}))
+        transcriptions = FakeTranscriptions(
+            [{"stage": "asr", "revision": 1, "partial_text": "Temporary text"}]
+        )
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"state": "done"}))
+        with TestClient(_mounted_app(tasks, transcriptions=transcriptions)) as client:
+            response = _rpc(
+                client,
+                "tools/call",
+                {
+                    "name": "transcribe_video",
+                    "arguments": {"download_id": "8afe9635-9deb-4590-b76a-46a18c38bf7b"},
+                },
+            )
+
+        assert response.status_code == 200
+        assert "notifications/progress" not in response.text
+        assert transcriptions.progress_calls == 0

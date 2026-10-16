@@ -416,7 +416,7 @@ make smoke        # ./scripts/smoke.sh
 
 6. **暴露出去。** 在 `src/dtk/api/routes/content.py` 里加一条 REST 路由，用 `openapi_extra={I18N_KEY: "<key>", **ASYNC_RESPONSES}` 声明，并在 `src/dtk/i18n/locales/en.json` 和 `zh.json` 两边都写上 `openapi.op.<key>.summary` / `.description`。`tests/unit/test_i18n.py` 和 `tests/unit/test_openapi_completeness.py` 会因为“操作没有文案”“参数没有 `description=`”“中文文档里还是英文”而失败。路由函数的 docstring 就是 FastAPI 用作英文描述的那段。
 
-   MCP 是另一个决定。工具集刻意封顶在八个——每多一个工具，代理选对工具的准确率都会有可测量的下降——所以一项新能力应该成为现有工具的一个参数，而不是第九个工具。见 [MCP 与 AI 客户端](./12-mcp.md)。
+   MCP 是另一个决定。工具集刻意保持很少——目前十个，每多一个工具，代理选对工具的准确率都会有可测量的下降——所以一项新能力应该成为现有工具的一个参数，而不是一个新工具。例外是性质不同的动作：`download_media` 和 `transcribe_video` 会改变本实例，各自有单独的写权限。见 [MCP 与 AI 客户端](./12-mcp.md)。
 
 7. **补 fixture 和回放测试。** `tests/fixtures/<platform>/` 下每个平台一个 JSON 文件，按该目录 README 的规则脱敏，再在 `tests/replay/` 里加一个测试。生产上某个接口坏掉时，第一步就是把那次响应存到这里并写一个失败的回放测试，然后再修解析器——这样每一次故障都会留下一道永久的回归防线，而不是被忘掉。
 
@@ -531,7 +531,7 @@ CI 有五个门禁 job：`static`、`unit`、`integration`、`console`、`image`
 - [配置参考](./03-configuration.md)——每一个配置项、它的作用域和默认值。
 - [核心概念](./04-concepts.md)——身份、调度器、请求结果、熔断器。
 - [REST API 指南](./11-api.md)——响应信封、权限范围、`?wait=`、`?refresh=`、`?explain=`。
-- [MCP 与 AI 客户端](./12-mcp.md)——那八个工具，以及为什么只有八个。
+- [MCP 与 AI 客户端](./12-mcp.md)——那十个工具，以及为什么这么少。
 - [命令行参考](./13-cli.md)——每一条命令，以及哪些对着线上实例是安全的。
 - [故障排查](./14-troubleshooting.md)——在断定是 bug 之前先把失败读懂。
 - [安全](./15-security.md)——主密钥、各种白名单，以及什么会离开这个实例。

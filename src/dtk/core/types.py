@@ -35,6 +35,16 @@ class DownloadState(StrEnum):
     CANCELLED = "cancelled"
 
 
+class TranscriptionState(StrEnum):
+    """Lifecycle of one durable video transcription."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class Availability(StrEnum):
     """Whether the archived post is still reachable upstream.
 
@@ -164,6 +174,8 @@ class Scope(StrEnum):
     #: because starting one spends an identity, fills a disk and is the only
     #: read-shaped call in this API with a lasting side effect on the host.
     MEDIA_WRITE = "media:write"
+    TRANSCRIPTION_READ = "transcription:read"
+    TRANSCRIPTION_WRITE = "transcription:write"
     ADMIN = "admin"
 
 

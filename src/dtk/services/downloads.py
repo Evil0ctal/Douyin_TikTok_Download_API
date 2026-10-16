@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.db.base import affected
-from dtk.db.models import ArchivedContent, MediaDownload
+from dtk.db.models import ArchivedContent, MediaDownload, Transcription
 from dtk.media import domains
 from dtk.media import plan as planner
 
@@ -759,7 +759,24 @@ async def plan_eviction(session: AsyncSession, *, total_bytes: int, ceiling_byte
         .scalars()
         .all()
     )
-    return choose_evictions(list(rows), over_by=total_bytes - ceiling_bytes)
+    protected = set(
+        (
+            await session.execute(
+                select(Transcription.download_id).where(
+                    Transcription.download_id.is_not(None),
+                    Transcription.state.in_(("queued", "running")),
+                )
+            )
+        ).scalars()
+    )
+    # Several download rows can own the same directory. Protect the directory,
+    # not just the source row, or an older duplicate could still schedule the
+    # active transcription's files for recursive deletion.
+    protected_directories = {row.directory for row in rows if row.id in protected}
+    return choose_evictions(
+        [row for row in rows if row.directory not in protected_directories],
+        over_by=total_bytes - ceiling_bytes,
+    )
 
 
 async def titles_for(

@@ -95,6 +95,13 @@
       "failed": "Failed",
       "cancelled": "Cancelled"
     },
+    "transcription": {
+      "queued": "Queued",
+      "running": "Transcribing",
+      "done": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
     "credential": {
       "ok": "Complete",
       "missing": "Missing",

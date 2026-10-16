@@ -179,6 +179,7 @@
       "auth": "Signing in, sessions, and the account you are signed in as.",
       "content": "Platform-agnostic reads: hand any of these a link or an id.",
       "downloads": "Media this instance has stored on its own disk. A sink, never a relay: bytes are never streamed back to a caller.",
+      "transcriptions": "On-demand whole-text transcription of videos already stored on disk.",
       "ios": "The iOS Shortcut this instance serves, ready to install.",
       "setup": "First-run: the only endpoints that answer before an administrator exists.",
       "system": "Health, version and diagnostics.",
@@ -186,6 +187,26 @@
       "tools": "Building blocks: link parsing, signing and guest identity minting."
     },
     "op": {
+      "transcriptions_create": {
+        "summary": "Transcribe a downloaded video",
+        "description": "Creates or reuses a whole-text transcription for a completed downloaded video. Existing results return 200; new or joined work returns 202 while running."
+      },
+      "transcriptions_get": {
+        "summary": "Read a transcription",
+        "description": "Reads the durable text, language, duration, model, source and lifecycle metadata."
+      },
+      "transcriptions_cancel": {
+        "summary": "Cancel a transcription",
+        "description": "Cancels queued or running transcription work; completed results remain unchanged."
+      },
+      "transcriptions_list": {
+        "summary": "List transcriptions",
+        "description": "Lists durable transcription records newest first, with filters and live progress but without embedding the complete transcript text."
+      },
+      "transcriptions_delete": {
+        "summary": "Delete transcription records",
+        "description": "Atomically deletes settled transcription text and metadata without deleting the source download or media files."
+      },
       "api_keys_create": {
         "summary": "Create an API key",
         "description": "Mint a key and show it once."
@@ -651,6 +672,7 @@
       "stored": "True for posts whose media this instance is holding right now, false for the rest. Like `collection` this describes what was kept rather than the post.",
       "tag": "Only posts carrying this tag.",
       "task_id": "The task id returned when the work was submitted.",
+      "transcription_id": "The transcription id returned when it was started.",
       "timeout": "Seconds to hold the stream open before closing it.",
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",
       "user_id": "The console account to act on.",
@@ -717,6 +739,14 @@
         "platform": "Which platform the post is on. Implied by `url` when given.",
         "skip_existing": "Return the existing download instead of fetching the post again, when this instance already holds its media. What re-running a feed wants: three new posts and forty already on disk.",
         "url": "A share link, or the share text with one inside it. Only the post id it yields is used; nothing here decides which host gets contacted."
+      },
+      "TranscriptionRequest": {
+        "download_id": "Download UUID containing the source video.",
+        "normalize": "Apply contextual Chinese inverse text normalization to numbers, dates, amounts and similar expressions.",
+        "refresh": "Create a new transcription instead of reusing a completed match."
+      },
+      "TranscriptionDeleteRequest": {
+        "ids": "Settled transcription ids to delete as one atomic operation."
       },
       "DtkError": {
         "code": "Stable machine-readable identifier. Never translated.",

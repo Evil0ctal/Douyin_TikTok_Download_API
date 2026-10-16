@@ -38,10 +38,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.api import envelope
 from dtk.api.deps import Principal
 from dtk.api.routes.support import language, ok, request_id
-from dtk.core.errors import ErrorCode, Internal, QueueFull, TaskNotFound
+from dtk.core.errors import ErrorCode, Internal, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Platform, RejectReason, Scope, TaskState, UserRole
+from dtk.core.types import Platform, Scope, TaskState, UserRole
 from dtk.services import cache, tasks
 
 # The worker package's declared surface, not its internals: this route and
@@ -98,6 +98,7 @@ class Maintenance(StrEnum):
     #: because it is dispatched by the same runner, but deliberately NOT exempt
     #: from the queue ceiling below.
     MEDIA_DOWNLOAD = "media.download"
+    MEDIA_TRANSCRIBE = "media.transcribe"
     #: Re-check whether archived posts still exist. Raised by the maintenance
     #: sweep on a timer, and by hand from the Library page.
     ARCHIVE_AVAILABILITY = "archive.availability"
@@ -190,6 +191,8 @@ def scopes_for_task(endpoint: str) -> tuple[Scope, ...]:
         return _READ_ANY_PLATFORM
     if endpoint in (Maintenance.MEDIA_DOWNLOAD.value,):
         return (Scope.MEDIA_READ, Scope.MEDIA_WRITE, *_MAINTENANCE_SCOPES)
+    if endpoint == Maintenance.MEDIA_TRANSCRIBE.value:
+        return (Scope.TRANSCRIPTION_READ, Scope.TRANSCRIPTION_WRITE)
     if endpoint in (
         Maintenance.ARCHIVE_AVAILABILITY.value,
         Maintenance.ARCHIVE_BACKFILL.value,
@@ -278,40 +281,23 @@ async def submit(
 #: self check because the queue is deep would withhold the tool at the moment it
 #: is wanted.
 #:
-#: Media downloads are the exception, and the exception is the point of the
+#: Media downloads and transcriptions are the exceptions, and the exception is the point of the
 #: rule: they are dispatched by the same runner but they are not rare, a caller
 #: can start as many as they have archived posts, and each one holds a worker
 #: slot for as long as a video takes. Exempting them would let one operator's
 #: bulk download starve every read on the instance.
 _OPERATOR_TRIGGERED: Final[frozenset[str]] = frozenset(
-    member.value for member in Maintenance if member is not Maintenance.MEDIA_DOWNLOAD
+    member.value
+    for member in Maintenance
+    if member not in (Maintenance.MEDIA_DOWNLOAD, Maintenance.MEDIA_TRANSCRIBE)
 )
 
 
 async def _refuse_when_the_queue_is_full(request: Request, endpoint: str) -> None:
-    """Shed load rather than accept work nobody will get to.
-
-    ``sched.queue_max`` was a setting the console exposed and nothing read, and
-    RejectReason.QUEUE_FULL was defined and never raised - so the queue grew
-    without bound and every caller waited instead of being told to come back.
-    Doc 03 is explicit that rejecting early beats queueing: a caller left
-    hanging is worse off than one that gets a Retry-After immediately.
-    """
+    """Apply the queue ceiling to everything but the operator-triggered jobs."""
     if endpoint in _OPERATOR_TRIGGERED:
         return
-    ceiling = int(request.app.state.config.get("sched.queue_max"))
-    if ceiling <= 0:
-        return
-    depth = int(await get_redis().llen(tasks.QUEUE_KEY))
-    if depth < ceiling:
-        return
-    retry_after = max(1, int(request.app.state.config.get("sched.max_wait_seconds")))
-    log.warning("task.queue_full", endpoint=endpoint, depth=depth, ceiling=ceiling)
-    raise QueueFull(
-        f"{depth} tasks are already queued, at the configured ceiling of {ceiling}",
-        retry_after=retry_after,
-        details={"reject_reason": RejectReason.QUEUE_FULL.value, "queued": depth},
-    )
+    await tasks.refuse_when_queue_full(request.app.state.config, endpoint=endpoint)
 
 
 def accepted(request: Request, task_id: uuid.UUID, state: TaskState) -> JSONResponse:

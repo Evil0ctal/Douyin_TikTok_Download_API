@@ -31,7 +31,7 @@ from dtk.core.types import (
     Platform,
     TaskState,
 )
-from dtk.db.models import CONTINUOUS_AGGREGATES, Identity, Proxy, RequestLog, Task
+from dtk.db.models import CONTINUOUS_AGGREGATES, Identity, Proxy, RequestLog, Task, Transcription
 from dtk.identity import mint_log
 from dtk.identity.minting import BrowserRpcUnavailable
 from dtk.identity.pool import IdentityPool
@@ -374,6 +374,129 @@ async def test_a_running_task_inside_the_window_is_left_alone(db_engine, redis_c
         assert (await _task_row(task_id)).state == TaskState.RUNNING.value
     finally:
         await _drop_task(task_id)
+
+
+async def _running_since(task_id: uuid.UUID, minutes_ago: int) -> None:
+    async with session_scope() as session:
+        row = _require(await session.get(Task, task_id), "the submitted task")
+        row.state = TaskState.RUNNING.value
+        row.started_at = datetime.now(UTC) - timedelta(minutes=minutes_ago)
+
+
+async def test_a_transcription_inside_its_own_window_is_left_running(db_engine, redis_client):
+    """A transcription holds its task for as long as the sidecar takes.
+
+    At the general 900 s threshold the sweep handed a live one to a second
+    worker, the two polled the same sidecar job, and the loser overwrote the
+    winner's transcript with "no such job".
+    """
+    transcription = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
+    ordinary = await _submit()
+    await _running_since(transcription, 20)
+    await _running_since(ordinary, 20)
+
+    job = Maintenance(
+        cipher=Cipher(SECRET),
+        config=Config.defaults(),
+        options=MaintenanceConfig(
+            stale_task_seconds=900, long_task_seconds={"media.transcribe": 4500}
+        ),
+    )
+    try:
+        await job.requeue_stale_tasks(MaintenanceReport())
+        assert (await _task_row(transcription)).state == TaskState.RUNNING.value
+        assert (await _task_row(ordinary)).state == TaskState.QUEUED.value
+    finally:
+        await _drop_task(transcription)
+        await _drop_task(ordinary)
+
+
+async def test_a_transcription_past_its_own_window_is_requeued(db_engine, redis_client):
+    transcription = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
+    await _running_since(transcription, 80)
+
+    job = Maintenance(
+        cipher=Cipher(SECRET),
+        config=Config.defaults(),
+        options=MaintenanceConfig(
+            stale_task_seconds=900, long_task_seconds={"media.transcribe": 4500}
+        ),
+    )
+    try:
+        await job.requeue_stale_tasks(MaintenanceReport())
+        assert (await _task_row(transcription)).state == TaskState.QUEUED.value
+    finally:
+        await _drop_task(transcription)
+
+
+async def _transcription(task_id: uuid.UUID | None, *, state: str) -> uuid.UUID:
+    identifier = uuid.uuid4()
+    async with session_scope() as session:
+        session.add(
+            Transcription(
+                id=identifier,
+                platform="douyin",
+                content_id="7408915107113127222",
+                state=state,
+                model="test-model",
+                source_name="video.mp4",
+                source_sha256="c" * 64,
+                source_bytes=5,
+                task_id=task_id,
+            )
+        )
+    return identifier
+
+
+async def test_a_transcription_whose_task_ended_without_it_is_failed(db_engine, redis_client):
+    """A live row behind a finished task is one no worker will come back for.
+
+    A worker settles the row before it completes the task, so the task ending
+    is the proof. The case that produced these: a task failed by the attempt
+    counter, leaving a row that held the in-flight index for good.
+    """
+    ended = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
+    running = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
+    # DELETE /api/v1/tasks/{id} on a queued task: FAILED, with code CANCELLED.
+    withdrawn = await _submit("media.transcribe", transcription_id=str(uuid.uuid4()))
+    async with session_scope() as session:
+        _require(await session.get(Task, ended), "the ended task").state = TaskState.FAILED.value
+        row = _require(await session.get(Task, withdrawn), "the withdrawn task")
+        row.state = TaskState.FAILED.value
+        row.error = {"code": ErrorCode.CANCELLED.value, "message": "cancelled"}
+    await _running_since(running, 1)
+    orphan = await _transcription(ended, state="running")
+    alive = await _transcription(running, state="running")
+    settled = await _transcription(ended, state="done")
+    cancelled = await _transcription(withdrawn, state="queued")
+
+    job = Maintenance(cipher=Cipher(SECRET), config=Config.defaults())
+    report = MaintenanceReport()
+    try:
+        await job.fail_orphaned_transcriptions(report)
+
+        assert report.orphaned_transcriptions_failed == 2
+        async with session_scope() as session:
+            states = {
+                identifier: _require(await session.get(Transcription, identifier), "a row").state
+                for identifier in (orphan, alive, settled, cancelled)
+            }
+        assert states == {
+            orphan: "failed",
+            alive: "running",
+            settled: "done",
+            # Withdrawn by its caller, which "the worker never reported" would misstate.
+            cancelled: "cancelled",
+        }
+    finally:
+        async with session_scope() as session:
+            await session.execute(
+                delete(Transcription).where(
+                    Transcription.id.in_((orphan, alive, settled, cancelled))
+                )
+            )
+        for task_id in (ended, running, withdrawn):
+            await _drop_task(task_id)
 
 
 async def test_retention_windows_reach_timescaledb(db_engine, redis_client):

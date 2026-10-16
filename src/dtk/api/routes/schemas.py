@@ -502,6 +502,30 @@ class DownloadRequest(Body):
     )
 
 
+class TranscriptionRequest(Body):
+    """Start or reuse a transcription for one stored video."""
+
+    download_id: uuid.UUID = Field(description="Download UUID containing the source video.")
+    normalize: bool = Field(
+        default=True,
+        description="Apply contextual Chinese inverse text normalization to the transcript.",
+    )
+    refresh: bool = Field(
+        default=False,
+        description="Create a new transcription instead of reusing a completed match.",
+    )
+
+
+class TranscriptionDeleteRequest(Body):
+    """Delete settled transcription records without touching their source media."""
+
+    ids: list[uuid.UUID] = Field(
+        min_length=1,
+        max_length=100,
+        description="Settled transcription ids to delete as one atomic operation.",
+    )
+
+
 class RetryRequest(Body):
     """Start a settled download over.
 

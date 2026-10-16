@@ -862,7 +862,7 @@ python -m dtk.mcp
 
 It owns its own database, Redis and settings lifecycle, so it needs the same `DTK_*` environment the containers get. Note that on stdio, stdout *is* the JSON-RPC channel — logging is moved to stderr before anything logs, and a single stray line on stdout corrupts the stream.
 
-**The tool set is eight tools and stays eight.** Each additional tool measurably lowers an agent's selection accuracy. There is no identity, cookie or proxy tool, structurally — see [MCP and AI agents](./12-mcp.md).
+**The tool set is ten tools and stays small.** Each additional tool measurably lowers an agent's selection accuracy; `download_media` and `transcribe_video` are the only two that change the instance, each behind its own write scope. There is no identity, cookie or proxy tool, structurally — see [MCP and AI agents](./12-mcp.md).
 
 ---
 

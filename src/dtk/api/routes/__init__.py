@@ -40,6 +40,7 @@ from dtk.api.routes import (
     system,
     tasks,
     tools,
+    transcriptions,
 )
 from dtk.core.logging import get_logger
 from dtk.mcp import mount as mount_mcp
@@ -56,6 +57,7 @@ ROUTERS = (
     content.router,
     archive.router,
     downloads.router,
+    transcriptions.router,
     tools.router,
     admin.router,
 )

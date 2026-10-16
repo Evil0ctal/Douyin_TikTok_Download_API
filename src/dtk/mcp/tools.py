@@ -1,8 +1,11 @@
 """The tool set.
 
-Eight tools, and deliberately no more: every extra tool measurably lowers an
-agent's selection accuracy, and this surface has to stay pickable in one shot
-(docs/design/06-api-auth-mcp.md).
+Ten tools, and deliberately few: every extra tool measurably lowers an agent's
+selection accuracy, and this surface has to stay pickable in one shot
+(docs/design/06-api-auth-mcp.md). A new capability is an argument to an existing
+tool unless it is a different kind of act. The two that change this instance -
+download_media and transcribe_video - are that: each writes to the operator's
+disk, so each has a write scope of its own rather than riding on a read tool.
 
 Nothing here manages identities, imports cookies, lists proxies or reads an API
 key. An agent must not be able to touch credentials, and the way to guarantee
@@ -19,7 +22,8 @@ a task id.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+import asyncio
+from collections.abc import Awaitable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Final
 
@@ -28,9 +32,17 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.shared.exceptions import MCPError
 from pydantic import Field
 
-from dtk.core.errors import DtkError, ErrorCode, InvalidParam, InvalidUrl, TaskNotFound
+from dtk.core.errors import (
+    DtkError,
+    ErrorCode,
+    ForbiddenScope,
+    InvalidParam,
+    InvalidUrl,
+    NotConfigured,
+    TaskNotFound,
+)
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, TaskState
+from dtk.core.types import Platform, Scope, TaskState, UserRole
 from dtk.mcp import prose, routing
 from dtk.mcp.context import EndpointHealth, McpContext, PoolSnapshot, TaskOutcome
 from dtk.urls import first_url, identify
@@ -54,6 +66,28 @@ HISTORY_DEFAULT_DAYS: Final = 30
 #: Ceiling on returned points. A year of five-minute snapshots would drown the
 #: agent's context for no gain.
 HISTORY_MAX_POINTS: Final = 500
+#: Progress snapshots are produced by the worker at this cadence. Polling any
+#: faster only repeats the same Redis value and creates noisier clients.
+TRANSCRIPTION_PROGRESS_POLL_SECONDS: Final = 1.0
+
+_TRANSCRIPTION_STAGE_PROGRESS: Final[dict[str, float]] = {
+    "queued": 0.0,
+    "decode": 1.0,
+    "vad": 3.0,
+    "punctuation": 95.0,
+    "normalization": 98.0,
+    "done": 100.0,
+}
+
+_TRANSCRIPTION_STAGE_MESSAGES: Final[dict[str, str]] = {
+    "queued": "Queued for transcription.",
+    "decode": "Decoding audio.",
+    "vad": "Detecting speech segments.",
+    "asr": "Transcribing audio.",
+    "punctuation": "Adding punctuation.",
+    "normalization": "Normalizing Chinese numbers and dates.",
+    "done": "Transcription complete.",
+}
 
 PlatformArg = Annotated[
     str,
@@ -105,6 +139,17 @@ class ToolSet:
         MCP, which ``/api/v1/{platform}/...`` refuses.
         """
         self._ctx.authorize(platform, _caller(context))
+
+    def _authorize_scope(self, scope: Scope, context: Context | None) -> Any | None:
+        caller = _caller(context)
+        if caller is None:
+            return None
+        if not caller.permits(scope):
+            raise ForbiddenScope(
+                "this credential lacks the scope required for this tool",
+                details=caller.denial(scopes=[scope]),
+            )
+        return caller
 
     async def _health(self, endpoint: str | None) -> EndpointHealth | None:
         if not endpoint:
@@ -449,16 +494,22 @@ class ToolSet:
             "points": [point.as_dict() for point in points],
         }
 
-    async def pool_status(self) -> dict[str, Any]:
+    async def pool_status(self, context: Context | None = None) -> dict[str, Any]:
         """Report identity-pool and endpoint health.
 
         Call this when a request failed or timed out and you need to decide
         whether to wait, to try a different platform, or to stop. It reports
         counts and circuit states only; no credential is ever exposed.
         """
-        return await self._guarded(self._pool_status())
+        return await self._guarded(self._pool_status(context))
 
-    async def _pool_status(self) -> dict[str, Any]:
+    async def _pool_status(self, context: Context | None = None) -> dict[str, Any]:
+        caller = _caller(context)
+        if caller is not None and not caller.permits(Scope.DOUYIN_READ, Scope.TIKTOK_READ):
+            raise ForbiddenScope(
+                "this credential lacks platform read access",
+                details=caller.denial(scopes=[Scope.DOUYIN_READ, Scope.TIKTOK_READ]),
+            )
         snapshot = await self._ctx.pool.snapshot()
         return {
             "status": "ok",
@@ -514,12 +565,18 @@ class ToolSet:
         except TaskNotFound as exc:
             raise ToolError(prose.describe_error(exc)) from None
 
-        # A task id is not a capability: the same scope rule that guards the
-        # tool which queued the work has to guard collecting its result, or a
-        # key scoped to one platform reads the other one's data by task id.
+        # A task id is not a capability: collecting a result costs the scope that
+        # queueing the work needed. A platform endpoint goes through the same
+        # authorizer as the tool that queued it. Everything else used to go
+        # through nothing, which held while the transport admitted only
+        # platform-read keys; once media and transcription keys could reach it,
+        # they could read any task by id - a proxy probe's exit IP, a minted
+        # identity's id. Those now get the table GET /api/v1/tasks/{id} uses.
         platform = _platform_of(outcome.endpoint)
         if platform is not None:
             self._authorize(platform, context)
+        else:
+            self._authorize_task(outcome.endpoint, context)
 
         if not outcome.settled:
             snapshot = await self._snapshot()
@@ -530,7 +587,298 @@ class ToolSet:
             }
         payload = await self._settle(outcome, "")
         data, _meta = _unwrap(payload)
+        if outcome.endpoint == "media.download":
+            return await self._download_answer(identifier, _record_id(data, "download_id"))
+        if outcome.endpoint == "media.transcribe":
+            return await self._transcription_answer(
+                identifier, _record_id(data, "transcription_id"), reused=None
+            )
         return {"status": "ok", "task_id": identifier, "data": data}
+
+    def _authorize_task(self, endpoint: str | None, context: Context | None) -> None:
+        caller = _caller(context)
+        if caller is None:  # stdio: the local process owner
+            return
+        # Imported here for the reason authorize_platform gives: the route
+        # package imports this one to mount the server.
+        from dtk.api.routes.operations import scopes_for_task
+
+        # A row with no endpoint matches nothing and falls back to admin, which
+        # is the safe direction for a task this build cannot place.
+        caller.require(*scopes_for_task(endpoint or ""))
+
+    async def _download_answer(self, task_id: str | None, download_id: str) -> dict[str, Any]:
+        """The stored download, or why there is none - never "ok" for nothing."""
+        gateway = self._ctx.downloads
+        if gateway is None:
+            raise NotConfigured("media downloads are not configured on this instance")
+        record = await gateway.get(download_id)
+        state = str(record.get("state") or "")
+        if state in ("failed", "cancelled"):
+            raise ToolError(
+                prose.unsettled_media_message("download", download_id, state, record.get("error"))
+            )
+        return {"status": "ok", "task_id": task_id, "download_id": download_id, "data": record}
+
+    async def _transcription_answer(
+        self, task_id: str | None, transcription_id: str, *, reused: str | None
+    ) -> dict[str, Any]:
+        """The stored transcript, or why there is none."""
+        gateway = self._ctx.transcriptions
+        if gateway is None:
+            raise NotConfigured("transcription is not configured on this instance")
+        record = await gateway.get(transcription_id)
+        state = str(record.get("state") or "")
+        if state in ("failed", "cancelled"):
+            raise ToolError(
+                prose.unsettled_media_message(
+                    "transcription", transcription_id, state, record.get("error")
+                )
+            )
+        if reused is not None:
+            record["reused"] = reused
+        return {
+            "status": "ok",
+            "task_id": task_id,
+            "transcription_id": transcription_id,
+            "data": record,
+        }
+
+    async def download_media(
+        self,
+        url: Annotated[
+            str | None,
+            Field(
+                default=None,
+                description=(
+                    "A full Douyin or TikTok post URL, or share text containing one. "
+                    "Expand short links with parse_url first."
+                ),
+            ),
+        ] = None,
+        platform: Annotated[
+            str | None,
+            Field(default=None, description="Platform: 'douyin' or 'tiktok'."),
+        ] = None,
+        content_id: Annotated[
+            str | None,
+            Field(default=None, description="Post id as a string, paired with platform."),
+        ] = None,
+        skip_existing: Annotated[
+            bool,
+            Field(
+                default=True,
+                description="Answer from disk when this post's media is already stored.",
+            ),
+        ] = True,
+        context: Context | None = None,
+    ) -> dict[str, Any]:
+        """Store one post's video and images on this instance.
+
+        Call this before transcribe_video, which takes the download_id it
+        returns. Unlike the read tools it changes this instance: it writes files
+        to the operator's disk, and a post that has not been parsed here yet is
+        fetched through the identity pool first. With skip_existing (the
+        default) a post already on disk is answered without fetching anything.
+        """
+        return await self._guarded(
+            self._download_media(url, platform, content_id, skip_existing, context)
+        )
+
+    async def _download_media(
+        self,
+        url: str | None,
+        platform: str | None,
+        content_id: str | None,
+        skip_existing: bool,
+        context: Context | None,
+    ) -> dict[str, Any]:
+        caller = self._authorize_scope(Scope.MEDIA_WRITE, context)
+        gateway = self._ctx.downloads
+        if gateway is None:
+            raise NotConfigured("media downloads are not configured on this instance")
+        target_platform = routing.coerce_platform(platform) if platform else None
+        record = await gateway.start(
+            url=url.strip() if url and url.strip() else None,
+            platform=target_platform,
+            content_id=content_id.strip() if content_id and content_id.strip() else None,
+            skip_existing=skip_existing,
+            requested_by=getattr(caller, "api_key_id", None),
+            is_demo=getattr(caller, "role", None) is UserRole.DEMO,
+        )
+        download_id = str(record["download_id"])
+        task_id = str(record["task_id"]) if record.get("task_id") else None
+        if record.get("reused") == "already_stored" or task_id is None:
+            return await self._download_answer(task_id, download_id)
+        timeout = self._ctx.tool_timeout
+        outcome = await self._ctx.tasks.wait(task_id, timeout)
+        if outcome is None or not outcome.settled:
+            pending = await self._pending(task_id, "media.download", timeout)
+            return {**pending, "download_id": download_id}
+        await self._settle(outcome, "media.download")
+        return await self._download_answer(task_id, download_id)
+
+    async def transcribe_video(
+        self,
+        download_id: Annotated[
+            str,
+            Field(description="The download_id download_media returned for the post."),
+        ],
+        normalize: Annotated[
+            bool,
+            Field(
+                default=True,
+                description="Write Chinese numbers, dates and amounts as digits.",
+            ),
+        ] = True,
+        refresh: Annotated[
+            bool,
+            Field(
+                default=False,
+                description="Transcribe again even when a finished transcript exists.",
+            ),
+        ] = False,
+        context: Context | None = None,
+    ) -> dict[str, Any]:
+        """Transcribe the speech in a video this instance has stored.
+
+        Takes the download_id from download_media; a post that is not stored
+        yet has to go through that tool first. The speech model runs on this
+        instance and the transcript is kept, so asking again for the same video
+        returns the stored text unless refresh is true, and asking while one is
+        running joins it rather than starting a second.
+        """
+        return await self._guarded(self._transcribe_video(download_id, normalize, refresh, context))
+
+    async def _transcribe_video(
+        self,
+        download_id: str,
+        normalize: bool,
+        refresh: bool,
+        context: Context | None,
+    ) -> dict[str, Any]:
+        caller = self._authorize_scope(Scope.TRANSCRIPTION_WRITE, context)
+        gateway = self._ctx.transcriptions
+        if gateway is None:
+            raise NotConfigured("transcription is not configured on this instance")
+        record, reused = await gateway.start(
+            routing.require_text(download_id, "download_id"),
+            normalize=normalize,
+            refresh=refresh,
+            requested_by=getattr(caller, "api_key_id", None),
+            is_demo=getattr(caller, "role", None) is UserRole.DEMO,
+        )
+        transcription_id = str(record["transcription_id"])
+        task_id = str(record["task_id"]) if record.get("task_id") else None
+        if record.get("state") not in ("queued", "running"):
+            return await self._transcription_answer(task_id, transcription_id, reused=reused)
+        if task_id is None:
+            # A live transcription is committed together with its task, so this
+            # is a row from before that rule. There is nothing to wait on.
+            raise ToolError(
+                prose.describe(
+                    ErrorCode.INTERNAL,
+                    f"transcription {transcription_id} is live but has no task to wait on; "
+                    "cancel it from the console and call transcribe_video again",
+                )
+            )
+        timeout = self._ctx.tool_timeout
+        outcome = await self._wait_for_transcription(task_id, transcription_id, context)
+        if outcome is None or not outcome.settled:
+            pending = await self._pending(task_id, "media.transcribe", timeout)
+            return {**pending, "transcription_id": transcription_id}
+        await self._settle(outcome, "media.transcribe")
+        answer = await self._transcription_answer(task_id, transcription_id, reused=reused)
+        if _wants_progress(context):
+            assert context is not None
+            await _report_transcription_progress(
+                context, 100.0, _TRANSCRIPTION_STAGE_MESSAGES["done"]
+            )
+        return answer
+
+    async def _wait_for_transcription(
+        self,
+        task_id: str,
+        transcription_id: str,
+        context: Context | None,
+    ) -> TaskOutcome | None:
+        """Wait for completion while forwarding optional MCP progress.
+
+        A client that did not include ``progressToken`` takes the original
+        long-poll path exactly. Supporting clients get best-effort Redis
+        snapshots alongside that same wait; the durable task result remains
+        the only authoritative outcome.
+        """
+        timeout = self._ctx.tool_timeout
+        if not _wants_progress(context):
+            return await self._ctx.tasks.wait(task_id, timeout)
+
+        assert context is not None
+        gateway = self._ctx.transcriptions
+        assert gateway is not None
+        await _report_transcription_progress(context, 0.0, _TRANSCRIPTION_STAGE_MESSAGES["queued"])
+        last_progress = 0.0
+        last_revision = -1
+        last_text = ""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        waiter = asyncio.create_task(self._ctx.tasks.wait(task_id, timeout))
+        try:
+            while not waiter.done():
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    break
+                await asyncio.wait(
+                    {waiter},
+                    timeout=min(TRANSCRIPTION_PROGRESS_POLL_SECONDS, remaining),
+                )
+                try:
+                    # Bounded like everything else in the wait: a slow Redis
+                    # read must not carry the call past the tool timeout.
+                    snapshot = await asyncio.wait_for(
+                        gateway.progress(transcription_id),
+                        timeout=max(0.1, deadline - loop.time()),
+                    )
+                except Exception as exc:  # progress must never mask the real result
+                    log.warning(
+                        "mcp.transcription_progress_read_failed",
+                        transcription_id=transcription_id,
+                        error=repr(exc),
+                    )
+                    snapshot = None
+                if snapshot is None:
+                    continue
+                revision = int(snapshot.get("revision") or 0)
+                if revision == last_revision:
+                    continue
+                last_revision = revision
+                progress = _transcription_progress(snapshot)
+                partial_text = str(snapshot.get("partial_text") or "")
+                delta = _appended_text(last_text, partial_text)
+                # MCP requires progress to increase for a token. A sidecar
+                # callback can update the text just before its matching media
+                # position; defer that snapshot instead of repeating a value.
+                if progress <= last_progress:
+                    continue
+                await _report_transcription_progress(
+                    context,
+                    progress,
+                    _transcription_progress_message(snapshot, delta),
+                )
+                last_progress = progress
+                last_text = partial_text
+
+            if waiter.done():
+                outcome = await waiter
+            else:
+                waiter.cancel()
+                await asyncio.gather(waiter, return_exceptions=True)
+                return None
+            return outcome
+        finally:
+            if not waiter.done():
+                waiter.cancel()
+                await asyncio.gather(waiter, return_exceptions=True)
 
 
 def _caller(context: Context | None) -> Any | None:
@@ -550,6 +898,72 @@ def _caller(context: Context | None) -> Any | None:
     return getattr(getattr(request, "state", None), "principal", None)
 
 
+def _wants_progress(context: Context | None) -> bool:
+    """Whether this call supplied MCP's opt-in progress token."""
+    if context is None:
+        return False
+    try:
+        request_context = context.request_context
+    except (AttributeError, ValueError):
+        return False
+    meta = getattr(request_context, "meta", None)
+    if isinstance(meta, Mapping):
+        token = meta.get("progress_token", meta.get("progressToken"))
+    else:
+        token = getattr(meta, "progress_token", None)
+    if token is not None:
+        return True
+    params = getattr(request_context, "params", None)
+    if isinstance(params, Mapping):
+        raw_meta = params.get("_meta")
+        if isinstance(raw_meta, Mapping):
+            return raw_meta.get("progressToken", raw_meta.get("progress_token")) is not None
+    return False
+
+
+async def _report_transcription_progress(context: Context, progress: float, message: str) -> None:
+    """Keep the optional UI channel from changing tool-result semantics."""
+    try:
+        await context.report_progress(progress, 100.0, message)
+    except Exception as exc:
+        log.warning(
+            "mcp.transcription_progress_report_failed",
+            progress=progress,
+            error=repr(exc),
+        )
+
+
+def _transcription_progress(snapshot: dict[str, Any]) -> float:
+    stage = str(snapshot.get("stage") or snapshot.get("state") or "queued")
+    if stage == "asr":
+        processed = max(0, int(snapshot.get("processed_ms") or 0))
+        duration = max(0, int(snapshot.get("duration_ms") or 0))
+        if duration:
+            return min(90.0, 5.0 + 85.0 * processed / duration)
+        return 5.0
+    return _TRANSCRIPTION_STAGE_PROGRESS.get(stage, 0.0)
+
+
+def _appended_text(previous: str, current: str) -> str:
+    if not current:
+        return ""
+    if current.startswith(previous):
+        return current[len(previous) :]
+    # A restarted sidecar may rebuild its provisional buffer. Sending the new
+    # snapshot is safer than pretending it is an append to an unrelated prefix.
+    return current
+
+
+def _transcription_progress_message(snapshot: dict[str, Any], delta: str) -> str:
+    stage = str(snapshot.get("stage") or snapshot.get("state") or "queued")
+    message = _TRANSCRIPTION_STAGE_MESSAGES.get(stage, "Transcription is running.")
+    if stage == "asr" and snapshot.get("progress_percent") is not None:
+        message = f"Transcribing audio ({float(snapshot['progress_percent']):.1f}% of media)."
+    if delta:
+        message = f"{message} Provisional text: {delta}"
+    return message
+
+
 def _platform_of(endpoint: str | None) -> Platform | None:
     """The platform an endpoint name belongs to, if it names one.
 
@@ -562,6 +976,16 @@ def _platform_of(endpoint: str | None) -> Platform | None:
         return Platform(endpoint.split(".", 1)[0])
     except ValueError:
         return None
+
+
+def _record_id(data: Any, key: str) -> str:
+    """The record a finished media task names, which the answer is read from."""
+    value = data.get(key) if isinstance(data, dict) else None
+    if not value:
+        raise ToolError(
+            prose.describe(ErrorCode.INTERNAL, f"the finished task did not name its {key}")
+        )
+    return str(value)
 
 
 def _unwrap(payload: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
@@ -602,6 +1026,8 @@ TOOL_METHODS: Final[tuple[str, ...]] = (
     "list_comments",
     "get_content_history",
     "pool_status",
+    "download_media",
+    "transcribe_video",
     "get_task_result",
 )
 

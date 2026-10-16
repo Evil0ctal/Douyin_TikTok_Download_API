@@ -54,6 +54,7 @@ TABLES = (
     "collection_items",
     "collections",
     "watchlist",
+    "transcriptions",
     "media_downloads",
     "archived_contents",
     "archived_authors",

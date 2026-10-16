@@ -61,6 +61,11 @@ class BootstrapSettings(BaseSettings):
     #: network no other container is on, so this is defence in depth rather
     #: than the boundary; empty means the sidecar checks nothing.
     downloader_token: str = ""
+    #: Internal transcription sidecar. Empty means transcription is not installed.
+    transcriber_url: str = ""
+    transcriber_token: str = ""
+    transcriber_timeout_seconds: int = 3600
+    transcriber_normalization_failure_policy: str = "fallback"
 
     @field_validator("secret_key")
     @classmethod

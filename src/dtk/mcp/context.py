@@ -69,6 +69,37 @@ class TaskGateway(Protocol):
         ...
 
 
+class TranscriptionGateway(Protocol):
+    async def start(
+        self,
+        download_id: str,
+        *,
+        normalize: bool,
+        refresh: bool,
+        requested_by: Any | None,
+        is_demo: bool = False,
+    ) -> tuple[dict[str, Any], str | None]: ...
+
+    async def get(self, transcription_id: str) -> dict[str, Any]: ...
+
+    async def progress(self, transcription_id: str) -> dict[str, Any] | None: ...
+
+
+class DownloadGateway(Protocol):
+    async def start(
+        self,
+        *,
+        url: str | None,
+        platform: Platform | None,
+        content_id: str | None,
+        skip_existing: bool,
+        requested_by: Any | None,
+        is_demo: bool,
+    ) -> dict[str, Any]: ...
+
+    async def get(self, download_id: str) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True, slots=True)
 class EndpointHealth:
     """One endpoint's circuit state and recent record.
@@ -199,6 +230,8 @@ class McpContext:
     history: HistoryReader
     config: Callable[[], Config] = _default_config
     authorize: PlatformAuthorizer = _allow_any_platform
+    downloads: DownloadGateway | None = None
+    transcriptions: TranscriptionGateway | None = None
 
     @property
     def tool_timeout(self) -> float:
@@ -212,6 +245,7 @@ class McpContext:
 
 
 __all__ = [
+    "DownloadGateway",
     "EndpointHealth",
     "HistoryPoint",
     "HistoryReader",
@@ -221,4 +255,5 @@ __all__ = [
     "PoolSnapshot",
     "TaskGateway",
     "TaskOutcome",
+    "TranscriptionGateway",
 ]

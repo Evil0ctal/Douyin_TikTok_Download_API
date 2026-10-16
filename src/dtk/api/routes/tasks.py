@@ -29,10 +29,10 @@ from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.operations import unwrap
 from dtk.api.routes.support import demo_read, iso, language, ok
 from dtk.core.db import session_scope
-from dtk.core.errors import ErrorCode, TaskNotFound
+from dtk.core.errors import ErrorCode, ForbiddenScope, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Language, Scope, TaskState
+from dtk.core.types import Language, Scope, TaskState, UserRole
 from dtk.i18n.messages import render
 from dtk.services import tasks as task_service
 
@@ -50,6 +50,15 @@ SSE_HEARTBEAT_SECONDS = 15
 SSE_TICK_SECONDS = 5
 
 TERMINAL = (TaskState.DONE, TaskState.FAILED)
+
+
+def _authorize_task(principal: Principal, view: task_service.TaskView) -> None:
+    principal.require(*operations.scopes_for_task(view.endpoint))
+    if principal.role is UserRole.DEMO and not view.is_demo:
+        raise ForbiddenScope(
+            "the demo account can only read its own tasks",
+            details=principal.denial(roles=[UserRole.VIEWER]),
+        )
 
 
 def _localized_error(error: dict[str, Any] | None, language: Language) -> dict[str, Any] | None:
@@ -188,7 +197,7 @@ async def get_task(
     # The scope creating this task needed. Reading a result back has to cost
     # the same as asking for it, or a low-scope key becomes a way around every
     # other scope in the system.
-    principal.require(*operations.scopes_for_task(view.endpoint))
+    _authorize_task(principal, view)
     if view.state is TaskState.DONE and view.result is None:
         # The row outlives its payload by design; say so rather than handing
         # back a success with nothing in it.
@@ -219,9 +228,7 @@ async def cancel_task(
     whatever it already was.
     """
     session = request.state.db
-    principal.require(
-        *operations.scopes_for_task((await task_service.get(session, task_id)).endpoint)
-    )
+    _authorize_task(principal, await task_service.get(session, task_id))
     state = await task_service.cancel(session, task_id)
     await session.commit()
     return ok(request, {"task_id": str(task_id), "state": state})
@@ -249,9 +256,7 @@ async def task_events(
     # Fail fast on an unknown id so the caller gets a 404 envelope instead of
     # an event stream that says nothing - and authorize the same way the
     # polling route does, since this returns the same payload.
-    principal.require(
-        *operations.scopes_for_task((await task_service.get(request.state.db, task_id)).endpoint)
-    )
+    _authorize_task(principal, await task_service.get(request.state.db, task_id))
 
     # Bound before the stream opens, like the session below: the negotiated
     # language belongs to the request, and the request is over by the time the

@@ -1,0 +1,66 @@
+# The offline transcription sidecar: FastAPI around a quantized FunASR ONNX
+# pipeline.
+#
+# Two properties shape this image:
+#
+#   1. Offline by construction. The ASR, VAD and punctuation models are not
+#      downloaded while the container starts; compose mounts operator-supplied
+#      model directories read-only at /models/funasr and places the service on
+#      an internal network with no internet gateway.
+#   2. Bounded writes. Source media is mounted read-only and ffmpeg streams the
+#      first audio track straight to the process as 16 kHz mono float samples,
+#      so transcription creates no intermediate WAV beside the operator's
+#      files. The read-only root filesystem gets only a bounded /tmp tmpfs from
+#      compose.
+#
+# Python remains in the runtime image because it is the service runtime. The
+# platform wheel pinned below carries a standalone ffmpeg executable, avoiding
+# the much larger Debian codec dependency graph while preserving the small
+# subprocess boundary between arbitrary media and the ONNX pipeline.
+
+# Kept as an argument so builds can pin the exact Python patch release without
+# editing the Dockerfile. The slim Debian image supplies glibc-compatible ONNX
+# Runtime wheels while avoiding a compiler toolchain in the final image. The
+# Debian release is named, as in docker/Dockerfile: a bare `-slim` tag moves to
+# the next release on its own schedule.
+ARG PYTHON_VERSION=3.12.8
+FROM python:${PYTHON_VERSION}-slim-bookworm
+
+# Do not leave .pyc files on a filesystem that compose makes read-only, and do
+# not buffer service logs: job progress must reach the container log while a
+# long transcription is still running.
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+# Fixed numeric ownership keeps the runtime identity stable even though model
+# and media data arrive from host-managed mounts. There is no writable home
+# directory because this service has no reason to persist user state.
+RUN groupadd --system --gid 10001 transcriber \
+ && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent transcriber
+
+# Versions are pinned in requirements.txt. Requiring a binary imageio-ffmpeg
+# wheel fails the build on unsupported architectures instead of silently
+# installing its source distribution, which contains no ffmpeg executable.
+# Runtime bytecode writes are disabled, so compiling it into the image would
+# only duplicate source and inflate the read-only filesystem.
+COPY docker/transcriber/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --no-compile --only-binary=imageio-ffmpeg \
+      -r /tmp/requirements.txt \
+ && rm /tmp/requirements.txt
+
+WORKDIR /app
+COPY docker/transcriber/app.py /app/app.py
+
+# Drop root before importing model libraries or accepting media paths. Compose
+# also removes Linux capabilities and enables no-new-privileges, but the image
+# keeps the same safe default when it is run outside compose.
+USER 10001:10001
+
+# The port is exposed only to the internal compute network by compose; it is
+# not published on the host. Authentication, when configured, is enforced by
+# the application through X-Transcriber-Token.
+EXPOSE 9200
+
+# Exec form makes uvicorn PID 1 so termination reaches it directly. Access logs
+# are disabled because the application emits structured job lifecycle and
+# progress logs, which are the useful signal for long-running transcription.
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "9200", "--no-access-log"]

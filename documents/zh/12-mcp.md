@@ -4,7 +4,7 @@
 > 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/12-mcp.md)
 
-这一页讲怎么把 AI 客户端——Claude Code、Claude Desktop、Codex CLI、Cherry Studio，或者任何支持 MCP 的工具——接到你自己的实例上，八个工具各自做什么，以及返回的东西该怎么读。读完你应该能配好一个客户端、用 `curl` 验证连通性，并且认得出导致大部分连接失败的那两个错误。
+这一页讲怎么把 AI 客户端——Claude Code、Claude Desktop、Codex CLI、Cherry Studio，或者任何支持 MCP 的工具——接到你自己的实例上，十个工具各自做什么，以及返回的东西该怎么读。读完你应该能配好一个客户端、用 `curl` 验证连通性，并且认得出导致大部分连接失败的那两个错误。
 
 ## MCP 接入点是什么
 
@@ -18,10 +18,10 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 
 在围绕它设计代理之前，有两条刻意的限制值得先知道：
 
-- **只有八个工具，不会更多。** 每多一个工具，代理挑对工具的准确率都会有可测量的下降，所以新能力应该是现有工具的一个参数，而不是第九个工具。如果你需要覆盖这个实例全部能力的接口，请用 [REST API](./11-api.md)。
+- **十个工具，刻意少。** 每多一个工具，代理挑对工具的准确率都会有可测量的下降，所以新能力应该是现有工具的一个参数，而不是一个新工具。单独成为工具的 `download_media` 和 `transcribe_video`，恰好是会改变本实例的两个，各自需要单独的写权限。如果你需要覆盖这个实例全部能力的接口，请用 [REST API](./11-api.md)。
 - **没有任何工具能碰到凭证。** 这里没有身份工具、没有 Cookie 工具、没有代理工具，`pool_status` 返回的也只是计数和熔断状态，而不是数据行。这是结构性的保证——那些工具根本不存在——而不是某个人要记得写的权限检查。接到这个实例上的代理读不到、也导不出你的 Cookie，更不可能被话术骗着去做。
 
-工具做的全部是读操作。下载、关注列表、设置、身份管理和用户管理属于控制台和 REST 的地盘，见[下载、资料库与关注列表](./08-downloads-and-library.md)和[用户与 API 密钥](./09-users-and-api-keys.md)。
+其余工具全部是读操作。`download_media` 把作品媒体保存到本实例的磁盘上，`transcribe_video` 转写保存在那里的视频；关注列表、设置、身份管理和用户管理仍属于控制台和 REST 的地盘，见[下载、资料库与关注列表](./08-downloads-and-library.md)和[用户与 API 密钥](./09-users-and-api-keys.md)。
 
 ## 接入地址
 
@@ -34,7 +34,7 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 | 认证 | API Key，放在 `Authorization: Bearer …` 或 `X-API-Key: …` 里 |
 | 必需的 `Accept` | `application/json, text/event-stream` |
 | 服务名 / 版本 | `dtk` / 已安装的包版本 |
-| 工具 | 8 个，全部只读 |
+| 工具 | 10 个；`download_media` 和 `transcribe_video` 是写工具 |
 | 工具文本语言 | 始终是英文 |
 
 **末尾的斜杠要保留。** 接入点是 `/mcp/`；`/mcp` 会以 `307 Temporary Redirect` 跳到它。行为规范的客户端会在 307 之后重发 POST 请求体，根本察觉不到；但如果客户端跳转后改用 GET，或者干脆不跟随跳转，报出来的错看起来就像认证有问题。配置时带上斜杠，这个问题就永远不会出现。
@@ -49,7 +49,7 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 
 - **请求头：** `Authorization: Bearer dtk_…` 或 `X-API-Key: dtk_…` 均可，两者都在解析 JSON-RPC 请求体之前就被检查。
 - **控制台的会话 Cookie 会被拒绝。** Cookie 是浏览器自动带上的，Key 是程序主动出示的。如果这里接受 Cookie，那么任何能从已登录浏览器里发出请求的东西都能碰到 MCP 接入点。
-- **Key 至少要有一个平台的读权限。** 传输层要求 `douyin:read`、`tiktok:read` 或 `admin`；一个只有 `archive:read` 的 Key 会在任何工具运行之前就被 `FORBIDDEN_SCOPE` 拒掉。
+- **Key 至少要有一个 MCP 工具使用的权限。** 传输层接受平台读取、媒体、转写或 `admin` 权限；一个只有 `archive:read` 的 Key 会在任何工具运行之前就被 `FORBIDDEN_SCOPE` 拒掉。
 - **限流用的就是 REST 那一套限流器**，按 API Key 计数：`api.default_rate_limit_per_min`（默认 **120** 次/分钟），除非该 Key 自己带了限额。注意每一次 JSON-RPC 调用都是一个 HTTP 请求，所以 `initialize`、`tools/list` 和每一次 `tools/call` 都各算一次。
 - **把接口开放给匿名调用者并不会顺带开放 MCP。** “接口访问控制”作用于 REST 路径，MCP 的守卫无论如何都要求一个真实的 Key。
 
@@ -61,7 +61,7 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 
 401 还会带上 `WWW-Authenticate: Bearer realm="dtk"`。
 
-创建 Key：控制台 → **访问控制 → API Key**，或者 `POST /api/v1/admin/api-keys`。只给它 `douyin:read`、`tiktok:read` 或两者，别给多余的。完整的 Key 只在创建时显示一次，之后无法找回；丢了就撤销重建。详见[用户与 API 密钥](./09-users-and-api-keys.md)。
+创建 Key：控制台 → **访问控制 → API Key**，或者 `POST /api/v1/admin/api-keys`。平台工具使用 `douyin:read` / `tiktok:read`，下载使用 `media:write`，转写使用 `transcription:write`；后续读取任务结果可授予对应的 read 权限。
 
 ## 工具
 
@@ -74,6 +74,8 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 | `list_comments` | 分页列出某作品的一级评论 | `{platform}.comments` |
 | `get_content_history` | 读取某作品或作者已记录的指标历史 | 无——读本地数据库 |
 | `pool_status` | 身份池与接口健康度 | 无——读 Redis 和本地数据库 |
+| `download_media` | 把作品媒体保存到本实例 | `media.download` |
+| `transcribe_video` | 转写一个已下载完成的视频 | `media.transcribe` |
 | `get_task_result` | 取回没能在限时内完成的结果 | 无 |
 
 第三列的 endpoint 名字，就是调度器、熔断器、健康看板和请求日志用的同一套键，所以代理发起的调用很容易在[运维](./10-operations.md)里找到对应记录。
@@ -134,7 +136,7 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 | `cursor` | 否 | 同上 |
 | `count` | 否 | 同上，1–50 |
 
-只返回一级评论。楼中楼回复是另一项能力，这套工具不暴露——这正是“只有八个工具”所付出的代价之一。代理确实需要时，走 REST 的 `/api/v1/{platform}/video/comments/replies`。
+只返回一级评论。楼中楼回复是另一项能力，这套工具不暴露——这正是“工具要少”所付出的代价之一。代理确实需要时，走 REST 的 `/api/v1/{platform}/video/comments/replies`。
 
 ### `get_content_history`
 
@@ -175,13 +177,38 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 
 这个结果里不会出现任何凭证、身份 ID、Cookie、指纹或代理地址。
 
+### `download_media`
+
+接受完整作品 `url`，或者 `platform` 加 `content_id`；短链接仍需先调用 `parse_url`。`skip_existing` 默认是 true，因此代理重复调用会复用磁盘上已有的文件。
+
+它需要 `media:write`，并且会改变本实例：文件会写到运营者的磁盘上，本实例还没解析过的作品会先通过身份池抓取一次。工具最多等待 `api.mcp_tool_timeout`。完成时返回保存下来的下载记录和 `download_id`；耗时更长时返回 `pending`，带一段 `message`、交给 `get_task_result` 的 `task_id`，以及 `download_id`。什么都没存下的下载——没有可抓取的媒体，或者被取消——会作为工具错误返回并说明原因，而不是 `ok`。文件保留在服务端媒体卷上，不通过 MCP 传输。
+
+转写使用以下链路：
+
+```text
+parse_url → download_media(url) → transcribe_video(download_id)
+```
+
+### `transcribe_video`
+
+传入 `download_media` 返回的 `download_id`、可选的 `normalize`（默认 `true`）和可选的 `refresh`。它需要 `transcription:write`，并且转写服务的 compose profile 必须在运行。FunASR 处理中英混合语音；中文 ITN 会按上下文转换口语数字、日期、金额等表达。同一个视频已有完成的转写时会直接复用，除非 `refresh` 为 true；复用还会区分归一化开关、引擎版本以及实例配置的 fallback/fail 策略；转写进行中再次请求会加入正在跑的那一个。工具最多等待 `api.mcp_tool_timeout`，完成则返回全文，超时则返回 `pending`，带一段 `message`、`task_id` 和 `transcription_id`。失败或被取消的转写会作为工具错误返回并说明原因。
+
+客户端携带 MCP 的 `_meta.progressToken` 时，同一次工具调用在等待期间还会发送
+`notifications/progress`。更新会标明当前流水线阶段（`queued`、`decode`、`vad`、
+`asr`、`punctuation`、`normalization` 或 `done`）；ASR 阶段同时给出媒体处理进度，并且只发送
+本次新增的临时识别文本。这些文字是追加式的原始 ASR 临时稿：标点和中文数字、日期
+归一化都在识别结束后统一执行，因此最终工具结果才是权威文本，也可能修订临时稿。
+未请求或不展示 MCP progress 的客户端保持原有行为，只会看到最终结果。progress 属于
+客户端 UI 旁路，不保证进入模型上下文。当前 Dify 内置 MCP 客户端未在 `tools/call` 中
+设置进度回调，并会忽略进度通知，因此不属于实时展示支持范围。
+
 ### `get_task_result`
 
 | 参数 | 必填 | 含义 |
 | --- | --- | --- |
 | `task_id` | 是 | 某次返回 `status: "pending"` 的工具调用给出的 task id |
 
-除此之外没有别的理由调它。其他每个工具都会自己等结果，所以一上来就调这个的代理，是在轮询一件根本没人排队的活。
+除此之外没有别的理由调它。其他每个工具都会自己等结果，所以一上来就调这个的代理，是在轮询一件根本没人排队的活。对下载和转写，它返回的是保存下来的记录，和原工具本该返回的完全一样，没有可返回的内容时也同样报错。
 
 ## 读取返回结果
 
@@ -274,13 +301,17 @@ again. (error code ENDPOINT_CIRCUIT_OPEN)
 | --- | --- |
 | `douyin:read` | 打开接入点；允许调用抖音相关工具 |
 | `tiktok:read` | 打开接入点；允许调用 TikTok 相关工具 |
+| `media:write` | 打开接入点；允许调用 `download_media` |
+| `media:read` | 打开接入点；允许取回媒体下载任务结果 |
+| `transcription:write` | 打开接入点；允许调用 `transcribe_video` |
+| `transcription:read` | 打开接入点；允许取回转写任务结果 |
 | `admin` | 全部允许，包括两个平台 |
 | 只有其他权限范围 | 接入点直接以 `FORBIDDEN_SCOPE` 拒绝 |
 
 有两条规则常常出人意料：
 
 - **Key 受限于它创建时的权限范围，哪怕拥有者是管理员。** 自托管实例上几乎每个 Key 都属于 admin 用户；一个只有 `douyin:read` 的 Key，通过 MCP 照样读不了 TikTok，就跟它调 `GET /api/v1/tiktok/video` 会被拒一样。
-- **task id 不是绕过检查的后门。** `get_task_result` 会重新检查它要取回的那个任务属于哪个平台，所以只授权了一个平台的 Key，无法靠着从别处看到的 id 去读另一个平台的数据。（由 `parse_url` 排队的任务，其 endpoint 名里没有平台；那种情况下的检查发生在链接被归类时，也就是入队之前。）
+- **task id 不是绕过检查的后门。** `get_task_result` 要求的权限，就是当初排队这个任务所需要的权限——和 `GET /api/v1/tasks/{id}` 用的是同一张表：平台调用要该平台的读权限，`parse_url` 的任务要任一平台的读权限，下载要媒体权限，转写要转写权限。所以只授权了一个平台的 Key，无法靠着从别处看到的 id 去读另一个平台的数据；媒体或转写 Key 也读不到其他任何东西。维护类任务——代理探测、身份铸造——需要 `admin` 或 `identity:manage`，代理用的 Key 本来就不该有这两个权限。
 
 走 stdio 时没有传输层身份可以约束：代理自己拉起了这个进程，本来就拥有该进程的一切，包括数据库。这是把 stdio 留给本机使用的理由，而不是 HTTP 传输的缺口。
 
@@ -382,12 +413,12 @@ curl -sS -X POST http://127.0.0.1:8000/mcp/ \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-传输层是流式返回的，所以你拿到的是一个 server-sent-events 帧——一行 `event: message`，后面跟着装有 JSON-RPC 结果的 `data:`——而不是一个裸 JSON 响应体。`tools/list` 成功时会列出全部八个工具。由于服务是无状态的，`tools/list` 和 `tools/call` 都不需要先做 `initialize` 握手，所以这条命令可以直接当健康检查用。
+传输层是流式返回的，所以你拿到的是一个 server-sent-events 帧——一行 `event: message`，后面跟着装有 JSON-RPC 结果的 `data:`——而不是一个裸 JSON 响应体。`tools/list` 成功时会列出全部十个工具。由于服务是无状态的，`tools/list` 和 `tools/call` 都不需要先做 `initialize` 握手，所以这条命令可以直接当健康检查用。
 
 失败时长这样：
 
 - `401`，`"code": "UNAUTHENTICATED"`——没带 Key 请求头，或者 Key 写错了、被撤销了、过期了。
-- `403`，`"code": "FORBIDDEN_SCOPE"`——Key 有效，但没有任何平台读权限。
+- `403`，`"code": "FORBIDDEN_SCOPE"`——Key 有效，但没有 MCP 接受的平台、媒体或转写权限。
 - `307`——末尾的斜杠掉了。
 - `200` 且返回控制台的 HTML——你连的根本不是这个 API，或者中间的反向代理没有把 `/mcp/` 透传过去。
 
@@ -408,7 +439,7 @@ curl -sS -X POST http://127.0.0.1:8000/mcp/ \
 | 客户端报连接或认证错误，服务端日志里什么都没有 | 少了末尾斜杠；客户端在 307 之后没有重发 POST | 配置成 `/mcp/`，带上斜杠 |
 | 在服务器上能用，从笔记本上不行 | 客户端配置里写的是 `127.0.0.1`。默认 compose 只把 API 发布在回环地址上 | 给客户端一个它访问得到的地址，并且在此之前给实例挂上 TLS——见[安全](./15-security.md) |
 | 明明控制台已登录，却报 `401 UNAUTHENTICATED` | 这里不接受会话 Cookie | 创建一个 API Key，用请求头传 |
-| 连接时就报 `403 FORBIDDEN_SCOPE` | Key 没有 `douyin:read`、`tiktok:read` 或 `admin` | 重新签发一个带平台读权限的 Key |
+| 连接时就报 `403 FORBIDDEN_SCOPE` | Key 没有 MCP 接受的平台、媒体或转写权限 | 按要使用的工具重新签发带对应权限的 Key |
 | 只有部分调用报 `FORBIDDEN_SCOPE` | Key 只有一个平台的权限，而代理要的是另一个 | 补上第二个权限范围，或者约束代理的行为 |
 | 30 秒左右客户端超时，服务端还在干活 | 客户端的 HTTP 超时低于 `api.mcp_tool_timeout` | 调高客户端超时，或调低 `api.mcp_tool_timeout` |
 | 代理在同一个失败调用上死循环 | 它没理会“重试没有用”那句话 | 在系统提示词里要求它先读错误文本再决定是否重试 |
@@ -420,7 +451,7 @@ curl -sS -X POST http://127.0.0.1:8000/mcp/ \
 
 ## 接下来读什么
 
-- [REST API 指南](./11-api.md)——完整接口，包括八个工具刻意不覆盖的部分。
+- [REST API 指南](./11-api.md)——MCP 聚焦工具集之外的完整接口。
 - [用户与 API 密钥](./09-users-and-api-keys.md)——代理所用 Key 的创建、授权、限流与撤销。
 - [核心概念](./04-concepts.md)——`pool_status` 所报告的身份池、调度器和熔断器。
 - [运维](./10-operations.md)——在请求日志里找到代理发起的调用，读懂接口健康看板。

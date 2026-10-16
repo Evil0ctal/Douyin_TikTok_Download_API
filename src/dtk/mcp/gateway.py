@@ -16,14 +16,16 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Callable, Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dtk.core.config import Config
 from dtk.core.db import session_scope
-from dtk.core.errors import TaskNotFound
+from dtk.core.errors import InvalidParam, TaskNotFound
 from dtk.core.types import Outcome, Platform
 from dtk.db.models import ContentSnapshot, RequestLog
 from dtk.identity.pool import IdentityPool
@@ -31,7 +33,14 @@ from dtk.mcp.context import EndpointHealth, HistoryPoint, PoolSnapshot, TaskOutc
 from dtk.mcp.routing import known_endpoints
 from dtk.platforms.registry import available_platforms
 from dtk.scheduler import circuit
-from dtk.services import tasks
+from dtk.services import (
+    download_requests,
+    downloads,
+    tasks,
+    transcription_progress,
+    transcription_requests,
+)
+from dtk.services import transcriptions as transcription_service
 
 Clock = Callable[[], float]
 
@@ -89,6 +98,107 @@ class ServiceTaskGateway:
         async with session_scope() as session:
             view = await tasks.get(session, _task_uuid(task_id))
         return _outcome(view)
+
+
+class ServiceTranscriptionGateway:
+    """Start and read transcriptions through the service REST uses."""
+
+    def __init__(
+        self, config: Callable[[], Config], *, normalization_failure_policy: str = "fallback"
+    ) -> None:
+        self._config = config
+        self._normalization_failure_policy = normalization_failure_policy
+
+    async def start(
+        self,
+        download_id: str,
+        *,
+        normalize: bool,
+        refresh: bool,
+        requested_by: Any | None,
+        is_demo: bool = False,
+    ) -> tuple[dict[str, Any], str | None]:
+        try:
+            parsed_download = uuid.UUID(download_id)
+        except (TypeError, ValueError, AttributeError):
+            raise InvalidParam(
+                "download_id must be the UUID download_media returned",
+                details={"field": "download_id"},
+            ) from None
+        async with session_scope() as session:
+            started = await transcription_requests.start(
+                session,
+                config=self._config(),
+                normalization_failure_policy=self._normalization_failure_policy,
+                download_id=parsed_download,
+                normalize=normalize,
+                refresh=refresh,
+                requested_by=requested_by,
+                is_demo=is_demo,
+            )
+            return transcription_service.as_dict(started.row, reused=started.reused), started.reused
+
+    async def get(self, transcription_id: str) -> dict[str, Any]:
+        try:
+            identifier = uuid.UUID(transcription_id)
+        except (TypeError, ValueError, AttributeError):
+            raise TaskNotFound("that is not a valid transcription id") from None
+        async with session_scope() as session:
+            row = await transcription_service.get(session, identifier)
+            if row is None:
+                raise TaskNotFound("no such transcription")
+            return transcription_service.as_dict(row)
+
+    async def progress(self, transcription_id: str) -> dict[str, Any] | None:
+        try:
+            identifier = uuid.UUID(transcription_id)
+        except (TypeError, ValueError, AttributeError):
+            raise TaskNotFound("that is not a valid transcription id") from None
+        snapshot = await transcription_progress.read(identifier)
+        return asdict(snapshot) if snapshot is not None else None
+
+
+class ServiceDownloadGateway:
+    """Create media download records and tasks through the shared service."""
+
+    def __init__(self, config: Callable[[], Config], *, downloader_configured: bool) -> None:
+        self._config = config
+        self._downloader_configured = downloader_configured
+
+    async def start(
+        self,
+        *,
+        url: str | None,
+        platform: Platform | None,
+        content_id: str | None,
+        skip_existing: bool,
+        requested_by: Any | None,
+        is_demo: bool,
+    ) -> dict[str, Any]:
+        async with session_scope() as session:
+            result = await download_requests.start(
+                session,
+                config=self._config(),
+                downloader_configured=self._downloader_configured,
+                url=url,
+                platform=platform,
+                content_id=content_id,
+                skip_existing=skip_existing,
+                requested_by=requested_by,
+                is_demo=is_demo,
+            )
+        return result.as_dict()
+
+    async def get(self, download_id: str) -> dict[str, Any]:
+        try:
+            identifier = uuid.UUID(download_id)
+        except (TypeError, ValueError, AttributeError):
+            raise TaskNotFound("that is not a valid download id") from None
+        async with session_scope() as session:
+            row = await downloads.get(session, identifier)
+            if row is None:
+                raise TaskNotFound("no such download")
+            return downloads.as_dict(row)
 
 
 class ServicePoolReporter:
@@ -211,7 +321,9 @@ class ServiceHistoryReader:
 
 __all__ = [
     "LAST_SUCCESS_WINDOW_DAYS",
+    "ServiceDownloadGateway",
     "ServiceHistoryReader",
     "ServicePoolReporter",
     "ServiceTaskGateway",
+    "ServiceTranscriptionGateway",
 ]

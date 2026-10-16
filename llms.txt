@@ -45,7 +45,7 @@ and Simplified Chinese and the two say the same thing.
 ## Call it
 
 - [REST API guide](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/11-api.md): Authentication, the uniform response envelope, the asynchronous task model, paging, and the errors a client has to handle. 93 operations; the generated reference is at `/swagger`, `/redoc` and `/openapi.json`.
-- [MCP and AI agents](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/12-mcp.md): Pointing Claude Code, Claude Desktop, Codex CLI or any MCP client at your own instance, and what the eight tools return. MCP runs inside the API process and shares its service layer.
+- [MCP and AI agents](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/12-mcp.md): Pointing Claude Code, Claude Desktop, Codex CLI or any MCP client at your own instance, and what the ten tools return. MCP runs inside the API process and shares its service layer.
 - [Users and API keys](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/09-users-and-api-keys.md): Roles, scopes, per-key rate limits, and what to hand a script.
 - [CLI reference](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/13-cli.md): The `dtk` command — the same service layer from a terminal.
 
@@ -66,7 +66,7 @@ and Simplified Chinese and the two say the same thing.
 - [快速开始](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/01-quickstart.md): 在一台机器上把整套跑起来，建管理员账号，解析第一条链接。
 - [安装与部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md): compose 逐个服务讲解、全部 `DTK_*` 变量、反向代理、升级、不用 Docker 的装法，以及中国大陆的换源准备。
 - [REST API 指南](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/11-api.md): 认证、统一信封、异步任务模型、翻页与错误处理。
-- [MCP 与 AI agent](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/12-mcp.md): 把 MCP 客户端接到自己的实例上，八个工具分别返回什么。
+- [MCP 与 AI agent](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/12-mcp.md): 把 MCP 客户端接到自己的实例上，十个工具分别返回什么。
 - [常见问题与术语表](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/17-faq.md): 合不合法、能不能商用、要不要 cookie、会不会封号、要不要代理、能不能无水印下载、支不支持 B 站和小红书、占多少磁盘、在国外能不能用、会不会回传数据。
 
 ## Optional

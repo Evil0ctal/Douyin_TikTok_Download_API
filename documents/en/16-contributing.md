@@ -417,7 +417,7 @@ The example below adds a capability to an existing platform. Adding a whole plat
 
 6. **Expose it.** A REST route in `src/dtk/api/routes/content.py`, declared with `openapi_extra={I18N_KEY: "<key>", **ASYNC_RESPONSES}`, and catalogue prose at `openapi.op.<key>.summary` / `.description` in both `src/dtk/i18n/locales/en.json` and `zh.json`. `tests/unit/test_i18n.py` and `tests/unit/test_openapi_completeness.py` fail on an operation with no prose, a parameter with no `description=`, or a Chinese document that is still in English. The route function's docstring is what FastAPI uses as the English description.
 
-   MCP is a separate decision. The tool set is capped at eight on purpose — every extra tool measurably lowers an agent's accuracy at choosing one — so a new capability should be a parameter of an existing tool rather than a ninth. See [MCP and AI agents](./12-mcp.md).
+   MCP is a separate decision. The tool set is kept small on purpose — ten tools today, and every extra one measurably lowers an agent's accuracy at choosing one — so a new capability should be a parameter of an existing tool rather than a new tool. The exceptions are acts of a different kind: `download_media` and `transcribe_video` change the instance, and each has its own write scope. See [MCP and AI agents](./12-mcp.md).
 
 7. **Add fixtures and a replay test.** One JSON file per platform under `tests/fixtures/<platform>/`, redacted per that directory's README, and a test in `tests/replay/`. When an endpoint breaks in production the first step is to save that response here and write a failing replay test, then fix the parser — so every incident leaves a permanent regression guard behind instead of being forgotten.
 
@@ -532,7 +532,7 @@ CI has five gating jobs: `static`, `unit`, `integration`, `console`, `image`. Th
 - [Configuration reference](./03-configuration.md) — every setting, its scope and its default.
 - [Concepts](./04-concepts.md) — identities, the scheduler, outcomes, the circuit breaker.
 - [REST API guide](./11-api.md) — the envelope, scopes, `?wait=`, `?refresh=`, `?explain=`.
-- [MCP and AI agents](./12-mcp.md) — the eight tools and why there are only eight.
+- [MCP and AI agents](./12-mcp.md) — the ten tools and why there are so few.
 - [CLI reference](./13-cli.md) — every command, and which ones are safe against a live instance.
 - [Troubleshooting](./14-troubleshooting.md) — reading a failure before you conclude it is a bug.
 - [Security](./15-security.md) — the master key, the allowlists, what leaves the instance.

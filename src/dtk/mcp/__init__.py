@@ -8,9 +8,10 @@ and the in-flight coalescing that protect the identity pool
 
 Two things to know before extending this package:
 
-* **Eight tools, and no more.** Each additional tool measurably lowers an
-  agent's selection accuracy. A new capability should be an argument to an
-  existing tool before it is a ninth one.
+* **Ten tools, and few on purpose.** Each additional tool measurably lowers an
+  agent's selection accuracy, so a new capability is an argument to an existing
+  tool before it is a new one. download_media and transcribe_video are separate
+  because they change this instance, and each has its own write scope.
 * **No credential ever crosses this boundary.** There is no identity, cookie or
   proxy tool, and :class:`~dtk.mcp.context.PoolSnapshot` carries counts rather
   than rows. That is a structural guarantee, not a check someone has to remember
@@ -25,6 +26,7 @@ Usage::
 """
 
 from dtk.mcp.context import (
+    DownloadGateway,
     EndpointHealth,
     HistoryPoint,
     HistoryReader,
@@ -34,7 +36,12 @@ from dtk.mcp.context import (
     TaskGateway,
     TaskOutcome,
 )
-from dtk.mcp.gateway import ServiceHistoryReader, ServicePoolReporter, ServiceTaskGateway
+from dtk.mcp.gateway import (
+    ServiceDownloadGateway,
+    ServiceHistoryReader,
+    ServicePoolReporter,
+    ServiceTaskGateway,
+)
 from dtk.mcp.http import DEFAULT_PATH, ApiKeyGuard, app_context, create_http_app, mount
 from dtk.mcp.server import (
     INSTRUCTIONS,
@@ -56,12 +63,14 @@ __all__ = [
     "SERVER_NAME",
     "TOOL_NAMES",
     "ApiKeyGuard",
+    "DownloadGateway",
     "EndpointHealth",
     "HistoryPoint",
     "HistoryReader",
     "McpContext",
     "PoolReporter",
     "PoolSnapshot",
+    "ServiceDownloadGateway",
     "ServiceHistoryReader",
     "ServicePoolReporter",
     "ServiceTaskGateway",

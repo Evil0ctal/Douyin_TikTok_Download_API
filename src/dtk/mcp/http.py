@@ -39,7 +39,13 @@ from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
 from dtk.identity.pool import IdentityPool
 from dtk.mcp.context import EndpointHealth, McpContext, PoolSnapshot
-from dtk.mcp.gateway import ServiceHistoryReader, ServicePoolReporter, ServiceTaskGateway
+from dtk.mcp.gateway import (
+    ServiceDownloadGateway,
+    ServiceHistoryReader,
+    ServicePoolReporter,
+    ServiceTaskGateway,
+    ServiceTranscriptionGateway,
+)
 from dtk.mcp.server import build_server
 
 log = get_logger(__name__)
@@ -52,7 +58,14 @@ DEFAULT_PATH: Final = "/mcp"
 #: the per-platform half of the rule is enforced in the tool bodies through
 #: :func:`authorize_platform` - exactly as ``/api/v1/parse`` checks "any read
 #: scope" first and the resolved platform second.
-READ_SCOPES: Final[tuple[Scope, ...]] = (Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+READ_SCOPES: Final[tuple[Scope, ...]] = (
+    Scope.DOUYIN_READ,
+    Scope.TIKTOK_READ,
+    Scope.MEDIA_READ,
+    Scope.MEDIA_WRITE,
+    Scope.TRANSCRIPTION_READ,
+    Scope.TRANSCRIPTION_WRITE,
+)
 
 
 class _DeferredPoolReporter:
@@ -131,6 +144,20 @@ def app_context(app: FastAPI) -> McpContext:
         tasks=ServiceTaskGateway(),
         pool=_DeferredPoolReporter(reporter),
         history=ServiceHistoryReader(),
+        downloads=ServiceDownloadGateway(
+            lambda: app.state.config,
+            downloader_configured=bool(app.state.settings.downloader_url),
+        ),
+        transcriptions=(
+            ServiceTranscriptionGateway(
+                lambda: app.state.config,
+                normalization_failure_policy=(
+                    app.state.settings.transcriber_normalization_failure_policy
+                ),
+            )
+            if bool(app.state.settings.transcriber_url)
+            else None
+        ),
         config=lambda: app.state.config,
         authorize=authorize_platform,
     )

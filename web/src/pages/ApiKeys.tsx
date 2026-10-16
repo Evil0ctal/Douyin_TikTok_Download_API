@@ -102,6 +102,8 @@ const SCOPE_COPY: Record<Scope, string> = {
   'archive:export': 'archiveExport',
   'media:read': 'mediaRead',
   'media:write': 'mediaWrite',
+  'transcription:read': 'transcriptionRead',
+  'transcription:write': 'transcriptionWrite',
   admin: 'admin',
 }
 

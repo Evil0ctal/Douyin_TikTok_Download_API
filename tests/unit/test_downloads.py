@@ -163,6 +163,7 @@ def test_a_media_download_is_not_exempt_from_the_queue_ceiling() -> None:
     from dtk.api.routes.operations import _OPERATOR_TRIGGERED, Maintenance
 
     assert Maintenance.MEDIA_DOWNLOAD.value not in _OPERATOR_TRIGGERED
+    assert Maintenance.MEDIA_TRANSCRIBE.value not in _OPERATOR_TRIGGERED
     assert Maintenance.DIAGNOSE.value in _OPERATOR_TRIGGERED
 
 

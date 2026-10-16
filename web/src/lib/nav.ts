@@ -59,6 +59,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/library', labelKey: 'nav.library', group: 'tools', icon: 'archive', demo: true },
   { path: '/watchlist', labelKey: 'nav.watchlist', group: 'tools', icon: 'clock' },
   { path: '/downloads', labelKey: 'nav.downloads', group: 'tools', icon: 'download', demo: true },
+  { path: '/transcriptions', labelKey: 'nav.transcriptions', group: 'tools', icon: 'list' },
   { path: '/docs', labelKey: 'nav.apiDocs', group: 'tools', icon: 'book', demo: true },
   // Not '/mcp': that path is the MCP endpoint itself, mounted on the API.
   { path: '/mcp-guide', labelKey: 'nav.mcp', group: 'tools', icon: 'plug', demo: true },

@@ -7,6 +7,8 @@
  *  3. errors.json must cover every ErrorCode in src/dtk/core/errors.py. The code
  *     enum is the contract; a code with no console copy shows up as a bare
  *     identifier in front of a user.
+ *  4. Every API route tag must have an Endpoint Access group name. Otherwise
+ *     that page silently falls back to the raw OpenAPI tag.
  */
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
@@ -18,6 +20,7 @@ import { IntlMessageFormat } from 'intl-messageformat'
 const here = dirname(fileURLToPath(import.meta.url))
 const localesDir = resolve(here, '..', 'src', 'locales')
 const errorsPy = resolve(here, '..', '..', 'src', 'dtk', 'core', 'errors.py')
+const apiRoutesDir = resolve(here, '..', '..', 'src', 'dtk', 'api', 'routes')
 
 const LANGUAGES = ['en', 'zh']
 const NAMESPACES = ['common', 'console', 'errors', 'setup']
@@ -130,7 +133,34 @@ if (existsSync(errorsPy)) {
   console.warn(`check-i18n: ${errorsPy} not found, skipping error-code coverage`)
 }
 
-// 4: language names in the switcher are endonyms, identical in every catalogue.
+// 4: every route group shown by Endpoint Access has translated display copy.
+if (existsSync(apiRoutesDir)) {
+  function pythonSources(directory) {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) return pythonSources(path)
+      return entry.isFile() && entry.name.endsWith('.py') ? [path] : []
+    })
+  }
+
+  const tags = new Set()
+  for (const file of pythonSources(apiRoutesDir)) {
+    const source = readFileSync(file, 'utf8')
+    for (const match of source.matchAll(/tags\s*=\s*\[\s*["']([^"']+)["']\s*\]/g)) {
+      tags.add(match[1])
+    }
+  }
+  for (const language of LANGUAGES) {
+    const catalog = catalogs.get(`${language}:console`)
+    for (const tag of tags) {
+      if (!catalog.has(`access.group.${tag}`)) {
+        problems.push(`${language}/console.json is missing access.group.${tag}`)
+      }
+    }
+  }
+}
+
+// 5: language names in the switcher are endonyms, identical in every catalogue.
 // A reader who cannot read the current language is scanning the picker for the
 // name of their own; translating that name is what hides it from them.
 {
@@ -157,7 +187,7 @@ if (existsSync(errorsPy)) {
   }
 }
 
-// 5: every literal key a t() call names actually exists.
+// 6: every literal key a t() call names actually exists.
 //
 // Parity between en and zh says the two files agree; it says nothing about
 // whether the console asks for keys either of them has. A typo ships silently
@@ -212,6 +242,6 @@ if (problems.length > 0) {
 }
 
 console.log(
-  'i18n check passed: en/zh key sets match, ICU parses, all error codes covered, ' +
+  'i18n check passed: en/zh key sets match, ICU parses, all error codes and route tags covered, ' +
     'language names are endonyms, every t() key resolves',
 )
