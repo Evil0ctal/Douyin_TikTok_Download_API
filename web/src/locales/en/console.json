@@ -1641,8 +1641,15 @@
       "created": "Created",
       "finished": "Finished"
     },
-    "filter": { "allStates": "All states", "allPlatforms": "All platforms" },
-    "normalization": { "applied": "Applied", "requested": "Requested", "off": "Off" },
+    "filter": {
+      "allStates": "All states",
+      "allPlatforms": "All platforms"
+    },
+    "normalization": {
+      "applied": "Applied",
+      "requested": "Requested",
+      "off": "Off"
+    },
     "empty": {
       "title": "No transcriptions yet",
       "description": "Open a stored video's details on the Downloads page to start one."
@@ -1661,7 +1668,8 @@
       "taskId": "Task ID",
       "created": "Created",
       "started": "Started",
-      "finished": "Finished"
+      "finished": "Finished",
+      "provisional": "Provisional text. Punctuation and number formatting are applied once the whole recording is done."
     },
     "cancel": {
       "action": "Cancel transcription",
@@ -1678,7 +1686,16 @@
       "cancelled": "Transcription cancelled",
       "cancelFailed": "Could not cancel the transcription",
       "deleted": "{count, plural, one {# transcription deleted} other {# transcriptions deleted}}",
-      "deleteFailed": "Could not delete the transcription records"
+      "deleteFailed": "Could not delete the transcription records",
+      "alreadySettled": "The transcription had already finished, so there was nothing to cancel"
+    },
+    "stage": {
+      "queued": "Queued",
+      "decode": "Decoding audio",
+      "vad": "Finding speech",
+      "asr": "Recognising speech",
+      "punctuation": "Adding punctuation",
+      "normalization": "Writing numbers as digits"
     }
   },
   "downloads": {

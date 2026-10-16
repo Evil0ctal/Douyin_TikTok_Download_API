@@ -1641,8 +1641,15 @@
       "created": "创建时间",
       "finished": "完成时间"
     },
-    "filter": { "allStates": "全部状态", "allPlatforms": "全部平台" },
-    "normalization": { "applied": "已应用", "requested": "已请求", "off": "未开启" },
+    "filter": {
+      "allStates": "全部状态",
+      "allPlatforms": "全部平台"
+    },
+    "normalization": {
+      "applied": "已应用",
+      "requested": "已请求",
+      "off": "未开启"
+    },
     "empty": {
       "title": "还没有转写记录",
       "description": "请在下载页面打开已保存视频的详情，然后发起转写。"
@@ -1661,7 +1668,8 @@
       "taskId": "任务 ID",
       "created": "创建时间",
       "started": "开始时间",
-      "finished": "完成时间"
+      "finished": "完成时间",
+      "provisional": "临时文本。标点和数字格式会在整段录音处理完后统一加上。"
     },
     "cancel": {
       "action": "取消转写",
@@ -1678,7 +1686,16 @@
       "cancelled": "转写已取消",
       "cancelFailed": "无法取消转写",
       "deleted": "已删除 {count} 条转写记录",
-      "deleteFailed": "无法删除转写记录"
+      "deleteFailed": "无法删除转写记录",
+      "alreadySettled": "该转写已经结束，没有可取消的内容"
+    },
+    "stage": {
+      "queued": "排队中",
+      "decode": "解码音频",
+      "vad": "检测语音片段",
+      "asr": "识别语音",
+      "punctuation": "添加标点",
+      "normalization": "规范数字写法"
     }
   },
   "downloads": {

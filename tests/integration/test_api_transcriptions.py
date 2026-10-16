@@ -115,6 +115,12 @@ async def test_list_filters_and_omits_full_text(api_app, db_engine, redis_client
     assert row["transcription_id"] == str(live_id)
     assert "text" not in row
     assert row["progress"]["progress_percent"] == 25
+    # Grows with the job and the list never shows it; only the detail read does.
+    assert "partial_text" not in row["progress"]
+
+    async with anonymous_client(api_app) as caller:
+        detail = await caller.get(f"/api/v1/transcriptions/{live_id}", headers={"X-API-Key": key})
+    assert envelope(detail)["data"]["progress"]["partial_text"] == "provisional words"
 
 
 async def test_read_scope_cannot_delete_records(api_app, db_engine, redis_client):

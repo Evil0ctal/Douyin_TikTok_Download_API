@@ -69,6 +69,20 @@ async def _progress_for(row: Any) -> Any:
         return None
 
 
+def _list_progress(progress: Any) -> dict[str, Any] | None:
+    """Progress for a listing row, without the provisional text.
+
+    That text grows with the job and the list never shows it; sent for every
+    live row on every poll, it made the listing the heaviest call the page made.
+    The detail read still carries it.
+    """
+    if progress is None:
+        return None
+    snapshot = asdict(progress)
+    snapshot.pop("partial_text", None)
+    return snapshot
+
+
 @router.post(
     "",
     summary="Transcribe a downloaded video",
@@ -130,7 +144,7 @@ async def list_transcriptions(
                 {
                     **transcriptions.as_list_dict(row),
                     "post": titles.get((row.platform, row.content_id)),
-                    "progress": asdict(progress) if progress else None,
+                    "progress": _list_progress(progress),
                 }
                 for row, progress in zip(rows, snapshots, strict=True)
             ],

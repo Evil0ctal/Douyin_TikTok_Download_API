@@ -8,6 +8,7 @@ import {
   CopyableId,
   DataTable,
   Drawer,
+  ErrorState,
   PageHeader,
   Select,
   StatusBadge,
@@ -49,7 +50,8 @@ interface Progress {
   processed_ms: number
   duration_ms: number | null
   progress_percent: number | null
-  partial_text: string
+  /** Only on the detail read: the list leaves it out, since it grows with the job. */
+  partial_text?: string
 }
 
 interface TranscriptionRow {
@@ -83,15 +85,24 @@ interface TranscriptionList {
 type Confirmation = { kind: 'cancel' | 'delete'; ids: string[] } | null
 const LIST_KEY = ['transcriptions'] as const
 const LIVE = new Set<TranscriptionState>(['queued', 'running'])
+/** The sidecar's stage names, which are identifiers and are translated here. */
+const STAGES = new Set(['queued', 'decode', 'vad', 'asr', 'punctuation', 'normalization'])
+
+function isLive(row: TranscriptionRow | undefined): boolean {
+  return row !== undefined && LIVE.has(row.state)
+}
 
 function formatMediaDuration(milliseconds: number | null | undefined): string {
   if (milliseconds === null || milliseconds === undefined || !Number.isFinite(milliseconds)) {
     return MISSING
   }
+  // Hours of their own: a two-hour recording read as "120:00".
   const totalSeconds = Math.round(Math.max(0, milliseconds) / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  const clock = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  return hours > 0 ? `${hours}:${clock}` : clock
 }
 
 function selectedFromUrl(): string | null {
@@ -129,14 +140,20 @@ export default function Transcriptions() {
       ...(stateFilter ? { state: stateFilter } : {}),
       ...(platformFilter ? { platform: platformFilter } : {}),
     },
-    poll: POLL.fast,
+    // Fast only while something is moving, as on Downloads: a page of settled
+    // records polled every five seconds was a steady load for nothing.
+    refetchInterval: (query) =>
+      query.state.data?.items.some((row) => isLive(row)) ? POLL.fast : POLL.slow,
   })
 
   const inspecting = useApiQuery<TranscriptionRow>({
     key: ['transcriptions', 'detail', inspectingId],
     path: inspectingId ? paths.transcriptions.byId(inspectingId) : paths.transcriptions.list,
     enabled: Boolean(inspectingId),
-    poll: inspectingId ? POLL.fast : false,
+    // Each read carries the whole transcript, so only while it can still change,
+    // and not at all once it errored: a stale ?id= used to poll a 404 forever.
+    refetchInterval: (query) =>
+      query.state.status !== 'error' && isLive(query.state.data) ? POLL.fast : false,
   })
 
   const refresh = (): void => {
@@ -161,10 +178,13 @@ export default function Transcriptions() {
   const cancel = useApiMutation<TranscriptionRow, string>(
     (id) => apiDelete(paths.transcriptions.byId(id)),
     {
-      onSuccess: () => {
+      onSuccess: (result) => {
         setConfirming(null)
         refresh()
-        toast.success(t('transcriptions.toast.cancelled'))
+        // It can finish between opening the dialog and confirming, and the
+        // server then leaves it alone; saying "cancelled" would be untrue.
+        if (result.state === 'cancelled') toast.success(t('transcriptions.toast.cancelled'))
+        else toast.info(t('transcriptions.toast.alreadySettled'))
       },
       onError: (error) => toast.apiError(error, t('transcriptions.toast.cancelFailed')),
     },
@@ -173,8 +193,7 @@ export default function Transcriptions() {
   const remove = useApiMutation<{ deleted: number }, string[]>(
     (ids) => apiPost(paths.transcriptions.delete, { ids }),
     {
-      onSuccess: (result) => {
-        const ids = confirming?.ids ?? []
+      onSuccess: (result, ids) => {
         if (inspectingId && ids.includes(inspectingId)) closeDetail()
         setSelected(new Set())
         setConfirming(null)
@@ -186,8 +205,12 @@ export default function Transcriptions() {
   )
 
   const rows = list.data?.items ?? []
+  // Acted on as shown. A selection made under one filter survived a change of
+  // filter, and "Delete 3 selected" then deleted rows that were not on screen.
   const selectedRows = rows.filter((row) => selected.has(row.transcription_id))
-  const selectedHasLive = selectedRows.some((row) => LIVE.has(row.state))
+  const selectedHasLive = selectedRows.some((row) => isLive(row))
+  const stageLabel = (stage: string): string =>
+    STAGES.has(stage) ? t(`transcriptions.stage.${stage}`) : stage
 
   const columns = useMemo<Array<Column<TranscriptionRow>>>(
     () => [
@@ -234,7 +257,7 @@ export default function Transcriptions() {
         width: '360px',
         cell: (row) => (
           <span className={styles.preview} title={row.text_preview || row.error || ''}>
-            {row.text_preview || row.error || '—'}
+            {row.text_preview || row.error || MISSING}
           </span>
         ),
       },
@@ -317,7 +340,10 @@ export default function Transcriptions() {
             <Select
               aria-label={t('transcriptions.column.state')}
               value={stateFilter}
-              onChange={(event) => setStateFilter(event.target.value as TranscriptionState | '')}
+              onChange={(event) => {
+                setStateFilter(event.target.value as TranscriptionState | '')
+                setSelected(new Set())
+              }}
             >
               <option value="">{t('transcriptions.filter.allStates')}</option>
               {TRANSCRIPTION_STATES.map((state) => (
@@ -327,20 +353,28 @@ export default function Transcriptions() {
             <Select
               aria-label={t('transcriptions.column.platform')}
               value={platformFilter}
-              onChange={(event) => setPlatformFilter(event.target.value as Platform | '')}
+              onChange={(event) => {
+                setPlatformFilter(event.target.value as Platform | '')
+                setSelected(new Set())
+              }}
             >
               <option value="">{t('transcriptions.filter.allPlatforms')}</option>
               {PLATFORMS.map((platform) => <option key={platform} value={platform}>{platform}</option>)}
             </Select>
-            {selected.size > 0 ? (
+            {selectedRows.length > 0 ? (
               <Button
                 size="sm"
                 variant="danger"
                 disabled={selectedHasLive}
                 title={selectedHasLive ? t('transcriptions.delete.liveHint') : undefined}
-                onClick={() => setConfirming({ kind: 'delete', ids: [...selected] })}
+                onClick={() =>
+                  setConfirming({
+                    kind: 'delete',
+                    ids: selectedRows.map((row) => row.transcription_id),
+                  })
+                }
               >
-                {t('transcriptions.delete.selected', { count: selected.size })}
+                {t('transcriptions.delete.selected', { count: selectedRows.length })}
               </Button>
             ) : null}
           </>
@@ -367,7 +401,7 @@ export default function Transcriptions() {
         ) : undefined}
       >
         {inspecting.isLoading ? <p className="u-muted">{t('transcriptions.detail.loading')}</p> : null}
-        {inspecting.error ? <p className="u-muted">{inspecting.error.message}</p> : null}
+        {inspecting.error ? <ErrorState error={inspecting.error} compact /> : null}
         {detail ? (
           <div className="u-stack">
             <div className="u-row-between">
@@ -376,10 +410,12 @@ export default function Transcriptions() {
             </div>
             {detail.progress ? (
               <p className="u-xs u-muted">
-                {t('transcriptions.detail.progress', {
-                  stage: detail.progress.stage,
-                  percent: detail.progress.progress_percent ?? 0,
-                })}
+                {detail.progress.progress_percent !== null
+                  ? t('transcriptions.detail.progress', {
+                      stage: stageLabel(detail.progress.stage),
+                      percent: detail.progress.progress_percent,
+                    })
+                  : stageLabel(detail.progress.stage)}
               </p>
             ) : null}
             {detail.error ? <p className={styles.error}>{detail.error}</p> : null}
@@ -391,7 +427,12 @@ export default function Transcriptions() {
                 {t('transcriptions.detail.export')}
               </Button>
             </div>
-            <div className={styles.transcript}>{detail.text || t('transcriptions.detail.noText')}</div>
+            <div className={styles.transcript}>
+              {detail.text || detail.progress?.partial_text || t('transcriptions.detail.noText')}
+            </div>
+            {!detail.text && detail.progress?.partial_text ? (
+              <p className="u-xs u-muted">{t('transcriptions.detail.provisional')}</p>
+            ) : null}
             <dl className={styles.metadata}>
               <dt>{t('transcriptions.detail.model')}</dt><dd>{detail.model}</dd>
               <dt>{t('transcriptions.detail.source')}</dt><dd>{detail.source.name}</dd>

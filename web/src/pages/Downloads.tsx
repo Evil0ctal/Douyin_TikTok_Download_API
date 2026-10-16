@@ -21,11 +21,12 @@ import {
   type Column,
   useToast,
 } from '@/components'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
+import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
 import { apiDelete, apiGet, apiPost, isApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
+import { atLeast } from '@/lib/roles'
 import { DOWNLOAD_STATES, type DownloadState, type Platform } from '@/lib/types'
 
 import styles from './Downloads.module.css'
@@ -284,6 +285,12 @@ interface Storage {
  * on bytes actually written - so there is no denominator to divide by. Files
  * done out of files planned is a real fraction, and the bytes so far are shown
  * beside it as the number that keeps moving.
+ */
+/**
+ * By files, not by bytes. The platform declares a size and the sidecar does
+ * not trust it - the ceiling is enforced on bytes actually written - so there
+ * is no denominator. Files done out of files planned is a real fraction; the
+ * bytes sit beside it as the number that keeps moving.
  */
 function Progress({ progress }: { progress: DownloadProgress }) {
   const { t } = useTranslation(['console', 'common'])
@@ -1150,6 +1157,10 @@ function Detail({ row }: { row: DownloadRow }) {
   const formatters = useFormatters()
   const toast = useToast()
   const [, navigate] = useLocation()
+  const session = useSession()
+  // The demo account may open Downloads but every write there is refused, and
+  // a success would land it on /transcriptions, which it cannot open either.
+  const mayTranscribe = atLeast(session.data?.role ?? null, 'viewer')
 
   const video = videoOf(row)
   const cover = coverOf(row)
@@ -1195,18 +1206,20 @@ function Detail({ row }: { row: DownloadRow }) {
       {row.error ? <p className="u-muted">{row.error}</p> : null}
       {!row.on_disk ? <p className="u-xs u-muted">{t('downloads.evictedHint')}</p> : null}
 
-      <div>
-        <Button
-          variant="primary"
-          loading={transcribe.isPending}
-          disabled={!canTranscribe || transcribe.isPending}
-          title={unavailableReason}
-          onClick={() => transcribe.mutate()}
-        >
-          {t('downloads.transcription.action')}
-        </Button>
-        {unavailableReason ? <p className="u-xs u-muted">{unavailableReason}</p> : null}
-      </div>
+      {mayTranscribe ? (
+        <div>
+          <Button
+            variant="primary"
+            loading={transcribe.isPending}
+            disabled={!canTranscribe || transcribe.isPending}
+            title={unavailableReason}
+            onClick={() => transcribe.mutate()}
+          >
+            {t('downloads.transcription.action')}
+          </Button>
+          {unavailableReason ? <p className="u-xs u-muted">{unavailableReason}</p> : null}
+        </div>
+      ) : null}
 
       <ul className={styles.files}>
         {row.files.map((file) => (
