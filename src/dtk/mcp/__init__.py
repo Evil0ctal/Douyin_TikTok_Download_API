@@ -8,8 +8,10 @@ and the in-flight coalescing that protect the identity pool
 
 Two things to know before extending this package:
 
-* **Ten focused tools.** Eight are reads; two explicitly write local media or
-  transcription state. Keeping the surface small protects tool selection.
+* **Ten tools, and few on purpose.** Each additional tool measurably lowers an
+  agent's selection accuracy, so a new capability is an argument to an existing
+  tool before it is a new one. download_media and transcribe_video are separate
+  because they change this instance, and each has its own write scope.
 * **No credential ever crosses this boundary.** There is no identity, cookie or
   proxy tool, and :class:`~dtk.mcp.context.PoolSnapshot` carries counts rather
   than rows. That is a structural guarantee, not a check someone has to remember

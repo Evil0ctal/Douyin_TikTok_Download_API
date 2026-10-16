@@ -1,7 +1,11 @@
 """The tool set.
 
-Ten focused tools: eight platform/local reads and two explicit local actions,
-media download and transcription (documents/en/12-mcp.md).
+Ten tools, and deliberately few: every extra tool measurably lowers an agent's
+selection accuracy, and this surface has to stay pickable in one shot
+(docs/design/06-api-auth-mcp.md). A new capability is an argument to an existing
+tool unless it is a different kind of act. The two that change this instance -
+download_media and transcribe_video - are that: each writes to the operator's
+disk, so each has a write scope of its own rather than riding on a read tool.
 
 Nothing here manages identities, imports cookies, lists proxies or reads an API
 key. An agent must not be able to touch credentials, and the way to guarantee
@@ -561,30 +565,18 @@ class ToolSet:
         except TaskNotFound as exc:
             raise ToolError(prose.describe_error(exc)) from None
 
-        # A task id is not a capability: the same scope rule that guards the
-        # tool which queued the work has to guard collecting its result, or a
-        # key scoped to one platform reads the other one's data by task id.
+        # A task id is not a capability: collecting a result costs the scope that
+        # queueing the work needed. A platform endpoint goes through the same
+        # authorizer as the tool that queued it. Everything else used to go
+        # through nothing, which held while the transport admitted only
+        # platform-read keys; once media and transcription keys could reach it,
+        # they could read any task by id - a proxy probe's exit IP, a minted
+        # identity's id. Those now get the table GET /api/v1/tasks/{id} uses.
         platform = _platform_of(outcome.endpoint)
         if platform is not None:
             self._authorize(platform, context)
-        if outcome.endpoint == "media.transcribe":
-            caller = _caller(context)
-            if caller is not None and not caller.permits(
-                Scope.TRANSCRIPTION_READ, Scope.TRANSCRIPTION_WRITE
-            ):
-                raise ForbiddenScope(
-                    "this credential lacks transcription access",
-                    details=caller.denial(
-                        scopes=[Scope.TRANSCRIPTION_READ, Scope.TRANSCRIPTION_WRITE]
-                    ),
-                )
-        if outcome.endpoint == "media.download":
-            caller = _caller(context)
-            if caller is not None and not caller.permits(Scope.MEDIA_READ, Scope.MEDIA_WRITE):
-                raise ForbiddenScope(
-                    "this credential lacks media download access",
-                    details=caller.denial(scopes=[Scope.MEDIA_READ, Scope.MEDIA_WRITE]),
-                )
+        else:
+            self._authorize_task(outcome.endpoint, context)
 
         if not outcome.settled:
             snapshot = await self._snapshot()
@@ -594,21 +586,63 @@ class ToolSet:
                 "message": prose.unfinished_task_message(identifier, outcome.state.value, snapshot),
             }
         payload = await self._settle(outcome, "")
-        if outcome.endpoint == "media.download":
-            data, _meta = _unwrap(payload)
-            download_id = str(data.get("download_id") or "") if isinstance(data, dict) else ""
-            gateway = self._ctx.downloads
-            if gateway is None or not download_id:
-                raise ToolError("The completed download result is unavailable.")
-            completed = await gateway.get(download_id)
-            return {
-                "status": "ok",
-                "task_id": identifier,
-                "download_id": download_id,
-                "data": completed,
-            }
         data, _meta = _unwrap(payload)
+        if outcome.endpoint == "media.download":
+            return await self._download_answer(identifier, _record_id(data, "download_id"))
+        if outcome.endpoint == "media.transcribe":
+            return await self._transcription_answer(
+                identifier, _record_id(data, "transcription_id"), reused=None
+            )
         return {"status": "ok", "task_id": identifier, "data": data}
+
+    def _authorize_task(self, endpoint: str | None, context: Context | None) -> None:
+        caller = _caller(context)
+        if caller is None:  # stdio: the local process owner
+            return
+        # Imported here for the reason authorize_platform gives: the route
+        # package imports this one to mount the server.
+        from dtk.api.routes.operations import scopes_for_task
+
+        # A row with no endpoint matches nothing and falls back to admin, which
+        # is the safe direction for a task this build cannot place.
+        caller.require(*scopes_for_task(endpoint or ""))
+
+    async def _download_answer(self, task_id: str | None, download_id: str) -> dict[str, Any]:
+        """The stored download, or why there is none - never "ok" for nothing."""
+        gateway = self._ctx.downloads
+        if gateway is None:
+            raise NotConfigured("media downloads are not configured on this instance")
+        record = await gateway.get(download_id)
+        state = str(record.get("state") or "")
+        if state in ("failed", "cancelled"):
+            raise ToolError(
+                prose.unsettled_media_message("download", download_id, state, record.get("error"))
+            )
+        return {"status": "ok", "task_id": task_id, "download_id": download_id, "data": record}
+
+    async def _transcription_answer(
+        self, task_id: str | None, transcription_id: str, *, reused: str | None
+    ) -> dict[str, Any]:
+        """The stored transcript, or why there is none."""
+        gateway = self._ctx.transcriptions
+        if gateway is None:
+            raise NotConfigured("transcription is not configured on this instance")
+        record = await gateway.get(transcription_id)
+        state = str(record.get("state") or "")
+        if state in ("failed", "cancelled"):
+            raise ToolError(
+                prose.unsettled_media_message(
+                    "transcription", transcription_id, state, record.get("error")
+                )
+            )
+        if reused is not None:
+            record["reused"] = reused
+        return {
+            "status": "ok",
+            "task_id": task_id,
+            "transcription_id": transcription_id,
+            "data": record,
+        }
 
     async def download_media(
         self,
@@ -632,11 +666,21 @@ class ToolSet:
         ] = None,
         skip_existing: Annotated[
             bool,
-            Field(default=True, description="Reuse matching media already stored on disk."),
+            Field(
+                default=True,
+                description="Answer from disk when this post's media is already stored.",
+            ),
         ] = True,
         context: Context | None = None,
     ) -> dict[str, Any]:
-        """Download a post's media onto this instance's media volume."""
+        """Store one post's video and images on this instance.
+
+        Call this before transcribe_video, which takes the download_id it
+        returns. Unlike the read tools it changes this instance: it writes files
+        to the operator's disk, and a post that has not been parsed here yet is
+        fetched through the identity pool first. With skip_existing (the
+        default) a post already on disk is answered without fetching anything.
+        """
         return await self._guarded(
             self._download_media(url, platform, content_id, skip_existing, context)
         )
@@ -652,7 +696,7 @@ class ToolSet:
         caller = self._authorize_scope(Scope.MEDIA_WRITE, context)
         gateway = self._ctx.downloads
         if gateway is None:
-            raise NotConfigured("media downloads are not configured")
+            raise NotConfigured("media downloads are not configured on this instance")
         target_platform = routing.coerce_platform(platform) if platform else None
         record = await gateway.start(
             url=url.strip() if url and url.strip() else None,
@@ -663,46 +707,47 @@ class ToolSet:
             is_demo=getattr(caller, "role", None) is UserRole.DEMO,
         )
         download_id = str(record["download_id"])
-        task_id = record.get("task_id")
-        if record.get("reused") == "already_stored" or not task_id:
-            completed = await gateway.get(download_id)
-            return {
-                "status": "ok",
-                "task_id": str(task_id) if task_id else None,
-                "download_id": download_id,
-                "data": completed,
-            }
-        outcome = await self._ctx.tasks.wait(str(task_id), self._ctx.tool_timeout)
+        task_id = str(record["task_id"]) if record.get("task_id") else None
+        if record.get("reused") == "already_stored" or task_id is None:
+            return await self._download_answer(task_id, download_id)
+        timeout = self._ctx.tool_timeout
+        outcome = await self._ctx.tasks.wait(task_id, timeout)
         if outcome is None or not outcome.settled:
-            return {
-                "status": "pending",
-                "task_id": str(task_id),
-                "download_id": download_id,
-            }
+            pending = await self._pending(task_id, "media.download", timeout)
+            return {**pending, "download_id": download_id}
         await self._settle(outcome, "media.download")
-        completed = await gateway.get(download_id)
-        return {
-            "status": "ok",
-            "task_id": str(task_id),
-            "download_id": download_id,
-            "data": completed,
-        }
+        return await self._download_answer(task_id, download_id)
 
     async def transcribe_video(
         self,
         download_id: Annotated[
-            str, Field(description="Download UUID containing a completed video file.")
+            str,
+            Field(description="The download_id download_media returned for the post."),
         ],
         normalize: Annotated[
             bool,
-            Field(default=True, description="Apply contextual Chinese number normalization."),
+            Field(
+                default=True,
+                description="Write Chinese numbers, dates and amounts as digits.",
+            ),
         ] = True,
         refresh: Annotated[
-            bool, Field(default=False, description="Create a new result instead of reusing one.")
+            bool,
+            Field(
+                default=False,
+                description="Transcribe again even when a finished transcript exists.",
+            ),
         ] = False,
         context: Context | None = None,
     ) -> dict[str, Any]:
-        """Transcribe a video already downloaded to this instance."""
+        """Transcribe the speech in a video this instance has stored.
+
+        Takes the download_id from download_media; a post that is not stored
+        yet has to go through that tool first. The speech model runs on this
+        instance and the transcript is kept, so asking again for the same video
+        returns the stored text unless refresh is true, and asking while one is
+        running joins it rather than starting a second.
+        """
         return await self._guarded(self._transcribe_video(download_id, normalize, refresh, context))
 
     async def _transcribe_video(
@@ -715,35 +760,41 @@ class ToolSet:
         caller = self._authorize_scope(Scope.TRANSCRIPTION_WRITE, context)
         gateway = self._ctx.transcriptions
         if gateway is None:
-            raise NotConfigured("transcription is not configured")
+            raise NotConfigured("transcription is not configured on this instance")
         record, reused = await gateway.start(
             routing.require_text(download_id, "download_id"),
             normalize=normalize,
             refresh=refresh,
             requested_by=getattr(caller, "api_key_id", None),
+            is_demo=getattr(caller, "role", None) is UserRole.DEMO,
         )
-        task_id = record.get("task_id")
         transcription_id = str(record["transcription_id"])
-        if record.get("state") == "done":
-            return {"status": "ok", "data": record}
-        if not task_id:
-            return {"status": "pending", "transcription_id": transcription_id}
-        outcome = await self._wait_for_transcription(str(task_id), transcription_id, context)
+        task_id = str(record["task_id"]) if record.get("task_id") else None
+        if record.get("state") not in ("queued", "running"):
+            return await self._transcription_answer(task_id, transcription_id, reused=reused)
+        if task_id is None:
+            # A live transcription is committed together with its task, so this
+            # is a row from before that rule. There is nothing to wait on.
+            raise ToolError(
+                prose.describe(
+                    ErrorCode.INTERNAL,
+                    f"transcription {transcription_id} is live but has no task to wait on; "
+                    "cancel it from the console and call transcribe_video again",
+                )
+            )
+        timeout = self._ctx.tool_timeout
+        outcome = await self._wait_for_transcription(task_id, transcription_id, context)
         if outcome is None or not outcome.settled:
-            return {
-                "status": "pending",
-                "task_id": str(task_id),
-                "transcription_id": transcription_id,
-            }
+            pending = await self._pending(task_id, "media.transcribe", timeout)
+            return {**pending, "transcription_id": transcription_id}
         await self._settle(outcome, "media.transcribe")
-        completed = await gateway.get(transcription_id)
-        completed["reused"] = reused
+        answer = await self._transcription_answer(task_id, transcription_id, reused=reused)
         if _wants_progress(context):
             assert context is not None
             await _report_transcription_progress(
                 context, 100.0, _TRANSCRIPTION_STAGE_MESSAGES["done"]
             )
-        return {"status": "ok", "task_id": str(task_id), "data": completed}
+        return answer
 
     async def _wait_for_transcription(
         self,
@@ -782,7 +833,12 @@ class ToolSet:
                     timeout=min(TRANSCRIPTION_PROGRESS_POLL_SECONDS, remaining),
                 )
                 try:
-                    snapshot = await gateway.progress(transcription_id)
+                    # Bounded like everything else in the wait: a slow Redis
+                    # read must not carry the call past the tool timeout.
+                    snapshot = await asyncio.wait_for(
+                        gateway.progress(transcription_id),
+                        timeout=max(0.1, deadline - loop.time()),
+                    )
                 except Exception as exc:  # progress must never mask the real result
                     log.warning(
                         "mcp.transcription_progress_read_failed",
@@ -920,6 +976,16 @@ def _platform_of(endpoint: str | None) -> Platform | None:
         return Platform(endpoint.split(".", 1)[0])
     except ValueError:
         return None
+
+
+def _record_id(data: Any, key: str) -> str:
+    """The record a finished media task names, which the answer is read from."""
+    value = data.get(key) if isinstance(data, dict) else None
+    if not value:
+        raise ToolError(
+            prose.describe(ErrorCode.INTERNAL, f"the finished task did not name its {key}")
+        )
+    return str(value)
 
 
 def _unwrap(payload: dict[str, Any]) -> tuple[Any, dict[str, Any]]:

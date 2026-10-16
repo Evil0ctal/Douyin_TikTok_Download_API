@@ -247,6 +247,24 @@ def unfinished_task_message(task_id: str, state: str, snapshot: PoolSnapshot | N
     return text
 
 
+def unsettled_media_message(kind: str, identifier: str, state: str, error: str | None) -> str:
+    """Answer for a download or transcription that ended without its result.
+
+    Both workers record these as an outcome rather than raising - a post with no
+    fetchable mirror, a video ffmpeg cannot read - so the task itself succeeds.
+    Reading only the task, the tools answered status "ok" for a download that
+    stored nothing and a transcription that has no text.
+    """
+    if kind == "download":
+        again = "Call download_media again to start over; it re-reads the post for fresh links."
+    else:
+        again = "Call transcribe_video again with refresh=true once the cause is fixed."
+    if state == "cancelled":
+        return f"The {kind} {identifier} was cancelled before it finished. {again}"
+    reason = _sentence(error) or "No reason was recorded."
+    return f"The {kind} {identifier} failed. {reason} {again}"
+
+
 __all__ = [
     "TOOL_LANGUAGE",
     "describe",
@@ -257,4 +275,5 @@ __all__ = [
     "summarize_pool",
     "timeout_message",
     "unfinished_task_message",
+    "unsettled_media_message",
 ]

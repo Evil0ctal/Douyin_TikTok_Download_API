@@ -115,9 +115,18 @@ class FakeHistory:
 
 
 class FakeDownloads:
-    def __init__(self, *, reused: str | None = None, task_id: str | None = TASK_ID) -> None:
+    def __init__(
+        self,
+        *,
+        reused: str | None = None,
+        task_id: str | None = TASK_ID,
+        final_state: str = "done",
+        error: str | None = None,
+    ) -> None:
         self.reused = reused
         self.task_id = task_id
+        self.final_state = final_state
+        self.error = error
         self.started: list[dict[str, Any]] = []
         self.read: list[str] = []
 
@@ -134,7 +143,8 @@ class FakeDownloads:
         self.read.append(download_id)
         return {
             "id": download_id,
-            "state": "done",
+            "state": self.final_state,
+            "error": self.error,
             "files": [{"name": "video.mp4", "kind": "video"}],
         }
 
@@ -146,11 +156,15 @@ class FakeTranscriptions:
         *,
         start_state: str = "queued",
         reused: str | None = None,
+        final_state: str = "done",
+        error: str | None = None,
     ) -> None:
         self.snapshots = list(snapshots or [])
         self.progress_calls = 0
         self.start_state = start_state
         self.reused = reused
+        self.final_state = final_state
+        self.error = error
 
     async def start(self, *_args: Any, **_kwargs: Any) -> tuple[dict[str, Any], str | None]:
         return (
@@ -167,8 +181,9 @@ class FakeTranscriptions:
         return {
             "transcription_id": transcription_id,
             "task_id": TASK_ID,
-            "state": "done",
-            "text": "Final text.",
+            "state": self.final_state,
+            "text": "Final text." if self.final_state == "done" else None,
+            "error": self.error,
         }
 
     async def progress(self, _transcription_id: str) -> dict[str, Any] | None:
@@ -631,11 +646,31 @@ class TestMediaDownloads:
             None,
             True,
         )
-        assert result == {
-            "status": "pending",
-            "task_id": TASK_ID,
-            "download_id": "8afe9635-9deb-4590-b76a-46a18c38bf7b",
-        }
+        assert result["status"] == "pending"
+        assert result["task_id"] == TASK_ID
+        assert result["download_id"] == "8afe9635-9deb-4590-b76a-46a18c38bf7b"
+        assert f"get_task_result with task_id={TASK_ID}" in result["message"]
+
+    async def test_a_download_that_stored_nothing_is_an_error(self):
+        """The worker records "no fetchable media" as a result, not a raise.
+
+        Reading only the task, this answered status "ok" for a download that
+        stored nothing at all.
+        """
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"download_id": "8afe9635-9deb-4590-b76a-46a18c38bf7b", "state": "failed"},
+            endpoint="media.download",
+        )
+        downloads = FakeDownloads(final_state="failed", error="this post has no downloadable media")
+        tools = ToolSet(make_context(FakeTasks(wait=finished), downloads=downloads))
+
+        with pytest.raises(ToolError) as caught:
+            await tools.download_media(None, "douyin", "7100000000000000000", True)
+
+        assert "failed" in str(caught.value)
+        assert "This post has no downloadable media." in str(caught.value)
 
     async def test_existing_download_returns_without_waiting(self):
         downloads = FakeDownloads(reused="already_stored", task_id=None)
@@ -777,11 +812,10 @@ class TestTranscriptionProgress:
             context=context,  # type: ignore[arg-type]
         )
 
-        assert result == {
-            "status": "pending",
-            "task_id": TASK_ID,
-            "transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b",
-        }
+        assert result["status"] == "pending"
+        assert result["task_id"] == TASK_ID
+        assert result["transcription_id"] == "7afe9635-9deb-4590-b76a-46a18c38bf7b"
+        assert f"get_task_result with task_id={TASK_ID}" in result["message"]
         assert any(
             "Provisional text: Temporary" in (message or "") for _, _, message in context.reports
         )
@@ -856,6 +890,48 @@ class TestTranscriptionProgress:
 # ---------------------------------------------------------------------------
 # Error prose
 # ---------------------------------------------------------------------------
+
+
+class TestTranscriptionOutcomes:
+    @pytest.mark.parametrize(
+        ("state", "error", "expected"),
+        [
+            ("failed", "ffmpeg could not decode the first audio track", "failed"),
+            ("cancelled", None, "cancelled"),
+        ],
+    )
+    async def test_a_transcription_without_text_is_an_error(self, state, error, expected):
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b", "state": state},
+            endpoint="media.transcribe",
+        )
+        transcriptions = FakeTranscriptions(final_state=state, error=error)
+        tools = ToolSet(make_context(FakeTasks(wait=finished), transcriptions=transcriptions))
+
+        with pytest.raises(ToolError) as caught:
+            await tools.transcribe_video("8afe9635-9deb-4590-b76a-46a18c38bf7b")
+
+        assert expected in str(caught.value)
+        assert "transcribe_video again" in str(caught.value)
+
+    async def test_collecting_a_transcription_reads_the_stored_record(self):
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b", "state": "done"},
+            endpoint="media.transcribe",
+        )
+        tools = ToolSet(
+            make_context(FakeTasks(lookup=finished), transcriptions=FakeTranscriptions())
+        )
+
+        result = await tools.get_task_result(TASK_ID)
+
+        assert result["status"] == "ok"
+        assert result["transcription_id"] == "7afe9635-9deb-4590-b76a-46a18c38bf7b"
+        assert result["data"]["text"] == "Final text."
 
 
 class TestErrorProse:
@@ -1160,6 +1236,58 @@ def _rpc(client, method: str, params: dict[str, Any] | None = None):
             "X-API-Key": "dtk_test_key",
         },
     )
+
+
+class TestTaskResultScopes:
+    """The transport admits media and transcription keys now; results must not."""
+
+    @pytest.mark.parametrize("scope", [Scope.MEDIA_READ, Scope.TRANSCRIPTION_WRITE])
+    @pytest.mark.parametrize(
+        ("endpoint", "result"),
+        [
+            ("parse", {"data": {"title": "a post this key may not read"}}),
+            ("proxy.test", {"data": {"exit_ip": "203.0.113.9"}}),
+            ("identity.mint", {"data": {"identity_id": "an identity id"}}),
+        ],
+    )
+    def test_a_media_key_cannot_collect_another_kind_of_task(
+        self, monkeypatch, scope, endpoint, result
+    ):
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch, frozenset({scope}))
+        tasks = FakeTasks(lookup=TaskOutcome(TASK_ID, TaskState.DONE, result, endpoint=endpoint))
+        with TestClient(_mounted_app(tasks, real_scopes=True)) as client:
+            response = _rpc(
+                client,
+                "tools/call",
+                {"name": "get_task_result", "arguments": {"task_id": TASK_ID}},
+            )
+        assert "FORBIDDEN_SCOPE" in response.text
+        assert "203.0.113.9" not in response.text
+        assert "an identity id" not in response.text
+
+    def test_a_transcription_key_collects_its_own_kind_of_task(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        _authenticate(monkeypatch, frozenset({Scope.TRANSCRIPTION_READ}))
+        finished = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"transcription_id": "7afe9635-9deb-4590-b76a-46a18c38bf7b", "state": "done"},
+            endpoint="media.transcribe",
+        )
+        app = _mounted_app(
+            FakeTasks(lookup=finished), transcriptions=FakeTranscriptions(), real_scopes=True
+        )
+        with TestClient(app) as client:
+            response = _rpc(
+                client,
+                "tools/call",
+                {"name": "get_task_result", "arguments": {"task_id": TASK_ID}},
+            )
+        assert "FORBIDDEN_SCOPE" not in response.text
+        assert "Final text." in response.text
 
 
 class TestHttpTransport:
