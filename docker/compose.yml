@@ -257,6 +257,10 @@ services:
     networks:
       - data
       - edge
+      # The transcriber's network. Cancelling a transcription from the console
+      # tells the sidecar directly, the way a cancelled download tells the
+      # downloader; without this the call failed on DNS and was swallowed.
+      - compute
     depends_on:
       postgres:
         condition: service_healthy
@@ -603,6 +607,8 @@ networks:
   data:
     internal: true
   edge: {}
+  # The transcriber, and the api and worker that call it. No gateway either:
+  # the models are mounted, so the sidecar has no reason to reach anything.
   compute:
     internal: true
 

@@ -21,12 +21,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.config import Config
 from dtk.core.db import session_scope
-from dtk.core.errors import TaskNotFound
+from dtk.core.errors import InvalidParam, TaskNotFound
 from dtk.core.types import Outcome, Platform
 from dtk.db.models import ContentSnapshot, RequestLog
 from dtk.identity.pool import IdentityPool
@@ -34,7 +33,13 @@ from dtk.mcp.context import EndpointHealth, HistoryPoint, PoolSnapshot, TaskOutc
 from dtk.mcp.routing import known_endpoints
 from dtk.platforms.registry import available_platforms
 from dtk.scheduler import circuit
-from dtk.services import download_requests, downloads, tasks, transcription_progress
+from dtk.services import (
+    download_requests,
+    downloads,
+    tasks,
+    transcription_progress,
+    transcription_requests,
+)
 from dtk.services import transcriptions as transcription_service
 
 Clock = Callable[[], float]
@@ -96,9 +101,12 @@ class ServiceTaskGateway:
 
 
 class ServiceTranscriptionGateway:
-    """Create transcription records and their local worker tasks atomically."""
+    """Start and read transcriptions through the service REST uses."""
 
-    def __init__(self, normalization_failure_policy: str = "fallback") -> None:
+    def __init__(
+        self, config: Callable[[], Config], *, normalization_failure_policy: str = "fallback"
+    ) -> None:
+        self._config = config
         self._normalization_failure_policy = normalization_failure_policy
 
     async def start(
@@ -108,44 +116,27 @@ class ServiceTranscriptionGateway:
         normalize: bool,
         refresh: bool,
         requested_by: Any | None,
+        is_demo: bool = False,
     ) -> tuple[dict[str, Any], str | None]:
         try:
             parsed_download = uuid.UUID(download_id)
         except (TypeError, ValueError, AttributeError):
-            from dtk.core.errors import InvalidParam
-
-            raise InvalidParam("download_id must be a UUID") from None
-        try:
-            async with session_scope() as session:
-                row, reused = await transcription_service.prepare(
-                    session,
-                    parsed_download,
-                    normalize=normalize,
-                    normalization_failure_policy=self._normalization_failure_policy,
-                    refresh=refresh,
-                    requested_by=requested_by,
-                )
-                if reused is None:
-                    task_id = await tasks.create(
-                        session,
-                        "media.transcribe",
-                        {"transcription_id": str(row.id)},
-                        api_key_id=requested_by,
-                    )
-                    row.task_id = task_id
-                result = transcription_service.as_dict(row, reused=reused)
-        except IntegrityError:
-            # The partial unique index is the concurrency arbiter. Once the
-            # winner commits, the retry joins its in-flight record.
-            return await self.start(
-                download_id,
+            raise InvalidParam(
+                "download_id must be the UUID download_media returned",
+                details={"field": "download_id"},
+            ) from None
+        async with session_scope() as session:
+            started = await transcription_requests.start(
+                session,
+                config=self._config(),
+                normalization_failure_policy=self._normalization_failure_policy,
+                download_id=parsed_download,
                 normalize=normalize,
-                refresh=False,
+                refresh=refresh,
                 requested_by=requested_by,
+                is_demo=is_demo,
             )
-        if reused is None:
-            await tasks.enqueue(task_id, endpoint="media.transcribe")
-        return result, reused
+            return transcription_service.as_dict(started.row, reused=started.reused), started.reused
 
     async def get(self, transcription_id: str) -> dict[str, Any]:
         try:

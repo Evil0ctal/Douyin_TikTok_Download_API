@@ -149,7 +149,12 @@ def app_context(app: FastAPI) -> McpContext:
             downloader_configured=bool(app.state.settings.downloader_url),
         ),
         transcriptions=(
-            ServiceTranscriptionGateway(app.state.settings.transcriber_normalization_failure_policy)
+            ServiceTranscriptionGateway(
+                lambda: app.state.config,
+                normalization_failure_policy=(
+                    app.state.settings.transcriber_normalization_failure_policy
+                ),
+            )
             if bool(app.state.settings.transcriber_url)
             else None
         ),

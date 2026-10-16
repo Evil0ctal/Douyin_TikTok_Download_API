@@ -77,6 +77,7 @@ class TranscriptionGateway(Protocol):
         normalize: bool,
         refresh: bool,
         requested_by: Any | None,
+        is_demo: bool = False,
     ) -> tuple[dict[str, Any], str | None]: ...
 
     async def get(self, transcription_id: str) -> dict[str, Any]: ...

@@ -115,7 +115,10 @@ def service_context(
         history=ServiceHistoryReader(),
         downloads=ServiceDownloadGateway(config_reader, downloader_configured=downloader_enabled),
         transcriptions=(
-            ServiceTranscriptionGateway(transcriber_normalization_failure_policy)
+            ServiceTranscriptionGateway(
+                config_reader,
+                normalization_failure_policy=transcriber_normalization_failure_policy,
+            )
             if transcriber_enabled
             else None
         ),

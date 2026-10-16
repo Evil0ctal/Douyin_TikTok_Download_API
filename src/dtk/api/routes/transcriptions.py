@@ -9,10 +9,8 @@ from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from sqlalchemy.exc import IntegrityError
 
 from dtk.api.deps import Principal, enforce_rate_limit
-from dtk.api.routes import operations
 from dtk.api.routes.openapi import ASYNC_RESPONSES, I18N_KEY
 from dtk.api.routes.schemas import TranscriptionDeleteRequest, TranscriptionRequest
 from dtk.api.routes.support import (
@@ -24,8 +22,14 @@ from dtk.api.routes.support import (
 )
 from dtk.core.config import BootstrapSettings
 from dtk.core.errors import NotConfigured, NotFound
-from dtk.core.types import Platform, Scope, TranscriptionState
-from dtk.services import downloads, tasks, transcription_progress, transcriptions
+from dtk.core.types import Platform, Scope, TranscriptionState, UserRole
+from dtk.services import (
+    downloads,
+    tasks,
+    transcription_progress,
+    transcription_requests,
+    transcriptions,
+)
 
 router = APIRouter(prefix="/api/v1/transcriptions", tags=["transcriptions"])
 TRANSCRIPTION_ID = Path(description="The transcription id returned when it was started.")
@@ -83,41 +87,17 @@ async def start_transcription(
     principal.require(Scope.TRANSCRIPTION_WRITE)
     settings = _configured(request)
     wait_seconds = resolve_wait(request, wait)
-    session = request.state.db
-    try:
-        row, reused = await transcriptions.prepare(
-            session,
-            body.download_id,
-            normalize=body.normalize,
-            normalization_failure_policy=settings.transcriber_normalization_failure_policy,
-            refresh=body.refresh,
-            requested_by=principal.api_key_id,
-        )
-    except IntegrityError:
-        await session.rollback()
-        row, reused = await transcriptions.prepare(
-            session,
-            body.download_id,
-            normalize=body.normalize,
-            normalization_failure_policy=settings.transcriber_normalization_failure_policy,
-            refresh=False,
-            requested_by=principal.api_key_id,
-        )
-    if reused is not None:
-        return await _waited(request, row, wait_seconds, reused)
-
-    task_id, _ = await operations.submit(
-        request,
-        principal,
-        endpoint=operations.Maintenance.MEDIA_TRANSCRIBE.value,
-        params={"transcription_id": str(row.id)},
-        coalesce=False,
-        publish=False,
+    started = await transcription_requests.start(
+        request.state.db,
+        config=request.app.state.config,
+        normalization_failure_policy=settings.transcriber_normalization_failure_policy,
+        download_id=body.download_id,
+        normalize=body.normalize,
+        refresh=body.refresh,
+        requested_by=principal.api_key_id,
+        is_demo=principal.role is UserRole.DEMO,
     )
-    row.task_id = task_id
-    await session.commit()
-    await tasks.enqueue(task_id, endpoint=operations.Maintenance.MEDIA_TRANSCRIBE.value)
-    return await _waited(request, row, wait_seconds, None)
+    return await _waited(request, started.row, wait_seconds, started.reused)
 
 
 @router.get("", summary="List transcriptions", openapi_extra={I18N_KEY: "transcriptions_list"})
