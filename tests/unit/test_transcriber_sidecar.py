@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -117,7 +118,11 @@ def test_decode_invokes_the_resolved_ffmpeg_binary(monkeypatch, tmp_path):
         "f32le",
         "-",
     ]
-    assert calls[0][1] == {"check": False, "capture_output": True}
+    assert calls[0][1] == {
+        "check": False,
+        "capture_output": True,
+        "timeout": sidecar.DECODE_TIMEOUT_SECONDS,
+    }
     assert audio == decoded
 
 
@@ -457,3 +462,101 @@ def test_rejects_absolute_parent_and_symlink_escape(tmp_path, monkeypatch):
                 json={"id": f"{index + 1:032x}", "path": path, "model": sidecar.MODEL_NAME},
             )
             assert response.status_code == 400
+
+
+def _media(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    media = tmp_path / "post"
+    media.mkdir()
+    (media / "video.mp4").write_bytes(b"video")
+    monkeypatch.setattr(sidecar, "MEDIA_ROOT", tmp_path)
+
+
+def test_cancelling_a_running_job_stops_the_backend_at_its_next_segment(tmp_path, monkeypatch):
+    """A cancelled job gives its worker back instead of finishing the audio first.
+
+    `asyncio.to_thread` cannot interrupt the backend, so the progress callbacks
+    are the only place a cancellation can land. With one worker - the default -
+    a cancel that only flipped a flag left every queued job waiting behind an
+    hour of audio nobody wanted any more.
+    """
+    started = threading.Event()
+    release = threading.Event()
+    processed: list[int] = []
+
+    class LongBackend(FakeBackend):
+        def transcribe(
+            self, path, normalize, failure_policy, progress=None, stage=None, segment=None
+        ):
+            started.set()
+            release.wait(2)
+            for index in range(100):
+                progress(index / 100, 1.0)
+                processed.append(index)
+            return super().transcribe(path, normalize, failure_policy)
+
+    _media(tmp_path, monkeypatch)
+    job_id = "c" * 32
+    with TestClient(sidecar.create_app(LongBackend())) as client:
+        body = {"id": job_id, "path": "post/video.mp4", "model": sidecar.MODEL_NAME}
+        assert client.post("/jobs", json=body).status_code == 202
+        assert started.wait(2)
+        assert client.delete(f"/jobs/{job_id}").json()["state"] == "cancelled"
+        release.set()
+        deadline = time.monotonic() + 2
+        while client.get(f"/jobs/{job_id}").status_code != 404:
+            assert time.monotonic() < deadline, "the cancelled job was never released"
+            time.sleep(0.01)
+
+    assert processed == []
+
+
+def test_a_failed_job_does_not_report_the_container_media_path(tmp_path, monkeypatch):
+    """ffmpeg names the file it could not read, and that text reaches API callers."""
+
+    class CorruptBackend(FakeBackend):
+        def transcribe(self, path, *args, **kwargs):
+            raise RuntimeError(f"{path}: Invalid data found when processing input")
+
+    _media(tmp_path, monkeypatch)
+    job_id = "d" * 32
+    with TestClient(sidecar.create_app(CorruptBackend())) as client:
+        body = {"id": job_id, "path": "post/video.mp4", "model": sidecar.MODEL_NAME}
+        assert client.post("/jobs", json=body).status_code == 202
+        result = _done(client, job_id)
+
+    assert result["state"] == "failed"
+    assert str(tmp_path) not in result["error"]
+    assert result["error"].startswith("<media-root>/post/video.mp4")
+
+
+def test_a_decode_that_hangs_is_bounded(monkeypatch, tmp_path):
+    """One wedged ffmpeg would otherwise hold the only worker until a restart."""
+    backend = sidecar.FunASRBackend.__new__(sidecar.FunASRBackend)
+    backend._ffmpeg_exe = "/opt/imageio/ffmpeg"
+    monkeypatch.setitem(sys.modules, "numpy", SimpleNamespace())
+
+    def run(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(sidecar.subprocess, "run", run)
+
+    with pytest.raises(RuntimeError, match="timed out"):
+        backend._decode(tmp_path / "video.mp4")
+
+
+@pytest.mark.parametrize(
+    ("headers", "status"),
+    [
+        ({}, 401),
+        ({"X-Transcriber-Token": "wrong"}, 401),
+        # Not ASCII: hmac.compare_digest raises TypeError on such a str, which
+        # would be a 500 rather than the refusal it is. Bytes, because the test
+        # client will not encode a non-ASCII str header itself.
+        ({"X-Transcriber-Token": b"s\xe9cret"}, 401),
+        ({"X-Transcriber-Token": "secret"}, 200),
+    ],
+)
+def test_a_configured_token_is_required(monkeypatch, headers, status):
+    monkeypatch.setattr(sidecar, "TOKEN", "secret")
+    with TestClient(sidecar.create_app(FakeBackend())) as client:
+        assert client.get("/health", headers=headers).status_code == status

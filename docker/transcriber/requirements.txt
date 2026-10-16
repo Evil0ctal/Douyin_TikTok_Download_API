@@ -1,5 +1,16 @@
-fastapi>=0.115
-uvicorn[standard]>=0.54.0
+# Runtime dependencies of the transcriber image.
+#
+# Pinned exactly, like docker/browser_rpc/requirements.txt, and the web layer is
+# kept in step with the versions uv.lock resolves for the application image.
+# The first draft of this file said `fastapi>=0.115`, and a build on 2026-10-16
+# resolved fastapi 0.143.2 and pydantic 2.14.1 - neither of which the rest of
+# the stack had ever run against.
+
+fastapi==0.141.1
+uvicorn==0.54.0
+pydantic==2.13.5
+# app.py imports numpy directly; funasr-onnx caps it at this version anyway.
+numpy==1.26.4
 imageio-ffmpeg==0.6.0
 funasr-onnx==0.4.3
 onnxruntime==1.23.2

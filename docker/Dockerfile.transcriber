@@ -20,9 +20,11 @@
 
 # Kept as an argument so builds can pin the exact Python patch release without
 # editing the Dockerfile. The slim Debian image supplies glibc-compatible ONNX
-# Runtime wheels while avoiding a compiler toolchain in the final image.
+# Runtime wheels while avoiding a compiler toolchain in the final image. The
+# Debian release is named, as in docker/Dockerfile: a bare `-slim` tag moves to
+# the next release on its own schedule.
 ARG PYTHON_VERSION=3.12.8
-FROM python:${PYTHON_VERSION}-slim
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
 # Do not leave .pyc files on a filesystem that compose makes read-only, and do
 # not buffer service logs: job progress must reach the container log while a

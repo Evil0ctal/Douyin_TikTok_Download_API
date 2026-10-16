@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 import os
 import subprocess
@@ -29,6 +30,10 @@ JOB_HISTORY_SIZE = max(
 )
 THREADS = max(1, int(os.getenv("DTK_TRANSCRIBER_THREADS", "2")))
 PROGRESS_LOG_SECONDS = max(5.0, float(os.getenv("DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS", "30")))
+#: The worker gives up on a job after this long, so a decode still running past
+#: it has no caller left. It is also what stops one file ffmpeg cannot finish
+#: from holding a worker until the container restarts.
+DECODE_TIMEOUT_SECONDS = max(60, int(os.getenv("DTK_TRANSCRIBER_TIMEOUT_SECONDS", "3600")))
 MODEL_NAME = "paraformer-zh-large-onnx-int8"
 NORMALIZER_NAME = "wetext-zh-itn-0.1.8"
 VALID_FAILURE_POLICIES = frozenset({"fallback", "fail"})
@@ -57,6 +62,10 @@ SegmentCallback = Callable[[str], None]
 
 class NormalizationFailed(RuntimeError):
     pass
+
+
+class JobCancelled(Exception):
+    """Raised from a progress callback to stop a backend whose job was cancelled."""
 
 
 class Backend(Protocol):
@@ -132,27 +141,33 @@ class FunASRBackend:
     def _decode(self, path: Path) -> Any:
         import numpy as np
 
-        completed = subprocess.run(
-            [
-                self._ffmpeg_exe,
-                "-v",
-                "error",
-                "-nostdin",
-                "-i",
-                str(path),
-                "-map",
-                "0:a:0",
-                "-ac",
-                "1",
-                "-ar",
-                "16000",
-                "-f",
-                "f32le",
-                "-",
-            ],
-            check=False,
-            capture_output=True,
-        )
+        try:
+            completed = subprocess.run(
+                [
+                    self._ffmpeg_exe,
+                    "-v",
+                    "error",
+                    "-nostdin",
+                    "-i",
+                    str(path),
+                    "-map",
+                    "0:a:0",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "16000",
+                    "-f",
+                    "f32le",
+                    "-",
+                ],
+                check=False,
+                capture_output=True,
+                timeout=DECODE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                f"ffmpeg timed out after {DECODE_TIMEOUT_SECONDS}s decoding the audio track"
+            ) from None
         if completed.returncode != 0:
             detail = completed.stderr.decode("utf-8", errors="replace").strip()
             raise RuntimeError(
@@ -314,11 +329,21 @@ def create_app(backend: Backend | None = None) -> FastAPI:
             started = time.monotonic()
             heartbeat: asyncio.Task[None] | None = None
 
+            # The backend runs in a thread that asyncio cannot interrupt, so a
+            # cancelled job used to keep its worker until the last segment was
+            # recognised - and with one worker, every queued job waited for
+            # audio nobody wanted any more. Each callback is a point where the
+            # backend can be stopped instead.
+            def stop_if_cancelled(target: dict[str, Any]) -> None:
+                if target["state"] == "cancelled":
+                    raise JobCancelled
+
             def record_progress(
                 processed_seconds: float,
                 duration_seconds: float,
                 target: dict[str, Any] = job,
             ) -> None:
+                stop_if_cancelled(target)
                 processed_ms = max(0, round(processed_seconds * 1000))
                 duration_ms = max(0, round(duration_seconds * 1000))
                 target["processed_ms"] = (
@@ -338,6 +363,7 @@ def create_app(backend: Backend | None = None) -> FastAPI:
                 job_id: str = request.id,
                 download_id: str | None = request.download_id,
             ) -> None:
+                stop_if_cancelled(target)
                 if target.get("stage") == name:
                     return
                 target["stage"] = name
@@ -350,6 +376,7 @@ def create_app(backend: Backend | None = None) -> FastAPI:
                 )
 
             def record_segment(text: str, target: dict[str, Any] = job) -> None:
+                stop_if_cancelled(target)
                 if not text:
                     return
                 target["partial_text"] = f"{target.get('partial_text') or ''}{text}"
@@ -432,7 +459,9 @@ def create_app(backend: Backend | None = None) -> FastAPI:
                 if job["state"] != "cancelled":
                     job["state"] = "failed"
                     job["finished_at"] = datetime.now(UTC).isoformat()
-                    job["error"] = str(exc)[:500]
+                    # Returned to API callers, so it gets the same scrubbing as the
+                    # log line: ffmpeg names the file it could not read.
+                    job["error"] = _safe_error(exc)
                     job["progress_revision"] += 1
                     if isinstance(exc, NormalizationFailed):
                         job["normalization_error"] = "NORMALIZATION_FAILED"
@@ -495,7 +524,8 @@ def create_app(backend: Backend | None = None) -> FastAPI:
     )
 
     def authorize(x_transcriber_token: str | None = Header(default=None)) -> None:
-        if TOKEN and x_transcriber_token != TOKEN:
+        supplied = (x_transcriber_token or "").encode()
+        if TOKEN and not hmac.compare_digest(supplied, TOKEN.encode()):
             raise HTTPException(status_code=401, detail="invalid transcriber token")
 
     @app.get("/health")
