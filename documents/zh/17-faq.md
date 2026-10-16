@@ -525,7 +525,7 @@ Ethereum (ERC20)、BNB Smart Chain (BEP20) 和 Bitcoin 的加密货币地址列�
 | **API key** | 脚本或 agent 在 `X-API-Key` 或 `Authorization: Bearer` 里发送的凭据。创建时只显示一次，库里只存前缀和 SHA-256 摘要。可以带自己的每分钟限流值，否则套用 `api.default_rate_limit_per_min`（120）。 |
 | **限流（rate limit）** | 防滥用手段，与计量和收费无关。它唯一的目的是不让一个跑飞的脚本把身份池抽干。 |
 | **初始化令牌（setup token）** | 全新实例在 API 日志里打印的一次性令牌，用来创建第一个管理员。它在 Redis 里存活 24 小时，能扛住 4 次失败尝试——第 5 次就会把它删掉；一旦有账号存在，`/setup` 就永久关闭。 |
-| **MCP** | Model Context Protocol，AI 客户端发现并调用工具的协议。本实例在 API 进程内于 `/mcp/` 提供服务，共 9 个聚焦工具，其中 `transcribe_video` 是唯一写操作；没有任何工具会碰到凭据。见 [MCP 与 AI 客户端](./12-mcp.md)。 |
+| **MCP** | Model Context Protocol，AI 客户端（Claude Code、Claude Desktop、Codex CLI 等）发现并调用工具的协议。本实例在 API 进程内于 `/mcp/` 提供服务，共 10 个工具，其中 `download_media` 和 `transcribe_video` 会写入本实例、需要写权限；没有任何工具会碰到凭据。见 [MCP 与 AI 客户端](./12-mcp.md)。 |
 | **`explain`** | 抓取时的一个选项，把请求原样交还给你——签名后的 URL、请求头和 Cookie 罐。它返回的是凭据，所以需要 `operator` 角色外加 `admin` 或 `identity:manage` 权限（控制台会话只受角色限制），并且会被审计。 |
 | **诊断（Diagnose）** | 控制台里的六步自检（组件、外网出口、代理、身份池、签名、冒烟抓取），命令行是 `dtk diagnose`。它的报告在生成时就已脱敏，所以贴到 issue 里是安全的。 |
 

@@ -273,8 +273,8 @@ dtk_9f3c1a7b2e08_Vn4kQ2xR8sT1yU6wZ0aB3cD5eF7gH9jK
 | `archive:export` | `GET /api/v1/archive/export`，一次请求遍历整个归档。它单独占一个 scope，因为这是唯一一个能把只读密钥变成数据库副本的调用。 |
 | `media:read` | 下载记录及其字节内容：`GET /api/v1/downloads`、`/downloads/storage`、`/downloads/{download_id}` 和 `/downloads/{download_id}/files/{name}`。它还会让归档列表 `GET /api/v1/archive` 多返回本地媒体那一块。 |
 | `media:write` | 一切发起或改变下载的操作：`POST /api/v1/downloads`、`/downloads/retry`、`/downloads/deduplicate`、`POST /api/v1/downloads/{download_id}/pin`、`DELETE /api/v1/downloads/{download_id}`——以及素材库的合集（`POST`、`PATCH`、`DELETE /api/v1/archive/collections...`）和 `POST /api/v1/archive/delete`。与 `media:read` 分开，是因为发起一次下载会消耗一个身份、占用磁盘：它是这套 API 里唯一一个长得像读、却对宿主机留下持久副作用的调用。 |
-| `transcription:read` | 通过 `GET /api/v1/transcriptions/{transcription_id}` 读取持久化转写，并读取 `media.transcribe` 任务结果。 |
-| `transcription:write` | 通过 REST 或 MCP 发起、刷新、取消按需转写；也可以读取自己创建的结果。 |
+| `transcription:read` | 转写记录：`GET /api/v1/transcriptions` 和 `GET /api/v1/transcriptions/{transcription_id}`，以及通过 REST 或 MCP 取回 `media.transcribe` 任务结果。 |
+| `transcription:write` | 任何发起或移除转写的操作：`POST /api/v1/transcriptions`、`DELETE /api/v1/transcriptions/{transcription_id}`（取消）、`POST /api/v1/transcriptions/delete`，以及 MCP 的 `transcribe_video`。它能读 `transcription:read` 能读的一切。单独成一个权限，是因为每一次都会在本机 CPU 上把语音模型跑满整段视频的时长。 |
 | `identity:manage` | 身份池及其周边机制：`/api/v1/admin/identities/*`、`/api/v1/admin/proxies/*`、`/api/v1/admin/watchlist/*`、`POST /api/v1/admin/diagnose`、`POST /api/v1/admin/notifications/test`、API 密钥这几个路由本身、只读的管理面板（配置列表、请求日志、审计日志、指标、接口访问控制）、`POST /api/v1/tools/identity`，以及数据调用上的 `identity=` 和 `explain=` 参数。不要把它给普通的只读密钥：`GET /api/v1/admin/identities/{id}/cookies/reveal` 会把解密后的 Cookie 罐交出来。 |
 | `admin` | 一切。scope 校验遇到它直接短路，所以持有 `admin` 的密钥能通过实例上的每一道 scope 关卡。它唯一做不到的是抬高所属账号的角色——见下文。 |
 

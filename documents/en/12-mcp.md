@@ -5,7 +5,7 @@
 > an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/12-mcp.md)
 
-This page shows you how to point an AI client at your own instance, what the ten tools do, and how to read what comes back.
+This page shows you how to point an AI client — Claude Code, Claude Desktop, Codex CLI, Cherry Studio, or anything else that speaks MCP — at your own instance, what the ten tools do, and how to read what comes back. After this you should be able to configure a client, verify the connection with `curl`, and recognise the two mistakes that account for most failed connections.
 
 ## What the MCP endpoint is
 
@@ -19,10 +19,10 @@ The practical consequences:
 
 Two deliberate limits are worth knowing before you plan an agent around this:
 
-- **Ten focused tools.** Eight read platform or local status data; `download_media` and `transcribe_video` are explicit local write operations and require their own scopes.
+- **Ten tools, and few on purpose.** Every extra tool measurably lowers an agent's ability to pick the right one, so a new capability is expected to arrive as an argument to an existing tool rather than as a new one. The two that are tools of their own, `download_media` and `transcribe_video`, are the two that change this instance, and each needs a write scope of its own. If you want a surface that covers everything this instance can do, use [the REST API](./11-api.md).
 - **No tool touches a credential.** There is no identity tool, no cookie tool, no proxy tool, and `pool_status` reports counts and circuit states rather than rows. This is structural — the tools do not exist — not a permission check somebody has to remember to write. An agent connected to this instance cannot read or export your cookies, and cannot be tricked into it.
 
-All platform tools are reads. `download_media` stores a post on this instance and `transcribe_video` processes an already downloaded video; the watchlist, settings, identity management and user administration remain console and REST territory.
+Everything else is a read. `download_media` stores a post's media on this instance's disk and `transcribe_video` transcribes a video stored there; the watchlist, settings, identity management and user administration remain console and REST territory — see [Downloads, library and watchlist](./08-downloads-and-library.md) and [Users and API keys](./09-users-and-api-keys.md).
 
 ## The endpoint address
 
@@ -137,7 +137,7 @@ Returns a page under `data` carrying `cursor` and `has_more`. Stop when `has_mor
 | `cursor` | no | As above |
 | `count` | no | As above, 1–50 |
 
-Top-level comments only. Replies under a comment are a separate capability that this focused tool set does not expose. If an agent needs them, fetch them over REST from `/api/v1/{platform}/video/comments/replies`.
+Top-level comments only. Replies under a comment are a separate capability that this tool set does not expose — that is one of the small-tool-set trade-offs. If an agent needs them, fetch them over REST from `/api/v1/{platform}/video/comments/replies`.
 
 ### `get_content_history`
 
@@ -182,7 +182,7 @@ No credential, identity id, cookie, fingerprint or proxy address appears anywher
 
 Accepts either a full post `url`, or `platform` plus `content_id`. Short links must go through `parse_url` first. `skip_existing` defaults to true, so repeated agent calls reuse the files already on disk.
 
-The tool waits up to `api.mcp_tool_timeout`. A completed call returns the durable download record and `download_id`; a longer download returns `pending` with both `task_id` and `download_id`. Files stay on the server's media volume and are not transferred through MCP.
+It needs `media:write`, and it changes this instance: files land on the operator's disk, and a post this instance has not parsed yet is fetched through the identity pool first. The tool waits up to `api.mcp_tool_timeout`. A completed call returns the stored download record and its `download_id`; a longer download returns `pending` with a `message`, the `task_id` to pass to `get_task_result`, and the `download_id`. A download that stored nothing — no fetchable media, or cancelled — is a tool error that says why, not an `ok`. Files stay on the server's media volume and are not transferred through MCP.
 
 For transcription, use this chain:
 
@@ -192,7 +192,7 @@ parse_url → download_media(url) → transcribe_video(download_id)
 
 ### `transcribe_video`
 
-Pass a download UUID, optional `normalize` (default `true`), and optional `refresh`. FunASR handles mixed Chinese and English; contextual Chinese ITN converts spoken numbers, dates, amounts and similar expressions. Reuse also distinguishes normalization mode, engine version and the instance's fallback/fail policy. The tool waits up to `api.mcp_tool_timeout`, then returns the full text or a pending task and transcription id.
+Pass the `download_id` from `download_media`, optional `normalize` (default `true`), and optional `refresh`. It needs `transcription:write`, and the transcriber compose profile has to be running. FunASR handles mixed Chinese and English; contextual Chinese ITN converts spoken numbers, dates, amounts and similar expressions. A finished transcript of the same video is reused unless `refresh` is true, and reuse also distinguishes normalization mode, engine version and the instance's fallback/fail policy; a request made while one is running joins it. The tool waits up to `api.mcp_tool_timeout`, then returns the full text, or `pending` with a `message`, the `task_id` and the `transcription_id`. A failed or cancelled transcription is a tool error that says why.
 
 When the client supplies MCP's `_meta.progressToken`, the same tool call also emits
 `notifications/progress` while it waits. Updates name the current pipeline stage
@@ -211,7 +211,7 @@ does not attach a progress callback to `tools/call` and ignores progress notific
 | --- | --- | --- |
 | `task_id` | yes | The task id from a tool call that reported `status: "pending"` |
 
-There is no other reason to call it. Every other tool already waits for its own answer, so an agent that starts here is polling for work nobody queued.
+There is no other reason to call it. Every other tool already waits for its own answer, so an agent that starts here is polling for work nobody queued. For a download or a transcription it answers with the stored record, exactly as the original tool would have, including the error when there is nothing to return.
 
 ## Reading a result
 
@@ -314,7 +314,7 @@ The transport can only check that the key reads *something*, because the platfor
 Two rules that surprise people:
 
 - **A key is bounded by the scopes it was minted with even when an administrator owns it.** On a self-hosted instance almost every key belongs to the admin user; a key with only `douyin:read` still cannot read TikTok through MCP, exactly as it cannot through `GET /api/v1/tiktok/video`.
-- **A task id is not a way around the check.** `get_task_result` re-checks the platform of the task it is collecting, so a key scoped to one platform cannot read the other's data by quoting an id it saw somewhere. (A task queued by `parse_url` has no platform in its endpoint name; there the check happened when the link was classified, before anything was queued.)
+- **A task id is not a way around the check.** `get_task_result` requires the scope that queueing the task needed — the same table `GET /api/v1/tasks/{id}` applies: the platform's read scope for a platform call, either read scope for a `parse_url` task, a media scope for a download and a transcription scope for a transcription. So a key scoped to one platform cannot read the other's data by quoting an id it saw somewhere, and a media or transcription key cannot read anything else. Maintenance tasks — proxy probes, identity mints — need `admin` or `identity:manage`, which an agent's key should not hold.
 
 Over stdio there is no transport identity to restrict: the agent spawned the process and already has everything the process has, including the database. That is a reason to keep stdio for local use, not a gap in the HTTP transport.
 

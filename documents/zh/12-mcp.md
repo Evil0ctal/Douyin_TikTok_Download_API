@@ -4,7 +4,7 @@
 > 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/12-mcp.md)
 
-这一页讲怎么把 AI 客户端接到你自己的实例上、十个工具各自做什么，以及返回结果该怎么读。
+这一页讲怎么把 AI 客户端——Claude Code、Claude Desktop、Codex CLI、Cherry Studio，或者任何支持 MCP 的工具——接到你自己的实例上，十个工具各自做什么，以及返回的东西该怎么读。读完你应该能配好一个客户端、用 `curl` 验证连通性，并且认得出导致大部分连接失败的那两个错误。
 
 ## MCP 接入点是什么
 
@@ -18,10 +18,10 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 
 在围绕它设计代理之前，有两条刻意的限制值得先知道：
 
-- **十个聚焦工具。** 八个负责读取平台或本地状态；`download_media` 和 `transcribe_video` 是显式本地写操作，并使用各自的权限。
+- **十个工具，刻意少。** 每多一个工具，代理挑对工具的准确率都会有可测量的下降，所以新能力应该是现有工具的一个参数，而不是一个新工具。单独成为工具的 `download_media` 和 `transcribe_video`，恰好是会改变本实例的两个，各自需要单独的写权限。如果你需要覆盖这个实例全部能力的接口，请用 [REST API](./11-api.md)。
 - **没有任何工具能碰到凭证。** 这里没有身份工具、没有 Cookie 工具、没有代理工具，`pool_status` 返回的也只是计数和熔断状态，而不是数据行。这是结构性的保证——那些工具根本不存在——而不是某个人要记得写的权限检查。接到这个实例上的代理读不到、也导不出你的 Cookie，更不可能被话术骗着去做。
 
-平台工具全部是读操作。`download_media` 把作品保存到本实例，`transcribe_video` 对已下载视频发起本地转写；关注列表、设置、身份管理和用户管理仍属于控制台和 REST。
+其余工具全部是读操作。`download_media` 把作品媒体保存到本实例的磁盘上，`transcribe_video` 转写保存在那里的视频；关注列表、设置、身份管理和用户管理仍属于控制台和 REST 的地盘，见[下载、资料库与关注列表](./08-downloads-and-library.md)和[用户与 API 密钥](./09-users-and-api-keys.md)。
 
 ## 接入地址
 
@@ -136,7 +136,7 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 | `cursor` | 否 | 同上 |
 | `count` | 否 | 同上，1–50 |
 
-只返回一级评论。楼中楼回复仍不在这套聚焦工具集内；代理确实需要时，走 REST 的 `/api/v1/{platform}/video/comments/replies`。
+只返回一级评论。楼中楼回复是另一项能力，这套工具不暴露——这正是“工具要少”所付出的代价之一。代理确实需要时，走 REST 的 `/api/v1/{platform}/video/comments/replies`。
 
 ### `get_content_history`
 
@@ -181,7 +181,7 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 
 接受完整作品 `url`，或者 `platform` 加 `content_id`；短链接仍需先调用 `parse_url`。`skip_existing` 默认是 true，因此代理重复调用会复用磁盘上已有的文件。
 
-工具最多等待 `api.mcp_tool_timeout`。完成时返回持久化下载记录和 `download_id`；耗时更长时返回 `pending`，其中同时包含 `task_id` 与 `download_id`。文件保留在服务端媒体卷上，不通过 MCP 传输。
+它需要 `media:write`，并且会改变本实例：文件会写到运营者的磁盘上，本实例还没解析过的作品会先通过身份池抓取一次。工具最多等待 `api.mcp_tool_timeout`。完成时返回保存下来的下载记录和 `download_id`；耗时更长时返回 `pending`，带一段 `message`、交给 `get_task_result` 的 `task_id`，以及 `download_id`。什么都没存下的下载——没有可抓取的媒体，或者被取消——会作为工具错误返回并说明原因，而不是 `ok`。文件保留在服务端媒体卷上，不通过 MCP 传输。
 
 转写使用以下链路：
 
@@ -191,7 +191,7 @@ parse_url → download_media(url) → transcribe_video(download_id)
 
 ### `transcribe_video`
 
-传入下载 UUID、可选的 `normalize`（默认 `true`）和可选的 `refresh`。FunASR 处理中英混合语音；中文 ITN 会按上下文转换口语数字、日期、金额等表达。结果复用还会区分归一化开关、引擎版本以及实例配置的 fallback/fail 策略。工具最多等待 `api.mcp_tool_timeout`，完成则返回全文，超时则返回 task id 与 transcription id。
+传入 `download_media` 返回的 `download_id`、可选的 `normalize`（默认 `true`）和可选的 `refresh`。它需要 `transcription:write`，并且转写服务的 compose profile 必须在运行。FunASR 处理中英混合语音；中文 ITN 会按上下文转换口语数字、日期、金额等表达。同一个视频已有完成的转写时会直接复用，除非 `refresh` 为 true；复用还会区分归一化开关、引擎版本以及实例配置的 fallback/fail 策略；转写进行中再次请求会加入正在跑的那一个。工具最多等待 `api.mcp_tool_timeout`，完成则返回全文，超时则返回 `pending`，带一段 `message`、`task_id` 和 `transcription_id`。失败或被取消的转写会作为工具错误返回并说明原因。
 
 客户端携带 MCP 的 `_meta.progressToken` 时，同一次工具调用在等待期间还会发送
 `notifications/progress`。更新会标明当前流水线阶段（`queued`、`decode`、`vad`、
@@ -208,7 +208,7 @@ parse_url → download_media(url) → transcribe_video(download_id)
 | --- | --- | --- |
 | `task_id` | 是 | 某次返回 `status: "pending"` 的工具调用给出的 task id |
 
-除此之外没有别的理由调它。其他每个工具都会自己等结果，所以一上来就调这个的代理，是在轮询一件根本没人排队的活。
+除此之外没有别的理由调它。其他每个工具都会自己等结果，所以一上来就调这个的代理，是在轮询一件根本没人排队的活。对下载和转写，它返回的是保存下来的记录，和原工具本该返回的完全一样，没有可返回的内容时也同样报错。
 
 ## 读取返回结果
 
@@ -311,7 +311,7 @@ again. (error code ENDPOINT_CIRCUIT_OPEN)
 有两条规则常常出人意料：
 
 - **Key 受限于它创建时的权限范围，哪怕拥有者是管理员。** 自托管实例上几乎每个 Key 都属于 admin 用户；一个只有 `douyin:read` 的 Key，通过 MCP 照样读不了 TikTok，就跟它调 `GET /api/v1/tiktok/video` 会被拒一样。
-- **task id 不是绕过检查的后门。** `get_task_result` 会重新检查它要取回的那个任务属于哪个平台，所以只授权了一个平台的 Key，无法靠着从别处看到的 id 去读另一个平台的数据。（由 `parse_url` 排队的任务，其 endpoint 名里没有平台；那种情况下的检查发生在链接被归类时，也就是入队之前。）
+- **task id 不是绕过检查的后门。** `get_task_result` 要求的权限，就是当初排队这个任务所需要的权限——和 `GET /api/v1/tasks/{id}` 用的是同一张表：平台调用要该平台的读权限，`parse_url` 的任务要任一平台的读权限，下载要媒体权限，转写要转写权限。所以只授权了一个平台的 Key，无法靠着从别处看到的 id 去读另一个平台的数据；媒体或转写 Key 也读不到其他任何东西。维护类任务——代理探测、身份铸造——需要 `admin` 或 `identity:manage`，代理用的 Key 本来就不该有这两个权限。
 
 走 stdio 时没有传输层身份可以约束：代理自己拉起了这个进程，本来就拥有该进程的一切，包括数据库。这是把 stdio 留给本机使用的理由，而不是 HTTP 传输的缺口。
 
