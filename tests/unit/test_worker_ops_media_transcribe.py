@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import pytest
 
+from dtk.core.errors import TranscriberDown
 from dtk.transcriber import TranscriberUnavailable
 from dtk.worker.ops import media_transcribe
 
@@ -258,3 +259,196 @@ async def test_running_progress_is_published_then_cleared(
         }
     ]
     assert cleared == [transcription_id]
+
+
+class PollingClient(FakeClient):
+    """A sidecar whose job stays running until told otherwise."""
+
+    def __init__(self, *, missing_after: int | None = None) -> None:
+        super().__init__()
+        self.reads = 0
+        self.missing_after = missing_after
+        self.submitted: list[dict[str, Any]] = []
+
+    async def job(self, _job_id: str) -> dict[str, Any]:
+        self.reads += 1
+        if self.missing_after is not None and self.reads > self.missing_after:
+            raise TranscriberUnavailable("transcriber /jobs/x refused the request: no such job")
+        return {"state": "running", "stage": "asr"}
+
+    async def submit(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self.submitted.append(payload)
+        return {"state": "running", "stage": "asr"}
+
+
+class SettlingSession(FakeSession):
+    """A session whose refresh reports what another worker committed."""
+
+    def __init__(self, download: Any, *, settle_to: str | None) -> None:
+        super().__init__(download)
+        self.settle_to = settle_to
+
+    async def refresh(self, row: Any) -> None:
+        self.refreshed = True
+        if self.settle_to is not None:
+            row.state = self.settle_to
+
+
+def _row(state: str = "running") -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        state=state,
+        download_id=uuid.uuid4(),
+        normalization_requested=True,
+        normalization_failure_policy="fallback",
+        model="paraformer-zh-large-onnx-int8",
+    )
+
+
+def _patch(
+    monkeypatch: pytest.MonkeyPatch, row: Any, *, database: dict[str, str] | None = None
+) -> dict[str, list[Any]]:
+    """Fake the service; ``database`` is the committed state, when it differs from ``row``."""
+    calls: dict[str, list[Any]] = {"fail": [], "apply_result": []}
+
+    async def get_transcription(_session: Any, _identifier: Any) -> Any:
+        return row
+
+    async def no_op(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    async def fail(_session: Any, _identifier: Any, reason: str, **_kwargs: Any) -> bool:
+        calls["fail"].append(reason)
+        # The guarded update matches nothing once another worker has settled it.
+        committed = database["state"] if database is not None else row.state
+        return committed in ("queued", "running")
+
+    async def apply_result(_session: Any, _identifier: Any, job: Any) -> bool:
+        calls["apply_result"].append(job)
+        return True
+
+    monkeypatch.setattr(media_transcribe.asyncio, "sleep", no_op)
+    monkeypatch.setattr(media_transcribe.transcriptions, "get", get_transcription)
+    monkeypatch.setattr(media_transcribe.transcriptions, "mark_running", no_op)
+    monkeypatch.setattr(media_transcribe.transcriptions, "fail", fail)
+    monkeypatch.setattr(media_transcribe.transcriptions, "apply_result", apply_result)
+    monkeypatch.setattr(
+        media_transcribe.transcriptions, "relative_path", lambda _row, _download: "post/video.mp4"
+    )
+    monkeypatch.setattr(
+        media_transcribe.transcriptions,
+        "as_dict",
+        lambda current, **_kwargs: {"state": current.state},
+    )
+    monkeypatch.setattr(media_transcribe.transcription_progress, "publish", no_op)
+    monkeypatch.setattr(media_transcribe.transcription_progress, "clear", no_op)
+    return calls
+
+
+async def test_a_row_another_worker_settled_ends_the_poll(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The stale sweep can hand a running transcription to a second worker.
+
+    Whichever finishes first settles the row and acknowledges the sidecar job;
+    the other must stop there, not keep polling a job that is about to vanish.
+    """
+    row = _row()
+    calls = _patch(monkeypatch, row)
+    session = SettlingSession(
+        SimpleNamespace(files_removed_at=None, directory="post"), settle_to="done"
+    )
+    client = PollingClient()
+
+    result = await media_transcribe.run(
+        cast(Any, SimpleNamespace(transcriber=client)),
+        cast(Any, session),
+        {"transcription_id": str(row.id)},
+    )
+
+    assert result == {"state": "done"}
+    assert calls["fail"] == []
+    assert calls["apply_result"] == []
+    assert client.acknowledged == []
+
+
+async def test_a_job_acknowledged_by_another_worker_is_not_a_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The 404 after the other worker's DELETE used to overwrite `done` with `failed`.
+
+    The other worker commits before it acknowledges, so by the time this one
+    sees the job missing the database already says done - only this worker's
+    copy of the row is stale.
+    """
+    row = _row()
+    database = {"state": "running"}
+    calls = _patch(monkeypatch, row, database=database)
+
+    class AcknowledgedClient(PollingClient):
+        async def job(self, job_id: str) -> dict[str, Any]:
+            if self.reads >= 1:
+                database["state"] = "done"
+            return await super().job(job_id)
+
+    class StaleSession(SettlingSession):
+        async def refresh(self, current: Any) -> None:
+            # Read just before the other worker's commit landed.
+            self.refreshed = True
+            if self.refreshes:
+                current.state = database["state"]
+            self.refreshes += 1
+
+        refreshes = 0
+
+    session = StaleSession(SimpleNamespace(files_removed_at=None, directory="post"), settle_to=None)
+    client = AcknowledgedClient(missing_after=1)
+
+    result = await media_transcribe.run(
+        cast(Any, SimpleNamespace(transcriber=client)),
+        cast(Any, session),
+        {"transcription_id": str(row.id)},
+    )
+
+    assert result == {"state": "done"}
+    assert len(calls["fail"]) == 1  # attempted, and refused by the state guard
+    assert database["state"] == "done"
+
+
+async def test_a_timeout_cancels_the_sidecar_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Giving up must free the sidecar too, or it transcribes for nobody."""
+    row = _row()
+    calls = _patch(monkeypatch, row)
+    session = SettlingSession(
+        SimpleNamespace(files_removed_at=None, directory="post"), settle_to=None
+    )
+    client = PollingClient()
+    client.timeout_seconds = 0.0
+
+    with pytest.raises(TranscriberDown, match="timed out"):
+        await media_transcribe.run(
+            cast(Any, SimpleNamespace(transcriber=client)),
+            cast(Any, session),
+            {"transcription_id": str(row.id)},
+        )
+
+    assert client.acknowledged == [row.id.hex]
+    assert calls["fail"] == ["transcription timed out"]
+
+
+@pytest.mark.parametrize("state", ["failed", "cancelled", "done"])
+async def test_a_settled_row_is_never_sent_to_the_sidecar(
+    monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    """A re-queued task for a row that already ended has nothing left to do."""
+    row = _row(state)
+    calls = _patch(monkeypatch, row)
+    client = PollingClient()
+
+    result = await media_transcribe.run(
+        cast(Any, SimpleNamespace(transcriber=client)),
+        cast(Any, FakeSession(SimpleNamespace(files_removed_at=None, directory="post"))),
+        {"transcription_id": str(row.id)},
+    )
+
+    assert result == {"state": state}
+    assert client.reads == 0 and client.submitted == []
+    assert calls["fail"] == []

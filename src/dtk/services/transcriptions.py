@@ -220,7 +220,14 @@ async def mark_running(session: AsyncSession, transcription_id: uuid.UUID) -> No
 
 async def apply_result(
     session: AsyncSession, transcription_id: uuid.UUID, result: dict[str, Any]
-) -> None:
+) -> bool:
+    """Store a finished transcript, unless the row has already settled.
+
+    The settling writes here are guarded on a live state, and each says whether
+    it changed anything. A task can run on two workers at once - the stale sweep
+    re-queues one that has run past its threshold - and the loser of that race
+    used to overwrite the winner's transcript, or a caller's cancellation.
+    """
     values: dict[str, Any] = {
         "state": "done",
         "text": str(result.get("text") or ""),
@@ -233,9 +240,12 @@ async def apply_result(
     started_at = _sidecar_timestamp(result.get("started_at"))
     if started_at is not None:
         values["started_at"] = started_at
-    await session.execute(
-        update(Transcription).where(Transcription.id == transcription_id).values(**values)
+    outcome = await session.execute(
+        update(Transcription)
+        .where(Transcription.id == transcription_id, Transcription.state.in_(LIVE_STATES))
+        .values(**values)
     )
+    return bool(affected(outcome))
 
 
 async def fail(
@@ -246,7 +256,8 @@ async def fail(
     normalization_error: str | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
-) -> None:
+) -> bool:
+    """Record a failure, unless the row has already settled; see :func:`apply_result`."""
     values: dict[str, Any] = {
         "state": "failed",
         "error": reason[:500],
@@ -257,12 +268,15 @@ async def fail(
     actual_started_at = _sidecar_timestamp(started_at)
     if actual_started_at is not None:
         values["started_at"] = actual_started_at
-    await session.execute(
-        update(Transcription).where(Transcription.id == transcription_id).values(**values)
+    result = await session.execute(
+        update(Transcription)
+        .where(Transcription.id == transcription_id, Transcription.state.in_(LIVE_STATES))
+        .values(**values)
     )
     # Most callers raise immediately afterwards; persist the terminal state
     # before the operation runner rolls its transaction back for that error.
     await session.commit()
+    return bool(affected(result))
 
 
 async def cancel(session: AsyncSession, transcription_id: uuid.UUID) -> bool:

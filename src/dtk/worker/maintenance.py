@@ -36,6 +36,10 @@ expensive:
   fetching video fills a partition otherwise. Oldest first, pinned never, files
   only - the `media_downloads` row survives its files, so "collected and later
   cleaned up" stays a different fact from "never fetched".
+* **orphaned transcriptions are failed.** A transcription is settled by the
+  worker before its task completes, so one still live behind a finished task -
+  typically a task failed by the attempt counter - is one no worker will come
+  back for, and it holds the in-flight index every later request would join.
 * **abandoned downloads stop claiming to be in flight.** The task that runs a
   download is re-queued like any other, but a task that exhausts its attempts
   leaves the download row saying `running` for good. Nothing else would ever
@@ -47,12 +51,12 @@ See docs/design/15-operations.md and docs/design/05-data-model.md.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import and_, func, or_, select, text, update
 
 from dtk.core.crypto import Cipher
 from dtk.core.db import get_engine, session_scope
@@ -64,11 +68,12 @@ from dtk.db.models import CONTINUOUS_AGGREGATES
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import MediaDownload as MediaDownloadRow
 from dtk.db.models import Task as TaskRow
+from dtk.db.models import Transcription as TranscriptionRow
 from dtk.identity.importing import session_expiry
 from dtk.identity.pool import purge_retired
 from dtk.media import DownloaderClient, DownloaderUnavailable
 from dtk.ops import capacity, retention
-from dtk.services import downloads, tasks
+from dtk.services import downloads, tasks, transcriptions
 from dtk.worker.alerts import Alerter, NotifyEvent, raise_alert
 
 log = get_logger(__name__)
@@ -83,6 +88,12 @@ class MaintenanceConfig:
     #: Comfortably above the request timeout plus the scheduler's max wait, so a
     #: slow-but-alive task is never taken away from the worker running it.
     stale_task_seconds: int = 900
+    #: Endpoints whose tasks legitimately run longer than that, with their own
+    #: threshold. A transcription holds its task for as long as the sidecar
+    #: takes, up to DTK_TRANSCRIBER_TIMEOUT_SECONDS, and at 900 s the sweep
+    #: handed a live one to a second worker - the two then raced to store one
+    #: result, and the loser overwrote it.
+    long_task_seconds: Mapping[str, int] = field(default_factory=dict)
     #: How many stale tasks one sweep may re-queue, so a pathological backlog
     #: cannot be pushed back onto the queue all at once.
     requeue_limit: int = 200
@@ -119,6 +130,8 @@ class MaintenanceReport:
     #: Downloads that were still claiming to be in flight long after any real
     #: transfer could have been.
     stale_downloads_failed: int = 0
+    #: Transcriptions still live behind a task that had already finished.
+    orphaned_transcriptions_failed: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -158,6 +171,7 @@ class Maintenance:
             ("check_capacity", self.check_capacity),
             ("enforce_media_ceiling", self.enforce_media_ceiling),
             ("fail_stale_downloads", self.fail_stale_downloads),
+            ("fail_orphaned_transcriptions", self.fail_orphaned_transcriptions),
         ):
             try:
                 await job(report)
@@ -174,6 +188,7 @@ class Maintenance:
             expiring_sessions=report.expiring_sessions,
             media_evicted=report.media_evicted,
             stale_downloads_failed=report.stale_downloads_failed,
+            orphaned_transcriptions_failed=report.orphaned_transcriptions_failed,
             errors=len(report.errors),
         )
         return report
@@ -335,6 +350,38 @@ class Maintenance:
         if report.stale_downloads_failed:
             log.warning("worker.maintenance.stale_downloads", count=report.stale_downloads_failed)
 
+    async def fail_orphaned_transcriptions(self, report: MaintenanceReport) -> None:
+        """Settle transcriptions whose task finished without settling them.
+
+        No age threshold, because none is needed: the worker settles the row
+        before it completes the task, so a finished task is proof that nothing
+        is still working on its transcription. Left alone, such a row is
+        `running` forever, and every later request for the same video and
+        settings joins it and waits for nothing.
+        """
+        finished = select(TaskRow.id).where(
+            TaskRow.state.in_((TaskState.DONE.value, TaskState.FAILED.value))
+        )
+        async with self._session_factory() as session:
+            result = await session.execute(
+                update(TranscriptionRow)
+                .where(
+                    TranscriptionRow.state.in_(transcriptions.LIVE_STATES),
+                    TranscriptionRow.task_id.in_(finished),
+                )
+                .values(
+                    state="failed",
+                    error="the worker never reported an outcome for this transcription",
+                    finished_at=func.now(),
+                )
+            )
+        report.orphaned_transcriptions_failed = affected(result)
+        if report.orphaned_transcriptions_failed:
+            log.warning(
+                "worker.maintenance.orphaned_transcriptions",
+                count=report.orphaned_transcriptions_failed,
+            )
+
     # -- retention ---------------------------------------------------------
 
     async def apply_retention(self, report: MaintenanceReport) -> None:
@@ -369,7 +416,20 @@ class Maintenance:
         queued and claimable again on the next sweep - the one way this job
         could turn one task into two upstream requests.
         """
-        cutoff = datetime.now(UTC) - timedelta(seconds=self._options.stale_task_seconds)
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(seconds=self._options.stale_task_seconds)
+        long_running = dict(self._options.long_task_seconds)
+        windows = [
+            and_(TaskRow.endpoint.not_in(long_running), TaskRow.started_at < cutoff)
+            if long_running
+            else TaskRow.started_at < cutoff
+        ]
+        windows.extend(
+            and_(
+                TaskRow.endpoint == endpoint, TaskRow.started_at < now - timedelta(seconds=seconds)
+            )
+            for endpoint, seconds in long_running.items()
+        )
         requeued: list[str] = []
         async with self._session_factory() as session:
             rows = (
@@ -379,7 +439,7 @@ class Maintenance:
                         .where(
                             TaskRow.state == TaskState.RUNNING.value,
                             TaskRow.started_at.is_not(None),
-                            TaskRow.started_at < cutoff,
+                            or_(*windows),
                         )
                         .order_by(TaskRow.started_at)
                         .limit(self._options.requeue_limit)

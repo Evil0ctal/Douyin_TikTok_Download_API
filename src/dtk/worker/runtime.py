@@ -16,7 +16,7 @@ import contextlib
 import signal
 import uuid
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, cast
 
@@ -240,6 +240,17 @@ async def build_runtime(
     filler_options = FillerConfig()
     prober_options = ProberConfig()
     maintenance_options = MaintenanceConfig()
+    if transcriber is not None:
+        # Its own stale window: the op holds its task for up to the transcriber
+        # timeout, and is only an orphan once it has outlived that by as much
+        # as any other task is given.
+        maintenance_options = replace(
+            maintenance_options,
+            long_task_seconds={
+                "media.transcribe": int(transcriber.timeout_seconds)
+                + maintenance_options.stale_task_seconds,
+            },
+        )
     watcher_options = WatcherConfig()
     filler = PoolFiller(
         pool=pool,

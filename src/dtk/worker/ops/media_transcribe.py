@@ -60,7 +60,10 @@ async def run(
     if row.state == "done":
         await _clear_progress(row.id)
         return transcriptions.as_dict(row, reused="completed")
-    if row.state == "cancelled":
+    if row.state in transcriptions.TERMINAL_STATES:
+        # Failed or cancelled already - by a timeout, by the caller, or by
+        # another worker this task was handed to. Submitting it again would
+        # spend the sidecar on a result nobody will store.
         await _clear_progress(row.id)
         return transcriptions.as_dict(row)
     if row.download_id is None:
@@ -99,6 +102,10 @@ async def run(
         deadline = asyncio.get_running_loop().time() + client.timeout_seconds
         while str(job.get("state") or "") in ("queued", "running"):
             if asyncio.get_running_loop().time() >= deadline:
+                # Tell the sidecar as well. It cannot know the worker gave up,
+                # and with one sidecar worker everything queued behind this job
+                # would wait for a transcript nobody is going to collect.
+                await client.cancel(row.id.hex)
                 raise TranscriberUnavailable("transcription timed out")
             await asyncio.sleep(POLL_SECONDS)
             await session.refresh(row)
@@ -106,11 +113,23 @@ async def run(
                 await client.cancel(row.id.hex)
                 await _clear_progress(row.id)
                 return transcriptions.as_dict(row)
+            if row.state in transcriptions.TERMINAL_STATES:
+                # Settled by another worker. The stale sweep hands a task that
+                # has run past its threshold to a second worker, and both poll
+                # the same sidecar job; the first to finish stores the result
+                # and acknowledges the job. Nothing is left for this one to do.
+                await _clear_progress(row.id)
+                return transcriptions.as_dict(row)
             job = await client.job(row.id.hex)
             await _publish_progress(row.id, job)
     except TranscriberUnavailable as exc:
         await _clear_progress(row.id)
-        await transcriptions.fail(session, row.id, str(exc))
+        if not await transcriptions.fail(session, row.id, str(exc)):
+            # The row had already settled, which is how the sidecar came to
+            # forget the job: the worker that settled it acknowledged it. This
+            # used to overwrite a finished transcript with "no such job".
+            await session.refresh(row)
+            return transcriptions.as_dict(row)
         raise TranscriberDown(str(exc)) from exc
 
     state = str(job.get("state") or "failed")
