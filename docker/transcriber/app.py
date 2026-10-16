@@ -281,22 +281,37 @@ def _validate_models() -> None:
 
 
 def _media_file(relative: str) -> Path:
-    supplied = Path(relative)
-    if supplied.is_absolute() or ".." in supplied.parts:
+    """Resolve a caller's path inside the media root, or refuse it.
+
+    Normalize, then check the prefix. The first version resolved the path and
+    called relative_to, which is just as safe, and CodeQL reported it as path
+    injection on the PR that added this file: it recognizes this shape as a
+    sanitizer and not that one. Symlinks are resolved before the check, so a
+    link inside the root that points out of it is still refused.
+    """
+    if os.path.isabs(relative) or ".." in Path(relative).parts:
         raise HTTPException(
             status_code=400, detail="path must be relative to the media root"
         )
-    root = MEDIA_ROOT.resolve()
-    try:
-        path = (root / supplied).resolve(strict=True)
-        path.relative_to(root)
-    except (OSError, ValueError):
+    root = os.path.realpath(MEDIA_ROOT)
+    candidate = os.path.realpath(os.path.join(root, relative))
+    if not candidate.startswith(root + os.sep):
         raise HTTPException(
             status_code=400, detail="media path is unavailable or escapes root"
-        ) from None
-    if not path.is_file():
+        )
+    if not os.path.isfile(candidate):
         raise HTTPException(status_code=400, detail="media path is not a file")
-    return path
+    return Path(candidate)
+
+
+def _loggable(value: object) -> str:
+    """One log line per event, whatever a caller put in a field.
+
+    The ids logged here are pattern-checked by the request model, so this
+    changes nothing for a valid request; it exists so that no field taken from
+    a request can start a forged line, which is what CodeQL asks of log calls.
+    """
+    return str(value).replace("\r", " ").replace("\n", " ")
 
 
 def create_app(backend: Backend | None = None) -> FastAPI:
@@ -588,10 +603,10 @@ def create_app(backend: Backend | None = None) -> FastAPI:
             ) from None
         log.info(
             "transcriber.job.queued job_id=%s download_id=%s queue_depth=%d normalize=%s",
-            request.id,
-            request.download_id or "unknown",
+            _loggable(request.id),
+            _loggable(request.download_id or "unknown"),
             queue.qsize(),
-            request.normalize,
+            _loggable(request.normalize),
         )
         return job
 
@@ -613,8 +628,8 @@ def create_app(backend: Backend | None = None) -> FastAPI:
             remember_terminal(job_id, job)
             log.info(
                 "transcriber.job.cancelled job_id=%s download_id=%s",
-                job_id,
-                job.get("download_id") or "unknown",
+                _loggable(job_id),
+                _loggable(job.get("download_id") or "unknown"),
             )
             return job
         # DELETE doubles as an acknowledgement after the durable API has

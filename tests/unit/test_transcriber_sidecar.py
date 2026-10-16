@@ -560,3 +560,17 @@ def test_a_configured_token_is_required(monkeypatch, headers, status):
     monkeypatch.setattr(sidecar, "TOKEN", "secret")
     with TestClient(sidecar.create_app(FakeBackend())) as client:
         assert client.get("/health", headers=headers).status_code == status
+
+
+def test_a_missing_file_inside_the_root_is_refused(tmp_path, monkeypatch):
+    monkeypatch.setattr(sidecar, "MEDIA_ROOT", tmp_path)
+    with TestClient(sidecar.create_app(FakeBackend())) as client:
+        response = client.post(
+            "/jobs",
+            json={"id": "9" * 32, "path": "post/missing.mp4", "model": sidecar.MODEL_NAME},
+        )
+    assert response.status_code == 400
+
+
+def test_a_logged_field_cannot_start_a_new_line():
+    assert sidecar._loggable("abc\r\nforged=1") == "abc  forged=1"
