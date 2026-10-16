@@ -54,7 +54,10 @@ async def _waited(request: Request, row: Any, seconds: float, reused: str | None
     if seconds > 0 and row.task_id and row.state in transcriptions.LIVE_STATES:
         await tasks.wait_for(request.state.db, row.task_id, seconds)
         await request.state.db.commit()
-        row = await transcriptions.get(request.state.db, row.id) or row
+        # A refresh, not a get: the row is already in this session's identity
+        # map and nothing expires it, so a get handed back the copy from before
+        # the wait - a transcript finished in half a second still read `queued`.
+        await request.state.db.refresh(row)
     status = 202 if row.state in transcriptions.LIVE_STATES else 200
     return ok(request, transcriptions.as_dict(row, reused=reused), status_code=status)
 

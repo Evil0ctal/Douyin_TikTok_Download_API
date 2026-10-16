@@ -170,3 +170,49 @@ async def test_delete_is_atomic_and_never_deletes_source_media(api_app, db_engin
     assert count == 0
     assert download is not None
     assert download.files and download.files[0]["name"] == "video.mp4"
+
+
+async def test_waiting_returns_what_the_worker_stored(
+    api_app, db_engine, redis_client, tmp_path, monkeypatch
+):
+    """`?wait=` re-read the row through the identity map and got its own stale copy.
+
+    Found on the local stack: a 21 s clip transcribed in 0.55 s, and a request
+    that waited for it still answered `queued` with no text.
+    """
+    from sqlalchemy import update
+
+    from dtk.services import tasks, transcriptions
+
+    directory = tmp_path / "douyin" / "author" / CONTENT_ID
+    directory.mkdir(parents=True)
+    (directory / "video.mp4").write_bytes(b"video")
+    monkeypatch.setattr(transcriptions, "MEDIA_PATH", str(tmp_path))
+    api_app.state.settings = api_app.state.settings.model_copy(
+        update={"transcriber_url": "http://transcriber.invalid:9200"}
+    )
+    download_id = await add_download()
+
+    async def worker_settles_it(_session, task_id, _seconds):
+        # Another connection, as the worker's is.
+        async with session_scope() as other:
+            await other.execute(
+                update(Transcription)
+                .where(Transcription.task_id == task_id)
+                .values(state="done", text="finished elsewhere", finished_at=func.now())
+            )
+
+    monkeypatch.setattr(tasks, "wait_for", worker_settles_it)
+    key = await transcription_key(Scope.TRANSCRIPTION_WRITE)
+
+    async with anonymous_client(api_app) as caller:
+        response = await caller.post(
+            "/api/v1/transcriptions?wait=5",
+            headers={"X-API-Key": key},
+            json={"download_id": str(download_id)},
+        )
+
+    assert response.status_code == 200
+    data = envelope(response)["data"]
+    assert data["state"] == "done"
+    assert data["text"] == "finished elsewhere"
