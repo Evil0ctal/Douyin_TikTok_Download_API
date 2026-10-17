@@ -452,7 +452,7 @@ class CloakBackend:
         if self._driver is None:
             raise BackendUnavailable("browser driver is not started")
 
-        # Parameter names verified against cloakbrowser 0.5.10, not assumed:
+        # Parameter names verified against cloakbrowser 0.5.10 and 0.6.3, not assumed:
         # it takes `timezone`, not Playwright's `timezone_id`, and has no
         # extra_http_headers - Accept-Language is set on the context below,
         # where it also survives a navigation.

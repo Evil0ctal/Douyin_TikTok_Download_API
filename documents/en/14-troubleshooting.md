@@ -709,7 +709,7 @@ docker compose -p dtk -f docker/compose.yml logs browser-rpc | tail -40
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce \
+CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8 \
   docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
 

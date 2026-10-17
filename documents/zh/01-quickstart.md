@@ -167,12 +167,12 @@ docker compose -p dtk -f docker/compose.yml up -d --wait --wait-timeout 300
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce \
+CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8 \
   docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 docker compose -p dtk -f docker/compose.yml --profile browser ps
 ```
 
-那个 commit 对应 CloakBrowser 0.5.10 / Chromium 146，是本仓库端到端验证过的版本；
+那个 commit 对应 CloakBrowser 0.6.3 / Chromium 146，是本仓库端到端验证过的版本；
 `.env.example` 里写它也是同样的理由——但那只是一个参考值，不是一份能直接生效的配置。
 把 `.env.example` 复制成仓库根目录的 `.env` **并不会**让这个 pin 进入构建，
 因为 compose 的插值不读那个文件：要么像上面那样写在命令行上，要么放进 `docker/.env`，

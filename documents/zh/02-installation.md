@@ -749,8 +749,8 @@ CLOAKBROWSER_COMMIT="<40-char sha>" \
 ```
 
 `.env.example` 里给了一个已知可用的起点：
-`CLOAKBROWSER_COMMIT=f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce`（CloakBrowser 0.5.10，Chromium 146，
-2026-09-08 端到端验证过）。要改就有意识地改。
+`CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8`（CloakBrowser 0.6.3，Chromium 146，
+2026-10-16 端到端验证过）。要改就有意识地改。
 
 **这两个是构建参数，由 Compose 插值解析，所以仓库根目录的 `.env` 是放错了地方。** 按上面那样写在 shell 里，
 或者写进 `docker/.env`，再或者用 `COMPOSE_ENV_FILES=.env` 执行构建，让 Compose 从根目录那份文件取值。

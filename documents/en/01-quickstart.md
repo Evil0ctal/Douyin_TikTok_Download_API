@@ -190,12 +190,12 @@ With the browser container as well:
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce \
+CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8 \
   docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 docker compose -p dtk -f docker/compose.yml --profile browser ps
 ```
 
-That commit is CloakBrowser 0.5.10 / Chromium 146, the revision this repository
+That commit is CloakBrowser 0.6.3 / Chromium 146, the revision this repository
 has been verified against end to end; it is in `.env.example` for the same
 reason — as a reference value, not as a working configuration. Copying
 `.env.example` to the repository-root `.env` does **not** get the pin into the

@@ -16,3 +16,17 @@ httpx==0.28.1
 # SOCKS support for the exit-IP probe. Without it a socks5:// proxy makes the
 # probe fail, the mint still runs and the geo alignment falls back to the hint.
 socksio==1.0.0
+
+# What the pinned CloakBrowser commit pulls in, installed first so pip finds
+# them satisfied instead of resolving the newest release on the day of the
+# build. Its pyproject only says playwright>=1.53, and a Playwright release has
+# broken it before (CloakBrowser 0.6.2 exists because 1.64 changed visibility
+# checks). These are the versions the 0.6.3 pin was verified with, the shared
+# ones (greenlet, cryptography, cffi, pycparser) at what uv.lock resolves for
+# the application image; move them together with CLOAKBROWSER_COMMIT.
+playwright==1.64.0
+greenlet==3.5.5
+pyee==14.0.0
+cryptography==50.0.1
+cffi==2.1.1
+pycparser==3.0

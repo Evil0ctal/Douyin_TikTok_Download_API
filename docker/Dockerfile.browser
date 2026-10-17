@@ -29,9 +29,9 @@ ARG CLOAKBROWSER_COMMIT=""
 # The command that fetches the browser binaries after the Python package is
 # installed. It is an argument because it belongs to the pinned revision, not to
 # this file; verify it against the revision you pin (see docker/README.md).
-# Verified against the real CLI at v0.5.10: `install` takes no arguments, and
-# `install chromium` is rejected outright. The previous value was written from
-# the shape Playwright uses and had never been run.
+# Verified against the real CLI at v0.5.10 and again at v0.6.3: `install` takes
+# no arguments, and `install chromium` is rejected outright. The previous value
+# was written from the shape Playwright uses and had never been run.
 ARG CLOAKBROWSER_INSTALL_CMD="python -m cloakbrowser install"
 
 # Where the browser is installed. CloakBrowser reads no environment variable of

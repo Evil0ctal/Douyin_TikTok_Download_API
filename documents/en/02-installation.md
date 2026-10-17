@@ -857,8 +857,8 @@ CLOAKBROWSER_COMMIT="<40-char sha>" \
 ```
 
 `.env.example` carries a known-good starting point:
-`CLOAKBROWSER_COMMIT=f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce` (CloakBrowser 0.5.10, Chromium 146,
-verified end to end on 2026-09-08). Change it deliberately.
+`CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8` (CloakBrowser 0.6.3, Chromium 146,
+verified end to end on 2026-10-16). Change it deliberately.
 
 **These two are build arguments, resolved by Compose interpolation, so the repository-root `.env` is
 the wrong place for them.** Put them in your shell as shown above, in `docker/.env`, or run the
