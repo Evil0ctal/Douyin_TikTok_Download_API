@@ -43,6 +43,7 @@ from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import Proxy as ProxyRow
 from dtk.db.models import RequestLog
 from dtk.identity.pool import IdentityPool
+from dtk.ops.masking import without_proxy_credentials
 from dtk.transport import mask_proxy_url
 from dtk.worker.alerts import Alerter, NotifyEvent, raise_alert
 
@@ -272,7 +273,7 @@ class ProxyProber:
                 "worker.proxy.probe_error",
                 proxy_id=str(proxy.id),
                 proxy=proxy.label or mask_proxy_url(url),
-                error=(_without_credentials(f"{type(exc).__name__}: {exc}", url) or "")[:200],
+                error=(without_proxy_credentials(f"{type(exc).__name__}: {exc}", url) or "")[:200],
             )
             return None
 
@@ -281,7 +282,7 @@ class ProxyProber:
         # is scrubbed here rather than at each use: this result is returned to
         # callers - the console's proxy test stores it in a task and renders it
         # in a browser - and not only written to a log line.
-        result = replace(result, detail=_without_credentials(result.detail, url))
+        result = replace(result, detail=without_proxy_credentials(result.detail, url))
 
         report.checked += 1
         await self._apply(session, proxy, result, report, url=url)
@@ -350,24 +351,6 @@ class ProxyProber:
 
     async def aclose(self) -> None:
         await self._client.aclose()
-
-
-def _without_credentials(text: str | None, url: str) -> str | None:
-    """Replace any echo of the proxy URL with its masked form.
-
-    An exception raised while connecting through a proxy quotes the URL it was
-    given often enough that this cannot be left to chance: proxy credentials are
-    as valuable as the cookies (docs/design/08-security.md) and a log line is
-    forever.
-    """
-    if not text:
-        return text
-    masked = mask_proxy_url(url) or ""
-    cleaned = text.replace(url, masked)
-    userinfo = url.partition("://")[2].rpartition("@")[0]
-    if userinfo:
-        cleaned = cleaned.replace(f"{userinfo}@", "").replace(userinfo, "")
-    return cleaned
 
 
 def _first_str(body: Any, *keys: str) -> str | None:

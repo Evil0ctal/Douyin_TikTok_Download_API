@@ -57,6 +57,10 @@ _HEALTH_CODES: Final[frozenset[ErrorCode]] = frozenset(
         ErrorCode.IDENTITY_POOL_EXHAUSTED,
         ErrorCode.UPSTREAM_RISK_CONTROL,
         ErrorCode.SIGNING_FAILED,
+        # Split out of INTERNAL, which already carried the health; whether the
+        # endpoint worked a minute ago is what tells one dead egress from a
+        # platform this host cannot reach at all.
+        ErrorCode.UPSTREAM_UNREACHABLE,
         ErrorCode.INTERNAL,
     }
 )

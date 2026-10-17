@@ -22,7 +22,7 @@ from dtk.cli import output, runtime
 from dtk.db.models import Proxy
 from dtk.db.repositories import ProxyRepository
 from dtk.ops import probes
-from dtk.ops.masking import mask_url, short_id
+from dtk.ops.masking import mask_url, short_id, without_proxy_credentials
 
 #: Schemes a proxy URL may use. Anything else is a typo or a copied web page.
 ALLOWED_SCHEMES = frozenset({"http", "https", "socks5", "socks5h"})
@@ -212,7 +212,11 @@ def test_proxy(
         url = ctx.cipher.decrypt(row.url_encrypted, aad=str(row.id))
         probe = await probes.probe_proxy(url, probe_url=probe_url)
         if write:
-            await repo.set_health(row.id, healthy=probe.ok, error=probe.detail)
+            # The URL-aware scrub, not only the shape-based one the probe ran:
+            # this reason is stored and shown in the console.
+            await repo.set_health(
+                row.id, healthy=probe.ok, error=without_proxy_credentials(probe.detail, url)
+            )
             if probe.ok and (probe.country or probe.timezone):
                 await repo.set_geo(row.id, country=probe.country, timezone=probe.timezone)
         return str(row.id), probe

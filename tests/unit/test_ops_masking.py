@@ -85,3 +85,33 @@ def test_a_mask_cannot_be_aimed_at_another_record_by_renaming() -> None:
 
     with pytest.raises(InvalidParam):
         masking.unredact_setting(forged, stored)
+
+
+class TestWithoutProxyCredentials:
+    """The reason a probe failed is stored and shown, so it is scrubbed against
+    the URL it was probing - not only by shape."""
+
+    URL = "http://alice:s3cret-pass@proxy.example:8080"
+
+    def test_the_url_itself_is_masked(self) -> None:
+        text = f"ProxyError: cannot connect to {self.URL}"
+        cleaned = masking.without_proxy_credentials(text, self.URL)
+        assert cleaned is not None
+        assert "s3cret-pass" not in cleaned
+        assert "proxy.example:8080" in cleaned
+
+    def test_a_bare_userinfo_echo_is_removed_too(self) -> None:
+        """The shape-based scrub needs a scheme in front; this does not."""
+        text = "407 for user alice:s3cret-pass on proxy.example"
+        cleaned = masking.without_proxy_credentials(text, self.URL)
+        assert cleaned is not None
+        assert "s3cret-pass" not in cleaned
+
+    def test_a_password_quoted_on_its_own_is_masked(self) -> None:
+        cleaned = masking.without_proxy_credentials("auth failed (s3cret-pass)", self.URL)
+        assert cleaned is not None
+        assert "s3cret-pass" not in cleaned
+
+    def test_nothing_to_scrub_is_left_alone(self) -> None:
+        assert masking.without_proxy_credentials(None, self.URL) is None
+        assert masking.without_proxy_credentials("connect timeout", self.URL) == "connect timeout"

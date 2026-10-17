@@ -186,6 +186,29 @@ def scrub(text: str) -> str:
     return _PARAM_RE.sub(lambda m: f"{m.group(1)}={m.group(2)[:6]}...", without_webhooks)
 
 
+def without_proxy_credentials(text: str | None, url: str) -> str | None:
+    """Remove every echo of one proxy URL's credentials from ``text``.
+
+    :func:`scrub` finds credentials by shape - ``scheme://user:pass@`` - and an
+    exception raised while connecting through a proxy does not always quote
+    them in that shape: a bare ``user:pass`` survives it. This knows the URL,
+    so it replaces the URL itself with its masked form and then any remaining
+    trace of its userinfo, whatever surrounds it. It is what has to run on a
+    probe's failure reason before anything stores it, because a stored reason
+    is shown in the console and a proxy password is as valuable as a cookie.
+    """
+    if not text:
+        return text
+    cleaned = text.replace(url, mask_url(url))
+    userinfo = url.partition("://")[2].rpartition("@")[0]
+    if userinfo:
+        cleaned = cleaned.replace(f"{userinfo}@", "").replace(userinfo, "")
+        password = userinfo.partition(":")[2]
+        if password:
+            cleaned = cleaned.replace(password, MASK)
+    return scrub(cleaned)
+
+
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------

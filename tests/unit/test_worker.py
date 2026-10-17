@@ -1313,11 +1313,13 @@ async def test_one_unprobeable_proxy_does_not_abort_the_sweep() -> None:
 
 
 async def test_a_probe_error_never_carries_the_proxy_credentials() -> None:
-    from dtk.worker.proxy_prober import _without_credentials
+    # The helper moved to dtk.ops.masking so the CLI probe uses it too; the
+    # prober is still what applies it, which is what this guards.
+    from dtk.worker.proxy_prober import without_proxy_credentials
 
     url = "http://user:secret@eu-1.example:8080"
     message = f"ValueError: Unknown scheme for proxy URL '{url}'"
-    scrubbed = _without_credentials(message, url)
+    scrubbed = without_proxy_credentials(message, url)
     assert scrubbed is not None
     assert "secret" not in scrubbed
     assert "user:secret" not in scrubbed
