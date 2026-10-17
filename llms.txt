@@ -44,7 +44,7 @@ and Simplified Chinese and the two say the same thing.
 
 ## Call it
 
-- [REST API guide](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/11-api.md): Authentication, the uniform response envelope, the asynchronous task model, paging, and the errors a client has to handle. 93 operations; the generated reference is at `/swagger`, `/redoc` and `/openapi.json`.
+- [REST API guide](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/11-api.md): Authentication, the uniform response envelope, the asynchronous task model, paging, and the errors a client has to handle. 109 operations; the generated reference is at `/swagger`, `/redoc` and `/openapi.json`.
 - [MCP and AI agents](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/12-mcp.md): Pointing Claude Code, Claude Desktop, Codex CLI or any MCP client at your own instance, and what the ten tools return. MCP runs inside the API process and shares its service layer.
 - [Users and API keys](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/09-users-and-api-keys.md): Roles, scopes, per-key rate limits, and what to hand a script.
 - [CLI reference](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/13-cli.md): The `dtk` command — the same service layer from a terminal.
