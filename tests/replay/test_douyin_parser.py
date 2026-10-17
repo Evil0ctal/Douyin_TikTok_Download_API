@@ -797,6 +797,46 @@ def test_an_unmeasured_status_is_unknown_not_private() -> None:
     assert [c.is_public for c in page.items] == [None, None]
 
 
+def test_an_account_with_no_folders_is_an_empty_page() -> None:
+    """The answer from #790, verbatim apart from the log ids.
+
+    An account that never made a folder gets `collects_list: null` beside
+    `status_code: 0` and `total_number: 0`. That is a complete, successful
+    answer, and it was reported to the caller as UPSTREAM_CHANGED - telling
+    them Douyin had changed its schema when the account was simply empty.
+    """
+    page = ADAPTER.parse_author_collections(
+        {
+            "collects_list": None,
+            "cursor": 0,
+            "extra": {"fatal_item_ids": [], "logid": "redacted", "now": 1792222479000},
+            "has_more": False,
+            "log_pb": {"impr_id": "redacted"},
+            "status_code": 0,
+            "total_number": 0,
+        }
+    )
+
+    assert page.items == []
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_an_absent_folder_list_is_an_empty_page_too() -> None:
+    page = ADAPTER.parse_author_collections({"has_more": False, "status_code": 0})
+    assert page.items == []
+
+
+def test_a_present_folder_list_is_still_strict() -> None:
+    """Tolerating null must not tolerate a malformed folder."""
+    payload = deepcopy(_COLLECTS_LIST)
+    del payload["collects_list"][0]["collects_id_str"]
+    del payload["collects_list"][0]["collects_id"]
+    with pytest.raises(UpstreamChanged) as excinfo:
+        ADAPTER.parse_author_collections(payload)
+    assert excinfo.value.path.startswith("collects_list[0].")
+
+
 def test_build_collection_posts_request_uses_douyins_spelling() -> None:
     """`collects_id`, with the s. The canonical name is collection_id."""
     spec = ADAPTER.build_request(endpoints.COLLECTION_POSTS, collection_id="6910000000000000202")

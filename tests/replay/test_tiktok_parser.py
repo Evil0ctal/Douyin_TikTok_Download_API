@@ -422,6 +422,15 @@ def test_an_absent_collection_list_is_an_empty_page_not_a_broken_payload() -> No
     assert page.cursor is None
 
 
+def test_a_null_collection_list_is_an_empty_page_too() -> None:
+    """Null and absent are the same answer; see #790 for the Douyin twin."""
+    page = parser.parse_author_collections(
+        {"collectionList": None, "hasMore": False, "statusCode": 0}
+    )
+    assert page.items == []
+    assert page.cursor is None
+
+
 def test_a_present_collection_list_is_still_strict() -> None:
     with pytest.raises(UpstreamChanged):
         parser.parse_author_collections({"collectionList": [{"name": "x"}], "hasMore": False})
@@ -871,6 +880,14 @@ def test_an_absent_user_list_is_an_empty_page_not_a_broken_payload() -> None:
     assert page.items == []
     assert page.has_more is False
     assert page.cursor is None
+
+
+def test_a_null_user_list_is_an_empty_page_too() -> None:
+    page = parser.parse_author_list(
+        {"userList": None, "hasMore": False, "minCursor": -1, "statusCode": 0}
+    )
+    assert page.items == []
+    assert page.has_more is False
 
 
 def test_a_present_user_list_is_still_strict() -> None:

@@ -440,10 +440,11 @@ def parse_author_list(payload: Mapping[str, Any]) -> Page[Author]:
     # An empty result omits `userList` entirely rather than sending `[]`, which
     # is what a hidden following list looks like - measured 2026-09-08, where
     # the same account returned 30 followers and no `userList` key at all for
-    # the following side. Absent is therefore an empty page; a list that IS
-    # present stays strict, so a malformed entry is still reported rather than
-    # silently dropped.
-    entries = root.children("userList") if root.has("userList") else []
+    # the following side. Absent is therefore an empty page, and so is null,
+    # which platforms send for an empty list as often as they drop the key; a
+    # list that IS present stays strict, so a malformed entry is still
+    # reported rather than silently dropped.
+    entries = root.listed_children("userList")
     items = [
         author_from_web_node(
             entry.child("user"),
@@ -524,7 +525,7 @@ def parse_author_collections(payload: Mapping[str, Any]) -> Page[Collection]:
     parser. Each entry says which it is; see :func:`_is_public`.
     """
     root = _guard(payload)
-    entries = root.children("collectionList") if root.has("collectionList") else []
+    entries = root.listed_children("collectionList")
     items = [_collection_from_node(entry) for entry in entries]
     has_more = optional_bool(root.present("hasMore"))
     cursor = optional_id(root.get("cursor")) if has_more else None

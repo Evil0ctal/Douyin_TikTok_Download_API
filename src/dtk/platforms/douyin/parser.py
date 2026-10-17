@@ -458,7 +458,7 @@ def parse_author_collections(payload: Mapping[str, Any]) -> Page[Collection]:
     timestamp ``author_posts`` pages by.
     """
     root = _guard(payload)
-    entries = root.children("collects_list") if root.has("collects_list") else []
+    entries = root.listed_children("collects_list")
     items = [_collection_from_node(entry) for entry in entries]
     has_more = optional_bool(root.present("has_more"))
     cursor = optional_id(root.get("cursor")) if has_more else None

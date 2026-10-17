@@ -269,6 +269,21 @@ class Node:
             nodes.append(Node(item, f"{self.at(key)}[{index}]", self.platform))
         return nodes
 
+    def listed_children(self, key: str) -> list[Node]:
+        """A list the platform leaves out, or sends as ``null``, when it is empty.
+
+        Absent and ``null`` are the same answer here; a list that is present
+        stays as strict as :meth:`children`, so a malformed entry is still
+        reported rather than dropped. The guard this replaces was
+        ``children(key) if has(key) else []``, and ``has`` is true for a key
+        whose value is ``null`` - so a Douyin account with no bookmark folders,
+        answered ``"collects_list": null`` beside ``status_code: 0`` and
+        ``total_number: 0``, was reported as a changed schema (#790).
+        """
+        if self.data.get(key) is None:
+            return []
+        return self.children(key)
+
     def opt_children(self, key: str) -> list[Node]:
         """Best-effort list access: absent is empty, junk elements are skipped.
 
