@@ -783,7 +783,7 @@
         "dry_run": "Report what was understood without storing anything. A mistyped cookie jar is far easier to spot than to debug.",
         "language": "That browser's `navigator.language`, e.g. `zh-CN`.",
         "platform": "Which platform the jar belongs to.",
-        "proxy_id": "Send as this identity only through this exit.",
+        "proxy_id": "Send as this identity only through this exit. Omitted, the identity goes out directly from this server, for good: an identity's exit is fixed when it is stored.",
         "timezone": "That browser's IANA zone, e.g. `Asia/Shanghai`. Should agree with the exit.",
         "user_agent": "The User-Agent of the browser the jar came from. Both platforms hash it into their signatures, so a jar sent under a different one is a contradiction they can see."
       },
@@ -798,7 +798,7 @@
       "MintRequest": {
         "count": "How many to mint. Each one drives a real headless browser against the platform, so this takes tens of seconds per identity.",
         "platform": "Which platform the new identities are for.",
-        "proxy_id": "Mint behind this exit and bind the identities to it. An identity is minted from one address and must keep using it; omitting this mints direct."
+        "proxy_id": "Mint behind this exit and bind the identities to it. An identity is minted from one address and must keep using it. Omitted, each one takes a healthy proxy no identity is bound to yet, and mints direct only when no proxy is configured at all."
       },
       "NotificationTest": {
         "channel": "Which configured channel to send a test through. Omitted sends through every channel that is configured."

@@ -262,9 +262,9 @@ class ProxyProber:
         try:
             result = await self._client.probe(url)
         except Exception as exc:
-            # The probe client itself broke rather than the egress: a scheme it
-            # has no optional dependency for (``socks5://`` without
-            # ``httpx[socks]``), a malformed row, a bug. That says nothing about
+            # The probe client itself broke rather than the egress: a malformed
+            # row, a bug, or a scheme it cannot speak - which ``socks5://`` was
+            # until the ``socks`` extra was installed (#781). That says nothing about
             # whether the proxy works, so nothing is cooled on the strength of
             # it - and, more importantly, one unprobeable proxy must not abort
             # the sweep and leave every proxy after it unchecked.
@@ -294,7 +294,9 @@ class ProxyProber:
 
         proxies = ProxyRepository(session)
         was_healthy = bool(proxy.healthy)
-        await proxies.set_health(proxy.id, healthy=result.ok, checked_at=datetime.now(UTC))
+        await proxies.set_health(
+            proxy.id, healthy=result.ok, checked_at=datetime.now(UTC), error=result.detail
+        )
 
         if result.ok:
             report.healthy += 1

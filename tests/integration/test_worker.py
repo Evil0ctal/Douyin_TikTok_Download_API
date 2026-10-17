@@ -602,6 +602,8 @@ async def test_a_dead_proxy_cools_its_identities_and_leaves_them_where_they_are(
         identity = _require(await session.get(Identity, identity_id), "the identity")
         assert proxy.healthy is False
         assert proxy.last_check_at is not None
+        # The reason is kept where the console can show it, not only logged.
+        assert proxy.last_error == "connect timeout"
         # Cooling, not retired, and still on the same proxy.
         assert identity.state == IdentityState.COOLING.value
         assert identity.proxy_id == proxy_id
@@ -613,6 +615,9 @@ async def test_a_healthy_probe_records_geoip(db_engine, redis_client, cleanup_pr
     cipher = Cipher(SECRET)
     proxy_id = await _make_proxy(cipher)
     cleanup_proxies.append(proxy_id)
+    async with session_scope() as session:
+        stale = _require(await session.get(Proxy, proxy_id), "the proxy")
+        stale.last_error = "ProxyError: 400 Bad Request"
 
     prober = ProxyProber(
         cipher=cipher,
@@ -627,6 +632,7 @@ async def test_a_healthy_probe_records_geoip(db_engine, redis_client, cleanup_pr
         assert proxy.healthy is True
         assert proxy.country == "DE"
         assert proxy.timezone == "CET"
+        assert proxy.last_error is None
 
 
 async def test_three_network_errors_trigger_one_probe(db_engine, redis_client, cleanup_proxies):

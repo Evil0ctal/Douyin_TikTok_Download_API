@@ -314,7 +314,20 @@ export default function Proxies() {
       header: t('console:field.state'),
       width: '130px',
       sortValue: (row) => (row.healthy ? 1 : 0),
-      cell: (row) => <StatusBadge kind="health" value={row.healthy ? 'healthy' : 'unhealthy'} />,
+      // The reason under the badge, because "unhealthy" alone sent people to
+      // the logs for the one line that says what to fix - a proxy answering
+      // CONNECT with 400 is a subscription URL, not a dead server (issue 781).
+      cell: (row) =>
+        !row.healthy && row.last_error ? (
+          <div className="u-stack-sm">
+            <StatusBadge kind="health" value="unhealthy" />
+            <span className="u-xs u-muted u-truncate" title={row.last_error}>
+              {row.last_error}
+            </span>
+          </div>
+        ) : (
+          <StatusBadge kind="health" value={row.healthy ? 'healthy' : 'unhealthy'} />
+        ),
     },
     {
       id: 'label',

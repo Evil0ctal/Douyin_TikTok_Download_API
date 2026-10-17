@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -33,6 +34,7 @@ from dtk.core.errors import (
     NotFound,
     UpstreamChanged,
     UpstreamRiskControl,
+    UpstreamUnreachable,
 )
 from dtk.core.types import BrowserFamily, Outcome, Platform, RejectReason
 from dtk.identity.pool import LiveIdentity
@@ -451,6 +453,26 @@ class TestRequestLogColumns:
         assert row.http_status is None
         assert row.error_code == "transport_failure"
         assert row.outcome == Outcome.NETWORK_ERROR.value
+
+    @pytest.mark.parametrize(
+        ("proxy_url", "proxied"), [("http://exit.example:8080", True), (None, False)]
+    )
+    async def test_an_unreachable_platform_is_its_own_code_not_a_bug(self, proxy_url, proxied):
+        """It was INTERNAL, which tells the caller to report a bug, for what is
+        nearly always this host's egress - TikTok from mainland China with no
+        proxy on the identity (#781). Whether this attempt had a proxy is the
+        first thing the caller needs, so it is in the details."""
+        failure = TransportFailure(
+            "connect timeout", identity_id=IDENTITY_ID, url="https://x", elapsed_ms=1
+        )
+        sender = replace(identity(), proxy_url=proxy_url)
+
+        with pytest.raises(UpstreamUnreachable) as excinfo:
+            await run_fetch(service(failure, pool=FakePool(sender)), FakeSession())
+
+        assert excinfo.value.code.value == "UPSTREAM_UNREACHABLE"
+        assert excinfo.value.details["last_error"] == "transport_failure"
+        assert excinfo.value.details["proxied"] is proxied
 
 
 class TestDecode:

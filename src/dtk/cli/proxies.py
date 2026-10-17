@@ -212,7 +212,7 @@ def test_proxy(
         url = ctx.cipher.decrypt(row.url_encrypted, aad=str(row.id))
         probe = await probes.probe_proxy(url, probe_url=probe_url)
         if write:
-            await repo.set_health(row.id, healthy=probe.ok)
+            await repo.set_health(row.id, healthy=probe.ok, error=probe.detail)
             if probe.ok and (probe.country or probe.timezone):
                 await repo.set_geo(row.id, country=probe.country, timezone=probe.timezone)
         return str(row.id), probe

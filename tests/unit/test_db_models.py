@@ -82,6 +82,7 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
         "healthy",
         "last_check_at",
         "created_at",
+        "last_error",
     },
     "identities": {
         "id",

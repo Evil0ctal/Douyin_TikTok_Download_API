@@ -12,6 +12,7 @@
   "UPSTREAM_RISK_CONTROL": "The platform flagged the request as automated traffic; the identity has been cooled down.",
   "UPSTREAM_CHANGED": "The platform response no longer matches the expected structure at {path}; please report this.",
   "SIGNING_FAILED": "Request signing failed; the signing algorithm may be out of date.",
+  "UPSTREAM_UNREACHABLE": "The platform could not be reached from this instance; check its egress, and the proxy if one is set.",
   "TASK_NOT_FOUND": "No task exists with that id, or its result has already expired.",
   "SETUP_ALREADY_DONE": "Setup has already been completed on this instance.",
   "SETUP_TOKEN_INVALID": "The setup token is invalid or has expired.",

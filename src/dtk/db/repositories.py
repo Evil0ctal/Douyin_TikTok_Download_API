@@ -262,11 +262,18 @@ class ProxyRepository(Repository):
         *,
         healthy: bool,
         checked_at: datetime | None = None,
+        error: str | None = None,
     ) -> bool:
+        """Record one probe's verdict. ``error`` is ignored on a healthy one,
+        which clears whatever the last failure said."""
         stmt = (
             update(Proxy)
             .where(Proxy.id == proxy_id)
-            .values(healthy=healthy, last_check_at=checked_at or utcnow())
+            .values(
+                healthy=healthy,
+                last_check_at=checked_at or utcnow(),
+                last_error=None if healthy else (error or "probe failed")[:300],
+            )
             .execution_options(**_NO_SYNC)
         )
         return affected(await self.session.execute(stmt)) == 1

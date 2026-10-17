@@ -141,6 +141,8 @@ export interface Proxy {
   timezone?: string | null
   healthy: boolean
   last_check_at?: string | null
+  /** Why the last probe failed, credentials scrubbed; null after a pass. */
+  last_error?: string | null
   latency_ms?: number | null
   identity_count?: number | null
   created_at: string

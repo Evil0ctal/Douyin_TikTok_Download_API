@@ -148,6 +148,9 @@ export const ERROR_CODE_TONE: Record<ErrorCode, Tone> = {
   UPSTREAM_RISK_CONTROL: 'danger',
   UPSTREAM_CHANGED: 'danger',
   SIGNING_FAILED: 'danger',
+  // The host's egress, usually: something the operator fixes, not an outage
+  // at the platform.
+  UPSTREAM_UNREACHABLE: 'warning',
   TASK_NOT_FOUND: 'muted',
   SETUP_ALREADY_DONE: 'neutral',
   SETUP_TOKEN_INVALID: 'danger',

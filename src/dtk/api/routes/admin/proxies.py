@@ -17,7 +17,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from dtk.api.deps import Principal
 from dtk.api.routes import operations
@@ -70,6 +70,8 @@ def _row(request: Request, proxy: Proxy, *, identity_count: int | None = None) -
         "timezone": proxy.timezone,
         "healthy": proxy.healthy,
         "last_check_at": iso(proxy.last_check_at),
+        # Scrubbed of credentials before it was stored; None after a pass.
+        "last_error": proxy.last_error,
         "created_at": iso(proxy.created_at),
     }
     if identity_count is not None:
@@ -102,7 +104,23 @@ async def list_proxies(
     if healthy_only:
         stmt = stmt.where(Proxy.healthy.is_(True))
     rows = (await request.state.db.scalars(stmt)).all()
-    return ok(request, [_row(request, row) for row in rows])
+    # The docstring always promised this and the route never counted it, so the
+    # console's Identities column read "-" on every row - including on a proxy
+    # nothing was bound to, which is the first thing to check when an identity
+    # turns out to be going direct (#781). One grouped query, not one per row.
+    bound = await request.state.db.execute(
+        select(Identity.proxy_id, func.count())
+        .where(
+            Identity.proxy_id.is_not(None),
+            Identity.state != IdentityState.RETIRED.value,
+        )
+        .group_by(Identity.proxy_id)
+    )
+    counts = {proxy_id: int(count) for proxy_id, count in bound.tuples().all()}
+    return ok(
+        request,
+        [_row(request, row, identity_count=counts.get(row.id, 0)) for row in rows],
+    )
 
 
 @router.post(

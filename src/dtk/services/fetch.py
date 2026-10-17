@@ -43,6 +43,7 @@ from dtk.core.errors import (
     NotFound,
     UpstreamChanged,
     UpstreamRiskControl,
+    UpstreamUnreachable,
 )
 from dtk.core.logging import get_logger
 from dtk.core.types import Outcome, Platform
@@ -193,6 +194,11 @@ class _Attempt:
     error_code: str | None = None
     signer: str | None = None
     explain: Explanation | None = None
+    #: Whether this attempt went out through a proxy; None if it never got as
+    #: far as loading the identity. A failure to connect means one thing with
+    #: a proxy in between and another without one, and the caller is the one
+    #: who has to tell them apart.
+    proxied: bool | None = None
 
 
 class SignedRequest(Protocol):
@@ -297,6 +303,7 @@ class FetchService:
         explanation: Explanation | None = None
         outcome = Outcome.NETWORK_ERROR
         error_code: str | None = None
+        proxied: bool | None = None
 
         try:
             proxy_url = (
@@ -320,6 +327,7 @@ class FetchService:
                 error_code = "identity_gone"
                 return _Attempt(lease=lease, outcome=outcome, error_code=error_code)
             proxy_id = await _proxy_id_of(session, identity.id)
+            proxied = identity.proxy_url is not None
 
             # The identity's own browser values, not a constant. Douyin and
             # TikTok both echo the screen, the language, the OS and the browser
@@ -414,6 +422,7 @@ class FetchService:
             error_code=error_code,
             signer=signer,
             explain=explanation,
+            proxied=proxied,
         )
 
     def _classify(
@@ -532,9 +541,13 @@ class FetchService:
                 last_error = call.error_code or "network_error"
                 if attempt + 1 < attempts:
                     continue  # a different identity, i.e. a different egress
-                raise Internal(
+                raise UpstreamUnreachable(
                     f"upstream unreachable after {attempts} attempts",
-                    details={"endpoint": endpoint, "last_error": last_error},
+                    details={
+                        "endpoint": endpoint,
+                        "last_error": last_error,
+                        "proxied": call.proxied,
+                    },
                 )
 
             if call.outcome is Outcome.RISK_CONTROL:

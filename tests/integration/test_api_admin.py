@@ -342,6 +342,38 @@ async def test_deleting_a_proxy_retires_the_identities_behind_it(client: Any) ->
         assert await session.get(Proxy, uuid.UUID(proxy["id"])) is None
 
 
+async def test_the_proxy_list_counts_identities_and_says_why_one_failed(client: Any) -> None:
+    """Both were missing, and together they are the diagnosis in #781: a proxy
+    with no identity behind it, and the one line saying it answered CONNECT
+    with 400."""
+    await signed_in(client)
+    used = envelope(await client.post("/api/v1/admin/proxies", json={"url": PROXY_URL}))["data"]
+    idle = envelope(
+        await client.post("/api/v1/admin/proxies", json={"url": "http://203.0.113.9:3128"})
+    )["data"]
+    await client.post(
+        "/api/v1/admin/identities/import",
+        json={
+            "platform": Platform.DOUYIN.value,
+            "cookies": COOKIE_BLOB,
+            "user_agent": CHROME_UA,
+            "proxy_id": used["id"],
+        },
+    )
+    async with session_scope() as session:
+        row = await session.get(Proxy, uuid.UUID(idle["id"]))
+        assert row is not None
+        row.healthy = False
+        row.last_error = "ProxyError: 400 Bad Request"
+
+    listed = {row["id"]: row for row in envelope(await client.get("/api/v1/admin/proxies"))["data"]}
+
+    assert listed[used["id"]]["identity_count"] == 1
+    assert listed[idle["id"]]["identity_count"] == 0
+    assert listed[idle["id"]]["last_error"] == "ProxyError: 400 Bad Request"
+    assert listed[used["id"]]["last_error"] is None
+
+
 async def test_updating_a_proxy_re_encrypts_under_its_own_id(client: Any) -> None:
     await signed_in(client)
     proxy = envelope(await client.post("/api/v1/admin/proxies", json={"url": PROXY_URL}))["data"]

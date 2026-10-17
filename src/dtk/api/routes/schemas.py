@@ -167,7 +167,9 @@ class MintRequest(Body):
         default=None,
         description=(
             "Mint behind this exit and bind the identities to it. An identity is minted "
-            "from one address and must keep using it; omitting this mints direct."
+            "from one address and must keep using it. Omitted, each one takes a healthy "
+            "proxy no identity is bound to yet, and mints direct only when no proxy is "
+            "configured at all."
         ),
     )
 
@@ -210,7 +212,11 @@ class IdentityImport(Body):
     )
     proxy_id: str | None = Field(
         default=None,
-        description="Send as this identity only through this exit.",
+        description=(
+            "Send as this identity only through this exit. Omitted, the identity goes "
+            "out directly from this server, for good: an identity's exit is fixed when "
+            "it is stored."
+        ),
     )
     dry_run: bool = Field(
         default=False,

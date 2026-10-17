@@ -2105,7 +2105,10 @@ function ImportDialog({ open, proxies, onClose, onDone }: ImportDialogProps) {
             setProxyId(event.target.value)
           }}
           options={[
-            { value: '', label: t('console:identity.mint.anyProxy') },
+            // Not the mint dialog's "let the scheduler choose": an import with no
+            // proxy is stored direct and stays direct, which on a server in
+            // mainland China means it can never reach TikTok (issue 781).
+            { value: '', label: t('console:identity.import.noProxy') },
             ...proxies.map((proxy) => ({
               value: proxy.id,
               label: proxy.label ?? proxy.url_masked ?? proxy.id,

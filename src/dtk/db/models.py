@@ -193,6 +193,11 @@ class Proxy(Base):
     timezone: Mapped[str | None] = mapped_column(Text, default=None)
     healthy: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    #: Why the last probe failed, credentials scrubbed; cleared by one that
+    #: passes. Before it, the reason reached a log line and nowhere else, so the
+    #: console said "unhealthy" and could not say that the proxy had answered
+    #: CONNECT with 400 - which is the whole diagnosis (#781).
+    last_error: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
 
     def __repr__(self) -> str:

@@ -25,6 +25,12 @@ class ErrorCode(StrEnum):
     UPSTREAM_RISK_CONTROL = "UPSTREAM_RISK_CONTROL"
     UPSTREAM_CHANGED = "UPSTREAM_CHANGED"
     SIGNING_FAILED = "SIGNING_FAILED"
+    #: Every attempt to reach the platform failed on the network - refused,
+    #: reset, timed out, or the proxy in between said no. Its own code because
+    #: it used to be INTERNAL, whose contract is "a bug, report it", when the
+    #: usual cause is a host that cannot reach the platform at all: a server in
+    #: mainland China calling TikTok with no proxy on the identity (#781).
+    UPSTREAM_UNREACHABLE = "UPSTREAM_UNREACHABLE"
     TASK_NOT_FOUND = "TASK_NOT_FOUND"
     SETUP_ALREADY_DONE = "SETUP_ALREADY_DONE"
     SETUP_TOKEN_INVALID = "SETUP_TOKEN_INVALID"
@@ -67,6 +73,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.UPSTREAM_RISK_CONTROL: 502,
     ErrorCode.UPSTREAM_CHANGED: 502,
     ErrorCode.SIGNING_FAILED: 502,
+    ErrorCode.UPSTREAM_UNREACHABLE: 502,
     ErrorCode.TASK_NOT_FOUND: 404,
     ErrorCode.SETUP_ALREADY_DONE: 409,
     ErrorCode.SETUP_TOKEN_INVALID: 403,
@@ -157,6 +164,7 @@ IdentityPoolExhausted = _err("IdentityPoolExhausted", ErrorCode.IDENTITY_POOL_EX
 EndpointCircuitOpen = _err("EndpointCircuitOpen", ErrorCode.ENDPOINT_CIRCUIT_OPEN)
 UpstreamRiskControl = _err("UpstreamRiskControl", ErrorCode.UPSTREAM_RISK_CONTROL)
 SigningFailed = _err("SigningFailed", ErrorCode.SIGNING_FAILED)
+UpstreamUnreachable = _err("UpstreamUnreachable", ErrorCode.UPSTREAM_UNREACHABLE)
 TaskNotFound = _err("TaskNotFound", ErrorCode.TASK_NOT_FOUND)
 SetupAlreadyDone = _err("SetupAlreadyDone", ErrorCode.SETUP_ALREADY_DONE)
 SetupTokenInvalid = _err("SetupTokenInvalid", ErrorCode.SETUP_TOKEN_INVALID)
@@ -215,4 +223,5 @@ __all__ = [
     "UnsupportedContent",
     "UpstreamChanged",
     "UpstreamRiskControl",
+    "UpstreamUnreachable",
 ]

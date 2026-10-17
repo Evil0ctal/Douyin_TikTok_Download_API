@@ -57,8 +57,8 @@ async def run(
     result = await prober.probe_one(proxy_id, force=True)
     if result is None:
         # The row exists and still nothing was measured: its URL will not
-        # decrypt under the current master key, or the probe client refused the
-        # scheme outright (``socks5://`` without the socks extra). Answering
+        # decrypt under the current master key, or the probe client broke on
+        # it - as every ``socks5://`` row did before the socks extra (#781). Answering
         # ``ok: false`` would claim a verdict on an egress nobody reached, and
         # would sit next to a health column the prober deliberately left alone.
         log.warning("worker.ops.proxy_test.not_probed", proxy_id=str(proxy_id))
