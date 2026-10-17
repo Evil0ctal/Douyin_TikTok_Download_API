@@ -246,7 +246,8 @@ bash install.zh.sh
 要不要下载器、要不要离线转写、用已发布镜像还是源码构建。转写选了"要"，它还会问模型放在哪：
 目录里已经有模型就直接用；是空的，就问你要不要下载 —— 从 ModelScope 下约 500 MB，钉在
 [准备 FunASR ONNX 模型](./18-funasr-models.md) 验证过的 commit 上，每个文件都对一遍 SHA-256。
-跑完它生成三样东西，正是本页后面教你手写的那三样：
+开了浏览器的话，[CloakBrowser 版本](#构建浏览器镜像cloakbrowser-版本固定)会以 `CLOAKBROWSER_COMMIT`
+写进 `.env`，`dtkctl` 让 Compose 在构建时读到它。跑完它生成三样东西，正是本页后面教你手写的那三样：
 
 | 它生成的 | 本页对应的章节 |
 |---|---|

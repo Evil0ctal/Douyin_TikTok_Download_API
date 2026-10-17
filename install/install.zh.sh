@@ -60,6 +60,12 @@ readonly MODEL_FILES=(
 )
 readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
 
+# 浏览器镜像安装的 CloakBrowser 版本，和 .env.example 里的是同一个，是本仓库端到端
+# 验证过的。它是构建参数，而 dtkctl 让 Compose 插值读根目录的 .env，所以写在那里。
+# 在有这一项之前，这个脚本每次开浏览器都会构建出一个没有浏览器的镜像；它的健康检查
+# 读得出这一点，所以安装总是在 `up --wait` 那一步因 browser-rpc 不健康而失败。
+readonly CLOAKBROWSER_PIN="fbf005bc199920b592df17ac4d489324e29d56d8"
+
 # 可以覆盖，这样试跑时不会碰到真正在用的 `dtk` 那套。做了校验，因为这个值会被写进
 # 生成的 dtkctl 里 —— 不是纯名字的东西到了那里就变成 shell 语法了。
 PROJECT="${DTK_PROJECT:-dtk}"
@@ -670,6 +676,24 @@ download_models() {
   ok "十个文件都已校验，位于 ${root}"
 }
 
+# 只接受完整的 commit。tag 或分支会在钉住之后自己移动；不是十六进制的东西会变成
+# 一个 Docker 拒收的构建参数，而且要等构建跑了好几分钟才报错。
+valid_commit() {
+  case "$1" in
+    *[!0-9a-f]*) return 1 ;;
+  esac
+  [ "${#1}" -eq 40 ]
+}
+
+# 在钉版本之前装的实例里没有这一项，它们的浏览器镜像里也没有浏览器。只在缺失时
+# 补上、不覆盖：有人特意选的版本仍归他自己。
+ensure_browser_pin() {
+  if [ -z "$(env_value CLOAKBROWSER_COMMIT)" ]; then
+    set_env_value CLOAKBROWSER_COMMIT "$BROWSER_COMMIT"
+    ok "已在 .env 里把 CloakBrowser 钉在 ${BROWSER_COMMIT}。"
+  fi
+}
+
 # Compose 会把这个路径从 .env 读进简写的卷定义里：冒号会截断路径，空格或 '#'
 # 会先一步改变这一行的含义。
 valid_model_path() {
@@ -765,6 +789,7 @@ USE_PUBLISHED="${DTK_USE_PUBLISHED:-1}"
 WANT_TRANSCRIBER="${DTK_ENABLE_TRANSCRIBER:-0}"
 MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
 MODELS_TO_FETCH=0
+BROWSER_COMMIT="${CLOAKBROWSER_COMMIT:-$CLOAKBROWSER_PIN}"
 
 banner() {
   printf '\n'
@@ -905,6 +930,12 @@ ask_questions() {
   # 那是有人明确要求，不是替他做的默认决定。
   [ "${DTK_ENABLE_BROWSER:-}" = "1" ] && browser_default="y"
   if ask_yes_no "启用浏览器容器吗？" "$browser_default"; then WANT_BROWSER=1; else WANT_BROWSER=0; fi
+  if [ "$WANT_BROWSER" = 1 ]; then
+    valid_commit "$BROWSER_COMMIT" \
+      || die "CLOAKBROWSER_COMMIT 必须是完整的 40 位 commit，而不是 '${BROWSER_COMMIT}'。"
+    dim "它会安装 commit ${BROWSER_COMMIT:0:12} 的 CloakBrowser，也就是这个脚本验证过的版本。"
+    dim "要换版本，改 .env 里的 CLOAKBROWSER_COMMIT。"
+  fi
 
   printf '\n'
   dim "下载器把媒体存到本机的 Docker 数据卷里。它很小很省；不开的话，下载请求"
@@ -967,6 +998,9 @@ write_env() {
     if [ "$WANT_TRANSCRIBER" = 1 ]; then
       write_transcriber_env
     fi
+    if [ "$WANT_BROWSER" = 1 ]; then
+      ensure_browser_pin
+    fi
     return
   fi
 
@@ -1016,6 +1050,8 @@ write_env() {
     printf '\n'
     printf 'DTK_BIND_HOST=%s\n' "$BIND_HOST"
     printf 'DTK_BIND_PORT=%s\n' "$BIND_PORT"
+    # 不管开没开浏览器都写上，这样之后手动打开时，构建出来的镜像里有浏览器。
+    printf 'CLOAKBROWSER_COMMIT=%s\n' "$BROWSER_COMMIT"
     if [ "$USE_PUBLISHED" = 1 ]; then
       printf 'DTK_IMAGE=evil0ctal/douyin_tiktok_download_api\n'
       printf 'DTK_IMAGE_TAG=latest\n'
@@ -1416,6 +1452,16 @@ do_upgrade() {
     去确认这个 tag 是否存在：https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags
     开着转写时，早于转写功能的版本没有 transcriber 镜像；要退回那么早，
     先在菜单里把转写关掉。"
+  fi
+
+  # 浏览器镜像只在本机构建、从不拉取，所以升级时要按新代码重建它 —— 钉版本之前装的
+  # 实例，也是在这一步第一次得到一个真正带浏览器的镜像。放在写 tag 之前，理由同拉取。
+  if [ "$WANT_BROWSER" = 1 ]; then
+    ensure_browser_pin
+    info "正在构建浏览器镜像。只要钉的版本没变，有缓存的话很快。"
+    if ! DTK_IMAGE_TAG="$target" "$CTL" build browser-rpc; then
+      die "浏览器镜像构建失败。什么都没改，旧版本还在正常运行。"
+    fi
   fi
 
   # 钉住具体的 tag，而不是跟着 `latest` 跑：运维应当说得出现在跑的是哪个构建，
@@ -1819,6 +1865,8 @@ usage() {
   DTK_TRANSCRIBER_MODEL_PATH
                          模型所在的目录，或者要下载到的目录。
                          默认：<安装目录>/models/funasr-onnx。
+  CLOAKBROWSER_COMMIT    浏览器镜像安装的 CloakBrowser commit。
+                         默认：${CLOAKBROWSER_PIN}。
   DTK_USE_PUBLISHED      1（默认）拉已发布镜像，0 从源码构建。
 EOF
 }

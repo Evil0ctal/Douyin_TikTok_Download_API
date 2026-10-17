@@ -63,6 +63,14 @@ readonly MODEL_FILES=(
 )
 readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
 
+# The CloakBrowser revision the browser image installs - the same one
+# .env.example carries, verified end to end with this repository. It is a
+# build argument, and dtkctl points Compose interpolation at the root .env, so
+# that is where it goes. Before it was, every browser install this script made
+# built an image with no browser in it; its healthcheck reads that, so the
+# install died at `up --wait` with browser-rpc unhealthy.
+readonly CLOAKBROWSER_PIN="fbf005bc199920b592df17ac4d489324e29d56d8"
+
 # Overridable for testing, so a trial run cannot touch a real `dtk` stack.
 # Validated because it is written into the generated dtkctl: anything that is
 # not a plain name would end up as shell syntax there.
@@ -688,6 +696,26 @@ download_models() {
   ok "All ten files verified in $root"
 }
 
+# A full commit and nothing else. A tag or a branch would move under the pin,
+# and anything that is not hex ends up as a build argument Docker rejects
+# several minutes into the build.
+valid_commit() {
+  case "$1" in
+    *[!0-9a-f]*) return 1 ;;
+  esac
+  [ "${#1}" -eq 40 ]
+}
+
+# Installs written before the pin existed have none, and their browser image
+# holds no browser. Filled in rather than overwritten: a pin somebody chose
+# deliberately stays theirs.
+ensure_browser_pin() {
+  if [ -z "$(env_value CLOAKBROWSER_COMMIT)" ]; then
+    set_env_value CLOAKBROWSER_COMMIT "$BROWSER_COMMIT"
+    ok "Pinned CloakBrowser to $BROWSER_COMMIT in .env."
+  fi
+}
+
 # Compose reads this path out of .env into a short volume spec, where a colon
 # ends the path and a space or a '#' changes what the line means first.
 valid_model_path() {
@@ -786,6 +814,7 @@ USE_PUBLISHED="${DTK_USE_PUBLISHED:-1}"
 WANT_TRANSCRIBER="${DTK_ENABLE_TRANSCRIBER:-0}"
 MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
 MODELS_TO_FETCH=0
+BROWSER_COMMIT="${CLOAKBROWSER_COMMIT:-$CLOAKBROWSER_PIN}"
 
 banner() {
   printf '\n'
@@ -928,6 +957,12 @@ ask_questions() {
   # somebody saying so, not a default being taken on their behalf.
   [ "${DTK_ENABLE_BROWSER:-}" = "1" ] && browser_default="y"
   if ask_yes_no "Enable the browser container?" "$browser_default"; then WANT_BROWSER=1; else WANT_BROWSER=0; fi
+  if [ "$WANT_BROWSER" = 1 ]; then
+    valid_commit "$BROWSER_COMMIT" \
+      || die "CLOAKBROWSER_COMMIT has to be a full 40-character commit, not '$BROWSER_COMMIT'."
+    dim "It installs CloakBrowser at commit ${BROWSER_COMMIT:0:12}, the revision this"
+    dim "script was verified with. CLOAKBROWSER_COMMIT in .env changes it."
+  fi
 
   printf '\n'
   dim "The downloader saves media to a Docker volume on this host. Small and"
@@ -994,6 +1029,9 @@ write_env() {
     if [ "$WANT_TRANSCRIBER" = 1 ]; then
       write_transcriber_env
     fi
+    if [ "$WANT_BROWSER" = 1 ]; then
+      ensure_browser_pin
+    fi
     return
   fi
 
@@ -1043,6 +1081,9 @@ write_env() {
     printf '\n'
     printf 'DTK_BIND_HOST=%s\n' "$BIND_HOST"
     printf 'DTK_BIND_PORT=%s\n' "$BIND_PORT"
+    # Written whether or not the browser is on, so that turning it on later
+    # by hand builds an image with a browser in it.
+    printf 'CLOAKBROWSER_COMMIT=%s\n' "$BROWSER_COMMIT"
     if [ "$USE_PUBLISHED" = 1 ]; then
       printf 'DTK_IMAGE=evil0ctal/douyin_tiktok_download_api\n'
       printf 'DTK_IMAGE_TAG=latest\n'
@@ -1464,6 +1505,18 @@ do_upgrade() {
     turn transcription off from the menu first to go back that far."
   fi
 
+  # The browser image is built here, never pulled, so an upgrade rebuilds it
+  # against the new checkout - and an install from before the pin gets one
+  # with a browser in it for the first time. Before the tag is pinned, for the
+  # same reason as the pull.
+  if [ "$WANT_BROWSER" = 1 ]; then
+    ensure_browser_pin
+    info "Building the browser image. Cached layers make this quick unless the pin changed."
+    if ! DTK_IMAGE_TAG="$target" "$CTL" build browser-rpc; then
+      die "The browser image failed to build. Nothing was changed and the old version is still running."
+    fi
+  fi
+
   # Pin the tag rather than following `latest`: an operator should be able to
   # say which build is running, and to put it back.
   if grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
@@ -1878,6 +1931,8 @@ Environment (each one presets an answer, so --yes becomes unattended):
   DTK_TRANSCRIBER_MODEL_PATH
                          Where its models are, or are to be downloaded to.
                          Default: <install directory>/models/funasr-onnx.
+  CLOAKBROWSER_COMMIT    The CloakBrowser commit the browser image installs.
+                         Default: $CLOAKBROWSER_PIN.
   DTK_USE_PUBLISHED      1 (default) to pull images, 0 to build from source.
 EOF
 }

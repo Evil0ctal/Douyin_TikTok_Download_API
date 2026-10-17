@@ -276,7 +276,10 @@ transcription and it also asks where the models are: a directory that already
 holds them is used as it is, and an empty one is offered a download — about
 500 MB from ModelScope, pinned to the commits that
 [Preparing the FunASR ONNX models](./18-funasr-models.md) verified, with every
-file checked against its SHA-256. It writes three things, and they are exactly
+file checked against its SHA-256. With the browser on, the
+[CloakBrowser pin](#building-the-browser-image-the-cloakbrowser-pin) goes into
+`.env` as `CLOAKBROWSER_COMMIT`, which `dtkctl` makes Compose read at build
+time. It writes three things, and they are exactly
 the three this page goes on to teach you to write by hand:
 
 | What it writes | The section here |

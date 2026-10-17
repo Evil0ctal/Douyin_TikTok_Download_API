@@ -100,6 +100,10 @@ Seven questions, all with a default you can accept by pressing enter:
 3. **The browser container.** It mints guest identities by itself so you never
    paste cookies, and it costs about 4 GiB of RAM and a 6 GB image built on this
    machine. Suggested off under 6 GiB of RAM, and always off with `--yes`.
+   It installs CloakBrowser at the commit `.env.example` carries, the one this
+   repository was verified with, and writes it to `.env` as
+   `CLOAKBROWSER_COMMIT`; installs made before that line existed got an image
+   with no browser in it, and Upgrade (or Reinstall) in the menu rebuilds it.
 4. **Media downloads.** Small and cheap. On by default.
 5. **Offline transcription.** Turns stored videos into text on this machine:
    about 1 GiB of RAM, two cores while it works, a 1.1 GB image and 500 MB of
@@ -179,6 +183,9 @@ DTK_INSTALL_DIR=/srv/dtk DTK_BIND_PORT=9000 DTK_ENABLE_BROWSER=1 \
 Transcription takes two: `DTK_ENABLE_TRANSCRIBER=1` turns it on, and
 `DTK_TRANSCRIBER_MODEL_PATH` says where the models are or should go. With both
 and `--yes`, a directory without the models is filled by the checked download.
+
+`CLOAKBROWSER_COMMIT` picks a different CloakBrowser revision for the browser
+image. It has to be a full 40-character commit; change it deliberately.
 
 `DTK_PROJECT` names the Compose project (default `dtk`). Set it to run a second,
 completely separate stack on the same host.
@@ -288,7 +295,9 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
    因为那等于把一个不加密的管理后台放到网络上。
 3. **要不要浏览器容器。** 它自己铸造游客身份，你就不用手动粘 Cookie；代价是大约
    4 GiB 内存和一个要在本机构建的 6 GB 镜像。内存不到 6 GiB 时建议关，
-   加了 `--yes` 时一律不建。
+   加了 `--yes` 时一律不建。它安装 `.env.example` 里那个 commit 的 CloakBrowser，也就是本仓库
+   验证过的版本，并以 `CLOAKBROWSER_COMMIT` 写进 `.env`；在有这一行之前装的实例，镜像里
+   根本没有浏览器，在菜单里选「升级」（或「重装」）会重建它。
 4. **要不要媒体下载。** 很小很省，默认开。
 5. **要不要离线转写。** 在这台机器上把已存的视频转成文字：约 1 GiB 内存，转写时占两个核，
    一个 1.1 GB 的镜像和 500 MB 的模型。默认关；加了 `--yes` 时也关，除非设了
@@ -354,6 +363,9 @@ DTK_INSTALL_DIR=/srv/dtk DTK_BIND_PORT=9000 DTK_ENABLE_BROWSER=1 \
 
 转写用两个：`DTK_ENABLE_TRANSCRIBER=1` 打开它，`DTK_TRANSCRIBER_MODEL_PATH` 指定模型在哪
 或该放哪。两个都设了再加 `--yes`，没有模型的目录会由那个带校验的下载填上。
+
+`CLOAKBROWSER_COMMIT` 为浏览器镜像换一个 CloakBrowser 版本。必须是完整的 40 位 commit；
+要改就有意识地改。
 
 `DTK_PROJECT` 指定 Compose 项目名（默认 `dtk`）。设成别的值，就能在同一台机器上
 跑第二套完全独立的栈。
