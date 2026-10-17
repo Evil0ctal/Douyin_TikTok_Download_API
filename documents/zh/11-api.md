@@ -70,7 +70,7 @@ curl -sS "$DTK_BASE_URL/api/v1/auth/me" -H "X-API-Key: $DTK_API_KEY"
 | `archive:read` | `GET /api/v1/archive…`——本实例已经存下来的内容 |
 | `archive:export` | `GET /api/v1/archive/export`——一次调用拿走整个集合 |
 | `media:read` | 下载记录与已存文件 |
-| `media:write` | 发起、置顶和取消下载 |
+| `media:write` | 发起、置顶和取消下载，以及删除下载的文件 |
 | `identity:manage` | 身份池，以及 `identity`、`explain` 这两个请求参数 |
 | `admin` | 全部 |
 

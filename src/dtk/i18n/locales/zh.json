@@ -387,9 +387,13 @@
         "summary": "运行六步自检",
         "description": "排入与初始化向导收尾时相同的自检（见文档 15）。"
       },
+      "downloads_delete_files": {
+        "summary": "删除下载的文件",
+        "description": "删除一条下载存下的文件，但保留记录，记录随后显示为「已清理」——和容量上限触发的清理一样，重新请求这次下载就能把文件取回来。同一个作品的多条下载共用一个目录：这个接口会删除该目录并标记其中所有记录；其中任何一条还在进行中或已置顶时，会拒绝执行。要连作品和记录一起删除，请用 POST /api/v1/archive/delete。"
+      },
       "downloads_cancel": {
         "summary": "取消下载",
-        "description": "停止一个尚未完成的传输。不会删除任何东西：已经下载完整的文件保持原样，删除文件是清理任务按上限执行的事，不是 DELETE 的事。"
+        "description": "停止一个尚未完成的传输。不会删除任何东西：已经下载完整的文件保持原样，记录也会保留。删除文件请用 DELETE /api/v1/downloads/{download_id}/files，或者等容量达到上限时由清理任务处理。"
       },
       "downloads_create": {
         "summary": "保存作品媒体到本地",

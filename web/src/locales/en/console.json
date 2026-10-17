@@ -1712,7 +1712,7 @@
       "noVideo": "This download has no completed video file to transcribe."
     },
     "evicted": "Cleaned up",
-    "evictedHint": "The files were removed to stay under the media ceiling. The record is kept, and asking again fetches them back.",
+    "evictedHint": "The files were removed from the media volume - by hand, or to stay under the media ceiling. The record is kept, and asking again fetches them back.",
     "pin": "Pin",
     "pinned": "Pinned",
     "pinHint": "Keep these files when the size ceiling cleans up. This is the only way to stop them being removed.",
@@ -1780,7 +1780,7 @@
       "unpinned": "{count, plural, one {# download unpinned} other {# downloads unpinned}}",
       "deleted": "{count, plural, one {# download removed} other {# downloads removed}}",
       "deleteTitle": "Delete the selected downloads?",
-      "deleteBody": "{count, plural, one {# download's files are removed} other {# downloads' files are removed}} from the media volume. The record stays and says the files were cleaned up, so you can tell this apart from never having fetched them - and asking for the download again restores them.",
+      "deleteBody": "{count, plural, one {# download's files are removed} other {# downloads' files are removed}} from the media volume. The record stays and says the files were cleaned up, so you can tell this apart from never having fetched them - and asking for the download again restores them. Pinned downloads and ones still running are left alone.",
       "deleteConfirm": "Delete the files"
     },
     "dedupe": {
@@ -2027,7 +2027,7 @@
     },
     "delete": {
       "title": "Delete these posts?",
-      "body": "{count, plural, one {# post and any media stored for it will be deleted from this instance.} other {# posts and any media stored for them will be deleted from this instance.}} The posts stay on the platform. This cannot be undone and there is no trash.",
+      "body": "{count, plural, one {# post and any media stored for it will be deleted from this instance.} other {# posts and any media stored for them will be deleted from this instance.}} The posts stay on the platform. This cannot be undone and there is no trash. Their download records go too, so they are not counted as cleaned up on the downloads page; to remove only the files and keep the records, delete them from the downloads page.",
       "action": "Delete"
     },
     "exportVideo": "Export the video file"

@@ -98,7 +98,12 @@ export const paths = {
     retry: `${API_V1}/downloads/retry`,
     storage: `${API_V1}/downloads/storage`,
     pin: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}/pin`,
-    byId: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}`,
+    /**
+     * DELETE removes the files and keeps the record, which then reads as
+     * cleaned up. Not `/downloads/{id}`: DELETE there cancels a transfer and
+     * leaves a finished one alone, and the Delete button was once wired to it.
+     */
+    files: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}/files`,
     // A plain href the browser follows, so the session cookie authenticates it
     // the same way it does every other request from this page.
     file: (id: string, name: string) =>

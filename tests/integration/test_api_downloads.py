@@ -12,11 +12,13 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from sqlalchemy import select, update
 
+from dtk import media
 from dtk.core.db import session_scope
 from dtk.core.types import Scope
 from dtk.db.models import ArchivedContent, MediaDownload
@@ -882,6 +884,7 @@ async def _record(
     state: str = "done",
     evicted: bool = False,
     bytes_total: int = 1024,
+    pinned: bool = False,
 ) -> uuid.UUID:
     download_id = uuid.uuid4()
     async with session_scope() as session:
@@ -897,6 +900,7 @@ async def _record(
                 file_count=1,
                 created_at=created,
                 files_removed_at=created if evicted else None,
+                pinned=pinned,
             )
         )
     return download_id
@@ -1355,3 +1359,230 @@ async def test_the_listing_carries_a_progress_slot(api_app, db_engine, redis_cli
     assert rows
     assert all("progress" in row for row in rows)
     assert rows[0]["progress"] is None
+
+
+# --------------------------------------------------------------------------
+# Deleting a download's files
+# --------------------------------------------------------------------------
+
+
+class Sidecar:
+    """The downloader the files route builds for itself, as a recording stub."""
+
+    def __init__(self) -> None:
+        self.asked: list[list[str]] = []
+        self.confirms = True
+        self.answers = True
+
+    def client(self, *_args: Any, **_kwargs: Any) -> Any:
+        sidecar = self
+
+        class Client:
+            async def delete(self, paths: list[str]) -> dict[str, Any]:
+                sidecar.asked.append(list(paths))
+                if not sidecar.answers:
+                    raise media.DownloaderUnavailable("downloader /files/delete failed")
+                return {"freed_bytes": 2048, "removed": paths if sidecar.confirms else []}
+
+            async def health(self) -> Any:
+                # The storage panel probes the same client before it answers.
+                return SimpleNamespace(
+                    available=True,
+                    version="stub",
+                    workers=1,
+                    queued=0,
+                    running=0,
+                    total_bytes=0,
+                    detail=None,
+                )
+
+            async def aclose(self) -> None:
+                return None
+
+        return Client()
+
+
+@pytest.fixture
+def sidecar(api_app: Any, monkeypatch: pytest.MonkeyPatch) -> Sidecar:
+    stub = Sidecar()
+    monkeypatch.setattr(media, "DownloaderClient", stub.client)
+    api_app.state.settings = api_app.state.settings.model_copy(
+        update={"downloader_url": "http://downloader.invalid:9100"}
+    )
+    return stub
+
+
+async def _delete_files(api_app: Any, key: str, download_id: uuid.UUID) -> Any:
+    async with anonymous_client(api_app) as caller:
+        return await caller.delete(
+            f"/api/v1/downloads/{download_id}/files", headers={"X-API-Key": key}
+        )
+
+
+async def _removed_at(*ids: uuid.UUID) -> list[datetime | None]:
+    async with session_scope() as session:
+        rows = [await session.get(MediaDownload, download_id) for download_id in ids]
+    return [row.files_removed_at if row else None for row in rows]
+
+
+async def test_deleting_files_keeps_the_record_and_counts_as_cleaned_up(
+    api_app, db_engine, redis_client, sidecar
+):
+    """What the console's Delete promised, and until now did not do.
+
+    It was wired to the cancel route, which leaves a finished download as it
+    is: the console said "deleted", the files stayed, and the only other place
+    to remove them took the records too - so the cleaned-up count never moved.
+    """
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    older = await _record(CONTENT_ID, directory="d/a/1", created=now - timedelta(hours=1))
+    newer = await _record(CONTENT_ID, directory="d/a/1", created=now)
+    elsewhere = await _record("7408915107113127221", directory="d/a/2", created=now)
+
+    body = envelope(await _delete_files(api_app, key, newer))["data"]
+
+    # One directory, so both records that live in it lose their files together.
+    assert sidecar.asked == [["d/a/1"]]
+    assert body == {"download_id": str(newer), "downloads": 2, "freed_bytes": 2048}
+    marked = await _removed_at(older, newer, elsewhere)
+    assert marked[0] is not None and marked[1] is not None
+    assert marked[2] is None
+    async with session_scope() as session:
+        kept = await session.get(MediaDownload, newer)
+        assert kept is not None and kept.bytes_total == 0 and kept.file_count == 1
+
+    async with anonymous_client(api_app) as caller:
+        storage = envelope(
+            await caller.get("/api/v1/downloads/storage", headers={"X-API-Key": key})
+        )["data"]
+    assert storage["downloads"] == 3
+    assert storage["evicted"] == 2
+
+
+async def test_files_already_gone_are_not_asked_for_again(
+    api_app, db_engine, redis_client, sidecar
+):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    gone = await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC), evicted=True)
+
+    body = envelope(await _delete_files(api_app, key, gone))["data"]
+
+    assert body == {"download_id": str(gone), "downloads": 0, "freed_bytes": 0}
+    assert sidecar.asked == []
+
+
+async def test_a_running_download_of_the_post_blocks_it(api_app, db_engine, redis_client, sidecar):
+    """It is writing into the directory that would be removed."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    done = await _record(CONTENT_ID, directory="d/a/1", created=now - timedelta(hours=1))
+    running = await _record(CONTENT_ID, directory="d/a/1", created=now, state="running")
+
+    response = await _delete_files(api_app, key, done)
+
+    assert response.status_code == 400
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["running"] == [str(running)]
+    assert sidecar.asked == []
+    assert await _removed_at(done, running) == [None, None]
+
+
+async def test_a_pinned_post_keeps_its_files(api_app, db_engine, redis_client, sidecar):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    now = datetime.now(UTC)
+    unpinned = await _record(CONTENT_ID, directory="d/a/1", created=now - timedelta(hours=1))
+    pinned = await _record(CONTENT_ID, directory="d/a/1", created=now, pinned=True)
+
+    response = await _delete_files(api_app, key, unpinned)
+
+    # The pin on the other copy holds: they share the one directory.
+    assert response.status_code == 400
+    assert envelope(response)["error"]["details"]["pinned"] == [str(pinned)]
+    assert sidecar.asked == []
+    assert await _removed_at(unpinned) == [None]
+
+
+async def test_nothing_is_marked_unless_the_sidecar_confirms(
+    api_app, db_engine, redis_client, sidecar
+):
+    """A record saying its files are gone while they are on disk is never reclaimed."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    download_id = await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+    sidecar.confirms = False
+
+    response = await _delete_files(api_app, key, download_id)
+
+    assert response.status_code == 503
+    assert error_code(response) == "DOWNLOADER_UNAVAILABLE"
+    assert await _removed_at(download_id) == [None]
+
+
+async def test_an_unreachable_sidecar_changes_nothing(api_app, db_engine, redis_client, sidecar):
+    user_id = await make_user()
+    key = await media_key(user_id)
+    download_id = await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+    sidecar.answers = False
+
+    response = await _delete_files(api_app, key, download_id)
+
+    assert response.status_code == 503
+    assert await _removed_at(download_id) == [None]
+
+
+async def test_without_a_downloader_the_files_cannot_be_reached(api_app, db_engine, redis_client):
+    api_app.state.settings = api_app.state.settings.model_copy(update={"downloader_url": ""})
+    user_id = await make_user()
+    key = await media_key(user_id)
+    download_id = await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+
+    response = await _delete_files(api_app, key, download_id)
+
+    assert response.status_code == 501
+    assert error_code(response) == "NOT_CONFIGURED"
+    assert await _removed_at(download_id) == [None]
+
+
+async def test_deleting_files_needs_media_write(api_app, db_engine, redis_client, sidecar):
+    user_id = await make_user()
+    key = await media_key(user_id, Scope.MEDIA_READ)
+    download_id = await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+
+    response = await _delete_files(api_app, key, download_id)
+
+    assert response.status_code == 403
+    assert error_code(response) == "FORBIDDEN_SCOPE"
+    assert sidecar.asked == []
+
+
+async def test_deleting_the_files_of_nothing_is_a_404(api_app, db_engine, redis_client, sidecar):
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    response = await _delete_files(api_app, key, uuid.uuid4())
+
+    assert response.status_code == 404
+    assert error_code(response) == "NOT_FOUND"
+
+
+async def test_cancelling_still_leaves_a_finished_download_alone(
+    api_app, db_engine, redis_client, sidecar
+):
+    """The route the console used to call. Its contract does not change."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+    download_id = await _record(CONTENT_ID, directory="d/a/1", created=datetime.now(UTC))
+
+    async with anonymous_client(api_app) as caller:
+        body = envelope(
+            await caller.delete(f"/api/v1/downloads/{download_id}", headers={"X-API-Key": key})
+        )["data"]
+
+    assert body["state"] == "done"
+    assert sidecar.asked == []
+    assert await _removed_at(download_id) == [None]

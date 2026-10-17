@@ -387,9 +387,13 @@
         "summary": "Run the six-step self check",
         "description": "Queue the same diagnosis the setup wizard finishes with (doc 15)."
       },
+      "downloads_delete_files": {
+        "summary": "Delete a download's files",
+        "description": "Removes what a download stored and keeps the record, which then reads as cleaned up - the same as when the size ceiling removes it, so asking for the download again brings the files back. The downloads of one post share a directory: this removes it and marks every record in it, and is refused while any of them is running or pinned. To remove the post and its records altogether, use POST /api/v1/archive/delete."
+      },
       "downloads_cancel": {
         "summary": "Cancel a download",
-        "description": "Stops a transfer that has not finished. Nothing is deleted: files already complete stay where they are, and removing files is the cleanup sweep's job rather than a DELETE's."
+        "description": "Stops a transfer that has not finished. Nothing is deleted: files already complete stay where they are, and the record stays either way. Removing files is DELETE /api/v1/downloads/{download_id}/files, or the cleanup sweep once the ceiling is reached."
       },
       "downloads_create": {
         "summary": "Store a post's media",

@@ -337,6 +337,17 @@ async def set_pinned(session: AsyncSession, download_id: uuid.UUID, pinned: bool
     return bool(affected(result))
 
 
+async def sharing_directory(session: AsyncSession, directory: str) -> list[MediaDownload]:
+    """Every download of one post that writes to the same directory.
+
+    Removing files is a directory operation, so whatever acts on one download's
+    files acts on all of these: each one has to be allowed to lose them, and
+    each one has to be marked afterwards.
+    """
+    rows = await session.execute(select(MediaDownload).where(MediaDownload.directory == directory))
+    return list(rows.scalars().all())
+
+
 async def mark_evicted(session: AsyncSession, ids: Sequence[uuid.UUID]) -> int:
     """Record that the bytes are gone while keeping everything else.
 
@@ -900,6 +911,7 @@ __all__ = [
     "plan_for",
     "search",
     "set_pinned",
+    "sharing_directory",
     "stats",
     "stored_for",
     "titles_for",

@@ -160,7 +160,7 @@ Reads up to **5 pages of 50** comments through the ordinary read endpoint and ha
 | State | `queued`, `running`, `done`, `partial`, `failed` or `cancelled`, plus a live progress bar while it is running |
 | Platform | `douyin` or `tiktok` |
 | Files | How many files completed |
-| Size | Bytes on disk, or **Cleaned up** for a row whose files were evicted |
+| Size | Bytes on disk, or **Cleaned up** for a row whose files were removed — by hand or by the ceiling |
 | Finished | When it settled |
 | Keep | The pin toggle |
 | Retry | Present only on a settled row that is worth retrying |
@@ -204,13 +204,16 @@ The four tiles at the top of the page report: bytes stored (against the ceiling,
 
 **Duplicate downloads.** Re-downloading a post is normal — the first attempt failed, the mirrors went stale, the file was evicted — and each attempt leaves a row. The successful ones leave a second complete copy. The *Duplicate downloads* card runs a dry run first and shows the count in a confirmation dialog, because the count is the whole decision. Confirming keeps the newest copy of each post that still has its files and removes the rest. A directory is only deleted when no surviving row still uses it, so in the ordinary case where two attempts wrote to the same place, the records go and the file stays — which is correct, since there was only ever one copy on disk. It requires the downloader to be reachable if any directory has to be removed; otherwise it refuses rather than leaving bytes nothing points at.
 
-**Cancelling.** `DELETE /api/v1/downloads/{id}` stops a transfer that has not finished: it tells the sidecar to cancel and marks the row `cancelled`. It does **not** delete anything. Files that already completed stay where they are, and a download that has already settled is returned unchanged. The Downloads page's bulk **Delete** button calls this endpoint once per selected row that still has files on disk (rows already cleaned up are skipped), so on rows that have already finished it does not free any bytes, despite the wording of its confirmation dialog.
+**Cancelling.** `DELETE /api/v1/downloads/{id}` stops a transfer that has not finished: it tells the sidecar to cancel and marks the row `cancelled`. It does **not** delete anything. Files that already completed stay where they are, and a download that has already settled is returned unchanged.
 
-**What actually removes stored files**, then, is one of three things:
+**Deleting a download's files.** The Downloads page's bulk **Delete** calls `DELETE /api/v1/downloads/{id}/files` once per selected row that still has files on disk. It removes the files and keeps the record, which then shows **Cleaned up** and counts in that tile — exactly as when the ceiling evicts it, and asking for the download again brings the files back. The downloads of one post share a directory, so the directory goes and every record in it is marked. A download that is pinned, or still running, is left out of the selection and refused by the endpoint: a pin is the promise that the files stay, and a running download is still writing them. Before this endpoint existed the button called the cancel above, which reported every finished row deleted while removing nothing.
 
-1. **Deleting the post from the Library** (its bulk Delete), which removes the archive row, its collection memberships, the download records and the directories on disk.
-2. **The size-ceiling sweep**, for anything not pinned. Unpinning a download and letting the ceiling reach it is a legitimate way to reclaim space.
-3. **The duplicate removal** above, for redundant copies.
+**What removes stored files**, then, is one of four things:
+
+1. **Delete on the Downloads page**, above: the files go, the records stay and read as cleaned up.
+2. **Deleting the post from the Library** (its bulk Delete), which removes the archive row, its collection memberships, the download records and the directories on disk. Because the records go too, these do not appear under **Cleaned up** — there is nothing left to count.
+3. **The size-ceiling sweep**, for anything not pinned.
+4. **The duplicate removal** above, for redundant copies.
 
 ## Saving a stored file to your own computer
 
@@ -414,7 +417,7 @@ The API surfaces behind these three pages are scoped separately on purpose: seei
 | `archive:read` | Search the archive, read its stats, read one post |
 | `archive:export` | The bulk NDJSON export, and only that |
 | `media:read` | List downloads, read storage usage, fetch a stored file |
-| `media:write` | Start, retry, pin and cancel a download; deduplicate; create and change collections; delete archived posts |
+| `media:write` | Start, retry, pin and cancel a download; delete a download's files; deduplicate; create and change collections; delete archived posts |
 | `douyin:read` / `tiktok:read` | The availability recheck and the author backfill, because both spend the identity pool |
 | `identity:manage` | The watchlist endpoints (`/api/v1/admin/watchlist/*`); operator role or above for anything that writes |
 | `admin` | Everything, the watchlist endpoints included |

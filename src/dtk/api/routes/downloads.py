@@ -589,6 +589,95 @@ async def pin_download(
 
 
 @router.delete(
+    "/{download_id}/files",
+    summary="Delete a download's files",
+    openapi_extra={I18N_KEY: "downloads_delete_files"},
+)
+async def delete_download_files(
+    request: Request,
+    download_id: uuid.UUID = DOWNLOAD_ID,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Remove what a download stored, and keep the record that it was stored.
+
+    The record reads as cleaned up afterwards, exactly as when the size ceiling
+    removes it: the downloads page can still tell "had this and removed it" from
+    "never fetched it", and asking for the download again brings the files back.
+    The console's Delete on the downloads page always promised this and was
+    wired to the cancel below instead, which leaves a finished download as it
+    is - so it reported success and removed nothing.
+
+    The downloads of one post share a directory, so this removes that directory
+    and marks every record in it. It is refused, and nothing is removed, while
+    any of them is still running - that one is writing into the directory - or
+    pinned, because a pin is the promise that these files stay. Removing the
+    post and its records altogether is `POST /api/v1/archive/delete`.
+
+    **Returns**
+
+    How many records were marked and how many bytes the sidecar freed. Files
+    already gone answer the same, with nothing marked and nothing freed.
+    """
+    principal.require(Scope.MEDIA_WRITE)
+    session = request.state.db
+    row = await downloads.get(session, download_id)
+    if row is None:
+        raise NotFound("no such download", details={"download_id": str(download_id)})
+    if row.files_removed_at is not None or not row.directory:
+        return ok(request, {"download_id": str(download_id), "downloads": 0, "freed_bytes": 0})
+
+    sharing = await downloads.sharing_directory(session, row.directory)
+    running = [str(other.id) for other in sharing if other.state in downloads.LIVE_STATES]
+    if running:
+        raise InvalidParam(
+            "a download of this post is still running; cancel it first, or wait for it to settle",
+            details={"download_id": str(download_id), "running": running},
+        )
+    pinned = [str(other.id) for other in sharing if other.pinned]
+    if pinned:
+        raise InvalidParam(
+            "this post is pinned, which is the promise that its files stay; unpin it first",
+            details={"download_id": str(download_id), "pinned": pinned},
+        )
+
+    settings: BootstrapSettings = request.app.state.settings
+    if not settings.downloader_url:
+        # The bytes are on the volume and only the sidecar can reach them.
+        # Marking the rows anyway would leave files nothing accounts for.
+        raise NotConfigured(
+            "this instance has no media downloader to remove the files; "
+            "start the downloader compose profile"
+        )
+    from dtk.media import DownloaderClient, DownloaderUnavailable
+
+    client = DownloaderClient(settings.downloader_url, token=settings.downloader_token)
+    try:
+        removed = await client.delete([row.directory])
+    except DownloaderUnavailable as exc:
+        log.warning("media.download.delete_failed", download_id=str(download_id), error=str(exc))
+        raise DownloaderDown("the media downloader did not answer, so nothing was deleted") from exc
+    finally:
+        await client.aclose()
+    # Only what the sidecar confirmed is marked, as the eviction sweep does: a
+    # row that says its files are gone while they are on the disk is a row no
+    # sweep would ever reclaim.
+    if row.directory not in {str(path) for path in removed.get("removed") or []}:
+        raise DownloaderDown("the media downloader did not confirm removing the files")
+
+    marked = await downloads.mark_evicted(session, [other.id for other in sharing])
+    await session.commit()
+    freed = int(removed.get("freed_bytes") or 0)
+    log.info(
+        "media.download.files_deleted",
+        download_id=str(download_id),
+        downloads=marked,
+        freed_bytes=freed,
+        actor=str(principal.user_id) if principal.user_id else None,
+    )
+    return ok(request, {"download_id": str(download_id), "downloads": marked, "freed_bytes": freed})
+
+
+@router.delete(
     "/{download_id}", summary="Cancel a download", openapi_extra={I18N_KEY: "downloads_cancel"}
 )
 async def cancel_download(
@@ -599,8 +688,9 @@ async def cancel_download(
     """Stop a download that has not finished.
 
     Cancels the transfer; it does not delete anything. Files already complete
-    stay where they are, and the record stays either way - removing files is
-    the cleanup sweep's job and follows the operator's ceiling, not a DELETE.
+    stay where they are, and the record stays either way. Removing files is
+    `DELETE /api/v1/downloads/{download_id}/files`, or the cleanup sweep once
+    the operator's ceiling is reached.
 
     **Returns**
 

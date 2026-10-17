@@ -140,6 +140,8 @@ const AUTHOR_MAX_PAGES = 40
 
 /** States a retry makes sense from: settled, and not holding files already. */
 const RETRYABLE: ReadonlySet<string> = new Set(['failed', 'partial', 'cancelled'])
+/** Still writing into its directory; the server refuses to remove files under it. */
+const LIVE: ReadonlySet<string> = new Set(['queued', 'running'])
 
 /**
  * A bare author id, as both platforms spell it.
@@ -624,8 +626,13 @@ export default function Downloads() {
   /** Pinning protects a whole directory, so an already-pinned row is a no-op. */
   const unpinned = chosen.filter((row) => !row.pinned)
   const pinned = chosen.filter((row) => row.pinned)
-  /** Only a row that still has files on the volume has anything to delete. */
-  const removable = chosen.filter((row) => row.on_disk)
+  /**
+   * Only a row that still has files on the volume has anything to delete, and
+   * the server refuses a pinned or a running one - a pin is the promise that
+   * the files stay, and a running download is still writing them - so those
+   * are left out here rather than failing the batch halfway.
+   */
+  const removable = chosen.filter((row) => row.on_disk && !row.pinned && !LIVE.has(row.state))
 
   /**
    * One request per row rather than a bulk endpoint. There is no bulk endpoint,
@@ -1113,9 +1120,12 @@ export default function Downloads() {
         description={t('downloads.bulk.deleteBody', { count: removable.length })}
         confirmLabel={t('downloads.bulk.deleteConfirm')}
         onConfirm={() => {
+          // The files route, not byId. DELETE on the download itself cancels a
+          // transfer and leaves a finished one alone, and wired here it reported
+          // every row deleted while removing nothing.
           void applyToEach(
             removable,
-            (row) => apiDelete(paths.downloads.byId(row.id)),
+            (row) => apiDelete(paths.downloads.files(row.id)),
             'downloads.bulk.deleted',
           )
         }}
