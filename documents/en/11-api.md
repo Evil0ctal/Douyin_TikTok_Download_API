@@ -106,7 +106,7 @@ Every JSON response — success or failure — has the same four top-level keys.
 | `success` | `true` or `false`. Branch on this, not on the HTTP status alone |
 | `data` | The endpoint's payload. Always `null` when `success` is `false` |
 | `error` | `null` on success. Otherwise `{code, message}` plus optional `retry_after` and `details` |
-| `meta` | Always carries `request_id`. May carry `cached`, `duration_ms`, `cursor` and endpoint-specific extras |
+| `meta` | Always carries `request_id`. May carry `cached`, `duration_ms`, `cursor` and endpoint-specific extras, such as `guest_fallback: true` on an author feed a guest identity served - which may be missing the newest posts |
 
 **Branch on `error.code`, never on `error.message`.** The code is a stable enum that is never translated; the message is rendered in the caller's language and is written for a human.
 
@@ -197,7 +197,7 @@ There are three ways to get the result. They differ only in who does the waiting
 | `endpoint` | always | What was submitted, e.g. `parse` or `douyin.content_detail` |
 | `created_at`, `finished_at` | always | ISO-8601; `finished_at` is `null` until it settles |
 | `data` | when `done` | **The result payload, nested inside the envelope's `data`** |
-| `result_meta` | when finished | `cached`, `duration_ms`, `endpoint`, `platform`, `cursor`, and gated extras |
+| `result_meta` | when finished | `cached`, `duration_ms`, `endpoint`, `platform`, `cursor`, `guest_fallback` when a guest identity served an endpoint that gives guests less, and gated extras |
 | `error` | when `failed` | `{code, message, retryable}` plus optional `retry_after` and `details` |
 
 Note the nesting: on a finished task the result is at `body.data.data`, not `body.data`. And note that **a failed task is still HTTP 200 with `success: true`** — the HTTP call to read the task succeeded; the failure is inside it, in `data.state` and `data.error`. This is the opposite of the `?wait=` path below, and the difference trips people up.
@@ -392,6 +392,7 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `SIGNING_FAILED` | 502 | **yes** | Signing failed; the algorithm may be out of date |
 | `UPSTREAM_UNREACHABLE` | 502 | **yes** | Every attempt failed on the network before the platform answered; `details.proxied` says whether the last one went through a proxy. Usually this host's egress, not the platform |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **yes** | No identity free; `retry_after` estimates the recovery |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - later pages of a Douyin author's posts. `details.cooling` counts the logged-in ones cooling down. Fixed by importing one, not by retrying; see [Identities](./06-identities-and-proxies.md#what-needs-a-logged-in-identity) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **yes** | This endpoint is paused after repeated failures |
 | `QUEUE_FULL` | 503 | **yes** | The queue is at its ceiling |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **yes** | The media sidecar is running somewhere and did not answer |
@@ -412,7 +413,7 @@ The `retryable` boolean appears on a **task's stored error** (`GET /api/v1/tasks
 Anything else can reasonably be treated as "log it and stop", but these four decisions have to be in your code:
 
 1. **Back off and retry**: `RATE_LIMITED`, `QUEUE_FULL`, `IDENTITY_POOL_EXHAUSTED`, `ENDPOINT_CIRCUIT_OPEN`, `UPSTREAM_RISK_CONTROL`, `SIGNING_FAILED`, `UPSTREAM_UNREACHABLE`, `INTERNAL`, `DOWNLOADER_UNAVAILABLE`, `TRANSCRIBER_UNAVAILABLE`. A run of `UPSTREAM_UNREACHABLE` will not clear by waiting if this server cannot reach the platform at all - see [Troubleshooting](./14-troubleshooting.md#upstream_unreachable-and-a-platform-this-server-cannot-reach). Honour `retry_after` where present; use exponential backoff where it is not.
-2. **Never retry the same request**: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `NOT_FOUND`, `CONTENT_PRIVATE`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `CANCELLED`, `NOT_CONFIGURED`, `UPSTREAM_CHANGED`. A loop on one of these burns identities to be told the same thing.
+2. **Never retry the same request**: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `NOT_FOUND`, `CONTENT_PRIVATE`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `CANCELLED`, `NOT_CONFIGURED`, `UPSTREAM_CHANGED`, `IDENTITY_LOGIN_REQUIRED`. A loop on one of these burns identities to be told the same thing.
 3. **Fix the credential**: `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`. `details` carries both sides: `required_scopes` or `required_roles` for what the endpoint wants, and `have_role`, `have_scopes` and `via` for what you sent. `via` is the one to read first — it says whether this caller is judged by its scopes (`api_key`) or by its role (`session`), and an administrator's key is still bounded by its scopes.
 4. **Resubmit the work**: `TASK_NOT_FOUND`. The result window has passed; the task id is dead.
 

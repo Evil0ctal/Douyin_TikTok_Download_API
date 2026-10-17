@@ -231,6 +231,7 @@ Each tool returns a JSON object. On success:
 - `data` is the model itself — the same normalized shape REST returns, unwrapped from the task envelope so the agent does not have to dig a level deeper than the schema describes.
 - `cached` appears when the task recorded it, and says whether this answer cost a real upstream request. Two calls a minute apart can legitimately return identical data with `cached: true` on the second. Default cache TTLs are 1800 s for a post, 900 s for a profile and 300 s for a list; see [Configuration](./03-configuration.md).
 - `task_id` is there so the call can be correlated with the request log, and so a `pending` answer can be collected later.
+- `guest_fallback: true` and a `note` appear when a guest identity answered an author feed because no logged-in one was available: the data is real, but the first items may not be the newest posts.
 
 Paging tools put `cursor` and `has_more` inside `data`.
 
@@ -289,6 +290,7 @@ The retryability sentence is generated from the same table the REST layer uses, 
 | `UPSTREAM_CHANGED` | A parser bug in dtk, not something a different request works around | No — report it |
 | `ENDPOINT_CIRCUIT_OPEN` | The breaker tripped on this endpoint | Yes, after the stated delay |
 | `IDENTITY_POOL_EXHAUSTED` | No usable identity right now | Yes — the pool refills itself |
+| `IDENTITY_LOGIN_REQUIRED` | A later page of a Douyin author's posts, and no logged-in identity to serve it | No — an operator has to import a logged-in cookie. The first page still works |
 | `UPSTREAM_RISK_CONTROL` | The platform pushed back on this request | Yes, after a backoff |
 | `UPSTREAM_UNREACHABLE` | The platform never answered: every attempt failed on the network, usually this instance's egress | Yes, but if it keeps happening the operator needs a proxy, not more retries |
 | `RATE_LIMITED` | The key's own limit | Yes, after the stated delay |

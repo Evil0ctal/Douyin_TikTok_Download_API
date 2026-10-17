@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy import select
 
 from dtk.core.db import session_scope
-from dtk.core.types import IdentitySource, Platform, UserRole
+from dtk.core.types import IdentitySource, IdentityState, Platform, UserRole
 from dtk.db.models import AuditLog, Identity
 from dtk.db.repositories import IdentityRepository
 from dtk.identity.pool import IdentityPool
@@ -28,7 +28,9 @@ client = support.client
 pytestmark = pytest.mark.integration
 
 
-async def make_identity(*, platform: str = "douyin", state: str = "active") -> uuid.UUID:
+async def make_identity(
+    *, platform: str = "douyin", state: str = "active", authenticated: bool = False
+) -> uuid.UUID:
     identity_id = uuid.uuid4()
     async with session_scope() as session:
         session.add(
@@ -39,6 +41,7 @@ async def make_identity(*, platform: str = "douyin", state: str = "active") -> u
                 cookies_encrypted=b"ciphertext",
                 fingerprint={},
                 source=IdentitySource.IMPORTED.value,
+                authenticated=authenticated,
             )
         )
     return identity_id
@@ -175,3 +178,24 @@ async def test_a_reserved_identity_is_not_capacity_for_the_pool_level(client: An
 
     assert usable == 1
     assert kept not in {row.id for row in in_rotation}
+
+
+# --------------------------------------------------------------------------
+# signed-in identities (#782, #783): the database half of what the scheduler
+# tests assume - that the flag reaches a candidate at all.
+# --------------------------------------------------------------------------
+
+
+async def test_a_candidate_says_whether_it_is_signed_in(client: Any) -> None:
+    await signed_in(client)
+    login = await make_identity(authenticated=True)
+    guest = await make_identity()
+
+    async with session_scope() as session:
+        candidates = await IdentityPool(cipher=None).candidates(  # type: ignore[arg-type]
+            session, Platform.DOUYIN, IdentityState.ACTIVE
+        )
+
+    flags = {c.identity_id: c.authenticated for c in candidates}
+    assert flags[str(login)] is True
+    assert flags[str(guest)] is False

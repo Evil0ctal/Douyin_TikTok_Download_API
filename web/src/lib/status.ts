@@ -144,6 +144,7 @@ export const ERROR_CODE_TONE: Record<ErrorCode, Tone> = {
   CONTENT_PRIVATE: 'muted',
   RATE_LIMITED: 'warning',
   IDENTITY_POOL_EXHAUSTED: 'warning',
+  IDENTITY_LOGIN_REQUIRED: 'warning',
   ENDPOINT_CIRCUIT_OPEN: 'warning',
   UPSTREAM_RISK_CONTROL: 'danger',
   UPSTREAM_CHANGED: 'danger',

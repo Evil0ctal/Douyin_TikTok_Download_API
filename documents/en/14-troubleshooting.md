@@ -77,6 +77,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | A link is rejected as `INVALID_URL` | [INVALID_URL, and the eight reasons behind it](#invalid_url-and-the-eight-reasons-behind-it) |
 | `NOT_FOUND` for a post you can open in a browser | [NOT_FOUND on a post that exists](#not_found-on-a-post-that-exists) |
 | `UPSTREAM_RISK_CONTROL` | [UPSTREAM_RISK_CONTROL](#upstream_risk_control) |
+| An author's newest posts are missing, `IDENTITY_LOGIN_REQUIRED` on the next page | [An author's newest posts are missing, or the next page will not load](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) |
 | `UPSTREAM_UNREACHABLE`, or a proxy was added and nothing changed | [UPSTREAM_UNREACHABLE, and a platform this server cannot reach](#upstream_unreachable-and-a-platform-this-server-cannot-reach) |
 | `SIGNING_FAILED`, or empty responses with no error | [Signature errors and the signing self-check](#signature-errors-and-the-signing-self-check) |
 | browser-rpc is down or was never started | [The browser container is unavailable](#the-browser-container-is-unavailable) |
@@ -134,6 +135,7 @@ Read from `src/dtk/core/errors.py`. "Retryable" is what the code itself declares
 | `CONTENT_PRIVATE` | 403 | no | The content is private or was removed by its author |
 | `RATE_LIMITED` | 429 | yes | Abuse protection tripped. Also what a login lockout returns |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | yes | No identity could be leased in time |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - see [below](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | yes | The endpoint is paused after failures across several identities |
 | `UPSTREAM_RISK_CONTROL` | 502 | yes | The platform refused this identity; it has been cooled |
 | `UPSTREAM_CHANGED` | 502 | no | The platform response no longer matches what the parser expects. `details.path` names the field |
@@ -624,7 +626,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - A body-level status of **10000** — TikTok's verification envelope.
 - **HTTP 200 with an empty body**, on an endpoint that has not declared its silence as meaningful.
 - **A payload key present and empty** (`aweme_detail`, `aweme_info`, `itemInfo`, `userInfo`, `user_info`, `user`) with nothing explaining it. An empty *list* is excluded on purpose: an empty `aweme_list` is the normal end of pagination, and treating it as risk control would cool an identity every time somebody reached the last page of a profile.
-- **A bare envelope**: HTTP 200 whose body is a status field, a message and tracing crumbs, and no payload at all. Douyin answers `author_posts` with a non-zero `max_cursor` exactly this way — 17 bytes — while the same request with `max_cursor=0` returns hundreds of kilobytes.
+- **A bare envelope**: HTTP 200 whose body is a status field, a message and tracing crumbs, and no payload at all. Douyin answers `author_posts` with a non-zero `max_cursor` exactly this way — 17 bytes — while the same request with `max_cursor=0` returns hundreds of kilobytes. It does so to a guest identity, and those pages now go only to logged-in ones; a logged-in identity that still gets it is being refused for real.
 - **A signature the platform did not accept** — see the next section. Classified as risk control on purpose, because the request really was refused, but the rule name says the cause is the signer.
 
 **What does *not* trigger it.** A deleted post, a private profile, an author id nobody has, an HTTP 400/404/410/451, an endpoint that has measured its own silence (Douyin's `author_likes` answers a private likes list with zero bytes), and an empty payload the platform *explained* with a `filter_detail`. All of those are business errors and cost the identity nothing.
@@ -635,6 +637,28 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - Real challenge markers on one identity → let it cool; it returns on its own. Repeatedly, on one identity → retire it.
 - Real challenge markers across the pool → you are asking too fast for the exits you have, or the exits are shared/flagged. Add proxies, add identities, or lower the endpoint pressure.
 - All of one proxy's identities → [Proxies fail their probe](#proxies-fail-their-probe).
+- `payload.bare_envelope` on `douyin.author_posts` → [An author's newest posts are missing, or the next page will not load](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load).
+
+---
+
+## An author's newest posts are missing, or the next page will not load
+
+**Symptom.** `/api/v1/douyin/user/posts` answers, but the newest few posts are
+not in it and the result carries `meta.guest_fallback: true`. Or the request
+with a `cursor` answers `IDENTITY_LOGIN_REQUIRED` (503) - in earlier builds,
+`UPSTREAM_RISK_CONTROL` with the rule `payload.bare_envelope`, on page 2 or 3.
+
+**What it means.** Douyin serves an author's feed in full only to a signed-in
+account: a guest's first page starts a few posts late, and a guest gets no
+later page at all. Requests for that feed go to logged-in identities, and this
+instance has none in rotation - or none free right now.
+
+**Fix.** Import a logged-in cookie and keep it for `douyin.author_posts`; see
+[What needs a logged-in identity](./06-identities-and-proxies.md#what-needs-a-logged-in-identity).
+If `details.cooling` is above zero you already have one and it is resting: wait,
+or open its drawer and **Check the login** - a lapsed session is refused like a
+guest. A logged-in account paged fast through many authors gets refused too;
+slow down, or add accounts.
 
 ---
 

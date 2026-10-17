@@ -21,6 +21,12 @@ class ErrorCode(StrEnum):
     CONTENT_PRIVATE = "CONTENT_PRIVATE"
     RATE_LIMITED = "RATE_LIMITED"
     IDENTITY_POOL_EXHAUSTED = "IDENTITY_POOL_EXHAUSTED"
+    #: The request needs a signed-in identity - Douyin pages an author's posts
+    #: for nobody else - and rotation has none. Not IDENTITY_POOL_EXHAUSTED,
+    #: whose answer is "wait, the pool refills": minting makes guests, so no
+    #: wait mends this, and sending the request to a guest instead is what
+    #: used to come back as UPSTREAM_RISK_CONTROL and cool the guest (#782).
+    IDENTITY_LOGIN_REQUIRED = "IDENTITY_LOGIN_REQUIRED"
     ENDPOINT_CIRCUIT_OPEN = "ENDPOINT_CIRCUIT_OPEN"
     UPSTREAM_RISK_CONTROL = "UPSTREAM_RISK_CONTROL"
     UPSTREAM_CHANGED = "UPSTREAM_CHANGED"
@@ -69,6 +75,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.CONTENT_PRIVATE: 403,
     ErrorCode.RATE_LIMITED: 429,
     ErrorCode.IDENTITY_POOL_EXHAUSTED: 503,
+    ErrorCode.IDENTITY_LOGIN_REQUIRED: 503,
     ErrorCode.ENDPOINT_CIRCUIT_OPEN: 503,
     ErrorCode.UPSTREAM_RISK_CONTROL: 502,
     ErrorCode.UPSTREAM_CHANGED: 502,
@@ -111,6 +118,9 @@ NON_RETRYABLE: frozenset[ErrorCode] = frozenset(
         # never the answer: no amount of waiting installs a browser
         # container or writes an alert channel into the settings.
         ErrorCode.NOT_CONFIGURED,
+        # Only an operator importing a logged-in cookie fixes it; until then
+        # every retry is the same refusal.
+        ErrorCode.IDENTITY_LOGIN_REQUIRED,
     }
 )
 
@@ -161,6 +171,7 @@ NotFound = _err("NotFound", ErrorCode.NOT_FOUND)
 ContentPrivate = _err("ContentPrivate", ErrorCode.CONTENT_PRIVATE)
 RateLimited = _err("RateLimited", ErrorCode.RATE_LIMITED)
 IdentityPoolExhausted = _err("IdentityPoolExhausted", ErrorCode.IDENTITY_POOL_EXHAUSTED)
+IdentityLoginRequired = _err("IdentityLoginRequired", ErrorCode.IDENTITY_LOGIN_REQUIRED)
 EndpointCircuitOpen = _err("EndpointCircuitOpen", ErrorCode.ENDPOINT_CIRCUIT_OPEN)
 UpstreamRiskControl = _err("UpstreamRiskControl", ErrorCode.UPSTREAM_RISK_CONTROL)
 SigningFailed = _err("SigningFailed", ErrorCode.SIGNING_FAILED)
@@ -206,6 +217,7 @@ __all__ = [
     "EndpointCircuitOpen",
     "ErrorCode",
     "ForbiddenScope",
+    "IdentityLoginRequired",
     "IdentityPoolExhausted",
     "Internal",
     "InvalidParam",

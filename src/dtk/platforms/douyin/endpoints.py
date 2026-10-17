@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Final
 
+from dtk.core.types import LoginNeed
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.douyin.params import (
     author_collections_params,
@@ -247,6 +248,14 @@ ENDPOINTS: Final = EndpointTable.of(
         required=("sec_user_id",),
         build=author_posts_params,
         risk_weight=1.8,
+        # Measured 2026-10-17 with a minted guest: the first page answers, a
+        # few posts short of the author's newest (#783), and every later page
+        # is the 17-byte {"status_code":0} that classify.py reads as a refusal
+        # (#782). Before this, both went to whichever identity rotation picked,
+        # so an imported logged-in cookie sat idle while guests were cooled
+        # for asking. Comments page fine as a guest the same day.
+        login=LoginNeed.PREFERRED,
+        paging_login=LoginNeed.REQUIRED,
         summary="Author post list, paged by max_cursor",
     ),
     EndpointSpec(

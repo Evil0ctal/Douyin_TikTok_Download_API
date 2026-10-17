@@ -149,8 +149,30 @@ class RejectReason(StrEnum):
     #: retired, still minting, or belongs to another platform. Distinct from
     #: NO_IDENTITY because the pool is fine and only this request is refused.
     PINNED_UNAVAILABLE = "pinned_unavailable"
+    #: The request needs a signed-in identity and rotation has none to give.
+    #: Distinct from NO_IDENTITY because minting cannot fix it: only an
+    #: operator importing a logged-in cookie can.
+    NO_LOGIN = "no_login"
     QUEUE_FULL = "queue_full"
     WAIT_TIMEOUT = "wait_timeout"
+
+
+class LoginNeed(StrEnum):
+    """What a request loses when a guest identity serves it.
+
+    Measured per endpoint, not assumed: a platform that tightens one endpoint
+    for guests usually leaves the rest alone, and routing everything to the few
+    signed-in accounts an operator has would wear them out for nothing.
+    """
+
+    #: A guest gets the same answer as a signed-in account.
+    NONE = "none"
+    #: A guest gets an answer, but a lesser one - Douyin leaves the newest
+    #: posts out of an author's first page. Signed-in identities are used when
+    #: rotation has one; otherwise a guest answers and the result says so.
+    PREFERRED = "preferred"
+    #: A guest gets nothing usable, so one is never sent.
+    REQUIRED = "required"
 
 
 class Scope(StrEnum):

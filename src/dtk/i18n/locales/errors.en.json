@@ -8,6 +8,7 @@
   "CONTENT_PRIVATE": "This content is private or has been removed by its author.",
   "RATE_LIMITED": "Too many requests; retry in {retry_after} seconds.",
   "IDENTITY_POOL_EXHAUSTED": "No identity is available; the pool is expected to recover in {retry_after} seconds.",
+  "IDENTITY_LOGIN_REQUIRED": "This request needs a signed-in identity and none is available; import a logged-in cookie on the identities page.",
   "ENDPOINT_CIRCUIT_OPEN": "This endpoint is paused after repeated failures; it will be retried in {retry_after} seconds.",
   "UPSTREAM_RISK_CONTROL": "The platform flagged the request as automated traffic; the identity has been cooled down.",
   "UPSTREAM_CHANGED": "The platform response no longer matches the expected structure at {path}; please report this.",

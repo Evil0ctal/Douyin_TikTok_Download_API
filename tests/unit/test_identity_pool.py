@@ -148,6 +148,7 @@ def identity_row(
         last_used_at=last_used_at,
         retired_at=None,
         rotation_endpoints=None,
+        authenticated=False,
     )
 
 

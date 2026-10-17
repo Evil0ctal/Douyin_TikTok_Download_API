@@ -76,6 +76,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | 链接被判为 `INVALID_URL` | [INVALID_URL 背后的八种原因](#invalid_url-背后的八种原因) |
 | 浏览器里能打开的作品却 `NOT_FOUND` | [明明存在的作品却返回 NOT_FOUND](#明明存在的作品却返回-not_found) |
 | `UPSTREAM_RISK_CONTROL` | [UPSTREAM_RISK_CONTROL](#upstream_risk_control) |
+| 作者作品缺最新几条，翻页时返回 `IDENTITY_LOGIN_REQUIRED` | [作者作品列表缺最新几条，或者翻不了页](#作者作品列表缺最新几条或者翻不了页) |
 | `UPSTREAM_UNREACHABLE`，或者加了代理却什么都没变 | [UPSTREAM_UNREACHABLE 和这台服务器连不上的平台](#upstream_unreachable-和这台服务器连不上的平台) |
 | `SIGNING_FAILED`，或者空响应且没有报错 | [签名错误与签名自检](#签名错误与签名自检) |
 | browser-rpc 挂了或者根本没启动 | [浏览器容器不可用](#浏览器容器不可用) |
@@ -133,6 +134,7 @@ MCP 的工具错误用的是同一个信封，所以一套错误处理同时覆�
 | `CONTENT_PRIVATE` | 403 | 否 | 内容是私密的，或已被作者删除 |
 | `RATE_LIMITED` | 429 | 是 | 触发了防滥用限额。登录锁定也返回这个码 |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | 是 | 在等待时限内没能租到身份 |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——见[下文](#作者作品列表缺最新几条或者翻不了页) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | 是 | 该接口因多个身份接连失败而被暂停 |
 | `UPSTREAM_RISK_CONTROL` | 502 | 是 | 平台拒绝了这个身份，该身份已进入冷却 |
 | `UPSTREAM_CHANGED` | 502 | 否 | 平台响应结构和解析器的预期对不上了。`details.path` 指名字段 |
@@ -623,7 +625,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - body 级状态 **10000**——TikTok 的验证信封。
 - **HTTP 200 且 body 为空**，且该接口没有声明过自己的沉默是有意义的。
 - **载荷字段存在但为空**（`aweme_detail`、`aweme_info`、`itemInfo`、`userInfo`、`user_info`、`user`），且没有任何解释。空**列表**被刻意排除在外：空的 `aweme_list` 是分页正常结束，把它当风控会导致每次有人翻到主页最后一页就冷却一个身份。
-- **光秃秃的信封**：HTTP 200，body 里只有状态字段、消息和链路追踪碎屑，完全没有载荷。抖音对带非零 `max_cursor` 的 `author_posts` 正是这样应答的——17 字节——而同一个请求带 `max_cursor=0` 会返回几百 KB。
+- **光秃秃的信封**：HTTP 200，body 里只有状态字段、消息和链路追踪碎屑，完全没有载荷。抖音对带非零 `max_cursor` 的 `author_posts` 正是这样应答的——17 字节——而同一个请求带 `max_cursor=0` 会返回几百 KB。它是这样应答访客身份的，而这些页现在只交给登录身份；登录身份仍然收到它，就是真的被拒了。
 - **平台不接受的签名**——见下一节。它被刻意判为风控，因为请求确实被拒了，但规则名会说明原因在签名器。
 
 **哪些*不会*触发它。** 被删的作品、私密主页、没人拥有的作者 id、HTTP 400/404/410/451、已经测量过自身沉默含义的接口（抖音的 `author_likes` 对私密点赞列表返回零字节），以及平台用 `filter_detail` **解释过**的空载荷。这些都是业务错误，不让身份付任何代价。
@@ -634,6 +636,17 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - 单个身份上出现真实验证标记 → 让它冷却，它会自己回来。同一个身份反复如此 → 退休它。
 - 整池都出现真实验证标记 → 你相对手上的出口问得太快了，或者出口是共享的/已被标记的。加代理、加身份，或者降低对该接口的压力。
 - 同一个代理下的全部身份 → [代理探测失败](#代理探测失败)。
+- `douyin.author_posts` 上的 `payload.bare_envelope` → [作者作品列表缺最新几条，或者翻不了页](#作者作品列表缺最新几条或者翻不了页)。
+
+---
+
+## 作者作品列表缺最新几条，或者翻不了页
+
+**症状。** `/api/v1/douyin/user/posts` 有结果，但缺最新的几条，结果里带着 `meta.guest_fallback: true`。或者带 `cursor` 的请求返回 `IDENTITY_LOGIN_REQUIRED`（503）——在更早的版本里是第 2、3 页上的 `UPSTREAM_RISK_CONTROL`，规则为 `payload.bare_envelope`。
+
+**它的含义。** 抖音只把完整的作者作品列表给已登录账号：访客拿到的第一页从晚几条的位置开始，之后的页则完全拿不到。这类请求会交给登录身份，而这台实例的轮换里没有——或者此刻没有空闲的。
+
+**修复。** 导入一份登录态 Cookie，并让它只服务 `douyin.author_posts`；见[哪些内容需要登录身份](./06-identities-and-proxies.md#哪些内容需要登录身份)。如果 `details.cooling` 大于零，说明你已经有了，只是它在休息：等一等，或者打开它的抽屉点**检查登录态**——登录过期的会话会像访客一样被拒。登录账号飞快地翻很多作者的作品同样会被拒；放慢，或者加账号。
 
 ---
 

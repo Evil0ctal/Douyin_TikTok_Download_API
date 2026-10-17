@@ -842,6 +842,10 @@ def _result_payload(
         # out, and the MCP surface hides it from agents entirely. Confirming a
         # value the caller supplied is a different act from disclosing one.
         meta["identity_id"] = result.identity_id
+    if result.guest_fallback:
+        # Only when true. A guest's page looks complete, so this flag is the
+        # one way a caller learns the newest items may be missing from it.
+        meta["guest_fallback"] = True
     data = result.payload
     if isinstance(data, dict) and "items" in data and "has_more" in data:
         meta["cursor"] = {"next": data.get("cursor"), "has_more": bool(data.get("has_more"))}

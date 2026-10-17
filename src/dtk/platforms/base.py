@@ -36,7 +36,7 @@ from types import MappingProxyType
 from typing import Any, Final, Literal, Protocol, TypedDict, runtime_checkable
 
 from dtk.core.errors import InvalidParam
-from dtk.core.types import Platform
+from dtk.core.types import LoginNeed, Platform
 from dtk.models import Author, Collection, Comment, Content, Page
 
 HttpMethod = Literal["GET", "POST"]
@@ -265,6 +265,18 @@ def _is_blank(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
 
 
+def is_later_page(cursor: Any) -> bool:
+    """Whether a caller's cursor asks for anything but the first page.
+
+    ``"0"`` is a first page and not a later one: both platforms number the
+    start of a feed that way, and a client that echoes the cursor it started
+    with must not be routed as if it were paging.
+    """
+    if _is_blank(cursor):
+        return False
+    return str(cursor).strip() != "0"
+
+
 @dataclass(frozen=True, slots=True)
 class EndpointSpec:
     """One upstream endpoint.
@@ -297,9 +309,22 @@ class EndpointSpec:
     #: is how a burnt identity stays in rotation. The exception is an endpoint
     #: whose "no" IS silence - and that has to be measured, not assumed.
     empty_body_is_normal: bool = False
+    #: What a guest identity loses on the first page. See :class:`LoginNeed`.
+    login: LoginNeed = LoginNeed.NONE
+    #: The same, for every page after the first; None means as ``login``. Its
+    #: own field because the two differ: Douyin serves an author's first page
+    #: to a guest, short of the newest posts, and every later page to nobody
+    #: but a signed-in account.
+    paging_login: LoginNeed | None = None
     #: Endpoint-specific headers merged over the adapter defaults.
     headers: tuple[tuple[str, str], ...] = ()
     summary: str = ""
+
+    def login_for(self, params: Mapping[str, Any]) -> LoginNeed:
+        """What serving these caller arguments from a guest would cost."""
+        if self.paging_login is not None and is_later_page(params.get("cursor")):
+            return self.paging_login
+        return self.login
 
     def build_params(self, **kwargs: Any) -> dict[str, str]:
         """Validate required arguments and produce the query string mapping."""
@@ -462,4 +487,5 @@ __all__ = [
     "ParamBuilder",
     "PlatformAdapter",
     "RequestSpec",
+    "is_later_page",
 ]

@@ -1393,7 +1393,8 @@
       "all_inflight": "Every identity is busy",
       "queue_full": "The wait queue is full",
       "wait_timeout": "Gave up waiting for an identity",
-      "pinned_unavailable": "The named identity cannot serve this"
+      "pinned_unavailable": "The named identity cannot serve this",
+      "no_login": "Needs a signed-in identity; none in rotation"
     }
   },
   "docs": {

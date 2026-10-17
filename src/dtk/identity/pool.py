@@ -316,6 +316,7 @@ class IdentityPool:
                         if row.rotation_endpoints is not None
                         else None
                     ),
+                    authenticated=row.authenticated,
                 )
             )
         return candidates

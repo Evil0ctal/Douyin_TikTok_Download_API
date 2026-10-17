@@ -37,6 +37,15 @@ TOOL_LANGUAGE = Language.EN
 _IDENTIFIER_HEAD = re.compile(r"^[a-z][a-z0-9]*[._][a-z0-9]")
 
 
+#: Attached to a result a guest identity served on an endpoint that gives
+#: guests less. The data is real and complete-looking, which is the problem.
+GUEST_FALLBACK_NOTE = (
+    "No signed-in identity was available, so a guest answered. Douyin leaves an "
+    "author's newest posts out of what it shows a guest: the first items here may "
+    "not be the latest, and later pages need a logged-in cookie."
+)
+
+
 def _sentence(text: str | None) -> str:
     """Normalize a raw message into one sentence, or nothing."""
     stripped = (text or "").strip()
@@ -52,6 +61,13 @@ def _retry_sentence(code: ErrorCode, retry_after: int | None) -> str:
         return (
             "Retrying will not help: this is a parser bug in dtk, not something a "
             "different request can work around."
+        )
+    if code is ErrorCode.IDENTITY_LOGIN_REQUIRED:
+        # Not "the request has to change": it is a fine request this instance
+        # cannot serve until someone gives it a signed-in account.
+        return (
+            "Retrying will not help until an operator imports a logged-in cookie for "
+            "this platform. The first page of the same feed does not need one."
         )
     if code in NON_RETRYABLE:
         return "Retrying will not help; the request has to change."

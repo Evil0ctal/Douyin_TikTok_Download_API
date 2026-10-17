@@ -253,6 +253,11 @@ class ToolSet:
             # Worth one word: a cached answer may be minutes old, and an agent
             # comparing two calls should know which one cost a real request.
             answer["cached"] = bool(meta["cached"])
+        if meta.get("guest_fallback"):
+            # An agent reading an author's feed takes the first item to be the
+            # newest post; from a guest, on Douyin, it is not.
+            answer["guest_fallback"] = True
+            answer["note"] = prose.GUEST_FALLBACK_NOTE
         return answer
 
     # -- tools -------------------------------------------------------------

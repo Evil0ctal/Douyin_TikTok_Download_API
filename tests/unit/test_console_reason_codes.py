@@ -131,3 +131,20 @@ def test_every_import_rejection_is_phrased(language: str) -> None:
     assert not missing, (
         f"web/src/locales/{language}/console.json has no proxy.import.reason entry for {missing}"
     )
+
+
+# --------------------------------------------------------------------------
+# Retryability
+# --------------------------------------------------------------------------
+
+
+def test_the_console_stops_retrying_exactly_where_the_server_says_to() -> None:
+    """The console's query layer retries a failed read twice. A code missing
+    from its copy of NON_RETRYABLE is resubmitted for a refusal that cannot
+    change - IDENTITY_LOGIN_REQUIRED was, the day it was added."""
+    from dtk.core.errors import NON_RETRYABLE
+
+    source = (WEB / "lib" / "api.ts").read_text(encoding="utf-8")
+    console = _string_list(source, "export const NON_RETRYABLE_CODES")
+
+    assert console == {code.value for code in NON_RETRYABLE}

@@ -982,6 +982,40 @@ class TestErrorProse:
         assert "Retrying will not help" in message
         assert "NOT_FOUND" in message
 
+    async def test_a_missing_login_names_who_can_fix_it(self):
+        """Not "the request has to change": the request is fine, and an agent
+        told otherwise rewrites a correct cursor until its budget is gone."""
+        failure = TaskOutcome(
+            TASK_ID,
+            TaskState.FAILED,
+            None,
+            {"code": "IDENTITY_LOGIN_REQUIRED", "details": {"cooling": 0}},
+        )
+        tools = ToolSet(make_context(FakeTasks(wait=failure)))
+        with pytest.raises(ToolError) as caught:
+            await tools.list_user_posts("douyin", "MS4wLjABAAAA", "1787228699000", None)
+        message = str(caught.value)
+        assert "logged-in cookie" in message
+        assert "the request has to change" not in message
+
+    async def test_a_guest_answer_comes_with_a_warning(self):
+        done = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"data": {"items": []}, "meta": {"cached": False, "guest_fallback": True}},
+        )
+        tools = ToolSet(make_context(FakeTasks(wait=done)))
+        answer = await tools.list_user_posts("douyin", "MS4wLjABAAAA", None, None)
+        assert answer["guest_fallback"] is True
+        assert "newest posts" in answer["note"]
+
+    async def test_an_ordinary_answer_carries_no_warning(self):
+        done = TaskOutcome(TASK_ID, TaskState.DONE, {"data": {"items": []}, "meta": {}})
+        tools = ToolSet(make_context(FakeTasks(wait=done)))
+        answer = await tools.list_user_posts("douyin", "MS4wLjABAAAA", None, None)
+        assert "guest_fallback" not in answer
+        assert "note" not in answer
+
     async def test_a_parser_break_is_not_reported_as_risk_control(self):
         failure = TaskOutcome(
             TASK_ID,

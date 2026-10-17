@@ -15,9 +15,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
-from dtk.core.errors import EndpointCircuitOpen, IdentityPoolExhausted, InvalidParam
+from dtk.core.errors import (
+    EndpointCircuitOpen,
+    IdentityLoginRequired,
+    IdentityPoolExhausted,
+    InvalidParam,
+)
 from dtk.core.logging import get_logger
-from dtk.core.types import IdentityState, Outcome, Platform, RejectReason
+from dtk.core.types import IdentityState, LoginNeed, Outcome, Platform, RejectReason
 from dtk.scheduler import circuit
 from dtk.scheduler.health import HealthInput, bucket, score
 from dtk.scheduler.leases import Lease, last_used_map, release, try_acquire
@@ -43,6 +48,9 @@ class Candidate:
     #: See ``Identity.rotation_endpoints``. Defaulted so the test doubles that
     #: build candidates by keyword describe an unrestricted identity.
     rotation_endpoints: tuple[str, ...] | None = None
+    #: Imported with a signed-in session. Defaulted for the same reason as the
+    #: field above: a test double that does not say is describing a guest.
+    authenticated: bool = False
 
     def rotates_for(self, endpoint: str) -> bool:
         """Whether unpinned traffic for ``endpoint`` may use this identity."""
@@ -99,6 +107,7 @@ class Rejected(Exception):
         *,
         waitable: bool = True,
         reserved: int = 0,
+        cooling: int = 0,
     ) -> None:
         super().__init__(detail or reason.value)
         self.reason = reason
@@ -108,6 +117,10 @@ class Rejected(Exception):
         #: endpoint. Carried as a number because ``detail`` never reaches the
         #: caller: the API answers with a localized generic message instead.
         self.reserved = reserved
+        #: Signed-in identities this request could have used that are cooling,
+        #: for a NO_LOGIN refusal. Zero means none was ever imported, which
+        #: wants a different fix from "yours are resting".
+        self.cooling = cooling
         #: Whether polling until the deadline could plausibly change the answer.
         #: An open circuit and an unusable pinned identity cannot, and spending
         #: the full wait budget on either only delays the error the caller has
@@ -203,6 +216,70 @@ class Scheduler:
                     return candidate
         return None
 
+    async def _rotation_pool(
+        self, endpoint: str, platform: Platform, login: LoginNeed
+    ) -> list[Candidate]:
+        """The identities unpinned traffic for ``endpoint`` may be handed.
+
+        Filtered here, not in the source: the pinned branch reads the same
+        source, and an identity reserved for the requests that name it has to
+        stay reachable by exactly those requests.
+
+        Signed-in identities come first whenever the endpoint gives a guest
+        less, and in every state before any guest: a degraded account still
+        answers with the newest posts, which an active guest cannot. When the
+        endpoint gives a guest nothing, guests are never reached at all.
+        """
+        rotating: dict[IdentityState, list[Candidate]] = {}
+        reserved = 0
+
+        async def listed(state: IdentityState) -> list[Candidate]:
+            nonlocal reserved
+            if state not in rotating:
+                every = await self._source.candidates(platform, state)
+                rotating[state] = [c for c in every if c.rotates_for(endpoint)]
+                reserved += len(every) - len(rotating[state])
+            return rotating[state]
+
+        # Degraded identities are the last resort within each pass, used only
+        # once the healthy ones are gone.
+        passes = {
+            LoginNeed.NONE: (False,),
+            LoginNeed.PREFERRED: (True, False),
+            LoginNeed.REQUIRED: (True,),
+        }[login]
+        for signed_in_only in passes:
+            for state in (IdentityState.ACTIVE, IdentityState.DEGRADED):
+                pool = [c for c in await listed(state) if c.authenticated or not signed_in_only]
+                if pool:
+                    return pool
+
+        if login is LoginNeed.REQUIRED:
+            cooling = [
+                c
+                for c in await self._source.candidates(platform, IdentityState.COOLING)
+                if c.authenticated and c.rotates_for(endpoint)
+            ]
+            # Not waitable: the wait is seconds and a cooldown is minutes, and
+            # no mint will produce a signed-in identity in the meantime.
+            raise Rejected(
+                RejectReason.NO_LOGIN,
+                "no signed-in identity is in rotation for this endpoint",
+                waitable=False,
+                reserved=reserved,
+                cooling=len(cooling),
+            )
+        detail = "no active or degraded identity"
+        if reserved:
+            # Said out loud because the pool page shows these as active, and
+            # "no identity" beside a list of active ones reads as a scheduler
+            # bug rather than as the setting it is.
+            detail += (
+                f"; {reserved} more are reserved for requests that name them "
+                "and are not in rotation for this endpoint"
+            )
+        raise Rejected(RejectReason.NO_IDENTITY, detail, reserved=reserved)
+
     async def _attempt(
         self,
         endpoint: str,
@@ -210,6 +287,7 @@ class Scheduler:
         policy: EndpointPolicy,
         seed: int,
         identity_id: str | None = None,
+        login: LoginNeed = LoginNeed.NONE,
     ) -> Lease:
         now = self._now()
 
@@ -235,30 +313,7 @@ class Scheduler:
                 )
             pool = [pinned]
         else:
-            # Filtered here, not in the source: the pinned branch above reads
-            # the same source, and an identity reserved for the requests that
-            # name it has to stay reachable by exactly those requests.
-            reserved = 0
-            pool = []
-            for state in (IdentityState.ACTIVE, IdentityState.DEGRADED):
-                # Degraded identities are the last resort, used only once the
-                # healthy pool is empty.
-                listed = await self._source.candidates(platform, state)
-                pool = [candidate for candidate in listed if candidate.rotates_for(endpoint)]
-                reserved += len(listed) - len(pool)
-                if pool:
-                    break
-            if not pool:
-                detail = "no active or degraded identity"
-                if reserved:
-                    # Said out loud because the pool page shows these as
-                    # active, and "no identity" beside a list of active ones
-                    # reads as a scheduler bug rather than as the setting it is.
-                    detail += (
-                        f"; {reserved} more are reserved for requests that name them "
-                        "and are not in rotation for this endpoint"
-                    )
-                raise Rejected(RejectReason.NO_IDENTITY, detail, reserved=reserved)
+            pool = await self._rotation_pool(endpoint, platform, login)
 
         recent = await last_used_map()
         saw_inflight = False
@@ -297,7 +352,12 @@ class Scheduler:
     # -- public API --------------------------------------------------------
 
     async def acquire(
-        self, endpoint: str, platform: Platform, *, identity_id: str | None = None
+        self,
+        endpoint: str,
+        platform: Platform,
+        *,
+        identity_id: str | None = None,
+        login: LoginNeed = LoginNeed.NONE,
     ) -> Lease:
         """Wait briefly for a lease, then give up with an explainable error.
 
@@ -308,6 +368,11 @@ class Scheduler:
         and is in fact more useful than usual - concurrency per identity is one,
         so a pinned caller's second request is normally waiting on their own
         first - but falling back to another identity never does.
+
+        ``login`` is ignored for a pinned request. Naming an identity is the
+        caller deciding which session answers; overruling that because the
+        session is a guest would refuse the one request that knows what it
+        asked for.
         """
         policy = policy_for(endpoint)
         deadline = self._now() + self._config.max_wait_seconds
@@ -320,7 +385,12 @@ class Scheduler:
         while True:
             try:
                 return await self._attempt(
-                    endpoint, platform, policy, seed + attempt, identity_id=identity_id
+                    endpoint,
+                    platform,
+                    policy,
+                    seed + attempt,
+                    identity_id=identity_id,
+                    login=login,
                 )
             except Rejected as exc:
                 last = exc
@@ -351,6 +421,9 @@ class Scheduler:
             details["identity_id"] = identity_id
         if last.reserved:
             details["reserved"] = last.reserved
+        if last.reason is RejectReason.NO_LOGIN:
+            details["cooling"] = last.cooling
+            raise IdentityLoginRequired(last.detail, details=details)
         if last.reason is RejectReason.CIRCUIT_OPEN:
             raise EndpointCircuitOpen(
                 last.detail,

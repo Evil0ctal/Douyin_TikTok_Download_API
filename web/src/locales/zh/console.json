@@ -1393,7 +1393,8 @@
       "all_inflight": "所有身份都在处理请求",
       "queue_full": "等待队列已满",
       "wait_timeout": "等待身份超时",
-      "pinned_unavailable": "指定的身份无法处理该请求"
+      "pinned_unavailable": "指定的身份无法处理该请求",
+      "no_login": "需要已登录的身份，轮换中没有"
     }
   },
   "docs": {

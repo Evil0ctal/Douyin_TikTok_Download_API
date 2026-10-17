@@ -8,6 +8,7 @@
   "CONTENT_PRIVATE": "该内容为私密或已被作者删除。",
   "RATE_LIMITED": "请求过于频繁，请在 {retry_after} 秒后重试。",
   "IDENTITY_POOL_EXHAUSTED": "当前无可用身份，预计 {retry_after} 秒后恢复。",
+  "IDENTITY_LOGIN_REQUIRED": "这个请求需要已登录的身份，当前没有可用的；请在身份池页面导入登录态 Cookie。",
   "ENDPOINT_CIRCUIT_OPEN": "该接口因连续失败已临时熔断，预计 {retry_after} 秒后恢复。",
   "UPSTREAM_RISK_CONTROL": "平台判定该请求为自动化流量，相关身份已进入冷却。",
   "UPSTREAM_CHANGED": "平台返回结构已变化，缺失字段：{path}，请反馈该问题。",

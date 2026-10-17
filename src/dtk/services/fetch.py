@@ -46,7 +46,7 @@ from dtk.core.errors import (
     UpstreamUnreachable,
 )
 from dtk.core.logging import get_logger
-from dtk.core.types import Outcome, Platform
+from dtk.core.types import LoginNeed, Outcome, Platform
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import RequestLog
 from dtk.identity.pool import IdentityPool
@@ -117,6 +117,10 @@ class FetchResult:
     signer: str | None = None
     #: Present only when the caller asked, and had the scope to.
     explain: Explanation | None = None
+    #: A guest answered an endpoint that gives guests less, because rotation
+    #: had no signed-in identity. Said on the result, since the payload looks
+    #: complete: Douyin's author feed simply starts a few posts late (#783).
+    guest_fallback: bool = False
 
 
 @dataclass(slots=True)
@@ -199,6 +203,9 @@ class _Attempt:
     #: a proxy in between and another without one, and the caller is the one
     #: who has to tell them apart.
     proxied: bool | None = None
+    #: Whether the identity that answered holds a signed-in session; None if
+    #: it never got as far as loading one.
+    authenticated: bool | None = None
 
 
 class SignedRequest(Protocol):
@@ -274,10 +281,13 @@ class FetchService:
         ctx: FetchContext,
         *,
         started: float,
+        login: LoginNeed = LoginNeed.NONE,
     ) -> _Attempt:
         platform = Platform(adapter.platform)
         try:
-            lease = await self._scheduler.acquire(endpoint, platform, identity_id=ctx.identity_id)
+            lease = await self._scheduler.acquire(
+                endpoint, platform, identity_id=ctx.identity_id, login=login
+            )
         except DtkError as exc:
             # A refusal is the shape of an outage, and it happens before there is
             # anything else to log. Without this row the Logs page falls silent
@@ -304,6 +314,7 @@ class FetchService:
         outcome = Outcome.NETWORK_ERROR
         error_code: str | None = None
         proxied: bool | None = None
+        authenticated: bool | None = None
 
         try:
             proxy_url = (
@@ -328,6 +339,7 @@ class FetchService:
                 return _Attempt(lease=lease, outcome=outcome, error_code=error_code)
             proxy_id = await _proxy_id_of(session, identity.id)
             proxied = identity.proxy_url is not None
+            authenticated = identity.authenticated
 
             # The identity's own browser values, not a constant. Douyin and
             # TikTok both echo the screen, the language, the OS and the browser
@@ -423,6 +435,7 @@ class FetchService:
             signer=signer,
             explain=explanation,
             proxied=proxied,
+            authenticated=authenticated,
         )
 
     def _classify(
@@ -476,6 +489,8 @@ class FetchService:
         ctx = ctx or FetchContext()
         adapter = get_adapter(platform)
         started = time.monotonic()
+        spec = adapter.endpoints.specs.get(endpoint)
+        login = spec.login_for(params) if spec is not None else LoginNeed.NONE
         digest = cache.cache_key(
             endpoint, params, include_raw=ctx.include_raw, egress=ctx.request_proxy
         )
@@ -529,7 +544,9 @@ class FetchService:
 
         last_error: str | None = None
         for attempt in range(attempts):
-            call = await self._call_once(session, adapter, endpoint, params, ctx, started=started)
+            call = await self._call_once(
+                session, adapter, endpoint, params, ctx, started=started, login=login
+            )
             duration_ms = _elapsed_ms(started)
             # Before any raise below, and overwritten by each attempt: what is
             # described is the last attempt made, which is the one whose failure
@@ -570,7 +587,15 @@ class FetchService:
 
             parsed = parse(call.payload)
             result = _dump(parsed, include_raw=ctx.include_raw)
-            if cacheable:
+            guest_fallback = (
+                login is LoginNeed.PREFERRED
+                and ctx.identity_id is None
+                and call.authenticated is False
+            )
+            # Not cached: the cache would go on serving the guest's shorter
+            # answer for its whole TTL after a signed-in identity is imported,
+            # to callers who were never told it came from a guest.
+            if cacheable and not guest_fallback:
                 await cache.put(digest, result, cache_ttl)
 
             return FetchResult(
@@ -582,6 +607,7 @@ class FetchService:
                 request_id=ctx.request_id,
                 signer=call.signer,
                 explain=call.explain,
+                guest_fallback=guest_fallback,
             )
 
         raise Internal("unreachable")

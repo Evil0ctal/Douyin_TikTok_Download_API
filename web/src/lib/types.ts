@@ -35,6 +35,7 @@ export const REJECT_REASONS = [
   'queue_full',
   'wait_timeout',
   'pinned_unavailable',
+  'no_login',
 ] as const
 export type RejectReason = (typeof REJECT_REASONS)[number]
 

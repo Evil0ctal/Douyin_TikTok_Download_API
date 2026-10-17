@@ -36,7 +36,7 @@ from dtk.core.errors import (
     UpstreamRiskControl,
     UpstreamUnreachable,
 )
-from dtk.core.types import BrowserFamily, Outcome, Platform, RejectReason
+from dtk.core.types import BrowserFamily, LoginNeed, Outcome, Platform, RejectReason
 from dtk.identity.pool import LiveIdentity
 from dtk.platforms import get_adapter
 from dtk.scheduler.leases import Lease
@@ -87,11 +87,19 @@ class FakeScheduler:
         #: Every identity the service asked for, so a test can assert that a
         #: pinned request never widened to the pool.
         self.asked_for: list[str | None] = []
+        #: What each request said it would lose on a guest.
+        self.logins: list[LoginNeed] = []
 
     async def acquire(
-        self, endpoint: str, platform: Platform, *, identity_id: str | None = None
+        self,
+        endpoint: str,
+        platform: Platform,
+        *,
+        identity_id: str | None = None,
+        login: LoginNeed = LoginNeed.NONE,
     ) -> Lease:
         self.asked_for.append(identity_id)
+        self.logins.append(login)
         if self.reject is not None:
             raise self.reject
         return Lease(
@@ -155,7 +163,7 @@ class FakeSession:
         return SimpleNamespace(id=key, proxy_id=self.proxy_id)
 
 
-def identity() -> LiveIdentity:
+def identity(*, authenticated: bool = False) -> LiveIdentity:
     return LiveIdentity(
         id=IDENTITY_ID,
         platform=Platform.DOUYIN,
@@ -164,7 +172,7 @@ def identity() -> LiveIdentity:
             browser_family=BrowserFamily.CHROME, browser_major=130, user_agent=CHROME_UA
         ),
         proxy_url="http://user:pass@exit.example:8080",
-        authenticated=False,
+        authenticated=authenticated,
     )
 
 
@@ -835,6 +843,102 @@ class TestPinnedIdentity:
             await run_fetch(svc, FakeSession())
 
         assert len(scheduler.asked_for) == fetch_module.MAX_TRANSPORT_ATTEMPTS
+
+
+AUTHOR_POSTS = "douyin.author_posts"
+POSTS_PAGE = {"status_code": 0, "aweme_list": [{"aweme_id": "1"}], "max_cursor": 1, "has_more": 1}
+
+
+async def fetch_posts(svc: FetchService, *, cursor: str | None = None, **kwargs: Any):
+    params: dict[str, Any] = {"sec_user_id": "MS4wLjABAAAA"}
+    if cursor is not None:
+        params["cursor"] = cursor
+    return await svc.fetch(
+        FakeSession(),  # type: ignore[arg-type]
+        Platform.DOUYIN,
+        AUTHOR_POSTS,
+        params,
+        parse=lambda payload: payload,
+        **kwargs,
+    )
+
+
+class TestLoginNeed:
+    """Douyin pages an author's posts for signed-in accounts only (#782), and
+    leaves the newest ones out of what it shows a guest (#783)."""
+
+    async def test_a_later_page_asks_for_a_signed_in_identity(self):
+        scheduler = FakeScheduler()
+        svc = service(response(200, POSTS_PAGE), scheduler=scheduler)
+
+        await fetch_posts(svc, cursor="1787228699000")
+
+        assert scheduler.logins == [LoginNeed.REQUIRED]
+
+    @pytest.mark.parametrize("cursor", [None, "0", ""])
+    async def test_the_first_page_only_prefers_one(self, cursor):
+        scheduler = FakeScheduler()
+        svc = service(response(200, POSTS_PAGE), scheduler=scheduler)
+
+        await fetch_posts(svc, cursor=cursor)
+
+        assert scheduler.logins == [LoginNeed.PREFERRED]
+
+    async def test_an_endpoint_a_guest_reads_in_full_asks_for_nothing(self):
+        scheduler = FakeScheduler()
+        svc = service(
+            response(200, {"status_code": 0, "aweme_detail": {"x": 1}}), scheduler=scheduler
+        )
+
+        await run_fetch(svc, FakeSession())
+
+        assert scheduler.logins == [LoginNeed.NONE]
+
+    async def test_a_guest_answer_says_so_and_is_not_cached(self, monkeypatch):
+        """A guest's first page looks complete. Cached, it would go on being
+        served after a login was imported, to callers never told."""
+        written: list[str] = []
+
+        async def record(digest, payload, ttl):
+            written.append(digest)
+
+        async def miss(digest):
+            return None
+
+        monkeypatch.setattr(fetch_module.cache, "get", miss)
+        monkeypatch.setattr(fetch_module.cache, "put", record)
+        svc = service(response(200, POSTS_PAGE), pool=FakePool(identity(authenticated=False)))
+
+        result = await fetch_posts(svc, cache_ttl=300)
+
+        assert result.guest_fallback is True
+        assert written == []
+
+    async def test_a_signed_in_answer_is_ordinary(self, monkeypatch):
+        written: list[str] = []
+
+        async def record(digest, payload, ttl):
+            written.append(digest)
+
+        async def miss(digest):
+            return None
+
+        monkeypatch.setattr(fetch_module.cache, "get", miss)
+        monkeypatch.setattr(fetch_module.cache, "put", record)
+        svc = service(response(200, POSTS_PAGE), pool=FakePool(identity(authenticated=True)))
+
+        result = await fetch_posts(svc, cache_ttl=300)
+
+        assert result.guest_fallback is False
+        assert len(written) == 1
+
+    async def test_a_pinned_guest_is_not_a_fallback(self):
+        """The caller chose that session; nothing was substituted for them."""
+        svc = service(response(200, POSTS_PAGE), pool=FakePool(identity(authenticated=False)))
+
+        result = await fetch_posts(svc, ctx=FetchContext(identity_id=PINNED_ID))
+
+        assert result.guest_fallback is False
 
 
 class TestCacheKeyDiscriminators:

@@ -228,6 +228,7 @@ parse_url → download_media(url) → transcribe_video(download_id)
 - `data` 就是数据模型本身——和 REST 返回的归一化结构一致，并且已经从任务信封里拆出来了，代理不用比 schema 描述的层级再往下挖一层。
 - `cached` 在任务记录了这一信息时出现，表示这个答案是否真的产生了一次上游请求。相隔一分钟的两次调用完全可能返回相同数据，第二次带 `cached: true`。默认缓存 TTL：作品 1800 秒、资料 900 秒、列表 300 秒，见[配置参考](./03-configuration.md)。
 - `task_id` 的作用是让这次调用能和请求日志对上，也让 `pending` 的结果可以稍后取回。
+- 没有可用的登录身份、由访客身份应答了作者作品列表时，会出现 `guest_fallback: true` 和一条 `note`：数据是真的，但排在前面的未必是最新的作品。
 
 分页工具会把 `cursor` 和 `has_more` 放在 `data` 里面。
 
@@ -286,6 +287,7 @@ again. (error code ENDPOINT_CIRCUIT_OPEN)
 | `UPSTREAM_CHANGED` | dtk 的解析器坏了，换个请求也绕不过去 | 不能——请提 issue |
 | `ENDPOINT_CIRCUIT_OPEN` | 该 endpoint 的熔断器已跳闸 | 能，等消息里说的时长 |
 | `IDENTITY_POOL_EXHAUSTED` | 当前没有可用身份 | 能——池子会自己补 |
+| `IDENTITY_LOGIN_REQUIRED` | 抖音作者作品列表的后续页，而没有登录身份来处理 | 不能——要运维导入登录态 Cookie。第一页仍然可用 |
 | `UPSTREAM_RISK_CONTROL` | 平台对这次请求做了风控 | 能，退避后再试 |
 | `UPSTREAM_UNREACHABLE` | 平台根本没应答：每次尝试都在网络层失败，多半是这台实例的出网问题 | 能，但如果反复出现，要的是运维配代理，而不是继续重试 |
 | `RATE_LIMITED` | 触到了这个 Key 自己的限额 | 能，等消息里说的时长 |

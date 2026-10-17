@@ -482,6 +482,47 @@ a list of endpoint names - `douyin.author_posts`, say, from the identity's own
 platform - puts it back in rotation for those endpoints only. It needs the same
 role as resetting or retiring, and every change is audited.
 
+### What needs a logged-in identity
+
+Douyin gives a guest identity less of an author's posts than it gives a
+signed-in account. Measured on 2026-10-17:
+
+| Request | What a guest gets | What dtk does |
+| --- | --- | --- |
+| First page of `/api/v1/douyin/user/posts` | An answer, short of the author's newest few posts | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
+| Any later page (a `cursor` other than `0`) | `{"status_code":0}` and nothing else | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once - no guest is sent to be refused |
+
+Everything else - single posts, profiles, comments and their pages, all of
+TikTok - is served to a guest in full and is routed exactly as before, so a
+logged-in account is not worn out on traffic a guest can carry.
+
+Before this, rotation did not look at whether an identity was logged in. Page 2
+went to a guest, came back as 17 empty bytes, was reported as
+`UPSTREAM_RISK_CONTROL` and cooled that guest, while the imported login sat
+idle. The first page came from a guest too, and was missing the newest posts.
+
+An identity counts as logged in when its jar carried a session cookie
+(`sessionid` and the like) at import - the **Logged in** column. A session that
+lapses later still counts, and its refusals cool it like any other; **Check the
+login** in the drawer tells you which it is.
+
+To read authors' full feeds:
+
+1. Import a logged-in cookie, from an account kept for this purpose.
+2. Keep it for author posts only:
+   `POST /api/v1/admin/identities/{id}/rotation` with
+   `{"endpoints": ["douyin.author_posts"]}`. Rotation then hands it that
+   endpoint and nothing else, comments and lookups keep going to guests, and
+   the table marks it **Limited**.
+3. Expect it to be the bottleneck. One account serves every author-feed request
+   one at a time, within its token bucket, and paging fast through many authors
+   is exactly the pattern that gets an account flagged. Add accounts, not speed.
+
+`IDENTITY_LOGIN_REQUIRED` carries `details.cooling`, the logged-in identities
+this request could use that are cooling down. `0` means none is in rotation for
+this endpoint: none was imported, or it is kept out of rotation. More than `0`
+means wait, or check whether their sessions have lapsed.
+
 ## Exporting and restoring identity bundles
 
 Selecting rows and pressing **Export N** calls

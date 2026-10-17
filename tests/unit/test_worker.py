@@ -40,7 +40,7 @@ from dtk.services.tasks import TaskView
 from dtk.worker import maintenance as maintenance_module
 from dtk.worker import registry
 from dtk.worker.loop import PeriodicLoop
-from dtk.worker.main import TaskRun, TaskWorker, WorkerOptions, serialize_error
+from dtk.worker.main import TaskRun, TaskWorker, WorkerOptions, _result_payload, serialize_error
 from dtk.worker.pool_filler import FillerConfig, PoolFiller
 from dtk.worker.proxy_prober import ProberConfig, ProbeResult, ProxyProber
 
@@ -556,6 +556,35 @@ async def test_a_successful_task_stores_data_and_meta() -> None:
     assert fetch.calls[0].params == {"aweme_id": "7300000000000000000"}
     assert fetch.calls[0].ctx.task_id == run.id
     assert store.failed == {}
+
+
+def _posts_result(*, guest_fallback: bool) -> FetchResult:
+    return FetchResult(
+        payload={"items": [], "cursor": None, "has_more": False},
+        outcome=Outcome.OK,
+        identity_id="11111111-1111-1111-1111-111111111111",
+        cached=False,
+        duration_ms=5,
+        request_id=uuid.uuid4(),
+        guest_fallback=guest_fallback,
+    )
+
+
+def test_a_guest_fallback_is_said_in_the_meta() -> None:
+    """The page looks complete; this flag is how a caller learns it may not be."""
+    stored = _result_payload(
+        "douyin.author_posts", Platform.DOUYIN, _posts_result(guest_fallback=True)
+    )
+
+    assert stored["meta"]["guest_fallback"] is True
+
+
+def test_an_ordinary_result_carries_no_fallback_flag() -> None:
+    stored = _result_payload(
+        "douyin.author_posts", Platform.DOUYIN, _posts_result(guest_fallback=False)
+    )
+
+    assert "guest_fallback" not in stored["meta"]
 
 
 async def test_a_task_that_raises_is_failed_not_lost() -> None:
