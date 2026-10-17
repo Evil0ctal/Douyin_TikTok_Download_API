@@ -36,6 +36,30 @@ readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/
 # 的方式失败。
 readonly COMPOSE_MIN="2.24"
 
+# transcriber 加载的三个 FunASR 模型，钉在 documents/zh/18-funasr-models.md
+# 验证过的 commit 上，外加 sidecar 会读的每个文件的 SHA-256。commit 不会像
+# `master` 那样在下载过程中变掉；有了哈希，截断或被替换的文件在这里就报错，
+# 而不是变成一个永远起不来的 sidecar。
+readonly MODEL_HOST="https://www.modelscope.cn/models/iic"
+readonly MODEL_REPOS=(
+  "asr|speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-onnx|7162433de474912574f9d03122263776db5b046a"
+  "vad|speech_fsmn_vad_zh-cn-16k-common-onnx|a158155ef9e81f405c052f40b6d1ad43b87e6215"
+  "punc|punc_ct-transformer_zh-cn-common-vocab272727-onnx|8f239ff78c6267c4d859233e7eb3bbdb68c61824"
+)
+readonly MODEL_FILES=(
+  "asr/model_quant.onnx|c3a06538f867c8e3d9bb9c9e1b44b126a50d732862f6c428b1b5896ee9be65c5"
+  "asr/config.yaml|bfd424b9f61846aac63591e96fe24d66b35f4643bddcb4b9bb759db8f987ab79"
+  "asr/am.mvn|29b3c740a2c0cfc6b308126d31d7f265fa2be74f3bb095cd2f143ea970896ae5"
+  "asr/tokens.json|2b20c2b12572d682afff84ce1c8d560f67b8b32a4c1f21567411d141ed352127"
+  "vad/model_quant.onnx|5289eb2aa3c9af2d7a4284bcfa7c3ceb81d360814ed4203239b6c5d0569da8a1"
+  "vad/config.yaml|2ef334f2d7776edd86ed696296774f87550206c256bfabc597872ad861831589"
+  "vad/am.mvn|6820fef9687708c4fc3fab2530179c8fcea6262daa25514380056cd8f6eb1754"
+  "punc/model_quant.onnx|e6cd8399bf7d0e75f8d9af4a107310e1968ecab1d50135e765b8f0265b27a83d"
+  "punc/config.yaml|a56ec10925b06fa976ad51af373396be2b13e1eb8dc62a5426b5adebaba7071d"
+  "punc/tokens.json|c960ab87bccea4aa15cf49a59f71973c2c330b46668048cd8da253749ec71ee3"
+)
+readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
+
 # 可以覆盖，这样试跑时不会碰到真正在用的 `dtk` 那套。做了校验，因为这个值会被写进
 # 生成的 dtkctl 里 —— 不是纯名字的东西到了那里就变成 shell 语法了。
 PROJECT="${DTK_PROJECT:-dtk}"
@@ -494,6 +518,240 @@ random_b64() {
   fi
 }
 
+# ------------------------------------------------------------ .env 与 dtkctl --
+#
+# .env 和 dtkctl 由安装过程整份写出。之后的一切 —— 从菜单开启转写，或某一步失败
+# 时把它关掉 —— 都只改一行，文件其余部分保持原样，因为可能有人手动改过。
+
+env_value() {
+  grep "^$1=" "$INSTALL_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true
+}
+
+# 替换 KEY 那一行，没有就追加。经临时文件再 `cat >` 写回，而不是 `mv`，
+# 这样 .env 的 inode、属主和 0600 权限都不变。
+set_env_value() {
+  local key="$1" value="$2" env_file="$INSTALL_DIR/.env" tmp
+  tmp="$(mktemp)" || die "无法创建临时文件。"
+  TMP_FILES+=("$tmp")
+  if grep -q "^${key}=" "$env_file"; then
+    awk -v key="$key" -v value="$value" \
+      'index($0, key "=") == 1 { print key "=" value; next } { print }' "$env_file" >"$tmp"
+  else
+    cat "$env_file" >"$tmp"
+    # 文件末尾没有换行的话，新的键会粘到最后一个值上。
+    if [ -n "$(tail -c 1 "$env_file")" ]; then printf '\n' >>"$tmp"; fi
+    printf '%s=%s\n' "$key" "$value" >>"$tmp"
+  fi
+  cat "$tmp" >"$env_file"
+  rm -f "$tmp"
+}
+
+# 在 dtkctl 的 compose 那一行上原地加上或去掉一个 --profile。
+set_ctl_profile() {
+  local name="$1" state="$2" flag tmp
+  flag=" --profile $name"
+  tmp="$(mktemp)" || die "无法创建临时文件。"
+  TMP_FILES+=("$tmp")
+  if [ "$state" = on ]; then
+    # 单引号：这里的 "$@" 是要写进 dtkctl 的 awk 文本，不是要展开的变量。
+    # shellcheck disable=SC2016
+    awk -v flag="$flag" '
+      /^exec docker compose / && index($0, flag) == 0 { sub(/ "\$@"$/, flag " \"$@\"") }
+      { print }' "$CTL" >"$tmp"
+  else
+    awk -v flag="$flag" '
+      /^exec docker compose / {
+        at = index($0, flag)
+        if (at) $0 = substr($0, 1, at - 1) substr($0, at + length(flag))
+      }
+      { print }' "$CTL" >"$tmp"
+  fi
+  cat "$tmp" >"$CTL"
+  rm -f "$tmp"
+  if [ "$state" = on ] && ! grep -qF -- "$flag" "$CTL"; then
+    warn "没能把${flag} 加进 ${CTL}，请手动加到 compose 那一行上。"
+  fi
+}
+
+# ------------------------------------------------------------------ 转写 --
+#
+# transcriber 是唯一一个数据不在镜像里的可选组件：三个模型，约 500 MB，容器以
+# 只读方式挂载、从不自己下载。下面这些就是把它们弄到这台机器上，并证明字节是对的。
+
+sha256_of() {
+  if have sha256sum; then
+    sha256sum "$1" | awk '{print $1}'
+  elif have shasum; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+# sidecar 要读的每个文件都在，而且比 Git LFS 指针文件大。不比哈希：手动准备的
+# 目录可能是上游更新的版本，能不能加载由 sidecar 自己的启动检查来判断。
+models_present() {
+  local root="$1" entry path size
+  for entry in "${MODEL_FILES[@]}"; do
+    path="${entry%%|*}"
+    [ -s "$root/$path" ] || return 1
+    case "$path" in
+      *.onnx)
+        # 指针文件大约 130 字节；这几个模型里最小的也有 500 KB。
+        size="$(wc -c <"$root/$path" | tr -d ' ')"
+        [ "$size" -gt 100000 ] || return 1
+        ;;
+    esac
+  done
+  return 0
+}
+
+# 容器以 UID 10001 读模型，而不是以运行本脚本的用户。一个只对属主开放的目录，
+# 会让 transcriber 一直不健康，原因只写在那个容器自己的日志里。
+models_readable() {
+  [ -z "$(find "$1" \( -type d ! -perm -005 \) -o \( -type f ! -perm -004 \) 2>/dev/null | head -1)" ]
+}
+
+model_repo_for() {
+  local entry
+  for entry in "${MODEL_REPOS[@]}"; do
+    case "$entry" in
+      "$1|"*) printf '%s' "${entry#*|}"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# 逐个文件从钉住的 commit 下载。已经在且哈希正确的文件会保留，所以断线后再试
+# 一次，只会下载上次没下完的部分。
+download_models() {
+  local root="$1" entry path want origin repo commit tmp got progress="-sS"
+  have curl || { warn "下载模型需要 curl，但这台机器没装。"; return 1; }
+  if ! sha256_of /dev/null >/dev/null 2>&1; then
+    warn "sha256sum 和 shasum 都没有，无法校验模型。"
+    return 1
+  fi
+  if [ -t 2 ]; then progress="--progress-bar"; fi
+
+  step "下载转写模型"
+  info "约 500 MB，来自 ModelScope，用的是文档验证过的那几个 commit。"
+  info "每个文件都先对过 SHA-256 才会保留。"
+  mkdir -p "$root/asr" "$root/vad" "$root/punc" || { warn "无法创建 ${root}。"; return 1; }
+
+  for entry in "${MODEL_FILES[@]}"; do
+    path="${entry%%|*}"
+    want="${entry##*|}"
+    if [ -f "$root/$path" ] && [ "$(sha256_of "$root/$path")" = "$want" ]; then
+      ok "${path}（已存在）"
+      continue
+    fi
+    origin="$(model_repo_for "${path%%/*}")"
+    repo="${origin%%|*}"
+    commit="${origin##*|}"
+    tmp="$root/$path.part"
+    TMP_FILES+=("$tmp")
+    info "$path"
+    if ! curl -fL --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 "$progress" \
+        -o "$tmp" "$MODEL_HOST/$repo/resolve/$commit/${path#*/}"; then
+      rm -f "$tmp"
+      warn "${path} 下载失败。"
+      return 1
+    fi
+    got="$(sha256_of "$tmp")"
+    if [ "$got" != "$want" ]; then
+      rm -f "$tmp"
+      warn "${path} 与校验和不符，没有保留。"
+      warn "应为 ${want}，实际为 ${got}。"
+      return 1
+    fi
+    mv -f "$tmp" "$root/$path"
+  done
+  chmod -R a+rX "$root"
+  ok "十个文件都已校验，位于 ${root}"
+}
+
+# Compose 会把这个路径从 .env 读进简写的卷定义里：冒号会截断路径，空格或 '#'
+# 会先一步改变这一行的含义。
+valid_model_path() {
+  valid_path "$1" || return 1
+  case "$1" in
+    *[!A-Za-z0-9._/~+-]*) warn "这个路径里只能用字母、数字和 . _ - + /。"; return 1 ;;
+  esac
+  return 0
+}
+
+# 模型在哪里，或者应该放到哪里。已经有模型的目录原样使用；否则提议下载进去。
+choose_model_path() {
+  MODELS_TO_FETCH=0
+  dim "模型留在这台机器上，以只读方式挂载。已经放好模型的目录会原样使用。"
+  MODEL_PATH="$(ask_value "模型目录？" "${MODEL_PATH:-$INSTALL_DIR/models/funasr-onnx}" valid_model_path)"
+  # 交互输入时已经校验过；--yes 取的预设值没有。
+  if ! valid_model_path "$MODEL_PATH"; then
+    WANT_TRANSCRIBER=0
+    return 0
+  fi
+  # 波浪号从 `read` 来时是字面字符，同 choose_directory。
+  # shellcheck disable=SC2088
+  case "$MODEL_PATH" in
+    "~") MODEL_PATH="$HOME" ;;
+    "~/"*) MODEL_PATH="$HOME/${MODEL_PATH#\~/}" ;;
+  esac
+  MODEL_PATH="$(absolute_path "$MODEL_PATH")"
+
+  if [ -e "$MODEL_PATH" ] && [ ! -d "$MODEL_PATH" ]; then
+    warn "${MODEL_PATH} 已存在但不是目录。转写保持关闭。"
+    WANT_TRANSCRIBER=0
+    return 0
+  fi
+  if models_present "$MODEL_PATH"; then
+    ok "在 ${MODEL_PATH} 找到了模型。"
+    if ! models_readable "$MODEL_PATH"; then
+      warn "其中有些对其他用户不可读，而容器是以 UID 10001 读它们的。"
+      if ask_yes_no "把它们设为可读吗（chmod -R a+rX，不会变成可写）？" "y"; then
+        chmod -R a+rX "$MODEL_PATH" || { warn "chmod 失败。转写保持关闭。"; WANT_TRANSCRIBER=0; }
+      else
+        WANT_TRANSCRIBER=0
+        dim "在它们可读之前，转写保持关闭。"
+      fi
+    fi
+    return 0
+  fi
+
+  dim "那里还没有一套完整的模型。"
+  if ask_yes_no "现在下载吗（约 500 MB，每个文件都对 SHA-256）？" "y"; then
+    MODELS_TO_FETCH=1
+  else
+    WANT_TRANSCRIBER=0
+    dim "转写保持关闭。按 documents/zh/18-funasr-models.md 手动准备好模型，"
+    dim "之后再从菜单里打开。"
+  fi
+}
+
+# 在已经存在的 .env 里写 transcriber 那几行。已有的 token 保留：换个新密钥
+# 没有任何好处，两边读到的都是文件里那一个。
+write_transcriber_env() {
+  local token
+  token="$(env_value DTK_TRANSCRIBER_TOKEN)"
+  [ -n "$token" ] || token="$(random_hex 24)"
+  set_env_value DTK_TRANSCRIBER_URL "http://transcriber:9200"
+  set_env_value DTK_TRANSCRIBER_TOKEN "$token"
+  set_env_value DTK_TRANSCRIBER_MODEL_PATH "$MODEL_PATH"
+  if [ "$USE_PUBLISHED" = 1 ] && [ -z "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
+    set_env_value DTK_TRANSCRIBER_IMAGE "$TRANSCRIBER_IMAGE"
+  fi
+}
+
+# 一个装不上的可选组件不应让整个安装失败：没有它，其余部分照样值得要，
+# 之后也能从菜单里打开。
+transcription_off() {
+  WANT_TRANSCRIBER=0
+  set_env_value DTK_TRANSCRIBER_URL ""
+  set_ctl_profile transcriber off
+  warn "$1"
+  info "转写已关闭，其余部分照常继续。之后可以从菜单里打开："
+  info "bash install.zh.sh --manage，然后选「管理」里的 11。"
+}
+
 # ------------------------------------------------------------------ 步骤 --
 
 # 每个问题的答案都能用环境变量预设 —— 这才让 --yes 成为一次完整的无人值守安装，
@@ -504,6 +762,9 @@ BIND_PORT="${DTK_BIND_PORT:-8000}"
 WANT_BROWSER="${DTK_ENABLE_BROWSER:-0}"
 WANT_DOWNLOADER="${DTK_ENABLE_DOWNLOADER:-1}"
 USE_PUBLISHED="${DTK_USE_PUBLISHED:-1}"
+WANT_TRANSCRIBER="${DTK_ENABLE_TRANSCRIBER:-0}"
+MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
+MODELS_TO_FETCH=0
 
 banner() {
   printf '\n'
@@ -652,11 +913,46 @@ ask_questions() {
   if ask_yes_no "启用媒体下载吗？" "$dl_default"; then WANT_DOWNLOADER=1; else WANT_DOWNLOADER=0; fi
 
   printf '\n'
+  dim "离线转写在这台机器上把已存的视频转成文字，用的是针对普通话训练的 FunASR"
+  dim "模型。工作时约占 1 GiB 内存和两个核，另需 500 MB 模型，脚本可以替你下载并校验。"
+  # 和浏览器一样，不明确要求就不开：它要从第三方下载东西，又是第二个吃 CPU 的
+  # 容器，不该因为有人加了 --yes 就自动装上。
+  local tx_default="n"
+  [ "${DTK_ENABLE_TRANSCRIBER:-}" = "1" ] && tx_default="y"
+  if [ "$WANT_DOWNLOADER" = 0 ]; then
+    dim "它转写的是下载器存下来的视频，所以媒体下载关着时它也保持关闭。"
+    WANT_TRANSCRIBER=0
+  elif [ "$CPUS" -lt 2 ]; then
+    dim "它至少要两个核，这台机器只有一个，所以保持关闭。"
+    WANT_TRANSCRIBER=0
+  else
+    if ask_yes_no "启用离线转写吗？" "$tx_default"; then WANT_TRANSCRIBER=1; else WANT_TRANSCRIBER=0; fi
+    if [ "$WANT_TRANSCRIBER" = 1 ] && [ "$MEM_MIB" -gt 0 ] && [ "$MEM_MIB" -lt 4000 ]; then
+      warn "内存不到 4 GiB。装得下，但请给这台机器配上 swap。"
+    fi
+  fi
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    choose_model_path
+  fi
+
+  printf '\n'
   dim "用已发布的镜像，拉下来一分钟左右就能起。从源码构建要好几分钟，而且需要"
   dim "npm 和 uv 都能连上网。"
   local pub_default="y"; [ "$USE_PUBLISHED" = 0 ] && pub_default="n"
   if ask_yes_no "用已发布的镜像（推荐）？" "$pub_default"; then USE_PUBLISHED=1; else USE_PUBLISHED=0; fi
 
+}
+
+# 放在写 .env 和 dtkctl 之前：下载失败时，得到的是一份关着转写的安装，而不是
+# 一份指向不存在的模型的安装。
+fetch_models() {
+  if [ "$WANT_TRANSCRIBER" = 0 ] || [ "$MODELS_TO_FETCH" = 0 ]; then
+    return 0
+  fi
+  if ! download_models "$MODEL_PATH"; then
+    WANT_TRANSCRIBER=0
+    warn "转写保持关闭。已经下好的部分会保留，下次只下载剩下的。"
+  fi
 }
 
 write_env() {
@@ -666,14 +962,20 @@ write_env() {
   if [ -f "$env_file" ]; then
     ok "保留已有的 .env —— 现在的数据库就是用里面那些密钥建起来的。"
     info "想重新生成就自己删掉它，但那样旧的数据卷就打不开了。"
+    # dtkctl 马上要启动 transcriber，而一份在它出现之前写的 .env 会让 api
+    # 不知道它的地址，它自己也没有 token。
+    if [ "$WANT_TRANSCRIBER" = 1 ]; then
+      write_transcriber_env
+    fi
     return
   fi
 
-  local pg_pass redis_pass secret dl_token
+  local pg_pass redis_pass secret dl_token tx_token
   pg_pass="$(random_hex 24)"
   redis_pass="$(random_hex 24)"
   secret="$(random_b64 48)"
   dl_token="$(random_hex 24)"
+  tx_token="$(random_hex 24)"
 
   # 从文件诞生那一刻就是 0600：这个文件就是这个实例的钥匙。
   local old_umask
@@ -702,6 +1004,15 @@ write_env() {
       printf 'DTK_DOWNLOADER_URL=\n'
       printf 'DTK_DOWNLOADER_TOKEN=\n'
     fi
+    if [ "$WANT_TRANSCRIBER" = 1 ]; then
+      printf 'DTK_TRANSCRIBER_URL=http://transcriber:9200\n'
+      printf 'DTK_TRANSCRIBER_TOKEN=%s\n' "$tx_token"
+      printf 'DTK_TRANSCRIBER_MODEL_PATH=%s\n' "$MODEL_PATH"
+    else
+      printf 'DTK_TRANSCRIBER_URL=\n'
+      printf 'DTK_TRANSCRIBER_TOKEN=\n'
+      printf 'DTK_TRANSCRIBER_MODEL_PATH=\n'
+    fi
     printf '\n'
     printf 'DTK_BIND_HOST=%s\n' "$BIND_HOST"
     printf 'DTK_BIND_PORT=%s\n' "$BIND_PORT"
@@ -709,6 +1020,7 @@ write_env() {
       printf 'DTK_IMAGE=evil0ctal/douyin_tiktok_download_api\n'
       printf 'DTK_IMAGE_TAG=latest\n'
       printf 'DTK_DOWNLOADER_IMAGE=evil0ctal/douyin_tiktok_download_api-downloader\n'
+      printf 'DTK_TRANSCRIBER_IMAGE=%s\n' "$TRANSCRIBER_IMAGE"
     fi
   } >"$env_file"
   umask "$old_umask"
@@ -754,6 +1066,10 @@ write_host_override() {
       printf '  worker:\n    mem_limit: %sm\n' "$(( MEM_MIB / 9 ))"
       printf '  browser-rpc:\n    mem_limit: %sm\n    cpus: %s\n' "$(( MEM_MIB / 3 ))" "$browser_cpu"
       printf '  downloader:\n    mem_limit: %sm\n    cpus: 1.0\n' "$(( MEM_MIB / 20 ))"
+      # 固定值而不是按内存比例：它需要的就是模型加一个解码后的文件那么多（3 分钟
+      # 的片段实测 0.9 GiB；一小时音频再多约 230 MB），和宿主机大小无关。和 compose
+      # 一样不给 swap，因为换页的推理比失败的推理更慢。
+      printf '  transcriber:\n    mem_limit: 1536m\n    memswap_limit: 1536m\n'
     else
       printf '  api:\n    cpus: %s\n' "$api_cpu"
       printf '  worker:\n    cpus: %s\n' "$api_cpu"
@@ -793,6 +1109,7 @@ write_control_script() {
     printf 'exec docker compose -p %s %s' "$PROJECT" "$files"
     [ "$WANT_BROWSER" = 1 ] && printf ' --profile browser'
     [ "$WANT_DOWNLOADER" = 1 ] && printf ' --profile downloader'
+    [ "$WANT_TRANSCRIBER" = 1 ] && printf ' --profile transcriber'
     printf ' "$@"\n'
   } >"$ctl"
   chmod 755 "$ctl"
@@ -821,6 +1138,17 @@ bring_up() {
   if [ "$WANT_BROWSER" = 1 ]; then
     info "正在构建浏览器镜像。这个镜像不发布，预计要好几分钟。"
     "$ctl" build browser-rpc || die "浏览器镜像构建失败。可以不开它再跑一次，或参见 $DOCS_URL"
+  fi
+
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    if [ "$USE_PUBLISHED" = 1 ]; then
+      info "正在拉取转写镜像。"
+      "$ctl" pull transcriber || transcription_off "转写镜像拉取失败。
+    可能是当前用的版本还没有它，也可能是镜像仓库没有响应。"
+    else
+      info "正在构建转写镜像。"
+      "$ctl" build transcriber || transcription_off "转写镜像构建失败。"
+    fi
   fi
 
   info "正在执行数据库迁移。"
@@ -859,11 +1187,19 @@ show_result() {
   info "目录     $INSTALL_DIR"
   info "控制     $ctl ps | logs -f api | restart api | down"
   info "密钥     $INSTALL_DIR/.env  —— 请备份，数据库要靠它解密"
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    info "模型     $MODEL_PATH"
+  fi
   info "文档     $DOCS_URL"
   if [ "$WANT_BROWSER" = 0 ]; then
     printf '\n'
     dim "浏览器容器没开，所以身份池不会自己补。"
     dim "在控制台里导入你自己的 Cookie：身份池 → 导入。"
+  fi
+  if [ "$WANT_TRANSCRIBER" = 1 ] && [ "$WANT_BROWSER" = 1 ]; then
+    printf '\n'
+    dim "转写和浏览器容器共用 CPU：赶上正在铸造身份时，一次转写会慢上好几倍。"
+    dim "刚启动、身份池还在补满的那几分钟最忙。"
   fi
   if [ "$BIND_HOST" = "0.0.0.0" ]; then
     printf '\n'
@@ -902,6 +1238,22 @@ for project in projects:
   dir="$(dirname "$(dirname "$config")")"
   [ -f "$dir/docker/compose.yml" ] || return 1
   printf '%s' "$dir"
+}
+
+# 一份已有安装开了哪些东西，从它自己的 dtkctl 和 .env 里读。菜单以前用的是这次
+# 运行的环境变量，而那对那份安装一无所知：升级时会去拉一个它从没开过的下载器，
+# 却会漏掉它开着的 transcriber。
+load_install_state() {
+  WANT_BROWSER=0
+  WANT_DOWNLOADER=0
+  WANT_TRANSCRIBER=0
+  USE_PUBLISHED=0
+  if grep -qF -- "--profile browser" "$CTL"; then WANT_BROWSER=1; fi
+  if grep -qF -- "--profile downloader" "$CTL"; then WANT_DOWNLOADER=1; fi
+  if grep -qF -- "--profile transcriber" "$CTL"; then WANT_TRANSCRIBER=1; fi
+  if [ -n "$(env_value DTK_IMAGE)" ]; then USE_PUBLISHED=1; fi
+  MODEL_PATH="$(env_value DTK_TRANSCRIBER_MODEL_PATH)"
+  [ -n "$MODEL_PATH" ] || MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
 }
 
 # 运行中的实例自己报的版本。只有这个算数：磁盘上的代码可能比真正在服务的那个
@@ -1055,9 +1407,15 @@ do_upgrade() {
   info "正在拉取。"
   local services=(api worker)
   [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
+  # 只拉已发布的 transcriber；本地构建的由 `up` 重新构建。
+  if [ "$WANT_TRANSCRIBER" = 1 ] && [ -n "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
+    services+=(transcriber)
+  fi
   if ! DTK_IMAGE_TAG="$target" "$CTL" pull "${services[@]}"; then
     die "拉不到 ${target}。什么都没改，旧版本还在正常运行。
-    去确认这个 tag 是否存在：https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags"
+    去确认这个 tag 是否存在：https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags
+    开着转写时，早于转写功能的版本没有 transcriber 镜像；要退回那么早，
+    先在菜单里把转写关掉。"
   fi
 
   # 钉住具体的 tag，而不是跟着 `latest` 跑：运维应当说得出现在跑的是哪个构建，
@@ -1208,7 +1566,7 @@ act_free_disk() {
   local in_use images=""
   in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
   images="$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
-    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app)' \
+    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app|dtk-downloader|dtk-transcriber)' \
     | while read -r ref id; do
         printf '%s\n' "$in_use" | grep -qxF "$ref" || printf '%s %s\n' "$ref" "$id"
       done || true)"
@@ -1236,6 +1594,80 @@ act_free_disk() {
   printf '\n'
   info "清理后："
   docker system df 2>/dev/null | sed 's/^/      /'
+}
+
+# 转写是大多数安装事后才想加的那个可选组件，所以菜单能开关的就是它。两个方向都
+# 只改 .env 和 dtkctl 里属于它的那几行，然后重建整套服务：api 和 worker 只在
+# 启动时读一次 transcriber 的地址。
+act_transcription() {
+  step "转写"
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    ok "已开启。模型：${MODEL_PATH:-.env 里没有记录}"
+    "$CTL" ps transcriber --format "table {{.Service}}\t{{.Status}}" 2>/dev/null | sed 's/^/    /' || true
+    printf '\n'
+    dim "关掉之后，已经做好的转写都还在，模型也留在磁盘上。"
+    if ! ask_yes_no "关闭转写吗？" "n"; then
+      return 0
+    fi
+    "$CTL" rm -sf transcriber >/dev/null 2>&1 || true
+    set_env_value DTK_TRANSCRIBER_URL ""
+    set_ctl_profile transcriber off
+    WANT_TRANSCRIBER=0
+    "$CTL" up -d --wait || { warn "服务没能恢复到健康状态。试试：${CTL} logs"; return 0; }
+    ok "转写已关闭。想腾出空间，请自己删掉 ${MODEL_PATH:-模型目录}。"
+    return 0
+  fi
+
+  if [ "$WANT_DOWNLOADER" = 0 ]; then
+    warn "转写处理的是已存的视频，而这份安装没开媒体下载。"
+    return 0
+  fi
+  if [ "$CPUS" -lt 2 ]; then
+    warn "转写至少要两个核，这台机器只有一个。"
+    return 0
+  fi
+  dim "离线转写在这台机器上把已存的视频转成文字，用的是针对普通话训练的 FunASR"
+  dim "模型。工作时约占 1 GiB 内存和两个核，另需 500 MB 模型，脚本可以替你下载并校验。"
+  if ! ask_yes_no "开启转写吗？" "y"; then
+    return 0
+  fi
+  WANT_TRANSCRIBER=1
+  choose_model_path
+  fetch_models
+  if [ "$WANT_TRANSCRIBER" = 0 ]; then
+    return 0
+  fi
+
+  # 先弄到镜像再改文件：早于转写功能的版本没有 transcriber 的 tag，等 .env
+  # 已经写成"开启"才发现，就会留下一份起不来的安装。
+  local image
+  image="$(env_value DTK_TRANSCRIBER_IMAGE)"
+  if [ -z "$image" ] && [ "$USE_PUBLISHED" = 1 ]; then image="$TRANSCRIBER_IMAGE"; fi
+  if [ -n "$image" ]; then
+    info "正在拉取转写镜像。"
+    if ! DTK_TRANSCRIBER_IMAGE="$image" "$CTL" --profile transcriber pull transcriber; then
+      warn "拉取失败。可能是这份安装跑的版本早于转写功能（先在主菜单选 2 升级），"
+      warn "也可能是镜像仓库没有响应。"
+      WANT_TRANSCRIBER=0
+      return 0
+    fi
+  else
+    info "正在构建转写镜像。"
+    if ! "$CTL" --profile transcriber build transcriber; then
+      warn "转写镜像构建失败。什么都没改。"
+      WANT_TRANSCRIBER=0
+      return 0
+    fi
+  fi
+
+  write_transcriber_env
+  set_ctl_profile transcriber on
+  info "正在启动它，并重建 api 和 worker，让它们知道它在哪。"
+  if ! "$CTL" up -d --wait; then
+    warn "服务没能达到健康状态。原因通常在这里：${CTL} logs transcriber"
+    return 0
+  fi
+  ok "转写已开启。在控制台里打开一个已存的视频，选「转写视频」即可。"
 }
 
 # ------------------------------------------------------------------ 菜单 --
@@ -1282,6 +1714,7 @@ menu_manage() {
     info "  3  账号列表                8  重启服务"
     info "  4  立即备份                9  设置"
     info "  5  从备份恢复             10  释放磁盘空间"
+    info "                            11  开启或关闭转写"
     info "  b  返回"
     case "$(ask_choice "选哪个？")" in
       1) act_change_password; pause_for_reader ;;
@@ -1294,6 +1727,7 @@ menu_manage() {
       8) act_restart; pause_for_reader ;;
       9) act_setting; pause_for_reader ;;
       10) act_free_disk; pause_for_reader ;;
+      11) act_transcription; pause_for_reader ;;
       b|"") return 0 ;;
       *) warn "请从上面挑一个编号，或者 b。" ;;
     esac
@@ -1365,7 +1799,7 @@ usage() {
 用法：bash install.zh.sh [选项]
 
   --yes, -y      所有问题都取默认答案。发布在 127.0.0.1:8000，开下载器，
-                 不建浏览器容器。
+                 不建浏览器容器，不开转写。
   --check        只探测系统并打印将会发生什么，然后停下。不改任何东西。
   --manage       直接进入已有安装的管理菜单。
   --help, -h     这段说明。
@@ -1380,6 +1814,11 @@ usage() {
   DTK_BIND_PORT          默认：8000。
   DTK_ENABLE_BROWSER     1 构建浏览器容器，0（默认）不建。
   DTK_ENABLE_DOWNLOADER  1（默认）启用媒体下载，0 不启用。
+  DTK_ENABLE_TRANSCRIBER 1 启用离线转写，0（默认）不启用。需要开着媒体下载、
+                         至少两个核。
+  DTK_TRANSCRIBER_MODEL_PATH
+                         模型所在的目录，或者要下载到的目录。
+                         默认：<安装目录>/models/funasr-onnx。
   DTK_USE_PUBLISHED      1（默认）拉已发布镜像，0 从源码构建。
 EOF
 }
@@ -1439,6 +1878,7 @@ main() {
   if [ -n "$found" ] && [ -x "$found/dtkctl" ]; then
     INSTALL_DIR="$found"
     CTL="$found/dtkctl"
+    load_install_state
     if [ -z "$TTY_IN" ]; then
       warn "${INSTALL_DIR} 已经有一份安装了。"
       info "想管理它请在终端里跑这个脚本，或者直接用 ${CTL}。"
@@ -1459,6 +1899,7 @@ main() {
   choose_directory
   prepare_directory
   ask_questions
+  fetch_models
   write_env
   write_host_override
   write_control_script

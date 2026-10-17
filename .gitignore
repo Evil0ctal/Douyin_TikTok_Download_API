@@ -28,6 +28,15 @@ htmlcov/
 *.local.yaml
 *.local.yml
 
+# What a deployment writes into its own checkout: the host-sized ceilings, the
+# control script (both from install/install.sh) and the transcription models.
+# Per machine by definition - a contributor's compose.host.yml once rode along
+# in a pull request - and the models are half a gigabyte.
+/compose.host.yml
+/dtkctl
+/models/
+/docker/models/
+
 # Runtime output
 logs/
 *.log

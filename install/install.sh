@@ -38,6 +38,31 @@ readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/
 # problem with this project.
 readonly COMPOSE_MIN="2.24"
 
+# The three FunASR models the transcriber loads, pinned to the commits that
+# documents/en/18-funasr-models.md verified, and the SHA-256 of every file the
+# sidecar reads. A commit cannot move under a download the way `master` can,
+# and the hashes turn a truncated or substituted file into an error here rather
+# than a sidecar that never becomes healthy.
+readonly MODEL_HOST="https://www.modelscope.cn/models/iic"
+readonly MODEL_REPOS=(
+  "asr|speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-onnx|7162433de474912574f9d03122263776db5b046a"
+  "vad|speech_fsmn_vad_zh-cn-16k-common-onnx|a158155ef9e81f405c052f40b6d1ad43b87e6215"
+  "punc|punc_ct-transformer_zh-cn-common-vocab272727-onnx|8f239ff78c6267c4d859233e7eb3bbdb68c61824"
+)
+readonly MODEL_FILES=(
+  "asr/model_quant.onnx|c3a06538f867c8e3d9bb9c9e1b44b126a50d732862f6c428b1b5896ee9be65c5"
+  "asr/config.yaml|bfd424b9f61846aac63591e96fe24d66b35f4643bddcb4b9bb759db8f987ab79"
+  "asr/am.mvn|29b3c740a2c0cfc6b308126d31d7f265fa2be74f3bb095cd2f143ea970896ae5"
+  "asr/tokens.json|2b20c2b12572d682afff84ce1c8d560f67b8b32a4c1f21567411d141ed352127"
+  "vad/model_quant.onnx|5289eb2aa3c9af2d7a4284bcfa7c3ceb81d360814ed4203239b6c5d0569da8a1"
+  "vad/config.yaml|2ef334f2d7776edd86ed696296774f87550206c256bfabc597872ad861831589"
+  "vad/am.mvn|6820fef9687708c4fc3fab2530179c8fcea6262daa25514380056cd8f6eb1754"
+  "punc/model_quant.onnx|e6cd8399bf7d0e75f8d9af4a107310e1968ecab1d50135e765b8f0265b27a83d"
+  "punc/config.yaml|a56ec10925b06fa976ad51af373396be2b13e1eb8dc62a5426b5adebaba7071d"
+  "punc/tokens.json|c960ab87bccea4aa15cf49a59f71973c2c330b46668048cd8da253749ec71ee3"
+)
+readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
+
 # Overridable for testing, so a trial run cannot touch a real `dtk` stack.
 # Validated because it is written into the generated dtkctl: anything that is
 # not a plain name would end up as shell syntax there.
@@ -504,6 +529,249 @@ random_b64() {
   fi
 }
 
+# --------------------------------------------------------------- .env, dtkctl --
+#
+# The installer writes .env and dtkctl whole. Everything after it - turning
+# transcription on from the menu, or off when a step fails - changes one line
+# and leaves the rest of each file exactly as somebody may have edited it.
+
+env_value() {
+  grep "^$1=" "$INSTALL_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true
+}
+
+# Replace KEY's line, or append it. Through a temporary file and `cat >`
+# rather than `mv`, so .env keeps its inode, its owner and its 0600 mode.
+set_env_value() {
+  local key="$1" value="$2" env_file="$INSTALL_DIR/.env" tmp
+  tmp="$(mktemp)" || die "Could not create a temporary file."
+  TMP_FILES+=("$tmp")
+  if grep -q "^${key}=" "$env_file"; then
+    awk -v key="$key" -v value="$value" \
+      'index($0, key "=") == 1 { print key "=" value; next } { print }' "$env_file" >"$tmp"
+  else
+    cat "$env_file" >"$tmp"
+    # A file that does not end in a newline would glue the new key onto its
+    # last value.
+    if [ -n "$(tail -c 1 "$env_file")" ]; then printf '\n' >>"$tmp"; fi
+    printf '%s=%s\n' "$key" "$value" >>"$tmp"
+  fi
+  cat "$tmp" >"$env_file"
+  rm -f "$tmp"
+}
+
+# Add or remove one --profile flag on dtkctl's compose line, in place.
+set_ctl_profile() {
+  local name="$1" state="$2" flag tmp
+  flag=" --profile $name"
+  tmp="$(mktemp)" || die "Could not create a temporary file."
+  TMP_FILES+=("$tmp")
+  if [ "$state" = on ]; then
+    # Single quotes: "$@" is awk text that ends up in dtkctl, not an expansion.
+    # shellcheck disable=SC2016
+    awk -v flag="$flag" '
+      /^exec docker compose / && index($0, flag) == 0 { sub(/ "\$@"$/, flag " \"$@\"") }
+      { print }' "$CTL" >"$tmp"
+  else
+    awk -v flag="$flag" '
+      /^exec docker compose / {
+        at = index($0, flag)
+        if (at) $0 = substr($0, 1, at - 1) substr($0, at + length(flag))
+      }
+      { print }' "$CTL" >"$tmp"
+  fi
+  cat "$tmp" >"$CTL"
+  rm -f "$tmp"
+  if [ "$state" = on ] && ! grep -qF -- "$flag" "$CTL"; then
+    warn "Could not add$flag to $CTL. Add it to the compose line by hand."
+  fi
+}
+
+# ----------------------------------------------------------- transcription --
+#
+# The transcriber is the one optional component whose data is not in an image:
+# three models, about 500 MB, that the container mounts read-only and never
+# fetches. What follows gets them onto this machine and proves they are the
+# right bytes.
+
+sha256_of() {
+  if have sha256sum; then
+    sha256sum "$1" | awk '{print $1}'
+  elif have shasum; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+# Every file the sidecar reads, there and bigger than a Git LFS pointer. Not
+# the hashes: a directory somebody prepared by hand may hold a newer upstream
+# revision, and the sidecar's own start-up check decides whether that loads.
+models_present() {
+  local root="$1" entry path size
+  for entry in "${MODEL_FILES[@]}"; do
+    path="${entry%%|*}"
+    [ -s "$root/$path" ] || return 1
+    case "$path" in
+      *.onnx)
+        # A pointer is about 130 bytes; the smallest of these models is 500 KB.
+        size="$(wc -c <"$root/$path" | tr -d ' ')"
+        [ "$size" -gt 100000 ] || return 1
+        ;;
+    esac
+  done
+  return 0
+}
+
+# The container reads the models as UID 10001, not as whoever ran this. A
+# directory open only to its owner starts a transcriber that never turns
+# healthy, and the reason is only in that container's log.
+models_readable() {
+  [ -z "$(find "$1" \( -type d ! -perm -005 \) -o \( -type f ! -perm -004 \) 2>/dev/null | head -1)" ]
+}
+
+model_repo_for() {
+  local entry
+  for entry in "${MODEL_REPOS[@]}"; do
+    case "$entry" in
+      "$1|"*) printf '%s' "${entry#*|}"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# File by file from the pinned commits. A file already there with the right
+# hash is kept, so a second attempt after a dropped connection fetches only
+# what the first one did not finish.
+download_models() {
+  local root="$1" entry path want origin repo commit tmp got progress="-sS"
+  have curl || { warn "Downloading the models needs curl, which is not installed."; return 1; }
+  if ! sha256_of /dev/null >/dev/null 2>&1; then
+    warn "Neither sha256sum nor shasum is installed, so the models cannot be checked."
+    return 1
+  fi
+  if [ -t 2 ]; then progress="--progress-bar"; fi
+
+  step "Downloading the transcription models"
+  info "About 500 MB from ModelScope, at the commits the documentation verified."
+  info "Each file is checked against its SHA-256 before it is kept."
+  mkdir -p "$root/asr" "$root/vad" "$root/punc" || { warn "Could not create $root."; return 1; }
+
+  for entry in "${MODEL_FILES[@]}"; do
+    path="${entry%%|*}"
+    want="${entry##*|}"
+    if [ -f "$root/$path" ] && [ "$(sha256_of "$root/$path")" = "$want" ]; then
+      ok "$path (already here)"
+      continue
+    fi
+    origin="$(model_repo_for "${path%%/*}")"
+    repo="${origin%%|*}"
+    commit="${origin##*|}"
+    tmp="$root/$path.part"
+    TMP_FILES+=("$tmp")
+    info "$path"
+    if ! curl -fL --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 "$progress" \
+        -o "$tmp" "$MODEL_HOST/$repo/resolve/$commit/${path#*/}"; then
+      rm -f "$tmp"
+      warn "Could not download $path."
+      return 1
+    fi
+    got="$(sha256_of "$tmp")"
+    if [ "$got" != "$want" ]; then
+      rm -f "$tmp"
+      warn "$path does not match its checksum, so it was not kept."
+      warn "Expected $want, got $got."
+      return 1
+    fi
+    mv -f "$tmp" "$root/$path"
+  done
+  chmod -R a+rX "$root"
+  ok "All ten files verified in $root"
+}
+
+# Compose reads this path out of .env into a short volume spec, where a colon
+# ends the path and a space or a '#' changes what the line means first.
+valid_model_path() {
+  valid_path "$1" || return 1
+  case "$1" in
+    *[!A-Za-z0-9._/~+-]*) warn "Use letters, digits and . _ - + / only in this path."; return 1 ;;
+  esac
+  return 0
+}
+
+# Where the models are, or where they should go. A directory that already
+# holds them is used as it is; anything else is offered a download into it.
+choose_model_path() {
+  MODELS_TO_FETCH=0
+  dim "The models stay on this machine and are mounted read-only. A directory"
+  dim "that already holds them is used as it is."
+  MODEL_PATH="$(ask_value "Model directory?" "${MODEL_PATH:-$INSTALL_DIR/models/funasr-onnx}" valid_model_path)"
+  # An answer is validated as it is typed; a preset taken by --yes is not.
+  if ! valid_model_path "$MODEL_PATH"; then
+    WANT_TRANSCRIBER=0
+    return 0
+  fi
+  # The tilde arrives literal from `read`, as in choose_directory.
+  # shellcheck disable=SC2088
+  case "$MODEL_PATH" in
+    "~") MODEL_PATH="$HOME" ;;
+    "~/"*) MODEL_PATH="$HOME/${MODEL_PATH#\~/}" ;;
+  esac
+  MODEL_PATH="$(absolute_path "$MODEL_PATH")"
+
+  if [ -e "$MODEL_PATH" ] && [ ! -d "$MODEL_PATH" ]; then
+    warn "$MODEL_PATH exists and is not a directory. Transcription stays off."
+    WANT_TRANSCRIBER=0
+    return 0
+  fi
+  if models_present "$MODEL_PATH"; then
+    ok "Found the models in $MODEL_PATH."
+    if ! models_readable "$MODEL_PATH"; then
+      warn "Some of them are closed to other users, and the container reads them as UID 10001."
+      if ask_yes_no "Make them readable (chmod -R a+rX; nothing becomes writable)?" "y"; then
+        chmod -R a+rX "$MODEL_PATH" || { warn "chmod failed. Transcription stays off."; WANT_TRANSCRIBER=0; }
+      else
+        WANT_TRANSCRIBER=0
+        dim "Transcription stays off until they are readable."
+      fi
+    fi
+    return 0
+  fi
+
+  dim "There is no complete set of models there yet."
+  if ask_yes_no "Download them now (about 500 MB, each file checked against its SHA-256)?" "y"; then
+    MODELS_TO_FETCH=1
+  else
+    WANT_TRANSCRIBER=0
+    dim "Transcription stays off. Prepare the models by hand - documents/en/18-funasr-models.md -"
+    dim "and turn it on from the menu afterwards."
+  fi
+}
+
+# The transcriber's lines in an .env that already exists. An existing token is
+# kept: nothing gains from a new secret, and both sides read whichever is there.
+write_transcriber_env() {
+  local token
+  token="$(env_value DTK_TRANSCRIBER_TOKEN)"
+  [ -n "$token" ] || token="$(random_hex 24)"
+  set_env_value DTK_TRANSCRIBER_URL "http://transcriber:9200"
+  set_env_value DTK_TRANSCRIBER_TOKEN "$token"
+  set_env_value DTK_TRANSCRIBER_MODEL_PATH "$MODEL_PATH"
+  if [ "$USE_PUBLISHED" = 1 ] && [ -z "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
+    set_env_value DTK_TRANSCRIBER_IMAGE "$TRANSCRIBER_IMAGE"
+  fi
+}
+
+# An optional component that cannot be set up does not fail the install: the
+# rest of the stack is worth having without it, and the menu turns it on later.
+transcription_off() {
+  WANT_TRANSCRIBER=0
+  set_env_value DTK_TRANSCRIBER_URL ""
+  set_ctl_profile transcriber off
+  warn "$1"
+  info "Transcription is off; everything else carries on. Turn it on later from"
+  info "the menu: bash install.sh --manage, then Manage, 11."
+}
+
 # ------------------------------------------------------------------- steps --
 
 # Every answer can be preset from the environment, which is what makes --yes a
@@ -515,6 +783,9 @@ BIND_PORT="${DTK_BIND_PORT:-8000}"
 WANT_BROWSER="${DTK_ENABLE_BROWSER:-0}"
 WANT_DOWNLOADER="${DTK_ENABLE_DOWNLOADER:-1}"
 USE_PUBLISHED="${DTK_USE_PUBLISHED:-1}"
+WANT_TRANSCRIBER="${DTK_ENABLE_TRANSCRIBER:-0}"
+MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
+MODELS_TO_FETCH=0
 
 banner() {
   printf '\n'
@@ -665,11 +936,50 @@ ask_questions() {
   if ask_yes_no "Enable media downloads?" "$dl_default"; then WANT_DOWNLOADER=1; else WANT_DOWNLOADER=0; fi
 
   printf '\n'
+  dim "Offline transcription turns stored videos into text on this machine, with"
+  dim "FunASR models trained for Mandarin. About 1 GiB of RAM and two cores while"
+  dim "it works, and 500 MB of models that this can download and check for you."
+  # Off unless asked for, like the browser: it is a download from a third
+  # party and a second CPU-hungry container, not something to start because
+  # somebody passed --yes.
+  local tx_default="n"
+  [ "${DTK_ENABLE_TRANSCRIBER:-}" = "1" ] && tx_default="y"
+  if [ "$WANT_DOWNLOADER" = 0 ]; then
+    dim "It transcribes the videos the downloader stores, so with media downloads"
+    dim "off it stays off."
+    WANT_TRANSCRIBER=0
+  elif [ "$CPUS" -lt 2 ]; then
+    dim "It needs two cores and this machine has one, so it stays off."
+    WANT_TRANSCRIBER=0
+  else
+    if ask_yes_no "Enable offline transcription?" "$tx_default"; then WANT_TRANSCRIBER=1; else WANT_TRANSCRIBER=0; fi
+    if [ "$WANT_TRANSCRIBER" = 1 ] && [ "$MEM_MIB" -gt 0 ] && [ "$MEM_MIB" -lt 4000 ]; then
+      warn "Under 4 GiB of RAM. It fits, but give this machine swap."
+    fi
+  fi
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    choose_model_path
+  fi
+
+  printf '\n'
   dim "Published images are pulled and start in about a minute. Building from"
   dim "source takes several minutes and needs npm and uv to reach the network."
   local pub_default="y"; [ "$USE_PUBLISHED" = 0 ] && pub_default="n"
   if ask_yes_no "Use the published images (recommended)?" "$pub_default"; then USE_PUBLISHED=1; else USE_PUBLISHED=0; fi
 
+}
+
+# Before .env and dtkctl exist, so a download that fails leaves an install with
+# transcription off rather than one pointing at models that are not there.
+fetch_models() {
+  if [ "$WANT_TRANSCRIBER" = 0 ] || [ "$MODELS_TO_FETCH" = 0 ]; then
+    return 0
+  fi
+  if ! download_models "$MODEL_PATH"; then
+    WANT_TRANSCRIBER=0
+    warn "Transcription stays off. What did download is kept, so the next attempt"
+    warn "fetches only the rest."
+  fi
 }
 
 write_env() {
@@ -679,14 +989,20 @@ write_env() {
   if [ -f "$env_file" ]; then
     ok "Keeping the existing .env — its secrets are what the database was built with."
     info "Delete it yourself if you want a fresh one, but the old volumes will not open."
+    # dtkctl is about to start the transcriber, and an .env from before it
+    # existed would leave the api without its address and it without a token.
+    if [ "$WANT_TRANSCRIBER" = 1 ]; then
+      write_transcriber_env
+    fi
     return
   fi
 
-  local pg_pass redis_pass secret dl_token
+  local pg_pass redis_pass secret dl_token tx_token
   pg_pass="$(random_hex 24)"
   redis_pass="$(random_hex 24)"
   secret="$(random_b64 48)"
   dl_token="$(random_hex 24)"
+  tx_token="$(random_hex 24)"
 
   # 0600 from the moment it exists: this file is the instance's keys.
   local old_umask
@@ -715,6 +1031,15 @@ write_env() {
       printf 'DTK_DOWNLOADER_URL=\n'
       printf 'DTK_DOWNLOADER_TOKEN=\n'
     fi
+    if [ "$WANT_TRANSCRIBER" = 1 ]; then
+      printf 'DTK_TRANSCRIBER_URL=http://transcriber:9200\n'
+      printf 'DTK_TRANSCRIBER_TOKEN=%s\n' "$tx_token"
+      printf 'DTK_TRANSCRIBER_MODEL_PATH=%s\n' "$MODEL_PATH"
+    else
+      printf 'DTK_TRANSCRIBER_URL=\n'
+      printf 'DTK_TRANSCRIBER_TOKEN=\n'
+      printf 'DTK_TRANSCRIBER_MODEL_PATH=\n'
+    fi
     printf '\n'
     printf 'DTK_BIND_HOST=%s\n' "$BIND_HOST"
     printf 'DTK_BIND_PORT=%s\n' "$BIND_PORT"
@@ -722,6 +1047,7 @@ write_env() {
       printf 'DTK_IMAGE=evil0ctal/douyin_tiktok_download_api\n'
       printf 'DTK_IMAGE_TAG=latest\n'
       printf 'DTK_DOWNLOADER_IMAGE=evil0ctal/douyin_tiktok_download_api-downloader\n'
+      printf 'DTK_TRANSCRIBER_IMAGE=%s\n' "$TRANSCRIBER_IMAGE"
     fi
   } >"$env_file"
   umask "$old_umask"
@@ -770,6 +1096,11 @@ write_host_override() {
       printf '  worker:\n    mem_limit: %sm\n' "$(( MEM_MIB / 9 ))"
       printf '  browser-rpc:\n    mem_limit: %sm\n    cpus: %s\n' "$(( MEM_MIB / 3 ))" "$browser_cpu"
       printf '  downloader:\n    mem_limit: %sm\n    cpus: 1.0\n' "$(( MEM_MIB / 20 ))"
+      # Flat rather than a share of RAM: it needs what the models and one
+      # decoded file need (0.9 GiB measured on a 3-minute clip; an hour of
+      # audio adds about 230 MB) whatever the host. No swap, as in compose,
+      # because inference that pages is slower than inference that fails.
+      printf '  transcriber:\n    mem_limit: 1536m\n    memswap_limit: 1536m\n'
     else
       printf '  api:\n    cpus: %s\n' "$api_cpu"
       printf '  worker:\n    cpus: %s\n' "$api_cpu"
@@ -810,6 +1141,7 @@ write_control_script() {
     printf 'exec docker compose -p %s %s' "$PROJECT" "$files"
     [ "$WANT_BROWSER" = 1 ] && printf ' --profile browser'
     [ "$WANT_DOWNLOADER" = 1 ] && printf ' --profile downloader'
+    [ "$WANT_TRANSCRIBER" = 1 ] && printf ' --profile transcriber'
     printf ' "$@"\n'
   } >"$ctl"
   chmod 755 "$ctl"
@@ -839,6 +1171,17 @@ bring_up() {
   if [ "$WANT_BROWSER" = 1 ]; then
     info "Building the browser image. This one is not published — expect several minutes."
     "$ctl" build browser-rpc || die "The browser image failed to build. Re-run without it, or see $DOCS_URL"
+  fi
+
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    if [ "$USE_PUBLISHED" = 1 ]; then
+      info "Pulling the transcription image."
+      "$ctl" pull transcriber || transcription_off "The transcription image could not be pulled.
+    The release in use may predate it, or the registry did not answer."
+    else
+      info "Building the transcription image."
+      "$ctl" build transcriber || transcription_off "The transcription image failed to build."
+    fi
   fi
 
   info "Applying database migrations."
@@ -880,11 +1223,20 @@ show_result() {
   info "Directory   $INSTALL_DIR"
   info "Control     $ctl ps | logs -f api | restart api | down"
   info "Secrets     $INSTALL_DIR/.env  — back this up; it decrypts the database"
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    info "Models      $MODEL_PATH"
+  fi
   info "Docs        $DOCS_URL"
   if [ "$WANT_BROWSER" = 0 ]; then
     printf '\n'
     dim "The browser container is off, so the identity pool will not fill itself."
     dim "Import your own cookies from the console: Identities → Import."
+  fi
+  if [ "$WANT_TRANSCRIBER" = 1 ] && [ "$WANT_BROWSER" = 1 ]; then
+    printf '\n'
+    dim "Transcription and the browser container share the CPU: a transcription"
+    dim "that runs while an identity is being minted takes several times longer."
+    dim "The first minutes, while the pool fills, are the busiest."
   fi
   if [ "$BIND_HOST" = "0.0.0.0" ]; then
     printf '\n'
@@ -926,6 +1278,23 @@ for project in projects:
   dir="$(dirname "$(dirname "$config")")"
   [ -f "$dir/docker/compose.yml" ] || return 1
   printf '%s' "$dir"
+}
+
+# What an existing install has turned on, read from its own dtkctl and .env.
+# The menu used to take these from this run's environment, which knows nothing
+# about that install: an upgrade pulled a downloader it never enabled, and
+# would have skipped the transcriber it had.
+load_install_state() {
+  WANT_BROWSER=0
+  WANT_DOWNLOADER=0
+  WANT_TRANSCRIBER=0
+  USE_PUBLISHED=0
+  if grep -qF -- "--profile browser" "$CTL"; then WANT_BROWSER=1; fi
+  if grep -qF -- "--profile downloader" "$CTL"; then WANT_DOWNLOADER=1; fi
+  if grep -qF -- "--profile transcriber" "$CTL"; then WANT_TRANSCRIBER=1; fi
+  if [ -n "$(env_value DTK_IMAGE)" ]; then USE_PUBLISHED=1; fi
+  MODEL_PATH="$(env_value DTK_TRANSCRIBER_MODEL_PATH)"
+  [ -n "$MODEL_PATH" ] || MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
 }
 
 # The version the running instance reports. The only one that counts: the
@@ -1084,9 +1453,15 @@ do_upgrade() {
   info "Pulling."
   local services=(api worker)
   [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
+  # Only a published transcriber is pulled; a local build is rebuilt by `up`.
+  if [ "$WANT_TRANSCRIBER" = 1 ] && [ -n "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
+    services+=(transcriber)
+  fi
   if ! DTK_IMAGE_TAG="$target" "$CTL" pull "${services[@]}"; then
     die "Could not pull $target. Nothing was changed and the old version is still running.
-    Check the tag exists: https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags"
+    Check the tag exists: https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags
+    With transcription on, a release from before it has no transcriber image;
+    turn transcription off from the menu first to go back that far."
   fi
 
   # Pin the tag rather than following `latest`: an operator should be able to
@@ -1242,7 +1617,7 @@ act_free_disk() {
   local in_use images=""
   in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
   images="$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
-    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app)' \
+    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app|dtk-downloader|dtk-transcriber)' \
     | while read -r ref id; do
         printf '%s\n' "$in_use" | grep -qxF "$ref" || printf '%s %s\n' "$ref" "$id"
       done || true)"
@@ -1270,6 +1645,83 @@ act_free_disk() {
   printf '\n'
   info "After:"
   docker system df 2>/dev/null | sed 's/^/      /'
+}
+
+# Transcription is the optional part most installs will want to add later, so
+# it is the one the menu can switch. Both directions touch only the lines they
+# own in .env and dtkctl, then recreate the stack: api and worker read the
+# transcriber's address once, at start.
+act_transcription() {
+  step "Transcription"
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    ok "On. Models: ${MODEL_PATH:-not recorded in .env}"
+    "$CTL" ps transcriber --format "table {{.Service}}\t{{.Status}}" 2>/dev/null | sed 's/^/    /' || true
+    printf '\n'
+    dim "Turning it off keeps every transcript already made, and the models on disk."
+    if ! ask_yes_no "Turn it off?" "n"; then
+      return 0
+    fi
+    "$CTL" rm -sf transcriber >/dev/null 2>&1 || true
+    set_env_value DTK_TRANSCRIBER_URL ""
+    set_ctl_profile transcriber off
+    WANT_TRANSCRIBER=0
+    "$CTL" up -d --wait || { warn "The stack did not come back healthy. Try: $CTL logs"; return 0; }
+    ok "Transcription is off. Delete ${MODEL_PATH:-the models} yourself if you want the space."
+    return 0
+  fi
+
+  if [ "$WANT_DOWNLOADER" = 0 ]; then
+    warn "Transcription works on stored videos, and this install has media downloads off."
+    return 0
+  fi
+  if [ "$CPUS" -lt 2 ]; then
+    warn "Transcription needs two cores; this machine has one."
+    return 0
+  fi
+  dim "Offline transcription turns stored videos into text on this machine, with"
+  dim "FunASR models trained for Mandarin. About 1 GiB of RAM and two cores while"
+  dim "it works, and 500 MB of models that this can download and check for you."
+  if ! ask_yes_no "Turn it on?" "y"; then
+    return 0
+  fi
+  WANT_TRANSCRIBER=1
+  choose_model_path
+  fetch_models
+  if [ "$WANT_TRANSCRIBER" = 0 ]; then
+    return 0
+  fi
+
+  # The image before any file changes: a release from before transcription
+  # has no transcriber tag, and finding that out after .env says "on" would
+  # leave an install that cannot start.
+  local image
+  image="$(env_value DTK_TRANSCRIBER_IMAGE)"
+  if [ -z "$image" ] && [ "$USE_PUBLISHED" = 1 ]; then image="$TRANSCRIBER_IMAGE"; fi
+  if [ -n "$image" ]; then
+    info "Pulling the transcription image."
+    if ! DTK_TRANSCRIBER_IMAGE="$image" "$CTL" --profile transcriber pull transcriber; then
+      warn "Could not pull it. The version this install runs may predate transcription"
+      warn "(upgrade first, 2 in the main menu), or the registry did not answer."
+      WANT_TRANSCRIBER=0
+      return 0
+    fi
+  else
+    info "Building the transcription image."
+    if ! "$CTL" --profile transcriber build transcriber; then
+      warn "The transcription image failed to build. Nothing was changed."
+      WANT_TRANSCRIBER=0
+      return 0
+    fi
+  fi
+
+  write_transcriber_env
+  set_ctl_profile transcriber on
+  info "Starting it, and recreating api and worker so they know where it is."
+  if ! "$CTL" up -d --wait; then
+    warn "The stack did not come up healthy. The reason is usually in: $CTL logs transcriber"
+    return 0
+  fi
+  ok "Transcription is on. Open a stored video in the console and choose Transcribe."
 }
 
 # ----------------------------------------------------------------- menus --
@@ -1316,6 +1768,7 @@ menu_manage() {
     info "  3  List accounts              8  Restart services"
     info "  4  Back up now                9  Settings"
     info "  5  Restore a backup          10  Free disk space"
+    info "                               11  Transcription on or off"
     info "  b  Back"
     case "$(ask_choice "Which?")" in
       1) act_change_password; pause_for_reader ;;
@@ -1328,6 +1781,7 @@ menu_manage() {
       8) act_restart; pause_for_reader ;;
       9) act_setting; pause_for_reader ;;
       10) act_free_disk; pause_for_reader ;;
+      11) act_transcription; pause_for_reader ;;
       b|"") return 0 ;;
       *) warn "Pick a number from the list, or b." ;;
     esac
@@ -1401,7 +1855,8 @@ usage() {
 Usage: bash install.sh [options]
 
   --yes, -y      Take the default answer to every question. Publishes on
-                 127.0.0.1:8000, downloader on, browser container off.
+                 127.0.0.1:8000, downloader on, browser container and
+                 transcription off.
   --check        Detect the system and print what would happen, then stop.
                  Changes nothing.
   --manage       Go straight to the menu for an install that already exists.
@@ -1418,6 +1873,11 @@ Environment (each one presets an answer, so --yes becomes unattended):
   DTK_BIND_PORT          Default: 8000.
   DTK_ENABLE_BROWSER     1 to build the browser container, 0 (default) not to.
   DTK_ENABLE_DOWNLOADER  1 (default) for media downloads, 0 without.
+  DTK_ENABLE_TRANSCRIBER 1 for offline transcription, 0 (default) without.
+                         Needs media downloads and two cores.
+  DTK_TRANSCRIBER_MODEL_PATH
+                         Where its models are, or are to be downloaded to.
+                         Default: <install directory>/models/funasr-onnx.
   DTK_USE_PUBLISHED      1 (default) to pull images, 0 to build from source.
 EOF
 }
@@ -1479,6 +1939,7 @@ main() {
   if [ -n "$found" ] && [ -x "$found/dtkctl" ]; then
     INSTALL_DIR="$found"
     CTL="$found/dtkctl"
+    load_install_state
     if [ -z "$TTY_IN" ]; then
       warn "An install is already at $INSTALL_DIR."
       info "Run this from a terminal to manage it, or use $CTL directly."
@@ -1499,6 +1960,7 @@ main() {
   choose_directory
   prepare_directory
   ask_questions
+  fetch_models
   write_env
   write_host_override
   write_control_script
