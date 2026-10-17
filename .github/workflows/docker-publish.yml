@@ -1,6 +1,6 @@
 # Build the images and push them to Docker Hub.
 #
-# Two images, and deliberately not three:
+# Three images, and deliberately not four:
 #
 #   dtk (the app)   api, worker and migrate are one image that differs only in
 #                   the verb handed to the entrypoint. This is the image almost
@@ -8,6 +8,12 @@
 #   dtk-downloader  the Go media sidecar. 9 MB, optional at runtime, and worth
 #                   publishing so that `--profile downloader` does not make
 #                   every operator build Go.
+#   dtk-transcriber the offline FunASR sidecar, optional at runtime. Published
+#                   because it carries nothing that is not ours to ship: every
+#                   wheel is pinned in docker/transcriber/requirements.txt, and
+#                   the models are mounted by the operator rather than baked
+#                   in. Without it, turning transcription on meant a pip build
+#                   on every host - and a guided install could not pull it.
 #
 #   browser-rpc is NOT published. It installs CloakBrowser from a pinned commit
 #   passed in as a build argument, so an image built here would ship somebody
@@ -15,10 +21,12 @@
 #   control, see docker/Dockerfile.browser - would become ours rather than the
 #   operator's. It stays a local build; docker/README.md says how.
 #
-# Both images are built for linux/amd64 and linux/arm64. The slow parts do not
-# run under emulation: the console stage and the Go build are pinned to
-# BUILDPLATFORM and produce architecture-independent or cross-compiled output
-# (see the two Dockerfiles).
+# All three are built for linux/amd64 and linux/arm64. The slow parts of the
+# first two do not run under emulation: the console stage and the Go build are
+# pinned to BUILDPLATFORM and produce architecture-independent or
+# cross-compiled output (see the two Dockerfiles). The transcriber installs
+# prebuilt wheels plus one pure-Python sdist (jieba), so its arm64 half under
+# QEMU is mostly a download rather than a compile.
 name: Publish Docker images
 
 # Only `release` and version tags. NOT `main`, on purpose.
@@ -52,9 +60,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Change these two together with the Docker Hub repositories they name.
+  # Change these together with the Docker Hub repositories they name.
   APP_IMAGE: evil0ctal/douyin_tiktok_download_api
   DOWNLOADER_IMAGE: evil0ctal/douyin_tiktok_download_api-downloader
+  TRANSCRIBER_IMAGE: evil0ctal/douyin_tiktok_download_api-transcriber
 
 jobs:
   publish:
@@ -63,7 +72,7 @@ jobs:
     permissions:
       contents: read
     strategy:
-      # One failing image must not cancel the other: a downloader build that
+      # One failing image must not cancel the others: a sidecar build that
       # breaks is not a reason to withhold the application image.
       fail-fast: false
       matrix:
@@ -84,6 +93,13 @@ jobs:
             description: >-
               Media downloader sidecar for Douyin_TikTok_Download_API. A static
               Go binary on scratch.
+          - name: transcriber
+            image: evil0ctal/douyin_tiktok_download_api-transcriber
+            dockerfile: docker/Dockerfile.transcriber
+            build_args: ""
+            description: >-
+              Offline transcription sidecar for Douyin_TikTok_Download_API.
+              FunASR ONNX; the models are mounted, not included.
 
     steps:
       - uses: actions/checkout@v7
@@ -198,6 +214,25 @@ jobs:
             echo "entrypoint accepted an unknown role" >&2
             exit 1
           fi
+
+      # No models here, so this cannot start the service. What it can check is
+      # everything the image is responsible for: the service module and the
+      # pinned runtime import, the bundled ffmpeg runs on this architecture,
+      # and the process is not root.
+      - name: Smoke test the built image
+        if: matrix.name == 'transcriber'
+        run: |
+          docker buildx build --load --platform linux/amd64 \
+            -f ${{ matrix.dockerfile }} -t dtk-transcriber:smoke \
+            --cache-from type=gha,scope=${{ matrix.name }} .
+          docker run --rm --network none --read-only dtk-transcriber:smoke python -c '
+          import subprocess
+          import imageio_ffmpeg, onnxruntime, funasr_onnx, wetext
+          import app
+          subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-version"], check=True, capture_output=True)
+          print("onnxruntime", onnxruntime.__version__)
+          '
+          test "$(docker run --rm dtk-transcriber:smoke id -u)" = 10001
 
       - name: Summary
         run: |
