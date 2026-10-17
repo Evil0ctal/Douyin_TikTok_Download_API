@@ -554,6 +554,10 @@ pool exists to avoid once you run more than a handful of identities.
 
 Add proxies when:
 
+- this server cannot reach the platform at all - mainland China to TikTok is
+  the usual case. Requests then fail with `UPSTREAM_UNREACHABLE`, and only
+  identities behind a proxy fix that: see [A platform this server cannot reach
+  directly](#a-platform-this-server-cannot-reach-directly);
 - you run more than one or two identities per platform - without proxies every
   one of them leaves from the same address, and the more of them there are the
   more that pattern stands out;
@@ -624,6 +628,16 @@ fresh HTTP client is used per probe: connection pools are bound to an egress, an
 reusing one across proxies would report the health of whichever exit the pooled
 connection happens to hold.
 
+`socks5://` and `socks5h://` proxies are probed exactly like `http://` ones.
+Earlier builds could not probe them at all: **Test** answered `INTERNAL` and the
+sweep left them with no verdict.
+
+When a probe fails, its reason is kept with the proxy, credentials stripped, and
+shown under the **Unhealthy** badge until a probe passes; the list response
+carries it as `last_error`. `ProxyError: 400 Bad Request` there means the
+address answered but is not a forward proxy - see [the troubleshooting
+entry](./14-troubleshooting.md#upstream_unreachable-and-a-platform-this-server-cannot-reach).
+
 In the background the worker:
 
 - sweeps every proxy every five minutes and writes back health plus GeoIP (a
@@ -647,13 +661,16 @@ does not change identities that were already minted.
 
 The table's columns are State, Label, Address (masked), Exit (country over time
 zone), Latency, Identities, Last check, and - hidden by default - Proxy id and
-Created. Two caveats worth knowing, because otherwise they read as bugs:
+Created. Two of them need a note:
 
 - **Latency** is filled in from a probe you run on this page in this session. The
   listing itself carries no stored latency, so an untouched row shows `—`.
-- **Identities** is `—` in the listing today; the count is not part of the list
-  response. To see which identities sit behind a proxy, use the Identities page:
-  the Proxy column shows the label, and the search box matches proxy ids.
+- **Identities** counts the identities bound to the proxy that are not retired,
+  across both platforms. A `0` on a proxy you meant identities to use is the
+  first thing to check when requests still go out direct: an identity is bound
+  when it is minted or imported, never afterwards. To see which identities sit
+  behind a proxy, use the Identities page: the Proxy column shows the label, and
+  the search box matches proxy ids.
 
 You can also override health by hand (**Mark healthy** / **Mark unhealthy** on
 selected rows, or the `healthy` field on `PUT /api/v1/admin/proxies/{id}`), for
@@ -682,10 +699,32 @@ identities and they come back when it does.
   `proxy_id` in the API) overrides that search: you chose the exit deliberately,
   and a one-proxy install could otherwise never mint its second identity.
 - With no proxies configured at all, identities are minted on the direct egress.
-  That is what an install without proxies asked for.
-- An imported jar takes whatever proxy you selected in the import dialog, or
-  none.
+  That is what an install without proxies asked for. Leaving the proxy unset in
+  the Mint dialog runs the same search as the automatic job, so a mint goes
+  direct only in this case.
+- An imported jar takes the proxy you select in the import dialog. The default
+  option, **No proxy - direct from this server**, means exactly that, for the
+  identity's whole life; an import never searches for a proxy.
 - Nothing in the system ever moves an identity to a different proxy.
+
+### A platform this server cannot reach directly
+
+From mainland China, TikTok is not reachable without a proxy. Every request
+then fails on the network before the platform answers, and the API reports
+`UPSTREAM_UNREACHABLE` with `details.proxied: false`. Adding a proxy afterwards
+changes nothing by itself: the identities already in the pool were bound to the
+direct egress when they were minted or imported, and that binding is permanent.
+
+1. Add a forward proxy the containers can reach - a local Clash or mihomo
+   inbound, not a VPN subscription URL - and press **Test** until it is healthy.
+2. Retire that platform's direct identities.
+3. Mint behind the proxy, or import with the proxy selected in the dialog.
+4. Check that the proxy's **Identities** column counts them.
+
+With a single proxy, choose it explicitly in the Mint dialog: automatic refill
+takes only a proxy no identity of that platform uses, so it stops after the
+first. The addresses to use and the errors along the way are in
+[troubleshooting](./14-troubleshooting.md#upstream_unreachable-and-a-platform-this-server-cannot-reach).
 
 ## The Scheduler page (/scheduler)
 

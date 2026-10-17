@@ -390,6 +390,7 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `UPSTREAM_RISK_CONTROL` | 502 | **yes** | The platform flagged the request; the identity is cooling down |
 | `UPSTREAM_CHANGED` | 502 | no | The platform's response no longer matches the parser; `details.path` names the field. Report it |
 | `SIGNING_FAILED` | 502 | **yes** | Signing failed; the algorithm may be out of date |
+| `UPSTREAM_UNREACHABLE` | 502 | **yes** | Every attempt failed on the network before the platform answered; `details.proxied` says whether the last one went through a proxy. Usually this host's egress, not the platform |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **yes** | No identity free; `retry_after` estimates the recovery |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **yes** | This endpoint is paused after repeated failures |
 | `QUEUE_FULL` | 503 | **yes** | The queue is at its ceiling |
@@ -409,7 +410,7 @@ The `retryable` boolean appears on a **task's stored error** (`GET /api/v1/tasks
 
 Anything else can reasonably be treated as "log it and stop", but these four decisions have to be in your code:
 
-1. **Back off and retry**: `RATE_LIMITED`, `QUEUE_FULL`, `IDENTITY_POOL_EXHAUSTED`, `ENDPOINT_CIRCUIT_OPEN`, `UPSTREAM_RISK_CONTROL`, `SIGNING_FAILED`, `INTERNAL`, `DOWNLOADER_UNAVAILABLE`. Honour `retry_after` where present; use exponential backoff where it is not.
+1. **Back off and retry**: `RATE_LIMITED`, `QUEUE_FULL`, `IDENTITY_POOL_EXHAUSTED`, `ENDPOINT_CIRCUIT_OPEN`, `UPSTREAM_RISK_CONTROL`, `SIGNING_FAILED`, `UPSTREAM_UNREACHABLE`, `INTERNAL`, `DOWNLOADER_UNAVAILABLE`. A run of `UPSTREAM_UNREACHABLE` will not clear by waiting if this server cannot reach the platform at all - see [Troubleshooting](./14-troubleshooting.md#upstream_unreachable-and-a-platform-this-server-cannot-reach). Honour `retry_after` where present; use exponential backoff where it is not.
 2. **Never retry the same request**: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `NOT_FOUND`, `CONTENT_PRIVATE`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `CANCELLED`, `NOT_CONFIGURED`, `UPSTREAM_CHANGED`. A loop on one of these burns identities to be told the same thing.
 3. **Fix the credential**: `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`. `details` carries both sides: `required_scopes` or `required_roles` for what the endpoint wants, and `have_role`, `have_scopes` and `via` for what you sent. `via` is the one to read first — it says whether this caller is judged by its scopes (`api_key`) or by its role (`session`), and an administrator's key is still bounded by its scopes.
 4. **Resubmit the work**: `TASK_NOT_FOUND`. The result window has passed; the task id is dead.
@@ -637,6 +638,7 @@ RETRYABLE = {
     "ENDPOINT_CIRCUIT_OPEN",
     "UPSTREAM_RISK_CONTROL",
     "SIGNING_FAILED",
+    "UPSTREAM_UNREACHABLE",
     "DOWNLOADER_UNAVAILABLE",
     "INTERNAL",
 }
@@ -711,7 +713,8 @@ const HEADERS = { "X-API-Key": process.env.DTK_API_KEY, "Content-Type": "applica
 
 const RETRYABLE = new Set([
   "RATE_LIMITED", "QUEUE_FULL", "IDENTITY_POOL_EXHAUSTED", "ENDPOINT_CIRCUIT_OPEN",
-  "UPSTREAM_RISK_CONTROL", "SIGNING_FAILED", "DOWNLOADER_UNAVAILABLE", "INTERNAL",
+  "UPSTREAM_RISK_CONTROL", "SIGNING_FAILED", "UPSTREAM_UNREACHABLE", "DOWNLOADER_UNAVAILABLE",
+  "INTERNAL",
 ]);
 
 class DtkError extends Error {

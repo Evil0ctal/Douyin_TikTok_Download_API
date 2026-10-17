@@ -290,11 +290,12 @@ The retryability sentence is generated from the same table the REST layer uses, 
 | `ENDPOINT_CIRCUIT_OPEN` | The breaker tripped on this endpoint | Yes, after the stated delay |
 | `IDENTITY_POOL_EXHAUSTED` | No usable identity right now | Yes — the pool refills itself |
 | `UPSTREAM_RISK_CONTROL` | The platform pushed back on this request | Yes, after a backoff |
+| `UPSTREAM_UNREACHABLE` | The platform never answered: every attempt failed on the network, usually this instance's egress | Yes, but if it keeps happening the operator needs a proxy, not more retries |
 | `RATE_LIMITED` | The key's own limit | Yes, after the stated delay |
 | `TASK_NOT_FOUND` | Unknown task id, or a result past retention | See the message — a past-retention result says plainly that waiting will not help |
 | `INTERNAL` | The request failed inside dtk | Yes, but check the logs |
 
-For the five codes where health is part of the explanation — circuit open, pool exhausted, risk control, signing failure and internal — the message also carries the endpoint's circuit state and its last success time. Exception text is logged, never sent: it can name a host, a query or a header, and none of that belongs in a model's context.
+For the six codes where health is part of the explanation — circuit open, pool exhausted, risk control, signing failure, upstream unreachable and internal — the message also carries the endpoint's circuit state and its last success time. Exception text is logged, never sent: it can name a host, a query or a header, and none of that belongs in a model's context.
 
 ## Scopes as they apply to an agent
 

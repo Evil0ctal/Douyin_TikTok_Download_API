@@ -326,7 +326,7 @@ Note rules 5 and 9. Both mean *our signature was rejected*, not *this identity i
 
 ### Retrying
 
-A `network_error` is retried on a **different** identity — up to `MAX_TRANSPORT_ATTEMPTS` (3) attempts — because the fault is in the egress rather than in the request. If three separate exits cannot reach the platform, the problem is not the identity, and the caller gets a 500 naming the last error.
+A `network_error` is retried on a **different** identity — up to `MAX_TRANSPORT_ATTEMPTS` (3) attempts — because the fault is in the egress rather than in the request. If three separate exits cannot reach the platform, the problem is not the identity, and the caller gets `UPSTREAM_UNREACHABLE` (502) naming the last error and saying whether that attempt went through a proxy. It was a 500 `INTERNAL` once, which told the caller to report a bug for what is nearly always this host's egress - a server in mainland China reaching TikTok with no proxy on the identity, say.
 
 `risk_control` and `business_error` are not retried. They are answers.
 

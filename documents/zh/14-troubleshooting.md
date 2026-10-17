@@ -76,6 +76,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | 链接被判为 `INVALID_URL` | [INVALID_URL 背后的八种原因](#invalid_url-背后的八种原因) |
 | 浏览器里能打开的作品却 `NOT_FOUND` | [明明存在的作品却返回 NOT_FOUND](#明明存在的作品却返回-not_found) |
 | `UPSTREAM_RISK_CONTROL` | [UPSTREAM_RISK_CONTROL](#upstream_risk_control) |
+| `UPSTREAM_UNREACHABLE`，或者加了代理却什么都没变 | [UPSTREAM_UNREACHABLE 和这台服务器连不上的平台](#upstream_unreachable-和这台服务器连不上的平台) |
 | `SIGNING_FAILED`，或者空响应且没有报错 | [签名错误与签名自检](#签名错误与签名自检) |
 | browser-rpc 挂了或者根本没启动 | [浏览器容器不可用](#浏览器容器不可用) |
 | 下载失败，或者文件不在 | [下载失败或者文件不见了](#下载失败或者文件不见了) |
@@ -136,6 +137,7 @@ MCP 的工具错误用的是同一个信封，所以一套错误处理同时覆�
 | `UPSTREAM_RISK_CONTROL` | 502 | 是 | 平台拒绝了这个身份，该身份已进入冷却 |
 | `UPSTREAM_CHANGED` | 502 | 否 | 平台响应结构和解析器的预期对不上了。`details.path` 指名字段 |
 | `SIGNING_FAILED` | 502 | 是 | 没有可用的签名器，或签名器抛错 |
+| `UPSTREAM_UNREACHABLE` | 502 | 是 | 每次尝试都在平台应答之前就在网络层失败了。`details.proxied` 说明最后一次有没有走代理——见[下文](#upstream_unreachable-和这台服务器连不上的平台) |
 | `TASK_NOT_FOUND` | 404 | 是 | 没有这个 id 的任务，或者结果已过期。整体上标为可重试——但结果一旦过期，重试也拿不回来，重新提交即可 |
 | `SETUP_ALREADY_DONE` | 409 | 否 | 本实例已经有管理员账号了 |
 | `SETUP_TOKEN_INVALID` | 403 | 否 | 初始化令牌不对或已过期 |
@@ -633,6 +635,30 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 ---
 
+## UPSTREAM_UNREACHABLE 和这台服务器连不上的平台
+
+**症状。** 访问某一个平台的请求返回 `UPSTREAM_UNREACHABLE`（502）——最常见的是在中国大陆的服务器上访问 TikTok——而另一个平台正常。错误里带有 `details.endpoint`、`details.last_error`（`transport_failure`）和 `details.proxied`；请求日志里这些行没有 HTTP 状态码。更早的版本把同样的失败报成 `INTERNAL`。
+
+**含义。** 每一次尝试都在平台应答之前就失败了：连接被拒、被重置或超时，或者中间的代理拒绝了它。调度器已经换过别的身份（换一个身份就是换一个出口），也都失败了。它和内容本身无关，也不会因此冷却任何身份。
+
+**先看 `details.proxied`。**
+
+- `false`——最后一次尝试是从这台服务器直连出去的。在连不上该平台的机器上，等多久都不会好：这个身份没有代理。
+- `true`——请求走了身份绑定的代理，是代理到不了平台。见[代理探测失败](#代理探测失败)。
+
+**为什么加了代理也没用。** 身份从铸造或导入的那一刻起，就和它的出口终身绑定。之后再加的代理永远不会套到已有的身份上——只有在它之后铸造或导入的身份才会用到——所以原来失败的那些身份仍然在直连。
+
+**修复（针对这台服务器无法直连的平台）：**
+
+1. 准备一个在容器里能用的正向代理。VPN 订阅链接或者以 `host:port` 形式粘贴的「机场」节点都不是；探测它会得到 `ProxyError: 400 Bad Request`。在本机跑一个 Clash、mihomo 之类的客户端，把它的 HTTP 或 SOCKS 入站开在容器能访问到的地址上——不能是 `127.0.0.1`，它在容器里指的是容器自己：Linux 上用 Docker 网桥网关（例如 `http://172.17.0.1:7890`），Docker Desktop 上用 `host.docker.internal`——然后把这个地址添加为代理。Clash 和 mihomo 默认只监听回环地址，要设 `allow-lan: true` 才行；设了之后记得在防火墙上挡住这个端口，公网服务器上的开放代理很快会被人扫到并拿去用。
+2. 在 `/proxies` 上点 **测试**，直到它变绿。探测失败时，原因会显示在状态标记下面。
+3. 退休该平台的直连身份，然后重新铸造——铸造时不选代理，会取一个健康、且该平台还没有身份在用的代理——或者在导入时选中这个代理。导入对话框里的 **不用代理** 意味着永久直连。
+4. 看 `/proxies` 上的 **身份** 一列：这个代理后面应该有身份了。
+
+只有一个代理时，请在铸造对话框里明确选中它：自动补充只会取该平台还没有身份在用的代理，所以绑上第一个身份之后就没有空闲代理了，会报 `no_free_proxy`。
+
+---
+
 ## 签名错误与签名自检
 
 每一个平台请求都用平台自身算法的纯 Python 重实现来签名。当它漂移时，症状很少是一个干净的报错。
@@ -817,14 +843,14 @@ docker compose -p dtk -f docker/compose.yml logs downloader | tail -40
 docker compose -p dtk -f docker/compose.yml exec api dtk proxy test '<proxy-id>'
 ```
 
-它会报告出口 IP、国家、时区、延迟，失败时给出 detail，并把健康与地理结果写回该行（传 `--no-write` 则只探测不记录）。id 可以用表格里显示的短前缀。控制台在 `/proxies` 上每一行都有同样的按钮。
+它会报告出口 IP、国家、时区、延迟，失败时给出 detail，并把健康与地理结果写回该行（传 `--no-write` 则只探测不记录）。id 可以用表格里显示的短前缀。控制台在 `/proxies` 上每一行都有同样的按钮，并把最近一次失败探测的 detail 显示在「不健康」标记下面——它会一直留在该行上，直到某次探测通过。`socks5://` 和 `socks5h://` 代理和 `http://` 一样能探测；更早的版本完全探测不了它们，只会报 `ImportError`。
 
 **读懂 detail。**
 
 | detail | 原因 |
 |---|---|
 | `ConnectTimeout`、`ConnectionError`、`ProxyConnectionError` | 出口挂了，或凭证不对，或供应商不允许你这台机器的地址 |
-| `ImportError` | SOCKS 代理但没装 httpx 的对应可选依赖 |
+| `ProxyError: 400 Bad Request` | 代理对 `CONNECT` 回了 400：添加的不是正向代理，通常是 VPN 订阅链接或被当成 `http://host:port` 的「机场」节点。凭证错误会是 407，出口挂了会是超时。该改用什么见 [UPSTREAM_UNREACHABLE](#upstream_unreachable-和这台服务器连不上的平台) |
 | `ValueError` | 代理 URL 本身写法不可用 |
 | `probe returned no JSON` / `no JSON object` | 探测 URL 不是你以为的那个服务，或者被门户页面劫持了 |
 | 请求日志里出现 HTTP 407 | 代理自己在拒绝：出口配置错误，或者订阅到期了。它被计为网络错误以便触发代理健康探测，绝不会被当成「内容不存在」 |

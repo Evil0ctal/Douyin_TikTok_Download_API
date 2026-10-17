@@ -497,6 +497,16 @@ npm config get registry
 If a step still fails after switching mirrors, run that step alone and read its own error before
 suspecting the project — everything listed here names the host it could not reach when it fails.
 
+### TikTok, once it is running
+
+Everything above gets the install onto the machine. At runtime Douyin is reachable from a mainland
+exit and TikTok is not, so TikTok needs a proxy - and the proxy has to be on `/proxies` **before** the
+first TikTok identity is minted or imported. An identity's egress is fixed when it is created:
+identities made while there was no proxy keep going direct after one is added, and every TikTok
+request fails with `UPSTREAM_UNREACHABLE`. The Clash or mihomo inbound used for the build works here
+too, at the same kind of address. See [A platform this server cannot reach
+directly](./06-identities-and-proxies.md#a-platform-this-server-cannot-reach-directly).
+
 ## The stack at a glance
 
 | Service | Image | Profile | Optional | What it does |

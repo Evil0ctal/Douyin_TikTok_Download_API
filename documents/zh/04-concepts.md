@@ -325,7 +325,7 @@ score = success_rate × (1 − risk_rate) × 0.5 ^ consecutive_fails
 
 ### 重试
 
-`network_error` 会换**另一个**身份重试——最多 `MAX_TRANSPORT_ATTEMPTS`（3）次——因为故障在出口而不在请求本身。如果三个不同出口都够不到平台，问题就不在身份上，调用方会收到一个 500，里面写着最后一次的错误。
+`network_error` 会换**另一个**身份重试——最多 `MAX_TRANSPORT_ATTEMPTS`（3）次——因为故障在出口而不在请求本身。如果三个不同出口都够不到平台，问题就不在身份上，调用方会收到 `UPSTREAM_UNREACHABLE`（502），里面写着最后一次的错误，以及那一次有没有走代理。它以前是 500 `INTERNAL`，等于让调用方去报 bug，而原因几乎总是这台机器的出网——比如在中国大陆的服务器上不给身份配代理就去访问 TikTok。
 
 `risk_control` 和 `business_error` 不重试。它们是答案。
 

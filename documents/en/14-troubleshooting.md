@@ -77,6 +77,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | A link is rejected as `INVALID_URL` | [INVALID_URL, and the eight reasons behind it](#invalid_url-and-the-eight-reasons-behind-it) |
 | `NOT_FOUND` for a post you can open in a browser | [NOT_FOUND on a post that exists](#not_found-on-a-post-that-exists) |
 | `UPSTREAM_RISK_CONTROL` | [UPSTREAM_RISK_CONTROL](#upstream_risk_control) |
+| `UPSTREAM_UNREACHABLE`, or a proxy was added and nothing changed | [UPSTREAM_UNREACHABLE, and a platform this server cannot reach](#upstream_unreachable-and-a-platform-this-server-cannot-reach) |
 | `SIGNING_FAILED`, or empty responses with no error | [Signature errors and the signing self-check](#signature-errors-and-the-signing-self-check) |
 | browser-rpc is down or was never started | [The browser container is unavailable](#the-browser-container-is-unavailable) |
 | Downloads fail, or the files are not there | [Downloads fail or files are missing](#downloads-fail-or-files-are-missing) |
@@ -137,6 +138,7 @@ Read from `src/dtk/core/errors.py`. "Retryable" is what the code itself declares
 | `UPSTREAM_RISK_CONTROL` | 502 | yes | The platform refused this identity; it has been cooled |
 | `UPSTREAM_CHANGED` | 502 | no | The platform response no longer matches what the parser expects. `details.path` names the field |
 | `SIGNING_FAILED` | 502 | yes | No usable signer, or the signer raised |
+| `UPSTREAM_UNREACHABLE` | 502 | yes | Every attempt failed on the network before the platform answered. `details.proxied` says whether the last one went through a proxy - see [below](#upstream_unreachable-and-a-platform-this-server-cannot-reach) |
 | `TASK_NOT_FOUND` | 404 | yes | No task with that id, or its result already expired. Retryable in general — but once a result has expired, no retry brings it back; submit the work again |
 | `SETUP_ALREADY_DONE` | 409 | no | This instance already has an administrator |
 | `SETUP_TOKEN_INVALID` | 403 | no | The setup token is wrong or has expired |
@@ -634,6 +636,30 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 ---
 
+## UPSTREAM_UNREACHABLE, and a platform this server cannot reach
+
+**Symptom.** `UPSTREAM_UNREACHABLE` (502) on requests to one platform - most often TikTok from a server in mainland China - while the other platform works. The error carries `details.endpoint`, `details.last_error` (`transport_failure`) and `details.proxied`; the request log rows have no HTTP status. Earlier builds reported the same failure as `INTERNAL`.
+
+**What it means.** Every attempt failed before the platform answered: the connection was refused, reset or timed out, or the proxy in between refused it. The scheduler already tried other identities - a different identity is a different egress - and they failed too. It says nothing about the content, and no identity is cooled for it.
+
+**Read `details.proxied` first.**
+
+- `false` - the last attempt went out directly from this server. On a host that cannot reach the platform, that never works, however long you wait: the identity has no proxy.
+- `true` - it went through the identity's proxy and the proxy could not get there. See [Proxies fail their probe](#proxies-fail-their-probe).
+
+**Why adding a proxy changed nothing.** An identity is bound to its egress for life, from the moment it is minted or imported. A proxy added later is never applied to identities that already exist - only to ones minted or imported after it - so the identities that were failing keep going direct.
+
+**Fix, for a platform this server cannot reach directly:**
+
+1. Get a forward proxy that works from inside the containers. A VPN subscription link or an "airport" node pasted as `host:port` is not one; probing it reports `ProxyError: 400 Bad Request`. Run a local client such as Clash or mihomo, expose its HTTP or SOCKS inbound on an address the containers can reach - not `127.0.0.1`, which inside a container is the container: the Docker bridge gateway on Linux (for example `http://172.17.0.1:7890`), `host.docker.internal` on Docker Desktop - and add that address. Clash and mihomo listen on loopback only until `allow-lan: true` is set; once it is, keep that port closed to the internet, because an open proxy on a public server gets found and used.
+2. Press **Test** on `/proxies` until it is green. A failed probe shows its reason under the badge.
+3. Retire that platform's direct identities, then mint new ones - a mint with no proxy chosen takes a healthy proxy that no identity of that platform uses yet - or import with the proxy selected. In the Import dialog, **No proxy** means direct, for good.
+4. Check the **Identities** column on `/proxies`: the proxy should now have identities behind it.
+
+With a single proxy, choose it explicitly in the Mint dialog: the automatic refill only takes a proxy no identity of that platform uses, so after the first identity it has nothing free and reports `no_free_proxy`.
+
+---
+
 ## Signature errors and the signing self-check
 
 Every platform request is signed with a pure-Python reimplementation of the platform's own algorithm. When that drifts, the symptom is rarely a clean error.
@@ -818,14 +844,14 @@ By design for the downloader: it is a sink, never a relay. The API mounts the me
 docker compose -p dtk -f docker/compose.yml exec api dtk proxy test '<proxy-id>'
 ```
 
-It reports the exit IP, country, timezone, latency and a detail on failure, and writes the health and geo result back onto the row (pass `--no-write` to probe without recording). The id may be the shortened prefix the tables print. The console has the same button per row on `/proxies`.
+It reports the exit IP, country, timezone, latency and a detail on failure, and writes the health and geo result back onto the row (pass `--no-write` to probe without recording). The id may be the shortened prefix the tables print. The console has the same button per row on `/proxies`, and shows the last failed probe's detail under the Unhealthy badge - it is kept on the row until a probe passes. `socks5://` and `socks5h://` proxies are probed the same way as `http://`; earlier builds could not probe them at all and answered `ImportError`.
 
 **Read the detail.**
 
 | Detail | Cause |
 |---|---|
 | `ConnectTimeout`, `ConnectionError`, `ProxyConnectionError` | The exit is down, or the credentials are wrong, or your address is not allowed by the provider |
-| `ImportError` | A SOCKS proxy without the optional httpx extra installed |
+| `ProxyError: 400 Bad Request` | The proxy answered the `CONNECT` with 400: what was added is not a forward proxy, usually a VPN subscription URL or an "airport" node taken as `http://host:port`. Bad credentials would be 407 and a dead exit a timeout. See [UPSTREAM_UNREACHABLE](#upstream_unreachable-and-a-platform-this-server-cannot-reach) for what to run instead |
 | `ValueError` | The proxy URL is not usable as written |
 | `probe returned no JSON` / `no JSON object` | The probe URL is not the service you thought it was, or a captive portal answered |
 | HTTP 407 in the request logs | The proxy itself is refusing: misconfigured exit, or a lapsed subscription. Counted as a network error so proxy health is probed, never as "the content is missing" |
