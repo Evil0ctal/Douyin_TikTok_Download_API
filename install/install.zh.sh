@@ -111,9 +111,15 @@ MANAGE_ONLY=0
 
 # 凡是建在安装目录之外的东西都登记在这里，这样中途 Ctrl-C 也不会留下垃圾。
 TMP_FILES=()
+# 它必须以成功结束。脚本自然跑完时，退出码取最后执行的那条命令，也就是这个 trap；
+# 没有登记任何文件时那条命令是 `[ -n "" ]`，于是每次不需要临时文件的安装都在
+# 打印完「完成」之后报告失败。
 cleanup() {
   local f
-  for f in "${TMP_FILES[@]:-}"; do [ -n "$f" ] && rm -f "$f"; done
+  for f in "${TMP_FILES[@]:-}"; do
+    if [ -n "$f" ]; then rm -f "$f"; fi
+  done
+  return 0
 }
 trap cleanup EXIT INT TERM
 

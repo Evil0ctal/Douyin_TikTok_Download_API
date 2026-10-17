@@ -119,9 +119,16 @@ MANAGE_ONLY=0
 # Anything we create outside the install directory is registered here, so an
 # interrupt does not leave it behind.
 TMP_FILES=()
+# It has to end in success. A script that runs off its end exits with the
+# status of the last command it ran, which is this trap; with nothing
+# registered, `[ -n "" ]` was that command, and every install that needed no
+# temporary file reported failure after printing "Done".
 cleanup() {
   local f
-  for f in "${TMP_FILES[@]:-}"; do [ -n "$f" ] && rm -f "$f"; done
+  for f in "${TMP_FILES[@]:-}"; do
+    if [ -n "$f" ]; then rm -f "$f"; fi
+  done
+  return 0
 }
 trap cleanup EXIT INT TERM
 
