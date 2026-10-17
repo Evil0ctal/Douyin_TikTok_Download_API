@@ -1033,13 +1033,32 @@ export default function Identities() {
       width: '120px',
       sortValue: (row) => row.state,
       cell: (row) =>
+        // Under the badge rather than beside it: beside it, the English tag ran
+        // into the Health column, and a wider badge such as Degraded pushed it
+        // further.
         row.rotation_endpoints != null ? (
-          <span className="u-row">
+          <div className="u-stack-sm" style={{ alignItems: 'flex-start' }}>
             <StatusBadge kind="identity" value={row.state} />
-            <span className="u-xs u-muted" title={t('console:identity.rotation.reservedHint')}>
-              {t('console:identity.rotation.reserved')}
-            </span>
-          </span>
+            {row.rotation_endpoints.length > 0 ? (
+              // Set through the API only. Calling it reserved would tell the
+              // operator it never rotates, when it does for these endpoints.
+              <span
+                className="u-xs u-muted u-nowrap"
+                title={t('console:identity.rotation.limited', {
+                  endpoints: row.rotation_endpoints.join(', '),
+                })}
+              >
+                {t('console:identity.rotation.limitedTag')}
+              </span>
+            ) : (
+              <span
+                className="u-xs u-muted u-nowrap"
+                title={t('console:identity.rotation.reservedHint')}
+              >
+                {t('console:identity.rotation.reserved')}
+              </span>
+            )}
+          </div>
         ) : (
           <StatusBadge kind="identity" value={row.state} />
         ),

@@ -423,6 +423,7 @@
       "restore": "Back in rotation for every endpoint",
       "reserved": "Reserved",
       "reservedHint": "Out of rotation: only requests that name this identity use it",
+      "limitedTag": "Limited",
       "saved": "Rotation updated",
       "failed": "Could not change the rotation"
     },

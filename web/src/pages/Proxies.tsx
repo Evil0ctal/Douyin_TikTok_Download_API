@@ -312,16 +312,21 @@ export default function Proxies() {
     {
       id: 'health',
       header: t('console:field.state'),
-      width: '130px',
+      // Wide enough for two lines of the probe error below the badge.
+      width: '180px',
       sortValue: (row) => (row.healthy ? 1 : 0),
       // The reason under the badge, because "unhealthy" alone sent people to
       // the logs for the one line that says what to fix - a proxy answering
       // CONNECT with 400 is a subscription URL, not a dead server (issue 781).
       cell: (row) =>
         !row.healthy && row.last_error ? (
-          <div className="u-stack-sm">
+          <div className="u-stack-sm" style={{ alignItems: 'flex-start' }}>
             <StatusBadge kind="health" value="unhealthy" />
-            <span className="u-xs u-muted u-truncate" title={row.last_error}>
+            <span
+              className="u-xs u-muted u-clamp-2"
+              style={{ maxWidth: '32ch' }}
+              title={row.last_error}
+            >
               {row.last_error}
             </span>
           </div>

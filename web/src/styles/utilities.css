@@ -175,6 +175,20 @@
   min-width: 0;
 }
 
+/*
+ * Two lines, then an ellipsis. For text whose start and end both matter, such
+ * as an error - one line cut "All connection attempts failed" mid-word. Give it
+ * a max-width inside an auto-layout table, or the column grows to fit the text.
+ */
+.u-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
 .u-scroll-x {
   overflow-x: auto;
   max-width: 100%;

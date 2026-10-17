@@ -423,6 +423,7 @@
       "restore": "恢复在所有接口上参与轮换",
       "reserved": "保留",
       "reservedHint": "不参与轮换：只有指定了这个身份的请求会用到它",
+      "limitedTag": "限定接口",
       "saved": "轮换设置已更新",
       "failed": "轮换设置更新失败"
     },
