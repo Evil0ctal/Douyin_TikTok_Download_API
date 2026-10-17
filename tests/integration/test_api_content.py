@@ -382,6 +382,7 @@ async def test_a_failed_task_renders_as_the_matching_error_envelope(client: Any)
                 uuid.UUID(task_id),
                 error={"code": "IDENTITY_POOL_EXHAUSTED", "retry_after": 45},
             )
+        await task_service.wake_waiters(uuid.UUID(task_id))
 
     response, _ = await asyncio.gather(
         client.get("/api/v1/douyin/video", params={"aweme_id": an_id(), "wait": 5}),

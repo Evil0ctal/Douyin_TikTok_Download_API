@@ -27,6 +27,7 @@ doing it here would put platform knowledge into ``api/``, which doc 01 forbids.
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from enum import StrEnum
 from typing import Any, Final
@@ -272,6 +273,10 @@ async def submit(
             error=serialize_error(Internal("the task could not be queued for a worker")),
         )
         await session.commit()
+        # Redis is the thing that just failed, so this probably will too; the
+        # caller is told by the exception below either way.
+        with contextlib.suppress(Exception):
+            await tasks.wake_waiters(task_id)
         raise
     return task_id, TaskState.QUEUED
 

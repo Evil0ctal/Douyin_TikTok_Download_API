@@ -255,6 +255,7 @@ class DatabaseTaskStore:
     async def complete(self, task_id: uuid.UUID, result: dict[str, Any]) -> None:
         async with self._session_factory() as session:
             await tasks.finish(session, task_id, result=result)
+        await self._wake(task_id)
         await self._clear_attempts(task_id)
 
     async def fail(
@@ -274,7 +275,15 @@ class DatabaseTaskStore:
                 result={"data": None, "meta": meta} if meta else None,
                 error=error,
             )
+        await self._wake(task_id)
         await self._clear_attempts(task_id)
+
+    async def _wake(self, task_id: uuid.UUID) -> None:
+        # After the session block, which is the commit - see
+        # tasks.wake_waiters. Suppressed: the row is already final, and a
+        # waiter that misses the wake-up rereads it within five seconds anyway.
+        with contextlib.suppress(Exception):
+            await tasks.wake_waiters(task_id)
 
     async def _clear_attempts(self, task_id: uuid.UUID) -> None:
         with contextlib.suppress(Exception):

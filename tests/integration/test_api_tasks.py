@@ -111,6 +111,7 @@ async def test_the_event_stream_delivers_state_then_result(client: Any) -> None:
             await task_service.finish(
                 session, uuid.UUID(task_id), result={"data": {"content_id": "7123"}}
             )
+        await task_service.wake_waiters(uuid.UUID(task_id))
 
     events: list[tuple[str, dict[str, Any]]] = []
 

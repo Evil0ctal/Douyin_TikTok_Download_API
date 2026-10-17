@@ -184,17 +184,29 @@ async def finish(
     task.error = error
     task.finished_at = datetime.now(UTC)
     await session.flush()
-    await _signal(task_id)
     log.info("task.finished", task_id=str(task_id), state=task.state)
+
+
+async def wake_waiters(task_id: uuid.UUID) -> None:
+    """Tell anyone long-polling this task to read it again.
+
+    Call it after the commit that made the task final, never before. It used to
+    be the last step of :func:`finish`, which runs inside the caller's
+    transaction: a waiter woke, read the row before that commit landed, saw it
+    still running, and went back to a blocking wait of up to five seconds - so
+    a request refused in milliseconds answered five seconds later.
+    """
+    await _signal(task_id)
 
 
 async def settle_unpublished(session: AsyncSession, task_id: uuid.UUID, reason: str) -> None:
     """Fail a committed task whose id never reached the queue, as far as possible.
 
     Called when the publish failed, which almost always means Redis is down -
-    and :func:`finish` ends by waking waiters through Redis. The row write it
-    flushed first is still worth committing; if even that fails, the task stays
-    queued and the orphan sweep picks it up, which is a delay rather than a loss.
+    and waking the waiters goes through Redis. So the row is committed first
+    and the wake-up attempted after, on its own; if even the commit fails, the
+    task stays queued and the orphan sweep picks it up, which is a delay rather
+    than a loss.
     """
     from dtk.core.errors import Internal
     from dtk.worker import serialize_error
@@ -202,11 +214,16 @@ async def settle_unpublished(session: AsyncSession, task_id: uuid.UUID, reason: 
     try:
         await finish(session, task_id, error=serialize_error(Internal(reason)))
     except Exception as exc:
-        log.warning("task.settle_signal_failed", task_id=str(task_id), error=type(exc).__name__)
+        log.warning("task.settle_finish_failed", task_id=str(task_id), error=type(exc).__name__)
     try:
         await session.commit()
     except Exception as exc:
         log.warning("task.settle_commit_failed", task_id=str(task_id), error=type(exc).__name__)
+        return
+    try:
+        await wake_waiters(task_id)
+    except Exception as exc:
+        log.warning("task.settle_signal_failed", task_id=str(task_id), error=type(exc).__name__)
 
 
 async def _signal(task_id: uuid.UUID) -> None:
@@ -344,4 +361,5 @@ __all__ = [
     "settle_unpublished",
     "submit_now",
     "wait_for",
+    "wake_waiters",
 ]

@@ -326,6 +326,32 @@ async def test_a_finished_task_is_never_run_a_second_time(db_engine, redis_clien
         await _drop_task(task_id)
 
 
+@pytest.mark.parametrize("outcome", ["done", "failed"])
+async def test_a_waiter_is_woken_only_once_the_answer_is_committed(
+    db_engine, redis_client, monkeypatch, outcome
+):
+    """Woken earlier, a `?wait=` caller read the row before the commit, saw it
+    still running, and blocked for five more seconds: a request the scheduler
+    refused in milliseconds answered in five."""
+    task_id = await _submit()
+    store = DatabaseTaskStore()
+    seen: list[str] = []
+
+    async def look(woken: uuid.UUID) -> None:
+        async with session_scope() as other:
+            seen.append((await tasks.get(other, woken)).state.value)
+
+    monkeypatch.setattr(tasks, "wake_waiters", look)
+    try:
+        if outcome == "done":
+            await store.complete(task_id, {"data": {}, "meta": {}})
+        else:
+            await store.fail(task_id, {"code": "IDENTITY_LOGIN_REQUIRED"})
+        assert seen == [outcome]
+    finally:
+        await _drop_task(task_id)
+
+
 # --------------------------------------------------------------------------
 # maintenance
 # --------------------------------------------------------------------------
