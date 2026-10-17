@@ -144,6 +144,7 @@ MCP 的工具错误用的是同一个信封，所以一套错误处理同时覆�
 | `NOT_CONFIGURED` | 501 | 否 | 这套部署压根没有那个组件。等多久也不会凭空装出一个浏览器容器 |
 | `QUEUE_FULL` | 503 | 是 | 任务队列达到 `sched.queue_max`，或者磁盘满导致新下载被暂停 |
 | `DOWNLOADER_UNAVAILABLE` | 503 | 是 | 媒体 sidecar 配了但没应答 |
+| `TRANSCRIBER_UNAVAILABLE` | 503 | 是 | 转写 sidecar 没应答，或者接到任务的 worker 没有配置转写服务 |
 | `CANCELLED` | 409 | 否 | 有人主动停了这个任务。重试等于无视他 |
 | `METHOD_NOT_ALLOWED` | 405 | 否 | 这个路径不接受该 HTTP 方法 |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | 否 | 请求体的媒体类型不对 |

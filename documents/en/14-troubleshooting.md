@@ -145,6 +145,7 @@ Read from `src/dtk/core/errors.py`. "Retryable" is what the code itself declares
 | `NOT_CONFIGURED` | 501 | no | This deployment never had that component. No amount of waiting installs a browser container |
 | `QUEUE_FULL` | 503 | yes | The task queue is at `sched.queue_max`, or new downloads are paused because the disk is full |
 | `DOWNLOADER_UNAVAILABLE` | 503 | yes | The media sidecar is configured but did not answer |
+| `TRANSCRIBER_UNAVAILABLE` | 503 | yes | The transcription sidecar did not answer, or the worker that took the job has none configured |
 | `CANCELLED` | 409 | no | Somebody stopped this task. Retrying ignores them |
 | `METHOD_NOT_ALLOWED` | 405 | no | Wrong HTTP method for this path |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | no | Wrong request body media type |

@@ -394,8 +394,9 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **是** | 该接口因连续失败被熔断暂停 |
 | `QUEUE_FULL` | 503 | **是** | 队列已达上限 |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **是** | 媒体边车进程在跑但没有响应 |
+| `TRANSCRIBER_UNAVAILABLE` | 503 | **是** | 转写边车没有响应，或者接到这个任务的 worker 没有配置转写服务。出现在转写任务的结果里，不在提交时返回 |
 
-`NOT_CONFIGURED` 和 `DOWNLOADER_UNAVAILABLE` 看着像，其实不是一回事：前者说明这个部署压根就没装这个组件，等多久都没用；后者说明一个确实存在的服务挂了。
+`NOT_CONFIGURED` 和 `DOWNLOADER_UNAVAILABLE` / `TRANSCRIBER_UNAVAILABLE` 看着像，其实不是一回事：前者说明这个部署压根就没装这个组件，等多久都没用；后两者说明一个确实存在的服务挂了。
 
 ### `retry_after`
 
@@ -409,7 +410,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 
 其余的大体上可以「记日志然后停下」，但下面这四种决策必须写进你的代码：
 
-1. **退避后重试**：`RATE_LIMITED`、`QUEUE_FULL`、`IDENTITY_POOL_EXHAUSTED`、`ENDPOINT_CIRCUIT_OPEN`、`UPSTREAM_RISK_CONTROL`、`SIGNING_FAILED`、`UPSTREAM_UNREACHABLE`、`INTERNAL`、`DOWNLOADER_UNAVAILABLE`。如果这台服务器根本连不上该平台，连续的 `UPSTREAM_UNREACHABLE` 等多久都不会好——见[故障排查](./14-troubleshooting.md#upstream_unreachable-和这台服务器连不上的平台)。有 `retry_after` 就遵守它，没有就用指数退避。
+1. **退避后重试**：`RATE_LIMITED`、`QUEUE_FULL`、`IDENTITY_POOL_EXHAUSTED`、`ENDPOINT_CIRCUIT_OPEN`、`UPSTREAM_RISK_CONTROL`、`SIGNING_FAILED`、`UPSTREAM_UNREACHABLE`、`INTERNAL`、`DOWNLOADER_UNAVAILABLE`、`TRANSCRIBER_UNAVAILABLE`。如果这台服务器根本连不上该平台，连续的 `UPSTREAM_UNREACHABLE` 等多久都不会好——见[故障排查](./14-troubleshooting.md#upstream_unreachable-和这台服务器连不上的平台)。有 `retry_after` 就遵守它，没有就用指数退避。
 2. **绝不重发同一个请求**：`INVALID_URL`、`UNSUPPORTED_CONTENT`、`INVALID_PARAM`、`NOT_FOUND`、`CONTENT_PRIVATE`、`METHOD_NOT_ALLOWED`、`UNSUPPORTED_MEDIA_TYPE`、`CANCELLED`、`NOT_CONFIGURED`、`UPSTREAM_CHANGED`。在这些上面打转，只是烧身份去换同一句话。
 3. **修凭据**：`UNAUTHENTICATED`、`FORBIDDEN_SCOPE`。`details` 把两边都写出来了：`required_scopes` 或 `required_roles` 是接口要什么，`have_role`、`have_scopes`、`via` 是你发过去的是什么。先看 `via`——它说明这个调用方是按 scope 判定（`api_key`）还是按角色判定（`session`），而管理员的 key 同样受它自己的 scope 约束。
 4. **重新提交工作**：`TASK_NOT_FOUND`。结果窗口已经过去，这个任务 ID 死了。
@@ -639,6 +640,7 @@ RETRYABLE = {
     "SIGNING_FAILED",
     "UPSTREAM_UNREACHABLE",
     "DOWNLOADER_UNAVAILABLE",
+    "TRANSCRIBER_UNAVAILABLE",
     "INTERNAL",
 }
 
@@ -713,7 +715,7 @@ const HEADERS = { "X-API-Key": process.env.DTK_API_KEY, "Content-Type": "applica
 const RETRYABLE = new Set([
   "RATE_LIMITED", "QUEUE_FULL", "IDENTITY_POOL_EXHAUSTED", "ENDPOINT_CIRCUIT_OPEN",
   "UPSTREAM_RISK_CONTROL", "SIGNING_FAILED", "UPSTREAM_UNREACHABLE", "DOWNLOADER_UNAVAILABLE",
-  "INTERNAL",
+  "TRANSCRIBER_UNAVAILABLE", "INTERNAL",
 ]);
 
 class DtkError extends Error {

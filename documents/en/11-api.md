@@ -395,8 +395,9 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **yes** | This endpoint is paused after repeated failures |
 | `QUEUE_FULL` | 503 | **yes** | The queue is at its ceiling |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **yes** | The media sidecar is running somewhere and did not answer |
+| `TRANSCRIBER_UNAVAILABLE` | 503 | **yes** | The transcription sidecar did not answer, or the worker that picked the job up has no transcriber configured. Reported on the transcription task, not on the submit |
 
-`NOT_CONFIGURED` and `DOWNLOADER_UNAVAILABLE` look similar and are not: the first means this install never had the component, so no amount of waiting will help; the second means a service that exists is down.
+`NOT_CONFIGURED` and `DOWNLOADER_UNAVAILABLE` / `TRANSCRIBER_UNAVAILABLE` look similar and are not: the first means this install never had the component, so no amount of waiting will help; the other two mean a service that exists is down.
 
 ### `retry_after`
 
@@ -410,7 +411,7 @@ The `retryable` boolean appears on a **task's stored error** (`GET /api/v1/tasks
 
 Anything else can reasonably be treated as "log it and stop", but these four decisions have to be in your code:
 
-1. **Back off and retry**: `RATE_LIMITED`, `QUEUE_FULL`, `IDENTITY_POOL_EXHAUSTED`, `ENDPOINT_CIRCUIT_OPEN`, `UPSTREAM_RISK_CONTROL`, `SIGNING_FAILED`, `UPSTREAM_UNREACHABLE`, `INTERNAL`, `DOWNLOADER_UNAVAILABLE`. A run of `UPSTREAM_UNREACHABLE` will not clear by waiting if this server cannot reach the platform at all - see [Troubleshooting](./14-troubleshooting.md#upstream_unreachable-and-a-platform-this-server-cannot-reach). Honour `retry_after` where present; use exponential backoff where it is not.
+1. **Back off and retry**: `RATE_LIMITED`, `QUEUE_FULL`, `IDENTITY_POOL_EXHAUSTED`, `ENDPOINT_CIRCUIT_OPEN`, `UPSTREAM_RISK_CONTROL`, `SIGNING_FAILED`, `UPSTREAM_UNREACHABLE`, `INTERNAL`, `DOWNLOADER_UNAVAILABLE`, `TRANSCRIBER_UNAVAILABLE`. A run of `UPSTREAM_UNREACHABLE` will not clear by waiting if this server cannot reach the platform at all - see [Troubleshooting](./14-troubleshooting.md#upstream_unreachable-and-a-platform-this-server-cannot-reach). Honour `retry_after` where present; use exponential backoff where it is not.
 2. **Never retry the same request**: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `NOT_FOUND`, `CONTENT_PRIVATE`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `CANCELLED`, `NOT_CONFIGURED`, `UPSTREAM_CHANGED`. A loop on one of these burns identities to be told the same thing.
 3. **Fix the credential**: `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`. `details` carries both sides: `required_scopes` or `required_roles` for what the endpoint wants, and `have_role`, `have_scopes` and `via` for what you sent. `via` is the one to read first — it says whether this caller is judged by its scopes (`api_key`) or by its role (`session`), and an administrator's key is still bounded by its scopes.
 4. **Resubmit the work**: `TASK_NOT_FOUND`. The result window has passed; the task id is dead.
@@ -640,6 +641,7 @@ RETRYABLE = {
     "SIGNING_FAILED",
     "UPSTREAM_UNREACHABLE",
     "DOWNLOADER_UNAVAILABLE",
+    "TRANSCRIBER_UNAVAILABLE",
     "INTERNAL",
 }
 
@@ -714,7 +716,7 @@ const HEADERS = { "X-API-Key": process.env.DTK_API_KEY, "Content-Type": "applica
 const RETRYABLE = new Set([
   "RATE_LIMITED", "QUEUE_FULL", "IDENTITY_POOL_EXHAUSTED", "ENDPOINT_CIRCUIT_OPEN",
   "UPSTREAM_RISK_CONTROL", "SIGNING_FAILED", "UPSTREAM_UNREACHABLE", "DOWNLOADER_UNAVAILABLE",
-  "INTERNAL",
+  "TRANSCRIBER_UNAVAILABLE", "INTERNAL",
 ]);
 
 class DtkError extends Error {
