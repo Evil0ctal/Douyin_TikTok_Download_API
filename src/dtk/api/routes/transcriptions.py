@@ -224,6 +224,8 @@ async def cancel_transcription(
     if row.task_id:
         await tasks.cancel(request.state.db, row.task_id)
     await request.state.db.commit()
+    if row.task_id:
+        await tasks.wake_waiters(row.task_id)
     await request.state.db.refresh(row)
     settings: BootstrapSettings = request.app.state.settings
     if settings.transcriber_url:

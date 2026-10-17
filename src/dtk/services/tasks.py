@@ -260,7 +260,8 @@ async def cancel(session: AsyncSession, task_id: uuid.UUID) -> str:
     task.error = {"code": ErrorCode.CANCELLED.value, "message": "cancelled by the caller"}
     task.finished_at = datetime.now(UTC)
     await session.flush()
-    await _signal(task_id)
+    # No wake-up here, for the reason wake_waiters gives: the caller commits,
+    # then wakes.
     log.info("task.cancelled", task_id=str(task_id))
     return TaskState.FAILED.value
 

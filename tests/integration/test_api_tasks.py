@@ -224,6 +224,26 @@ async def test_cancelling_a_queued_task_fails_it(client, db_engine, redis_client
         assert view.error is not None
 
 
+async def test_a_cancel_wakes_waiters_only_once_it_is_committed(
+    client, db_engine, redis_client, monkeypatch
+):
+    """The same race the worker had: woken inside the transaction, a `?wait=`
+    caller read the task as still queued and blocked five more seconds."""
+    await signed_in(client)
+    task_id = await task_service.submit_now("parse", {"url": "https://www.douyin.com/"})
+    seen: list[str] = []
+
+    async def look(woken: uuid.UUID) -> None:
+        async with session_scope() as other:
+            seen.append((await task_service.get(other, woken)).state.value)
+
+    monkeypatch.setattr(task_service, "wake_waiters", look)
+
+    await client.delete(f"/api/v1/tasks/{task_id}")
+
+    assert seen == ["failed"]
+
+
 async def test_cancelling_a_running_task_reports_it_as_running(client, db_engine, redis_client):
     """Its request is in flight and the identity's quota is already spent;
     recording a failure the worker never had would make the risk rate lie."""

@@ -231,6 +231,7 @@ async def cancel_task(
     _authorize_task(principal, await task_service.get(session, task_id))
     state = await task_service.cancel(session, task_id)
     await session.commit()
+    await task_service.wake_waiters(task_id)
     return ok(request, {"task_id": str(task_id), "state": state})
 
 
