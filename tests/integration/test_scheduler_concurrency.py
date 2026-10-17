@@ -424,7 +424,11 @@ async def test_a_reserved_active_identity_does_not_keep_degraded_ones_idle(redis
 
 
 async def test_exhaustion_says_the_rest_are_reserved(redis_client):
-    """Otherwise "no identity" sits beside a pool page full of active ones."""
+    """Otherwise "no identity" sits beside a pool page full of active ones.
+
+    In ``details``, not only the message: the API replaces the message with a
+    localized generic one, so a count left in the text never reaches a caller.
+    """
     sched = Scheduler(
         ListSource([make_candidate(1, rotation=()), make_candidate(2, rotation=())]),
         SchedulerConfig(max_wait_seconds=0.0),
@@ -434,4 +438,16 @@ async def test_exhaustion_says_the_rest_are_reserved(redis_client):
     with pytest.raises(IdentityPoolExhausted) as exc:
         await sched.acquire("douyin.content_detail", Platform.DOUYIN)
 
-    assert "2 more are reserved" in str(exc.value.details.get("detail") or exc.value)
+    assert "2 more are reserved" in str(exc.value)
+    assert exc.value.details["reserved"] == 2
+
+
+async def test_exhaustion_without_reserved_identities_does_not_mention_them(redis_client):
+    sched = Scheduler(
+        ListSource([]), SchedulerConfig(max_wait_seconds=0.0), clock=AdvancingClock(step=0.0)
+    )
+
+    with pytest.raises(IdentityPoolExhausted) as exc:
+        await sched.acquire("douyin.content_detail", Platform.DOUYIN)
+
+    assert "reserved" not in exc.value.details

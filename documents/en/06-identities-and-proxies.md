@@ -469,6 +469,11 @@ name it**, that stops this:
   counting an account it is not allowed to use.
 - **It does not travel with an export.** It is a decision about this pool, not
   part of the identity.
+- **It is not a fallback.** When the only identities left for an endpoint are
+  reserved ones, an unpinned request answers `IDENTITY_POOL_EXHAUSTED` rather
+  than borrowing one, and `details.reserved` says how many it skipped - so a
+  pool page full of active identities beside that error is a setting, not a
+  scheduler fault.
 
 The API takes a finer version of the same setting:
 `POST /api/v1/admin/identities/{id}/rotation` with `{"endpoints": [...]}`.

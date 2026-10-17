@@ -98,11 +98,16 @@ class Rejected(Exception):
         retry_after: int = 0,
         *,
         waitable: bool = True,
+        reserved: int = 0,
     ) -> None:
         super().__init__(detail or reason.value)
         self.reason = reason
         self.detail = detail
         self.retry_after = retry_after
+        #: Identities skipped because they are kept out of rotation for this
+        #: endpoint. Carried as a number because ``detail`` never reaches the
+        #: caller: the API answers with a localized generic message instead.
+        self.reserved = reserved
         #: Whether polling until the deadline could plausibly change the answer.
         #: An open circuit and an unusable pinned identity cannot, and spending
         #: the full wait budget on either only delays the error the caller has
@@ -253,7 +258,7 @@ class Scheduler:
                         f"; {reserved} more are reserved for requests that name them "
                         "and are not in rotation for this endpoint"
                     )
-                raise Rejected(RejectReason.NO_IDENTITY, detail)
+                raise Rejected(RejectReason.NO_IDENTITY, detail, reserved=reserved)
 
         recent = await last_used_map()
         saw_inflight = False
@@ -322,7 +327,12 @@ class Scheduler:
                 if not exc.waitable:
                     break  # waiting cannot help
                 if self._now() >= deadline:
-                    last = Rejected(RejectReason.WAIT_TIMEOUT, exc.detail, exc.retry_after)
+                    last = Rejected(
+                        RejectReason.WAIT_TIMEOUT,
+                        exc.detail,
+                        exc.retry_after,
+                        reserved=exc.reserved,
+                    )
                     break
             attempt += 1
             await asyncio.sleep(self._config.poll_interval_seconds)
@@ -339,6 +349,8 @@ class Scheduler:
         details: dict[str, Any] = {"endpoint": endpoint, "reject_reason": last.reason.value}
         if identity_id is not None:
             details["identity_id"] = identity_id
+        if last.reserved:
+            details["reserved"] = last.reserved
         if last.reason is RejectReason.CIRCUIT_OPEN:
             raise EndpointCircuitOpen(
                 last.detail,

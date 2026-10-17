@@ -393,6 +393,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk identity list
 | 身份是 `degraded` | 它们撞到了冷却上限。一次成功可以清空连续失败计数，但要等上限冷却到期才重新加入。确认原因已消失的话，可在 `/identities` 手动重置 |
 | 身份是 `retired` | 退休会抹掉 cookie，且不可逆。铸造或导入新的 |
 | 身份够多，仍然 `no_token` | 你只是问得比配额允许的快——见[请求很慢](#请求很慢) |
+| 身份都是 `active`，错误里带着 `details.reserved` | 这么多身份在这个接口上退出了轮换，只服务指定它们的请求——见[让身份退出轮换](./06-identities-and-proxies.md#让身份退出轮换)。为一般流量铸造或导入身份，或者把那个开关关掉 |
 
 **相关配置。** `pool.min_size`（3）是补充器的低水位，`pool.target_size`（8）是补到哪儿为止。补充器每 60 秒跑一次。`pool.max_fail_streak`（3）决定一个身份从什么时候起不再计入池子水位，好让补充器去替换它而不是把一具尸体算进来。
 
