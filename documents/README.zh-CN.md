@@ -30,7 +30,7 @@
   - 手动装依赖：[开发方式](./zh/02-installation.md#不用-docker-运行) · [裸机生产部署](./zh/02-installation.md#在裸机上做生产部署)
   - 机器在中国大陆：[中国大陆的网络准备](./zh/02-installation.md#中国大陆的网络准备) —— 先换源，不然多半卡在拉镜像
 - [配置参考](./zh/03-configuration.md) —— 两层配置的区别，以及全部 54 项运行时配置的默认值和该在什么时候改
-- [FunASR ONNX 模型准备](./zh/18-funasr-models.md) —— 手工下载、校验并离线加载转写所需的 ASR、VAD 与标点模型
+- [FunASR ONNX 模型准备](./zh/18-funasr-models.md) —— 下载、校验并离线加载转写所需的 ASR、VAD 与标点模型，手工或交给安装脚本
 - [安全](./zh/15-security.md) —— 软件已经替你做了什么、什么是你自己的责任，以及哪些操作会交出凭据
 
 **使用控制台**

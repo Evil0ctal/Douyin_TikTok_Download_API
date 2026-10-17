@@ -5,7 +5,7 @@
 > [文档首页](../README.zh-CN.md) · [English](../en/02-installation.md)
 
 这篇文档带你从一台空机器走到一个可以放着不管的实例，并把 compose 文件讲清楚到你敢改它的程度。读完之后，
-你应该能够：估算机器规格、决定那两个可选容器到底要不要、在 API 前面挂上 TLS、在不丢数据的前提下升级，
+你应该能够：估算机器规格、决定那几个可选容器到底要不要、在 API 前面挂上 TLS、在不丢数据的前提下升级，
 以及在你更喜欢的情况下完全不用 Docker 跑起来。
 
 如果你只想用最短的路径先跑起来，先看 [快速开始](./01-quickstart.md)，等到需要改点什么时再回到这里。
@@ -36,7 +36,7 @@ TimescaleDB 扩展的 Postgres 17（普通 `postgres:17` 镜像不行），浏�
 
 - [用脚本装和管](#用脚本装和管) —— 引导式安装，之后也是这套实例的运维菜单
 - [你需要准备什么](#你需要准备什么) —— 机器规格、磁盘、以及换自己的数据库前必须知道的两件事
-- [这套默认值是按什么机器写的](#这套默认值是按什么机器写的) · [三档配置](#三档配置) · [怎么改这些上限](#怎么改这些上限)
+- [这套默认值是按什么机器写的](#这套默认值是按什么机器写的) · [三档配置](#三档配置) · [怎么改这些上限](#怎么改这些上限) · [转写和浏览器在同一台机器上](#转写和浏览器在同一台机器上)
 - [中国大陆的网络准备](#中国大陆的网络准备) —— 从大陆机器上装，先换源，不换大概率卡在拉镜像那步
 - [整体结构一览](#整体结构一览) —— 一共几个容器、谁跟谁说话
 
@@ -44,7 +44,7 @@ TimescaleDB 扩展的 Postgres 17（普通 `postgres:17` 镜像不行），浏�
 
 - [首次安装](#首次安装) —— 从空目录到能访问控制台
 - [compose 文件逐个服务讲解](#compose-文件逐个服务讲解) —— 改它之前先读这节
-- [两个可选 profile](#两个可选-profile) —— `browser` 和 `downloader` 到底要不要开
+- [可选 profile](#可选-profile) —— `browser`、`downloader` 和 `transcriber` 到底要不要开
 - [构建浏览器镜像：CloakBrowser 版本固定](#构建浏览器镜像cloakbrowser-版本固定) —— 这个镜像不发布，只能本地构建
 - [环境变量](#环境变量) —— 包括 compose 读 `.env` 的两种方式，踩过的人都记得
 - [数据卷](#数据卷) · [端口与监听地址](#端口与监听地址) · [放在反向代理后面](#放在反向代理后面)
@@ -70,7 +70,8 @@ TimescaleDB 扩展的 Postgres 17（普通 `postgres:17` 镜像不行），浏�
 | Linux、macOS 或 WSL2 宿主机 | 整套东西没有平台相关的部分，但浏览器容器很吃内存，在 Linux 上最省心 |
 | 核心栈 2 GiB 内存，稳妥起见 4 GiB | 实际用 2 GiB 就够——四个核心容器静息实测合计约 295 MiB（见下表）——但各容器上限加起来是 3.5 GiB，所以 4 GiB 是稳妥的数字 |
 | 启用 `browser` profile 则约 8 GiB 内存 | 浏览器容器上限 4 GiB，而且它是真的会用满 |
-| 约 15 GB 空闲磁盘 | 核心栈的镜像约 4.5 GB，加上浏览器容器约 6.3 GB，这还不含数据卷和构建缓存；再加上 Postgres，以及启用媒体下载后的媒体卷（默认上限 2 GiB）。留 15 GB 空闲比较从容 |
+| 启用 `transcriber` profile 再多约 1 GiB 内存和两个核 | 模型常驻内存，静息约 750 MiB；转写时会占满两个核，只在转写时 |
+| 约 15 GB 空闲磁盘 | 核心栈的镜像约 4.5 GB，加上浏览器容器约 6.3 GB，这还不含数据卷和构建缓存；再加上 Postgres，以及启用媒体下载后的媒体卷（默认上限 2 GiB）。转写再加一个约 1.1 GB 的镜像和约 500 MB 的模型。留 15 GB 空闲比较从容 |
 | 出站 HTTPS | worker 和浏览器容器要访问平台，通常还要走你自己提供的代理 |
 
 宿主机上**不需要**安装 Postgres、Redis、Python、Node 或浏览器。compose 文件把它们全带上了，而且都固定了版本。
@@ -94,6 +95,10 @@ TimescaleDB 扩展的 Postgres 17（普通 `postgres:17` 镜像不行），浏�
 | `worker` | 512m | 2.0 | 256 | 71 MiB |
 | `browser-rpc` | 4g | 4.0 | 1024 | 热态 2.57 GiB、629% CPU |
 | `downloader` | 512m | 2.0 | 128 | 只有流式传输的缓冲区 |
+| `transcriber` | 4g | 2.0 | 256 | 加载模型后约 750 MiB；转写一段 3 分钟的视频时约 0.9 GiB |
+
+`transcriber` 这一行是后来补测的，2026-10-16，用的是
+[准备 FunASR ONNX 模型](./18-funasr-models.md) 里的量化模型。
 
 这些上限的存在，是为了让一个过载的组件没法把其余部分一起拖垮。`postgres` 是例外：它没有 CPU 上限、内存上限
 也给得宽，因为对 Postgres 收紧上限损害的是正确性而不是保护了谁——那 2g 是为了不让一条失控的查询拖垮宿主机，
@@ -186,6 +191,44 @@ chmod +x dtkctl
   并发传输数是两者相乘。1 核机器上降到 2 和 2。
 - **`pool.target_size`（控制台里的设置）。** 身份池越大，铸造总次数越多、
   Postgres 里的行越多。小机器上 8 是个合适的数。
+- **`DTK_TRANSCRIBER_THREADS`（默认 2）。** 一次转写用的 ONNX 线程数。
+  不要超过 transcriber 的 `cpus`，线程比核多只会多出切换开销。浏览器也在同一台
+  机器上的话，看下一节。
+
+### 转写和浏览器在同一台机器上
+
+`browser-rpc` 和 `transcriber` 都是吃 CPU 的后台活，它们的上限——4 个核和 2 个核——
+是天花板，不是预留。机器上没有这么多空闲核的时候，它们就在同样几个核上轮流跑，而
+你能感觉到的是转写变慢，因为有人在等它的文字。
+
+2026-10-16 实测，transcriber 按默认的两个核：
+
+| 场景 | 音频长度 | 耗时 |
+|---|---|---|
+| 只有 transcriber 在跑 | 3 分 13 秒 | 3.7 秒 |
+| 同样两个核上另有四个满载线程 | 3 分 13 秒 | 15.7 秒 |
+| 一台本来就忙的开发机，`browser-rpc` 正在铸造身份 | 21 秒 | 31 秒和 50 多秒；铸造一结束就回到 1 秒以内 |
+
+由此得出：
+
+- **铸造期间的转写变慢是预期内的，它会跑完。** 铸造发生在启动时、身份池补充期间，
+  以及身份退役的时候。`DTK_TRANSCRIBER_TIMEOUT_SECONDS`（默认 3600）远在这之上。
+- **`?wait=` 可能返回 `running`。** 它最多等 30 秒；之后去轮询这条转写或它的任务，
+  不要带 `refresh` 再发一次。
+- **批量转写前先让身份池补满。** 刚 `up -d` 就排上十几条转写，正好全赶上浏览器最忙的时候。
+- **六核以上的机器，给它们分开的核。** 在 `compose.host.yml` 里用 `cpuset` 彻底隔开：
+
+  ```yaml
+  services:
+    browser-rpc: { cpuset: "0-3" }
+    transcriber: { cpuset: "4-5" }
+  ```
+
+- **小机器上缩浏览器，别缩转写。** 上面第一条已经说了原因：铸造才是可以等的那件事。
+
+引导式脚本在内存低于约 7.8 GiB 的机器上，会往 `compose.host.yml` 里写
+`transcriber: { mem_limit: 1536m, memswap_limit: 1536m }`，免得那 4g 的上限加进一个
+机器根本没有的总数里。它不设 `cpuset`：哪些核空闲，取决于这台机器上还跑着什么。
 
 ## 用脚本装和管
 
@@ -199,9 +242,11 @@ bash install.zh.sh
 ```
 
 **第一次跑**：它识别发行版、检查 Docker（没有就问你要不要装）、按这台机器的核数和内存
-算出合适的资源上限，然后问你六个问题 —— 装哪、绑什么地址端口、要不要浏览器容器、
-要不要下载器、用已发布镜像还是源码构建。跑完它生成三样东西，正是本页后面教你手写的
-那三样：
+算出合适的资源上限，然后问你七个问题 —— 装哪、绑什么地址端口、要不要浏览器容器、
+要不要下载器、要不要离线转写、用已发布镜像还是源码构建。转写选了"要"，它还会问模型放在哪：
+目录里已经有模型就直接用；是空的，就问你要不要下载 —— 从 ModelScope 下约 500 MB，钉在
+[准备 FunASR ONNX 模型](./18-funasr-models.md) 验证过的 commit 上，每个文件都对一遍 SHA-256。
+跑完它生成三样东西，正是本页后面教你手写的那三样：
 
 | 它生成的 | 本页对应的章节 |
 |---|---|
@@ -216,7 +261,9 @@ bash install.zh.sh
 - **升级** —— 把 `DTK_IMAGE_TAG` 钉到目标版本，拉镜像、跑迁移、重启。迁移在切换之前跑，
   失败了旧容器还在，什么都没被换掉
 - **管理** —— 改口令、加管理员、账号列表、备份、恢复、自检、日志、重启、改任意运行时设置、
-  清理磁盘
+  清理磁盘，以及开关转写。打开时走和安装时一样的模型步骤，拉取或构建镜像，再重建整套容器；
+  关闭时删掉那个容器，模型留在原地。两种情况都只改 `dtkctl` 里那一个 `--profile` 参数，
+  你在那个文件里改过的其他东西都不会丢
 - **停止或移除** —— 三档：只停、连数据卷一起删、再连安装目录一起删。后两档要求打出
   `delete` 这个词，不是 y/n
 
@@ -238,14 +285,18 @@ Docker Hub 代理），所以每节末尾都给了一条自己验证的办法。
 
 ### Docker 镜像
 
-走推荐路径、只拉预构建镜像的话，需要从 Docker Hub 拉的是四个：
+走推荐路径、只拉预构建镜像的话，需要从 Docker Hub 拉的是四个，开了转写再加第五个：
 
 | 镜像 | 谁在用 |
 |---|---|
 | `evil0ctal/douyin_tiktok_download_api` | `api`、`worker`、`migrate` 共用同一个 |
 | `evil0ctal/douyin_tiktok_download_api-downloader` | `downloader`（可选 profile） |
+| `evil0ctal/douyin_tiktok_download_api-transcriber` | `transcriber`（可选 profile；从第一个包含转写功能的 Release 开始发布，更早的 tag 没有这个镜像） |
 | `timescale/timescaledb-ha:pg17` | `postgres` |
 | `redis:8-alpine` | `redis` |
+
+转写模型不是镜像，也不走 Docker Hub：它们是从 ModelScope 下的约 500 MB，在大陆通常很快。
+见 [准备 FunASR ONNX 模型](./18-funasr-models.md)。
 
 加速器写在 `/etc/docker/daemon.json`：
 
@@ -396,13 +447,16 @@ npm config get registry
 | `worker` | `dtk-app` | 默认 | 否 | 领取任务，驱动调度器和身份池，跑后台作业 |
 | `browser-rpc` | `dtk-browser-rpc` | `browser` | **是** | 无头浏览器：铸造游客身份，以及可选的签名兜底 |
 | `downloader` | `dtk-downloader` | `downloader` | **是** | 把媒体文件写到数据卷上的 Go sidecar |
+| `transcriber` | `dtk-transcriber` | `transcriber` | **是** | 离线 FunASR 语音转文字，处理已下载的视频；没有任何网络出口 |
 
-两个网络：
+三个网络：
 
 - **`data`** 声明为 `internal: true`。`postgres` 和 `redis` 挂在上面，完全没有出宿主机的路由——既到不了
   互联网，也到不了这个 compose 项目之外的任何东西。
 - **`edge`** 是普通的桥接网络。`api`、`worker`、`browser-rpc` 和 `downloader` 在上面，因为它们需要出网。
   `browser-rpc` 和 `downloader` **只**在 `edge` 上：两者都没有理由访问数据库，所以它们也访问不到。
+- **`compute`** 同样是 `internal: true`。只有 `transcriber` 挂在上面，所以这个 sidecar 既出不了网，也碰不到
+  数据库；`api` 和 `worker` 加入它，是为了调用 sidecar。模型是挂载进去的，它没有任何东西需要下载。
 
 ## 首次安装
 
@@ -599,9 +653,29 @@ PID 1 必须去回收。
 文件按 `<platform>/<author>/<content id>/` 落盘，旁边放一份 `meta.json`。传输用 `io.Copy` 流式完成，所以
 常驻内存是每个并发文件几个 32 KiB 缓冲区加上 Go 运行时——和文件大小无关。
 
-## 两个可选 profile
+### transcriber（profile `transcriber`）
 
-两个 profile 默认都不启动。不开其中任何一个都是受支持的部署形态，不是残缺状态。
+一个包着量化 FunASR 流水线的小 FastAPI 服务：Paraformer-large 识别语音，FSMN-VAD 切分语段，CT-Transformer
+加标点，最后做中文数字规范化（ITN）。它把下载器已经存下来的视频转成文字，自己从不去抓任何媒体。
+
+它的一切设计都是因为要处理没人审过的文件：
+
+- **它没有任何网络出口。** 它只在 `compute` 上，而那个网络是 `internal: true`。模型从
+  `DTK_TRANSCRIBER_MODEL_PATH` 指向的宿主机目录只读挂载到 `/models/funasr`，容器从不下载模型——模型缺了或
+  坏了，表现是健康检查不过，而不是悄悄去拉一份。怎么准备模型见 [准备 FunASR ONNX 模型](./18-funasr-models.md)。
+- **它不留下任何比它活得久的东西。** `media-data` 只读挂载，根文件系统只读，ffmpeg 把音频以采样流的形式直接
+  送进进程，所以你的文件旁边不会多出 WAV。唯一可写的路径是 `/tmp` 上 1 GiB 的 tmpfs。
+- **它不持有任何密钥。** `DTK_SECRET_KEY`、`DTK_DATABASE_URL` 和 `DTK_REDIS_URL` 都被置空，和下载器一样。
+  所有 capability 都被丢掉，以 UID 10001 运行。
+
+默认一次只跑一个任务（`DTK_TRANSCRIBER_WORKERS`），后面最多排八个（`DTK_TRANSCRIBER_QUEUE`），再多就返回
+`429`；这样被拒的转写会标记为失败并写明原因，稍后重新发起就行。健康检查读的是 `/health` 返回体里的
+`status` 字段，模型缺失或加载失败时它是 `degraded`，所以没带模型就启动的容器会被报成 unhealthy，而不是
+接下它跑不了的任务。
+
+## 可选 profile
+
+这几个 profile 默认都不启动。不开其中任何一个都是受支持的部署形态，不是残缺状态。
 
 **browser profile** 给你自动身份铸造和浏览器签名兜底：
 
@@ -628,17 +702,39 @@ docker compose -p dtk -f docker/compose.yml --profile downloader up -d --build
 设置限制，默认 2 GiB；超出后最旧的未固定下载会被删除，并有一条告警说明删了什么。参见
 [下载、资料库与关注列表](./08-downloads-and-library.md)。
 
-同时开两个：
+**transcriber profile** 在这台机器上把已存的视频转成文字。它依赖下载器——它转写的就是下载器存下的视频；
+而且模型得先放到宿主机上，[准备 FunASR ONNX 模型](./18-funasr-models.md) 讲了怎么获取和校验。然后：
 
 ```bash
-CLOAKBROWSER_COMMIT="<40-char sha>" \
-  docker compose -p dtk -f docker/compose.yml --profile browser --profile downloader up -d --build
+cat >> .env <<EOF
+DTK_TRANSCRIBER_URL=http://transcriber:9200
+DTK_TRANSCRIBER_TOKEN=$(openssl rand -hex 24)
+DTK_TRANSCRIBER_MODEL_PATH=/absolute/path/to/funasr-onnx
+EOF
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
+  --profile downloader --profile transcriber up -d --build
+```
+
+还是同样的形式，多了一个模型目录。不设 `DTK_TRANSCRIBER_URL` 的话，`POST /api/v1/transcriptions` 返回 `501`，
+并说明怎么打开。这里的 `COMPOSE_ENV_FILES=.env` 不能省：模型路径是 Compose 插值读的，不带它，根目录 `.env`
+里的这一行根本不会被看到——见 [compose 读取 `.env` 的两种方式](#compose-读取-env-的两种方式)。路径请写绝对路径：
+compose 里的默认值 `./models/funasr-onnx` 是相对 `docker/` 解析的，不是仓库根目录。用已发布镜像时，在 `DTK_IMAGE` 旁边再设
+`DTK_TRANSCRIBER_IMAGE=evil0ctal/douyin_tiktok_download_api-transcriber`，去掉 `--build`；转写功能之前的
+Release 没有这个镜像，那就本地构建或者先升级。浏览器也在同一台机器上的话，读一下
+[转写和浏览器在同一台机器上](#转写和浏览器在同一台机器上)。
+
+三个一起开：
+
+```bash
+CLOAKBROWSER_COMMIT="<40-char sha>" COMPOSE_ENV_FILES=.env \
+  docker compose -p dtk -f docker/compose.yml \
+  --profile browser --profile downloader --profile transcriber up -d --build
 ```
 
 `build`、`config` 和 `down` 需要重复这些 profile 参数：这几条命令读的是 compose 文件而不是正在运行的栈，
 不带参数 Compose 就不知道这些服务存在——而不带参数的 `down` 会停掉核心服务、把 profile 里的容器留在原地
 继续跑。`ps` 和 `logs <服务名>` 靠项目标签找到正在运行的容器，不需要这些参数。嫌麻烦就在 shell 里
-`export COMPOSE_PROFILES=browser,downloader`。
+`export COMPOSE_PROFILES=browser,downloader,transcriber`。
 
 ## 构建浏览器镜像：CloakBrowser 版本固定
 
@@ -687,6 +783,7 @@ docker build -f docker/Dockerfile.browser \
 | `Dockerfile.browser` | `CLOAKBROWSER_INSTALL_CMD` | `python -m cloakbrowser install` | 拉取浏览器二进制的命令；它属于你固定的那个版本，所以换 commit 时要顺手核对 |
 | `Dockerfile.browser` | `CLOAKBROWSER_HOME` | `/opt/cloakbrowser` | 浏览器装在哪。运行时根文件系统只读，所以 entrypoint 会把它软链到容器的 `HOME` 下 |
 | `Dockerfile.downloader` | `VERSION` | `dev`（compose 传 `${DTK_IMAGE_TAG:-dev}`） | 烙进二进制里的版本号 |
+| `Dockerfile.transcriber` | `PYTHON_VERSION` | `3.12.8` | sidecar 的基础 Python；它自己的依赖钉在 `docker/transcriber/requirements.txt` 里 |
 
 ## 环境变量
 
@@ -698,9 +795,12 @@ docker build -f docker/Dockerfile.browser \
   `docker/`，所以 `../.env` 指的是**仓库根目录**的 `.env`。文件不存在也不算错误（`required: false`）——
   由 entrypoint 给出那条有用的提示。
 - **插值**——也就是 `compose.yml` 内部的 `${…}` 表达式——**不读**那份文件。它读的是 `docker/.env` 或你的
-  shell。一共涉及六个变量、出现在九处表达式里：`DTK_BIND_HOST`、`DTK_BIND_PORT`（发布地址）、
-  `DTK_IMAGE_TAG`（镜像标签，出现在四处）、`DTK_REDIS_MAXMEMORY`（redis 上限），以及
-  `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT`（构建参数）。
+  shell。它用到的变量有：`DTK_BIND_HOST`、`DTK_BIND_PORT`（发布地址），`DTK_IMAGE`、
+  `DTK_DOWNLOADER_IMAGE`、`DTK_TRANSCRIBER_IMAGE` 和 `DTK_IMAGE_TAG`（跑哪些镜像），
+  `DTK_TRANSCRIBER_MODEL_PATH`（模型挂载），`DTK_REDIS_MAXMEMORY`（redis 上限），以及
+  `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT`（构建参数）。其中模型路径是会悄悄出错的那个：只写在根目录
+  `.env` 里的话它会被忽略，Docker 改挂一个空的 `docker/models/funasr-onnx`，transcriber 起来就是没有模型的
+  `degraded`。
 
 所以这样是有效的：
 
@@ -743,6 +843,10 @@ docker compose -p dtk -f docker/compose.yml config
 | `DTK_BACKUP_DIR` | `backups` | 备份归档写入和列举的目录。镜像里被设为 `/var/lib/dtk/backups`；相对路径的默认值适合源码检出 |
 | `DTK_DOWNLOADER_URL` | *(空)* | downloader sidecar 在哪。空表示完全关闭媒体下载 |
 | `DTK_DOWNLOADER_TOKEN` | *(空)* | 该 sidecar 的可选共享密钥。空表示 sidecar 不做校验。两侧必须一致 |
+| `DTK_TRANSCRIBER_URL` | *(空)* | 转写 sidecar 在哪。空表示关闭转写，此时 `POST /api/v1/transcriptions` 返回 `501` |
+| `DTK_TRANSCRIBER_TOKEN` | *(空)* | 该 sidecar 的共享密钥，以 `X-Transcriber-Token` 发送。空表示 sidecar 不做校验。两侧必须一致 |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | worker 等一次转写最多等多久。sidecar 也读这个变量，作为 ffmpeg 解码的时间上限 |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | `fallback` 在数字规范化失败时保留未规范化的文本；`fail` 则让这次转写失败。sidecar 也读它 |
 
 ### 引导配置之外读取的变量
 
@@ -761,7 +865,11 @@ docker compose -p dtk -f docker/compose.yml config
 |---|---|---|
 | `DTK_BIND_HOST` | `127.0.0.1` | api 端口发布到宿主机的哪个地址 |
 | `DTK_BIND_PORT` | `8000` | api 发布到宿主机的哪个端口 |
-| `DTK_IMAGE_TAG` | `dev` | `dtk-app`、`dtk-browser-rpc` 和 `dtk-downloader` 的标签 |
+| `DTK_IMAGE` | `dtk-app` | 应用镜像的仓库名。设成 `evil0ctal/douyin_tiktok_download_api` 就拉已发布的那个 |
+| `DTK_DOWNLOADER_IMAGE` | `dtk-downloader` | 下载器镜像的仓库名；已发布的是 `evil0ctal/douyin_tiktok_download_api-downloader` |
+| `DTK_TRANSCRIBER_IMAGE` | `dtk-transcriber` | transcriber 镜像的仓库名；已发布的是 `evil0ctal/douyin_tiktok_download_api-transcriber` |
+| `DTK_IMAGE_TAG` | `dev` | 上面三个镜像以及 `dtk-browser-rpc` 的标签 |
+| `DTK_TRANSCRIBER_MODEL_PATH` | `./models/funasr-onnx` | 放着 `asr/`、`vad/`、`punc/` 的宿主机目录，只读挂载。默认值相对 `docker/` 解析，所以请写绝对路径 |
 | `DTK_REDIS_MAXMEMORY` | `320mb` | Redis 的 `maxmemory`。保持明显低于容器的 512m 上限 |
 | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | 浏览器镜像的构建参数 |
 | `CLOAKBROWSER_COMMIT` | *(空)* | 浏览器镜像的构建参数 |
@@ -823,6 +931,24 @@ docker compose -p dtk -f docker/compose.yml config
 
 值为空、无法解析或不为正数时，会回退到默认值而不是导致启动失败。
 
+### transcriber 的变量
+
+全部以 `DTK_TRANSCRIBER_` 为前缀，由 sidecar 在启动时读一次，可以写在根目录 `.env` 里。两个路径被 compose
+钉死，因为它们必须和挂载对齐。
+
+| 变量 | 默认值 | 含义 |
+|---|---|---|
+| `DTK_TRANSCRIBER_MODEL_DIR` | `/models/funasr` | 从哪读模型（由 compose 钉死；宿主机那一侧是 `DTK_TRANSCRIBER_MODEL_PATH`） |
+| `DTK_TRANSCRIBER_MEDIA_ROOT` | `/var/lib/dtk/media` | 从哪读已存的媒体（由 compose 钉死） |
+| `DTK_TRANSCRIBER_TOKEN` | *(空)* | 共享密钥；必须和 api 侧的 `DTK_TRANSCRIBER_TOKEN` 一致 |
+| `DTK_TRANSCRIBER_THREADS` | `2` | 每个任务的 ONNX Runtime 线程数。不要超过容器的 `cpus` |
+| `DTK_TRANSCRIBER_WORKERS` | `1` | 同时跑几个任务。每个任务都要占一整套线程 |
+| `DTK_TRANSCRIBER_QUEUE` | `8` | 排在后面等的任务数；超出后 sidecar 返回 `429` |
+| `DTK_TRANSCRIBER_JOB_HISTORY` | `64` | 保留多少个已结束的任务，好让重启后的 worker 还能取回结果。不会低于并发数加队列数 |
+| `DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS` | `30` | 运行中的任务多久打一次进度日志。最小 5 |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | 单个文件 ffmpeg 解码的时间上限，最小 60。worker 也读这个变量 |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | `fallback` 或 `fail`。其他值会让 sidecar 保持 unhealthy，而不是去猜 |
+
 ### 从环境变量播种的运行时设置
 
 其余一切都是运行时设置：它们存在 `settings` 表里，可以在控制台中修改且无需重启，并且**只在首次初始化时**从
@@ -841,7 +967,7 @@ docker compose -p dtk -f docker/compose.yml config
 | `postgres-data` | `postgres` 的 `/home/postgres/pgdata/data` | postgres | 所有持久化数据：身份、代理、用户、API 密钥、任务、内容归档、请求日志、设置 |
 | `redis-data` | `redis` 的 `/data` | redis | AOF 与 RDB 快照：队列能挺过重启，缓存则不需要 |
 | `backup-data` | `api` 和 `worker` 的 `/var/lib/dtk/backups` | worker 写，api 读 | 备份归档。之所以共享，是因为 worker 写、API 列出并提供下载 |
-| `media-data` | `downloader`（读写）和 `api`（只读）的 `/var/lib/dtk/media` | downloader | 下载的媒体，按 `<platform>/<author>/<content id>/` 布局，旁边有 `meta.json` |
+| `media-data` | `downloader`（读写）、`api` 和 `transcriber`（只读）的 `/var/lib/dtk/media` | downloader | 下载的媒体，按 `<platform>/<author>/<content id>/` 布局，旁边有 `meta.json` |
 
 `backup-data` 和 `media-data` 之所以存在，是因为应用容器的根文件系统是只读的——它们唯一另外可写的地方是
 `/tmp` 上一个 64 MB 的 tmpfs。备份目录在镜像里就创建好并归属运行用户，因为 Docker 会用镜像在挂载点上的内容
@@ -975,10 +1101,18 @@ docker compose -p dtk -f docker/compose.yml exec api dtk migrate --show
 # 启用了 browser profile：里面真的有浏览器吗？
 docker compose -p dtk -f docker/compose.yml exec api \
   python -c "import urllib.request; print(urllib.request.urlopen('http://browser-rpc:9000/rpc/health').read().decode())"
+
+# 启用了 transcriber profile：模型加载好了吗？"ok"，或者 "degraded" 加原因
+docker compose -p dtk -f docker/compose.yml exec api python -c "
+import json, os, urllib.request
+r = urllib.request.Request('http://transcriber:9200/health',
+    headers={'X-Transcriber-Token': os.environ.get('DTK_TRANSCRIBER_TOKEN', '')})
+h = json.load(urllib.request.urlopen(r, timeout=5)); print(h['status'], h['detail'] or '')"
 ```
 
-Postgres 或 Redis 挂掉时，`/readyz` 返回 `503` 并带上分组件的明细，通常比翻日志更快。`browser-rpc` 刻意
-不在其中。
+Postgres 或 Redis 挂掉时，`/readyz` 返回 `503` 并带上分组件的明细，通常比翻日志更快。它只探这两个：
+`browser-rpc` 刻意不在其中，其他可选容器也一样，理由相同——它们都不在请求路径上，缺了其中一个，实例是降级，
+不是没就绪。
 
 仓库里还有一个端到端冒烟测试。它会用同一个 compose 文件拉起一个**独立的** compose 项目（`dtk-smoke`），
 走完初始化流程、签发一个 API 密钥、跑一遍文档化的契约，然后连同数据卷一起拆掉：
@@ -1029,8 +1163,10 @@ docker compose -p dtk -f docker/compose.yml up -d --wait
 
 有三件事需要知道：
 
-- **`build` 只构建当前激活 profile 里的服务。** 要重建浏览器或下载器镜像，就把 profile 参数带上——并且再次
-  提供 `CLOAKBROWSER_COMMIT`，因为它是构建参数，取自你的 shell 或 `docker/.env`，而不是根目录 `.env`。
+- **`build` 只构建当前激活 profile 里的服务。** 要重建浏览器、下载器或转写镜像，就把 profile 参数带上——
+  浏览器还得再次提供 `CLOAKBROWSER_COMMIT`，因为它是构建参数，取自你的 shell 或 `docker/.env`，而不是根目录
+  `.env`。用已发布镜像时，升级会把 transcriber 和其他镜像一起拉到新 tag；要退到转写功能之前的 tag，得先关掉
+  转写，因为那个 tag 根本没有 transcriber 镜像可拉。
 - **CLI 里的迁移是单向的。** `dtk migrate` 只升不降，没有 downgrade 命令。要回滚一个改过表结构的版本，
   意味着恢复它之前的备份。
 - **绝不要在升级中顺手改 `DTK_SECRET_KEY`。** 所有已存的 cookie 和代理凭据都用它加密。如果它非改不可，
@@ -1318,15 +1454,19 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/healthz    # 期�
 `ProtectSystem` / `NoNewPrivileges` 补回了一部分；剩下的靠 Postgres 和 Redis 只监听 `127.0.0.1`
 （默认如此，别改），以及别把 `DTK_BIND_HOST` 改成 `0.0.0.0`。完整清单见[安全](./15-security.md)。
 
-**两个可选组件**
+**可选组件**
 
-`browser-rpc`（自动铸造身份）和 `downloader`（媒体落盘）在裸机上是**两个额外的进程**，各有各的依赖：
-前者要一份独立的 Python 环境加 CloakBrowser 和 Chromium，后者要 Go 工具链编一个二进制。两个都可以不装——
-不装浏览器就靠手工导入 Cookie，不装下载器则 `POST /api/v1/downloads` 返回 `501` 并说明原因。
+`browser-rpc`（自动铸造身份）、`downloader`（媒体落盘）和 `transcriber`（把已存视频转成文字）在裸机上是
+**额外的进程**，各有各的依赖：第一个要一份独立的 Python 环境加 CloakBrowser 和 Chromium，第二个要 Go 工具链
+编一个二进制，最后一个又是一份 Python 环境，带 ONNX Runtime、ffmpeg 和模型。都可以不装——不装浏览器就靠
+手工导入 Cookie，不装下载器或转写，对应的 `POST` 返回 `501` 并说明原因。
 
-只想要其中一个而不想手工装的话，混着来是完全可以的：应用跑在裸机上，这两个 sidecar 用
+只想要其中一个而不想手工装的话，混着来是完全可以的：应用跑在裸机上，这些 sidecar 用
 `docker compose --profile browser --profile downloader` 起，然后把 `DTK_BROWSER_RPC_URL` 和
-`DTK_DOWNLOADER_URL` 指过去。它们之间只通过 HTTP 说话，不在乎对方跑在哪。
+`DTK_DOWNLOADER_URL` 指过去。它们之间只通过 HTTP 说话，不在乎对方跑在哪。转写也能这样混，但有两个条件：它从
+`media-data` 卷里读视频，所以要和写这些视频的下载器放在同一个 compose 项目里；它在内部网络 `compute` 上、
+什么端口都没发布，所以要从宿主机访问它，得写一个 override 把 `9200` 只发布在 `127.0.0.1` 上——并且两侧都设
+`DTK_TRANSCRIBER_TOKEN`，因为这个端口现在宿主机上谁都能碰到。
 
 
 ## 单独运行 worker

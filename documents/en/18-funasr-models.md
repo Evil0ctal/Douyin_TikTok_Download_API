@@ -98,6 +98,22 @@ Do not download only `model_quant.onnx` and `config.yaml`. ASR also needs CMVN
 data and its vocabulary, VAD needs CMVN data, and the punctuation model needs
 its vocabulary.
 
+## Let the install script fetch them
+
+The [guided install script](../../install/README.md) can do all of the above for
+you, either when it installs (answer yes to offline transcription) or later from
+its menu (**Manage → 11 Transcription on or off**). It asks for the model
+directory, uses it as it is if the ten runtime files are already there, and
+otherwise offers to download them over HTTPS from ModelScope.
+
+The download is pinned to the verified commits in the table below rather than
+to the repositories' current state, and every file — the small ones included —
+is checked against a SHA-256 the script carries. A file that does not match is
+deleted, not kept, and transcription stays off with everything else installed.
+It fetches only the runtime files, so it needs about 500 MiB rather than the
+1 GiB a Git clone keeps. The files are left readable by the container's UID
+10001.
+
 ## Check file integrity
 
 Check the required files first:
@@ -184,10 +200,12 @@ and prints the success line above.
 
 ## Connect the models to Compose
 
-Add the absolute host path to `.env` at the repository root:
+Add the absolute host path to `.env` at the repository root, with a token both
+sides will share:
 
 ```ini
 DTK_TRANSCRIBER_URL=http://transcriber:9200
+DTK_TRANSCRIBER_TOKEN=<output of: openssl rand -hex 24>
 DTK_TRANSCRIBER_MODEL_PATH=/Users/your-name/funasr-onnx
 DTK_TRANSCRIBER_THREADS=2
 DTK_TRANSCRIBER_JOB_HISTORY=64
@@ -195,20 +213,30 @@ DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS=30
 DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY=fallback
 ```
 
-Inspect the resolved Compose configuration:
+`DTK_TRANSCRIBER_MODEL_PATH` is read by Compose interpolation, which does not
+look at the root `.env` unless `COMPOSE_ENV_FILES=.env` says so. Without it the
+line above is ignored and Docker mounts an empty `docker/models/funasr-onnx`
+instead. Inspect the resolved Compose configuration:
 
 ```bash
-docker compose -p dtk -f docker/compose.yml --profile transcriber config
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
+  --profile downloader --profile transcriber config
 ```
 
 Confirm that the `transcriber` volume source is the absolute path just prepared
 and that it is mounted at `/models/funasr:ro`. The transcription service can
-then be started:
+then be started — with the downloader, since what it transcribes is a video the
+downloader stored:
 
 ```bash
-docker compose -p dtk -f docker/compose.yml \
-  --profile transcriber up -d --build
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
+  --profile downloader --profile transcriber up -d --build
 ```
+
+`--build` builds the sidecar on this machine. Releases also publish it as
+`evil0ctal/douyin_tiktok_download_api-transcriber`, with the same tags as the
+application image: set `DTK_TRANSCRIBER_IMAGE` to that name in `.env` and pull
+instead of building. A release from before transcription has no such tag.
 
 ## Common problems
 
@@ -220,3 +248,5 @@ docker compose -p dtk -f docker/compose.yml \
 | `Permission denied` | Host permissions prevent UID 10001 in the container from reading the files | Grant directory traversal and file read permission; do not make the models world-writable |
 | The sidecar tries to use the network at startup | The local path is invalid, or a different wrapper with automatic downloads was substituted | Use an absolute local path and the three low-level ONNX models in this guide; production must not rely on a download fallback |
 | The punctuation model loads slowly | The quantized CT-Transformer file is still about 270 MiB | Initial loading must read the file; wait for the final health result |
+| Health is `degraded` and the model directory in the container is empty | `DTK_TRANSCRIBER_MODEL_PATH` sits in the root `.env`, but Compose was run without `COMPOSE_ENV_FILES=.env`, so the default `docker/models/funasr-onnx` was mounted | Run Compose with `COMPOSE_ENV_FILES=.env`, or through the install script's `dtkctl`, which always sets it |
+| A transcription that normally takes seconds takes many times longer, or `?wait=` comes back `running` | Another CPU-bound container is on the same cores — usually `browser-rpc` minting identities | Expected, and it finishes. See [when transcription and the browser share a host](./02-installation.md#when-transcription-and-the-browser-share-a-host) |

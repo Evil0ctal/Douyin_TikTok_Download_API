@@ -15,7 +15,8 @@ docker/
 ├── compose.yml          the stack
 ├── compose.test.yml     test fixtures only (owned elsewhere; never used here)
 ├── browser_rpc/         the RPC service source, built into Dockerfile.browser
-└── downloader/          the Go downloader source, built into Dockerfile.downloader
+├── downloader/          the Go downloader source, built into Dockerfile.downloader
+└── transcriber/         the transcription service source, built into Dockerfile.transcriber
 ```
 
 ## Quick start
@@ -92,14 +93,25 @@ download and verification procedure is in
 ```bash
 cat >> .env <<EOF
 DTK_TRANSCRIBER_URL=http://transcriber:9200
+DTK_TRANSCRIBER_TOKEN=$(openssl rand -hex 24)
 DTK_TRANSCRIBER_MODEL_PATH=/absolute/path/to/funasr-onnx
 DTK_TRANSCRIBER_THREADS=2
 DTK_TRANSCRIBER_JOB_HISTORY=64
 DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS=30
 DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY=fallback
 EOF
-docker compose -p dtk -f docker/compose.yml --profile transcriber up -d --build
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
+  --profile downloader --profile transcriber up -d --build
 ```
+
+`COMPOSE_ENV_FILES=.env` is what makes compose read `DTK_TRANSCRIBER_MODEL_PATH`
+from the root `.env` (see
+[the two ways compose reads `.env`](#configuration-and-the-two-ways-compose-reads-env));
+without it the default
+`docker/models/funasr-onnx` is mounted, empty, and the sidecar reports
+`degraded`. The downloader comes along because what the transcriber reads is
+what the downloader stored. The guided install script can fetch and verify the
+models and write all of this for you.
 
 The models are mounted read-only and the container has no internet route. It
 reads `media-data` read-only, decodes video audio through ffmpeg, and keeps no
@@ -128,6 +140,17 @@ somebody rebuilds one of them.
 
 **`Dockerfile.browser`** builds browser-rpc. It is separate because it is the
 only container that carries a browser, and it is optional.
+
+**`Dockerfile.downloader`** and **`Dockerfile.transcriber`** build the other two
+optional sidecars: a static Go binary on `scratch`, and a Python service with
+ONNX Runtime and a standalone ffmpeg. The transcriber image holds no models -
+they are mounted from the host - so publishing it ships nobody else's weights.
+
+Three of the four are published: the app, the downloader and, from the first
+release that includes transcription, the transcriber
+(`evil0ctal/douyin_tiktok_download_api-transcriber`). browser-rpc is not: it
+installs CloakBrowser from a pinned commit, and that pin is a security control
+that belongs to the operator.
 
 ### Publishing: the `release` branch
 
@@ -260,10 +283,11 @@ This trips people up, so it is worth being explicit.
   picked up even though the compose project directory is `docker/`. Missing file
   is not an error (`required: false`); the entrypoint produces the useful
   message instead.
-* **Interpolation** in `compose.yml` — only the published address,
-  `${DTK_BIND_HOST:-127.0.0.1}:${DTK_BIND_PORT:-8000}:8000` — does *not* read
-  that file. It reads `docker/.env` or the shell. It therefore defaults to
-  loopback, and publishing elsewhere is an explicit act:
+* **Interpolation** in `compose.yml` — the published address
+  `${DTK_BIND_HOST:-127.0.0.1}:${DTK_BIND_PORT:-8000}:8000`, the image names
+  and tag, and the transcriber's model mount `DTK_TRANSCRIBER_MODEL_PATH` — does
+  *not* read that file. It reads `docker/.env` or the shell. It therefore
+  defaults to loopback, and publishing elsewhere is an explicit act:
 
   ```bash
   DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
@@ -316,6 +340,12 @@ with room. On a small VPS two of them stop the stack rather than slowing it:
   the stack fits in far less day to day; what does not fit is the peak. A mint
   drives Chromium up while postgres is holding its buffers, and with no swap the
   kernel picks a victim — usually postgres, not the process that grew.
+* with transcription on, `transcriber` (2 cores) and `browser-rpc` (4) are both
+  CPU-bound and both caps, not reservations. On a host without that many idle
+  cores a transcription running during a mint takes several times longer - it
+  still finishes. `cpuset` in the override keeps them apart on a host with six
+  or more cores; the numbers are in
+  [documents/en/02-installation.md](../documents/en/02-installation.md#when-transcription-and-the-browser-share-a-host).
 
 Override per host rather than editing `compose.yml`, so the repository keeps
 describing a normal machine and the deviation stays visible:
@@ -345,8 +375,10 @@ redis, `GET /readyz` for api (readiness, so `up --wait` returns when the API can
 actually serve), a Redis TCP probe for the worker, which has no port of its own,
 and `GET /rpc/health` for browser-rpc — that one reads the `status` field rather
 than settling for a 200, because the service answers the probe even when the
-browser backend failed to start. `migrate` has none - a one-shot task's exit
-status is its health, which is what `service_completed_successfully` reads.
+browser backend failed to start. The transcriber's `GET /health` is read the
+same way: it answers `degraded` while its models are missing or failed to
+load. `migrate` has none - a one-shot task's exit status is its health, which
+is what `service_completed_successfully` reads.
 
 ## browser-rpc
 

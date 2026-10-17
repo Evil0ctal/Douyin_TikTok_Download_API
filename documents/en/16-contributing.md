@@ -74,7 +74,7 @@ Top level:
 | `src/dtk/` | The Python application. One installable package, `dtk`, declared in `pyproject.toml` as `packages = ["src/dtk"]`. |
 | `tests/` | The Python test suite, in four layers — see [The test suite](#the-test-suite). |
 | `web/` | The React console. Built to static files and served by the API container; no Node in production. |
-| `docker/` | Images, compose files, and the two optional sidecars that live outside the `dtk` package: `browser_rpc/` (Python, FastAPI + headless browser, its own dependency set) and `downloader/` (Go). |
+| `docker/` | Images, compose files, and the three optional sidecars that live outside the `dtk` package: `browser_rpc/` (Python, FastAPI + headless browser, its own dependency set), `downloader/` (Go) and `transcriber/` (Python, FastAPI + FunASR ONNX, its own pinned `requirements.txt`). |
 | `scripts/` | `smoke.sh`, the full-stack end-to-end check. |
 | `documents/` | This documentation set, `en/` and `zh/`. |
 | `logo/` | The project mark, as SVG and PNG. |

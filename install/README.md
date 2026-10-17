@@ -75,8 +75,9 @@ swapped.
 | Logs, restart | |
 | Settings | Any runtime setting, including `retention.*` — no restart needed |
 | Free disk space | Stale images from **this project only**, and optionally build cache |
+| Transcription on or off | For an install that already exists. On: the same model step as the install, then the image, `.env` and a recreate. Off: the container goes, the models stay on disk. Only the `--profile transcriber` flag in `dtkctl` is touched |
 
-That last one is worth a note. Container logs are already capped by the compose
+Free disk space is worth a note. Container logs are already capped by the compose
 file at 10 MB × 3 per service, so the whole stack cannot pass about 180 MB of
 logs. What grows without a ceiling is old image tags and buildx cache, and the
 cleanup is scoped to this project's images — a plain `docker image prune -a`
@@ -91,7 +92,7 @@ look like an install.
 
 ## What it asks
 
-Six questions, all with a default you can accept by pressing enter:
+Seven questions, all with a default you can accept by pressing enter:
 
 1. **Where to install.** `/opt/dtk` as root, `~/dtk` otherwise.
 2. **Which address and port.** `127.0.0.1:8000`. Choosing `0.0.0.0` warns you,
@@ -100,9 +101,15 @@ Six questions, all with a default you can accept by pressing enter:
    paste cookies, and it costs about 4 GiB of RAM and a 6 GB image built on this
    machine. Suggested off under 6 GiB of RAM, and always off with `--yes`.
 4. **Media downloads.** Small and cheap. On by default.
-5. **Published images or build from source.** Published, unless you say
+5. **Offline transcription.** Turns stored videos into text on this machine:
+   about 1 GiB of RAM, two cores while it works, a 1.1 GB image and 500 MB of
+   models. Off by default, and off with `--yes` unless `DTK_ENABLE_TRANSCRIBER=1`.
+   It is not offered without media downloads (it transcribes what they stored)
+   or on a single core, and under 4 GiB of RAM a yes comes with a reminder to
+   add swap. Say yes and it asks where the models are — see below.
+6. **Published images or build from source.** Published, unless you say
    otherwise.
-6. **Update the checkout**, if there is already an install in that directory.
+7. **Update the checkout**, if there is already an install in that directory.
 
 ## What it does
 
@@ -121,6 +128,16 @@ Six questions, all with a default you can accept by pressing enter:
   right every time — the project name, both compose files, and
   `COMPOSE_ENV_FILES`, without which Compose reads `docker/.env` and silently
   interpolates defaults.
+- **Fetches the transcription models if you want transcription and do not have
+  them.** The model directory defaults to `models/funasr-onnx` inside the
+  install directory. One that already holds the ten runtime files is used as it
+  is; otherwise it offers to download them from ModelScope (about 500 MB),
+  pinned to the commits in
+  [Preparing the FunASR ONNX models](../documents/en/18-funasr-models.md), and
+  checks every file against its SHA-256. If the models cannot be fetched, or the
+  published transcriber image cannot be pulled — a release from before
+  transcription has none — transcription is switched off and the rest of the
+  install carries on; the menu turns it on later.
 - Pulls, migrates, starts, waits for every service to report healthy, and prints
   the one-time link that creates the first administrator.
 
@@ -144,7 +161,7 @@ already has something in it.
 
 ```
 --yes, -y   Take every default. Publishes on 127.0.0.1:8000, downloader on,
-            browser container off.
+            browser container and transcription off.
 --check     Detect the system and print what would happen, then stop. Changes
             nothing — good for seeing what it thinks of your machine first.
 --manage    Go straight to the menu for an install that already exists.
@@ -158,6 +175,10 @@ real unattended install:
 DTK_INSTALL_DIR=/srv/dtk DTK_BIND_PORT=9000 DTK_ENABLE_BROWSER=1 \
   bash install.sh --yes
 ```
+
+Transcription takes two: `DTK_ENABLE_TRANSCRIBER=1` turns it on, and
+`DTK_TRANSCRIBER_MODEL_PATH` says where the models are or should go. With both
+and `--yes`, a directory without the models is filled by the checked download.
 
 `DTK_PROJECT` names the Compose project (default `dtk`). Set it to run a second,
 completely separate stack on the same host.
@@ -174,8 +195,10 @@ problem with this project.
 ## Installing from mainland China
 
 Switch your mirrors first. The install pulls from Docker Hub, and building the
-browser image also reaches GitHub, PyPI and a browser CDN. Without a registry
-mirror the image pull usually times out and it looks like the project is broken.
+browser image also reaches GitHub, PyPI and a browser CDN. The transcription
+models come from ModelScope, which is usually fast from mainland China. Without
+a registry mirror the image pull usually times out and it looks like the
+project is broken.
 [中国大陆的网络准备](../documents/zh/02-installation.md#中国大陆的网络准备) has
 the details.
 
@@ -243,8 +266,9 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
 | 日志、重启 | |
 | 设置 | 任何运行时设置，包括 `retention.*`，改完不用重启 |
 | 释放磁盘空间 | **只针对本项目**的陈旧镜像，构建缓存可选 |
+| 开启或关闭转写 | 给已经装好的实例用。打开：走和安装时一样的模型步骤，再处理镜像、`.env`，然后重建容器。关闭：删掉容器，模型留在磁盘上。`dtkctl` 里只动 `--profile transcriber` 这一个参数 |
 
-最后一项值得说一句。容器日志已经被 compose 文件按每服务 10 MB × 3 封顶了，整套栈
+「释放磁盘空间」值得说一句。容器日志已经被 compose 文件按每服务 10 MB × 3 封顶了，整套栈
 的日志过不了 180 MB 左右。真正没有上限、会一直涨的是旧的镜像 tag 和 buildx 缓存；
 而这里的清理只针对本项目的镜像 —— 直接 `docker image prune -a` 会把同一台机器上
 别的栈的镜像一起端掉。
@@ -257,7 +281,7 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
 
 ## 它会问什么
 
-六个问题，每个都有默认值，回车即可：
+七个问题，每个都有默认值，回车即可：
 
 1. **装到哪里。** root 是 `/opt/dtk`，否则 `~/dtk`。
 2. **发布在哪个地址和端口。** 默认 `127.0.0.1:8000`。选 `0.0.0.0` 会给你警告，
@@ -266,8 +290,13 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
    4 GiB 内存和一个要在本机构建的 6 GB 镜像。内存不到 6 GiB 时建议关，
    加了 `--yes` 时一律不建。
 4. **要不要媒体下载。** 很小很省，默认开。
-5. **用已发布镜像还是从源码构建。** 默认用已发布的。
-6. **要不要更新代码**，前提是那个目录里已经有一份安装。
+5. **要不要离线转写。** 在这台机器上把已存的视频转成文字：约 1 GiB 内存，转写时占两个核，
+   一个 1.1 GB 的镜像和 500 MB 的模型。默认关；加了 `--yes` 时也关，除非设了
+   `DTK_ENABLE_TRANSCRIBER=1`。没开媒体下载（它转写的就是下载存下的视频）或只有一个核时
+   不提供这个选项；内存不到 4 GiB 时选“要”，会提醒你配上 swap。选了“要”，它会接着问模型
+   放在哪——见下文。
+6. **用已发布镜像还是从源码构建。** 默认用已发布的。
+7. **要不要更新代码**，前提是那个目录里已经有一份安装。
 
 ## 它做了什么
 
@@ -283,6 +312,12 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
 - 生成一个 `dtkctl` 包装脚本，替你带上那三个每次都得对的参数 —— 项目名、两个
   compose 文件，以及 `COMPOSE_ENV_FILES`；没有最后这个，Compose 会去读
   `docker/.env` 然后悄悄用默认值做插值。
+- **要转写又没有模型时，替你下载。** 模型目录默认是安装目录下的
+  `models/funasr-onnx`。目录里已经有那十个运行时文件就直接用；否则问你要不要从 ModelScope
+  下载（约 500 MB），钉在 [准备 FunASR ONNX 模型](../documents/zh/18-funasr-models.md)
+  验证过的 commit 上，每个文件都对一遍 SHA-256。模型下不下来，或者已发布的 transcriber
+  镜像拉不到——转写功能之前的 Release 没有这个镜像——转写就保持关闭，安装的其他部分照常
+  完成；之后可以在菜单里再打开。
 - 拉镜像、跑迁移、启动、等所有服务报告健康，最后打印出创建第一个管理员的
   一次性链接。
 
@@ -302,7 +337,8 @@ git 仓库，也拒绝装进一个已经有东西的目录。
 ## 选项
 
 ```
---yes, -y   全部取默认值。发布在 127.0.0.1:8000，开下载器，不建浏览器容器。
+--yes, -y   全部取默认值。发布在 127.0.0.1:8000，开下载器，不建浏览器容器，
+            不开转写。
 --check     只探测系统并打印将会发生什么，然后停下。不改任何东西 ——
             适合先看看它对你这台机器的判断。
 --manage    直接进入已有安装的管理菜单。
@@ -315,6 +351,9 @@ git 仓库，也拒绝装进一个已经有东西的目录。
 DTK_INSTALL_DIR=/srv/dtk DTK_BIND_PORT=9000 DTK_ENABLE_BROWSER=1 \
   bash install.zh.sh --yes
 ```
+
+转写用两个：`DTK_ENABLE_TRANSCRIBER=1` 打开它，`DTK_TRANSCRIBER_MODEL_PATH` 指定模型在哪
+或该放哪。两个都设了再加 `--yes`，没有模型的目录会由那个带校验的下载填上。
 
 `DTK_PROJECT` 指定 Compose 项目名（默认 `dtk`）。设成别的值，就能在同一台机器上
 跑第二套完全独立的栈。
@@ -330,5 +369,6 @@ Docker Compose **2.24 或更新** —— compose 文件用到了长格式的 `en
 ## 在中国大陆安装
 
 先换源。安装过程要从 Docker Hub 拉镜像，构建浏览器镜像还要访问 GitHub、PyPI 和
-浏览器 CDN。没有镜像加速器的话，拉镜像那步通常会超时，看起来就像项目坏了。
+浏览器 CDN。转写模型来自 ModelScope，在大陆通常很快。没有镜像加速器的话，拉镜像那步
+通常会超时，看起来就像项目坏了。
 详见 [中国大陆的网络准备](../documents/zh/02-installation.md#中国大陆的网络准备)。

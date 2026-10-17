@@ -350,8 +350,8 @@ where it is (`DTK_BROWSER_RPC_URL` in `.env`). And the image has to have been
 built with `CLOAKBROWSER_COMMIT`, which is read at **build time**, from your
 shell or `docker/.env` rather than from the repository-root `.env` - an image
 built without it contains no browser at all, comes up, reports healthy and mints
-nothing. See [the two optional profiles and the CloakBrowser
-pin](./02-installation.md#the-two-optional-profiles) for the pinned commit to use
+nothing. See [the optional profiles and the CloakBrowser
+pin](./02-installation.md#the-optional-profiles) for the pinned commit to use
 and why it is a commit rather than a tag.
 
 Without any of it the pool is whatever you import by hand, which is a supported

@@ -55,6 +55,10 @@
 | `DTK_BACKUP_DIR` | `backups` | 备份归档的写入与列出目录。API 与 worker 必须一致：worker 写归档，API 负责列出和下载。容器镜像是只读的，所以 compose 把它指向一个共享卷。 |
 | `DTK_DOWNLOADER_URL` | 空 | Go 媒体下载器的地址，例如 `http://downloader:9100`。留空则完全关闭媒体下载，此时 `POST /api/v1/downloads` 返回 501 并给出可操作的提示，其他功能不受影响。 |
 | `DTK_DOWNLOADER_TOKEN` | 空 | 该 sidecar 的可选共享密钥。它所在的内部网络没有别的容器，所以这属于纵深防御而非边界本身；留空表示 sidecar 不做任何校验。 |
+| `DTK_TRANSCRIBER_URL` | 空 | 转写 sidecar 的地址，例如 `http://transcriber:9200`。留空则关闭转写，此时 `POST /api/v1/transcriptions` 返回 501 并说明怎么打开。 |
+| `DTK_TRANSCRIBER_TOKEN` | 空 | 该 sidecar 的共享密钥，以 `X-Transcriber-Token` 发送；留空表示 sidecar 不做任何校验。两侧必须一致。 |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | worker 等一次转写最多等多久。sidecar 也读这个变量作为解码时限，所以两边会一起放弃。 |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | 数字规范化失败时怎么办：`fallback` 保留未规范化的文本，`fail` 让这次转写失败。两侧都读。 |
 
 以下由进程或容器 entrypoint 直接读取，不在上面那个类里：
 
@@ -65,7 +69,7 @@
 | `DTK_WORKER_COMMAND` | 未设置 | 覆盖 worker 的启动命令行。只有当 worker 模块不在常用名字下时才需要。 |
 | `DTK_COMMIT`、`DTK_GIT_COMMIT`、`GIT_COMMIT` | 未设置 | 系统状态接口上报的提交号，按此优先级读取。 |
 
-还有四个是 compose 自己读的，而不是应用读的：`DTK_IMAGE_TAG`（镜像标签，默认 `dev`）、`DTK_REDIS_MAXMEMORY`（Redis 内存上限，默认 `320mb`），以及 `CLOAKBROWSER_REPO` 与 `CLOAKBROWSER_COMMIT`——后两个是浏览器镜像的构建参数，而不是运行时会被读取的配置，见[安装与部署](./02-installation.md)。`DTK_BIND_HOST` 与 `DTK_BIND_PORT` 在这里身兼两职——它们同时决定对外发布的地址。这六个变量的插值，compose 读的都是 `docker/.env` 或 shell，绝不是根目录的 `.env`——把 `CLOAKBROWSER_COMMIT` 或 `DTK_IMAGE_TAG` 写进根目录 `.env` 不会有任何效果，原因就在这里。要发布到所有网卡：
+还有一些是 compose 自己读的，而不是应用读的：`DTK_IMAGE`、`DTK_DOWNLOADER_IMAGE`、`DTK_TRANSCRIBER_IMAGE` 和 `DTK_IMAGE_TAG`（跑哪些镜像，标签默认 `dev`）、`DTK_TRANSCRIBER_MODEL_PATH`（挂进 transcriber 当模型目录的宿主机路径）、`DTK_REDIS_MAXMEMORY`（Redis 内存上限，默认 `320mb`），以及 `CLOAKBROWSER_REPO` 与 `CLOAKBROWSER_COMMIT`——后两个是浏览器镜像的构建参数，而不是运行时会被读取的配置，见[安装与部署](./02-installation.md#compose-层面的变量)。`DTK_BIND_HOST` 与 `DTK_BIND_PORT` 在这里身兼两职——它们同时决定对外发布的地址。这些变量的插值，compose 读的都是 `docker/.env` 或 shell，而不是根目录的 `.env`——除非你带上 `COMPOSE_ENV_FILES=.env` 运行，引导式安装生成的 `dtkctl` 就是这么做的。所以在裸跑的 `docker compose` 下，把 `CLOAKBROWSER_COMMIT` 或 `DTK_IMAGE_TAG` 写进根目录 `.env` 不会有任何效果；把 `DTK_TRANSCRIBER_MODEL_PATH` 写在那里，transcriber 拿到的就是一个空的模型目录。要发布到所有网卡：
 
 ```bash
 DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
@@ -75,7 +79,7 @@ DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
 
 ## Sidecar 环境变量
 
-两个可选容器有各自的环境变量，同样在启动时读取一次。它们都不连数据库，compose 也把两者的 `DTK_SECRET_KEY` 置空。
+这几个可选容器有各自的环境变量，同样在启动时读取一次。它们都不连数据库，compose 也把三者的 `DTK_SECRET_KEY` 都置空。
 
 ### browser-rpc（`DTK_BROWSER_*`）
 
@@ -118,6 +122,23 @@ DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
 | `DTK_DOWNLOADER_HISTORY` | `500` | 记住多少条已完成任务。 |
 | `DTK_DOWNLOADER_MAX_REDIRECTS` | `5` | 单次传输的重定向上限。 |
 | `DTK_DOWNLOADER_TIMEOUT_SECONDS` | `900` | 单次传输的超时上限。 |
+
+### transcriber（`DTK_TRANSCRIBER_*`）
+
+来自 `docker/transcriber/app.py`。和下载器不同，不是数字的值会让它启动失败：sidecar 是 Python 进程，导入时就把这些解析一遍。
+
+| 变量 | 默认值 | 作用 |
+| --- | --- | --- |
+| `DTK_TRANSCRIBER_MODEL_DIR` | `/models/funasr` | 从哪读模型。compose 把它固定到只读的模型挂载点；宿主机那一侧是 `DTK_TRANSCRIBER_MODEL_PATH`。 |
+| `DTK_TRANSCRIBER_MEDIA_ROOT` | `/var/lib/dtk/media` | 从哪读已存的媒体。compose 固定为只读挂载的媒体卷。 |
+| `DTK_TRANSCRIBER_TOKEN` | 空 | sidecar 期望的共享密钥；需与应用侧的 `DTK_TRANSCRIBER_TOKEN` 配对。 |
+| `DTK_TRANSCRIBER_THREADS` | `2` | 每个任务的 ONNX Runtime 线程数。不要超过容器的 `cpus`。 |
+| `DTK_TRANSCRIBER_WORKERS` | `1` | 同时跑几个任务。每个任务都要一整套线程，外加它自己那份解码后的音频。 |
+| `DTK_TRANSCRIBER_QUEUE` | `8` | 排在后面等的任务数。超出后 sidecar 返回 429。 |
+| `DTK_TRANSCRIBER_JOB_HISTORY` | `64` | 保留多少个已结束的任务，好让重启后的 worker 还能取回结果。不会低于并发数加队列数。 |
+| `DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS` | `30` | 运行中的任务多久打一次进度日志。最小 5。 |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | 单个文件 ffmpeg 解码的时间上限，最小 60。worker 也读这个变量。 |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | `fallback` 或 `fail`。其他值会让 sidecar 保持 unhealthy，而不是去猜。 |
 
 ## 修改一个运行时配置
 

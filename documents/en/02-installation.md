@@ -7,7 +7,7 @@
 
 This page takes you from an empty host to a running instance you can leave alone, and explains
 enough of the compose file that you can change it without breaking it. After reading it you should
-be able to size a machine, decide which of the two optional containers you actually want, put TLS in
+be able to size a machine, decide which of the optional containers you actually want, put TLS in
 front of the API, upgrade without losing data, and run the whole thing without Docker if you prefer.
 
 If you only want the shortest path to a working instance, read [Quick start](./01-quickstart.md)
@@ -41,7 +41,7 @@ what you are putting back, and it is worth reading before you choose.
 
 - [Installing and managing it with the script](#installing-and-managing-it-with-the-script) — the guided install, and the operations menu afterwards
 - [What you need](#what-you-need) — sizing, disk, and the two things to know before pointing this at your own database
-- [What the shipped defaults are written for](#what-the-shipped-defaults-are-written-for) · [Three sizes](#three-sizes) · [Changing the limits](#changing-the-limits)
+- [What the shipped defaults are written for](#what-the-shipped-defaults-are-written-for) · [Three sizes](#three-sizes) · [Changing the limits](#changing-the-limits) · [When transcription and the browser share a host](#when-transcription-and-the-browser-share-a-host)
 - [Network preparation in mainland China](#network-preparation-in-mainland-china) — switch your mirrors first; without them the install usually dies on the image pull
 - [The stack at a glance](#the-stack-at-a-glance) — how many containers, and which talks to which
 
@@ -49,7 +49,7 @@ what you are putting back, and it is worth reading before you choose.
 
 - [First install](#first-install) — empty directory to a console you can log in to
 - [The compose file, service by service](#the-compose-file-service-by-service) — read this before editing it
-- [The two optional profiles](#the-two-optional-profiles) — whether you want `browser` and `downloader`
+- [The optional profiles](#the-optional-profiles) — whether you want `browser`, `downloader` and `transcriber`
 - [Building the browser image: the CloakBrowser pin](#building-the-browser-image-the-cloakbrowser-pin) — this image is not published; you build it
 - [Environment variables](#environment-variables) — including the two ways Compose reads `.env`, which catches everyone once
 - [Volumes](#volumes) · [Ports and binding](#ports-and-binding) · [Behind a reverse proxy](#behind-a-reverse-proxy)
@@ -75,7 +75,8 @@ what you are putting back, and it is worth reading before you choose.
 | Linux, macOS or WSL2 host | Nothing in the stack is platform-specific, but the browser container wants a lot of memory and is happiest on Linux |
 | 2 GiB RAM for the core stack, 4 GiB to be safe | 2 GiB is enough in practice — measured usage at rest is about 295 MiB across the four core containers (see the table below) — but the container ceilings sum to 3.5 GiB, so 4 GiB is the safe figure |
 | ~8 GiB RAM if you run the `browser` profile | The browser container is capped at 4 GiB and genuinely uses it |
-| ~15 GB of free disk | Roughly 4.5 GB of images for the core stack and ~6.3 GB with the browser container, before volumes and build cache; then Postgres and, if you enable media downloads, the media volume (capped at 2 GiB by default). 15 GB free is comfortable |
+| ~1 GiB more RAM and two cores if you run the `transcriber` profile | The models stay loaded, about 750 MiB at rest; a job keeps two cores busy while it runs, and only then |
+| ~15 GB of free disk | Roughly 4.5 GB of images for the core stack and ~6.3 GB with the browser container, before volumes and build cache; then Postgres and, if you enable media downloads, the media volume (capped at 2 GiB by default). Transcription adds a ~1.1 GB image and ~500 MB of models. 15 GB free is comfortable |
 | Outbound HTTPS | The worker and the browser container talk to the platforms, usually through proxies you supply |
 
 You do **not** need to install Postgres, Redis, Python, Node or a browser on the host. The compose
@@ -103,6 +104,10 @@ comments were taken on 2026-09-08):
 | `worker` | 512m | 2.0 | 256 | 71 MiB |
 | `browser-rpc` | 4g | 4.0 | 1024 | 2.57 GiB warm, 629% CPU |
 | `downloader` | 512m | 2.0 | 128 | streaming buffers only |
+| `transcriber` | 4g | 2.0 | 256 | ~750 MiB with the models loaded; ~0.9 GiB transcribing a 3-minute clip |
+
+The `transcriber` row was measured later, on 2026-10-16, with the quantized models from
+[Preparing the FunASR ONNX models](./18-funasr-models.md).
 
 The limits exist so one overloaded component cannot destabilise the rest. `postgres` is the
 exception with no CPU cap and a loose memory cap, because a tight ceiling on Postgres degrades
@@ -206,6 +211,50 @@ Knobs worth turning, most effective first:
   concurrent-transfer ceiling is their product. Drop both to 2 on one core.
 - **`pool.target_size` (a console setting).** A bigger pool means more mints and
   more rows in Postgres. 8 is a sensible number on a small box.
+- **`DTK_TRANSCRIBER_THREADS` (default 2).** ONNX threads for one transcription.
+  Keep it at or under the transcriber's `cpus`; more threads than cores only
+  adds switching. If the browser runs on the same host, read the next section.
+
+### When transcription and the browser share a host
+
+`browser-rpc` and `transcriber` are both CPU-bound background work, and their
+ceilings — 4 cores and 2 — are caps, not reservations. On a host without that
+many idle cores they take turns on the same ones, and the transcription is what
+you notice, because somebody is waiting for its text.
+
+Measured on 2026-10-16 with the transcriber at its shipped two cores:
+
+| Situation | Audio | Time |
+|---|---|---|
+| Transcriber alone | 3 min 13 s | 3.7 s |
+| Four busy threads pinned to the same two cores | 3 min 13 s | 15.7 s |
+| A busy development host while `browser-rpc` minted an identity | 21 s | 31 s and 50+ s, against under a second once the mint had finished |
+
+What follows from that:
+
+- **A slow transcription during a mint is expected, and it finishes.** Mints
+  happen at startup, while the pool fills, and whenever an identity retires.
+  `DTK_TRANSCRIBER_TIMEOUT_SECONDS` (3600 by default) is far above any of this.
+- **`?wait=` may come back `running`.** It waits at most 30 seconds; after that,
+  poll the transcription or its task rather than calling again with `refresh`.
+- **Let the pool fill before a batch.** A dozen transcriptions queued right after
+  `up -d` all run while the browser is busiest.
+- **On a host with six or more cores, give them different cores.** `cpuset` in
+  `compose.host.yml` keeps them apart entirely:
+
+  ```yaml
+  services:
+    browser-rpc: { cpuset: "0-3" }
+    transcriber: { cpuset: "4-5" }
+  ```
+
+- **On a smaller host, shrink the browser rather than the transcriber.** The
+  first knob above already says why: minting is the work that can wait.
+
+The guided script writes `transcriber: { mem_limit: 1536m, memswap_limit: 1536m }`
+into `compose.host.yml` on a host under about 7.8 GiB, so the 4g ceiling does not
+add to a total the machine does not have. It does not set `cpuset`: which cores
+are free depends on what else the host runs.
 
 ## Installing and managing it with the script
 
@@ -221,9 +270,14 @@ bash install.sh
 
 **The first run** works out the distribution, checks for Docker (and offers to
 install it), sizes the resource ceilings to this machine's cores and memory,
-then asks six questions: where, which address and port, the browser container,
-media downloads, published images or a build. It writes three things, and they
-are exactly the three this page goes on to teach you to write by hand:
+then asks seven questions: where, which address and port, the browser container,
+media downloads, offline transcription, published images or a build. Say yes to
+transcription and it also asks where the models are: a directory that already
+holds them is used as it is, and an empty one is offered a download — about
+500 MB from ModelScope, pinned to the commits that
+[Preparing the FunASR ONNX models](./18-funasr-models.md) verified, with every
+file checked against its SHA-256. It writes three things, and they are exactly
+the three this page goes on to teach you to write by hand:
 
 | What it writes | The section here |
 |---|---|
@@ -240,7 +294,12 @@ matter where you put it — and opens a menu instead of installing:
   Migrations run before the swap, so a failure leaves the old containers up
   with nothing changed
 - **Manage** — passwords, an extra administrator, account list, backup,
-  restore, self check, logs, restart, any runtime setting, disk cleanup
+  restore, self check, logs, restart, any runtime setting, disk cleanup, and
+  transcription on or off. Turning it on runs the same model step as the
+  install, pulls or builds the image, and recreates the stack; turning it off
+  removes the container and leaves the models where they are. Either way only
+  the one `--profile` flag in `dtkctl` changes, so anything else you edited in
+  that file survives
 - **Stop or remove** — three levels: stop, stop and delete the volumes, or that
   plus the install directory. The last two require typing `delete`, not a y/n
 
@@ -266,14 +325,20 @@ in 2024 — so each part ends with a way to check for yourself.
 
 ### Docker images
 
-On the recommended path, where you only pull prebuilt images, there are four to fetch from Docker Hub:
+On the recommended path, where you only pull prebuilt images, there are four to fetch from Docker Hub,
+and a fifth if you turn transcription on:
 
 | Image | Used by |
 |---|---|
 | `evil0ctal/douyin_tiktok_download_api` | `api`, `worker` and `migrate`, which share one image |
 | `evil0ctal/douyin_tiktok_download_api-downloader` | `downloader` (optional profile) |
+| `evil0ctal/douyin_tiktok_download_api-transcriber` | `transcriber` (optional profile; published from the first release that includes transcription — an older tag has no such image) |
 | `timescale/timescaledb-ha:pg17` | `postgres` |
 | `redis:8-alpine` | `redis` |
+
+The transcription models are not an image and do not come from Docker Hub: they are ~500 MB from
+ModelScope, which is usually fast from mainland China. See
+[Preparing the FunASR ONNX models](./18-funasr-models.md).
 
 Mirrors go in `/etc/docker/daemon.json`:
 
@@ -440,14 +505,18 @@ suspecting the project — everything listed here names the host it could not re
 | `worker` | `dtk-app` | default | no | Claims tasks, drives the scheduler and identity pool, runs background jobs |
 | `browser-rpc` | `dtk-browser-rpc` | `browser` | **yes** | Headless browser: mints guest identities, optional signing fallback |
 | `downloader` | `dtk-downloader` | `downloader` | **yes** | Go sidecar that writes media files to a volume |
+| `transcriber` | `dtk-transcriber` | `transcriber` | **yes** | Offline FunASR speech-to-text for stored videos; no network route |
 
-Two networks:
+Three networks:
 
 - **`data`** is declared `internal: true`. `postgres` and `redis` sit on it and have no route off
   the host at all — not to the internet, not to anything outside the compose project.
 - **`edge`** is an ordinary bridge network. `api`, `worker`, `browser-rpc` and `downloader` are on
   it because they need egress. `browser-rpc` and `downloader` are on `edge` **only**: neither has
   any reason to reach the database, so neither can.
+- **`compute`** is `internal: true` as well. `transcriber` is on it and nothing else, so the
+  sidecar can reach neither the internet nor the database; `api` and `worker` join it to call the
+  sidecar. Its models are mounted, so it has nothing to fetch.
 
 ## First install
 
@@ -679,9 +748,33 @@ Files land as `<platform>/<author>/<content id>/` with a `meta.json` beside them
 streamed with `io.Copy`, so resident memory is a handful of 32 KiB buffers per concurrent file plus
 the Go runtime — not the size of the files.
 
-## The two optional profiles
+### transcriber (profile `transcriber`)
 
-Neither profile starts by default. Leaving one off is a supported deployment, not a broken one.
+A small FastAPI service around a quantized FunASR pipeline: Paraformer-large for speech, FSMN-VAD to
+cut it into segments, CT-Transformer for punctuation, then Chinese inverse text normalization. It
+turns a video the downloader already stored into text; it never fetches media of its own.
+
+Everything about it is shaped by handling files nobody vetted:
+
+- **It has no network route.** It sits on `compute` only, which is `internal: true`. The models are
+  mounted read-only at `/models/funasr` from the host directory in `DTK_TRANSCRIBER_MODEL_PATH`, and
+  the container never downloads them — a missing or malformed model is a failed health check, not a
+  silent fetch. [Preparing the FunASR ONNX models](./18-funasr-models.md) covers getting them.
+- **It writes nothing that outlives it.** `media-data` is mounted read-only, the root filesystem is
+  read-only, and ffmpeg streams the audio into the process as samples, so no WAV is left beside your
+  files. The only writable path is a 1 GiB tmpfs on `/tmp`.
+- **It holds no secrets.** `DTK_SECRET_KEY`, `DTK_DATABASE_URL` and `DTK_REDIS_URL` are blanked, as
+  on the downloader. All capabilities are dropped and it runs as UID 10001.
+
+It runs one job at a time by default (`DTK_TRANSCRIBER_WORKERS`) with eight queued behind it
+(`DTK_TRANSCRIBER_QUEUE`), and refuses with `429` past that; a transcription refused that way is
+marked failed with the reason, and starting it again later is the fix. Its healthcheck reads the `status` field of `/health`, which is `degraded` while the models
+are missing or failed to load, so a container that started without them is reported unhealthy
+instead of accepting jobs it cannot run.
+
+## The optional profiles
+
+None of them starts by default. Leaving one off is a supported deployment, not a broken one.
 
 **The browser profile** gives you automatic identity minting and the browser signing fallback:
 
@@ -710,18 +803,44 @@ watchlist are all unaffected. Stored media is capped by the `media.max_bytes` se
 default; past it the oldest unpinned downloads are removed and an alert says what went. See
 [Downloads, library and watchlist](./08-downloads-and-library.md).
 
-Both profiles at once:
+**The transcriber profile** turns stored videos into text on this machine. It needs the downloader,
+because what it transcribes is a video the downloader saved, and it needs the models on the host
+first — [Preparing the FunASR ONNX models](./18-funasr-models.md) gets and checks them. Then:
 
 ```bash
-CLOAKBROWSER_COMMIT="<40-char sha>" \
-  docker compose -p dtk -f docker/compose.yml --profile browser --profile downloader up -d --build
+cat >> .env <<EOF
+DTK_TRANSCRIBER_URL=http://transcriber:9200
+DTK_TRANSCRIBER_TOKEN=$(openssl rand -hex 24)
+DTK_TRANSCRIBER_MODEL_PATH=/absolute/path/to/funasr-onnx
+EOF
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
+  --profile downloader --profile transcriber up -d --build
+```
+
+Same shape again, plus the model directory. Without `DTK_TRANSCRIBER_URL`,
+`POST /api/v1/transcriptions` answers `501` and says how to turn it on. `COMPOSE_ENV_FILES=.env` is
+not optional here: the model path is read by Compose interpolation, and without it the root `.env`
+is never consulted for it — see [the two ways Compose reads `.env`](#the-two-ways-compose-reads-env).
+Give the path as an absolute one: the compose default, `./models/funasr-onnx`, is resolved against
+`docker/`, not the repository root. With published images, set
+`DTK_TRANSCRIBER_IMAGE=evil0ctal/douyin_tiktok_download_api-transcriber` beside `DTK_IMAGE` and drop
+`--build`; a release from before transcription has no such image, so build it or upgrade. If the
+browser runs on the same host, read
+[When transcription and the browser share a host](#when-transcription-and-the-browser-share-a-host).
+
+All three at once:
+
+```bash
+CLOAKBROWSER_COMMIT="<40-char sha>" COMPOSE_ENV_FILES=.env \
+  docker compose -p dtk -f docker/compose.yml \
+  --profile browser --profile downloader --profile transcriber up -d --build
 ```
 
 `build`, `config` and `down` have to repeat the profile flags: those commands read the compose file
 rather than the running stack, so without the flags Compose does not know those services exist — and
 a `down` without them stops the core services and leaves the profile containers running. `ps` and
 `logs <service>` find the running containers by project label and need no flags. If you get tired of
-repeating them, export `COMPOSE_PROFILES=browser,downloader` in your shell.
+repeating them, export `COMPOSE_PROFILES=browser,downloader,transcriber` in your shell.
 
 ## Building the browser image: the CloakBrowser pin
 
@@ -775,6 +894,7 @@ Build arguments, with the defaults the Dockerfiles declare:
 | `Dockerfile.browser` | `CLOAKBROWSER_INSTALL_CMD` | `python -m cloakbrowser install` | The command that fetches the browser binaries; it belongs to the pinned revision, so verify it when you change the commit |
 | `Dockerfile.browser` | `CLOAKBROWSER_HOME` | `/opt/cloakbrowser` | Where the browser is installed. The rootfs is read-only at runtime, so the entrypoint symlinks it into the container's `HOME` |
 | `Dockerfile.downloader` | `VERSION` | `dev` (compose passes `${DTK_IMAGE_TAG:-dev}`) | Stamped into the binary |
+| `Dockerfile.transcriber` | `PYTHON_VERSION` | `3.12.8` | Base Python for the sidecar; its own dependencies are pinned in `docker/transcriber/requirements.txt` |
 
 ## Environment variables
 
@@ -787,10 +907,13 @@ This trips up nearly everyone, so it is worth being explicit.
   **repository-root** `.env`. A missing file is not an error (`required: false`) — the entrypoint
   produces the useful message instead.
 - **Interpolation** — the `${…}` expressions inside `compose.yml` itself — does **not** read that
-  file. It reads `docker/.env` or your shell. Six variables appear, in nine such expressions:
-  `DTK_BIND_HOST`, `DTK_BIND_PORT` (the published address), `DTK_IMAGE_TAG` (image tags, in four
-  places), `DTK_REDIS_MAXMEMORY` (the redis ceiling) and `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT`
-  (build arguments).
+  file. It reads `docker/.env` or your shell. The variables it uses: `DTK_BIND_HOST`,
+  `DTK_BIND_PORT` (the published address), `DTK_IMAGE`, `DTK_DOWNLOADER_IMAGE`,
+  `DTK_TRANSCRIBER_IMAGE` and `DTK_IMAGE_TAG` (which images run), `DTK_TRANSCRIBER_MODEL_PATH` (the
+  model mount), `DTK_REDIS_MAXMEMORY` (the redis ceiling) and `CLOAKBROWSER_REPO` /
+  `CLOAKBROWSER_COMMIT` (build arguments). The model path is the one that fails quietly: written
+  only into the root `.env`, it is ignored, Docker mounts an empty `docker/models/funasr-onnx` in
+  its place, and the transcriber comes up `degraded` with no models.
 
 So this works:
 
@@ -835,6 +958,10 @@ database is reachable. Changing one requires a restart. They are the complete co
 | `DTK_BACKUP_DIR` | `backups` | Where backup archives are written and listed from. The image sets it to `/var/lib/dtk/backups`; the relative default suits a source checkout |
 | `DTK_DOWNLOADER_URL` | *(empty)* | Where the downloader sidecar is. Empty disables media downloads entirely |
 | `DTK_DOWNLOADER_TOKEN` | *(empty)* | Optional shared secret for that sidecar. Empty means the sidecar checks nothing. It must match on both sides |
+| `DTK_TRANSCRIBER_URL` | *(empty)* | Where the transcription sidecar is. Empty disables transcription; `POST /api/v1/transcriptions` then answers `501` |
+| `DTK_TRANSCRIBER_TOKEN` | *(empty)* | Shared secret for that sidecar, sent as `X-Transcriber-Token`. Empty means the sidecar checks nothing. It must match on both sides |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | How long the worker waits for one transcription. The sidecar reads the same variable as its ffmpeg decode limit |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | `fallback` keeps the unnormalized text when number normalization fails; `fail` fails the transcription instead. The sidecar reads it too |
 
 ### Variables read outside the bootstrap settings
 
@@ -853,7 +980,11 @@ Read by Compose interpolation, so they belong in your shell or `docker/.env`.
 |---|---|---|
 | `DTK_BIND_HOST` | `127.0.0.1` | Host address the api port is published on |
 | `DTK_BIND_PORT` | `8000` | Host port the api is published on |
-| `DTK_IMAGE_TAG` | `dev` | Tag for `dtk-app`, `dtk-browser-rpc` and `dtk-downloader` |
+| `DTK_IMAGE` | `dtk-app` | Repository for the application image. Set `evil0ctal/douyin_tiktok_download_api` to pull the published one |
+| `DTK_DOWNLOADER_IMAGE` | `dtk-downloader` | Repository for the downloader image; `evil0ctal/douyin_tiktok_download_api-downloader` when published |
+| `DTK_TRANSCRIBER_IMAGE` | `dtk-transcriber` | Repository for the transcriber image; `evil0ctal/douyin_tiktok_download_api-transcriber` when published |
+| `DTK_IMAGE_TAG` | `dev` | Tag for the three images above and for `dtk-browser-rpc` |
+| `DTK_TRANSCRIBER_MODEL_PATH` | `./models/funasr-onnx` | Host directory holding `asr/`, `vad/` and `punc/`, mounted read-only. The default resolves against `docker/`, so give an absolute path |
 | `DTK_REDIS_MAXMEMORY` | `320mb` | Redis `maxmemory`. Keep it comfortably under the container's 512m limit |
 | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | Build argument for the browser image |
 | `CLOAKBROWSER_COMMIT` | *(empty)* | Build argument for the browser image |
@@ -919,6 +1050,24 @@ healthcheck and the volume mount.
 A value that is empty, unparseable or not positive falls back to the default rather than failing the
 start.
 
+### transcriber variables
+
+All prefixed `DTK_TRANSCRIBER_`, read once at start by the sidecar, settable in the root `.env`. The
+two paths are pinned by the compose file because they have to agree with its mounts.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DTK_TRANSCRIBER_MODEL_DIR` | `/models/funasr` | Where the models are read from (pinned by compose; the host side is `DTK_TRANSCRIBER_MODEL_PATH`) |
+| `DTK_TRANSCRIBER_MEDIA_ROOT` | `/var/lib/dtk/media` | Where stored media is read from (pinned by compose) |
+| `DTK_TRANSCRIBER_TOKEN` | *(empty)* | Shared secret; must match `DTK_TRANSCRIBER_TOKEN` on the api side |
+| `DTK_TRANSCRIBER_THREADS` | `2` | ONNX Runtime threads per job. Keep it at or under the container's `cpus` |
+| `DTK_TRANSCRIBER_WORKERS` | `1` | Jobs at once. Each one is a full set of threads |
+| `DTK_TRANSCRIBER_QUEUE` | `8` | Jobs waiting behind those; past it the sidecar answers `429` |
+| `DTK_TRANSCRIBER_JOB_HISTORY` | `64` | Finished jobs kept so a restarted worker can still collect them. Never below workers plus queue |
+| `DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS` | `30` | How often a running job logs its progress. At least 5 |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | ffmpeg decode limit for one file, at least 60. The worker reads the same variable |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | `fallback` or `fail`. Any other value leaves the sidecar unhealthy rather than guessing |
+
 ### Runtime settings seeded from the environment
 
 Everything else is a runtime setting: it lives in the `settings` table, is edited from the console
@@ -940,7 +1089,7 @@ install cannot write into your checkout.
 | `postgres-data` | `/home/postgres/pgdata/data` on `postgres` | postgres | Everything durable: identities, proxies, users, API keys, tasks, the content archive, request logs, settings |
 | `redis-data` | `/data` on `redis` | redis | The append-only file and RDB snapshots: the queue survives a restart, the cache does not need to |
 | `backup-data` | `/var/lib/dtk/backups` on `api` and `worker` | worker (api reads) | Backup archives. Shared because the worker writes them and the API lists and serves them |
-| `media-data` | `/var/lib/dtk/media` on `downloader` (rw) and `api` (ro) | downloader | Downloaded media, laid out as `<platform>/<author>/<content id>/` with a `meta.json` |
+| `media-data` | `/var/lib/dtk/media` on `downloader` (rw), `api` and `transcriber` (ro) | downloader | Downloaded media, laid out as `<platform>/<author>/<content id>/` with a `meta.json` |
 
 `backup-data` and `media-data` exist because the application containers run with a read-only root
 filesystem — the only other writable path they have is a 64 MB tmpfs on `/tmp`. The backup directory
@@ -1084,10 +1233,19 @@ docker compose -p dtk -f docker/compose.yml exec api dtk migrate --show
 # With the browser profile: is there actually a browser in there?
 docker compose -p dtk -f docker/compose.yml exec api \
   python -c "import urllib.request; print(urllib.request.urlopen('http://browser-rpc:9000/rpc/health').read().decode())"
+
+# With the transcriber profile: are the models loaded? "ok", or "degraded" with a reason
+docker compose -p dtk -f docker/compose.yml exec api python -c "
+import json, os, urllib.request
+r = urllib.request.Request('http://transcriber:9200/health',
+    headers={'X-Transcriber-Token': os.environ.get('DTK_TRANSCRIBER_TOKEN', '')})
+h = json.load(urllib.request.urlopen(r, timeout=5)); print(h['status'], h['detail'] or '')"
 ```
 
 `/readyz` returns `503` with a per-component breakdown when Postgres or Redis is down, which is
-usually faster to read than the logs. `browser-rpc` is deliberately excluded from it.
+usually faster to read than the logs. It probes only those two: `browser-rpc` is deliberately
+excluded, and so are the other optional containers, for the same reason — none of them is on the
+request path, so an instance without one is degraded, not unready.
 
 There is also an end-to-end smoke test in the repository. It brings up a **separate** compose
 project (`dtk-smoke`) from the same compose file, walks the initialization flow, mints an API key,
@@ -1147,9 +1305,12 @@ below apply to it too.
 
 Three things to know:
 
-- **`build` only builds the services in the active profiles.** To rebuild the browser or the
-  downloader image, repeat the profile flags — and supply `CLOAKBROWSER_COMMIT` again, since it is a
-  build argument read from your shell or `docker/.env`, not from the root `.env`.
+- **`build` only builds the services in the active profiles.** To rebuild the browser, downloader
+  or transcriber image, repeat the profile flags — and for the browser supply `CLOAKBROWSER_COMMIT`
+  again, since it is a build argument read from your shell or `docker/.env`, not from the root
+  `.env`. On published images, an upgrade pulls the transcriber at the new tag with the rest; moving
+  to a tag from before transcription means turning it off first, because that tag has no transcriber
+  image to pull.
 - **Migrations are forward-only from the CLI.** `dtk migrate` upgrades; there is no downgrade
   command. Rolling back a release that changed the schema means restoring a backup taken before it.
 - **Never change `DTK_SECRET_KEY` as part of an upgrade.** Every stored cookie and proxy credential
@@ -1456,20 +1617,27 @@ code. The units above restore part of it through `ProtectSystem` and
 (the default — do not change it) and leaving `DTK_BIND_HOST` alone. The full list
 is in [Security](./15-security.md).
 
-**The two optional components**
+**The optional components**
 
-`browser-rpc` (automatic identity minting) and `downloader` (media on disk) are
-**two more processes** on bare metal, each with its own dependencies: a separate
-Python environment plus CloakBrowser and Chromium for the first, a Go toolchain
-for the second. Both are optional — without the browser you import cookies by
-hand, and without the downloader `POST /api/v1/downloads` answers `501` and says
-why.
+`browser-rpc` (automatic identity minting), `downloader` (media on disk) and
+`transcriber` (text from stored videos) are **more processes** on bare metal,
+each with its own dependencies: a separate Python environment plus CloakBrowser
+and Chromium for the first, a Go toolchain for the second, and a third Python
+environment with ONNX Runtime, ffmpeg and the models for the last. All are
+optional — without the browser you import cookies by hand, and without the
+downloader or the transcriber the matching `POST` answers `501` and says why.
 
 Mixing is entirely fine if you want one of them without installing it by hand:
-run the application on bare metal and start those two sidecars with
+run the application on bare metal and start those sidecars with
 `docker compose --profile browser --profile downloader`, then point
 `DTK_BROWSER_RPC_URL` and `DTK_DOWNLOADER_URL` at them. They speak HTTP and do
-not care where the other side runs.
+not care where the other side runs. The transcriber mixes the same way with two
+conditions: it reads videos from the `media-data` volume, so start it in the
+same compose project as the downloader that writes them, and it sits on the
+internal `compute` network with nothing published, so reaching it from the host
+means an override that publishes `9200` on `127.0.0.1` only — with a
+`DTK_TRANSCRIBER_TOKEN` on both sides, since the port is now reachable from the
+host.
 
 
 ## Running the worker on its own

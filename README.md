@@ -252,6 +252,7 @@ here rather than costing an upstream request.
 | Signing | a_bogus, X-Bogus, X-Gnarly and X-Dynosaur in pure Python |
 | Identity minting | CloakBrowser, headless, in a container of its own, called over HTTP |
 | Downloader | Go 1.23, standard library only, statically linked into a scratch image |
+| Transcription | FunASR ONNX (Paraformer, FSMN-VAD, CT-Transformer), offline, in a container with no network route |
 | Auth | argon2id password hashing · API keys with scopes |
 | Protocols | REST (OpenAPI) · MCP (streamable-http) · CLI |
 | Tooling | uv · ruff · mypy · pytest · Docker Compose |
@@ -298,11 +299,12 @@ Douyin_TikTok_Download_API/
 │       ├── pages/          one file per console page
 │       ├── components/     design system and shared components
 │       └── locales/        console English and Chinese strings
-├── docker/                 three Dockerfiles, compose, and two sidecars
+├── docker/                 four Dockerfiles, compose, and three sidecars
 │   ├── browser_rpc/        Python, wrapping CloakBrowser
 │   ├── downloader/         Go, the media download sidecar
+│   ├── transcriber/        Python, offline FunASR transcription
 │   └── compose.yml
-├── documents/              user documentation, 17 pages in each language
+├── documents/              user documentation, 18 pages in each language
 ├── tests/                  unit / integration / contract / replay
 ├── scripts/                smoke.sh
 ├── .github/workflows/      CI and Docker image publishing
@@ -410,7 +412,7 @@ filesystem, process supervision — you put back yourself. That section lists th
 | What you want to do | Where |
 |---|---|
 | Size a machine, change the container limits | [Three sizes](./documents/en/02-installation.md#three-sizes) · [Changing the limits](./documents/en/02-installation.md#changing-the-limits) |
-| Turn on the browser container or the downloader sidecar | [The two optional profiles](./documents/en/02-installation.md#the-two-optional-profiles) |
+| Turn on the browser container, the downloader or the transcriber sidecar | [The optional profiles](./documents/en/02-installation.md#the-optional-profiles) |
 | Put TLS and a reverse proxy in front | [Behind a reverse proxy](./documents/en/02-installation.md#behind-a-reverse-proxy) |
 | Understand how the environment is actually read | [Environment variables](./documents/en/02-installation.md#environment-variables) |
 | Confirm an install is genuinely healthy | [Verifying an install](./documents/en/02-installation.md#verifying-an-install) |
@@ -480,7 +482,7 @@ upgrading, which is the only rollback that always works.
 
 ## 📖 Documentation
 
-**Read it online at [douyin.wtf](https://douyin.wtf)** — the same 17 pages, rendered,
+**Read it online at [douyin.wtf](https://douyin.wtf)** — the same 18 pages, rendered,
 searchable and in both languages. The markdown source is in
 [`documents/`](./documents/README.md) and is what the site is built from, so the two
 never disagree.

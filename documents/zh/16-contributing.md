@@ -73,7 +73,7 @@ uv run dtk --version
 | `src/dtk/` | Python 应用。一个可安装包 `dtk`，在 `pyproject.toml` 里声明为 `packages = ["src/dtk"]`。 |
 | `tests/` | Python 测试套件，分四层——见[测试套件](#测试套件)。 |
 | `web/` | React 控制台。构建成静态文件由 API 容器托管，生产环境没有 Node。 |
-| `docker/` | 镜像、compose 文件，以及两个不在 `dtk` 包里的可选 sidecar：`browser_rpc/`（Python，FastAPI + 无头浏览器，自带一套依赖）和 `downloader/`（Go）。 |
+| `docker/` | 镜像、compose 文件，以及三个不在 `dtk` 包里的可选 sidecar：`browser_rpc/`（Python，FastAPI + 无头浏览器，自带一套依赖）、`downloader/`（Go）和 `transcriber/`（Python，FastAPI + FunASR ONNX，自带钉死版本的 `requirements.txt`）。 |
 | `scripts/` | `smoke.sh`，整栈端到端检查。 |
 | `documents/` | 你正在读的这套文档，分 `en/` 和 `zh/`。 |
 | `logo/` | 项目标识，SVG 和 PNG。 |

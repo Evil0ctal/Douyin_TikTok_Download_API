@@ -56,6 +56,10 @@ Read once at process start by `BootstrapSettings` in `src/dtk/core/config.py`. A
 | `DTK_BACKUP_DIR` | `backups` | Where backup archives are written and listed from. The API and worker must agree: the worker writes an archive and the API serves it. The container image is read-only, so compose points this at a shared volume. |
 | `DTK_DOWNLOADER_URL` | empty | Where the Go media downloader listens, e.g. `http://downloader:9100`. Empty disables media downloads entirely; `POST /api/v1/downloads` then answers 501 with an actionable message and nothing else is affected. |
 | `DTK_DOWNLOADER_TOKEN` | empty | Optional shared secret for that sidecar. It listens on an internal network no other container is on, so this is defence in depth; empty means the sidecar checks nothing. |
+| `DTK_TRANSCRIBER_URL` | empty | Where the transcription sidecar listens, e.g. `http://transcriber:9200`. Empty disables transcription; `POST /api/v1/transcriptions` then answers 501 and says how to turn it on. |
+| `DTK_TRANSCRIBER_TOKEN` | empty | Shared secret for that sidecar, sent as `X-Transcriber-Token`; empty means the sidecar checks nothing. It must match on both sides. |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | How long the worker waits for one transcription. The sidecar reads the same variable as its decode limit, so the two give up together. |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | What happens when number normalization fails: `fallback` keeps the unnormalized text, `fail` fails the transcription. Read by both sides. |
 
 Read directly by the process or by the container entrypoint, outside that class:
 
@@ -66,7 +70,7 @@ Read directly by the process or by the container entrypoint, outside that class:
 | `DTK_WORKER_COMMAND` | unset | Overrides the worker command line. Only needed if the worker module is not importable under its usual name. |
 | `DTK_COMMIT`, `DTK_GIT_COMMIT`, `GIT_COMMIT` | unset | Commit stamp reported by the system status endpoint, in that order of preference. |
 
-Four more are read by compose itself rather than by the application: `DTK_IMAGE_TAG` (image tag, default `dev`), `DTK_REDIS_MAXMEMORY` (Redis ceiling, default `320mb`), and `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT`, which are build arguments for the browser image rather than settings anything reads at runtime — see [Installation and deployment](./02-installation.md). `DTK_BIND_HOST` and `DTK_BIND_PORT` do double duty there — they also decide the published address. Compose interpolation reads `docker/.env` or the shell for all six of these, never the root `.env`, which is why a `CLOAKBROWSER_COMMIT` or a `DTK_IMAGE_TAG` written into the root file does nothing. To publish on all interfaces:
+More are read by compose itself rather than by the application: `DTK_IMAGE`, `DTK_DOWNLOADER_IMAGE`, `DTK_TRANSCRIBER_IMAGE` and `DTK_IMAGE_TAG` (which images run; the tag defaults to `dev`), `DTK_TRANSCRIBER_MODEL_PATH` (the host directory mounted as the transcriber's models), `DTK_REDIS_MAXMEMORY` (Redis ceiling, default `320mb`), and `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT`, which are build arguments for the browser image rather than settings anything reads at runtime — see [Installation and deployment](./02-installation.md#compose-level-variables). `DTK_BIND_HOST` and `DTK_BIND_PORT` do double duty there — they also decide the published address. Compose interpolation reads `docker/.env` or the shell for all of these, not the root `.env` — unless you run it with `COMPOSE_ENV_FILES=.env`, as the guided install's `dtkctl` does. That is why a `CLOAKBROWSER_COMMIT` or a `DTK_IMAGE_TAG` written into the root file does nothing on a bare `docker compose`, and why a `DTK_TRANSCRIBER_MODEL_PATH` there leaves the transcriber with an empty model directory. To publish on all interfaces:
 
 ```bash
 DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
@@ -76,7 +80,7 @@ See [Installation and deployment](./02-installation.md) for what to put in front
 
 ## Sidecar environment
 
-The two optional containers have their own environment, read once at start. Neither talks to the database, and compose blanks `DTK_SECRET_KEY` for both.
+The optional containers have their own environment, read once at start. None of them talks to the database, and compose blanks `DTK_SECRET_KEY` for all three.
 
 ### browser-rpc (`DTK_BROWSER_*`)
 
@@ -119,6 +123,23 @@ From `docker/downloader/main.go`. A value that is empty, unparseable or not posi
 | `DTK_DOWNLOADER_HISTORY` | `500` | How many finished jobs it remembers. |
 | `DTK_DOWNLOADER_MAX_REDIRECTS` | `5` | Redirect ceiling per transfer. |
 | `DTK_DOWNLOADER_TIMEOUT_SECONDS` | `900` | Ceiling for one transfer. |
+
+### transcriber (`DTK_TRANSCRIBER_*`)
+
+From `docker/transcriber/app.py`. Unlike the downloader, a value that is not a number fails the start: the sidecar is a Python process that parses these once at import.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `DTK_TRANSCRIBER_MODEL_DIR` | `/models/funasr` | Where the models are read from. Compose pins it to the read-only model mount; the host side is `DTK_TRANSCRIBER_MODEL_PATH`. |
+| `DTK_TRANSCRIBER_MEDIA_ROOT` | `/var/lib/dtk/media` | Where stored media is read from. Compose pins it to the media volume, mounted read-only. |
+| `DTK_TRANSCRIBER_TOKEN` | empty | Shared secret the sidecar expects; pair it with `DTK_TRANSCRIBER_TOKEN` on the app side. |
+| `DTK_TRANSCRIBER_THREADS` | `2` | ONNX Runtime threads per job. Keep it at or under the container's `cpus`. |
+| `DTK_TRANSCRIBER_WORKERS` | `1` | Jobs at once. Each one is a full set of threads and its own copy of the decoded audio. |
+| `DTK_TRANSCRIBER_QUEUE` | `8` | Jobs waiting behind those. Past it the sidecar answers 429. |
+| `DTK_TRANSCRIBER_JOB_HISTORY` | `64` | Finished jobs kept so a restarted worker can still collect their results. Never below workers plus queue. |
+| `DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS` | `30` | How often a running job logs its progress. At least 5. |
+| `DTK_TRANSCRIBER_TIMEOUT_SECONDS` | `3600` | ffmpeg decode limit for one file, at least 60. The worker reads the same variable. |
+| `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` | `fallback` | `fallback` or `fail`. Any other value keeps the sidecar unhealthy rather than guessing. |
 
 ## Changing a runtime setting
 

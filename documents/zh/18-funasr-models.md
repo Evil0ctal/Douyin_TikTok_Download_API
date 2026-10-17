@@ -90,6 +90,17 @@ git clone --depth 1 \
 浏览器下载时不要只下载 `model_quant.onnx` 和 `config.yaml`。ASR 还需要 CMVN 与词表，
 VAD 需要 CMVN，标点模型也需要词表。
 
+## 让安装脚本替你下载
+
+上面这些步骤，[引导式安装脚本](../../install/README.md) 都可以替你做：安装时（离线转写那一问
+答“是”），或者之后在它的菜单里（**管理 → 11 开启或关闭转写**）。它会问模型目录在哪；目录里已经有那十个
+运行时文件就直接用，否则就问你要不要通过 HTTPS 从 ModelScope 下载。
+
+下载钉在下表那几个验证过的 commit 上，而不是仓库的当前状态；每个文件——小文件也算——都要对一遍脚本
+里自带的 SHA-256。对不上的文件会被删掉而不是留着，转写保持关闭，其他部分照常装好。它只下载运行时
+文件，所以占约 500 MiB，而不是 Git 克隆留下的约 1 GiB。下载好的文件会设成容器里的 UID 10001
+可读。
+
 ## 检查文件完整性
 
 先检查必需文件：
@@ -171,10 +182,11 @@ SIDECAR_BACKEND_OK
 
 ## 接入 Compose
 
-把宿主机绝对路径写入仓库根目录的 `.env`：
+把宿主机绝对路径写入仓库根目录的 `.env`，再加一个两侧共用的口令：
 
 ```ini
 DTK_TRANSCRIBER_URL=http://transcriber:9200
+DTK_TRANSCRIBER_TOKEN=<openssl rand -hex 24 的输出>
 DTK_TRANSCRIBER_MODEL_PATH=/Users/your-name/funasr-onnx
 DTK_TRANSCRIBER_THREADS=2
 DTK_TRANSCRIBER_JOB_HISTORY=64
@@ -182,19 +194,26 @@ DTK_TRANSCRIBER_PROGRESS_LOG_SECONDS=30
 DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY=fallback
 ```
 
-检查 Compose 展开结果：
+`DTK_TRANSCRIBER_MODEL_PATH` 是 Compose 插值读的，而插值不看根目录 `.env`，除非用
+`COMPOSE_ENV_FILES=.env` 指明。不带它，上面那一行会被忽略，Docker 改挂一个空的
+`docker/models/funasr-onnx`。检查 Compose 展开结果：
 
 ```bash
-docker compose -p dtk -f docker/compose.yml --profile transcriber config
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
+  --profile downloader --profile transcriber config
 ```
 
 确认 `transcriber` 的 volume 来源是刚准备的绝对路径，并挂载到
-`/models/funasr:ro`。随后才能启动转写服务：
+`/models/funasr:ro`。随后才能启动转写服务——连同下载器一起，因为它转写的就是下载器存下的视频：
 
 ```bash
-docker compose -p dtk -f docker/compose.yml \
-  --profile transcriber up -d --build
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
+  --profile downloader --profile transcriber up -d --build
 ```
+
+`--build` 是在本机构建 sidecar。Release 也会把它发布为
+`evil0ctal/douyin_tiktok_download_api-transcriber`，tag 和应用镜像一致：在 `.env` 里把
+`DTK_TRANSCRIBER_IMAGE` 设成这个名字，就可以拉取而不用构建。转写功能之前的 Release 没有这个 tag。
 
 ## 常见问题
 
@@ -206,3 +225,5 @@ docker compose -p dtk -f docker/compose.yml \
 | `Permission denied` | 宿主机目录或文件不允许容器内 UID 10001 读取 | 给目录增加遍历权限、给模型文件增加读取权限；不要把它们改成全局可写 |
 | Sidecar 启动时尝试联网 | 模型路径无效，或换成了会自动下载模型的其他封装 | 使用本地绝对路径和本文的三个底层 ONNX 模型；正式容器不应依赖下载回退 |
 | 标点模型加载很慢 | CT-Transformer 量化文件仍约 270 MiB | 首次初始化需要读取大文件；以健康检查最终结果为准 |
+| 健康状态是 `degraded`，容器里的模型目录是空的 | `DTK_TRANSCRIBER_MODEL_PATH` 写在根目录 `.env` 里，但运行 Compose 时没带 `COMPOSE_ENV_FILES=.env`，于是挂上了默认的 `docker/models/funasr-onnx` | 带上 `COMPOSE_ENV_FILES=.env` 运行 Compose，或者用安装脚本生成的 `dtkctl`，它总会带上 |
+| 平时几秒就完的转写慢了好几倍，或者 `?wait=` 返回 `running` | 同样几个核上还有别的吃 CPU 的容器——通常是 `browser-rpc` 在铸造身份 | 预期内的，它会跑完。见 [转写和浏览器在同一台机器上](./02-installation.md#转写和浏览器在同一台机器上) |

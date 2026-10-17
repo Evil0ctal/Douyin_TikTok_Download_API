@@ -232,6 +232,7 @@ https://www.tiktok.com/t/ZTR9nkkmL/
 | 签名 | a_bogus / X-Bogus / X-Gnarly / X-Dynosaur，纯 Python 实现 |
 | 身份铸造 | CloakBrowser 无头浏览器，单独一个容器，通过 HTTP 调用 |
 | 下载器 | Go 1.23，只用标准库，静态编译进 scratch 镜像 |
+| 转写 | FunASR ONNX（Paraformer、FSMN-VAD、CT-Transformer），离线，跑在没有网络出口的容器里 |
 | 鉴权 | argon2id 口令哈希 · API Key + 作用域 |
 | 对外协议 | REST（OpenAPI）· MCP（streamable-http）· CLI |
 | 工程 | uv · ruff · mypy · pytest · Docker Compose |
@@ -276,11 +277,12 @@ Douyin_TikTok_Download_API/
 │       ├── pages/          每个控制台页面一个文件
 │       ├── components/     设计系统与共用组件
 │       └── locales/        控制台中英文案
-├── docker/                 三个 Dockerfile、compose 与两个 sidecar
+├── docker/                 四个 Dockerfile、compose 与三个 sidecar
 │   ├── browser_rpc/        Python，包装 CloakBrowser
 │   ├── downloader/         Go，媒体下载 sidecar
+│   ├── transcriber/        Python，离线 FunASR 转写
 │   └── compose.yml
-├── documents/              用户文档，中英各 17 篇
+├── documents/              用户文档，中英各 18 篇
 ├── tests/                  unit / integration / contract / replay
 ├── scripts/                smoke.sh
 ├── .github/workflows/      CI 与 Docker 镜像发布
@@ -378,7 +380,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 | 想做的事 | 去哪看 |
 |---|---|
 | 改容器规格、算机器要多大 | [三档配置](./documents/zh/02-installation.md#三档配置) · [怎么改这些上限](./documents/zh/02-installation.md#怎么改这些上限) |
-| 开浏览器容器、下载器 sidecar | [两个可选 profile](./documents/zh/02-installation.md#两个可选-profile) |
+| 开浏览器容器、下载器或转写 sidecar | [可选 profile](./documents/zh/02-installation.md#可选-profile) |
 | 挂 TLS、放到反向代理后面 | [放在反向代理后面](./documents/zh/02-installation.md#放在反向代理后面) |
 | 环境变量到底怎么读的 | [环境变量](./documents/zh/02-installation.md#环境变量) |
 | 装完确认它真的好了 | [验证安装](./documents/zh/02-installation.md#验证安装) |
@@ -441,7 +443,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 
 ## 📖 文档
 
-**在线阅读：[douyin.wtf](https://douyin.wtf)** —— 同样的 17 篇，渲染好、可搜索、中英双语。
+**在线阅读：[douyin.wtf](https://douyin.wtf)** —— 同样的 18 篇，渲染好、可搜索、中英双语。
 markdown 源文件在 [`documents/`](./documents/README.zh-CN.md)，站点就是拿它构建的，
 所以两边永远不会对不上。
 

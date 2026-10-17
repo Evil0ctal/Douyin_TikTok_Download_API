@@ -33,7 +33,7 @@ half an hour and leave you with a working instance you understand.
   - By hand: [for development](./en/02-installation.md#running-without-docker) · [on bare metal](./en/02-installation.md#a-production-install-without-docker)
   - Installing from mainland China: [Network preparation](./en/02-installation.md#network-preparation-in-mainland-china) — switch mirrors first, or the image pull will time out
 - [Configuration reference](./en/03-configuration.md) — the two configuration layers, and all 54 runtime settings with defaults and when to change them
-- [Preparing the FunASR ONNX models](./en/18-funasr-models.md) — manually download, verify and load the ASR, VAD and punctuation models used for offline transcription
+- [Preparing the FunASR ONNX models](./en/18-funasr-models.md) — download, verify and load the ASR, VAD and punctuation models used for offline transcription, by hand or through the install script
 - [Security](./en/15-security.md) — what the software protects, what you are responsible for, and which operations hand out a credential
 
 **Use the console**
