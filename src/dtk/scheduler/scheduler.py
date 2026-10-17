@@ -39,6 +39,14 @@ class Candidate:
     #: Epoch seconds; None means never used, which sorts first under LRU.
     last_used_at: float | None
     health: HealthInput
+    #: The endpoints rotation may hand this identity to; None is every one.
+    #: See ``Identity.rotation_endpoints``. Defaulted so the test doubles that
+    #: build candidates by keyword describe an unrestricted identity.
+    rotation_endpoints: tuple[str, ...] | None = None
+
+    def rotates_for(self, endpoint: str) -> bool:
+        """Whether unpinned traffic for ``endpoint`` may use this identity."""
+        return self.rotation_endpoints is None or endpoint in self.rotation_endpoints
 
 
 class CandidateSource(Protocol):
@@ -222,13 +230,30 @@ class Scheduler:
                 )
             pool = [pinned]
         else:
-            pool = list(await self._source.candidates(platform, IdentityState.ACTIVE))
-            if not pool:
+            # Filtered here, not in the source: the pinned branch above reads
+            # the same source, and an identity reserved for the requests that
+            # name it has to stay reachable by exactly those requests.
+            reserved = 0
+            pool = []
+            for state in (IdentityState.ACTIVE, IdentityState.DEGRADED):
                 # Degraded identities are the last resort, used only once the
                 # healthy pool is empty.
-                pool = list(await self._source.candidates(platform, IdentityState.DEGRADED))
+                listed = await self._source.candidates(platform, state)
+                pool = [candidate for candidate in listed if candidate.rotates_for(endpoint)]
+                reserved += len(listed) - len(pool)
+                if pool:
+                    break
             if not pool:
-                raise Rejected(RejectReason.NO_IDENTITY, "no active or degraded identity")
+                detail = "no active or degraded identity"
+                if reserved:
+                    # Said out loud because the pool page shows these as
+                    # active, and "no identity" beside a list of active ones
+                    # reads as a scheduler bug rather than as the setting it is.
+                    detail += (
+                        f"; {reserved} more are reserved for requests that name them "
+                        "and are not in rotation for this endpoint"
+                    )
+                raise Rejected(RejectReason.NO_IDENTITY, detail)
 
         recent = await last_used_map()
         saw_inflight = False

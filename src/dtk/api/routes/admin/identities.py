@@ -34,6 +34,7 @@ from dtk.api.routes.schemas import (
     IdentityImport,
     MintRequest,
     RetireRequest,
+    RotationRequest,
 )
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
@@ -232,6 +233,8 @@ def _row(
         "last_used_at": iso(identity.last_used_at),
         "retired_at": iso(identity.retired_at),
         "retire_reason": identity.retire_reason,
+        # None for an identity in ordinary rotation; see Identity.rotation_endpoints.
+        "rotation_endpoints": identity.rotation_endpoints,
         "fingerprint": {
             "browser_family": fingerprint.get("browser_family"),
             "browser_major": fingerprint.get("browser_major"),
@@ -1011,6 +1014,88 @@ async def reset_identity(
             "cleared_streak": streak,
         },
     )
+
+
+@router.post(
+    "/{identity_id}/rotation",
+    summary="Choose what rotation uses an identity for",
+    openapi_extra={I18N_KEY: "identities_rotation"},
+)
+async def set_rotation(
+    request: Request,
+    body: RotationRequest,
+    identity_id: uuid.UUID = Path(description="The identity to act on."),
+    principal: Principal = Depends(manage_pool),
+) -> Any:
+    """Keep an identity out of rotation, wholly or for all but some endpoints.
+
+    An account somebody imported to read one thing with is put at risk by
+    every other request rotation hands it, and until this there was no way to
+    stop that: naming it with `identity=` served the one request, while the
+    scheduler went on spending it on everything else (#789). An empty list
+    keeps it for the requests that name it and nothing else; a list of
+    endpoints adds those back to rotation.
+
+    A request that names the identity is never refused by this. It is also
+    left out of the pool level, so the filler does not count an account it
+    may not spend as one it can. It does not travel with an export: it is a
+    decision about this pool, not part of the identity.
+
+    **Parameters**
+
+    - `endpoints` - null for every endpoint, the default; `[]` for none; or
+      names such as `douyin.author_posts`, which must belong to the identity's
+      own platform.
+
+    **Returns**
+
+    The identity's id and the endpoints rotation may now use it for.
+    """
+    session = request.state.db
+    identity = await session.get(Identity, identity_id)
+    if identity is None:
+        raise NotFound("no such identity")
+    if identity.state == IdentityState.RETIRED.value:
+        raise InvalidParam(
+            "a retired identity is in no rotation and cannot be put back in one",
+            details={"id": str(identity_id), "state": identity.state},
+        )
+
+    chosen: list[str] | None = None
+    if body.endpoints is not None:
+        from dtk.platforms.registry import get_adapter
+
+        known = set(get_adapter(identity.platform).endpoints)
+        unknown = sorted(set(body.endpoints) - known)
+        if unknown:
+            # Refused rather than stored: a typo here reads as "reserved for
+            # nothing", which keeps the account out of the very endpoint it
+            # was meant for and says nothing about why.
+            raise InvalidParam(
+                f"not {identity.platform} endpoints: {', '.join(unknown)}",
+                details={"unknown": unknown, "platform": identity.platform},
+            )
+        chosen = sorted(set(body.endpoints))
+
+    before = identity.rotation_endpoints
+    identity.rotation_endpoints = chosen
+    await audit(
+        request,
+        principal,
+        "identity.rotation_changed",
+        target_type="identity",
+        target_id=str(identity_id),
+        detail={"from": before, "to": chosen, "platform": identity.platform},
+    )
+    # One commit for the change and its audit row, so neither lands alone.
+    await session.commit()
+    log.info(
+        "identity.rotation_changed",
+        identity_id=str(identity_id),
+        endpoints=chosen,
+        restricted=chosen is not None,
+    )
+    return ok(request, {"id": str(identity_id), "rotation_endpoints": chosen})
 
 
 @router.delete(

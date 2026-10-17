@@ -115,6 +115,11 @@ export interface Identity {
   health?: number | null
   fingerprint?: Record<string, unknown> | null
   /**
+   * Which endpoints rotation may hand this identity to. null for every one;
+   * `[]` for none, so only a request that names it uses it; or endpoint names.
+   */
+  rotation_endpoints?: string[] | null
+  /**
    * Whether the identity still holds the session value its platform issues to
    * a browser. Never the value itself - only which cookie decides it and a
    * verdict, because a spent session and a broken signer look identical from

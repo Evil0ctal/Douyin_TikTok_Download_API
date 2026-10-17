@@ -311,6 +311,11 @@ class IdentityPool:
                         window_risk,
                         row.consecutive_fails,
                     ),
+                    rotation_endpoints=(
+                        tuple(row.rotation_endpoints)
+                        if row.rotation_endpoints is not None
+                        else None
+                    ),
                 )
             )
         return candidates
@@ -623,6 +628,10 @@ class IdentityPool:
                 IdentityRow.platform == platform.value,
                 IdentityRow.state.in_((IdentityState.ACTIVE.value, cooling)),
                 IdentityRow.consecutive_fails < max_fail_streak,
+                # An identity kept out of rotation is not capacity the shared
+                # pool can spend. Counting it let one reserved account hold the
+                # level at its target while general traffic had nothing to use.
+                IdentityRow.rotation_endpoints.is_(None),
             )
         )
         return int(rows.scalar_one())

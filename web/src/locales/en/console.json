@@ -413,6 +413,18 @@
       "dialogTitle": "{count, plural, one {Put # identity back into rotation?} other {Put # identities back into rotation?}}",
       "dialogBody": "The cooldown and the consecutive failure count are cleared and the identity is marked active. Do this when the failures were not its fault - a run of bad ids, or a proxy that has since been fixed. If the session itself is burnt, the platform will refuse it again within a few requests and it will cool straight back down."
     },
+    "rotation": {
+      "title": "Rotation",
+      "reserve": "Only for requests that name it",
+      "reserveHint": "Rotation stops handing this identity out; a request with identity= still uses it. Use it to keep a logged-in account away from everything you did not ask it for. It is left out of the pool level, so the refill job mints a replacement for general traffic.",
+      "limited": "Rotation uses it only for: {endpoints}",
+      "limitedHint": "Set through the API. Turning this off puts it back in rotation for every endpoint.",
+      "restore": "Back in rotation for every endpoint",
+      "reserved": "Reserved",
+      "reservedHint": "Out of rotation: only requests that name this identity use it",
+      "saved": "Rotation updated",
+      "failed": "Could not change the rotation"
+    },
     "history": {
       "title": "Identity history",
       "byEndpoint": "By endpoint",

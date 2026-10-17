@@ -475,6 +475,10 @@
         "summary": "Return an identity to rotation",
         "description": "Clears the cooldown and the consecutive failure streak and marks the identity active. The pool recovers on its own and does so slowly on purpose - an identity that has failed repeatedly usually deserves the probation - so this is the override for the case recovery cannot know about: the failures were not the identity's fault. Refused on a retired identity, whose cookie jar was wiped when it was retired; there is no session left to return to rotation. The reset is written to the identity's history with the state it came from, so the record still shows the identity was in trouble and that a person decided otherwise."
       },
+      "identities_rotation": {
+        "summary": "Choose what rotation uses an identity for",
+        "description": "Keeps an identity out of rotation, wholly or for all but some endpoints. null puts it back for every endpoint, the default; an empty list keeps it for requests that name it with identity= and nothing else; a list of endpoint names, which must belong to the identity's own platform, adds those back. A request that names the identity is never refused by this. It is left out of the pool level, and it does not travel with an export."
+      },
       "identities_retire": {
         "summary": "Retire an identity",
         "description": "Retire and wipe. The statistics stay, the credential does not (doc 05)."
@@ -807,6 +811,9 @@
       "PasswordChange": {
         "current_password": "The password in use now. Checked even for an administrator changing their own.",
         "new_password": "The replacement. Every other session for this account is signed out."
+      },
+      "RotationRequest": {
+        "endpoints": "Which endpoints rotation may hand this identity to. null for all of them, the default for every identity; an empty list for none, so only a request that names the identity with `identity=` uses it; or endpoint names such as `douyin.author_posts`. Required, so that leaving it out cannot read as lifting a restriction."
       },
       "PinRequest": {
         "pinned": "True exempts this download from the size-based cleanup for good; false puts it back in scope."

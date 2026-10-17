@@ -229,6 +229,10 @@ async def pick_identity(
             platform=platform,
             states=(IdentityState.ACTIVE, IdentityState.COOLING, IdentityState.DEGRADED),
             limit=1,
+            # The probe stands in for rotation, so it draws only what rotation
+            # may: an account an operator reserved is not the one to spend on
+            # a self-check or an ad-hoc `dtk fetch`.
+            in_rotation=True,
         )
         if not rows:
             raise IdentityPoolExhausted(

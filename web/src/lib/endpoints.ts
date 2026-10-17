@@ -47,6 +47,8 @@ export const paths = {
     session: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/session`,
     /** Clears a cooldown and a failure streak. Refused on a retired identity. */
     reset: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/reset`,
+    /** Which endpoints rotation may use it for: null all, [] none, or a list. */
+    rotation: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/rotation`,
     /** Cookie names, roles and masked values. Never the values themselves. */
     cookies: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/cookies`,
     /** The same jar with its real values. Audited; operator role only. */

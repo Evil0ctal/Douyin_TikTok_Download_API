@@ -147,6 +147,7 @@ def identity_row(
         cooldown_until=None,
         last_used_at=last_used_at,
         retired_at=None,
+        rotation_endpoints=None,
     )
 
 

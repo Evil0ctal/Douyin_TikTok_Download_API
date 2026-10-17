@@ -895,6 +895,10 @@ export default function Identities() {
   })
 
   const refresh = (): Promise<void> => invalidate(IDENTITIES_KEY)
+  // Same rule as the refill panel: a viewer sees the setting and cannot change
+  // it, and with no session payload the server's refusal explains itself.
+  const session = useSession()
+  const canWrite = (session.data?.role ?? null) !== 'viewer'
 
   /**
    * Search, source and login run over the page the API already returned rather
@@ -1028,7 +1032,17 @@ export default function Identities() {
       header: t('console:field.state'),
       width: '120px',
       sortValue: (row) => row.state,
-      cell: (row) => <StatusBadge kind="identity" value={row.state} />,
+      cell: (row) =>
+        row.rotation_endpoints != null ? (
+          <span className="u-row">
+            <StatusBadge kind="identity" value={row.state} />
+            <span className="u-xs u-muted" title={t('console:identity.rotation.reservedHint')}>
+              {t('console:identity.rotation.reserved')}
+            </span>
+          </span>
+        ) : (
+          <StatusBadge kind="identity" value={row.state} />
+        ),
     },
     {
       id: 'health',
@@ -1516,6 +1530,8 @@ export default function Identities() {
       <IdentityDrawer
         identity={inspecting}
         probe={inspecting ? probes[inspecting.id] : undefined}
+        canWrite={canWrite}
+        onChanged={refresh}
         onClose={() => {
           setInspecting(null)
         }}
@@ -2214,6 +2230,73 @@ function CookieReportView({ report }: { report: CookieReport }) {
   )
 }
 
+/**
+ * Whether rotation may hand this identity out (issue 789).
+ *
+ * The switch covers the one case the console is for - keep an account for the
+ * requests that name it - and an endpoint list set through the API is shown
+ * as it is rather than flattened, with the same switch putting it back. Local
+ * state, because the drawer holds a snapshot of the row and the list behind it
+ * refetches on its own schedule.
+ */
+function RotationCard({
+  identity,
+  canWrite,
+  onChanged,
+}: {
+  identity: Identity
+  canWrite: boolean
+  onChanged: () => Promise<void>
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const toast = useToast()
+  // Keyed by identity at the call site, so opening another identity starts
+  // from its own value rather than this one's.
+  const [endpoints, setEndpoints] = useState<string[] | null>(identity.rotation_endpoints ?? null)
+
+  const save = useApiMutation<{ rotation_endpoints: string[] | null }, string[] | null>(
+    (next) =>
+      apiPost<{ rotation_endpoints: string[] | null }>(paths.identities.rotation(identity.id), {
+        endpoints: next,
+      }),
+    {
+      onSuccess: async (result) => {
+        setEndpoints(result.rotation_endpoints)
+        toast.success(t('console:identity.rotation.saved'))
+        await onChanged()
+      },
+      onError: (error) => {
+        toast.apiError(error, t('console:identity.rotation.failed'))
+      },
+    },
+  )
+
+  const limited = endpoints !== null && endpoints.length > 0
+  return (
+    <Card title={t('console:identity.rotation.title')}>
+      <div className="u-stack-sm">
+        <Switch
+          checked={endpoints !== null}
+          disabled={!canWrite || save.isPending}
+          label={
+            limited
+              ? t('console:identity.rotation.limited', { endpoints: endpoints.join(', ') })
+              : t('console:identity.rotation.reserve')
+          }
+          hint={
+            limited
+              ? t('console:identity.rotation.limitedHint')
+              : t('console:identity.rotation.reserveHint')
+          }
+          onChange={(event) => {
+            save.mutate(event.target.checked ? [] : null)
+          }}
+        />
+      </div>
+    </Card>
+  )
+}
+
 function Fact({ label, value, mono }: { label: ReactNode; value: ReactNode; mono?: boolean }) {
   return (
     <span className="u-stack-sm">
@@ -2580,10 +2663,14 @@ function IdentityContents({
 function IdentityDrawer({
   identity,
   probe,
+  canWrite,
+  onChanged,
   onClose,
 }: {
   identity: Identity | null
   probe: ProbeState | undefined
+  canWrite: boolean
+  onChanged: () => Promise<void>
   onClose: () => void
 }) {
   const { t } = useTranslation(['console', 'common'])
@@ -2674,6 +2761,15 @@ function IdentityDrawer({
           </div>
 
           <IdentityContents identity={identity} jar={jar.data} loading={jar.isLoading} />
+
+          {identity.state !== 'retired' ? (
+            <RotationCard
+              key={identity.id}
+              identity={identity}
+              canWrite={canWrite}
+              onChanged={onChanged}
+            />
+          ) : null}
 
           {/* The answer to "what caused the risk control", stated rather than
               left to be inferred from a list. */}

@@ -98,6 +98,7 @@ EXPECTED_COLUMNS: dict[str, set[str]] = {
         "last_used_at",
         "retired_at",
         "retire_reason",
+        "rotation_endpoints",
     },
     "tasks": {
         "id",

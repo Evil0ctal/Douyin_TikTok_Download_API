@@ -554,6 +554,19 @@ class DedupeRequest(Body):
     )
 
 
+class RotationRequest(Body):
+    endpoints: list[str] | None = Field(
+        max_length=64,
+        description=(
+            "Which endpoints rotation may hand this identity to. null for all of them, "
+            "the default for every identity; an empty list for none, so only a request "
+            "that names the identity with `identity=` uses it; or endpoint names such "
+            "as `douyin.author_posts`. Required, so that leaving it out cannot read as "
+            "lifting a restriction."
+        ),
+    )
+
+
 class PinRequest(Body):
     pinned: bool = Field(
         default=True,

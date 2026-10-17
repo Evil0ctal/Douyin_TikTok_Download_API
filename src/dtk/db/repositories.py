@@ -328,15 +328,20 @@ class IdentityRepository(Repository):
         platform: Platform | None = None,
         states: IdentityState | Iterable[IdentityState] = SCHEDULABLE_STATES,
         limit: int | None = None,
+        in_rotation: bool = False,
     ) -> Sequence[Identity]:
         """Candidates for the scheduler: least recently used first.
 
         NULLS FIRST is deliberate: an identity that has never been used is the
-        least recently used one there is.
+        least recently used one there is. ``in_rotation`` leaves out identities
+        restricted to some endpoints or kept for pinned requests only, for a
+        caller that would otherwise pick one for traffic it was kept from.
         """
         stmt = select(Identity).where(Identity.state.in_(_states(states)))
         if platform is not None:
             stmt = stmt.where(Identity.platform == platform.value)
+        if in_rotation:
+            stmt = stmt.where(Identity.rotation_endpoints.is_(None))
         stmt = stmt.order_by(Identity.last_used_at.asc().nulls_first())
         if limit is not None:
             stmt = stmt.limit(limit)

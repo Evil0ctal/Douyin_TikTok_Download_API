@@ -241,6 +241,13 @@ class Identity(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     retire_reason: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Which endpoints may draw this identity from rotation. NULL is all of
+    #: them, which is every identity until somebody says otherwise; an empty
+    #: list is none, so only a request that names it ever uses it; a list of
+    #: endpoint names is those and no others. A pinned request is never
+    #: filtered by this - reserving an account is how you keep it for the
+    #: requests that pin it (#789).
+    rotation_endpoints: Mapped[list[str] | None] = mapped_column(ARRAY(Text), default=None)
 
     def __repr__(self) -> str:
         # Never widen this with cookies_encrypted or fingerprint: the first is a

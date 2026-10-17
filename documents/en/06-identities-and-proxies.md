@@ -452,6 +452,31 @@ Guest identities are cheap and disposable: when one burns, the pool mints
 another. A logged-in identity is not, which is why every affordance around it -
 the reveal audit line, the pin gate, the expiry warning - costs something.
 
+### Keeping an identity out of rotation
+
+Naming an identity serves the one request that names it, and on its own does
+nothing about the rest: the scheduler goes on handing the same account to every
+other request too, which is exactly the traffic that gets a logged-in account
+flagged. The drawer's **Rotation** card has a switch, **Only for requests that
+name it**, that stops this:
+
+- **Rotation never hands it out.** Unpinned requests, the self-check and an
+  ad-hoc `dtk fetch` all skip it.
+- **A request with `identity=` still uses it**, in any state but retired. That
+  is the point of keeping it.
+- **It is left out of the pool level.** The refill job counts only identities
+  rotation may spend, so it mints a replacement for general traffic rather than
+  counting an account it is not allowed to use.
+- **It does not travel with an export.** It is a decision about this pool, not
+  part of the identity.
+
+The API takes a finer version of the same setting:
+`POST /api/v1/admin/identities/{id}/rotation` with `{"endpoints": [...]}`.
+`null` puts the identity back for every endpoint, `[]` is the switch above, and
+a list of endpoint names - `douyin.author_posts`, say, from the identity's own
+platform - puts it back in rotation for those endpoints only. It needs the same
+role as resetting or retiring, and every change is audited.
+
 ## Exporting and restoring identity bundles
 
 Selecting rows and pressing **Export N** calls

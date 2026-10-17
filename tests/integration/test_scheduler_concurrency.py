@@ -50,13 +50,14 @@ class ListSource:
         return [c for c in self._candidates if c.platform == platform and c.state == state]
 
 
-def make_candidate(i, *, state=IdentityState.ACTIVE, last_used=None, fails=0):
+def make_candidate(i, *, state=IdentityState.ACTIVE, last_used=None, fails=0, rotation=None):
     return Candidate(
         identity_id=f"identity-{i}",
         platform=Platform.DOUYIN,
         state=state,
         last_used_at=last_used,
         health=HealthInput(20, 20, 60, 0, fails),
+        rotation_endpoints=rotation,
     )
 
 
@@ -355,3 +356,82 @@ async def test_a_pin_of_the_wrong_platform_is_not_reachable(redis_client):
 
     with pytest.raises(InvalidParam):
         await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-tt")
+
+
+# --------------------------------------------------------------------------
+# Keeping an identity out of rotation (#789)
+#
+# An account imported to read one thing is put at risk by every other request
+# rotation hands it. Reserving it has to keep unpinned traffic off it without
+# ever refusing the requests that name it - that is the whole point of keeping
+# it.
+# --------------------------------------------------------------------------
+
+
+async def test_unpinned_traffic_never_reaches_a_reserved_identity(redis_client):
+    cfg = SchedulerConfig()
+    reserved = make_candidate(1, rotation=())
+    ordinary = make_candidate(2, fails=4)
+    sched = Scheduler(ListSource([reserved, ordinary]), cfg, clock=AdvancingClock(step=0.0))
+
+    for _ in range(3):
+        lease = await sched.acquire("douyin.author_posts", Platform.DOUYIN)
+        assert lease.identity_id == "identity-2"
+        await sched.release(lease, Outcome.OK)
+
+
+async def test_a_reserved_identity_still_serves_the_request_that_names_it(redis_client):
+    cfg = SchedulerConfig()
+    sched = Scheduler(
+        ListSource([make_candidate(1, rotation=()), make_candidate(2)]),
+        cfg,
+        clock=AdvancingClock(step=0.0),
+    )
+
+    lease = await sched.acquire("douyin.author_posts", Platform.DOUYIN, identity_id="identity-1")
+
+    assert lease.identity_id == "identity-1"
+
+
+async def test_an_endpoint_list_puts_the_identity_back_for_those_endpoints_only(redis_client):
+    cfg = SchedulerConfig(max_wait_seconds=0.0)
+    listed = make_candidate(1, rotation=("douyin.author_posts",))
+    sched = Scheduler(ListSource([listed]), cfg, clock=AdvancingClock(step=0.0))
+
+    lease = await sched.acquire("douyin.author_posts", Platform.DOUYIN)
+    assert lease.identity_id == "identity-1"
+    await sched.release(lease, Outcome.OK)
+
+    with pytest.raises(IdentityPoolExhausted):
+        await sched.acquire("douyin.content_detail", Platform.DOUYIN)
+
+
+async def test_a_reserved_active_identity_does_not_keep_degraded_ones_idle(redis_client):
+    """The degraded fallback is for "nothing healthy may serve this", and a
+    healthy identity that is reserved may not."""
+    cfg = SchedulerConfig()
+    sched = Scheduler(
+        ListSource(
+            [make_candidate(1, rotation=()), make_candidate(9, state=IdentityState.DEGRADED)]
+        ),
+        cfg,
+        clock=AdvancingClock(step=0.0),
+    )
+
+    lease = await sched.acquire("douyin.content_detail", Platform.DOUYIN)
+
+    assert lease.identity_id == "identity-9"
+
+
+async def test_exhaustion_says_the_rest_are_reserved(redis_client):
+    """Otherwise "no identity" sits beside a pool page full of active ones."""
+    sched = Scheduler(
+        ListSource([make_candidate(1, rotation=()), make_candidate(2, rotation=())]),
+        SchedulerConfig(max_wait_seconds=0.0),
+        clock=AdvancingClock(step=0.0),
+    )
+
+    with pytest.raises(IdentityPoolExhausted) as exc:
+        await sched.acquire("douyin.content_detail", Platform.DOUYIN)
+
+    assert "2 more are reserved" in str(exc.value.details.get("detail") or exc.value)
