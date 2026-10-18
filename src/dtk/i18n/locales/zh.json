@@ -417,7 +417,7 @@
       },
       "downloads_list": {
         "summary": "下载列表",
-        "description": "本实例被要求保存的内容，最新的在前，含每个文件的大小与 sha256。on_disk 为 false 表示曾经下载过、后来为了控制媒体容量上限被清理掉了——这和从未下载过不同，重新请求一次即可恢复。"
+        "description": "本实例被要求保存的内容，最新的在前，含每个文件的大小与 sha256。on_disk 为 false 表示曾经下载过、后来为了控制媒体容量上限被清理掉了——这和从未下载过不同，重新请求一次即可恢复。仍在下载中的条目还带有 progress，实时从下载器读取：已写入的 bytes、所有文件大小都已知时的 bytes_expected（在此之前为 null）、最近几秒的 bytes_per_second，以及每个文件各自的这几项。下载结束后它为 null。"
       },
       "downloads_pin": {
         "summary": "置顶 / 取消置顶",

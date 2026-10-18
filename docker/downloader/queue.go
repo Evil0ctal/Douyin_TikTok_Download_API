@@ -39,6 +39,9 @@ func (s jobState) terminal() bool {
 }
 
 // item is one file inside a job.
+//
+// State goes queued, running, then done or failed. While it is running, Bytes
+// is what has been written so far rather than the size of the stored file.
 type item struct {
 	Name        string   `json:"name"`
 	Kind        string   `json:"kind"`
@@ -50,6 +53,12 @@ type item struct {
 	SHA256      string   `json:"sha256,omitempty"`
 	ContentType string   `json:"content_type,omitempty"`
 	Error       string   `json:"error,omitempty"`
+	// The Content-Length of the mirror being read, or 0 when it sent none.
+	BytesExpected int64 `json:"bytes_expected,omitempty"`
+	// Filled in by snapshot, and only for a running item.
+	BytesPerSecond int64 `json:"bytes_per_second,omitempty"`
+
+	meter meter
 }
 
 // job is one content key's media, as submitted by the main service.
@@ -79,11 +88,15 @@ type job struct {
 // results into it, which is the kind of bug that shows up as a corrupt
 // response once a week and never in a test.
 func (j *job) snapshot() *job {
+	now := time.Now()
 	clone := *j
 	clone.cancel = nil
 	clone.Items = make([]*item, 0, len(j.Items))
 	for _, source := range j.Items {
 		copied := *source
+		if copied.State == "running" {
+			copied.BytesPerSecond = source.meter.rate(now, source.Bytes)
+		}
 		clone.Items = append(clone.Items, &copied)
 	}
 	return &clone
@@ -326,6 +339,7 @@ func (m *manager) fetchItem(ctx context.Context, target *item, directory string,
 		Dest:      destination,
 		UserAgent: userAgent,
 		Referer:   referer,
+		Progress:  itemProgress{manager: m, target: target},
 	})
 	if err != nil {
 		m.log.Warn("item failed",

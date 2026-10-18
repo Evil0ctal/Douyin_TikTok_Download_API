@@ -417,7 +417,7 @@
       },
       "downloads_list": {
         "summary": "List downloads",
-        "description": "What this instance has been asked to store, newest first, with each file's size and sha256. A row whose on_disk is false was collected and later removed to stay under the media ceiling - which, unlike never having fetched it, can be undone by asking again."
+        "description": "What this instance has been asked to store, newest first, with each file's size and sha256. A row whose on_disk is false was collected and later removed to stay under the media ceiling - which, unlike never having fetched it, can be undone by asking again. A download still in flight also carries progress, read live from the downloader: bytes written so far, bytes_expected once every file's size is known (null until then), bytes_per_second over the last few seconds, and the same per file. It is null once the download settles."
       },
       "downloads_pin": {
         "summary": "Pin or unpin a download",

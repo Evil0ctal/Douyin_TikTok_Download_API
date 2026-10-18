@@ -1885,7 +1885,10 @@
     },
     "progress": {
       "files": "{done}/{total} files",
-      "hint": "Counted in files, not bytes: the platform declares a size and the sidecar does not trust it, so there is no total to divide by."
+      "bytes": "{done} / {total}",
+      "rate": "{rate}/s",
+      "eta": "{time} left",
+      "hint": "Bytes written so far, against the size each file's server declared. Until every file has started, the bar counts files instead."
     },
     "retry": {
       "action": "Retry",

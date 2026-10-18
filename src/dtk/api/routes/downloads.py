@@ -25,7 +25,7 @@ download spends an identity and consumes disk, which no read scope should imply.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path as FsPath
 from typing import Any, Final
 
@@ -163,28 +163,65 @@ async def _live_progress(request: Request, rows: Sequence[Any]) -> dict[str, dic
                 break
             if not job:
                 continue
-            items = [item for item in (job.get("items") or []) if isinstance(item, dict)]
-            done = sum(1 for item in items if item.get("state") == "done")
-            found[str(row.id)] = {
-                "bytes": int(job.get("bytes_total") or 0),
-                "files_done": done,
-                "files_total": len(items),
-                "state": str(job.get("state") or ""),
-                # Per file, so a stalled cover next to a finished video is
-                # visible as that rather than as one number not moving.
-                "items": [
-                    {
-                        "name": str(item.get("name") or ""),
-                        "kind": str(item.get("kind") or ""),
-                        "state": str(item.get("state") or ""),
-                        "bytes": int(item.get("bytes") or 0),
-                    }
-                    for item in items
-                ],
-            }
+            found[str(row.id)] = progress_of(job)
     finally:
         await client.aclose()
     return found
+
+
+def progress_of(job: Mapping[str, Any]) -> dict[str, Any]:
+    """One in-flight job, as the listing reports it.
+
+    ``bytes`` is summed over the files rather than read from the job's
+    ``bytes_total``, which the sidecar writes only when the job settles. Read
+    from there it stayed at zero for the whole of a 100 MB Bilibili video and
+    then jumped, so the one number meant to keep moving never did.
+    """
+    items = [item for item in (job.get("items") or []) if isinstance(item, dict)]
+    files = [
+        {
+            "name": str(item.get("name") or ""),
+            "kind": str(item.get("kind") or ""),
+            "state": str(item.get("state") or ""),
+            "bytes": int(item.get("bytes") or 0),
+            "bytes_expected": int(item.get("bytes_expected") or 0) or None,
+            "bytes_per_second": int(item.get("bytes_per_second") or 0),
+        }
+        for item in items
+    ]
+    return {
+        "bytes": sum(file["bytes"] for file in files),
+        "bytes_expected": _expected_total(files),
+        "bytes_per_second": sum(file["bytes_per_second"] for file in files),
+        "files_done": sum(1 for file in files if file["state"] == "done"),
+        "files_total": len(files),
+        "state": str(job.get("state") or ""),
+        # Per file, so a stalled cover next to a finished video is visible as
+        # that rather than as one number not moving.
+        "items": files,
+    }
+
+
+def _expected_total(files: Sequence[Mapping[str, Any]]) -> int | None:
+    """What the whole download will weigh, or None while any part is unknown.
+
+    A finished file counts what landed and a failed one nothing. A running one
+    counts the size its server declared - for display only; the ceiling is
+    enforced on bytes written, in the sidecar. A file not started yet, or one
+    whose server declared nothing, makes the total unknown, and the page falls
+    back to counting files rather than drawing a bar against a guess.
+    """
+    total = 0
+    for file in files:
+        if file["state"] == "done":
+            total += file["bytes"]
+        elif file["state"] == "failed":
+            continue
+        elif file["bytes_expected"]:
+            total += max(file["bytes_expected"], file["bytes"])
+        else:
+            return None
+    return total
 
 
 @router.post(
@@ -367,7 +404,11 @@ async def list_downloads(
 
     **Returns**
 
-    The downloads with their per-file digests and sizes, plus the total.
+    The downloads with their per-file digests and sizes, plus the total. A
+    download still in flight also carries `progress`, read live from the
+    downloader: `bytes` written so far, `bytes_expected` once every file's size
+    is known (null until then), `bytes_per_second` over the last few seconds,
+    and the same per file. It is null once the download settles.
     """
     principal.require(Scope.MEDIA_READ)
     spec = downloads.DownloadFilter(platform=platform, state=state, pinned=pinned, on_disk=on_disk)

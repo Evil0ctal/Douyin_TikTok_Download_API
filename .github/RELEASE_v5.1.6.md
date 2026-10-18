@@ -67,6 +67,15 @@ Two things do not happen by themselves:
   `UNSUPPORTED_CONTENT` on Bilibili. Its pool has its own marks,
   `pool.bilibili.min_size` and `pool.bilibili.target_size`; set the first to 0
   if you do not want Bilibili identities minted.
+- **Downloads show their progress while it happens.** A running download is
+  drawn in bytes against its size, with the percentage, the speed and the time
+  left, and the page polls every 2 seconds while anything is in flight. The
+  drawer follows the row, file by file. Until now a file's size was reported
+  only once it had finished, so a 100 MB video sat at "1/2 files" until it
+  landed. `GET /api/v1/downloads` carries the same numbers in `progress`:
+  `bytes`, `bytes_expected` and `bytes_per_second`, overall and per file. They
+  come from the 5.1.6 downloader image; with an older one the bar still counts
+  files.
 - **README sections** on offline transcription and on driving the instance
   from an AI agent over MCP, and a user-guide section on transcribing a stored
   video: starting one from the console, REST or MCP, the Transcriptions page,
@@ -163,6 +172,12 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
   其余接口——喜欢、转发、收藏、粉丝、合集——在 B 站上返回 `UNSUPPORTED_CONTENT`。B 站的
   身份池有自己的水位 `pool.bilibili.min_size` 和 `pool.bilibili.target_size`；不想铸造 B 站
   身份，把前者设为 0 即可。
+- **下载过程中实时显示进度。** 正在进行的下载按字节显示已下载量和总大小，并显示百分比、速度和
+  剩余时间；有任务进行中时页面每 2 秒刷新一次。抽屉会跟着这一行更新，逐个文件显示进度。之前
+  一个文件要下载完才会报告大小，所以一个 100 MB 的视频在下完之前一直停在「1/2 个文件」。
+  `GET /api/v1/downloads` 的 `progress` 里也有同样的数字：`bytes`、`bytes_expected` 和
+  `bytes_per_second`，整体和每个文件各一份。这些数字来自 5.1.6 的下载器镜像；用旧镜像时，
+  进度条仍按文件数计算。
 - **README 新增两节**：离线转写，以及让 AI agent 通过 MCP 使用这个实例；用户指南里新增
   「把已存的视频转成文字」一节：从控制台、REST 或 MCP 发起转写，视频转写页面，以及它的代价。
 

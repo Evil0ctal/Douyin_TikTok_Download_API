@@ -171,9 +171,9 @@ Reads up to **5 pages** of comments, 50 to a page where the platform allows it (
 
 **Filtering** by state and by platform happens on the server, so "the most recent TikTok downloads" means the most recent of all of them and not the most recent of whatever page happened to load. **Sorting**, by contrast, is done in the browser over the rows already loaded — the default is Finished, newest first. The list returns 100 rows per request (`GET /api/v1/downloads` defaults to 100, maximum 500) and the console does not paginate it, so on a large instance the table is a window on the newest hundred.
 
-The table polls every 5 seconds while anything is in flight and every 10 seconds otherwise. The progress bar is read live from the sidecar for at most 8 in-flight rows at a time, and it counts **files, not bytes**: the platform declares a size and the sidecar does not trust it — the ceiling is enforced on bytes actually written — so there is no denominator to divide by. The bytes transferred so far are shown beside it as the number that keeps moving.
+The table polls every 2 seconds while anything is in flight and every 10 seconds otherwise. The progress bar is read live from the sidecar for at most 8 in-flight rows at a time. It shows the bytes written so far against the download's size, the percentage, the speed over the last few seconds and the time left — for example `38.2 MB / 96.7 MB · 39%` over `1.4 MB/s · 42 s left`. The size is what each file's server declared in `Content-Length`. The sidecar never trusts that number for the ceiling, which is enforced on bytes actually written, but it is good enough to draw a bar against. A file that has not started yet has declared nothing, so until every file of a download has begun — the later images of an album, say — the bar counts **files** instead, with the bytes so far beside it.
 
-Clicking a row opens a drawer with the player, the per-file list, each file's SHA-256, and a save link per completed file.
+Clicking a row opens a drawer with the player, the per-file list, each file's SHA-256, and a save link per completed file. The drawer follows the row as the table refreshes: opened on a running download, it shows each file's own progress and speed, and the stored files once it lands.
 
 ## Retrying, and why there is no resume
 

@@ -221,13 +221,31 @@ interface DownloadFile {
   error: string | null
 }
 
+/** One file of a job still running. */
+interface DownloadProgressFile {
+  name: string
+  kind: string
+  /** `queued`, `running`, `done` or `failed`. */
+  state: string
+  /** Written so far while running; the stored size once done. */
+  bytes: number
+  /** What the file's server declared, or null when it declared nothing. */
+  bytes_expected: number | null
+  bytes_per_second: number
+}
+
 /** What the sidecar says about a job still running. Null once it settles. */
 interface DownloadProgress {
+  /** Written so far, across every file. */
   bytes: number
+  /** The whole download's size once every file's is known, null until then. */
+  bytes_expected: number | null
+  /** Over the last few seconds, summed across the files moving now. */
+  bytes_per_second: number
   files_done: number
   files_total: number
   state: string
-  items: Array<{ name: string; kind: string; state: string; bytes: number }>
+  items: DownloadProgressFile[]
 }
 
 interface DownloadRow {
@@ -284,33 +302,85 @@ interface Storage {
   downloader: DownloaderHealth
 }
 
+interface TransferProps {
+  bytes: number
+  /** Null while the size is not known. */
+  expected: number | null
+  rate: number
+  /** What the bar counts instead when there is no size. */
+  files?: { done: number; total: number }
+}
+
 /**
- * How far along a running download is.
+ * Bytes against a size, then the speed and the time left.
  *
- * By files rather than by bytes, because the total is not known. The platform
- * declares a size and the sidecar does not trust it - the ceiling is enforced
- * on bytes actually written - so there is no denominator to divide by. Files
- * done out of files planned is a real fraction, and the bytes so far are shown
- * beside it as the number that keeps moving.
+ * The size is what each file's server declared. The sidecar enforces its
+ * ceiling on bytes actually written and never trusts that number, but a bar
+ * only needs it to be roughly right, and it nearly always is exact. This used
+ * to count files only, on the grounds that there was no trustworthy total -
+ * and since a file's bytes were reported only once it finished, a 100 MB
+ * video sat at "1/2 files" for a minute and a half with nothing moving.
+ *
+ * A file not yet started has declared nothing, so until every file has begun
+ * (an image album, say) the bar counts files and the bytes ride beside it.
  */
-function Progress({ progress }: { progress: DownloadProgress }) {
+function Transfer({ bytes, expected, rate, files }: TransferProps) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
 
+  const size = expected !== null && expected > 0 ? expected : null
+  const amount =
+    size !== null
+      ? [
+          t('downloads.progress.bytes', {
+            done: formatters.bytes(bytes),
+            total: formatters.bytes(size),
+          }),
+          formatters.percent(Math.min(bytes / size, 1)),
+        ]
+      : [
+          files ? t('downloads.progress.files', { done: files.done, total: files.total }) : null,
+          bytes > 0 ? formatters.bytes(bytes) : null,
+        ]
+  const pace = [
+    rate > 0 ? t('downloads.progress.rate', { rate: formatters.bytes(rate) }) : null,
+    size !== null && rate > 0 && size > bytes
+      ? t('downloads.progress.eta', {
+          time: formatters.duration(Math.ceil((size - bytes) / rate) * 1000),
+        })
+      : null,
+  ]
+  const first = amount.filter(Boolean).join(' · ')
+  const second = pace.filter(Boolean).join(' · ')
+
   return (
     <CompactProgress
-      value={progress.files_done}
-      max={progress.files_total}
+      value={size !== null ? bytes : (files?.done ?? 0)}
+      max={size ?? files?.total ?? 0}
       title={t('downloads.progress.hint')}
       label={
         <>
-          {t('downloads.progress.files', {
-            done: progress.files_done,
-            total: progress.files_total,
-          })}
-          {progress.bytes > 0 ? ` · ${formatters.bytes(progress.bytes)}` : ''}
+          {first}
+          {second ? (
+            <>
+              <br />
+              {second}
+            </>
+          ) : null}
         </>
       }
+    />
+  )
+}
+
+/** How far along a running download is, all files together. */
+function Progress({ progress }: { progress: DownloadProgress }) {
+  return (
+    <Transfer
+      bytes={progress.bytes}
+      expected={progress.bytes_expected}
+      rate={progress.bytes_per_second}
+      files={{ done: progress.files_done, total: progress.files_total }}
     />
   )
 }
@@ -362,9 +432,22 @@ export default function Downloads() {
       ...(platformFilter ? { platform: platformFilter } : {}),
     },
     // Fast while something is in flight, slow otherwise: a transfer is the one
-    // thing on this page that changes on its own.
-    poll: (storage.data?.in_flight ?? 0) > 0 ? POLL.fast : POLL.slow,
+    // thing on this page that changes on its own. The rows on screen decide as
+    // well as the storage count, which polls slowly and so would notice a
+    // download starting from another tab, or the API, up to ten seconds late.
+    refetchInterval: (query) =>
+      (storage.data?.in_flight ?? 0) > 0 ||
+      (query.state.data?.items.some((row) => LIVE.has(row.state)) ?? false)
+        ? POLL.live
+        : POLL.slow,
   })
+
+  // The drawer follows its row through each refresh. It used to hold the copy
+  // taken at the click, so a download opened while running showed no progress
+  // and no files, and kept showing nothing after it had landed.
+  const inspected = inspecting
+    ? (list.data?.items.find((row) => row.id === inspecting.id) ?? inspecting)
+    : null
 
   const refresh = (): void => {
     void invalidate(DOWNLOADS_KEY)
@@ -1147,7 +1230,7 @@ export default function Downloads() {
         title={inspecting?.content_id ?? ''}
         description={inspecting?.directory}
       >
-        {inspecting ? <Detail row={inspecting} /> : null}
+        {inspected ? <Detail row={inspected} /> : null}
       </Drawer>
     </div>
   )
@@ -1207,10 +1290,39 @@ function Detail({ row }: { row: DownloadRow }) {
 
       <div className="u-row-between">
         <StatusBadge kind="download" value={row.state} />
-        <span className="u-mono u-xs u-muted">
-          {row.on_disk ? formatters.bytes(row.bytes_total) : t('downloads.evicted')}
-        </span>
+        {row.progress ? null : (
+          <span className="u-mono u-xs u-muted">
+            {row.on_disk ? formatters.bytes(row.bytes_total) : t('downloads.evicted')}
+          </span>
+        )}
       </div>
+
+      {row.progress ? (
+        <>
+          <Progress progress={row.progress} />
+          {/* A row's own files are written when it settles, so while it runs
+              the sidecar's list is the only one there is. */}
+          <ul className={styles.files}>
+            {row.progress.items.map((file) => (
+              <li key={file.name} className={styles.file}>
+                <div className="u-row-between">
+                  <span className="u-mono u-truncate">{file.name}</span>
+                  <span className="u-mono u-xs u-muted">
+                    {file.state === 'done' ? formatters.bytes(file.bytes) : file.state}
+                  </span>
+                </div>
+                {file.state === 'running' ? (
+                  <Transfer
+                    bytes={file.bytes}
+                    expected={file.bytes_expected}
+                    rate={file.bytes_per_second}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
 
       {row.error ? <p className="u-muted">{row.error}</p> : null}
       {!row.on_disk ? <p className="u-xs u-muted">{t('downloads.evictedHint')}</p> : null}
@@ -1268,7 +1380,9 @@ function Detail({ row }: { row: DownloadRow }) {
         ))}
       </ul>
 
-      {row.files.length === 0 ? <p className="u-muted">{t('downloads.file.none')}</p> : null}
+      {row.files.length === 0 && !row.progress ? (
+        <p className="u-muted">{t('downloads.file.none')}</p>
+      ) : null}
     </div>
   )
 }

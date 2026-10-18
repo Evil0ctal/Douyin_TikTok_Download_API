@@ -51,6 +51,8 @@ type transferSpec struct {
 	Dest      string
 	UserAgent string
 	Referer   string
+	// Optional. Told when a mirror starts and after every write.
+	Progress progress
 }
 
 // fetcher owns the shared transport and the redirect policy.
@@ -201,6 +203,9 @@ func (f *fetcher) fetchOne(ctx context.Context, spec transferSpec, mirror string
 	if spec.MaxBytes > 0 && response.ContentLength > spec.MaxBytes {
 		return transferResult{}, fmt.Errorf("%s declares %d bytes, over the %d byte ceiling", host, response.ContentLength, spec.MaxBytes)
 	}
+	if spec.Progress != nil {
+		spec.Progress.begin(response.ContentLength)
+	}
 
 	sum, written, err := f.spool(response.Body, spec)
 	if err != nil {
@@ -240,7 +245,11 @@ func (f *fetcher) spool(body io.Reader, spec transferSpec) (string, int64, error
 		// are distinguishable rather than both looking like a full read.
 		reader = io.LimitReader(body, spec.MaxBytes+1)
 	}
-	written, err := io.Copy(io.MultiWriter(file, digest), reader)
+	sinks := []io.Writer{file, digest}
+	if spec.Progress != nil {
+		sinks = append(sinks, &progressWriter{to: spec.Progress})
+	}
+	written, err := io.Copy(io.MultiWriter(sinks...), reader)
 	if err != nil {
 		return "", 0, err
 	}

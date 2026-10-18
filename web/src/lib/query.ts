@@ -14,6 +14,12 @@ import { subscribeLanguage } from './language'
 
 /** Poll intervals. Pass one as refetchInterval; do not invent new cadences. */
 export const POLL = {
+  /**
+   * A transfer someone is watching. Its bytes and speed change every second,
+   * and at five a 2 MB/s download jumped 10 MB a step and the time left was
+   * stale before it was read.
+   */
+  live: 2_000,
   /** Pool state and anything an operator watches during an incident. */
   fast: 5_000,
   /** Charts and aggregate counters. */
