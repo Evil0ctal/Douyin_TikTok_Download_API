@@ -216,7 +216,7 @@ class ToolSet:
         return outcome.result or {}
 
     async def _run(
-        self, endpoint: str, params: dict[str, Any]
+        self, endpoint: str, params: dict[str, Any], *, is_demo: bool = False
     ) -> tuple[dict[str, Any] | None, str, float]:
         """Submit, then wait.
 
@@ -225,7 +225,7 @@ class ToolSet:
         with it so the message quotes the wait that actually happened, not the
         one a hot reload installed in the meantime.
         """
-        task_id = await self._ctx.tasks.submit(endpoint, params)
+        task_id = await self._ctx.tasks.submit(endpoint, params, is_demo=is_demo)
         timeout = self._ctx.tool_timeout
         outcome = await self._ctx.tasks.wait(task_id, timeout)
         if outcome is None or not outcome.settled:
@@ -242,9 +242,18 @@ class ToolSet:
         }
 
     async def _fetch(
-        self, endpoint: str, params: dict[str, Any], extra: dict[str, Any]
+        self,
+        endpoint: str,
+        params: dict[str, Any],
+        extra: dict[str, Any],
+        *,
+        context: Context | None = None,
     ) -> dict[str, Any]:
-        payload, task_id, timeout = await self._run(endpoint, params)
+        # A demo key reaches these tools too. Unmarked, its tasks were archived
+        # and logged like an operator's and outlived the demo retention window,
+        # which the REST routes and the media tools already mark.
+        is_demo = getattr(_caller(context), "role", None) is UserRole.DEMO
+        payload, task_id, timeout = await self._run(endpoint, params, is_demo=is_demo)
         if payload is None:
             return await self._pending(task_id, endpoint, timeout)
         data, meta = _unwrap(payload)
@@ -307,6 +316,7 @@ class ToolSet:
                 "resource": kind.resource.value,
                 "url": kind.url,
             },
+            context=context,
         )
 
     async def get_video(
@@ -338,7 +348,7 @@ class ToolSet:
         identifier = routing.require_text(content_id, "content_id")
         endpoint, params = routing.build_task(target, routing.Capability.CONTENT_DETAIL, identifier)
         return await self._fetch(
-            endpoint, params, {"platform": target.value, "content_id": identifier}
+            endpoint, params, {"platform": target.value, "content_id": identifier}, context=context
         )
 
     async def get_user(
@@ -370,7 +380,9 @@ class ToolSet:
         self._authorize(target, context)
         identifier = routing.require_text(uid, "uid")
         endpoint, params = routing.build_task(target, routing.Capability.AUTHOR_PROFILE, identifier)
-        return await self._fetch(endpoint, params, {"platform": target.value, "uid": identifier})
+        return await self._fetch(
+            endpoint, params, {"platform": target.value, "uid": identifier}, context=context
+        )
 
     async def list_user_posts(
         self,
@@ -409,7 +421,9 @@ class ToolSet:
         endpoint, params = routing.build_task(
             target, routing.Capability.AUTHOR_POSTS, identifier, cursor=cursor, count=count
         )
-        return await self._fetch(endpoint, params, {"platform": target.value, "uid": identifier})
+        return await self._fetch(
+            endpoint, params, {"platform": target.value, "uid": identifier}, context=context
+        )
 
     async def list_comments(
         self,
@@ -445,7 +459,7 @@ class ToolSet:
             target, routing.Capability.COMMENTS, identifier, cursor=cursor, count=count
         )
         return await self._fetch(
-            endpoint, params, {"platform": target.value, "content_id": identifier}
+            endpoint, params, {"platform": target.value, "content_id": identifier}, context=context
         )
 
     async def get_content_history(

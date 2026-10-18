@@ -59,8 +59,12 @@ class TaskOutcome:
 class TaskGateway(Protocol):
     """Submit work and wait for it, over the same asynchronous path as REST."""
 
-    async def submit(self, endpoint: str, params: dict[str, Any]) -> str:
-        """Queue one unit of work and return its task id."""
+    async def submit(self, endpoint: str, params: dict[str, Any], *, is_demo: bool = False) -> str:
+        """Queue one unit of work and return its task id.
+
+        ``is_demo`` marks a task the public demo account queued, so it is not
+        archived and is swept on the demo's own retention window.
+        """
         ...
 
     async def wait(self, task_id: str, seconds: float) -> TaskOutcome | None:

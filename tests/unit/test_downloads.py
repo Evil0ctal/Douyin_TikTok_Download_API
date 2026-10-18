@@ -167,6 +167,16 @@ def test_a_media_download_is_not_exempt_from_the_queue_ceiling() -> None:
     assert Maintenance.DIAGNOSE.value in _OPERATOR_TRIGGERED
 
 
+def test_a_job_any_read_key_can_queue_is_not_exempt_either() -> None:
+    """The archive recheck and backfill are queued by a platform read scope, so
+    a viewer or a plain read key could stack them past the ceiling - each one
+    a run of real requests against the pool."""
+    from dtk.api.routes.operations import _OPERATOR_TRIGGERED, Maintenance
+
+    assert Maintenance.ARCHIVE_AVAILABILITY.value not in _OPERATOR_TRIGGERED
+    assert Maintenance.ARCHIVE_BACKFILL.value not in _OPERATOR_TRIGGERED
+
+
 class TestSharedDirectories:
     """Several downloads of one post land in one directory.
 

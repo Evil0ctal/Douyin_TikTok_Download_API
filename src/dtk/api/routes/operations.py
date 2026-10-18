@@ -339,10 +339,21 @@ async def submit(
 #: can start as many as they have archived posts, and each one holds a worker
 #: slot for as long as a video takes. Exempting them would let one operator's
 #: bulk download starve every read on the instance.
+#:
+#: The archive recheck and backfill are out for a second reason: they were in
+#: this set while their routes ask for a platform read scope only, so any read
+#: key or viewer could queue them past the ceiling - each a run of real
+#: requests, up to 200 posts or 20 pages. Rare by intent is not rare by gate.
+_QUEUED_LIKE_READS: Final[frozenset[Maintenance]] = frozenset(
+    {
+        Maintenance.MEDIA_DOWNLOAD,
+        Maintenance.MEDIA_TRANSCRIBE,
+        Maintenance.ARCHIVE_AVAILABILITY,
+        Maintenance.ARCHIVE_BACKFILL,
+    }
+)
 _OPERATOR_TRIGGERED: Final[frozenset[str]] = frozenset(
-    member.value
-    for member in Maintenance
-    if member not in (Maintenance.MEDIA_DOWNLOAD, Maintenance.MEDIA_TRANSCRIBE)
+    member.value for member in Maintenance if member not in _QUEUED_LIKE_READS
 )
 
 

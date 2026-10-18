@@ -60,14 +60,16 @@ class FakeTasks:
         wait_delay: float = 0.0,
     ) -> None:
         self.submitted: list[tuple[str, dict[str, Any]]] = []
+        self.demo_flags: list[bool] = []
         self._wait = wait
         self._lookup = lookup
         self._missing = missing
         self._wait_delay = wait_delay
         self.waited: list[float] = []
 
-    async def submit(self, endpoint: str, params: dict[str, Any]) -> str:
+    async def submit(self, endpoint: str, params: dict[str, Any], *, is_demo: bool = False) -> str:
         self.submitted.append((endpoint, params))
+        self.demo_flags.append(is_demo)
         return TASK_ID
 
     async def wait(self, task_id: str, seconds: float) -> TaskOutcome | None:
@@ -635,6 +637,27 @@ def keyed(*scopes: Scope, role: UserRole) -> Any:
     )
     request = SimpleNamespace(state=SimpleNamespace(principal=principal))
     return SimpleNamespace(request_context=SimpleNamespace(request=request))
+
+
+class TestDemoTasks:
+    """The published demo key reaches the read tools as well as the REST API."""
+
+    async def test_a_demo_keys_read_is_queued_as_a_demo_task(self):
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"content_id": "7100"}))
+        tools = ToolSet(make_context(tasks))
+        await tools.get_video(
+            "douyin", "7100000000000000000", context=keyed(Scope.DOUYIN_READ, role=UserRole.DEMO)
+        )
+        assert tasks.demo_flags == [True]
+
+    async def test_anyone_elses_is_not(self):
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {"content_id": "7100"}))
+        tools = ToolSet(make_context(tasks))
+        await tools.get_video(
+            "douyin", "7100000000000000000", context=keyed(Scope.DOUYIN_READ, role=UserRole.VIEWER)
+        )
+        await tools.get_video("douyin", "7100000000000000000")
+        assert tasks.demo_flags == [False, False]
 
 
 class TestCollectingCostsWhatStartingCost:
