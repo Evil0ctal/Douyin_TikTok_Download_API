@@ -113,6 +113,13 @@ Two things do not happen by themselves:
   reached TikTok, which answers it as if the author had no posts. MCP now
   refuses a count above the platform's ceiling with `INVALID_PARAM`, as REST
   does.
+- **Reissuing the demo pair answered 500** on any instance where anybody had
+  logged in, and rolled back, so the pair could not be rotated at all; turning
+  demo mode off left the demo's console sessions alive behind a logged error.
+  The demo's logout scanned every `session:*` key and read each as a string,
+  and every session keeps a hash under the same prefix. It now reads the
+  account's own session index. Upgrade before you rotate, as Upgrading above
+  asks you to.
 - **Saving a TikTok post's comments from the Downloads page** asked for 50 a
   page, above TikTok's 35, and failed. It stays under each platform's ceiling
   now.
@@ -211,6 +218,10 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
 - **MCP 原来只用它自己的 50 检查 `count`。** 36 到 50 的 TikTok 分页会被发到 TikTok，而
   TikTok 对它的回答就像这个作者没有作品。现在 MCP 和 REST 一样，超过平台上限的 `count`
   直接返回 `INVALID_PARAM`。
+- **重新生成演示账号和 Key 会返回 500**：只要有人登录过实例就会这样，并且整个操作回滚，所以演示
+  账号根本无法轮换；关闭演示模式时，演示账号的控制台会话也不会被结束，只在日志里留下一条错误。
+  原因是演示账号的登出逻辑扫描所有 `session:*` 键并把它们都当成字符串读取，而每个会话在同一前缀
+  下还有一个哈希。现在改为读取该账号自己的会话索引。请先升级再轮换，正如上面「升级方式」所说。
 - **在下载页保存 TikTok 作品的评论**时每页请求 50 条，超过了 TikTok 的 35，所以会失败。现在
   它不会超过各平台的上限。
 

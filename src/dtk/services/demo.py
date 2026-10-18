@@ -281,6 +281,14 @@ async def reveal(session: AsyncSession, cipher: Cipher) -> DemoCredentials | Non
     )
 
 
+#: The session store's key layout, owned by :mod:`dtk.api.routes.sessions`.
+#: Spelled out here because a service does not import the API layer;
+#: tests/unit/test_demo.py holds the two to each other.
+_SESSION_KEY: Final = "session:{token}"
+_SESSION_META_KEY: Final = "session:meta:{token}"
+_SESSION_INDEX_KEY: Final = "sessions:user:{user_id}"
+
+
 async def end_sessions(session: AsyncSession) -> int:
     """Drop every console session belonging to the demo account.
 
@@ -288,10 +296,12 @@ async def end_sessions(session: AsyncSession) -> int:
     a session cookie is good for its whole lifetime, and "the demo is off" that
     still leaves a stranger inside the console is not off.
 
-    Sessions live in Redis keyed by an opaque token with the user id as the
-    value, so there is no index from user to token and this scans. That is
-    acceptable here because it runs when an administrator flips a setting, not
-    on any request path, and a self-hosted instance's session count is small.
+    Read from the per-account index the session store keeps. This used to scan
+    ``session:*``, which takes in every session's ``session:meta:{token}`` hash
+    as well as its token, and GET on a hash raises WRONGTYPE - so on any
+    instance where anybody had logged in, rotating the demo answered 500 and
+    rolled back, and turning the switch off left the demo's sessions alive
+    behind a logged error.
     """
     user = await find_user(session)
     if user is None:
@@ -299,11 +309,14 @@ async def end_sessions(session: AsyncSession) -> int:
 
     redis = get_redis()
     wanted = str(user.id)
+    index = _SESSION_INDEX_KEY.format(user_id=wanted)
     dropped = 0
-    async for key in redis.scan_iter(match="session:*", count=200):
-        if await redis.get(key) == wanted:
-            await redis.delete(key)
-            dropped += 1
+    for token in await redis.zrange(index, 0, -1):
+        # Counted only when it was still live: the index outlives a session
+        # that expired on its own.
+        dropped += await redis.delete(_SESSION_KEY.format(token=token))
+        await redis.delete(_SESSION_META_KEY.format(token=token))
+    await redis.delete(index)
     if dropped:
         log.info("demo.sessions_ended", user_id=wanted, count=dropped)
     return dropped

@@ -475,6 +475,32 @@ async def test_the_demo_key_stops_being_readable_when_the_demo_is_off(
     assert published["demo"] is False
 
 
+async def test_a_rotation_logs_the_demo_out_and_nobody_else(api_app: Any) -> None:
+    """Rotating answered 500 on any instance where anybody had logged in.
+
+    Every session keeps a ``session:meta:{token}`` hash beside its
+    ``session:{token}`` string, under the same prefix the demo's logout used to
+    scan, and GET on a hash raises WRONGTYPE. So the reissue the 5.1.6 upgrade
+    notes ask for failed and rolled back, and turning the switch off left the
+    demo's sessions alive behind a logged error.
+    """
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    async with anonymous_client(api_app) as admin, anonymous_client(api_app) as visitor:
+        await signed_in(admin)
+        assert (
+            await login(visitor, demo.DEMO_USERNAME, credentials.password or "")
+        ).status_code == 200
+        assert (await visitor.get("/api/v1/system/status")).status_code == 200
+
+        rotated = await admin.post("/api/v1/admin/demo/rotate")
+        assert rotated.status_code == 200, rotated.text
+        assert envelope(rotated)["data"]["password"] != credentials.password
+
+        assert (await visitor.get("/api/v1/system/status")).status_code == 401
+        assert (await admin.get("/api/v1/system/status")).status_code == 200
+
+
 async def test_a_rotation_changes_what_the_login_page_offers(api_app: Any) -> None:
     """Otherwise a rotated demo would leave the login page prefilling a password
     that no longer works, which is worse than not prefilling at all."""

@@ -203,3 +203,14 @@ def _session_principal() -> Principal:
         api_key_id=None,
         rate_limit_per_min=None,
     )
+
+
+def test_the_demo_logout_reads_the_session_store_s_own_keys():
+    """The demo's logout walks the session store from a service, which does not
+    import the API layer, so it carries its own copy of the key names."""
+    from dtk.api import deps
+    from dtk.api.routes import sessions
+
+    assert demo._SESSION_KEY == deps.SESSION_KEY
+    assert demo._SESSION_META_KEY == sessions.SESSION_META_KEY
+    assert demo._SESSION_INDEX_KEY == sessions.SESSION_INDEX_KEY
