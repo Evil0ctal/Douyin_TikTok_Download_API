@@ -131,11 +131,16 @@ def create_app(
             cookies=payload.cookies,
             proxy_url=payload.proxy_url,
             identity_id=payload.identity_id,
+            method=payload.method,
+            body=payload.body,
+            content_type=payload.content_type,
         )
         # Echo the UA the signature was computed under so the caller can assert
         # it is the one it will actually send. TikTok rejects any mismatch.
         return SignResponse(
-            params=signed, user_agent=service.user_agent_for(platform, payload.user_agent)
+            params=signed,
+            user_agent=service.user_agent_for(platform, payload.user_agent),
+            body_signed=payload.body is not None,
         )
 
     @app.get("/rpc/health", response_model=HealthResponse)

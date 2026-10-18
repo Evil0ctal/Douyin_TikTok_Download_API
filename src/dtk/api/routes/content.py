@@ -940,8 +940,9 @@ async def user_collections(
       public folders" rather than "no folders".
     - **Douyin** takes no author at all - its endpoint carries no user id and
       answers only about the session sending it. Pass `identity` pointed at an
-      imported identity; passing `url` or `sec_user_id` is an error rather
-      than being quietly ignored.
+      imported identity - required, since an unpinned answer would be some
+      account's private folders - and passing `url` or `sec_user_id` is an
+      error rather than being quietly ignored.
 
     Either way each folder says whether it is public, and to read what is
     inside one, pass its id to `/collection/posts`.
@@ -960,7 +961,7 @@ async def user_collections(
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
     - `identity` - send the request as this identity and no other. Requires
-      `identity:manage`.
+      `identity:manage`. **Required on Douyin**, and then never cached.
     - `refresh` - ignore any cached or in-flight answer and ask upstream
       again. Without it a repeat inside `cache.list_ttl` (5 minutes by default)
       is answered from the cache and costs nothing; a refresh costs an
@@ -980,6 +981,8 @@ async def user_collections(
         if _accepts_author(endpoint)
         else _refuse_author(endpoint, url=url, sec_user_id=sec_user_id)
     )
+    pinned = await resolve_request_identity(request, principal, identity, platform=platform)
+    _require_pin(endpoint, pinned)
     params.update({"cursor": cursor, "count": resolve_count(count), "include_raw": include_raw})
     return await operations.submit_and_wait(
         request,
@@ -990,13 +993,13 @@ async def user_collections(
         proxy=await resolve_request_proxy(request, proxy),
         refresh=refresh,
         explain=await resolve_explain(request, principal, explain),
-        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+        identity=pinned,
     )
 
 
 @router.get(
     "/{platform}/user/bookmarks",
-    summary="Posts an author has saved",
+    summary="Posts an account has saved",
     openapi_extra={I18N_KEY: "author_bookmarks", **ASYNC_RESPONSES},
 )
 async def user_bookmarks(
@@ -1014,33 +1017,39 @@ async def user_bookmarks(
     explain: bool = EXPLAIN_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:
-    """One page of the posts an author has saved, across every folder.
+    """One page of the posts an account has saved, across every folder.
 
-    **TikTok only**, and **only ever the account's own list**. This is the other
-    half of the Saved tab: `/user/collections` lists the folders, this lists
-    what is in the tab regardless of folder.
+    **Only ever the account's own list**, on both platforms, so `identity` is
+    required: point it at an identity imported from that account's own
+    browser session. This is the other half of the saved tab -
+    `/user/collections` lists the folders, this lists what is in the tab
+    regardless of folder, and an account can have saved posts and no folders.
 
-    Unlike `/user/collections`, there is no public half to this one: the
-    request names an account rather than a folder. Measured with a guest
-    identity against an account that has saved a post, TikTok refuses outright
-    rather than returning an empty page, so point `identity` at an identity
-    imported from that account's own browser session. For someone else's
-    public folder, use `/collection/posts` instead.
+    - **TikTok** takes the account as well, and answers only that account's own
+      session: measured with a guest identity against an account that has
+      saved a post, it refuses outright rather than returning an empty page.
+    - **Douyin** takes no account at all - its endpoint carries no user id and
+      answers about the session sending it. Passing `url` or `sec_user_id` is an
+      error rather than being quietly ignored.
+
+    For someone else's public folder, use `/collection/posts` instead.
 
     **Parameters**
 
-    - `platform` - must be `tiktok`.
-    - `url` - a link to the author's profile page.
-    - `sec_user_id` - the author's stable id, if you already have it.
+    - `platform` - `douyin` or `tiktok`.
+    - `url` - a link to the account's profile page. **TikTok only**.
+    - `sec_user_id` - the account's stable id, if you already have it.
+      **TikTok only**.
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - posts per page. TikTok refuses more than 35.
     - `include_raw` - include each post's untouched platform payload.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
-    - `identity` - send the request as this identity and no other. Requires
-      `identity:manage`, and is the whole point of this endpoint.
-    - `refresh` - ignore any cached or in-flight answer and ask upstream again.
+    - `identity` - **required**. Send the request as this identity and no
+      other. Requires `identity:manage`. The answer is never cached, because
+      it belongs to that identity alone.
+    - `refresh` - ignore any in-flight answer and ask upstream again.
 
     **Returns**
 
@@ -1048,7 +1057,14 @@ async def user_bookmarks(
     for the next page.
     """
     authorize(principal, platform)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    endpoint = supported(platform, Operation.AUTHOR_BOOKMARKS)
+    params: dict[str, Any] = (
+        _author_params(platform, url=url, sec_user_id=sec_user_id)
+        if _accepts_author(endpoint)
+        else _refuse_author(endpoint, url=url, sec_user_id=sec_user_id)
+    )
+    pinned = await resolve_request_identity(request, principal, identity, platform=platform)
+    _require_pin(endpoint, pinned)
     params.update(
         {
             "cursor": cursor,
@@ -1059,13 +1075,13 @@ async def user_bookmarks(
     return await operations.submit_and_wait(
         request,
         principal,
-        endpoint=supported(platform, Operation.AUTHOR_BOOKMARKS),
+        endpoint=endpoint,
         params=params,
         wait=resolve_wait(request, wait),
         proxy=await resolve_request_proxy(request, proxy),
         refresh=refresh,
         explain=await resolve_explain(request, principal, explain),
-        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+        identity=pinned,
     )
 
 
@@ -1473,6 +1489,21 @@ def _refuse_author(endpoint: str, *, url: str | None, sec_user_id: str | None) -
             details={"endpoint": endpoint, "unexpected": given, "hint": "pin identity instead"},
         )
     return {}
+
+
+def _require_pin(endpoint: str, identity: str | None) -> None:
+    """Refuse a session-bound endpoint that names no identity, before it queues.
+
+    The fetch layer refuses it too, and has to - it is where the cache is
+    decided. This copy exists so the caller hears it as a 400 now rather than
+    as a task that queues, runs and fails.
+    """
+    if identity is None and registry.ENDPOINTS[endpoint].session_bound:
+        raise InvalidParam(
+            f"{endpoint} answers only about the identity sending it, so it needs "
+            "one pinned with `identity`",
+            details={"endpoint": endpoint, "field": "identity"},
+        )
 
 
 def _author_params(

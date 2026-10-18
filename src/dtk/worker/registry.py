@@ -206,6 +206,9 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         # the honest answer. Dropping it would return the operator's own
         # folders under a stranger's name.
         Capability.AUTHOR_COLLECTIONS: {CURSOR: "cursor", COUNT: "count"},
+        # The same absence for the same reason: `listcollection` answers about
+        # the session sending it and cannot be pointed at anyone.
+        Capability.AUTHOR_BOOKMARKS: {CURSOR: "cursor", COUNT: "count"},
         Capability.COLLECTION_POSTS: {
             COLLECTION_ID: "collection_id",
             CURSOR: "cursor",
@@ -301,6 +304,8 @@ class EndpointDefinition:
     summary: str
     #: canonical name -> platform builder keyword.
     arguments: Mapping[str, str]
+    #: Served only to a pinned identity. See ``EndpointSpec.session_bound``.
+    session_bound: bool = False
 
     @property
     def adapter(self) -> PlatformAdapter:
@@ -426,10 +431,9 @@ class EndpointDefinition:
                 Capability.AUTHOR_POSTS
                 | Capability.AUTHOR_LIKES
                 | Capability.MIX_POSTS
-                | Capability.AUTHOR_BOOKMARKS
                 | Capability.AUTHOR_REPOSTS
             ):
-                # All five are a page of posts in the platform's own list
+                # All four are a page of posts in the platform's own list
                 # envelope - `aweme_list`/`max_cursor` on Douyin, `itemList`/
                 # `cursor` on TikTok - so one parser answers for all of them.
                 return adapter.parse_author_posts(payload, fetched_at=when)
@@ -439,10 +443,13 @@ class EndpointDefinition:
                 return adapter.parse_author_list(payload)
             case Capability.AUTHOR_COLLECTIONS:
                 return adapter.parse_author_collections(payload)
-            case Capability.COLLECTION_POSTS:
-                # Not in the group above: Douyin pages this one by `cursor`
-                # where author_posts pages by `max_cursor`, so sharing the
-                # parser would break on the first folder needing page two.
+            case Capability.COLLECTION_POSTS | Capability.AUTHOR_BOOKMARKS:
+                # Not in the group above: Douyin pages these by `cursor` where
+                # author_posts pages by `max_cursor`, so sharing the parser
+                # would break on the first folder needing page two. Bookmarks
+                # sat in that group while only TikTok had them, where the two
+                # parsers are one; measured on Douyin's `listcollection`
+                # 2026-10-17, a 16-post account paged 10 + 6 by `cursor`.
                 return adapter.parse_collection_posts(payload, fetched_at=when)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
@@ -543,6 +550,7 @@ def _definition(
         risk_weight=spec.risk_weight,
         summary=spec.summary,
         arguments=MappingProxyType(arguments),
+        session_bound=spec.session_bound,
     )
 
 

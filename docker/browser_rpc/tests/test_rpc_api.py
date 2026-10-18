@@ -79,6 +79,38 @@ class TestSignEndpoint:
         assert body["params"]["a_bogus"]
         assert body["params"]["ms_token"]
 
+    async def test_a_body_is_signed_and_said_to_be(self, client: httpx.AsyncClient) -> None:
+        """`body_signed` is how a caller tells this build from one before bodies.
+
+        An older service ignores the field and signs an empty body, and its
+        answer looks the same in every other respect - so the confirmation is
+        the only thing the caller has to go on.
+        """
+        base = {
+            "platform": "douyin",
+            "url": DOUYIN_URL,
+            "method": "POST",
+            "query": "aid=6383",
+            "params": {"aid": "6383"},
+        }
+        plain = (await client.post("/rpc/sign", json=base)).json()
+        posted = (
+            await client.post(
+                "/rpc/sign",
+                json={
+                    **base,
+                    "body": "count=10&cursor=0",
+                    "content_type": "application/x-www-form-urlencoded; charset=UTF-8",
+                },
+            )
+        ).json()
+
+        assert plain["body_signed"] is False
+        assert posted["body_signed"] is True
+        # The fake hashes the body like the real signature does, so a body that
+        # reached the page changes what comes back.
+        assert posted["params"]["a_bogus"] != plain["params"]["a_bogus"]
+
     async def test_builds_a_query_when_the_caller_sends_only_params(
         self, client: httpx.AsyncClient
     ) -> None:

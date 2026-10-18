@@ -123,6 +123,7 @@ async def build_runtime(
     from dtk.identity.minting import BrowserRpcClient
     from dtk.media import DownloaderClient
     from dtk.ops.notify import notifier_from_config, signing_alert_hook
+    from dtk.platforms.base import RequestSpec as PlatformRequestSpec
     from dtk.scheduler.circuit import circuit_config
     from dtk.scheduler.scheduler import Scheduler, SchedulerConfig
     from dtk.signing import NativeSigner, RpcSigner, SignerRegistry, native_signers
@@ -189,7 +190,7 @@ async def build_runtime(
     )
 
     async def sign(
-        platform: Platform, url: str, params: dict[str, Any], sender: TransportIdentity
+        platform: Platform, spec: PlatformRequestSpec, sender: TransportIdentity
     ) -> SignedParams:
         # Returned whole rather than as a bare parameter dict: `.signer` is a
         # request_log column the Logs page renders, and unwrapping here is what
@@ -201,7 +202,9 @@ async def build_runtime(
         # `screen_width` the same request echoes in its query string. The ops
         # path already did this correctly through the same helper.
         return await signer_registry.sign(
-            SigningRequestSpec.get(url, {k: str(v) for k, v in params.items()}),
+            # Method, headers and body too: a_bogus hashes the body of a POST,
+            # and reads the Content-Type to decide whether it can.
+            SigningRequestSpec.of(spec),
             StaticFingerprint.of(sender.fingerprint),
             # The identity's own session, so the browser signs in a page holding
             # exactly the cookies this request will be sent with.

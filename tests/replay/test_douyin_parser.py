@@ -15,6 +15,7 @@ import pytest
 
 from dtk.core.errors import (
     ErrorCode,
+    InvalidParam,
     UnsupportedContent,
     UpstreamChanged,
     UpstreamRiskControl,
@@ -869,6 +870,88 @@ def test_collection_posts_pages_by_cursor_not_max_cursor() -> None:
 
     with pytest.raises(UpstreamChanged):
         ADAPTER.parse_author_posts(payload, fetched_at=FETCHED_AT)
+
+
+# --------------------------------------------------------------------------
+# Bookmarks: POST listcollection (#790)
+# --------------------------------------------------------------------------
+
+
+def _listcollection(*, cursor: int, has_more: int) -> dict:
+    """The envelope measured on POST listcollection, 2026-10-17, ids redacted.
+
+    The items are this suite's own synthetic posts. The live answer was one
+    account's bookmarks, which are nobody else's business and do not belong in
+    a fixture; the envelope is what this endpoint adds, and it is all here.
+    """
+    return {
+        "aweme_list": fixture("user_posts_page1")["aweme_list"],
+        "cursor": cursor,
+        "extra": {"fatal_item_ids": [], "logid": "redacted", "now": 1792303188000},
+        "has_more": has_more,
+        "invalid_item_count": 0,
+        "invalid_item_text": "",
+        "is_clear_invalid_item": 0,
+        "log_pb": {"impr_id": "redacted"},
+        "sec_uid": "redacted",
+        "status_code": 0,
+        "uid": "redacted",
+    }
+
+
+def test_build_author_bookmarks_request_is_a_form_post() -> None:
+    """POST, with the page in the body and nowhere else.
+
+    A GET is answered 404 "Unsupported path(Janus)", which is how this read as
+    a retired endpoint for a while. The body is what the page sends, byte for
+    byte and in its order, because a_bogus hashes it - checked against two
+    captured signatures from the page itself.
+    """
+    spec = ADAPTER.build_request(endpoints.AUTHOR_BOOKMARKS, count=10, cursor="1792302641724339")
+
+    assert spec["method"] == "POST"
+    assert spec["url"] == "https://www.douyin.com/aweme/v1/web/aweme/listcollection/"
+    assert spec["body"] == b"count=10&cursor=1792302641724339"
+    assert spec["headers"]["Content-Type"] == "application/x-www-form-urlencoded; charset=UTF-8"
+    assert "count" not in spec["params"]
+    assert "cursor" not in spec["params"]
+    assert spec["params"]["aid"] == "6383"
+    # Measured: a POST with neither a Referer nor an Origin got 7 bytes back.
+    assert spec["headers"]["Referer"].startswith("https://www.douyin.com/user/self")
+    assert spec["headers"]["Origin"] == "https://www.douyin.com"
+
+
+def test_build_author_bookmarks_request_defaults_to_the_first_page() -> None:
+    spec = ADAPTER.build_request(endpoints.AUTHOR_BOOKMARKS)
+    assert spec["body"] == b"count=20&cursor=0"
+
+
+def test_author_bookmarks_cannot_be_pointed_at_anyone() -> None:
+    """The endpoint answers about the session; an author would be ignored."""
+    with pytest.raises(InvalidParam):
+        ADAPTER.build_request(endpoints.AUTHOR_BOOKMARKS, sec_user_id=SEC_UID)
+
+
+def test_bookmarks_page_by_cursor_through_the_registry() -> None:
+    """Through the registry, because that is where the parser is chosen.
+
+    Bookmarks went to `parse_author_posts` while only TikTok had them, and on
+    Douyin that parser demands a `max_cursor` this envelope does not have - so
+    every account with more than one page would have read as UPSTREAM_CHANGED.
+    Measured on a 16-post account: 10, then 6 with `has_more: 0, cursor: 0`.
+    """
+    from dtk.worker.registry import ENDPOINTS
+
+    definition = ENDPOINTS["douyin.author_bookmarks"]
+
+    first = definition.parse(_listcollection(cursor=1792302641724339, has_more=1))
+    assert first.has_more is True
+    assert first.cursor == "1792302641724339"
+    assert [item.platform for item in first.items] == [Platform.DOUYIN] * 2
+
+    last = definition.parse(_listcollection(cursor=0, has_more=0))
+    assert last.has_more is False
+    assert last.cursor is None
 
 
 def test_douyin_has_no_collection_detail() -> None:

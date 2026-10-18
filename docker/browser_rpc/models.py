@@ -80,6 +80,11 @@ class SignRequest(BaseModel):
     url: str
     method: str = "GET"
     query: str | None = None
+    #: A POST's body, exactly as it will be sent, and its Content-Type. The
+    #: platform's a_bogus hashes the body, so signing without it signs a
+    #: different request than the one that goes out.
+    body: str | None = None
+    content_type: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     user_agent: str | None = None
     #: The identity's jar. Empty asks for an anonymous context, which is only
@@ -107,6 +112,10 @@ class SignResponse(BaseModel):
 
     params: dict[str, str]
     user_agent: str
+    #: True when a body was supplied and handed to the page's own fetch. The
+    #: caller checks it: a service from before bodies would ignore the field
+    #: and sign an empty one, and nothing else in the answer would say so.
+    body_signed: bool = False
 
 
 class HealthResponse(BaseModel):

@@ -497,7 +497,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 - 需要 `identity:manage` **以及** `operator` 角色，因为答案里含有凭据。一个 `douyin:read` 的 key 可以要求本实例**使用**某个 jar；它不能要求把 jar 交到自己手上。
 - 每次使用都会写进审计日志——谁问的、问的哪个接口。这行日志不含任何 jar。
 - 它**隐含 `refresh`**：对一个缓存答案做「解释」，描述的会是这次请求根本没发生过的调用。它同时关闭任务合并，所以一个带解释的调用永远不会被合并到已经在途的、不带解释的调用上。
-- 该块出现在结果元数据的 `explain` 下，含 `method`、`url`、`headers`、`cookie_header`、`identity_id`、`signer`、`endpoint` 和 `proxy`。
+- 该块出现在结果元数据的 `explain` 下，含 `method`、`url`、`headers`、`cookie_header`、`identity_id`、`signer`、`endpoint`、`proxy` 和 `body`。
 - **失败**的任务上同样会记录——那正是它存在的场景。
 - 对任何没有 `identity:manage` 的读者，它会从存下来的任务结果里被剥掉；而且它永远不会出现在 SSE 流上。
 
@@ -520,10 +520,10 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | 分页 |
 | `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | 分页。见下面的平台差异说明 |
 | `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id`——抖音叫 `mix_info`，TikTok 叫 `playlistId`。是作者自建的合集，不是收藏夹。分页 |
-| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | 收藏夹列表。TikTok 接受作者参数，抖音不接受。分页 |
+| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | 收藏夹列表。TikTok 接受作者参数；抖音不接受，并且在抖音上必须带 `identity`。分页 |
 | `GET` | `/api/v1/{platform}/collection` | `tiktok:read` | **仅 TikTok。** 按 `collection_id` 查单个收藏夹：名称、封面、作品数、归属、是否公开 |
 | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}:read` | 按 `collection_id` 取某个收藏夹里的作品。分页 |
-| `GET` | `/api/v1/{platform}/user/bookmarks` | `tiktok:read` | **仅 TikTok。** 跨全部收藏夹的收藏作品，只能读本人。分页 |
+| `GET` | `/api/v1/{platform}/user/bookmarks` | `{platform}:read` | 跨全部收藏夹的收藏作品。只能读账号本人，所以必须带 `identity`。TikTok 接受作者参数，抖音不接受。分页 |
 | `GET` | `/api/v1/{platform}/user/reposts` | `tiktok:read` | **仅 TikTok。** 作者转发的作品。分页 |
 | `GET` | `/api/v1/{platform}/user/followers` | `tiktok:read` | **仅 TikTok** |
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **仅 TikTok** |

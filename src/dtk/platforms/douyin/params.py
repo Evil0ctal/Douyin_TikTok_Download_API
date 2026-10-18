@@ -254,6 +254,33 @@ def author_collections_params(
     }
 
 
+def author_bookmarks_params(
+    *,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/aweme/listcollection/``.
+
+    Every post the session has bookmarked, whatever folder it sits in - the
+    videos tab under bookmarks on the account's own page. ``collects/list/``
+    is a different thing: it lists the folders, and an account can have
+    bookmarks and no folders at all (#790).
+
+    No user id, for the reason ``author_collections_params`` gives. ``count``
+    and ``cursor`` are returned here like any other parameter and moved into
+    the POST body by the endpoint's ``form``; the cursor is the opaque value
+    the previous page handed back, ``"0"`` for the first.
+    """
+    return {
+        **base_params(profile),
+        "publish_video_strategy_type": "2",
+        "pc_libra_divert": profile.os_name,
+        "count": str(count),
+        "cursor": _cursor(cursor),
+    }
+
+
 def collection_posts_params(
     *,
     collection_id: str,
@@ -360,6 +387,7 @@ __all__ = [
     "AID",
     "DEFAULT_PAGE_SIZE",
     "DEFAULT_PROFILE",
+    "author_bookmarks_params",
     "author_posts_params",
     "author_profile_params",
     "base_params",

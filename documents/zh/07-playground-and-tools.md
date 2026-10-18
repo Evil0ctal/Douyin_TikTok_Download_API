@@ -168,6 +168,7 @@
 | `signer` | 生成签名的签名器 |
 | `endpoint` | 内部接口名，例如 `douyin.content_detail` |
 | `proxy` | 该身份的出口，已脱敏 |
+| `body` | POST 请求原样发出的请求体，没有则为 `null`。签名覆盖了它，所以 curl 里会以 `--data-raw` 带上 |
 
 **代价。** explain 描述的是一次真实尝试，而命中缓存的响应并没有发起任何尝试——因此 `explain` 隐含 `refresh`：它会跳过响应缓存，而且带 explain 的调用永远不会被合并到一个不带 explain 的在途任务上。每一次带 explain 的调用都是一次真实的上游请求，都会消耗一个身份。
 

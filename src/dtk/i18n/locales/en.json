@@ -284,12 +284,12 @@
         "description": "Sign out everywhere except here."
       },
       "author_bookmarks": {
-        "summary": "Posts an author has saved",
-        "description": "One page of the posts an author has saved, across every folder - the other half of the Saved tab, where /user/collections lists the folders. TikTok only, and only ever the account's own list: unlike /user/collections there is no public half here, because the request names an account rather than a folder. A guest identity is refused outright, so point identity at an identity imported from that account's session. For someone else's public folder, use /collection/posts."
+        "summary": "Posts an account has saved",
+        "description": "One page of the posts an account has saved, across every folder - the other half of the Saved tab, where /user/collections lists the folders, and an account can have saved posts and no folders. Only ever the account's own list, so identity is required: point it at an identity imported from that account's own session, and the answer is never cached. TikTok also takes the account and refuses a guest outright. Douyin takes no account at all - its endpoint answers about the session sending it - so passing url or sec_user_id there is an error rather than being quietly ignored. For someone else's public folder, use /collection/posts."
       },
       "author_collections": {
         "summary": "Bookmark folders",
-        "description": "One page of bookmark folders, each saying whether it is public. The platforms differ in who you can ask about: TikTok takes an author, and a guest identity sees that author's public folders, so an empty page means no public folders rather than no folders. Douyin takes no author at all - its endpoint carries no user id and answers only about the session sending it, so pin identity to an imported identity; passing url or sec_user_id there is an error rather than being quietly ignored. To read what is inside a folder, pass its id to /collection/posts."
+        "description": "One page of bookmark folders, each saying whether it is public. The platforms differ in who you can ask about: TikTok takes an author, and a guest identity sees that author's public folders, so an empty page means no public folders rather than no folders. Douyin takes no author at all - its endpoint carries no user id and answers only about the session sending it, so identity is required there and must point at an imported identity, and the answer is never cached; passing url or sec_user_id there is an error rather than being quietly ignored. To read what is inside a folder, pass its id to /collection/posts."
       },
       "author_followers": {
         "summary": "Accounts that follow an author",

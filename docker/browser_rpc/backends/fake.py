@@ -96,7 +96,10 @@ class FakeSigningContext:
         if self._closed:
             raise BackendFailure("signing context is closed")
         field = SIGNATURE_FIELDS[self._platform]
-        signature = _digest("sign", self._platform.value, plan.query, plan.user_agent or "")
+        # The body is hashed like the real a_bogus hashes it, so a test can see
+        # whether it reached the page; a GET's signature is what it always was.
+        covered = (plan.query, plan.user_agent or "") + ((plan.body,) if plan.body else ())
+        signature = _digest("sign", self._platform.value, *covered)
         signed = {
             field: signature,
             "ms_token": _digest("mstoken", self._platform.value, plan.url, length=48),

@@ -264,6 +264,7 @@ it made it.
 | `signer` | Which signer produced the signature |
 | `endpoint` | The internal endpoint name, e.g. `douyin.content_detail` |
 | `proxy` | The identity's exit, masked |
+| `body` | A POST's body exactly as sent, or `null`. The signature covers it, so the curl line carries it as `--data-raw` |
 
 **What it costs.** An explanation describes an attempt, and a cached answer made
 none — so `explain` implies `refresh`: it skips the response cache, and an

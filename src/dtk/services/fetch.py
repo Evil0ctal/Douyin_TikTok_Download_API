@@ -40,6 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.core.errors import (
     DtkError,
     Internal,
+    InvalidParam,
     NotFound,
     UpstreamChanged,
     UpstreamRiskControl,
@@ -104,6 +105,9 @@ class Explanation:
     endpoint: str
     #: Masked. The exit is an operator credential and stays one.
     proxy: str | None
+    #: The POST body as sent, or None. Without it a curl of a signed POST
+    #: replays an empty body under a signature that hashed a full one.
+    body: str | None = None
 
 
 @dataclass(slots=True)
@@ -245,7 +249,12 @@ ProxyResolver = Callable[[str], Awaitable[str | None]]
 #: `verifyFp` in the query is the `s_v_web_id` in the jar the request carries.
 #: Passing only the fingerprint is what let the two disagree, and a request whose
 #: signature names a different session than its cookies gets an empty payload.
-SignFn = Callable[[Platform, str, dict[str, Any], TransportIdentity], Awaitable[SignedRequest]]
+#:
+#: The request is passed whole for the same reason. This used to be the URL and
+#: the parameters, which is everything a GET has - and a POST's body and method
+#: never reached the signer, so a_bogus would have hashed an empty body for a
+#: request that went out carrying one.
+SignFn = Callable[[Platform, PlatformRequestSpec, TransportIdentity], Awaitable[SignedRequest]]
 
 
 class FetchService:
@@ -361,7 +370,7 @@ class FetchService:
                 fingerprint=identity.fingerprint,
                 proxy_url=identity.proxy_url,
             )
-            signed = await self._sign(platform, spec["url"], dict(spec.get("params") or {}), sender)
+            signed = await self._sign(platform, spec, sender)
             signer = signed.signer
 
             outbound = _to_transport_spec(spec, signed, endpoint)
@@ -379,6 +388,7 @@ class FetchService:
                     signer=signer,
                     endpoint=endpoint,
                     proxy=mask_url(identity.proxy_url),
+                    body=outbound.body.decode("utf-8", "replace") if outbound.body else None,
                 )
 
             response = await self._transport.request(
@@ -490,6 +500,15 @@ class FetchService:
         adapter = get_adapter(platform)
         started = time.monotonic()
         spec = adapter.endpoints.specs.get(endpoint)
+        if spec is not None and spec.session_bound and ctx.identity_id is None:
+            # Here rather than only at the route, because this is where the
+            # cache is decided: whatever the entry point, an unpinned answer
+            # would be some account's private list, written to a shared key.
+            raise InvalidParam(
+                f"{endpoint} answers only about the identity sending it, so it "
+                "needs one pinned with `identity`",
+                details={"endpoint": endpoint, "field": "identity"},
+            )
         login = spec.login_for(params) if spec is not None else LoginNeed.NONE
         digest = cache.cache_key(
             endpoint, params, include_raw=ctx.include_raw, egress=ctx.request_proxy
@@ -727,7 +746,6 @@ def _to_transport_spec(
     were dropped on the floor here, so every Douyin request arrived with a
     signature in the query and none in the headers, and was answered 403.
     """
-    body = spec.get("body")
     return TransportRequestSpec(
         # The signed URL, so the query is exactly what was signed. `params` is
         # left None deliberately: handing the transport both would let it
@@ -736,7 +754,8 @@ def _to_transport_spec(
         method=str(spec.get("method") or "GET"),
         params=None if signed.query else {k: str(v) for k, v in (spec.get("params") or {}).items()},
         headers={**dict(spec.get("headers") or {}), **dict(signed.headers)},
-        json_body=body if body else None,
+        # The very bytes the signer hashed - the platform built them once.
+        body=spec.get("body") or None,
         # The logical name, never the signed URL: that carries tokens and would
         # make every log line unique and uncorrelatable.
         endpoint=endpoint,

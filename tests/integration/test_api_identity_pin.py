@@ -249,3 +249,82 @@ async def test_include_raw_discriminates_a_list_endpoint_task(client: Any) -> No
     raw = await client.get("/api/v1/douyin/user/posts", params={**base, "include_raw": "true"})
 
     assert envelope(plain)["data"]["task_id"] != envelope(raw)["data"]["task_id"]
+
+
+# --------------------------------------------------------------------------
+# Lists that belong to the session asking
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("path", "params", "endpoint"),
+    [
+        ("/api/v1/douyin/user/bookmarks", {}, "douyin.author_bookmarks"),
+        ("/api/v1/douyin/user/collections", {}, "douyin.author_collections"),
+        (
+            "/api/v1/tiktok/user/bookmarks",
+            {"sec_user_id": "MS4wLjABAAAA_SYNTHETIC"},
+            "tiktok.author_bookmarks",
+        ),
+    ],
+)
+async def test_an_owner_only_list_needs_an_identity(
+    client: Any, path: str, params: dict[str, str], endpoint: str
+) -> None:
+    """Refused before it queues, naming the field.
+
+    Unpinned, rotation would answer with whichever account it drew, and the
+    shared cache would hand that account's list to the next caller - on the
+    demo instance, to anybody.
+    """
+    await signed_in(client)
+
+    response = await client.get(path, params=params)
+
+    assert error_code(response) == "INVALID_PARAM"
+    details = envelope(response)["error"]["details"]
+    assert details["field"] == "identity"
+    assert details["endpoint"] == endpoint
+
+
+async def test_douyin_bookmarks_reach_the_queue_with_the_pin(client: Any) -> None:
+    """#790: the flat list of saved posts, which `collects/list` never was."""
+    await signed_in(client)
+    identity_id = await make_identity()
+
+    response = await client.get(
+        "/api/v1/douyin/user/bookmarks",
+        params={"identity": str(identity_id), "cursor": "1792302641724339", "count": 10},
+    )
+
+    assert response.status_code == 202, response.text
+    stored = await stored_params(response)
+    assert stored["identity"] == str(identity_id)
+    assert stored["cursor"] == "1792302641724339"
+
+
+async def test_tiktok_bookmarks_reach_the_queue_with_the_pin(client: Any) -> None:
+    """The other platform, which takes the account as well as the pin."""
+    await signed_in(client)
+    identity_id = await make_identity(platform="tiktok")
+
+    response = await client.get(
+        "/api/v1/tiktok/user/bookmarks",
+        params={"identity": str(identity_id), "sec_user_id": "MS4wLjABAAAA_SYNTHETIC"},
+    )
+
+    assert response.status_code == 202, response.text
+    assert (await stored_params(response))["identity"] == str(identity_id)
+
+
+async def test_douyin_bookmarks_refuse_an_author_even_when_pinned(client: Any) -> None:
+    await signed_in(client)
+    identity_id = await make_identity()
+
+    response = await client.get(
+        "/api/v1/douyin/user/bookmarks",
+        params={"identity": str(identity_id), "sec_user_id": "MS4wLjABAAAA_SYNTHETIC"},
+    )
+
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["unexpected"] == ["sec_user_id"]

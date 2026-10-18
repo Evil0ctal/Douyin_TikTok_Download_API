@@ -498,7 +498,7 @@ Returns the request as it actually went out — the signed URL, the headers and 
 - Requires `identity:manage` **and** the `operator` role, because the answer contains a credential. A `douyin:read` key may ask this instance to *use* a jar; it may not ask to be handed one.
 - Every use is written to the audit log — who asked, and for which endpoint. The line names no jar.
 - It **implies `refresh`**: an explanation of a cached answer would describe a call this request did not make. It also disables coalescing, so an explained call is never joined to an unexplained one already in flight.
-- The block appears in the result metadata under `explain`, with `method`, `url`, `headers`, `cookie_header`, `identity_id`, `signer`, `endpoint` and `proxy`.
+- The block appears in the result metadata under `explain`, with `method`, `url`, `headers`, `cookie_header`, `identity_id`, `signer`, `endpoint`, `proxy` and `body`.
 - It is recorded on **failed** tasks too — that is the case it exists for.
 - It is stripped from a stored task result for any reader without `identity:manage`, and it is never sent on the SSE stream.
 
@@ -521,10 +521,10 @@ See [Playground and tools](./07-playground-and-tools.md), which is the console's
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | Paged |
 | `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | Paged. See the platform note below |
 | `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id` — Douyin `mix_info`, TikTok `playlistId`. An author's own series, not a bookmark folder. Paged |
-| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | Bookmark folders. Takes an author on TikTok; takes none on Douyin. Paged |
+| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | Bookmark folders. Takes an author on TikTok; takes none on Douyin, and there needs `identity`. Paged |
 | `GET` | `/api/v1/{platform}/collection` | `tiktok:read` | **TikTok only.** One folder by `collection_id`: name, cover, count, owner, visibility |
 | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}:read` | Posts in one folder, by `collection_id`. Paged |
-| `GET` | `/api/v1/{platform}/user/bookmarks` | `tiktok:read` | **TikTok only.** Every saved post, across all folders. Owner only. Paged |
+| `GET` | `/api/v1/{platform}/user/bookmarks` | `{platform}:read` | Every saved post, across all folders. The account's own list only, so `identity` is required. Takes an author on TikTok; takes none on Douyin. Paged |
 | `GET` | `/api/v1/{platform}/user/reposts` | `tiktok:read` | **TikTok only.** Posts an author reposted. Paged |
 | `GET` | `/api/v1/{platform}/user/followers` | `tiktok:read` | **TikTok only** |
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **TikTok only** |

@@ -95,6 +95,12 @@ class SignPlan:
     params: Mapping[str, str]
     user_agent: str | None = None
     timeout_seconds: float = 8.0
+    #: The verb and, for a POST, the body and its Content-Type. All three reach
+    #: the page's fetch, because the SDK signs what it is handed and a_bogus
+    #: hashes the body.
+    method: str = "GET"
+    body: str | None = None
+    content_type: str | None = None
 
 
 @runtime_checkable

@@ -349,7 +349,12 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/user/bookmarks`,
     operation: 'author_bookmarks',
     platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+    params: [
+      TIKTOK_ONLY_PROFILE_URL_PARAM,
+      TIKTOK_ONLY_SEC_UID_PARAM,
+      ...PAGE_PARAMS,
+      ...ENVELOPE_PARAMS,
+    ],
   },
   {
     id: 'collectionDetail',
@@ -502,6 +507,8 @@ interface Explanation {
   endpoint: string
   /** Masked. The exit is an operator credential and stays one. */
   proxy: string | null
+  /** A POST's body as sent, or null. The signature hashed it. */
+  body: string | null
 }
 
 /** What /tools/decode answers, as this page reads it. */
@@ -544,6 +551,7 @@ function readExplanation(meta: ResponseMeta | undefined): Explanation | null {
     signer: explanation.signer ?? null,
     endpoint: explanation.endpoint ?? '',
     proxy: explanation.proxy ?? null,
+    body: explanation.body ?? null,
   }
 }
 
@@ -598,7 +606,13 @@ function upstreamCurl(explanation: Explanation): string {
   for (const [name, value] of Object.entries(explanation.headers)) {
     lines.push(`  -H ${shellQuote(`${name}: ${value}`)} \\`)
   }
-  lines.push(`  -H ${shellQuote(`Cookie: ${explanation.cookie_header}`)}`)
+  const cookie = `  -H ${shellQuote(`Cookie: ${explanation.cookie_header}`)}`
+  if (explanation.body === null) {
+    lines.push(cookie)
+  } else {
+    // The body too, or a POST replays empty under a signature that hashed one.
+    lines.push(`${cookie} \\`, `  --data-raw ${shellQuote(explanation.body)}`)
+  }
   return lines.join('\n')
 }
 

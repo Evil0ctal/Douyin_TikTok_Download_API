@@ -18,6 +18,7 @@ from typing import Final
 from dtk.core.types import LoginNeed
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.douyin.params import (
+    author_bookmarks_params,
     author_collections_params,
     author_likes_params,
     author_posts_params,
@@ -113,7 +114,9 @@ class DouyinAPIEndpoints:
     # Watch history
     USER_HISTORY: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/history/read/"
 
-    # Posts the user bookmarked
+    # Posts the user bookmarked, across every folder. POST only: a GET is
+    # answered 404 "Unsupported path(Janus)", which for a while read as the
+    # endpoint having been retired (#790).
     USER_COLLECTION: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/listcollection/"
 
     # The user's bookmark folders
@@ -199,6 +202,7 @@ COMMENTS: Final = "douyin.comments"
 COMMENT_REPLIES: Final = "douyin.comment_replies"
 AUTHOR_LIKES: Final = "douyin.author_likes"
 AUTHOR_COLLECTIONS: Final = "douyin.author_collections"
+AUTHOR_BOOKMARKS: Final = "douyin.author_bookmarks"
 COLLECTION_POSTS: Final = "douyin.collection_posts"
 MIX_POSTS: Final = "douyin.mix_posts"
 SESSION_CHECK: Final = "douyin.session_check"
@@ -282,7 +286,33 @@ ENDPOINTS: Final = EndpointTable.of(
         required=(),
         build=author_collections_params,
         risk_weight=1.8,
+        session_bound=True,
         summary="The bookmark folders belonging to the signed-in identity",
+    ),
+    EndpointSpec(
+        name=AUTHOR_BOOKMARKS,
+        path=DouyinAPIEndpoints.USER_COLLECTION,
+        method="POST",
+        required=(),
+        build=author_bookmarks_params,
+        form=("count", "cursor"),
+        risk_weight=1.8,
+        session_bound=True,
+        # The page's own Referer, and the CSRF header its SDK sends on a POST
+        # when it holds no token. Measured 2026-10-17 on one signed-in jar:
+        # neither is required - the dtk defaults of a bare-domain Referer and
+        # an Origin returned the page, and so did dropping the CSRF header -
+        # but a POST with neither Referer nor Origin came back as 7 bytes and
+        # no list. They are sent because the page sends them.
+        headers=(
+            (
+                "Referer",
+                f"{DouyinAPIEndpoints.DOUYIN_DOMAIN}"
+                "/user/self?from_tab_name=main&showTab=favorite_collection",
+            ),
+            ("x-secsdk-csrf-token", "DOWNGRADE"),
+        ),
+        summary="Every post the signed-in identity has bookmarked, across folders",
     ),
     EndpointSpec(
         name=COLLECTION_POSTS,
@@ -322,6 +352,7 @@ ENDPOINTS: Final = EndpointTable.of(
 
 
 __all__ = [
+    "AUTHOR_BOOKMARKS",
     "AUTHOR_COLLECTIONS",
     "AUTHOR_LIKES",
     "AUTHOR_POSTS",

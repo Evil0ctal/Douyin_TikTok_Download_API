@@ -62,6 +62,36 @@ class CountingBackend(FakeBackend):
         return context
 
 
+class RecordingContext(FakeSigningContext):
+    """Keeps every plan it was asked to sign, as the page would receive it."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.plans: list[SignPlan] = []
+
+    async def sign(self, plan: SignPlan) -> dict[str, str]:
+        self.plans.append(plan)
+        return await super().sign(plan)
+
+
+class RecordingBackend(CountingBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.contexts: list[RecordingContext] = []
+
+    async def open_signing_context(
+        self,
+        platform: Platform,
+        geo: GeoProfile,
+        proxy: ProxyEndpoint | None = None,
+        cookies: Mapping[str, str] | None = None,
+    ) -> FakeSigningContext:
+        await super().open_signing_context(platform, geo, proxy, cookies)
+        context = RecordingContext(platform, geo, cookies)
+        self.contexts.append(context)
+        return context
+
+
 class BrokenContext(FakeSigningContext):
     """A warm page that has lost its signing code."""
 
@@ -208,6 +238,36 @@ class TestSigning:
         signed = await service.sign(Platform.DOUYIN, DOUYIN_URL, "aweme_id=7", {"aweme_id": "7"})
         assert signed["a_bogus"]
         assert signed["ms_token"]
+
+    async def test_the_verb_and_the_body_reach_the_page(self, settings: Settings) -> None:
+        """The request always accepted `method`; the plan had nowhere to put it.
+
+        So every signature was taken over a body-less GET, which cost nothing
+        until something posted a body: Douyin's a_bogus hashes it, and a POST
+        signed without it carries a signature unlike the one its own page sends.
+        """
+        backend = RecordingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            await service.sign(
+                Platform.DOUYIN,
+                DOUYIN_URL,
+                "a=1",
+                {"a": "1"},
+                method="post",
+                body="count=10&cursor=0",
+                content_type="application/x-www-form-urlencoded; charset=UTF-8",
+            )
+        finally:
+            await service.close()
+
+        plans = [plan for context in backend.contexts for plan in context.plans]
+        signed = [plan for plan in plans if plan.query == "a=1"]
+        assert len(signed) == 1
+        assert signed[0].method == "POST"
+        assert signed[0].body == "count=10&cursor=0"
+        assert signed[0].content_type == "application/x-www-form-urlencoded; charset=UTF-8"
 
     async def test_warm_context_is_reused(self, settings: Settings) -> None:
         backend = CountingBackend()

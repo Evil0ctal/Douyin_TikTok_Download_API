@@ -18,6 +18,11 @@ right bytes is simply a wrong signature. It is built by
 :func:`dtk.signing.base.encode_query`, the same function ``NativeSigner`` uses,
 so a request signed either way goes out over the wire byte for byte identical.
 
+``body`` and ``content_type`` are the same idea for a POST: a_bogus hashes the
+body, so the page has to be handed the one the request will carry. A service
+that predates them ignores both and signs an empty body, so it is asked to
+confirm with ``body_signed`` - see :meth:`RpcSigner.sign`.
+
 Offline seam
 ------------
 The RPC service is the external dependency of this module. Everything else -
@@ -151,6 +156,9 @@ class RpcSigner:
             "proxy_url": session.proxy_url if session else None,
             "identity_id": session.identity_id if session else None,
         }
+        if spec.body:
+            payload["body"] = spec.body.decode("utf-8")
+            payload["content_type"] = (spec.headers or {}).get("Content-Type")
 
         started = time.monotonic()
         try:
@@ -196,6 +204,19 @@ class RpcSigner:
             raise SigningFailed(
                 "browser-rpc signed under a different User-Agent than this "
                 "identity uses; the platform validates the two byte for byte"
+            )
+        # A service from before request bodies drops the field without a word
+        # and signs an empty one, so the request would go out carrying a body
+        # its signature says it does not have. Douyin did not check that when
+        # it was measured on 2026-10-17 - signed over an empty body, a full
+        # page still came back - which is the reason to refuse here rather
+        # than at the platform: a signature that misdescribes its request works
+        # until the day the binding is checked, and then fails as identities
+        # being refused, far from the image that caused it.
+        if spec.body and body.get("body_signed") is not True:
+            raise SigningFailed(
+                "browser-rpc did not confirm signing the request body; it is "
+                "older than this API, so update the browser-rpc image"
             )
 
         signed = self._build(query, params, returned)

@@ -523,6 +523,15 @@ this request could use that are cooling down. `0` means none is in rotation for
 this endpoint: none was imported, or it is kept out of rotation. More than `0`
 means wait, or check whether their sessions have lapsed.
 
+Some lists belong to the account asking, not to anyone the request names:
+bookmarks on both platforms (`/user/bookmarks`), and Douyin's bookmark folders
+(`/user/collections`). Rotation is never used for these. Pass `identity`
+naming the imported identity whose list you want, or the request is refused
+with `INVALID_PARAM` on the `identity` field; the answer is not cached, because
+it is that account's alone. Without the rule, an unpinned call would have
+returned whichever account rotation drew, and the shared cache would then have
+served that account's list to the next caller.
+
 ## Exporting and restoring identity bundles
 
 Selecting rows and pressing **Export N** calls

@@ -350,7 +350,9 @@ async def call_endpoint(
         cookies=identity.cookies,
     )
     signed = await signers.sign(
-        SigningRequest(method=spec["method"], url=spec["url"], params=spec["params"]),
+        # The whole request, body included, for the reason the worker's own
+        # sign function gives: a_bogus hashes a POST's body.
+        SigningRequest.of(spec),
         signing_view(identity.fingerprint),
         SigningSession(
             cookies=identity.cookies,
@@ -369,6 +371,9 @@ async def call_endpoint(
             method=spec["method"],
             params=None if signed.query else spec["params"],
             headers={**spec["headers"], **dict(signed.headers)},
+            # A form endpoint's page and size live here and nowhere else - the
+            # platform package moved them out of `params`.
+            body=spec["body"] or None,
             endpoint=call.endpoint,
         ),
         timeout,

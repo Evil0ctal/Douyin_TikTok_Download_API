@@ -806,8 +806,13 @@ async def test_douyin_collections_refuse_an_author(client: Any) -> None:
 
 
 async def test_douyin_collections_without_an_author_reach_the_queue(client: Any) -> None:
+    from tests.integration.test_api_identity_pin import make_identity
+
     await signed_in(client)
-    response = await client.get("/api/v1/douyin/user/collections")
+    identity_id = await make_identity()
+    response = await client.get(
+        "/api/v1/douyin/user/collections", params={"identity": str(identity_id)}
+    )
 
     assert response.status_code == 202, response.text
 

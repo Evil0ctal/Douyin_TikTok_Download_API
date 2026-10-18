@@ -31,6 +31,7 @@ from dtk.core.errors import (
     DtkError,
     EndpointCircuitOpen,
     IdentityPoolExhausted,
+    InvalidParam,
     NotFound,
     UpstreamChanged,
     UpstreamRiskControl,
@@ -39,6 +40,7 @@ from dtk.core.errors import (
 from dtk.core.types import BrowserFamily, LoginNeed, Outcome, Platform, RejectReason
 from dtk.identity.pool import LiveIdentity
 from dtk.platforms import get_adapter
+from dtk.platforms.base import RequestSpec as PlatformRequestSpec
 from dtk.scheduler.leases import Lease
 from dtk.services import cache
 from dtk.services import fetch as fetch_module
@@ -134,12 +136,15 @@ class FakeTransport:
         self.answer = answer
         #: Every identity the transport was asked to send as.
         self.senders: list[Any] = []
+        #: And every request, as the transport received it.
+        self.specs: list[Any] = []
 
     def classify(self, response=None, exception=None, *, empty_body_is_normal=False):
         return classify_detailed(response, exception)
 
     async def request(self, identity: Any, spec: Any, timeout: float | None = None) -> RawResponse:
         self.senders.append(identity)
+        self.specs.append(spec)
         if isinstance(self.answer, BaseException):
             raise self.answer
         return self.answer
@@ -176,7 +181,7 @@ def identity(*, authenticated: bool = False) -> LiveIdentity:
     )
 
 
-async def signer(platform: Platform, url: str, params: dict[str, Any], sender: TransportIdentity):
+async def signer(platform: Platform, spec: PlatformRequestSpec, sender: TransportIdentity):
     """The real SignedParams, so the pipeline's signer seam is exercised."""
     return SignedParams(query="a_bogus=AAA", params={"a_bogus": "AAA"}, signer=SIGNER_BROWSER)
 
@@ -650,13 +655,23 @@ class TestTransportSpecSeam:
         assert out.params == {"aweme_id": "1"}
         assert out.url.endswith("/aweme/detail/")
 
-    def test_empty_body_becomes_none_rather_than_an_empty_object(self):
+    def test_the_body_goes_as_the_bytes_the_platform_built(self):
+        """a_bogus hashes a POST's body, so the transport must send the very
+        bytes the signer was handed - not a re-encoding of some fields, and
+        never as JSON."""
         from dtk.services.fetch import _to_transport_spec
 
-        assert _to_transport_spec(self._spec(body={}), self._signed(), "e").json_body is None
-        assert _to_transport_spec(self._spec(body={"a": 1}), self._signed(), "e").json_body == {
-            "a": 1
-        }
+        body = b"count=10&cursor=0"
+        out = _to_transport_spec(self._spec(method="POST", body=body), self._signed(), "e")
+        assert out.body is body
+        assert out.json_body is None
+        assert out.method == "POST"
+
+    def test_an_empty_body_is_no_body(self):
+        from dtk.services.fetch import _to_transport_spec
+
+        assert _to_transport_spec(self._spec(body=b""), self._signed(), "e").body is None
+        assert _to_transport_spec(self._spec(), self._signed(), "e").body is None
 
 
 async def test_the_signature_and_the_request_describe_the_same_visitor() -> None:
@@ -672,7 +687,7 @@ async def test_the_signature_and_the_request_describe_the_same_visitor() -> None
     signed_as: list[Any] = []
 
     async def recording_signer(
-        platform: Platform, url: str, params: dict[str, Any], sender: TransportIdentity
+        platform: Platform, spec: PlatformRequestSpec, sender: TransportIdentity
     ):
         signed_as.append(sender)
         return SignedParams(query="a_bogus=AAA", params={"a_bogus": "AAA"}, signer=SIGNER_BROWSER)
@@ -1041,3 +1056,121 @@ class TestRefresh:
         await run_fetch(svc, FakeSession(), ctx=FetchContext(refresh=True))
 
         assert store.reads == [] and store.writes == []
+
+
+BOOKMARKS = "douyin.author_bookmarks"
+BOOKMARKS_PAGE = {"status_code": 0, "aweme_list": [], "cursor": 0, "has_more": 0}
+
+
+class TestSessionBound:
+    """An endpoint whose answer belongs to the session that asks.
+
+    Douyin's bookmarks and folders name nobody; TikTok's bookmarks name the
+    account and answer only its own session. Rotated, either would come back
+    as some arbitrary account's private list, and the shared cache would hand
+    that list to the next caller - a demo visitor included.
+    """
+
+    async def test_an_unpinned_call_is_refused_before_it_spends_anything(self):
+        scheduler = FakeScheduler()
+        svc = service(response(200, BOOKMARKS_PAGE), scheduler=scheduler)
+
+        with pytest.raises(InvalidParam) as excinfo:
+            await svc.fetch(
+                FakeSession(),  # type: ignore[arg-type]
+                Platform.DOUYIN,
+                BOOKMARKS,
+                {},
+                parse=lambda payload: payload,
+                cache_ttl=300,
+            )
+
+        assert excinfo.value.details["field"] == "identity"
+        assert scheduler.asked_for == []
+
+    async def test_a_pinned_call_goes_through_and_is_not_cached(self, monkeypatch):
+        written: list[str] = []
+
+        async def record(digest, payload, ttl):
+            written.append(digest)
+
+        monkeypatch.setattr(fetch_module.cache, "put", record)
+        scheduler = FakeScheduler()
+        svc = service(response(200, BOOKMARKS_PAGE), scheduler=scheduler)
+
+        await svc.fetch(
+            FakeSession(),  # type: ignore[arg-type]
+            Platform.DOUYIN,
+            BOOKMARKS,
+            {},
+            parse=lambda payload: payload,
+            cache_ttl=300,
+            ctx=FetchContext(identity_id=PINNED_ID),
+        )
+
+        assert scheduler.asked_for == [PINNED_ID]
+        assert written == []
+
+
+class TestPostedBody:
+    """A POST's body is signed and sent as one set of bytes.
+
+    a_bogus hashes the body. Before this seam carried the request whole, the
+    signer saw only a URL and parameters, so a body could never have reached
+    it, and every POST would have carried a signature over an empty one -
+    unlike the page's own. Douyin did not check that binding when measured on
+    2026-10-17, which is luck rather than design.
+    """
+
+    async def test_the_signer_and_the_transport_see_the_same_bytes(self):
+        signed: list[Any] = []
+
+        async def recording_signer(
+            platform: Platform, spec: PlatformRequestSpec, sender: TransportIdentity
+        ):
+            signed.append(spec)
+            return SignedParams(query="a_bogus=AAA", params={"a_bogus": "AAA"})
+
+        transport = FakeTransport(response(200, BOOKMARKS_PAGE))
+        svc = FetchService(
+            scheduler=FakeScheduler(),  # type: ignore[arg-type]
+            pool=FakePool(identity()),  # type: ignore[arg-type]
+            transport=transport,  # type: ignore[arg-type]
+            sign=recording_signer,
+            cooldown_base=60,
+        )
+
+        result = await svc.fetch(
+            FakeSession(),  # type: ignore[arg-type]
+            Platform.DOUYIN,
+            BOOKMARKS,
+            {"cursor": "1792302641724339", "count": 10},
+            parse=lambda payload: payload,
+            ctx=FetchContext(identity_id=PINNED_ID, explain=True),
+        )
+
+        body = b"count=10&cursor=1792302641724339"
+        assert signed[0]["method"] == "POST"
+        assert signed[0]["body"] == body
+        sent = transport.specs[0]
+        assert sent.method == "POST"
+        assert sent.body is signed[0]["body"]
+        assert sent.headers["Content-Type"].startswith("application/x-www-form-urlencoded")
+        # And a curl built from the explanation replays the same body.
+        assert result.explain is not None
+        assert result.explain.body == body.decode()
+
+    async def test_a_get_carries_no_body(self):
+        transport = FakeTransport(response(200, {"status_code": 0, "aweme_detail": {"x": 1}}))
+        svc = FetchService(
+            scheduler=FakeScheduler(),  # type: ignore[arg-type]
+            pool=FakePool(identity()),  # type: ignore[arg-type]
+            transport=transport,  # type: ignore[arg-type]
+            sign=signer,
+            cooldown_base=60,
+        )
+
+        result = await run_fetch(svc, FakeSession(), ctx=FetchContext(explain=True))
+
+        assert transport.specs[0].body is None
+        assert result.explain is not None and result.explain.body is None

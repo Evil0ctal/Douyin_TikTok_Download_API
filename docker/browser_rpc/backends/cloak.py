@@ -228,10 +228,18 @@ async (input) => {
   const target = input.query ? `${input.url}?${input.query}` : input.url;
   const before = new Set([...new URL(target).searchParams.keys()]);
 
+  // The body as well as the verb: Douyin's signature hashes the body, so a
+  // POST signed without one carries a signature over a request never sent.
+  const init = { method: input.method || 'GET' };
+  if (input.body != null) {
+    init.body = input.body;
+    if (input.contentType) init.headers = { 'Content-Type': input.contentType };
+  }
+
   state.capture = true;
   state.url = null;
   try {
-    await window.fetch(target, { method: input.method || 'GET' });
+    await window.fetch(target, init);
   } catch (e) {
     // AbortError is the expected path: the shim stopped it.
   } finally {
@@ -318,8 +326,10 @@ class CloakSigningContext:
         payload = {
             "url": plan.url,
             "query": plan.query,
-            "method": getattr(plan, "method", "GET") or "GET",
+            "method": plan.method or "GET",
             "userAgent": plan.user_agent or "",
+            "body": plan.body,
+            "contentType": plan.content_type,
         }
         try:
             result = await self._page.evaluate(SIGN_SCRIPT, payload)

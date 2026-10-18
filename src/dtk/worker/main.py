@@ -147,6 +147,7 @@ def explain_meta(explanation: Explanation) -> dict[str, Any]:
         "signer": explanation.signer,
         "endpoint": explanation.endpoint,
         "proxy": explanation.proxy,
+        "body": explanation.body,
     }
 
 

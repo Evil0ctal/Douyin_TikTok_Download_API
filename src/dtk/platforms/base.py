@@ -34,12 +34,17 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from types import MappingProxyType
 from typing import Any, Final, Literal, Protocol, TypedDict, runtime_checkable
+from urllib.parse import urlencode
 
 from dtk.core.errors import InvalidParam
 from dtk.core.types import LoginNeed, Platform
 from dtk.models import Author, Collection, Comment, Content, Page
 
 HttpMethod = Literal["GET", "POST"]
+
+#: What a browser sends with a ``key=value&...`` body, charset and all. Douyin's
+#: own page sends exactly this on ``listcollection``.
+FORM_CONTENT_TYPE: Final = "application/x-www-form-urlencoded; charset=UTF-8"
 
 #: A builder turns caller-facing arguments into a flat query string mapping.
 #: Values are left un-encoded: percent-encoding happens once, in the transport
@@ -59,7 +64,12 @@ class RequestSpec(TypedDict):
     url: str
     params: dict[str, str]
     headers: dict[str, str]
-    body: dict[str, Any] | None
+    #: The body as it goes on the wire, or None. Bytes rather than fields, and
+    #: encoded here rather than in the transport, for the reason the query is
+    #: sent verbatim: a_bogus hashes the body, so the signer and the transport
+    #: have to be handed the same bytes, and the one way to guarantee that is
+    #: to produce them once.
+    body: bytes | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -316,9 +326,24 @@ class EndpointSpec:
     #: to a guest, short of the newest posts, and every later page to nobody
     #: but a signed-in account.
     paging_login: LoginNeed | None = None
+    #: Built parameters that travel as a form body instead of in the query, in
+    #: the order given. Douyin's ``listcollection`` is POST-only and its page
+    #: sends ``count`` and ``cursor`` nowhere but the body, in that order.
+    #: a_bogus hashes the body, which is why it is built once, here.
+    form: tuple[str, ...] = ()
+    #: Whether the answer belongs to the session that asks rather than to
+    #: anything the request names. Such an endpoint is served only to a pinned
+    #: identity: unpinned, rotation would pick an account at random, and the
+    #: shared cache would then hand that account's private list to the next
+    #: caller - a demo visitor included.
+    session_bound: bool = False
     #: Endpoint-specific headers merged over the adapter defaults.
     headers: tuple[tuple[str, str], ...] = ()
     summary: str = ""
+
+    def __post_init__(self) -> None:
+        if self.form and self.method != "POST":
+            raise ValueError(f"{self.name}: a form body needs POST, not {self.method}")
 
     def login_for(self, params: Mapping[str, Any]) -> LoginNeed:
         """What serving these caller arguments from a guest would cost."""
@@ -358,12 +383,18 @@ class EndpointSpec:
         """Build the full :class:`RequestSpec` for this endpoint."""
         headers = dict(default_headers or {})
         headers.update(self.headers)
+        built = self.build_params(**kwargs)
+        if not self.form:
+            return RequestSpec(
+                method=self.method, url=self.path, params=built, headers=headers, body=None
+            )
+        fields = [(name, built[name]) for name in self.form if name in built]
         return RequestSpec(
             method=self.method,
             url=self.path,
-            params=self.build_params(**kwargs),
-            headers=headers,
-            body=None,
+            params={key: value for key, value in built.items() if key not in self.form},
+            headers={"Content-Type": FORM_CONTENT_TYPE, **headers},
+            body=urlencode(fields).encode(),
         )
 
 
@@ -480,6 +511,7 @@ class PlatformAdapter(Protocol):
 
 
 __all__ = [
+    "FORM_CONTENT_TYPE",
     "ClientProfile",
     "EndpointSpec",
     "EndpointTable",

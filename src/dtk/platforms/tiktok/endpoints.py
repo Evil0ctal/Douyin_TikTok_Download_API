@@ -210,6 +210,12 @@ ENDPOINTS: Final = EndpointTable.of(
         # of a parser of its own. Weaker than the assumption that put cover: null
         # into #753, but still an assumption: what would settle it is one
         # response from an account that has saved something.
+        #
+        # Session-bound although it names an account: only that account's own
+        # session is answered, so the list is as private as Douyin's. Served
+        # unpinned, an answer drawn from the owner's identity would be cached
+        # under the sec_uid for whoever asked next.
+        session_bound=True,
         summary="Posts an author has saved, across every folder",
     ),
     EndpointSpec(

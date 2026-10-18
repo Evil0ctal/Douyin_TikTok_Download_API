@@ -337,6 +337,9 @@ class BrowserRpcService:
         cookies: Mapping[str, str] | None = None,
         proxy_url: str | None = None,
         identity_id: str | None = None,
+        method: str = "GET",
+        body: str | None = None,
+        content_type: str | None = None,
     ) -> dict[str, str]:
         """Sign through a page loaded with this identity's own cookies.
 
@@ -360,6 +363,12 @@ class BrowserRpcService:
             params=dict(params or {}),
             user_agent=user_agent,
             timeout_seconds=self._settings.sign_timeout_seconds,
+            # The request accepted `method` long before it reached the page:
+            # the plan had no field for it, so every signature was taken over
+            # a GET. Harmless while nothing posted a body.
+            method=(method or "GET").upper(),
+            body=body,
+            content_type=content_type,
         )
 
         last_error: RpcError | None = None

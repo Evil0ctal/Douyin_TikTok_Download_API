@@ -141,8 +141,30 @@ class RequestSpec:
         params: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> RequestSpec:
-        """Convenience constructor: every signed platform call today is a GET."""
+        """Convenience constructor for the common case, a GET with no body.
+
+        Not every signed call is one: Douyin's ``listcollection`` is a form POST
+        and a_bogus hashes its body, so the fetch pipeline builds the spec in
+        full rather than through here.
+        """
         return cls(method="GET", url=url, params=params, headers=headers)
+
+    @classmethod
+    def of(cls, request: Mapping[str, Any]) -> RequestSpec:
+        """Everything a platform request description says that a signature covers.
+
+        Takes the mapping ``dtk.platforms`` builds, read structurally so that
+        signing stays free of platform types. The worker used to hand over the
+        URL and the parameters alone - everything a GET has - so a POST's body
+        could never have reached the signer that hashes it.
+        """
+        return cls(
+            method=str(request.get("method") or "GET"),
+            url=str(request["url"]),
+            params={key: str(value) for key, value in (request.get("params") or {}).items()},
+            headers=request.get("headers"),
+            body=request.get("body"),
+        )
 
     @property
     def platform(self) -> Platform | None:
