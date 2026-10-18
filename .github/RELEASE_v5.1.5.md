@@ -147,7 +147,7 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
 |---|---|
 | Git tag / Git 标签 | `v5.1.5` |
 | `DTK_IMAGE_TAG` — this release / 这个版本 | `5.1.5` |
-| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-<40-char commit>` |
+| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-cd78ad9a438424c99e6f6b839093ea7d8d40587e` |
 
 The Docker tag drops the `v`: `docker/metadata-action` strips it when publishing,
 so `:v5.1.5` was never pushed. One value names all three published images.
