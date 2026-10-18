@@ -239,7 +239,7 @@ docker compose -p dtk -f docker/compose.yml --profile browser up -d browser-rpc
 |---|---|
 | Git tag / Git 标签 | `v5.1.4` |
 | `DTK_IMAGE_TAG` — this release / 这个版本 | `5.1.4` |
-| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-<40-char commit>` |
+| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-56a4bd4a11b3620433d1a3ac0d3f8e271a406235` |
 
 The Docker tag drops the `v`: `docker/metadata-action` strips it when publishing,
 so `:v5.1.4` was never pushed. One value names all three published images.
