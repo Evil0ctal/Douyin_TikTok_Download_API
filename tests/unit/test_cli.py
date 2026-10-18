@@ -17,6 +17,7 @@ masking, really do run.
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
 from typing import Any
 
@@ -41,6 +42,7 @@ from dtk.ops.masking import (
     scrub,
     short_id,
 )
+from dtk.transport.base import RawResponse
 
 #: Long enough for Cipher, and obviously not a real key.
 TEST_SECRET = "test-secret-key-that-is-long-enough-0123456789"
@@ -722,6 +724,25 @@ class TestConfig:
 # ---------------------------------------------------------------------------
 
 
+class _SpiTransport:
+    """Answers every request with one finger/spi payload."""
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self._body = json.dumps(payload).encode()
+        self.closed = False
+
+    async def request(self, _identity: Any, _spec: Any, _timeout: float | None = None) -> Any:
+        return RawResponse(
+            status=200, headers={"content-type": "application/json"}, body=self._body
+        )
+
+    async def evict(self, _identity_id: str) -> None:
+        return None
+
+    async def close(self) -> None:
+        self.closed = True
+
+
 class TestIdentities:
     def _identity(self) -> Identity:
         row = Identity(
@@ -764,6 +785,35 @@ class TestIdentities:
         result = runner.invoke(app, ["identity", "mint", "--platform", "douyin"])
         assert result.exit_code == 1
         assert "browser-rpc is not configured" in result.output
+
+    def test_mint_bilibili_needs_no_browser(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A Bilibili guest comes from finger/spi over plain HTTP, as the worker mints it."""
+        transport = _SpiTransport(
+            {"code": 0, "data": {"b_3": "SYNTHETIC-b3", "b_4": "SYNTHETIC-b4"}}
+        )
+        monkeypatch.setattr(identities, "WreqTransport", lambda: transport)
+        session = FakeSession()
+        install_context(monkeypatch, session)
+        result = runner.invoke(app, ["identity", "mint", "--platform", "bilibili"])
+        assert result.exit_code == 0, result.output
+        assert "minted 1 bilibili" in result.output
+        assert "SYNTHETIC-b3" not in result.output
+        stored = [row for row in session.added if isinstance(row, Identity)]
+        assert [row.platform for row in stored] == ["bilibili"]
+        assert transport.closed
+
+    def test_mint_bilibili_reports_a_refusal(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        transport = _SpiTransport({"code": -412, "message": "intercepted", "data": None})
+        monkeypatch.setattr(identities, "WreqTransport", lambda: transport)
+        install_context(monkeypatch, FakeSession())
+        result = runner.invoke(app, ["identity", "mint", "--platform", "bilibili"])
+        assert result.exit_code == 1
+        assert "minting failed" in result.output
+        assert transport.closed
 
     def test_retire_needs_a_known_identity(
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch

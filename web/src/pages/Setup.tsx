@@ -529,29 +529,41 @@ function ProxyStep({ onNext }: { onNext: () => void }) {
 /* Step 3: first mint                                                          */
 /* -------------------------------------------------------------------------- */
 
-/** The half of GET /system/status this step needs. */
-interface BrowserRpcStatus {
-  components?: { browser_rpc?: { configured?: boolean } }
+/** The half of GET /admin/identities/pool this step needs. */
+interface PoolMintability {
+  can_mint: boolean
+  platforms: { platform: Platform; can_mint?: boolean }[]
 }
 
 function MintStep({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation(['setup', 'console', 'common'])
   const toast = useToast()
 
-  // Minting drives a real browser, and the browser is an optional container -
-  // docker/compose.yml keeps it behind the `browser` profile because a
-  // deployment that imports its cookies by hand does not need the heaviest
-  // image in the stack. That is a supported way to run this, but the step used
-  // to offer Mint anyway, so the documented default configuration answered the
-  // first thing a new operator does with NOT_CONFIGURED.
-  const status = useApiQuery<BrowserRpcStatus>({
-    key: ['setup', 'browser-rpc'],
-    path: paths.system.status,
+  // Douyin and TikTok are minted in a real browser, and the browser is an
+  // optional container - docker/compose.yml keeps it behind the `browser`
+  // profile because a deployment that imports its cookies by hand does not
+  // need the heaviest image in the stack. That is a supported way to run this,
+  // but the step used to offer Mint anyway, so the documented default
+  // configuration answered the first thing a new operator does with
+  // NOT_CONFIGURED. Then Bilibili arrived, minted over plain HTTP, and a check
+  // for the browser hid the one platform that needs nothing - so the step asks
+  // the pool which platforms can be minted here instead.
+  const pool = useApiQuery<PoolMintability>({
+    key: ['setup', 'mintable'],
+    path: paths.identities.pool,
   })
-  const configured = status.data?.components?.browser_rpc?.configured
-  const canMint = configured !== false
+  const mintable = useMemo<Platform[]>(() => {
+    const level = pool.data
+    if (!level) return [...PLATFORMS]
+    return level.platforms
+      .filter((row) => row.can_mint ?? level.can_mint)
+      .map((row) => row.platform)
+  }, [pool.data])
+  const canMint = mintable.length > 0
+  const browserOnly = PLATFORMS.filter((value) => !mintable.includes(value))
 
-  const [platform, setPlatform] = useState<Platform>('douyin')
+  const [chosen, setPlatform] = useState<Platform>('douyin')
+  const platform = mintable.includes(chosen) ? chosen : (mintable[0] ?? chosen)
   const [count, setCount] = useState(1)
   const [minted, setMinted] = useState(0)
   const [waiting, setWaiting] = useState(false)
@@ -610,7 +622,7 @@ function MintStep({ onNext }: { onNext: () => void }) {
             onChange={(event) => {
               setPlatform(event.target.value as Platform)
             }}
-            options={PLATFORMS.map((value) => ({ value, label: value }))}
+            options={mintable.map((value) => ({ value, label: value }))}
           />
           <Input
             label={t('console:identity.mint.count')}
@@ -626,6 +638,17 @@ function MintStep({ onNext }: { onNext: () => void }) {
           />
         </div>
 
+        {browserOnly.length > 0 ? (
+          <>
+            <p className="u-xs u-muted">
+              {t('setup:mint.browserOnly', { platforms: browserOnly.join(', ') })}
+            </p>
+            <CodeBlock
+              language="text"
+              code="docker compose -p dtk -f docker/compose.yml --profile browser up -d"
+            />
+          </>
+        ) : null}
         {busy ? <p className="u-xs u-muted">{t('setup:mint.running')}</p> : null}
         {minted > 0 && !busy ? (
           <p className="u-row" style={{ color: 'var(--success)' }}>

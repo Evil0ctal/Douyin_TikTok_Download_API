@@ -48,7 +48,8 @@
     "success": "Identity ready.",
     "skip": "Skip for now",
     "unavailableHint": "Run that beside your other containers, set DTK_BROWSER_RPC_URL=http://browser-rpc:9000 in .env, and restart. Without it, add identities from the Identities page by pasting the cookies from a browser you are already signed in to.",
-    "continueWithoutMinting": "Continue without minting"
+    "continueWithoutMinting": "Continue without minting",
+    "browserOnly": "{platforms} can only be minted in the browser container, which this instance does not run. Start it with the command below, or import cookies for them on the Identities page later."
   },
   "smoke": {
     "url": "Test link",

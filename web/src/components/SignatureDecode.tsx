@@ -97,6 +97,7 @@ const KNOWN_NOTES = new Set<string>([
   'constant_placeholder',
   'superseded_by_a_bogus',
   'issued_by_the_platform',
+  'wbi_keys_unavailable',
 ])
 const KNOWN_REASONS = new Set<string>([
   'one_way',

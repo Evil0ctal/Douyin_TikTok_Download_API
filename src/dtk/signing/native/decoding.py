@@ -58,7 +58,7 @@ from datetime import UTC, datetime
 from typing import Any, Final
 from urllib.parse import unquote
 
-from dtk.signing.native import abogus, tiktok_sign, tokens, websign, xbogus
+from dtk.signing.native import abogus, tiktok_sign, tokens, wbi, websign, xbogus
 
 # --------------------------------------------------------------------------
 # The vocabulary the console renders
@@ -753,6 +753,70 @@ def decode_websign(
     )
 
 
+# --------------------------------------------------------------------------
+# Bilibili: w_rid
+# --------------------------------------------------------------------------
+
+#: Noted when a ``w_rid`` arrived with its query but the keys did not.
+NOTE_WBI_KEYS_UNAVAILABLE = "wbi_keys_unavailable"
+
+
+def decode_wbi(
+    value: str,
+    *,
+    pairs: Mapping[str, str] | None = None,
+    keys: wbi.WbiKeys | None = None,
+) -> Decoded:
+    """Bilibili's ``w_rid``: an md5 of the sorted query and a published key.
+
+    Read forwards only, like Douyin's websign. The preimage is the request's own
+    query without ``w_rid``, sorted and encoded the way the page encodes it,
+    followed by the mixin key. That key is not in the request: it is mixed from
+    the two keys ``nav`` publishes to every visitor, and the caller passes them
+    in, so this module still fetches nothing. The ``wts`` beside it is a plain
+    clock in seconds and is read whether or not the keys came.
+    """
+    found = pairs or {}
+    fields = [Field("digest", value, KIND_DIGEST, detail="md5, 128 bits")]
+    stamp = found.get(wbi.TIMESTAMP_PARAM)
+    if stamp is not None and stamp.isdigit():
+        fields.append(_clock("timestamp", int(stamp) * 1000, detail="wts, in seconds"))
+    checks: list[Check] = []
+    notes: list[str] = []
+    if stamp is None:
+        checks.append(Check("query", CHECK_NOT_SUPPLIED, 128))
+    elif keys is None:
+        checks.append(Check("query", CHECK_NOT_SUPPLIED, 128))
+        notes.append(NOTE_WBI_KEYS_UNAVAILABLE)
+    else:
+        params = {
+            unquote(name): unquote(raw)
+            for name, raw in found.items()
+            if name != wbi.SIGNATURE_PARAM
+        }
+        preimage = wbi.encode(params) + keys.mixin
+        checks.append(
+            _check(
+                "query",
+                hashlib.md5(preimage.encode()).hexdigest(),
+                value.lower(),
+                bits=128,
+                covered=preimage,
+            )
+        )
+        fields.append(Field("mixin_key", keys.mixin, KIND_PLAIN, detail="from nav's two keys"))
+    return Decoded(
+        parameter=wbi.SIGNATURE_PARAM,
+        platform="bilibili",
+        algorithm="md5",
+        recovered=False,
+        reason=REASON_ONE_WAY,
+        fields=tuple(fields),
+        checks=tuple(checks),
+        notes=tuple(notes),
+    )
+
+
 #: Lengths an ``msToken`` is seen at, and whose it is. Douyin's real tokens come
 #: back at 120 or 128 characters counting the ``==`` padding; the locally minted
 #: fallbacks are the two length constants plus that same padding.
@@ -847,6 +911,7 @@ PARAMETERS: Final[Mapping[str, str]] = {
     "verifyfp": "verifyFp",
     "fp": "fp",
     "s_v_web_id": "s_v_web_id",
+    wbi.SIGNATURE_PARAM: wbi.SIGNATURE_PARAM,
 }
 
 #: For each sealing parameter, the parameter its covered string stops before.
@@ -872,6 +937,9 @@ def identify(value: str) -> str | None:
         return None
     if text.startswith("verify_"):
         return "verifyFp"
+    # A Bilibili w_rid has exactly this shape too, and nothing in 32 hex digits
+    # tells the two apart: a bare one is read as Douyin's, and naming it, or
+    # pasting the URL it came on, is how to get the other.
     if len(text) == 32 and all(char in "0123456789abcdef" for char in text.lower()):
         return websign.SIGNATURE_PARAM
     if len(text) == xbogus.X_BOGUS_LENGTH and set(text) <= set(xbogus.CHARACTER):
@@ -920,6 +988,7 @@ def decode_parameter(
     user_agent: str | None = None,
     body: bytes | None = None,
     pairs: Mapping[str, str] | None = None,
+    wbi_keys: wbi.WbiKeys | None = None,
 ) -> Decoded:
     """Decode one named parameter, with whatever context is available.
 
@@ -959,6 +1028,8 @@ def decode_parameter(
         )
     if canonical in {"verifyFp", "fp", "s_v_web_id"}:
         return decode_verify_fp(value, parameter=canonical)
+    if canonical == wbi.SIGNATURE_PARAM:
+        return decode_wbi(value, pairs=pairs, keys=wbi_keys)
     return Decoded(
         parameter=parameter,
         platform=None,
@@ -969,7 +1040,11 @@ def decode_parameter(
 
 
 def decode_url(
-    url: str, *, user_agent: str | None = None, body: bytes | None = None
+    url: str,
+    *,
+    user_agent: str | None = None,
+    body: bytes | None = None,
+    wbi_keys: wbi.WbiKeys | None = None,
 ) -> list[Decoded]:
     """Every signature parameter in a signed URL, each against what it seals.
 
@@ -1007,6 +1082,7 @@ def decode_url(
                 user_agent=user_agent,
                 body=body,
                 pairs=pairs,
+                wbi_keys=wbi_keys,
             )
         )
     return out
@@ -1022,6 +1098,7 @@ __all__ = [
     "KIND_OPAQUE",
     "KIND_PLAIN",
     "KIND_TIME",
+    "NOTE_WBI_KEYS_UNAVAILABLE",
     "PARAMETERS",
     "REASON_MALFORMED",
     "REASON_NOT_COMPUTED",
@@ -1035,6 +1112,7 @@ __all__ = [
     "decode_parameter",
     "decode_url",
     "decode_verify_fp",
+    "decode_wbi",
     "decode_websign",
     "decode_x_bogus",
     "decode_x_dynosaur",

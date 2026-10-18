@@ -307,6 +307,7 @@ const DECODE_PARAMETERS = [
   'msToken',
   'x-secsdk-web-signature',
   'verifyFp',
+  'w_rid',
 ] as const
 
 /**
@@ -667,6 +668,12 @@ interface IdentityResult {
   exit_ip: string | null
 }
 
+/**
+ * Minted over plain HTTP by the server, not in the browser. Only the hints
+ * below depend on it; whether minting works at all is the server's answer.
+ */
+const BROWSERLESS_MINT: readonly Platform[] = ['bilibili']
+
 function IdentityForm() {
   const { t } = useTranslation('console')
   const toast = useToast()
@@ -707,13 +714,24 @@ function IdentityForm() {
           <Button variant="primary" loading={mint.isPending} onClick={() => mint.mutate()}>
             {t('tools.identity.action')}
           </Button>
-          <p className="u-xs u-muted">{t('tools.identity.slow')}</p>
+          <p className="u-xs u-muted">
+            {BROWSERLESS_MINT.includes(platform)
+              ? t('tools.identity.plainHttp')
+              : t('tools.identity.slow')}
+          </p>
         </div>
       </Card>
 
       {mint.data && (
         <>
-          <Card title={t('tools.identity.cookies')} description={t('tools.identity.cookiesHint')}>
+          <Card
+            title={t('tools.identity.cookies')}
+            description={
+              mint.data.platform === 'bilibili'
+                ? t('tools.identity.cookiesHintBilibili')
+                : t('tools.identity.cookiesHint')
+            }
+          >
             <CodeBlock json={mint.data.cookies} />
           </Card>
           <Card

@@ -12,6 +12,8 @@ record an outcome: probing an identity must not be the thing that cools it.
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 import typer
@@ -21,8 +23,11 @@ from dtk.core.config import extra_url_hosts
 from dtk.core.types import IdentitySource, IdentityState, Platform
 from dtk.db.repositories import IdentityRepository, ProxyRepository
 from dtk.identity import BrowserRpcClient, BrowserRpcUnavailable, IdentityPool
+from dtk.identity.minting import NativeMinter, NativeMintFailed
+from dtk.identity.minting.native import NATIVE_MINT_PLATFORMS
 from dtk.ops import pipeline, probes
 from dtk.ops.masking import mask_cookies, mask_url, short_id
+from dtk.transport.wreq_transport import WreqTransport
 from dtk.worker.registry import resolve
 
 app = typer.Typer(no_args_is_help=True, help="Inspect, mint, retire and probe pool identities.")
@@ -109,7 +114,7 @@ def mint_identity(
         str | None, typer.Option("--proxy", help="Use this proxy instead of picking a free one")
     ] = None,
 ) -> None:
-    """Mint guest identities through browser-rpc.
+    """Mint guest identities: Bilibili over plain HTTP, the others through browser-rpc.
 
     Each identity is bound to one proxy for life. A free proxy is chosen when
     none is named, because two identities sharing an exit address on the same
@@ -117,16 +122,10 @@ def mint_identity(
     """
 
     async def operation(ctx: runtime.Context) -> list[dict[str, str]]:
-        if not ctx.settings.browser_rpc_url:
-            output.fail(
-                "browser-rpc is not configured",
-                hint="set DTK_BROWSER_RPC_URL, or import cookies instead",
-            )
-        client = BrowserRpcClient(ctx.settings.browser_rpc_url)
         pool = IdentityPool(ctx.cipher)
         proxies = ProxyRepository(ctx.session)
         minted: list[dict[str, str]] = []
-        try:
+        async with _minter(platform, ctx.settings.browser_rpc_url) as client:
             for _ in range(count):
                 if proxy_id is not None:
                     proxy = await proxies.get(_as_uuid(proxy_id))
@@ -142,7 +141,7 @@ def mint_identity(
                 geo_hint = {"country": proxy.country, "timezone": proxy.timezone} if proxy else None
                 try:
                     result = await client.mint(platform, proxy_url=proxy_url, geo_hint=geo_hint)
-                except BrowserRpcUnavailable as exc:
+                except (BrowserRpcUnavailable, NativeMintFailed) as exc:
                     output.fail(f"minting failed: {exc}")
 
                 identity_id = await pool.add(
@@ -161,8 +160,6 @@ def mint_identity(
                         "cookies": mask_cookies(result.cookies),
                     }
                 )
-        finally:
-            await client.aclose()
         return minted
 
     minted = runtime.with_context(operation)
@@ -171,6 +168,36 @@ def mint_identity(
         table.add_row(row["id"], row["proxy"], row["exit ip"], row["cookies"])
     output.print_table(table)
     output.ok(f"minted {len(minted)} {platform.value} identity(s)")
+
+
+@asynccontextmanager
+async def _minter(
+    platform: Platform, rpc_url: str | None
+) -> AsyncIterator[NativeMinter | BrowserRpcClient]:
+    """The minter for ``platform``, closed when the command is done.
+
+    Bilibili is minted the way the worker mints it, over a transport of its
+    own, so the jar is stored with the TLS profile that obtained it. Until
+    5.1.6 this command only knew browser-rpc and refused Bilibili for want of
+    a browser it does not need.
+    """
+    if platform in NATIVE_MINT_PLATFORMS:
+        transport = WreqTransport()
+        try:
+            yield NativeMinter(transport)
+        finally:
+            await transport.close()
+        return
+    if not rpc_url:
+        output.fail(
+            "browser-rpc is not configured",
+            hint="set DTK_BROWSER_RPC_URL, or import cookies instead",
+        )
+    client = BrowserRpcClient(rpc_url)
+    try:
+        yield client
+    finally:
+        await client.aclose()
 
 
 @app.command("retire")

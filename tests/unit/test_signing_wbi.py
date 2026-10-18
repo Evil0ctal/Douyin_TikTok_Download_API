@@ -22,7 +22,7 @@ from dtk.signing.base import (
     SignatureAlgorithm,
     StaticFingerprint,
 )
-from dtk.signing.native import wbi
+from dtk.signing.native import decoding, wbi
 from dtk.signing.native.signer import NativeSigner
 from dtk.signing.native.wbi_keys import FRESH_SECONDS, STALE_SECONDS, NavKeySource
 from dtk.signing.protection import requires_browser_signature
@@ -194,3 +194,45 @@ class TestNoBrowserForBilibili:
             {Platform.BILIBILI: FakeSigner(SIGNER_NATIVE)}, FakeSigner(SIGNER_BROWSER)
         )
         assert not registry.should_shadow(VIEW, platform=Platform.BILIBILI)
+
+
+#: The published example, as the request that carries it.
+SIGNED_URL = (
+    "https://api.bilibili.com/x/example?bar=514&foo=114&wts=1702204169&zab=1919810"
+    "&w_rid=8f6f2b5b3d485fe1886cec6a0be8c5d4"
+)
+
+
+class TestReadingItBack:
+    """``w_rid`` in the decoder: an md5, so confirmed against its preimage, not opened."""
+
+    def test_a_signed_url_is_confirmed_against_its_own_query(self) -> None:
+        (found,) = decoding.decode_url(SIGNED_URL, wbi_keys=KEYS)
+        assert (found.parameter, found.platform, found.algorithm) == ("w_rid", "bilibili", "md5")
+        assert found.reason == decoding.REASON_ONE_WAY
+        (check,) = found.checks
+        assert check.status == decoding.CHECK_MATCH
+        assert check.covered == (
+            "bar=514&foo=114&wts=1702204169&zab=1919810ea1db124af3c7062474693fa704f4ff8"
+        )
+        fields = {field.name: field for field in found.fields}
+        assert fields["timestamp"].kind == decoding.KIND_TIME
+        assert fields["timestamp"].value.startswith("1702204169000 (2023-12-10T10:29:29")
+        assert fields["mixin_key"].value == KEYS.mixin
+
+    def test_a_query_changed_after_signing_differs(self) -> None:
+        (found,) = decoding.decode_url(SIGNED_URL.replace("foo=114", "foo=115"), wbi_keys=KEYS)
+        assert found.checks[0].status == decoding.CHECK_DIFFERS
+        assert found.checks[0].covered is None
+
+    def test_without_the_keys_nothing_is_called_wrong(self) -> None:
+        (found,) = decoding.decode_url(SIGNED_URL)
+        assert found.checks[0].status == decoding.CHECK_NOT_SUPPLIED
+        assert "wbi_keys_unavailable" in found.notes
+        # The clock is in the request, so it is read whether or not the keys are.
+        assert any(field.name == "timestamp" for field in found.fields)
+
+    def test_a_bare_value_named_as_w_rid_has_nothing_to_check_against(self) -> None:
+        found = decoding.decode_parameter("w_rid", "8f6f2b5b3d485fe1886cec6a0be8c5d4")
+        assert found.platform == "bilibili"
+        assert found.checks[0].status == decoding.CHECK_NOT_SUPPLIED

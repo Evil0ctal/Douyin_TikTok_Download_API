@@ -11,7 +11,7 @@
     "IDENTITY_LOGIN_REQUIRED": "No signed-in identity is available for this request.",
     "INTERNAL": "An unexpected internal error occurred.",
     "INVALID_PARAM": "One or more request parameters are invalid.",
-    "INVALID_URL": "The URL was not recognized as a supported Douyin or TikTok link.",
+    "INVALID_URL": "The URL was not recognized as a supported Douyin, TikTok or Bilibili link.",
     "METHOD_NOT_ALLOWED": "That endpoint does not accept this HTTP method.",
     "NOT_CONFIGURED": "Not configured",
     "NOT_FOUND": "The requested resource does not exist.",

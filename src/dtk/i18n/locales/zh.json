@@ -473,7 +473,7 @@
       },
       "identities_pool": {
         "summary": "身份池水位与自动补充阈值",
-        "description": "后台补充任务按平台比较的那两个数字。`usable` 统计的是仍然存活、且连续失败次数低于 `pool.max_fail_streak` 的身份，而不是行数——一个每次请求都失败的身份依然算存活，只数行会让一个已经不能用的池子看起来是满的。低于该平台的 `min_size` 时，worker 每分钟锻造一个身份，直到回到它的 `target_size`。每个平台行带着自己的一对阈值：设置了 `pool.<platform>.min_size` / `target_size` 就用它们，否则沿用全局的 `pool.min_size` / `pool.target_size`（`min_inherited` / `target_inherited` 表示是哪一种）。某个平台的 `min_size` 为 0 时 `auto` 为 false，表示关闭它的自动铸造和水位告警。顶层的 `min_size` 和 `target_size` 是全局那一对。当这个部署没有浏览器容器时 `can_mint` 为 false，此时两个阈值不起作用，池子里只有手动导入的身份。"
+        "description": "后台补充任务按平台比较的那两个数字。`usable` 统计的是仍然存活、且连续失败次数低于 `pool.max_fail_streak` 的身份，而不是行数——一个每次请求都失败的身份依然算存活，只数行会让一个已经不能用的池子看起来是满的。低于该平台的 `min_size` 时，worker 每分钟铸造一个身份，直到回到它的 `target_size`。每个平台行带着自己的一对阈值：设置了 `pool.<platform>.min_size` / `target_size` 就用它们，否则沿用全局的 `pool.min_size` / `pool.target_size`（`min_inherited` / `target_inherited` 表示是哪一种）。某个平台的 `min_size` 为 0 时 `auto` 为 false，表示关闭它的自动铸造和水位告警。顶层的 `min_size` 和 `target_size` 是全局那一对。`can_mint` 表示某个平台能否在这里铸造：B 站通过普通 HTTP 铸造，抖音和 TikTok 需要浏览器容器。为 false 时两个阈值不起作用，该平台的池子里只有手动导入的身份。顶层的 `can_mint` 在任一平台可以铸造时为 true。"
       },
       "identities_reset": {
         "summary": "让身份重新参与轮换",

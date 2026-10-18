@@ -1358,7 +1358,7 @@
     "rejected": {
       "content_id": "A post id with no platform on it. Paste the link instead, or say which platform it belongs to.",
       "bad_id": "This looks like a post id but cannot be one — both platforms mint ids whose high bits are the second they were issued.",
-      "unknown": "No Douyin or TikTok link in this line."
+      "unknown": "No Douyin, TikTok or Bilibili link in this line."
     }
   },
   "logs": {
@@ -1607,7 +1607,8 @@
         "key_travels_in_the_envelope": "The envelope carries its own key — which is how the platform decrypts it, and how this can be read at all.",
         "constant_placeholder": "TikTok Web sends a literal here on every HTTP request; the real algorithm of this name is only used for websocket handshakes.",
         "superseded_by_a_bogus": "Douyin has moved on to a_bogus. TikTok Web still accepts this one, and some Douyin endpoints do.",
-        "issued_by_the_platform": "Minted by the platform for a browser. It cannot be computed, only obtained — mint an identity on the identity tab."
+        "issued_by_the_platform": "Minted by the platform for a browser. It cannot be computed, only obtained — mint an identity on the identity tab.",
+        "wbi_keys_unavailable": "The key this md5 covers is mixed from two keys Bilibili publishes to every visitor, and this instance could not fetch them just now. The query could not be checked; nothing here says it is wrong."
       }
     },
     "parse": {
@@ -1620,12 +1621,14 @@
     },
     "identity": {
       "title": "Mint a guest identity",
-      "description": "Drives a real browser to the platform and returns the cookies it was issued. Nothing is stored.",
+      "description": "Drives a real browser to Douyin or TikTok, or asks Bilibili over plain HTTP, and returns the cookies the platform issued. Nothing is stored.",
       "proxyHint": "Mint behind this egress, so the jar matches the address you will use it from. Subject to the security.request_proxy setting.",
       "action": "Mint",
       "slow": "Takes tens of seconds: a browser has to launch, load the page and wait for its scripts to finish.",
+      "plainHttp": "One plain HTTP request to Bilibili; no browser is involved.",
       "cookies": "Cookies",
       "cookiesHint": "Send all of them together. msToken and UIFID_TEMP are the ones no algorithm can produce.",
+      "cookiesHintBilibili": "Send them together. buvid3 and buvid4 are the visitor ids Bilibili handed out, and b_nut is when.",
       "fingerprint": "Fingerprint",
       "fingerprintHint": "Send requests with this User-Agent. A jar used with a different one is a weaker identity than no identity."
     },

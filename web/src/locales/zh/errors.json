@@ -11,7 +11,7 @@
     "IDENTITY_LOGIN_REQUIRED": "这个请求需要已登录的身份，当前没有可用的",
     "INTERNAL": "服务器内部错误。",
     "INVALID_PARAM": "请求参数不合法。",
-    "INVALID_URL": "无法识别该链接，请确认是受支持的抖音或 TikTok 链接。",
+    "INVALID_URL": "无法识别该链接，请确认是受支持的抖音、TikTok 或 B 站链接。",
     "METHOD_NOT_ALLOWED": "该接口不接受此 HTTP 方法。",
     "NOT_CONFIGURED": "未配置",
     "NOT_FOUND": "请求的资源不存在。",

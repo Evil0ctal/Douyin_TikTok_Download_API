@@ -22,9 +22,9 @@ from fastapi import Request
 
 from dtk.api.deps import Principal
 from dtk.api.routes import tools
-from dtk.core.errors import InvalidParam
+from dtk.core.errors import InvalidParam, SigningFailed
 from dtk.core.types import Platform, Scope, UserRole
-from dtk.signing.native import abogus, decoding, tiktok_sign
+from dtk.signing.native import abogus, decoding, tiktok_sign, wbi
 
 pytestmark = pytest.mark.anyio
 
@@ -253,3 +253,62 @@ async def test_the_response_keeps_its_published_shape() -> None:
             "checks",
             "notes",
         }
+
+
+# --------------------------------------------------------------------------
+# Bilibili's w_rid, the one check that needs something not in the request
+# --------------------------------------------------------------------------
+
+#: bilibili-API-collect's worked example: these keys sign this query to this w_rid.
+WBI_KEYS = wbi.WbiKeys("7cd084941338484aae1ad9425b84077c", "4932caff0ff746eab6f01bf08b70ac45")
+BILIBILI_SIGNED = (
+    "https://api.bilibili.com/x/example?bar=514&foo=114&wts=1702204169&zab=1919810"
+    "&w_rid=8f6f2b5b3d485fe1886cec6a0be8c5d4"
+)
+
+
+class CountingKeys:
+    """Stands in for the nav key source; the real one is a network call."""
+
+    def __init__(self, keys: wbi.WbiKeys | None = None, error: Exception | None = None) -> None:
+        self._keys = keys
+        self._error = error
+        self.calls = 0
+
+    async def keys(self) -> wbi.WbiKeys:
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
+        assert self._keys is not None
+        return self._keys
+
+
+async def test_a_signed_bilibili_url_is_checked_with_the_published_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = CountingKeys(WBI_KEYS)
+    monkeypatch.setattr(tools, "_WBI_KEYS", source)
+    data = await decode(BILIBILI_SIGNED)
+
+    assert data["source"] == tools.SOURCE_URL
+    assert data["platform"] == "bilibili"
+    assert statuses(named(data, "w_rid"))["query"] == decoding.CHECK_MATCH
+    assert source.calls == 1
+
+
+async def test_keys_that_cannot_be_fetched_leave_the_check_unrun_not_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tools, "_WBI_KEYS", CountingKeys(error=SigningFailed("nav timed out")))
+    entry = named(await decode(BILIBILI_SIGNED), "w_rid")
+
+    assert statuses(entry)["query"] == decoding.CHECK_NOT_SUPPLIED
+    assert decoding.NOTE_WBI_KEYS_UNAVAILABLE in entry["notes"]
+
+
+async def test_only_a_w_rid_costs_a_key_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = CountingKeys(WBI_KEYS)
+    monkeypatch.setattr(tools, "_WBI_KEYS", source)
+    signed = await sign(Platform.DOUYIN, DOUYIN_URL, DOUYIN_JAR)
+    await decode(signed["signed_url"])
+    assert source.calls == 0

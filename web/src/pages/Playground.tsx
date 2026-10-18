@@ -524,7 +524,7 @@ interface DecodeResult {
  *
  * Spelled here rather than fetched: the panel has to be able to show what this
  * request signed without spending a round trip on it, and the names are a fixed
- * property of the two platforms. Decoding them into plaintext is a separate,
+ * property of the platforms. Decoding them into plaintext is a separate,
  * deliberate click.
  */
 const SIGNATURE_PARAMS: readonly string[] = [
@@ -537,6 +537,8 @@ const SIGNATURE_PARAMS: readonly string[] = [
   'verifyFp',
   'fp',
   'uifid',
+  'w_rid',
+  'wts',
 ]
 
 /** Only ever null when the caller did not ask, or may not see it. */
