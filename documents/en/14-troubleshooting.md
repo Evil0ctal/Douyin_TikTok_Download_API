@@ -1,8 +1,8 @@
 # Troubleshooting
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/14-troubleshooting.md)
 
 Find your symptom, confirm the cause with one command or one console page, and apply the fix. This page also carries the complete list of error codes this instance can return, with what each one means and whether retrying it can ever help.
@@ -33,7 +33,7 @@ The two run the same code. The difference is where: the console submits a backgr
 | 2 | `egress` | This machine can reach `https://www.douyin.com/` and `https://www.tiktok.com/` **directly**, with no proxy. Separates "no internet" from "bad proxy" |
 | 3 | `proxies` | Each configured proxy carries traffic, and where it comes out (exit IP, country). At most 20 proxies are probed |
 | 4 | `pool` | How many identities are `active`, and when the last successful request was |
-| 5 | `signing` | The in-process signing algorithms produce the same signature a real browser does, per platform. Skipped when browser-rpc is not configured — there is nothing to compare against |
+| 5 | `signing` | The in-process signing algorithms produce the same signature a real browser does, per platform the browser signs — Douyin and TikTok. Skipped when browser-rpc is not configured — there is nothing to compare against |
 | 6 | `smoke` | One fixed public link, through the whole pipeline. This is the last step of the setup wizard too |
 
 Each step has a stable `code` (for example `pool_below_minimum`), a sentence, and — when there is something to do about it — a suggested action. The verdict is the worst status any step reached: `pass`, `warn` or `fail`. A warning is a note, not a broken instance: `dtk diagnose` exits 0 on warnings and 1 only when a step failed.
@@ -77,7 +77,9 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | A link is rejected as `INVALID_URL` | [INVALID_URL, and the eight reasons behind it](#invalid_url-and-the-eight-reasons-behind-it) |
 | `NOT_FOUND` for a post you can open in a browser | [NOT_FOUND on a post that exists](#not_found-on-a-post-that-exists) |
 | `UPSTREAM_RISK_CONTROL` | [UPSTREAM_RISK_CONTROL](#upstream_risk_control) |
+| HTTP 412 / `UPSTREAM_RISK_CONTROL` on a Bilibili uploader's video list | [HTTP 412 on a Bilibili uploader's video list](#http-412-on-a-bilibili-uploaders-video-list) |
 | An author's newest posts are missing, `IDENTITY_LOGIN_REQUIRED` on the next page | [An author's newest posts are missing, or the next page will not load](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) |
+| A Bilibili video's comments stop at three, or their next page answers `IDENTITY_LOGIN_REQUIRED` | [Bilibili comments stop after three](#bilibili-comments-stop-after-three) |
 | `UPSTREAM_UNREACHABLE`, or a proxy was added and nothing changed | [UPSTREAM_UNREACHABLE, and a platform this server cannot reach](#upstream_unreachable-and-a-platform-this-server-cannot-reach) |
 | `SIGNING_FAILED`, or empty responses with no error | [Signature errors and the signing self-check](#signature-errors-and-the-signing-self-check) |
 | browser-rpc is down or was never started | [The browser container is unavailable](#the-browser-container-is-unavailable) |
@@ -126,8 +128,8 @@ Read from `src/dtk/core/errors.py`. "Retryable" is what the code itself declares
 
 | Code | HTTP | Retryable | What it means |
 |---|---|---|---|
-| `INVALID_URL` | 400 | no | The URL was not recognized as a supported Douyin or TikTok link. `error.details.reason` says why — see [below](#invalid_url-and-the-eight-reasons-behind-it) |
-| `UNSUPPORTED_CONTENT` | 400 | no | The link or capability is real but this platform adapter does not serve it (for example Douyin follower lists without a signed-in identity) |
+| `INVALID_URL` | 400 | no | The URL was not recognized as a supported Douyin, TikTok or Bilibili link. `error.details.reason` says why — see [below](#invalid_url-and-the-eight-reasons-behind-it) |
+| `UNSUPPORTED_CONTENT` | 400 | no | The link or capability is real but this platform adapter does not serve it (for example Douyin follower lists without a signed-in identity, or an author's likes on Bilibili) |
 | `INVALID_PARAM` | 400 | no | A request parameter is invalid. `details.field` names it |
 | `UNAUTHENTICATED` | 401 | no | No credential, or one that was rejected |
 | `FORBIDDEN_SCOPE` | 403 | no | The credential is valid but lacks the scope or role this endpoint needs |
@@ -135,7 +137,7 @@ Read from `src/dtk/core/errors.py`. "Retryable" is what the code itself declares
 | `CONTENT_PRIVATE` | 403 | no | The content is private or was removed by its author |
 | `RATE_LIMITED` | 429 | yes | Abuse protection tripped. Also what a login lockout returns |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | yes | No identity could be leased in time |
-| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - see [below](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - see below for [a Douyin author's posts](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) and [Bilibili comments](#bilibili-comments-stop-after-three) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | yes | The endpoint is paused after failures across several identities |
 | `UPSTREAM_RISK_CONTROL` | 502 | yes | The platform refused this identity; it has been cooled |
 | `UPSTREAM_CHANGED` | 502 | no | The platform response no longer matches what the parser expects. `details.path` names the field |
@@ -392,7 +394,7 @@ The console's **Identities** page (`/identities`) shows the same with health, an
 
 | What you see | What to do |
 |---|---|
-| Zero identities at all | Mint some (needs browser-rpc), or import a cookie jar from your own browser on `/identities` |
+| Zero identities at all | Mint some (Douyin and TikTok need browser-rpc; Bilibili guests are minted without it), or import a cookie jar from your own browser on `/identities` |
 | Identities exist but all `cooling` | See [Identities go cooling immediately](#identities-go-cooling-immediately). They return on their own when the cooldown elapses |
 | Identities `degraded` | They hit the cooldown ceiling. One success clears the failure streak, but they rejoin only when the ceiling cooldown elapses. Reset one by hand from `/identities` if you know the cause is gone |
 | Identities `retired` | Retirement wipes the cookie jar and is not reversible. Mint or import replacements |
@@ -403,7 +405,7 @@ The console's **Identities** page (`/identities`) shows the same with health, an
 
 **One deliberate behaviour worth knowing:** when *every* live identity for a platform is failing, the filler holds the level rather than minting more. That is a platform-wide event, not a shortage, and adding five fresh visitors during an incident is the loudest signal this deployment could possibly send.
 
-**Short links have their own version of this.** Expanding `v.douyin.com/…` needs an egress, and it goes through a proxy like everything else. With no proxies configured at all it expands directly from this host. With proxies configured but all unhealthy, expansion raises `IDENTITY_POOL_EXHAUSTED` with `details.reason = no_healthy_egress` — falling back to the host address is the one answer that would leak something new.
+**Short links have their own version of this.** Expanding `v.douyin.com/…` or `b23.tv/…` needs an egress, and it goes through a proxy like everything else. With no proxies configured at all it expands directly from this host. With proxies configured but all unhealthy, expansion raises `IDENTITY_POOL_EXHAUSTED` with `details.reason = no_healthy_egress` — falling back to the host address is the one answer that would leak something new.
 
 ---
 
@@ -546,7 +548,7 @@ The two are answering different questions, and telling them apart takes one look
 
 **403 checklist.**
 
-- Scopes are `douyin:read`, `tiktok:read`, `identity:manage`, `archive:read`, `archive:export`, `media:read`, `media:write`, `admin`. `error.details.required_scopes` names what the endpoint wanted, and `have_scopes` what you sent.
+- Scopes are `douyin:read`, `tiktok:read`, `bilibili:read`, `identity:manage`, `archive:read`, `archive:export`, `media:read`, `media:write`, `admin`. `error.details.required_scopes` names what the endpoint wanted, and `have_scopes` what you sent.
 - **An admin-owned key is still bounded by its scopes.** This is on purpose: almost every key on a self-hosted instance belongs to the admin user, so an admin short-circuit would make `archive:export` — the one call that hands back a copy of the database — unenforceable in exactly the deployment it was written for.
 - A console *session* is bounded by the account's role instead, not by scopes.
 - A few things need both a scope and an operator role: `?explain=true`, pinning `?identity=` and `POST /api/v1/tools/identity` need `identity:manage` **and** operator, because each one hands over or acts as a cookie jar. Explain and pin requests are written to the audit trail.
@@ -561,8 +563,8 @@ The two are answering different questions, and telling them apart takes one look
 | `reason` | What happened | What to do |
 |---|---|---|
 | `no_url` | There was no URL in what you sent | Send a link, or share text containing one |
-| `host_not_allowed` | The host is not a Douyin or TikTok host | Check for a typo. Only `douyin.com`, `iesdouyin.com`, `amemv.com` and `tiktok.com` (and their subdomains) are fetched; `javascript:`, `data:` and `file:` are rejected before any host check |
-| `platform_mismatch` | A TikTok link sent to `/api/v1/douyin/...`, or the reverse | Use `/api/v1/parse`, which routes by the link itself, or address the right platform |
+| `host_not_allowed` | The host is not a Douyin, TikTok or Bilibili host | Check for a typo. Only `douyin.com`, `iesdouyin.com`, `amemv.com`, `tiktok.com`, `bilibili.com`, `b23.tv` and `bili2233.cn` (and their subdomains) are fetched. `bilibili.tv`, the international site, is a different service and is not supported. `javascript:`, `data:` and `file:` are rejected before any host check |
+| `platform_mismatch` | One platform's link sent to another platform's route — a TikTok link to `/api/v1/douyin/...`, for example | Use `/api/v1/parse`, which routes by the link itself, or address the right platform |
 | `unknown_resource` | The host is right, the path points at nothing this instance fetches | A music page, a hashtag, a search results page. Send a post or a profile link |
 | `redirect_not_allowed` | The short link redirected off-platform | The chain left the allowlist. `security.url_allowlist` can admit one extra hop if you know the host and trust it |
 | `too_many_redirects` | Still redirecting after 5 hops | Usually a link that is being bounced through an interstitial. Open it in a browser and use the address it lands on |
@@ -638,6 +640,15 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - Real challenge markers across the pool → you are asking too fast for the exits you have, or the exits are shared/flagged. Add proxies, add identities, or lower the endpoint pressure.
 - All of one proxy's identities → [Proxies fail their probe](#proxies-fail-their-probe).
 - `payload.bare_envelope` on `douyin.author_posts` → [An author's newest posts are missing, or the next page will not load](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load).
+- `http.risk_status` with HTTP 412 on `bilibili.author_posts` → the next subsection.
+
+### HTTP 412 on a Bilibili uploader's video list
+
+**Symptom.** `/api/v1/bilibili/user/posts` answers `UPSTREAM_RISK_CONTROL`, and the Logs page shows the `bilibili.author_posts` rows with HTTP 412 and the rule `http.risk_status`.
+
+**What it means.** An uploader's video list is the endpoint Bilibili guards hardest. The request is already WBI-signed and carries the canvas/WebGL report (`dm_img_*`) the space page itself sends, and that does not help: a burst of requests from one egress gets HTTP 412 pages for a few minutes, whatever the headers say (measured). This instance reports that as `UPSTREAM_RISK_CONTROL` and cools the identity, which is the right reading — the address is being refused, and sending the next request from it would only prolong the refusal.
+
+**Fix.** Spread the requests out, and put Bilibili identities behind proxies so they do not all leave from one address. The endpoint already has the slowest token bucket of any Bilibili endpoint for this reason; what trips it is walking many uploaders in quick succession from a single exit, and what raises the ceiling is more identities behind more exits, not retrying sooner.
 
 ---
 
@@ -660,11 +671,33 @@ or open its drawer and **Check the login** - a lapsed session is refused like a
 guest. A logged-in account paged fast through many authors gets refused too;
 slow down, or add accounts.
 
+### Bilibili comments stop after three
+
+**Symptom.** `/api/v1/bilibili/video/comments` returns three comments, no next
+page, and `meta.guest_fallback: true`. Or the request for a later page answers
+`IDENTITY_LOGIN_REQUIRED` (503).
+
+**What it means.** Bilibili gives a guest the three hottest comments of a video
+and tells it that is the last page (measured). So the first page goes to a
+signed-in Bilibili identity when rotation has one, and falls back to a guest -
+marked `meta.guest_fallback` - when it has none; later pages go only to a
+signed-in identity, because a guest would be told there are none. `count` does
+not change this: Bilibili's comment endpoint takes no page size, so the value is
+accepted and ignored. Replies to one comment (`video/comments/replies`) are not
+affected - they page normally for a guest.
+
+**Fix.** Import a signed-in Bilibili jar - one that carries `SESSDATA` as well as
+`buvid3` - see [Bilibili identities](./06-identities-and-proxies.md#bilibili-identities).
+`SESSDATA` is the login itself, so treat the jar like a password. If you already
+have one and still get the guest's three, open its drawer and **Check the
+login**: Bilibili's own answer tells a live login from a lapsed one, and a lapsed
+one reports `signed_out`.
+
 ---
 
 ## UPSTREAM_UNREACHABLE, and a platform this server cannot reach
 
-**Symptom.** `UPSTREAM_UNREACHABLE` (502) on requests to one platform - most often TikTok from a server in mainland China - while the other platform works. The error carries `details.endpoint`, `details.last_error` (`transport_failure`) and `details.proxied`; the request log rows have no HTTP status. Earlier builds reported the same failure as `INTERNAL`.
+**Symptom.** `UPSTREAM_UNREACHABLE` (502) on requests to one platform - most often TikTok from a server in mainland China - while the other platforms work. The error carries `details.endpoint`, `details.last_error` (`transport_failure`) and `details.proxied`; the request log rows have no HTTP status. Earlier builds reported the same failure as `INTERNAL`.
 
 **What it means.** Every attempt failed before the platform answered: the connection was refused, reset or timed out, or the proxy in between refused it. The scheduler already tried other identities - a different identity is a different egress - and they failed too. It says nothing about the content, and no identity is cooled for it.
 
@@ -702,7 +735,7 @@ The second one is the expensive one: nothing about a 200 with an empty body says
 
 ### Confirm it with step 5 of the self-check
 
-Step 5 signs the same request twice — once with the native algorithm, once through browser-rpc — and compares.
+Step 5 signs the same request twice — once with the native algorithm, once through browser-rpc — and compares. It covers Douyin and TikTok only: browser-rpc never signs Bilibili, so there is no second Bilibili signature to compare against.
 
 | Step 5 result | Meaning | What to do |
 |---|---|---|
@@ -715,13 +748,13 @@ Step 5 signs the same request twice — once with the native algorithm, once thr
 
 ### Reproduce a signature by hand
 
-`POST /api/v1/tools/sign` computes the signature for a URL. It is pure arithmetic — nothing is fetched, no identity is spent — and the result depends only on what you send. `stages` breaks it down layer by layer, saying which layer contributed which parameter and whether it ran at all.
+`POST /api/v1/tools/sign` computes the signature for a URL. For Douyin and TikTok it is pure arithmetic — nothing is fetched, no identity is spent — and the result depends only on what you send. A Bilibili URL gets Bilibili's WBI signature (`w_rid` + `wts`), which is computed from two public keys the site publishes, so for Bilibili the tool does fetch those keys, at most once an hour. `stages` breaks it down layer by layer, saying which layer contributed which parameter and whether it ran at all.
 
 Three things must line up between signing and sending or the platform refuses the request whatever the signature says:
 
-- **The User-Agent.** Both platforms hash it into the signature. The response echoes the one used; send that exact string.
+- **The User-Agent.** Douyin and TikTok hash it into the signature. The response echoes the one used; send that exact string.
 - **The TLS fingerprint.** TikTok checks it agrees with the User-Agent, so a Chrome UA must travel over a Chrome TLS profile. Plain `curl` is refused whatever the signature says.
-- **A cookie jar.** A correct signature with no cookies still gets nothing: the platform answers a *session*. `POST /api/v1/tools/identity` mints one (needs browser-rpc). On Douyin the jar is also what `x-secsdk-web-signature` is computed over — without a visitor id, `headers` comes back empty and the sign-protected endpoints refuse the request naming `uifid`.
+- **A cookie jar.** A correct signature with no cookies still gets nothing: the platform answers a *session*. `POST /api/v1/tools/identity` mints one (browser-rpc for Douyin and TikTok; a Bilibili guest needs no browser). On Douyin the jar is also what `x-secsdk-web-signature` is computed over — without a visitor id, `headers` comes back empty and the sign-protected endpoints refuse the request naming `uifid`.
 
 `POST /api/v1/tools/decode` reads a signature parameter back, which is how you check what a signature you were sent actually encodes. Both are on the console's **Tools** page (`/tools`); see [Playground and tools](./07-playground-and-tools.md).
 
@@ -729,24 +762,29 @@ Three things must line up between signing and sending or the platform refuses th
 
 `signing.mode` chooses: `native` (default, in-process, no browser in the request path), `rpc` (drive a real browser), `auto` (prefer rpc for endpoints the platform's own SDK signs, otherwise native). `signing.fallback_enabled` (default on) lets the other signer be tried when the preferred one fails — **turn it off to find out which signer is really carrying your traffic**, because a silent crossing is how a broken signer goes on looking healthy: its traffic moves to the other one and the success rate never dips.
 
+browser-rpc never signs Bilibili, whatever `signing.mode` says: WBI is always computed natively.
+
 The `signer` column on each `request_log` row records `native` or `browser` per request.
 
 ---
 
 ## The browser container is unavailable
 
-**Symptom.** Step 1 of the self-check reports a `warn`: *postgres and redis are reachable; browser-rpc is not*. Or minting fails with `NOT_CONFIGURED`.
+**Symptom.** Step 1 of the self-check reports a `warn`: *postgres and redis are reachable; browser-rpc is not*. Or minting a Douyin or TikTok identity fails with `NOT_CONFIGURED`.
 
-**This is a supported deployment, not a degraded one.** browser-rpc is behind a compose profile and is the heaviest container in the stack — measured warm at 2.57 GiB resident and six cores' worth of Chromium. An instance that imports its cookies by hand does not need it.
+**This is a supported deployment, not a degraded one.** browser-rpc is behind a compose profile and is the heaviest container in the stack — measured warm at 2.57 GiB resident and six cores' worth of Chromium. An instance that imports its Douyin and TikTok cookies by hand does not need it, and Bilibili never does: its guests are minted over plain HTTP and its signature is always computed natively.
 
 ### What still works without it
 
 | Works | Does not work |
 |---|---|
-| Every read endpoint, signed natively | Automatic identity minting |
-| Manually imported cookie jars | `POST /api/v1/tools/identity` (answers `NOT_CONFIGURED`) |
-| The whole console, the API, MCP, the CLI | Step 5 of the self-check (skipped: nothing to compare against) |
-| Readiness — an unreachable RPC never takes the instance out of rotation | The browser signing fallback, when `signing.mode` is `rpc` or `auto` |
+| Every read endpoint, signed natively | Automatic minting of Douyin and TikTok identities |
+| Minting Bilibili guests, automatically and from `POST /api/v1/tools/identity` | `POST /api/v1/tools/identity` for Douyin and TikTok (answers `NOT_CONFIGURED`) |
+| Manually imported cookie jars | Step 5 of the self-check (skipped: nothing to compare against) |
+| The whole console, the API, MCP, the CLI | The browser signing fallback, when `signing.mode` is `rpc` or `auto` |
+| Readiness — an unreachable RPC never takes the instance out of rotation | |
+
+A browser container that is configured and down does not hold Bilibili back either. The pool filler backs off per minting route, so failed browser mints pause Douyin and TikTok refill and leave Bilibili's alone.
 
 ### Confirm which of the two it is
 
@@ -899,8 +937,8 @@ The MCP server is mounted on the API process at `/mcp` (streamable-http), and ca
 | 404 or a redirect surprise on `GET /mcp` | A Mount matches only the paths *beneath* it | The endpoint is `/mcp/`. The bare path answers a `307` to it, preserving method and body, so most clients follow it — but configure `/mcp/` |
 | `401 UNAUTHENTICATED` | No API key, or one that was rejected | Send `Authorization: Bearer <key>` or `X-API-Key: <key>`. **The console session cookie is never accepted here** — a cookie exists for a browser, and accepting it would make the MCP endpoint reachable by anything that can make a request from inside that browser |
 | `401` with *this endpoint accepts API keys only* | You authenticated as a console session | Mint an API key on `/api-keys` |
-| `403 FORBIDDEN_SCOPE` at connect time | The key has no platform read scope at all | Give it `douyin:read` or `tiktok:read` |
-| `403 FORBIDDEN_SCOPE` on one tool call | The key reads one platform and the call named the other | The transport can only check that the key reads *something*; the platform arrives inside the JSON-RPC body, so it is re-checked per call. Same rule as REST, deliberately |
+| `403 FORBIDDEN_SCOPE` at connect time | The key has no platform read scope at all | Give it `douyin:read`, `tiktok:read` or `bilibili:read` |
+| `403 FORBIDDEN_SCOPE` on one tool call | The key reads one platform and the call named another | The transport can only check that the key reads *something*; the platform arrives inside the JSON-RPC body, so it is re-checked per call. Same rule as REST, deliberately |
 | `429 RATE_LIMITED` | The same abuse limiter as REST applies | See [Rate limited](#rate-limited) |
 | The session drops when you scale the api | Sessions are stateless by default so the API can scale horizontally | Nothing to fix; a pinned session would break the moment a second worker started |
 

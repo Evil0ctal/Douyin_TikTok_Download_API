@@ -1,7 +1,7 @@
 # 参与开发
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/16-contributing.md)
 
 这一页写给想改代码的人。读完你应该能搭好开发环境、认得清目录结构、在本地跑起 API、worker 和控制台，跑通测试套件的每一层，并让一次改动通过 CI 的全部门禁。
@@ -95,7 +95,7 @@ uv run dtk --version
 | `identity/` | 身份池、Cookie 导入、铸造日志、browser-rpc 客户端。 |
 | `mcp/` | MCP 服务器。它直接调 service 层，不去调本项目自己的 HTTP API。 |
 | `media/` | Go 下载器 sidecar 的客户端、CDN 域名白名单、下载计划。 |
-| `models/` | 两个平台归一化之后的领域模型（`Content`、`Author`、`Comment`、`Page`）。 |
+| `models/` | 各平台归一化之后的领域模型（`Content`、`Author`、`Comment`、`Page`）。 |
 | `ops/` | 健康检查、备份、通知、诊断、保留策略、脱敏、webhook——自托管者真正需要、而任何架构图都不画的那些东西。 |
 | `platforms/` | 每个平台一个子包。接口表、参数构造器、解析器。**不做任何 IO。** |
 | `scheduler/` | 排序、租约、令牌桶、熔断器、按接口的调度策略。 |
@@ -243,9 +243,9 @@ make test-unit          # uv run pytest tests/unit tests/replay -q
 
 不需要服务，不碰网络，不读配置。单元测试覆盖调度器的算术、签名算法、URL 解析、worker 的分类逻辑、ops 各模块、CLI，以及一组仓库卫生检查——见[代码规范](#代码规范)。
 
-回放测试把存下来的响应体直接喂给平台解析器——`dict` 进，模型出，不做 IO——这之所以可能，正是因为解析器是纯函数。它们还断言**归一化一致性**：对同一个逻辑对象，两个平台必须产出相同的字段集合，差别只能在于哪些字段是 `None`。单平台的测试永远发现不了两者何时开始分叉。
+回放测试把存下来的响应体直接喂给平台解析器——`dict` 进，模型出，不做 IO——这之所以可能，正是因为解析器是纯函数。它们还断言**归一化一致性**：对同一个逻辑对象，每个平台都必须产出相同的字段集合，差别只能在于哪些字段是 `None`。单平台的测试永远发现不了它们何时开始分叉。
 
-`tests/fixtures/<platform>/` 每个平台有十一个 JSON 文件，一种响应形态一个（正常视频、图集、已删除作品、私密作品、长文案、作者资料、作品分页、评论、评论回复，以及两种风控形态）。新增或替换之前请先读 `tests/fixtures/README.md`——脱敏规则写在那里，而且 `tests/replay/test_platform_contract.py` 会因为一个含有凭据形状 key 的 fixture 直接让构建失败。
+`tests/fixtures/<platform>/` 里一种响应形态一个 JSON 文件。抖音和 TikTok 各有十一个（正常视频、图集、已删除作品、私密作品、长文案、作者资料、作品分页、评论、评论回复，以及两种风控形态）；B 站有自己的十四个，因为它的形态不一样——没有图集，而且视频详情之后还跟着第二个带视频流的响应。新增或替换之前请先读 `tests/fixtures/README.md`——脱敏规则写在那里，而且 `tests/replay/test_platform_contract.py` 会因为一个含有凭据形状 key 的 fixture 直接让构建失败。
 
 要知道现在这些 fixture 到底是什么：**它们每一个都是照着 V4 的解析与请求代码手写出来的**，不是从真实平台抓下来的，发版之前应当被真实抓包替换掉。README 里就是这么写的，`test_fixture_readme_states_they_are_hand_built` 把这段提示钉住，免得它在某次编辑里悄悄消失。在真实抓包补上之前，回放测试全绿的含义是“解析器做的事和我们以为平台做的事一致”，而不是“解析器和平台一致”。
 
@@ -344,7 +344,7 @@ make smoke        # ./scripts/smoke.sh
 
 **mypy**（`[tool.mypy]`）：Python 3.12，`packages = ["dtk"]`，`mypy_path = "src"`，`ignore_missing_imports = true`，`warn_unused_ignores = true`。`uv run mypy` 不带参数检查的就是对的东西。
 
-它不是全局 strict，这是一个刻意的梯度：三个包——`dtk.platforms.*`、`dtk.models.*`、`dtk.scheduler.*`——额外开了 `disallow_untyped_defs`。这三处正是没有类型标注会真出事的地方：两个平台都必须满足的数据契约，以及决定用哪个身份的那部分算术。
+它不是全局 strict，这是一个刻意的梯度：三个包——`dtk.platforms.*`、`dtk.models.*`、`dtk.scheduler.*`——额外开了 `disallow_untyped_defs`。这三处正是没有类型标注会真出事的地方：每个平台都必须满足的数据契约，以及决定用哪个身份的那部分算术。
 
 **ESLint**（`web/eslint.config.js`）：JS 与 TypeScript 的 recommended 规则集、`react-hooks`，另外把 `@typescript-eslint/no-explicit-any` 和 `no-non-null-assertion` 设为 error，再加三条为这个项目写的规则——见下一节。
 
@@ -404,7 +404,7 @@ make smoke        # ./scripts/smoke.sh
 
 2. **构造查询串。** 把构造器加到 `src/dtk/platforms/<platform>/params.py`。值保持未编码——百分号编码只在传输层做一次，因为签名是对编码后的查询串计算的，而编码两次是 V4 时代反复出现的签名失败原因。浏览器形状的值（屏幕尺寸、浏览器版本、语言）通过 `ClientProfile` 传入而不是写死在这里，这样查询串才能和该身份的 User-Agent 与 TLS 仿真对得上。
 
-3. **解析响应。** 在 `parser.py` 里新增或扩展解析器，并挂到适配器上。用 `src/dtk/platforms/common.py` 里的辅助函数，好让两个平台面对同一处歧义时做出同一个判断：缺失就是 `None`，绝不是 `0` 或 `""`；标识符一律 `str`；必填字段缺失时抛出带路径的 `UpstreamChanged`。
+3. **解析响应。** 在 `parser.py` 里新增或扩展解析器，并挂到适配器上。用 `src/dtk/platforms/common.py` 里的辅助函数，好让每个平台面对同一处歧义时做出同一个判断：缺失就是 `None`，绝不是 `0` 或 `""`；标识符一律 `str`；必填字段缺失时抛出带路径的 `UpstreamChanged`。
 
 4. **给它一条调度策略。** 往 `src/dtk/scheduler/policies.py` 加一条 `EndpointPolicy`。这在实践中不是可选项：`tests/unit/test_policy_coverage.py` 会在某个已注册的接口没有显式策略时失败，因为名字对不上并不会抛异常——它会悄悄落到 `DEFAULT_POLICY`，所有调好的配额随之失效而没有任何东西提醒你。同一个测试还会拒绝指向已不存在接口的策略，并断言一条合理策略的形状：`max_concurrency == 1`、补充速率不超过 1/s、突发在 1 到 10 之间、`risk_weight >= 1.0`。
 
@@ -412,7 +412,7 @@ make smoke        # ./scripts/smoke.sh
 
 5. **接上面向调用方的参数名。** 在 `src/dtk/worker/registry.py` 里，如果是新能力就加一个 `Capability` 值，然后在 `_ARGUMENTS` 里加一条，把规范参数名（`content_id`、`author_id`、`unique_id`、`mix_id`、`comment_id`、`cursor`、`count`）映射到该平台自己的参数名，再在 `_CACHE_TTL_KEYS` 里加一条。注册表会在 import 时拿你的映射去比对真实的构造器签名，所以拼错是一个 import 错误，而不是一个运行时错误。
 
-   `P0_CAPABILITIES` 里的能力是每个平台都必须具备的。此外的都是可选、按平台声明，因为两个平台确实不一样——TikTok 把作品归到它自己暴露成独立列表的合集里，抖音只对已登录的身份提供作者的喜欢列表。接口健康看板 `GET /api/v1/admin/endpoints/health` 按平台列出每一个已声明的接口，控制台上的运维者据此能看清哪项能力在哪个平台上有；普通调用方则是从 `UNSUPPORTED_CONTENT` 这个错误里知道的——它的 `details.supported` 写着哪些平台提供这项操作。
+   `P0_CAPABILITIES` 里的能力是每个平台都必须具备的。此外的都是可选、按平台声明，因为各平台确实不一样——TikTok 把作品归到它自己暴露成独立列表的合集里，抖音只对已登录的身份提供作者的喜欢列表，B 站则根本不提供喜欢列表。接口健康看板 `GET /api/v1/admin/endpoints/health` 按平台列出每一个已声明的接口，控制台上的运维者据此能看清哪项能力在哪个平台上有；普通调用方则是从 `UNSUPPORTED_CONTENT` 这个错误里知道的——它的 `details.supported` 写着哪些平台提供这项操作。
 
 6. **暴露出去。** 在 `src/dtk/api/routes/content.py` 里加一条 REST 路由，用 `openapi_extra={I18N_KEY: "<key>", **ASYNC_RESPONSES}` 声明，并在 `src/dtk/i18n/locales/en.json` 和 `zh.json` 两边都写上 `openapi.op.<key>.summary` / `.description`。`tests/unit/test_i18n.py` 和 `tests/unit/test_openapi_completeness.py` 会因为“操作没有文案”“参数没有 `description=`”“中文文档里还是英文”而失败。路由函数的 docstring 就是 FastAPI 用作英文描述的那段。
 

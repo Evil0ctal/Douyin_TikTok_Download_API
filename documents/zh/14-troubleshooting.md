@@ -1,7 +1,7 @@
 # 故障排查
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/14-troubleshooting.md)
 
 按症状定位，用一条命令或一个控制台页面确认原因，然后修好它。这篇同时收录了本实例可能返回的全部错误码，写明每个码是什么意思、以及重试是否有可能起作用。
@@ -32,7 +32,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose
 | 2 | `egress` | 本机能**直连**（不走代理）`https://www.douyin.com/` 和 `https://www.tiktok.com/`。用来区分「没网」和「代理坏了」 |
 | 3 | `proxies` | 每个已配置的代理是否真的能过流量，以及出口在哪（出口 IP、国家）。最多探测 20 个代理 |
 | 4 | `pool` | 有多少身份处于 `active`，以及最后一次成功请求是什么时候 |
-| 5 | `signing` | 进程内的签名算法与真实浏览器算出的签名是否一致，按平台分别比对。没配 browser-rpc 时跳过——没有第二个签名器可比 |
+| 5 | `signing` | 进程内的签名算法与真实浏览器算出的签名是否一致，对浏览器会签的平台（抖音和 TikTok）分别比对。没配 browser-rpc 时跳过——没有第二个签名器可比 |
 | 6 | `smoke` | 一条固定的公开链接，走完整条流水线。这也是初始化向导的最后一步 |
 
 每一步都有一个稳定的 `code`（例如 `pool_below_minimum`）、一句说明，以及——当确实有事可做时——一条建议动作。总结论取所有步骤里最差的那个状态：`pass`、`warn` 或 `fail`。警告是提醒，不是实例坏了：`dtk diagnose` 遇到警告退出码是 0，只有某一步 `fail` 才是 1。
@@ -76,7 +76,9 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | 链接被判为 `INVALID_URL` | [INVALID_URL 背后的八种原因](#invalid_url-背后的八种原因) |
 | 浏览器里能打开的作品却 `NOT_FOUND` | [明明存在的作品却返回 NOT_FOUND](#明明存在的作品却返回-not_found) |
 | `UPSTREAM_RISK_CONTROL` | [UPSTREAM_RISK_CONTROL](#upstream_risk_control) |
+| B 站 UP 主投稿列表返回 HTTP 412 / `UPSTREAM_RISK_CONTROL` | [B 站 UP 主投稿列表返回 HTTP 412](#b-站-up-主投稿列表返回-http-412) |
 | 作者作品缺最新几条，翻页时返回 `IDENTITY_LOGIN_REQUIRED` | [作者作品列表缺最新几条，或者翻不了页](#作者作品列表缺最新几条或者翻不了页) |
+| B 站视频的评论只有三条，或者下一页返回 `IDENTITY_LOGIN_REQUIRED` | [B 站评论只有三条](#b-站评论只有三条) |
 | `UPSTREAM_UNREACHABLE`，或者加了代理却什么都没变 | [UPSTREAM_UNREACHABLE 和这台服务器连不上的平台](#upstream_unreachable-和这台服务器连不上的平台) |
 | `SIGNING_FAILED`，或者空响应且没有报错 | [签名错误与签名自检](#签名错误与签名自检) |
 | browser-rpc 挂了或者根本没启动 | [浏览器容器不可用](#浏览器容器不可用) |
@@ -125,8 +127,8 @@ MCP 的工具错误用的是同一个信封，所以一套错误处理同时覆�
 
 | 错误码 | HTTP | 可重试 | 含义 |
 |---|---|---|---|
-| `INVALID_URL` | 400 | 否 | 这个 URL 不是能识别的抖音或 TikTok 链接。`error.details.reason` 说明原因——见[下文](#invalid_url-背后的八种原因) |
-| `UNSUPPORTED_CONTENT` | 400 | 否 | 链接或能力是真的，但这个平台适配器不提供（例如抖音的关注/粉丝列表在没有登录态身份时） |
+| `INVALID_URL` | 400 | 否 | 这个 URL 不是能识别的抖音、TikTok 或 B 站链接。`error.details.reason` 说明原因——见[下文](#invalid_url-背后的八种原因) |
+| `UNSUPPORTED_CONTENT` | 400 | 否 | 链接或能力是真的，但这个平台适配器不提供（例如抖音的关注/粉丝列表在没有登录态身份时，或者 B 站作者的喜欢列表） |
 | `INVALID_PARAM` | 400 | 否 | 某个请求参数不合法。`details.field` 指名是哪个 |
 | `UNAUTHENTICATED` | 401 | 否 | 没有凭证，或凭证被拒绝 |
 | `FORBIDDEN_SCOPE` | 403 | 否 | 凭证有效，但缺少该接口要求的 scope 或角色 |
@@ -134,7 +136,7 @@ MCP 的工具错误用的是同一个信封，所以一套错误处理同时覆�
 | `CONTENT_PRIVATE` | 403 | 否 | 内容是私密的，或已被作者删除 |
 | `RATE_LIMITED` | 429 | 是 | 触发了防滥用限额。登录锁定也返回这个码 |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | 是 | 在等待时限内没能租到身份 |
-| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——见[下文](#作者作品列表缺最新几条或者翻不了页) |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——见下文的[抖音作者作品](#作者作品列表缺最新几条或者翻不了页)和 [B 站评论](#b-站评论只有三条) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | 是 | 该接口因多个身份接连失败而被暂停 |
 | `UPSTREAM_RISK_CONTROL` | 502 | 是 | 平台拒绝了这个身份，该身份已进入冷却 |
 | `UPSTREAM_CHANGED` | 502 | 否 | 平台响应结构和解析器的预期对不上了。`details.path` 指名字段 |
@@ -391,7 +393,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk identity list
 
 | 你看到的 | 该做什么 |
 |---|---|
-| 一个身份都没有 | 铸造几个（需要 browser-rpc），或者在 `/identities` 从自己浏览器导入一份 cookie |
+| 一个身份都没有 | 铸造几个（抖音和 TikTok 需要 browser-rpc；B 站访客身份不需要），或者在 `/identities` 从自己浏览器导入一份 cookie |
 | 有身份但全在 `cooling` | 见[身份刚用就进入冷却](#身份刚用就进入冷却)。冷却到期它们会自己回来 |
 | 身份是 `degraded` | 它们撞到了冷却上限。一次成功可以清空连续失败计数，但要等上限冷却到期才重新加入。确认原因已消失的话，可在 `/identities` 手动重置 |
 | 身份是 `retired` | 退休会抹掉 cookie，且不可逆。铸造或导入新的 |
@@ -402,7 +404,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk identity list
 
 **有一个刻意的行为值得知道：** 当某个平台的**每一个**存活身份都在失败时，补充器会按住水位不再铸造。那是平台级事件，不是池子不够用；在事故当中凭空冒出五个新访客，是这套部署能发出的最响亮的信号。
 
-**短链展开有它自己的一套。** 展开 `v.douyin.com/…` 需要一个出口，而它和别的请求一样要走代理。完全没配代理时，它从本机直接展开；配了代理但全部不健康时，展开会抛 `IDENTITY_POOL_EXHAUSTED`，`details.reason` 为 `no_healthy_egress`——回落到本机地址是唯一会泄漏新东西的答案。
+**短链展开有它自己的一套。** 展开 `v.douyin.com/…` 或 `b23.tv/…` 需要一个出口，而它和别的请求一样要走代理。完全没配代理时，它从本机直接展开；配了代理但全部不健康时，展开会抛 `IDENTITY_POOL_EXHAUSTED`，`details.reason` 为 `no_healthy_egress`——回落到本机地址是唯一会泄漏新东西的答案。
 
 ---
 
@@ -545,7 +547,7 @@ docker compose -p dtk -f docker/compose.yml up -d --scale worker=4
 
 **403 检查清单。**
 
-- scope 有 `douyin:read`、`tiktok:read`、`identity:manage`、`archive:read`、`archive:export`、`media:read`、`media:write`、`admin`。`error.details.required_scopes` 会指名接口想要哪一个，`have_scopes` 是你实际带了哪些。
+- scope 有 `douyin:read`、`tiktok:read`、`bilibili:read`、`identity:manage`、`archive:read`、`archive:export`、`media:read`、`media:write`、`admin`。`error.details.required_scopes` 会指名接口想要哪一个，`have_scopes` 是你实际带了哪些。
 - **管理员拥有的密钥同样受它自己的 scope 约束。** 这是刻意的：自部署实例上几乎每一个密钥都属于管理员用户，如果对管理员短路，`archive:export`——那个能把整个数据库副本交出去的调用——恰恰会在它被写出来针对的那种部署里完全失效。
 - 控制台**会话**则是按账号角色约束，而不是按 scope。
 - 有几件事同时要 scope 和 operator 角色：`?explain=true`、用 `?identity=` 指定身份和 `POST /api/v1/tools/identity`，都需要 `identity:manage` **且**是 operator，因为它们要么交出 cookie，要么以某份 cookie 的身份行事。explain 和指定身份的请求会写进审计日志。
@@ -560,8 +562,8 @@ docker compose -p dtk -f docker/compose.yml up -d --scale worker=4
 | `reason` | 发生了什么 | 怎么办 |
 |---|---|---|
 | `no_url` | 你发过来的内容里没有 URL | 发一条链接，或者包含链接的分享文案 |
-| `host_not_allowed` | 这个域名不是抖音或 TikTok 的域名 | 检查拼写。只有 `douyin.com`、`iesdouyin.com`、`amemv.com` 和 `tiktok.com`（及其子域）会被抓取；`javascript:`、`data:`、`file:` 在任何域名检查之前就被拒 |
-| `platform_mismatch` | TikTok 链接发到了 `/api/v1/douyin/...`，或者反过来 | 用 `/api/v1/parse`，它按链接自己路由；或者发给正确的平台 |
+| `host_not_allowed` | 这个域名不是抖音、TikTok 或 B 站的域名 | 检查拼写。只有 `douyin.com`、`iesdouyin.com`、`amemv.com`、`tiktok.com`、`bilibili.com`、`b23.tv` 和 `bili2233.cn`（及其子域）会被抓取。B 站国际版 `bilibili.tv` 是另一个服务，不受支持。`javascript:`、`data:`、`file:` 在任何域名检查之前就被拒 |
+| `platform_mismatch` | 一个平台的链接发到了另一个平台的路由，比如 TikTok 链接发到了 `/api/v1/douyin/...` | 用 `/api/v1/parse`，它按链接自己路由；或者发给正确的平台 |
 | `unknown_resource` | 域名对，但路径指向的东西本实例不抓 | 音乐页、话题页、搜索结果页。请发作品或主页链接 |
 | `redirect_not_allowed` | 短链跳到了平台之外 | 跳转链离开了白名单。如果你知道那个域名并且信任它，`security.url_allowlist` 可以放行这一跳 |
 | `too_many_redirects` | 跳了 5 次还在跳 | 通常是被中间页反复弹的链接。用浏览器打开，拿它最终落地的地址 |
@@ -637,6 +639,15 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - 整池都出现真实验证标记 → 你相对手上的出口问得太快了，或者出口是共享的/已被标记的。加代理、加身份，或者降低对该接口的压力。
 - 同一个代理下的全部身份 → [代理探测失败](#代理探测失败)。
 - `douyin.author_posts` 上的 `payload.bare_envelope` → [作者作品列表缺最新几条，或者翻不了页](#作者作品列表缺最新几条或者翻不了页)。
+- `bilibili.author_posts` 上带 HTTP 412 的 `http.risk_status` → 见下一小节。
+
+### B 站 UP 主投稿列表返回 HTTP 412
+
+**症状。** `/api/v1/bilibili/user/posts` 返回 `UPSTREAM_RISK_CONTROL`，日志页上 `bilibili.author_posts` 的行是 HTTP 412、规则为 `http.risk_status`。
+
+**含义。** UP 主投稿列表是 B 站防得最严的接口。这个请求本来就带了 WBI 签名，也带上了空间页自己会发的 canvas/WebGL 报告（`dm_img_*`），但这没用：同一个出口的一阵密集请求，会在几分钟内一律拿到 HTTP 412 页面，不管请求头怎么写（实测）。本实例把它报成 `UPSTREAM_RISK_CONTROL` 并冷却该身份，这个判读是对的——被拒的是这个地址，接着从它发下一个请求只会让拒绝持续更久。
+
+**修复。** 把请求摊开，并给 B 站身份配上代理，别让它们都从同一个地址出去。正因为如此，这个接口的令牌桶已经是 B 站所有接口里最慢的；触发它的是从单一出口接连快速翻很多 UP 主，提高上限靠的是更多出口后面的更多身份，而不是更早地重试。
 
 ---
 
@@ -648,11 +659,19 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 **修复。** 导入一份登录态 Cookie，并让它只服务 `douyin.author_posts`；见[哪些内容需要登录身份](./06-identities-and-proxies.md#哪些内容需要登录身份)。如果 `details.cooling` 大于零，说明你已经有了，只是它在休息：等一等，或者打开它的抽屉点**检查登录态**——登录过期的会话会像访客一样被拒。登录账号飞快地翻很多作者的作品同样会被拒；放慢，或者加账号。
 
+### B 站评论只有三条
+
+**症状。** `/api/v1/bilibili/video/comments` 只返回三条评论，没有下一页，结果里带着 `meta.guest_fallback: true`。或者请求后面的页时返回 `IDENTITY_LOGIN_REQUIRED`（503）。
+
+**含义。** B 站只给访客一个视频最热的三条评论，并告诉它这就是最后一页（实测）。所以第一页在轮换里有已登录的 B 站身份时交给它，没有时回落到访客——并标上 `meta.guest_fallback`；之后的页只交给已登录身份，因为访客只会被告知没有更多了。`count` 改变不了这一点：B 站的评论接口不接受每页条数，这个参数会被接受然后忽略。单条评论的回复（`video/comments/replies`）不受影响——访客照常可以翻页。
+
+**修复。** 导入一份已登录的 B 站 Cookie——除了 `buvid3` 之外还带 `SESSDATA` 的那种——见 [B 站身份](./06-identities-and-proxies.md#b-站身份)。`SESSDATA` 就是登录态本身，请像对待密码一样对待这份 Cookie。如果你已经有了却仍然只拿到访客的三条，打开它的抽屉点**检查登录态**：B 站自己的应答能分清登录是否仍然有效，过期的会报 `signed_out`。
+
 ---
 
 ## UPSTREAM_UNREACHABLE 和这台服务器连不上的平台
 
-**症状。** 访问某一个平台的请求返回 `UPSTREAM_UNREACHABLE`（502）——最常见的是在中国大陆的服务器上访问 TikTok——而另一个平台正常。错误里带有 `details.endpoint`、`details.last_error`（`transport_failure`）和 `details.proxied`；请求日志里这些行没有 HTTP 状态码。更早的版本把同样的失败报成 `INTERNAL`。
+**症状。** 访问某一个平台的请求返回 `UPSTREAM_UNREACHABLE`（502）——最常见的是在中国大陆的服务器上访问 TikTok——而其它平台正常。错误里带有 `details.endpoint`、`details.last_error`（`transport_failure`）和 `details.proxied`；请求日志里这些行没有 HTTP 状态码。更早的版本把同样的失败报成 `INTERNAL`。
 
 **含义。** 每一次尝试都在平台应答之前就失败了：连接被拒、被重置或超时，或者中间的代理拒绝了它。调度器已经换过别的身份（换一个身份就是换一个出口），也都失败了。它和内容本身无关，也不会因此冷却任何身份。
 
@@ -690,7 +709,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 ### 用自检第 5 步确认
 
-第 5 步对同一个请求签两次——一次用原生算法，一次经 browser-rpc——然后比对。
+第 5 步对同一个请求签两次——一次用原生算法，一次经 browser-rpc——然后比对。它只覆盖抖音和 TikTok：browser-rpc 从不为 B 站签名，所以 B 站没有第二份签名可比。
 
 | 第 5 步结果 | 含义 | 该做什么 |
 |---|---|---|
@@ -703,13 +722,13 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 ### 手工复现一个签名
 
-`POST /api/v1/tools/sign` 为一个 URL 计算签名。它是纯算术——什么都不抓、不消耗身份——结果只取决于你传进去的东西。`stages` 会按层拆开，说明哪一层贡献了哪些参数、以及那一层有没有真的跑。
+`POST /api/v1/tools/sign` 为一个 URL 计算签名。对抖音和 TikTok 它是纯算术——什么都不抓、不消耗身份——结果只取决于你传进去的东西。B 站 URL 拿到的是 B 站的 WBI 签名（`w_rid` + `wts`），它要用站点公开发布的两把公钥来算，所以对 B 站这个工具确实会去取这两把公钥，最多每小时一次。`stages` 会按层拆开，说明哪一层贡献了哪些参数、以及那一层有没有真的跑。
 
 签名端和发送端有三样东西必须对齐，否则无论签名多正确平台都会拒绝：
 
-- **User-Agent。** 两个平台都把它哈希进签名。响应会回显实际使用的那一个；请原样发送。
+- **User-Agent。** 抖音和 TikTok 都把它哈希进签名。响应会回显实际使用的那一个；请原样发送。
 - **TLS 指纹。** TikTok 会检查它与 User-Agent 是否一致，所以 Chrome 的 UA 必须走 Chrome 的 TLS profile。裸 `curl` 无论签名多对都会被拒。
-- **一份 cookie。** 签名正确但没有 cookie 依然什么都拿不到：平台应答的是一个*会话*。`POST /api/v1/tools/identity` 可以铸一份（需要 browser-rpc）。在抖音上，cookie 还是 `x-secsdk-web-signature` 的计算对象——没有 visitor id，`headers` 会返回空，受签名保护的接口会点名 `uifid` 拒绝你。
+- **一份 cookie。** 签名正确但没有 cookie 依然什么都拿不到：平台应答的是一个*会话*。`POST /api/v1/tools/identity` 可以铸一份（抖音和 TikTok 需要 browser-rpc；B 站访客身份不需要浏览器）。在抖音上，cookie 还是 `x-secsdk-web-signature` 的计算对象——没有 visitor id，`headers` 会返回空，受签名保护的接口会点名 `uifid` 拒绝你。
 
 `POST /api/v1/tools/decode` 反过来读一个签名参数，用来核对别人给你的签名到底编了什么。两者都在控制台的**工具**页（`/tools`）上；见[调试台与工具](./07-playground-and-tools.md)。
 
@@ -717,24 +736,29 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 `signing.mode` 决定：`native`（默认，进程内，请求路径上没有浏览器）、`rpc`（驱动真实浏览器）、`auto`（平台自家 SDK 会签的接口优先走 rpc，其余走 native）。`signing.fallback_enabled`（默认开）允许首选签名器失败时改用另一个——**想知道到底是谁在扛你的流量，就把它关掉**，因为悄悄切换正是一个坏掉的签名器继续看起来很健康的方式：它的流量转移到了另一个上，成功率一点没掉。
 
+无论 `signing.mode` 怎么设，browser-rpc 都从不为 B 站签名：WBI 始终在进程内原生计算。
+
 每一行 `request_log` 的 `signer` 列记录本次是 `native` 还是 `browser`。
 
 ---
 
 ## 浏览器容器不可用
 
-**症状。** 自检第 1 步报 `warn`：*postgres and redis are reachable; browser-rpc is not*。或者铸造身份失败并返回 `NOT_CONFIGURED`。
+**症状。** 自检第 1 步报 `warn`：*postgres and redis are reachable; browser-rpc is not*。或者铸造抖音或 TikTok 身份失败并返回 `NOT_CONFIGURED`。
 
-**这是一种受支持的部署形态，不是降级形态。** browser-rpc 在一个 compose profile 后面，是整套栈里最重的容器——预热状态实测常驻 2.57 GiB、占用六个核的 Chromium。一个自己手工导入 cookie 的实例根本不需要它。
+**这是一种受支持的部署形态，不是降级形态。** browser-rpc 在一个 compose profile 后面，是整套栈里最重的容器——预热状态实测常驻 2.57 GiB、占用六个核的 Chromium。一个自己手工导入抖音和 TikTok cookie 的实例根本不需要它，而 B 站从来都不需要：它的访客身份通过普通 HTTP 铸造，签名始终在进程内原生计算。
 
 ### 没有它还能用什么
 
 | 能用 | 不能用 |
 |---|---|
-| 全部读取接口，用原生签名 | 自动铸造身份 |
-| 手工导入的 cookie | `POST /api/v1/tools/identity`（返回 `NOT_CONFIGURED`） |
-| 整个控制台、API、MCP、CLI | 自检第 5 步（跳过：没有可比对的对象） |
-| 就绪判定——RPC 连不上从不把实例摘出负载 | `signing.mode` 为 `rpc` 或 `auto` 时的浏览器签名兜底 |
+| 全部读取接口，用原生签名 | 自动铸造抖音和 TikTok 身份 |
+| 铸造 B 站访客身份，无论是自动补充还是 `POST /api/v1/tools/identity` | 为抖音和 TikTok 调用 `POST /api/v1/tools/identity`（返回 `NOT_CONFIGURED`） |
+| 手工导入的 cookie | 自检第 5 步（跳过：没有可比对的对象） |
+| 整个控制台、API、MCP、CLI | `signing.mode` 为 `rpc` 或 `auto` 时的浏览器签名兜底 |
+| 就绪判定——RPC 连不上从不把实例摘出负载 | |
+
+浏览器容器配了但挂了，同样拖不住 B 站。身份池补充器按铸造途径分别退避，所以浏览器铸造失败只会让抖音和 TikTok 的补充暂停，B 站的补充照常进行。
 
 ### 分清是没配还是挂了
 
@@ -887,8 +911,8 @@ MCP 服务器挂在 API 进程的 `/mcp` 上（streamable-http），也可以用
 | `GET /mcp` 返回 404 或跳转异常 | Mount 只匹配它**下面**的路径 | 端点是 `/mcp/`。裸路径会返回 `307` 跳到它并保留方法和 body，多数客户端会跟随——但请直接配 `/mcp/` |
 | `401 UNAUTHENTICATED` | 没带 API 密钥，或密钥被拒绝 | 发 `Authorization: Bearer <key>` 或 `X-API-Key: <key>`。**控制台会话 cookie 在这里永远不被接受**——cookie 是给浏览器用的，接受它会让任何能从那个浏览器里发请求的东西都能碰到 MCP 端点 |
 | `401` 且提示 *this endpoint accepts API keys only* | 你用的是控制台会话 | 在 `/api-keys` 铸一个 API 密钥 |
-| 连接时 `403 FORBIDDEN_SCOPE` | 密钥完全没有任何平台读取 scope | 给它 `douyin:read` 或 `tiktok:read` |
-| 某次工具调用 `403 FORBIDDEN_SCOPE` | 密钥能读一个平台，而这次调用点的是另一个 | 传输层只能检查密钥能读*某个*平台；具体平台在 JSON-RPC body 里，所以按调用再检查一次。与 REST 同一套规则，这是刻意的 |
+| 连接时 `403 FORBIDDEN_SCOPE` | 密钥完全没有任何平台读取 scope | 给它 `douyin:read`、`tiktok:read` 或 `bilibili:read` |
+| 某次工具调用 `403 FORBIDDEN_SCOPE` | 密钥能读一个平台，而这次调用点的是别的平台 | 传输层只能检查密钥能读*某个*平台；具体平台在 JSON-RPC body 里，所以按调用再检查一次。与 REST 同一套规则，这是刻意的 |
 | `429 RATE_LIMITED` | 与 REST 同一套防滥用限额 | 见[被限流](#被限流) |
 | api 扩容之后会话断掉 | 会话默认是无状态的，好让 API 水平扩展 | 无需处理；钉住会话的话，第二个进程一起来就会坏 |
 

@@ -1,7 +1,7 @@
 # 快速开始
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/01-quickstart.md)
 
 读完这一页，你会在一台主机上跑起整套服务、创建好管理员账号，并成功解析第一条链接——
@@ -116,27 +116,30 @@ EOF
 身份只有两个来源，其中一个属于可选的基础设施。
 
 **跑浏览器容器**（`--profile browser`，并把 `DTK_BROWSER_RPC_URL` 指向它）：
-无头浏览器会自动铸造访客身份。worker 每 60 秒检查一次每个平台，**每次只铸造一个
+无头浏览器会自动铸造抖音和 TikTok 的访客身份。worker 每 60 秒检查一次每个平台，**每次只铸造一个
 身份**，失败时指数退避，直到身份池从低水位 `pool.min_size`（默认 3）回到
 `pool.target_size`（默认 8）。因此补池要花上几分钟，这是有意为之：
 一秒之内从同一个部署里冒出五位“新访客”，本身就比这些身份之后的任何行为都更像异常。
 
-**不跑它**（默认状态，`DTK_BROWSER_RPC_URL` 为空）：补池任务被整个跳过，
-**身份池一开始就是空的，而且会一直空着**。具体表现为：
+B 站是这一整步的例外。它的访客身份铸造不需要浏览器——经实例自己的传输层和身份的代理
+发出一次普通 HTTP 请求即可——所以不管有没有浏览器容器，worker 都会照常把 B 站身份池补满。
 
-- 控制台「身份池」页面显示无法铸造，初始化向导的铸造步骤也会直接说明，
-  而不是报错。
+**不跑它**（默认状态，`DTK_BROWSER_RPC_URL` 为空）：没有任何东西会铸造抖音和 TikTok 的身份，
+**这两个身份池一开始就是空的，而且会一直空着**。具体表现为：
+
+- 控制台「身份池」页面显示抖音和 TikTok 无法铸造（B 站仍可铸造），初始化向导的铸造步骤
+  只提供 B 站并说明原因，而不是报错。
 - `POST /api/v1/admin/identities/mint` 依然会受理请求——它返回 `202` 和 `task_ids`——
-  随后排队的任务以 `501 NOT_CONFIGURED` 失败，消息是“本实例未配置该功能。”，
+  对抖音或 TikTok，随后排队的任务以 `501 NOT_CONFIGURED` 失败，消息是“本实例未配置该功能。”，
   并带上 `error.details.reason: "browser_rpc_unconfigured"`。mint 调用不接受 `?wait=`，
   所以这个结论要在任务上（`GET /api/v1/tasks/<task_id>`）或控制台里看，
   而不是在 mint 本身的响应里。
-- 所有内容请求都会失败，返回 `503 IDENTITY_POOL_EXHAUSTED` ——
-  “当前无可用身份，预计 N 秒后恢复” —— 直到你至少导入一份 cookie。
+- 抖音和 TikTok 的所有内容请求都会失败，返回 `503 IDENTITY_POOL_EXHAUSTED` ——
+  “当前无可用身份，预计 N 秒后恢复” —— 直到你为该平台至少导入一份 cookie。
 
 不跑浏览器是受支持的部署方式，不是坏掉的部署：手动导入 cookie 的用户不需要整套
 服务里最重的那个容器，而且当 `browser-rpc` 不可达时，身份池会自动退回到手动导入。
-但它确实不是开箱即用。二选一：
+但对抖音和 TikTok 来说，它确实不是开箱即用。二选一：
 
 | 路线 | 怎么做 | 代价 |
 |---|---|---|
@@ -291,7 +294,7 @@ User-Agent 要填同一个浏览器会话的，好让指纹和 cookie 对得上�
 
 1. 在左侧目录里选 `POST /api/v1/parse`。
 2. 在 `url` 里填分享链接、作品原始 URL，或者平台 App 复制出来的整段剪贴板文本。
-   短链（`v.douyin.com`、`vm.tiktok.com`）会自动跟随。
+   短链（`v.douyin.com`、`vm.tiktok.com`、`b23.tv`）会自动跟随。
 3. 把 `wait` 设成 `20` 之类的值。
 4. 提交。
 
@@ -305,12 +308,13 @@ request id、这次调用用的是哪个身份、该接口的熔断器此刻是�
 控制台用的是会话 Cookie。程序应该用 API Key，因为 Key 带权限范围，而且可以单独撤销。
 
 进入**「API Key」→「创建密钥」**。取一个在审计日志里一眼能认出来的名字，
-只勾选它真正需要的权限——本文这一遍只要 `douyin:read` 和 `tiktok:read`。
+只勾选它真正需要的权限——本文这一遍只要 `douyin:read`、`tiktok:read` 和 `bilibili:read`。
 
 | 权限范围 | 开放了什么 |
 |---|---|
 | `douyin:read` | 抖音的解析、作品、作者、评论接口 |
 | `tiktok:read` | TikTok 的同类接口 |
+| `bilibili:read` | B 站的同类接口 |
 | `archive:read` | 本实例已经采集到的内容，直接由本地存储返回 |
 | `archive:export` | 一次请求遍历整个归档——这是唯一一个能把只读 Key 变成一份数据库副本的调用 |
 | `media:read` | 服务器磁盘上存了哪些媒体、占了多少空间 |
@@ -457,7 +461,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose
 | api 日志里没有初始化横幅 | 已经存在账号——令牌只在 `users` 表为空时签发。改从 `/login` 登录。 |
 | `SETUP_TOKEN_INVALID` | 令牌过期、已被用掉，或者因五次错误被作废。`docker compose -p dtk -f docker/compose.yml restart api` 会重新打印仍然有效的令牌，若旧的已失效则签发新的。 |
 | `503 IDENTITY_POOL_EXHAUSTED` | 身份池里没有可用身份。铸造一个，或导入一份 cookie。见第 3 步。 |
-| 铸造任务以 `501 NOT_CONFIGURED` 失败（mint 调用本身返回的是 `202`） | 没有浏览器容器。启动 `--profile browser` 并设置 `DTK_BROWSER_RPC_URL`，或者改用导入 cookie。 |
+| 铸造任务以 `501 NOT_CONFIGURED` 失败（mint 调用本身返回的是 `202`） | 没有浏览器容器，而平台是抖音或 TikTok——B 站不需要它。启动 `--profile browser` 并设置 `DTK_BROWSER_RPC_URL`，或者改用导入 cookie。 |
 | `browser-rpc` 不健康，日志说 "not installed in this image" | 构建时没传 `CLOAKBROWSER_COMMIT`——这个值在构建时从 shell 读取，不从根目录 `.env` 读。 |
 | 铸造总是超时 | 代理连不上目标平台。先单独测代理，再怀疑浏览器。 |
 | 密码正确却返回 `RATE_LIMITED` | 按账号计数的登录限制是真的锁定：五次失败，锁十五分钟。等待，或者清掉计数器——见[故障排查](./14-troubleshooting.md)。 |

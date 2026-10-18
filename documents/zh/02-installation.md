@@ -1,7 +1,7 @@
 # 安装与部署
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/02-installation.md)
 
 这篇文档带你从一台空机器走到一个可以放着不管的实例，并把 compose 文件讲清楚到你敢改它的程度。读完之后，
@@ -123,7 +123,7 @@ Docker 拒绝启动一个要求的核数多于宿主机的容器。这是硬报�
 
 | 档位 | 规格 | 能做什么 | 要不要改 compose |
 |---|---|---|---|
-| 不跑浏览器 | 1 vCPU / 2 GiB | 手动导入 cookie，无自动铸造。四个核心容器静息合计约 295 MiB | 不用，别加 `--profile browser` 就行 |
+| 不跑浏览器 | 1 vCPU / 2 GiB | 抖音和 TikTok 手动导入 cookie；只有不需要浏览器的 B 站会自动铸造。四个核心容器静息合计约 295 MiB | 不用，别加 `--profile browser` 就行 |
 | 完整（最低） | 2 vCPU / 4 GiB **+ swap** | 全部功能 | **要**，见下面的覆盖文件 |
 | 完整（推荐） | 4 vCPU / 8 GiB | 全部功能 | 不用 |
 
@@ -326,7 +326,7 @@ docker info | grep -A3 "Registry Mirrors"   # 没打印出来就是没生效
 [构建浏览器镜像：CloakBrowser 版本固定](#构建浏览器镜像cloakbrowser-版本固定)）。它的构建过程要访问 Debian
 的 apt 源、PyPI、GitHub（CloakBrowser 是用 `pip install "cloakbrowser @ git+https://github.com/…"` 装的），
 还要再下一个浏览器二进制。**这是整条链路上对网络最挑剔的一步**，下面几节多半是为它准备的。如果你暂时不需要自动铸造
-身份，可以先不开 `browser` profile——导入自己的 Cookie 一样能跑。
+抖音或 TikTok 的身份，可以先不开 `browser` profile——导入自己的 Cookie 一样能跑，而 B 站身份本来就不靠它铸造。
 
 ### 系统软件源
 
@@ -454,7 +454,7 @@ npm config get registry
 | `migrate` | `dtk-app` | 默认 | 否 | 一次性任务：执行迁移后退出，其余服务都等它 |
 | `api` | `dtk-app` | 默认 | 否 | REST API、MCP、控制台、`/healthz` 和 `/readyz`；唯一对外发布端口的服务 |
 | `worker` | `dtk-app` | 默认 | 否 | 领取任务，驱动调度器和身份池，跑后台作业 |
-| `browser-rpc` | `dtk-browser-rpc` | `browser` | **是** | 无头浏览器：铸造游客身份，以及可选的签名兜底 |
+| `browser-rpc` | `dtk-browser-rpc` | `browser` | **是** | 无头浏览器：铸造抖音和 TikTok 的游客身份，以及给它们做可选的签名兜底 |
 | `downloader` | `dtk-downloader` | `downloader` | **是** | 把媒体文件写到数据卷上的 Go sidecar |
 | `transcriber` | `dtk-transcriber` | `transcriber` | **是** | 离线 FunASR 语音转文字，处理已下载的视频；没有任何网络出口 |
 
@@ -622,9 +622,10 @@ API 会打印一段横幅，里面是形如 `http://127.0.0.1:8000/setup?token=�
 
 ### browser-rpc（profile `browser`）
 
-一个包着无头浏览器的小型 FastAPI 服务，两项职责都不在热路径上：通过身份自己的代理铸造游客身份；以及在进程内
-算法失效时，用平台自己的 JavaScript 来签名。它的 RPC 接口是 `POST /rpc/mint`、`POST /rpc/sign` 和
-`GET /rpc/health`。
+一个包着无头浏览器的小型 FastAPI 服务，两项职责都不在热路径上：通过身份自己的代理铸造抖音和 TikTok 的游客身份；
+以及在进程内算法失效时，用平台自己的 JavaScript 给它们的请求签名。它的 RPC 接口是 `POST /rpc/mint`、
+`POST /rpc/sign` 和 `GET /rpc/health`。B 站两项都用不上：它的游客身份由 worker 走普通 HTTP 铸造，WBI 签名
+无论 `signing.mode` 怎么设都在进程内计算。
 
 它是整套栈里最重的东西，也是资源上限存在的原因。热态实测 2.57 GiB、629% CPU——实打实用掉六个核的 Chromium。
 4 核的上限是刻意压在它之下的：签名和铸造都不在请求路径上，所以机器忙的时候，该让路的正是这个服务。
@@ -686,7 +687,7 @@ PID 1 必须去回收。
 
 这几个 profile 默认都不启动。不开其中任何一个都是受支持的部署形态，不是残缺状态。
 
-**browser profile** 给你自动身份铸造和浏览器签名兜底：
+**browser profile** 给你抖音和 TikTok 的自动身份铸造和浏览器签名兜底（B 站两样都不需要）：
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
@@ -695,7 +696,8 @@ CLOAKBROWSER_COMMIT="<40-char sha>" \
 ```
 
 需要同时满足两件事：容器要跑起来（profile），并且要告诉 `api` 和 `worker` 它在哪（`.env` 里的
-`DTK_BROWSER_RPC_URL`）。不设的话，它们就只走手动导入——你从浏览器里把 cookie 粘进来，身份池照此工作。这是
+`DTK_BROWSER_RPC_URL`）。不设的话，抖音和 TikTok 就只走手动导入——你从浏览器里把 cookie 粘进来，这两个身份池照此工作，而 B 站照常自己
+铸造游客身份。这是
 正确的降级模式而不是错误状态，而且当 `browser-rpc` 不可达时，身份池会自己退回到这条路。参见
 [身份与代理](./06-identities-and-proxies.md)。
 
@@ -848,7 +850,7 @@ docker compose -p dtk -f docker/compose.yml config
 | `DTK_BIND_PORT` | `8000` | 监听端口。在 api 容器内被钉为 `8000` |
 | `DTK_LOG_LEVEL` | `info` | 日志级别 |
 | `DTK_LOG_JSON` | `true` | 结构化 JSON 日志。排查问题时可以设成 `false` 以获得人类可读的输出 |
-| `DTK_BROWSER_RPC_URL` | *(空)* | `browser-rpc` 在哪。空表示关闭自动铸造，身份池转而依赖手动导入 |
+| `DTK_BROWSER_RPC_URL` | *(空)* | `browser-rpc` 在哪。空表示关闭抖音和 TikTok 的自动铸造，这两个身份池转而依赖手动导入。B 站的铸造不需要它 |
 | `DTK_BACKUP_DIR` | `backups` | 备份归档写入和列举的目录。镜像里被设为 `/var/lib/dtk/backups`；相对路径的默认值适合源码检出 |
 | `DTK_DOWNLOADER_URL` | *(空)* | downloader sidecar 在哪。空表示完全关闭媒体下载 |
 | `DTK_DOWNLOADER_TOKEN` | *(空)* | 该 sidecar 的可选共享密钥。空表示 sidecar 不做校验。两侧必须一致 |
@@ -1465,10 +1467,10 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/healthz    # 期�
 
 **可选组件**
 
-`browser-rpc`（自动铸造身份）、`downloader`（媒体落盘）和 `transcriber`（把已存视频转成文字）在裸机上是
+`browser-rpc`（自动铸造抖音和 TikTok 的身份）、`downloader`（媒体落盘）和 `transcriber`（把已存视频转成文字）在裸机上是
 **额外的进程**，各有各的依赖：第一个要一份独立的 Python 环境加 CloakBrowser 和 Chromium，第二个要 Go 工具链
 编一个二进制，最后一个又是一份 Python 环境，带 ONNX Runtime、ffmpeg 和模型。都可以不装——不装浏览器就靠
-手工导入 Cookie，不装下载器或转写，对应的 `POST` 返回 `501` 并说明原因。
+手工导入抖音和 TikTok 的 Cookie，不装下载器或转写，对应的 `POST` 返回 `501` 并说明原因。
 
 只想要其中一个而不想手工装的话，混着来是完全可以的：应用跑在裸机上，这些 sidecar 用
 `docker compose --profile browser --profile downloader` 起，然后把 `DTK_BROWSER_RPC_URL` 和

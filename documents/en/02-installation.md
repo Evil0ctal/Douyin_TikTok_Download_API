@@ -1,8 +1,8 @@
 # Installation and deployment
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/02-installation.md)
 
 This page takes you from an empty host to a running instance you can leave alone, and explains
@@ -135,7 +135,7 @@ is a hard error, not a cap that degrades quietly.
 
 | Size | Spec | What you get | Compose changes |
 |---|---|---|---|
-| No browser | 1 vCPU / 2 GiB | Manual cookie import, no automatic minting. The four core containers idle at about 295 MiB | None — just leave `--profile browser` off |
+| No browser | 1 vCPU / 2 GiB | Manual cookie import for Douyin and TikTok; only Bilibili, which needs no browser, is minted automatically. The four core containers idle at about 295 MiB | None — just leave `--profile browser` off |
 | Full, minimum | 2 vCPU / 4 GiB **plus swap** | Everything | **Yes**, see the override below |
 | Full, recommended | 4 vCPU / 8 GiB | Everything | None |
 
@@ -373,8 +373,8 @@ Sources, most to least reliable:
 Its build reaches Debian's apt repositories, PyPI, GitHub (CloakBrowser installs as
 `pip install "cloakbrowser @ git+https://github.com/…"`) and then downloads a browser binary.
 **This is the most network-sensitive step in the whole install**, and most of what follows exists for
-it. If you do not need minted identities yet, leave the `browser` profile off — importing your own
-cookies works without it.
+it. If you do not need minted Douyin or TikTok identities yet, leave the `browser` profile off —
+importing your own cookies works without it, and Bilibili identities are minted without it anyway.
 
 ### System package mirrors
 
@@ -516,7 +516,7 @@ directly](./06-identities-and-proxies.md#a-platform-this-server-cannot-reach-dir
 | `migrate` | `dtk-app` | default | no | One-shot: applies migrations, exits; everything else waits for it |
 | `api` | `dtk-app` | default | no | REST API, MCP, the console, `/healthz` and `/readyz`; the only published port |
 | `worker` | `dtk-app` | default | no | Claims tasks, drives the scheduler and identity pool, runs background jobs |
-| `browser-rpc` | `dtk-browser-rpc` | `browser` | **yes** | Headless browser: mints guest identities, optional signing fallback |
+| `browser-rpc` | `dtk-browser-rpc` | `browser` | **yes** | Headless browser: mints Douyin and TikTok guest identities, optional signing fallback for them |
 | `downloader` | `dtk-downloader` | `downloader` | **yes** | Go sidecar that writes media files to a volume |
 | `transcriber` | `dtk-transcriber` | `transcriber` | **yes** | Offline FunASR speech-to-text for stored videos; no network route |
 
@@ -714,9 +714,11 @@ identity's quota.
 ### browser-rpc (profile `browser`)
 
 A small FastAPI service wrapping a headless browser, with two jobs, both off the hot path: mint
-guest identities through an identity's own proxy, and sign requests with the platform's own
-JavaScript when the in-process algorithm has drifted. Its RPC surface is `POST /rpc/mint`,
-`POST /rpc/sign` and `GET /rpc/health`.
+Douyin and TikTok guest identities through an identity's own proxy, and sign their requests with the
+platform's own JavaScript when the in-process algorithm has drifted. Its RPC surface is
+`POST /rpc/mint`, `POST /rpc/sign` and `GET /rpc/health`. Bilibili needs neither job: its guests are
+minted over plain HTTP by the worker, and its WBI signature is always computed in-process, whatever
+`signing.mode` says.
 
 It is the heaviest thing in the stack and the reason the resource limits exist. Warm, it was
 measured at 2.57 GiB and 629% CPU — six cores' worth of Chromium. The cap of 4 cores is deliberately
@@ -789,7 +791,8 @@ instead of accepting jobs it cannot run.
 
 None of them starts by default. Leaving one off is a supported deployment, not a broken one.
 
-**The browser profile** gives you automatic identity minting and the browser signing fallback:
+**The browser profile** gives you automatic Douyin and TikTok identity minting and the browser
+signing fallback (Bilibili needs neither):
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
@@ -798,8 +801,9 @@ CLOAKBROWSER_COMMIT="<40-char sha>" \
 ```
 
 Two separate things have to be true: the container has to be running (the profile), and `api` and
-`worker` have to be told where it is (`DTK_BROWSER_RPC_URL` in `.env`). Left unset, they run
-manual-import only — you paste cookies in from a browser and the pool works from those. That is the
+`worker` have to be told where it is (`DTK_BROWSER_RPC_URL` in `.env`). Left unset, Douyin and
+TikTok run manual-import only — you paste cookies in from a browser and those pools work from them,
+while Bilibili keeps minting its own guests. That is the
 correct degraded mode rather than an error, and the pool falls back to it on its own when
 `browser-rpc` is unreachable. See [Identities and proxies](./06-identities-and-proxies.md).
 
@@ -967,7 +971,7 @@ database is reachable. Changing one requires a restart. They are the complete co
 | `DTK_BIND_PORT` | `8000` | Listen port. Pinned to `8000` inside the api container |
 | `DTK_LOG_LEVEL` | `info` | Log level |
 | `DTK_LOG_JSON` | `true` | Structured JSON logs. Set `false` for human-readable output while debugging |
-| `DTK_BROWSER_RPC_URL` | *(empty)* | Where `browser-rpc` is. Empty disables automatic minting; the pool then relies on manual imports |
+| `DTK_BROWSER_RPC_URL` | *(empty)* | Where `browser-rpc` is. Empty disables automatic Douyin and TikTok minting; those pools then rely on manual imports. Bilibili is minted without it |
 | `DTK_BACKUP_DIR` | `backups` | Where backup archives are written and listed from. The image sets it to `/var/lib/dtk/backups`; the relative default suits a source checkout |
 | `DTK_DOWNLOADER_URL` | *(empty)* | Where the downloader sidecar is. Empty disables media downloads entirely |
 | `DTK_DOWNLOADER_TOKEN` | *(empty)* | Optional shared secret for that sidecar. Empty means the sidecar checks nothing. It must match on both sides |
@@ -1632,12 +1636,12 @@ is in [Security](./15-security.md).
 
 **The optional components**
 
-`browser-rpc` (automatic identity minting), `downloader` (media on disk) and
+`browser-rpc` (automatic Douyin and TikTok minting), `downloader` (media on disk) and
 `transcriber` (text from stored videos) are **more processes** on bare metal,
 each with its own dependencies: a separate Python environment plus CloakBrowser
 and Chromium for the first, a Go toolchain for the second, and a third Python
 environment with ONNX Runtime, ffmpeg and the models for the last. All are
-optional — without the browser you import cookies by hand, and without the
+optional — without the browser you import Douyin and TikTok cookies by hand, and without the
 downloader or the transcriber the matching `POST` answers `501` and says why.
 
 Mixing is entirely fine if you want one of them without installing it by hand:

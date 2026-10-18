@@ -1,8 +1,8 @@
 # Contributing
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/16-contributing.md)
 
 This page is for someone who wants to change the code. After reading it you will be able to set up a development environment, find your way around the tree, run the API, the worker and the console locally, run every layer of the test suite, and get a change past the gates CI enforces.
@@ -96,7 +96,7 @@ Inside `src/dtk/`:
 | `identity/` | The identity pool, cookie import, the mint log, and the browser-rpc client. |
 | `mcp/` | The MCP server. It calls the service layer directly, not this project's own HTTP API. |
 | `media/` | The client for the Go downloader sidecar, its CDN host allowlist, and the download plan. |
-| `models/` | The normalized domain models (`Content`, `Author`, `Comment`, `Page`) both platforms produce. |
+| `models/` | The normalized domain models (`Content`, `Author`, `Comment`, `Page`) every platform produces. |
 | `ops/` | Health, backup, notifications, diagnostics, retention, masking, webhooks — everything an operator needs and no diagram shows. |
 | `platforms/` | One subpackage per platform. Endpoint tables, parameter builders, parsers. **No IO of any kind.** |
 | `scheduler/` | Ranking, leases, token buckets, circuit breaker, per-endpoint policy. |
@@ -244,9 +244,9 @@ make test-unit          # uv run pytest tests/unit tests/replay -q
 
 No services, no network, no configuration. Unit tests cover the scheduler maths, the signing algorithms, URL parsing, the worker's classification, the ops modules, the CLI, and a set of repository hygiene checks described under [Code style](#code-style).
 
-Replay tests feed stored response bodies straight into the platform parsers — `dict` in, model out, no IO — which is only possible because parsers are pure functions. They also assert **normalization parity**: for the same logical object both platforms must produce the same field set, differing only in which fields are `None`. A per-platform test cannot notice when the two drift apart.
+Replay tests feed stored response bodies straight into the platform parsers — `dict` in, model out, no IO — which is only possible because parsers are pure functions. They also assert **normalization parity**: for the same logical object every platform must produce the same field set, differing only in which fields are `None`. A per-platform test cannot notice when they drift apart.
 
-`tests/fixtures/<platform>/` holds eleven JSON files per platform, one per response shape (a normal video, an image album, a deleted post, a private post, a long description, a profile, a post page, comments, replies, and two risk-control shapes). Read `tests/fixtures/README.md` before adding or replacing one — it carries the redaction rules, and `tests/replay/test_platform_contract.py` fails the build on a fixture containing a credential-shaped key.
+`tests/fixtures/<platform>/` holds one JSON file per response shape. Douyin and TikTok have eleven each (a normal video, an image album, a deleted post, a private post, a long description, a profile, a post page, comments, replies, and two risk-control shapes); Bilibili has its own fourteen, because its shapes differ — no image albums, and a video detail that is followed by a second answer carrying the stream. Read `tests/fixtures/README.md` before adding or replacing one — it carries the redaction rules, and `tests/replay/test_platform_contract.py` fails the build on a fixture containing a credential-shaped key.
 
 Know what those fixtures currently are: **every one of them was written by hand from V4's parsing and request code**, not captured from a live platform, and they are meant to be replaced by real captures before release. That is what the README says, and `test_fixture_readme_states_they_are_hand_built` pins the warning so it cannot quietly be edited away. Until the captures land, a green replay run means "the parsers do what we think the platform does", not "the parsers match the platform".
 
@@ -345,7 +345,7 @@ Two of those are worth understanding rather than working around. `E501` is off b
 
 **mypy** (`[tool.mypy]`): Python 3.12, `packages = ["dtk"]`, `mypy_path = "src"`, `ignore_missing_imports = true`, `warn_unused_ignores = true`. `uv run mypy` with no arguments checks the right thing.
 
-It is not globally strict, and that is a deliberate gradient: three packages — `dtk.platforms.*`, `dtk.models.*`, `dtk.scheduler.*` — additionally set `disallow_untyped_defs`. Those are the ones where an untyped function is genuinely dangerous: the data contract both platforms have to satisfy, and the arithmetic that decides which identity gets used.
+It is not globally strict, and that is a deliberate gradient: three packages — `dtk.platforms.*`, `dtk.models.*`, `dtk.scheduler.*` — additionally set `disallow_untyped_defs`. Those are the ones where an untyped function is genuinely dangerous: the data contract every platform has to satisfy, and the arithmetic that decides which identity gets used.
 
 **ESLint** (`web/eslint.config.js`): the recommended JS and TypeScript sets, `react-hooks`, plus `@typescript-eslint/no-explicit-any` and `no-non-null-assertion` as errors and three rules written for this project — see the next section.
 
@@ -405,7 +405,7 @@ The example below adds a capability to an existing platform. Adding a whole plat
 
 2. **Build the query string.** Add the builder to `src/dtk/platforms/<platform>/params.py`. Values are left un-encoded — percent-encoding happens once, in the transport layer, because the signature is computed over the encoded query string and encoding twice was a recurring source of V4 signature failures. Browser-shaped values (screen size, browser version, language) arrive as a `ClientProfile` rather than being hardcoded, so that the query agrees with the identity's User-Agent and TLS emulation.
 
-3. **Parse the response.** Add or extend a parser in `parser.py` and expose it on the adapter. Use the helpers in `src/dtk/platforms/common.py` so both platforms make the same decision about the same ambiguity: absent is `None` and never `0` or `""`, identifiers are `str`, a missing required field raises `UpstreamChanged` with its path.
+3. **Parse the response.** Add or extend a parser in `parser.py` and expose it on the adapter. Use the helpers in `src/dtk/platforms/common.py` so every platform makes the same decision about the same ambiguity: absent is `None` and never `0` or `""`, identifiers are `str`, a missing required field raises `UpstreamChanged` with its path.
 
 4. **Give it a scheduling policy.** Add an `EndpointPolicy` to `src/dtk/scheduler/policies.py`. This is not optional in practice: `tests/unit/test_policy_coverage.py` fails if a registered endpoint has no explicit policy, because a mismatch does not raise — it silently falls through to `DEFAULT_POLICY` and every tuned quota stops applying with nothing to say so. The same test rejects a policy naming an endpoint that no longer exists, and asserts the shape of a sane policy: `max_concurrency == 1`, refill at most 1/s, burst between 1 and 10, `risk_weight >= 1.0`.
 
@@ -413,7 +413,7 @@ The example below adds a capability to an existing platform. Adding a whole plat
 
 5. **Wire the caller-facing name.** In `src/dtk/worker/registry.py`, add the `Capability` value if it is new, then an entry in `_ARGUMENTS` mapping canonical parameters (`content_id`, `author_id`, `unique_id`, `mix_id`, `comment_id`, `cursor`, `count`) onto that platform's own argument names, and an entry in `_CACHE_TTL_KEYS`. The registry checks your mapping against the real builder signature at import time, so a typo is an import error rather than a runtime one.
 
-   Capabilities in `P0_CAPABILITIES` are required of every platform. Everything else is optional and declared per platform, because the platforms genuinely differ — TikTok exposes playlists as their own list, Douyin serves an author's likes only to a signed-in identity. The endpoint health board, `GET /api/v1/admin/endpoints/health`, lists every declared endpoint per platform, so a console operator can see which capability exists where; an ordinary caller discovers it from the `UNSUPPORTED_CONTENT` error, whose `details.supported` names the platforms that do serve the operation.
+   Capabilities in `P0_CAPABILITIES` are required of every platform. Everything else is optional and declared per platform, because the platforms genuinely differ — TikTok exposes playlists as their own list, Douyin serves an author's likes only to a signed-in identity, Bilibili serves no likes list at all. The endpoint health board, `GET /api/v1/admin/endpoints/health`, lists every declared endpoint per platform, so a console operator can see which capability exists where; an ordinary caller discovers it from the `UNSUPPORTED_CONTENT` error, whose `details.supported` names the platforms that do serve the operation.
 
 6. **Expose it.** A REST route in `src/dtk/api/routes/content.py`, declared with `openapi_extra={I18N_KEY: "<key>", **ASYNC_RESPONSES}`, and catalogue prose at `openapi.op.<key>.summary` / `.description` in both `src/dtk/i18n/locales/en.json` and `zh.json`. `tests/unit/test_i18n.py` and `tests/unit/test_openapi_completeness.py` fail on an operation with no prose, a parameter with no `description=`, or a Chinese document that is still in English. The route function's docstring is what FastAPI uses as the English description.
 

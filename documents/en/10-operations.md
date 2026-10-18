@@ -1,8 +1,8 @@
 # Operations
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/10-operations.md)
 
 This page is about day two and everything after it: keeping an instance healthy for months without babysitting it. After reading it you will know what the background loops do, how a settings change reaches a running process, how to take and restore a backup (and prove the restore works), how alerting is wired, what gets pruned and when, what to watch, and how to upgrade without losing anything.
@@ -437,12 +437,15 @@ Each `(identity, endpoint)` pair has a token bucket, and each identity serves **
 
 | Endpoint | Burst | Refill | Per identity |
 | --- | --- | --- | --- |
-| `*.content_detail` | 5 | 0.30/s | 18 requests/min |
+| `*.content_detail`, `bilibili.content_streams` | 5 | 0.30/s | 18 requests/min |
 | `*.author_profile` | 4 | 0.20/s | 12 requests/min |
 | `*.comments`, `*.comment_replies`, `*.mix_posts` | 3 | 0.15/s | 9 requests/min |
-| `*.author_posts`, `*.author_likes`, `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12/s | 7.2 requests/min |
+| `douyin.author_posts`, `tiktok.author_posts`, `*.author_likes`, `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12/s | 7.2 requests/min |
+| `bilibili.author_posts` | 2 | 0.08/s | 4.8 requests/min |
 | `*.session_check` | 3 | 0.20/s | 12 requests/min |
 | anything unregistered | 3 | 0.15/s | 9 requests/min |
+
+Two Bilibili rows are there for a reason. A Bilibili video detail is two upstream requests — the detail, then `bilibili.content_streams` for the playable file the detail does not carry — so it spends a token from each bucket, and the second runs at the detail's rate so a detail never waits on it. `bilibili.author_posts`, an uploader's video list, is the slowest bucket in the table because it is the endpoint Bilibili guards hardest: a burst of requests from one egress gets HTTP 412 pages for a few minutes — see [Troubleshooting](./14-troubleshooting.md#http-412-on-a-bilibili-uploaders-video-list).
 
 So:
 

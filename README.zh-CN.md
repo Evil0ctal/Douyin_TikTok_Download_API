@@ -7,7 +7,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-🚀 自部署的[抖音](https://www.douyin.com) / [TikTok](https://www.tiktok.com)数据接口服务。一条 `docker compose up`，自动维护身份池，对外提供 REST API、MCP 与 Web 控制台。
+🚀 自部署的[抖音](https://www.douyin.com) / [TikTok](https://www.tiktok.com) / [B 站（哔哩哔哩）](https://www.bilibili.com)数据接口服务。一条 `docker compose up`，自动维护身份池，对外提供 REST API、MCP 与 Web 控制台。
 
 开源、免费、跑在你自己的机器上 —— 不用注册、没有配额、链路上没有第三方。它能取作品、作者、评论和搜索，下载视频和图集时拿到的是**无水印**的流（它挑的是平台本来就提供的那条干净流，而不是「去掉」了什么），采集到的内容存在你自己的 PostgreSQL 里。下载下来的视频可以在同一台机器上离线转成文字，AI agent 也能通过 MCP 直接调用这一切。
 
@@ -113,12 +113,13 @@ v4 最大的问题从来不是功能少，而是**接口会悄悄死掉，而你
 | 访问控制 | 没有，谁都能调 | API Key + 作用域 + 角色，控制台里管 |
 | 界面 | PyWebIO 单页 | React 控制台：身份池、调度器、资料库、下载、日志、诊断 |
 | 接入方式 | REST | REST + MCP + CLI，共用同一个 service 层 |
-| 签名 | X-Bogus、A_Bogus | a_bogus、X-Bogus、X-Gnarly、X-Dynosaur，纯 Python 实现，另有浏览器兜底 |
+| 签名 | X-Bogus、A_Bogus | a_bogus、X-Bogus、X-Gnarly、X-Dynosaur 和 B 站的 WBI，纯 Python 实现，另有浏览器兜底 |
 | 部署 | `pip install -r requirements.txt` + `python start.py` | `docker compose up`，三个镜像 |
-| 平台 | 抖音、TikTok、哔哩哔哩 | 抖音、TikTok |
+| 平台 | 抖音、TikTok、哔哩哔哩 | 抖音、TikTok、B 站 |
 
-哔哩哔哩是唯一退步的一项：v5 暂时没有。它和抖音 / TikTok 不共用签名和身份体系，
-重写时先放下了，之后再说。
+B 站曾经是 5.0 唯一退步的一项，因为它和抖音 / TikTok 不共用签名和身份体系。5.1.6
+把它加了回来，也补上了它自己需要的两样东西：纯 Python 的 WBI 签名，以及通过普通 HTTP
+铸造的游客身份——所以 B 站的身份池不需要浏览器容器。
 
 ### 还在用 v4？
 
@@ -186,22 +187,24 @@ v4 没有一键脚本，下面「快速开始」里那个装的是 v5。v4 就�
 群里可以互相交流学习，**不允许发广告以及违法的东西**，纯粹交朋友和技术交流。
 
 
-## 📦 它能从抖音和 TikTok 取什么
+## 📦 它能取什么
 
-| 能力 | 抖音 | TikTok |
-|---|:---:|:---:|
-| 单条作品详情（视频 / 图集） | ✅ | ✅ |
-| 作者资料 | ✅ | ✅ |
-| 作者作品列表 | ✅ | ✅ |
-| 作者喜欢列表 | ✅ | ✅ |
-| 合集 / 播放列表 | ✅ | ✅ |
-| 评论 | ✅ | ✅ |
-| 评论回复 | ✅ | ✅ |
-| 粉丝列表 | ❌ | ✅ |
-| 关注列表 | ❌ | ✅ |
+| 能力 | 抖音 | TikTok | B 站 |
+|---|:---:|:---:|:---:|
+| 单条作品详情（视频 / 图集） | ✅ | ✅ | ✅ |
+| 作者资料 | ✅ | ✅ | ✅ |
+| 作者作品列表 | ✅ | ✅ | ✅ |
+| 作者喜欢列表 | ✅ | ✅ | ❌ |
+| 合集 / 播放列表 | ✅ | ✅ | ❌ |
+| 评论 | ✅ | ✅ | ✅ |
+| 评论回复 | ✅ | ✅ | ✅ |
+| 公开收藏夹及其内容 | ❌ | ✅ | ✅ |
+| 粉丝列表 | ❌ | ✅ | ❌ |
+| 关注列表 | ❌ | ✅ | ❌ |
 
 抖音的粉丝和关注列表只对已登录会话开放，游客身份拿不到，所以这两个接口干脆没注册：
 注册一个永远返回空页的接口没意义。导入你自己的登录 Cookie 之后，其余接口能看到的内容也会更多。
+这一点在 B 站的评论上最明显：游客只能看到最热的三条，导入登录身份之后才能看到完整评论。
 
 媒体下载、内容归档、计数快照、合集、定时监控都是内置的，不需要额外服务。
 
@@ -247,7 +250,7 @@ claude mcp add --transport http dtk http://127.0.0.1:8000/mcp/ \
 [准备 FunASR ONNX 模型](./documents/zh/18-funasr-models.md)和
 [把已存的视频转成文字](./documents/zh/08-downloads-and-library.md#把已存的视频转成文字)。
 
-## 🔗 它认得哪些抖音 / TikTok 链接
+## 🔗 它认得哪些链接
 
 粘贴什么都行——分享短链、作品页地址，或者 App 复制出来的一整段带文案的口令：
 
@@ -258,10 +261,15 @@ https://www.douyin.com/jingxuan?modal_id=7660875690212492466
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 https://www.tiktok.com/t/ZTR9nkkmL/
 2.84 nqe:/ 骑白马的也可以是公主%%百万转场变身 https://v.douyin.com/L4FJNR3/ 复制此链接，打开Dou音搜索
+https://www.bilibili.com/video/BV1xx411c7mD
+https://www.bilibili.com/video/av170001
+https://b23.tv/<code>
+https://space.bilibili.com/2
 ```
 
 短链会自动跟随展开，文案里的链接会被提取出来。作品 ID 还会先按平台自己的编码规则校验一遍，
-一个不可能存在的 ID 在这里就被拒掉，不会浪费一次上游请求。
+一个不可能存在的 ID 在这里就被拒掉，不会浪费一次上游请求。B 站的 av 号会换算成对应的 BV 号，
+两种写法拿到的是同一个作品。
 
 ## ⚗️ 技术栈
 
@@ -271,8 +279,8 @@ https://www.tiktok.com/t/ZTR9nkkmL/
 | 传输 | wreq（浏览器 TLS 指纹模拟）· httpx |
 | 数据 | PostgreSQL + TimescaleDB · Redis |
 | 控制台 | React 19 · TypeScript · Vite · TanStack Query · wouter · i18next |
-| 签名 | a_bogus / X-Bogus / X-Gnarly / X-Dynosaur，纯 Python 实现 |
-| 身份铸造 | CloakBrowser 无头浏览器，单独一个容器，通过 HTTP 调用 |
+| 签名 | a_bogus / X-Bogus / X-Gnarly / X-Dynosaur / WBI，纯 Python 实现 |
+| 身份铸造 | CloakBrowser 无头浏览器，单独一个容器，通过 HTTP 调用；B 站游客身份直接走 HTTP，不需要浏览器 |
 | 下载器 | Go 1.23，只用标准库，静态编译进 scratch 镜像 |
 | 转写 | FunASR ONNX（Paraformer、FSMN-VAD、CT-Transformer），离线，跑在没有网络出口的容器里 |
 | 鉴权 | argon2id 口令哈希 · API Key + 作用域 |
@@ -288,7 +296,7 @@ CloakBrowser 的版本 pin 在一个指定的 commit 上。这是一项安全控
 ## 🗂 项目结构
 
 **先说一句 `dtk` 是什么。** 仓库全称 `Douyin_TikTok_Download_API` 念起来太长，所以代码里一律用
-**DTK**：**D**ouyin + **T**i**K**Tok，只取那两个平台，下载器和 API 那两截没进来。
+**DTK**：**D**ouyin + **T**i**K**Tok，只取那两个平台，下载器和 API 那两截没进来。B 站是后来加的，名字没改。
 
 它是 Python 包名（`src/dtk/`）、命令行（`dtk --help`）、每个环境变量的前缀（`DTK_SECRET_KEY` 这些）、
 compose 的项目名（`-p dtk`），也是控制台标题栏里那三个字母。看到 `dtk`，说的就是
@@ -298,8 +306,8 @@ compose 的项目名（`-p dtk`），也是控制台标题栏里那三个字母�
 Douyin_TikTok_Download_API/
 ├── src/dtk/                服务端，代码全在这
 │   ├── api/                FastAPI 路由、鉴权、OpenAPI 本地化
-│   ├── platforms/          抖音 / TikTok 适配器：接口定义、参数、解析
-│   ├── signing/            a_bogus / X-Bogus / X-Gnarly / X-Dynosaur
+│   ├── platforms/          抖音 / TikTok / B 站适配器：接口定义、参数、解析
+│   ├── signing/            a_bogus / X-Bogus / X-Gnarly / X-Dynosaur / WBI
 │   ├── transport/          出站请求、响应分类（正常 / 业务错误 / 风控 / 网络）
 │   ├── identity/           身份铸造与健康度
 │   ├── scheduler/          身份选取、令牌桶、熔断器
@@ -435,7 +443,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 | Web 控制台 | `/` | 身份池、调度器、资料库、下载、转写、日志、诊断 |
 | 接口文档 | `/docs` | 控制台内的 Swagger UI，中英双语 |
 | 裸接口文档 | `/swagger`、`/redoc` | 无需登录 |
-| REST API | `/api/v1/...` | 109 个操作 |
+| REST API | `/api/v1/...` | 110 个操作 |
 | MCP | `/mcp` | 与 REST 共用同一个 service 层，配置方法见控制台 `/mcp-guide` |
 | CLI | `dtk --help` | 同上 |
 

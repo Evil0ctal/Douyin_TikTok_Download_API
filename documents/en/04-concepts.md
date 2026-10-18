@@ -1,8 +1,8 @@
 # Concepts
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/04-concepts.md)
 
 This page is the mental model behind the whole system. After reading it you should be able to predict what the instance will do with a request before you send it, and to tell apart the three kinds of failure that look identical from the outside: a bug, a platform change, and the system working exactly as designed.
@@ -55,7 +55,7 @@ An **identity** is the atom this system schedules. It is not a cookie. It is fou
 
 | Part | What it is | Where it lives |
 | --- | --- | --- |
-| Cookie jar | The platform's own session cookies — `ttwid` at minimum, ideally `odin_tt`, `s_v_web_id`, `msToken`, `uifid` | `identities.cookies_encrypted`, AES-256-GCM, the row id bound in as additional authenticated data |
+| Cookie jar | The platform's own session cookies — on Douyin and TikTok `ttwid` at minimum, ideally `odin_tt`, `s_v_web_id`, `msToken`, `uifid`; on Bilibili `buvid3` | `identities.cookies_encrypted`, AES-256-GCM, the row id bound in as additional authenticated data |
 | Fingerprint | Browser family and major version, User-Agent, `navigator.platform`, screen geometry, language, timezone, `hardwareConcurrency`, `deviceMemory` | `identities.fingerprint` (JSONB) |
 | Proxy binding | The egress this jar was minted behind, or none for the direct connection | `identities.proxy_id` |
 | History | Consecutive failure streak, cooldown, state, last use | `identities.state`, `consecutive_fails`, `cooldown_until`, `last_used_at` |
@@ -94,7 +94,7 @@ stateDiagram-v2
 
 | State | Meaning | Scheduled? |
 | --- | --- | --- |
-| `minting` | A browser is producing it right now | No |
+| `minting` | It is being minted right now | No |
 | `active` | Normal rotation | Yes |
 | `cooling` | Backing off after a risk-control response | Only when a caller pins it by name |
 | `degraded` | The backoff hit its ceiling; last resort | Only when the active pool is empty |
@@ -112,15 +112,19 @@ A browser is involved because there is no other way to get the same three things
 
 The browser lives in a separate long-running service (`browser-rpc`, reached over `DTK_BROWSER_RPC_URL`), not launched per call: a cold browser start costs seconds.
 
+Bilibili is the exception. Its guest session — `buvid3` and `buvid4` — is handed out by one plain HTTP request, the site's `/x/frontend/finger/spi`, so a Bilibili guest is minted without a browser. That one request goes out through the instance's own TLS-impersonating transport and behind the proxy the identity will be bound to, so the session is still created from the exit that will later spend it — and an install with no browser container still keeps a Bilibili pool.
+
 ### The pace is part of the correctness
 
-The pool filler (`src/dtk/worker/pool_filler.py`) mints **exactly one identity per tick**, holds a cross-process Redis lock while doing it so `--scale worker=N` cannot turn one mint into N, and backs off exponentially when minting keeps failing (60s doubling to a 3600s ceiling). Refilling from the low-water mark to the target therefore takes minutes. That is intended: five fresh visitors appearing from one deployment inside a second is itself a stronger signal than anything those identities would go on to do. Nothing waits on minting — it is off the request path entirely.
+The pool filler (`src/dtk/worker/pool_filler.py`) mints **exactly one identity per tick**, holds a cross-process Redis lock while doing it so `--scale worker=N` cannot turn one mint into N, and backs off exponentially when minting keeps failing (60s doubling to a 3600s ceiling). The backoff is kept per minting route — the browser, and Bilibili's plain HTTP — so a browser container that is down does not stop the Bilibili pool refilling. Refilling from the low-water mark to the target therefore takes minutes. That is intended: five fresh visitors appearing from one deployment inside a second is itself a stronger signal than anything those identities would go on to do. Nothing waits on minting — it is off the request path entirely.
 
 | Setting | Default | What it decides |
 | --- | --- | --- |
 | `pool.min_size` | 3 | Low-water mark per platform; below it the filler starts topping up |
 | `pool.target_size` | 8 | It keeps going until the usable count reaches this |
 | `pool.max_fail_streak` | 3 | Above this streak an identity stops counting toward the pool level, so the filler replaces it instead of counting it |
+
+Each platform can override the first two with its own marks — `pool.douyin.*`, `pool.tiktok.*` and `pool.bilibili.*` — described in [Configuration](./03-configuration.md).
 
 The level the filler reads is the **usable** count — live identities whose failure streak is still under `pool.max_fail_streak` — not the row count. An identity that fails every request stays live (it cools, its backoff elapses, it is promoted, it fails again), so counting rows lets a pool sit permanently at target while serving nothing.
 
@@ -132,19 +136,21 @@ The filler picks an egress no live identity of that platform is already using. T
 
 ### Without a browser
 
-`DTK_BROWSER_RPC_URL` unset means no minting at all, and the whole job is skipped rather than logging an error every minute. That deployment lives on **imported** cookies: you paste a jar from your own browser and the instance parses it. Four formats are recognized automatically — a `Cookie:` header, a JSON array from a cookie-editor extension, Netscape `cookies.txt`, and loose `key=value` lines — and the parse is shown to you before anything is stored, including which cookies were found, whether the jar carries a logged-in session (`sessionid`, `sid_tt`, `sid_guard`, …), and the browser it was inferred to be. See [Identities and proxies](./06-identities-and-proxies.md).
+`DTK_BROWSER_RPC_URL` unset means no Douyin or TikTok minting: those pools are left alone rather than logging an error every minute, and only Bilibili, minted over plain HTTP, still refills by itself. For the other two that deployment lives on **imported** cookies: you paste a jar from your own browser and the instance parses it. Four formats are recognized automatically — a `Cookie:` header, a JSON array from a cookie-editor extension, Netscape `cookies.txt`, and loose `key=value` lines — and the parse is shown to you before anything is stored, including which cookies were found, whether the jar carries a logged-in session (`sessionid`, `sid_tt`, `sid_guard`, …, or Bilibili's `SESSDATA`), and the browser it was inferred to be. See [Identities and proxies](./06-identities-and-proxies.md).
 
 An imported logged-in jar is far more valuable than a guest identity and far more damaging to leak. It is also the reason the *pin* exists, described under the scheduler below.
 
 ## Request signing
 
-Both platforms require query parameters and headers computed by their own JavaScript. This project reimplements those algorithms in pure Python (`src/dtk/signing/native/`), which costs microseconds and has no external dependency, and keeps the browser as a fallback that runs the site's real code (`src/dtk/signing/rpc.py`).
+Douyin and TikTok require query parameters and headers computed by their own JavaScript. This project reimplements those algorithms in pure Python (`src/dtk/signing/native/`), which costs microseconds and has no external dependency, and keeps the browser as a fallback that runs the site's real code (`src/dtk/signing/rpc.py`).
+
+Bilibili's signature, WBI (`w_rid` + `wts`), is computed natively from two public keys the site publishes. They are fetched from Bilibili's `nav` endpoint and cached for an hour per process; if a refresh fails, keys up to a day old keep being used. There is nothing for a browser to add, so browser-rpc never signs Bilibili whatever `signing.mode` says — the modes below choose a signer for Douyin and TikTok.
 
 `signing.mode` decides which is preferred. It ships as `native`.
 
 | Mode | Behaviour |
 | --- | --- |
-| `native` | Sign everything in-process. The browser is what mints identities, not what signs their requests. |
+| `native` | Sign everything in-process. The browser is what mints Douyin and TikTok identities, not what signs their requests. |
 | `rpc` | Prefer `browser-rpc` for every signature. Where to go the day a platform ships a new SDK and the port goes stale. |
 | `auto` | Native, except on the endpoints the platform's own SDK sign-protects, and except when an endpoint's risk rate suggests the signature is being rejected. |
 
@@ -162,7 +168,7 @@ TikTok enforces this directly: the same signed bytes replayed over a Firefox TLS
 
 Measured against a live page on 2026-09-08: Douyin's `verifyFp` query parameter **is** the `s_v_web_id` cookie of whatever browser computed the signature. Sign in one session and send the request with another session's cookies and the two name different visitors.
 
-Neither platform answers that with a clean rejection. They withhold the payload — HTTP 200, an intact envelope, and nothing in it. That reads exactly like rate limiting, which is why this is worth understanding before you debug one.
+Neither Douyin nor TikTok answers that with a clean rejection. They withhold the payload — HTTP 200, an intact envelope, and nothing in it. That reads exactly like rate limiting, which is why this is worth understanding before you debug one.
 
 The same coupling shows up in the native signer:
 
@@ -220,6 +226,8 @@ Each identity holds a separate budget for each endpoint. The quota is keyed on t
 | `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12 | 1.8 |
 | `*.session_check` | 3 | 0.20 | 1.0 |
 | anything unregistered | 3 | 0.15 | 1.5 |
+
+The wildcard rows are the Douyin and TikTok figures. Bilibili's endpoints are registered under their own names in `src/dtk/scheduler/policies.py`, among them `bilibili.content_streams`, the second request a video detail makes for its playable file. The one to know is `bilibili.author_posts`, the uploader video list: it is the endpoint Bilibili guards hardest, and it has the slowest bucket of any Bilibili endpoint.
 
 A refill of `0.12/sec` means one request every 8.3 seconds, per identity, on that endpoint, once the burst is spent. That is the throughput ceiling of a single identity — the way to go faster is more identities, not a bigger bucket. The risk weight multiplies the cooldown an identity earns when that endpoint gets it risk-controlled.
 
@@ -436,6 +444,7 @@ Two kinds of caller, two mechanisms, one principal. The console uses a server-si
 | --- | --- |
 | `douyin:read` | Douyin platform reads |
 | `tiktok:read` | TikTok platform reads |
+| `bilibili:read` | Bilibili platform reads |
 | `archive:read` | Read what this instance has already stored |
 | `archive:export` | Walk the whole archive in one request |
 | `media:read` | See what media is stored on disk |
@@ -467,7 +476,7 @@ Keys are shown once at creation; only the prefix (e.g. `dtk_a1b2c3d4`) and a SHA
 
 ### Opening an endpoint to the public
 
-Every endpoint requires a credential by default. `api.public_endpoints` lists exceptions by `"<METHOD> <path template>"`, exactly as they appear in the API document. Three groups can **never** be opened whatever the setting says — `/api/v1/admin/*`, `/api/v1/auth/*` and `/api/setup/*` — and there is no override. An anonymous caller on an opened endpoint gets `douyin:read` and `tiktok:read` and nothing else, and is rate-limited by client address rather than by key.
+Every endpoint requires a credential by default. `api.public_endpoints` lists exceptions by `"<METHOD> <path template>"`, exactly as they appear in the API document. Three groups can **never** be opened whatever the setting says — `/api/v1/admin/*`, `/api/v1/auth/*` and `/api/setup/*` — and there is no override. An anonymous caller on an opened endpoint gets `douyin:read`, `tiktok:read` and `bilibili:read` and nothing else, and is rate-limited by client address rather than by key.
 
 One subtlety: bad credentials are not the same as none. A caller that sends a key the instance rejected is told so even on an open endpoint. Silently downgrading them to anonymous would turn "your key expired" into "your key works but sees less", which is the harder of the two to diagnose. More in [Users and API keys](./09-users-and-api-keys.md) and [Security](./15-security.md).
 
@@ -482,10 +491,11 @@ With the model above, most errors classify themselves. This table is the short v
 | `ENDPOINT_CIRCUIT_OPEN` | ≥3 identities failed ≥60% of ≥20 requests on that endpoint in 5 minutes | Probably not the instance. Check the signer and the platform. |
 | `NOT_FOUND` on a link that works in a browser | The platform answered that the post is gone, private, or owner-only | No. `business_error` costs no identity health, by design. |
 | `UPSTREAM_RISK_CONTROL` | That identity was refused — cooled, streak incremented | Not a bug on its own. A whole pool at once is an event. |
+| `UPSTREAM_RISK_CONTROL` on a Bilibili uploader's video list | Bilibili answers a burst from one egress with HTTP 412 pages for a few minutes, whatever the headers | No. Spread the requests out; proxies help. See [Troubleshooting](./14-troubleshooting.md#http-412-on-a-bilibili-uploaders-video-list). |
 | `UPSTREAM_CHANGED` | The response no longer matches what the parser expects | Worth reporting. Quote the `request_id`. |
 | A `signature.refused` or `signature.rejected` rule in the Logs page | *Our* signature was rejected, not the identity | Report it — the platform's SDK likely moved. |
 | A degraded identity that never recovers | Promotion returns it to active but does not clear the streak; only a success does | No. Reset it by hand if the failures were not its fault. |
-| An identity that will not mint, silently | No `DTK_BROWSER_RPC_URL`, or every proxy is already bound | No. The mint log on the Identities page names the reason. |
+| An identity that will not mint, silently | No `DTK_BROWSER_RPC_URL` (Douyin and TikTok only — Bilibili mints without it), or every proxy is already bound | No. The mint log on the Identities page names the reason. |
 
 The general shape: **if the platform answered, the identity is innocent; if the platform refused, the identity pays; if nothing answered, the egress pays; and if our own signature was refused, the identity pays anyway but the rule name tells you where to look.**
 

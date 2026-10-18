@@ -1,8 +1,8 @@
 # Security
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/15-security.md)
 
 This page is the division of labour between you and the software. After reading
@@ -26,7 +26,7 @@ platform's terms allow what you are about to do.
 
 | Asset | Why someone wants it | What protects it |
 | --- | --- | --- |
-| Cookie jars in the identity pool | A working platform session. A logged-in one is somebody's account; a guest one cost a headless browser run to mint | AES-256-GCM at rest, keyed by `DTK_SECRET_KEY`; never returned by any ordinary endpoint; wiped on retirement |
+| Cookie jars in the identity pool | A working platform session. A logged-in one is somebody's account — on Bilibili, any jar carrying `SESSDATA` — so treat it like a password; a guest one cost a mint, which for Douyin and TikTok is a headless browser run | AES-256-GCM at rest, keyed by `DTK_SECRET_KEY`; never returned by any ordinary endpoint; wiped on retirement |
 | Proxy URLs | Paid egress, with credentials in the URL | Encrypted at rest; every rendering goes through a mask; plaintext exists only for the duration of one dial |
 | The API surface | Free scraping capacity on your identities, your proxies and your IP reputation | Every endpoint requires a credential by default, bar the short list of routes that never had a lock; per-key rate limit; scopes |
 | The archive | Months of collected posts, about real people | `archive:read` and `archive:export` are separate scopes from the platform reads |
@@ -246,12 +246,15 @@ Every URL the service may be asked to fetch passes `is_allowed_host` in
 | Loopback, private, link-local, reserved and single-label names are refused **first** | So the rejection reason is honest even though the allowlist alone would also refuse them |
 | The host must be an allowlisted platform domain, or a subdomain of one, matched on a label boundary | `douyin.com.evil.com` fails; `evildouyin.com` fails; `www.douyin.com` passes |
 
-The built-in list is four registrable domains, subdomains included:
+The built-in list is seven registrable domains, subdomains included:
 
 | Platform | Domains |
 | --- | --- |
 | Douyin | `douyin.com`, `iesdouyin.com`, `amemv.com` |
 | TikTok | `tiktok.com` |
+| Bilibili | `bilibili.com`, `b23.tv`, `bili2233.cn` |
+
+`bilibili.tv`, Bilibili's international site, is not on it: it is a different service, and this instance does not support it.
 
 **DNS is deliberately not consulted.** A name that resolves to a private address
 today can resolve elsewhere between the check and the connection, so a lookup
@@ -264,8 +267,8 @@ rather than by listing what is bad.
 
 ### Short links get checked again on every hop
 
-`v.douyin.com`, `v.amemv.com`, `vm.tiktok.com` and `vt.tiktok.com` are opaque
-until followed, so expansion is a loop that never lets the HTTP client chase the
+`v.douyin.com`, `v.amemv.com`, `vm.tiktok.com`, `vt.tiktok.com`, `b23.tv` and
+`bili2233.cn` are opaque until followed, so expansion is a loop that never lets the HTTP client chase the
 chain itself:
 
 1. At most 5 hops, with loop detection.
@@ -307,8 +310,16 @@ audit row.
 Media bytes are not pages, and the CDN hosts they come from should never be
 somewhere a share link may point. So `src/dtk/media/domains.py` holds its own
 per-platform list — `douyinvod.com`, `zjcdn.com`, `douyinpic.com`,
-`tiktokcdn.com` and their siblings — and `security.url_allowlist` does not widen
-it. A Douyin post is checked against the Douyin media list only.
+`tiktokcdn.com`, `bilivideo.com`, `hdslb.com` and their siblings — and
+`security.url_allowlist` does not widen it. A Douyin post is checked against the
+Douyin media list only.
+
+Bilibili's list holds one exact host rather than a domain:
+`upos-hz-mirrorakam.akamaized.net`. Bilibili serves overseas egresses from
+Akamai, so a download from such an egress needs that host — but `akamaized.net`
+is shared by every Akamai customer, and admitting the whole domain would let a
+Bilibili post point the downloader at anyone's bytes. The rest of
+`akamaized.net` is not admitted.
 
 The downloader sidecar closes the rebinding window that a name check cannot: it
 refuses at dial time any address that is not publicly routable, so a CDN name
@@ -417,8 +428,8 @@ entry that happened to match an admin route would not look like anything until
 somebody found it.
 
 Opening a route is necessary but not sufficient. An anonymous caller runs as a
-principal holding **exactly two scopes** — `douyin:read` and `tiktok:read` — and
-the `viewer` role. Opening an endpoint that needs `media:read` achieves nothing
+principal holding **exactly three scopes** — `douyin:read`, `tiktok:read` and
+`bilibili:read` — and the `viewer` role. Opening an endpoint that needs `media:read` achieves nothing
 but turning a `401` into a `403`.
 
 Anonymous callers are metered by source address rather than by key, so one open
@@ -539,7 +550,7 @@ either in readable form, so a lost one is reissued rather than looked up.
 
 | | The demo session | The published API key |
 | --- | --- | --- |
-| Bounded by | the role, which ranks below viewer | `douyin:read` and `tiktok:read` |
+| Bounded by | the role, which ranks below viewer | `douyin:read`, `tiktok:read` and `bilibili:read` |
 | Can call the platforms | yes | yes |
 | Can read the overview, library, downloads, logs, system | yes | no — the scope check refuses it |
 | Can read identities, proxies, keys, users, settings | no | no |
@@ -640,7 +651,7 @@ leaks.
 | Rule | Effect |
 | --- | --- |
 | Key-based redaction | Any field named `cookie`, `cookies`, `set-cookie`, `authorization`, `x-api-key`, `api_key`, `apikey`, `password`, `secret`, `token`, `setup_token`, `proxy_url` or `dtk_secret_key` is replaced with `[REDACTED]` |
-| Value-based truncation | `msToken`, `a_bogus`, `X-Bogus`, `X-Dynosaur`, `X-Gnarly`, `_signature`, `sessionid`, `sid_guard`, `odin_tt`, `uid_tt` and `ttwid` are cut to their first 6 characters wherever they appear inside a string |
+| Value-based truncation | `msToken`, `a_bogus`, `X-Bogus`, `X-Dynosaur`, `X-Gnarly`, `_signature`, `sessionid`, `sid_guard`, `odin_tt`, `uid_tt` and `ttwid`, and Bilibili's `SESSDATA`, `bili_jct`, `buvid3`, `buvid4` and `w_rid`, are cut to their first 6 characters wherever they appear inside a string. The CLI's error output and the diagnostic report mask the same names |
 | Third-party loggers | `httpx`, `httpcore` and `hpack` are pinned to WARNING. httpx logs every request line at INFO, URL and all — a callback URL routinely carries a token, and a signed CDN link carries a signature |
 | Transport errors | Only the exception *type* is logged, never its message: an httpx error quotes the URL it failed on, and a proxy URL carries a password |
 | Validation errors | pydantic's `input`, `ctx` and `url` keys are stripped before an error leaves the process — `input` is the offending value, and for an unparseable body it is the raw request bytes |

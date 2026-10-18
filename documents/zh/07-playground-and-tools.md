@@ -1,7 +1,7 @@
 # 调试台与工具
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/07-playground-and-tools.md)
 
 控制台里有三个页面，可以让你在使用中把这套系统摸清楚：`/playground` 用表单驱动任意读取接口，并在失败时告诉你问题出在谁身上；`/tools` 把服务每次请求都要用到的几块能力直接暴露出来；`/docs` 则是由你正在运行的这个实例自己生成的 API 参考。读完这一页，你应当能发起一次调用、在失败时读懂失败、把那次上游请求原样在本实例之外复现出来，并把一个签名拆开来看。
@@ -11,10 +11,10 @@
 | 页面 | 路径 | 做什么 | 代价 |
 | --- | --- | --- | --- |
 | 调试台 | `/playground` | 用表单调用真实的读取接口，展示归一化结果、平台原始响应、失败要素以及可直接复制的代码片段 | 一次真实的上游请求和一个身份，除非命中缓存 |
-| 基础工具 | `/tools` | 计算签名、反解签名、解析链接、批量解析、铸造游客身份 | 除铸造外全部为零；铸造要启动一个浏览器 |
+| 基础工具 | `/tools` | 计算签名、反解签名、解析链接、批量解析、铸造游客身份 | 几乎为零。例外是铸造——抖音和 TikTok 要启动一个浏览器，B 站只发一次普通 HTTP 请求——以及给 B 站地址签名，它最多每小时拉取一次两把公开密钥 |
 | 接口文档 | `/docs` | 用控制台当前语言渲染本实例自己的 OpenAPI 文档 | 无 |
 
-它们之所以分开，是因为代价不同。`/tools` 上除最后一个标签页外，全都是对你输入的字符串做算术：不发网络请求、不消耗身份、也不会在请求日志里留下一行。而 `/playground` 上的每一次操作都会经过调度器并真实消耗资源。把便宜的东西放在不会意外变贵的地方，正是这种拆分的意义。
+它们之所以分开，是因为代价不同。`/tools` 上除最后一个标签页外，全都是对你输入的字符串做算术：不发网络请求、不消耗身份、也不会在请求日志里留下一行。唯一的例外是给 B 站地址签名，它的签名需要站点公开的两把密钥，见[计算签名](#计算签名)。而 `/playground` 上的每一次操作都会经过调度器并真实消耗资源。把便宜的东西放在不会意外变贵的地方，正是这种拆分的意义。
 
 三个页面都在登录之后才能访问。外壳、导航与角色见[控制台总览](./05-console-overview.md)。
 
@@ -38,7 +38,7 @@
 
 ### 接口目录
 
-共十项。第一项与平台无关；其余九项在表单顶部带一个平台选择器，路径形如 `/api/v1/{platform}/...`。
+共十五项。第一项与平台无关；其余十四项在表单顶部带一个平台选择器（`douyin`、`tiktok` 或 `bilibili`），路径形如 `/api/v1/{platform}/...`。
 
 | 条目 | 方法 | 路径 | 调度器接口名 |
 | --- | --- | --- | --- |
@@ -49,11 +49,20 @@
 | 作者资料 | `GET` | `/api/v1/{platform}/user` | `{platform}.author_profile` |
 | 作者作品列表 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}.author_posts` |
 | 作者点赞列表 | `GET` | `/api/v1/{platform}/user/likes` | `{platform}.author_likes` |
+| 作者转发的作品 | `GET` | `/api/v1/{platform}/user/reposts` | `{platform}.author_reposts` |
+| 收藏夹列表 | `GET` | `/api/v1/{platform}/user/collections` | `{platform}.author_collections` |
+| 收藏的作品（跨全部收藏夹） | `GET` | `/api/v1/{platform}/user/bookmarks` | `{platform}.author_bookmarks` |
+| 单个收藏夹的信息 | `GET` | `/api/v1/{platform}/collection` | `{platform}.collection_detail` |
+| 收藏的作品（单个收藏夹） | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}.collection_posts` |
 | 合辑 / 播放列表作品 | `GET` | `/api/v1/{platform}/mix/posts` | `{platform}.mix_posts` |
 | 作者粉丝列表 | `GET` | `/api/v1/{platform}/user/followers` | `{platform}.author_followers` |
 | 作者关注列表 | `GET` | `/api/v1/{platform}/user/following` | `{platform}.author_following` |
 
-最后两项仅 TikTok 提供。注册表里只有 `tiktok.author_followers` 与 `tiktok.author_following`，没有对应的抖音条目，因此在平台选择器停在抖音时点这两项，会在 API 边界就被以 `UNSUPPORTED_CONTENT`（400）拒掉：没有 request_id，失败面板也匹配不到同名的调度器接口。这种不对称来自平台本身——即使拿一个健康的游客身份去问，抖音对关注关系也只回“未登录”；而一个照样把任务提交下去的路由，只会返回一页空数据，让你以为这位作者没有粉丝。调试台默认停在抖音，所以如果你先点了这两项，看到的就是它。
+并不是每个平台都提供每一项。问一个平台不提供的那一项，会在 API 边界就被以 `UNSUPPORTED_CONTENT`（400）拒掉，并指明平台和能力：没有 request_id，失败面板也匹配不到同名的调度器接口。
+
+最后两项仅 TikTok 提供。注册表里只有 `tiktok.author_followers` 与 `tiktok.author_following`，没有对应的抖音或 B 站条目。在抖音上，这种不对称来自平台本身——即使拿一个健康的游客身份去问，抖音对关注关系也只回“未登录”；而一个照样把任务提交下去的路由，只会返回一页空数据，让你以为这位作者没有粉丝。调试台默认停在抖音，所以如果你先点了这两项，看到的就是它。
+
+B 站提供这十四项中的七项：作品详情、评论、评论回复、作者资料、作者作品列表、作者的公开收藏夹（**收藏夹列表**，在 B 站上按作者查询），以及单个收藏夹里的视频（**收藏的作品（单个收藏夹）**）。其余各项在 B 站上都返回 `UNSUPPORTED_CONTENT`。B 站的作品详情还会为可播放文件再发一次请求，它以自己的名字 `bilibili.content_streams` 被调度、签名并写进请求日志；这次请求失败时详情照样返回，只是没有 `media.video`。B 站其余的不同之处见 [REST API 指南](./11-api.md#b-站)。
 
 调度器接口名是令牌桶与熔断器的键，也是失败面板和健康度表格所使用的名字。`POST /api/v1/parse` 没有固定的接口名，因为 worker 只有在跟随链接之后才知道自己要调哪个接口。
 
@@ -63,9 +72,9 @@
 
 字段分为三组。
 
-**目标（Target）。** 你要问的对象。两个字段互为备选时——`url` 或 `aweme_id`、`url` 或 `sec_user_id`——必须且只需填其中一个；两个都空时，表单会在两个字段上同时提示。有些接口则是真正的必填项：回复接口的 `comment_id`、合辑接口的 `mix_id`。
+**目标（Target）。** 你要问的对象。两个字段互为备选时——`url` 或 `aweme_id`、`url` 或 `sec_user_id`——必须且只需填其中一个；两个都空时，表单会在两个字段上同时提示。在 B 站上，这两个字段分别填 bvid（如 `BV1xx411c7mD`，也接受 av 号并会换算）和作者的数字 `mid`。有些接口则是真正的必填项：回复接口的 `comment_id`、合辑接口的 `mix_id`、收藏夹接口的 `collection_id`。
 
-**分页（Paging）。** 支持分页的接口上会出现 `cursor` 与 `count`。`count` 在表单和 API 两侧都被限制在 50 以内。
+**分页（Paging）。** 支持分页的接口上会出现 `cursor` 与 `count`。`count` 在表单和 API 两侧都被限制在 50 以内。在 B 站上 API 的上限是 20，更大的 `count` 是 400。
 
 **请求（Request）。** 每个读取接口都接受的信封参数：
 
@@ -144,7 +153,7 @@
 
 它会挑出这些参数：
 
-`a_bogus`、`X-Bogus`、`X-Gnarly`、`X-Dynosaur`、`msToken`、`x-secsdk-web-signature`、`verifyFp`、`fp`、`uifid`。
+`a_bogus`、`X-Bogus`、`X-Gnarly`、`X-Dynosaur`、`msToken`、`x-secsdk-web-signature`、`verifyFp`、`fp`、`uifid`，以及 B 站的 `w_rid` 和 `wts`。
 
 **反解这些签名**按钮会把整条已签名 URL 连同它的 User-Agent 一起提交给 `/api/v1/tools/decode`，并就地渲染结果——和[反解签名](#反解签名)标签页看到的是同一套视图。这是单独的、需要你主动点的一步，而不是自动发生的：大多数调用并不会问这个问题，自动触发就等于为每次调用都多花一个来回。
 
@@ -197,7 +206,7 @@ cookie 下方，控制台会把整个上游请求拼成一行 `curl`：平台自
 这正是任何人排查一个被拒的调用时最终都会去手工拼的东西，而手工拼恰恰是出错的地方。有三件事必须对齐，否则平台就会拒绝你；而这三件事在这里都是已知的，在此之前则无从猜起：
 
 1. **查询串必须逐字节原样发送。** 签名覆盖的是它自己的编码器产出的那个查询串。重新编码它——大多数 HTTP 客户端都会热心且无声地这么做——就改变了签名所覆盖的字节。
-2. **User-Agent 必须是参与哈希的那一个。** 两个平台都会把 UA 计入签名。“我发的 UA 不是我签名时用的那个”，是手工构造请求时看起来完全正确却失败的最常见原因。
+2. **User-Agent 必须是参与哈希的那一个。** 抖音和 TikTok 都会把 UA 计入签名。“我发的 UA 不是我签名时用的那个”，是手工构造请求时看起来完全正确却失败的最常见原因。（B 站的 WBI 签名只覆盖查询串和其中的时间戳。）
 3. **cookie 必须是该身份自己的。** 平台响应的是一个*会话*。签名正确但不带 cookie，得到的是 `200` 和一个空响应体。
 
 这行 curl 的有效期也很短。签名里带着时钟，cookie 里带着会话，两者都会过期。如果它十分钟前还能用而现在不行了，重新发起一次带 explain 的调用，而不是去调试那行旧命令。
@@ -235,19 +244,21 @@ Postman 的导入器接受原始 cURL 命令——**Import → Raw text**，粘�
 
 ## 基础工具页（`/tools`）
 
-五个标签页，背后是五个 API 接口。这些是服务每次请求都要用到的零件，之所以公开出来，是因为这是一个开源项目，会有人在它们之上做东西。除最后一个标签页外，这里的一切都是对你输入内容的纯函数运算：不发网络请求、不消耗身份、不产生请求日志。
+五个标签页，背后是五个 API 接口。这些是服务每次请求都要用到的零件，之所以公开出来，是因为这是一个开源项目，会有人在它们之上做东西。除最后一个标签页外，这里的一切都是对你输入内容的纯函数运算：不发网络请求、不消耗身份、不产生请求日志——只有 B 站签名所需的两把公开密钥例外，见下文。
 
-有一条提醒值得先说，因为它是所有人第一个撞上的：**光有签名是不够的。** 两个平台响应的都是一个*会话*，所以一个正确的签名在不带 cookie 的情况下发出去，得到的是 `200` 和一个空响应体。签名标签页会告诉你还有什么必须对齐；铸造标签页则是产出那样东西的地方。
+有一条提醒值得先说，因为它是所有人第一个撞上的：**光有签名是不够的。** 抖音和 TikTok 响应的都是一个*会话*，所以一个正确的签名在不带 cookie 的情况下发出去，得到的是 `200` 和一个空响应体；B 站的请求也仍然要带上 cookie 里的访客 ID（`buvid3`）。签名标签页会告诉你还有什么必须对齐；铸造标签页则是产出那样东西的地方。
 
 ### 计算签名
 
-`POST /api/v1/tools/sign` —— 为平台 API 地址计算所需的签名参数。纯算术运算：不发起任何请求，不消耗身份，结果只取决于你提交的内容。
+`POST /api/v1/tools/sign` —— 为平台 API 地址计算所需的签名参数。对抖音和 TikTok 而言是纯算术运算：不发起任何请求，不消耗身份，结果只取决于你提交的内容。
+
+对 B 站，它用 WBI 签名——`w_rid` 和 `wts`——由站点公开的两把密钥在本地算出。这两把密钥从站点的 `nav` 接口拉取，每个进程缓存一小时，所以这个标签页最多每小时发一次这样的请求，且不消耗身份；刷新失败时，一天以内的旧密钥会继续使用。这和 worker 用的是同一个原生签名器：无论 `signing.mode` 怎么设，browser-rpc 都不会给 B 站签名。
 
 | 字段 | 长度上限 | 说明 |
 | --- | --- | --- |
-| 平台 | — | `douyin` 或 `tiktok` |
+| 平台 | — | `douyin`、`tiktok` 或 `bilibili` |
 | API 地址 | 4096 字符 | 含查询串的完整 API 地址，必须以 `http://` 或 `https://` 开头 |
-| User-Agent | 512 字符 | 两个平台都会把它计入签名。留空则使用默认 Chrome UA，并在响应中回显 |
+| User-Agent | 512 字符 | 抖音和 TikTok 会把它计入签名，B 站的 WBI 不会。留空则使用默认 Chrome UA，并在响应中回显 |
 | msToken | 512 字符 | 仅 TikTok。它会被封进签名，因此必须是请求实际会携带的那个 token——填个假的比不填更糟 |
 | Cookie | 8192 字符 | 任意粘贴格式：`Cookie:` 请求头、DevTools JSON、Netscape 格式皆可。抖音的 `x-secsdk-web-signature` 是对其中的访客 ID 计算的 |
 
@@ -257,7 +268,7 @@ Postman 的导入器接受原始 cURL 命令——**Import → Raw text**，粘�
 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36
 ```
 
-**从示例开始。** 两个按钮会用真实浏览器请求填好所有字段——抖音的主页查询和 TikTok 的作品列表。有两样东西被刻意去掉了，而这两处删除本身就是要点：签名参数没有了，因为它们正是这个工具算出来的，粘贴一个过期的签名是拿到“`200` + 空响应体”的头号原因；cookie 的*值*是占位符，因为一份 cookie 就是一个活的登录态。cookie 的*名字*是真的，而那正是人们看着这个字段时真正想知道的东西。
+**从示例开始。** 每个平台一个按钮，点一下就填好所有字段——抖音的主页查询和 TikTok 的作品列表都取自真实浏览器请求；B 站的是视频详情查询（`/x/web-interface/wbi/view`），cookie 里只有一个占位的 `buvid3`。有两样东西被刻意去掉了，而这两处删除本身就是要点：签名参数没有了，因为它们正是这个工具算出来的，粘贴一个过期的签名是拿到“`200` + 空响应体”的头号原因；cookie 的*值*是占位符，因为一份 cookie 就是一个活的登录态。cookie 的*名字*是真的，而那正是人们看着这个字段时真正想知道的东西。
 
 **结果。**
 
@@ -292,13 +303,13 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 
 ### 反解签名
 
-`POST /api/v1/tools/decode` —— 与旁边那个标签页互为逆运算，也是本项目自己逆向这些算法而不是照搬别人移植版的理由：自己拥有的实现才讲得清楚。同样是纯算术运算。
+`POST /api/v1/tools/decode` —— 与旁边那个标签页互为逆运算，也是本项目自己逆向这些算法而不是照搬别人移植版的理由：自己拥有的实现才讲得清楚。同样是纯算术运算，只有一个例外：带 `w_rid` 的 B 站 URL 需要那两把公开的 WBI 密钥，它们不在请求里，所以会从签名标签页用的同一份按小时缓存里取。
 
 粘贴一条完整的已签名 URL，其中每个签名参数都会按它实际封住的那段字符串被拆开来读。这是最有用的形式：只有从完整 URL 出发，才能确切知道被覆盖的字符串是什么，也只有那时校验才跑得起来。单个值，或者一对 `name=value`，同样可以。值的长度上限是 8192 字符。
 
-即使答案看起来显而易见，也请把 **User-Agent** 字段填上。两个平台都会把 UA 计入签名，而这正是你弄清“正在发送的 UA 是不是签名时用的那个”的办法。
+即使答案看起来显而易见，也请把 **User-Agent** 字段填上。抖音和 TikTok 都会把 UA 计入签名，而这正是你弄清“正在发送的 UA 是不是签名时用的那个”的办法。
 
-**按什么参数解读**默认保持自动，此时会按其他参数都不具备的特征来识别。形态不明确时可以自己指定：`a_bogus`、`X-Bogus`、`X-Gnarly`、`X-Dynosaur`、`msToken`、`x-secsdk-web-signature`、`verifyFp`。
+**按什么参数解读**默认保持自动，此时会按其他参数都不具备的特征来识别。形态不明确时可以自己指定：`a_bogus`、`X-Bogus`、`X-Gnarly`、`X-Dynosaur`、`msToken`、`x-secsdk-web-signature`、`verifyFp`、`w_rid`。单独一个 32 位十六进制值是两个参数共有的形态：自动模式会把它当作抖音的 `x-secsdk-web-signature`，所以 B 站的 `w_rid` 请手动指定，更好的做法是粘贴它所在的整条 URL。
 
 #### 这里的「反解」指什么
 
@@ -332,6 +343,7 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 | `X-Dynosaur` | 32 | 覆盖 query、User-Agent 与 body 的 32 位哈希 |
 | `X-Gnarly` | 128 | query、body 与 User-Agent 的完整 md5 |
 | `x-secsdk-web-signature` | 128 | 重建原文的完整 md5 |
+| `w_rid` | 128 | 排序后的查询串加混合密钥的完整 md5 |
 
 #### 每个参数能读出什么
 
@@ -344,21 +356,22 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 | `X-Dynosaur` | TikTok | 二十五个字段：各类版本号、计数器、页面标识、WebGL/canvas/设备哈希、时间戳、四个 32 位哈希 |
 | `msToken` | 两者皆有 | 只有长度、padding 与字母表。它是被签发的，不是算出来的。长度还能判断它属于谁——一个抖音 token 放进 TikTok 请求里会短 20 个字符，在有人去数之前看起来就跟签名 bug 一模一样 |
 | `x-secsdk-web-signature` | 抖音 | 摘要本身；当访客 ID 与时间戳与它同行时，还会给出盐值和它的 md5 所覆盖的确切原文 |
+| `w_rid` | B 站 | 摘要本身、旁边的 `wts` 时钟；能取到密钥时，还有混合密钥和确切原文：去掉 `w_rid` 的查询串，按页面的方式排序和编码，再接上密钥 |
 | `verifyFp`、`fp`、`s_v_web_id` | 抖音 | 前缀、以 base36 毫秒表示的生成时间，以及随机尾部。生成时间远早于携带它的请求，正是一份躺在文件里很久的 cookie 的形态 |
 
-结果下方的注记会说明验证了什么。`checksum_verified` 表示内部折叠校验和的每一项输入本身都是载荷中的字段，且全部对得上，因此整个布局都正确还原了。`noise_not_recoverable` 表示有些字节是每次调用随机抽取的、不携带任何含义——同一毫秒内生成的两个签名大部分字节都不同，含义却完全一样。
+结果下方的注记会说明验证了什么。`checksum_verified` 表示内部折叠校验和的每一项输入本身都是载荷中的字段，且全部对得上，因此整个布局都正确还原了。`noise_not_recoverable` 表示有些字节是每次调用随机抽取的、不携带任何含义——同一毫秒内生成的两个签名大部分字节都不同，含义却完全一样。`wbi_keys_unavailable` 表示 `w_rid` 带着查询串来了，但当时取不到 WBI 密钥，所以校验结果是 `not_supplied` 而不是 `differs`。
 
 当一个值完全读不出来时，原因会说明为什么：`malformed`（并附上未通过的结构检查）、`one_way`、`not_computed` 或 `unknown_parameter`。
 
 ### 解析链接
 
-`GET /api/v1/tools/parse-url` —— 不发起任何请求，直接判断一条链接指向什么。它接受分享链接，也接受里面埋着链接的整段剪贴板文本——后者才是两个 App 实际放进剪贴板的东西。
+`GET /api/v1/tools/parse-url` —— 不发起任何请求，直接判断一条链接指向什么。它接受分享链接，也接受里面埋着链接的整段剪贴板文本——后者才是抖音和 TikTok 的 App 实际放进剪贴板的东西。
 
 它会报告平台、链接指向的资源类型、ID、存在时的 handle、规范化 URL、它是否是受支持的目标，以及是否需要展开。
 
-具体拿到哪个 ID 因平台而异，因为接口本身就不同：抖音主页链接给出 `sec_user_id`，TikTok 的则给出 `@handle`，因为那才是 TikTok 用户详情接口接受的东西。两者都放在 `resource_id` 下返回。
+具体拿到哪个 ID 因平台而异，因为接口本身就不同：抖音主页链接给出 `sec_user_id`，TikTok 的则给出 `@handle`，因为那才是 TikTok 用户详情接口接受的东西；B 站空间链接给出数字 `mid`（B 站没有 handle）。B 站视频链接给出 bvid，av 链接也一样——av 号是靠算术换算成 bvid 的，不发请求。它们都放在 `resource_id` 下返回。
 
-短链（`v.douyin.com`、`vm.tiktok.com`）必须实际跟随跳转才能解析，而跟随跳转是一次这个接口承诺不做的网络调用。它们会带着 `needs_expansion: true` 且没有 ID 返回；请改为提交到 `POST /api/v1/parse`——也就是调试台目录里的第一项。
+短链（`v.douyin.com`、`vm.tiktok.com`、`b23.tv`、`bili2233.cn`）必须实际跟随跳转才能解析，而跟随跳转是一次这个接口承诺不做的网络调用。它们会带着 `needs_expansion: true` 且没有 ID 返回；请改为提交到 `POST /api/v1/parse`——也就是调试台目录里的第一项。`bilibili.tv` 的链接根本不会被识别：那个国际站是另一个服务。
 
 ### 批量解析
 
@@ -379,11 +392,11 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 | --- | --- |
 | `link` | 已识别的链接，带平台、资源类型与 ID |
 | `short_link` | 已识别的链接，但要知道目标需要一次网络调用 |
-| `content_id` | 一个能对上的裸作品 ID |
+| `content_id` | 一个能对上的裸作品 ID，或一个裸的 B 站 bvid |
 | `bad_id` | 一串数字，但不可能是作品 ID |
 | `unknown` | 两者都不是 |
 
-两个平台生成的作品 ID，其高 32 位就是签发时的 Unix 秒，所以表格里还会显示每个 ID 的签发时间——它是从 ID 自身读出来的，而不是请求来的。这个时间等于或略早于发布时间，绝不会晚于它。
+抖音和 TikTok 生成的作品 ID，其高 32 位就是签发时的 Unix 秒，所以表格里还会显示这类 ID 的签发时间——它是从 ID 自身读出来的，而不是请求来的。这个时间等于或略早于发布时间，绝不会晚于它。bvid 里没有这样的时钟，所以 B 站那一行没有签发时间。
 
 这项检查无法区分“从未存在过的作品”和“已被删除的作品”：看起来合理的 ID 就是看起来合理。它能做的是拒掉那些根本不可能是 ID 的文本——而这部分正是值得免费做掉的，因为另一种做法是发起一次上游请求、消耗一个身份，去换回同一个结论。
 
@@ -391,15 +404,17 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 
 ### 铸造身份
 
-`POST /api/v1/tools/identity` —— 驱动真实浏览器访问平台，把平台下发的 cookie 交还给你。这是无法用计算得到的那一半：TikTok 的 `msToken` 和抖音的 `UIFID_TEMP` 是平台签发给一个真正加载过其页面的浏览器的。没有任何算法能产出它们，这也正是“光有签名不够”的原因。
+`POST /api/v1/tools/identity` —— 对抖音和 TikTok，它驱动真实浏览器访问平台，把平台下发的 cookie 交还给你。这是无法用计算得到的那一半：TikTok 的 `msToken` 和抖音的 `UIFID_TEMP` 是平台签发给一个真正加载过其页面的浏览器的。没有任何算法能产出它们，这也正是“光有签名不够”的原因。
 
-它的代价，直说：
+B 站不需要浏览器。它的游客身份只是一次普通 HTTP 请求，发往站点的 `/x/frontend/finger/spi`，由它下发 `buvid3` 和 `buvid4`；请求走本实例自己的 TLS 仿真传输层，并经过你给的代理。
+
+浏览器铸造的代价，直说：
 
 - **数十秒。** 需要启动浏览器、加载页面，并等待其脚本把 cookie 设置完毕。
-- **`identity:manage` scope 和 operator 角色。** 普通读取 key 不带这个权限，viewer 的会话也会被拒绝。
-- **一个 `browser-rpc` 服务。** 没有配置 `DTK_BROWSER_RPC_URL` 时，调用会失败并指出这个设置项。`browser-rpc` 是整个栈里最重的容器，属于可选的 compose profile；见[安装与部署](./02-installation.md)。
+- **`identity:manage` scope 和 operator 角色。** 普通读取 key 不带这个权限，viewer 的会话也会被拒绝。这一条对 B 站同样适用。
+- **一个 `browser-rpc` 服务。** 没有配置 `DTK_BROWSER_RPC_URL` 时，抖音或 TikTok 的铸造会失败并指出这个设置项；B 站的铸造不需要它。`browser-rpc` 是整个栈里最重的容器，属于可选的 compose profile；见[安装与部署](./02-installation.md)。
 
-可选的**代理**字段让你通过指定出口铸造，而且值得设置：在一个地址铸造、却从另一个地址使用的 cookie，正是两个平台都在找的那种不一致。它与其他所有代理参数一样，要过同一道 `security.request_proxy` 关卡——工具接口不能成为绕过该设置的通道。
+可选的**代理**字段让你通过指定出口铸造，而且值得设置：在一个地址铸造、却从另一个地址使用的 cookie，正是抖音和 TikTok 都在找的那种不一致。它与其他所有代理参数一样，要过同一道 `security.request_proxy` 关卡——工具接口不能成为绕过该设置的通道。
 
 **不做任何存储。** cookie 返回给你之后即被遗忘。若要把它加入本实例自己的身份池，请使用身份页或 `POST /api/v1/admin/identities/mint`——见[身份与代理](./06-identities-and-proxies.md)。
 
@@ -409,11 +424,11 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 
 | 标签页 | 接口 | 所需 scope | 网络 | 消耗身份 | 耗时 |
 | --- | --- | --- | --- | --- | --- |
-| 计算签名 | `POST /api/v1/tools/sign` | `douyin:read` 或 `tiktok:read` | 无 | 无 | 瞬时 |
-| 反解签名 | `POST /api/v1/tools/decode` | `douyin:read` 或 `tiktok:read` | 无 | 无 | 瞬时 |
-| 解析链接 | `GET /api/v1/tools/parse-url` | `douyin:read` 或 `tiktok:read` | 无 | 无 | 瞬时 |
-| 批量解析 | `POST /api/v1/tools/parse-batch` | `douyin:read` 或 `tiktok:read` | 无 | 无 | 瞬时 |
-| 铸造身份 | `POST /api/v1/tools/identity` | `identity:manage` 且 operator 角色 | 一次真实浏览器会话 | 交给你一份新铸造的 cookie | 数十秒 |
+| 计算签名 | `POST /api/v1/tools/sign` | 任一平台读取 scope（`douyin:read`、`tiktok:read` 或 `bilibili:read`） | 无；B 站最多每小时拉取一次两把公开密钥 | 无 | 瞬时 |
+| 反解签名 | `POST /api/v1/tools/decode` | 任一平台读取 scope | 无 | 无 | 瞬时 |
+| 解析链接 | `GET /api/v1/tools/parse-url` | 任一平台读取 scope | 无 | 无 | 瞬时 |
+| 批量解析 | `POST /api/v1/tools/parse-batch` | 任一平台读取 scope | 无 | 无 | 瞬时 |
+| 铸造身份 | `POST /api/v1/tools/identity` | `identity:manage` 且 operator 角色 | 一次真实浏览器会话（抖音、TikTok）或一次 HTTP 请求（B 站） | 交给你一份新铸造的 cookie | 用浏览器时数十秒 |
 
 这五个接口与本 API 上的其他接口一样，都受限流约束。
 
@@ -506,7 +521,7 @@ curl -s -X POST "$DTK_URL/api/v1/tools/decode" \
   -d '{"value":"https://www.douyin.com/aweme/v1/web/aweme/detail/?aid=6383&a_bogus=...","user_agent":"Mozilla/5.0 ..."}'
 ```
 
-铸造一个游客身份并自己留着——需要 `identity:manage` 和 operator 角色，耗时数十秒：
+铸造一个游客身份并自己留着——需要 `identity:manage` 和 operator 角色，耗时数十秒（`{"platform":"bilibili"}` 不用浏览器）：
 
 ```bash
 curl -s -X POST "$DTK_URL/api/v1/tools/identity" \

@@ -1,7 +1,7 @@
 # 用户与 API 密钥
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/09-users-and-api-keys.md)
 
 这一篇讲的是"谁能在你的实例上做什么"。读完之后，你会知道该给同事开哪种控制台账号、怎么签发一把只能读抖音、别的什么都干不了的密钥、怎么让泄露的凭据立刻失效，以及如果你真的决定把某个端点开放给不带凭据的调用方，会发生什么。
@@ -261,7 +261,7 @@ dtk_9f3c1a7b2e08_Vn4kQ2xR8sT1yU6wZ0aB3cD5eF7gH9jK
 
 `last_used_at` 会在该密钥每一次通过认证的请求上写入，所以撤销之前想确认"还有东西在用它吗"，看这一列最快。
 
-## 十个 scope
+## 十一个 scope
 
 一个 scope 就是一组端点。只要密钥持有某个端点接受的任意一个 scope，它就能访问该端点。
 
@@ -269,6 +269,7 @@ dtk_9f3c1a7b2e08_Vn4kQ2xR8sT1yU6wZ0aB3cD5eF7gH9jK
 |---|---|
 | `douyin:read` | 抖音的全部读取：`GET /api/v1/douyin/video`、`/video/comments`、`/video/comments/replies`、`/user`、`/user/posts`、`/user/likes`、`/mix/posts`；针对抖音链接的 `POST /api/v1/parse` 和 `POST /api/v1/tasks/batch`；签名工具 `POST /api/v1/tools/sign`、`/decode`、`GET /api/v1/tools/parse-url`、`POST /api/v1/tools/parse-batch`；`POST /api/v1/archive/recheck` 与 `/archive/backfill`；以及回读上述调用创建的任务。 |
 | `tiktok:read` | TikTok 上的同一组，外加只有 TikTok 提供的 `/user/followers` 和 `/user/following`。只持有这个 scope 的密钥访问 `/api/v1/douyin/...` 会被拒绝，REST 和 MCP 一视同仁。 |
+| `bilibili:read` | B 站的读取：`GET /api/v1/bilibili/video`、`/video/comments`、`/video/comments/replies`、`/user`、`/user/posts`、`/user/collections`、`/collection/posts`；针对 B 站链接的 `POST /api/v1/parse` 和 `POST /api/v1/tasks/batch`；与 `douyin:read` 相同的那些工具和归档调用；以及取回上述任一调用创建的任务。B 站不提供的那些抖音、TikTok 路由会返回 `UNSUPPORTED_CONTENT`——见 [REST API 指南](./11-api.md#b-站)。只持有这个 scope 的密钥访问 `/api/v1/douyin/...` 和 `/api/v1/tiktok/...` 会被拒绝。 |
 | `archive:read` | 本实例已经存下来的内容，直接从 Postgres 返回、不碰平台：`GET /api/v1/archive`、`/archive/stats`、`/archive/collections`、`GET /api/v1/archive/{platform}/{content_id}`。刻意与平台读取权限分开——开放一个平台端点，不应该顺带开放这台实例历史上采集到的一切。 |
 | `archive:export` | `GET /api/v1/archive/export`，一次请求遍历整个归档。它单独占一个 scope，因为这是唯一一个能把只读密钥变成数据库副本的调用。 |
 | `media:read` | 下载记录及其字节内容：`GET /api/v1/downloads`、`/downloads/storage`、`/downloads/{download_id}` 和 `/downloads/{download_id}/files/{name}`。它还会让归档列表 `GET /api/v1/archive` 多返回本地媒体那一块。 |
@@ -354,7 +355,7 @@ curl -H 'Authorization: Bearer dtk_9f3c1a7b2e08_...' \
 - **密钥优先于 cookie。** 如果一个请求两者都带且密钥有效，胜出的是密钥的主体——包括它更窄的 scope。如果密钥是未知的、过期的或已撤销的，请求会退回去用 cookie。
 - **错误的凭据绝不会被降级成匿名。** 携带了一把服务端不认的密钥的请求，即使打在已开放给匿名调用的端点上，也会明确收到 `401`。悄悄降级会把"你的密钥过期了"变成"你的密钥能用但看得更少"，后者要难查得多。
 
-`/mcp` 端点只接受 API 密钥（两个请求头都行），你要是送了会话 cookie，它会明确告诉你。密钥必须持有 `douyin:read` 或 `tiktok:read` 才能完成握手；随后每个工具会针对它实际被要求的平台再校验一次。见 [MCP 与 AI 客户端](./12-mcp.md)。
+`/mcp` 端点只接受 API 密钥（两个请求头都行），你要是送了会话 cookie，它会明确告诉你。密钥必须持有 `douyin:read`、`tiktok:read` 或 `bilibili:read` 才能完成握手；随后每个工具会针对它实际被要求的平台再校验一次。见 [MCP 与 AI 客户端](./12-mcp.md)。
 
 ### 请求被拒绝时
 
@@ -400,7 +401,7 @@ curl -H 'Authorization: Bearer dtk_9f3c1a7b2e08_...' \
 
 ### 开放某个路由是必要条件，不是充分条件
 
-未认证的调用方运行在一个匿名主体上，它**恰好持有两个 scope**：`douyin:read` 和 `tiktok:read`。永远没有 admin，永远没有写权限。
+未认证的调用方运行在一个匿名主体上，它**恰好持有三个 scope**：`douyin:read`、`tiktok:read` 和 `bilibili:read`。永远没有 admin，永远没有写权限。
 
 所以在配置里开放 `GET /api/v1/downloads` 毫无意义：该路由依然要求 `media:read`，匿名主体没有它，调用方拿到的是 `403` 而不是 `401`。实际上真正适合开放的，是平台读取端点、`/api/v1/parse`、`/api/v1/tasks/batch`、`/api/v1/tools` 下的链接与签名工具、用于回读上述任务的 `/api/v1/tasks/{task_id}`，以及 `/api/v1/system/status`。
 

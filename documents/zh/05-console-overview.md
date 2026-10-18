@@ -1,7 +1,7 @@
 # 控制台总览
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/05-console-overview.md)
 
 读完这篇，你就能完成首次进入控制台的全过程、看懂侧边栏的组织方式，并读懂四个用来判断实例是否健康的页面——总览、系统信息、日志、诊断——包括每个面板的含义，以及看到某个结果之后该做什么。
@@ -76,7 +76,7 @@ docker compose -p dtk -f docker/compose.yml logs api
 | --- | --- | --- |
 | 1. 创建管理员 | 消耗令牌，创建第一个 `admin` 账号，然后立刻用你刚输入的凭据登录（init 接口本身不签发会话） | 否 |
 | 2. 配置代理 | 粘贴代理列表并导入，随后逐个探测导入的代理，按行显示出口国家与延迟 | 是 |
-| 3. 铸造首个身份 | 通过无头浏览器在所选平台上铸造 1–5 个身份 | 是 |
+| 3. 铸造首个身份 | 在所选平台上铸造 1–5 个身份——抖音和 TikTok 通过无头浏览器，B 站只需一个普通 HTTP 请求 | 是 |
 | 4. 冒烟测试 | 用你提供的一条真实链接调用 `POST /api/v1/parse` 走完整链路，并显示平台、作品 ID、耗时与请求 ID | 是 |
 
 几个容易踩的细节：
@@ -85,7 +85,7 @@ docker compose -p dtk -f docker/compose.yml logs api
 - **向导要求 12 位密码，服务端下限是 8 位。** 多出来的 4 位是向导自己的策略，因为这个账号没有邮件找回。
 - **令牌输错会告诉你还剩几次机会。** 服务端返回 `SETUP_TOKEN_INVALID` 并带上 `attempts_remaining`，向导会把它显示出来。
 - **第 2 步的导入与探测是一个动作。** 「列表被接受了但从没真正拨通过」正是这一步要抓的失败。支持的行格式为 `host:port`、`host:port:user:pass`、`user:pass@host:port` 和 `scheme://user:pass@host:port`。
-- **没有浏览器容器时第 3 步会换一副样子。** 铸造要驱动真实浏览器，而浏览器在一个可选的 compose profile 后面。当 `browser_rpc` 报告 `configured: false` 时，这一步会直说，并给出命令而不是直接失败：
+- **没有浏览器容器时第 3 步只提供 B 站。** 铸造抖音和 TikTok 要驱动真实浏览器，而浏览器在一个可选的 compose profile 后面。这一步会向身份池询问哪些平台能在这里铸造（`GET /api/v1/admin/identities/pool` 里每个平台的 `can_mint`），只列出这些；表单下方会点名其余平台，并给出命令而不是直接失败：
 
   ```bash
   echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
@@ -398,7 +398,9 @@ MCP 那一项指向 `/mcp-guide` 而不是 `/mcp`，因为 `/mcp` 属于挂在 A
 | 拒绝原因 | 调度器为什么根本没发出去——见下 |
 | 命中缓存 | 结果是否来自缓存 |
 | 签名方式 | 由哪条签名路径产出的签名 |
-| 平台 | douyin / tiktok |
+| 平台 | douyin / tiktok / bilibili |
+
+一次 B 站视频详情是两行，不是一行。B 站的详情响应里没有可播放的文件，所以实例会再发一个请求去取视频流；这个请求同样经过调度、签名，并以它自己的接口名 `bilibili.content_streams` 写进日志，和 `bilibili.content_detail` 并列。只按其中一个名字筛选，你看到的就只是一半的工作。
 
 有**拒绝原因**就意味着这个请求压根没出门，是调度器拒绝了它：
 
@@ -462,7 +464,7 @@ MCP 那一项指向 `/mcp-guide` 而不是 `/mcp`，因为 `/mcp` 属于挂在 A
 | 2 | `egress` | **不经代理**直接访问 `https://www.douyin.com/` 和 `https://www.tiktok.com/` ——这是把「没网」和「代理坏了」区分开的办法 |
 | 3 | `proxies` | 按创建时间从旧到新，最多拨通 20 个已配置的代理（`MAX_PROXIES_PROBED`），向回显服务查询出口地址，然后报告出口 IP、库里记录的国家，以及该行是否被标记为健康 |
 | 4 | `pool` | 按状态统计身份数量，并报告最近一次成功请求是什么时候、最老的可用身份已经闲置多久 |
-| 5 | `signing` | 每个平台各用纯算法签一个固定请求，并与 `browser-rpc` 比对——就是签名器注册表在生产中跑的那套影子比对 |
+| 5 | `signing` | 抖音和 TikTok 各用纯算法签一个固定请求，并与 `browser-rpc` 比对——就是签名器注册表在生产中跑的那套影子比对。B 站不参与比对：`browser-rpc` 从不为它签名，没有第二份签名可以拿来对照 |
 | 6 | `smoke` | 用一条固定的公开链接走完 解析 → 签名 → 抓取 → 分类 的全过程 |
 
 注意第 6 步用的是服务端自带的链接，而不是你提供的——这一点和初始化向导第四步正好相反，后者会向你要一条。如果那条作品后来被删除或设为私密，这一步依然**通过**：平台把话说清楚了，而这一步问的就只有这个。
@@ -487,7 +489,7 @@ MCP 那一项指向 `/mcp-guide` 而不是 `/mcp`，因为 `/mcp` 属于挂在 A
 
 | 结果 | 状态 | 含义与处理 |
 | --- | --- | --- |
-| `egress_ok` | 通过 | 两个平台域名都能直连 |
+| `egress_ok` | 通过 | 抖音和 TikTok 的域名都能直连 |
 | `egress_partial` | 警告 | 其中一个不可达。那个平台的请求将完全依赖可用的代理 |
 | `egress_unreachable` | **失败** | 两个都通不了。检查 DNS、主机防火墙，以及这台机器的出站流量是否必须走代理 |
 
@@ -514,7 +516,7 @@ MCP 那一项指向 `/mcp-guide` 而不是 `/mcp`，因为 `/mcp` 属于挂在 A
 
 | 结果 | 状态 | 含义与处理 |
 | --- | --- | --- |
-| `signing_ok` | 通过 | 两个平台上纯算法与浏览器签名一致 |
+| `signing_ok` | 通过 | 抖音和 TikTok 上纯算法与浏览器签名一致 |
 | `signing_not_comparable` | 警告 | 浏览器参考实现的算法版本不同，因此结构化比对给不出任何结论。**纯算路径不受影响，仍在正常服务。** 这条读起来像故障，但它不是 |
 | `signing_mismatch` | **失败** | 纯算法已经和平台的实现产生偏差。这些平台目前改由 `browser-rpc` 签名；请附上这份报告提交 issue，以便更新算法 |
 | `signing_no_browser_rpc` | 已跳过 | 没有配置 `browser-rpc`，没有第二个签名器可以对照。配置 `DTK_BROWSER_RPC_URL` 即可启用影子比对，在风控率上升之前就发现失效的算法 |

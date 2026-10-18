@@ -1,8 +1,8 @@
 # Playground and tools
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/07-playground-and-tools.md)
 
 Three console pages let you learn this system by using it: `/playground` drives any
@@ -17,12 +17,14 @@ platform request outside this instance, and take a signature apart.
 | Page | Path | What it does | What it costs |
 | --- | --- | --- | --- |
 | Playground | `/playground` | Calls the real read endpoints with a form, then shows the normalized result, the raw platform payload, the failure facts and copy-ready snippets | A real upstream request and an identity, unless the answer is cached |
-| Building blocks | `/tools` | Sign a URL, decode a signature, parse a link, batch-parse a list, mint a guest identity | Nothing at all, except minting — which launches a browser |
+| Building blocks | `/tools` | Sign a URL, decode a signature, parse a link, batch-parse a list, mint a guest identity | Nothing at all, except minting — a browser for Douyin and TikTok, one plain HTTP request for Bilibili — and signing a Bilibili URL, which fetches two public keys at most once an hour |
 | API docs | `/docs` | Swagger UI for this instance's own OpenAPI document, in the console's language | Nothing |
 
 They are separate because their costs are separate. Everything on `/tools` except
 the last tab is arithmetic over strings you supply: no network, no identity, no
-row in the request log. Everything on `/playground` goes through the scheduler and
+row in the request log. The one exception is signing a Bilibili URL, whose
+signature needs two keys the site publishes; see [Sign a URL](#sign-a-url).
+Everything on `/playground` goes through the scheduler and
 spends something. Keeping the cheap things where they cannot accidentally become
 expensive is the point of the split.
 
@@ -57,8 +59,9 @@ reason to be on the page.
 
 ### The endpoint catalogue
 
-Ten entries. The first is platform-agnostic; the other nine take a platform
-selector at the top of the form and are addressed as `/api/v1/{platform}/...`.
+Fifteen entries. The first is platform-agnostic; the other fourteen take a
+platform selector (`douyin`, `tiktok` or `bilibili`) at the top of the form and
+are addressed as `/api/v1/{platform}/...`.
 
 | Entry | Method | Path | Scheduler endpoint |
 | --- | --- | --- | --- |
@@ -69,19 +72,37 @@ selector at the top of the form and are addressed as `/api/v1/{platform}/...`.
 | Author profile | `GET` | `/api/v1/{platform}/user` | `{platform}.author_profile` |
 | Author posts | `GET` | `/api/v1/{platform}/user/posts` | `{platform}.author_posts` |
 | Author likes | `GET` | `/api/v1/{platform}/user/likes` | `{platform}.author_likes` |
+| Author reposts | `GET` | `/api/v1/{platform}/user/reposts` | `{platform}.author_reposts` |
+| Bookmark folders (collections) | `GET` | `/api/v1/{platform}/user/collections` | `{platform}.author_collections` |
+| Saved posts (every folder) | `GET` | `/api/v1/{platform}/user/bookmarks` | `{platform}.author_bookmarks` |
+| One folder's details | `GET` | `/api/v1/{platform}/collection` | `{platform}.collection_detail` |
+| Saved posts (one folder) | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}.collection_posts` |
 | Mix / playlist posts | `GET` | `/api/v1/{platform}/mix/posts` | `{platform}.mix_posts` |
 | Author followers | `GET` | `/api/v1/{platform}/user/followers` | `{platform}.author_followers` |
 | Author following | `GET` | `/api/v1/{platform}/user/following` | `{platform}.author_following` |
 
+Not every platform serves every entry, and asking for one it does not serve is
+refused at the API boundary with `UNSUPPORTED_CONTENT` (400) naming the platform
+and the capability: no request id, and no scheduler endpoint of that name for the
+failure panel to match.
+
 The last two rows are TikTok only. The registry declares
-`tiktok.author_followers` and `tiktok.author_following` and no Douyin equivalent,
-so asking for either with the platform selector on Douyin is refused at the API
-boundary with `UNSUPPORTED_CONTENT` (400): no request id, and no scheduler
-endpoint of that name for the failure panel to match. The asymmetry is the
+`tiktok.author_followers` and `tiktok.author_following` and no Douyin or Bilibili
+equivalent. On Douyin the asymmetry is the
 platform's own — Douyin answers "not signed in" for a follow graph even to a
 healthy guest identity, and a route that submitted the task anyway would hand back
 an empty page and let you conclude the author has no followers. The Playground
 starts on Douyin, so this is what you get if you click one of them first.
+
+Bilibili serves seven of the fourteen: post detail, comments, comment replies,
+author profile, author posts, an author's public folders (**Bookmark folders**,
+which on Bilibili takes the author) and one folder's videos (**Saved posts (one
+folder)**). Every other entry answers `UNSUPPORTED_CONTENT` on Bilibili. Post
+detail there makes a second request for the playable file, which is scheduled,
+signed and written to the request log under its own name,
+`bilibili.content_streams`; if it fails the detail still comes back, without
+`media.video`. The [REST API guide](./11-api.md#bilibili) has the rest of what
+differs.
 
 The scheduler endpoint name is what the token bucket and the circuit breaker are
 keyed on, and it is the name the failure panel and the health table use. `POST
@@ -98,11 +119,15 @@ Fields are grouped into three sections.
 
 **Target.** What you are asking about. Where two fields are alternatives —
 `url` or `aweme_id`, `url` or `sec_user_id` — exactly one has to be filled in,
-and the form says so on both if neither is. Some endpoints have a genuinely
-required field instead: `comment_id` for replies, `mix_id` for a collection.
+and the form says so on both if neither is. On Bilibili the same two fields take
+a bvid such as `BV1xx411c7mD` (an av number is accepted and converted) and the
+author's numeric `mid`. Some endpoints have a genuinely
+required field instead: `comment_id` for replies, `mix_id` for a mix,
+`collection_id` for a folder.
 
 **Paging.** `cursor` and `count`, on the endpoints that page. `count` is capped at
-50 by the form and by the API.
+50 by the form and by the API. On Bilibili the API's ceiling is 20, and a larger
+`count` is a 400.
 
 **Request.** The envelope parameters every read endpoint accepts:
 
@@ -228,7 +253,7 @@ half of one compares with nothing.
 The parameters it picks out:
 
 `a_bogus`, `X-Bogus`, `X-Gnarly`, `X-Dynosaur`, `msToken`,
-`x-secsdk-web-signature`, `verifyFp`, `fp`, `uifid`.
+`x-secsdk-web-signature`, `verifyFp`, `fp`, `uifid`, and Bilibili's `w_rid` and `wts`.
 
 A **Read them back** button posts the whole signed URL and its User-Agent to
 `/api/v1/tools/decode` and renders the result inline — the same view the
@@ -325,9 +350,10 @@ platform refuses you, and all three are known here and were not guessable before
 1. **The query goes byte for byte.** The signature covers the query as its own
    encoder produced it. Re-encoding it — which most HTTP clients do helpfully and
    silently — changes the bytes the signature covers.
-2. **The User-Agent has to be the one it was hashed with.** Both platforms hash the
-   UA into the signature. "The UA I am sending is not the UA I signed with" is the
+2. **The User-Agent has to be the one it was hashed with.** Douyin and TikTok hash
+   the UA into the signature. "The UA I am sending is not the UA I signed with" is the
    most common way a hand-built request fails while looking perfectly correct.
+   (Bilibili's WBI signature covers only the query and its timestamp.)
 3. **The jar has to be the identity's own.** The platform answers a *session*. A
    correct signature with no cookies gets `200` and an empty body.
 
@@ -393,24 +419,33 @@ outlives the tab.
 Five tabs over five API endpoints. These are the pieces the service uses on every
 request, published because this is an open-source project and people build on them.
 Everything here except the last tab is a pure function of what you type: no
-network, no identity, no request log row.
+network, no identity, no request log row — apart from the two public keys a
+Bilibili signature needs, described below.
 
 One warning is worth having before you start, because it is the first thing anyone
-hits: **a signature alone is not enough.** Both platforms answer a *session*, so a
-correct signature sent with no cookies gets `200` and an empty body. The signing
+hits: **a signature alone is not enough.** Douyin and TikTok answer a *session*, so a
+correct signature sent with no cookies gets `200` and an empty body, and a Bilibili
+request still has to carry a visitor id (`buvid3`) from a jar. The signing
 tab says what else has to line up; the minting tab is what produces it.
 
 ### Sign a URL
 
 `POST /api/v1/tools/sign` — computes the signature parameters a platform API URL
-needs. Pure arithmetic: nothing is fetched, no identity is spent, and the result
-depends only on what you send.
+needs. For Douyin and TikTok it is pure arithmetic: nothing is fetched, no identity
+is spent, and the result depends only on what you send.
+
+For Bilibili it signs with WBI — `w_rid` and `wts` — computed natively from two
+public keys the site publishes. Those keys are fetched from the site's `nav`
+endpoint and cached for an hour per process, so this tab makes that one request at
+most hourly and spends no identity; if a refresh fails, keys up to a day old keep
+being used. This is the same native signer the worker uses: browser-rpc never
+signs Bilibili, whatever `signing.mode` says.
 
 | Field | Limit | Notes |
 | --- | --- | --- |
-| Platform | — | `douyin` or `tiktok` |
+| Platform | — | `douyin`, `tiktok` or `bilibili` |
 | API URL | 4096 chars | The full API URL including its query. Must start `http://` or `https://`. |
-| User-Agent | 512 chars | Both platforms hash it in. Leave blank for a Chrome default, which is echoed back. |
+| User-Agent | 512 chars | Douyin and TikTok hash it in; Bilibili's WBI does not. Leave blank for a Chrome default, which is echoed back. |
 | msToken | 512 chars | TikTok only. Sealed into the signature, so it must be the token the request will really carry — an invented value is worse than none. |
 | Cookie jar | 8192 chars | Any paste format: a `Cookie:` header, DevTools JSON, Netscape. Douyin computes `x-secsdk-web-signature` over the visitor id inside it. |
 
@@ -420,8 +455,10 @@ The default User-Agent, used when you leave the field blank:
 Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36
 ```
 
-**Start from an example.** Two buttons fill every field from a real browser request
-— Douyin's profile query and TikTok's post list. Two things were removed on
+**Start from an example.** One button per platform fills every field — Douyin's
+profile query and TikTok's post list, both taken from a real browser request, and
+Bilibili's video detail query (`/x/web-interface/wbi/view`), whose jar holds only
+a placeholder `buvid3`. Two things were removed on
 purpose, and the removals are the lesson: the signature parameters are gone,
 because they are what this tool computes and pasting a stale one is the commonest
 way to get a `200` with an empty body; and the cookie *values* are placeholders,
@@ -492,7 +529,9 @@ with no cookies at all, `200` and an empty body.
 
 `POST /api/v1/tools/decode` — the inverse of the tab beside it, and the reason this
 project reversed these algorithms itself rather than vendoring somebody's port: an
-implementation you own can be explained. Also pure arithmetic.
+implementation you own can be explained. Also pure arithmetic, with one exception:
+a Bilibili URL carrying `w_rid` needs the two public WBI keys, which are not in the
+request, so they are taken from the same hourly cache the sign tab uses.
 
 Paste a whole signed URL and every signature parameter in it is decoded against the
 exact string that parameter seals. That is much the most useful form: only from a
@@ -500,14 +539,16 @@ whole URL is the covered string known exactly, so only then can the checks run. 
 single value, or a `name=value` pair, works too. The value is limited to 8192
 characters.
 
-Fill in the **User-Agent** field even when the answer seems obvious. Both platforms
-hash the UA into the signature, and this is how you find out whether the UA you are
-sending is the one you signed with.
+Fill in the **User-Agent** field even when the answer seems obvious. Douyin and
+TikTok hash the UA into the signature, and this is how you find out whether the UA
+you are sending is the one you signed with.
 
 **Read it as** is left on automatic by default, where the value is identified by
 properties no other parameter in the set has. Name it yourself when the shape is
 ambiguous: `a_bogus`, `X-Bogus`, `X-Gnarly`, `X-Dynosaur`, `msToken`,
-`x-secsdk-web-signature`, `verifyFp`.
+`x-secsdk-web-signature`, `verifyFp`, `w_rid`. A bare 32-digit hex value is the one
+shape two parameters share: automatic reads it as Douyin's `x-secsdk-web-signature`,
+so name a Bilibili `w_rid`, or better, paste the URL it came on.
 
 #### What "decode" means here
 
@@ -549,6 +590,7 @@ more confident than it should be:
 | `X-Dynosaur` | 32 | A 32-bit hash over query, User-Agent and body |
 | `X-Gnarly` | 128 | Whole md5s of query, body and User-Agent |
 | `x-secsdk-web-signature` | 128 | A whole md5 of the rebuilt preimage |
+| `w_rid` | 128 | A whole md5 of the sorted query and the mixin key |
 
 #### What each parameter yields
 
@@ -561,13 +603,16 @@ more confident than it should be:
 | `X-Dynosaur` | TikTok | Twenty-five fields: versions, counters, the page, WebGL/canvas/device hashes, a timestamp, four 32-bit hashes |
 | `msToken` | either | Length, padding and alphabet only. Issued, not computed. The length also identifies whose it is — a Douyin token in a TikTok request is 20 characters short and looks exactly like a signing bug until somebody counts them |
 | `x-secsdk-web-signature` | Douyin | The digest itself, and — when the visitor id and timestamp travel with it — the salt and the exact preimage its md5 covers |
+| `w_rid` | Bilibili | The digest, the `wts` clock beside it, and — when the keys could be had — the mixin key and the exact preimage: the query without `w_rid`, sorted and encoded as the page encodes it, then the key |
 | `verifyFp`, `fp`, `s_v_web_id` | Douyin | The prefix, the mint time as base36 milliseconds, and the random tail. A token minted long before the request carrying it is the shape of a jar that has been sitting in a file |
 
 Notes below a result explain what was verified. `checksum_verified` means every
 input to the internal fold is itself a field of the payload and they all agree, so
 the whole layout came back correctly. `noise_not_recoverable` means some bytes are
 drawn per call and carry nothing — two signatures made in the same millisecond
-differ in most of their bytes and mean the same thing.
+differ in most of their bytes and mean the same thing. `wbi_keys_unavailable` means
+a `w_rid` came with its query but the WBI keys could not be fetched just then, so
+the check reads `not_supplied` rather than `differs`.
 
 When a value cannot be read at all, the reason says why: `malformed` (with the
 structural test it failed appended), `one_way`, `not_computed`, or
@@ -577,7 +622,7 @@ structural test it failed appended), `one_way`, `not_computed`, or
 
 `GET /api/v1/tools/parse-url` — works out what a link points at without fetching
 anything. Accepts a share link or the whole clipboard text with a link buried in
-it, which is what both apps actually put on the clipboard.
+it, which is what the Douyin and TikTok apps actually put on the clipboard.
 
 It reports the platform, what kind of resource the link names, the id, the handle
 where there is one, the canonical URL, whether it is a supported target at all, and
@@ -585,12 +630,17 @@ whether it needs expanding.
 
 Which id you get differs by platform, because the endpoints differ: a Douyin
 profile link yields a `sec_user_id`, a TikTok one yields the `@handle`, because
-that is what TikTok's user-detail call accepts. Both come back under `resource_id`.
+that is what TikTok's user-detail call accepts, and a Bilibili space link yields
+the numeric `mid` (Bilibili has no handles). A Bilibili video link yields the
+bvid, an av link included — the av number is converted to the bvid by arithmetic,
+not by a request. All of them come back under `resource_id`.
 
-A short link (`v.douyin.com`, `vm.tiktok.com`) cannot be resolved without following
+A short link (`v.douyin.com`, `vm.tiktok.com`, `b23.tv`, `bili2233.cn`) cannot be
+resolved without following
 it, and following it is a network call this endpoint promises not to make. Those
 come back with `needs_expansion: true` and no id; send them to `POST /api/v1/parse`
-instead — which is the Playground's first catalogue entry.
+instead — which is the Playground's first catalogue entry. A `bilibili.tv` link
+is not recognised at all: the international site is a different service.
 
 ### Batch
 
@@ -616,14 +666,14 @@ Each line comes back as one of:
 | --- | --- |
 | `link` | A recognised link, with platform, resource and id |
 | `short_link` | A recognised link whose target needs a network call |
-| `content_id` | A bare post id that checks out |
+| `content_id` | A bare post id that checks out, or a bare Bilibili bvid |
 | `bad_id` | A line of digits that cannot be a post id |
 | `unknown` | Not recognised as either |
 
-Both platforms mint post ids whose high 32 bits are the Unix second they were
-issued, so the table also shows when each id was issued — read out of the id
+Douyin and TikTok mint post ids whose high 32 bits are the Unix second they were
+issued, so the table also shows when each such id was issued — read out of the id
 itself, not out of a request. It is at or a little before the publication time,
-never after.
+never after. A bvid carries no such clock, so a Bilibili row has no issue time.
 
 That check cannot tell a post that never existed from one that has been deleted: a
 plausible id is a plausible id. What it does is reject text that cannot be an id at
@@ -635,25 +685,30 @@ the `bad_id` rows.
 
 ### Mint an identity
 
-`POST /api/v1/tools/identity` — drives a real browser to the platform and hands back
-the cookies it was issued. This is the half of the work that cannot be computed:
-`msToken` on TikTok and `UIFID_TEMP` on Douyin are issued by the platform to a
-browser that loaded its page. No algorithm produces them, which is why a signature
-alone is not enough.
+`POST /api/v1/tools/identity` — for Douyin and TikTok, drives a real browser to the
+platform and hands back the cookies it was issued. This is the half of the work
+that cannot be computed: `msToken` on TikTok and `UIFID_TEMP` on Douyin are issued
+by the platform to a browser that loaded its page. No algorithm produces them,
+which is why a signature alone is not enough.
 
-What it costs, plainly:
+Bilibili needs no browser. Its guest is one plain HTTP request to the site's
+`/x/frontend/finger/spi`, which hands out `buvid3` and `buvid4`, made through
+this instance's own TLS-impersonating transport and behind the proxy you give.
+
+What a browser mint costs, plainly:
 
 - **Tens of seconds.** A browser has to launch, load the page and wait for its
   scripts to finish setting cookies.
 - **`identity:manage` scope and the operator role.** Ordinary read keys do not
-  carry the scope, and a viewer's session is refused.
-- **A `browser-rpc` service.** Without `DTK_BROWSER_RPC_URL` configured, the call
-  fails saying so and naming the setting. `browser-rpc` is the heaviest container in
+  carry the scope, and a viewer's session is refused. This applies to Bilibili too.
+- **A `browser-rpc` service.** Without `DTK_BROWSER_RPC_URL` configured, a Douyin or
+  TikTok mint fails saying so and naming the setting; a Bilibili mint does not need
+  it. `browser-rpc` is the heaviest container in
   the stack and is an optional compose profile; see [Installation](./02-installation.md).
 
 The optional **Proxy** field mints behind a given egress, and is worth setting:
-cookies minted at one address and used from another are exactly the mismatch both
-platforms look for. It goes through the same `security.request_proxy` gate as every
+cookies minted at one address and used from another are exactly the mismatch
+Douyin and TikTok look for. It goes through the same `security.request_proxy` gate as every
 other proxy parameter — a tool endpoint must not be the way around that setting.
 
 **Nothing is stored.** The jar is returned to you and forgotten. To add one to this
@@ -669,11 +724,11 @@ different User-Agent is a weaker identity than no identity.
 
 | Tab | Endpoint | Scope needed | Network | Identity spent | Time |
 | --- | --- | --- | --- | --- | --- |
-| Sign a URL | `POST /api/v1/tools/sign` | `douyin:read` or `tiktok:read` | none | none | instant |
-| Decode | `POST /api/v1/tools/decode` | `douyin:read` or `tiktok:read` | none | none | instant |
-| Parse a link | `GET /api/v1/tools/parse-url` | `douyin:read` or `tiktok:read` | none | none | instant |
-| Batch | `POST /api/v1/tools/parse-batch` | `douyin:read` or `tiktok:read` | none | none | instant |
-| Mint an identity | `POST /api/v1/tools/identity` | `identity:manage` and the operator role | a real browser session | one minted jar handed to you | tens of seconds |
+| Sign a URL | `POST /api/v1/tools/sign` | any platform read scope (`douyin:read`, `tiktok:read` or `bilibili:read`) | none; for Bilibili, the two public keys at most hourly | none | instant |
+| Decode | `POST /api/v1/tools/decode` | any platform read scope | none | none | instant |
+| Parse a link | `GET /api/v1/tools/parse-url` | any platform read scope | none | none | instant |
+| Batch | `POST /api/v1/tools/parse-batch` | any platform read scope | none | none | instant |
+| Mint an identity | `POST /api/v1/tools/identity` | `identity:manage` and the operator role | a real browser session (Douyin, TikTok) or one HTTP request (Bilibili) | one minted jar handed to you | tens of seconds with a browser |
 
 All five are rate-limited like every other endpoint on this API.
 
@@ -803,7 +858,7 @@ curl -s -X POST "$DTK_URL/api/v1/tools/decode" \
 ```
 
 Mint a guest identity and keep it yourself — needs `identity:manage` and an operator, and takes tens
-of seconds:
+of seconds (`{"platform":"bilibili"}` mints without a browser):
 
 ```bash
 curl -s -X POST "$DTK_URL/api/v1/tools/identity" \

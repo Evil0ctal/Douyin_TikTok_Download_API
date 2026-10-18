@@ -1,7 +1,7 @@
 # REST API 指南
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/11-api.md)
 
 本文讲的是如何从程序里**调用** HTTP API：怎么认证、统一信封长什么样、异步任务模型怎么工作、怎么翻页、以及你的代码必须处理哪些错误。读完之后，你应该能写出一个客户端：提交任务、取回结果，并在实例开始拒绝你时正确地退避。
@@ -67,6 +67,7 @@ curl -sS "$DTK_BASE_URL/api/v1/auth/me" -H "X-API-Key: $DTK_API_KEY"
 | --- | --- |
 | `douyin:read` | 抖音内容接口，以及对抖音链接的 `/parse` |
 | `tiktok:read` | TikTok 内容接口，以及对 TikTok 链接的 `/parse` |
+| `bilibili:read` | B 站内容接口，以及对 B 站链接的 `/parse` |
 | `archive:read` | `GET /api/v1/archive…`——本实例已经存下来的内容 |
 | `archive:export` | `GET /api/v1/archive/export`——一次调用拿走整个集合 |
 | `media:read` | 下载记录与已存文件 |
@@ -83,7 +84,7 @@ curl -sS "$DTK_BASE_URL/api/v1/auth/me" -H "X-API-Key: $DTK_API_KEY"
 
 ### 被开放的接口
 
-运营方可以在 `api.public_endpoints` 里逐条列出接口（写作 `GET /api/v1/{platform}/video`，与 API 文档里的路径写法完全一致），这些接口就不再需要凭据。admin、auth 和 setup 路径无论设置怎么写都永远不能被开放。匿名调用方只带 `douyin:read` 和 `tiktok:read`，并且按客户端地址而不是按 key 计量。
+运营方可以在 `api.public_endpoints` 里逐条列出接口（写作 `GET /api/v1/{platform}/video`，与 API 文档里的路径写法完全一致），这些接口就不再需要凭据。admin、auth 和 setup 路径无论设置怎么写都永远不能被开放。匿名调用方只带三个平台的读取权限范围——`douyin:read`、`tiktok:read` 和 `bilibili:read`——并且按客户端地址而不是按 key 计量。
 
 发送一个**错误的**凭据和不发凭据不是一回事：即使在已开放的接口上，被拒绝的 key 也会得到 `UNAUTHENTICATED`，而不会被悄悄降级成匿名。这样「你的 key 过期了」会变成一个你看得见的错误，而不是「key 能用，只是看到的东西变少了」。
 
@@ -105,7 +106,7 @@ curl -sS "$DTK_BASE_URL/api/v1/auth/me" -H "X-API-Key: $DTK_API_KEY"
 | `success` | `true` 或 `false`。请按它分支，而不是只看 HTTP 状态码 |
 | `data` | 接口自己的载荷。`success` 为 `false` 时恒为 `null` |
 | `error` | 成功时为 `null`。否则是 `{code, message}`，另可带 `retry_after` 和 `details` |
-| `meta` | 恒带 `request_id`。可能带 `cached`、`duration_ms`、`cursor` 以及接口特有的附加字段，比如由访客身份应答的作者作品列表上的 `guest_fallback: true`——它可能缺最新的几条 |
+| `meta` | 恒带 `request_id`。可能带 `cached`、`duration_ms`、`cursor` 以及接口特有的附加字段，比如由访客身份应答的作者作品列表上的 `guest_fallback: true`——它可能缺最新的几条——或者由访客应答的 B 站评论页上的同一个字段 |
 
 **请按 `error.code` 分支，永远不要按 `error.message`。** code 是稳定枚举、永不翻译；message 会按调用方的语言渲染，是写给人看的。
 
@@ -146,7 +147,7 @@ curl -sS -X POST "$DTK_BASE_URL/api/v1/parse" \
   "data": null,
   "error": {
     "code": "INVALID_URL",
-    "message": "The URL was not recognized as a supported Douyin or TikTok link.",
+    "message": "The URL was not recognized as a supported Douyin, TikTok or Bilibili link.",
     "details": { "reason": "host_not_allowed" }
   },
   "meta": { "request_id": "1d5b1a7e-90c7-4f2e-9b3c-6b2f0f9a8d44" }
@@ -286,7 +287,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
       { "url": "https://v.douyin.com/abc123/", "task_id": "0f2f…", "state": "queued" },
       { "url": "https://evil.example/x", "task_id": null,
         "error": { "code": "INVALID_URL",
-                   "message": "The URL was not recognized as a supported Douyin or TikTok link.",
+                   "message": "The URL was not recognized as a supported Douyin, TikTok or Bilibili link.",
                    "details": { "reason": "host_not_allowed" } } }
     ],
     "submitted": 1,
@@ -312,7 +313,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 | 参数 | 出现在 | 默认值 | 上限 |
 | --- | --- | --- | --- |
 | `cursor` | 平台列表、归档列表 | 首页 | 512 字符 |
-| `count` | 平台列表 | 20 | 50 |
+| `count` | 平台列表 | 20 | 50，或该平台自己更低的上限（TikTok 为 35，B 站为 20） |
 | `limit` | `GET /api/v1/archive` | 50 | 200 |
 
 平台列表的结果会在两个地方带上游标，因为有两类读者想要两种形状：
@@ -338,11 +339,11 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 
 规则：
 
-- **游标是不透明的。** 抖音按毫秒级 `max_cursor` 时间戳翻页，TikTok 按偏移量翻页；两者都被字符串化进同一个字段，调用方不需要知道是哪一种。不要解析它、不要给它加一、也不要自己构造。
+- **游标是不透明的。** 抖音按毫秒级 `max_cursor` 时间戳翻页，TikTok 按偏移量翻页，B 站的部分列表按页码翻页；它们都被字符串化进同一个字段，调用方不需要知道是哪一种。不要解析它、不要给它加一、也不要自己构造。
 - **没有游标、或 `has_more: false`，就是最后一页。** 到此为止，不要再把上一个游标发一遍。
 - 游标属于产生它的那次查询。翻到一半改 `count` 或任何过滤条件、还复用旧游标，属于未定义行为。
 
-`count` 超过上限会在校验阶段被拒绝，而不是被悄悄裁掉（OpenAPI schema 里声明了 `maximum: 50`）。想要更多的调用方应该翻页；想一次拿走全部的调用方，正是应该被放慢的那个。
+`count` 超过上限会在校验阶段被拒绝，而不是被悄悄裁掉（OpenAPI schema 里声明了 `maximum: 50`）。实际能给的比这更少的平台有自己更低的上限，超出同样被拒绝——`INVALID_PARAM`，带 `details.maximum`——TikTok 上是 35，B 站上是 20。想要更多的调用方应该翻页；想一次拿走全部的调用方，正是应该被放慢的那个。
 
 也不是所有地方都用游标。`GET /api/v1/downloads` 和各管理列表用 `limit` + `offset` 并返回 `total`（默认 100，上限 500），因为它们读的是本地数据库；`GET /api/v1/admin/logs/requests` 用一个有界的 `minutes` 窗口加 `limit`，所以不存在任何一组参数能不带时间窗就打到日志表上。
 
@@ -370,7 +371,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 
 | Code | HTTP | 可重试 | 含义 |
 | --- | --- | --- | --- |
-| `INVALID_URL` | 400 | 否 | 不是受支持的抖音或 TikTok 链接，或主机不在白名单里 |
+| `INVALID_URL` | 400 | 否 | 不是受支持的抖音、TikTok 或 B 站链接，或主机不在白名单里 |
 | `UNSUPPORTED_CONTENT` | 400 | 否 | 该平台不提供这个操作；`details.supported` 列出哪些平台提供 |
 | `INVALID_PARAM` | 400 | 否 | 某个参数不对，`details` 指出字段。请求体超过 1 MiB 上限也用它（HTTP 状态为 413） |
 | `UNAUTHENTICATED` | 401 | 否 | 没有凭据，或凭据被拒绝 |
@@ -391,7 +392,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `SIGNING_FAILED` | 502 | **是** | 签名失败，算法可能已失效 |
 | `UPSTREAM_UNREACHABLE` | 502 | **是** | 每次尝试都在平台应答之前就在网络层失败了；`details.proxied` 说明最后一次有没有走代理。多半是这台机器的出网问题，不是平台 |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **是** | 没有可用身份；`retry_after` 是恢复时间的估计 |
-| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——抖音作者作品列表的后续页。`details.cooling` 是正在冷却的登录身份数。靠导入一份来解决，重试没用；见[身份](./06-identities-and-proxies.md#哪些内容需要登录身份) |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——抖音作者作品列表的后续页，或 B 站视频评论的后续页。`details.cooling` 是正在冷却的登录身份数。靠导入一份来解决，重试没用；见[身份](./06-identities-and-proxies.md#哪些内容需要登录身份) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **是** | 该接口因连续失败被熔断暂停 |
 | `QUEUE_FULL` | 503 | **是** | 队列已达上限 |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **是** | 媒体边车进程在跑但没有响应 |
@@ -505,7 +506,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 
 ## 接口分组
 
-`{platform}` 是 `douyin` 或 `tiktok`，且必须与你传的链接一致；不一致会得到 `INVALID_URL`，`details.reason` 为 `"platform_mismatch"`。
+`{platform}` 是 `douyin`、`tiktok` 或 `bilibili`，且必须与你传的链接一致；不一致会得到 `INVALID_URL`，`details.reason` 为 `"platform_mismatch"`。
 
 ### 内容 —— 异步，消耗身份
 
@@ -518,21 +519,21 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `GET` | `/api/v1/{platform}/video/comments/replies` | `{platform}:read` | `comment_id` 加上 `url` **或** `aweme_id`。分页 |
 | `GET` | `/api/v1/{platform}/user` | `{platform}:read` | 作者资料。`url` **或** `sec_user_id` |
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | 分页 |
-| `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | 分页。见下面的平台差异说明 |
-| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id`——抖音叫 `mix_info`，TikTok 叫 `playlistId`。是作者自建的合集，不是收藏夹。分页 |
-| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | 收藏夹列表。TikTok 接受作者参数；抖音不接受，并且在抖音上必须带 `identity`。分页 |
+| `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | 抖音和 TikTok。分页。见下面的平台差异说明 |
+| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | 抖音和 TikTok。`mix_id`——抖音叫 `mix_info`，TikTok 叫 `playlistId`。是作者自建的合集，不是收藏夹。分页 |
+| `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | 收藏夹列表。TikTok 和 B 站接受作者参数（B 站上是公开收藏夹，一页返回全部）；抖音不接受，并且在抖音上必须带 `identity`。分页 |
 | `GET` | `/api/v1/{platform}/collection` | `tiktok:read` | **仅 TikTok。** 按 `collection_id` 查单个收藏夹：名称、封面、作品数、归属、是否公开 |
 | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}:read` | 按 `collection_id` 取某个收藏夹里的作品。分页 |
-| `GET` | `/api/v1/{platform}/user/bookmarks` | `{platform}:read` | 跨全部收藏夹的收藏作品。只能读账号本人，所以必须带 `identity`。TikTok 接受作者参数，抖音不接受。分页 |
+| `GET` | `/api/v1/{platform}/user/bookmarks` | `{platform}:read` | 抖音和 TikTok。跨全部收藏夹的收藏作品。只能读账号本人，所以必须带 `identity`。TikTok 接受作者参数，抖音不接受。分页 |
 | `GET` | `/api/v1/{platform}/user/reposts` | `tiktok:read` | **仅 TikTok。** 作者转发的作品。分页 |
 | `GET` | `/api/v1/{platform}/user/followers` | `tiktok:read` | **仅 TikTok** |
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **仅 TikTok** |
 
-除了核心那五个之外，两个平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。`user/likes` 两个平台都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
+除了核心那五个之外，各平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。B 站提供核心五个加上收藏夹，其余的也以同样方式作答——见 [B 站](#b-站)。`user/likes` 抖音和 TikTok 都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
 
-收藏夹是这种不对称最尖锐的一处。**两个平台都允许逐个把收藏夹设为公开或私密**，公开的那些用普通的池内身份就能读——两边都不需要登录。但收藏夹**列表**不同：TikTok 的接受作者参数，能回答陌生人公开的收藏夹；抖音的请求里则根本没有用户 id，只回答发出请求的那个身份自己的收藏夹。所以在抖音上，`user/collections` 必须把 `identity` 指向导入的身份，而传 `url` 或 `sec_user_id` 会被拒绝而不是被忽略——忽略它的话，返回的会是你自己的收藏夹，却挂在别人的名下。每个收藏夹都会给出 `is_public` 和归属，所以你不需要猜自己处在哪种情况。
+收藏夹是这种不对称最尖锐的一处。**抖音和 TikTok 都允许逐个把收藏夹设为公开或私密**，公开的那些用普通的池内身份就能读——两边都不需要登录。但收藏夹**列表**不同：TikTok 的（以及 B 站的）接受作者参数，能回答陌生人公开的收藏夹；抖音的请求里则根本没有用户 id，只回答发出请求的那个身份自己的收藏夹。所以在抖音上，`user/collections` 必须把 `identity` 指向导入的身份，而传 `url` 或 `sec_user_id` 会被拒绝而不是被忽略——忽略它的话，返回的会是你自己的收藏夹，却挂在别人的名下。每个收藏夹都会给出 `is_public` 和归属，所以你不需要猜自己处在哪种情况。
 
-作品用 `url` **或** `aweme_id` 指定，不能都给也不能都不给；作者用 `url` **或** `sec_user_id`（TikTok 里叫 `secUid`）。已经带 ID 的 URL 会在入口处把 ID 提取出来，所以两种写法会合并到同一个任务上。夹着链接的文本也能接受——平台 App 生成的剪贴板内容可以原样发过来。短链接（`v.douyin.com`、`vm.tiktok.com`）会被排队交给 worker 展开，因为跟随一次跳转是一次网络调用，而 API 容器不做网络调用。
+作品用 `url` **或** `aweme_id` 指定，不能都给也不能都不给；作者用 `url` **或** `sec_user_id`（TikTok 里叫 `secUid`；B 站上是数字 `mid`）。已经带 ID 的 URL 会在入口处把 ID 提取出来，所以两种写法会合并到同一个任务上。夹着链接的文本也能接受——平台 App 生成的剪贴板内容可以原样发过来。短链接（`v.douyin.com`、`vm.tiktok.com`、`b23.tv`、`bili2233.cn`）会被排队交给 worker 展开，因为跟随一次跳转是一次网络调用，而 API 容器不做网络调用。
 
 调用方自己输入的 ID 会在花掉任何代价之前被校验：`aweme_id=not-an-id` 和 `aweme_id=7123` 都会得到带 `details.field` 的 `INVALID_PARAM`，由我们免费答复，而不是发到上游去换回同一句话。
 
@@ -550,6 +551,69 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `/api/v1/system/status` | 版本、健康、身份池统计、存储 | [运维](./10-operations.md) |
 
 归档类接口全部从本地存储作答：不消耗身份、不发起抓取，而一条后来被删掉的作品仍然在那里，`availability` 会说明这件事。所以想要「实例已经知道的东西」就用 `GET /api/v1/archive`，想要「最新的」才用 `/parse`。
+
+## B 站
+
+B 站走的是与另外两个平台相同的路由、参数和信封：`{platform}` 是 `bilibili`，权限范围是 `bilibili:read`。不同的是 ID 的形状、它提供哪些操作，以及有三个接口的行为方式，客户端在依赖它们之前应该先知道。
+
+### ID 与参数
+
+参数名属于这个 API 而不属于平台，所以沿用其他平台定下的拼写：
+
+| 对象 | 在 B 站上 | 参数 |
+| --- | --- | --- |
+| 视频 | bvid，例如 `BV1xx411c7mD`。也接受 av 号（`av170001` 或裸的 `170001`），会用纯算术换算成 bvid，不发任何请求 | `aweme_id` |
+| 作者 | 数字 `mid` | `sec_user_id` |
+| 评论 | 评论的 ID | `comment_id` |
+| 收藏夹 | 收藏夹的 ID | `collection_id` |
+
+无论你发的是哪种形式，结果里的 `content_id` 永远是 bvid。作者的 `mid` 会同时出现在 `uid` 和 `sec_uid` 里，和抖音一样，所以任何结果里的 `sec_uid` 永远是作者类接口接受的那个 ID。B 站没有用户名式的 handle：`unique_id` 为 `null`。
+
+`url` 参数和 `/parse` 能识别的链接：
+
+| 类型 | 形式 |
+| --- | --- |
+| 视频 | `www.bilibili.com/video/BV…`、`www.bilibili.com/video/av…`、`m.bilibili.com/video/…`、嵌入播放器 `player.bilibili.com/player.html?bvid=…` |
+| 短链接 | `b23.tv/<code>`、`bili2233.cn/<code>`——和所有短链接一样交给 worker 展开 |
+| 作者 | `space.bilibili.com/<mid>`（也可以带 `/video` 或 `/upload`）、`m.bilibili.com/space/<mid>` |
+| 收藏夹 | `space.bilibili.com/<mid>/favlist?fid=<id>`、`www.bilibili.com/list/ml<id>` |
+
+`vd_source`、`spm_id_from`、`buvid`、`share_source` 这类分享与追踪参数会被丢掉；`p`（分 P）和 `t`（起始时间）会保留。国际站 `bilibili.tv` 是另一个服务，不受支持。
+
+### 它提供什么
+
+| 接口 | 在 B 站上 |
+| --- | --- |
+| `video` | 单个视频，由第二个请求补全——见下文 |
+| `video/comments` | 提供；访客身份拿到的要少得多——见下文 |
+| `video/comments/replies` | 提供，按页码分页，访客也一样 |
+| `user` | 作者资料 |
+| `user/posts` | UP 主的投稿；B 站防得最严的接口——见下文 |
+| `user/collections` | 作者公开的收藏夹 |
+| `collection/posts` | 某个收藏夹里的视频，按页码分页 |
+| `user/likes`、`user/reposts`、`user/bookmarks`、`user/followers`、`user/following`、`collection`、`mix/posts` | `UNSUPPORTED_CONTENT`，指明平台和它缺少的能力 |
+
+`POST /api/v1/parse` 和识别其他平台一样识别 B 站链接。
+
+### 一个视频要两次请求
+
+B 站的详情应答里没有可播放的文件。所以实例会再发第二个请求 `playurl`，取视频第一个分 P 的流，并把它并进结果里。这个请求和其他请求一样经过调度、签名并写进请求日志，用的是它自己的接口名 `bilibili.content_streams`——在日志页上，一个视频会对应两行。如果它失败，详情照样返回，只是没有 `media.video`：丢了流，不该连已经拿到的标题、作者和计数也一起丢掉。
+
+这个流是一个渐进式 MP4，不是 DASH，所以下载出来是一个文件。实测访客身份在较早的投稿上最高拿到 1080p，在新近的投稿上是 720p。多 P 视频算一条作品，流取的是第一个分 P。
+
+### 评论：访客只拿到三条
+
+对线上站点实测，B 站只给访客身份最热的三条评论，并告诉它这就是最后一页。原样转交的话，一个有几千条评论的视频会被报告成只有三条。所以这个接口第一页优先使用已登录（导入的）B 站身份，后续每一页都必须用它——轮换里没有时返回 `IDENTITY_LOGIN_REQUIRED`。由访客应答的第一页会带上 `meta.guest_fallback`，这样访客拿到的三条评论就不会被误当成一个只有三条评论的视频。`count` 在这里会被接受但忽略：B 站的评论接口不接受分页大小。回复（`comments/replies`）对访客也正常分页，按页码翻。如何导入已登录身份见 [B 站身份](./06-identities-and-proxies.md#b-站身份)。
+
+### UP 主投稿列表
+
+`user/posts` 带签名（WBI），并附上空间页自己会发送的 canvas/WebGL 上报（`dm_img_*`）。即便如此，它也是 B 站防得最严的接口：同一个出口的一阵突发请求，无论请求头怎么写，都会在几分钟内拿到 HTTP 412 页面（实测）。本实例把它们报告为 `UPSTREAM_RISK_CONTROL`，并让该身份进入冷却。把请求摊开、使用代理会有帮助；这个接口的令牌桶本来就是所有 B 站接口里最慢的。见[故障排查](./14-troubleshooting.md#b-站-up-主投稿列表返回-http-412)。
+
+### 收藏夹与分页大小
+
+`user/collections` 接受一个作者——`mid` 或空间链接——一次应答就返回全部公开收藏夹。这就是一页：`cursor` 和 `count` 会被接受但忽略。没有公开收藏夹的作者返回空页。`collection/posts` 按页码分页，所以它的游标看起来是 `"2"`、`"3"`、…——照样原样发回去就好。
+
+B 站的分页大小上限是 **20**；`count` 超过它是 `400`。
 
 ## 不走信封的响应
 
@@ -796,7 +860,7 @@ console.log(await collect(taskId));
 | 缓存 TTL，作者资料 *（设置项 `cache.author_ttl`）* | 900 秒 |
 | 缓存 TTL，任何分页列表 *（设置项 `cache.list_ttl`）* | 300 秒 |
 | 任务合并占位存活时间 | 90 秒 |
-| 平台分页大小（`count`） | 默认 20，最大 50 |
+| 平台分页大小（`count`） | 默认 20，最大 50 或该平台自己更低的上限（TikTok 为 35，B 站为 20） |
 | 归档分页大小（`limit`） | 默认 50，最大 200 |
 | 下载 / 管理列表（`limit`） | 默认 100，最大 500 |
 | 单次批量条数 | 50 |

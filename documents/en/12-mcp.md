@@ -1,8 +1,8 @@
 # MCP and AI agents
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/12-mcp.md)
 
 This page shows you how to point an AI client — Claude Code, Claude Desktop, Codex CLI, Cherry Studio, or anything else that speaks MCP — at your own instance, what the ten tools do, and how to read what comes back. After this you should be able to configure a client, verify the connection with `curl`, and recognise the two mistakes that account for most failed connections.
@@ -62,7 +62,7 @@ Failures use the REST envelope, so one error handler covers both surfaces:
 
 A 401 also carries `WWW-Authenticate: Bearer realm="dtk"`.
 
-To create a key: console → **Access → API keys**, or `POST /api/v1/admin/api-keys`. Give platform tools `douyin:read` and/or `tiktok:read`, downloads `media:write`, and transcription calls `transcription:write`. The matching read scopes can collect task results later.
+To create a key: console → **Access → API keys**, or `POST /api/v1/admin/api-keys`. Give platform tools `douyin:read`, `tiktok:read` and/or `bilibili:read`, downloads `media:write`, and transcription calls `transcription:write`. The matching read scopes can collect task results later.
 
 ## The tools
 
@@ -81,61 +81,65 @@ To create a key: console → **Access → API keys**, or `POST /api/v1/admin/api
 
 The endpoint names in the third column are the same keys the scheduler, the circuit breaker, the health board and the request log use, so a tool call an agent made is straightforward to find in [Operations](./10-operations.md).
 
-`platform` is `douyin` or `tiktok`. **All ids are strings**, never numbers: Douyin and TikTok ids exceed the JavaScript safe integer range and a client that parses them as numbers will silently corrupt them.
+`platform` is `douyin`, `tiktok` or `bilibili`. **All ids are strings**, never numbers: Douyin and TikTok ids exceed the JavaScript safe integer range and a client that parses them as numbers will silently corrupt them. A Bilibili video is a bvid such as `BV1xx411c7mD` — an av number (`av170001` or bare `170001`) is accepted and converted, and results always carry the bvid — and a Bilibili author is the numeric `mid`. The full Bilibili detail is in the [REST API guide](./11-api.md#bilibili).
 
 ### `parse_url`
 
 | Argument | Required | Meaning |
 | --- | --- | --- |
-| `url` | yes | A Douyin or TikTok link, or the share text containing one. Short links (`v.douyin.com`, `vm.tiktok.com`) are followed server-side. |
+| `url` | yes | A Douyin, TikTok or Bilibili link, or the share text containing one. Short links (`v.douyin.com`, `vm.tiktok.com`, `b23.tv`, `bili2233.cn`) are followed server-side. |
 
 The entry point to use when you have a link rather than an id: it works out the platform and the resource type itself. Share text with a link buried in it is accepted — the first URL in the string is used.
 
 Returns `status`, `task_id`, `platform`, `resource`, `url` (the link after classification) and `data`.
 
-Refused without spending any quota: a link on a host that is not Douyin or TikTok (`INVALID_URL`); a link on a supported host that points at no post or profile — a feed, a search page, a settings screen (`UNSUPPORTED_CONTENT`); and a link to a live room, a mix, a music page, a challenge or a search result, which this tool set has no endpoint for (`UNSUPPORTED_CONTENT`).
+Refused without spending any quota: a link on a host that is not Douyin, TikTok or Bilibili (`INVALID_URL`) — `bilibili.tv` included, which is a different service; a link on a supported host that points at no post or profile — a feed, a search page, a settings screen (`UNSUPPORTED_CONTENT`); and a link to a live room, a mix, a music page, a challenge or a search result, which this tool set has no endpoint for (`UNSUPPORTED_CONTENT`).
 
 ### `get_video`
 
 | Argument | Required | Meaning |
 | --- | --- | --- |
-| `platform` | yes | `douyin` or `tiktok` |
-| `content_id` | yes | The post id as a string: Douyin `aweme_id`, TikTok item id |
+| `platform` | yes | `douyin`, `tiktok` or `bilibili` |
+| `content_id` | yes | The post id as a string: Douyin `aweme_id`, TikTok item id, Bilibili bvid (an av number is accepted) |
 
-Returns the normalized post — author, stats, media URLs, tags — under `data`.
+Returns the normalized post — author, stats, media URLs, tags — under `data`. A Bilibili video in several parts is one post, and its stream is the first part's.
 
 ### `get_user`
 
 | Argument | Required | Meaning |
 | --- | --- | --- |
-| `platform` | yes | `douyin` or `tiktok` |
-| `uid` | yes | Douyin: the `sec_user_id` (starts with `MS4wLjAB`). TikTok: the `secUid`, or the `@handle` if that is all you have. |
+| `platform` | yes | `douyin`, `tiktok` or `bilibili` |
+| `uid` | yes | Douyin: the `sec_user_id` (starts with `MS4wLjAB`). TikTok: the `secUid`, or the `@handle` if that is all you have. Bilibili: the numeric `mid`. |
 
 The `uid` in the result is the stable key for that author. A TikTok `@handle` can change, so an agent should carry the `uid` from this result into follow-up calls rather than the handle.
 
-Only TikTok's profile endpoint accepts a handle. On Douyin a handle is refused with a sentence telling the agent to pass a profile link to `parse_url` instead, which resolves it — that is the only path from a Douyin handle to an id.
+Only TikTok's profile endpoint accepts a handle. On Douyin a handle is refused with a sentence telling the agent to pass a profile link to `parse_url` instead, which resolves it — that is the only path from a Douyin handle to an id. Bilibili has no handles at all.
 
 ### `list_user_posts`
 
 | Argument | Required | Meaning |
 | --- | --- | --- |
-| `platform` | yes | `douyin` or `tiktok` |
-| `uid` | yes | The author's stable id. A TikTok `@handle` is **not** accepted here — call `get_user` first. |
+| `platform` | yes | `douyin`, `tiktok` or `bilibili` |
+| `uid` | yes | The author's stable id (on Bilibili, the `mid`). A TikTok `@handle` is **not** accepted here — call `get_user` first. |
 | `cursor` | no | The opaque `cursor` from the previous page. Omit for the first page; pass it back unchanged and never parse it. |
-| `count` | no | Items per page, **1–50**. Omit to use the platform's own default. |
+| `count` | no | Items per page, **1–50**, and no more than the platform serves: **35 on TikTok, 20 on Bilibili**. Omit to use the platform's own default. |
 
 Returns a page under `data` carrying `cursor` and `has_more`. Stop when `has_more` is false.
 
-`count` is capped at 50 because both platforms silently cap larger values, which would hand the agent fewer items than it asked for with no indication that anything was trimmed. Asking for more per page is not a way to fetch a large account faster — page with the cursor.
+`count` is capped at 50 because Douyin and TikTok silently cap larger values, which would hand the agent fewer items than it asked for with no indication that anything was trimmed. The platform's own ceiling is checked too, as the REST routes check it: TikTok answers a page above 35 as if the author had no posts, and Bilibili refuses one above 20, so either is an `INVALID_PARAM` here before any request is made. Before 5.1.6 MCP checked only the 50. Asking for more per page is not a way to fetch a large account faster — page with the cursor.
+
+A Bilibili uploader's video list is the endpoint Bilibili guards hardest: a burst of requests from one egress gets HTTP 412 for a few minutes, which arrives as `UPSTREAM_RISK_CONTROL`. An agent walking a Bilibili author should page slowly rather than retry fast; see [Troubleshooting](./14-troubleshooting.md#http-412-on-a-bilibili-uploaders-video-list).
 
 ### `list_comments`
 
 | Argument | Required | Meaning |
 | --- | --- | --- |
-| `platform` | yes | `douyin` or `tiktok` |
+| `platform` | yes | `douyin`, `tiktok` or `bilibili` |
 | `content_id` | yes | The post id whose top-level comments you want |
 | `cursor` | no | As above |
-| `count` | no | As above, 1–50 |
+| `count` | no | As above. Ignored on Bilibili, whose comment endpoint takes no page size, though a value above 20 is still refused there |
+
+On Bilibili a guest identity is given the three hottest comments and told that is the last page. So the first page prefers a signed-in Bilibili identity and falls back to a guest, marked `guest_fallback` (see [Reading a result](#reading-a-result)); later pages need a signed-in one and answer `IDENTITY_LOGIN_REQUIRED` when there is none.
 
 Top-level comments only. Replies under a comment are a separate capability that this tool set does not expose — that is one of the small-tool-set trade-offs. If an agent needs them, fetch them over REST from `/api/v1/{platform}/video/comments/replies`.
 
@@ -143,7 +147,7 @@ Top-level comments only. Replies under a comment are a separate capability that 
 
 | Argument | Required | Meaning |
 | --- | --- | --- |
-| `platform` | yes | `douyin` or `tiktok` |
+| `platform` | yes | `douyin`, `tiktok` or `bilibili` |
 | `content_id` | yes | A post id, or an author id for follower history |
 | `since` | no | ISO 8601 date or timestamp, e.g. `2026-01-15` or `2026-01-15T00:00:00Z`. Defaults to the last **30 days**. |
 
@@ -162,7 +166,7 @@ A metric the platform did not report is `null`, never `0`. A null is missing dat
 
 ### `pool_status`
 
-No arguments. Call it when a request failed or timed out and you need to decide whether to wait, to try the other platform, or to stop.
+No arguments. Call it when a request failed or timed out and you need to decide whether to wait, to try another platform, or to stop.
 
 Returns:
 
@@ -231,7 +235,7 @@ Each tool returns a JSON object. On success:
 - `data` is the model itself — the same normalized shape REST returns, unwrapped from the task envelope so the agent does not have to dig a level deeper than the schema describes.
 - `cached` appears when the task recorded it, and says whether this answer cost a real upstream request. Two calls a minute apart can legitimately return identical data with `cached: true` on the second. Default cache TTLs are 1800 s for a post, 900 s for a profile and 300 s for a list; see [Configuration](./03-configuration.md).
 - `task_id` is there so the call can be correlated with the request log, and so a `pending` answer can be collected later.
-- `guest_fallback: true` and a `note` appear when a guest identity answered an author feed because no logged-in one was available: the data is real, but the first items may not be the newest posts.
+- `guest_fallback: true` and a `note` appear when a guest identity answered because no logged-in one was available. The data is real; the `note` says what a guest misses on that endpoint. On a Douyin author feed, the first items may not be the newest posts. On Bilibili comments, it is the three hottest and nothing after them.
 
 Paging tools put `cursor` and `has_more` inside `data`.
 
@@ -281,7 +285,7 @@ The retryability sentence is generated from the same table the REST layer uses, 
 
 | Code | What it means for an agent | Retry? |
 | --- | --- | --- |
-| `INVALID_URL` | Not a supported Douyin or TikTok link | No — change the request |
+| `INVALID_URL` | Not a supported Douyin, TikTok or Bilibili link | No — change the request |
 | `UNSUPPORTED_CONTENT` | Recognised, but not a post or profile | No |
 | `INVALID_PARAM` | Bad platform, blank id, `count` out of range, unparsable `since`, or a handle where a stable id is required | No |
 | `FORBIDDEN_SCOPE` | This key was not granted that platform | No |
@@ -290,7 +294,7 @@ The retryability sentence is generated from the same table the REST layer uses, 
 | `UPSTREAM_CHANGED` | A parser bug in dtk, not something a different request works around | No — report it |
 | `ENDPOINT_CIRCUIT_OPEN` | The breaker tripped on this endpoint | Yes, after the stated delay |
 | `IDENTITY_POOL_EXHAUSTED` | No usable identity right now | Yes — the pool refills itself |
-| `IDENTITY_LOGIN_REQUIRED` | A later page of a Douyin author's posts, and no logged-in identity to serve it | No — an operator has to import a logged-in cookie. The first page still works |
+| `IDENTITY_LOGIN_REQUIRED` | A later page of a Douyin author's posts or of a Bilibili post's comments, and no logged-in identity to serve it | No — an operator has to import a logged-in cookie. The first page still works |
 | `UPSTREAM_RISK_CONTROL` | The platform pushed back on this request | Yes, after a backoff |
 | `UPSTREAM_UNREACHABLE` | The platform never answered: every attempt failed on the network, usually this instance's egress | Yes, but if it keeps happening the operator needs a proxy, not more retries |
 | `RATE_LIMITED` | The key's own limit | Yes, after the stated delay |
@@ -307,17 +311,18 @@ The transport can only check that the key reads *something*, because the platfor
 | --- | --- |
 | `douyin:read` | Opens the endpoint; permits Douyin tool calls |
 | `tiktok:read` | Opens the endpoint; permits TikTok tool calls |
+| `bilibili:read` | Opens the endpoint; permits Bilibili tool calls |
 | `media:write` | Opens the endpoint; permits `download_media` |
 | `media:read` | Opens the endpoint; permits collecting media-download task results |
 | `transcription:write` | Opens the endpoint; permits `transcribe_video` |
 | `transcription:read` | Opens the endpoint; permits collecting transcription task results |
-| `admin` | Permits everything, including both platforms |
+| `admin` | Permits everything, including every platform |
 | anything else alone | Endpoint refused with `FORBIDDEN_SCOPE` |
 
 Two rules that surprise people:
 
 - **A key is bounded by the scopes it was minted with even when an administrator owns it.** On a self-hosted instance almost every key belongs to the admin user; a key with only `douyin:read` still cannot read TikTok through MCP, exactly as it cannot through `GET /api/v1/tiktok/video`.
-- **A task id is not a way around the check.** `get_task_result` requires the scope that queueing the task needed — the same table `GET /api/v1/tasks/{id}` applies: the platform's read scope for a platform call, either read scope for a `parse_url` task, a media scope for a download and a transcription scope for a transcription. So a key scoped to one platform cannot read the other's data by quoting an id it saw somewhere, and a media or transcription key cannot read anything else. Maintenance tasks — proxy probes, identity mints — need `admin` or `identity:manage`, which an agent's key should not hold.
+- **A task id is not a way around the check.** `get_task_result` requires the scope that queueing the task needed — the same table `GET /api/v1/tasks/{id}` applies: the platform's read scope for a platform call, any platform read scope for a `parse_url` task, a media scope for a download and a transcription scope for a transcription. So a key scoped to one platform cannot read another's data by quoting an id it saw somewhere, and a media or transcription key cannot read anything else. Maintenance tasks — proxy probes, identity mints — need `admin` or `identity:manage`, which an agent's key should not hold.
 
 Over stdio there is no transport identity to restrict: the agent spawned the process and already has everything the process has, including the database. That is a reason to keep stdio for local use, not a gap in the HTTP transport.
 
@@ -446,7 +451,7 @@ curl -sS -X POST http://127.0.0.1:8000/mcp/ \
 | Works on the server, fails from a laptop | `127.0.0.1` in the client config. The default compose binding publishes the API on loopback only | Give the client an address it can reach, and put TLS in front of the instance before you do — see [Security](./15-security.md) |
 | `401 UNAUTHENTICATED` although you are signed in to the console | The session cookie is not accepted here | Create an API key and use a header |
 | `403 FORBIDDEN_SCOPE` at connection time | The key has no platform, media or transcription scope accepted by MCP | Mint a key with the scope required by the intended tool |
-| `FORBIDDEN_SCOPE` on some calls only | The key holds one platform's scope and the agent asked for the other | Grant the second scope, or constrain the agent |
+| `FORBIDDEN_SCOPE` on some calls only | The key holds one platform's scope and the agent asked for another | Grant that platform's scope too, or constrain the agent |
 | Client times out around 30 s while the server keeps working | The client's HTTP timeout is below `api.mcp_tool_timeout` | Raise the client timeout, or lower `api.mcp_tool_timeout` |
 | Agent loops on the same failing call | It is ignoring the "retrying will not help" sentence | Tell it in the system prompt to read the error text before retrying |
 | Agent re-runs a call that returned `pending` | It treated `pending` as a failure | Point it at `get_task_result` with the task id |

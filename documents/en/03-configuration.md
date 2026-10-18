@@ -1,11 +1,11 @@
 # Configuration reference
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/03-configuration.md)
 
-After reading this you will know which settings need a restart and which do not, how to read and change the ones that do not from the console, the CLI or the API, and what every one of the 54 runtime settings does.
+After reading this you will know which settings need a restart and which do not, how to read and change the ones that do not from the console, the CLI or the API, and what every one of the 62 settings in the settings table does.
 
 ## The two layers
 
@@ -52,7 +52,7 @@ Read once at process start by `BootstrapSettings` in `src/dtk/core/config.py`. A
 | `DTK_BIND_PORT` | `8000` | Port the API binds to. |
 | `DTK_LOG_LEVEL` | `info` | Log level, passed through to uvicorn. |
 | `DTK_LOG_JSON` | `true` | Structured JSON logs. Set to `false` for human-readable lines in a terminal. |
-| `DTK_BROWSER_RPC_URL` | empty | Where the headless browser service listens, e.g. `http://browser-rpc:9000`. Empty disables automatic identity minting; the pool then depends on manually imported cookies, which is a supported degraded mode, not an error. |
+| `DTK_BROWSER_RPC_URL` | empty | Where the headless browser service listens, e.g. `http://browser-rpc:9000`. Empty disables automatic minting for Douyin and TikTok; those pools then depend on manually imported cookies, which is a supported degraded mode, not an error. Bilibili guests are minted without a browser, so that pool keeps refilling either way. |
 | `DTK_BACKUP_DIR` | `backups` | Where backup archives are written and listed from. The API and worker must agree: the worker writes an archive and the API serves it. The container image is read-only, so compose points this at a shared volume. |
 | `DTK_DOWNLOADER_URL` | empty | Where the Go media downloader listens, e.g. `http://downloader:9100`. Empty disables media downloads entirely; `POST /api/v1/downloads` then answers 501 with an actionable message and nothing else is affected. |
 | `DTK_DOWNLOADER_TOKEN` | empty | Optional shared secret for that sidecar. It listens on an internal network no other container is on, so this is defence in depth; empty means the sidecar checks nothing. |
@@ -199,7 +199,7 @@ Every write leaves an audit row (`settings.updated`, or `settings.updated_sensit
 
 ## What SENSITIVE means
 
-Seven keys are declared `SENSITIVE` rather than `RUNTIME`. The scope is not a styling variation — it means *widening this enlarges the attack surface*, and it changes who may write it and what it costs to do so.
+Eight keys are declared `SENSITIVE` rather than `RUNTIME`. The scope is not a styling variation — it means *widening this enlarges the attack surface*, and it changes who may write it and what it costs to do so.
 
 | Key | What widening it exposes |
 | --- | --- |
@@ -210,8 +210,9 @@ Seven keys are declared `SENSITIVE` rather than `RUNTIME`. The scope is not a st
 | `security.webhook_secret` | The secret that makes those callbacks verifiable. |
 | `security.request_proxy` | Whether an API key holder may pick this server's egress. |
 | `api.public_endpoints` | Every entry removes a credential check from one endpoint. |
+| `demo.enabled` | A shared account and API key, published, that anyone can spend this instance's identity pool with. |
 
-Six of them are `security.*`; the seventh, `api.public_endpoints`, sits in the `api` group but carries the same scope, because every entry in it removes a credential check.
+Six of them are `security.*`. The other two sit in their own groups and carry the same scope: every entry in `api.public_endpoints` removes a credential check, and `demo.enabled` publishes a credential.
 
 A sensitive write requires all of:
 
@@ -245,7 +246,7 @@ Six keys carry extra validation beyond their type, under four rules:
 
 ## The complete runtime reference
 
-All 54 keys, grouped by prefix. Defaults are exactly what the code declares.
+All 62 keys, grouped by prefix. Defaults are exactly what the code declares.
 
 ### `sched` — scheduler (7)
 
@@ -261,7 +262,7 @@ Edited on the **Scheduler** page in the console. See [Concepts](./04-concepts.md
 | `sched.circuit_min_samples` | `20` | Minimum requests observed before an endpoint may trip, so a short burst of failures cannot open the circuit. | Raise it on a busy instance where 20 samples is noise. |
 | `sched.circuit_min_identities` | `3` | How many distinct identities must be failing before an endpoint trips. Separates a broken endpoint from one broken identity. | Lower it to `1` only while debugging; it removes the distinction the setting exists to make. |
 
-### `pool` — identity pool (4)
+### `pool` — identity pool (10)
 
 Also on the **Scheduler** page. See [Identities and proxies](./06-identities-and-proxies.md).
 
@@ -269,8 +270,8 @@ Also on the **Scheduler** page. See [Identities and proxies](./06-identities-and
 | --- | --- | --- | --- |
 | `pool.min_size` | `3` | Low-water mark per platform. Dropping below it raises an alert and triggers minting. | Raise it if bursts routinely exhaust the pool; keep it at or below `target_size`. |
 | `pool.target_size` | `8` | How many identities the pool tries to keep per platform. | Raise it for more throughput, at the cost of more minting and more proxies. Values below `min_size` are ignored. |
-| `pool.douyin.min_size` / `pool.tiktok.min_size` | `-1` | One platform's own low-water mark. `-1` follows `pool.min_size`; `0` turns automatic minting off for that platform, together with its `pool_empty` / `pool_below_min` alerts. Imported and hand-minted identities still work. | Set the platform you do not use to `0`, for example TikTok on a server with no route to it. Anything below `-1` is refused. |
-| `pool.douyin.target_size` / `pool.tiktok.target_size` | `-1` | One platform's own top-up target. `-1` follows `pool.target_size`. Values below that platform's mark are raised to it. | When one platform carries most of the traffic and needs a bigger pool than the other. |
+| `pool.douyin.min_size` / `pool.tiktok.min_size` / `pool.bilibili.min_size` | `-1` | One platform's own low-water mark. `-1` follows `pool.min_size`; `0` turns automatic minting off for that platform, together with its `pool_empty` / `pool_below_min` alerts. Imported and hand-minted identities still work. | Set the platform you do not use to `0`, for example TikTok on a server with no route to it. Anything below `-1` is refused. |
+| `pool.douyin.target_size` / `pool.tiktok.target_size` / `pool.bilibili.target_size` | `-1` | One platform's own top-up target. `-1` follows `pool.target_size`. Values below that platform's mark are raised to it. | When one platform carries most of the traffic and needs a bigger pool than the others. |
 | `pool.max_fail_streak` | `3` | Consecutive failures after which an identity stops counting towards the pool level, so the filler mints a replacement instead of counting a session that serves nothing. The streak is used rather than the health score because the score is empty until there is traffic, and scoring a fresh identity as unusable would turn the low-water mark into a minting loop. | Rarely. Raise it if a flaky proxy is causing needless re-minting. |
 | `pool.health_prior` | `0.8` | Assumed success rate for an identity with no history, 0–1. Decides how eagerly a freshly minted identity is scheduled. | Lower it if new identities are getting risk-controlled before they prove themselves. |
 
@@ -278,7 +279,7 @@ Also on the **Scheduler** page. See [Identities and proxies](./06-identities-and
 
 | Key | Default | What it does | When you would change it |
 | --- | --- | --- | --- |
-| `signing.mode` | `'native'` | Which signer produces the signature. `native` runs the in-process algorithms and never reaches for a browser. `rpc` always asks browser-rpc. `auto` starts native and crosses to the browser for endpoints the platform's own SDK signs, or once an endpoint's risk rate suggests the native signature is being rejected. | Switch to `rpc` the day a platform ships a new SDK and the in-process port has not caught up. `native` is the only coherent mode with no browser-rpc container. |
+| `signing.mode` | `'native'` | Which signer produces the signature. `native` runs the in-process algorithms and never reaches for a browser. `rpc` always asks browser-rpc. `auto` starts native and crosses to the browser for endpoints the platform's own SDK signs, or once an endpoint's risk rate suggests the native signature is being rejected. Bilibili's WBI signature is always computed natively: browser-rpc never signs Bilibili, whatever the mode. | Switch to `rpc` the day a platform ships a new SDK and the in-process port has not caught up. `native` is the only coherent mode with no browser-rpc container. |
 | `signing.fallback_enabled` | `True` | Whether the mode's non-preferred signer may be used when the preferred one is unavailable. | Turn it off to find out which signer is actually carrying traffic — with fallback on, a broken signer looks healthy because its traffic quietly moves to the other one. In `auto` the risk-driven switch *is* the fallback, so turning it off pins `auto` to native. |
 | `signing.rpc_timeout_seconds` | `60` | Ceiling for one browser-rpc signing call. It has to cover a cold one: the first call for an identity launches a browser and loads the platform through that identity's proxy — measured at about 4s without a proxy — while later calls for the same identity are answered by the resident page in milliseconds. | Raise it if minting through slow proxies times out; raise `DTK_BROWSER_WARM_CONTEXTS` instead if the problem is cold starts. |
 
@@ -392,6 +393,15 @@ Easiest to edit on the **Notifications** page, which validates a channel as you 
 | Key | Default | What it does | When you would change it |
 | --- | --- | --- | --- |
 | `system.check_updates` | `False` | Whether the console offers its update check. The request goes from your browser to GitHub, never from the server, and it is opt-in because some deployments have no egress at all. | Turn it on if you want to be told about releases. |
+
+### `demo` — the public demo (2, one sensitive)
+
+On **Settings → Demo mode**. See [Security](./15-security.md#demo-mode) for what a demo account can and cannot reach.
+
+| Key | Default | What it does | When you would change it |
+| --- | --- | --- | --- |
+| `demo.enabled` | `False` | Publishes a shared read-only account and API key so anyone can try this instance. Turning it on mints both and shows them once; turning it off ends every demo session and stops the key working, without deleting anything. Sensitive. | On a public instance put up for people to try. |
+| `demo.task_retention_minutes` | `30` | How long a task started by the demo account is kept before the maintenance sweep removes it. Minutes, not days: the row exists so the caller can collect their answer. | Raise it if demo visitors poll slowly and find their results gone. |
 
 ## When a change takes effect
 

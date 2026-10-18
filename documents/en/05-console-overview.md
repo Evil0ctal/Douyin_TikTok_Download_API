@@ -1,8 +1,8 @@
 # Console overview
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/05-console-overview.md)
 
 After reading this you will be able to get into the console for the first time, find your way around its sidebar, and read the four pages that tell you whether the instance is healthy — Overview, System, Logs and Diagnose — including what every panel on them means and what you should do about what it shows.
@@ -78,7 +78,7 @@ The wizard has four steps, and only the first is mandatory.
 | --- | --- | --- |
 | 1. Create an administrator | Consumes the token, creates the first `admin` account, then immediately signs you in with the credentials you just typed (the init call itself issues no session) | No |
 | 2. Add a proxy | Pastes a proxy list, imports it, then probes every imported proxy in turn and shows exit country and latency per row | Yes |
-| 3. Mint the first identity | Mints 1–5 identities on a chosen platform through the headless browser | Yes |
+| 3. Mint the first identity | Mints 1–5 identities on a chosen platform — through the headless browser for Douyin and TikTok, with one plain HTTP request for Bilibili | Yes |
 | 4. Smoke test | Runs a real link you supply through `POST /api/v1/parse` end to end and shows platform, content id, duration and request id | Yes |
 
 Details that catch people out:
@@ -87,7 +87,7 @@ Details that catch people out:
 - **The wizard asks for a 12-character password; the server floor is 8.** The extra four characters are the wizard's own policy, because this is the account with no email recovery.
 - **A wrong token tells you how many attempts remain.** The server returns `SETUP_TOKEN_INVALID` with `attempts_remaining`, and the wizard prints it.
 - **Step 2 imports and probes as one action.** A proxy list that was accepted but never dialled is exactly the failure this step exists to catch. Accepted line formats are `host:port`, `host:port:user:pass`, `user:pass@host:port` and `scheme://user:pass@host:port`.
-- **Step 3 disappears if you have no browser container.** Minting drives a real browser, and the browser is behind an optional compose profile. When `browser_rpc` reports `configured: false`, the step says so and offers the command instead of failing:
+- **Step 3 offers only Bilibili if you have no browser container.** Minting Douyin and TikTok drives a real browser, and the browser is behind an optional compose profile. The step asks the pool which platforms can be minted here (`can_mint` on each platform of `GET /api/v1/admin/identities/pool`) and lists only those; under the form it names the others and offers the command instead of failing:
 
   ```bash
   echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
@@ -403,7 +403,9 @@ Retention is a separate ceiling: `retention.request_log_days` defaults to 14, so
 | Reject reason | Why the scheduler refused to send it at all — see below |
 | Cached | Whether the answer came from cache |
 | Signer | Which signing path produced the signature |
-| Platform | douyin / tiktok |
+| Platform | douyin / tiktok / bilibili |
+
+One Bilibili video detail is two rows, not one. Bilibili's detail answer carries no playable file, so the instance makes a second request for the stream, and that request is scheduled, signed and logged under its own endpoint name, `bilibili.content_streams`, beside `bilibili.content_detail`. Filter on only one of the two and you see half of the work.
 
 A **reject reason** means the request never left the building. The scheduler declined it:
 
@@ -467,7 +469,7 @@ Each step reports a stable code, and the sentence you read is rendered from that
 | 2 | `egress` | Fetches `https://www.douyin.com/` and `https://www.tiktok.com/` **directly, without a proxy** — this is how "no internet" is told apart from "bad proxy" |
 | 3 | `proxies` | Dials up to the 20 oldest configured proxies (`MAX_PROXIES_PROBED`) and asks an echo service for the exit address, then reports exit IP, stored country and whether the row is marked healthy |
 | 4 | `pool` | Counts identities per state, and reports when the last successful request was and how long the oldest active identity has been idle |
-| 5 | `signing` | Signs one fixed request per platform with the native algorithm and compares it against `browser-rpc` — the same shadow comparison the signer registry runs in production |
+| 5 | `signing` | Signs one fixed request each for Douyin and TikTok with the native algorithm and compares it against `browser-rpc` — the same shadow comparison the signer registry runs in production. Bilibili is not compared: `browser-rpc` never signs it, so there is no second signature to hold the native one against |
 | 6 | `smoke` | Pulls one fixed public link through resolve → sign → fetch → classify |
 
 Note that step 6 uses a link the server ships, not one you supply — unlike the setup wizard's fourth step, which asks you for one. A post that has since been deleted or made private still **passes**: the platform explained itself, which is all this step is asking.
@@ -492,7 +494,7 @@ Four statuses: **Pass**, **Warning**, **Fail** and **Skipped**. The run's verdic
 
 | Outcome | Status | What it means and what to do |
 | --- | --- | --- |
-| `egress_ok` | Pass | Both platform domains reachable directly |
+| `egress_ok` | Pass | Douyin's and TikTok's domains both reachable directly |
 | `egress_partial` | Warning | One of the two is unreachable. Requests for that platform will depend entirely on a working proxy |
 | `egress_unreachable` | **Fail** | No route to either. Check DNS, the host firewall, and whether outbound traffic on this host has to go through a proxy |
 
@@ -519,7 +521,7 @@ Four statuses: **Pass**, **Warning**, **Fail** and **Skipped**. The run's verdic
 
 | Outcome | Status | What it means and what to do |
 | --- | --- | --- |
-| `signing_ok` | Pass | Native and browser signatures agree on both platforms |
+| `signing_ok` | Pass | Native and browser signatures agree on Douyin and TikTok |
 | `signing_not_comparable` | Warning | The browser reference implements a different version of the algorithm, so a structural comparison says nothing either way. **The native path is unaffected and still serving requests.** This reads like a fault and is not one |
 | `signing_mismatch` | **Fail** | The native algorithm has drifted from the platform's. Those platforms now sign through `browser-rpc`; open an issue with this report attached so the algorithm can be updated |
 | `signing_no_browser_rpc` | Skipped | No `browser-rpc` configured, so there is no second signer to compare against. Setting `DTK_BROWSER_RPC_URL` enables the shadow comparison, which catches a stale algorithm before the risk rate does |

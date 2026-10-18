@@ -7,7 +7,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-🚀 A self-hosted data API for [Douyin](https://www.douyin.com) and [TikTok](https://www.tiktok.com). One `docker compose up`, an identity pool that maintains itself, and a REST API, MCP server and web console on top.
+🚀 A self-hosted data API for [Douyin](https://www.douyin.com), [TikTok](https://www.tiktok.com) and [Bilibili](https://www.bilibili.com). One `docker compose up`, an identity pool that maintains itself, and a REST API, MCP server and web console on top.
 
 Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors, comments and search, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL. A video it has downloaded can be turned into text on the same machine, offline, and an AI agent can drive all of it over MCP.
 
@@ -123,13 +123,14 @@ endpoint gets rate-limited, and you find out when someone files an issue. v5 put
 | Access control | None; anyone can call it | API keys with scopes and roles, managed in the console |
 | Interface | A single PyWebIO page | A React console: identity pool, scheduler, library, downloads, logs, diagnostics |
 | Ways in | REST | REST, MCP and a CLI, all over the same service layer |
-| Signing | X-Bogus, A_Bogus | a_bogus, X-Bogus, X-Gnarly, X-Dynosaur in pure Python, with a browser fallback |
+| Signing | X-Bogus, A_Bogus | a_bogus, X-Bogus, X-Gnarly, X-Dynosaur and Bilibili's WBI in pure Python, with a browser fallback |
 | Deployment | `pip install -r requirements.txt` + `python start.py` | `docker compose up`, three images |
-| Platforms | Douyin, TikTok, Bilibili | Douyin, TikTok |
+| Platforms | Douyin, TikTok, Bilibili | Douyin, TikTok, Bilibili |
 
-Bilibili is the one thing that went backwards: v5 does not have it yet. It shares
-neither the signing nor the identity machinery with Douyin and TikTok, so the rewrite
-left it out for now.
+Bilibili was the one thing that went backwards in 5.0, because it shares neither the
+signing nor the identity machinery with Douyin and TikTok. It is back in 5.1.6, with
+the two pieces of its own that needed writing: its WBI signature in pure Python, and
+guest identities minted over plain HTTP, so a Bilibili pool needs no browser container.
 
 ### Still on v4?
 
@@ -202,23 +203,26 @@ The groups are for learning from each other. **No advertising and nothing
 illegal** — they are for making friends and talking about the work.
 
 
-## 📦 What it can fetch from Douyin and TikTok
+## 📦 What it can fetch
 
-| Capability | Douyin | TikTok |
-|---|:---:|:---:|
-| One post (video or image album) | ✅ | ✅ |
-| Author profile | ✅ | ✅ |
-| An author's posts | ✅ | ✅ |
-| An author's liked posts | ✅ | ✅ |
-| Mixes / playlists | ✅ | ✅ |
-| Comments | ✅ | ✅ |
-| Comment replies | ✅ | ✅ |
-| Followers | ❌ | ✅ |
-| Following | ❌ | ✅ |
+| Capability | Douyin | TikTok | Bilibili |
+|---|:---:|:---:|:---:|
+| One post (video or image album) | ✅ | ✅ | ✅ |
+| Author profile | ✅ | ✅ | ✅ |
+| An author's posts | ✅ | ✅ | ✅ |
+| An author's liked posts | ✅ | ✅ | ❌ |
+| Mixes / playlists | ✅ | ✅ | ❌ |
+| Comments | ✅ | ✅ | ✅ |
+| Comment replies | ✅ | ✅ | ✅ |
+| Public folders and what is in them | ❌ | ✅ | ✅ |
+| Followers | ❌ | ✅ | ❌ |
+| Following | ❌ | ✅ | ❌ |
 
 Douyin serves its follower and following lists only to a signed-in session, so those
 two endpoints are not registered at all: an endpoint that always returns an empty page
 is worth nothing. Importing your own logged-in cookies widens what the rest can see, too.
+On Bilibili that matters most for comments: a guest is shown the three hottest and no
+more, so an imported login is what turns that into the full thread.
 
 Media downloads, the content archive, counter snapshots, collections and a watchlist
 are built in; none of them needs another service.
@@ -268,7 +272,7 @@ It is off by default. The guided installer asks, then downloads the ~500 MB of m
 each file against its SHA-256; by hand, see [Preparing the FunASR ONNX models](./documents/en/18-funasr-models.md)
 and [Turning a stored video into text](./documents/en/08-downloads-and-library.md#turning-a-stored-video-into-text).
 
-## 🔗 Which Douyin and TikTok links it accepts
+## 🔗 Which links it accepts
 
 Paste whatever you have — a short link, a post URL, or the whole caption a platform app
 puts on your clipboard:
@@ -280,11 +284,16 @@ https://www.douyin.com/jingxuan?modal_id=7660875690212492466
 https://www.tiktok.com/@evil0ctal/video/7156033831819037994
 https://www.tiktok.com/t/ZTR9nkkmL/
 2.84 nqe:/ <caption> https://v.douyin.com/L4FJNR3/ <sentence telling you to open the app>
+https://www.bilibili.com/video/BV1xx411c7mD
+https://www.bilibili.com/video/av170001
+https://b23.tv/<code>
+https://space.bilibili.com/2
 ```
 
 Short links are followed and a link buried in a caption is extracted. A post id is also
 checked against the platform's own encoding first, so an id that cannot exist is refused
-here rather than costing an upstream request.
+here rather than costing an upstream request. A Bilibili av number is turned into the
+bvid it stands for, so either spelling reaches the same post.
 
 ## ⚗️ Built with
 
@@ -294,8 +303,8 @@ here rather than costing an upstream request.
 | Transport | wreq (browser TLS fingerprint emulation) · httpx |
 | Data | PostgreSQL + TimescaleDB · Redis |
 | Console | React 19 · TypeScript · Vite · TanStack Query · wouter · i18next |
-| Signing | a_bogus, X-Bogus, X-Gnarly and X-Dynosaur in pure Python |
-| Identity minting | CloakBrowser, headless, in a container of its own, called over HTTP |
+| Signing | a_bogus, X-Bogus, X-Gnarly, X-Dynosaur and Bilibili's WBI in pure Python |
+| Identity minting | CloakBrowser, headless, in a container of its own, called over HTTP; Bilibili guests over plain HTTP, no browser |
 | Downloader | Go 1.23, standard library only, statically linked into a scratch image |
 | Transcription | FunASR ONNX (Paraformer, FSMN-VAD, CT-Transformer), offline, in a container with no network route |
 | Auth | argon2id password hashing · API keys with scopes |
@@ -323,8 +332,8 @@ name (`-p dtk`), and the three letters in the console's title bar. Where you see
 Douyin_TikTok_Download_API/
 ├── src/dtk/                the service; all of it lives here
 │   ├── api/                FastAPI routes, auth, OpenAPI localisation
-│   ├── platforms/          Douyin and TikTok adapters: endpoints, params, parsers
-│   ├── signing/            a_bogus / X-Bogus / X-Gnarly / X-Dynosaur
+│   ├── platforms/          Douyin, TikTok and Bilibili adapters: endpoints, params, parsers
+│   ├── signing/            a_bogus / X-Bogus / X-Gnarly / X-Dynosaur / WBI
 │   ├── transport/          outbound requests, response classification
 │   ├── identity/           identity minting and health
 │   ├── scheduler/          identity selection, token buckets, circuit breakers
@@ -333,7 +342,7 @@ Douyin_TikTok_Download_API/
 │   ├── db/                 SQLAlchemy models and Alembic migrations
 │   ├── ops/                diagnostics, backups, health checks, alerting
 │   ├── media/              downloader client
-│   ├── models/             one content model across both platforms
+│   ├── models/             one content model across every platform
 │   ├── urls/               link recognition, short-link expansion, id validation
 │   ├── mcp/                MCP server
 │   ├── cli/                the dtk command line
@@ -470,7 +479,7 @@ filesystem, process supervision — you put back yourself. That section lists th
 | Web console | `/` | Identity pool, scheduler, library, downloads, transcriptions, logs, diagnostics |
 | API reference | `/docs` | Swagger UI inside the console, English and Chinese |
 | Bare reference | `/swagger`, `/redoc` | No login required |
-| REST API | `/api/v1/...` | 109 operations |
+| REST API | `/api/v1/...` | 110 operations |
 | MCP | `/mcp` | Shares the service layer with REST; client setup at `/mcp-guide` in the console |
 | CLI | `dtk --help` | Same |
 

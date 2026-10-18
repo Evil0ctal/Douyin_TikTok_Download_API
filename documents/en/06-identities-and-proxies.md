@@ -1,8 +1,8 @@
 # Identities and proxies
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/06-identities-and-proxies.md)
 
 The pool is the part of this system that decides whether it works at all. After
@@ -13,7 +13,7 @@ the three different failures that all look like "nothing is answering".
 
 ## Why the pool exists at all
 
-Neither platform issues API keys. Every request has to look like an ordinary
+None of the platforms issues API keys. Every request has to look like an ordinary
 browser visit, which means it has to carry a cookie jar the platform issued, a
 User-Agent and TLS profile that agree with each other, and an exit address the
 jar has been seen from before.
@@ -43,7 +43,7 @@ not try to "fix":
 | `fingerprint` | `browser_family`, `browser_major`, `user_agent`, `platform`, `screen`, `language`, `timezone`, and where the browser reported them, `hardware_concurrency` and `device_memory`. |
 | `proxy_id` | The exit this identity was minted or imported behind. `null` means the server's own egress. |
 | `authenticated` | True when the jar carried a session marker at import time. A statement about the paste, not about the account. |
-| `source` | `minted` (a headless browser produced it) or `imported` (you pasted it). |
+| `source` | `minted` (this instance produced it: a headless browser for Douyin and TikTok, one plain HTTP request for Bilibili) or `imported` (you pasted it). |
 | `state` | `active`, `cooling`, `degraded`, `retired` - see below. |
 | `consecutive_fails` | Failure streak. Cleared by one success; nothing else clears it except a manual reset. |
 | `cooldown_until` | When a cooling or degraded identity becomes schedulable again. |
@@ -62,7 +62,7 @@ reject that case instead of guessing.
 | `cooling` | Resting off a risk-control hit. | `risk_control` outcome, with an exponential backoff. | The cooldown elapses (it is promoted on the next scheduling pass), or one successful request while cooling. |
 | `degraded` | Hit the cooldown ceiling. Used only when no active identity exists. | A cooldown computed at or above `sched.cooldown_max_seconds`. | The ceiling cooldown elapses - it returns to `active` with its streak intact, so its health score keeps it last in the ranking until it succeeds. |
 | `retired` | Dead. The cookie jar was wiped; the row is kept for its statistics. | You retired it, or its proxy was deleted. | Never. A retired identity cannot be reset, pinned or scheduled. |
-| `minting` | The schema's column default. The mint path never leaves an identity in it - it writes `active` as soon as the browser returns a jar - so you will not normally see a row in this state. | Nothing writes it today. | — |
+| `minting` | The schema's column default. The mint path never leaves an identity in it - it writes `active` as soon as a jar comes back - so you will not normally see a row in this state. | Nothing writes it today. | — |
 
 Outcomes are folded into the state after every request:
 
@@ -113,6 +113,10 @@ The cookie that decides it, per platform:
 | --- | --- | --- |
 | `tiktok` | `msToken` | 144 |
 | `douyin` | `UIFID_TEMP` | 32 |
+
+Bilibili has no session cookie registered, so a Bilibili identity reads
+`unknown` (Unreadable) in this column. That is not a fault, and the default
+view does not hide it for that.
 
 **Health** is how this identity's recent requests actually went. The column is
 computed from the same aggregate and the same two windows the scheduler ranks
@@ -180,9 +184,11 @@ At the top of the page, reading `GET /api/v1/admin/identities/pool`:
   because a failed mint writes no identity row - which is exactly why a pool that
   stubbornly will not refill used to look identical to one nobody asked to
   refill.
-- If `DTK_BROWSER_RPC_URL` is not set, the number editors disappear and the card
-  says so: nothing can be minted, the pool is whatever you import by hand, and
-  the two thresholds have no effect.
+- If `DTK_BROWSER_RPC_URL` is not set, Douyin and TikTok cannot be minted: their
+  number editors disappear, their pools are whatever you import by hand, and
+  their thresholds have no effect. Bilibili's row stays editable and keeps
+  refilling, because its guests are minted without a browser (see [Bilibili
+  identities](#bilibili-identities)). The card says so.
 
 The refill job itself lives in the worker: it checks every platform once a
 minute and mints **one identity at a time**, holding a cross-process lock so
@@ -201,7 +207,7 @@ the pool alerts speak instead of adding fresh identities to be burned.
 | --- | --- |
 | State | `active` / `cooling` / `degraded` / `retired`. |
 | Health | The measured score, or "No traffic". |
-| Platform | `douyin` or `tiktok`. |
+| Platform | `douyin`, `tiktok` or `bilibili`. |
 | Credential | The static session check described above. |
 | Identity id | The full uuid, with a copy button. Not hideable - this is what you paste into `?identity=`. |
 | Proxy | The proxy's label when it has one, its id when it does not, "no proxy" when there is none. Never the URL, not even masked. |
@@ -260,9 +266,9 @@ them apart.
 
 | Role | Meaning |
 | --- | --- |
-| `required` | This build refuses to use an identity without it. Today that is `ttwid`, on both platforms. |
-| `session` | Carries a logged-in session: `sessionid`, `sessionid_ss`, `sid_tt`, `sid_guard`, `uid_tt`, `sid_ucp_v1`. |
-| `useful` | Not required, but an identity carrying it is refused less often: `odin_tt`, `s_v_web_id`, `msToken`, `passport_csrf_token`, `tt_csrf_token`, `__ac_nonce`, plus the cookies this build's signer reads. |
+| `required` | This build refuses to use an identity without it. Today that is `ttwid` on Douyin and TikTok, and `buvid3` on Bilibili. |
+| `session` | Carries a logged-in session: `sessionid`, `sessionid_ss`, `sid_tt`, `sid_guard`, `uid_tt`, `sid_ucp_v1`, and Bilibili's `SESSDATA`. |
+| `useful` | Not required, but an identity carrying it is refused less often: `odin_tt`, `s_v_web_id`, `msToken`, `passport_csrf_token`, `tt_csrf_token`, `__ac_nonce`, Bilibili's `buvid4`, `b_nut`, `buvid_fp` and `_uuid`, plus the cookies this build's signer reads. |
 | `other` | Set by the platform and kept as received. Not something this build reads. |
 
 The per-cookie sentences are keyed by cookie name with the role's own sentence
@@ -328,12 +334,13 @@ The drawer reads the last week of `request_log` rows for this identity (up to
 
 ## Minting identities
 
-Minting drives a real headless browser through the identity's own proxy, because
-the cookie set and the fingerprint have to come from the same session that will
-later use them. The exit's timezone and language are aligned with the proxy's
-GeoIP: a proxy in Germany paired with an `Asia/Shanghai` clock is a tell given
-away for free. The screen size is not derived from geography - it is whatever
-the real browser reports.
+For Douyin and TikTok, minting drives a real headless browser through the
+identity's own proxy, because the cookie set and the fingerprint have to come
+from the same session that will later use them. The exit's timezone and
+language are aligned with the proxy's GeoIP: a proxy in Germany paired with an
+`Asia/Shanghai` clock is a tell given away for free. The screen size is not
+derived from geography - it is whatever the real browser reports. Bilibili keeps
+the same rule without a browser; see [Bilibili identities](#bilibili-identities).
 
 It needs the `browser-rpc` container, which is optional by design and is the
 heaviest service in the stack:
@@ -354,8 +361,8 @@ nothing. See [the optional profiles and the CloakBrowser
 pin](./02-installation.md#the-optional-profiles) for the pinned commit to use
 and why it is a commit rather than a tag.
 
-Without any of it the pool is whatever you import by hand, which is a supported
-mode, not an error.
+Without any of it the Douyin and TikTok pools are whatever you import by hand,
+which is a supported mode, not an error. Bilibili goes on minting.
 
 From the console, **Mint identities** takes a platform, a count of 1 to 10, and
 optionally a proxy to mint behind. Each identity is submitted as its own task
@@ -373,18 +380,21 @@ When a mint produces nothing, the task fails with a reason code:
 | `proxy_undecryptable` | The proxy URL could not be decrypted (wrong `DTK_SECRET_KEY`). Minting direct instead would bind the identity to an exit it will never use. |
 | `rpc_unavailable` | The browser container did not answer. |
 | `unusable_fingerprint` | The browser reported a fingerprint with no usable version, so the identity was refused rather than paired with a guessed TLS profile. |
+| `mint_refused` | Bilibili only: the site did not hand out a guest session this time. The refill job backs off and tries again. |
 | `busy` / `locked` | Another mint holds the lock. Retryable; the API answers `429` with a 30-second `Retry-After`. |
 
 A failed *automatic* mint slows the sweep down with an exponential backoff (60 s
 doubling to a 1 h ceiling, cleared by the next success). A failed *hand-pressed*
 mint deliberately does not touch that counter, so a burst of button presses
-against a down browser cannot silence automatic refill for an hour.
+against a down browser cannot silence automatic refill for an hour. The backoff
+is kept per minting route - the browser, or Bilibili's plain request - so a
+browser container that is down no longer stops Bilibili refilling.
 
 ## Importing cookies you already have
 
-**Import cookies** takes a jar you copied out of a browser. It is the whole pool
-on a deployment with no browser container, and the only way to give this
-instance a logged-in session.
+**Import cookies** takes a jar you copied out of a browser. It is the whole
+Douyin and TikTok pool on a deployment with no browser container, and the only
+way to give this instance a logged-in session.
 
 ### The four accepted paste formats
 
@@ -412,14 +422,15 @@ anything is stored it reports:
 - the inferred browser family and major version, from the User-Agent you supply.
   Edge and Opera map onto Chrome, which is their real TLS profile;
 - whether the jar carries a logged-in session;
-- for a logged-in jar, the expiry read out of `sid_guard`;
-- missing required cookies - without `ttwid` the jar cannot be stored at all;
+- for a logged-in Douyin or TikTok jar, the expiry read out of `sid_guard`;
+- missing required cookies - without `ttwid` (Douyin, TikTok) or `buvid3`
+  (Bilibili) the jar cannot be stored at all;
 - warnings, as stable codes plus a sentence: `no_cookies`,
   `logged_in_session`, `unknown_browser`, `no_useful_cookies`.
 
 Two more fields are worth filling in:
 
-- **User agent** - from the same browser session. Both platforms hash it into
+- **User agent** - from the same browser session. Douyin and TikTok hash it into
   their signatures, so a jar sent under a different one is a contradiction they
   can see. Without it the browser cannot be inferred and the import is refused.
 - **Proxy** - the egress this account normally signs in from. An imported jar is
@@ -492,17 +503,27 @@ signed-in account. Measured on 2026-10-17:
 | First page of `/api/v1/douyin/user/posts` | An answer, short of the author's newest few posts | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
 | Any later page (a `cursor` other than `0`) | `{"status_code":0}` and nothing else | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once - no guest is sent to be refused |
 
-Everything else - single posts, profiles, comments and their pages, all of
-TikTok - is served to a guest in full and is routed exactly as before, so a
-logged-in account is not worn out on traffic a guest can carry.
+Bilibili does the same with a video's comments. Measured on 2026-10-18:
 
-Before this, rotation did not look at whether an identity was logged in. Page 2
-went to a guest, came back as 17 empty bytes, was reported as
+| Request | What a guest gets | What dtk does |
+| --- | --- | --- |
+| First page of `/api/v1/bilibili/video/comments` | The three hottest comments, and word that this is the last page | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
+| Any later page | Nothing - it was told the first page was the last | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once |
+
+Everything else is routed exactly as before, so a logged-in account is not worn
+out on traffic a guest can carry. On Douyin that is single posts, profiles, and
+comments and their pages, all served to a guest in full; all of TikTok
+likewise; and on Bilibili everything but the comment list itself - replies to a
+comment page normally for a guest.
+
+Before this, rotation did not look at whether an identity was logged in. On
+Douyin, page 2 went to a guest, came back as 17 empty bytes, was reported as
 `UPSTREAM_RISK_CONTROL` and cooled that guest, while the imported login sat
 idle. The first page came from a guest too, and was missing the newest posts.
 
 An identity counts as logged in when its jar carried a session cookie
-(`sessionid` and the like) at import - the **Logged in** column. A session that
+(`sessionid` and the like, `SESSDATA` on Bilibili) at import - the **Logged in**
+column. A session that
 lapses later still counts, and its refusals cool it like any other; **Check the
 login** in the drawer tells you which it is.
 
@@ -524,13 +545,52 @@ this endpoint: none was imported, or it is kept out of rotation. More than `0`
 means wait, or check whether their sessions have lapsed.
 
 Some lists belong to the account asking, not to anyone the request names:
-bookmarks on both platforms (`/user/bookmarks`), and Douyin's bookmark folders
+bookmarks on Douyin and TikTok (`/user/bookmarks`), and Douyin's bookmark folders
 (`/user/collections`). Rotation is never used for these. Pass `identity`
 naming the imported identity whose list you want, or the request is refused
 with `INVALID_PARAM` on the `identity` field; the answer is not cached, because
 it is that account's alone. Without the rule, an unpinned call would have
 returned whichever account rotation drew, and the shared cache would then have
-served that account's list to the next caller.
+served that account's list to the next caller. Bilibili has neither: it does not
+serve `/user/bookmarks`, and its `/user/collections` names an author and lists
+that author's public folders.
+
+## Bilibili identities
+
+Bilibili is the platform whose guest session is plain HTTP rather than something
+a page script hands to a browser, and the pool treats it accordingly.
+
+- **Minted without a browser.** A guest's `buvid3` and `buvid4` are the answer
+  to one request, the site's own `/x/frontend/finger/spi`, made through this
+  instance's TLS-impersonating transport and behind the identity's proxy. The
+  session is still created by the same client, from the same exit, that will
+  later spend it - the rule the browser path keeps. So an install with no
+  browser container still keeps a Bilibili pool: the refill job and the **Mint
+  identities** dialog mint it (`dtk identity mint` still goes through
+  browser-rpc), the refill card shows Bilibili as mintable, and since the refill
+  job backs off per minting route, a browser container that is down does not
+  stop Bilibili refilling.
+- **Its own marks.** `pool.bilibili.min_size` and `pool.bilibili.target_size`
+  follow the same rules as the other platforms': `-1` follows the global value,
+  `0` turns automatic minting off.
+- **Importing.** A Bilibili jar needs `buvid3`, or it cannot be stored.
+  `SESSDATA` marks it as a logged-in session - treat it like the account's
+  password. `buvid4`, `b_nut`, `buvid_fp` and `_uuid` are worth bringing along.
+- **Checking the login.** **Check the login** asks Bilibili's
+  `/x/web-interface/nav`, which really does tell a live login apart: `live`,
+  with the account's mid, when it answers `isLogin: true`; `signed_out` for a
+  guest or a lapsed session.
+- **What a login is for.** Comments: a guest gets the three hottest and nothing
+  more (see [What needs a logged-in identity](#what-needs-a-logged-in-identity)).
+  To keep an imported account for comments only, the rotation call above takes
+  `{"endpoints": ["bilibili.comments"]}`.
+- **The uploader video list is the endpoint Bilibili guards hardest.** A burst
+  of requests to `/api/v1/bilibili/user/posts` from one egress gets HTTP 412
+  pages for a few minutes whatever the headers (measured), which this instance
+  reports as `UPSTREAM_RISK_CONTROL` and answers by cooling the identity. Its
+  token bucket is the slowest of any Bilibili endpoint; spreading requests out
+  and putting identities behind proxies is what helps. See
+  [Troubleshooting](./14-troubleshooting.md#http-412-on-a-bilibili-uploaders-video-list).
 
 ## Exporting and restoring identity bundles
 
@@ -721,7 +781,7 @@ Created. Two of them need a note:
 - **Latency** is filled in from a probe you run on this page in this session. The
   listing itself carries no stored latency, so an untouched row shows `—`.
 - **Identities** counts the identities bound to the proxy that are not retired,
-  across both platforms. A `0` on a proxy you meant identities to use is the
+  across all platforms. A `0` on a proxy you meant identities to use is the
   first thing to check when requests still go out direct: an identity is bound
   when it is minted or imported, never afterwards. To see which identities sit
   behind a proxy, use the Identities page: the Proxy column shows the label, and
@@ -830,7 +890,11 @@ refill lazily from elapsed time and idle ones expire after 24 hours.
 | `douyin.comments`, `douyin.comment_replies`, `douyin.mix_posts` and the TikTok equivalents | 3 | 0.15 | 1.5 |
 | `douyin.author_posts`, `douyin.author_likes` and the TikTok equivalents | 3 | 0.12 | 1.8 |
 | `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12 | 1.8 |
-| `douyin.session_check`, `tiktok.session_check` | 3 | 0.20 | 1.0 |
+| `douyin.session_check`, `tiktok.session_check`, `bilibili.session_check` | 3 | 0.20 | 1.0 |
+| `bilibili.content_detail`, `bilibili.content_streams` | 5 | 0.30 | 1.0 |
+| `bilibili.author_profile` | 4 | 0.20 | 1.0 |
+| `bilibili.comments`, `bilibili.comment_replies`, `bilibili.author_collections`, `bilibili.collection_posts` | 3 | 0.15 | 1.2 |
+| `bilibili.author_posts` | 2 | 0.08 | 1.8 |
 | anything unregistered (`default`) | 3 | 0.15 | 1.5 |
 
 Read a refill rate as "one request every 1/rate seconds, per identity": 0.12/s is
@@ -909,11 +973,11 @@ switch and the setting it writes cannot disagree about what a path is called.
   log in to reach the login endpoint). They are listed separately as "No
   credential", not counted into the warning, and no switch here closes them.
   None of them fetch anything, so none of them spend the pool.
-- An anonymous caller gets read scopes only (`douyin:read`, `tiktok:read`), never
-  admin and never write, and is rate limited **by client address** rather than by
-  key, using `api.default_rate_limit_per_min` (default 120). Behind Docker's
-  userland proxy every caller can look like the bridge gateway, which degrades
-  that to one shared bucket - stricter, not looser.
+- An anonymous caller gets read scopes only (`douyin:read`, `tiktok:read`,
+  `bilibili:read`), never admin and never write, and is rate limited **by client
+  address** rather than by key, using `api.default_rate_limit_per_min` (default
+  120). Behind Docker's userland proxy every caller can look like the bridge
+  gateway, which degrades that to one shared bucket - stricter, not looser.
 
 [Users and API keys](./09-users-and-api-keys.md) is the full treatment of this
 page - what can never be opened, why a key is necessary but not sufficient, and
@@ -932,6 +996,10 @@ one request at a time overall.
 | Read profiles | `*.author_profile` (0.20/s) | ~12 / minute | ~5 identities |
 | Page through comments | `*.comments` (0.15/s) | ~9 / minute | ~7 identities |
 | Walk an author's posts | `*.author_posts` (0.12/s) | ~7 / minute | ~9 identities |
+
+Bilibili's rates are the same except for an uploader's video list,
+`bilibili.author_posts`, at 0.08/s: about 5 a minute, so about 13 identities for
+one request a second.
 
 Then add headroom, because the pool is not always all there:
 
@@ -1000,7 +1068,7 @@ other setting in [Configuration](./03-configuration.md).
 | --- | --- | --- |
 | `pool.min_size` | 3 | Low-water mark per platform. Below it, the refill job mints. |
 | `pool.target_size` | 8 | What it tops up to. Clamped up to `min_size` if set lower. |
-| `pool.<platform>.min_size` | -1 | This platform's own mark (`douyin` or `tiktok`). -1 follows `pool.min_size`; 0 turns automatic minting and pool alerts off for the platform. |
+| `pool.<platform>.min_size` | -1 | This platform's own mark (`douyin`, `tiktok` or `bilibili`). -1 follows `pool.min_size`; 0 turns automatic minting and pool alerts off for the platform. |
 | `pool.<platform>.target_size` | -1 | This platform's own target. -1 follows `pool.target_size`. |
 | `pool.max_fail_streak` | 3 | Failure streak at which an identity stops counting towards the pool level, so the filler replaces it instead of counting it. |
 | `pool.health_prior` | 0.8 | Assumed success rate for an identity with too little traffic to score. |

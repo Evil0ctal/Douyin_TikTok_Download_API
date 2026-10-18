@@ -1,8 +1,8 @@
 # Downloads, library and watchlist
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/08-downloads-and-library.md)
 
 This page is about keeping things rather than just reading them: putting video and images on your own disk, finding them again months later, and collecting the same target on a timer. After reading it you will know what each of the three pages costs, where the bytes actually go, what the size ceiling will take away from you, and how to stop it taking the one post you meant to keep.
@@ -72,7 +72,7 @@ The layout is one directory per post:
 
 What the planner decides before anything is fetched:
 
-- **One video per post.** Every bitrate the platform offers is treated as a mirror of the same file — the first that lands wins. Storing four copies of one clip is not a feature. The parser's order is kept, and it puts the watermark-free stream first.
+- **One video per post.** Every bitrate the platform offers is treated as a mirror of the same file — the first that lands wins. Storing four copies of one clip is not a feature. The parser's order is kept, and it puts the watermark-free stream first. A Bilibili video is one progressive MP4 rather than separate audio and video tracks, so it is one file too; a video in several parts is one post, and the file is the first part. Measured with a guest identity, that file is up to 1080p on older uploads and 720p on a current one.
 - **One cover**, added last, and only if the post has not already hit the item cap.
 - **At most 64 files** per post. A Douyin image album tops out around 35 slides; the cap guards against a malformed payload becoming a thousand-item job.
 - **Images are capped at 32 MiB** each, or `media.max_file_bytes` if that is lower. A 500 MB "image" is a sign something is wrong.
@@ -96,7 +96,7 @@ The **Skip what is already downloaded** checkbox is shared by every mode that ca
 
 ### One post
 
-Paste a link or a post id. Digits are treated as an id, anything else as a link. The platform menu beside the box is only consulted for a bare id and is disabled while a link is in the box, because the link says which platform it is — and if you send both and they disagree, the API refuses rather than guessing.
+Paste a link or a post id. Digits are treated as an id, anything else as a link. The platform menu beside the box is only consulted for a bare id and is disabled while a link is in the box, because the link says which platform it is — and if you send both and they disagree, the API refuses rather than guessing. On Bilibili, digits are read as an av number and converted to the bvid; a bare bvid is not digits, so paste the video link instead.
 
 Three things can happen, and the toast tells you which:
 
@@ -104,7 +104,7 @@ Three things can happen, and the toast tells you which:
 - **Fetching the post first.** This instance has never seen the post. The worker fetches it through the same pool, scheduler and request log as any other read, then downloads what comes back. Slower first response; you do not have to parse it yourself first.
 - **Already downloading / already downloaded.** The request was answered with an existing download (`reused: "in_flight"` or `"already_stored"`, HTTP `200`). Joining an in-flight download is **never optional**, whatever `skip_existing` says: two downloads of one post write into the same directory and the loser of that race renames a file the winner has already moved, and comes back `partial` with a file missing.
 
-Short links (`v.douyin.com/...`, `vm.tiktok.com/...`) are refused here, by design: resolving one means following it, and this endpoint makes no network calls. Send them to `POST /api/v1/parse` — which expands them in the background — and the post is archived by the time you come back. The **Many posts** mode accepts short links directly, because it goes through the parse pipeline.
+Short links (`v.douyin.com/...`, `vm.tiktok.com/...`, `b23.tv/...`) are refused here, by design: resolving one means following it, and this endpoint makes no network calls. Send them to `POST /api/v1/parse` — which expands them in the background — and the post is archived by the time you come back. The **Many posts** mode accepts short links directly, because it goes through the parse pipeline.
 
 If the post is archived and has nothing downloadable, you get a `400` with the reasons now, rather than a task that fails a minute later.
 
@@ -118,11 +118,11 @@ Each line comes back as one of:
 
 | Kind | Submittable | Meaning |
 | --- | --- | --- |
-| `link` | yes | A recognised Douyin or TikTok URL |
+| `link` | yes | A recognised Douyin, TikTok or Bilibili URL |
 | `short_link` | yes | A share link that needs following; the parse pipeline expands it |
-| `content_id` | no | A bare post id with no platform attached to it |
-| `bad_id` | no | Looks like a post id but cannot be one — both platforms mint ids whose high bits are the second they were issued |
-| `unknown` | no | No Douyin or TikTok link in this line |
+| `content_id` | no | A bare post id with no platform attached to it — or a bare Bilibili bvid, which names its platform but is still not a link; this mode submits links only |
+| `bad_id` | no | Looks like a post id but cannot be one — Douyin and TikTok mint ids whose high bits are the second they were issued |
+| `unknown` | no | No Douyin, TikTok or Bilibili link in this line |
 
 The rejected kinds are answered locally, without spending a task, and appear in the table as failed rows with a reason.
 
@@ -142,17 +142,17 @@ The drawer's own download buttons are a **different thing** from "Save to this i
 
 ### An author's recent posts
 
-Paste a profile link, or the bare `sec_user_id` the library and playground hand you (both platforms spell it the same way: it starts `MS4wLjABAAAA`). The **How many posts** menu offers the newest 20, 50, 100, 200, or everything the feed will give up. It is a menu rather than a number field on purpose: every post is a download, every page of the feed is a read through the identity pool, and a free-text depth invites "99999" typed without a thought.
+Paste a profile link, or the bare `sec_user_id` the library and playground hand you (Douyin and TikTok spell it the same way: it starts `MS4wLjABAAAA`). A Bilibili author's id is the bare numeric `mid`, which this box does not take on its own — paste the space link (`space.bilibili.com/<mid>`) instead. The **How many posts** menu offers the newest 20, 50, 100, 200, or everything the feed will give up. It is a menu rather than a number field on purpose: every post is a download, every page of the feed is a read through the identity pool, and a free-text depth invites "99999" typed without a thought.
 
 The page walks the feed 20 posts at a time until it has enough, stopping at 40 pages, then queues one download per post. Failures on individual posts do not abandon the rest, and the toast reports queued / total / already here.
 
-One trap worth knowing: the platform menu is **disabled** in this mode, because a profile link carries the platform. If you paste a bare author id instead, it is looked up on whichever platform the menu was left showing — so for a bare TikTok `secUid`, paste the profile link instead.
+One trap worth knowing: a bare author id in the `MS4wLjABAAAA…` shape looks the same on Douyin and TikTok, so it is looked up on whichever platform the menu shows. The menu is enabled for exactly that case and disabled while a profile link is in the box, because the link carries the platform. A Bilibili `mid` is plain digits, which this mode does not take on its own, so paste the `space.bilibili.com` link.
 
 For deeper history than the feed will hand over in one pass, use **Archive their history** in the library's post drawer, which is a different job with a different cost.
 
 ### A post's comments
 
-Reads up to **5 pages of 50** comments through the ordinary read endpoint and hands your browser a JSON file named `comments-<platform>-<id>.json`. Each page is a real request through the identity pool. Comments are data rather than media, so nothing is written to the server's volume and the downloader is not involved.
+Reads up to **5 pages** of comments, 50 to a page where the platform allows it (35 on TikTok; Bilibili sets its own page size), through the ordinary read endpoint and hands your browser a JSON file named `comments-<platform>-<id>.json`. Each page is a real request through the identity pool. Comments are data rather than media, so nothing is written to the server's volume and the downloader is not involved.
 
 ## The downloads table
 
@@ -160,7 +160,7 @@ Reads up to **5 pages of 50** comments through the ordinary read endpoint and ha
 | --- | --- |
 | Post | The stored cover as a thumbnail, the archive's title, and the author and platform beneath. Falls back to the content id when the archive knows nothing about the post |
 | State | `queued`, `running`, `done`, `partial`, `failed` or `cancelled`, plus a live progress bar while it is running |
-| Platform | `douyin` or `tiktok` |
+| Platform | `douyin`, `tiktok` or `bilibili` |
 | Files | How many files completed |
 | Size | Bytes on disk, or **Cleaned up** for a row whose files were removed — by hand or by the ceiling |
 | Finished | When it settled |
@@ -237,7 +237,7 @@ Note what this is not: the server does not proxy media on demand. Saving a file 
 
 A finished download's video can be transcribed on this machine. The `transcriber` sidecar runs FunASR models — Paraformer to recognise the speech, FSMN-VAD to find where someone is speaking, CT-Transformer to put the punctuation back — and it sits on a network with no route out, so the audio never leaves the host. It is optional and off by default: [the transcriber profile](./02-installation.md#the-optional-profiles) turns it on, and [Preparing the FunASR ONNX models](./18-funasr-models.md) gets the ~500 MB of models it needs. The guided installer does both if you say yes to transcription.
 
-Know what it is for before you queue a hundred: the models are the general **Mandarin** ones, so Chinese speech comes out well and other languages poorly. The result is **one whole text per video** — no timestamps, no speaker labels.
+Know what it is for before you queue a hundred: the models are the general **Mandarin** ones, so Chinese speech comes out well and other languages poorly. The result is **one whole text per video** — no timestamps, no speaker labels. A Bilibili download is transcribed exactly like a Douyin or TikTok one; for a video in several parts, that is the first part, because that is the file that was stored.
 
 ### Starting one
 
@@ -283,7 +283,7 @@ Selection is by post key and **survives a page turn** — selecting a few here, 
 | Filter | Values | Applies |
 | --- | --- | --- |
 | Search | Substring of the title or description | On submit |
-| Platform | `douyin`, `tiktok` | On change |
+| Platform | `douyin`, `tiktok`, `bilibili` | On change |
 | Kind | Video, image album | On change |
 | Length | Under a minute (< 60 s), under three minutes (< 180 s), long (≥ 180 s), unknown | On change |
 | Availability | Live, deleted, private, unknown | On change |
@@ -339,7 +339,7 @@ A deleted post answers the platform's own not-found, and **that is the finding, 
 
 The worker queues a recheck by itself roughly every six hours, so the button is for when you want the answer now. Setting `archive.recheck_after_days` to 0 turns rechecking off entirely.
 
-Because it spends the identity pool, this endpoint requires a *platform* read scope (`douyin:read` or `tiktok:read`) rather than `archive:read` — reading the archive is promised to cost nothing, and a recheck is a platform read wearing an archive name.
+Because it spends the identity pool, this endpoint requires a *platform* read scope (`douyin:read`, `tiktok:read` or `bilibili:read`) rather than `archive:read` — reading the archive is promised to cost nothing, and a recheck is a platform read wearing an archive name.
 
 ## Deleting posts and their media
 
@@ -379,7 +379,7 @@ Four fields: platform, what to watch, the target id, and the interval.
 
 | Kind | Target id | What one run collects |
 | --- | --- | --- |
-| An author | The stable author id — `sec_user_id` on Douyin, `secUid` on TikTok. Both start `MS4wLjAB` | One page of their posts (the newest 20). That page carries the author record on every item, so a single request answers both "what is new" and "how many followers now" |
+| An author | The stable author id — `sec_user_id` on Douyin, `secUid` on TikTok (both start `MS4wLjAB`), the numeric `mid` on Bilibili | One page of their posts (the newest 20). That page carries the author record on every item, so a single request answers both "what is new" and "how many followers now" |
 | A post | The post id, as the archive holds it | That post's detail, which is how its counters move over time |
 
 An `@handle` will not work for an author entry. Nothing checks the shape of the id when you add it, so the entry is created — but every run then fails, because the post-list endpoint has no parameter that takes a handle and refuses it by name rather than sending it somewhere it cannot work. Look the author up in the playground or the library first and use the id from the result. Watching the same platform + kind + target twice *is* refused, as a duplicate.
@@ -392,7 +392,7 @@ What an entry collects is not configurable from this page, and that is deliberat
 
 The console offers 15 minutes, 1 hour, 6 hours, 12 hours and 24 hours, hiding anything below the server's floor. New entries default to `watchlist.default_interval_seconds` (**6 hours**).
 
-The floor is `watchlist.min_interval_seconds`, **900 seconds** by default, and it cannot be set below 60 whatever you do. An interval under the floor is **refused** rather than silently raised to a number you did not ask for. The reason is not politeness: a target collected every few seconds does not produce a better time series, it burns the whole identity pool on one author and starves everything else. Nothing on either platform moves fast enough to need more than 15 minutes.
+The floor is `watchlist.min_interval_seconds`, **900 seconds** by default, and it cannot be set below 60 whatever you do. An interval under the floor is **refused** rather than silently raised to a number you did not ask for. The reason is not politeness: a target collected every few seconds does not produce a better time series, it burns the whole identity pool on one author and starves everything else. Nothing on any of the platforms moves fast enough to need more than 15 minutes.
 
 Cost, so you can budget: one entry at 6 hours is 4 requests a day. A hundred watched authors at 6 hours is 400 requests a day, one page each. Shortening an interval takes effect immediately rather than after the old one elapses.
 
@@ -450,7 +450,7 @@ The API surfaces behind these three pages are scoped separately on purpose: seei
 | `archive:export` | The bulk NDJSON export, and only that |
 | `media:read` | List downloads, read storage usage, fetch a stored file |
 | `media:write` | Start, retry, pin and cancel a download; delete a download's files; deduplicate; create and change collections; delete archived posts |
-| `douyin:read` / `tiktok:read` | The availability recheck and the author backfill, because both spend the identity pool |
+| `douyin:read` / `tiktok:read` / `bilibili:read` | The availability recheck and the author backfill, because both spend the identity pool |
 | `transcription:write` | Start, refresh, cancel and delete transcriptions |
 | `transcription:read` | List transcriptions and read their text |
 | `identity:manage` | The watchlist endpoints (`/api/v1/admin/watchlist/*`); operator role or above for anything that writes |

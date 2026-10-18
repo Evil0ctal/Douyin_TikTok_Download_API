@@ -1,7 +1,7 @@
 # 安全
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/15-security.md)
 
 这一篇讲的是你和这套软件之间的分工。读完之后，你会知道实例自己已经保护了什么、它刻意不替你做什么、哪些调用会把一份可用的凭据交到你手上，以及在端口能被你自己的笔记本以外的东西访问到之前，你该检查些什么。
@@ -16,7 +16,7 @@
 
 | 资产 | 为什么有人想要它 | 什么挡在前面 |
 | --- | --- | --- |
-| 身份池里的 cookie jar | 一个可用的平台会话。带登录态的那份就是某个人的账号；游客的那份也是用无头浏览器真金白银跑出来的 | 以 `DTK_SECRET_KEY` 为密钥的 AES-256-GCM 静态加密；任何常规接口都不会返回它；退休时立即擦除 |
+| 身份池里的 cookie jar | 一个可用的平台会话。带登录态的那份就是某个人的账号——在 B 站，就是任何带 `SESSDATA` 的 jar——所以要当密码看待；游客的那份也是铸造出来的，抖音和 TikTok 的更是用无头浏览器真金白银跑出来的 | 以 `DTK_SECRET_KEY` 为密钥的 AES-256-GCM 静态加密；任何常规接口都不会返回它；退休时立即擦除 |
 | 代理 URL | 花钱买的出口，凭据就写在 URL 里 | 静态加密；每一处渲染都要过一遍掩码；明文只在一次拨号期间存在 |
 | API 接口本身 | 无偿占用你的身份、你的代理和你的 IP 信誉去抓数据 | 默认每个接口都要凭据，除了少数几个从来就没上过锁的路由；按密钥限流；权限范围 |
 | 归档 | 攒了几个月的帖子，背后是真实的人 | `archive:read` 和 `archive:export` 与平台读取是分开的权限范围 |
@@ -182,18 +182,21 @@ curl -s -D - -o /dev/null http://127.0.0.1:8000/healthz
 | 回环、私网、链路本地、保留地址和单标签内网名**优先**被拒 | 这样拒绝理由是诚实的，哪怕白名单本身也会拒掉它们 |
 | host 必须是白名单里的平台域名或其子域，按标签边界匹配 | `douyin.com.evil.com` 不通过；`evildouyin.com` 不通过；`www.douyin.com` 通过 |
 
-内置列表就是四个可注册域名，含子域：
+内置列表就是七个可注册域名，含子域：
 
 | 平台 | 域名 |
 | --- | --- |
 | 抖音 | `douyin.com`、`iesdouyin.com`、`amemv.com` |
 | TikTok | `tiktok.com` |
+| B 站 | `bilibili.com`、`b23.tv`、`bili2233.cn` |
+
+B 站的国际站 `bilibili.tv` 不在其中：那是另一个服务，本实例不支持。
 
 **这里刻意不做 DNS 解析。** 今天解析到私网地址的名字，可能在检查和连接之间解析到别处，所以在这里查一次 DNS，换来的是一种虚假的安全感，代价是请求路径上多一次网络调用。真正的防线是正向白名单，加上每一个出站平台调用都从该身份自己的代理出去这一事实。那些纯粹为了绕过字符串匹配而存在的写法——十进制、十六进制、IPv4-mapped IPv6、结尾多个点——被“拒绝一切不是全球可路由的东西”这条规则一起收掉，而不是靠列举坏东西。
 
 ### 短链每一跳都要重新检查
 
-`v.douyin.com`、`v.amemv.com`、`vm.tiktok.com` 和 `vt.tiktok.com` 在被跟随之前是不透明的，所以展开是一个循环，全程不让 HTTP 客户端自己去追这条链：
+`v.douyin.com`、`v.amemv.com`、`vm.tiktok.com`、`vt.tiktok.com`、`b23.tv` 和 `bili2233.cn` 在被跟随之前是不透明的，所以展开是一个循环，全程不让 HTTP 客户端自己去追这条链：
 
 1. 最多 5 跳，带环路检测。
 2. 每个 `Location` 都被交回来，在发出下一个请求之前重新过一遍白名单。
@@ -218,7 +221,9 @@ curl -s -D - -o /dev/null http://127.0.0.1:8000/healthz
 
 ### 两份刻意分开的白名单
 
-媒体字节不是页面，它们所在的 CDN 主机也绝不该是分享链接可以指向的地方。所以 `src/dtk/media/domains.py` 有自己的一份按平台划分的列表——`douyinvod.com`、`zjcdn.com`、`douyinpic.com`、`tiktokcdn.com` 及其兄弟域名——而 `security.url_allowlist` 不会放宽它。一个抖音帖子只按抖音那份媒体列表检查。
+媒体字节不是页面，它们所在的 CDN 主机也绝不该是分享链接可以指向的地方。所以 `src/dtk/media/domains.py` 有自己的一份按平台划分的列表——`douyinvod.com`、`zjcdn.com`、`douyinpic.com`、`tiktokcdn.com`、`bilivideo.com`、`hdslb.com` 及其兄弟域名——而 `security.url_allowlist` 不会放宽它。一个抖音帖子只按抖音那份媒体列表检查。
+
+B 站那份列表里有一个精确主机名，而不是整个域名：`upos-hz-mirrorakam.akamaized.net`。B 站给海外出口走的是 Akamai，所以从这样的出口下载需要这个主机——但 `akamaized.net` 是所有 Akamai 客户共用的，放行整个域名就等于让一条 B 站帖子能把下载器指向任何人的字节。`akamaized.net` 下的其余主机都不放行。
 
 下载器 sidecar 关掉了名字检查关不掉的那个重绑定窗口：它在拨号时拒绝任何不是全球可路由的地址，所以一个校验通过、片刻后解析到 `127.0.0.1` 的 CDN 名字照样失败。它也从来收不到 cookie、主密钥、数据库地址或调用方的 `?proxy=`——它拿到的只有镜像地址、一份白名单和一个字节上限。
 
@@ -286,7 +291,7 @@ curl -s -D - -o /dev/null http://127.0.0.1:8000/healthz
 
 写了这些路径的条目会在解析配置时被丢弃，并记为 `api.public_endpoints.refused`。这条禁令写在代码里而不是交给你的判断力，因为它的失败方式既不可逆又无声：一个正好命中管理路由的笔误条目，在被人发现之前看起来什么事都没有。
 
-开放一个路由是必要条件，不是充分条件。匿名调用方运行时的主体**恰好只有两个权限范围**——`douyin:read` 和 `tiktok:read`——外加 `viewer` 角色。开放一个需要 `media:read` 的接口，效果只是把 `401` 变成 `403`。
+开放一个路由是必要条件，不是充分条件。匿名调用方运行时的主体**恰好只有三个权限范围**——`douyin:read`、`tiktok:read` 和 `bilibili:read`——外加 `viewer` 角色。开放一个需要 `media:read` 的接口，效果只是把 `401` 变成 `403`。
 
 匿名调用方按来源地址而不是按密钥限流，所以一个开放接口不至于变成对身份池的无计量抽干。这一点要和上面关于地址的告诫合起来看：没有 `DTK_FORWARDED_ALLOW_IPS` 的时候，整个互联网共用一个桶——方向上偏严而不是偏松，但也意味着一个繁忙的陌生人能把其他人挡在外面。
 
@@ -344,7 +349,7 @@ curl -s -D - -o /dev/null http://127.0.0.1:8000/healthz
 
 | | demo 会话 | 公开的 API Key |
 | --- | --- | --- |
-| 受什么约束 | 角色，排在 viewer 之下 | `douyin:read` 和 `tiktok:read` |
+| 受什么约束 | 角色，排在 viewer 之下 | `douyin:read`、`tiktok:read` 和 `bilibili:read` |
 | 能调用平台接口 | 能 | 能 |
 | 能看总览、资料库、下载、日志、系统信息 | 能 | 不能——权限范围检查会拒绝 |
 | 能看身份池、代理、Key、用户、设置 | 不能 | 不能 |
@@ -407,7 +412,7 @@ CLI 是这里的缺口。`dtk config set`、`dtk identity retire`、`dtk proxy a
 | 规则 | 效果 |
 | --- | --- |
 | 按字段名脱敏 | 名为 `cookie`、`cookies`、`set-cookie`、`authorization`、`x-api-key`、`api_key`、`apikey`、`password`、`secret`、`token`、`setup_token`、`proxy_url` 或 `dtk_secret_key` 的字段整体替换成 `[REDACTED]` |
-| 按值截断 | `msToken`、`a_bogus`、`X-Bogus`、`X-Dynosaur`、`X-Gnarly`、`_signature`、`sessionid`、`sid_guard`、`odin_tt`、`uid_tt` 和 `ttwid` 无论出现在哪个字符串里，都被截到前 6 个字符 |
+| 按值截断 | `msToken`、`a_bogus`、`X-Bogus`、`X-Dynosaur`、`X-Gnarly`、`_signature`、`sessionid`、`sid_guard`、`odin_tt`、`uid_tt` 和 `ttwid`，以及 B 站的 `SESSDATA`、`bili_jct`、`buvid3`、`buvid4` 和 `w_rid`，无论出现在哪个字符串里，都被截到前 6 个字符。命令行的错误输出和诊断报告也会遮掉同样这些名字 |
 | 第三方 logger | `httpx`、`httpcore` 和 `hpack` 被钉在 WARNING。httpx 会在 INFO 打印每一条请求行，URL 全都在里面——而回调 URL 里常常带着 token，签名过的 CDN 链接里带着签名 |
 | 传输层错误 | 只记异常*类型*，绝不记它的消息：httpx 的错误会把失败的那个 URL 原样带出来，而代理 URL 里带着密码 |
 | 校验错误 | pydantic 的 `input`、`ctx` 和 `url` 三个键在错误离开进程之前就被剥掉——`input` 是那个出问题的值，而对于一个根本解析不了的 body，它就是原始请求字节 |

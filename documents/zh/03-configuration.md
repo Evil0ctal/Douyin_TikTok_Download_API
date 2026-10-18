@@ -1,10 +1,10 @@
 # 配置参考
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/03-configuration.md)
 
-读完本文，你会知道哪些配置需要重启、哪些不需要，如何从控制台、命令行或 API 三个入口读取和修改不需要重启的那些，以及全部 54 个运行时配置项各自的作用。
+读完本文，你会知道哪些配置需要重启、哪些不需要，如何从控制台、命令行或 API 三个入口读取和修改不需要重启的那些，以及配置表里全部 62 个配置项各自的作用。
 
 ## 两层配置
 
@@ -51,7 +51,7 @@
 | `DTK_BIND_PORT` | `8000` | API 监听端口。 |
 | `DTK_LOG_LEVEL` | `info` | 日志级别，透传给 uvicorn。 |
 | `DTK_LOG_JSON` | `true` | 结构化 JSON 日志。想在终端看人类可读的日志就设为 `false`。 |
-| `DTK_BROWSER_RPC_URL` | 空 | 无头浏览器服务的地址，例如 `http://browser-rpc:9000`。留空表示关闭自动铸造身份，身份池只能靠手工导入的 cookie——这是受支持的降级模式，不是错误。 |
+| `DTK_BROWSER_RPC_URL` | 空 | 无头浏览器服务的地址，例如 `http://browser-rpc:9000`。留空表示关闭抖音和 TikTok 的自动铸造，这两个身份池只能靠手工导入的 cookie——这是受支持的降级模式，不是错误。B 站访客身份的铸造不需要浏览器，所以无论如何这个池子都会继续补充。 |
 | `DTK_BACKUP_DIR` | `backups` | 备份归档的写入与列出目录。API 与 worker 必须一致：worker 写归档，API 负责列出和下载。容器镜像是只读的，所以 compose 把它指向一个共享卷。 |
 | `DTK_DOWNLOADER_URL` | 空 | Go 媒体下载器的地址，例如 `http://downloader:9100`。留空则完全关闭媒体下载，此时 `POST /api/v1/downloads` 返回 501 并给出可操作的提示，其他功能不受影响。 |
 | `DTK_DOWNLOADER_TOKEN` | 空 | 该 sidecar 的可选共享密钥。它所在的内部网络没有别的容器，所以这属于纵深防御而非边界本身；留空表示 sidecar 不做任何校验。 |
@@ -198,7 +198,7 @@ curl -X PUT http://127.0.0.1:8000/api/v1/admin/settings/cache.content_ttl \
 
 ## SENSITIVE 意味着什么
 
-有七个键被声明为 `SENSITIVE` 而不是 `RUNTIME`。这个作用域不是样式差异——它的含义是*放宽它就会扩大攻击面*，因此谁能改、改一次要付出什么代价，都随之改变。
+有八个键被声明为 `SENSITIVE` 而不是 `RUNTIME`。这个作用域不是样式差异——它的含义是*放宽它就会扩大攻击面*，因此谁能改、改一次要付出什么代价，都随之改变。
 
 | 键 | 放宽它会暴露什么 |
 | --- | --- |
@@ -209,8 +209,9 @@ curl -X PUT http://127.0.0.1:8000/api/v1/admin/settings/cache.content_ttl \
 | `security.webhook_secret` | 让这些回调可被验证的那个密钥。 |
 | `security.request_proxy` | 持有 API Key 的人能否指定本服务器的出口。 |
 | `api.public_endpoints` | 每一条都从某个接口上移除了凭证校验。 |
+| `demo.enabled` | 公开一个共享账号和一把 API Key，任何人都能用它消耗本实例的身份池。 |
 
-其中六个属于 `security.*`；第七个 `api.public_endpoints` 虽然在 `api` 分组里，却是同样的作用域，因为它的每一条都取消了一次凭证校验。
+其中六个属于 `security.*`。另外两个在各自的分组里，却是同样的作用域：`api.public_endpoints` 的每一条都取消了一次凭证校验，`demo.enabled` 则公开了一份凭证。
 
 一次敏感写入需要同时满足：
 
@@ -244,7 +245,7 @@ curl -X PUT http://127.0.0.1:8000/api/v1/admin/settings/cache.content_ttl \
 
 ## 运行时配置完整参考
 
-全部 54 个键，按前缀分组。默认值与代码声明完全一致。
+全部 62 个键，按前缀分组。默认值与代码声明完全一致。
 
 ### `sched` — 调度（7 项）
 
@@ -260,7 +261,7 @@ curl -X PUT http://127.0.0.1:8000/api/v1/admin/settings/cache.content_ttl \
 | `sched.circuit_min_samples` | `20` | 熔断前必须观察到的最少请求数，避免几次偶发失败就把接口熔断。 | 流量很大、20 次采样等于噪声时调大。 |
 | `sched.circuit_min_identities` | `3` | 熔断前必须有多少个不同身份同时失败。用于区分「接口坏了」和「某一个身份坏了」。 | 只在排查问题时才调到 `1`；那等于抹掉了这个配置存在的意义。 |
 
-### `pool` — 身份池（4 项）
+### `pool` — 身份池（10 项）
 
 同样在 **调度器** 页。参见[身份与代理](./06-identities-and-proxies.md)。
 
@@ -268,8 +269,8 @@ curl -X PUT http://127.0.0.1:8000/api/v1/admin/settings/cache.content_ttl \
 | --- | --- | --- | --- |
 | `pool.min_size` | `3` | 每个平台的身份数下限。低于此值会告警并触发铸造。 | 突发流量经常把池子打空时调大；不要超过 `target_size`。 |
 | `pool.target_size` | `8` | 身份池为每个平台维持的目标数量。 | 想要更高吞吐就调大，代价是更多铸造与更多代理。小于 `min_size` 的值会被忽略。 |
-| `pool.douyin.min_size` / `pool.tiktok.min_size` | `-1` | 单个平台自己的下限。`-1` 沿用 `pool.min_size`；`0` 关闭这个平台的自动铸造，同时不再发出它的 `pool_empty` / `pool_below_min` 告警。导入的和手动铸造的身份照常可用。 | 把不用的平台设成 `0`，比如服务器访问不到 TikTok 时的 TikTok。小于 `-1` 的值会被拒绝。 |
-| `pool.douyin.target_size` / `pool.tiktok.target_size` | `-1` | 单个平台自己的补充目标。`-1` 沿用 `pool.target_size`。低于该平台下限的值会被抬到下限。 | 某个平台承担了大部分流量、需要比另一个更大的池子时。 |
+| `pool.douyin.min_size` / `pool.tiktok.min_size` / `pool.bilibili.min_size` | `-1` | 单个平台自己的下限。`-1` 沿用 `pool.min_size`；`0` 关闭这个平台的自动铸造，同时不再发出它的 `pool_empty` / `pool_below_min` 告警。导入的和手动铸造的身份照常可用。 | 把不用的平台设成 `0`，比如服务器访问不到 TikTok 时的 TikTok。小于 `-1` 的值会被拒绝。 |
+| `pool.douyin.target_size` / `pool.tiktok.target_size` / `pool.bilibili.target_size` | `-1` | 单个平台自己的补充目标。`-1` 沿用 `pool.target_size`。低于该平台下限的值会被抬到下限。 | 某个平台承担了大部分流量、需要比其他平台更大的池子时。 |
 | `pool.max_fail_streak` | `3` | 连续失败达到该次数后，这个身份不再计入池子水位，补充任务会去铸造替代品，而不是把一个什么都跑不通的会话继续算作有效。这里用连续失败次数而不是健康分数，是因为没有流量时健康分数为空——把刚铸出来的身份判为不可用，会让低水位变成不停铸造的死循环。 | 很少需要改。某个不稳定的代理导致反复重铸时可以调大。 |
 | `pool.health_prior` | `0.8` | 尚无历史记录的身份所假定的成功率，取值 0 到 1。它决定新身份被调度的积极程度。 | 新身份还没证明自己就被风控时调低。 |
 
@@ -277,7 +278,7 @@ curl -X PUT http://127.0.0.1:8000/api/v1/admin/settings/cache.content_ttl \
 
 | 键 | 默认值 | 作用 | 什么时候需要改 |
 | --- | --- | --- | --- |
-| `signing.mode` | `'native'` | 由谁生成签名。`native` 运行内置纯算法，完全不碰浏览器；`rpc` 每次都请求 browser-rpc；`auto` 以 native 起步，遇到平台自身 SDK 会签名的接口、或某接口的风控率显示 native 签名正在被拒时，切到浏览器。 | 平台上线新 SDK 而内置算法还没跟上时切到 `rpc`。没有 browser-rpc 容器时，唯一自洽的模式是 `native`。 |
+| `signing.mode` | `'native'` | 由谁生成签名。`native` 运行内置纯算法，完全不碰浏览器；`rpc` 每次都请求 browser-rpc；`auto` 以 native 起步，遇到平台自身 SDK 会签名的接口、或某接口的风控率显示 native 签名正在被拒时，切到浏览器。B 站的 WBI 签名始终在进程内计算：无论模式怎么设，browser-rpc 都不会给 B 站签名。 | 平台上线新 SDK 而内置算法还没跟上时切到 `rpc`。没有 browser-rpc 容器时，唯一自洽的模式是 `native`。 |
 | `signing.fallback_enabled` | `True` | 当前模式不偏好的那个签名器，在首选不可用时是否仍可使用。 | 关掉它，才能知道当前到底是谁在扛流量——开着回退时，坏掉的签名器会因为流量悄悄转移而看起来一切正常。在 `auto` 下，风控驱动的切换本身就是回退，所以关掉它等于把 `auto` 钉死在 native。 |
 | `signing.rpc_timeout_seconds` | `60` | 单次 browser-rpc 签名调用的超时上限。它必须覆盖冷启动：某个身份的第一次调用会启动浏览器，并经由该身份的代理加载平台页面——无代理实测约 4 秒——而同一身份的后续调用由常驻页面在毫秒级返回。 | 经由慢代理时容易超时就调大；如果问题出在冷启动，应该改为调大 `DTK_BROWSER_WARM_CONTEXTS`。 |
 
@@ -391,6 +392,15 @@ curl -X PUT http://127.0.0.1:8000/api/v1/admin/settings/cache.content_ttl \
 | 键 | 默认值 | 作用 | 什么时候需要改 |
 | --- | --- | --- | --- |
 | `system.check_updates` | `False` | 控制台是否提供版本更新检查。请求由你的浏览器发往 GitHub，服务端从不外联；之所以需要主动开启，是因为有些部署根本没有出网能力。 | 想知道有没有新版本时打开。 |
+
+### `demo` — 公开演示（2 项，其中一项敏感）
+
+在 **设置 → 演示模式** 里。演示账号能访问什么、不能访问什么，见[安全](./15-security.md#演示模式)。
+
+| 键 | 默认值 | 作用 | 什么时候需要改 |
+| --- | --- | --- | --- |
+| `demo.enabled` | `False` | 对外公开一个只读账号和一把 API Key，任何人都能拿它试用这台实例。打开时生成两者并只显示一次；关闭后所有 demo 会话立即失效、Key 也停止工作，但不删除任何东西。敏感配置。 | 在一台供人试用的公开实例上。 |
+| `demo.task_retention_minutes` | `30` | demo 账号发起的任务保留多久，之后由维护任务清理。单位是分钟不是天：这行记录的存在只是为了让调用方取回结果。 | 演示访客轮询得慢、回来时结果已经没了，就调大。 |
 
 ## 修改何时生效
 

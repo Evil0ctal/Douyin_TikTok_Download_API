@@ -1,7 +1,7 @@
 # 核心概念
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/04-concepts.md)
 
 本页讲的是整套系统背后的心智模型。读完之后，你应该能在发出请求之前就预判实例会怎么处理它，并且能区分三种从外部看起来完全一样的失败：真正的 bug、平台改动，以及系统完全按设计工作。
@@ -54,7 +54,7 @@
 
 | 组成 | 具体是什么 | 存放位置 |
 | --- | --- | --- |
-| Cookie jar | 平台自己签发的会话 cookie —— 至少要有 `ttwid`，理想情况还包括 `odin_tt`、`s_v_web_id`、`msToken`、`uifid` | `identities.cookies_encrypted`，AES-256-GCM，行 id 作为附加认证数据绑定进去 |
+| Cookie jar | 平台自己签发的会话 cookie —— 抖音和 TikTok 至少要有 `ttwid`，理想情况还包括 `odin_tt`、`s_v_web_id`、`msToken`、`uifid`；B 站是 `buvid3` | `identities.cookies_encrypted`，AES-256-GCM，行 id 作为附加认证数据绑定进去 |
 | 指纹 | 浏览器系列与主版本号、User-Agent、`navigator.platform`、屏幕尺寸、语言、时区、`hardwareConcurrency`、`deviceMemory` | `identities.fingerprint`（JSONB） |
 | 代理绑定 | 这份 jar 是在哪个出口后面铸造的，或者为空表示直连 | `identities.proxy_id` |
 | 历史 | 连续失败次数、冷却时间、状态、最近使用时间 | `identities.state`、`consecutive_fails`、`cooldown_until`、`last_used_at` |
@@ -93,7 +93,7 @@ stateDiagram-v2
 
 | 状态 | 含义 | 是否参与调度 |
 | --- | --- | --- |
-| `minting` | 浏览器正在铸造它 | 否 |
+| `minting` | 正在铸造中 | 否 |
 | `active` | 正常轮换 | 是 |
 | `cooling` | 命中风控后退避中 | 仅当调用方按名字指定（pin）它时 |
 | `degraded` | 退避已到上限，属于最后手段 | 仅当活跃池为空时 |
@@ -111,15 +111,19 @@ stateDiagram-v2
 
 浏览器跑在一个独立的长驻服务里（`browser-rpc`，通过 `DTK_BROWSER_RPC_URL` 访问），不是每次调用现拉一个：冷启动一个浏览器要花好几秒。
 
+B 站是例外。它的访客会话——`buvid3` 和 `buvid4`——由一次普通的 HTTP 请求发放，也就是站点的 `/x/frontend/finger/spi`，所以 B 站访客身份的铸造不需要浏览器。这一次请求走的是实例自己那套模拟 TLS 指纹的传输层，并经过这个身份将来要绑定的代理发出，因此会话依然诞生在日后花掉它的那个出口上——没有浏览器容器的部署也照样能维持一个 B 站身份池。
+
 ### 速度本身就是正确性的一部分
 
-池填充器（`src/dtk/worker/pool_filler.py`）**每个 tick 只铸造一个身份**，铸造期间持有一把跨进程的 Redis 锁，这样 `--scale worker=N` 不会把一次铸造变成 N 次；铸造持续失败时按指数退避（60 秒起，翻倍至 3600 秒上限）。因此从低水位补到目标值要花上几分钟。这是刻意的：一个部署在一秒内冒出五个全新访客，本身就比这些身份之后要做的任何事都更像信号。没有任何请求会等待铸造——它完全不在请求路径上。
+池填充器（`src/dtk/worker/pool_filler.py`）**每个 tick 只铸造一个身份**，铸造期间持有一把跨进程的 Redis 锁，这样 `--scale worker=N` 不会把一次铸造变成 N 次；铸造持续失败时按指数退避（60 秒起，翻倍至 3600 秒上限）。退避按铸造途径分开计算——浏览器一条，B 站的普通 HTTP 一条——所以浏览器容器挂了，不会让 B 站身份池停止补充。因此从低水位补到目标值要花上几分钟。这是刻意的：一个部署在一秒内冒出五个全新访客，本身就比这些身份之后要做的任何事都更像信号。没有任何请求会等待铸造——它完全不在请求路径上。
 
 | 配置项 | 默认值 | 决定什么 |
 | --- | --- | --- |
 | `pool.min_size` | 3 | 每个平台的低水位；低于它填充器开始补货 |
 | `pool.target_size` | 8 | 一直补到可用数量达到这个值 |
 | `pool.max_fail_streak` | 3 | 连续失败次数超过它，该身份不再计入池水位，填充器会补一个新的而不是把它算进去 |
+
+每个平台都可以用自己的水位覆盖前两项——`pool.douyin.*`、`pool.tiktok.*` 和 `pool.bilibili.*`——见[配置参考](./03-configuration.md)。
 
 填充器读的是**可用**数量——连续失败次数仍低于 `pool.max_fail_streak` 的存活身份——而不是行数。一个每次请求都失败的身份仍然是"存活"的（它冷却、退避到期、被提回、再失败），所以按行数统计会让池子永远停在目标值上却什么都服务不了。
 
@@ -131,19 +135,21 @@ stateDiagram-v2
 
 ### 没有浏览器时
 
-不设 `DTK_BROWSER_RPC_URL` 就完全没有铸造能力，这个后台任务会被整体跳过，而不是每分钟打一条错误日志。这类部署依靠**导入**的 cookie 过日子：你从自己的浏览器里粘贴一份 jar，实例负责解析。四种格式会被自动识别——`Cookie:` 请求头、cookie 编辑器扩展导出的 JSON 数组、Netscape 的 `cookies.txt`、以及一行一个的 `key=value`——并且在存储之前会把解析结果展示给你，包括找到了哪些 cookie、这份 jar 是否携带已登录会话（`sessionid`、`sid_tt`、`sid_guard` 等）、以及推断出的浏览器。见[身份与代理](./06-identities-and-proxies.md)。
+不设 `DTK_BROWSER_RPC_URL` 就没有抖音和 TikTok 的铸造能力：这两个池子会被放着不管，而不是每分钟打一条错误日志；只有走普通 HTTP 铸造的 B 站仍会自己补充。对另外两个平台，这类部署依靠**导入**的 cookie 过日子：你从自己的浏览器里粘贴一份 jar，实例负责解析。四种格式会被自动识别——`Cookie:` 请求头、cookie 编辑器扩展导出的 JSON 数组、Netscape 的 `cookies.txt`、以及一行一个的 `key=value`——并且在存储之前会把解析结果展示给你，包括找到了哪些 cookie、这份 jar 是否携带已登录会话（`sessionid`、`sid_tt`、`sid_guard` 等，或 B 站的 `SESSDATA`）、以及推断出的浏览器。见[身份与代理](./06-identities-and-proxies.md)。
 
 导入的已登录 jar 比访客身份价值高得多，泄露的危害也大得多。它同时也是下面调度器一节里 pin 机制存在的理由。
 
 ## 请求签名
 
-两个平台都要求携带由它们自己的 JavaScript 计算出来的 query 参数和请求头。本项目用纯 Python 重新实现了这些算法（`src/dtk/signing/native/`），耗时以微秒计且没有外部依赖；同时保留浏览器作为兜底，由它执行站点真实的代码（`src/dtk/signing/rpc.py`）。
+抖音和 TikTok 都要求携带由它们自己的 JavaScript 计算出来的 query 参数和请求头。本项目用纯 Python 重新实现了这些算法（`src/dtk/signing/native/`），耗时以微秒计且没有外部依赖；同时保留浏览器作为兜底，由它执行站点真实的代码（`src/dtk/signing/rpc.py`）。
+
+B 站的签名是 WBI（`w_rid` + `wts`），在进程内由站点公开的两把公钥算出。这两把公钥从 B 站的 `nav` 接口取得，每个进程缓存一小时；刷新失败时，一天以内的旧公钥会继续使用。这里没有什么需要浏览器补上的东西，所以无论 `signing.mode` 怎么设，browser-rpc 都不会给 B 站签名——下面的模式只决定抖音和 TikTok 用哪个签名器。
 
 `signing.mode` 决定优先用哪一个，出厂值是 `native`。
 
 | 模式 | 行为 |
 | --- | --- |
-| `native` | 全部在进程内签名。浏览器负责铸造身份，而不是负责给它们的请求签名。 |
+| `native` | 全部在进程内签名。浏览器负责铸造抖音和 TikTok 的身份，而不是负责给它们的请求签名。 |
 | `rpc` | 每个签名都优先走 `browser-rpc`。平台哪天换了新 SDK、移植的算法失效时，就切到这里。 |
 | `auto` | 默认走 native，但平台自家 SDK 会签名保护的端点除外，以及某个端点的风控率显示签名正在被拒绝时除外。 |
 
@@ -161,7 +167,7 @@ TikTok 会直接验证这一点：同样一串已签名的字节，换成 Firefo
 
 2026-09-08 对线上页面实测的结论：抖音的 `verifyFp` query 参数**就是**计算这个签名的那个浏览器的 `s_v_web_id` cookie。在一个会话里签名、却用另一个会话的 cookie 发出去，两者指向的就是不同的访客。
 
-两个平台都不会为此返回一个干净的拒绝。它们的做法是扣下载荷——HTTP 200、信封完整、里面什么都没有。这看起来和限流一模一样，所以在你排查这类问题之前，值得先理解这一点。
+抖音和 TikTok 都不会为此返回一个干净的拒绝。它们的做法是扣下载荷——HTTP 200、信封完整、里面什么都没有。这看起来和限流一模一样，所以在你排查这类问题之前，值得先理解这一点。
 
 同样的耦合也体现在 native 签名器里：
 
@@ -219,6 +225,8 @@ score = success_rate × (1 − risk_rate) × 0.5 ^ consecutive_fails
 | `tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12 | 1.8 |
 | `*.session_check` | 3 | 0.20 | 1.0 |
 | 任何未注册的端点 | 3 | 0.15 | 1.5 |
+
+带通配符的几行是抖音和 TikTok 的数值。B 站的端点在 `src/dtk/scheduler/policies.py` 里以自己的名字单独登记，其中包括 `bilibili.content_streams`——视频详情为拿到可播放文件而发的第二个请求。最需要知道的是 `bilibili.author_posts`，也就是 UP 主投稿列表：它是 B 站看管最严的端点，令牌桶也是所有 B 站端点里最慢的。
 
 每秒填充 `0.12` 意味着突发额度用完之后，单个身份在该端点上每 8.3 秒才能发一个请求。这就是单个身份的吞吐上限——想更快，办法是增加身份，而不是调大桶。风险权重会在该端点把身份打到风控时，乘进这个身份要承受的冷却时长。
 
@@ -435,6 +443,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 | --- | --- |
 | `douyin:read` | 抖音平台读取 |
 | `tiktok:read` | TikTok 平台读取 |
+| `bilibili:read` | B 站平台读取 |
 | `archive:read` | 读取这个实例已经存下来的内容 |
 | `archive:export` | 一次请求遍历整个归档 |
 | `media:read` | 查看磁盘上存了哪些媒体 |
@@ -466,7 +475,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 
 ### 把端点开放给公众
 
-默认情况下每个端点都需要凭据。`api.public_endpoints` 以 `"<METHOD> <路径模板>"` 的形式列出例外，写法与 API 文档中完全一致。有三组路径**永远**不能被开放，无论配置怎么写——`/api/v1/admin/*`、`/api/v1/auth/*` 和 `/api/setup/*`——而且没有覆盖开关。已开放端点上的匿名调用方只获得 `douyin:read` 和 `tiktok:read`，别无其他，并且按客户端地址而不是按密钥限流。
+默认情况下每个端点都需要凭据。`api.public_endpoints` 以 `"<METHOD> <路径模板>"` 的形式列出例外，写法与 API 文档中完全一致。有三组路径**永远**不能被开放，无论配置怎么写——`/api/v1/admin/*`、`/api/v1/auth/*` 和 `/api/setup/*`——而且没有覆盖开关。已开放端点上的匿名调用方只获得 `douyin:read`、`tiktok:read` 和 `bilibili:read`，别无其他，并且按客户端地址而不是按密钥限流。
 
 有一个细节：错误的凭据和没有凭据不是一回事。发来了一个被实例拒绝的密钥的调用方，即便在开放端点上也会被明确告知。悄悄把它降级成匿名，会把"你的密钥过期了"变成"你的密钥能用但看到的更少"，而后者是两者中更难排查的那个。更多内容见[用户与 API 密钥](./09-users-and-api-keys.md)和[安全](./15-security.md)。
 
@@ -481,10 +490,11 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 | `ENDPOINT_CIRCUIT_OPEN` | 5 分钟内该端点上 ≥20 个请求中有 ≥60% 失败，且涉及 ≥3 个身份 | 多半不在实例这边。查签名器和平台。 |
 | 浏览器里能打开的链接却返回 `NOT_FOUND` | 平台回答说这个作品已删除、私密或仅作者可见 | 不是。按设计，`business_error` 不消耗身份健康度。 |
 | `UPSTREAM_RISK_CONTROL` | 那个身份被拒绝了——已冷却、连续失败次数 +1 | 单独看不是 bug。整个池子同时中招才是事件。 |
+| B 站 UP 主投稿列表上的 `UPSTREAM_RISK_CONTROL` | 同一出口短时间内的一串请求，会让 B 站在几分钟内只回 HTTP 412 页面，请求头怎么改都一样 | 不是。把请求摊开；代理有帮助。见[故障排查](./14-troubleshooting.md#b-站-up-主投稿列表返回-http-412)。 |
 | `UPSTREAM_CHANGED` | 响应结构不再符合解析器的预期 | 值得上报。附上 `request_id`。 |
 | 「日志」页面出现 `signature.refused` 或 `signature.rejected` | 被拒的是*我们的签名*，不是身份 | 请上报——平台的 SDK 很可能动了。 |
 | 一个永远恢复不了的 degraded 身份 | 提回 active 不会清空连续失败计数，只有成功才会 | 不是。如果这些失败不是它的错，手动重置它。 |
-| 身份一直铸造不出来，还没有报错 | 没有配 `DTK_BROWSER_RPC_URL`，或者所有代理都已被绑定 | 不是。「身份池」页面上的铸造日志会写明原因。 |
+| 身份一直铸造不出来，还没有报错 | 没有配 `DTK_BROWSER_RPC_URL`（仅限抖音和 TikTok——B 站不需要它），或者所有代理都已被绑定 | 不是。「身份池」页面上的铸造日志会写明原因。 |
 
 总体形状是：**平台回答了，身份无辜；平台拒绝了，身份买单；什么都没回答，出口买单；而如果被拒的是我们自己的签名，身份照样买单，但规则名会告诉你该去哪儿看。**
 

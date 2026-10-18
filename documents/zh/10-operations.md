@@ -1,7 +1,7 @@
 # 运维
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/10-operations.md)
 
 这一页讲的是上线之后的日子：怎样让一个实例在几个月里不用人盯着也保持健康。读完之后你会知道后台循环在做什么、改一个设置多久才会生效、怎么做备份和恢复（以及怎么证明恢复真的有效）、告警是怎么接的、哪些数据会在什么时候被清理、该盯哪些指标，以及怎样升级才不会丢东西。
@@ -436,12 +436,15 @@ docker compose -p dtk -f docker/compose.yml logs --tail 50 migrate
 
 | 接口 | 突发 | 补充速率 | 每身份 |
 | --- | --- | --- | --- |
-| `*.content_detail` | 5 | 0.30/s | 18 次/分钟 |
+| `*.content_detail`、`bilibili.content_streams` | 5 | 0.30/s | 18 次/分钟 |
 | `*.author_profile` | 4 | 0.20/s | 12 次/分钟 |
 | `*.comments`、`*.comment_replies`、`*.mix_posts` | 3 | 0.15/s | 9 次/分钟 |
-| `*.author_posts`、`*.author_likes`、`tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12/s | 7.2 次/分钟 |
+| `douyin.author_posts`、`tiktok.author_posts`、`*.author_likes`、`tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12/s | 7.2 次/分钟 |
+| `bilibili.author_posts` | 2 | 0.08/s | 4.8 次/分钟 |
 | `*.session_check` | 3 | 0.20/s | 12 次/分钟 |
 | 未注册的接口 | 3 | 0.15/s | 9 次/分钟 |
+
+表里那两行 B 站是有原因的。一次 B 站视频详情是两个上游请求——先是详情，再是 `bilibili.content_streams`，取详情里没有的那个可播放文件——所以它会从两个桶里各花一个令牌；第二个桶和详情同速，详情就不会被它拖住。`bilibili.author_posts` 也就是 UP 主投稿列表，是表里最慢的桶，因为它是 B 站守得最严的接口：同一个出口的一阵突发请求，会换来持续几分钟的 HTTP 412 页面——见[故障排查](./14-troubleshooting.md#b-站-up-主投稿列表返回-http-412)。
 
 于是：
 

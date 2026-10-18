@@ -1,7 +1,7 @@
 # 准备 FunASR ONNX 模型
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** ——
-> 自部署的抖音 / TikTok 数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
+> 自部署的抖音 / TikTok / B 站数据接口服务：REST、MCP 和 Web 控制台，身份池自维护。
 > [文档首页](../README.zh-CN.md) · [English](../en/18-funasr-models.md)
 
 转写服务完全离线运行。镜像不会在启动时下载模型，因此第一次启用

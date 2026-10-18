@@ -1,8 +1,8 @@
 # Quick start
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/01-quickstart.md)
 
 By the end of this page you will have the stack running on one host, an
@@ -128,34 +128,43 @@ an optional proxy, bound together and rotated by the scheduler. Identities come
 from exactly two places, and one of them is optional infrastructure.
 
 **With the browser container** (`--profile browser`, plus
-`DTK_BROWSER_RPC_URL` pointing at it): a headless browser mints guest identities
-by itself. The worker checks each platform every 60 seconds and mints **one
-identity per tick**, backing off exponentially on failure, until the pool is
-back at `pool.target_size` (8 by default) from its low-water mark
+`DTK_BROWSER_RPC_URL` pointing at it): a headless browser mints Douyin and
+TikTok guest identities by itself. The worker checks each platform every 60
+seconds and mints **one identity per tick**, backing off exponentially on
+failure, until the pool is back at `pool.target_size` (8 by default) from its low-water mark
 `pool.min_size` (3). Refilling therefore takes minutes, on purpose: five fresh
 visitors appearing from one deployment inside a second is a stronger anomaly
 than anything those identities would go on to do.
 
-**Without it** (the default — `DTK_BROWSER_RPC_URL` empty): the refill job is
-skipped entirely, so **the pool starts empty and stays empty**. Concretely:
+Bilibili is the exception to this whole step. Its guest identities are minted
+without a browser — one plain HTTP request through the instance's own transport
+and the identity's proxy — so the worker keeps the Bilibili pool filled the same
+way whether or not the browser container exists.
 
-- The console's Identities page shows minting as unavailable, and the setup
-  wizard's mint step says so rather than failing.
+**Without it** (the default — `DTK_BROWSER_RPC_URL` empty): nothing mints Douyin
+or TikTok identities, so **those two pools start empty and stay empty**.
+Concretely:
+
+- The console's Identities page shows minting Douyin and TikTok as unavailable
+  (Bilibili stays mintable), and the setup wizard's mint step offers Bilibili
+  alone and says why, rather than failing.
 - `POST /api/v1/admin/identities/mint` still accepts the request — it answers
-  `202` with `task_ids` — and the queued task then fails with
+  `202` with `task_ids` — and for Douyin or TikTok the queued task then fails with
   `501 NOT_CONFIGURED`, "This feature is not configured on this instance.",
   carrying `error.details.reason: "browser_rpc_unconfigured"`. The mint call
   takes no `?wait=`, so you read that verdict on the task
   (`GET /api/v1/tasks/<task_id>`) or in the console, not in the reply to the
   mint itself.
-- Every content request fails with `503 IDENTITY_POOL_EXHAUSTED` — "No identity
-  is available; the pool is expected to recover in N seconds" — until you import
-  at least one cookie jar.
+- Every Douyin or TikTok content request fails with
+  `503 IDENTITY_POOL_EXHAUSTED` — "No identity is available; the pool is
+  expected to recover in N seconds" — until you import at least one cookie jar
+  for that platform.
 
 Running without the browser is a supported deployment, not a broken one: a user
 who imports a cookie jar by hand does not need the heaviest container in the
 stack, and the pool falls back to manual import on its own when `browser-rpc` is
-unreachable. But it is not a deployment that works out of the box. Pick one:
+unreachable. But for Douyin and TikTok it is not a deployment that works out of
+the box. Pick one:
 
 | Path | Do this | Cost |
 |---|---|---|
@@ -328,8 +337,8 @@ the sidebar (under *Tools*).
 
 1. Pick `POST /api/v1/parse` from the catalogue on the left.
 2. Put a share link, a bare post URL, or the whole clipboard text a platform app
-   produces into `url`. Short links (`v.douyin.com`, `vm.tiktok.com`) are
-   followed for you.
+   produces into `url`. Short links (`v.douyin.com`, `vm.tiktok.com`, `b23.tv`)
+   are followed for you.
 3. Set `wait` to something like `20`.
 4. Submit.
 
@@ -346,13 +355,14 @@ The console uses a session cookie. Programs use an API key, because a key
 carries scopes and can be revoked on its own.
 
 Go to **API keys → Create key**. Give it a name you will recognise in the audit
-log, and tick only what it needs — for this walkthrough, `douyin:read` and
-`tiktok:read`.
+log, and tick only what it needs — for this walkthrough, `douyin:read`,
+`tiktok:read` and `bilibili:read`.
 
 | Scope | What it opens |
 |---|---|
 | `douyin:read` | Parse, post, author and comment endpoints for Douyin |
 | `tiktok:read` | The same endpoints for TikTok |
+| `bilibili:read` | The same endpoints for Bilibili |
 | `archive:read` | What this instance has already stored, answered from local storage |
 | `archive:export` | Walk the entire archive in one request — the single call that turns a read key into a copy of the database |
 | `media:read` | What media is on the server's disk, and how much space it uses |
@@ -507,7 +517,7 @@ on the request path, so an instance without it is degraded, not unready.
 | No setup banner in the api log | An account already exists — the token is issued only while the `users` table is empty. Sign in at `/login` instead. |
 | `SETUP_TOKEN_INVALID` | The token expired, was spent, or was invalidated by five wrong attempts. `docker compose -p dtk -f docker/compose.yml restart api` prints a live one, or issues a new one if the old is gone. |
 | `503 IDENTITY_POOL_EXHAUSTED` | The pool has no usable identity. Mint one, or import a cookie jar. See step 3. |
-| A mint task fails `501 NOT_CONFIGURED` (the mint call itself returned `202`) | No browser container. Start `--profile browser` and set `DTK_BROWSER_RPC_URL`, or import cookies instead. |
+| A mint task fails `501 NOT_CONFIGURED` (the mint call itself returned `202`) | No browser container, and the platform is Douyin or TikTok — Bilibili mints without one. Start `--profile browser` and set `DTK_BROWSER_RPC_URL`, or import cookies instead. |
 | `browser-rpc` unhealthy, log says "not installed in this image" | Built without `CLOAKBROWSER_COMMIT`, which is read at build time from the shell, not from the root `.env`. |
 | Minting always times out | The proxy cannot reach the platform. Test the proxy on its own before blaming the browser. |
 | `RATE_LIMITED` on a correct password | The per-account login limit is a real lockout: five failures, fifteen minutes. Wait, or clear the counter — see [Troubleshooting](./14-troubleshooting.md). |

@@ -1,8 +1,8 @@
 # Users and API keys
 
 > **[Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API)** —
-> a self-hosted Douyin and TikTok data API: REST, MCP and a web console, with
-> an identity pool that maintains itself.
+> a self-hosted Douyin, TikTok and Bilibili data API: REST, MCP and a web
+> console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/09-users-and-api-keys.md)
 
 This page is about who can do what on your instance. After reading it you will
@@ -376,7 +376,7 @@ browser over the full list.
 makes it the fastest way to answer "is anything still using this?" before
 revoking.
 
-## The ten scopes
+## The eleven scopes
 
 A scope is a group of endpoints. A key reaches an endpoint if it holds any one
 of the scopes that endpoint accepts.
@@ -385,6 +385,7 @@ of the scopes that endpoint accepts.
 |---|---|
 | `douyin:read` | Every Douyin read: `GET /api/v1/douyin/video`, `/video/comments`, `/video/comments/replies`, `/user`, `/user/posts`, `/user/likes`, `/mix/posts`; `POST /api/v1/parse` and `POST /api/v1/tasks/batch` for Douyin links; the signature tools `POST /api/v1/tools/sign`, `/decode`, `GET /api/v1/tools/parse-url`, `POST /api/v1/tools/parse-batch`; `POST /api/v1/archive/recheck` and `/archive/backfill`; and reading back the task any of those created. |
 | `tiktok:read` | The same set for TikTok, plus `/user/followers` and `/user/following`, which only TikTok serves. A key holding only this is refused on `/api/v1/douyin/...`, over REST and over MCP alike. |
+| `bilibili:read` | Bilibili's reads: `GET /api/v1/bilibili/video`, `/video/comments`, `/video/comments/replies`, `/user`, `/user/posts`, `/user/collections`, `/collection/posts`; `POST /api/v1/parse` and `POST /api/v1/tasks/batch` for Bilibili links; the same tools and archive calls as `douyin:read`; and reading back the task any of those created. The Douyin and TikTok routes Bilibili does not serve answer `UNSUPPORTED_CONTENT` — see [REST API guide](./11-api.md#bilibili). A key holding only this is refused on `/api/v1/douyin/...` and `/api/v1/tiktok/...`. |
 | `archive:read` | What this instance has already stored, answered from Postgres without touching a platform: `GET /api/v1/archive`, `/archive/stats`, `/archive/collections`, `GET /api/v1/archive/{platform}/{content_id}`. Separate from the platform scopes on purpose — opening a platform endpoint must not thereby open everything the instance has ever collected. |
 | `archive:export` | `GET /api/v1/archive/export`, which walks the whole archive in one request. It has its own scope because it is the single call that turns a read key into a copy of the database. |
 | `media:read` | The download records and their bytes: `GET /api/v1/downloads`, `/downloads/storage`, `/downloads/{download_id}` and `/downloads/{download_id}/files/{name}`. It also adds the stored-media block to the archive listing, `GET /api/v1/archive`. |
@@ -525,8 +526,8 @@ Two behaviours to know about:
   to diagnose.
 
 The MCP endpoint at `/mcp` accepts an API key only, in either header, and says
-so explicitly if you send a session cookie. The key must hold `douyin:read` or
-`tiktok:read` to complete the handshake; each tool then re-checks the platform
+so explicitly if you send a session cookie. The key must hold `douyin:read`,
+`tiktok:read` or `bilibili:read` to complete the handshake; each tool then re-checks the platform
 it was actually asked for. See [MCP and AI agents](./12-mcp.md).
 
 ### When a call is refused
@@ -598,7 +599,8 @@ would not look like anything until someone found it.
 ### Opening a route is necessary, not sufficient
 
 An unauthenticated caller runs as an anonymous principal that holds **exactly
-two scopes**: `douyin:read` and `tiktok:read`. Never admin, never a write.
+three scopes**: `douyin:read`, `tiktok:read` and `bilibili:read`. Never admin,
+never a write.
 
 So opening `GET /api/v1/downloads` in the setting achieves nothing: the route
 still demands `media:read`, the anonymous principal does not have it, and the
