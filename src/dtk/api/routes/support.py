@@ -228,8 +228,15 @@ def guard(
 authenticated = guard()
 #: Console-side read access to the administrative surface.
 read_admin = guard(scopes=(Scope.ADMIN, Scope.IDENTITY_MANAGE))
+#: What pool management needs: the scopes that bound a key and the role that
+#: bounds a session. Named once because two checks are built from it - the
+#: ``manage_pool`` dependency on a route, and :func:`handles_credentials` inline,
+#: where a route gated for reading meets a parameter or a stored result that
+#: carries a jar - and the inline one once kept the scopes and lost the role.
+POOL_SCOPES: Final[tuple[Scope, ...]] = (Scope.ADMIN, Scope.IDENTITY_MANAGE)
+POOL_ROLE: Final[UserRole] = UserRole.OPERATOR
 #: Pool, proxy and key maintenance: an operator or better.
-manage_pool = guard(scopes=(Scope.ADMIN, Scope.IDENTITY_MANAGE), min_role=UserRole.OPERATOR)
+manage_pool = guard(scopes=POOL_SCOPES, min_role=POOL_ROLE)
 #: Users, SENSITIVE settings, backup and restore: administrators only.
 admin_only = guard(scopes=(Scope.ADMIN,), min_role=UserRole.ADMIN)
 
@@ -327,10 +334,35 @@ async def resolve_request_proxy(request: Request, value: str | None) -> str | No
     return await request_proxy.vet(value, mode=mode)
 
 
-#: The scopes and role a caller needs before they may name an identity. They
-#: are exactly ``manage_pool``'s, restated here because this is an inline check
-#: on a route gated for reading rather than a dependency on the route itself.
-_PIN_SCOPES: Final[tuple[Scope, ...]] = (Scope.ADMIN, Scope.IDENTITY_MANAGE)
+def handles_credentials(principal: Principal) -> bool:
+    """Whether this caller may be handed an identity's jar, or act as one.
+
+    Both halves, every time. The scope bounds a key; the role bounds a console
+    session, and ``permits`` answers yes to every session whatever its role. A
+    check that asks only the scope question therefore admits a viewer's
+    session, and one did: the task read-back stripped a stored explanation
+    from readers without ``identity:manage``, while the request that stored
+    it had required the operator role as well - so a viewer polling an
+    operator's explained task was handed the cookie jar in it.
+
+    The predicate form of :func:`require_credential_access`, for a caller that
+    filters rather than refuses.
+    """
+    return principal.permits(*POOL_SCOPES) and ROLE_RANK[principal.role] >= ROLE_RANK[POOL_ROLE]
+
+
+def require_credential_access(principal: Principal, *, field: str, action: str) -> None:
+    """Refuse a caller who may not handle an identity's jar, saying which half failed.
+
+    ``action`` completes "... requires an operator role"; ``field`` names the
+    parameter that asked, so the caller can tell which one to drop.
+    """
+    principal.require(*POOL_SCOPES)
+    if ROLE_RANK[principal.role] < ROLE_RANK[POOL_ROLE]:
+        raise ForbiddenScope(
+            f"{action} requires an operator role",
+            details={**principal.denial(roles=[POOL_ROLE]), "field": field},
+        )
 
 
 async def resolve_explain(request: Request, principal: Principal, value: bool) -> bool:
@@ -349,12 +381,7 @@ async def resolve_explain(request: Request, principal: Principal, value: bool) -
     """
     if not value:
         return False
-    principal.require(*_PIN_SCOPES)
-    if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.OPERATOR]:
-        raise ForbiddenScope(
-            "explaining a request requires an operator role",
-            details={**principal.denial(roles=[UserRole.OPERATOR]), "field": "explain"},
-        )
+    require_credential_access(principal, field="explain", action="explaining a request")
     await audit(
         request,
         principal,
@@ -388,12 +415,7 @@ async def resolve_request_identity(
     """
     if value is None or not value.strip():
         return None
-    principal.require(*_PIN_SCOPES)
-    if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.OPERATOR]:
-        raise ForbiddenScope(
-            "naming an identity requires an operator role",
-            details={**principal.denial(roles=[UserRole.OPERATOR]), "field": "identity"},
-        )
+    require_credential_access(principal, field="identity", action="naming an identity")
     try:
         identity_id = uuid.UUID(value.strip())
     except ValueError:
@@ -533,6 +555,8 @@ __all__ = [
     "FORWARDED_ALLOW_IPS_ENV",
     "MAX_ADMIN_PAGE_SIZE",
     "MAX_PAGE_SIZE",
+    "POOL_ROLE",
+    "POOL_SCOPES",
     "ROLE_RANK",
     "admin_only",
     "audit",
@@ -541,6 +565,7 @@ __all__ = [
     "client_ip_is_trustworthy",
     "config_value",
     "guard",
+    "handles_credentials",
     "has_scope",
     "iso",
     "language",
@@ -551,6 +576,7 @@ __all__ = [
     "page",
     "read_admin",
     "request_id",
+    "require_credential_access",
     "resolve_count",
     "resolve_request_identity",
     "resolve_wait",

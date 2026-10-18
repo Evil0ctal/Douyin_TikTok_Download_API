@@ -174,8 +174,12 @@ async def _attach(session: AsyncSession, digest: str) -> tuple[uuid.UUID, TaskSt
 #: payload back out of any task id it was given.
 #:
 #: Ownership is deliberately NOT checked: a console session and the key that
-#: submitted a job are routinely different credentials for the same operator,
-#: and task ids are random UUIDv4 with no enumeration path.
+#: submitted a job are routinely different credentials for the same operator.
+#: Task ids are random UUIDv4, but they are not secret - the request log shows
+#: one on every row to anyone who may read the log, viewers included. So a task
+#: id is not a capability, and what reading costs has to be stated in full:
+#: these scopes for a key, and :func:`role_for_task` for a session, which
+#: passes every scope check.
 _MAINTENANCE_SCOPES: Final[tuple[Scope, ...]] = (Scope.ADMIN, Scope.IDENTITY_MANAGE)
 _READ_ANY_PLATFORM: Final[tuple[Scope, ...]] = (Scope.DOUYIN_READ, Scope.TIKTOK_READ)
 
@@ -207,6 +211,50 @@ def scopes_for_task(endpoint: str) -> tuple[Scope, ...]:
         return (registry.definition_for(endpoint).scope,)
     except Exception:
         return (Scope.ADMIN,)
+
+
+#: Maintenance whose results only the roles that may start it should read: a
+#: proxy probe's exit address, a logged-in identity's account id, the self
+#: check. Gated by scope alone, a viewer's session read them, and could cancel
+#: a queued restore through the same check.
+_OPERATOR_TASKS: Final[frozenset[str]] = frozenset(
+    {
+        Maintenance.IDENTITY_MINT.value,
+        Maintenance.IDENTITY_TEST.value,
+        Maintenance.IDENTITY_SESSION.value,
+        Maintenance.PROXY_TEST.value,
+        Maintenance.DIAGNOSE.value,
+        Maintenance.NOTIFY_TEST.value,
+    }
+)
+_ADMIN_TASKS: Final[frozenset[str]] = frozenset(
+    {Maintenance.BACKUP.value, Maintenance.BACKUP_RESTORE.value}
+)
+
+
+def role_for_task(endpoint: str) -> UserRole:
+    """The lowest role that may read, or cancel, a task on ``endpoint``.
+
+    The other half of :func:`scopes_for_task`. Those scopes bound a key; a
+    console session passes all of them, so for a session this is the check.
+    Each answer is the floor of the route that starts such a task, and an
+    endpoint this build does not recognise needs an admin, as its scope does.
+    The demo role is held to its own tasks elsewhere, so DEMO here means no
+    floor beyond the route's.
+    """
+    if endpoint in _ADMIN_TASKS:
+        return UserRole.ADMIN
+    if endpoint in _OPERATOR_TASKS:
+        return UserRole.OPERATOR
+    if endpoint == Operation.PARSE.value or endpoint in {member.value for member in Maintenance}:
+        return UserRole.DEMO
+    try:
+        from dtk.worker import registry
+
+        registry.definition_for(endpoint)
+    except Exception:
+        return UserRole.ADMIN
+    return UserRole.DEMO
 
 
 async def submit(
@@ -431,6 +479,8 @@ __all__ = [
     "accepted",
     "endpoint_name",
     "finished",
+    "role_for_task",
+    "scopes_for_task",
     "submit",
     "submit_and_wait",
     "unwrap",

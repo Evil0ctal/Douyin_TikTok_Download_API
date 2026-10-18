@@ -586,6 +586,8 @@ class ToolSet:
             self._authorize(platform, context)
         else:
             self._authorize_task(outcome.endpoint, context)
+        if outcome.pinned:
+            self._authorize_pinned(context)
 
         if not outcome.settled:
             snapshot = await self._snapshot()
@@ -615,6 +617,33 @@ class ToolSet:
         # A row with no endpoint matches nothing and falls back to admin, which
         # is the safe direction for a task this build cannot place.
         caller.require(*scopes_for_task(endpoint or ""))
+        # The role half, as GET /api/v1/tasks/{id} applies it. A key carries
+        # its owner's role, so a viewer's key holding the scope stops here.
+        from dtk.api.routes.operations import role_for_task
+        from dtk.api.routes.support import ROLE_RANK
+
+        floor = role_for_task(endpoint or "")
+        if ROLE_RANK[caller.role] < ROLE_RANK[floor]:
+            raise ForbiddenScope(
+                "reading this task requires a higher role", details=caller.denial(roles=[floor])
+            )
+
+    def _authorize_pinned(self, context: Context | None) -> None:
+        """A task sent as a named identity holds that session's private view.
+
+        No tool here can name one, but a task id is not a capability: the REST
+        API can, and an id travels. Collecting it costs what naming it costs.
+        """
+        caller = _caller(context)
+        if caller is None:  # stdio: the local process owner
+            return
+        from dtk.api.routes.support import POOL_ROLE, POOL_SCOPES, handles_credentials
+
+        if not handles_credentials(caller):
+            raise ForbiddenScope(
+                "reading this task requires a higher role",
+                details=caller.denial(scopes=POOL_SCOPES, roles=[POOL_ROLE]),
+            )
 
     async def _download_answer(self, task_id: str | None, download_id: str) -> dict[str, Any]:
         """The stored download, or why there is none - never "ok" for nothing."""

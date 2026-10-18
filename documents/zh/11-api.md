@@ -499,7 +499,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 - 它**隐含 `refresh`**：对一个缓存答案做「解释」，描述的会是这次请求根本没发生过的调用。它同时关闭任务合并，所以一个带解释的调用永远不会被合并到已经在途的、不带解释的调用上。
 - 该块出现在结果元数据的 `explain` 下，含 `method`、`url`、`headers`、`cookie_header`、`identity_id`、`signer`、`endpoint`、`proxy` 和 `body`。
 - **失败**的任务上同样会记录——那正是它存在的场景。
-- 对任何没有 `identity:manage` 的读者，它会从存下来的任务结果里被剥掉；而且它永远不会出现在 SSE 流上。
+- 对任何没有 `identity:manage` 或角色低于 operator 的读者，它会从存下来的任务结果里被剥掉；而且它永远不会出现在 SSE 流上。
 
 参见[调试台与工具](./07-playground-and-tools.md)，那是同一件事的控制台前端。
 

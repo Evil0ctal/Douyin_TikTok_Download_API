@@ -65,6 +65,7 @@ def _outcome(view: tasks.TaskView) -> TaskOutcome:
         result=view.result,
         error=view.error,
         endpoint=view.endpoint,
+        pinned=view.pinned,
     )
 
 

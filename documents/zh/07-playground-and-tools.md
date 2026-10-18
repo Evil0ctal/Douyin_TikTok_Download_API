@@ -396,7 +396,7 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 它的代价，直说：
 
 - **数十秒。** 需要启动浏览器、加载页面，并等待其脚本把 cookie 设置完毕。
-- **`identity:manage` scope。** 普通读取 key 不带这个权限。
+- **`identity:manage` scope 和 operator 角色。** 普通读取 key 不带这个权限，viewer 的会话也会被拒绝。
 - **一个 `browser-rpc` 服务。** 没有配置 `DTK_BROWSER_RPC_URL` 时，调用会失败并指出这个设置项。`browser-rpc` 是整个栈里最重的容器，属于可选的 compose profile；见[安装与部署](./02-installation.md)。
 
 可选的**代理**字段让你通过指定出口铸造，而且值得设置：在一个地址铸造、却从另一个地址使用的 cookie，正是两个平台都在找的那种不一致。它与其他所有代理参数一样，要过同一道 `security.request_proxy` 关卡——工具接口不能成为绕过该设置的通道。
@@ -413,7 +413,7 @@ Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
 | 反解签名 | `POST /api/v1/tools/decode` | `douyin:read` 或 `tiktok:read` | 无 | 无 | 瞬时 |
 | 解析链接 | `GET /api/v1/tools/parse-url` | `douyin:read` 或 `tiktok:read` | 无 | 无 | 瞬时 |
 | 批量解析 | `POST /api/v1/tools/parse-batch` | `douyin:read` 或 `tiktok:read` | 无 | 无 | 瞬时 |
-| 铸造身份 | `POST /api/v1/tools/identity` | `identity:manage` | 一次真实浏览器会话 | 交给你一份新铸造的 cookie | 数十秒 |
+| 铸造身份 | `POST /api/v1/tools/identity` | `identity:manage` 且 operator 角色 | 一次真实浏览器会话 | 交给你一份新铸造的 cookie | 数十秒 |
 
 这五个接口与本 API 上的其他接口一样，都受限流约束。
 
@@ -506,7 +506,7 @@ curl -s -X POST "$DTK_URL/api/v1/tools/decode" \
   -d '{"value":"https://www.douyin.com/aweme/v1/web/aweme/detail/?aid=6383&a_bogus=...","user_agent":"Mozilla/5.0 ..."}'
 ```
 
-铸造一个游客身份并自己留着——需要 `identity:manage`，耗时数十秒：
+铸造一个游客身份并自己留着——需要 `identity:manage` 和 operator 角色，耗时数十秒：
 
 ```bash
 curl -s -X POST "$DTK_URL/api/v1/tools/identity" \

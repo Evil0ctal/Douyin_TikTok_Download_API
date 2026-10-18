@@ -548,7 +548,7 @@ docker compose -p dtk -f docker/compose.yml up -d --scale worker=4
 - scope 有 `douyin:read`、`tiktok:read`、`identity:manage`、`archive:read`、`archive:export`、`media:read`、`media:write`、`admin`。`error.details.required_scopes` 会指名接口想要哪一个，`have_scopes` 是你实际带了哪些。
 - **管理员拥有的密钥同样受它自己的 scope 约束。** 这是刻意的：自部署实例上几乎每一个密钥都属于管理员用户，如果对管理员短路，`archive:export`——那个能把整个数据库副本交出去的调用——恰恰会在它被写出来针对的那种部署里完全失效。
 - 控制台**会话**则是按账号角色约束，而不是按 scope。
-- 有几件事同时要 scope 和 operator 角色：`?explain=true` 和用 `?identity=` 指定身份，都需要 `identity:manage` **且**是 operator，因为返回内容里包含 cookie。这类请求会写进审计日志。
+- 有几件事同时要 scope 和 operator 角色：`?explain=true`、用 `?identity=` 指定身份和 `POST /api/v1/tools/identity`，都需要 `identity:manage` **且**是 operator，因为它们要么交出 cookie，要么以某份 cookie 的身份行事。explain 和指定身份的请求会写进审计日志。
 - `CONTENT_PRIVATE` 也是 403，但它说的是内容，不是你。
 
 ---

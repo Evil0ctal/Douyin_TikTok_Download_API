@@ -28,7 +28,7 @@ from sqlalchemy import select
 from dtk.api.deps import Principal
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.schemas import SettingUpdate
-from dtk.api.routes.support import audit, has_scope, iso, ok, read_admin
+from dtk.api.routes.support import ROLE_RANK, audit, has_scope, iso, ok, read_admin
 from dtk.core.config import RUNTIME_SETTINGS, SENSITIVE_KEYS, Scope, coerce
 from dtk.core.errors import ForbiddenScope, InvalidParam, NotFound
 from dtk.core.logging import get_logger
@@ -337,7 +337,10 @@ def _authorize_write(principal: Principal, scope: Scope, key: str, *, confirmed:
     an open proxy (doc 08).
     """
     if scope is not Scope.SENSITIVE:
-        if principal.role is UserRole.VIEWER:
+        # A rank, not `is VIEWER`: that was right only while every guard in
+        # front of this kept the demo role out, which is not this function's
+        # to assume.
+        if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.OPERATOR]:
             raise ForbiddenScope(
                 "changing settings requires an operator role",
                 details={"required_role": UserRole.OPERATOR.value},

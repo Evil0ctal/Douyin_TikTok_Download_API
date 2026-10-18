@@ -503,8 +503,11 @@ are audited.
   identity's jar — so it is a credential sitting inside an answer a `douyin:read`
   key would otherwise be entitled to. It is gated like pool management, not like
   reading, and the stored explanation is **stripped from the task result** for
-  any later reader without `identity:manage`. The audit line names who asked and
-  for which endpoint, never the jar.
+  any later reader who could not have asked for it: without `identity:manage`
+  or below the operator role. Before 5.1.5 the strip checked the scope alone,
+  which every console session passes, so a viewer could read the jar in an
+  operator's explained task. The audit line names who asked and for which
+  endpoint, never the jar.
 
 Pinning an identity with `?identity=` is gated the same way (`admin` or
 `identity:manage`, plus the operator role) for the same reason: the pool is
@@ -512,6 +515,16 @@ instance-wide and has no owners, so naming a row is asking to send a request as
 whoever imported that jar. It is validated at submission — unknown id, retired,
 wrong platform — so a mistyped uuid is a `400` naming the field rather than a
 task that queues, runs and dies.
+
+Reading a task back costs what starting it cost, in both halves. A task id is
+not a secret — the request log shows one on every row to anyone who may read the
+log — so `GET /api/v1/tasks/{task_id}`, its event stream, cancelling it and
+MCP's `get_task_result` check the scope **and** the role. A pinned task's result
+is that session's private view (bookmarks, likes, private folders), so it needs
+what pinning needs. A maintenance task needs the role of the route that starts
+it: operator for identity, proxy, self-check and notification jobs, admin for
+backups and restores. Before 5.1.5 these checked the scope alone, which every
+console session passes.
 
 ## Demo mode
 

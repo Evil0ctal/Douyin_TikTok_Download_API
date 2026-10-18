@@ -14,6 +14,7 @@ Two properties are load bearing enough to be asserted directly:
 from __future__ import annotations
 
 import asyncio
+import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -22,9 +23,10 @@ from typing import Any
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
+from dtk.api.deps import Principal
 from dtk.core.config import Config
 from dtk.core.errors import TaskNotFound
-from dtk.core.types import Platform, Scope, TaskState
+from dtk.core.types import Platform, Scope, TaskState, UserRole
 from dtk.mcp import TOOL_NAMES, build_server, routing
 from dtk.mcp.context import (
     EndpointHealth,
@@ -617,6 +619,80 @@ class TestBlocking:
         tools = ToolSet(make_context(FakeTasks(wait=evicted)))
         with pytest.raises(ToolError):
             await tools.get_video("douyin", "7100000000000000000")
+
+
+def keyed(*scopes: Scope, role: UserRole) -> Any:
+    """The call context of an HTTP request whose API key the transport resolved.
+
+    A key carries its owner's role, which is what the role half below reads.
+    """
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        role=role,
+        scopes=frozenset(scopes),
+        api_key_id=uuid.uuid4(),
+        rate_limit_per_min=None,
+    )
+    request = SimpleNamespace(state=SimpleNamespace(principal=principal))
+    return SimpleNamespace(request_context=SimpleNamespace(request=request))
+
+
+class TestCollectingCostsWhatStartingCost:
+    """A task id is not a capability, here as on GET /api/v1/tasks/{id}.
+
+    The request log hands ids to anyone who may read it, so collecting a result
+    has to cost the scope and the role that queueing the work needed.
+    """
+
+    async def test_a_pinned_task_is_refused_to_a_read_key(self):
+        """Its result is one logged-in session's private view."""
+        pinned = TaskOutcome(
+            TASK_ID, TaskState.DONE, {"items": []}, endpoint="douyin.author_bookmarks", pinned=True
+        )
+        tools = ToolSet(make_context(FakeTasks(lookup=pinned)))
+        with pytest.raises(ToolError, match="FORBIDDEN_SCOPE"):
+            await tools.get_task_result(
+                TASK_ID, context=keyed(Scope.DOUYIN_READ, role=UserRole.ADMIN)
+            )
+
+    async def test_a_pinned_task_is_refused_to_a_viewers_key_with_the_scope(self):
+        pinned = TaskOutcome(
+            TASK_ID, TaskState.DONE, {"items": []}, endpoint="douyin.author_bookmarks", pinned=True
+        )
+        tools = ToolSet(make_context(FakeTasks(lookup=pinned)))
+        context = keyed(Scope.DOUYIN_READ, Scope.IDENTITY_MANAGE, role=UserRole.VIEWER)
+        with pytest.raises(ToolError, match="FORBIDDEN_SCOPE"):
+            await tools.get_task_result(TASK_ID, context=context)
+
+    async def test_a_pinned_task_is_collected_by_a_key_that_could_have_pinned_it(self):
+        pinned = TaskOutcome(
+            TASK_ID, TaskState.DONE, {"items": []}, endpoint="douyin.author_bookmarks", pinned=True
+        )
+        tools = ToolSet(make_context(FakeTasks(lookup=pinned)))
+        context = keyed(Scope.DOUYIN_READ, Scope.IDENTITY_MANAGE, role=UserRole.OPERATOR)
+        result = await tools.get_task_result(TASK_ID, context=context)
+        assert result["status"] == "ok"
+
+    async def test_an_unpinned_task_still_needs_only_the_read_scope(self):
+        plain = TaskOutcome(
+            TASK_ID, TaskState.DONE, {"content_id": "7100"}, endpoint="douyin.content_detail"
+        )
+        tools = ToolSet(make_context(FakeTasks(lookup=plain)))
+        result = await tools.get_task_result(
+            TASK_ID, context=keyed(Scope.DOUYIN_READ, role=UserRole.VIEWER)
+        )
+        assert result["data"] == {"content_id": "7100"}
+
+    async def test_a_proxy_probe_is_refused_to_a_viewers_key_with_the_scope(self):
+        """A probe's result names the proxy's exit address; an operator starts it."""
+        probe = TaskOutcome(
+            TASK_ID, TaskState.DONE, {"exit_ip": "203.0.113.7"}, endpoint="proxy.test"
+        )
+        tools = ToolSet(make_context(FakeTasks(lookup=probe)))
+        with pytest.raises(ToolError, match="FORBIDDEN_SCOPE"):
+            await tools.get_task_result(
+                TASK_ID, context=keyed(Scope.IDENTITY_MANAGE, role=UserRole.VIEWER)
+            )
 
 
 class TestMediaDownloads:

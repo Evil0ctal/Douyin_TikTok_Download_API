@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from time import monotonic
 from types import MappingProxyType
 from typing import Any, Final
@@ -27,12 +27,21 @@ from dtk.api.deps import Principal
 from dtk.api.routes import operations
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.operations import unwrap
-from dtk.api.routes.support import demo_read, iso, language, ok
+from dtk.api.routes.support import (
+    POOL_ROLE,
+    POOL_SCOPES,
+    ROLE_RANK,
+    demo_read,
+    handles_credentials,
+    iso,
+    language,
+    ok,
+)
 from dtk.core.db import session_scope
 from dtk.core.errors import ErrorCode, ForbiddenScope, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Language, Scope, TaskState, UserRole
+from dtk.core.types import Language, TaskState, UserRole
 from dtk.i18n.messages import render
 from dtk.services import tasks as task_service
 
@@ -53,7 +62,26 @@ TERMINAL = (TaskState.DONE, TaskState.FAILED)
 
 
 def _authorize_task(principal: Principal, view: task_service.TaskView) -> None:
+    """Whether this caller may read or cancel the task, the result included.
+
+    Scope and role, both, because a console session passes every scope check:
+    with the scope alone, a viewer read the output of an operator's pinned
+    request - another account's private lists - by an id from the request log.
+    """
     principal.require(*operations.scopes_for_task(view.endpoint))
+    floor = operations.role_for_task(view.endpoint)
+    if ROLE_RANK[principal.role] < ROLE_RANK[floor]:
+        raise ForbiddenScope(
+            "reading this task requires a higher role",
+            details=principal.denial(roles=[floor]),
+        )
+    if view.pinned and not handles_credentials(principal):
+        # The same words as the floor above: a refusal says what it takes, and
+        # not which identity, or that one was named at all.
+        raise ForbiddenScope(
+            "reading this task requires a higher role",
+            details=principal.denial(scopes=POOL_SCOPES, roles=[POOL_ROLE]),
+        )
     if principal.role is UserRole.DEMO and not view.is_demo:
         raise ForbiddenScope(
             "the demo account can only read its own tasks",
@@ -111,14 +139,21 @@ def _localized_data(endpoint: str, data: Any, language: Language) -> Any:
 #: went out, jar included, so it is a credential sitting inside an answer a
 #: `douyin:read` key is entitled to. Stripped unless the reader could have
 #: revealed that jar directly.
-_PRIVILEGED_META: Final[Mapping[str, Scope]] = MappingProxyType({"explain": Scope.IDENTITY_MANAGE})
+#:
+#: Each entry is the full test, not a scope. It used to be `identity:manage`
+#: alone, which every console session passes whatever its role, so a viewer
+#: was handed the jar an operator's explained request had stored - while
+#: asking for that explanation had required the operator role all along.
+_PRIVILEGED_META: Final[Mapping[str, Callable[[Principal], bool]]] = MappingProxyType(
+    {"explain": handles_credentials}
+)
 
 
 def _visible_meta(meta: Mapping[str, Any], principal: Principal | None) -> dict[str, Any]:
     """The result metadata this reader is allowed to see."""
     out = dict(meta)
-    for key, scope in _PRIVILEGED_META.items():
-        if key in out and (principal is None or not principal.permits(scope)):
+    for key, may_read in _PRIVILEGED_META.items():
+        if key in out and (principal is None or not may_read(principal)):
             del out[key]
     return out
 

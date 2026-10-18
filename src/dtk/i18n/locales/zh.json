@@ -577,7 +577,7 @@
       },
       "tools_identity": {
         "summary": "铸造并返回一个游客身份",
-        "description": "驱动真实浏览器访问平台，返回平台下发的 cookie —— 这部分工作无法用算法生成。耗时数十秒，需要 identity:manage 权限，且不做任何存储；若希望将身份加入本实例的身份池，请改用管理端的铸造接口。"
+        "description": "驱动真实浏览器访问平台，返回平台下发的 cookie —— 这部分工作无法用算法生成。耗时数十秒，需要 identity:manage 权限和 operator 角色，且不做任何存储；若希望将身份加入本实例的身份池，请改用管理端的铸造接口。"
       },
       "tools_parse_batch": {
         "summary": "批量识别链接与作品 ID",

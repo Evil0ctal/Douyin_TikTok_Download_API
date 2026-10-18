@@ -34,7 +34,7 @@ from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.request_proxy import RequestProxyMode
 from dtk.api.request_proxy import vet as vet_proxy
 from dtk.api.routes.openapi import I18N_KEY
-from dtk.api.routes.support import ok
+from dtk.api.routes.support import manage_pool, ok
 from dtk.core.errors import InvalidParam, NotConfigured, UpstreamRiskControl
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform, Scope
@@ -838,7 +838,7 @@ class IdentityRequest(BaseModel):
 async def mint_identity(
     request: Request,
     body: IdentityRequest,
-    principal: Principal = Depends(enforce_rate_limit),
+    principal: Principal = Depends(manage_pool),
 ) -> Any:
     """Drive a real browser to the platform and hand back the cookies it was given.
 
@@ -848,8 +848,8 @@ async def mint_identity(
     is not enough to make a request that works.
 
     Expect it to take tens of seconds: it launches a browser, loads the page and
-    waits for the scripts to finish setting cookies. It needs the
-    `identity:manage` scope, which ordinary read keys do not carry.
+    waits for the scripts to finish setting cookies. It needs `identity:manage`
+    and the operator role, as minting into the pool does.
 
     Nothing is stored. The jar is returned to you and forgotten - use
     `/api/v1/admin/identities/mint` instead if you want it added to this
@@ -870,8 +870,9 @@ async def mint_identity(
     from. Send all of it together; a jar used with a different User-Agent is a
     weaker identity than no identity.
     """
-    principal.require(Scope.IDENTITY_MANAGE)
-
+    # Gated by `manage_pool`, not by a scope check in the body. That check was
+    # here, and a scope check alone admits every console session: a viewer
+    # could drive the browser container and be handed a fresh jar.
     settings = request.app.state.settings
     base_url = getattr(settings, "browser_rpc_url", "")
     if not base_url:

@@ -500,7 +500,7 @@ Returns the request as it actually went out — the signed URL, the headers and 
 - It **implies `refresh`**: an explanation of a cached answer would describe a call this request did not make. It also disables coalescing, so an explained call is never joined to an unexplained one already in flight.
 - The block appears in the result metadata under `explain`, with `method`, `url`, `headers`, `cookie_header`, `identity_id`, `signer`, `endpoint`, `proxy` and `body`.
 - It is recorded on **failed** tasks too — that is the case it exists for.
-- It is stripped from a stored task result for any reader without `identity:manage`, and it is never sent on the SSE stream.
+- It is stripped from a stored task result for any reader without `identity:manage` and the operator role, and it is never sent on the SSE stream.
 
 See [Playground and tools](./07-playground-and-tools.md), which is the console's front end for the same thing.
 

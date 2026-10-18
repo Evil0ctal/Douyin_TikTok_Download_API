@@ -78,9 +78,56 @@ def test_meta_without_an_explanation_is_untouched() -> None:
 
 
 @pytest.mark.parametrize("key", sorted(_PRIVILEGED_META))
-def test_every_privileged_key_is_gated_on_a_real_scope(key: str) -> None:
-    """A typo in the table would silently disable the gate for that key."""
-    assert isinstance(_PRIVILEGED_META[key], Scope)
+def test_every_privileged_key_is_gated_on_the_whole_test(key: str) -> None:
+    """Each gate has to refuse a viewer's session, which carries no scopes and
+    passes every scope check - the case a bare scope in this table missed."""
+    may_read = _PRIVILEGED_META[key]
+    assert not may_read(session(UserRole.VIEWER))
+    assert may_read(session(UserRole.OPERATOR))
+
+
+# --------------------------------------------------------------------------
+# Console sessions
+# --------------------------------------------------------------------------
+#
+# A session is bounded by its role, and `permits` answers yes to every session
+# for every scope. The gate here once asked the scope question alone, so a
+# viewer polling an operator's explained task was handed the jar - although
+# asking for the explanation had required the operator role from the start.
+
+
+def session(role: UserRole) -> Principal:
+    return Principal(
+        user_id=uuid.uuid4(),
+        role=role,
+        scopes=frozenset(),
+        api_key_id=None,
+        rate_limit_per_min=None,
+    )
+
+
+@pytest.mark.parametrize("role", [UserRole.DEMO, UserRole.VIEWER])
+def test_a_session_below_operator_does_not_see_the_explanation(role: UserRole) -> None:
+    assert "explain" not in _visible_meta(META, session(role))
+
+
+@pytest.mark.parametrize("role", [UserRole.OPERATOR, UserRole.ADMIN])
+def test_an_operator_session_sees_it(role: UserRole) -> None:
+    assert "explain" in _visible_meta(META, session(role))
+
+
+def test_a_scoped_key_below_operator_does_not_see_it() -> None:
+    """The role half applies to keys too, as it does when explain is asked
+    for: an `identity:manage` key whose owner is a viewer cannot ask, so it
+    cannot read either."""
+    assert "explain" not in _visible_meta(
+        META, principal(Scope.IDENTITY_MANAGE, role=UserRole.VIEWER)
+    )
+
+
+def test_a_failed_task_hides_it_from_a_viewer_session() -> None:
+    payload = _view_payload(_failed(STORED), Language.EN, principal=session(UserRole.VIEWER))
+    assert "explain" not in payload.get("result_meta", {})
 
 
 # --------------------------------------------------------------------------

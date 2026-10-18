@@ -44,6 +44,10 @@ class TaskView:
     created_at: datetime
     finished_at: datetime | None
     is_demo: bool = False
+    #: Sent as one named identity, so its result is what that session can see
+    #: - a logged-in account's bookmarks, likes, private folders. Reading it
+    #: back costs what naming the identity cost.
+    pinned: bool = False
 
 
 async def create(
@@ -279,6 +283,7 @@ async def get(session: AsyncSession, task_id: uuid.UUID) -> TaskView:
         created_at=task.created_at,
         finished_at=task.finished_at,
         is_demo=task.is_demo,
+        pinned=bool((task.params or {}).get("identity")),
     )
 
 

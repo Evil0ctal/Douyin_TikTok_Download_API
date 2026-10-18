@@ -645,7 +645,8 @@ What it costs, plainly:
 
 - **Tens of seconds.** A browser has to launch, load the page and wait for its
   scripts to finish setting cookies.
-- **`identity:manage` scope.** Ordinary read keys do not carry it.
+- **`identity:manage` scope and the operator role.** Ordinary read keys do not
+  carry the scope, and a viewer's session is refused.
 - **A `browser-rpc` service.** Without `DTK_BROWSER_RPC_URL` configured, the call
   fails saying so and naming the setting. `browser-rpc` is the heaviest container in
   the stack and is an optional compose profile; see [Installation](./02-installation.md).
@@ -672,7 +673,7 @@ different User-Agent is a weaker identity than no identity.
 | Decode | `POST /api/v1/tools/decode` | `douyin:read` or `tiktok:read` | none | none | instant |
 | Parse a link | `GET /api/v1/tools/parse-url` | `douyin:read` or `tiktok:read` | none | none | instant |
 | Batch | `POST /api/v1/tools/parse-batch` | `douyin:read` or `tiktok:read` | none | none | instant |
-| Mint an identity | `POST /api/v1/tools/identity` | `identity:manage` | a real browser session | one minted jar handed to you | tens of seconds |
+| Mint an identity | `POST /api/v1/tools/identity` | `identity:manage` and the operator role | a real browser session | one minted jar handed to you | tens of seconds |
 
 All five are rate-limited like every other endpoint on this API.
 
@@ -801,7 +802,7 @@ curl -s -X POST "$DTK_URL/api/v1/tools/decode" \
   -d '{"value":"https://www.douyin.com/aweme/v1/web/aweme/detail/?aid=6383&a_bogus=...","user_agent":"Mozilla/5.0 ..."}'
 ```
 
-Mint a guest identity and keep it yourself — needs `identity:manage`, and takes tens
+Mint a guest identity and keep it yourself — needs `identity:manage` and an operator, and takes tens
 of seconds:
 
 ```bash

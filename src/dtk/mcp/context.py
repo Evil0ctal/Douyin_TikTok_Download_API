@@ -36,6 +36,9 @@ class TaskOutcome:
     result: dict[str, Any] | None = None
     error: dict[str, Any] | None = None
     endpoint: str | None = None
+    #: Sent as one named identity: its result is that session's private view,
+    #: and collecting it costs what naming the identity costs.
+    pinned: bool = False
 
     @property
     def settled(self) -> bool:
