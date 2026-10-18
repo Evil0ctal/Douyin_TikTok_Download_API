@@ -1,0 +1,108 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "card": {
+      "mid": "10000001",
+      "name": "Synthetic Creator",
+      "approve": false,
+      "sex": "保密",
+      "rank": "10000",
+      "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+      "face_nft": 0,
+      "face_nft_type": 0,
+      "DisplayRank": "0",
+      "regtime": 0,
+      "spacesta": 0,
+      "birthday": "",
+      "place": "",
+      "description": "",
+      "article": 0,
+      "attentions": [],
+      "fans": 128400,
+      "friend": 6,
+      "attention": 6,
+      "sign": "Synthetic signature",
+      "level_info": {
+        "current_level": 6,
+        "current_min": 0,
+        "current_exp": 0,
+        "next_exp": 0
+      },
+      "Official": {
+        "role": 3,
+        "title": "Synthetic video title",
+        "desc": "",
+        "type": 1
+      },
+      "official_verify": {
+        "type": 1,
+        "desc": "Synthetic description line one.\nSynthetic description line two."
+      },
+      "vip": {
+        "type": 2,
+        "status": 1,
+        "due_date": 1823356800000,
+        "vip_pay_type": 1,
+        "theme_type": 0,
+        "label": {
+          "path": "https://cdn.example-cdn.invalid/bfs/vip/label_annual.png",
+          "text": "年度大会员",
+          "label_theme": "annual_vip",
+          "text_color": "#FFFFFF",
+          "bg_style": 1,
+          "bg_color": "#FB7299",
+          "border_color": "",
+          "use_img_label": true,
+          "img_label_uri_hans": "",
+          "img_label_uri_hant": "",
+          "img_label_uri_hans_static": "https://cdn.example-cdn.invalid/bfs/vip/synthetic.png",
+          "img_label_uri_hant_static": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220614/00000000000000000000000000000000/VEW8fCC0hg.png",
+          "label_id": -22,
+          "label_goto": {
+            "mobile": "https://cdn.example-cdn.invalid/mobile/index",
+            "pc_web": "https://cdn.example-cdn.invalid/big"
+          },
+          "img_label_uri_i18n": "",
+          "img_label_uri_i18n_static": "",
+          "label_type": 1
+        },
+        "avatar_subscript": 1,
+        "nickname_color": "#FB7299",
+        "role": 3,
+        "avatar_subscript_url": "",
+        "tv_vip_status": 0,
+        "tv_vip_pay_type": 0,
+        "tv_due_date": 0,
+        "avatar_icon": {
+          "icon_type": 1,
+          "icon_resource": {}
+        },
+        "ott_info": {
+          "vip_type": 0,
+          "pay_type": 0,
+          "pay_channel_id": "",
+          "status": 0,
+          "overdue_time": 0
+        },
+        "super_vip": {
+          "is_super_vip": false
+        },
+        "vipType": 2,
+        "vipStatus": 1
+      },
+      "is_senior_member": 0,
+      "name_render": null
+    },
+    "space": {
+      "s_img": "https://cdn.example-cdn.invalid/bfs/space/synthetic.jpg",
+      "l_img": "https://cdn.example-cdn.invalid/bfs/space/synthetic.jpg"
+    },
+    "following": false,
+    "archive_count": 213,
+    "article_count": 0,
+    "follower": 128400,
+    "like_num": 564427
+  }
+}

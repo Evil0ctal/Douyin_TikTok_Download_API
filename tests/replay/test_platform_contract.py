@@ -25,22 +25,42 @@ from dtk.platforms import available_platforms, get_adapter
 from dtk.platforms.base import PlatformAdapter
 from tests.replay.support import (
     FETCHED_AT,
-    FIXTURE_NAMES,
     FIXTURES,
     FORBIDDEN_KEY_PATTERN,
+    fixture_names,
     keys_in,
     load,
 )
 
-PLATFORMS = ("douyin", "tiktok")
+PLATFORMS = ("bilibili", "douyin", "tiktok")
 
-CONTENT_FIXTURES = (
-    "video_normal",
-    "video_image_album",
-    "video_deleted",
-    "video_private",
-    "video_long_desc",
-)
+#: Platforms that publish image albums; Bilibili's videos are only videos.
+ALBUM_PLATFORMS = ("douyin", "tiktok")
+
+CONTENT_FIXTURES = {
+    "douyin": (
+        "video_normal",
+        "video_image_album",
+        "video_deleted",
+        "video_private",
+        "video_long_desc",
+    ),
+    "bilibili": ("video_normal", "video_long_desc", "video_multipart"),
+}
+CONTENT_FIXTURES["tiktok"] = CONTENT_FIXTURES["douyin"]
+
+
+def normal_video(name: str) -> dict[str, Any]:
+    """A platform's ``video_normal``, as the fetch layer hands it to the parser.
+
+    For Bilibili that includes the ``playurl`` answer the detail is followed by
+    (``PlatformAdapter.follow_up``); the others need no second call.
+    """
+    payload = load(name, "video_normal")
+    follow_up = get_adapter(name).follow_up(f"{name}.content_detail", payload)
+    if follow_up is None:
+        return payload
+    return follow_up.merge(payload, load(name, "content_streams"))
 
 
 # --------------------------------------------------------------------------
@@ -73,7 +93,7 @@ def test_unknown_platform_is_rejected() -> None:
     from dtk.core.errors import DtkError
 
     with pytest.raises(DtkError):
-        get_adapter("bilibili")
+        get_adapter("weibo")
 
 
 def test_discovery_ignores_a_subpackage_that_is_not_a_platform(
@@ -162,11 +182,11 @@ def _model_shape(model: Any) -> set[str]:
 
 def test_both_platforms_produce_the_same_content_shape() -> None:
     parsed = {
-        name: get_adapter(name).parse_content(load(name, "video_normal"), fetched_at=FETCHED_AT)
+        name: get_adapter(name).parse_content(normal_video(name), fetched_at=FETCHED_AT)
         for name in PLATFORMS
     }
     shapes = {name: _model_shape(content) for name, content in parsed.items()}
-    assert shapes["douyin"] == shapes["tiktok"] == set(Content.model_fields)
+    assert all(shape == set(Content.model_fields) for shape in shapes.values())
 
     for content in parsed.values():
         assert isinstance(content.content_id, str)
@@ -206,8 +226,10 @@ def test_both_platforms_produce_the_same_comment_shape() -> None:
         assert first.reply_count == 2
 
 
-@pytest.mark.parametrize("name", PLATFORMS)
-@pytest.mark.parametrize("fixture_name", CONTENT_FIXTURES)
+@pytest.mark.parametrize(
+    ("name", "fixture_name"),
+    [(name, fixture) for name in PLATFORMS for fixture in CONTENT_FIXTURES[name]],
+)
 def test_identifiers_are_always_strings(name: str, fixture_name: str) -> None:
     """A 19 digit id parsed as int silently loses precision in the browser."""
     content = get_adapter(name).parse_content(load(name, fixture_name), fetched_at=FETCHED_AT)
@@ -217,7 +239,7 @@ def test_identifiers_are_always_strings(name: str, fixture_name: str) -> None:
         assert isinstance(content.music.music_id, str)
 
 
-@pytest.mark.parametrize("name", PLATFORMS)
+@pytest.mark.parametrize("name", ALBUM_PLATFORMS)
 def test_albums_have_images_and_no_duration(name: str) -> None:
     content = get_adapter(name).parse_content(
         load(name, "video_image_album"), fetched_at=FETCHED_AT
@@ -230,11 +252,15 @@ def test_albums_have_images_and_no_duration(name: str) -> None:
 
 @pytest.mark.parametrize("name", PLATFORMS)
 def test_every_media_url_keeps_its_mirrors(name: str) -> None:
-    """Downloads run browser-to-CDN, so one dead link must not be fatal."""
-    content = get_adapter(name).parse_content(load(name, "video_normal"), fetched_at=FETCHED_AT)
+    """Downloads run browser-to-CDN, so one dead link must not be fatal.
+
+    Every mirror the platform names is kept. Bilibili's progressive MP4 came
+    with one URL and no backups when captured, so the floor there is one.
+    """
+    content = get_adapter(name).parse_content(normal_video(name), fetched_at=FETCHED_AT)
     assert content.media.video is not None
     assert content.media.video.url == content.media.video.urls[0]
-    assert len(content.media.video.urls) >= 2
+    assert len(content.media.video.urls) >= (1 if name == "bilibili" else 2)
     for cover in content.media.covers:
         assert cover.url == cover.urls[0]
 
@@ -247,12 +273,12 @@ def test_every_media_url_keeps_its_mirrors(name: str) -> None:
 @pytest.mark.parametrize("name", PLATFORMS)
 def test_every_platform_ships_the_full_fixture_set(name: str) -> None:
     present = {path.stem for path in (FIXTURES / name).glob("*.json")}
-    assert present == set(FIXTURE_NAMES)
+    assert present == set(fixture_names(name))
 
 
 @pytest.mark.parametrize("name", PLATFORMS)
 def test_fixtures_contain_no_credential_shaped_keys(name: str) -> None:
-    for fixture_name in FIXTURE_NAMES:
+    for fixture_name in fixture_names(name):
         payload = load(name, fixture_name)
         offenders = sorted(key for key in keys_in(payload) if FORBIDDEN_KEY_PATTERN.search(key))
         assert offenders == [], f"{name}/{fixture_name}.json leaks: {offenders}"
@@ -277,7 +303,7 @@ def _urls_in(payload: Any) -> list[str]:
 
 @pytest.mark.parametrize("name", PLATFORMS)
 def test_fixture_media_hosts_can_never_resolve(name: str) -> None:
-    for fixture_name in FIXTURE_NAMES:
+    for fixture_name in fixture_names(name):
         payload = load(name, fixture_name)
         for url in _urls_in(payload):
             host = urlsplit(url).netloc

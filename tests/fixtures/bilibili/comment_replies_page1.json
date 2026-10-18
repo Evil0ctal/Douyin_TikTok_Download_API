@@ -1,0 +1,521 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "page": {
+      "num": 1,
+      "size": 3,
+      "count": 24
+    },
+    "upper": {
+      "mid": 10000001
+    },
+    "replies": [
+      {
+        "rpid": 300000009,
+        "oid": 100000001,
+        "type": 1,
+        "mid": 10000013,
+        "root": 300000001,
+        "parent": 300000010,
+        "dialog": 300000010,
+        "count": 0,
+        "rcount": 0,
+        "state": 0,
+        "fansgrade": 0,
+        "attr": 0,
+        "ctime": 1791889952,
+        "mid_str": "10000013",
+        "oid_str": "100000001",
+        "rpid_str": "300000009",
+        "root_str": "300000001",
+        "parent_str": "300000010",
+        "dialog_str": "300000010",
+        "like": 47,
+        "action": 0,
+        "member": {
+          "mid": "10000013",
+          "uname": "synthetic.viewer",
+          "handle": "",
+          "sex": "女",
+          "sign": "",
+          "avatar": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+          "rank": "10000",
+          "is_senior_member": 0,
+          "level_info": {
+            "current_level": 6,
+            "current_min": 0,
+            "current_exp": 0,
+            "next_exp": 0
+          },
+          "official_verify": {
+            "type": -1,
+            "desc": ""
+          },
+          "vip": {
+            "vipType": 1,
+            "vipDueDate": 1725379200000,
+            "dueRemark": "",
+            "accessStatus": 0,
+            "vipStatus": 0,
+            "vipStatusWarn": "",
+            "themeType": 0,
+            "label": {
+              "path": "",
+              "text": "",
+              "label_theme": "",
+              "text_color": "",
+              "bg_style": 0,
+              "bg_color": "",
+              "border_color": "",
+              "use_img_label": true,
+              "img_label_uri_hans": "",
+              "img_label_uri_hant": "",
+              "img_label_uri_hans_static": "https://cdn.example-cdn.invalid/bfs/vip/synthetic.png",
+              "img_label_uri_hant_static": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220614/00000000000000000000000000000000/KJunwh19T5.png",
+              "label_id": 0,
+              "label_goto": null,
+              "img_label_uri_i18n": "",
+              "img_label_uri_i18n_static": "",
+              "label_type": 0
+            },
+            "avatar_subscript": 0,
+            "nickname_color": ""
+          },
+          "is_contractor": false,
+          "contract_desc": ""
+        },
+        "content": {
+          "message": "Synthetic comment text.",
+          "at_name_to_mid": {},
+          "at_name_to_mid_str": {},
+          "members": [],
+          "jump_url": {},
+          "max_line": 6
+        },
+        "replies": null,
+        "parent_reply_member": {
+          "mid": "10000014",
+          "name": "Synthetic Creator"
+        },
+        "assist": 0,
+        "up_action": {
+          "like": false,
+          "reply": false
+        },
+        "invisible": false,
+        "reply_control": {
+          "max_line": 6,
+          "time_desc": "4天前发布",
+          "translation_switch": 1,
+          "support_share": true
+        },
+        "folder": {
+          "has_folded": false,
+          "is_folded": false,
+          "rule": ""
+        },
+        "dynamic_id_str": "0",
+        "note_cvid_str": "0",
+        "track_info": ""
+      },
+      {
+        "rpid": 300000011,
+        "oid": 100000001,
+        "type": 1,
+        "mid": 10000015,
+        "root": 300000001,
+        "parent": 300000010,
+        "dialog": 300000010,
+        "count": 0,
+        "rcount": 0,
+        "state": 0,
+        "fansgrade": 0,
+        "attr": 0,
+        "ctime": 1791889994,
+        "mid_str": "10000015",
+        "oid_str": "100000001",
+        "rpid_str": "300000011",
+        "root_str": "300000001",
+        "parent_str": "300000010",
+        "dialog_str": "300000010",
+        "like": 18,
+        "action": 0,
+        "member": {
+          "mid": "10000015",
+          "uname": "synthetic.viewer",
+          "handle": "",
+          "sex": "保密",
+          "sign": "Synthetic signature",
+          "avatar": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+          "rank": "10000",
+          "is_senior_member": 0,
+          "level_info": {
+            "current_level": 6,
+            "current_min": 0,
+            "current_exp": 0,
+            "next_exp": 0
+          },
+          "official_verify": {
+            "type": -1,
+            "desc": ""
+          },
+          "vip": {
+            "vipType": 2,
+            "vipDueDate": 1799596800000,
+            "dueRemark": "",
+            "accessStatus": 0,
+            "vipStatus": 1,
+            "vipStatusWarn": "",
+            "themeType": 0,
+            "label": {
+              "path": "https://cdn.example-cdn.invalid/bfs/vip/label_annual.png",
+              "text": "年度大会员",
+              "label_theme": "annual_vip",
+              "text_color": "#FFFFFF",
+              "bg_style": 1,
+              "bg_color": "#FB7299",
+              "border_color": "",
+              "use_img_label": true,
+              "img_label_uri_hans": "",
+              "img_label_uri_hant": "",
+              "img_label_uri_hans_static": "https://cdn.example-cdn.invalid/bfs/vip/synthetic.png",
+              "img_label_uri_hant_static": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220614/00000000000000000000000000000000/VEW8fCC0hg.png",
+              "label_id": -22,
+              "label_goto": {
+                "mobile": "https://cdn.example-cdn.invalid/mobile/index",
+                "pc_web": "https://cdn.example-cdn.invalid/big"
+              },
+              "img_label_uri_i18n": "",
+              "img_label_uri_i18n_static": "",
+              "label_type": 1
+            },
+            "avatar_subscript": 1,
+            "nickname_color": "#FB7299"
+          },
+          "is_contractor": false,
+          "contract_desc": ""
+        },
+        "content": {
+          "message": "Synthetic comment text.",
+          "at_name_to_mid": {},
+          "at_name_to_mid_str": {},
+          "members": [],
+          "jump_url": {},
+          "max_line": 6
+        },
+        "replies": null,
+        "parent_reply_member": {
+          "mid": "10000014",
+          "name": "Synthetic Creator"
+        },
+        "assist": 0,
+        "up_action": {
+          "like": false,
+          "reply": false
+        },
+        "invisible": false,
+        "reply_control": {
+          "max_line": 6,
+          "time_desc": "4天前发布",
+          "translation_switch": 1,
+          "support_share": true
+        },
+        "folder": {
+          "has_folded": false,
+          "is_folded": false,
+          "rule": ""
+        },
+        "dynamic_id_str": "0",
+        "note_cvid_str": "0",
+        "track_info": ""
+      },
+      {
+        "rpid": 300000012,
+        "oid": 100000001,
+        "type": 1,
+        "mid": 10000016,
+        "root": 300000001,
+        "parent": 300000010,
+        "dialog": 300000010,
+        "count": 0,
+        "rcount": 0,
+        "state": 0,
+        "fansgrade": 0,
+        "attr": 0,
+        "ctime": 1791890079,
+        "mid_str": "10000016",
+        "oid_str": "100000001",
+        "rpid_str": "300000012",
+        "root_str": "300000001",
+        "parent_str": "300000010",
+        "dialog_str": "300000010",
+        "like": 36,
+        "action": 0,
+        "member": {
+          "mid": "10000016",
+          "uname": "synthetic.viewer",
+          "handle": "",
+          "sex": "保密",
+          "sign": "Synthetic signature",
+          "avatar": "https://cdn.example-cdn.invalid/bfs/face/synthetic.webp",
+          "rank": "10000",
+          "is_senior_member": 0,
+          "level_info": {
+            "current_level": 6,
+            "current_min": 0,
+            "current_exp": 0,
+            "next_exp": 0
+          },
+          "official_verify": {
+            "type": -1,
+            "desc": ""
+          },
+          "vip": {
+            "vipType": 1,
+            "vipDueDate": 1736092800000,
+            "dueRemark": "",
+            "accessStatus": 0,
+            "vipStatus": 0,
+            "vipStatusWarn": "",
+            "themeType": 0,
+            "label": {
+              "path": "",
+              "text": "",
+              "label_theme": "",
+              "text_color": "",
+              "bg_style": 0,
+              "bg_color": "",
+              "border_color": "",
+              "use_img_label": true,
+              "img_label_uri_hans": "",
+              "img_label_uri_hant": "",
+              "img_label_uri_hans_static": "https://cdn.example-cdn.invalid/bfs/vip/synthetic.png",
+              "img_label_uri_hant_static": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220614/00000000000000000000000000000000/KJunwh19T5.png",
+              "label_id": 0,
+              "label_goto": null,
+              "img_label_uri_i18n": "",
+              "img_label_uri_i18n_static": "",
+              "label_type": 0
+            },
+            "avatar_subscript": 0,
+            "nickname_color": ""
+          },
+          "is_contractor": false,
+          "contract_desc": ""
+        },
+        "content": {
+          "message": "Synthetic comment text.",
+          "at_name_to_mid": {},
+          "at_name_to_mid_str": {},
+          "members": [],
+          "jump_url": {},
+          "max_line": 6
+        },
+        "replies": null,
+        "parent_reply_member": {
+          "mid": "10000014",
+          "name": "Synthetic Creator"
+        },
+        "assist": 0,
+        "up_action": {
+          "like": false,
+          "reply": false
+        },
+        "invisible": false,
+        "reply_control": {
+          "max_line": 6,
+          "time_desc": "4天前发布",
+          "translation_switch": 1,
+          "support_share": true
+        },
+        "folder": {
+          "has_folded": false,
+          "is_folded": false,
+          "rule": ""
+        },
+        "dynamic_id_str": "0",
+        "note_cvid_str": "0",
+        "track_info": ""
+      }
+    ],
+    "root": {
+      "rpid": 300000001,
+      "oid": 100000001,
+      "type": 1,
+      "mid": 10000005,
+      "root": 0,
+      "parent": 0,
+      "dialog": 0,
+      "count": 61,
+      "rcount": 24,
+      "state": 0,
+      "fansgrade": 0,
+      "attr": 134217744,
+      "ctime": 1791883324,
+      "mid_str": "10000005",
+      "oid_str": "100000001",
+      "rpid_str": "300000001",
+      "root_str": "0",
+      "parent_str": "0",
+      "dialog_str": "0",
+      "like": 2521,
+      "action": 0,
+      "member": {
+        "mid": "10000005",
+        "uname": "synthetic.viewer",
+        "handle": "",
+        "sex": "保密",
+        "sign": "Synthetic signature",
+        "avatar": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+        "rank": "10000",
+        "is_senior_member": 0,
+        "level_info": {
+          "current_level": 6,
+          "current_min": 0,
+          "current_exp": 0,
+          "next_exp": 0
+        },
+        "official_verify": {
+          "type": 1,
+          "desc": "Synthetic description line one.\nSynthetic description line two."
+        },
+        "vip": {
+          "vipType": 2,
+          "vipDueDate": 2049638400000,
+          "dueRemark": "",
+          "accessStatus": 0,
+          "vipStatus": 1,
+          "vipStatusWarn": "",
+          "themeType": 0,
+          "label": {
+            "path": "https://cdn.example-cdn.invalid/bfs/vip/label_annual.png",
+            "text": "十年大会员",
+            "label_theme": "ten_annual_vip",
+            "text_color": "#FFFFFF",
+            "bg_style": 1,
+            "bg_color": "#FB7299",
+            "border_color": "",
+            "use_img_label": true,
+            "img_label_uri_hans": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220608/00000000000000000000000000000000/wltavwHAkL.gif",
+            "img_label_uri_hant": "",
+            "img_label_uri_hans_static": "https://cdn.example-cdn.invalid/bfs/vip/synthetic.png",
+            "img_label_uri_hant_static": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220614/00000000000000000000000000000000/8u7iRTPE7N.png",
+            "label_id": -22,
+            "label_goto": {
+              "mobile": "https://cdn.example-cdn.invalid/mobile/index",
+              "pc_web": "https://cdn.example-cdn.invalid/big"
+            },
+            "img_label_uri_i18n": "",
+            "img_label_uri_i18n_static": "",
+            "label_type": 2
+          },
+          "avatar_subscript": 1,
+          "nickname_color": "#FB7299"
+        },
+        "is_contractor": false,
+        "contract_desc": ""
+      },
+      "content": {
+        "message": "Synthetic comment text.",
+        "at_name_to_mid": {},
+        "at_name_to_mid_str": {},
+        "topics_meta": {},
+        "members": [],
+        "emote": {
+          "[给心心]": {
+            "id": 3302,
+            "package_id": 1,
+            "state": 0,
+            "type": 1,
+            "attr": 0,
+            "text": "[给心心]",
+            "url": "https://cdn.example-cdn.invalid/bfs/emote/synthetic.png",
+            "meta": {
+              "size": 1,
+              "suggest": [
+                ""
+              ]
+            },
+            "mtime": 1668688325,
+            "jump_title": "给心心"
+          }
+        },
+        "jump_url": {},
+        "max_line": 6,
+        "pictures": [
+          {
+            "img_src": "https://cdn.example-cdn.invalid/bfs/new_dyn/synthetic.jpg",
+            "img_width": 1080,
+            "img_height": 1920,
+            "img_size": 901.684,
+            "top_right_icon": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20230425/00000000000000000000000000000000/0ufQJIxBvt.png",
+            "play_gif_thumbnail": true
+          },
+          {
+            "img_src": "https://cdn.example-cdn.invalid/bfs/new_dyn/synthetic.jpg",
+            "img_width": 1080,
+            "img_height": 2160,
+            "img_size": 221.914,
+            "top_right_icon": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20230425/00000000000000000000000000000000/0ufQJIxBvt.png",
+            "play_gif_thumbnail": true
+          }
+        ],
+        "picture_scale": 1.2
+      },
+      "replies": [],
+      "assist": 0,
+      "up_action": {
+        "like": false,
+        "reply": false
+      },
+      "invisible": false,
+      "reply_control": {
+        "max_line": 6,
+        "sub_reply_entry_text": "共24条回复",
+        "sub_reply_title_text": "相关回复共24条",
+        "time_desc": "5天前发布",
+        "biz_scene": "opus_1258618364853485588",
+        "is_note_v2": true,
+        "translation_switch": 1,
+        "support_share": true
+      },
+      "folder": {
+        "has_folded": false,
+        "is_folded": false,
+        "rule": ""
+      },
+      "dynamic_id": 0,
+      "dynamic_id_str": "1258618364853485588",
+      "note_cvid_str": "0",
+      "track_info": ""
+    },
+    "config": {
+      "showtopic": 0,
+      "show_up_flag": false,
+      "read_only": false
+    },
+    "control": {
+      "input_disable": false,
+      "root_input_text": "这里是评论区，不是无人区;-)",
+      "child_input_text": "这里是评论区，不是无人区;-)",
+      "giveup_input_text": "不发没关系，请继续友善哦~",
+      "screenshot_icon_state": 1,
+      "upload_picture_icon_state": 1,
+      "answer_guide_text": "需要升级成为lv2会员后才可以评论，先去答题转正吧！",
+      "answer_guide_icon_url": "https://cdn.example-cdn.invalid/bfs/emote/synthetic.png",
+      "answer_guide_ios_url": "https://cdn.example-cdn.invalid/h5/newbie/entry",
+      "answer_guide_android_url": "https://cdn.example-cdn.invalid/h5/newbie/entry",
+      "bg_text": "",
+      "empty_page": null,
+      "show_type": 1,
+      "show_text": "",
+      "web_selection": false,
+      "disable_jump_emote": false,
+      "enable_charged": false,
+      "enable_cm_biz_helper": false,
+      "preload_resources": null
+    }
+  }
+}

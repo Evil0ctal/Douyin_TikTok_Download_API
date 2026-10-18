@@ -63,7 +63,30 @@ TIKTOK_MEDIA_DOMAINS: Final[frozenset[str]] = frozenset(
     }
 )
 
-MEDIA_DOMAINS: Final[frozenset[str]] = DOUYIN_MEDIA_DOMAINS | TIKTOK_MEDIA_DOMAINS
+#: Bilibili media networks.
+#:
+#: One entry is a full host rather than a domain, and on purpose. Bilibili
+#: serves an overseas egress from Akamai: from this project's US test machine
+#: on 2026-10-18 the primary stream of a ``playurl`` answer was on
+#: ``upos-hz-mirrorakam.akamaized.net``, and with only Bilibili's own domains
+#: listed a download stored the cover and refused the video. ``akamaized.net``
+#: itself is Akamai's and shared by every Akamai customer; admitting it would
+#: let a Bilibili job fetch from any of them. Matching is on label boundaries
+#: (:func:`registrable`, and the downloader's own check), so this entry admits
+#: that host and nothing else under Akamai.
+BILIBILI_MEDIA_DOMAINS: Final[frozenset[str]] = frozenset(
+    {
+        "bilivideo.com",  # measured: upos-sz-mirrorcosov.bilivideo.com, video
+        "upos-hz-mirrorakam.akamaized.net",  # measured: video, from an overseas egress
+        "hdslb.com",  # measured: i0.hdslb.com and i2.hdslb.com, covers and avatars
+        "bilivideo.cn",  # sibling network, the PCDN edge (mcdn.bilivideo.cn)
+        "biliimg.com",  # sibling network, images
+    }
+)
+
+MEDIA_DOMAINS: Final[frozenset[str]] = (
+    DOUYIN_MEDIA_DOMAINS | TIKTOK_MEDIA_DOMAINS | BILIBILI_MEDIA_DOMAINS
+)
 
 #: Per platform, because a job carries the allowlist it is entitled to rather
 #: than the union. A Douyin post has no business reaching a TikTok CDN, and
@@ -71,6 +94,7 @@ MEDIA_DOMAINS: Final[frozenset[str]] = DOUYIN_MEDIA_DOMAINS | TIKTOK_MEDIA_DOMAI
 MEDIA_DOMAINS_BY_PLATFORM: Final[dict[Platform, frozenset[str]]] = {
     Platform.DOUYIN: DOUYIN_MEDIA_DOMAINS,
     Platform.TIKTOK: TIKTOK_MEDIA_DOMAINS,
+    Platform.BILIBILI: BILIBILI_MEDIA_DOMAINS,
 }
 
 #: Only these schemes are ever fetched.

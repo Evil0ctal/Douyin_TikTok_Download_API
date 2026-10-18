@@ -84,6 +84,28 @@ _POLICIES: dict[str, EndpointPolicy] = {
         ),
         EndpointPolicy("tiktok.author_followers", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.author_following", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy("bilibili.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("bilibili.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
+        # Asked once per detail, by the fetch layer, for the file itself. Same
+        # rate as the detail it follows, or every detail would wait on it.
+        EndpointPolicy(
+            "bilibili.content_streams", capacity=5, refill_per_sec=0.30, risk_weight=1.0
+        ),
+        EndpointPolicy("bilibili.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        # Slower than the other platforms' feeds: a burst of a dozen requests
+        # from one egress was enough to turn this endpoint into 412 pages for a
+        # few minutes on 2026-10-18.
+        EndpointPolicy("bilibili.author_posts", capacity=2, refill_per_sec=0.08, risk_weight=1.8),
+        EndpointPolicy("bilibili.comments", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
+        EndpointPolicy(
+            "bilibili.comment_replies", capacity=3, refill_per_sec=0.15, risk_weight=1.2
+        ),
+        EndpointPolicy(
+            "bilibili.author_collections", capacity=3, refill_per_sec=0.15, risk_weight=1.2
+        ),
+        EndpointPolicy(
+            "bilibili.collection_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.2
+        ),
     ]
 }
 

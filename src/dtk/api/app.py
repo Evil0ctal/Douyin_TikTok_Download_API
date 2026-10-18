@@ -60,7 +60,7 @@ log = get_logger(__name__)
 #: asynchronous, `?wait=` is how to make one synchronous, and neither fact was
 #: written down anywhere a caller reads - so a 202 after a wait looked like a
 #: failure and the parameter's one-line summary did not say otherwise.
-DESCRIPTION = """Self-hosted data API for Douyin and TikTok. Submit a link, get normalized content back.
+DESCRIPTION = """Self-hosted data API for Douyin, TikTok and Bilibili. Submit a link, get normalized content back.
 
 Every response has the same envelope, errors included: `success`, `data`, `error`, `meta`. Error codes are stable and never translated; the message beside them is rendered in the language you asked for. Append `?lang=zh` to any endpoint, including this document, for Chinese.
 

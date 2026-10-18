@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy import func, select
 
 from dtk.core.db import session_scope
-from dtk.core.types import Outcome, Platform, Scope, UserRole
+from dtk.core.types import PLATFORM_READ_SCOPES, Outcome, Platform, UserRole
 from dtk.db.models import ApiKey, RequestLog, Task, User
 from dtk.services import demo
 from tests.integration import test_api_support as support
@@ -71,13 +71,13 @@ def _set_demo(app: Any, enabled: bool) -> None:
 # --------------------------------------------------------------------------
 
 
-async def test_provisioning_creates_one_account_with_the_two_read_scopes(api_app: Any) -> None:
+async def test_provisioning_creates_one_account_with_the_platform_read_scopes(api_app: Any) -> None:
     credentials = await _provision(api_app)
 
     assert credentials.username == demo.DEMO_USERNAME
     assert credentials.password
     assert credentials.api_key and credentials.api_key.startswith("dtk_")
-    assert set(credentials.scopes) == {Scope.DOUYIN_READ.value, Scope.TIKTOK_READ.value}
+    assert set(credentials.scopes) == {scope.value for scope in PLATFORM_READ_SCOPES}
 
     async with session_scope() as session:
         users = await session.scalar(

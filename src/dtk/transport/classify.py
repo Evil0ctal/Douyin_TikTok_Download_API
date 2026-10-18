@@ -43,8 +43,10 @@ from dtk.transport.base import RawResponse, TransportFailure
 #: text sits far deeper than this.
 MARKER_SCAN_CHARS: Final[int] = 4096
 
-#: Body keys that carry the platform's own return code.
-ENVELOPE_STATUS_KEYS: Final[tuple[str, ...]] = ("status_code", "statusCode", "error_code")
+#: Body keys that carry the platform's own return code. ``code`` is
+#: Bilibili's, and last: neither other platform sends it at the top level, and
+#: :attr:`ResponseView.envelope_status` prefers a non-zero value anyway.
+ENVELOPE_STATUS_KEYS: Final[tuple[str, ...]] = ("status_code", "statusCode", "error_code", "code")
 
 #: Body keys that carry the platform's own message.
 ENVELOPE_MESSAGE_KEYS: Final[tuple[str, ...]] = ("status_msg", "statusMsg", "message")
@@ -116,6 +118,14 @@ BUSINESS_STATUS_CODES: Final[frozenset[int]] = frozenset({400, 404, 410, 451})
 RISK_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
     {
         10000: "verification required",
+        # Bilibili, all as HTTP 200 with a JSON envelope. -352 "risk check
+        # failed" is what an uploader's space answers without the dm_img
+        # report, measured 2026-10-18; -412 "request intercepted" is its JSON
+        # twin of the HTML 412 page; -509 and -799 are "too frequent".
+        -352: "risk check failed",
+        -412: "request intercepted",
+        -509: "too many requests",
+        -799: "too many requests",
     }
 )
 
@@ -144,6 +154,18 @@ BUSINESS_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
         # empty `userInfo`. Without the status key fix above this one read as
         # risk control, because the empty payload is all that was left to see.
         100002: "user not found",
+        # Bilibili, measured 2026-10-18: a video that does not exist, an author
+        # nobody has, comments on nothing and a `playurl` for a part that is
+        # not there all answer 200 with `code: -404` and "nothing here".
+        -404: "not found",
+        # Bilibili: a video hidden, under review, or shown to its uploader only;
+        # an author whose space is private; comments closed; a comment gone.
+        62002: "video not visible",
+        62004: "video under review",
+        62012: "video visible to its uploader only",
+        53013: "this user's space is private",
+        12002: "comments are closed",
+        12006: "no such comment",
     }
 )
 

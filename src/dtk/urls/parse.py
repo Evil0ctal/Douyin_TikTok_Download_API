@@ -467,6 +467,13 @@ def identify(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> UrlKind:
                 # space); one captured from the path follows path rules.
                 from_query = match.start(id_group) > len(target.path)
                 resource_id = _decode(resource_id, from_query)
+        if (
+            target.platform is Platform.BILIBILI
+            and route.resource is ResourceKind.VIDEO
+            and resource_id is not None
+            and resource_id.isdigit()
+        ):
+            resource_id, canonical = _bilibili_bvid(resource_id, canonical)
         return UrlKind(
             original=original,
             platform=target.platform,
@@ -481,6 +488,24 @@ def identify(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> UrlKind:
     return UrlKind(original=original, platform=target.platform, url=_generic_url(target))
 
 
+def _bilibili_bvid(aid: str, canonical: str) -> tuple[str, str]:
+    """An ``av`` link's id as the bvid every other path keys the video by.
+
+    Converted here, at the one place every link passes, because the archive,
+    the download index and the cache all key a Bilibili post by its bvid: an
+    ``av170001`` left as ``170001`` would download into a row nothing else can
+    find. The conversion is arithmetic (:mod:`dtk.platforms.bilibili.ids`);
+    imported late so this module still loads without the platform packages.
+    """
+    from dtk.platforms.bilibili.ids import av_to_bv
+
+    try:
+        bvid = av_to_bv(int(aid))
+    except ValueError:
+        return aid, canonical
+    return bvid, f"https://www.bilibili.com/video/{bvid}"
+
+
 def normalize(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> str:
     """Return the canonical web URL for ``url``.
 
@@ -490,7 +515,7 @@ def normalize(url: str, *, extra_hosts: frozenset[str] = frozenset()) -> str:
     kind = identify(url, extra_hosts=extra_hosts)
     if kind.url is None:
         raise InvalidUrl(
-            "not a supported Douyin or TikTok URL",
+            "not a supported Douyin, TikTok or Bilibili URL",
             details={"reason": "host_not_allowed"},
         )
     return kind.url
@@ -506,7 +531,7 @@ def require_supported(url: str, *, extra_hosts: frozenset[str] = frozenset()) ->
     kind = identify(url, extra_hosts=extra_hosts)
     if not kind.allowed:
         raise InvalidUrl(
-            "not a supported Douyin or TikTok URL",
+            "not a supported Douyin, TikTok or Bilibili URL",
             details={"reason": "host_not_allowed"},
         )
     if not kind.recognized:

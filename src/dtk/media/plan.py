@@ -53,6 +53,7 @@ IMAGE_EXTENSIONS: Final[frozenset[str]] = frozenset({"jpg", "jpeg", "png", "webp
 REFERER: Final[dict[Platform, str]] = {
     Platform.DOUYIN: "https://www.douyin.com/",
     Platform.TIKTOK: "https://www.tiktok.com/",
+    Platform.BILIBILI: "https://www.bilibili.com/",
 }
 
 #: A desktop Chrome string. The CDNs are not signing on it, but an obviously

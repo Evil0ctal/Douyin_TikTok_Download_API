@@ -42,7 +42,7 @@ from dtk.core.errors import (
     TaskNotFound,
 )
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, Scope, TaskState, UserRole
+from dtk.core.types import PLATFORM_READ_SCOPES, Platform, Scope, TaskState, UserRole
 from dtk.mcp import prose, routing
 from dtk.mcp.context import EndpointHealth, McpContext, PoolSnapshot, TaskOutcome
 from dtk.urls import first_url, identify
@@ -95,7 +95,7 @@ _TRANSCRIPTION_STAGE_MESSAGES: Final[dict[str, str]] = {
 
 PlatformArg = Annotated[
     str,
-    Field(description="Platform to query: 'douyin' or 'tiktok'."),
+    Field(description="Platform to query: 'douyin', 'tiktok' or 'bilibili'."),
 ]
 CursorArg = Annotated[
     str | None,
@@ -277,14 +277,14 @@ class ToolSet:
             str,
             Field(
                 description=(
-                    "A Douyin or TikTok link, or the share text containing one. Short links "
-                    "(v.douyin.com, vm.tiktok.com) are followed automatically."
+                    "A Douyin, TikTok or Bilibili link, or the share text containing one. Short links "
+                    "(v.douyin.com, vm.tiktok.com, b23.tv) are followed automatically."
                 )
             ),
         ],
         context: Context | None = None,
     ) -> dict[str, Any]:
-        """Fetch whatever a Douyin or TikTok link points at.
+        """Fetch whatever a Douyin, TikTok or Bilibili link points at.
 
         The entry point to use when you have a link rather than an id: it works
         out the platform and the resource type itself and returns the normalized
@@ -302,7 +302,7 @@ class ToolSet:
         kind = identify(candidate)
         if not kind.allowed or kind.platform is None:
             raise InvalidUrl(
-                "that link is not a supported Douyin or TikTok URL",
+                "that link is not a supported Douyin, TikTok or Bilibili URL",
                 details={"reason": "host_not_allowed"},
             )
         self._authorize(kind.platform, context)
@@ -326,8 +326,9 @@ class ToolSet:
             str,
             Field(
                 description=(
-                    "The post id as a string: Douyin aweme_id, TikTok item id. Always a "
-                    "string - these ids exceed the JavaScript safe integer range."
+                    "The post id as a string: Douyin aweme_id, TikTok item id, Bilibili bvid "
+                    "(an av number is accepted). Always a string - these ids exceed the "
+                    "JavaScript safe integer range."
                 )
             ),
         ],
@@ -359,7 +360,7 @@ class ToolSet:
             Field(
                 description=(
                     "Douyin: the sec_user_id (starts with 'MS4wLjAB'). TikTok: the secUid, or "
-                    "the @handle if that is all you have."
+                    "the @handle if that is all you have. Bilibili: the numeric mid."
                 )
             ),
         ],
@@ -391,8 +392,9 @@ class ToolSet:
             str,
             Field(
                 description=(
-                    "The author's stable id: Douyin sec_user_id, TikTok secUid. A TikTok "
-                    "@handle is not accepted here - call get_user first to obtain the uid."
+                    "The author's stable id: Douyin sec_user_id, TikTok secUid, Bilibili mid. "
+                    "A TikTok @handle is not accepted here - call get_user first to obtain the "
+                    "uid."
                 )
             ),
         ],
@@ -528,10 +530,10 @@ class ToolSet:
 
     async def _pool_status(self, context: Context | None = None) -> dict[str, Any]:
         caller = _caller(context)
-        if caller is not None and not caller.permits(Scope.DOUYIN_READ, Scope.TIKTOK_READ):
+        if caller is not None and not caller.permits(*PLATFORM_READ_SCOPES):
             raise ForbiddenScope(
                 "this credential lacks platform read access",
-                details=caller.denial(scopes=[Scope.DOUYIN_READ, Scope.TIKTOK_READ]),
+                details=caller.denial(scopes=PLATFORM_READ_SCOPES),
             )
         snapshot = await self._ctx.pool.snapshot()
         return {
@@ -703,14 +705,14 @@ class ToolSet:
             Field(
                 default=None,
                 description=(
-                    "A full Douyin or TikTok post URL, or share text containing one. "
+                    "A full Douyin, TikTok or Bilibili post URL, or share text containing one. "
                     "Expand short links with parse_url first."
                 ),
             ),
         ] = None,
         platform: Annotated[
             str | None,
-            Field(default=None, description="Platform: 'douyin' or 'tiktok'."),
+            Field(default=None, description="Platform: 'douyin', 'tiktok' or 'bilibili'."),
         ] = None,
         content_id: Annotated[
             str | None,

@@ -36,7 +36,7 @@ from dtk.api.deps import current_principal, enforce_rate_limit
 from dtk.core.crypto import Cipher
 from dtk.core.errors import DtkError, ForbiddenScope, Unauthenticated
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, Scope
+from dtk.core.types import PLATFORM_READ_SCOPES, Platform, Scope
 from dtk.identity.pool import IdentityPool
 from dtk.mcp.context import EndpointHealth, McpContext, PoolSnapshot
 from dtk.mcp.gateway import (
@@ -59,8 +59,7 @@ DEFAULT_PATH: Final = "/mcp"
 #: :func:`authorize_platform` - exactly as ``/api/v1/parse`` checks "any read
 #: scope" first and the resolved platform second.
 READ_SCOPES: Final[tuple[Scope, ...]] = (
-    Scope.DOUYIN_READ,
-    Scope.TIKTOK_READ,
+    *PLATFORM_READ_SCOPES,
     Scope.MEDIA_READ,
     Scope.MEDIA_WRITE,
     Scope.TRANSCRIPTION_READ,

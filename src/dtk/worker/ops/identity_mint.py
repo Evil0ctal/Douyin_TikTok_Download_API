@@ -74,15 +74,18 @@ async def run(
     proxy_id = _proxy_id(params)
 
     filler = deps.filler
-    if filler is None or not filler.enabled:
+    if filler is None or not filler.can_mint(platform):
         # No browser container: this install lives on imported cookie jars and
         # cannot mint at all. Saying so beats a task that runs and returns
         # nothing, which reads as a mint that silently did not work.
         # NotConfigured, not Internal: an install with no browser container will
         # not grow one by being retried, and Internal is advertised as
         # retryable, so an MCP agent or a retrying client would loop on it.
+        # Per platform: Bilibili guests are minted without a browser, so an
+        # install with none still mints those and refuses only the others.
         raise NotConfigured(
-            "minting needs browser-rpc; set DTK_BROWSER_RPC_URL or import cookies instead",
+            f"minting {platform.value} needs browser-rpc; set DTK_BROWSER_RPC_URL or import "
+            "cookies instead",
             details={"reason": "browser_rpc_unconfigured", "platform": platform.value},
         )
 

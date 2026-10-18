@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from dtk.api import public_endpoints as pe
-from dtk.core.types import Scope
+from dtk.core.types import PLATFORM_READ_SCOPES, Scope
 
 VIDEO = "/api/v1/{platform}/video"
 
@@ -97,7 +97,7 @@ def test_the_ban_covers_everything_under_the_prefix() -> None:
 def test_an_anonymous_caller_gets_read_scopes_only() -> None:
     principal = pe.anonymous()
 
-    assert principal.scopes == frozenset({Scope.DOUYIN_READ, Scope.TIKTOK_READ})
+    assert principal.scopes == frozenset(PLATFORM_READ_SCOPES)
     assert Scope.ADMIN not in principal.scopes
     assert principal.api_key_id is None
 

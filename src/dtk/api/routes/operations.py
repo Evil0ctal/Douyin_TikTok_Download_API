@@ -42,7 +42,7 @@ from dtk.api.routes.support import language, ok, request_id
 from dtk.core.errors import ErrorCode, Internal, TaskNotFound
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Platform, Scope, TaskState, UserRole
+from dtk.core.types import PLATFORM_READ_SCOPES, Platform, Scope, TaskState, UserRole
 from dtk.services import cache, tasks
 
 # The worker package's declared surface, not its internals: this route and
@@ -181,7 +181,7 @@ async def _attach(session: AsyncSession, digest: str) -> tuple[uuid.UUID, TaskSt
 #: these scopes for a key, and :func:`role_for_task` for a session, which
 #: passes every scope check.
 _MAINTENANCE_SCOPES: Final[tuple[Scope, ...]] = (Scope.ADMIN, Scope.IDENTITY_MANAGE)
-_READ_ANY_PLATFORM: Final[tuple[Scope, ...]] = (Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+_READ_ANY_PLATFORM: Final[tuple[Scope, ...]] = PLATFORM_READ_SCOPES
 
 
 def scopes_for_task(endpoint: str) -> tuple[Scope, ...]:

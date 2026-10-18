@@ -1114,7 +1114,12 @@ async def test_a_platform_turned_off_is_neither_minted_nor_alerted_on() -> None:
     rpc = FakeRpc()
     alerter = FakeAlerter()
     pool = PerPlatformPool({})
-    filler = make_filler(rpc, pool, alerter=alerter, config=Config({"pool.tiktok.min_size": 0}))
+    filler = make_filler(
+        rpc,
+        pool,
+        alerter=alerter,
+        config=Config({"pool.tiktok.min_size": 0, "pool.bilibili.min_size": 0}),
+    )
 
     result = await filler.tick()
 
@@ -1133,7 +1138,9 @@ async def test_each_platform_refills_against_its_own_marks() -> None:
     filler = make_filler(
         rpc,
         pool,
-        config=Config({"pool.tiktok.min_size": 6, "pool.tiktok.target_size": 10}),
+        config=Config(
+            {"pool.tiktok.min_size": 6, "pool.tiktok.target_size": 10, "pool.bilibili.min_size": 0}
+        ),
     )
 
     assert await filler.survey() is Platform.TIKTOK
@@ -1142,12 +1149,87 @@ async def test_each_platform_refills_against_its_own_marks() -> None:
 async def test_turning_a_platform_off_mid_refill_stops_it() -> None:
     rpc = FakeRpc()
     pool = PerPlatformPool({Platform.DOUYIN: {"active": 8}})
-    settings: dict[str, Any] = {}
+    # Bilibili off, so the two platforms this is about are the only candidates.
+    settings: dict[str, Any] = {"pool.bilibili.min_size": 0}
     filler = make_filler(rpc, pool, config=lambda: Config(settings))
 
     assert await filler.survey() is Platform.TIKTOK
     settings["pool.tiktok.min_size"] = 0
     assert await filler.survey() is None
+
+
+class FakeNativeMinter:
+    """The Bilibili minter: plain HTTP, no browser."""
+
+    platforms = frozenset({Platform.BILIBILI})
+
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.error = error
+        self.mints: list[Platform] = []
+
+    def supports(self, platform: Platform) -> bool:
+        return platform in self.platforms
+
+    async def mint(self, platform: Platform, *, proxy_url: str | None, geo_hint: Any) -> Any:
+        from dtk.core.types import BrowserFamily
+        from dtk.transport import Fingerprint
+
+        if self.error is not None:
+            raise self.error
+        self.mints.append(platform)
+        return SimpleNamespace(
+            cookies={"buvid3": "x"},
+            fingerprint=Fingerprint(browser_family=BrowserFamily.CHROME, browser_major=131),
+            exit_ip=None,
+        )
+
+
+async def test_without_a_browser_only_bilibili_is_refilled() -> None:
+    """Its guests are plain HTTP. Douyin and TikTok are still below their marks
+    and still alerted on, but choosing them every tick would starve the one
+    platform this install can refill."""
+    native = FakeNativeMinter()
+    alerter = FakeAlerter()
+    pool = PerPlatformPool({})
+    filler = make_filler(FakeRpc(configured=False), pool, alerter=alerter, native=native)
+
+    assert filler.enabled is True
+    result = await filler.tick()
+
+    assert result.minted is True
+    assert result.platform is Platform.BILIBILI
+    assert native.mints == [Platform.BILIBILI]
+    assert {args["platform"] for _, args in alerter.sent} == {p.value for p in Platform}
+
+
+async def test_bilibili_is_never_sent_to_the_browser() -> None:
+    rpc = FakeRpc()
+    native = FakeNativeMinter()
+    pool = PerPlatformPool({})
+    filler = make_filler(rpc, pool, native=native)
+
+    result = await filler.top_up_once(Platform.BILIBILI)
+
+    assert result.minted is True
+    assert (native.mints, rpc.mints) == ([Platform.BILIBILI], 0)
+
+
+async def test_a_platform_this_filler_cannot_mint_is_refused_by_name() -> None:
+    filler = make_filler(FakeRpc(configured=False), PerPlatformPool({}), native=FakeNativeMinter())
+    result = await filler.top_up_once(Platform.DOUYIN)
+    assert (result.minted, result.reason) == (False, "disabled")
+
+
+async def test_a_refused_native_mint_backs_off_like_a_browser_failure() -> None:
+    from dtk.identity.minting import NativeMintFailed
+
+    native = FakeNativeMinter(error=NativeMintFailed("finger/spi answered HTTP 412"))
+    filler = make_filler(FakeRpc(configured=False), PerPlatformPool({}), native=native)
+
+    result = await filler.top_up_once(Platform.BILIBILI)
+
+    assert (result.minted, result.reason) == (False, "mint_refused")
+    assert filler.failures == 1
 
 
 async def test_pool_alerts_are_delivered_with_no_transaction_open() -> None:
@@ -1938,3 +2020,38 @@ async def test_a_failed_lookup_leaves_the_original_refusal_in_place() -> None:
     assert resolved == dict(run.params)
     with pytest.raises(InvalidParam):
         registry.resolve("tiktok.author_posts", resolved, Config.defaults())
+
+
+async def test_a_bilibili_mid_is_an_id_and_not_a_handle_to_look_up() -> None:
+    """Found by the end-to-end run: a number that is not a sec uid was read as
+    a handle and looked up through a profile parameter Bilibili does not have,
+    so every Bilibili author call failed before it was sent."""
+    fetch = FakeFetch()
+    worker, _ = make_worker(FakeStore(), fetch)
+    run = a_run("bilibili.author_posts", sec_user_id="670061998")
+
+    resolved = await worker._resolve_author_handle("bilibili.author_posts", dict(run.params), run)
+
+    assert fetch.calls == []
+    assert registry.resolve("bilibili.author_posts", resolved, Config.defaults()).params["mid"] == (
+        "670061998"
+    )
+
+
+async def test_a_browser_that_is_down_does_not_stop_bilibili_refilling() -> None:
+    """Two routes, two backoffs: a Bilibili guest touches no browser."""
+    from dtk.identity.minting import BrowserRpcUnavailable
+
+    now = {"t": 1000.0}
+    rpc = FakeRpc(error=BrowserRpcUnavailable("browser is down"))
+    native = FakeNativeMinter()
+    # Douyin is the neediest, so it is tried first and fails.
+    pool = PerPlatformPool({Platform.BILIBILI: {"active": 1}, Platform.TIKTOK: {"active": 8}})
+    filler = make_filler(rpc, pool, native=native, clock=lambda: now["t"])
+
+    first = await filler.tick()
+    assert (first.platform, first.minted) == (Platform.DOUYIN, False)
+
+    second = await filler.tick()
+    assert (second.platform, second.minted) == (Platform.BILIBILI, True)
+    assert native.mints == [Platform.BILIBILI]

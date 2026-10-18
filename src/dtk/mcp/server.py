@@ -64,7 +64,7 @@ SERVER_NAME: Final = "dtk"
 #: prevent the two mistakes that waste the most turns: paging by hand through
 #: ids the tools accept as links, and retrying a permanent failure.
 INSTRUCTIONS: Final = (
-    "Douyin and TikTok data, served from a self-hosted identity pool.\n"
+    "Douyin, TikTok and Bilibili data, served from a self-hosted identity pool.\n"
     "\n"
     "Start from parse_url when you have a link; use get_video, get_user, "
     "list_user_posts and list_comments when you already have ids. Ids are always "

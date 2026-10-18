@@ -39,6 +39,10 @@ MAX_PAGE_SIZE: Final[Mapping[Platform, int]] = MappingProxyType(
     {
         Platform.DOUYIN: 50,
         Platform.TIKTOK: 35,
+        # The folder list caps a page at 20, and it is the strictest of the
+        # Bilibili endpoints that take a size; one ceiling per platform means
+        # the strictest one is the ceiling.
+        Platform.BILIBILI: 20,
     }
 )
 

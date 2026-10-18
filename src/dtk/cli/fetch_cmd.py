@@ -30,7 +30,9 @@ log = get_logger(__name__)
 
 
 def fetch(
-    url: Annotated[str, typer.Argument(help="A Douyin or TikTok link, or pasted share text")],
+    url: Annotated[
+        str, typer.Argument(help="A Douyin, TikTok or Bilibili link, or pasted share text")
+    ],
     raw: Annotated[
         bool, typer.Option("--raw", help="Include the platform's own payload in the output")
     ] = False,

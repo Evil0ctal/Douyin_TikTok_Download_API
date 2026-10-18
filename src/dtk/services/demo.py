@@ -47,7 +47,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dtk.core.crypto import Cipher, new_api_key
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import Scope, UserRole
+from dtk.core.types import PLATFORM_READ_SCOPES, Scope, UserRole
 from dtk.db.models import ApiKey, User
 
 log = get_logger(__name__)
@@ -74,7 +74,7 @@ DEMO_KEY_NAME: Final = "demo (public)"
 #: Notably absent: `archive:read` and `archive:export`, so the published key
 #: cannot walk what this instance has already collected, and `media:write`, so
 #: it cannot spend the operator's disk.
-DEMO_KEY_SCOPES: Final[tuple[Scope, ...]] = (Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+DEMO_KEY_SCOPES: Final[tuple[Scope, ...]] = PLATFORM_READ_SCOPES
 
 #: Words the generated password is built from. Readable on purpose: this string
 #: is going to be copied off a web page into a README and typed back in by

@@ -75,11 +75,18 @@ DOUYIN_DOMAINS: frozenset[str] = frozenset(
 #: Registrable domains owned by TikTok. Covers ``www``, ``m``, ``vm``, ``vt``.
 TIKTOK_DOMAINS: frozenset[str] = frozenset({"tiktok.com"})
 
-ALLOWED_DOMAINS: frozenset[str] = DOUYIN_DOMAINS | TIKTOK_DOMAINS
+#: Registrable domains owned by Bilibili: the site (``www``, ``m``, ``space``,
+#: ``player``) and the two short-link hosts its apps share with. The
+#: international ``bilibili.tv`` is a different service with a different API
+#: and is deliberately absent.
+BILIBILI_DOMAINS: frozenset[str] = frozenset({"bilibili.com", "b23.tv", "bili2233.cn"})
+
+ALLOWED_DOMAINS: frozenset[str] = DOUYIN_DOMAINS | TIKTOK_DOMAINS | BILIBILI_DOMAINS
 
 PLATFORM_BY_DOMAIN: dict[str, Platform] = {
     **dict.fromkeys(DOUYIN_DOMAINS, Platform.DOUYIN),
     **dict.fromkeys(TIKTOK_DOMAINS, Platform.TIKTOK),
+    **dict.fromkeys(BILIBILI_DOMAINS, Platform.BILIBILI),
 }
 
 #: Hosts whose entire purpose is to redirect. A URL on one of these is opaque
@@ -90,6 +97,8 @@ SHORT_LINK_HOSTS: frozenset[str] = frozenset(
         "v.amemv.com",
         "vm.tiktok.com",
         "vt.tiktok.com",
+        "b23.tv",
+        "bili2233.cn",
     }
 )
 
@@ -106,6 +115,10 @@ BARE_URL_HOSTS: frozenset[str] = SHORT_LINK_HOSTS | frozenset(
         "tiktok.com",
         "www.tiktok.com",
         "m.tiktok.com",
+        "bilibili.com",
+        "www.bilibili.com",
+        "m.bilibili.com",
+        "space.bilibili.com",
     }
 )
 
@@ -233,6 +246,24 @@ TRACKING_PARAMS: frozenset[str] = frozenset(
         "verifyFp",
         "web_id",
         "with_sec_did",
+        # Bilibili's share and analytics parameters. `buvid` is the sharer's
+        # device id, `vd_source` a hash of who shared it; neither selects the
+        # video. `p` (the part) and `t` (the start time) are kept.
+        "bbid",
+        "buvid",
+        "from_spmid",
+        "plat_id",
+        "share_from",
+        "share_medium",
+        "share_plat",
+        "share_session_id",
+        "share_source",
+        "share_tag",
+        "spm_id_from",
+        "ts",
+        "unique_k",
+        "up_id",
+        "vd_source",
     }
 )
 
@@ -513,9 +544,66 @@ TIKTOK_ROUTES: tuple[Route, ...] = (
     ),
 )
 
+#: ``BV1`` and nine characters of Bilibili's base-58 alphabet, which leaves out
+#: ``0``, ``I``, ``O`` and ``l``. See :mod:`dtk.platforms.bilibili.ids`.
+_BVID = r"BV1[1-9A-HJ-NP-Za-km-z]{9}"
+
+#: Bilibili. A video is named by its bvid in every current link, and by its av
+#: number in old ones and in many pasted ids; both are a VIDEO here and the
+#: platform layer turns an av number into the bvid it is.
+BILIBILI_ROUTES: tuple[Route, ...] = (
+    Route(
+        re.compile(rf"^/(?:s/)?video/(?P<id>{_BVID})"),
+        ResourceKind.VIDEO,
+        "https://www.bilibili.com/video/{id}",
+        content_kind=ContentKind.VIDEO,
+        hosts=frozenset({"www.bilibili.com", "bilibili.com", "m.bilibili.com"}),
+    ),
+    Route(
+        re.compile(r"^/(?:s/)?video/[aA][vV](?P<id>\d+)"),
+        ResourceKind.VIDEO,
+        "https://www.bilibili.com/video/av{id}",
+        content_kind=ContentKind.VIDEO,
+        hosts=frozenset({"www.bilibili.com", "bilibili.com", "m.bilibili.com"}),
+    ),
+    # The embedded player: player.bilibili.com/player.html?bvid=BV...&cid=...
+    Route(
+        re.compile(rf"[?&]bvid=(?P<id>{_BVID})"),
+        ResourceKind.VIDEO,
+        "https://www.bilibili.com/video/{id}",
+        content_kind=ContentKind.VIDEO,
+    ),
+    # A folder, from the space page or the playlist view.
+    Route(
+        re.compile(r"^/\d+/favlist\b[^?#]*\?(?:[^#]*&)?fid=(?P<id>\d+)"),
+        ResourceKind.COLLECTION,
+        "https://www.bilibili.com/list/ml{id}",
+        hosts=frozenset({"space.bilibili.com"}),
+    ),
+    Route(
+        re.compile(r"^/(?:list|medialist/detail)/ml(?P<id>\d+)"),
+        ResourceKind.COLLECTION,
+        "https://www.bilibili.com/list/ml{id}",
+        hosts=frozenset({"www.bilibili.com", "bilibili.com"}),
+    ),
+    Route(
+        re.compile(r"^/(?P<id>\d+)(?:/(?:video|upload|dynamic|favlist)?)?/?(?:[?#]|$)"),
+        ResourceKind.USER,
+        "https://space.bilibili.com/{id}",
+        hosts=frozenset({"space.bilibili.com"}),
+    ),
+    Route(
+        re.compile(r"^/space/(?P<id>\d+)"),
+        ResourceKind.USER,
+        "https://space.bilibili.com/{id}",
+        hosts=frozenset({"m.bilibili.com"}),
+    ),
+)
+
 ROUTES_BY_PLATFORM: dict[Platform, tuple[Route, ...]] = {
     Platform.DOUYIN: DOUYIN_ROUTES,
     Platform.TIKTOK: TIKTOK_ROUTES,
+    Platform.BILIBILI: BILIBILI_ROUTES,
 }
 
 
@@ -525,6 +613,8 @@ __all__ = [
     "ANY_URL_IN_TEXT_RE",
     "BARE_URL_HOSTS",
     "BARE_URL_IN_TEXT_RE",
+    "BILIBILI_DOMAINS",
+    "BILIBILI_ROUTES",
     "BLOCKED_HOSTNAMES",
     "BLOCKED_HOST_SUFFIXES",
     "DEFAULT_PORTS",

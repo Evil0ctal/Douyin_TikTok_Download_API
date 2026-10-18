@@ -1,0 +1,156 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "info": {
+      "id": 40000001,
+      "fid": 400000,
+      "mid": 10000032,
+      "attr": 20,
+      "title": "Synthetic video title",
+      "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+      "upper": {
+        "mid": 10000032,
+        "name": "Synthetic Creator",
+        "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+        "followed": false,
+        "vip_type": 2,
+        "vip_statue": 1
+      },
+      "cover_type": 2,
+      "cnt_info": {
+        "collect": 26,
+        "play": 10241,
+        "thumb_up": 23,
+        "share": 0
+      },
+      "type": 11,
+      "intro": "",
+      "ctime": 1450763998,
+      "mtime": 1594568667,
+      "state": 0,
+      "fav_state": 0,
+      "like_state": 0,
+      "media_count": 24,
+      "is_top": false,
+      "is_kid_playlist": false,
+      "kid_playlist_desc": ""
+    },
+    "medias": [
+      {
+        "id": 100000025,
+        "type": 2,
+        "title": "Synthetic video title",
+        "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+        "intro": "Synthetic folder intro",
+        "page": 1,
+        "duration": 158,
+        "upper": {
+          "mid": 10000033,
+          "name": "Synthetic Creator",
+          "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+          "jump_link": ""
+        },
+        "attr": 0,
+        "cnt_info": {
+          "collect": 2486,
+          "play": 146354,
+          "danmaku": 957,
+          "vt": 0,
+          "play_switch": 0,
+          "reply": 0,
+          "view_text_1": "14.6万"
+        },
+        "link": "https://www.example-cdn.invalid/synthetic",
+        "ctime": 1652197793,
+        "pubtime": 1652197792,
+        "fav_time": 1654104873,
+        "bv_id": "BV1y7411Q7x1",
+        "bvid": "BV1y7411Q7x1",
+        "season": null,
+        "ogv": null,
+        "ugc": {
+          "first_cid": 717075532
+        },
+        "media_list_link": "https://www.example-cdn.invalid/synthetic"
+      },
+      {
+        "id": 100000026,
+        "type": 2,
+        "title": "Synthetic video title",
+        "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+        "intro": "https://cdn.example-cdn.invalid/watch",
+        "page": 1,
+        "duration": 139,
+        "upper": {
+          "mid": 10000034,
+          "name": "Synthetic Creator",
+          "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+          "jump_link": ""
+        },
+        "attr": 0,
+        "cnt_info": {
+          "collect": 216559,
+          "play": 8989568,
+          "danmaku": 10786,
+          "vt": 0,
+          "play_switch": 0,
+          "reply": 0,
+          "view_text_1": "898.9万"
+        },
+        "link": "https://www.example-cdn.invalid/synthetic",
+        "ctime": 1640918717,
+        "pubtime": 1640918717,
+        "fav_time": 1641222056,
+        "bv_id": "BV1y7411Q7xy",
+        "bvid": "BV1y7411Q7xy",
+        "season": null,
+        "ogv": null,
+        "ugc": {
+          "first_cid": 473025580
+        },
+        "media_list_link": "https://www.example-cdn.invalid/synthetic"
+      },
+      {
+        "id": 100000027,
+        "type": 2,
+        "title": "Synthetic video title",
+        "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+        "intro": "https://cdn.example-cdn.invalid/watch",
+        "page": 1,
+        "duration": 83,
+        "upper": {
+          "mid": 10000035,
+          "name": "Synthetic Creator",
+          "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+          "jump_link": ""
+        },
+        "attr": 0,
+        "cnt_info": {
+          "collect": 543589,
+          "play": 32524378,
+          "danmaku": 21207,
+          "vt": 0,
+          "play_switch": 0,
+          "reply": 0,
+          "view_text_1": "3252.4万"
+        },
+        "link": "https://www.example-cdn.invalid/synthetic",
+        "ctime": 1631568595,
+        "pubtime": 1631568595,
+        "fav_time": 1633591006,
+        "bv_id": "BV1y7411Q7xC",
+        "bvid": "BV1y7411Q7xC",
+        "season": null,
+        "ogv": null,
+        "ugc": {
+          "first_cid": 407888077
+        },
+        "media_list_link": "https://www.example-cdn.invalid/synthetic"
+      }
+    ],
+    "has_more": true,
+    "ttl": 1792321736
+  }
+}

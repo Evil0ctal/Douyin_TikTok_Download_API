@@ -534,7 +534,7 @@ async def test_missing_identifier_is_an_invalid_param(client: Any) -> None:
 
 async def test_an_unknown_platform_is_a_validation_error(client: Any) -> None:
     await signed_in(client)
-    response = await client.get("/api/v1/bilibili/video", params={"aweme_id": "1"})
+    response = await client.get("/api/v1/weibo/video", params={"aweme_id": "1"})
     assert response.status_code == 400
     assert error_code(response) == "INVALID_PARAM"
 

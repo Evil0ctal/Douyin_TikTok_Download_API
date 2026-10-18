@@ -40,7 +40,8 @@ Two things it does that V4 did not:
 from __future__ import annotations
 
 import random
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from urllib.parse import quote, unquote
 
 from dtk.core.errors import SigningFailed
@@ -58,7 +59,7 @@ from dtk.signing.base import (
     SigningSession,
     encode_query,
 )
-from dtk.signing.native import tiktok_sign, websign
+from dtk.signing.native import tiktok_sign, wbi, websign
 from dtk.signing.native.abogus import (
     DEFAULT_BROWSER_INFO,
     ABogus,
@@ -69,6 +70,7 @@ from dtk.signing.native.tokens import (
     TIKTOK_MS_TOKEN_LENGTH,
     gen_false_ms_token,
 )
+from dtk.signing.native.wbi_keys import KeySource, NavKeySource
 from dtk.signing.native.xbogus import XBogus
 
 logger = get_logger(__name__)
@@ -76,7 +78,7 @@ logger = get_logger(__name__)
 #: Algorithms this signer can produce. ``_signature`` needs the site's own
 #: JavaScript and is browser-rpc only.
 NATIVE_ALGORITHMS: frozenset[SignatureAlgorithm] = frozenset(
-    {SignatureAlgorithm.A_BOGUS, SignatureAlgorithm.X_BOGUS}
+    {SignatureAlgorithm.A_BOGUS, SignatureAlgorithm.X_BOGUS, SignatureAlgorithm.WBI}
 )
 
 #: Fake msToken length per platform.
@@ -123,6 +125,8 @@ class NativeSigner:
         algorithm: SignatureAlgorithm | None = None,
         fill_ms_token: bool = True,
         rng: random.Random | None = None,
+        wbi_keys: KeySource | None = None,
+        wall_clock: Callable[[], float] = time.time,
     ) -> None:
         resolved = algorithm or DEFAULT_ALGORITHMS[platform]
         if resolved not in NATIVE_ALGORITHMS:
@@ -131,6 +135,9 @@ class NativeSigner:
         self.algorithm = resolved
         self.fill_ms_token = fill_ms_token
         self._rng = rng or random.Random()
+        # Only Bilibili's signer ever asks for keys; the others never build one.
+        self._wbi_keys = wbi_keys
+        self._wall_clock = wall_clock
 
     async def sign(
         self,
@@ -172,6 +179,8 @@ class NativeSigner:
 
         if self.platform is Platform.TIKTOK:
             return self._sign_tiktok(spec, params, user_agent, session)
+        if self.platform is Platform.BILIBILI:
+            return await self._sign_bilibili(spec, params)
 
         if self.fill_ms_token and not params.get(MS_TOKEN_PARAM):
             # Caller, then jar, then invention - the same precedence
@@ -272,6 +281,36 @@ class NativeSigner:
             algorithm=self.algorithm,
         )
 
+    async def _sign_bilibili(self, spec: RequestSpec, params: dict[str, str]) -> SignedParams:
+        """WBI over the sorted query; see :mod:`dtk.signing.native.wbi`.
+
+        Nothing from the identity goes in. The keys are public, the timestamp is
+        the clock, and Bilibili has no ``msToken`` - so the jar and the
+        fingerprint, which every other platform here folds into its signature,
+        are carried by the transport alone.
+        """
+        if self._wbi_keys is None:
+            self._wbi_keys = NavKeySource()
+        keys = await self._wbi_keys.keys()
+        wts = int(self._wall_clock())
+        try:
+            query, w_rid = wbi.sign(params, keys, wts=wts)
+        except ValueError as exc:
+            raise SigningFailed(f"w_rid could not be computed: {exc}") from exc
+        logger.debug(
+            "signing.native.signed",
+            platform=self.platform.value,
+            endpoint=spec.endpoint,
+            algorithm=self.algorithm.value,
+            web_signed=False,
+        )
+        return SignedParams(
+            query=query,
+            params={wbi.TIMESTAMP_PARAM: str(wts), wbi.SIGNATURE_PARAM: w_rid},
+            signer=self.name,
+            algorithm=self.algorithm,
+        )
+
     @staticmethod
     def _add_web_signature(
         query: str, session: SigningSession
@@ -363,11 +402,14 @@ def _split_pair(part: str) -> tuple[str, str]:
 
 
 def native_signers(
-    *, rng: random.Random | None = None, fill_ms_token: bool = True
+    *,
+    rng: random.Random | None = None,
+    fill_ms_token: bool = True,
+    wbi_keys: KeySource | None = None,
 ) -> dict[Platform, NativeSigner]:
     """One native signer per supported platform, ready for the registry."""
     return {
-        platform: NativeSigner(platform, rng=rng, fill_ms_token=fill_ms_token)
+        platform: NativeSigner(platform, rng=rng, fill_ms_token=fill_ms_token, wbi_keys=wbi_keys)
         for platform in DEFAULT_ALGORITHMS
     }
 

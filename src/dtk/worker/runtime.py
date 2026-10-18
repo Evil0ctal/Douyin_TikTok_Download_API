@@ -120,7 +120,7 @@ async def build_runtime(
     channels - and those still need a restart. The ones passed as
     ``config_source`` follow the database.
     """
-    from dtk.identity.minting import BrowserRpcClient
+    from dtk.identity.minting import BrowserRpcClient, NativeMinter
     from dtk.media import DownloaderClient
     from dtk.ops.notify import notifier_from_config, signing_alert_hook
     from dtk.platforms.base import RequestSpec as PlatformRequestSpec
@@ -262,6 +262,9 @@ async def build_runtime(
         config=config_source,
         options=filler_options,
         alerter=notifier,
+        # Bilibili guests are plain HTTP, minted through the same transport the
+        # identity will then use; no browser container needed for them.
+        native=NativeMinter(transport),
     )
     prober = ProxyProber(
         cipher=cipher,

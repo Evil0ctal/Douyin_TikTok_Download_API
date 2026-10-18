@@ -1,0 +1,331 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "bvid": "BV1y7411Q74g",
+    "aid": 100000001,
+    "videos": 1,
+    "tid": 193,
+    "tid_v2": 2017,
+    "tname": "",
+    "tname_v2": "",
+    "copyright": 1,
+    "pic": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+    "title": "Synthetic video title",
+    "pubdate": 1791808200,
+    "ctime": 1791807017,
+    "desc": "Synthetic description line one.\nSynthetic description line two.",
+    "desc_v2": [
+      {
+        "raw_text": "Synthetic description line one.\nSynthetic description line two.",
+        "type": 1,
+        "biz_id": 0
+      }
+    ],
+    "state": 0,
+    "duration": 223,
+    "rights": {
+      "bp": 0,
+      "elec": 0,
+      "download": 1,
+      "movie": 0,
+      "pay": 0,
+      "hd5": 0,
+      "no_reprint": 1,
+      "autoplay": 1,
+      "ugc_pay": 0,
+      "is_cooperation": 1,
+      "ugc_pay_preview": 0,
+      "no_background": 0,
+      "clean_mode": 0,
+      "is_stein_gate": 0,
+      "is_360": 0,
+      "no_share": 0,
+      "arc_pay": 0,
+      "free_watch": 0
+    },
+    "owner": {
+      "mid": 10000001,
+      "name": "Synthetic Creator",
+      "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg"
+    },
+    "stat": {
+      "aid": 100000001,
+      "view": 3018918,
+      "danmaku": 16995,
+      "reply": 13145,
+      "favorite": 52321,
+      "coin": 57041,
+      "share": 35013,
+      "now_rank": 0,
+      "his_rank": 4,
+      "like": 138689,
+      "dislike": 0,
+      "evaluation": "",
+      "vt": 0
+    },
+    "argue_info": {
+      "argue_msg": "",
+      "argue_type": 0,
+      "argue_link": ""
+    },
+    "dynamic": "",
+    "cid": 20000001,
+    "dimension": {
+      "width": 3840,
+      "height": 2160,
+      "rotate": 0
+    },
+    "premiere": null,
+    "teenage_mode": 1,
+    "is_chargeable_season": false,
+    "is_story": false,
+    "is_upower_exclusive": false,
+    "is_upower_play": false,
+    "is_upower_preview": false,
+    "enable_vt": 0,
+    "vt_display": "",
+    "is_upower_exclusive_with_qa": false,
+    "is_hua_sheng": false,
+    "no_cache": false,
+    "pages": [
+      {
+        "cid": 20000001,
+        "page": 1,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 223,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 3840,
+          "height": 2160,
+          "rotate": 0
+        },
+        "first_frame": "https://cdn.example-cdn.invalid/bfs/storyff/_00000xai3dfhyi1ri2gtvscczh1fgeb_firsti.jpg",
+        "ctime": 1791807017
+      }
+    ],
+    "subtitle": {
+      "allow_submit": false,
+      "list": [
+        {
+          "id": 2130579961671841536,
+          "lan": "zh",
+          "lan_doc": "中文",
+          "is_lock": false,
+          "subtitle_url": "",
+          "type": 0,
+          "id_str": "2130579961671841536",
+          "ai_type": 0,
+          "ai_status": 0,
+          "subtitle_height": null,
+          "author": {
+            "mid": 0,
+            "name": "",
+            "sex": "",
+            "face": "",
+            "sign": "",
+            "rank": 0,
+            "birthday": 0,
+            "is_fake_account": 0,
+            "is_deleted": 0,
+            "in_reg_audit": 0,
+            "is_senior_member": 0,
+            "name_render": null,
+            "handle": ""
+          }
+        },
+        {
+          "id": 2128332483794993408,
+          "lan": "ko",
+          "lan_doc": "한국어",
+          "is_lock": false,
+          "subtitle_url": "",
+          "type": 0,
+          "id_str": "2128332483794993408",
+          "ai_type": 0,
+          "ai_status": 0,
+          "subtitle_height": null,
+          "author": {
+            "mid": 0,
+            "name": "",
+            "sex": "",
+            "face": "",
+            "sign": "",
+            "rank": 0,
+            "birthday": 0,
+            "is_fake_account": 0,
+            "is_deleted": 0,
+            "in_reg_audit": 0,
+            "is_senior_member": 0,
+            "name_render": null,
+            "handle": ""
+          }
+        }
+      ]
+    },
+    "label": {
+      "type": 1
+    },
+    "staff": [
+      {
+        "mid": 10000001,
+        "title": "Synthetic video title",
+        "name": "Synthetic Creator",
+        "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+        "vip": {
+          "type": 2,
+          "status": 1,
+          "due_date": 1823356800000,
+          "vip_pay_type": 1,
+          "theme_type": 0,
+          "label": {
+            "path": "https://cdn.example-cdn.invalid/bfs/vip/label_annual.png",
+            "text": "年度大会员",
+            "label_theme": "annual_vip",
+            "text_color": "#FFFFFF",
+            "bg_style": 1,
+            "bg_color": "#FB7299",
+            "border_color": "",
+            "use_img_label": true,
+            "img_label_uri_hans": "",
+            "img_label_uri_hant": "",
+            "img_label_uri_hans_static": "https://cdn.example-cdn.invalid/bfs/vip/synthetic.png",
+            "img_label_uri_hant_static": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220614/00000000000000000000000000000000/VEW8fCC0hg.png",
+            "label_id": -22,
+            "label_goto": {
+              "mobile": "https://cdn.example-cdn.invalid/mobile/index",
+              "pc_web": "https://cdn.example-cdn.invalid/big"
+            },
+            "img_label_uri_i18n": "",
+            "img_label_uri_i18n_static": "",
+            "label_type": 1
+          },
+          "avatar_subscript": 1,
+          "nickname_color": "#FB7299",
+          "role": 3,
+          "avatar_subscript_url": "",
+          "tv_vip_status": 0,
+          "tv_vip_pay_type": 0,
+          "tv_due_date": 0,
+          "avatar_icon": {
+            "icon_type": 1,
+            "icon_resource": {}
+          },
+          "ott_info": {
+            "vip_type": 0,
+            "pay_type": 0,
+            "pay_channel_id": "",
+            "status": 0,
+            "overdue_time": 0
+          },
+          "super_vip": {
+            "is_super_vip": false
+          }
+        },
+        "official": {
+          "role": 3,
+          "title": "Synthetic video title",
+          "desc": "",
+          "type": 1
+        },
+        "follower": 107808,
+        "label_style": 0
+      },
+      {
+        "mid": 10000002,
+        "title": "Synthetic video title",
+        "name": "Synthetic Creator",
+        "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+        "vip": {
+          "type": 2,
+          "status": 1,
+          "due_date": 1823097600000,
+          "vip_pay_type": 0,
+          "theme_type": 0,
+          "label": {
+            "path": "https://cdn.example-cdn.invalid/bfs/vip/label_annual.png",
+            "text": "年度大会员",
+            "label_theme": "annual_vip",
+            "text_color": "#FFFFFF",
+            "bg_style": 1,
+            "bg_color": "#FB7299",
+            "border_color": "",
+            "use_img_label": true,
+            "img_label_uri_hans": "",
+            "img_label_uri_hant": "",
+            "img_label_uri_hans_static": "https://cdn.example-cdn.invalid/bfs/vip/synthetic.png",
+            "img_label_uri_hant_static": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/20220614/00000000000000000000000000000000/VEW8fCC0hg.png",
+            "label_id": -22,
+            "label_goto": {
+              "mobile": "https://cdn.example-cdn.invalid/mobile/index",
+              "pc_web": "https://cdn.example-cdn.invalid/big"
+            },
+            "img_label_uri_i18n": "",
+            "img_label_uri_i18n_static": "",
+            "label_type": 1
+          },
+          "avatar_subscript": 1,
+          "nickname_color": "#FB7299",
+          "role": 3,
+          "avatar_subscript_url": "",
+          "tv_vip_status": 0,
+          "tv_vip_pay_type": 0,
+          "tv_due_date": 0,
+          "avatar_icon": {
+            "icon_type": 1,
+            "icon_resource": {}
+          },
+          "ott_info": {
+            "vip_type": 0,
+            "pay_type": 0,
+            "pay_channel_id": "",
+            "status": 0,
+            "overdue_time": 0
+          },
+          "super_vip": {
+            "is_super_vip": false
+          }
+        },
+        "official": {
+          "role": 2,
+          "title": "Synthetic video title",
+          "desc": "",
+          "type": 0
+        },
+        "follower": 85273,
+        "label_style": 0
+      }
+    ],
+    "is_season_display": false,
+    "honor_reply": {
+      "honor": [
+        {
+          "aid": 100000001,
+          "type": 2,
+          "desc": "Synthetic description line one.\nSynthetic description line two.",
+          "weekly_recommend_num": 395
+        },
+        {
+          "aid": 100000001,
+          "type": 3,
+          "desc": "Synthetic description line one.\nSynthetic description line two.",
+          "weekly_recommend_num": 0
+        },
+        {
+          "aid": 100000001,
+          "type": 7,
+          "desc": "Synthetic description line one.\nSynthetic description line two.",
+          "weekly_recommend_num": 0
+        }
+      ]
+    },
+    "like_icon": "",
+    "need_jump_bv": false,
+    "disable_show_up_info": false,
+    "is_story_play": 1,
+    "is_view_self": false
+  }
+}

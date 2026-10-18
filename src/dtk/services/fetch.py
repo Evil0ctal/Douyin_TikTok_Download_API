@@ -604,7 +604,8 @@ class FetchService:
                 # endpoint answers in a shape this build cannot read.
                 raise UpstreamChanged("response.body", platform=platform.value)
 
-            parsed = parse(call.payload)
+            payload = await self._follow_up(session, adapter, endpoint, call.payload, ctx)
+            parsed = parse(payload)
             result = _dump(parsed, include_raw=ctx.include_raw)
             guest_fallback = (
                 login is LoginNeed.PREFERRED
@@ -630,6 +631,59 @@ class FetchService:
             )
 
         raise Internal("unreachable")
+
+    async def _follow_up(
+        self,
+        session: AsyncSession,
+        adapter: PlatformAdapter,
+        endpoint: str,
+        payload: dict[str, Any],
+        ctx: FetchContext,
+    ) -> dict[str, Any]:
+        """The second call an answer asked for, folded in - or the answer alone.
+
+        Made through :meth:`_call_once` like any other call: scheduled on the
+        pool, signed, classified and written to the request log under its own
+        endpoint name, so it is neither free nor invisible. A pinned request
+        stays on its identity.
+
+        Its failure is not the request's. Bilibili's detail is a real answer
+        without its ``playurl``; refusing it because the second call was
+        rate-limited would turn a missing stream into a missing post.
+        """
+        plan = adapter.follow_up(endpoint, payload)
+        if plan is None:
+            return payload
+        spec = adapter.endpoints.specs.get(plan.endpoint)
+        login = spec.login_for(plan.params) if spec is not None else LoginNeed.NONE
+        try:
+            extra = await self._call_once(
+                session,
+                adapter,
+                plan.endpoint,
+                dict(plan.params),
+                ctx,
+                started=time.monotonic(),
+                login=login,
+            )
+        except DtkError as exc:
+            log.warning(
+                "fetch.follow_up_refused",
+                endpoint=plan.endpoint,
+                after=endpoint,
+                error=exc.code.value,
+            )
+            return payload
+        if extra.outcome is not Outcome.OK or extra.payload is None:
+            log.warning(
+                "fetch.follow_up_failed",
+                endpoint=plan.endpoint,
+                after=endpoint,
+                outcome=extra.outcome.value,
+                error=extra.error_code,
+            )
+            return payload
+        return plan.merge(payload, extra.payload)
 
     async def _log_request(
         self,

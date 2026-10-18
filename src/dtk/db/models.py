@@ -216,7 +216,9 @@ class Identity(Base):
 
     __tablename__ = "identities"
     __table_args__ = (
-        CheckConstraint("platform IN ('douyin','tiktok')", name="ck_identities_platform"),
+        CheckConstraint(
+            "platform IN ('douyin','tiktok','bilibili')", name="ck_identities_platform"
+        ),
         CheckConstraint("source IN ('minted','imported')", name="ck_identities_source"),
         # The scheduler's candidate query: healthy identities of one platform,
         # least recently used first.

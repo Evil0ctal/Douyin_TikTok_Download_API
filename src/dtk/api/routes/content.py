@@ -50,7 +50,7 @@ from dtk.core.errors import (
     UnsupportedContent,
 )
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, Scope
+from dtk.core.types import PLATFORM_READ_SCOPES, Platform, Scope
 from dtk.i18n.messages import render_error
 from dtk.platforms.paging import max_page_size
 from dtk.urls import ResourceKind, UrlKind, first_url, identify, require_content_id
@@ -138,7 +138,12 @@ IDENTITY_QUERY = Query(
         "is never served from another identity and never from the response cache."
     ),
 )
-PLATFORM_PATH = Path(description="Platform the request is addressed to: douyin or tiktok.")
+PLATFORM_PATH = Path(
+    description=(
+        "Platform the request is addressed to: douyin, tiktok or bilibili. Not every "
+        "endpoint is served on every platform."
+    )
+)
 URL_QUERY = Query(
     default=None,
     max_length=4096,
@@ -155,7 +160,10 @@ AWEME_ID_QUERY = Query(
 SEC_USER_ID_QUERY = Query(
     default=None,
     max_length=256,
-    description=("The author's stable id, as an alternative to url. On TikTok this is secUid."),
+    description=(
+        "The author's stable id, as an alternative to url. On TikTok this is secUid; "
+        "on Bilibili, the numeric mid."
+    ),
 )
 MIX_ID_QUERY = Query(
     min_length=1,
@@ -242,7 +250,7 @@ def vet_url(url: str, *, expected: Platform | None = None) -> UrlKind:
             kind = identify(candidate)
     if not kind.allowed:
         raise InvalidUrl(
-            "not a supported Douyin or TikTok URL",
+            "not a supported Douyin, TikTok or Bilibili URL",
             details={"reason": "host_not_allowed"},
         )
     if expected is not None and kind.platform is not None and kind.platform is not expected:
@@ -295,10 +303,10 @@ async def parse(
     Accepts either platform, so it requires read access to one of them; the
     worker decides which after expanding the URL.
     """
-    if not has_scope(principal, (Scope.DOUYIN_READ, Scope.TIKTOK_READ)):
+    if not has_scope(principal, PLATFORM_READ_SCOPES):
         raise ForbiddenScope(
             "this credential lacks read access to any platform",
-            details=principal.denial(scopes=(Scope.DOUYIN_READ, Scope.TIKTOK_READ)),
+            details=principal.denial(scopes=PLATFORM_READ_SCOPES),
         )
 
     kind = vet_url(body.url)
@@ -350,10 +358,10 @@ async def batch(
     its own fate, so one bad link cannot smear the whole request into a single
     error the way a synchronous bulk endpoint would (doc 07).
     """
-    if not has_scope(principal, (Scope.DOUYIN_READ, Scope.TIKTOK_READ)):
+    if not has_scope(principal, PLATFORM_READ_SCOPES):
         raise ForbiddenScope(
             "this credential lacks read access to any platform",
-            details=principal.denial(scopes=(Scope.DOUYIN_READ, Scope.TIKTOK_READ)),
+            details=principal.denial(scopes=PLATFORM_READ_SCOPES),
         )
     callback = validate_callback_url(request, body.callback_url)
     # Vetted once for the whole batch rather than per item: the answer cannot
@@ -442,7 +450,7 @@ async def video(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `platform` - `douyin`, `tiktok` or `bilibili`. Must match the link you pass.
     - `url` - a link to the post. Text with a link inside it is accepted, so
       the clipboard content the apps produce can be sent unedited.
     - `aweme_id` - the post id, if you already have it.
@@ -504,7 +512,7 @@ async def comments(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `platform` - `douyin`, `tiktok` or `bilibili`. Must match the link you pass.
     - `url` - a link to the post.
     - `aweme_id` - the post id, if you already have it.
     - `cursor` - the cursor returned by the previous page. Omit it for the
@@ -578,7 +586,7 @@ async def comment_replies(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `platform` - `douyin`, `tiktok` or `bilibili`. Must match the link you pass.
     - `comment_id` - the parent comment to read replies under.
     - `url` - a link to the post the comment is on.
     - `aweme_id` - that post's id, if you already have it.
@@ -650,7 +658,7 @@ async def user(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `platform` - `douyin`, `tiktok` or `bilibili`. Must match the link you pass.
     - `url` - a link to the author's profile page.
     - `sec_user_id` - the author's stable id, if you already have it. On
       TikTok this is `secUid`.
@@ -712,7 +720,7 @@ async def user_posts(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`. Must match the link you pass.
+    - `platform` - `douyin`, `tiktok` or `bilibili`. Must match the link you pass.
     - `url` - a link to the author's profile page.
     - `sec_user_id` - the author's stable id, if you already have it. On
       TikTok this is `secUid`.
@@ -943,17 +951,19 @@ async def user_collections(
       imported identity - required, since an unpinned answer would be some
       account's private folders - and passing `url` or `sec_user_id` is an
       error rather than being quietly ignored.
+    - **Bilibili** takes an author, by `mid` or space link, and answers with
+      every public folder at once: there is one page.
 
     Either way each folder says whether it is public, and to read what is
     inside one, pass its id to `/collection/posts`.
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`.
-    - `url` - a link to the author's profile page. **TikTok only**; Douyin
-      rejects it, because its endpoint cannot be pointed at anyone.
-    - `sec_user_id` - the author's stable id, if you already have it. **TikTok
-      only**, for the same reason.
+    - `platform` - `douyin`, `tiktok` or `bilibili`.
+    - `url` - a link to the author's profile page. **TikTok and Bilibili**;
+      Douyin rejects it, because its endpoint cannot be pointed at anyone.
+    - `sec_user_id` - the author's stable id, if you already have it - a
+      Bilibili `mid`. **TikTok and Bilibili**, for the same reason.
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - folders per page.
@@ -1179,7 +1189,7 @@ async def collection_posts(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`.
+    - `platform` - `douyin`, `tiktok` or `bilibili`.
     - `collection_id` - the folder to read, as returned by `/user/collections`.
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.

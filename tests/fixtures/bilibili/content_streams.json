@@ -1,0 +1,72 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "from": "local",
+    "result": "suee",
+    "message": "",
+    "quality": 64,
+    "format": "mp4720",
+    "timelength": 222485,
+    "accept_format": "mp4720,mp4",
+    "accept_description": [
+      "高清 720P",
+      "流畅 360P"
+    ],
+    "accept_quality": [
+      64,
+      16
+    ],
+    "video_codecid": 7,
+    "seek_param": "start",
+    "seek_type": "offset",
+    "durl": [
+      {
+        "order": 1,
+        "length": 222485,
+        "size": 31372052,
+        "ahead": "",
+        "vhead": "",
+        "url": "https://cdn.example-cdn.invalid/upgcxcode/79/55/42682355579/42682355579-1-192.mp4",
+        "backup_url": null
+      }
+    ],
+    "support_formats": [
+      {
+        "quality": 64,
+        "format": "mp4720",
+        "new_description": "720P 准高清",
+        "display_desc": "720P",
+        "superscript": "",
+        "codecs": null,
+        "can_watch_qn_reason": 0,
+        "limit_watch_reason": 0,
+        "report": {}
+      },
+      {
+        "quality": 16,
+        "format": "mp4",
+        "new_description": "360P 流畅",
+        "display_desc": "360P",
+        "superscript": "",
+        "codecs": null,
+        "can_watch_qn_reason": 0,
+        "limit_watch_reason": 0,
+        "report": {}
+      }
+    ],
+    "high_format": null,
+    "last_play_time": 0,
+    "last_play_cid": 0,
+    "view_info": null,
+    "play_conf": {
+      "is_new_description": false
+    },
+    "cur_language": "",
+    "cur_production_type": 0,
+    "auto_qn_resp": {
+      "dyeid": ""
+    }
+  }
+}

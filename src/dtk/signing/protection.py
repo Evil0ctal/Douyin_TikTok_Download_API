@@ -90,6 +90,10 @@ def requires_browser_signature(
     """
     if platform is Platform.TIKTOK:
         return not pick_ms_token(cookies)
+    if platform is Platform.BILIBILI:
+        # WBI is computed from two public keys. There is no session value a
+        # browser would contribute, and no browser that could sign it anyway.
+        return False
     if platform is not Platform.DOUYIN:
         return True
     if _normalise(urlsplit(url).path) not in DOUYIN_SIGNED_PATHS:

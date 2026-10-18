@@ -16,6 +16,7 @@ from dtk.models import Author, Collection, Comment, Content, Page
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
+    FollowUp,
     PlatformAdapter,
     ProfileSource,
     RequestSpec,
@@ -43,6 +44,10 @@ class TikTokAdapter:
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:
         return parser.detect_risk_control(payload)
 
+    def follow_up(self, endpoint: str, payload: Mapping[str, Any]) -> FollowUp | None:
+        """Every answer here is complete as it comes."""
+        return None
+
     def parse_content(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Content:
         return parser.parse_content(payload, fetched_at=fetched_at)
 
@@ -64,7 +69,7 @@ class TikTokAdapter:
         return parser.parse_collection_detail(payload)
 
     def parse_collection_posts(
-        self, payload: Mapping[str, Any], *, fetched_at: datetime
+        self, payload: Mapping[str, Any], *, fetched_at: datetime, cursor: str | None = None
     ) -> Page[Content]:
         """TikTok serves this in the same itemList envelope as every other list."""
         return parser.parse_author_posts(payload, fetched_at=fetched_at)

@@ -631,6 +631,12 @@ class TaskWorker:
             return params
 
         definition = registry.definition_for(endpoint)
+        if definition.platform not in registry.HANDLE_PLATFORMS:
+            # Bilibili has no handles: a number there is the author's id, and
+            # looking it up as a handle asked its profile for a parameter it
+            # does not have - every Bilibili author call failed here, found by
+            # the end-to-end run rather than by a unit test.
+            return params
         if registry.UNIQUE_ID in definition.accepts:
             # The endpoint takes the handle as it stands; `_route_handle` will
             # put it in the right slot and no lookup is needed.

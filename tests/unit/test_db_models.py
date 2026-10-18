@@ -288,7 +288,7 @@ class TestConstraints:
 
     def test_identity_platform_and_source_are_constrained(self) -> None:
         checks = _checks("identities")
-        assert set(Platform) == {Platform.DOUYIN, Platform.TIKTOK}
+        assert set(Platform) == {Platform.DOUYIN, Platform.TIKTOK, Platform.BILIBILI}
         for platform in Platform:
             assert platform.value in checks["ck_identities_platform"]
         assert "minted" in checks["ck_identities_source"]

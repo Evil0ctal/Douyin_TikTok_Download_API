@@ -63,6 +63,7 @@ from dtk.identity.importing import (
     to_cookie_header,
 )
 from dtk.identity.marks import pool_marks
+from dtk.identity.minting.native import NATIVE_MINT_PLATFORMS
 from dtk.identity.pool import IdentityPool
 from dtk.scheduler.health import score
 from dtk.signing.native.websign import UIFID_COOKIE_NAMES, VERIFY_FP_COOKIE
@@ -370,7 +371,7 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
     min_size = int(config.get("pool.min_size"))
     target_size = max(min_size, int(config.get("pool.target_size")))
     max_fail_streak = max(1, int(config.get("pool.max_fail_streak")))
-    can_mint = bool(getattr(request.app.state.settings, "browser_rpc_url", "") or "")
+    browser = bool(getattr(request.app.state.settings, "browser_rpc_url", "") or "")
 
     identities = IdentityPool(request.app.state.cipher)
     platforms: list[dict[str, Any]] = []
@@ -398,6 +399,9 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
                 "below_minimum": marks.auto and usable < marks.min_size,
                 "min_size": marks.min_size,
                 "target_size": marks.target_size,
+                # Per platform: Bilibili guests are minted over plain HTTP, so
+                # they can be minted where the others need a browser.
+                "can_mint": browser or platform in NATIVE_MINT_PLATFORMS,
                 # Whether each number is this platform's own or the global one,
                 # so the console can offer "back to the default" honestly.
                 "min_inherited": marks.min_inherited,
@@ -412,7 +416,9 @@ async def pool_level(request: Request, principal: Principal = Depends(read_admin
             "min_size": min_size,
             "target_size": target_size,
             "max_fail_streak": max_fail_streak,
-            "can_mint": can_mint,
+            # Whether any platform can be minted here. Kept for clients written
+            # before the per-platform flag; read that one to decide a button.
+            "can_mint": browser or bool(NATIVE_MINT_PLATFORMS),
             "platforms": platforms,
             "activity": await mint_log.snapshot(),
         },

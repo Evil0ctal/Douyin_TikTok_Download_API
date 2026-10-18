@@ -108,7 +108,15 @@ def require_content_id(
     the caller's mistake, and spending a pooled identity to have the platform
     say so charges the operator for it - and, until the classifier was fixed,
     cooled that identity too.
+
+    Bilibili's ids are not Snowflakes: a video is a bvid (``BV1...``) or an av
+    number, and the answer is always the bvid, since that is what every store
+    keys the post by.
     """
+    if platform is Platform.BILIBILI:
+        from dtk.platforms.bilibili.ids import content_bvid
+
+        return content_bvid(value, field=field)
     parsed = read_content_id(value)
     if parsed is None:
         raise InvalidParam(

@@ -16,7 +16,7 @@ import pytest
 from dtk.api import demo_readonly
 from dtk.api.deps import Principal
 from dtk.api.routes.support import ROLE_RANK
-from dtk.core.types import Scope, UserRole
+from dtk.core.types import PLATFORM_READ_SCOPES, Scope, UserRole
 from dtk.services import demo
 
 WRITE_METHODS = ("post", "put", "patch", "delete")
@@ -130,7 +130,7 @@ class TestReadOnlyRule:
 
 class TestPublishedKey:
     def test_the_key_reads_the_platforms_and_nothing_else(self):
-        assert set(demo.DEMO_KEY_SCOPES) == {Scope.DOUYIN_READ, Scope.TIKTOK_READ}
+        assert set(demo.DEMO_KEY_SCOPES) == set(PLATFORM_READ_SCOPES)
 
     @pytest.mark.parametrize(
         "forbidden",

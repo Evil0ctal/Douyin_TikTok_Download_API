@@ -34,6 +34,7 @@ from dtk.worker.registry import (
     CONTENT_ID,
     COUNT,
     CURSOR,
+    HANDLE_PLATFORMS,
     SEC_UID_PREFIX,
     UNIQUE_ID,
     Capability,
@@ -149,7 +150,7 @@ def _author_identifier(spec: EndpointDefinition, value: str) -> dict[str, Any]:
     not. Where it cannot work, saying so - and naming a next step that exists -
     is worth more to an agent than an empty page.
     """
-    if looks_like_sec_uid(value):
+    if spec.platform not in HANDLE_PLATFORMS or looks_like_sec_uid(value):
         return {AUTHOR_ID: value}
     if UNIQUE_ID in spec.accepts:
         return {UNIQUE_ID: value.lstrip("@")}

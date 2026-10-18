@@ -4,5 +4,13 @@ from dtk.identity.minting.client import (
     MintResult,
     RpcHealth,
 )
+from dtk.identity.minting.native import NativeMinter, NativeMintFailed
 
-__all__ = ["BrowserRpcClient", "BrowserRpcUnavailable", "MintResult", "RpcHealth"]
+__all__ = [
+    "BrowserRpcClient",
+    "BrowserRpcUnavailable",
+    "MintResult",
+    "NativeMintFailed",
+    "NativeMinter",
+    "RpcHealth",
+]

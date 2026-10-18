@@ -283,7 +283,7 @@ def _platform(params: Mapping[str, Any]) -> Platform:
     try:
         return Platform(raw)
     except ValueError as exc:
-        raise InvalidParam("platform must be douyin or tiktok") from exc
+        raise InvalidParam("platform must be douyin, tiktok or bilibili") from exc
 
 
 def _empty(detail: str) -> dict[str, Any]:

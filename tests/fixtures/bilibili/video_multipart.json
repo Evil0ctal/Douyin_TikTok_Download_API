@@ -1,0 +1,707 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "bvid": "BV1y7411Q74u",
+    "aid": 100000002,
+    "videos": 11,
+    "tid": 47,
+    "tid_v2": 2008,
+    "tname": "",
+    "tname_v2": "",
+    "copyright": 1,
+    "pic": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+    "title": "Synthetic video title",
+    "pubdate": 1792234800,
+    "ctime": 1791805810,
+    "desc": "Synthetic description line one.\nSynthetic description line two.",
+    "desc_v2": [
+      {
+        "raw_text": "Synthetic description line one.\nSynthetic description line two.",
+        "type": 1,
+        "biz_id": 0
+      }
+    ],
+    "state": 0,
+    "duration": 6135,
+    "rights": {
+      "bp": 0,
+      "elec": 0,
+      "download": 1,
+      "movie": 0,
+      "pay": 0,
+      "hd5": 0,
+      "no_reprint": 1,
+      "autoplay": 1,
+      "ugc_pay": 0,
+      "is_cooperation": 0,
+      "ugc_pay_preview": 0,
+      "no_background": 0,
+      "clean_mode": 0,
+      "is_stein_gate": 0,
+      "is_360": 0,
+      "no_share": 0,
+      "arc_pay": 0,
+      "free_watch": 0
+    },
+    "owner": {
+      "mid": 10000003,
+      "name": "Synthetic Creator",
+      "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg"
+    },
+    "stat": {
+      "aid": 100000002,
+      "view": 602708,
+      "danmaku": 79,
+      "reply": 978,
+      "favorite": 5376,
+      "coin": 15971,
+      "share": 1175,
+      "now_rank": 0,
+      "his_rank": 0,
+      "like": 31834,
+      "dislike": 0,
+      "evaluation": "",
+      "vt": 0
+    },
+    "argue_info": {
+      "argue_msg": "含AI生成内容",
+      "argue_type": 0,
+      "argue_link": ""
+    },
+    "dynamic": "",
+    "cid": 20000002,
+    "dimension": {
+      "width": 2592,
+      "height": 1080,
+      "rotate": 0
+    },
+    "season_id": 9348175,
+    "premiere": null,
+    "teenage_mode": 1,
+    "is_chargeable_season": false,
+    "is_story": false,
+    "is_upower_exclusive": false,
+    "is_upower_play": false,
+    "is_upower_preview": false,
+    "enable_vt": 0,
+    "vt_display": "",
+    "is_upower_exclusive_with_qa": false,
+    "is_hua_sheng": false,
+    "no_cache": false,
+    "pages": [
+      {
+        "cid": 20000002,
+        "page": 1,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 492,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "ctime": 1791805810
+      },
+      {
+        "cid": 20000003,
+        "page": 2,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 617,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "ctime": 1791805810
+      },
+      {
+        "cid": 20000004,
+        "page": 3,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 540,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "ctime": 1791805810
+      },
+      {
+        "cid": 20000005,
+        "page": 4,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 436,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "ctime": 1791814081
+      },
+      {
+        "cid": 20000006,
+        "page": 5,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 575,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "ctime": 1791902373
+      },
+      {
+        "cid": 20000007,
+        "page": 6,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 574,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "ctime": 1791909140
+      },
+      {
+        "cid": 20000008,
+        "page": 7,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 544,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "first_frame": "https://cdn.example-cdn.invalid/bfs/storyff/_00003ekznatygz95c2pxj78l5xucccb_firsti.jpg",
+        "ctime": 1791989554,
+        "asr_language": "cmn"
+      },
+      {
+        "cid": 20000009,
+        "page": 8,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 555,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "first_frame": "https://cdn.example-cdn.invalid/bfs/storyff/_00003mimiba72v39j2ogaud98nslcgb_firsti.jpg",
+        "ctime": 1792088395,
+        "asr_language": "cmn"
+      },
+      {
+        "cid": 20000010,
+        "page": 9,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 621,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "first_frame": "https://cdn.example-cdn.invalid/bfs/storyff/_00002mcqebkc3m25p26b7pszldrj50b_firsti.jpg",
+        "ctime": 1792152811
+      },
+      {
+        "cid": 20000011,
+        "page": 10,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 605,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "first_frame": "https://cdn.example-cdn.invalid/bfs/storyff/_0000094c1b5nv47tt2u1mzxzgc39nlb_firsti.jpg",
+        "ctime": 1792221104
+      },
+      {
+        "cid": 20000012,
+        "page": 11,
+        "from": "vupload",
+        "part": "Synthetic part",
+        "duration": 576,
+        "vid": "",
+        "weblink": "",
+        "dimension": {
+          "width": 2592,
+          "height": 1080,
+          "rotate": 0
+        },
+        "first_frame": "https://cdn.example-cdn.invalid/bfs/storyff/_00003nb9vtvurnpyd2r2iro5thksi6b_firsti.jpg",
+        "ctime": 1792222315
+      }
+    ],
+    "subtitle": {
+      "allow_submit": false,
+      "list": []
+    },
+    "label": {
+      "type": 1
+    },
+    "ugc_season": {
+      "id": 9348175,
+      "title": "Synthetic video title",
+      "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+      "mid": 10000003,
+      "intro": "Synthetic folder intro",
+      "sign_state": 0,
+      "attribute": 140,
+      "stat": {
+        "season_id": 9348175,
+        "view": 605170,
+        "danmaku": 79,
+        "reply": 987,
+        "fav": 5405,
+        "coin": 16063,
+        "share": 1176,
+        "now_rank": 0,
+        "his_rank": 0,
+        "like": 32338,
+        "vt": 0,
+        "vv": 0
+      },
+      "ep_count": 2,
+      "season_type": 1,
+      "is_pay_season": false,
+      "enable_vt": 0,
+      "sections": [
+        {
+          "season_id": 9348175,
+          "id": 10461336,
+          "title": "Synthetic video title",
+          "type": 1,
+          "episodes": [
+            {
+              "season_id": 9348175,
+              "section_id": 10461336,
+              "id": 100000003,
+              "aid": 100000004,
+              "cid": 20000013,
+              "title": "Synthetic video title",
+              "attribute": 2,
+              "arc": {
+                "aid": 100000004,
+                "videos": 0,
+                "type_id": 0,
+                "type_name": "",
+                "copyright": 0,
+                "pic": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+                "title": "Synthetic video title",
+                "pubdate": 1792062000,
+                "ctime": 1792062000,
+                "desc": "",
+                "state": 0,
+                "duration": 878,
+                "rights": {
+                  "bp": 0,
+                  "elec": 0,
+                  "download": 0,
+                  "movie": 0,
+                  "pay": 0,
+                  "hd5": 0,
+                  "no_reprint": 0,
+                  "autoplay": 0,
+                  "ugc_pay": 0,
+                  "is_cooperation": 0,
+                  "ugc_pay_preview": 0,
+                  "arc_pay": 0,
+                  "free_watch": 0
+                },
+                "author": {
+                  "mid": 10000003,
+                  "name": "Synthetic Creator",
+                  "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg"
+                },
+                "stat": {
+                  "aid": 100000004,
+                  "view": 2462,
+                  "danmaku": 0,
+                  "reply": 9,
+                  "fav": 29,
+                  "coin": 92,
+                  "share": 1,
+                  "now_rank": 0,
+                  "his_rank": 0,
+                  "like": 504,
+                  "dislike": 0,
+                  "evaluation": "",
+                  "argue_msg": "",
+                  "vt": 0,
+                  "vv": 2462
+                },
+                "dynamic": "",
+                "dimension": {
+                  "width": 0,
+                  "height": 0,
+                  "rotate": 0
+                },
+                "desc_v2": null,
+                "is_chargeable_season": false,
+                "is_blooper": false,
+                "enable_vt": 0,
+                "vt_display": "",
+                "type_id_v2": 0,
+                "type_name_v2": "",
+                "is_lesson_video": 0
+              },
+              "page": {
+                "cid": 20000013,
+                "page": 1,
+                "from": "vupload",
+                "part": "Synthetic part",
+                "duration": 275,
+                "vid": "",
+                "weblink": "",
+                "dimension": {
+                  "width": 1920,
+                  "height": 1080,
+                  "rotate": 0
+                }
+              },
+              "bvid": "BV1y7411Q74L",
+              "pages": [
+                {
+                  "cid": 20000013,
+                  "page": 1,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 275,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 1920,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000014,
+                  "page": 2,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 255,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 1920,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000015,
+                  "page": 3,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 348,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 1920,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                }
+              ]
+            },
+            {
+              "season_id": 9348175,
+              "section_id": 10461336,
+              "id": 100000005,
+              "aid": 100000002,
+              "cid": 20000002,
+              "title": "Synthetic video title",
+              "attribute": 2,
+              "arc": {
+                "aid": 100000002,
+                "videos": 0,
+                "type_id": 0,
+                "type_name": "",
+                "copyright": 0,
+                "pic": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+                "title": "Synthetic video title",
+                "pubdate": 1792234800,
+                "ctime": 1792234800,
+                "desc": "",
+                "state": 0,
+                "duration": 6135,
+                "rights": {
+                  "bp": 0,
+                  "elec": 0,
+                  "download": 0,
+                  "movie": 0,
+                  "pay": 0,
+                  "hd5": 0,
+                  "no_reprint": 0,
+                  "autoplay": 0,
+                  "ugc_pay": 0,
+                  "is_cooperation": 0,
+                  "ugc_pay_preview": 0,
+                  "arc_pay": 0,
+                  "free_watch": 0
+                },
+                "author": {
+                  "mid": 10000003,
+                  "name": "Synthetic Creator",
+                  "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg"
+                },
+                "stat": {
+                  "aid": 100000002,
+                  "view": 602708,
+                  "danmaku": 79,
+                  "reply": 978,
+                  "fav": 5376,
+                  "coin": 15971,
+                  "share": 1175,
+                  "now_rank": 0,
+                  "his_rank": 0,
+                  "like": 31834,
+                  "dislike": 0,
+                  "evaluation": "",
+                  "argue_msg": "",
+                  "vt": 0,
+                  "vv": 602708
+                },
+                "dynamic": "",
+                "dimension": {
+                  "width": 0,
+                  "height": 0,
+                  "rotate": 0
+                },
+                "desc_v2": null,
+                "is_chargeable_season": false,
+                "is_blooper": false,
+                "enable_vt": 0,
+                "vt_display": "",
+                "type_id_v2": 0,
+                "type_name_v2": "",
+                "is_lesson_video": 0
+              },
+              "page": {
+                "cid": 20000002,
+                "page": 1,
+                "from": "vupload",
+                "part": "Synthetic part",
+                "duration": 492,
+                "vid": "",
+                "weblink": "",
+                "dimension": {
+                  "width": 2592,
+                  "height": 1080,
+                  "rotate": 0
+                }
+              },
+              "bvid": "BV1y7411Q74u",
+              "pages": [
+                {
+                  "cid": 20000002,
+                  "page": 1,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 492,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000003,
+                  "page": 2,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 617,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000004,
+                  "page": 3,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 540,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000005,
+                  "page": 4,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 436,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000006,
+                  "page": 5,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 575,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000007,
+                  "page": 6,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 574,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000008,
+                  "page": 7,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 544,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000009,
+                  "page": 8,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 555,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000010,
+                  "page": 9,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 621,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000011,
+                  "page": 10,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 605,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                },
+                {
+                  "cid": 20000012,
+                  "page": 11,
+                  "from": "vupload",
+                  "part": "Synthetic part",
+                  "duration": 576,
+                  "vid": "",
+                  "weblink": "",
+                  "dimension": {
+                    "width": 2592,
+                    "height": 1080,
+                    "rotate": 0
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "is_season_display": true,
+    "honor_reply": {
+      "honor": [
+        {
+          "aid": 100000002,
+          "type": 7,
+          "desc": "Synthetic description line one.\nSynthetic description line two.",
+          "weekly_recommend_num": 0
+        }
+      ]
+    },
+    "like_icon": "",
+    "need_jump_bv": false,
+    "disable_show_up_info": false,
+    "is_story_play": 0,
+    "is_view_self": false,
+    "staff": []
+  }
+}

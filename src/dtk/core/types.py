@@ -12,6 +12,9 @@ from enum import StrEnum
 class Platform(StrEnum):
     DOUYIN = "douyin"
     TIKTOK = "tiktok"
+    #: Back in v5.1.6. v4 had it; the rewrite left it out because it shares
+    #: neither the signing nor the identity machinery with the other two.
+    BILIBILI = "bilibili"
 
 
 class ContentKind(StrEnum):
@@ -180,6 +183,7 @@ class Scope(StrEnum):
 
     DOUYIN_READ = "douyin:read"
     TIKTOK_READ = "tiktok:read"
+    BILIBILI_READ = "bilibili:read"
     IDENTITY_MANAGE = "identity:manage"
     #: Read what this instance has already stored. Separate from the platform
     #: read scopes on purpose: an operator may open a platform endpoint to
@@ -199,6 +203,12 @@ class Scope(StrEnum):
     TRANSCRIPTION_READ = "transcription:read"
     TRANSCRIPTION_WRITE = "transcription:write"
     ADMIN = "admin"
+
+
+#: One read scope per platform, derived so a platform added to the enum cannot
+#: be left out of "may read any platform" - which is what happened in nine
+#: places when this was a literal pair and Bilibili arrived.
+PLATFORM_READ_SCOPES: tuple[Scope, ...] = tuple(Scope(f"{p.value}:read") for p in Platform)
 
 
 class Language(StrEnum):

@@ -35,7 +35,7 @@ from collections.abc import Iterable, Sequence
 from typing import Final
 
 from dtk.core.logging import get_logger
-from dtk.core.types import Scope, UserRole
+from dtk.core.types import PLATFORM_READ_SCOPES, Scope, UserRole
 
 log = get_logger(__name__)
 
@@ -52,7 +52,7 @@ PROTECTED_PREFIXES: Final[tuple[str, ...]] = (
 #: a real `Principal` so nothing downstream has to special-case it, and it holds
 #: exactly the two read scopes - never admin, never write.
 ANONYMOUS_USER_ID: Final = uuid.UUID(int=0)
-ANONYMOUS_SCOPES: Final[frozenset[Scope]] = frozenset({Scope.DOUYIN_READ, Scope.TIKTOK_READ})
+ANONYMOUS_SCOPES: Final[frozenset[Scope]] = frozenset(PLATFORM_READ_SCOPES)
 
 
 def route_key(method: str, path: str) -> str:

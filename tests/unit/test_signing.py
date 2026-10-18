@@ -1240,9 +1240,10 @@ def test_browser_info_follows_the_fingerprint_and_falls_back_cleanly() -> None:
 
 def test_native_signers_covers_every_platform() -> None:
     signers = native_signers()
-    assert set(signers) == {Platform.DOUYIN, Platform.TIKTOK}
+    assert set(signers) == set(Platform)
     assert signers[Platform.DOUYIN].algorithm is SignatureAlgorithm.A_BOGUS
     assert signers[Platform.TIKTOK].algorithm is SignatureAlgorithm.X_BOGUS
+    assert signers[Platform.BILIBILI].algorithm is SignatureAlgorithm.WBI
 
 
 # --------------------------------------------------------------------------

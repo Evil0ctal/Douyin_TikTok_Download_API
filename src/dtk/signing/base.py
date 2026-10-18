@@ -43,6 +43,8 @@ class SignatureAlgorithm(StrEnum):
     A_BOGUS = "a_bogus"
     X_BOGUS = "X-Bogus"
     SIGNATURE = "_signature"
+    #: Bilibili's. Computed from two public keys, so native is the only signer.
+    WBI = "w_rid"
 
 
 #: Query parameter carrying the session token on both platforms.
@@ -57,8 +59,14 @@ DEFAULT_ALGORITHMS: Mapping[Platform, SignatureAlgorithm] = MappingProxyType(
     {
         Platform.DOUYIN: SignatureAlgorithm.A_BOGUS,
         Platform.TIKTOK: SignatureAlgorithm.X_BOGUS,
+        Platform.BILIBILI: SignatureAlgorithm.WBI,
     }
 )
+
+#: Platforms browser-rpc can sign for. Its page knows Douyin's and TikTok's
+#: SDKs and nobody else's; Bilibili's WBI needs no browser at all, so a
+#: request for it must never be routed there, whatever `signing.mode` says.
+RPC_PLATFORMS: frozenset[Platform] = frozenset({Platform.DOUYIN, Platform.TIKTOK})
 
 
 def encode_query(params: Mapping[str, str], algorithm: SignatureAlgorithm) -> str:
@@ -88,6 +96,8 @@ HOST_PLATFORMS: Mapping[str, Platform] = MappingProxyType(
         "amemv.com": Platform.DOUYIN,
         "tiktok.com": Platform.TIKTOK,
         "tiktokv.com": Platform.TIKTOK,
+        "bilibili.com": Platform.BILIBILI,
+        "b23.tv": Platform.BILIBILI,
     }
 )
 
@@ -348,6 +358,7 @@ __all__ = [
     "DEFAULT_ALGORITHMS",
     "HOST_PLATFORMS",
     "MS_TOKEN_PARAM",
+    "RPC_PLATFORMS",
     "SIGNER_BROWSER",
     "SIGNER_NATIVE",
     "RequestSpec",

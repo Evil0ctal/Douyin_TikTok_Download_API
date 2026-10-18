@@ -1,0 +1,33 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "count": 2,
+    "list": [
+      {
+        "id": 40000001,
+        "fid": 400000,
+        "mid": 10000032,
+        "attr": 20,
+        "title": "Synthetic video title",
+        "fav_state": 0,
+        "media_count": 24,
+        "is_kid_playlist": false,
+        "kid_playlist_desc": ""
+      },
+      {
+        "id": 40000003,
+        "fid": 400000,
+        "mid": 10000032,
+        "attr": 22,
+        "title": "Synthetic video title",
+        "fav_state": 0,
+        "media_count": 22,
+        "is_kid_playlist": false,
+        "kid_playlist_desc": ""
+      }
+    ],
+    "season": null
+  }
+}

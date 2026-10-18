@@ -264,7 +264,7 @@ async def resolve_link(
     identified = await resolve(url, fetcher, max_hops=MAX_REDIRECTS, extra_hosts=extra_hosts)
     if identified.platform is None:
         raise InvalidUrl(
-            "the URL was not recognized as a supported Douyin or TikTok link",
+            "the URL was not recognized as a supported Douyin, TikTok or Bilibili link",
             details={"url": url},
         )
     if identified.resource not in _ENDPOINT_BY_RESOURCE:

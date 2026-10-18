@@ -124,7 +124,7 @@ def session_factory_for(session: Any) -> Any:
     return factory
 
 
-def make_filler(rpc: Any, pool: Any, session: FakeSession) -> PoolFiller:
+def make_filler(rpc: Any, pool: Any, session: FakeSession, *, native: Any = None) -> PoolFiller:
     return PoolFiller(
         pool=pool,
         rpc=rpc,
@@ -133,6 +133,7 @@ def make_filler(rpc: Any, pool: Any, session: FakeSession) -> PoolFiller:
         options=FillerConfig(),
         session_factory=session_factory_for(session),
         distributed_lock=False,
+        native=native,
     )
 
 
@@ -337,6 +338,23 @@ async def test_an_install_without_browser_rpc_says_so_instead_of_crashing() -> N
     assert raised.value.retryable is False
 
 
+async def test_without_a_browser_bilibili_is_still_minted_and_only_it() -> None:
+    """Its guests are plain HTTP. The refusal for the others names their platform."""
+    from tests.unit.test_worker import FakeNativeMinter
+
+    native = FakeNativeMinter()
+    filler = make_filler(FakeRpc(configured=False), FakePool(), FakeSession(), native=native)
+
+    result = await mint(filler, platform="bilibili")
+    assert result["data"]["minted"] is True
+    assert native.mints == [Platform.BILIBILI]
+
+    with pytest.raises(DtkError) as raised:
+        await mint(filler, platform="douyin")
+    assert raised.value.code is ErrorCode.NOT_CONFIGURED
+    assert raised.value.details["platform"] == "douyin"
+
+
 async def test_a_worker_with_no_filler_at_all_fails_the_same_way() -> None:
     """OperationDeps.filler is optional, so the job cannot assume one."""
     with pytest.raises(DtkError) as raised:
@@ -366,6 +384,7 @@ async def test_a_mint_that_never_gets_its_turn_is_contention_not_breakage() -> N
     """
     contended = SimpleNamespace(
         enabled=True,
+        can_mint=lambda platform: True,
         top_up_once=_returning(FillResult(platform=Platform.DOUYIN, reason="busy")),
     )
 
@@ -392,7 +411,10 @@ async def test_the_job_asks_the_filler_to_wait_its_turn() -> None:
         seen.update(kwargs)
         return FillResult(platform=platform, identity_id=uuid.uuid4(), minted=True)
 
-    await mint(SimpleNamespace(enabled=True, top_up_once=record), platform="douyin")
+    await mint(
+        SimpleNamespace(enabled=True, can_mint=lambda platform: True, top_up_once=record),
+        platform="douyin",
+    )
 
     assert seen["wait_seconds"] == job.MINT_WAIT_SECONDS
     assert seen["wait_seconds"] > 0

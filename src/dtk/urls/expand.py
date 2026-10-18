@@ -90,7 +90,7 @@ async def expand(
     if not is_allowed_host(current, extra_hosts=extra_hosts):
         logger.warning("urls.expand.rejected", stage="start")
         raise InvalidUrl(
-            "not a supported Douyin or TikTok URL",
+            "not a supported Douyin, TikTok or Bilibili URL",
             details={"reason": "host_not_allowed"},
         )
 
@@ -169,7 +169,7 @@ async def resolve(
     kind = identify(candidate, extra_hosts=extra_hosts)
     if not kind.allowed:
         raise InvalidUrl(
-            "not a supported Douyin or TikTok URL",
+            "not a supported Douyin, TikTok or Bilibili URL",
             details={"reason": "host_not_allowed"},
         )
 

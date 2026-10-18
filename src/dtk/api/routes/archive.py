@@ -41,7 +41,14 @@ from dtk.api.routes.support import ok
 from dtk.core.db import session_scope
 from dtk.core.errors import DownloaderDown, NotConfigured, NotFound
 from dtk.core.logging import get_logger
-from dtk.core.types import Availability, ContentKind, DurationBucket, Platform, Scope
+from dtk.core.types import (
+    PLATFORM_READ_SCOPES,
+    Availability,
+    ContentKind,
+    DurationBucket,
+    Platform,
+    Scope,
+)
 from dtk.db.models import ArchivedContent
 from dtk.services import archive, collections, downloads
 
@@ -55,10 +62,7 @@ EXPORT_LIMIT = 50_000
 
 #: Which read scope a walk of one platform's history costs. Both of these
 #: endpoints look like archive reads and behave like platform reads.
-_READ_SCOPE: Final[dict[Platform, Scope]] = {
-    Platform.DOUYIN: Scope.DOUYIN_READ,
-    Platform.TIKTOK: Scope.TIKTOK_READ,
-}
+_READ_SCOPE: Final[dict[Platform, Scope]] = dict(zip(Platform, PLATFORM_READ_SCOPES, strict=True))
 
 PLATFORM_QUERY = Query(default=None, description="Only this platform.")
 AUTHOR_QUERY = Query(default=None, max_length=256, description="Only this author's posts.")
@@ -388,7 +392,7 @@ async def recheck(
     # imply - and the archive module's own docstring promises that reading it
     # spends no identity. A recheck is a platform read wearing an archive name,
     # so it asks for a platform read scope.
-    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+    principal.require(*PLATFORM_READ_SCOPES)
     return await operations.submit_and_wait(
         request,
         principal,
@@ -716,7 +720,7 @@ async def delete_archived(
 )
 async def get_archived(
     request: Request,
-    platform: str = Path(description="douyin or tiktok."),
+    platform: str = Path(description="douyin, tiktok or bilibili."),
     content_id: str = Path(max_length=64, description="The post id."),
     principal: Principal = Depends(enforce_rate_limit),
 ) -> Any:

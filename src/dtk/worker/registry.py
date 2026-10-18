@@ -121,6 +121,12 @@ def looks_like_sec_uid(value: str) -> bool:
     return value.startswith(SEC_UID_PREFIX)
 
 
+#: Platforms where an author id that is not a sec uid can only be a handle.
+#: Bilibili has no handles: its author id is a number, and reading that number
+#: as an @handle refused every Bilibili author call before it was sent.
+HANDLE_PLATFORMS: Final[frozenset[Platform]] = frozenset({Platform.DOUYIN, Platform.TIKTOK})
+
+
 COMMENT_ID: Final = "comment_id"
 CURSOR: Final = "cursor"
 COUNT: Final = "count"
@@ -241,6 +247,31 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+    },
+    # A Bilibili author is a numeric `mid`, the one id it has for a user; a
+    # video is a bvid (an `av` number is accepted and converted by the
+    # builder). The comment endpoints want the numeric aid and get it from the
+    # bvid, so the caller never has to know there are two.
+    Platform.BILIBILI: {
+        Capability.CONTENT_DETAIL: {CONTENT_ID: "bvid"},
+        Capability.AUTHOR_PROFILE: {AUTHOR_ID: "mid"},
+        Capability.AUTHOR_POSTS: {AUTHOR_ID: "mid", CURSOR: "cursor", COUNT: "count"},
+        Capability.COMMENTS: {CONTENT_ID: "bvid", CURSOR: "cursor", COUNT: "count"},
+        Capability.COMMENT_REPLIES: {
+            CONTENT_ID: "bvid",
+            COMMENT_ID: "root",
+            CURSOR: "cursor",
+            COUNT: "count",
+        },
+        # Every public folder in one answer: it does not page. The cursor and
+        # size are accepted because the route always sends them, and dropped
+        # by the builder.
+        Capability.AUTHOR_COLLECTIONS: {AUTHOR_ID: "mid", CURSOR: "cursor", COUNT: "count"},
+        Capability.COLLECTION_POSTS: {
+            COLLECTION_ID: "media_id",
+            CURSOR: "cursor",
+            COUNT: "count",
+        },
     },
 }
 
@@ -370,6 +401,8 @@ class EndpointDefinition:
         this is the same rule, moved to where every caller passes through.
         """
         value = normalized.get(AUTHOR_ID)
+        if self.platform not in HANDLE_PLATFORMS:
+            return
         if not isinstance(value, str) or not value or looks_like_sec_uid(value):
             return
         handle = value.lstrip("@")
@@ -450,7 +483,12 @@ class EndpointDefinition:
                 # sat in that group while only TikTok had them, where the two
                 # parsers are one; measured on Douyin's `listcollection`
                 # 2026-10-17, a 16-post account paged 10 + 6 by `cursor`.
-                return adapter.parse_collection_posts(payload, fetched_at=when)
+                # The cursor that asked goes in: Bilibili's folder answer says
+                # only whether there is more, not which page it was.
+                cursor = canonical.get(CURSOR)
+                return adapter.parse_collection_posts(
+                    payload, fetched_at=when, cursor=str(cursor) if cursor is not None else None
+                )
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
@@ -615,6 +653,7 @@ __all__ = [
     "CURSOR",
     "ENDPOINTS",
     "ENVELOPE_PARAMS",
+    "HANDLE_PLATFORMS",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",
     "UNIQUE_ID",

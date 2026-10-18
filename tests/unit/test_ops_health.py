@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from dtk import __version__
-from dtk.core.types import IdentityState, Language
+from dtk.core.types import IdentityState, Language, Platform
 from dtk.i18n.catalog import t
 from dtk.identity.minting.client import RpcHealth
 from dtk.ops import health
@@ -336,7 +336,7 @@ async def test_pool_counts_degrade_when_the_query_fails() -> None:
     totals, per_platform = await health.pool_counts(Broken({}))  # type: ignore[arg-type]
 
     assert totals[IdentityState.ACTIVE.value] == 0
-    assert set(per_platform) == {"douyin", "tiktok"}
+    assert set(per_platform) == {p.value for p in Platform}
 
 
 async def test_system_status_has_the_documented_shape() -> None:

@@ -100,6 +100,10 @@
         "tiktok": {
           "min_size": "Mint-below mark for TikTok only. -1 follows pool.min_size; 0 turns automatic minting off for TikTok, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
           "target_size": "Top-up target for TikTok only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it."
+        },
+        "bilibili": {
+          "min_size": "Mint-below mark for Bilibili only. -1 follows pool.min_size; 0 turns automatic minting off for Bilibili, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
+          "target_size": "Top-up target for Bilibili only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it."
         }
       },
       "signing": {
@@ -172,7 +176,7 @@
     }
   },
   "openapi": {
-    "description": "Self-hosted data API for Douyin and TikTok. Submit a link, get normalized content back.\n\nEvery response has the same envelope, errors included: `success`, `data`, `error`, `meta`. Error codes are stable and never translated; the message beside them is rendered in the language you asked for. Append `?lang=zh` to any endpoint, including this document, for Chinese.\n\n### How a request works\n\nFetching from a platform costs a real upstream call on a real identity, and it can take seconds. So the data endpoints are **asynchronous by default**: they queue the work and answer `202` immediately with a task id.\n\n```\nPOST /api/v1/parse            -> 202 {{\"task_id\": \"...\", \"state\": \"queued\"}}\nGET  /api/v1/tasks/{{task_id}}  -> 200 {{\"state\": \"done\", \"data\": {{...}}}}\n```\n\nThere are three ways to get the result, and they differ only in who does the waiting.\n\n**Poll the task.** `GET /api/v1/tasks/{{task_id}}` until `state` is `done` or `failed`. Always works, and is what a client with its own event loop should do.\n\n**Let the server wait — `?wait=`.** Add `?wait=10` and the connection is held until the task settles, up to that many seconds. This is how you make the call synchronous, and it is meant for clients that cannot poll at all: an iOS Shortcut, a shell one-liner, a spreadsheet.\n\n- Finished in time: `200`, with the result in `data` exactly as the task endpoint would have returned it. A task that failed comes back as a normal failure envelope, with its own status code.\n- Not finished in time: `202` with the task id and `state: \"running\"`. **This is not an error and nothing was lost** - the work is still running, and the same task id fetches it a moment later.\n- Above the instance's ceiling (`api.max_wait_seconds`, shown as `maximum` on the parameter): `400`. Rejected rather than quietly shortened, because a caller that asked to block for five minutes needs to learn it cannot, or it will read the early `202` as a failure.\n- Omitted, `0`, or negative: `0` and negative behave differently - `0` and omitting it both return `202` at once, and a negative value is a `400`.\n\nNothing changes internally: the work goes through the same queue either way. `?wait=` only decides who holds the connection.\n\n**Get called back — `callback_url`.** Supply one on submit and the finished result is POSTed there, so nothing polls and nothing blocks. The host must be on the operator's `security.url_allowlist`.\n\n### Reading a result twice\n\nA task result is kept for `retention.task_result_hours` and can be fetched as often as you like within it. Two identical requests made close together are joined onto one task rather than run twice; `?refresh=true` opts out of that and of the response cache, and spends an identity to do it.",
+    "description": "Self-hosted data API for Douyin, TikTok and Bilibili. Submit a link, get normalized content back.\n\nEvery response has the same envelope, errors included: `success`, `data`, `error`, `meta`. Error codes are stable and never translated; the message beside them is rendered in the language you asked for. Append `?lang=zh` to any endpoint, including this document, for Chinese.\n\n### How a request works\n\nFetching from a platform costs a real upstream call on a real identity, and it can take seconds. So the data endpoints are **asynchronous by default**: they queue the work and answer `202` immediately with a task id.\n\n```\nPOST /api/v1/parse            -> 202 {{\"task_id\": \"...\", \"state\": \"queued\"}}\nGET  /api/v1/tasks/{{task_id}}  -> 200 {{\"state\": \"done\", \"data\": {{...}}}}\n```\n\nThere are three ways to get the result, and they differ only in who does the waiting.\n\n**Poll the task.** `GET /api/v1/tasks/{{task_id}}` until `state` is `done` or `failed`. Always works, and is what a client with its own event loop should do.\n\n**Let the server wait — `?wait=`.** Add `?wait=10` and the connection is held until the task settles, up to that many seconds. This is how you make the call synchronous, and it is meant for clients that cannot poll at all: an iOS Shortcut, a shell one-liner, a spreadsheet.\n\n- Finished in time: `200`, with the result in `data` exactly as the task endpoint would have returned it. A task that failed comes back as a normal failure envelope, with its own status code.\n- Not finished in time: `202` with the task id and `state: \"running\"`. **This is not an error and nothing was lost** - the work is still running, and the same task id fetches it a moment later.\n- Above the instance's ceiling (`api.max_wait_seconds`, shown as `maximum` on the parameter): `400`. Rejected rather than quietly shortened, because a caller that asked to block for five minutes needs to learn it cannot, or it will read the early `202` as a failure.\n- Omitted, `0`, or negative: `0` and negative behave differently - `0` and omitting it both return `202` at once, and a negative value is a `400`.\n\nNothing changes internally: the work goes through the same queue either way. `?wait=` only decides who holds the connection.\n\n**Get called back — `callback_url`.** Supply one on submit and the finished result is POSTed there, so nothing polls and nothing blocks. The host must be on the operator's `security.url_allowlist`.\n\n### Reading a result twice\n\nA task result is kept for `retention.task_result_hours` and can be fetched as often as you like within it. Two identical requests made close together are joined onto one task rather than run twice; `?refresh=true` opts out of that and of the response cache, and spends an identity to do it.",
     "tag": {
       "admin": "Instance administration; requires the admin scope.",
       "archive": "What this instance has already collected. Answered from local storage.",
@@ -289,7 +293,7 @@
       },
       "author_collections": {
         "summary": "Bookmark folders",
-        "description": "One page of bookmark folders, each saying whether it is public. The platforms differ in who you can ask about: TikTok takes an author, and a guest identity sees that author's public folders, so an empty page means no public folders rather than no folders. Douyin takes no author at all - its endpoint carries no user id and answers only about the session sending it, so identity is required there and must point at an imported identity, and the answer is never cached; passing url or sec_user_id there is an error rather than being quietly ignored. To read what is inside a folder, pass its id to /collection/posts."
+        "description": "One page of bookmark folders, each saying whether it is public. The platforms differ in who you can ask about: TikTok takes an author, and a guest identity sees that author's public folders, so an empty page means no public folders rather than no folders. Douyin takes no author at all - its endpoint carries no user id and answers only about the session sending it, so identity is required there and must point at an imported identity, and the answer is never cached; passing url or sec_user_id there is an error rather than being quietly ignored. Bilibili takes an author, by mid or space link, and answers with every public folder at once. To read what is inside a folder, pass its id to /collection/posts."
       },
       "author_followers": {
         "summary": "Accounts that follow an author",
@@ -337,7 +341,7 @@
       },
       "collection_posts": {
         "summary": "Posts inside one saved folder",
-        "description": "One page of the posts inside a single saved folder, on either platform. The request names the folder rather than the account, so a folder its owner has made public is readable with a guest identity and no import needed; a private one is refused rather than returned empty. On TikTok this is the third of the Saved tab's three views, alongside /user/collections and /user/bookmarks."
+        "description": "One page of the posts inside a single saved folder, on any platform that has them. The request names the folder rather than the account, so a folder its owner has made public is readable with a guest identity and no import needed; a private one is refused rather than returned empty. On TikTok this is the third of the Saved tab's three views, alongside /user/collections and /user/bookmarks."
       },
       "collections_add": {
         "summary": "Add posts to a collection",
@@ -589,7 +593,7 @@
       },
       "tools_sign": {
         "summary": "Sign a platform API URL",
-        "description": "Compute the signature parameters a platform API URL needs. Pure arithmetic - nothing is fetched and no identity is spent. The User-Agent is hashed into the signature, so send the request with the same one the response echoes back; TikTok also checks that the TLS fingerprint agrees with it."
+        "description": "Compute the signature parameters a platform API URL needs. Pure arithmetic and no identity is spent; for Bilibili the two public WBI keys are fetched from the platform's own nav endpoint, at most hourly. The User-Agent is hashed into the signature, so send the request with the same one the response echoes back; TikTok also checks that the TLS fingerprint agrees with it."
       },
       "users_create": {
         "summary": "Create a console account",
@@ -633,14 +637,14 @@
       "audit_list.user_id": "Only what this console account did.",
       "author_uid": "Only this author's posts.",
       "availability": "Only posts with this upstream status.",
-      "aweme_id": "The post id, as an alternative to url. Provide exactly one of the two.",
+      "aweme_id": "The post id, as an alternative to url: a Bilibili bvid such as BV1xx411c7mD or an av number on Bilibili. Provide exactly one of the two.",
       "before": "Only entries older than this timestamp. Page with it.",
       "collection": "Only posts in this collection, by id. Unlike every other filter here this one is not a property of the post: somebody put them in it.",
       "collection_id": "The collection to act on.",
       "comment_id": "The parent comment whose replies you want. Ids come from the comments endpoint.",
       "confirm": "Required for settings flagged as disruptive.",
       "content_id": "The post id.",
-      "count": "Items per page. The ceiling depends on the platform: Douyin serves up to 50, TikTok refuses more than 35. Above it this is a 400 naming the maximum, rejected rather than shortened.",
+      "count": "Items per page. The ceiling depends on the platform: Douyin serves up to 50, TikTok refuses more than 35, Bilibili more than 20. Above it this is a 400 naming the maximum, rejected rather than shortened.",
       "cursor": "Opaque cursor from the previous page; omit for the first page.",
       "download_id": "The download id returned when it was started.",
       "duration_bucket": "Only posts in this length class.",
@@ -666,14 +670,14 @@
       "on_disk": "True for downloads whose files are still stored.",
       "outcome": "Only these outcomes. Repeat the parameter to allow several.",
       "pinned": "Only pinned downloads, or only unpinned.",
-      "platform": "Which platform the request is addressed to: douyin or tiktok. It must match the link you pass.",
+      "platform": "Which platform the request is addressed to: douyin, tiktok or bilibili. It must match the link you pass. Not every endpoint is served on every platform.",
       "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy.",
       "proxy_id": "The proxy to act on.",
       "q": "Substring of the title or description. Matched as a substring rather than by word, so it behaves the same in Chinese as in English.",
       "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call. How long the cached answer lives depends on what was asked for and is set in the console: cache.content_ttl for one post (30 minutes by default), cache.author_ttl for a profile (15 minutes), cache.list_ttl for anything paged (5 minutes). Entries expire on their own and Redis is capped below its container limit, dropping the least recently used expiring keys before it fills, so the cache cannot grow without bound.",
       "request_id": "Only the request with this id.",
       "request_log.identity_id": "Only requests made with this identity.",
-      "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid.",
+      "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid; on Bilibili, the numeric mid.",
       "session_ref": "The session digest from the list endpoint.",
       "state": "Only entries in this state.",
       "step": "Bucket width in seconds.",
@@ -698,7 +702,7 @@
         "media": "Also delete the stored media files. True because that is what \"delete this\" means when the thing on screen is a video on disk; false keeps the files and removes only the record."
       },
       "BackfillRequest": {
-        "author_id": "The author's stable id - `sec_user_id` on Douyin, `secUid` on TikTok - and not the handle, which users edit.",
+        "author_id": "The author's stable id - `sec_user_id` on Douyin, `secUid` on TikTok, the numeric `mid` on Bilibili - and not the handle, which users edit.",
         "pages": "How many pages of their posts to walk. Each page is one upstream request.",
         "platform": "Which platform the author is on."
       },
@@ -725,7 +729,7 @@
         "note": "Replace the note. Omitting the field leaves it alone; sending null clears it - the two are told apart, so nothing is erased that nobody mentioned."
       },
       "ContentRef": {
-        "content_id": "`aweme_id` or its TikTok equivalent. Text, never an integer: a 19-digit id exceeds the JavaScript safe range and a JSON parser would round it.",
+        "content_id": "`aweme_id`, its TikTok equivalent, or a Bilibili bvid. Text, never an integer: a 19-digit id exceeds the JavaScript safe range and a JSON parser would round it.",
         "platform": "Which platform the post is on."
       },
       "ContentSelection": {

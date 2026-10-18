@@ -398,6 +398,29 @@ class EndpointSpec:
         )
 
 
+#: Folds a follow-up answer into the answer that asked for it. Pure, like a
+#: parser: two payloads in, one out.
+Merge = Callable[[Mapping[str, Any], Mapping[str, Any]], dict[str, Any]]
+
+
+@dataclass(frozen=True, slots=True)
+class FollowUp:
+    """A second request an answer needs before it can be parsed.
+
+    Bilibili's video detail has no playable file in it; the page asks
+    ``playurl`` for one with the part id the detail just returned. The adapter
+    says so by returning one of these, and the fetch layer makes the call -
+    scheduled, signed and logged like any other - and hands the parser the
+    merged payload. The platform package still performs no IO; it only
+    describes the call and how to combine the answers.
+    """
+
+    endpoint: str
+    #: Builder keywords, as for :meth:`PlatformAdapter.build_request`.
+    params: Mapping[str, Any]
+    merge: Merge
+
+
 @dataclass(frozen=True, slots=True)
 class EndpointTable:
     """An immutable registry of endpoints keyed by their stable name."""
@@ -479,6 +502,14 @@ class PlatformAdapter(Protocol):
         """Name the risk-control signature in ``payload``, or ``None``."""
         ...
 
+    def follow_up(self, endpoint: str, payload: Mapping[str, Any]) -> FollowUp | None:
+        """A second call this answer needs before parsing, or ``None``.
+
+        Most answers are complete; see :class:`FollowUp` for the one that is
+        not. A failed follow-up leaves the first answer to be parsed as it is.
+        """
+        ...
+
     def parse_content(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Content: ...
 
     def parse_author(self, payload: Mapping[str, Any]) -> Author: ...
@@ -494,8 +525,12 @@ class PlatformAdapter(Protocol):
     def parse_collection_detail(self, payload: Mapping[str, Any]) -> Collection: ...
 
     def parse_collection_posts(
-        self, payload: Mapping[str, Any], *, fetched_at: datetime
-    ) -> Page[Content]: ...
+        self, payload: Mapping[str, Any], *, fetched_at: datetime, cursor: str | None = None
+    ) -> Page[Content]:
+        """``cursor`` is the one this page was asked for. Douyin and TikTok
+        hand the next one back and ignore it; Bilibili's folder answer says only
+        whether there is more, so the next page is computed from it."""
+        ...
 
     def parse_comments(
         self, payload: Mapping[str, Any], *, content_id: str | None = None
@@ -515,7 +550,9 @@ __all__ = [
     "ClientProfile",
     "EndpointSpec",
     "EndpointTable",
+    "FollowUp",
     "HttpMethod",
+    "Merge",
     "ParamBuilder",
     "PlatformAdapter",
     "RequestSpec",

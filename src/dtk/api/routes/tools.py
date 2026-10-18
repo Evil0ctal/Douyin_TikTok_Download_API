@@ -37,13 +37,22 @@ from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.support import manage_pool, ok
 from dtk.core.errors import InvalidParam, NotConfigured, UpstreamRiskControl
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, Scope
+from dtk.core.types import PLATFORM_READ_SCOPES, Platform
 from dtk.identity.importing import parse_cookies
-from dtk.identity.minting import BrowserRpcClient, BrowserRpcUnavailable
+from dtk.identity.minting import (
+    BrowserRpcClient,
+    BrowserRpcUnavailable,
+    NativeMinter,
+    NativeMintFailed,
+)
+from dtk.identity.minting.native import NATIVE_MINT_PLATFORMS
+from dtk.platforms.bilibili.ids import BVID_PATTERN
 from dtk.signing import SigningSession, native_signers
 from dtk.signing.base import MS_TOKEN_PARAM, SignedParams, StaticFingerprint
 from dtk.signing.base import RequestSpec as SigningRequest
 from dtk.signing.native import decoding, tiktok_sign, websign
+from dtk.signing.native.wbi_keys import NavKeySource
+from dtk.transport.wreq_transport import WreqTransport
 from dtk.urls import extract_urls, first_url, identify, read_content_id
 
 log = get_logger(__name__)
@@ -348,7 +357,7 @@ async def sign(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`.
+    - `platform` - `douyin`, `tiktok` or `bilibili`.
     - `url` - the API URL to sign, query included.
     - `user_agent` - what the request will be sent with; a Chrome default is
       used if you omit it.
@@ -390,7 +399,7 @@ async def sign(
     Send `query` byte for byte - re-encoding it changes the bytes the signature
     covers - and send every header in `headers` alongside it.
     """
-    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+    principal.require(*PLATFORM_READ_SCOPES)
     platform = body.platform
     user_agent = (body.user_agent or DEFAULT_USER_AGENT).strip()
     if not user_agent:
@@ -418,7 +427,7 @@ async def sign(
     if body.ms_token:
         cookies["msToken"] = body.ms_token
 
-    signer = native_signers()[platform]
+    signer = native_signers(wbi_keys=_WBI_KEYS)[platform]
     signed = await signer.sign(
         SigningRequest(method="GET", url=base, params=params),
         StaticFingerprint(user_agent=user_agent, browser_platform="Win32"),
@@ -569,7 +578,7 @@ async def decode(
     Fields are labelled, not translated: `name` is a stable slug, so a client
     may key off it.
     """
-    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+    principal.require(*PLATFORM_READ_SCOPES)
     source, decoded = _decode_target(body)
     platform = next((item.platform for item in decoded if item.platform), None)
     # Never the value, never a cookie: this endpoint is handed live signatures
@@ -628,7 +637,7 @@ async def parse_url(
     The platform, resource kind, id, handle, canonical URL, whether it needs
     expanding, and whether it is a supported target at all.
     """
-    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+    principal.require(*PLATFORM_READ_SCOPES)
     # The same second pass /parse makes. Both apps put a caption, a numeric
     # code and the link on the clipboard together, and that whole string is
     # what a paste into the console sends - so an endpoint documented as
@@ -705,7 +714,7 @@ async def parse_batch(
     One entry per distinct line in the order given, each with what it was
     recognised as, and a summary count by outcome.
     """
-    principal.require(Scope.DOUYIN_READ, Scope.TIKTOK_READ)
+    principal.require(*PLATFORM_READ_SCOPES)
 
     seen: set[str] = set()
     items: list[dict[str, Any]] = []
@@ -801,6 +810,17 @@ def _identify_line(line: str) -> dict[str, Any]:
                 entry["minted_at"] = parsed.minted_at.isoformat()
         return entry
 
+    # A bvid names its platform, which a bare number never does: it is the
+    # one id that can be placed without a link around it.
+    if BVID_PATTERN.fullmatch(line.strip()):
+        entry.update(
+            kind="content_id",
+            platform=Platform.BILIBILI.value,
+            resource="video",
+            resource_id=line.strip(),
+        )
+        return entry
+
     parsed = read_content_id(line)
     if parsed is not None:
         entry.update(
@@ -815,6 +835,12 @@ def _identify_line(line: str) -> dict[str, Any]:
     if line.strip().isdigit():
         entry["kind"] = "bad_id"
     return entry
+
+
+#: Bilibili's two WBI keys, shared by every call here. They are public and the
+#: same for everyone, but they are fetched - from the platform's own ``nav`` -
+#: so a fresh source per request would ask for them on every signature.
+_WBI_KEYS: Final = NavKeySource()
 
 
 class IdentityRequest(BaseModel):
@@ -857,7 +883,7 @@ async def mint_identity(
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`.
+    - `platform` - `douyin`, `tiktok` or `bilibili`.
     - `proxy` - mint behind this egress. Subject to the same
       `security.request_proxy` setting as every other proxy parameter, and worth
       setting: cookies minted at one address and used from another are the
@@ -875,10 +901,11 @@ async def mint_identity(
     # could drive the browser container and be handed a fresh jar.
     settings = request.app.state.settings
     base_url = getattr(settings, "browser_rpc_url", "")
-    if not base_url:
+    native = body.platform in NATIVE_MINT_PLATFORMS
+    if not native and not base_url:
         raise NotConfigured(
             "this instance has no browser-rpc service configured, so it cannot mint",
-            details={"setting": "DTK_BROWSER_RPC_URL"},
+            details={"setting": "DTK_BROWSER_RPC_URL", "platform": body.platform.value},
         )
 
     # The caller's egress goes through exactly the same gate as ?proxy= on the
@@ -891,16 +918,11 @@ async def mint_identity(
         mode = RequestProxyMode.DENY
     egress = await vet_proxy(body.proxy, mode=mode)
 
-    client = BrowserRpcClient(base_url)
-    try:
-        minted = await client.mint(body.platform, proxy_url=egress)
-    except BrowserRpcUnavailable as exc:
-        raise UpstreamRiskControl(
-            "the browser service could not mint an identity right now",
-            details={"platform": body.platform.value},
-        ) from exc
-    finally:
-        await client.aclose()
+    minted = (
+        await _mint_natively(body.platform, egress)
+        if native
+        else await _mint_in_browser(base_url, body.platform, egress)
+    )
 
     fingerprint = minted.fingerprint
     log.info(
@@ -928,6 +950,38 @@ async def mint_identity(
             "exit_ip": minted.exit_ip,
         },
     )
+
+
+async def _mint_in_browser(base_url: str, platform: Platform, egress: str | None) -> Any:
+    client = BrowserRpcClient(base_url)
+    try:
+        return await client.mint(platform, proxy_url=egress)
+    except BrowserRpcUnavailable as exc:
+        raise UpstreamRiskControl(
+            "the browser service could not mint an identity right now",
+            details={"platform": platform.value},
+        ) from exc
+    finally:
+        await client.aclose()
+
+
+async def _mint_natively(platform: Platform, egress: str | None) -> Any:
+    """A Bilibili guest, over plain HTTP: no browser involved.
+
+    Through a transport of its own, closed afterwards, so the TLS profile the
+    jar is handed back with is the one that obtained it - the same client the
+    worker's minter uses.
+    """
+    transport = WreqTransport()
+    try:
+        return await NativeMinter(transport).mint(platform, proxy_url=egress)
+    except NativeMintFailed as exc:
+        raise UpstreamRiskControl(
+            "Bilibili did not hand out a guest session right now",
+            details={"platform": platform.value},
+        ) from exc
+    finally:
+        await transport.close()
 
 
 __all__ = ["router"]

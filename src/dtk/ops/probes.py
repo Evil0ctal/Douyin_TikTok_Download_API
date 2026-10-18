@@ -51,6 +51,9 @@ DEFAULT_PROXY_PROBE_URL: Final = "https://ipinfo.io/json"
 SMOKE_URLS: Final[dict[Platform, str]] = {
     Platform.DOUYIN: "https://www.douyin.com/video/7675505205047348543",
     Platform.TIKTOK: "https://www.tiktok.com/@owlcitymusic/video/7218694761253735723",
+    # av2, the oldest video on the site. Measured 2026-10-18: a guest gets its
+    # detail and a 1080p stream.
+    Platform.BILIBILI: "https://www.bilibili.com/video/BV1xx411c7mD",
 }
 
 PROBE_TIMEOUT_SECONDS: Final = 10.0
@@ -170,6 +173,7 @@ async def probe_identity(
 SESSION_CHECKS: Final[dict[Platform, str]] = {
     Platform.DOUYIN: "douyin.session_check",
     Platform.TIKTOK: "tiktok.session_check",
+    Platform.BILIBILI: "bilibili.session_check",
 }
 
 
@@ -254,6 +258,9 @@ def read_session(platform: Platform, payload: Any) -> tuple[bool, str | None, st
             return False, None, "refused", None
         return False, _text(payload.get("user_uid")), "indeterminate", None
 
+    if platform is Platform.BILIBILI:
+        return _read_bilibili_nav(payload)
+
     data = payload.get("data")
     if not isinstance(data, dict):
         return False, None, "refused", None
@@ -318,6 +325,26 @@ async def probe_session(
         latency_ms=response.elapsed_ms,
         detail=detail,
     )
+
+
+def _read_bilibili_nav(payload: dict[str, Any]) -> tuple[bool, str | None, str, str | None]:
+    """Bilibili's ``/x/web-interface/nav`` is a real check, like TikTok's.
+
+    A guest jar is told ``code: -101`` ("not logged in") with ``isLogin:
+    false`` - measured 2026-10-18 on a freshly minted guest. A live session
+    answers ``code: 0``, ``isLogin: true`` and the account's ``mid``. A lapsed
+    login answers like a guest, so that is ``signed_out`` either way.
+    """
+    code = payload.get("code")
+    data = payload.get("data")
+    if not isinstance(code, int) or not isinstance(data, dict):
+        return False, None, "refused", None
+    if code == -101 or data.get("isLogin") is False:
+        return False, None, "signed_out", None
+    if code != 0:
+        return False, None, "refused", _text(payload.get("message"))
+    account = _text(data.get("mid"))
+    return (True, account, "live", None) if account else (False, None, "signed_out", None)
 
 
 def _text(value: Any) -> str | None:

@@ -93,7 +93,7 @@ def resolve_target(
                 kind = identify(candidate)
         if not kind.allowed or kind.platform is None:
             raise InvalidParam(
-                "that link is not a supported Douyin or TikTok post",
+                "that link is not a supported Douyin, TikTok or Bilibili post",
                 details={"field": "url"},
             )
         if kind.needs_expansion:

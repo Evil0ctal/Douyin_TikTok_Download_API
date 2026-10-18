@@ -35,6 +35,37 @@ FIXTURE_NAMES: tuple[str, ...] = (
     "risk_control_captcha",
 )
 
+#: Bilibili's set differs where the platform does. It has no image albums, and
+#: a deleted or private video is answered with an error code (``-404``,
+#: ``62002``) rather than a payload a parser could read - those shapes are in
+#: ``tests/unit/test_absence_matrix.py``, where the classifier meets them. Its
+#: risk page is HTML and cannot be a JSON fixture; ``risk_control_voucher`` is
+#: the JSON refusal. The rest are the shapes it has that the others do not: the
+#: ``playurl`` answer, a multi-part video, the guest's one-page comment list and
+#: the folder endpoints.
+BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
+    "video_normal",
+    "video_long_desc",
+    "video_multipart",
+    "content_streams",
+    "user_profile",
+    "user_posts_page1",
+    "user_posts_empty",
+    "comments_with_replies",
+    "comments_guest_first_page",
+    "comment_replies_page1",
+    "user_collections",
+    "user_collections_none",
+    "collection_posts_page1",
+    "risk_control_voucher",
+)
+
+
+def fixture_names(platform: str) -> tuple[str, ...]:
+    """The fixtures ``platform`` ships."""
+    return BILIBILI_FIXTURE_NAMES if platform == "bilibili" else FIXTURE_NAMES
+
+
 #: Key names that must never appear in a fixture. Fixtures come from real
 #: captured traffic, and a single echoed credential in a committed file is a
 #: leak - see the redaction rules in ``tests/fixtures/README.md``.
@@ -128,10 +159,12 @@ def keys_in(payload: Any) -> set[str]:
 
 
 __all__ = [
+    "BILIBILI_FIXTURE_NAMES",
     "FETCHED_AT",
     "FIXTURES",
     "FIXTURE_NAMES",
     "FORBIDDEN_KEY_PATTERN",
+    "fixture_names",
     "keys_in",
     "load",
     "nulled",

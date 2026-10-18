@@ -40,17 +40,33 @@ class CookieFormat(StrEnum):
 REQUIRED: dict[Platform, tuple[str, ...]] = {
     Platform.DOUYIN: ("ttwid",),
     Platform.TIKTOK: ("ttwid",),
+    # The visitor id every Bilibili browser carries; without it the signed
+    # endpoints treat the request as coming from no browser at all.
+    Platform.BILIBILI: ("buvid3",),
 }
 
 #: Presence of any of these means the cookie set carries a logged-in session,
 #: which is far more valuable and far more damaging to leak.
 SESSION_MARKERS: frozenset[str] = frozenset(
-    {"sessionid", "sessionid_ss", "sid_tt", "sid_guard", "uid_tt", "sid_ucp_v1"}
+    {"sessionid", "sessionid_ss", "sid_tt", "sid_guard", "uid_tt", "sid_ucp_v1", "SESSDATA"}
 )
 
 #: Cookies that materially improve a guest identity but are not required.
 USEFUL: frozenset[str] = frozenset(
-    {"odin_tt", "s_v_web_id", "msToken", "passport_csrf_token", "tt_csrf_token", "__ac_nonce"}
+    {
+        "odin_tt",
+        "s_v_web_id",
+        "msToken",
+        "passport_csrf_token",
+        "tt_csrf_token",
+        "__ac_nonce",
+        # Bilibili's: the second visitor id, the first-visit stamp and the
+        # browser fingerprint id the site's own page sets.
+        "buvid4",
+        "b_nut",
+        "buvid_fp",
+        "_uuid",
+    }
 )
 
 #: Catalogue namespace the warning codes below render through.

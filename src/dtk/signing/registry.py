@@ -62,6 +62,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import Outcome, Platform
 from dtk.signing.base import (
     MS_TOKEN_PARAM,
+    RPC_PLATFORMS,
     RequestSpec,
     SignatureAlgorithm,
     SignedParams,
@@ -441,17 +442,28 @@ class SignerRegistry:
             key,
             signed_by_platform(key[0], spec.url, session.cookies if session else None),
         )
+        rpc = self._rpc_for(key[0])
         try:
             return await signer.sign(spec, identity_fingerprint, session)
         except DtkError as exc:
-            if signer is self._rpc or self._rpc is None:
+            if signer is rpc or rpc is None:
                 raise
             logger.warning(
                 "signing.native.error", endpoint=key[1], platform=key[0].value, error=str(exc)
             )
             if not await self._rpc_healthy():
                 raise
-            return await self._rpc.sign(spec, identity_fingerprint, session)
+            return await rpc.sign(spec, identity_fingerprint, session)
+
+    def _rpc_for(self, platform: Platform) -> Signer | None:
+        """browser-rpc, if it can sign for ``platform`` at all.
+
+        It cannot for Bilibili: its page holds Douyin's and TikTok's SDKs. Every
+        decision below that would cross to it treats a platform it cannot sign
+        as having no browser - otherwise `signing.mode=rpc` would hand Bilibili
+        requests to a page that answers them with a signature for nothing.
+        """
+        return self._rpc if platform in RPC_PLATFORMS else None
 
     async def _select(self, key: EndpointKey, protected: bool = True) -> Signer:
         """Pick a signer for this endpoint, per ``policy.mode``.
@@ -469,16 +481,17 @@ class SignerRegistry:
         native = self._native.get(platform)
         native_usable = native is not None and platform not in self._native_disabled
         may_cross = self.policy.fallback_enabled
+        rpc = self._rpc_for(platform)
 
-        if self.policy.mode == "rpc":
-            if self._rpc is not None:
+        if self.policy.mode == "rpc" and platform in RPC_PLATFORMS:
+            if rpc is not None:
                 if native_usable and may_cross and not await self._rpc_healthy():
                     assert native is not None
                     return self._cross(key, native, "browser-rpc is unhealthy")
                 # An unhealthy RPC with nowhere to fall back to is still handed
                 # the request: its own error says what is wrong with it, where a
                 # synthetic "no signer available" would throw that away.
-                return self._prefer(key, self._rpc)
+                return self._prefer(key, rpc)
             if not native_usable:
                 raise SigningFailed(f"no signer available for {platform.value}")
             if not may_cross:
@@ -490,12 +503,12 @@ class SignerRegistry:
             return self._cross(key, native, "browser-rpc is not configured")
 
         if not native_usable:
-            if self._rpc is None or not may_cross:
+            if rpc is None or not may_cross:
                 raise SigningFailed(f"no signer available for {platform.value}")
-            return self._cross(key, self._rpc, f"no native signer for {platform.value}")
+            return self._cross(key, rpc, f"no native signer for {platform.value}")
         assert native is not None
 
-        if self.policy.mode == "auto" and self._rpc is not None and may_cross:
+        if self.policy.mode == "auto" and rpc is not None and may_cross:
             # The platform's own SDK signs only some endpoints. On the rest, the
             # native signer is not a degraded option - it is the same request
             # the site would send, for microseconds instead of a browser.
@@ -503,12 +516,12 @@ class SignerRegistry:
             # 3/8 on two protected ones. See dtk.signing.protection.
             if protected and await self._rpc_healthy():
                 return self._cross(
-                    key, self._rpc, "this endpoint needs a signature only a browser can produce"
+                    key, rpc, "this endpoint needs a signature only a browser can produce"
                 )
             if await self._at_risk(key) and await self._rpc_healthy():
                 return self._cross(
                     key,
-                    self._rpc,
+                    rpc,
                     "the endpoint's risk rate suggests the signature is being rejected",
                 )
 
@@ -604,9 +617,9 @@ class SignerRegistry:
         it out of band, never on the request's own latency path. Calling this
         claims the slot, so a caller that asks must sample.
         """
-        if self._rpc is None:
-            return False
         key = self._key(spec, platform, endpoint)
+        if self._rpc_for(key[0]) is None:
+            return False
         if key[0] in self._native_disabled or key[0] not in self._native:
             return False
         now = self._clock()
@@ -634,7 +647,8 @@ class SignerRegistry:
         """
         key = self._key(spec, platform, endpoint)
         native = self._native.get(key[0])
-        if native is None or self._rpc is None:
+        rpc = self._rpc_for(key[0])
+        if native is None or rpc is None:
             return self._record_shadow(key, False, True, "no second signer to compare against")
 
         sample = self._shadow_spec(spec)
@@ -651,7 +665,7 @@ class SignerRegistry:
                 # signs in a page loaded with this jar, and comparing against a
                 # signature taken in some other session would compare two
                 # different visitors and call the difference an algorithm drift.
-                remote_signed = await self._rpc.sign(sample, identity_fingerprint, session)
+                remote_signed = await rpc.sign(sample, identity_fingerprint, session)
                 after = await native.sign(sample, identity_fingerprint, session)
             except DtkError as exc:
                 return self._record_shadow(key, False, True, f"sample failed: {exc}")
