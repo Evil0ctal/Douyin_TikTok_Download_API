@@ -9,7 +9,7 @@
 
 🚀 自部署的[抖音](https://www.douyin.com) / [TikTok](https://www.tiktok.com)数据接口服务。一条 `docker compose up`，自动维护身份池，对外提供 REST API、MCP 与 Web 控制台。
 
-开源、免费、跑在你自己的机器上 —— 不用注册、没有配额、链路上没有第三方。它能取作品、作者、评论和搜索，下载视频和图集时拿到的是**无水印**的流（它挑的是平台本来就提供的那条干净流，而不是「去掉」了什么），采集到的内容存在你自己的 PostgreSQL 里。
+开源、免费、跑在你自己的机器上 —— 不用注册、没有配额、链路上没有第三方。它能取作品、作者、评论和搜索，下载视频和图集时拿到的是**无水印**的流（它挑的是平台本来就提供的那条干净流，而不是「去掉」了什么），采集到的内容存在你自己的 PostgreSQL 里。下载下来的视频可以在同一台机器上离线转成文字，AI agent 也能通过 MCP 直接调用这一切。
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
@@ -205,6 +205,48 @@ v4 没有一键脚本，下面「快速开始」里那个装的是 v5。v4 就�
 
 媒体下载、内容归档、计数快照、合集、定时监控都是内置的，不需要额外服务。
 
+## 🤖 让 AI agent 来用：MCP
+
+把 Claude Code、Claude Desktop、Codex CLI、Cherry Studio 或任何 MCP 客户端指向你自己实例上的
+`/mcp`，agent 就能读取作品、作者和评论，把作品的媒体存下来，再把视频转成文字。它和 REST API
+走同一个 service 层、同一个身份池和调度器，能做什么由 API Key 的权限范围决定。
+
+```bash
+claude mcp add --transport http dtk http://127.0.0.1:8000/mcp/ \
+  --header "Authorization: Bearer dtk_YOUR_API_KEY"
+```
+
+| 工具 | 做什么 |
+|---|---|
+| `parse_url` | 取一个链接指向的东西——作品、作者、短链、整段分享文案都行 |
+| `get_video` · `get_user` | 按 ID 取一个作品或一个作者主页 |
+| `list_user_posts` · `list_comments` | 作者的作品、作品的评论，按页取 |
+| `get_content_history` | 作品或作者在本地数据库里记录下来的计数历史 |
+| `pool_status` | 身份池和各接口的健康状况，让 agent 分得清"稍后再试"和"坏了" |
+| `download_media` | 把作品的媒体存到本实例 |
+| `transcribe_video` | 把已存的视频转成文字 |
+| `get_task_result` | 取回一次调用里没来得及完成的结果 |
+
+十个工具，刻意不多：每多一个工具，agent 选对工具的能力就会变差，所以新能力是作为已有工具的参数
+加进来的。各个客户端怎么配、每个工具返回什么，见 [MCP 与 AI agent](./documents/zh/12-mcp.md)。
+控制台里的 `/mcp-guide` 是同一份指南。
+
+## 🎙 语音转文字，在你自己的机器上
+
+下载下来的视频可以就地转成文字。FunASR 模型——Paraformer 识别语音、FSMN-VAD 找出哪里有人在
+说话、CT-Transformer 补标点——运行在一个没有任何网络出口的边车里，音频不会离开这台主机，也不调用
+任何外部接口。
+
+- **在哪用：** 控制台的 **视频转写** 页面、每个已完成下载上的 **转写视频** 按钮、
+  `POST /api/v1/transcriptions`，或者 MCP 工具 `transcribe_video`
+- **得到什么：** 每个视频一整段文字，数字写成阿拉伯数字，可以导出 `.txt`
+- **多快：** 一段 3 分 13 秒的视频，两个 CPU 核用了 3.7 秒；不需要 GPU
+- **擅长什么：** 普通话。模型是通用中文模型，其他语言效果差
+
+默认关闭。一键安装脚本会询问，然后下载约 500 MB 的模型，并逐个文件校验 SHA-256；手动安装见
+[准备 FunASR ONNX 模型](./documents/zh/18-funasr-models.md)和
+[把已存的视频转成文字](./documents/zh/08-downloads-and-library.md#把已存的视频转成文字)。
+
 ## 🔗 它认得哪些抖音 / TikTok 链接
 
 粘贴什么都行——分享短链、作品页地址，或者 App 复制出来的一整段带文案的口令：
@@ -390,7 +432,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 
 | 入口 | 地址 | 说明 |
 |---|---|---|
-| Web 控制台 | `/` | 身份池、调度器、资料库、下载、日志、诊断 |
+| Web 控制台 | `/` | 身份池、调度器、资料库、下载、转写、日志、诊断 |
 | 接口文档 | `/docs` | 控制台内的 Swagger UI，中英双语 |
 | 裸接口文档 | `/swagger`、`/redoc` | 无需登录 |
 | REST API | `/api/v1/...` | 109 个操作 |
@@ -402,6 +444,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 - **解析**：链接、分享文案、短链、作品 ID 都吃
 - **归档**：解析过的内容自动入库，平台删了这里还在
 - **下载**：媒体存到自己磁盘，支持按作者批量、跳过已下载、去重
+- **转写**：把已存的视频离线转成文字
 - **关注列表**：定期重新收集某个作者或作品
 - **iOS 快捷指令**：`/api/v1/ios/shortcut`
 

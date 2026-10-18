@@ -38,7 +38,7 @@
 - [控制台总览](./zh/05-console-overview.md) —— 外壳、总览、系统信息、日志、诊断
 - [身份与代理](./zh/06-identities-and-proxies.md) —— 身份池及其状态机、铸造、导入 Cookie、代理、调度器页面与接口访问控制页面、熔断器
 - [调试台与工具](./zh/07-playground-and-tools.md) —— 在浏览器里直接调任意接口、计算签名、反解签名、解析链接、按需铸造身份
-- [下载、资料库与关注列表](./zh/08-downloads-and-library.md) —— 把媒体存到自己的硬盘上、几个月后还能找回来、定时采集某个目标
+- [下载、资料库与关注列表](./zh/08-downloads-and-library.md) —— 把媒体存到自己的硬盘上、几个月后还能找回来、把已存的视频转成文字、定时采集某个目标
 - [用户与 API 密钥](./zh/09-users-and-api-keys.md) —— 角色、权限范围、密钥，以及谁能做什么
 
 侧边栏里的每一行都由上面某一篇负责，[控制台总览](./zh/05-console-overview.md#每个页面由哪篇文档负责)里就是那张对照表：调度器（`/scheduler`）和接口访问控制（`/endpoint-access`）在《身份与代理》里讲，备份（`/backup`）、通知（`/notifications`）和设置（`/settings`）在《运维》里讲。

@@ -9,7 +9,7 @@
 
 🚀 A self-hosted data API for [Douyin](https://www.douyin.com) and [TikTok](https://www.tiktok.com). One `docker compose up`, an identity pool that maintains itself, and a REST API, MCP server and web console on top.
 
-Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors, comments and search, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL.
+Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors, comments and search, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL. A video it has downloaded can be turned into text on the same machine, offline, and an AI agent can drive all of it over MCP.
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
@@ -223,6 +223,51 @@ is worth nothing. Importing your own logged-in cookies widens what the rest can 
 Media downloads, the content archive, counter snapshots, collections and a watchlist
 are built in; none of them needs another service.
 
+## 🤖 Let an AI agent use it: MCP
+
+Point Claude Code, Claude Desktop, Codex CLI, Cherry Studio or any other MCP client at `/mcp` on
+your own instance, and the agent can read posts, authors and comments, store a post's media and
+transcribe it. It goes through the same service layer, identity pool and scheduler as the REST API,
+and an API key's scopes bound what it may do.
+
+```bash
+claude mcp add --transport http dtk http://127.0.0.1:8000/mcp/ \
+  --header "Authorization: Bearer dtk_YOUR_API_KEY"
+```
+
+| Tool | What it does |
+|---|---|
+| `parse_url` | Fetch whatever a link points at — a post, an author, a short link, pasted share text |
+| `get_video` · `get_user` | One post, or one author profile, by id |
+| `list_user_posts` · `list_comments` | An author's posts or a post's comments, a page at a time |
+| `get_content_history` | The recorded counter history of a post or an author, from the local database |
+| `pool_status` | Identity-pool and endpoint health, so an agent can tell "try later" from "broken" |
+| `download_media` | Store a post's media on this instance |
+| `transcribe_video` | Turn a stored video into text |
+| `get_task_result` | Collect a result that did not finish within the call |
+
+Ten tools, and few on purpose: every extra tool makes an agent worse at picking the right one, so a
+new capability arrives as an argument to an existing tool. Setup for each client, and what every
+tool returns: [MCP and AI agents](./documents/en/12-mcp.md). The console shows the same guide at
+`/mcp-guide`.
+
+## 🎙 Speech to text, on your own machine
+
+A downloaded video can be transcribed where it is stored. FunASR models — Paraformer for the
+speech, FSMN-VAD to find where someone is talking, CT-Transformer for punctuation — run in a sidecar
+on a network with no route out, so the audio never leaves the host and no API is called.
+
+- **Where:** the **Transcriptions** page in the console, a **Transcribe video** button on every
+  finished download, `POST /api/v1/transcriptions`, or the `transcribe_video` MCP tool
+- **What you get:** one whole text per video, with numbers written as digits, exportable as `.txt`
+- **How fast:** a 3 min 13 s clip took 3.7 seconds on two CPU cores; no GPU needed
+- **What it is good at:** Mandarin. The models are the general Chinese ones, so other languages
+  come out poorly
+
+It is off by default. The guided installer asks, then downloads the ~500 MB of models and checks
+each file against its SHA-256; by hand, see [Preparing the FunASR ONNX models](./documents/en/18-funasr-models.md)
+and [Turning a stored video into text](./documents/en/08-downloads-and-library.md#turning-a-stored-video-into-text).
+
 ## 🔗 Which Douyin and TikTok links it accepts
 
 Paste whatever you have — a short link, a post URL, or the whole caption a platform app
@@ -422,7 +467,7 @@ filesystem, process supervision — you put back yourself. That section lists th
 
 | Entry point | Where | What it is |
 |---|---|---|
-| Web console | `/` | Identity pool, scheduler, library, downloads, logs, diagnostics |
+| Web console | `/` | Identity pool, scheduler, library, downloads, transcriptions, logs, diagnostics |
 | API reference | `/docs` | Swagger UI inside the console, English and Chinese |
 | Bare reference | `/swagger`, `/redoc` | No login required |
 | REST API | `/api/v1/...` | 109 operations |
@@ -435,6 +480,7 @@ The main capabilities:
 - **Archive** everything parsed, so a post deleted upstream is still here
 - **Download** media to your own disk, in bulk by author, skipping what you have,
   with duplicate cleanup
+- **Transcribe** a stored video to text, offline
 - **Watch** an author or a post and re-collect it on a timer
 - **iOS Shortcut** support at `/api/v1/ios/shortcut`
 

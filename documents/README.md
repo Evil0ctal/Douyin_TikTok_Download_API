@@ -41,7 +41,7 @@ half an hour and leave you with a working instance you understand.
 - [Console overview](./en/05-console-overview.md) — the shell, Overview, System, Logs, Diagnose
 - [Identities and proxies](./en/06-identities-and-proxies.md) — the pool, its state machine, minting, importing cookies, proxies, the Scheduler and Endpoint access pages, and the circuit breakers
 - [Playground and tools](./en/07-playground-and-tools.md) — driving any endpoint from the browser, signing, decoding a signature, parsing links, minting on demand
-- [Downloads, library and watchlist](./en/08-downloads-and-library.md) — putting media on your own disk, finding it again, and collecting a target on a timer
+- [Downloads, library and watchlist](./en/08-downloads-and-library.md) — putting media on your own disk, finding it again, turning a stored video into text, and collecting a target on a timer
 - [Users and API keys](./en/09-users-and-api-keys.md) — roles, scopes, keys, and who can do what
 
 Every entry in the sidebar is covered by one of these pages, and

@@ -17,7 +17,9 @@ The console splits "what I have seen" from "what I am holding" from "what I keep
 | Downloads | `/downloads` | The download index: one row per request to store a post's media, plus what landed on disk | Disk, and one identity-backed request per post that has to be fetched first |
 | Watchlist | `/watchlist` | Standing instructions: collect this author or this post every N hours, forever | The identity pool, on a schedule, for as long as the entry exists |
 
-All three live in the **Tools** group in the sidebar. A post can be in the archive without its media being on disk (the usual case), and a download can outlive its archive row — the downloads table still describes a real directory on the volume even if the post was later deleted from the library.
+A fourth page, **Transcriptions** (`/transcriptions`), holds the text made from stored videos when the optional transcriber is on; it costs CPU on this machine and nothing upstream. See [Turning a stored video into text](#turning-a-stored-video-into-text).
+
+All of them live in the **Tools** group in the sidebar. A post can be in the archive without its media being on disk (the usual case), and a download can outlive its archive row — the downloads table still describes a real directory on the volume even if the post was later deleted from the library.
 
 ## The media downloader is optional
 
@@ -231,6 +233,36 @@ for example `dtk-douyin-7408915107113127220-video.mp4`. On the volume every post
 
 Note what this is not: the server does not proxy media on demand. Saving a file serves a copy that is already on the disk, behind an authenticated scope. "Store on this instance" and "save this file to my computer" are two different destinations, which is why the console labels them differently.
 
+## Turning a stored video into text
+
+A finished download's video can be transcribed on this machine. The `transcriber` sidecar runs FunASR models — Paraformer to recognise the speech, FSMN-VAD to find where someone is speaking, CT-Transformer to put the punctuation back — and it sits on a network with no route out, so the audio never leaves the host. It is optional and off by default: [the transcriber profile](./02-installation.md#the-optional-profiles) turns it on, and [Preparing the FunASR ONNX models](./18-funasr-models.md) gets the ~500 MB of models it needs. The guided installer does both if you say yes to transcription.
+
+Know what it is for before you queue a hundred: the models are the general **Mandarin** ones, so Chinese speech comes out well and other languages poorly. The result is **one whole text per video** — no timestamps, no speaker labels.
+
+### Starting one
+
+| From | How |
+| --- | --- |
+| Console | **Downloads** → open a finished download → **Transcribe video** |
+| REST | `POST /api/v1/transcriptions` with `{"download_id": "<uuid>"}`; add `?wait=30` to hold the connection until it finishes |
+| MCP | `transcribe_video(download_id)` — from a link, the chain is `parse_url → download_media → transcribe_video` |
+
+The download has to be finished and its video still on disk. One the size ceiling evicted is refused with a message saying so: download it again, then transcribe.
+
+Asking twice is cheap. A finished transcription of the same file is handed back (`200`, with `reused` saying so), and one already running is joined (`202`) rather than started again. `refresh: true` forces a new one. `normalize` (on by default) rewrites spoken numbers as digits; if that last step fails, `DTK_TRANSCRIBER_NORMALIZATION_FAILURE_POLICY` decides whether you get the text without it (`fallback`, the default) or a failed transcription (`fail`).
+
+### The Transcriptions page
+
+`/transcriptions`, in the same **Tools** group, lists every transcription newest first with its state, a preview of the text, the video's duration, the model and whether numbers were normalised. A running one shows its stage — Decoding audio, Finding speech, Recognising speech, Adding punctuation, Writing numbers as digits — and its details drawer shows the text recognised so far, marked provisional until punctuation and numbers are applied at the end. A finished one can be exported as a `.txt`.
+
+**Cancel** stops queued or running work. **Delete** removes settled records — the text and its metadata — and never the video they came from.
+
+### What it costs
+
+CPU, and only while a job runs: the models stay loaded at about 750 MiB, and a job keeps two cores busy. Measured on 2026-10-16, a 3 min 13 s clip took 3.7 seconds on two cores to itself. Sharing those cores with the browser container while it mints identities is slower — see [When transcription and the browser share a host](./02-installation.md#when-transcription-and-the-browser-share-a-host).
+
+The sidecar runs one job at a time (`DTK_TRANSCRIBER_WORKERS`) with eight waiting (`DTK_TRANSCRIBER_QUEUE`); past that a transcription is marked failed with the reason, and starting it again later is the fix. Transcriptions also count against the worker queue's ceiling like downloads do, so a bulk run can answer `QUEUE_FULL` before it reaches the sidecar.
+
 ## The Library page
 
 `/library` is the archive: everything this instance has parsed, answered entirely from local storage. Nothing here spends an identity, nothing is rate limited upstream, and a post that has since been deleted is still here with its availability saying so. That is the whole point of keeping an archive.
@@ -419,6 +451,8 @@ The API surfaces behind these three pages are scoped separately on purpose: seei
 | `media:read` | List downloads, read storage usage, fetch a stored file |
 | `media:write` | Start, retry, pin and cancel a download; delete a download's files; deduplicate; create and change collections; delete archived posts |
 | `douyin:read` / `tiktok:read` | The availability recheck and the author backfill, because both spend the identity pool |
+| `transcription:write` | Start, refresh, cancel and delete transcriptions |
+| `transcription:read` | List transcriptions and read their text |
 | `identity:manage` | The watchlist endpoints (`/api/v1/admin/watchlist/*`); operator role or above for anything that writes |
 | `admin` | Everything, the watchlist endpoints included |
 
