@@ -243,7 +243,7 @@ Know what it is for before you queue a hundred: the models are the general **Man
 
 | From | How |
 | --- | --- |
-| Console | **Downloads** → open a finished download → **Transcribe video** |
+| Console | **Downloads** → open a finished download → **Transcribe video**; or **Library** → open a saved video post → **Transcribe video** |
 | REST | `POST /api/v1/transcriptions` with `{"download_id": "<uuid>"}`; add `?wait=30` to hold the connection until it finishes |
 | MCP | `transcribe_video(download_id)` — from a link, the chain is `parse_url → download_media → transcribe_video` |
 
@@ -315,6 +315,8 @@ Open a post to get its drawer. The footer carries three actions:
 - **Export the video file** — hands your browser the stored video, when there is one. Image posts have no video, so this button does not appear for them; their slides get one link each in the drawer body instead, because a browser will not start thirty downloads from a single click and pretending otherwise would silently save one file out of thirty.
 
 The drawer also plays the stored video inline, from this instance's disk rather than from the platform: no CDN link to expire, no hotlink check to fail, and nobody outside this machine is told what is being watched. It preloads metadata only, so a 240 MB video does not start transferring because a drawer opened.
+
+Under the player, a video post has **Transcribe video**, the same action as in the downloads drawer. It reads the stored file, never the platform's, so on a post not saved yet it is disabled and says to store it first. See [Turning a stored video into text](#turning-a-stored-video-into-text).
 
 ## Exporting the archive
 

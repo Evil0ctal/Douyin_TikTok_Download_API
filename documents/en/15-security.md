@@ -554,13 +554,14 @@ either in readable form, so a lost one is reissued rather than looked up.
 | Can call the platforms | yes | yes |
 | Can read the overview, library, downloads, logs, system | yes | no — the scope check refuses it |
 | Can read identities, proxies, keys, users, settings | no | no |
+| Can download media or transcribe a video | no | no |
 | Can change anything | no | no |
 
 Two separate rules produce that table, and it is worth knowing which is which.
 The **scope** check is what stops the published key from reading the request
 log. The **read-only** rule is what stops the console session, which is
-unscoped like every console session, from starting a download or changing the
-password: every write is refused unless its route is on a short allowlist in
+unscoped like every console session, from starting a download or a transcription,
+or changing the password: every write is refused unless its route is on a short allowlist in
 `dtk/api/demo_readonly.py`, so an endpoint added later is closed by default.
 
 ### What a demo request leaves behind

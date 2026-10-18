@@ -82,6 +82,9 @@ class TestReadOnlyRule:
         "route",
         [
             "/api/v1/downloads",
+            # Minutes of the operator's CPU per video, so a public demo would be
+            # the cheapest way there is to keep somebody else's server busy.
+            "/api/v1/transcriptions",
             "/api/v1/auth/password",
             "/api/v1/tools/identity",
             "/api/v1/admin/users",
@@ -134,7 +137,13 @@ class TestPublishedKey:
 
     @pytest.mark.parametrize(
         "forbidden",
-        [Scope.ADMIN, Scope.IDENTITY_MANAGE, Scope.ARCHIVE_EXPORT, Scope.MEDIA_WRITE],
+        [
+            Scope.ADMIN,
+            Scope.IDENTITY_MANAGE,
+            Scope.ARCHIVE_EXPORT,
+            Scope.MEDIA_WRITE,
+            Scope.TRANSCRIPTION_WRITE,
+        ],
     )
     def test_the_key_cannot_reach_the_dangerous_scopes(self, forbidden: Scope):
         principal = _key_principal(demo.DEMO_KEY_SCOPES)

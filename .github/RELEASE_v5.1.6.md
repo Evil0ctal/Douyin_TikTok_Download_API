@@ -79,6 +79,11 @@ Two things do not happen by themselves:
   `bytes`, `bytes_expected` and `bytes_per_second`, overall and per file. They
   come from the 5.1.6 downloader image; with an older one the bar still counts
   files.
+- **Transcribe from the Library.** A saved video post's drawer has
+  **Transcribe video**, as the downloads drawer does. On a post not saved yet it
+  is disabled and says to store it first, because the transcriber reads the
+  stored file. A demo account still cannot transcribe: the route is not on its
+  write allowlist and the published key holds no transcription scope.
 - **README sections** on offline transcription and on driving the instance
   from an AI agent over MCP, and a user-guide section on transcribing a stored
   video: starting one from the console, REST or MCP, the Transcriptions page,
@@ -183,6 +188,9 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
   `GET /api/v1/downloads` 的 `progress` 里也有同样的数字：`bytes`、`bytes_expected` 和
   `bytes_per_second`，整体和每个文件各一份。这些数字来自 5.1.6 的下载器镜像；用旧镜像时，
   进度条仍按文件数计算。
+- **在资料库里转写。** 已保存的视频作品的抽屉里有 **转写视频**，和下载抽屉一样。作品还没保存时
+  按钮是灰的，并提示先保存，因为转写读取的是已保存的文件。演示账号仍然不能转写：这个接口不在它的
+  写操作白名单里，公开的 Key 也没有转写权限。
 - **README 新增两节**：离线转写，以及让 AI agent 通过 MCP 使用这个实例；用户指南里新增
   「把已存的视频转成文字」一节：从控制台、REST 或 MCP 发起转写，视频转写页面，以及它的代价。
 

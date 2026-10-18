@@ -17,6 +17,7 @@ import {
   PlayIcon,
   Select,
   Skeleton,
+  TranscribeButton,
   type Column,
   useToast,
 } from '@/components'
@@ -1402,6 +1403,22 @@ function Detail({ row }: { row: ArchivedRow }) {
         <video className={styles.player} src={video} poster={poster} controls preload="metadata" />
       ) : row.stored ? (
         <p className="u-xs u-muted">{t('library.detail.savedNoVideo')}</p>
+      ) : null}
+
+      {/* A video only. The transcriber reads the file stored here, never the
+          platform's, so a post not saved yet cannot be transcribed - and a
+          disabled button that says why beats one that fails on click. */}
+      {row.kind === 'video' ? (
+        <TranscribeButton
+          downloadId={row.stored?.video ? row.stored.download_id : null}
+          unavailable={
+            !row.stored
+              ? t('library.detail.transcribeUnsaved')
+              : !row.stored.video
+                ? t('downloads.transcription.noVideo')
+                : null
+          }
+        />
       ) : null}
 
       {/* An image post has no video, so the footer's export button never

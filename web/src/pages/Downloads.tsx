@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'wouter'
 
 import {
   BatchParse,
@@ -18,15 +17,15 @@ import {
   PageHeader,
   Select,
   StatusBadge,
+  TranscribeButton,
   type Column,
   useToast,
 } from '@/components'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
+import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiGet, apiPost, isApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
-import { atLeast } from '@/lib/roles'
 import {
   DOWNLOAD_STATES,
   PAGE_CEILING,
@@ -1247,38 +1246,16 @@ export default function Downloads() {
 function Detail({ row }: { row: DownloadRow }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
-  const toast = useToast()
-  const [, navigate] = useLocation()
-  const session = useSession()
-  // The demo account may open Downloads but every write there is refused, and
-  // a success would land it on /transcriptions, which it cannot open either.
-  const mayTranscribe = atLeast(session.data?.role ?? null, 'viewer')
 
   const video = videoOf(row)
   const cover = coverOf(row)
-  const canTranscribe = Boolean(video) && row.on_disk && (row.state === 'done' || row.state === 'partial')
-  const transcribe = useApiMutation<{ transcription_id: string }, void>(
-    () =>
-      apiPost(
-        paths.transcriptions.create,
-        { download_id: row.id, normalize: true, refresh: false },
-        { awaitTask: false },
-      ),
-    {
-      onSuccess: (result) => {
-        navigate(`/transcriptions?id=${encodeURIComponent(result.transcription_id)}`)
-      },
-      onError: (error) => toast.apiError(error, t('downloads.transcription.failed')),
-    },
-  )
-
   const unavailableReason = !row.on_disk
     ? t('downloads.transcription.evicted')
     : row.state !== 'done' && row.state !== 'partial'
       ? t('downloads.transcription.unfinished')
       : !video
         ? t('downloads.transcription.noVideo')
-        : undefined
+        : null
 
   return (
     <div className="u-stack">
@@ -1327,20 +1304,7 @@ function Detail({ row }: { row: DownloadRow }) {
       {row.error ? <p className="u-muted">{row.error}</p> : null}
       {!row.on_disk ? <p className="u-xs u-muted">{t('downloads.evictedHint')}</p> : null}
 
-      {mayTranscribe ? (
-        <div>
-          <Button
-            variant="primary"
-            loading={transcribe.isPending}
-            disabled={!canTranscribe || transcribe.isPending}
-            title={unavailableReason}
-            onClick={() => transcribe.mutate()}
-          >
-            {t('downloads.transcription.action')}
-          </Button>
-          {unavailableReason ? <p className="u-xs u-muted">{unavailableReason}</p> : null}
-        </div>
-      ) : null}
+      <TranscribeButton downloadId={row.id} unavailable={unavailableReason} />
 
       <ul className={styles.files}>
         {row.files.map((file) => (

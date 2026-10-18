@@ -1966,7 +1966,8 @@
       "openOnPlatform": "Open on the platform",
       "goneHint": "This post is no longer available on the platform. What is here is what this instance saw while it still was.",
       "savedNoVideo": "The media for this post is stored, but it has no video file - an image post keeps its pictures instead.",
-      "exportFiles": "Export the stored files"
+      "exportFiles": "Export the stored files",
+      "transcribeUnsaved": "Save the media to this instance first, with the button below; the transcriber reads the stored file, not the platform's."
     },
     "page": {
       "previous": "Previous",
