@@ -36,6 +36,7 @@ from dtk.core.errors import (
     UnsupportedContent,
 )
 from dtk.core.logging import get_logger
+from dtk.core.types import Platform
 from dtk.db.models import Proxy
 from dtk.db.repositories import ProxyRepository
 from dtk.urls import (
@@ -84,6 +85,15 @@ _ENDPOINT_BY_RESOURCE: dict[ResourceKind, str] = {
     # own series is the same word. Nothing produces a Douyin COLLECTION, so
     # nothing reaches douyin.collection_detail, which does not exist.
     ResourceKind.COLLECTION: "collection_detail",
+}
+
+#: Where a platform answers a kind of link with a different call. Bilibili has
+#: no folder detail - its folder list already carries the name, cover and size -
+#: so a folder link is answered with the folder's first page of videos. It used
+#: to map onto bilibili.collection_detail, which does not exist, and /parse
+#: refused every Bilibili folder link with INVALID_PARAM.
+_ENDPOINT_OVERRIDES: Final[Mapping[tuple[Platform, ResourceKind], str]] = {
+    (Platform.BILIBILI, ResourceKind.COLLECTION): "collection_posts",
 }
 
 #: The canonical parameter each endpoint expects the resolved id under.
@@ -285,7 +295,9 @@ def to_call(identified: UrlKind) -> tuple[str, dict[str, Any]]:
     platform = identified.platform
     if platform is None:  # pragma: no cover - resolve_link already refused this
         raise InvalidUrl("the link carries no platform", details={"url": identified.original})
-    capability = _ENDPOINT_BY_RESOURCE[identified.resource]
+    capability = _ENDPOINT_OVERRIDES.get(
+        (platform, identified.resource), _ENDPOINT_BY_RESOURCE[identified.resource]
+    )
     param = _PARAM_BY_RESOURCE[identified.resource]
     return f"{platform.value}.{capability}", {param: identified.resource_id}
 

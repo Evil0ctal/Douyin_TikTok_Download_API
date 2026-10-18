@@ -143,6 +143,12 @@ ENDPOINTS: Final = EndpointTable.of(
         build=comment_replies_params,
         risk_weight=1.2,
         signed=False,
+        # A guest is served the first page of replies, up to 20, and every
+        # later page empty with `page.num: 0` - while page one says how many
+        # there are (measured 2026-10-18 on a comment with 24). Without this
+        # a guest followed the cursor page one handed out to an empty page
+        # that looked like the end of the thread.
+        paging_login=LoginNeed.REQUIRED,
         summary="List the replies to a comment",
     ),
     EndpointSpec(
@@ -161,6 +167,9 @@ ENDPOINTS: Final = EndpointTable.of(
         build=collection_posts_params,
         risk_weight=1.2,
         signed=False,
+        # A folder that does not exist is `{"code": 0, "data": null}`; an empty
+        # one still carries its `info` (measured 2026-10-18).
+        absent_when_null="data",
         summary="List the videos in a folder",
     ),
     EndpointSpec(

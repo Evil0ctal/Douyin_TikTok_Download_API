@@ -136,6 +136,12 @@ class TestEndpointTable:
         assert spec.login_for({}) is LoginNeed.PREFERRED
         assert spec.login_for({"cursor": "x"}) is LoginNeed.REQUIRED
 
+    def test_a_guest_reads_the_first_page_of_replies_and_no_further(self) -> None:
+        """Page two came back empty for a guest, looking like the thread's end."""
+        spec = endpoints.ENDPOINTS[endpoints.COMMENT_REPLIES]
+        assert spec.login_for({}) is LoginNeed.NONE
+        assert spec.login_for({"cursor": "2"}) is LoginNeed.REQUIRED
+
     def test_the_space_list_is_sent_from_a_space_page(self) -> None:
         request = get_adapter("bilibili").build_request(endpoints.AUTHOR_POSTS, mid="2")
         assert request["headers"]["Referer"] == "https://space.bilibili.com/"

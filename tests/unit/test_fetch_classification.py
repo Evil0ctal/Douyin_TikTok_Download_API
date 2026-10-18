@@ -23,7 +23,7 @@ import json
 import uuid
 from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Final
 
 import pytest
 
@@ -1174,3 +1174,51 @@ class TestPostedBody:
 
         assert transport.specs[0].body is None
         assert result.explain is not None and result.explain.body is None
+
+
+#: Bilibili's answer for a folder id that does not exist.
+FOLDER_MISSING: Final = {"code": 0, "message": "OK", "ttl": 1, "data": None}
+
+
+class TestAbsentWhenNull:
+    """An endpoint whose ``data: null`` names something that is not there.
+
+    Measured 2026-10-18: Bilibili's folder contents answer a folder id that
+    does not exist with ``{"code": 0, "message": "OK", "data": null}``, and that
+    read as an empty folder - a page with no items and no error. Its folder
+    list answers an author with no folders in exactly the same shape, and
+    there an empty page IS the answer, so this is declared per endpoint.
+    """
+
+    def test_a_folder_that_does_not_exist_is_a_business_error(self):
+        classification, _ = service()._classify(
+            get_adapter(Platform.BILIBILI),
+            "bilibili.collection_posts",
+            response(200, FOLDER_MISSING),
+        )
+        assert classification.outcome is Outcome.BUSINESS_ERROR
+        assert classification.rule == "payload.absent"
+
+    def test_an_empty_folder_is_still_a_page(self):
+        empty = {"code": 0, "data": {"info": {"id": 1, "media_count": 0}, "medias": None}}
+        classification, _ = service()._classify(
+            get_adapter(Platform.BILIBILI), "bilibili.collection_posts", response(200, empty)
+        )
+        assert classification.outcome is Outcome.OK
+
+    def test_an_author_with_no_folders_is_still_a_page(self):
+        classification, _ = service()._classify(
+            get_adapter(Platform.BILIBILI),
+            "bilibili.author_collections",
+            response(200, FOLDER_MISSING),
+        )
+        assert classification.outcome is Outcome.OK
+
+    def test_only_the_folder_contents_declare_it(self):
+        declared = {
+            name
+            for platform in Platform
+            for name, spec in get_adapter(platform).endpoints.specs.items()
+            if spec.absent_when_null is not None
+        }
+        assert declared == {"bilibili.collection_posts"}

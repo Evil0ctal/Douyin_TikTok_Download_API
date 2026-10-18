@@ -481,6 +481,13 @@ class FetchService:
         if marker:
             log.warning("fetch.risk_control", marker=marker, status=response.status)
             return Classification(Outcome.RISK_CONTROL, "platform.risk_marker", marker), payload
+        absent = spec.absent_when_null if spec is not None else None
+        if absent is not None and absent in payload and payload[absent] is None:
+            # A fact about what was asked for, so nothing is held against the
+            # identity that asked.
+            return Classification(
+                Outcome.BUSINESS_ERROR, "payload.absent", f"{absent} is null"
+            ), payload
         return classification, payload
 
     # -- public ------------------------------------------------------------

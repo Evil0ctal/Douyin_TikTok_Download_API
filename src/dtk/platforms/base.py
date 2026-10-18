@@ -319,6 +319,13 @@ class EndpointSpec:
     #: is how a burnt identity stays in rotation. The exception is an endpoint
     #: whose "no" IS silence - and that has to be measured, not assumed.
     empty_body_is_normal: bool = False
+    #: A top-level key whose null, in an answer that otherwise succeeded, means
+    #: the thing the request names does not exist. Measured per endpoint, never
+    #: assumed per platform: Bilibili's folder contents answer a folder that
+    #: does not exist with ``{"code": 0, "data": null}``, which read as an
+    #: empty folder, while its folder list answers an author with no folders
+    #: in the same shape - and there an empty page is the right answer.
+    absent_when_null: str | None = None
     #: What a guest identity loses on the first page. See :class:`LoginNeed`.
     login: LoginNeed = LoginNeed.NONE
     #: The same, for every page after the first; None means as ``login``. Its

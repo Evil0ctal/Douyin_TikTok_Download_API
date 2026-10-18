@@ -140,6 +140,37 @@ def test_to_call_is_pure():
     assert params == {"content_id": "7372484719365098803"}
 
 
+def test_a_bilibili_folder_link_is_answered_with_its_videos():
+    """Bilibili has no folder detail; its folder list carries name, cover and size.
+
+    The link used to map onto ``bilibili.collection_detail``, which does not
+    exist, and /parse refused every folder link with INVALID_PARAM.
+    """
+    endpoint, params = to_call(
+        identify("https://space.bilibili.com/18202105/favlist?fid=58074805&ftype=create")
+    )
+    assert endpoint == "bilibili.collection_posts"
+    assert params == {"collection_id": "58074805"}
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        DOUYIN_VIDEO,
+        "https://www.douyin.com/user/MS4wLjABAAAAexample",
+        TIKTOK_VIDEO,
+        "https://www.tiktok.com/@someone",
+        "https://www.tiktok.com/@someone/collection/Folder-7372484719365098803",
+        "https://www.bilibili.com/video/BV1xx411c7mD",
+        "https://space.bilibili.com/670061998",
+        "https://space.bilibili.com/18202105/favlist?fid=58074805",
+    ],
+)
+def test_every_link_kind_lands_on_an_endpoint_that_exists(link: str):
+    endpoint, _ = to_call(identify(link))
+    assert endpoint in registry.ENDPOINTS
+
+
 # --------------------------------------------------------------------------
 # expanding through the pool
 # --------------------------------------------------------------------------

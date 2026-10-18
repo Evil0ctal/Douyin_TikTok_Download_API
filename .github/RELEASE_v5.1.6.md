@@ -50,9 +50,12 @@ Two things do not happen by themselves:
     1080p for a guest on older uploads and 720p on current ones.
   - `video/comments` and `video/comments/replies`. A guest is shown the three
     hottest comments and no further page, so comments prefer an imported
-    signed-in identity, and need one past the first page.
+    signed-in identity, and need one past the first page. Replies are the same
+    one level down: a guest reads the first page, up to 20, and later pages
+    need a signed-in identity.
   - `user`, `user/posts`, `user/collections` (an uploader's public folders) and
-    `collection/posts`.
+    `collection/posts`. `/parse` answers a folder link with the folder's first
+    page of videos.
   - Links: `bilibili.com/video/BV...` and `av...`, `b23.tv` and `bili2233.cn`
     short links, `space.bilibili.com/<mid>`, folder links and the embedded
     player. An av number is converted to the bvid it stands for, so either
@@ -159,8 +162,10 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
     这次请求以它自己的名字 `bilibili.content_streams` 记入日志；如果这次请求失败，详情照常
     返回。视频流是单个渐进式 MP4，游客在较早的投稿上最高 1080p，当前的投稿一般是 720p。
   - `video/comments` 和 `video/comments/replies`。游客只能看到最热的三条评论，也没有下一页，
-    所以评论接口优先使用导入的已登录身份，翻页则必须用它。
+    所以评论接口优先使用导入的已登录身份，翻页则必须用它。回复也一样：游客能读第一页（最多
+    20 条），后续页需要已登录身份。
   - `user`、`user/posts`、`user/collections`（UP 主的公开收藏夹）和 `collection/posts`。
+    `/parse` 对收藏夹链接返回这个收藏夹第一页的视频。
   - 链接：`bilibili.com/video/BV...` 和 `av...`、`b23.tv` 和 `bili2233.cn` 短链、
     `space.bilibili.com/<mid>`、收藏夹链接和嵌入式播放器。av 号会换算成对应的 BV 号，两种
     写法拿到的是同一个作品。

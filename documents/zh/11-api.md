@@ -392,7 +392,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `SIGNING_FAILED` | 502 | **是** | 签名失败，算法可能已失效 |
 | `UPSTREAM_UNREACHABLE` | 502 | **是** | 每次尝试都在平台应答之前就在网络层失败了；`details.proxied` 说明最后一次有没有走代理。多半是这台机器的出网问题，不是平台 |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **是** | 没有可用身份；`retry_after` 是恢复时间的估计 |
-| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——抖音作者作品列表的后续页，或 B 站视频评论的后续页。`details.cooling` 是正在冷却的登录身份数。靠导入一份来解决，重试没用；见[身份](./06-identities-and-proxies.md#哪些内容需要登录身份) |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——抖音作者作品列表的后续页，或 B 站视频评论及回复的后续页。`details.cooling` 是正在冷却的登录身份数。靠导入一份来解决，重试没用；见[身份](./06-identities-and-proxies.md#哪些内容需要登录身份) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **是** | 该接口因连续失败被熔断暂停 |
 | `QUEUE_FULL` | 503 | **是** | 队列已达上限 |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **是** | 媒体边车进程在跑但没有响应 |
@@ -586,14 +586,14 @@ B 站走的是与另外两个平台相同的路由、参数和信封：`{platfor
 | --- | --- |
 | `video` | 单个视频，由第二个请求补全——见下文 |
 | `video/comments` | 提供；访客身份拿到的要少得多——见下文 |
-| `video/comments/replies` | 提供，按页码分页，访客也一样 |
+| `video/comments/replies` | 提供，按页码分页；访客只能拿到第一页——见下文 |
 | `user` | 作者资料 |
 | `user/posts` | UP 主的投稿；B 站防得最严的接口——见下文 |
 | `user/collections` | 作者公开的收藏夹 |
 | `collection/posts` | 某个收藏夹里的视频，按页码分页 |
 | `user/likes`、`user/reposts`、`user/bookmarks`、`user/followers`、`user/following`、`collection`、`mix/posts` | `UNSUPPORTED_CONTENT`，指明平台和它缺少的能力 |
 
-`POST /api/v1/parse` 和识别其他平台一样识别 B 站链接。
+`POST /api/v1/parse` 和识别其他平台一样识别 B 站链接。收藏夹链接返回的是这个收藏夹第一页的视频，因为 B 站没有单独的收藏夹详情。
 
 ### 一个视频要两次请求
 
@@ -603,15 +603,15 @@ B 站的详情应答里没有可播放的文件。所以实例会再发第二个
 
 ### 评论：访客只拿到三条
 
-对线上站点实测，B 站只给访客身份最热的三条评论，并告诉它这就是最后一页。原样转交的话，一个有几千条评论的视频会被报告成只有三条。所以这个接口第一页优先使用已登录（导入的）B 站身份，后续每一页都必须用它——轮换里没有时返回 `IDENTITY_LOGIN_REQUIRED`。由访客应答的第一页会带上 `meta.guest_fallback`，这样访客拿到的三条评论就不会被误当成一个只有三条评论的视频。`count` 在这里会被接受但忽略：B 站的评论接口不接受分页大小。回复（`comments/replies`）对访客也正常分页，按页码翻。如何导入已登录身份见 [B 站身份](./06-identities-and-proxies.md#b-站身份)。
+对线上站点实测，B 站只给访客身份最热的三条评论，并告诉它这就是最后一页。原样转交的话，一个有几千条评论的视频会被报告成只有三条。所以这个接口第一页优先使用已登录（导入的）B 站身份，后续每一页都必须用它——轮换里没有时返回 `IDENTITY_LOGIN_REQUIRED`。由访客应答的第一页会带上 `meta.guest_fallback`，这样访客拿到的三条评论就不会被误当成一个只有三条评论的视频。`count` 在这里会被接受但忽略：B 站的评论接口不接受分页大小。回复（`comments/replies`）是下一层的同一回事：访客能拿到第一页（最多 20 条），之后的页都是空的，而第一页报告的总数更多，所以回复的后续页同样需要已登录身份。B 站所有的评论接口，包括 v4 用的按页码翻的 `/x/v2/reply`，对访客都是这样（2026-10-18 实测）。如何导入已登录身份见 [B 站身份](./06-identities-and-proxies.md#b-站身份)。
 
 ### UP 主投稿列表
 
-`user/posts` 带签名（WBI），并附上空间页自己会发送的 canvas/WebGL 上报（`dm_img_*`）。即便如此，它也是 B 站防得最严的接口：同一个出口的一阵突发请求，无论请求头怎么写，都会在几分钟内拿到 HTTP 412 页面（实测）。本实例把它们报告为 `UPSTREAM_RISK_CONTROL`，并让该身份进入冷却。把请求摊开、使用代理会有帮助；这个接口的令牌桶本来就是所有 B 站接口里最慢的。见[故障排查](./14-troubleshooting.md#b-站-up-主投稿列表返回-http-412)。
+`user/posts` 带签名（WBI），并附上空间页自己会发送的 canvas/WebGL 上报（`dm_img_*`）。即便如此，它也是 B 站防得最严的接口：同一个出口的一阵突发请求，无论请求头怎么写，都会在几分钟内拿到 HTTP 412 页面（实测）。本实例把它们报告为 `UPSTREAM_RISK_CONTROL`，并让该身份进入冷却。把请求摊开、使用代理会有帮助；这个接口的令牌桶本来就是所有 B 站接口里最慢的。同一天稍晚、在出口已经比较忙之后再测：即使每隔几秒才发一个请求，也有大约一半拿到 412——新铸造的访客身份和用过的一样，带不带 `bili_ticket` Cookie 也一样——不需要签名的 `recArchivesByKeywords` 列表也好不到哪里去。限制是按出口算的，而令牌桶是按身份计的，所以同一个出口上多几个访客身份不会多出余量，代理才会。见[故障排查](./14-troubleshooting.md#b-站-up-主投稿列表返回-http-412)。
 
 ### 收藏夹与分页大小
 
-`user/collections` 接受一个作者——`mid` 或空间链接——一次应答就返回全部公开收藏夹。这就是一页：`cursor` 和 `count` 会被接受但忽略。没有公开收藏夹的作者返回空页。`collection/posts` 按页码分页，所以它的游标看起来是 `"2"`、`"3"`、…——照样原样发回去就好。
+`user/collections` 接受一个作者——`mid` 或空间链接——一次应答就返回全部公开收藏夹。这就是一页：`cursor` 和 `count` 会被接受但忽略。没有公开收藏夹的作者返回空页。不存在的收藏夹返回 `NOT_FOUND`：B 站对它的应答是空的 `data`，这和它对空收藏夹的应答不一样。`collection/posts` 按页码分页，所以它的游标看起来是 `"2"`、`"3"`、…——照样原样发回去就好。
 
 B 站的分页大小上限是 **20**；`count` 超过它是 `400`。
 

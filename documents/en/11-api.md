@@ -393,7 +393,7 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `SIGNING_FAILED` | 502 | **yes** | Signing failed; the algorithm may be out of date |
 | `UPSTREAM_UNREACHABLE` | 502 | **yes** | Every attempt failed on the network before the platform answered; `details.proxied` says whether the last one went through a proxy. Usually this host's egress, not the platform |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **yes** | No identity free; `retry_after` estimates the recovery |
-| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - later pages of a Douyin author's posts, or of a Bilibili video's comments. `details.cooling` counts the logged-in ones cooling down. Fixed by importing one, not by retrying; see [Identities](./06-identities-and-proxies.md#what-needs-a-logged-in-identity) |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - later pages of a Douyin author's posts, or of a Bilibili video's comments or replies. `details.cooling` counts the logged-in ones cooling down. Fixed by importing one, not by retrying; see [Identities](./06-identities-and-proxies.md#what-needs-a-logged-in-identity) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **yes** | This endpoint is paused after repeated failures |
 | `QUEUE_FULL` | 503 | **yes** | The queue is at its ceiling |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **yes** | The media sidecar is running somewhere and did not answer |
@@ -587,14 +587,14 @@ Share and tracking parameters such as `vd_source`, `spm_id_from`, `buvid` and `s
 | --- | --- |
 | `video` | One video, completed by a second request — see below |
 | `video/comments` | Served; a guest identity gets far less — see below |
-| `video/comments/replies` | Served, paged by page number, for a guest too |
+| `video/comments/replies` | Served, paged by page number; a guest gets the first page only — see below |
 | `user` | The profile |
 | `user/posts` | The uploader's videos; the endpoint Bilibili guards hardest — see below |
 | `user/collections` | An author's public folders |
 | `collection/posts` | One folder's videos, paged by page number |
 | `user/likes`, `user/reposts`, `user/bookmarks`, `user/followers`, `user/following`, `collection`, `mix/posts` | `UNSUPPORTED_CONTENT`, naming the platform and the capability it lacks |
 
-`POST /api/v1/parse` recognises Bilibili links like any other.
+`POST /api/v1/parse` recognises Bilibili links like any other. A folder link is answered with the folder's first page of videos, since Bilibili has no separate folder detail.
 
 ### A video costs two requests
 
@@ -604,15 +604,15 @@ The stream is one progressive MP4, not DASH, so a download is one file. Measured
 
 ### Comments: a guest gets three
 
-Measured against the live site, Bilibili gives a guest identity the three hottest comments and tells it that is the last page. Passed on as it stands, that would report a video with thousands of comments as having three. So the endpoint prefers a signed-in (imported) Bilibili identity for the first page and requires one for every later page — `IDENTITY_LOGIN_REQUIRED` when rotation has none. A first page a guest served carries `meta.guest_fallback`, so three comments from a guest cannot be mistaken for a video that only has three. `count` is accepted and ignored here: Bilibili's comment endpoint takes no page size. Replies page normally for a guest, by page number. Importing a signed-in identity is covered in [Bilibili identities](./06-identities-and-proxies.md#bilibili-identities).
+Measured against the live site, Bilibili gives a guest identity the three hottest comments and tells it that is the last page. Passed on as it stands, that would report a video with thousands of comments as having three. So the endpoint prefers a signed-in (imported) Bilibili identity for the first page and requires one for every later page — `IDENTITY_LOGIN_REQUIRED` when rotation has none. A first page a guest served carries `meta.guest_fallback`, so three comments from a guest cannot be mistaken for a video that only has three. `count` is accepted and ignored here: Bilibili's comment endpoint takes no page size. Replies are the same one level down: a guest gets the first page — up to 20 — and an empty page after it while page one counts more, so later pages of replies require a signed-in identity too. Every comment endpoint Bilibili has, v4's page-numbered `/x/v2/reply` included, answers a guest this way (measured 2026-10-18). Importing a signed-in identity is covered in [Bilibili identities](./06-identities-and-proxies.md#bilibili-identities).
 
 ### An uploader's video list
 
-`user/posts` is signed (WBI) and sent with the canvas/WebGL report (`dm_img_*`) the space page itself sends. Even so, it is the endpoint Bilibili guards hardest: a burst of requests from one egress gets HTTP 412 pages for a few minutes regardless of headers (measured). This instance reports those as `UPSTREAM_RISK_CONTROL` and cools the identity. Spreading requests out and using proxies helps; the endpoint already has the slowest token bucket of any Bilibili endpoint. See [Troubleshooting](./14-troubleshooting.md#http-412-on-a-bilibili-uploaders-video-list).
+`user/posts` is signed (WBI) and sent with the canvas/WebGL report (`dm_img_*`) the space page itself sends. Even so, it is the endpoint Bilibili guards hardest: a burst of requests from one egress gets HTTP 412 pages for a few minutes regardless of headers (measured). This instance reports those as `UPSTREAM_RISK_CONTROL` and cools the identity. Spreading requests out and using proxies helps; the endpoint already has the slowest token bucket of any Bilibili endpoint. Measured again later the same day, once the egress had been busy: about half the requests got 412 even at one every few seconds — on a fresh guest identity or an old one, with or without a `bili_ticket` cookie — and the unsigned `recArchivesByKeywords` list fared no better. The limit is on the egress, and the token bucket is kept per identity, so more guest identities on the same egress add no headroom. Proxies do. See [Troubleshooting](./14-troubleshooting.md#http-412-on-a-bilibili-uploaders-video-list).
 
 ### Folders and page size
 
-`user/collections` takes an author — a `mid` or a space link — and returns every public folder in one answer. That is one page: `cursor` and `count` are accepted and ignored. An author with no public folders returns an empty page. `collection/posts` pages by page number, so its cursor reads `"2"`, `"3"`, … — send it back as given all the same.
+`user/collections` takes an author — a `mid` or a space link — and returns every public folder in one answer. That is one page: `cursor` and `count` are accepted and ignored. An author with no public folders returns an empty page. A folder that does not exist is `NOT_FOUND`: Bilibili answers it with an empty `data`, which is not how it answers an empty folder. `collection/posts` pages by page number, so its cursor reads `"2"`, `"3"`, … — send it back as given all the same.
 
 The page size ceiling on Bilibili is **20**; a `count` above it is a `400`.
 

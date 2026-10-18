@@ -648,7 +648,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 **What it means.** An uploader's video list is the endpoint Bilibili guards hardest. The request is already WBI-signed and carries the canvas/WebGL report (`dm_img_*`) the space page itself sends, and that does not help: a burst of requests from one egress gets HTTP 412 pages for a few minutes, whatever the headers say (measured). This instance reports that as `UPSTREAM_RISK_CONTROL` and cools the identity, which is the right reading — the address is being refused, and sending the next request from it would only prolong the refusal.
 
-**Fix.** Spread the requests out, and put Bilibili identities behind proxies so they do not all leave from one address. The endpoint already has the slowest token bucket of any Bilibili endpoint for this reason; what trips it is walking many uploaders in quick succession from a single exit, and what raises the ceiling is more identities behind more exits, not retrying sooner.
+**Fix.** Spread the requests out, and put Bilibili identities behind proxies so they do not all leave from one address. The endpoint already has the slowest token bucket of any Bilibili endpoint for this reason; what trips it is walking many uploaders in quick succession from a single exit, and what raises the ceiling is more identities behind more exits, not retrying sooner. More identities on the same exit do not help: the token bucket is kept per identity, and the refusal is per address.
 
 ---
 
