@@ -20,7 +20,7 @@ import { apiDelete, apiPatch, apiPost } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
-import type { Platform } from '@/lib/types'
+import { PLATFORMS, type Platform } from '@/lib/types'
 
 import styles from './Watchlist.module.css'
 
@@ -42,7 +42,6 @@ import styles from './Watchlist.module.css'
 
 const WATCHLIST_KEY = ['admin', 'watchlist'] as const
 
-const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
 const KINDS = ['author', 'content'] as const
 
 /** Intervals worth offering. Anything below the server's floor is refused. */

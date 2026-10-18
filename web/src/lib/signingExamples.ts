@@ -149,4 +149,13 @@ export const SIGNING_EXAMPLES: Readonly<Record<Platform, SigningExample>> = {
       'ttwid=REPLACE_WITH_A_REAL_JAR; tt_csrf_token=REPLACE_WITH_A_REAL_JAR; ' +
       'msToken=REPLACE_WITH_A_REAL_JAR',
   },
+  // WBI covers the query alone: the keys are public and the jar is not signed
+  // over, though the request still has to carry a visitor id to be answered.
+  bilibili: {
+    platform: 'bilibili',
+    url: 'https://api.bilibili.com/x/web-interface/wbi/view?bvid=BV1xx411c7mD',
+    userAgent: CHROME_MAC,
+    msToken: '',
+    cookies: 'buvid3=REPLACE_WITH_A_REAL_JAR',
+  },
 }

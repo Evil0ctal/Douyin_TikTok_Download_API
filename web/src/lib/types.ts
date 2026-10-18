@@ -9,7 +9,7 @@
  * as a JavaScript number.
  */
 
-export const PLATFORMS = ['douyin', 'tiktok'] as const
+export const PLATFORMS = ['douyin', 'tiktok', 'bilibili'] as const
 export type Platform = (typeof PLATFORMS)[number]
 
 export const CONTENT_KINDS = ['video', 'image_album', 'live'] as const
@@ -45,6 +45,7 @@ export type UserRole = (typeof USER_ROLES)[number]
 export const SCOPES = [
   'douyin:read',
   'tiktok:read',
+  'bilibili:read',
   'identity:manage',
   'archive:read',
   'archive:export',

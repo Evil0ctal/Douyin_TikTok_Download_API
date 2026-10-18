@@ -389,7 +389,8 @@
       "invalid": "The mark must be at least 1 and the target no lower than the mark",
       "reset": "Restore default",
       "resetHint": "Drop this platform's own numbers and follow the global ones on the Scheduler page again",
-      "resetDone": "Back to the global thresholds"
+      "resetDone": "Back to the global thresholds",
+      "nativeOnly": "No browser container is configured. Bilibili guests are minted over plain HTTP and refill on their own; Douyin and TikTok live on what you import by hand."
     },
     "mintLog": {
       "inFlight": "Minting a {platform} identity",
@@ -404,7 +405,8 @@
         "proxy_not_found": "The proxy this mint was pinned to no longer exists",
         "proxy_undecryptable": "The chosen proxy's URL could not be decrypted, and minting on the direct egress would bind the identity to an exit it will never use",
         "rpc_unavailable": "The browser container did not answer",
-        "unusable_fingerprint": "The browser reported a fingerprint with no usable version, so the identity was refused rather than paired with a guessed TLS profile"
+        "unusable_fingerprint": "The browser reported a fingerprint with no usable version, so the identity was refused rather than paired with a guessed TLS profile",
+        "mint_refused": "Bilibili did not hand out a guest session this time"
       }
     },
     "reset": {
@@ -510,7 +512,15 @@
       "UIFID_TEMP": "The visitor id a Douyin mint produces, and what the web signature SDK signs with. This build looks for it under six spellings and cannot sign a Douyin request without one of them.",
       "uifid_temp": "The visitor id a Douyin mint produces, and what the web signature SDK signs with.",
       "UIFIDTEMP": "The visitor id a Douyin mint produces, under another of the spellings the SDK accepts.",
-      "uifidtemp": "The visitor id a Douyin mint produces, under another of the spellings the SDK accepts."
+      "uifidtemp": "The visitor id a Douyin mint produces, under another of the spellings the SDK accepts.",
+      "buvid3": "Bilibili's visitor id, handed to a browser on its first visit. Without it the signed endpoints treat a request as coming from no browser at all.",
+      "buvid4": "Bilibili's second visitor id, issued beside buvid3.",
+      "b_nut": "When this visitor first arrived on Bilibili, as a Unix time.",
+      "SESSDATA": "A logged-in Bilibili session. Anyone holding this is signed in as that account.",
+      "bili_jct": "Bilibili's CSRF token for a logged-in session. Only writes need it.",
+      "DedeUserID": "The id of the Bilibili account this session is signed in as.",
+      "buvid_fp": "A browser fingerprint id the Bilibili page computes and stores.",
+      "_uuid": "Another Bilibili visitor id the page sets on first load."
     },
     "drawerTitle": "Identity",
     "export": {
@@ -1128,7 +1138,8 @@
       "mediaRead": "See stored media",
       "mediaWrite": "Store and pin media",
       "transcriptionRead": "Read transcriptions",
-      "transcriptionWrite": "Create transcriptions"
+      "transcriptionWrite": "Create transcriptions",
+      "bilibiliRead": "Read Bilibili data"
     },
     "scopeHint": {
       "douyinRead": "Post, author, comment and parse endpoints for Douyin.",
@@ -1140,7 +1151,8 @@
       "mediaRead": "List what is on the server's disk and how much space it uses. Files themselves are never served through the API.",
       "mediaWrite": "Start a download, pin one against cleanup, or cancel one. It spends an identity and fills a disk, so no read scope implies it.",
       "transcriptionRead": "Read completed transcription text and its source metadata.",
-      "transcriptionWrite": "Start, refresh, or cancel an on-demand video transcription."
+      "transcriptionWrite": "Start, refresh, or cancel an on-demand video transcription.",
+      "bilibiliRead": "The same endpoints for Bilibili."
     },
     "rateLimitHint": "Requests per minute. This is abuse protection, not a billing quota: the project has no plans, metering or usage settlement. It exists so one runaway script cannot drain the identity pool. Leave empty to inherit the instance default.",
     "rateLimitInvalid": "Enter a whole number between {min} and {max}, or leave it empty.",

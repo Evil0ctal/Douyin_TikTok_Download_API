@@ -97,6 +97,7 @@ const EMPTY_DRAFT: Draft = { name: '', scopes: [], rateLimit: '', expiresInDays:
 const SCOPE_COPY: Record<Scope, string> = {
   'douyin:read': 'douyinRead',
   'tiktok:read': 'tiktokRead',
+  'bilibili:read': 'bilibiliRead',
   'identity:manage': 'identityManage',
   'archive:read': 'archiveRead',
   'archive:export': 'archiveExport',

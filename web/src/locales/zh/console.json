@@ -389,7 +389,8 @@
       "invalid": "下限至少为 1，补到的数量不能低于下限",
       "reset": "恢复默认",
       "resetHint": "去掉这个平台单独设置的数字，重新沿用调度页上的全局值",
-      "resetDone": "已恢复为全局阈值"
+      "resetDone": "已恢复为全局阈值",
+      "nativeOnly": "没有配置浏览器容器。B 站的游客身份通过普通 HTTP 锻造，会自动补齐；抖音和 TikTok 只能用手动导入的身份。"
     },
     "mintLog": {
       "inFlight": "正在锻造 {platform} 身份",
@@ -404,7 +405,8 @@
         "proxy_not_found": "本次锻造指定的代理已经不存在了",
         "proxy_undecryptable": "选中代理的 URL 解密失败；改用直连锻造会把这个身份绑死在一个它永远不会再用的出口上",
         "rpc_unavailable": "浏览器容器没有响应",
-        "unusable_fingerprint": "浏览器返回的指纹里没有可用的版本号，与其配一个猜出来的 TLS 档案，不如直接拒绝这个身份"
+        "unusable_fingerprint": "浏览器返回的指纹里没有可用的版本号，与其配一个猜出来的 TLS 档案，不如直接拒绝这个身份",
+        "mint_refused": "B 站这次没有发放游客会话"
       }
     },
     "reset": {
@@ -510,7 +512,15 @@
       "UIFID_TEMP": "抖音铸造出来的访客 id，也是网页签名 SDK 用来签名的那个值。本程序会按六种拼写去找它，找不到任何一种就无法给抖音请求签名。",
       "uifid_temp": "抖音铸造出来的访客 id，网页签名 SDK 用它签名。",
       "UIFIDTEMP": "抖音铸造出来的访客 id，SDK 接受的另一种拼写。",
-      "uifidtemp": "抖音铸造出来的访客 id，SDK 接受的另一种拼写。"
+      "uifidtemp": "抖音铸造出来的访客 id，SDK 接受的另一种拼写。",
+      "buvid3": "B 站的访客标识，浏览器第一次访问时下发。没有它，签名接口会把请求当成不是来自任何浏览器。",
+      "buvid4": "B 站的第二个访客标识，和 buvid3 一起下发。",
+      "b_nut": "这个访客第一次访问 B 站的时间，Unix 时间戳。",
+      "SESSDATA": "B 站的登录态。拿到它的人就是以那个账号的身份登录。",
+      "bili_jct": "B 站登录会话的 CSRF 令牌，只有写操作需要。",
+      "DedeUserID": "这个会话登录的 B 站账号 ID。",
+      "buvid_fp": "B 站页面计算并保存的浏览器指纹 ID。",
+      "_uuid": "B 站页面首次加载时设置的另一个访客标识。"
     },
     "drawerTitle": "身份详情",
     "export": {
@@ -1128,7 +1138,8 @@
       "mediaRead": "查看已保存的媒体",
       "mediaWrite": "保存与置顶媒体",
       "transcriptionRead": "读取转写结果",
-      "transcriptionWrite": "创建转写任务"
+      "transcriptionWrite": "创建转写任务",
+      "bilibiliRead": "读取 B 站数据"
     },
     "scopeHint": {
       "douyinRead": "抖音的作品、作者、评论与解析接口。",
@@ -1140,7 +1151,8 @@
       "mediaRead": "列出服务器磁盘上有什么、占用多少空间。文件本身永远不会通过 API 提供。",
       "mediaWrite": "发起下载、置顶保护、取消下载。它会消耗身份配额并占用磁盘，因此任何只读权限都不隐含它。",
       "transcriptionRead": "读取已完成的完整转写文本及来源元数据。",
-      "transcriptionWrite": "按需发起、刷新或取消视频转写。"
+      "transcriptionWrite": "按需发起、刷新或取消视频转写。",
+      "bilibiliRead": "B 站的同类接口。"
     },
     "rateLimitHint": "每分钟请求数。这是防滥用限额，不是计费额度：本项目没有套餐、用量计量或结算。它存在的唯一目的，是防止写错的脚本把整个身份池打穿。留空则沿用实例默认值。",
     "rateLimitInvalid": "请输入 {min} 到 {max} 之间的整数，或者留空。",

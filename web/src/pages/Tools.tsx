@@ -24,7 +24,7 @@ import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
 import type { DecodedParameter, SigningStage } from '@/components'
 import { SIGNING_EXAMPLES } from '@/lib/signingExamples'
-import type { Platform } from '@/lib/types'
+import { PLATFORMS, type Platform } from '@/lib/types'
 
 
 /**
@@ -43,7 +43,6 @@ import type { Platform } from '@/lib/types'
 
 type ToolTab = 'sign' | 'decode' | 'parse' | 'batch' | 'identity'
 
-const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
 
 /**
  * What the decode tab starts with when the sign tab hands off to it.

@@ -209,6 +209,9 @@ const PROFILE_URL_PARAM: ParamDef = {
 //? Douyin's collects/list/ takes no author at all; see ParamDef.platforms.
 const TIKTOK_ONLY_PROFILE_URL_PARAM: ParamDef = { ...PROFILE_URL_PARAM, platforms: ['tiktok'] }
 const TIKTOK_ONLY_SEC_UID_PARAM: ParamDef = { ...SEC_UID_PARAM, platforms: ['tiktok'] }
+//? Folders: TikTok and Bilibili are asked about an author, Douyin about the session.
+const FOLDER_OWNER_URL_PARAM: ParamDef = { ...PROFILE_URL_PARAM, platforms: ['tiktok', 'bilibili'] }
+const FOLDER_OWNER_SEC_UID_PARAM: ParamDef = { ...SEC_UID_PARAM, platforms: ['tiktok', 'bilibili'] }
 const AWEME_ID_PARAM: ParamDef = {
   name: 'aweme_id',
   kind: 'text',
@@ -337,8 +340,8 @@ const CATALOG: readonly EndpointDef[] = [
     operation: 'author_collections',
     platformScoped: true,
     params: [
-      TIKTOK_ONLY_PROFILE_URL_PARAM,
-      TIKTOK_ONLY_SEC_UID_PARAM,
+      FOLDER_OWNER_URL_PARAM,
+      FOLDER_OWNER_SEC_UID_PARAM,
       ...PAGE_PARAMS,
       ...ENVELOPE_PARAMS,
     ],

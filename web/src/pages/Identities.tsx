@@ -341,6 +341,12 @@ interface PoolPlatform {
   target_inherited: boolean
   /** False when `min_size` is 0: no automatic minting, no level alerts. */
   auto: boolean
+  /**
+   * Whether this platform can be minted here at all. Bilibili guests are plain
+   * HTTP, so they can be where the others need the browser container. Absent
+   * from an API older than that, where the top-level `can_mint` decided.
+   */
+  can_mint?: boolean
 }
 
 /** One attempt, as the worker recorded it. `reason` is the code it logs. */
@@ -522,6 +528,10 @@ function RefillCard() {
   if (query.isError || !query.data) return null
 
   const { can_mint: canMint, platforms } = query.data
+  // The browser decides Douyin and TikTok; Bilibili is minted without one, so
+  // "can anything be minted here" is per platform now.
+  const rowCanMint = (row: PoolPlatform): boolean => row.can_mint ?? canMint
+  const anyCanMint = platforms.some(rowCanMint)
   const global = { minimum: query.data.min_size, target: query.data.target_size }
   // A viewer sees the numbers and cannot change them. With no session payload
   // the server is still the authority, so the controls show and its refusal is
@@ -569,7 +579,7 @@ function RefillCard() {
       <div className={styles.refill}>
         <span className={styles.refillTitle}>{t('console:identity.refill.title')}</span>
         <span className={styles.refillSpacer} />
-        {canMint ? (
+        {anyCanMint ? (
           <>
             {Object.keys(drafts).length > 0 ? (
               <Button
@@ -604,7 +614,7 @@ function RefillCard() {
             key={row.platform}
             row={row}
             draft={drafts[row.platform] ?? draftOf(row)}
-            canMint={canMint}
+            canMint={rowCanMint(row)}
             globalMinimum={global.minimum}
             disabled={!canWrite || save.isPending || reset.isPending}
             resetting={reset.isPending && reset.variables.platform === row.platform}
@@ -618,15 +628,17 @@ function RefillCard() {
         ))}
       </div>
 
-      <MintActivityRow activity={query.data.activity} canMint={canMint} />
+      <MintActivityRow activity={query.data.activity} canMint={anyCanMint} />
 
       <p className={styles.refillHint}>
-        {canMint
+        {platforms.every(rowCanMint)
           ? t('console:identity.refill.description', {
               minimum: global.minimum,
               target: global.target,
             })
-          : t('console:identity.refill.noBrowser')}{' '}
+          : anyCanMint
+            ? t('console:identity.refill.nativeOnly')
+            : t('console:identity.refill.noBrowser')}{' '}
         {t('console:identity.refill.usableHint', { streak: query.data.max_fail_streak })}
       </p>
     </Card>

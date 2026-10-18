@@ -27,7 +27,7 @@ import { cn } from '@/lib/cn'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import { atLeast } from '@/lib/roles'
-import { DOWNLOAD_STATES, type DownloadState, type Platform } from '@/lib/types'
+import { DOWNLOAD_STATES, PLATFORMS, type DownloadState, type Platform } from '@/lib/types'
 
 import styles from './Downloads.module.css'
 
@@ -172,7 +172,6 @@ function saveJson(data: unknown, filename: string): void {
 const DOWNLOADS_KEY = ['downloads'] as const
 const STORAGE_KEY = ['downloads', 'storage'] as const
 
-const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
 
 /**
  * Whether the platform menu decides this input's platform.

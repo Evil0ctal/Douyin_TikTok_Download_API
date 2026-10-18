@@ -23,7 +23,7 @@ import {
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiPost, apiText } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
-import type { Platform } from '@/lib/types'
+import { PLATFORMS } from '@/lib/types'
 
 import styles from './Library.module.css'
 
@@ -43,7 +43,6 @@ import styles from './Library.module.css'
 
 const STATS_KEY = ['archive', 'stats'] as const
 
-const PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
 const KINDS = ['video', 'image_album'] as const
 const DURATIONS = ['short', 'medium', 'long', 'unknown'] as const
 const AVAILABILITIES = ['live', 'deleted', 'private', 'unknown'] as const
