@@ -27,7 +27,13 @@ import { cn } from '@/lib/cn'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import { atLeast } from '@/lib/roles'
-import { DOWNLOAD_STATES, PLATFORMS, type DownloadState, type Platform } from '@/lib/types'
+import {
+  DOWNLOAD_STATES,
+  PAGE_CEILING,
+  PLATFORMS,
+  type DownloadState,
+  type Platform,
+} from '@/lib/types'
 
 import styles from './Downloads.module.css'
 
@@ -455,7 +461,7 @@ export default function Downloads() {
         const body: CommentPage = await apiGet(`${API_V1}/${which}/video/comments`, {
           params: {
             aweme_id: id,
-            count: String(COMMENT_PAGE_SIZE),
+            count: String(Math.min(COMMENT_PAGE_SIZE, PAGE_CEILING[which])),
             ...(cursor ? { cursor } : {}),
           },
         })

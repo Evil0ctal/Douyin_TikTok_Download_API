@@ -12,6 +12,19 @@
 export const PLATFORMS = ['douyin', 'tiktok', 'bilibili'] as const
 export type Platform = (typeof PLATFORMS)[number]
 
+/**
+ * The largest page each platform serves - dtk.platforms.paging, mirrored. The
+ * API answers a larger `count` with a 400 rather than a short page, so anything
+ * here that sends a fixed size has to stay under it. The comments save on
+ * Downloads sent 50 everywhere, which TikTok had refused since its ceiling was
+ * measured at 35, and Bilibili refuses above 20.
+ */
+export const PAGE_CEILING: Readonly<Record<Platform, number>> = {
+  douyin: 50,
+  tiktok: 35,
+  bilibili: 20,
+}
+
 export const CONTENT_KINDS = ['video', 'image_album', 'live'] as const
 export type ContentKind = (typeof CONTENT_KINDS)[number]
 

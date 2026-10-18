@@ -9,6 +9,9 @@ file rather than an extra in it.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from dtk.api.routes.support import MAX_PAGE_SIZE as PROJECT_CEILING
@@ -69,3 +72,18 @@ def test_an_omitted_count_never_exceeds_the_ceiling() -> None:
     who passed nothing at all."""
     assert resolve_count(None, default=20, maximum=10) == 10
     assert resolve_count(None, default=20, maximum=35) == 20
+
+
+def test_the_console_s_copy_of_the_table_agrees() -> None:
+    """web/src/lib/types.ts mirrors the table so a fixed page size can stay under it.
+
+    The comments save on the Downloads page sent 50 to every platform, a 400 on
+    TikTok and Bilibili, because the console had no copy at all.
+    """
+    types_ts = Path(__file__).resolve().parents[2] / "web" / "src" / "lib" / "types.ts"
+    if not types_ts.exists():
+        pytest.skip("console not present")
+    block = re.search(r"export const PAGE_CEILING[^{]*\{(.*?)\}", types_ts.read_text(), re.S)
+    assert block is not None, "PAGE_CEILING is no longer declared the way this test reads it"
+    console = {name: int(value) for name, value in re.findall(r"(\w+):\s*(\d+)", block.group(1))}
+    assert console == {platform.value: ceiling for platform, ceiling in MAX_PAGE_SIZE.items()}

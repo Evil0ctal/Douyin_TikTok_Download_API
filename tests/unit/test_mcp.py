@@ -375,6 +375,24 @@ class TestArgumentValidation:
             await tools.list_comments("douyin", "7100000000000000000", None, count)
         assert str(routing.MAX_COUNT) in str(caught.value)
 
+    @pytest.mark.parametrize(("platform", "ceiling"), [("tiktok", 35), ("bilibili", 20)])
+    async def test_page_size_stops_at_the_platform_s_own_ceiling(self, platform, ceiling):
+        """Above it TikTok answers as if the author had nothing, and Bilibili refuses.
+
+        MCP checked only its own bound of 50 while REST checked the platform's,
+        so the same count was a 400 over REST and a misleading page over MCP.
+        """
+        tasks = FakeTasks()
+        tools = ToolSet(make_context(tasks))
+        content_id = "BV1xx411c7mD" if platform == "bilibili" else "7100000000000000000"
+        with pytest.raises(ToolError) as caught:
+            await tools.list_comments(platform, content_id, None, ceiling + 1)
+        assert str(ceiling) in str(caught.value)
+        assert tasks.submitted == []
+
+        await tools.list_comments(platform, content_id, None, ceiling)
+        assert len(tasks.submitted) == 1
+
     async def test_tiktok_post_listing_rejects_a_handle_with_a_next_step(self):
         """The one identifier an agent cannot guess, so the error says what to do."""
         tools = ToolSet(make_context())
@@ -1107,6 +1125,24 @@ class TestErrorProse:
         answer = await tools.list_user_posts("douyin", "MS4wLjABAAAA", None, None)
         assert answer["guest_fallback"] is True
         assert "newest posts" in answer["note"]
+
+    async def test_a_guest_s_bilibili_comments_are_warned_about_as_comments(self):
+        """The note names what a guest misses on the endpoint that answered.
+
+        It used to be one sentence about Douyin's author feed, attached to
+        Bilibili's comments too once they became the second endpoint to prefer
+        a signed-in identity.
+        """
+        done = TaskOutcome(
+            TASK_ID,
+            TaskState.DONE,
+            {"data": {"items": []}, "meta": {"cached": False, "guest_fallback": True}},
+        )
+        tools = ToolSet(make_context(FakeTasks(wait=done)))
+        answer = await tools.list_comments("bilibili", "BV1xx411c7mD", None, None)
+        assert answer["guest_fallback"] is True
+        assert "three hottest comments" in answer["note"]
+        assert "Douyin" not in answer["note"]
 
     async def test_an_ordinary_answer_carries_no_warning(self):
         done = TaskOutcome(TASK_ID, TaskState.DONE, {"data": {"items": []}, "meta": {}})

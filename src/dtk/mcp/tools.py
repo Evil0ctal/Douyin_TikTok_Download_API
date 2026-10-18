@@ -45,6 +45,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import PLATFORM_READ_SCOPES, Platform, Scope, TaskState, UserRole
 from dtk.mcp import prose, routing
 from dtk.mcp.context import EndpointHealth, McpContext, PoolSnapshot, TaskOutcome
+from dtk.platforms.paging import MAX_PAGE_SIZE
 from dtk.urls import first_url, identify
 
 log = get_logger(__name__)
@@ -107,12 +108,19 @@ CursorArg = Annotated[
         ),
     ),
 ]
+#: The platforms whose own ceiling is below the tool set's, as an agent reads them.
+_LOWER_CEILINGS = "; ".join(
+    f"at most {ceiling} on {platform.value}"
+    for platform, ceiling in MAX_PAGE_SIZE.items()
+    if ceiling < routing.MAX_COUNT
+)
+
 CountArg = Annotated[
     int | None,
     Field(
         default=None,
         description=(
-            f"Items per page, {routing.MIN_COUNT}-{routing.MAX_COUNT}. "
+            f"Items per page, {routing.MIN_COUNT}-{routing.MAX_COUNT}; {_LOWER_CEILINGS}. "
             "Omit to use the platform's own default."
         ),
     ),
@@ -264,9 +272,10 @@ class ToolSet:
             answer["cached"] = bool(meta["cached"])
         if meta.get("guest_fallback"):
             # An agent reading an author's feed takes the first item to be the
-            # newest post; from a guest, on Douyin, it is not.
+            # newest post; from a guest, on Douyin, it is not. On Bilibili's
+            # comments a guest sees three.
             answer["guest_fallback"] = True
-            answer["note"] = prose.GUEST_FALLBACK_NOTE
+            answer["note"] = prose.guest_fallback_note(endpoint)
         return answer
 
     # -- tools -------------------------------------------------------------

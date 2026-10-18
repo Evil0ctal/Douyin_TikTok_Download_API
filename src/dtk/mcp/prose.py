@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Final
 
 from dtk.core.errors import NON_RETRYABLE, DtkError, ErrorCode
 from dtk.core.types import Language
@@ -39,11 +39,29 @@ _IDENTIFIER_HEAD = re.compile(r"^[a-z][a-z0-9]*[._][a-z0-9]")
 
 #: Attached to a result a guest identity served on an endpoint that gives
 #: guests less. The data is real and complete-looking, which is the problem.
-GUEST_FALLBACK_NOTE = (
-    "No signed-in identity was available, so a guest answered. Douyin leaves an "
-    "author's newest posts out of what it shows a guest: the first items here may "
-    "not be the latest, and later pages need a logged-in cookie."
-)
+#: Keyed by endpoint because what a guest misses differs: one sentence about
+#: Douyin's feed was attached to Bilibili's comments too, once they were the
+#: second endpoint to prefer a signed-in identity.
+_GUEST_FALLBACK = "No signed-in identity was available, so a guest answered."
+_GUEST_MISSES: Final[dict[str, str]] = {
+    "douyin.author_posts": (
+        "Douyin leaves an author's newest posts out of what it shows a guest: the "
+        "first items here may not be the latest, and later pages need a logged-in "
+        "cookie."
+    ),
+    "bilibili.comments": (
+        "Bilibili shows a guest only the three hottest comments and no further "
+        "page; the full thread needs a logged-in cookie."
+    ),
+}
+
+
+def guest_fallback_note(endpoint: str) -> str:
+    """What an agent should know about a guest's answer from ``endpoint``."""
+    misses = _GUEST_MISSES.get(endpoint)
+    if misses is None:
+        return f"{_GUEST_FALLBACK} It may hold less than a signed-in identity would see."
+    return f"{_GUEST_FALLBACK} {misses}"
 
 
 def _sentence(text: str | None) -> str:
@@ -288,6 +306,7 @@ __all__ = [
     "describe_health",
     "describe_task_error",
     "expired_result_message",
+    "guest_fallback_note",
     "summarize_pool",
     "timeout_message",
     "unfinished_task_message",

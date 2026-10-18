@@ -27,6 +27,7 @@ from typing import Any, Final
 
 from dtk.core.errors import InvalidParam, UnsupportedContent
 from dtk.core.types import Platform
+from dtk.platforms.paging import max_page_size
 from dtk.platforms.registry import available_platforms
 from dtk.urls import ResourceKind, UrlKind
 from dtk.worker.registry import (
@@ -55,7 +56,9 @@ PARSE_ENDPOINT: Final = "parse"
 
 
 #: Page size bounds. The platforms silently cap larger values, so accepting one
-#: would return fewer items than the agent asked for without saying so.
+#: would return fewer items than the agent asked for without saying so. A
+#: platform's own ceiling (dtk.platforms.paging) can be lower still, and is
+#: checked per platform in :func:`coerce_count`.
 MIN_COUNT: Final = 1
 MAX_COUNT: Final = 50
 
@@ -98,16 +101,23 @@ def require_text(value: str | None, field: str) -> str:
     return text
 
 
-def coerce_count(value: int | None) -> int | None:
-    """Validate the page size. ``None`` leaves the platform default in place."""
+def coerce_count(value: int | None, platform: Platform) -> int | None:
+    """Validate the page size. ``None`` leaves the platform default in place.
+
+    The bound is the lower of this tool set's and the platform's own, which is
+    what REST checks too. Checking only the first let TikTok's 36 to 50 through,
+    which TikTok answers as an author with no posts, and Bilibili's 21 to 50,
+    which it refuses.
+    """
     if value is None:
         return None
     if not isinstance(value, int) or isinstance(value, bool):
         raise InvalidParam("count must be an integer", details={"field": "count"})
-    if value < MIN_COUNT or value > MAX_COUNT:
+    maximum = min(MAX_COUNT, max_page_size(platform))
+    if value < MIN_COUNT or value > maximum:
         raise InvalidParam(
-            f"count must be between {MIN_COUNT} and {MAX_COUNT}",
-            details={"field": "count", "min": MIN_COUNT, "max": MAX_COUNT},
+            f"count must be between {MIN_COUNT} and {maximum} on {platform.value}",
+            details={"field": "count", "min": MIN_COUNT, "max": maximum},
         )
     return value
 
@@ -184,7 +194,7 @@ def build_task(
     )
     if cursor is not None and cursor.strip():
         params[CURSOR] = cursor.strip()
-    checked = coerce_count(count)
+    checked = coerce_count(count, platform)
     if checked is not None:
         params[COUNT] = checked
 
