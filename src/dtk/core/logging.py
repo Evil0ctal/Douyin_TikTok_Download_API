@@ -39,9 +39,12 @@ SENSITIVE_KEYS = frozenset(
 )
 
 #: Signature and session parameters truncated inside URLs and free text.
+#: dtk.ops.masking and dtk.ops.diagnose keep their own copies. When Bilibili
+#: was added, all three still lacked its names (``SESSDATA`` among them), so
+#: tests/unit/test_bilibili_redaction.py now holds the three to them.
 _PARAM_RE = re.compile(
     r"\b(msToken|a_bogus|X-Bogus|X-Dynosaur|X-Gnarly|_signature|sessionid|sid_guard|odin_tt"
-    r"|uid_tt|ttwid)"
+    r"|uid_tt|ttwid|SESSDATA|bili_jct|buvid3|buvid4|w_rid)"
     r"=([^&\s;\"']{6,})",
     re.IGNORECASE,
 )

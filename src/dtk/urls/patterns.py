@@ -264,6 +264,9 @@ TRACKING_PARAMS: frozenset[str] = frozenset(
         "unique_k",
         "up_id",
         "vd_source",
+        # Bilibili's WBI signature, on a URL copied out of DevTools.
+        "w_rid",
+        "wts",
     }
 )
 

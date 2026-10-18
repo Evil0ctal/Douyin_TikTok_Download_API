@@ -43,7 +43,7 @@ _URL_CREDENTIALS_RE = re.compile(
 #: on the terminal too.
 _PARAM_RE = re.compile(
     r"\b(msToken|a_bogus|X-Bogus|X-Dynosaur|X-Gnarly|_signature|sessionid|sid_guard|odin_tt"
-    r"|uid_tt|ttwid|passport_csrf_token)"
+    r"|uid_tt|ttwid|passport_csrf_token|SESSDATA|bili_jct|buvid3|buvid4|w_rid)"
     r"=([^&\s;\"']{6,})",
     re.IGNORECASE,
 )
