@@ -1411,7 +1411,7 @@
     "detectedWithRejects": "{count, plural, one {# link} other {# links}} ready · {rejected, plural, one {# line not recognised} other {# lines not recognised}}",
     "rejected": {
       "content_id": "A post id with no platform on it. Paste the link instead, or say which platform it belongs to.",
-      "bad_id": "This looks like a post id but cannot be one — both platforms mint ids whose high bits are the second they were issued.",
+      "bad_id": "All digits, but not a Douyin or TikTok post id: theirs carry the second they were issued in the high bits, and this one does not hold a real time. A Bilibili video goes in as its BV id or its link.",
       "unknown": "No Douyin, TikTok or Bilibili link in this line."
     }
   },
@@ -1538,7 +1538,7 @@
       "title": "Sign a platform API URL",
       "description": "Pure arithmetic. Nothing is fetched and no identity is spent.",
       "urlHint": "The full API URL including its query. The signature is appended to what you send.",
-      "userAgentHint": "Both platforms hash this into the signature. Leave it blank for a Chrome default.",
+      "userAgentHint": "Douyin and TikTok hash this into the signature; Bilibili's WBI signature does not use it. Leave it blank for a Chrome default.",
       "userAgentPlaceholder": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Chrome/146.0.0.0 Safari/537.36",
       "msTokenHint": "TikTok only. Sealed into the signature, so it must be the token the request will carry - an invented value is worse than none.",
       "msTokenPlaceholder": "Leave blank if you have none",
@@ -1608,7 +1608,7 @@
       "valueLabel": "Signature or signed URL",
       "valueHint": "A whole signed URL is the most useful form: only then is the string each parameter covers known exactly, so only then can the checks run. A single parameter value, or a name=value pair, works too.",
       "valuePlaceholder": "https://www.douyin.com/aweme/v1/web/aweme/detail/?…&a_bogus=…",
-      "userAgentHint": "Both platforms hash the User-Agent into the signature. Fill this in and the result says whether the UA you are sending is the one the signature was computed with — which is the most common way a hand-built request fails while looking correct.",
+      "userAgentHint": "Douyin and TikTok hash the User-Agent into the signature; Bilibili's WBI signature does not. Fill this in and the result says whether the UA you are sending is the one the signature was computed with — which is the most common way a hand-built request fails while looking correct.",
       "parameterLabel": "Read it as",
       "parameterHint": "Left on auto, the value is identified by properties no other parameter has. Name it yourself if you are holding something unusual.",
       "parameterAuto": "Identify it automatically",
@@ -1690,7 +1690,7 @@
       "title": "Batch ids",
       "description": "Sort a pasted list of links and post ids without fetching anything. No identity is spent and nothing leaves this machine.",
       "field": "Links and ids",
-      "hint": "One per line. Blank lines and duplicates are dropped. A post id carries the second it was issued, so a typo is named here instead of becoming an upstream request.",
+      "hint": "One per line. Blank lines and duplicates are dropped. A Douyin or TikTok post id carries the second it was issued, so a typo is named here instead of becoming an upstream request; a Bilibili BV id is recognised on its own.",
       "action": "{count, plural, =0 {Parse} one {Parse # line} other {Parse # lines}}",
       "copyIds": "Copy the ids",
       "copied": "Ids copied",
@@ -2264,7 +2264,7 @@
       "become": "To sponsor this project, see github.com/sponsors/evil0ctal.",
       "label": "Sponsor"
     },
-    "tagline": "A self-hosted API for Douyin and TikTok data, and a console for running it.",
+    "tagline": "A self-hosted API for Douyin, TikTok and Bilibili data, and a console for running it.",
     "title": "About"
   },
   "mcp": {

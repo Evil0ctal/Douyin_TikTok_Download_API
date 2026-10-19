@@ -1411,7 +1411,7 @@
     "detectedWithRejects": "{count, plural, other {# 条链接}}待提交 · {rejected, plural, other {# 行无法识别}}",
     "rejected": {
       "content_id": "只有作品 ID，没有平台信息。请改为粘贴链接，或指明它属于哪个平台。",
-      "bad_id": "看起来像作品 ID，但不可能是：两个平台的 ID 高位都是签发时的那一秒。",
+      "bad_id": "全是数字，却不是抖音或 TikTok 的作品 ID：它们的 ID 高位记录着签发时的那一秒，而这一串对应的不是真实的时间。B 站视频请填 BV 号或链接。",
       "unknown": "这一行里没有抖音、TikTok 或 B 站链接。"
     }
   },
@@ -1538,7 +1538,7 @@
       "title": "为平台 API 地址计算签名",
       "description": "纯算术运算，不发起任何请求，也不消耗身份。",
       "urlHint": "包含查询参数的完整 API 地址。签名会追加在你提供的内容之后。",
-      "userAgentHint": "两个平台都会把它计入签名。留空则使用默认的 Chrome UA。",
+      "userAgentHint": "抖音和 TikTok 会把它计入签名，B 站的 WBI 签名不用它。留空则使用默认的 Chrome UA。",
       "userAgentPlaceholder": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Chrome/146.0.0.0 Safari/537.36",
       "msTokenHint": "仅 TikTok 需要。它会被封进签名，因此必须与请求实际携带的 token 一致——填一个假的比不填更糟。",
       "msTokenPlaceholder": "没有就留空",
@@ -1608,7 +1608,7 @@
       "valueLabel": "签名值或已签名的 URL",
       "valueHint": "粘贴完整的已签名 URL 最有用：只有这样才能确切知道每个参数覆盖了哪段字符串，也只有这样校验才跑得起来。单个参数值，或者 name=value 这样一对，同样可以。",
       "valuePlaceholder": "https://www.douyin.com/aweme/v1/web/aweme/detail/?…&a_bogus=…",
-      "userAgentHint": "两个平台都会把 User-Agent 计入签名。填上它，结果就会告诉你正在发送的 UA 是不是签名时用的那个——这是手工构造请求时看起来完全正确却失败的最常见原因。",
+      "userAgentHint": "抖音和 TikTok 会把 User-Agent 计入签名，B 站的 WBI 签名不会。填上它，结果就会告诉你正在发送的 UA 是不是签名时用的那个——这是手工构造请求时看起来完全正确却失败的最常见原因。",
       "parameterLabel": "按什么参数解读",
       "parameterHint": "保持自动时，会按其他参数都不具备的特征来识别。手里拿着不常见的东西时可以自己指定。",
       "parameterAuto": "自动识别",
@@ -1690,7 +1690,7 @@
       "title": "批量解析 ID",
       "description": "把粘贴进来的一列链接和作品 ID 分门别类，不发起任何请求。不消耗身份，也没有任何数据离开这台机器。",
       "field": "链接与 ID",
-      "hint": "一行一个，空行和重复行会自动去掉。作品 ID 里带着它被签发的那一秒，所以输入错误会在这里就被指出来，而不是变成一次上游请求。",
+      "hint": "一行一个，空行和重复行会自动去掉。抖音和 TikTok 的作品 ID 里带着它被签发的那一秒，所以输入错误会在这里就被指出来，而不是变成一次上游请求；B 站的 BV 号单独一行也能识别。",
       "action": "{count, plural, =0 {解析} other {解析 # 行}}",
       "copyIds": "复制所有 ID",
       "copied": "ID 已复制",
@@ -2264,7 +2264,7 @@
       "become": "想赞助这个项目，请访问 github.com/sponsors/evil0ctal。",
       "label": "赞助商"
     },
-    "tagline": "自部署的抖音与 TikTok 数据接口，以及运行它的控制台。",
+    "tagline": "自部署的抖音、TikTok 与 B 站数据接口，以及运行它的控制台。",
     "title": "关于"
   },
   "mcp": {
