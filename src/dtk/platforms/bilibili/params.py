@@ -30,6 +30,7 @@ import json
 from typing import Final
 
 from dtk.core.errors import InvalidParam
+from dtk.core.types import CommentSort
 from dtk.platforms.base import ClientProfile, ProfileSource
 from dtk.platforms.bilibili.ids import bv_to_av, content_bvid, numeric_id
 
@@ -145,25 +146,41 @@ def author_posts_params(
     }
 
 
+#: ``sort`` -> the ``mode`` the comment endpoint takes. Both measured
+#: 2026-10-18: the answer's ``cursor.support_mode`` is ``[2, 3]``, and mode 2
+#: came back newest first with no likes yet where mode 3 came back by likes.
+_COMMENT_MODES: Final[dict[str, str]] = {CommentSort.HOT: "3", CommentSort.NEW: "2"}
+
+
 def comments_params(
     *,
     bvid: str,
     cursor: str | None = None,
     count: int = DEFAULT_PAGE_SIZE,
+    sort: str | None = None,
     profile: ClientProfile = DEFAULT_PROFILE,
 ) -> dict[str, str]:
-    """Top-level comments, hottest first.
+    """Top-level comments, hottest first unless ``sort`` says newest.
 
     ``count`` is accepted and not sent: this endpoint takes no page size, and a
     page is whatever it decides. A guest is given three comments and no next
-    page (measured 2026-10-18), which is why the endpoint prefers a signed-in
-    identity - see ``dtk.platforms.bilibili.endpoints``.
+    page in either order (measured 2026-10-18), which is why the endpoint
+    prefers a signed-in identity - see ``dtk.platforms.bilibili.endpoints``.
+
+    The offset a page hands back belongs to the order it was read in, so a
+    caller paging on sends the same ``sort`` with it.
     """
+    mode = _COMMENT_MODES.get(sort or CommentSort.HOT)
+    if mode is None:
+        raise InvalidParam(
+            f"sort must be one of {', '.join(_COMMENT_MODES)}",
+            details={"field": "sort", "allowed": list(_COMMENT_MODES)},
+        )
     offset = "" if cursor is None or str(cursor).strip() in ("", "0") else str(cursor)
     return {
         "oid": str(bv_to_av(content_bvid(bvid))),
         "type": "1",
-        "mode": "3",
+        "mode": mode,
         "pagination_str": json.dumps({"offset": offset}, separators=(",", ":")),
         "plat": "1",
         "seek_rpid": "",

@@ -833,3 +833,71 @@ async def test_douyin_collection_posts_reach_the_queue(client: Any) -> None:
     )
 
     assert response.status_code == 202, response.text
+
+
+# --------------------------------------------------------------------------
+# Comment order
+# --------------------------------------------------------------------------
+
+
+BILIBILI_VIDEO_ID = "BV1xx411c7mD"
+
+
+async def test_a_bilibili_comment_order_reaches_the_worker(client: Any) -> None:
+    """It is part of the question, so it is stored with it - and two callers
+    asking for different orders are never joined onto one task."""
+    await signed_in(client)
+    newest = await client.get(
+        "/api/v1/bilibili/video/comments", params={"aweme_id": BILIBILI_VIDEO_ID, "sort": "new"}
+    )
+    hottest = await client.get(
+        "/api/v1/bilibili/video/comments", params={"aweme_id": BILIBILI_VIDEO_ID, "sort": "hot"}
+    )
+
+    assert newest.status_code == hottest.status_code == 202, newest.text
+    newest_id = envelope(newest)["data"]["task_id"]
+    assert newest_id != envelope(hottest)["data"]["task_id"]
+    async with session_scope() as session:
+        row = await session.get(Task, uuid.UUID(newest_id))
+    assert row is not None
+    assert row.params["sort"] == "new"
+
+
+async def test_newest_first_is_refused_where_a_platform_cannot_serve_it(client: Any) -> None:
+    """Sent on without a sort, Douyin would answer with its hottest comments,
+    and nothing in the page would tell the caller it was not what they asked."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/video/comments", params={"aweme_id": an_id(), "sort": "new"}
+    )
+
+    assert error_code(response) == "INVALID_PARAM"
+    details = envelope(response)["error"]["details"]
+    assert details["field"] == "sort"
+    assert details["supported"] == ["bilibili"]
+    async with session_scope() as session:
+        assert (await session.scalars(select(Task))).all() == []
+
+
+async def test_hottest_first_is_what_douyin_serves_anyway(client: Any) -> None:
+    """So it is accepted, and not stored: the task is the one a call without
+    it makes, and the two coalesce."""
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/video/comments", params={"aweme_id": an_id(), "sort": "hot"}
+    )
+
+    assert response.status_code == 202, response.text
+    async with session_scope() as session:
+        row = await session.get(Task, uuid.UUID(envelope(response)["data"]["task_id"]))
+    assert row is not None
+    assert "sort" not in row.params
+
+
+async def test_an_order_that_does_not_exist_is_a_validation_error(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/bilibili/video/comments", params={"aweme_id": BILIBILI_VIDEO_ID, "sort": "old"}
+    )
+
+    assert error_code(response) == "INVALID_PARAM"

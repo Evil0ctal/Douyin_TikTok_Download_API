@@ -515,7 +515,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `POST` | `/api/v1/parse` | 任一读取权限范围 | 任何受支持的链接，或包着链接的整段分享文案 |
 | `POST` | `/api/v1/tasks/batch` | 任一读取权限范围 | 最多 50 条链接，每条一个任务 |
 | `GET` | `/api/v1/{platform}/video` | `{platform}:read` | 单条作品。`url` **或** `aweme_id` |
-| `GET` | `/api/v1/{platform}/video/comments` | `{platform}:read` | 分页 |
+| `GET` | `/api/v1/{platform}/video/comments` | `{platform}:read` | 分页。`sort`：`hot`（默认，最热）或 `new`（最新）；`new` 只有 B 站支持，其他平台返回 `INVALID_PARAM` |
 | `GET` | `/api/v1/{platform}/video/comments/replies` | `{platform}:read` | `comment_id` 加上 `url` **或** `aweme_id`。分页 |
 | `GET` | `/api/v1/{platform}/user` | `{platform}:read` | 作者资料。`url` **或** `sec_user_id` |
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | 分页 |
@@ -585,7 +585,7 @@ B 站走的是与另外两个平台相同的路由、参数和信封：`{platfor
 | 接口 | 在 B 站上 |
 | --- | --- |
 | `video` | 单个视频，由第二个请求补全——见下文 |
-| `video/comments` | 提供；访客身份拿到的要少得多——见下文 |
+| `video/comments` | 提供，默认按最热，`sort=new` 按最新；访客身份拿到的要少得多——见下文 |
 | `video/comments/replies` | 提供，按页码分页；访客只能拿到第一页——见下文 |
 | `user` | 作者资料 |
 | `user/posts` | UP 主的投稿；B 站防得最严的接口——见下文 |
@@ -603,7 +603,7 @@ B 站的详情应答里没有可播放的文件。所以实例会再发第二个
 
 ### 评论：访客只拿到三条
 
-对线上站点实测，B 站只给访客身份最热的三条评论，并告诉它这就是最后一页。原样转交的话，一个有几千条评论的视频会被报告成只有三条。所以这个接口第一页优先使用已登录（导入的）B 站身份，后续每一页都必须用它——轮换里没有时返回 `IDENTITY_LOGIN_REQUIRED`。由访客应答的第一页会带上 `meta.guest_fallback`，这样访客拿到的三条评论就不会被误当成一个只有三条评论的视频。`count` 在这里会被接受但忽略：B 站的评论接口不接受分页大小。回复（`comments/replies`）是下一层的同一回事：访客能拿到第一页（最多 20 条），之后的页都是空的，而第一页报告的总数更多，所以回复的后续页同样需要已登录身份。B 站所有的评论接口，包括 v4 用的按页码翻的 `/x/v2/reply`，对访客都是这样（2026-10-18 实测）。如何导入已登录身份见 [B 站身份](./06-identities-and-proxies.md#b-站身份)。
+对线上站点实测，B 站只给访客身份最热的三条评论（`sort=new` 时是最新的三条），并告诉它这就是最后一页。原样转交的话，一个有几千条评论的视频会被报告成只有三条。所以这个接口第一页优先使用已登录（导入的）B 站身份，后续每一页都必须用它——轮换里没有时返回 `IDENTITY_LOGIN_REQUIRED`。由访客应答的第一页会带上 `meta.guest_fallback`，这样访客拿到的三条评论就不会被误当成一个只有三条评论的视频。`count` 在这里会被接受但忽略：B 站的评论接口不接受分页大小。游标只对读出它的那种排序有效，翻页时请带上同一个 `sort`。回复（`comments/replies`）是下一层的同一回事：访客能拿到第一页（最多 20 条），之后的页都是空的，而第一页报告的总数更多，所以回复的后续页同样需要已登录身份。B 站所有的评论接口，包括 v4 用的按页码翻的 `/x/v2/reply`，对访客都是这样（2026-10-18 实测）。如何导入已登录身份见 [B 站身份](./06-identities-and-proxies.md#b-站身份)。
 
 ### UP 主投稿列表
 

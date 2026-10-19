@@ -50,8 +50,9 @@ _GUEST_MISSES: Final[dict[str, str]] = {
         "cookie."
     ),
     "bilibili.comments": (
-        "Bilibili shows a guest only the three hottest comments and no further "
-        "page; the full thread needs a logged-in cookie."
+        "Bilibili shows a guest only the three hottest comments (the three newest "
+        "with sort='new') and no further page; the full thread needs a logged-in "
+        "cookie."
     ),
 }
 

@@ -50,7 +50,7 @@ from dtk.core.errors import (
     UnsupportedContent,
 )
 from dtk.core.logging import get_logger
-from dtk.core.types import PLATFORM_READ_SCOPES, Platform, Scope
+from dtk.core.types import PLATFORM_READ_SCOPES, CommentSort, Platform, Scope
 from dtk.i18n.messages import render_error
 from dtk.platforms.paging import max_page_size
 from dtk.urls import ResourceKind, UrlKind, first_url, identify, require_content_id
@@ -174,6 +174,14 @@ COLLECTION_ID_QUERY = Query(
     min_length=1,
     max_length=64,
     description="The saved folder to read; ids come from /user/collections.",
+)
+SORT_QUERY = Query(
+    default=None,
+    description=(
+        "hot or new. Only Bilibili offers a choice; Douyin and TikTok rank comments "
+        "their own way, accept hot, and refuse new. Send the same value again with "
+        "the cursor of a later page."
+    ),
 )
 COMMENT_ID_QUERY = Query(
     min_length=1,
@@ -497,6 +505,7 @@ async def comments(
     aweme_id: str | None = AWEME_ID_QUERY,
     cursor: str | None = CURSOR_QUERY,
     count: int | None = COUNT_QUERY,
+    sort: CommentSort | None = SORT_QUERY,
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
@@ -518,6 +527,9 @@ async def comments(
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - comments per page.
+    - `sort` - `hot` (the default) or `new`. Only Bilibili offers `new`;
+      Douyin and TikTok answer it with `400 INVALID_PARAM`. A cursor belongs
+      to the order it was read in, so send the same `sort` with it.
     - `include_raw` - include each item's untouched platform payload. A page
       carries one per item, so this multiplies the response and everything
       that stores it; it is off by default for that reason.
@@ -542,6 +554,7 @@ async def comments(
             "cursor": cursor,
             "count": resolve_count(count, maximum=max_page_size(platform)),
             "include_raw": include_raw,
+            **registry.comment_sort_params(platform, sort),
         }
     )
     return await operations.submit_and_wait(

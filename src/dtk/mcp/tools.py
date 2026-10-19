@@ -127,6 +127,19 @@ CountArg = Annotated[
 ]
 
 
+SortArg = Annotated[
+    str | None,
+    Field(
+        default=None,
+        description=(
+            "'hot' (the default) or 'new'. Only bilibili offers 'new'; douyin and tiktok "
+            "rank comments their own way and refuse it. Pass the same value with a later "
+            "page's cursor."
+        ),
+    ),
+]
+
+
 class ToolSet:
     """The tool implementations, bound to one :class:`McpContext`.
 
@@ -444,6 +457,7 @@ class ToolSet:
         ],
         cursor: CursorArg = None,
         count: CountArg = None,
+        sort: SortArg = None,
         context: Context | None = None,
     ) -> dict[str, Any]:
         """List the top-level comments on a post, one page at a time.
@@ -452,7 +466,7 @@ class ToolSet:
         unchanged for the next page.
         """
         return await self._guarded(
-            self._list_comments(platform, content_id, cursor, count, context)
+            self._list_comments(platform, content_id, cursor, count, sort, context)
         )
 
     async def _list_comments(
@@ -461,13 +475,19 @@ class ToolSet:
         content_id: str,
         cursor: str | None,
         count: int | None,
+        sort: str | None = None,
         context: Context | None = None,
     ) -> dict[str, Any]:
         target = routing.coerce_platform(platform)
         self._authorize(target, context)
         identifier = routing.require_text(content_id, "content_id")
         endpoint, params = routing.build_task(
-            target, routing.Capability.COMMENTS, identifier, cursor=cursor, count=count
+            target,
+            routing.Capability.COMMENTS,
+            identifier,
+            cursor=cursor,
+            count=count,
+            sort=routing.coerce_sort(sort),
         )
         return await self._fetch(
             endpoint, params, {"platform": target.value, "content_id": identifier}, context=context

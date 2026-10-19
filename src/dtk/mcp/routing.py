@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Any, Final
 
 from dtk.core.errors import InvalidParam, UnsupportedContent
-from dtk.core.types import Platform
+from dtk.core.types import CommentSort, Platform
 from dtk.platforms.paging import max_page_size
 from dtk.platforms.registry import available_platforms
 from dtk.urls import ResourceKind, UrlKind
@@ -40,6 +40,7 @@ from dtk.worker.registry import (
     UNIQUE_ID,
     Capability,
     EndpointDefinition,
+    comment_sort_params,
     definition_for,
     endpoint_name,
     endpoint_names,
@@ -122,6 +123,19 @@ def coerce_count(value: int | None, platform: Platform) -> int | None:
     return value
 
 
+def coerce_sort(value: str | None) -> CommentSort | None:
+    """Validate a comment order. ``None`` leaves the platform's own in place."""
+    if value is None or not value.strip():
+        return None
+    try:
+        return CommentSort(value.strip().lower())
+    except ValueError:
+        raise InvalidParam(
+            f"sort must be one of {', '.join(CommentSort)}",
+            details={"field": "sort", "allowed": [s.value for s in CommentSort]},
+        ) from None
+
+
 def definition(platform: Platform, capability: Capability) -> EndpointDefinition:
     """The registry entry for one capability on one platform.
 
@@ -178,6 +192,7 @@ def build_task(
     *,
     cursor: str | None = None,
     count: int | None = None,
+    sort: CommentSort | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Return ``(endpoint, params)`` ready to be queued as a task.
 
@@ -197,6 +212,8 @@ def build_task(
     checked = coerce_count(count, platform)
     if checked is not None:
         params[COUNT] = checked
+    if capability is Capability.COMMENTS:
+        params.update(comment_sort_params(platform, sort))
 
     # Raises INVALID_PARAM for a missing or unsupported argument, which costs a
     # sentence rather than an identity's quota.

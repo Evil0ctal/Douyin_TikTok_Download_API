@@ -63,7 +63,7 @@ import styles from './playground.module.css'
 /* Endpoint catalog                                                            */
 /* -------------------------------------------------------------------------- */
 
-type ParamKind = 'text' | 'number' | 'boolean'
+type ParamKind = 'text' | 'number' | 'boolean' | 'choice'
 type ParamWhere = 'query' | 'body'
 /** Which block of the form a parameter belongs in. Purely presentational. */
 type ParamSection = 'target' | 'paging' | 'request'
@@ -91,6 +91,8 @@ interface ParamDef {
   min?: number
   max?: number
   defaultValue?: string
+  /** A `choice` parameter's values. Leaving it unset sends nothing: the API's own default. */
+  choices?: readonly string[]
   /**
    * The role this parameter needs, when it needs more than reading does.
    *
@@ -247,6 +249,15 @@ const ENVELOPE_PARAMS: readonly ParamDef[] = [
   EXPLAIN_PARAM,
 ]
 const PAGE_PARAMS: readonly ParamDef[] = [CURSOR_PARAM, COUNT_PARAM]
+//? Bilibili only: Douyin and TikTok rank comments their own way and refuse `new`.
+const SORT_PARAM: ParamDef = {
+  name: 'sort',
+  kind: 'choice',
+  where: 'query',
+  section: 'paging',
+  choices: ['hot', 'new'],
+  platforms: ['bilibili'],
+}
 
 const CATALOG: readonly EndpointDef[] = [
   {
@@ -286,7 +297,7 @@ const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/video/comments`,
     operation: 'comments',
     platformScoped: true,
-    params: [URL_PARAM, AWEME_ID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+    params: [URL_PARAM, AWEME_ID_PARAM, ...PAGE_PARAMS, SORT_PARAM, ...ENVELOPE_PARAMS],
   },
   {
     id: 'replies',
@@ -1298,6 +1309,24 @@ export default function Playground() {
           description={describe('playground.param.identity')}
           value={permitted ? valueOf(param) : ''}
           options={identityOptions}
+          disabled={!permitted}
+          onChange={(event) => {
+            setValue(param.name, event.target.value)
+          }}
+        />
+      )
+    }
+    if (param.kind === 'choice') {
+      return (
+        <Select
+          key={param.name}
+          label={<span className="u-mono">{param.name}</span>}
+          description={describe(`playground.param.${param.name}`)}
+          value={permitted ? valueOf(param) : ''}
+          options={[
+            { value: '', label: t('playground.choiceDefault') },
+            ...(param.choices ?? []).map((choice) => ({ value: choice, label: choice })),
+          ]}
           disabled={!permitted}
           onChange={(event) => {
             setValue(param.name, event.target.value)

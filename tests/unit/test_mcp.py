@@ -393,6 +393,31 @@ class TestArgumentValidation:
         await tools.list_comments(platform, content_id, None, ceiling)
         assert len(tasks.submitted) == 1
 
+    async def test_a_bilibili_comment_order_is_sent_with_the_task(self):
+        tasks = FakeTasks()
+        tools = ToolSet(make_context(tasks))
+        await tools.list_comments("bilibili", "BV1xx411c7mD", None, None, "new")
+        assert tasks.submitted[0][1]["sort"] == "new"
+
+    async def test_newest_first_is_refused_where_the_platform_cannot_serve_it(self):
+        """The rule REST applies, from the same function: an agent asking
+        Douyin for the newest comments must not be handed the hottest."""
+        tasks = FakeTasks()
+        tools = ToolSet(make_context(tasks))
+        with pytest.raises(ToolError) as caught:
+            await tools.list_comments("douyin", "7100000000000000000", None, None, "new")
+        assert "bilibili" in str(caught.value)
+        assert tasks.submitted == []
+
+        await tools.list_comments("douyin", "7100000000000000000", None, None, "hot")
+        assert "sort" not in tasks.submitted[0][1]
+
+    async def test_an_unknown_comment_order_names_the_choices(self):
+        tools = ToolSet(make_context())
+        with pytest.raises(ToolError) as caught:
+            await tools.list_comments("bilibili", "BV1xx411c7mD", None, None, "oldest")
+        assert "hot, new" in str(caught.value)
+
     async def test_tiktok_post_listing_rejects_a_handle_with_a_next_step(self):
         """The one identifier an agent cannot guess, so the error says what to do."""
         tools = ToolSet(make_context())

@@ -1190,6 +1190,7 @@
   },
   "playground": {
     "catalogTitle": "Endpoints",
+    "choiceDefault": "Default",
     "circuitAggregate": "{open} of {total} endpoints are tripped.",
     "circuitLabel": "Circuit",
     "contextDescription": "Polled every few seconds, so it is current at the moment a call fails.",
@@ -1252,6 +1253,7 @@
       "proxy": "Send the upstream request through this proxy. Refused unless an administrator has enabled security.request_proxy.",
       "refresh": "Ignore any cached or in-flight answer and ask upstream again. Without it a repeat inside the cache window is free: 30 minutes for one post, 15 for a profile, 5 for anything paged (cache.* in Settings). A refresh costs an identity and a real request.",
       "sec_user_id": "Stable author id. Provide this or a link.",
+      "sort": "Order of the comments: hot (the default) or new. Send the same order again with a later page's cursor.",
       "url": "A post or profile link, or the share text around one.",
       "wait": "Seconds the server may hold the connection before answering with a task id instead."
     },

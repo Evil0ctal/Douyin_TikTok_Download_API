@@ -138,8 +138,9 @@ A Bilibili uploader's video list is the endpoint Bilibili guards hardest: a burs
 | `content_id` | yes | The post id whose top-level comments you want |
 | `cursor` | no | As above |
 | `count` | no | As above. Ignored on Bilibili, whose comment endpoint takes no page size, though a value above 20 is still refused there |
+| `sort` | no | `hot` (the default) or `new`. Only Bilibili offers `new`; Douyin and TikTok rank comments their own way and answer it with `INVALID_PARAM`. Pass the same value with a later page's cursor |
 
-On Bilibili a guest identity is given the three hottest comments and told that is the last page. So the first page prefers a signed-in Bilibili identity and falls back to a guest, marked `guest_fallback` (see [Reading a result](#reading-a-result)); later pages need a signed-in one and answer `IDENTITY_LOGIN_REQUIRED` when there is none.
+On Bilibili a guest identity is given the three hottest comments (the three newest with `sort: new`) and told that is the last page. So the first page prefers a signed-in Bilibili identity and falls back to a guest, marked `guest_fallback` (see [Reading a result](#reading-a-result)); later pages need a signed-in one and answer `IDENTITY_LOGIN_REQUIRED` when there is none.
 
 Top-level comments only. Replies under a comment are a separate capability that this tool set does not expose — that is one of the small-tool-set trade-offs. If an agent needs them, fetch them over REST from `/api/v1/{platform}/video/comments/replies`.
 

@@ -516,7 +516,7 @@ See [Playground and tools](./07-playground-and-tools.md), which is the console's
 | `POST` | `/api/v1/parse` | any platform read scope | Any supported link, or the whole share text around one |
 | `POST` | `/api/v1/tasks/batch` | any platform read scope | Up to 50 links, one task each |
 | `GET` | `/api/v1/{platform}/video` | `{platform}:read` | One post. `url` **or** `aweme_id` |
-| `GET` | `/api/v1/{platform}/video/comments` | `{platform}:read` | Paged |
+| `GET` | `/api/v1/{platform}/video/comments` | `{platform}:read` | Paged. `sort`: `hot` (default) or `new`; `new` on Bilibili only, `INVALID_PARAM` elsewhere |
 | `GET` | `/api/v1/{platform}/video/comments/replies` | `{platform}:read` | `comment_id` plus `url` **or** `aweme_id`. Paged |
 | `GET` | `/api/v1/{platform}/user` | `{platform}:read` | Profile. `url` **or** `sec_user_id` |
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | Paged |
@@ -586,7 +586,7 @@ Share and tracking parameters such as `vd_source`, `spm_id_from`, `buvid` and `s
 | Endpoint | On Bilibili |
 | --- | --- |
 | `video` | One video, completed by a second request — see below |
-| `video/comments` | Served; a guest identity gets far less — see below |
+| `video/comments` | Served, hottest first or, with `sort=new`, newest first; a guest identity gets far less — see below |
 | `video/comments/replies` | Served, paged by page number; a guest gets the first page only — see below |
 | `user` | The profile |
 | `user/posts` | The uploader's videos; the endpoint Bilibili guards hardest — see below |
@@ -604,7 +604,7 @@ The stream is one progressive MP4, not DASH, so a download is one file. Measured
 
 ### Comments: a guest gets three
 
-Measured against the live site, Bilibili gives a guest identity the three hottest comments and tells it that is the last page. Passed on as it stands, that would report a video with thousands of comments as having three. So the endpoint prefers a signed-in (imported) Bilibili identity for the first page and requires one for every later page — `IDENTITY_LOGIN_REQUIRED` when rotation has none. A first page a guest served carries `meta.guest_fallback`, so three comments from a guest cannot be mistaken for a video that only has three. `count` is accepted and ignored here: Bilibili's comment endpoint takes no page size. Replies are the same one level down: a guest gets the first page — up to 20 — and an empty page after it while page one counts more, so later pages of replies require a signed-in identity too. Every comment endpoint Bilibili has, v4's page-numbered `/x/v2/reply` included, answers a guest this way (measured 2026-10-18). Importing a signed-in identity is covered in [Bilibili identities](./06-identities-and-proxies.md#bilibili-identities).
+Measured against the live site, Bilibili gives a guest identity the three hottest comments — the three newest with `sort=new` — and tells it that is the last page. Passed on as it stands, that would report a video with thousands of comments as having three. So the endpoint prefers a signed-in (imported) Bilibili identity for the first page and requires one for every later page — `IDENTITY_LOGIN_REQUIRED` when rotation has none. A first page a guest served carries `meta.guest_fallback`, so three comments from a guest cannot be mistaken for a video that only has three. `count` is accepted and ignored here: Bilibili's comment endpoint takes no page size. A cursor belongs to the order it was read in, so send the same `sort` with it. Replies are the same one level down: a guest gets the first page — up to 20 — and an empty page after it while page one counts more, so later pages of replies require a signed-in identity too. Every comment endpoint Bilibili has, v4's page-numbered `/x/v2/reply` included, answers a guest this way (measured 2026-10-18). Importing a signed-in identity is covered in [Bilibili identities](./06-identities-and-proxies.md#bilibili-identities).
 
 ### An uploader's video list
 

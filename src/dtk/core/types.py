@@ -17,6 +17,19 @@ class Platform(StrEnum):
     BILIBILI = "bilibili"
 
 
+class CommentSort(StrEnum):
+    """The order a post's top-level comments come back in.
+
+    Only Bilibili lets a caller choose. Douyin and TikTok rank comments their
+    own way, by engagement, which is what HOT asks for - so HOT is accepted
+    everywhere and NEW is refused where it cannot be honoured, rather than
+    answered with the hottest comments under a request for the newest.
+    """
+
+    HOT = "hot"
+    NEW = "new"
+
+
 class ContentKind(StrEnum):
     VIDEO = "video"
     IMAGE_ALBUM = "image_album"

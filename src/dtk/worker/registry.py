@@ -37,7 +37,7 @@ from typing import Any, Final
 from dtk.core.config import Config
 from dtk.core.errors import InvalidParam
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform, Scope
+from dtk.core.types import CommentSort, Platform, Scope
 from dtk.platforms import PlatformAdapter, get_adapter
 from dtk.platforms.registry import available_platforms
 
@@ -130,6 +130,9 @@ HANDLE_PLATFORMS: Final[frozenset[Platform]] = frozenset({Platform.DOUYIN, Platf
 COMMENT_ID: Final = "comment_id"
 CURSOR: Final = "cursor"
 COUNT: Final = "count"
+#: A :class:`dtk.core.types.CommentSort` value. Mapped only where a platform
+#: takes it; :func:`comment_sort_params` decides what the others are sent.
+SORT: Final = "sort"
 
 #: Platform spellings accepted for a canonical name. ``aweme_id`` and
 #: ``item_id`` are the same thing on both platforms as far as a caller is
@@ -256,7 +259,12 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "bvid"},
         Capability.AUTHOR_PROFILE: {AUTHOR_ID: "mid"},
         Capability.AUTHOR_POSTS: {AUTHOR_ID: "mid", CURSOR: "cursor", COUNT: "count"},
-        Capability.COMMENTS: {CONTENT_ID: "bvid", CURSOR: "cursor", COUNT: "count"},
+        Capability.COMMENTS: {
+            CONTENT_ID: "bvid",
+            CURSOR: "cursor",
+            COUNT: "count",
+            SORT: "sort",
+        },
         Capability.COMMENT_REPLIES: {
             CONTENT_ID: "bvid",
             COMMENT_ID: "root",
@@ -633,6 +641,34 @@ def missing_capabilities(platform: Platform) -> tuple[Capability, ...]:
     return tuple(c for c in P0_CAPABILITIES if c not in present)
 
 
+def comment_sort_params(platform: Platform, sort: CommentSort | None) -> dict[str, str]:
+    """The ``sort`` to send with a comments call on this platform, if any.
+
+    REST and MCP both ask here, so the rule is written once. A platform whose
+    comments endpoint takes no order serves its own ranking, which is what
+    HOT asks for, so HOT is dropped there; NEW is refused by name, because
+    sending nothing would return the hottest comments to a caller who asked
+    for the newest and nothing in the page would say so.
+    """
+    if sort is None:
+        return {}
+    definition = definition_for(endpoint_name(platform, Capability.COMMENTS))
+    if SORT in definition.accepts:
+        return {SORT: sort.value}
+    if sort is CommentSort.HOT:
+        return {}
+    supported = sorted(
+        d.platform.value
+        for d in ENDPOINTS.values()
+        if d.capability is Capability.COMMENTS and SORT in d.accepts
+    )
+    raise InvalidParam(
+        f"{platform.value} serves comments in its own order; sort={sort.value} is "
+        f"offered on {', '.join(supported)} only",
+        details={"field": SORT, "platform": platform.value, "supported": supported},
+    )
+
+
 def resolve(endpoint: str, params: Mapping[str, Any], config: Config) -> ResolvedCall:
     """Bind an endpoint, one caller's parameters and the current config."""
     definition = definition_for(endpoint)
@@ -656,10 +692,12 @@ __all__ = [
     "HANDLE_PLATFORMS",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",
+    "SORT",
     "UNIQUE_ID",
     "Capability",
     "EndpointDefinition",
     "ResolvedCall",
+    "comment_sort_params",
     "definition_for",
     "definitions_for",
     "endpoint_name",

@@ -79,6 +79,15 @@ class TestParameters:
         built = params.comments_params(bvid="BV1xx411c7mD", cursor=offset)
         assert json.loads(built["pagination_str"]) == {"offset": offset}
 
+    @pytest.mark.parametrize(("sort", "mode"), [(None, "3"), ("hot", "3"), ("new", "2")])
+    def test_the_comment_order_picks_the_mode(self, sort: str | None, mode: str) -> None:
+        assert params.comments_params(bvid="BV1xx411c7mD", sort=sort)["mode"] == mode
+
+    def test_an_unknown_comment_order_is_refused_by_name(self) -> None:
+        with pytest.raises(InvalidParam) as caught:
+            params.comments_params(bvid="BV1xx411c7mD", sort="old")
+        assert caught.value.details["field"] == "sort"
+
     @pytest.mark.parametrize(("cursor", "page"), [(None, "1"), ("0", "1"), ("3", "3")])
     def test_numbered_endpoints_take_the_page_as_the_cursor(
         self, cursor: str | None, page: str
