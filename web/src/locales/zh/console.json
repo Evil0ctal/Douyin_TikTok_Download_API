@@ -225,7 +225,8 @@
     },
     "endpointCount": "共 {count} 个接口",
     "poolDistribution": "身份池状态分布",
-    "poolHint": "各平台全部身份，按状态统计。",
+    "poolDistributionFor": "{platform}身份的状态分布",
+    "poolHint": "每个平台的全部身份，按状态统计。",
     "rates": "成功率与风控率",
     "ratesHint": "每个时间桶内的请求占比。图表按本地时区显示，服务端存的是 UTC。",
     "volume": "请求量",
@@ -238,11 +239,18 @@
     "alert": {
       "poolEmpty": "没有可用身份",
       "poolEmptyHint": "身份池恢复前，请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝。",
+      "platformAction": "查看{platform}身份",
+      "platformDown": "没有可用的{platform}身份",
+      "platformDownHint": "在恢复之前，{platform}的请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝；其他平台不受影响。",
+      "platformEmpty": "还没有{platform}身份",
+      "platformEmptyHint": "在为{platform}铸造或导入身份之前，对它的调用都会被拒绝。",
       "degraded": "{count} 个身份处于降级状态",
       "degradedHint": "降级身份仍会承接流量，但失败率高于其它身份。"
     },
     "byEndpoint": "各接口成功率",
-    "byEndpointHint": "本时间范围内请求量最高的接口，最多六条。在上方选择单个接口可单独查看。"
+    "byEndpointHint": "本时间范围内请求量最高的接口，最多六条。在上方选择单个接口可单独查看。",
+    "transcriptions": "转写",
+    "transcriptionsHint": "已存储视频转成的文字"
   },
   "identity": {
     "column": {

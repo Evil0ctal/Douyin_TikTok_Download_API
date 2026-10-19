@@ -193,6 +193,20 @@
   min-width: 0;
 }
 
+/* A tile that is a link keeps its card look; the border is what answers the
+ * pointer, so a row of linked and unlinked tiles still reads as one row. */
+.tileLink {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--duration-1) var(--ease);
+}
+
+/* The base `a:hover` underline would run under every number in the tile. */
+.tileLink:hover {
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+
 .tileLabel {
   font-size: var(--text-xs);
   line-height: var(--leading-xs);

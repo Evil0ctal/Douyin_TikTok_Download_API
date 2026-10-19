@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
+import { Link } from 'wouter'
 
 import { cn } from '@/lib/cn'
 import type { Tone } from '@/lib/status'
@@ -22,6 +23,12 @@ export interface MetricTileProps {
   loading?: boolean
   footer?: ReactNode
   className?: string
+  /**
+   * The page this number is a summary of. The whole tile becomes the link:
+   * a reader who sees "8 downloading" wants the downloads, and a tile that
+   * looks like a card but goes nowhere was the overview's dead end.
+   */
+  href?: string
 }
 
 const SPARK_WIDTH = 96
@@ -59,6 +66,7 @@ export function MetricTile({
   loading = false,
   footer,
   className,
+  href,
 }: MetricTileProps) {
   const path = useMemo(() => (spark ? sparkPath(spark) : null), [spark])
 
@@ -67,8 +75,8 @@ export function MetricTile({
   const deltaClass =
     direction === 'flat' ? styles.deltaFlat : good ? styles.deltaUp : styles.deltaDown
 
-  return (
-    <div className={cn(styles.tile, className)}>
+  const body = (
+    <>
       <span className={styles.tileLabel}>{label}</span>
       <div className={styles.tileValueRow}>
         {loading ? (
@@ -112,6 +120,14 @@ export function MetricTile({
         ) : null}
       </div>
       {footer}
-    </div>
+    </>
+  )
+
+  return href ? (
+    <Link href={href} className={cn(styles.tile, styles.tileLink, className)}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cn(styles.tile, className)}>{body}</div>
   )
 }

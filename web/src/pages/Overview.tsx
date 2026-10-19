@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation } from 'wouter'
+import { Link, useLocation } from 'wouter'
 
 import {
   AlertIcon,
@@ -21,9 +21,11 @@ import {
 } from '@/components'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
+import { canOpen } from '@/lib/nav'
 import { POLL } from '@/lib/query'
-import { IDENTITY_STATES, type IdentityState, type Outcome } from '@/lib/types'
-import { useApiQuery, useFormatters } from '@/hooks'
+import { atLeast } from '@/lib/roles'
+import { IDENTITY_STATES, PLATFORMS, type IdentityState, type Outcome } from '@/lib/types'
+import { useApiQuery, useFormatters, useSession } from '@/hooks'
 
 /* -------------------------------------------------------------------------- */
 /* API shapes                                                                  */
@@ -129,6 +131,19 @@ interface WatchlistTotals {
   stats?: { failing?: number } | null
 }
 
+/** GET /api/v1/transcriptions?limit=1 - read for its total alone. */
+interface TranscriptionTotals {
+  total: number
+}
+
+/** One platform's slice of the pool census. */
+interface PlatformCensus {
+  platform: string
+  byState: Record<string, number>
+  total: number
+  active: number
+}
+
 /** Quiet until the volume is nearly full, loud once it is. */
 function diskTone(storage: StorageTotals | undefined): 'warning' | 'danger' | undefined {
   const ceiling = storage?.max_bytes ?? 0
@@ -147,6 +162,14 @@ export default function Overview() {
 
   const [rangeId, setRangeId] = useState('24h')
   const [endpointFilter, setEndpointFilter] = useState('')
+
+  const session = useSession()
+  const role = session.data?.role ?? null
+  /** A tile links to its page only where this session may open that page: the
+   *  demo account is shown Downloads but not the Watchlist. */
+  const linkTo = (path: string): string | undefined => (canOpen(role, path) ? path : undefined)
+  const platformLabel = (name: string): string =>
+    t(`console:platform.name.${name}`, { defaultValue: name })
 
   const range = RANGES.find((option) => option.id === rangeId) ?? RANGES[2]
 
@@ -181,6 +204,20 @@ export default function Overview() {
     key: ['admin', 'watchlist', 'overview'],
     path: paths.watchlist.list,
     poll: POLL.slow,
+  })
+
+  /**
+   * The one stage of what this instance keeps that had no tile. Only asked
+   * from viewer up: the route refuses the demo account, and a tile that is
+   * always a 403 is worse than no tile.
+   */
+  const transcriptionsVisible = atLeast(role, 'viewer')
+  const transcriptions = useApiQuery<TranscriptionTotals>({
+    key: ['transcriptions', 'overview'],
+    path: paths.transcriptions.list,
+    params: { limit: 1 },
+    poll: POLL.slow,
+    enabled: transcriptionsVisible,
   })
 
   const health = useApiQuery<EndpointHealthRow[]>({
@@ -408,11 +445,15 @@ export default function Overview() {
         // parks one permanently whenever the status call fails.
         poolKnown={system.data !== undefined && !system.isError}
         openCircuits={openCircuits}
-        poolActive={pool.byState.active ?? 0}
+        platforms={pool.platforms}
         poolDegraded={pool.byState.degraded ?? 0}
-        onGoToIdentities={() => {
-          navigate('/identities')
-        }}
+        onGoToIdentities={
+          canOpen(role, '/identities')
+            ? (platform) => {
+                navigate(identitiesPath(platform))
+              }
+            : null
+        }
       />
 
       <div className="u-grid-metrics">
@@ -420,14 +461,30 @@ export default function Overview() {
           label={t('console:metric.activeIdentities')}
           value={format.number(pool.byState.active ?? 0)}
           loading={system.isLoading}
-          tone={(pool.byState.active ?? 0) > 0 ? 'success' : 'danger'}
-          footer={t('console:pool.summary', { count: pool.byState.active ?? 0 })}
+          tone={poolTone(pool.platforms)}
+          href={linkTo('/identities')}
+          footer={
+            // Per platform, because the sum hid the case that matters: one
+            // platform out of identities while the others carry the total.
+            <span className="u-xs u-muted u-row u-wrap" style={{ gap: 'var(--space-2)' }}>
+              {pool.platforms.map((entry) => (
+                <span
+                  key={entry.platform}
+                  style={entry.active === 0 ? { color: 'var(--caution)' } : undefined}
+                >
+                  {platformLabel(entry.platform)}{' '}
+                  <span className="u-mono">{format.number(entry.active)}</span>
+                </span>
+              ))}
+            </span>
+          }
         />
         <MetricTile
           label={t('console:metric.requests')}
           value={format.compact(totals.total)}
           loading={metrics.isLoading}
           spark={buckets.map((bucket) => bucket.total)}
+          href={linkTo('/logs') ? '/logs?tab=requests' : undefined}
         />
         <MetricTile
           label={t('console:metric.successRate')}
@@ -466,6 +523,7 @@ export default function Overview() {
           label={t('console:metric.archived')}
           value={format.number(archive.data?.contents ?? 0)}
           loading={archive.isLoading}
+          href={linkTo('/library')}
           footer={
             <span className="u-xs u-muted">
               {t('console:metric.archivedHint', { count: archive.data?.authors ?? 0 })}
@@ -476,6 +534,7 @@ export default function Overview() {
           label={t('console:metric.downloaded')}
           value={format.number(archive.data?.stored ?? 0)}
           loading={archive.isLoading}
+          href={linkTo('/downloads')}
           footer={
             <span className="u-xs u-muted">
               {t('console:metric.downloadedHint', {
@@ -492,6 +551,7 @@ export default function Overview() {
           loading={storage.isLoading}
           // Loud only near the ceiling, where new downloads start being refused.
           tone={diskTone(storage.data)}
+          href={linkTo('/downloads')}
           footer={
             <span className="u-xs u-muted">
               {t('console:metric.diskUsedHint', {
@@ -504,6 +564,7 @@ export default function Overview() {
           label={t('console:metric.inFlight')}
           value={format.number(storage.data?.in_flight ?? 0)}
           loading={storage.isLoading}
+          href={linkTo('/downloads')}
           footer={
             <span className="u-xs u-muted">
               {t('console:metric.inFlightHint', {
@@ -517,6 +578,7 @@ export default function Overview() {
           value={format.number(watchlist.data?.total ?? 0)}
           loading={watchlist.isLoading}
           tone={(watchlist.data?.stats?.failing ?? 0) > 0 ? 'warning' : undefined}
+          href={linkTo('/watchlist')}
           footer={
             <span className="u-xs u-muted">
               {(watchlist.data?.stats?.failing ?? 0) > 0
@@ -525,6 +587,17 @@ export default function Overview() {
             </span>
           }
         />
+        {transcriptionsVisible ? (
+          <MetricTile
+            label={t('console:overview.transcriptions')}
+            value={format.number(transcriptions.data?.total ?? 0)}
+            loading={transcriptions.isLoading}
+            href={linkTo('/transcriptions')}
+            footer={
+              <span className="u-xs u-muted">{t('console:overview.transcriptionsHint')}</span>
+            }
+          />
+        ) : null}
       </div>
 
       <Card title={t('console:overview.poolDistribution')} description={t('console:overview.poolHint')}>
@@ -537,7 +610,11 @@ export default function Overview() {
             }}
           />
         ) : (
-          <PoolDistribution byState={pool.byState} total={pool.total} />
+          <PoolDistribution
+            platforms={pool.platforms}
+            total={pool.total}
+            linkable={canOpen(role, '/identities')}
+          />
         )}
       </Card>
 
@@ -623,29 +700,39 @@ interface AlertsProps {
   /** False while the pool census is loading or failed; suppresses pool alarms. */
   poolKnown: boolean
   openCircuits: EndpointHealthRow[]
-  poolActive: number
+  platforms: readonly PlatformCensus[]
   poolDegraded: number
-  onGoToIdentities: () => void
+  /** Null when this session cannot open the identities page. */
+  onGoToIdentities: ((platform?: string) => void) | null
 }
 
 /**
  * Only conditions an operator must act on. Doc 15 sets the same bar for
  * notifications: an alert that fires on everything is an alert nobody reads.
+ *
+ * The pool alarm is per platform. It used to be one alarm on the summed
+ * census, so it fired only once all three platforms were empty: Douyin could
+ * be refusing every call with IDENTITY_POOL_EXHAUSTED while TikTok's
+ * identities kept the total above zero and the page stayed green.
  */
 function Alerts({
   poolKnown,
   openCircuits,
-  poolActive,
+  platforms,
   poolDegraded,
   onGoToIdentities,
 }: AlertsProps) {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
+  const platformLabel = (name: string): string =>
+    t(`console:platform.name.${name}`, { defaultValue: name })
 
-  const poolEmpty = poolKnown && poolActive === 0
+  const dead = poolKnown ? platforms.filter((entry) => entry.active === 0) : []
+  // Every platform empty is one condition with one cause, not three alarms.
+  const poolEmpty = dead.length > 0 && dead.length === platforms.length
   const degraded = poolKnown ? poolDegraded : 0
 
-  if (openCircuits.length === 0 && !poolEmpty && degraded === 0) return null
+  if (openCircuits.length === 0 && dead.length === 0 && degraded === 0) return null
 
   return (
     <div className="u-stack-sm">
@@ -655,12 +742,59 @@ function Alerts({
           title={t('console:overview.alert.poolEmpty')}
           detail={t('console:overview.alert.poolEmptyHint')}
           action={
-            <Button size="sm" variant="secondary" onClick={onGoToIdentities}>
-              {t('console:identity.mint.action')}
-            </Button>
+            onGoToIdentities ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  onGoToIdentities()
+                }}
+              >
+                {t('console:identity.mint.action')}
+              </Button>
+            ) : null
           }
         />
-      ) : null}
+      ) : (
+        dead.map((entry) => {
+          const name = platformLabel(entry.platform)
+          // A platform that had identities and lost them is an outage; one
+          // that never had any is a platform nobody has set up yet, which is
+          // worth saying and not worth a red banner.
+          const never = entry.total === 0
+          return (
+            <AlertBanner
+              key={entry.platform}
+              tone={never ? 'caution' : 'danger'}
+              title={t(
+                never
+                  ? 'console:overview.alert.platformEmpty'
+                  : 'console:overview.alert.platformDown',
+                { platform: name },
+              )}
+              detail={t(
+                never
+                  ? 'console:overview.alert.platformEmptyHint'
+                  : 'console:overview.alert.platformDownHint',
+                { platform: name },
+              )}
+              action={
+                onGoToIdentities ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      onGoToIdentities(entry.platform)
+                    }}
+                  >
+                    {t('console:overview.alert.platformAction', { platform: name })}
+                  </Button>
+                ) : null
+              }
+            />
+          )
+        })
+      )}
 
       {degraded > 0 ? (
         <AlertBanner
@@ -740,7 +874,19 @@ const STATE_COLOR: Record<IdentityState, string> = {
   retired: 'var(--neutral)',
 }
 
-function PoolDistribution({ byState, total }: { byState: Record<string, number>; total: number }) {
+interface PoolDistributionProps {
+  platforms: readonly PlatformCensus[]
+  total: number
+  /** Whether each platform's name may link to its identities. */
+  linkable: boolean
+}
+
+/**
+ * One bar per platform. A single bar across all of them showed a healthy
+ * green pool while one platform had nothing in it, which is the one thing
+ * this card is for noticing.
+ */
+function PoolDistribution({ platforms, total, linkable }: PoolDistributionProps) {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
 
@@ -750,36 +896,76 @@ function PoolDistribution({ byState, total }: { byState: Record<string, number>;
 
   return (
     <div className="u-stack">
-      <div
-        className="u-row"
-        style={{ gap: '2px', height: '10px' }}
-        role="img"
-        aria-label={t('console:overview.poolDistribution')}
-      >
-        {IDENTITY_STATES.map((state) => {
-          const count = byState[state] ?? 0
-          if (count === 0) return null
-          return (
-            <span
-              key={state}
-              title={`${state}: ${String(count)}`}
-              style={{
-                flex: `${String(count)} 1 0`,
-                background: STATE_COLOR[state],
-                borderRadius: 'var(--radius-sm)',
-              }}
+      {platforms.map((entry) => {
+        const name = t(`console:platform.name.${entry.platform}`, { defaultValue: entry.platform })
+        return (
+          <div key={entry.platform} className="u-stack-sm">
+            <div className="u-row-between u-wrap">
+              {linkable ? (
+                <Link href={identitiesPath(entry.platform)}>{name}</Link>
+              ) : (
+                <span>{name}</span>
+              )}
+              <span
+                className="u-xs"
+                style={{ color: entry.active === 0 ? 'var(--caution)' : 'var(--text-muted)' }}
+              >
+                {t('console:pool.summary', { count: entry.active })}
+              </span>
+            </div>
+            <StateBar
+              byState={entry.byState}
+              label={t('console:overview.poolDistributionFor', { platform: name })}
             />
-          )
-        })}
-      </div>
-      <div className="u-row u-wrap" style={{ gap: 'var(--space-4)' }}>
-        {IDENTITY_STATES.map((state) => (
-          <span key={state} className="u-row">
-            <StatusBadge kind="identity" value={state} size="sm" flash={false} />
-            <span className="u-mono">{format.number(byState[state] ?? 0)}</span>
-          </span>
-        ))}
-      </div>
+            <div className="u-row u-wrap" style={{ gap: 'var(--space-4)' }}>
+              {IDENTITY_STATES.map((state) => (
+                <span key={state} className="u-row">
+                  <StatusBadge kind="identity" value={state} size="sm" flash={false} />
+                  <span className="u-mono">{format.number(entry.byState[state] ?? 0)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The stacked bar. An empty platform gets an empty track rather than nothing,
+ *  so the rows stay aligned and the gap reads as "none", not as missing. */
+function StateBar({ byState, label }: { byState: Record<string, number>; label: string }) {
+  const empty = IDENTITY_STATES.every((state) => (byState[state] ?? 0) === 0)
+  return (
+    <div
+      className="u-row"
+      style={{
+        gap: '2px',
+        height: '10px',
+        borderRadius: 'var(--radius-sm)',
+        background: empty ? 'var(--bg-inset)' : undefined,
+      }}
+      role="img"
+      aria-label={label}
+    >
+      {IDENTITY_STATES.map((state) => {
+        const count = byState[state] ?? 0
+        if (count === 0) return null
+        return (
+          <span
+            key={state}
+            title={`${state}: ${String(count)}`}
+            style={{
+              flex: `${String(count)} 1 0`,
+              // Stated, not inherited: `u-row` centres its items, and an empty
+              // span centred in a 10px row is 0px tall - the bar drew nothing.
+              height: '100%',
+              background: STATE_COLOR[state],
+              borderRadius: 'var(--radius-sm)',
+            }}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -801,22 +987,59 @@ function rateCell(value: number | null, text: string) {
   )
 }
 
-/** Flattens the per-platform census into one map plus a total. */
+/**
+ * The census per platform, and summed. The sum is still what the headline
+ * tile shows; the per-platform slices are what the alarms and the
+ * distribution are decided on.
+ *
+ * Platforms come in this console's order, then any the server reports that
+ * this build does not know - a newer API's platform still gets a row rather
+ * than vanishing into the total.
+ */
 function poolCensus(status: SystemStatusResponse | undefined): {
   byState: Record<string, number>
   total: number
+  platforms: PlatformCensus[]
 } {
   const byState: Record<string, number> = {}
   let total = 0
+  const platforms: PlatformCensus[] = []
 
-  for (const value of Object.values(status?.pool ?? {})) {
-    if (typeof value !== 'object') continue
-    for (const [state, count] of Object.entries(value)) {
+  const reported = Object.entries(status?.pool ?? {}).filter(
+    (entry): entry is [string, Record<string, number>] =>
+      typeof entry[1] === 'object' && entry[1] !== null,
+  )
+  const known = PLATFORMS as readonly string[]
+  const order = (name: string): number =>
+    known.includes(name) ? known.indexOf(name) : known.length
+  reported.sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))
+
+  for (const [platform, counts] of reported) {
+    let platformTotal = 0
+    for (const [state, count] of Object.entries(counts)) {
       byState[state] = (byState[state] ?? 0) + count
       total += count
+      platformTotal += count
     }
+    platforms.push({ platform, byState: counts, total: platformTotal, active: counts['active'] ?? 0 })
   }
-  return { byState, total }
+  return { byState, total, platforms }
+}
+
+/**
+ * The headline tile's colour: red when no platform can serve a call, amber
+ * when one that had identities has none active, green otherwise. A platform
+ * never set up does not turn it amber; its own alert says so.
+ */
+function poolTone(platforms: readonly PlatformCensus[]): 'success' | 'warning' | 'danger' {
+  if (platforms.every((entry) => entry.active === 0)) return 'danger'
+  if (platforms.some((entry) => entry.active === 0 && entry.total > 0)) return 'warning'
+  return 'success'
+}
+
+/** Identities, filtered to one platform when there is one (contract C3). */
+function identitiesPath(platform?: string): string {
+  return platform ? `/identities?platform=${encodeURIComponent(platform)}` : '/identities'
 }
 
 /** One row per bucket, outcomes folded in. The API returns them unaggregated. */

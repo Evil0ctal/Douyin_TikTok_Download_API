@@ -225,7 +225,8 @@
     },
     "endpointCount": "{count, plural, one {# endpoint declared} other {# endpoints declared}}",
     "poolDistribution": "Pool state distribution",
-    "poolHint": "Every identity, by state, across platforms.",
+    "poolDistributionFor": "{platform} identities by state",
+    "poolHint": "Every identity, by state, per platform.",
     "rates": "Success and risk-control rate",
     "ratesHint": "Share of requests per bucket. Times are local; the server stores UTC.",
     "volume": "Request volume",
@@ -238,11 +239,18 @@
     "alert": {
       "poolEmpty": "No active identity",
       "poolEmptyHint": "Requests are rejected with IDENTITY_POOL_EXHAUSTED until the pool recovers.",
+      "platformAction": "Open {platform} identities",
+      "platformDown": "No active {platform} identity",
+      "platformDownHint": "{platform} requests are rejected with IDENTITY_POOL_EXHAUSTED until one recovers. The other platforms are unaffected.",
+      "platformEmpty": "No {platform} identity yet",
+      "platformEmptyHint": "Calls to {platform} are refused until an identity is minted or imported for it.",
       "degraded": "{count, plural, one {# degraded identity} other {# degraded identities}}",
       "degradedHint": "Degraded identities still serve traffic, but they fail more often than the rest."
     },
     "byEndpoint": "Success rate by endpoint",
-    "byEndpointHint": "The busiest endpoints in this window, up to six. Pick one above to see it on its own."
+    "byEndpointHint": "The busiest endpoints in this window, up to six. Pick one above to see it on its own.",
+    "transcriptions": "Transcriptions",
+    "transcriptionsHint": "stored videos turned into text"
   },
   "identity": {
     "column": {
