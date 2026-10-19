@@ -159,9 +159,12 @@ async def test_the_probe_is_forced_because_a_person_asked_for_it() -> None:
 
 @pytest.mark.skipif(not WEB.exists(), reason="console not present")
 def test_the_payload_matches_the_interface_the_console_declares() -> None:
-    """Both pages declare their own copy; neither may read a field we omit."""
+    """Both pages declare their own copy; neither may read a field we omit.
+
+    The Proxies page's copy moved with the probe result into its drawer.
+    """
     sent = {"ok", "latency_ms", "exit_ip", "country", "timezone", "detail"}
-    for page in ("Proxies.tsx", "Setup.tsx"):
+    for page in ("ProxyDrawer.tsx", "Setup.tsx"):
         source = (WEB / "pages" / page).read_text(encoding="utf-8")
         block = re.search(r"interface ProxyProbeResult \{(.*?)\}", source, re.S)
         assert block is not None, f"{page} no longer declares ProxyProbeResult"

@@ -145,3 +145,14 @@
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
+
+/*
+ * Which platforms an open route answers for. Spelled out beside the path
+ * because "{platform}" is a placeholder a reader skims past, and it is the
+ * part that grew a platform under an endpoint opened before Bilibili existed.
+ */
+.platforms {
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-muted);
+}

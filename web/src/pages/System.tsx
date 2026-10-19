@@ -26,6 +26,7 @@ import { apiPut } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { isNewerRelease } from '@/lib/version'
 import { POLL } from '@/lib/query'
+import { atLeast } from '@/lib/roles'
 
 /**
  * Instance status.
@@ -54,6 +55,8 @@ interface RawComponent {
   latency_ms?: number | null
   error?: string | null
   detail?: string | null
+  /** Why a configured component is not ok, as a code; see DETAIL_CODES. */
+  detail_code?: string | null
   warm_contexts?: number | null
   chromium_major?: number | null
   wreq_profile_major?: number | null
@@ -86,9 +89,30 @@ interface ComponentRow {
   latencyMs: number | null
   /** Whatever the server said, verbatim; it is already in the request's language. */
   detail: string | null
+  /** Why it is not ok, when the server said so as a code rather than in words. */
+  detailCode: string | null
   /** Absent rather than broken, and the only part of the cell the console phrases. */
   notConfigured: boolean
   warmContexts: number | null
+}
+
+/**
+ * The codes the status route sends for a component that is configured and not
+ * ok (browser-rpc and the sidecars in src/dtk/ops/sidecars.py). A code this
+ * build has no copy for is shown as it came.
+ */
+const DETAIL_CODES: ReadonlySet<string> = new Set(['unreachable', 'timeout', 'degraded'])
+
+/**
+ * The compose profile behind each optional component, so "not configured"
+ * can say what would configure it. The two sidecars arrived with nowhere on
+ * the console to show whether they answered, and an operator found out from
+ * the first download that failed.
+ */
+const PROFILES: Readonly<Record<string, string>> = {
+  browser_rpc: 'browser',
+  downloader: 'downloader',
+  transcriber: 'transcriber',
 }
 
 interface StorageRow {
@@ -136,6 +160,7 @@ function toComponentRows(components: Record<string, RawComponent>): ComponentRow
             'unknown',
     latencyMs: typeof raw.latency_ms === 'number' ? raw.latency_ms : null,
     detail: raw.error ?? raw.detail ?? null,
+    detailCode: raw.detail_code ?? null,
     notConfigured: raw.configured === false,
     warmContexts: typeof raw.warm_contexts === 'number' ? raw.warm_contexts : null,
   }))
@@ -254,18 +279,25 @@ export default function System() {
     poll: POLL.normal,
   })
 
+  const role = session.data?.role ?? null
+  // The settings route is read_admin, and the demo account - which has this
+  // page on its menu - is refused it. Asking anyway put an error panel in the
+  // middle of the update card; not asking, and not showing a card that is
+  // nothing but that setting, is the page the demo can actually read.
+  const canReadSettings = atLeast(role, 'viewer')
+  // A rank, not "not a viewer": that read the demo account as a writer.
+  const canWrite = atLeast(role, 'operator')
+
   const settings = useApiQuery<SettingsResponse>({
     key: SETTINGS_KEY,
     path: paths.settings.list,
     poll: POLL.slow,
+    enabled: canReadSettings,
   })
 
   const [release, setRelease] = useState<ReleaseInfo | null>(null)
   const [releaseError, setReleaseError] = useState<ReleaseError | null>(null)
   const [checking, setChecking] = useState(false)
-
-  const role = session.data?.role ?? null
-  const canWrite = role === null || role !== 'viewer'
 
   const components = useMemo(
     () => toComponentRows(status.data?.components ?? {}),
@@ -355,8 +387,18 @@ export default function System() {
           <span className="u-secondary">{t('system.warmContexts', { count: row.warmContexts })}</span>
         ) : row.detail ? (
           <span className="u-mono u-muted">{row.detail}</span>
+        ) : row.detailCode ? (
+          DETAIL_CODES.has(row.detailCode) ? (
+            <span className="u-secondary">{t(`system.detailCode.${row.detailCode}`)}</span>
+          ) : (
+            <span className="u-mono u-muted">{row.detailCode}</span>
+          )
         ) : row.notConfigured ? (
-          <span className="u-muted">{t('system.notConfigured')}</span>
+          <span className="u-muted">
+            {PROFILES[row.name]
+              ? t('system.notConfiguredProfile', { profile: PROFILES[row.name] })
+              : t('system.notConfigured')}
+          </span>
         ) : (
           <span className="u-muted">—</span>
         ),
@@ -553,77 +595,79 @@ export default function System() {
             />
           </Card>
 
-          <Card title={t('system.updates.title')} description={t('system.updates.description')}>
-            <div className="u-stack">
-              <Banner tone="accent" icon={<GlobeIcon size={14} />}>
-                {t('system.updates.outbound')}
-              </Banner>
-              {settings.isError ? (
-                <ErrorState
-                  compact
-                  error={settings.error}
-                  onRetry={() => {
-                    void settings.refetch()
-                  }}
-                />
-              ) : (
-                <Switch
-                  checked={checkUpdates}
-                  disabled={!canWrite || settings.isLoading || saveCheckUpdates.isPending}
-                  label={t('system.updates.toggle')}
-                  hint={t('system.updates.toggleHint')}
-                  onChange={(event) => {
-                    saveCheckUpdates.mutate(event.target.checked)
-                  }}
-                />
-              )}
-              <div className="u-row u-wrap" style={{ gap: 'var(--space-2)' }}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<ExternalIcon />}
-                  disabled={!checkUpdates || checking}
-                  loading={checking}
-                  onClick={() => {
-                    void runUpdateCheck()
-                  }}
-                >
-                  {t('system.updates.check')}
-                </Button>
-                <span className="u-xs u-muted">
-                  <span className="u-mono">{CHECK_UPDATES_KEY}</span>
-                </span>
+          {canReadSettings ? (
+            <Card title={t('system.updates.title')} description={t('system.updates.description')}>
+              <div className="u-stack">
+                <Banner tone="accent" icon={<GlobeIcon size={14} />}>
+                  {t('system.updates.outbound')}
+                </Banner>
+                {settings.isError ? (
+                  <ErrorState
+                    compact
+                    error={settings.error}
+                    onRetry={() => {
+                      void settings.refetch()
+                    }}
+                  />
+                ) : (
+                  <Switch
+                    checked={checkUpdates}
+                    disabled={!canWrite || settings.isLoading || saveCheckUpdates.isPending}
+                    label={t('system.updates.toggle')}
+                    hint={t('system.updates.toggleHint')}
+                    onChange={(event) => {
+                      saveCheckUpdates.mutate(event.target.checked)
+                    }}
+                  />
+                )}
+                <div className="u-row u-wrap" style={{ gap: 'var(--space-2)' }}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<ExternalIcon />}
+                    disabled={!checkUpdates || checking}
+                    loading={checking}
+                    onClick={() => {
+                      void runUpdateCheck()
+                    }}
+                  >
+                    {t('system.updates.check')}
+                  </Button>
+                  <span className="u-xs u-muted">
+                    <span className="u-mono">{CHECK_UPDATES_KEY}</span>
+                  </span>
+                </div>
+                {releaseError ? (
+                  <Banner tone="caution" icon={<AlertIcon size={14} />}>
+                    {t(releaseError.key, releaseError.args)}
+                  </Banner>
+                ) : release ? (
+                  <Banner
+                    tone={sameVersion(release.tag, status.data?.version) ? 'success' : 'caution'}
+                    icon={
+                      sameVersion(release.tag, status.data?.version) ? (
+                        <CheckIcon size={14} />
+                      ) : (
+                        <AlertIcon size={14} />
+                      )
+                    }
+                  >
+                    <div className="u-stack-sm">
+                      <span>
+                        {sameVersion(release.tag, status.data?.version)
+                          ? t('system.updates.upToDate', { tag: release.tag })
+                          : t('system.updates.latest', { tag: release.tag })}
+                        {release.publishedAt ? ` · ${formatters.date(release.publishedAt)}` : null}
+                      </span>
+                      <a href={release.url} target="_blank" rel="noreferrer noopener">
+                        {t('system.updates.openReleases')}
+                      </a>
+                    </div>
+                  </Banner>
+                ) : null}
               </div>
-              {releaseError ? (
-                <Banner tone="caution" icon={<AlertIcon size={14} />}>
-                  {t(releaseError.key, releaseError.args)}
-                </Banner>
-              ) : release ? (
-                <Banner
-                  tone={sameVersion(release.tag, status.data?.version) ? 'success' : 'caution'}
-                  icon={
-                    sameVersion(release.tag, status.data?.version) ? (
-                      <CheckIcon size={14} />
-                    ) : (
-                      <AlertIcon size={14} />
-                    )
-                  }
-                >
-                  <div className="u-stack-sm">
-                    <span>
-                      {sameVersion(release.tag, status.data?.version)
-                        ? t('system.updates.upToDate', { tag: release.tag })
-                        : t('system.updates.latest', { tag: release.tag })}
-                      {release.publishedAt ? ` · ${formatters.date(release.publishedAt)}` : null}
-                    </span>
-                    <a href={release.url} target="_blank" rel="noreferrer noopener">
-                      {t('system.updates.openReleases')}
-                    </a>
-                  </div>
-                </Banner>
-              ) : null}
-            </div>
-          </Card>
+            </Card>
+          ) : null}
         </>
       )}
     </div>

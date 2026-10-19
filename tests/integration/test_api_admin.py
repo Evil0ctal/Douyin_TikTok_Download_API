@@ -17,7 +17,7 @@ from sqlalchemy import delete, select
 
 from dtk.core.db import session_scope
 from dtk.core.types import IdentityState, Platform, Scope, UserRole
-from dtk.db.models import ApiKey, AuditLog, Identity, IdentityEvent, Proxy, Setting
+from dtk.db.models import ApiKey, AuditLog, Identity, IdentityEvent, Proxy, Setting, Task
 from dtk.ops import backup
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
@@ -372,6 +372,55 @@ async def test_the_proxy_list_counts_identities_and_says_why_one_failed(client: 
     assert listed[idle["id"]]["identity_count"] == 0
     assert listed[idle["id"]]["last_error"] == "ProxyError: 400 Bad Request"
     assert listed[used["id"]]["last_error"] is None
+
+
+async def test_one_proxy_lists_the_identities_a_delete_would_retire(client: Any) -> None:
+    """The count says how many; the drawer before a delete needs which."""
+    await signed_in(client)
+    proxy = envelope(await client.post("/api/v1/admin/proxies", json={"url": PROXY_URL}))["data"]
+    imported = envelope(
+        await client.post(
+            "/api/v1/admin/identities/import",
+            json={
+                "platform": Platform.DOUYIN.value,
+                "cookies": COOKIE_BLOB,
+                "user_agent": CHROME_UA,
+                "proxy_id": proxy["id"],
+            },
+        )
+    )["data"]
+
+    response = await client.get(f"/api/v1/admin/proxies/{proxy['id']}")
+
+    detail = envelope(response)["data"]
+    assert detail["id"] == proxy["id"]
+    assert detail["identity_count"] == 1
+    assert [row["id"] for row in detail["identities"]] == [imported["identity_id"]]
+    assert detail["identities"][0]["platform"] == Platform.DOUYIN.value
+    # Masked like the list, and the jar never: this is the health view.
+    assert "sup3rsecret" not in response.text
+    assert "0123456789abcdef" not in response.text
+
+
+async def test_reading_a_missing_proxy_is_not_found(client: Any) -> None:
+    await signed_in(client)
+
+    response = await client.get(f"/api/v1/admin/proxies/{uuid.uuid4()}")
+
+    assert error_code(response) == "NOT_FOUND"
+
+
+async def test_a_viewer_may_read_a_proxy_but_not_delete_it(client: Any) -> None:
+    """The console hides the delete from a viewer; the server is what refuses it."""
+    await signed_in(client)
+    proxy = envelope(await client.post("/api/v1/admin/proxies", json={"url": PROXY_URL}))["data"]
+    await client.post("/api/v1/auth/logout")
+    await signed_in(client, username="watcher", role=UserRole.VIEWER)
+
+    assert (await client.get(f"/api/v1/admin/proxies/{proxy['id']}")).status_code == 200
+    assert error_code(await client.delete(f"/api/v1/admin/proxies/{proxy['id']}")) == (
+        "FORBIDDEN_SCOPE"
+    )
 
 
 async def test_updating_a_proxy_re_encrypts_under_its_own_id(client: Any) -> None:
@@ -1150,6 +1199,29 @@ async def test_maintenance_jobs_are_queued(client: Any) -> None:
         response = await client.post(path, json=body)
         assert response.status_code == 202, path
         assert envelope(response)["data"]["task_id"]
+
+
+async def test_the_self_check_carries_the_platform_it_was_asked_for(client: Any) -> None:
+    """Chosen, it reaches the worker; unchosen, it is absent so the worker picks."""
+    await signed_in(client)
+
+    chosen = await client.post(
+        "/api/v1/admin/diagnose", json={"include_smoke_test": True, "platform": "bilibili"}
+    )
+    unchosen = await client.post("/api/v1/admin/diagnose", json={"include_smoke_test": True})
+
+    async with session_scope() as session:
+        params = {str(row.id): row.params for row in (await session.scalars(select(Task))).all()}
+    assert params[envelope(chosen)["data"]["task_id"]]["platform"] == "bilibili"
+    assert "platform" not in params[envelope(unchosen)["data"]["task_id"]]
+
+
+async def test_the_self_check_refuses_a_platform_it_does_not_know(client: Any) -> None:
+    await signed_in(client)
+
+    response = await client.post("/api/v1/admin/diagnose", json={"platform": "kuaishou"})
+
+    assert error_code(response) == "INVALID_PARAM"
 
 
 async def test_backup_is_administrator_only(client: Any) -> None:

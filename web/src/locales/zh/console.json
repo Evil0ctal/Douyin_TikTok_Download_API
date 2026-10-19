@@ -665,7 +665,23 @@
     },
     "delete": {
       "title": "确认删除 {count} 个代理？",
-      "description": "绑定在被删代理上的身份会被退休：身份不能改用其它出口发出请求。"
+      "description": "绑定在被删代理上的身份会被退休：身份不能改用其它出口发出请求。",
+      "retires": "这会退休 {count} 个身份：它们的 Cookie 会被清除，无法恢复。",
+      "retiresNone": "没有身份绑定在它上面，不会退休任何身份。",
+      "rowIdentities": "{count} 个身份"
+    },
+    "drawer": {
+      "title": "代理",
+      "checked": "{when}检查过",
+      "neverChecked": "从未检查",
+      "lastError": "最近一次错误",
+      "identities": "{count, plural, =0 {绑定的身份} other {绑定的身份（{count} 个）}}",
+      "noIdentities": "没有身份绑定在这个代理上。",
+      "reserved": "不参与轮换",
+      "recentTitle": "最近的请求",
+      "recentHint": "过去 24 小时内经由这个代理的最近 {count} 条请求。",
+      "recentEmpty": "过去 24 小时内没有经由这个代理的请求。",
+      "viewRequests": "查看请求"
     },
     "bulk": {
       "enable": "标记为可用",
@@ -706,7 +722,11 @@
     },
     "test": {
       "title": "代理探测",
-      "failed": "探测失败"
+      "failed": "探测失败",
+      "all": "全部测试",
+      "selected": "测试选中的 {count} 个",
+      "progress": "正在测试 {done}/{total}",
+      "summary": "{ok} 个正常，{failed} 个失败"
     }
   },
   "settings": {
@@ -1032,7 +1052,13 @@
       "saved": "已保存",
       "saveFailed": "保存更新检查设置失败"
     },
-    "notConfigured": "未配置"
+    "notConfigured": "未配置",
+    "notConfiguredProfile": "未配置：这台机器没有运行 {profile} profile",
+    "detailCode": {
+      "unreachable": "已配置，但没有响应",
+      "timeout": "已配置，但响应太慢",
+      "degraded": "有响应，但还不能工作"
+    }
   },
   "diagnose": {
     "redacted": "报告在离开服务端之前已经脱敏：代理密码、cookie 与 API Key 一律掩码。可以直接粘贴到公开 issue 里。",
@@ -1049,7 +1075,7 @@
       "idle": "未执行"
     },
     "step": {
-      "components": "postgres、redis 与 browser-rpc 是否可达。",
+      "components": "postgres、redis 与 browser-rpc 是否可达；启用了对应 profile 时，也检查下载器和转写服务。",
       "egress": "本机能否直连平台域名。",
       "proxies": "逐个探测代理的连通性、出口 IP 与 GeoIP。",
       "pool": "有多少可用身份，以及最老的身份多久没成功过。",
@@ -1064,7 +1090,10 @@
       "title": "执行范围",
       "description": "六个步骤按顺序执行，每步都有独立超时，卡住的依赖不会拖住其余步骤。",
       "smoke": "包含端到端冒烟测试",
-      "smokeHint": "第 6 步会用一条固定的公开链接走完整链路。关闭它可以让整个自检只在本地进行。"
+      "smokeHint": "第 6 步会用一条固定的公开链接走完整链路。关闭它可以让整个自检只在本地进行。",
+      "platform": "端到端测试用的平台",
+      "platformAuto": "自动",
+      "platformHint": "自动时选轮换中身份最多的平台；一个身份都没有时，配置了浏览器选 Douyin，否则选 Bilibili。"
     },
     "steps": {
       "title": "步骤",
@@ -1087,7 +1116,9 @@
     "toast": {
       "startFailed": "启动自检失败",
       "copied": "报告已复制"
-    }
+    },
+    "expired": "上一份报告已不在服务器上保留，请重新自检生成新的报告。",
+    "readOnly": "执行自检、查看自检报告都需要运维及以上角色。"
   },
   "backup": {
     "keyExplainer": "凭证以密文导出，备份包不含主密钥。因此恢复时必须提供创建它的那把 DTK_SECRET_KEY；密钥不同则代理地址与 cookie 都无法解密。",
@@ -1558,10 +1589,21 @@
       "action": "操作",
       "actor": "操作者",
       "target": "对象",
-      "ip": "来源地址"
+      "ip": "来源地址",
+      "proxyId": "代理 ID"
     },
+    "actorAll": "所有人",
+    "auditShown": "已显示 {count} 条",
     "byApiKey": "API Key",
     "bySystem": "系统",
+    "endpointAll": "全部接口",
+    "invalidId": "ID 还不完整，这个筛选暂未生效。",
+    "loadOlder": "加载更早的记录",
+    "noOlder": "没有更早的记录了。",
+    "onlyThisActor": "只看这个账号的操作",
+    "onlyThisIdentity": "只看这个身份",
+    "onlyThisProxy": "只看这个代理",
+    "openIdentity": "打开身份",
     "emptyTitle": "该时间范围内没有请求",
     "emptyDescription": "可以扩大时间范围，或清除某个筛选条件。",
     "detailTitle": "请求详情",
@@ -1608,6 +1650,13 @@
     "confirmTitle": "确定开放此接口？",
     "confirmBody": "{endpoint} 将对任何能访问到本服务器的人开放。匿名调用只有读取权限并按来源地址限流，但每次调用仍会消耗本实例的身份池。",
     "confirmAction": "确认开放",
+    "confirmEveryPlatform": "它的路径带平台参数，所以会服务本实例支持的所有平台（{platforms}），以后版本新增的平台也包括在内。",
+    "confirmPlatforms": "它服务的平台：{platforms}。",
+    "covers": "服务 {platforms}",
+    "closeAll": "全部关闭",
+    "closeAllTitle": "{count, plural, one {关闭已开放的接口？} other {关闭全部 {count} 个已开放的接口？}}",
+    "closeAllBody": "关闭后需要重新携带 API Key 才能调用，此后不带 Key 的调用会收到 401。",
+    "readOnly": "只有管理员可以开放或关闭接口。",
     "saved": "接口访问设置已更新",
     "saveFailed": "接口访问设置更新失败",
     "openCount": "{count, plural, =0 {未开放任何接口} other {已开放 # 个接口}}",
@@ -2301,8 +2350,27 @@
   "scheduler": {
     "pool": {
       "active": "当前可被调度",
+      "activeReserved": "当前可被调度；未计入 {count} 个保留身份",
       "cooling": "因风控命中而暂歇，冷却到期会自动回到可用",
       "degraded": "冷却已到上限。最后手段，只在没有可用身份时才会启用"
+    },
+    "census": {
+      "title": "按平台",
+      "description": "请求只会由同平台的身份来发。保留身份虽然可用，但只服务指名它的请求，所以不算作可调度。",
+      "schedulable": "可调度",
+      "reserved": "保留"
+    },
+    "marks": {
+      "title": "各平台身份池大小",
+      "description": "留空表示沿用格子里显示的全局 pool.min_size 或 pool.target_size。低水位设为 0 会关闭该平台的自动铸造。",
+      "min_size": "低水位",
+      "target_size": "目标数量",
+      "inherit": "沿用 {value}",
+      "cellLabel": "{platform}：{field}",
+      "invalid": "请填 0 或更大的整数",
+      "save": "{count, plural, =0 {保存} other {保存 {count} 项修改}}",
+      "saved": "身份池大小已保存",
+      "saveFailed": "保存身份池大小失败"
     },
     "rotationTitle": "一次请求是怎么挑身份的",
     "rotationDescription": "五道关卡，按此顺序。五道全过才会拿到租约；否则连同原因一起被拒绝，这个原因会记进请求日志。",

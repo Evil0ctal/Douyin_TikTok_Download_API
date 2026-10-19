@@ -95,6 +95,9 @@ async def list_request_log(
     identity_id: uuid.UUID | None = Query(
         default=None, description="Only requests made with this identity."
     ),
+    proxy_id: uuid.UUID | None = Query(
+        default=None, description="Only requests that went out through this proxy."
+    ),
     outcome: list[Outcome] | None = Query(
         default=None, description="Only these outcomes. Repeat the parameter to allow several."
     ),
@@ -126,6 +129,10 @@ async def list_request_log(
     ``outcome`` repeats. Unknown values are rejected by the ``Outcome``
     annotation rather than ignored, because a filter that silently matches
     everything reads exactly like a filter that found everything.
+
+    ``proxy_id`` answers the question the identity filter could not: which
+    egress a platform is refusing. A Bilibili 412 is a verdict on an address,
+    not on a cookie, and every identity behind one proxy shares the address.
     """
     rows = await RequestLogRepository(request.state.db).list_recent(
         since=datetime.now(UTC) - timedelta(minutes=minutes),
@@ -133,6 +140,7 @@ async def list_request_log(
         request_id=request_id,
         endpoint=endpoint,
         identity_id=identity_id,
+        proxy_id=proxy_id,
         outcomes=outcome,
     )
     return ok(request, [_row(row) for row in rows])

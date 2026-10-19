@@ -406,6 +406,11 @@ class RequestLog(Base):
     __table_args__ = (
         Index("ix_request_log_endpoint_ts", "endpoint", text("ts DESC")),
         Index("ix_request_log_identity_ts", "identity_id", text("ts DESC")),
+        # The Logs page's proxy filter, and the proxy drawer's recent outcomes.
+        # Same shape as the two above, for the same reason the outcome index
+        # below exists: a filter that loses the ts ordering scans every chunk
+        # in its window with no early stop.
+        Index("ix_request_log_proxy_ts", "proxy_id", text("ts DESC")),
         # The Logs page's outcome filter, which is two clicks away and is how
         # anyone looks for what went wrong. Without this the filter falls off
         # the ts ordering and seq-scans every retained chunk with no early

@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
-from collections.abc import Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any, Final
 
 import httpx
@@ -35,6 +35,9 @@ from dtk.core.redis import get_redis
 from dtk.core.types import BrowserFamily, IdentityState, Platform
 from dtk.db.models import Identity
 from dtk.db.repositories import IdentityRepository
+from dtk.media.client import DownloaderClient
+from dtk.ops import sidecars
+from dtk.transcriber import TranscriberClient
 from dtk.transport.emulation import (
     EmulationUnavailable,
     UnknownBrowserFamily,
@@ -150,6 +153,14 @@ async def system_status(request: Request, principal: Principal = Depends(demo_re
         counts[IdentityState.ACTIVE.value] for counts in per_platform.values()
     )
 
+    # Concurrently: each is bounded on its own, and in sequence their ceilings
+    # added up to a status page that took four seconds to say a sidecar was down.
+    browser_rpc, downloader, transcriber = await asyncio.gather(
+        _browser_rpc_with_profile(request),
+        _downloader_status(request),
+        _transcriber_status(request),
+    )
+
     return ok(
         request,
         {
@@ -160,12 +171,40 @@ async def system_status(request: Request, principal: Principal = Depends(demo_re
             "components": {
                 "postgres": postgres,
                 "redis": redis,
-                "browser_rpc": await _browser_rpc_with_profile(request),
+                "browser_rpc": browser_rpc,
+                "downloader": downloader,
+                "transcriber": transcriber,
             },
             "pool": pool,
+            # Beside `pool`, not inside it. Every reader of `pool` sums the
+            # values of each platform's map as identity states, so a key added
+            # there would be counted into the Overview's total as a state.
+            "reserved_active": await _reserved_active(session),
             "storage": await _storage(session),
         },
     )
+
+
+async def _reserved_active(session: Any) -> dict[str, int]:
+    """Active identities kept out of rotation, per platform (#789).
+
+    The census counts them as active, and they are; what they are not is
+    capacity. Only a request that names one can use it, so "schedulable right
+    now" is the active count minus this one - the same rule
+    :meth:`dtk.identity.pool.IdentityPool.usable_count` applies when it decides
+    whether to mint, where counting a reserved account held the level at its
+    target while ordinary traffic had nothing to use.
+    """
+    rows = await session.execute(
+        select(Identity.platform, func.count())
+        .where(
+            Identity.state == IdentityState.ACTIVE.value,
+            Identity.rotation_endpoints.is_not(None),
+        )
+        .group_by(Identity.platform)
+    )
+    counts = {str(platform): int(count) for platform, count in rows.tuples().all()}
+    return {platform.value: counts.get(platform.value, 0) for platform in Platform}
 
 
 #: Ceiling for the browser probe below. Short on purpose: the page polls, and a
@@ -262,6 +301,63 @@ async def _browser_rpc_status(request: Request) -> dict[str, Any]:
     }
 
 
+#: How long a sidecar's answer is reused. Four console pages poll this route
+#: every five seconds, and the downloader answers /health by walking the media
+#: volume - fine once, not fine as a steady background load on someone's disk.
+#: Short enough that "I just started the profile" shows up on the next refresh
+#: but one.
+SIDECAR_CACHE_SECONDS: Final = 10.0
+
+_sidecar_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+
+
+async def _cached_sidecar(
+    name: str, url: str, probe: Callable[[], Awaitable[dict[str, Any]]]
+) -> dict[str, Any]:
+    key = (name, url)
+    hit = _sidecar_cache.get(key)
+    now = time.monotonic()
+    if hit is not None and now - hit[0] < SIDECAR_CACHE_SECONDS:
+        return dict(hit[1])
+    status = await probe()
+    _sidecar_cache[key] = (now, status)
+    return dict(status)
+
+
+async def _downloader_status(request: Request) -> dict[str, Any]:
+    """The media downloader, through the same client the download routes use."""
+    settings = request.app.state.settings
+    url = str(getattr(settings, "downloader_url", "") or "")
+    if not url:
+        return sidecars.not_configured()
+
+    async def probe() -> dict[str, Any]:
+        client = DownloaderClient(url, token=str(getattr(settings, "downloader_token", "") or ""))
+        try:
+            return await sidecars.downloader_status(client)
+        finally:
+            await client.aclose()
+
+    return await _cached_sidecar(sidecars.DOWNLOADER, url, probe)
+
+
+async def _transcriber_status(request: Request) -> dict[str, Any]:
+    """The transcriber, with its token: unlike the downloader, its /health checks it."""
+    settings = request.app.state.settings
+    url = str(getattr(settings, "transcriber_url", "") or "")
+    if not url:
+        return sidecars.not_configured()
+
+    async def probe() -> dict[str, Any]:
+        client = TranscriberClient(url, token=str(getattr(settings, "transcriber_token", "") or ""))
+        try:
+            return await sidecars.transcriber_status(client)
+        finally:
+            await client.aclose()
+
+    return await _cached_sidecar(sidecars.TRANSCRIBER, url, probe)
+
+
 async def _hypertable_counts(session: Any, counts: dict[str, Any]) -> list[tuple[str, Any]]:
     """Replace a hypertable's parent-relation estimate with the chunk sum.
 
@@ -333,4 +429,10 @@ async def _storage(session: Any) -> dict[str, Any]:
     }
 
 
-__all__ = ["COMMIT_ENV_VAR", "PROBE_TIMEOUT_SECONDS", "router", "uptime_seconds"]
+__all__ = [
+    "COMMIT_ENV_VAR",
+    "PROBE_TIMEOUT_SECONDS",
+    "SIDECAR_CACHE_SECONDS",
+    "router",
+    "uptime_seconds",
+]

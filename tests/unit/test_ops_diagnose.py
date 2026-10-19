@@ -18,9 +18,10 @@ import httpx
 import pytest
 
 from dtk.core.crypto import Cipher
-from dtk.core.types import Language
+from dtk.core.types import Language, Platform
 from dtk.ops import diagnose
 from dtk.ops.diagnose import DiagnoseContext, StepCode, StepStatus, redact_value
+from dtk.ops.health import ComponentHealth
 
 SECRET = "c" * 48
 PROXY_ID = "22222222-2222-2222-2222-222222222222"
@@ -329,6 +330,28 @@ async def test_egress_step_passes_when_everything_answers() -> None:
     assert result.status is StepStatus.PASS
 
 
+async def test_egress_covers_every_platform_this_build_serves() -> None:
+    """Bilibili was served for a release before this step looked at it."""
+    hosts = {httpx.URL(target).host for target in diagnose.DEFAULT_EGRESS_TARGETS}
+
+    assert {"www.douyin.com", "www.tiktok.com", "www.bilibili.com"} <= hosts
+
+
+async def test_an_unreachable_bilibili_is_graded_like_any_other_platform() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.bilibili.com":
+            raise httpx.ConnectError("no route to host")
+        return httpx.Response(200)
+
+    async with mock_client(handler) as client:
+        result = await diagnose.check_egress(DiagnoseContext(http=client))
+
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.EGRESS_PARTIAL
+    assert result.args == {"reachable": 2, "total": 3}
+    assert "error" in str(result.details["https://www.bilibili.com/"])
+
+
 async def test_proxy_step_is_skipped_without_a_cipher() -> None:
     result = await diagnose.check_proxies(DiagnoseContext(session=FakeSession({})))  # type: ignore[arg-type]
     assert result.status is StepStatus.SKIP
@@ -512,3 +535,172 @@ def test_an_object_that_only_leaks_through_its_str_is_still_redacted():
     assert redact_value(42, "n") == 42
     assert redact_value(None, "n") is None
     assert redact_value(True, "n") is True
+
+
+# --------------------------------------------------------------------------
+# the optional sidecars, in the components step
+# --------------------------------------------------------------------------
+
+
+class FakeSidecar:
+    """A downloader or transcriber client, as far as the probe reads one."""
+
+    def __init__(self, *, configured: bool = True, answer: Any = None, raises: bool = False):
+        self.configured = configured
+        self._answer = answer
+        self._raises = raises
+
+    async def health(self) -> Any:
+        if self._raises:
+            raise RuntimeError("connect failed to http://downloader:9100")
+        return self._answer
+
+
+class DownloaderAnswer:
+    def __init__(self, *, available: bool) -> None:
+        self.available = available
+
+
+@pytest.fixture
+def core_components_up(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Postgres, Redis and browser-rpc answering, so only the sidecars decide."""
+
+    def answering(name: str) -> Any:
+        async def check(*_args: Any, **_kwargs: Any) -> ComponentHealth:
+            return ComponentHealth(name, ok=True)
+
+        return check
+
+    monkeypatch.setattr(diagnose, "check_postgres", answering("postgres"))
+    monkeypatch.setattr(diagnose, "check_redis", answering("redis"))
+    monkeypatch.setattr(diagnose, "check_browser_rpc", answering("browser_rpc"))
+
+
+@pytest.mark.usefixtures("core_components_up")
+async def test_a_sidecar_whose_profile_is_not_running_is_not_held_against_the_instance() -> None:
+    result = await diagnose.check_components(DiagnoseContext())
+
+    assert result.status is StepStatus.PASS
+    assert result.details["downloader"] == {"configured": False, "ok": None}
+    assert result.details["transcriber"] == {"configured": False, "ok": None}
+
+
+@pytest.mark.usefixtures("core_components_up")
+async def test_a_configured_sidecar_that_does_not_answer_is_a_warning() -> None:
+    result = await diagnose.check_components(
+        DiagnoseContext(
+            downloader=FakeSidecar(raises=True),
+            transcriber=FakeSidecar(answer={"status": "ok"}),
+        )
+    )
+
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.COMPONENTS_SIDECAR_DOWN
+    assert result.action_code is StepCode.COMPONENTS_SIDECAR_DOWN
+    assert result.args == {"components": "downloader"}
+    assert result.details["downloader"]["detail_code"] == "unreachable"
+    assert result.details["transcriber"]["ok"] is True
+    # The relayed exception named the sidecar's address; only the code is kept.
+    assert "downloader:9100" not in str(result.as_dict())
+
+
+@pytest.mark.usefixtures("core_components_up")
+async def test_a_transcriber_that_answers_degraded_is_named() -> None:
+    result = await diagnose.check_components(
+        DiagnoseContext(
+            downloader=FakeSidecar(answer=DownloaderAnswer(available=True)),
+            transcriber=FakeSidecar(answer={"status": "degraded", "detail": "ffmpeg missing"}),
+        )
+    )
+
+    assert result.code is StepCode.COMPONENTS_SIDECAR_DOWN
+    assert result.args == {"components": "transcriber"}
+    assert result.details["transcriber"]["detail_code"] == "degraded"
+    assert result.details["downloader"]["ok"] is True
+
+
+def test_the_sidecar_finding_reads_in_both_languages() -> None:
+    step = diagnose.StepResult(
+        number=1,
+        step="components",
+        status=StepStatus.WARN,
+        code=StepCode.COMPONENTS_SIDECAR_DOWN,
+        args={"components": "downloader"},
+    )
+
+    english = step.as_dict(Language.EN)
+    chinese = step.as_dict(Language.ZH)
+    assert "downloader" in english["reason"]
+    assert "downloader" in chinese["reason"]
+    assert english["reason"] != chinese["reason"]
+    assert english["action"]
+    assert chinese["action"]
+
+
+# --------------------------------------------------------------------------
+# which platform the end-to-end step uses
+# --------------------------------------------------------------------------
+
+
+def census(rows: list[tuple[str, int]]) -> Any:
+    return FakeSession({"FROM identities": rows})
+
+
+async def test_the_platform_with_the_most_identities_in_rotation_is_smoke_tested() -> None:
+    chosen = await diagnose.choose_smoke_platform(
+        census([("douyin", 1), ("bilibili", 4)]), browser=True
+    )
+
+    assert chosen is Platform.BILIBILI
+
+
+async def test_a_tie_goes_to_the_platform_listed_first() -> None:
+    chosen = await diagnose.choose_smoke_platform(
+        census([("bilibili", 2), ("tiktok", 2)]), browser=True
+    )
+
+    assert chosen is Platform.TIKTOK
+
+
+async def test_an_empty_pool_smoke_tests_what_the_instance_can_mint() -> None:
+    assert await diagnose.choose_smoke_platform(census([]), browser=True) is Platform.DOUYIN
+    assert await diagnose.choose_smoke_platform(census([]), browser=False) is Platform.BILIBILI
+
+
+async def test_an_unreadable_census_still_chooses() -> None:
+    """The step that reports a broken database must not be the one to crash on it."""
+    unreadable: Any = FakeSession({})
+
+    assert await diagnose.choose_smoke_platform(unreadable, browser=False) is Platform.BILIBILI
+    assert await diagnose.choose_smoke_platform(None, browser=True) is Platform.DOUYIN
+
+
+async def test_a_reserved_identity_does_not_count_as_capacity() -> None:
+    """Rotation would never hand it out, so it says nothing about the traffic."""
+    seen: list[str] = []
+
+    class Recording(FakeSession):
+        async def execute(self, statement: Any, _params: Any = None) -> FakeResult:
+            seen.append(str(statement))
+            return FakeResult([])
+
+    session: Any = Recording({})
+    await diagnose.choose_smoke_platform(session, browser=True)
+
+    assert "rotation_endpoints IS NULL" in seen[0]
+    assert "state = 'active'" in seen[0]
+
+
+async def test_the_smoke_step_names_its_platform() -> None:
+    async def ok(_url: str) -> dict[str, str]:
+        return {"content_id": "1"}
+
+    result = await diagnose.check_smoke(
+        DiagnoseContext(
+            smoke=ok,
+            smoke_url="https://www.bilibili.com/video/BV1xx411c7mD",
+            smoke_platform=Platform.BILIBILI,
+        )
+    )
+
+    assert result.details["platform"] == "bilibili"

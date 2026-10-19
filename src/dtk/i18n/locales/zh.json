@@ -527,6 +527,10 @@
         "summary": "删除代理并退役其关联身份",
         "description": "删除一个出口，并退役绑定在它上面的每个身份。"
       },
+      "proxies_get": {
+        "summary": "查看单个代理及其关联身份",
+        "description": "一个出口，以及绑定在它上面的身份：删除它时会一并退役的，也是共用这个地址的。"
+      },
       "proxies_import": {
         "summary": "批量导入粘贴的代理列表",
         "description": "接收多行文本，并逐行报告处理结果。"
@@ -647,6 +651,7 @@
     "param": {
       "action": "仅返回该动作，例如 `settings.update`。",
       "api_keys_update.key_id": "要修改的密钥。",
+      "audit_list.before_id": "与 `before` 一起使用，填已经显示的最后一条的 ID：与它时间戳相同、排在它之后的条目也会返回，翻页时不会漏掉任何一条。",
       "audit_list.user_id": "仅返回该控制台账号的操作。",
       "authenticated": "为 true 时只返回已登录的身份，为 false 时只返回访客身份。",
       "author_uid": "仅返回该作者的作品。",
@@ -695,6 +700,7 @@
       "refresh": "忽略缓存和正在进行中的相同任务，重新发起一次请求。有两个机制会让重复调用拿到上一次的结果——本实例会合并到一个已在运行或刚刚完成的相同任务，以及会缓存整理后的响应体——这个参数会同时关掉两者。新取到的结果仍然会写入缓存。它会消耗一个身份和一次上游请求，适合用来确认内容有没有变化，而不是每次调用都带上。缓存能存多久取决于请求的内容，在控制台里可以改：单个作品用 cache.content_ttl（默认 30 分钟），作者主页用 cache.author_ttl（15 分钟），所有分页接口用 cache.list_ttl（5 分钟）。条目到期自动清除，同时 Redis 设了低于容器上限的内存封顶，快满时会先淘汰最久未用、且带过期时间的键，所以缓存不会无限增长。",
       "request_id": "仅返回该请求 ID 对应的那一条。",
       "request_log.identity_id": "仅返回由该身份发出的请求。",
+      "request_log.proxy_id": "仅返回经由该代理发出的请求。",
       "rotation": "只返回在所有接口上参与轮换的身份（rotating）、只服务指定它的请求的身份（reserved），或只在部分接口上参与轮换的身份（limited）。",
       "sec_user_id": "作者的稳定 ID，与 url 二选一。在 TikTok 上即 secUid；在 B 站上是数字 mid。",
       "session_ref": "会话摘要，取自列表接口。",
@@ -769,7 +775,8 @@
         "dry_run": "只报告会删掉哪些，不实际删除。"
       },
       "DiagnoseRequest": {
-        "include_smoke_test": "是否执行端到端那一步——它会抓取一条固定的公开链接，因此会消耗一个身份。跳过则整个自检完全在本地进行。"
+        "include_smoke_test": "是否执行端到端那一步——它会抓取一条固定的公开链接，因此会消耗一个身份。跳过则整个自检完全在本地进行。",
+        "platform": "端到端那一步从哪个平台抓取。留空时自动选择本实例能服务的平台：轮换中活跃身份最多的那个；既没有浏览器也没有身份的实例选 Bilibili。"
       },
       "DownloadRequest": {
         "content_id": "作品 ID，取归档中保存的形式。是字符串而非整数：19 位 ID 超出 JavaScript 安全整数范围。",
@@ -948,6 +955,7 @@
     "reason": {
       "components_unreachable": "无法连接：{components}",
       "components_browser_rpc_down": "postgres 与 redis 可以连接，但 browser-rpc 不可用（{detail}）",
+      "components_sidecar_down": "postgres 与 redis 可以连接，但已配置的 {components} 没有响应",
       "components_ok": "所有组件均可连接",
       "egress_unreachable": "无法直连任何平台域名",
       "egress_partial": "{total} 个平台域名中有 {reachable} 个可以连接",
@@ -976,6 +984,7 @@
     "action": {
       "components_unreachable": "请确认 postgres 与 redis 容器正在运行，并检查 DTK_DATABASE_URL、DTK_REDIS_URL 是否指向它们。",
       "components_browser_rpc_down": "身份铸造和签名回退都不可用。请启动浏览器容器，或者手动导入 Cookie 并继续使用原生签名器。",
+      "components_sidecar_down": "容器恢复响应之前，媒体下载或转写都会失败。请启动对应的 compose profile；如果这台机器本就不运行它，请删掉 DTK_DOWNLOADER_URL 或 DTK_TRANSCRIBER_URL。",
       "egress_unreachable": "这台机器没有通往平台的可用线路。请检查 DNS、主机防火墙，以及出站流量是否必须走代理。",
       "egress_partial": "访问不通的那个平台将完全依赖可用的代理。",
       "proxies_none": "所有身份都会共用这台机器的出口 IP。初次试用没有问题，但身份池一忙就会带来关联风险。",

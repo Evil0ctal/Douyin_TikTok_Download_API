@@ -527,6 +527,10 @@
         "summary": "Delete a proxy and retire what used it",
         "description": "Delete one egress, and retire every identity bound to it."
       },
+      "proxies_get": {
+        "summary": "One proxy and what uses it",
+        "description": "One egress, with the identities bound to it: the ones a delete would retire, and the ones sharing its address."
+      },
       "proxies_import": {
         "summary": "Bulk import a pasted proxy list",
         "description": "Accept a block of lines and report the fate of each one."
@@ -647,6 +651,7 @@
     "param": {
       "action": "Only this action, such as `settings.update`.",
       "api_keys_update.key_id": "The key to change.",
+      "audit_list.before_id": "With `before`, the id of the last entry already shown: entries that share its timestamp and sort after it are included, so a page boundary drops nothing.",
       "audit_list.user_id": "Only what this console account did.",
       "authenticated": "Only logged-in identities (true), or only guests (false).",
       "author_uid": "Only this author's posts.",
@@ -695,6 +700,7 @@
       "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call. How long the cached answer lives depends on what was asked for and is set in the console: cache.content_ttl for one post (30 minutes by default), cache.author_ttl for a profile (15 minutes), cache.list_ttl for anything paged (5 minutes). Entries expire on their own and Redis is capped below its container limit, dropping the least recently used expiring keys before it fills, so the cache cannot grow without bound.",
       "request_id": "Only the request with this id.",
       "request_log.identity_id": "Only requests made with this identity.",
+      "request_log.proxy_id": "Only requests that went out through this proxy.",
       "rotation": "Only identities rotation hands out for every endpoint (rotating), only for requests that name them (reserved), or for a list of endpoints (limited).",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid; on Bilibili, the numeric mid.",
       "session_ref": "The session digest from the list endpoint.",
@@ -769,7 +775,8 @@
         "dry_run": "Report what would go without deleting anything."
       },
       "DiagnoseRequest": {
-        "include_smoke_test": "Run the end-to-end step, which fetches one fixed public link and therefore spends an identity. Skipping it keeps the whole diagnosis local."
+        "include_smoke_test": "Run the end-to-end step, which fetches one fixed public link and therefore spends an identity. Skipping it keeps the whole diagnosis local.",
+        "platform": "Which platform the end-to-end step fetches from. Omitted, the platform this instance can serve is chosen: the one with the most active identities in rotation, or Bilibili on an instance with no browser and no identities."
       },
       "DownloadRequest": {
         "content_id": "The post id, as the archive holds it. Text, never an integer: a 19-digit id exceeds the JavaScript safe range.",
@@ -948,6 +955,7 @@
     "reason": {
       "components_unreachable": "unreachable: {components}",
       "components_browser_rpc_down": "postgres and redis are reachable; browser-rpc is not ({detail})",
+      "components_sidecar_down": "postgres and redis are reachable; configured but not answering: {components}",
       "components_ok": "all components reachable",
       "egress_unreachable": "no platform domain could be reached directly",
       "egress_partial": "{reachable} of {total} platform domains reachable",
@@ -976,6 +984,7 @@
     "action": {
       "components_unreachable": "Check that the postgres and redis containers are running and that DTK_DATABASE_URL and DTK_REDIS_URL point at them.",
       "components_browser_rpc_down": "Minting and the signing fallback are unavailable. Start the browser container, or import cookies manually and stay on the native signer.",
+      "components_sidecar_down": "Media downloads or transcription fail until the container answers. Start its compose profile, or unset DTK_DOWNLOADER_URL or DTK_TRANSCRIBER_URL if it is not meant to run here.",
       "egress_unreachable": "This machine has no usable route to the platforms. Check DNS, the host firewall, and whether outbound traffic needs a proxy.",
       "egress_partial": "Requests for the unreachable platform will depend entirely on a working proxy.",
       "proxies_none": "Every identity will share this machine's egress IP. That is fine for a first look and a correlation risk for a busy pool.",

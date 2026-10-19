@@ -337,6 +337,9 @@ class TestIndexes:
             # without an index it drops off the ts ordering and scans every
             # retained chunk with no early stop.
             "ix_request_log_outcome_ts",
+            # The proxy filter, which is how an operator finds the egress a
+            # platform is refusing - and what the proxy drawer reads.
+            "ix_request_log_proxy_ts",
             # Doc 05: the user reporting a broken request has only this handle.
             "ix_request_log_request_id",
         } <= names
@@ -349,6 +352,7 @@ class TestIndexes:
             "ts DESC",
         ]
         assert _index_targets("request_log", "ix_request_log_outcome_ts") == ["outcome", "ts DESC"]
+        assert _index_targets("request_log", "ix_request_log_proxy_ts") == ["proxy_id", "ts DESC"]
         assert _index_targets("request_log", "ix_request_log_request_id") == ["request_id"]
 
     def test_snapshot_history_index(self) -> None:

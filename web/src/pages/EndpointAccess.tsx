@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Button,
   Card,
   ConfirmDialog,
   Disclosure,
@@ -15,9 +16,11 @@ import {
   Switch,
   useToast,
 } from '@/components'
-import { useApiMutation, useApiQuery, useInvalidate } from '@/hooks'
+import { useApiMutation, useApiQuery, useInvalidate, useSession } from '@/hooks'
 import { apiPut } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
+import { atLeast } from '@/lib/roles'
+import { PLATFORMS, type Platform } from '@/lib/types'
 
 import styles from './EndpointAccess.module.css'
 
@@ -38,6 +41,9 @@ import styles from './EndpointAccess.module.css'
  * Admin, authentication and setup endpoints render locked, with no switch at
  * all. That is not styling: the server refuses those paths whatever the setting
  * says, so a switch here would be one that lies.
+ *
+ * Only an administrator can change any of it - api.public_endpoints is a
+ * SENSITIVE setting - so everyone else sees the state without the switches.
  */
 
 const ACCESS_KEY = ['admin', 'endpoint-access'] as const
@@ -77,12 +83,41 @@ const METHOD_TONE: Record<string, string> = {
   DELETE: 'danger',
 }
 
+/**
+ * The platforms a route answers for.
+ *
+ * A `{platform}` route serves every platform the build supports, including
+ * ones added after somebody opened it: an endpoint opened before 5.1.6 began
+ * spending a Bilibili pool the day Bilibili shipped, and nothing on this page
+ * said so. A literal platform segment covers only that one; anything else is
+ * not addressed to a platform at all.
+ */
+function platformsOf(path: string): readonly Platform[] {
+  if (path.includes('{platform}')) return PLATFORMS
+  const segments = path.split('/')
+  return PLATFORMS.filter((platform) => segments.includes(platform))
+}
+
+function PlatformList({ path }: { path: string }) {
+  const { t } = useTranslation('console')
+  const platforms = platformsOf(path)
+  if (platforms.length === 0) return null
+  return (
+    <span className={styles.platforms}>
+      {t('access.covers', { platforms: platforms.join(' · ') })}
+    </span>
+  )
+}
+
 export default function EndpointAccess() {
   const { t } = useTranslation('console')
   const toast = useToast()
   const invalidate = useInvalidate()
+  const session = useSession()
+  const canWrite = atLeast(session.data?.role ?? null, 'admin')
   const [filter, setFilter] = useState('')
   const [pending, setPending] = useState<EndpointRow | null>(null)
+  const [closingAll, setClosingAll] = useState(false)
 
   const query = useApiQuery<AccessPayload>({ key: ACCESS_KEY, path: paths.endpointsAccess })
 
@@ -102,7 +137,10 @@ export default function EndpointAccess() {
         await invalidate(SETTINGS_KEY)
         toast.success(t('access.saved'))
       },
-      onError: () => toast.error(t('access.saveFailed')),
+      // With the server's reason. "Could not update endpoint access" alone hid
+      // the one fact worth having - that the setting needs an administrator, or
+      // which field was refused - behind a sentence that fits every failure.
+      onError: (error) => toast.apiError(error, t('access.saveFailed')),
     },
   )
 
@@ -197,30 +235,71 @@ export default function EndpointAccess() {
     else setPending(row)
   }
 
-  if (query.isLoading) return <Skeleton />
-  if (query.error) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
-
-
   const searching = filter.trim().length > 0
+  const pendingPlatforms = pending ? platformsOf(pending.path) : []
 
-  return (
-    <div className="u-page">
-      <PageHeader
-        title={t('access.title')}
-        description={t('access.description')}
-        badge={
+  // The header stays put while the list loads or fails. A bare skeleton or a
+  // lone error panel left a page with no title, so a failure did not even say
+  // which page had failed.
+  const header = (
+    <PageHeader
+      title={t('access.title')}
+      description={t('access.description')}
+      badge={
+        query.data ? (
           <span className={styles.count} data-open={opened.length > 0}>
             {t('access.openCount', { count: opened.length })}
           </span>
-        }
-      />
+        ) : undefined
+      }
+    />
+  )
+
+  if (query.isLoading || query.error) {
+    return (
+      <div className="u-page">
+        {header}
+        {query.error ? (
+          <Card>
+            <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+          </Card>
+        ) : (
+          <Card>
+            <div className="u-stack-sm" aria-busy="true">
+              <Skeleton height={18} width="40%" />
+              <Skeleton height={44} />
+              <Skeleton height={44} />
+            </div>
+          </Card>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="u-page">
+      {header}
 
       {/* The alarm, and only when there is something to be alarmed about.
           Every sentence in it is true of these routes and of no others: they
           were opened by hand, they can be closed by hand, and each call really
           does spend the identity pool. */}
       {opened.length > 0 ? (
-        <Card title={t('access.openWarningTitle')}>
+        <Card
+          title={t('access.openWarningTitle')}
+          actions={
+            canWrite ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={save.isPending}
+                onClick={() => setClosingAll(true)}
+              >
+                {t('access.closeAll')}
+              </Button>
+            ) : undefined
+          }
+        >
           <p className="u-secondary">{t('access.openWarning', { count: opened.length })}</p>
           <ul className={styles.uriList}>
             {opened.map((row) => (
@@ -229,6 +308,7 @@ export default function EndpointAccess() {
                   {row.method}
                 </span>
                 <code>{row.path}</code>
+                <PlatformList path={row.path} />
               </li>
             ))}
           </ul>
@@ -259,12 +339,19 @@ export default function EndpointAccess() {
       ) : null}
 
       <Card description={t('access.lockedHint')}>
-        <Input
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          placeholder={t('access.filter')}
-          aria-label={t('access.filter')}
-        />
+        <div className="u-stack-sm">
+          <Input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder={t('access.filter')}
+            aria-label={t('access.filter')}
+          />
+          {session.data && !canWrite ? (
+            <p className="u-xs u-muted" style={{ margin: 0 }}>
+              {t('access.readOnly')}
+            </p>
+          ) : null}
+        </div>
       </Card>
 
       {visible.length === 0 ? (
@@ -317,12 +404,14 @@ export default function EndpointAccess() {
                     <span className={styles.state} data-open={row.public}>
                       {row.public ? t('access.stateOpen') : t('access.stateClosed')}
                     </span>
-                    <Switch
-                      checked={!row.public}
-                      disabled={save.isPending}
-                      onChange={(event) => onToggle(row, event.target.checked)}
-                      aria-label={t('access.toggleLabel', { endpoint: row.key })}
-                    />
+                    {canWrite ? (
+                      <Switch
+                        checked={!row.public}
+                        disabled={save.isPending}
+                        onChange={(event) => onToggle(row, event.target.checked)}
+                        aria-label={t('access.toggleLabel', { endpoint: row.key })}
+                      />
+                    ) : null}
                   </span>
                 )}
               </li>
@@ -345,6 +434,32 @@ export default function EndpointAccess() {
           setPending(null)
         }}
         onCancel={() => setPending(null)}
+      >
+        {pendingPlatforms.length > 0 ? (
+          <p className="u-xs" style={{ margin: 0 }}>
+            {pendingPlatforms.length === PLATFORMS.length
+              ? t('access.confirmEveryPlatform', { platforms: pendingPlatforms.join(', ') })
+              : t('access.confirmPlatforms', { platforms: pendingPlatforms.join(', ') })}
+          </p>
+        ) : null}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={closingAll}
+        title={t('access.closeAllTitle', { count: opened.length })}
+        description={t('access.closeAllBody', { count: opened.length })}
+        confirmLabel={t('access.closeAll')}
+        loading={save.isPending}
+        onConfirm={() => {
+          // Every entry goes, including any that matched nothing: an entry
+          // for a path this build no longer serves is not something to keep.
+          save.mutate([], {
+            onSuccess: () => {
+              setClosingAll(false)
+            },
+          })
+        }}
+        onCancel={() => setClosingAll(false)}
       />
     </div>
   )

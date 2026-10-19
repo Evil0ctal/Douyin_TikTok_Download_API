@@ -665,7 +665,23 @@
     },
     "delete": {
       "title": "Delete {count, plural, one {# proxy} other {# proxies}}?",
-      "description": "Identities bound to a deleted proxy are retired: an identity must never go out through a different egress."
+      "description": "Identities bound to a deleted proxy are retired: an identity must never go out through a different egress.",
+      "retires": "{count, plural, one {This retires # identity: its cookies are wiped and it cannot be brought back.} other {This retires # identities: their cookies are wiped and they cannot be brought back.}}",
+      "retiresNone": "No identity is bound to it, so none is retired.",
+      "rowIdentities": "{count, plural, one {# identity} other {# identities}}"
+    },
+    "drawer": {
+      "title": "Proxy",
+      "checked": "Checked {when}",
+      "neverChecked": "Never checked",
+      "lastError": "Last error",
+      "identities": "{count, plural, =0 {Bound identities} one {# bound identity} other {# bound identities}}",
+      "noIdentities": "No identity is bound to this proxy.",
+      "reserved": "Kept out of rotation",
+      "recentTitle": "Recent requests",
+      "recentHint": "{count, plural, one {The latest request through this proxy in the last 24 hours.} other {The latest # requests through this proxy in the last 24 hours.}}",
+      "recentEmpty": "No request went out through this proxy in the last 24 hours.",
+      "viewRequests": "View requests"
     },
     "bulk": {
       "enable": "Mark healthy",
@@ -706,7 +722,11 @@
     },
     "test": {
       "title": "Proxy probe",
-      "failed": "Probe failed"
+      "failed": "Probe failed",
+      "all": "Test all",
+      "selected": "Test {count} selected",
+      "progress": "Testing {done} of {total}",
+      "summary": "{ok} ok, {failed} failed"
     }
   },
   "settings": {
@@ -1032,7 +1052,13 @@
       "saved": "Saved",
       "saveFailed": "Could not save the update-check setting"
     },
-    "notConfigured": "Not configured"
+    "notConfigured": "Not configured",
+    "notConfiguredProfile": "Not configured: the {profile} profile is not running here",
+    "detailCode": {
+      "unreachable": "Configured, and not answering",
+      "timeout": "Configured, and too slow to answer",
+      "degraded": "Answering, but not ready to work"
+    }
   },
   "diagnose": {
     "redacted": "The report is redacted before it leaves the server: proxy passwords, cookies and API keys are masked. It is safe to paste into a public issue.",
@@ -1049,7 +1075,7 @@
       "idle": "Not run"
     },
     "step": {
-      "components": "Postgres, Redis and the browser RPC answer.",
+      "components": "Postgres, Redis and the browser RPC answer, and so do the downloader and the transcriber where their profiles run.",
       "egress": "This host reaches the platform domains directly.",
       "proxies": "Every proxy dials, and reports its exit address and country.",
       "pool": "How many identities are usable, and how long since the oldest one succeeded.",
@@ -1064,7 +1090,10 @@
       "title": "What to run",
       "description": "All six steps run in order. Each has its own timeout, so a hung dependency cannot stall the rest.",
       "smoke": "Include the end-to-end fetch",
-      "smokeHint": "Step 6 pulls one fixed public link through the whole pipeline. Turn it off to keep the run entirely local."
+      "smokeHint": "Step 6 pulls one fixed public link through the whole pipeline. Turn it off to keep the run entirely local.",
+      "platform": "Platform for the end-to-end fetch",
+      "platformAuto": "Automatic",
+      "platformHint": "Automatic uses the platform with the most identities in rotation. With none anywhere, Douyin when a browser is configured and Bilibili when not."
     },
     "steps": {
       "title": "Steps",
@@ -1087,7 +1116,9 @@
     "toast": {
       "startFailed": "Could not start the self check",
       "copied": "Report copied"
-    }
+    },
+    "expired": "The last report is no longer kept on the server. Run the check again for a fresh one.",
+    "readOnly": "Running the self check, and reading its report, needs an operator role."
   },
   "backup": {
     "keyExplainer": "Credentials are exported as ciphertext and the archive never contains the master key. A restore therefore needs the same DTK_SECRET_KEY that created it; under a different key the proxy URLs and cookie jars cannot be decrypted.",
@@ -1558,10 +1589,21 @@
       "action": "Action",
       "actor": "Who",
       "target": "Target",
-      "ip": "Source address"
+      "ip": "Source address",
+      "proxyId": "Proxy id"
     },
+    "actorAll": "Everyone",
+    "auditShown": "{count, plural, one {# entry shown} other {# entries shown}}",
     "byApiKey": "API key",
     "bySystem": "System",
+    "endpointAll": "Every endpoint",
+    "invalidId": "Not a complete id yet, so this filter is not applied.",
+    "loadOlder": "Load older",
+    "noOlder": "Nothing older.",
+    "onlyThisActor": "Only this account's actions",
+    "onlyThisIdentity": "Only this identity",
+    "onlyThisProxy": "Only this proxy",
+    "openIdentity": "Open identity",
     "emptyTitle": "No requests in this window",
     "emptyDescription": "Widen the time range, or clear a filter.",
     "detailTitle": "Request detail",
@@ -1608,6 +1650,13 @@
     "confirmTitle": "Serve this endpoint without a key?",
     "confirmBody": "{endpoint} will answer anyone who can reach this server. Anonymous callers get read access only and are rate limited by address, but every call still spends this instance's identity pool.",
     "confirmAction": "Open it",
+    "confirmEveryPlatform": "Its path takes a platform, so it serves every platform this instance supports - {platforms} - including any added in a later release.",
+    "confirmPlatforms": "It serves {platforms}.",
+    "covers": "Serves {platforms}",
+    "closeAll": "Close all",
+    "closeAllTitle": "{count, plural, one {Close the opened endpoint?} other {Close all # opened endpoints?}}",
+    "closeAllBody": "{count, plural, one {It will need an API key again. Anyone calling it without one gets 401 from now on.} other {Each of them will need an API key again. Anyone calling them without one gets 401 from now on.}}",
+    "readOnly": "Only an administrator can open or close endpoints.",
     "saved": "Endpoint access updated",
     "saveFailed": "Could not update endpoint access",
     "openCount": "{count, plural, =0 {No endpoint open} one {# endpoint open} other {# endpoints open}}",
@@ -2301,8 +2350,27 @@
   "scheduler": {
     "pool": {
       "active": "Schedulable right now",
+      "activeReserved": "{count, plural, one {Schedulable right now; # reserved identity is not counted} other {Schedulable right now; # reserved identities are not counted}}",
       "cooling": "Resting off a risk-control hit; they come back on their own",
       "degraded": "Hit the cooldown ceiling. Last resort, used only when nothing is active"
+    },
+    "census": {
+      "title": "Per platform",
+      "description": "A request is only ever served by an identity of its own platform. Reserved identities are active but serve only the requests that name them, so they are not counted as schedulable.",
+      "schedulable": "Schedulable",
+      "reserved": "Reserved"
+    },
+    "marks": {
+      "title": "Pool size per platform",
+      "description": "Leave a cell empty to inherit the global pool.min_size or pool.target_size shown in it. A low-water mark of 0 turns automatic minting off for that platform.",
+      "min_size": "Low-water mark",
+      "target_size": "Target",
+      "inherit": "inherits {value}",
+      "cellLabel": "{platform}: {field}",
+      "invalid": "A whole number, 0 or more",
+      "save": "{count, plural, =0 {Save} one {Save # change} other {Save # changes}}",
+      "saved": "Pool sizes saved",
+      "saveFailed": "Could not save the pool sizes"
     },
     "rotationTitle": "How one request picks an identity",
     "rotationDescription": "Five stages, in this order. A request that clears all five gets a lease; anything else is refused with the reason, which is what the request log records.",

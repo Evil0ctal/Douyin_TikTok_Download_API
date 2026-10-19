@@ -5,7 +5,8 @@ cause can be in the proxy, the cookies, the signature or the network. Guessing
 costs a round trip per guess, so the console and the CLI run the same six steps
 and print one report (docs/design/15-operations.md):
 
-1. component connectivity - postgres, redis, browser-rpc
+1. component connectivity - postgres, redis, browser-rpc, and the downloader
+   and transcriber sidecars where their profiles are configured
 2. egress - can this machine reach the platform domains directly
 3. proxies - probe each one for reachability, exit IP and GeoIP
 4. identity pool - how many usable identities, and how stale the oldest is
@@ -50,6 +51,8 @@ from dtk.core.logging import get_logger
 from dtk.core.types import DEFAULT_LANGUAGE, IdentityState, Language, Platform
 from dtk.i18n.catalog import t
 from dtk.identity.minting.client import BrowserRpcClient
+from dtk.identity.minting.native import NATIVE_MINT_PLATFORMS
+from dtk.ops import sidecars
 from dtk.ops._sql import safe_execute, safe_scalar
 from dtk.ops.health import ComponentHealth, check_browser_rpc, check_postgres, check_redis
 from dtk.platforms.douyin.endpoints import DouyinAPIEndpoints
@@ -60,9 +63,13 @@ from dtk.signing.registry import SignerRegistry
 log = get_logger(__name__)
 
 #: Reached directly, without a proxy, to tell "no internet" from "bad proxy".
+#: One per platform. Bilibili was served for a release before it was listed
+#: here, so an instance that only spoke to Bilibili was graded on two domains
+#: it never used and not on the one it did.
 DEFAULT_EGRESS_TARGETS: Final[tuple[str, ...]] = (
     "https://www.douyin.com/",
     "https://www.tiktok.com/",
+    "https://www.bilibili.com/",
 )
 
 #: Echo service used to learn a proxy's exit address. Overridable because some
@@ -84,6 +91,9 @@ PROBE_USER_AGENT: Final[str] = (
 
 STEP_TIMEOUT_SECONDS: Final[float] = 15.0
 MAX_PROXIES_PROBED: Final[int] = 20
+#: Longer than the System page allows itself: nobody is polling this, and a
+#: downloader still measuring a large volume is slow, not down.
+SIDECAR_STEP_TIMEOUT_SECONDS: Final[float] = 8.0
 
 MASK: Final[str] = "[REDACTED]"
 
@@ -188,6 +198,7 @@ class StepCode(StrEnum):
 
     COMPONENTS_UNREACHABLE = "components_unreachable"
     COMPONENTS_BROWSER_RPC_DOWN = "components_browser_rpc_down"
+    COMPONENTS_SIDECAR_DOWN = "components_sidecar_down"
     COMPONENTS_OK = "components_ok"
 
     EGRESS_UNREACHABLE = "egress_unreachable"
@@ -233,6 +244,7 @@ ACTIONABLE_CODES: Final[frozenset[str]] = frozenset(
     for code in (
         StepCode.COMPONENTS_UNREACHABLE,
         StepCode.COMPONENTS_BROWSER_RPC_DOWN,
+        StepCode.COMPONENTS_SIDECAR_DOWN,
         StepCode.EGRESS_UNREACHABLE,
         StepCode.EGRESS_PARTIAL,
         StepCode.PROXIES_NONE,
@@ -431,6 +443,14 @@ class DiagnoseContext:
     #: (setup wizard or CLI) together with the link it should use.
     smoke: SmokeRunner | None = None
     smoke_url: str | None = None
+    #: Which platform ``smoke_url`` belongs to, when the caller chose one. Shown
+    #: beside the result, because "the smoke test passed" says little until it
+    #: says on which platform.
+    smoke_platform: Platform | None = None
+    #: The optional sidecars. None is "this profile is not running here", which
+    #: the components step reports and does not hold against the instance.
+    downloader: sidecars.DownloaderProbe | None = None
+    transcriber: sidecars.TranscriberProbe | None = None
     egress_targets: tuple[str, ...] = DEFAULT_EGRESS_TARGETS
     proxy_probe_url: str = DEFAULT_PROXY_PROBE_URL
     #: Low-water mark the pool step compares against; doc 10's pool.min_size.
@@ -438,16 +458,32 @@ class DiagnoseContext:
 
 
 async def check_components(ctx: DiagnoseContext) -> StepResult:
-    """Step 1: can this process reach postgres, redis and browser-rpc."""
+    """Step 1: can this process reach postgres, redis, browser-rpc and the sidecars."""
     result = _step(1, "components")
     components: list[ComponentHealth] = [
         await check_postgres(ctx.engine),
         await check_redis(ctx.redis),
         await check_browser_rpc(ctx.rpc),
     ]
-    details = {c.name: c.as_dict() for c in components}
+    details: dict[str, Any] = {c.name: c.as_dict() for c in components}
     broken = [c for c in components if not c.ok and c.name != "browser_rpc"]
     rpc = next(c for c in components if c.name == "browser_rpc")
+    # The same shape the System page shows, so the report and the page cannot
+    # describe one sidecar two ways.
+    optional = {
+        sidecars.DOWNLOADER: await sidecars.downloader_status(
+            ctx.downloader, timeout=SIDECAR_STEP_TIMEOUT_SECONDS
+        ),
+        sidecars.TRANSCRIBER: await sidecars.transcriber_status(
+            ctx.transcriber, timeout=SIDECAR_STEP_TIMEOUT_SECONDS
+        ),
+    }
+    details.update(optional)
+    # Configured and not answering only. A profile nobody started is a choice,
+    # and grading it would put a warning on every instance that made it.
+    sidecars_down = [
+        name for name, status in optional.items() if status["configured"] and not status["ok"]
+    ]
 
     if broken:
         # Names only. Why each one is down is already in the details, and a
@@ -472,6 +508,13 @@ async def check_components(ctx: DiagnoseContext) -> StepResult:
                 if rpc.detail_code
                 else {"detail": rpc.evidence or ""}
             ),
+            details=details,
+        )
+    if sidecars_down:
+        return result(
+            StepStatus.WARN,
+            StepCode.COMPONENTS_SIDECAR_DOWN,
+            args={"components": ", ".join(sidecars_down)},
             details=details,
         )
     return result(StepStatus.PASS, StepCode.COMPONENTS_OK, details=details)
@@ -658,6 +701,9 @@ async def check_smoke(ctx: DiagnoseContext) -> StepResult:
     result = _step(6, "smoke")
     if ctx.smoke is None or not ctx.smoke_url:
         return result(StepStatus.SKIP, StepCode.SMOKE_NOT_CONFIGURED)
+    where: dict[str, Any] = {"url": ctx.smoke_url}
+    if ctx.smoke_platform is not None:
+        where = {"platform": ctx.smoke_platform.value, **where}
     try:
         outcome = await ctx.smoke(ctx.smoke_url)
     except Exception as exc:
@@ -665,13 +711,49 @@ async def check_smoke(ctx: DiagnoseContext) -> StepResult:
             StepStatus.FAIL,
             StepCode.SMOKE_FAILED,
             args={"error": f"{type(exc).__name__}: {exc}"},
-            details={"url": ctx.smoke_url},
+            details=where,
         )
     return result(
         StepStatus.PASS,
         StepCode.SMOKE_OK,
-        details={"url": ctx.smoke_url, "result": _summarize(outcome)},
+        details={**where, "result": _summarize(outcome)},
     )
+
+
+async def choose_smoke_platform(session: AsyncSession | None, *, browser: bool) -> Platform:
+    """The platform the end-to-end step should fetch from, when nobody said.
+
+    It was always Douyin. On an instance that only keeps Bilibili identities -
+    which is any instance without the browser container, since Bilibili is the
+    one platform minted over plain HTTP - the smoke step then failed with "no
+    usable douyin identity": true, and about a platform the instance was never
+    meant to serve, while the one it does serve went untested.
+
+    So: the platform with the most active identities in rotation, because that
+    is the traffic this instance actually carries and a reserved account is
+    not one rotation would hand out. Ties go to the platform listed first. With
+    no usable identity anywhere, the platform the instance could still mint for
+    - Douyin with a browser, a natively minted one without.
+    """
+    rows = (
+        await safe_execute(
+            session,
+            "SELECT platform, count(*) FROM identities "
+            "WHERE state = 'active' AND rotation_endpoints IS NULL GROUP BY platform",
+            event="ops.diagnose.smoke_platform_failed",
+        )
+        if session is not None
+        else None
+    )
+    counts = {str(platform): int(count) for platform, count in rows or ()}
+    busiest = max(Platform, key=lambda platform: counts.get(platform.value, 0))
+    if counts.get(busiest.value, 0) > 0:
+        return busiest
+    if not browser:
+        native = [platform for platform in Platform if platform in NATIVE_MINT_PLATFORMS]
+        if native:
+            return native[0]
+    return Platform.DOUYIN
 
 
 #: The six steps, in the order doc 15 defines them.
@@ -878,6 +960,7 @@ __all__ = [
     "MASK",
     "REASON_KEY_PREFIX",
     "SENSITIVE_DETAIL_KEYS",
+    "SIDECAR_STEP_TIMEOUT_SECONDS",
     "SIGNING_PROBE_URLS",
     "STEPS",
     "DiagnoseContext",
@@ -893,6 +976,7 @@ __all__ = [
     "check_proxies",
     "check_signing",
     "check_smoke",
+    "choose_smoke_platform",
     "localize_report",
     "reason_key",
     "redact",
