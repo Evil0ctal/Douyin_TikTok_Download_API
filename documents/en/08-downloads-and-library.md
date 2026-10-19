@@ -96,7 +96,7 @@ The **Skip what is already downloaded** checkbox is shared by every mode that ca
 
 ### One post
 
-Paste a link or a post id. Digits are treated as an id, anything else as a link. The platform menu beside the box is only consulted for a bare id and is disabled while a link is in the box, because the link says which platform it is — and if you send both and they disagree, the API refuses rather than guessing. On Bilibili, digits are read as an av number and converted to the bvid; a bare bvid is not digits, so paste the video link instead.
+Paste a link or a post id. Digits, and a Bilibili `BV…` or `av…` id, are treated as an id; anything else as a link. The platform menu beside the box is only consulted for bare digits and is disabled while a link is in the box, because the link says which platform it is — and if you send both and they disagree, the API refuses rather than guessing. A `BV…` or `av…` id names its own platform, so it goes to Bilibili and the menu shows that; plain digits with Bilibili picked are read as an av number and converted to the bvid.
 
 Three things can happen, and the toast tells you which:
 
@@ -142,17 +142,21 @@ The drawer's own download buttons are a **different thing** from "Save to this i
 
 ### An author's recent posts
 
-Paste a profile link, or the bare `sec_user_id` the library and playground hand you (Douyin and TikTok spell it the same way: it starts `MS4wLjABAAAA`). A Bilibili author's id is the bare numeric `mid`, which this box does not take on its own — paste the space link (`space.bilibili.com/<mid>`) instead. The **How many posts** menu offers the newest 20, 50, 100, 200, or everything the feed will give up. It is a menu rather than a number field on purpose: every post is a download, every page of the feed is a read through the identity pool, and a free-text depth invites "99999" typed without a thought.
+Paste a profile link, or a bare author id: the `sec_user_id` the library and playground hand you on Douyin, the `secUid` on TikTok (both start `MS4wLjABAAAA`), or the numeric `mid` on Bilibili. A TikTok profile link names the `@handle`, which the post list does not take, so the page reads the profile once to get the `secUid`. The **How many posts** menu offers the newest 20, 50, 100, 200, or everything the feed will give up. It is a menu rather than a number field on purpose: every post is a download, every page of the feed is a read through the identity pool, and a free-text depth invites "99999" typed without a thought. Choosing everything asks first.
 
-The page walks the feed 20 posts at a time until it has enough, stopping at 40 pages, then queues one download per post. Failures on individual posts do not abandon the rest, and the toast reports queued / total / already here.
+The page walks the feed 20 posts at a time until it has enough, stopping at 40 pages, then queues one download per post, and reports both under the form as it goes: the page it is reading, then how many are queued, already here and failed, with the first failure's reason. **Stop** ends the run between any two requests. Failures on individual posts do not abandon the rest.
 
-One trap worth knowing: a bare author id in the `MS4wLjABAAAA…` shape looks the same on Douyin and TikTok, so it is looked up on whichever platform the menu shows. The menu is enabled for exactly that case and disabled while a profile link is in the box, because the link carries the platform. A Bilibili `mid` is plain digits, which this mode does not take on its own, so paste the `space.bilibili.com` link.
+Douyin pages an author's posts past the first only for a signed-in identity: without one, page 2 answers `IDENTITY_LOGIN_REQUIRED`. The run keeps what the earlier pages gave, queues those, and says that later pages need a signed-in identity, with a link to the signed-in identities of that platform. A first page a guest answered may also leave out the author's newest posts; the report says so when that happened.
+
+One trap worth knowing: a bare author id does not say which platform it belongs to — `MS4wLjABAAAA…` looks the same on Douyin and TikTok, and a `mid` is plain digits — so it is looked up on whichever platform the menu shows. The menu is enabled for exactly that case and disabled while a profile link is in the box, because the link carries the platform.
 
 For deeper history than the feed will hand over in one pass, use **Archive their history** in the library's post drawer, which is a different job with a different cost.
 
 ### A post's comments
 
 Reads up to **5 pages** of comments, 50 to a page where the platform allows it (35 on TikTok; Bilibili sets its own page size), through the ordinary read endpoint and hands your browser a JSON file named `comments-<platform>-<id>.json`. Each page is a real request through the identity pool. Comments are data rather than media, so nothing is written to the server's volume and the downloader is not involved.
+
+Bilibili shows a guest only the three hottest comments and no second page. When a guest answered, or a later page needed a signed-in identity, the comments read so far are still saved, and the page says why there are not more.
 
 ## The downloads table
 
@@ -169,11 +173,11 @@ Reads up to **5 pages** of comments, 50 to a page where the platform allows it (
 
 `partial` is its own state rather than a success or a failure: a post whose video landed and whose third image 404'd is neither, and calling it `done` would hide the gap while calling it `failed` would hide a video that is on the disk.
 
-**Filtering** by state and by platform happens on the server, so "the most recent TikTok downloads" means the most recent of all of them and not the most recent of whatever page happened to load. **Sorting**, by contrast, is done in the browser over the rows already loaded — the default is Finished, newest first. The list returns 100 rows per request (`GET /api/v1/downloads` defaults to 100, maximum 500) and the console does not paginate it, so on a large instance the table is a window on the newest hundred.
+**Filtering** by state and by platform happens on the server, so "the most recent TikTok downloads" means the most recent of all of them and not the most recent of whatever page happened to load. **Sorting**, by contrast, is done in the browser over the rows already loaded — the default is Finished, newest first. The table shows 100 rows a page, with Previous and Next and where the page sits in the whole (`101-200 of 340`), and the search box above it matches the post's title or author as the archive holds them, or its id (`q` on `GET /api/v1/downloads`). The filters, the search and the open drawer are kept in the address, so `/downloads?id=<download id>` opens one download from anywhere.
 
 The table polls every 2 seconds while anything is in flight and every 10 seconds otherwise. The progress bar is read live from the sidecar for at most 8 in-flight rows at a time. It shows the bytes written so far against the download's size, the percentage, the speed over the last few seconds and the time left — for example `38.2 MB / 96.7 MB · 39%` over `1.4 MB/s · 42 s left`. The size is what each file's server declared in `Content-Length`. The sidecar never trusts that number for the ceiling, which is enforced on bytes actually written, but it is good enough to draw a bar against. A file that has not started yet has declared nothing, so until every file of a download has begun — the later images of an album, say — the bar counts **files** instead, with the bytes so far beside it.
 
-Clicking a row opens a drawer with the player, the per-file list, each file's SHA-256, and a save link per completed file. The drawer follows the row as the table refreshes: opened on a running download, it shows each file's own progress and speed, and the stored files once it lands.
+Clicking a row opens a drawer, titled by the post, with the player, the per-file list, each file's SHA-256, and a save link per completed file. It links to the post in the Library when the archive has it, and when the video already has a transcript, **Transcribe video** becomes **Open the transcript**. The drawer follows the row as the table refreshes: opened on a running download, it shows each file's own progress and speed, and the stored files once it lands.
 
 ## Retrying, and why there is no resume
 
@@ -255,6 +259,8 @@ Asking twice is cheap. A finished transcription of the same file is handed back 
 
 `/transcriptions`, in the same **Tools** group, lists every transcription newest first with its state, a preview of the text, the video's duration, the model and whether numbers were normalised. A running one shows its stage — Decoding audio, Finding speech, Recognising speech, Adding punctuation, Writing numbers as digits — and its details drawer shows the text recognised so far, marked provisional until punctuation and numbers are applied at the end. A finished one can be exported as a `.txt`.
 
+The list pages 100 at a time and searches the text, the post's title and its id; its filters and the open drawer are kept in the address (`/transcriptions?id=<transcription id>`). A transcript's drawer links to the download it was made from and to the post in the Library. While the transcriber is off — the default — the Transcribe buttons are disabled and say how to turn it on, and so does this page when it is empty.
+
 **Cancel** stops queued or running work. **Delete** removes settled records — the text and its metadata — and never the video they came from.
 
 ### What it costs
@@ -276,7 +282,7 @@ Two views:
 
 Paging is by cursor, never by page number, because the table is written to while you walk it and an offset silently skips and repeats rows. Previous walks back through the cursors you have already visited. A page is 50 posts.
 
-Selection is by post key and **survives a page turn** — selecting a few here, a few there, then acting on all of them is the intended workflow. A bulk bar appears at the bottom of the viewport while anything is selected.
+Selection is by post key and **survives a page turn** — selecting a few here, a few there, then acting on all of them is the intended workflow. A bulk bar appears at the bottom of the viewport while anything is selected. Besides collections and **Delete**, it can **Save media** (one download per post; what is already stored is counted, not fetched again), **Transcribe** (each selected video whose media is stored here; image posts and unsaved posts are skipped and counted) and **Export selected** (the selected posts as NDJSON, through `POST /api/v1/archive/export`). Save and Transcribe go one post at a time with a running count and a Stop, and report what was done, skipped and failed.
 
 ## Filters, search and views
 
@@ -289,8 +295,10 @@ Selection is by post key and **survives a page turn** — selecting a few here, 
 | Availability | Live, deleted, private, unknown | On change |
 | Collection | Any of your collections | On change |
 | On this disk | Downloaded or not / downloaded only / not downloaded | On change |
+| Author | Click an author's name on a card, in the table or in a post's drawer | At once, shown as a removable chip |
+| Tag | Click a `#tag` in a post's drawer | At once, shown as a removable chip |
 
-Filters combine. The menus apply the moment they change, because picking "douyin" from a closed list *is* the decision; the text box waits for the button, because typing is not a decision until you stop and firing a query per keystroke would page the archive on the way to a word.
+Filters combine, and every one of them — with the open post — is kept in the address: `/library?author=<uid>`, `/library?tag=<tag>` and `/library?platform=<p>&content_id=<id>`, the links the other pages use, work from anywhere. The menus apply the moment they change, because picking "douyin" from a closed list *is* the decision; the text box waits for the button, because typing is not a decision until you stop and firing a query per keystroke would page the archive on the way to a word.
 
 Search is **substring matching, not word matching**, and that is a deliberate trade-off rather than an oversight: Postgres' full-text search does not segment Chinese, so a word search would silently match nothing on the primary platform. The cost is that a search for a short string can match more than you meant.
 
@@ -316,7 +324,7 @@ Open a post to get its drawer. The footer carries three actions:
 
 The drawer also plays the stored video inline, from this instance's disk rather than from the platform: no CDN link to expire, no hotlink check to fail, and nobody outside this machine is told what is being watched. It preloads metadata only, so a 240 MB video does not start transferring because a drawer opened.
 
-Under the player, a video post has **Transcribe video**, the same action as in the downloads drawer. It reads the stored file, never the platform's, so on a post not saved yet it is disabled and says to store it first. See [Turning a stored video into text](#turning-a-stored-video-into-text).
+Under the player, a video post has **Transcribe video**, the same action as in the downloads drawer — **Open the transcript** when it already has one. It reads the stored file, never the platform's, so on a post not saved yet it is disabled and says to store it first. A saved post also links to its download. See [Turning a stored video into text](#turning-a-stored-video-into-text).
 
 ## Exporting the archive
 
@@ -327,7 +335,7 @@ It is streamed a page at a time rather than assembled server-side, so the size o
 Two things to know before relying on it:
 
 - It needs the `archive:export` scope, which ordinary read keys do not carry. This is the one call that turns a read key into a copy of the database, so it is scoped separately on purpose. A console session carries every scope, so the button works for any signed-in user.
-- The export applies the platform, kind, length, availability and search filters, but **not** the collection filter or the "on this disk" filter — those are not parameters of the export endpoint and are ignored. Exporting while a collection filter is active gives you the whole archive, not the collection.
+- The export applies every filter on the page, the collection and "on this disk" included. It used to ignore those two, so exporting a collection exported the whole archive. To export a hand-picked set instead, select the posts and use **Export selected**.
 
 For a copy of the whole instance, including identities and settings, see the backup tooling in [Operations](./10-operations.md); this export is the archive only.
 
@@ -365,26 +373,26 @@ Nothing on this page fetches. When an entry comes due, the worker submits it as 
 
 | Column | Meaning |
 | --- | --- |
-| Target | The label (filled in from the first successful run) or the raw id, with the kind and platform beneath |
+| Target | The name, or the id, with the kind and platform beneath; linked to what it has collected in the Library (not for a TikTok author, whom the archive keys by the numeric id rather than the `secUid` that is watched) |
 | Interval | How often it runs |
 | Next run | Relative time, or **Paused** |
 | Runs | Observations collected since it was added |
 | Last run | Relative time, or a red "N failures in a row" carrying the last error as a tooltip |
 | Running | The enable/pause switch |
-| *(unnamed)* | Remove |
+| *(unnamed)* | **Edit** (name and interval) and **Remove**, which asks first |
 
 The three tiles show how many targets exist and how many are running, total runs, and how many are currently failing.
 
 ## Adding a target
 
-Four fields: platform, what to watch, the target id, and the interval.
+Five fields: platform, what to watch, the target, an optional name, and the interval. The target is a profile or post link — its platform wins over the menu — or the bare id. A name given here, or later under **Edit**, is kept; left empty, the first successful run fills in the author's nickname, and clearing it under Edit hands it back to the platform.
 
 | Kind | Target id | What one run collects |
 | --- | --- | --- |
 | An author | The stable author id — `sec_user_id` on Douyin, `secUid` on TikTok (both start `MS4wLjAB`), the numeric `mid` on Bilibili | One page of their posts (the newest 20). That page carries the author record on every item, so a single request answers both "what is new" and "how many followers now" |
 | A post | The post id, as the archive holds it | That post's detail, which is how its counters move over time |
 
-An `@handle` will not work for an author entry. Nothing checks the shape of the id when you add it, so the entry is created — but every run then fails, because the post-list endpoint has no parameter that takes a handle and refuses it by name rather than sending it somewhere it cannot work. Look the author up in the playground or the library first and use the id from the result. Watching the same platform + kind + target twice *is* refused, as a duplicate.
+A TikTok profile link names the `@handle`, which the post-list endpoint refuses, so the page reads the profile once and stores the `secUid`. A bare `@handle` typed into the box still will not work: nothing checks the shape of an id when you add it, so the entry is created — and every run then fails, because the post list has no parameter that takes a handle and refuses it by name rather than sending it somewhere it cannot work. Watching the same platform + kind + target twice *is* refused, as a duplicate.
 
 The first run is **due immediately**. Somebody who just added an author wants to see it collect, and holding the first run back by the interval would only make the feature look broken for six hours.
 
@@ -392,7 +400,7 @@ What an entry collects is not configurable from this page, and that is deliberat
 
 ## Intervals, the floor, and a failing entry
 
-The console offers 15 minutes, 1 hour, 6 hours, 12 hours and 24 hours, hiding anything below the server's floor. New entries default to `watchlist.default_interval_seconds` (**6 hours**).
+The console offers 15 minutes, 1 hour, 6 hours, 12 hours and 24 hours, hiding anything below the server's floor. New entries default to `watchlist.default_interval_seconds` (**6 hours**), and the menu always lists the value the form will send.
 
 The floor is `watchlist.min_interval_seconds`, **900 seconds** by default, and it cannot be set below 60 whatever you do. An interval under the floor is **refused** rather than silently raised to a number you did not ask for. The reason is not politeness: a target collected every few seconds does not produce a better time series, it burns the whole identity pool on one author and starves everything else. Nothing on any of the platforms moves fast enough to need more than 15 minutes.
 
