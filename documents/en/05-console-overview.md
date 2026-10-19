@@ -575,7 +575,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose --skip-smoke
 docker compose -p dtk -f docker/compose.yml exec api dtk diagnose --json
 ```
 
-The CLI additionally accepts `--smoke-url`, `--probe-url` and `-o/--output`. Its `--platform` defaults to Douyin rather than choosing automatically, so on an instance that serves only Bilibili pass `--platform bilibili`. See [CLI reference](./13-cli.md).
+The CLI additionally accepts `--smoke-url`, `--probe-url` and `-o/--output`. Without `--platform` it chooses the smoke-test platform the same way the console does. See [CLI reference](./13-cli.md).
 
 ## Which page answers which question
 

@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useFormatters } from '@/hooks'
@@ -7,20 +7,7 @@ import type { Platform } from '@/lib/types'
 import styles from '../identities.module.css'
 import type { IdentityRow, PoolLevel } from './types'
 
-/**
- * A platform as people say it - Douyin, TikTok, Bilibili - in this language.
- *
- * The page printed the wire value everywhere, which is an identifier and not
- * a name; in Chinese it read as the one English word in a sentence. Falls back
- * to the wire value for a platform this build has no name for.
- */
-export function usePlatformName(): (platform: string) => string {
-  const { t } = useTranslation('console')
-  return useCallback(
-    (platform: string) => t(`platform.name.${platform}`, { defaultValue: platform }),
-    [t],
-  )
-}
+export { usePlatformName } from '@/hooks/usePlatformName'
 
 export function Fact({
   label,

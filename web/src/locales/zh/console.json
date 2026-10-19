@@ -697,7 +697,8 @@
       "disable": "标记为不可用",
       "delete": "删除所选",
       "enabled": "已将 {count} 个代理标记为可用",
-      "disabled": "已将 {count} 个代理标记为不可用"
+      "disabled": "已将 {count} 个代理标记为不可用",
+      "partial": "成功 {done} 个，失败 {failed} 个"
     },
     "import": {
       "action": "批量导入",
@@ -1048,7 +1049,7 @@
     },
     "updates": {
       "title": "检查更新",
-      "description": "默认关闭。不开启就不会有任何数据离开这台机器。",
+      "description": "默认开启。发起请求的是你的浏览器而不是这台服务器：它每天问一次 GitHub 有没有新版本，所以请求里不带任何关于这个部署的信息。关闭后就不再询问。",
       "outbound": "这项检查会从你的浏览器向 github.com 发起一次外网请求。不允许外连的部署环境请保持关闭。",
       "toggle": "允许检查更新",
       "toggleHint": "作为运行配置存储，重启后依然有效。",
@@ -1102,7 +1103,7 @@
       "smokeHint": "第 6 步会用一条固定的公开链接走完整链路。关闭它可以让整个自检只在本地进行。",
       "platform": "端到端测试用的平台",
       "platformAuto": "自动",
-      "platformHint": "自动时选轮换中身份最多的平台；一个身份都没有时，配置了浏览器选 Douyin，否则选 Bilibili。"
+      "platformHint": "自动时选轮换中身份最多的平台；一个身份都没有时，配置了浏览器选抖音，否则选 B 站。"
     },
     "steps": {
       "title": "步骤",
@@ -1217,7 +1218,7 @@
     },
     "matrix": {
       "title": "各角色的权限",
-      "description": "三个角色，不做用户组，也不做细粒度权限：自部署实例的用户数是个位数，一屏能看完的规则才会被真正遵守。",
+      "description": "三个给人用的角色，外加一个给公开演示账号用的，不做用户组，也不做细粒度权限：自部署实例的用户数是个位数，一屏能看完的规则才会被真正遵守。",
       "capability": "权限"
     },
     "capability": {
@@ -1462,9 +1463,9 @@
       "downloadFetchingFirst": "先获取作品信息，再下载媒体",
       "downloadReused": "{reason, select, in_flight {这个作品正在下载} other {已经下载过，无需重复}}",
       "downloadStarted": "已开始下载",
-      "openAuthor": "在内容库查看该作者",
+      "openAuthor": "在资料库查看该作者",
       "openDownload": "在下载页打开",
-      "openPost": "在内容库打开",
+      "openPost": "在资料库打开",
       "title": "下一步"
     },
     "nextPage": "获取下一页",

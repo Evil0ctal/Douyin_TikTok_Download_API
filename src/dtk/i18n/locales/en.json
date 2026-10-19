@@ -144,7 +144,7 @@
         "language": "Language for alert text, for channels that do not specify their own."
       },
       "system": {
-        "check_updates": "Whether this instance may contact the project to check for a newer release. It makes an outbound request, so it is opt-in."
+        "check_updates": "Whether the console may ask GitHub, once a day, whether a newer release exists. The request is made by the operator's browser, never by this server, and it is on by default."
       },
       "security.request_proxy": "Whether a caller may pass ?proxy= to route their request through their own egress. 'deny' refuses the parameter, 'public' allows only publicly routable addresses, and 'any' also allows loopback and private ranges - which lets anyone holding an API key reach this server's own network.",
       "api.public_endpoints": "Endpoints this instance serves without an API key, each written as '<METHOD> <path>' exactly as the API document shows it, for example 'GET /api/v1/{platform}/video'. Empty means everything needs a credential, which is the default. Admin, authentication and setup endpoints can never be opened, whatever is listed here.",

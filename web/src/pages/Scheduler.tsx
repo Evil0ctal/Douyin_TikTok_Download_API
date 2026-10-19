@@ -21,7 +21,14 @@ import {
   type Column,
   type SettingRow,
 } from '@/components'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
+import {
+  useApiMutation,
+  useApiQuery,
+  useFormatters,
+  useInvalidate,
+  usePlatformName,
+  useSession,
+} from '@/hooks'
 import { apiPut } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
@@ -135,6 +142,7 @@ const STAGES = ['circuit', 'rank', 'inflight', 'quota', 'outcome'] as const
 
 export default function Scheduler() {
   const { t } = useTranslation(['console', 'common'])
+  const platformName = usePlatformName()
   const format = useFormatters()
   const invalidate = useInvalidate()
   const session = useSession()
@@ -200,9 +208,8 @@ export default function Scheduler() {
     {
       id: 'platform',
       header: t('console:field.platform'),
-      mono: true,
       hideable: false,
-      cell: (row) => row.platform,
+      cell: (row) => platformName(row.platform),
     },
     {
       id: 'schedulable',
@@ -416,6 +423,7 @@ function markKey(platform: string, field: MarkField): string {
  */
 function PoolMarksGrid({ settings, canWrite, onSaved }: PoolMarksGridProps) {
   const { t } = useTranslation(['console', 'common'])
+  const platformName = usePlatformName()
   const toast = useToast()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
 
@@ -526,10 +534,9 @@ function PoolMarksGrid({ settings, canWrite, onSaved }: PoolMarksGridProps) {
             <tr key={platform}>
               <th
                 scope="row"
-                className="u-mono"
                 style={{ textAlign: 'start', fontWeight: 400, padding: 'var(--space-2) 0' }}
               >
-                {platform}
+                {platformName(platform)}
               </th>
               {MARK_FIELDS.map((field) => {
                 const key = markKey(platform, field)

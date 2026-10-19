@@ -239,7 +239,7 @@ dtk diagnose [OPTIONS]
 | `--json` | flag | off | Print the report as JSON instead of a table |
 | `--output`, `-o` | path | none | Also write the text report to a file |
 | `--skip-smoke` | flag | off | Do not make the end-to-end request |
-| `--platform` | `douyin` \| `tiktok` \| `bilibili` | `douyin` | Platform for the smoke test |
+| `--platform` | `douyin` \| `tiktok` \| `bilibili` | automatic | Platform for the smoke test. Automatic is the platform with the most identities in rotation; with none, Douyin when a browser is configured and Bilibili when not |
 | `--smoke-url` | string | the built-in link for that platform | Link to use for the smoke test |
 | `--probe-url` | string | `https://api.ipify.org?format=json` | Service that reports a proxy's exit address. Note that this is **not** the default `dtk proxy test` uses, which is `https://ipinfo.io/json` |
 

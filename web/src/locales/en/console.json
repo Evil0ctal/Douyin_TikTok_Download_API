@@ -697,7 +697,8 @@
       "disable": "Mark unhealthy",
       "delete": "Delete selected",
       "enabled": "{count, plural, one {# proxy marked healthy} other {# proxies marked healthy}}",
-      "disabled": "{count, plural, one {# proxy marked unhealthy} other {# proxies marked unhealthy}}"
+      "disabled": "{count, plural, one {# proxy marked unhealthy} other {# proxies marked unhealthy}}",
+      "partial": "{done} done, {failed} failed"
     },
     "import": {
       "action": "Bulk import",
@@ -1048,7 +1049,7 @@
     },
     "updates": {
       "title": "Update check",
-      "description": "Off by default. Nothing leaves this machine unless you turn it on.",
+      "description": "On by default. Your browser, not this server, asks GitHub once a day whether a newer release exists, so the request says nothing about this deployment. Turn it off and no one asks.",
       "outbound": "This check is an outbound request from your browser to github.com. A deployment without egress should leave it off.",
       "toggle": "Allow the update check",
       "toggleHint": "Stored as a runtime setting, so the choice survives a restart.",
@@ -1217,7 +1218,7 @@
     },
     "matrix": {
       "title": "What each role can do",
-      "description": "Three roles, no groups and no per-object permissions: a self-hosted instance has a handful of users, and a rule set that fits on one screen is one people actually follow.",
+      "description": "Three roles for people and one for the public demo account, no groups and no per-object permissions: a self-hosted instance has a handful of users, and a rule set that fits on one screen is one people actually follow.",
       "capability": "Capability"
     },
     "capability": {

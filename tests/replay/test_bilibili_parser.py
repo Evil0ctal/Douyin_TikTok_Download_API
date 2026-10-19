@@ -181,9 +181,7 @@ class TestMirrors:
             "https://upos-hz-mirrorakam.akamaized.net",
         ]
         # The path and the signature are the same file's; only the host moves.
-        assert {url.split(".com", 1)[-1] for url in video.urls[:2]} == {
-            akam.split(".net", 1)[-1]
-        }
+        assert {url.split(".com", 1)[-1] for url in video.urls[:2]} == {akam.split(".net", 1)[-1]}
 
     def test_a_bilibili_hosted_link_is_left_as_it_came(self) -> None:
         video = ADAPTER.parse_content(with_streams(), fetched_at=FETCHED_AT).media.video

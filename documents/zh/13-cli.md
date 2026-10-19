@@ -238,7 +238,7 @@ dtk diagnose [OPTIONS]
 | `--json` | 开关 | 关 | 以 JSON 而非表格输出报告 |
 | `--output`、`-o` | 路径 | 无 | 同时把文本报告写入文件 |
 | `--skip-smoke` | 开关 | 关 | 不做端到端请求 |
-| `--platform` | `douyin` \| `tiktok` \| `bilibili` | `douyin` | 冒烟测试用哪个平台 |
+| `--platform` | `douyin` \| `tiktok` \| `bilibili` | 自动 | 冒烟测试用哪个平台。自动时选轮换中身份最多的平台；一个身份都没有时，配置了浏览器选抖音，否则选 B 站 |
 | `--smoke-url` | 字符串 | 该平台内置链接 | 冒烟测试使用的链接 |
 | `--probe-url` | 字符串 | `https://api.ipify.org?format=json` | 报告代理出口地址的服务。注意这**不是** `dtk proxy test` 用的默认值，后者是 `https://ipinfo.io/json` |
 

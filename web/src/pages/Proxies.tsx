@@ -223,6 +223,28 @@ function hostOf(masked: string | null | undefined): string | null {
 }
 
 /** What a single-proxy delete asks to be typed: the name it was given, else its host. */
+interface BulkOutcome {
+  done: number
+  failed: number
+  /** The first refusal's message, so the toast says why and not only how many. */
+  firstError: string | undefined
+}
+
+/** Run one request per id, all of them, and count rather than stop. */
+async function eachOf(ids: string[], act: (id: string) => Promise<unknown>): Promise<BulkOutcome> {
+  let failed = 0
+  let firstError: string | undefined
+  for (const id of ids) {
+    try {
+      await act(id)
+    } catch (error) {
+      failed += 1
+      firstError ??= error instanceof Error ? error.message : String(error)
+    }
+  }
+  return { done: ids.length - failed, failed, firstError }
+}
+
 function confirmNameOf(proxy: ProxyRow): string {
   return proxy.label?.trim() || hostOf(proxy.url_masked) || proxy.id
 }
@@ -339,18 +361,26 @@ export default function Proxies() {
     else toast.success(summary)
   }
 
-  const setHealthy = useApiMutation<unknown, { ids: string[]; healthy: boolean }>(
-    async ({ ids, healthy }) => {
-      for (const id of ids) await apiPut(paths.proxies.byId(id), { healthy })
-      return null
-    },
+  // A bulk action goes through every row and then says what happened. It
+  // stopped at the first refusal, with one generic toast and no word about
+  // the rows already changed before it.
+  const reportPartial = (outcome: BulkOutcome): void => {
+    toast.warning(t('console:proxy.bulk.partial', { done: outcome.done, failed: outcome.failed }), {
+      description: outcome.firstError,
+    })
+  }
+
+  const setHealthy = useApiMutation<BulkOutcome, { ids: string[]; healthy: boolean }>(
+    ({ ids, healthy }) => eachOf(ids, (id) => apiPut(paths.proxies.byId(id), { healthy })),
     {
-      onSuccess: async (_data, variables) => {
-        toast.success(
-          variables.healthy
-            ? t('console:proxy.bulk.enabled', { count: variables.ids.length })
-            : t('console:proxy.bulk.disabled', { count: variables.ids.length }),
-        )
+      onSuccess: async (outcome, variables) => {
+        if (outcome.failed > 0) reportPartial(outcome)
+        else
+          toast.success(
+            variables.healthy
+              ? t('console:proxy.bulk.enabled', { count: variables.ids.length })
+              : t('console:proxy.bulk.disabled', { count: variables.ids.length }),
+          )
         setSelected(new Set())
         await refresh()
       },
@@ -360,14 +390,12 @@ export default function Proxies() {
     },
   )
 
-  const remove = useApiMutation<unknown, string[]>(
-    async (ids) => {
-      for (const id of ids) await apiDelete(paths.proxies.byId(id))
-      return null
-    },
+  const remove = useApiMutation<BulkOutcome, string[]>(
+    (ids) => eachOf(ids, (id) => apiDelete(paths.proxies.byId(id))),
     {
-      onSuccess: async (_data, ids) => {
-        toast.success(t('console:proxy.deleted', { count: ids.length }))
+      onSuccess: async (outcome, ids) => {
+        if (outcome.failed > 0) reportPartial(outcome)
+        else toast.success(t('console:proxy.deleted', { count: ids.length }))
         setDeleting(null)
         setSelected(new Set())
         if (openId && ids.includes(openId)) setOpenId(null)

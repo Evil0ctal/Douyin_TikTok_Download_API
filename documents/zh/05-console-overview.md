@@ -570,7 +570,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose --skip-smoke
 docker compose -p dtk -f docker/compose.yml exec api dtk diagnose --json
 ```
 
-CLI 还额外支持 `--smoke-url`、`--probe-url` 和 `-o/--output`。它的 `--platform` 默认是抖音，不会自动选择，所以在只服务 B 站的实例上请传 `--platform bilibili`。见[命令行参考](./13-cli.md)。
+CLI 还额外支持 `--smoke-url`、`--probe-url` 和 `-o/--output`。不传 `--platform` 时，它和控制台用同样的方式选择冒烟测试的平台。见[命令行参考](./13-cli.md)。
 
 ## 哪个页面回答哪个问题
 

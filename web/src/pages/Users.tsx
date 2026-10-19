@@ -42,8 +42,8 @@ import { USER_ROLES, type UserRole } from '@/lib/types'
  *
  * The capability matrix is on the page rather than in the documentation because
  * a role name alone does not tell an administrator what they are handing over,
- * and doc 15 defines exactly three roles precisely so the whole rule set fits in
- * one small table.
+ * and doc 15 keeps the roles to three for people, plus the demo account's,
+ * precisely so the whole rule set fits in one small table.
  *
  * Two guards belong to the server and are surfaced here as its refusals: the
  * last administrator cannot be demoted or deleted, and you cannot delete the
