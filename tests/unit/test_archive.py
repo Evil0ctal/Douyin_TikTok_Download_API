@@ -11,8 +11,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 
 from dtk.core.types import ContentKind, Platform
+from dtk.db.models import ArchivedContent
 from dtk.models.content import (
     Author,
     AuthorStats,
@@ -294,3 +297,21 @@ def test_a_filter_defaults_to_matching_everything() -> None:
     spec = archive.ArchiveFilter()
     assert spec.platform is None
     assert spec.query is None
+
+
+def test_a_selection_narrows_to_exactly_those_posts() -> None:
+    """What exporting the selected cards sends: posts picked across pages that
+    share no filter."""
+    spec = archive.ArchiveFilter(keys=(("douyin", "7"), ("bilibili", "BV1xx411c7mD")))
+    sql = str(archive._apply(select(ArchivedContent), spec).compile(dialect=postgresql.dialect()))
+    assert "(archived_contents.platform, archived_contents.content_id) IN" in sql
+
+
+def test_an_empty_selection_matches_nothing_rather_than_everything() -> None:
+    """None is "no restriction"; an empty tuple is a selection of nothing. The
+    two must not collapse into each other, or exporting nothing exports all."""
+    dialect = postgresql.dialect()
+    unrestricted = archive._apply(select(ArchivedContent), archive.ArchiveFilter())
+    empty = archive._apply(select(ArchivedContent), archive.ArchiveFilter(keys=()))
+    assert " IN " not in str(unrestricted.compile(dialect=dialect))
+    assert " IN " in str(empty.compile(dialect=dialect))

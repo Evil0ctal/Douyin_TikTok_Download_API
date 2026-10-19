@@ -1895,7 +1895,9 @@
     },
     "filter": {
       "allStates": "全部状态",
-      "allPlatforms": "全部平台"
+      "allPlatforms": "全部平台",
+      "search": "搜索转写记录",
+      "searchPlaceholder": "转写文字、标题或作品 ID"
     },
     "normalization": {
       "applied": "已应用",
@@ -1904,7 +1906,10 @@
     },
     "empty": {
       "title": "还没有转写记录",
-      "description": "请在下载页面打开已保存视频的详情，然后发起转写。"
+      "description": "请在下载页面打开已保存视频的详情，然后发起转写。",
+      "action": "前往下载页面",
+      "filteredTitle": "没有匹配的记录",
+      "filteredDescription": "没有符合上面搜索和筛选条件的转写记录。"
     },
     "detail": {
       "title": "转写详情",
@@ -1921,7 +1926,9 @@
       "created": "创建时间",
       "started": "开始时间",
       "finished": "完成时间",
-      "provisional": "临时文本。标点和数字格式会在整段录音处理完后统一加上。"
+      "provisional": "临时文本。标点和数字格式会在整段录音处理完后统一加上。",
+      "openDownload": "查看对应的下载",
+      "openInLibrary": "在资料库中查看"
     },
     "cancel": {
       "action": "取消转写",
@@ -1948,6 +1955,18 @@
       "asr": "识别语音",
       "punctuation": "添加标点",
       "normalization": "规范数字写法"
+    },
+    "page": {
+      "range": "第 {from}-{to} 条，共 {total} 条",
+      "previous": "上一页",
+      "next": "下一页"
+    },
+    "transcriber": {
+      "offTitle": "转写功能未开启",
+      "offBody": "转写组件是可选的，默认关闭。用安装脚本部署的，可以从菜单开启：bash install.zh.sh --manage，然后选「管理」里的 11（开启或关闭转写）。自己部署的，启用 compose 的 transcriber profile 并设置 DTK_TRANSCRIBER_URL。",
+      "downTitle": "转写组件没有响应",
+      "downBody": "它已经配置好，但健康检查没有通过，恢复之前无法转写。可以用 ./dtkctl ps 看它的容器是否在运行，用 ./dtkctl logs transcriber 看它为什么停了。",
+      "guide": "查看开启方法"
     }
   },
   "downloads": {
@@ -1961,7 +1980,9 @@
       "failed": "无法发起转写",
       "evicted": "视频文件已被清理，请重新下载后再发起转写。",
       "unfinished": "请等待下载完成后再发起转写。",
-      "noVideo": "这条下载记录中没有可供转写的已完成视频文件。"
+      "noVideo": "这条下载记录中没有可供转写的已完成视频文件。",
+      "open": "查看转写",
+      "openRunning": "查看转写（进行中）"
     },
     "evicted": "已清理",
     "evictedHint": "文件已从媒体卷上删除——手动删除，或为了控制媒体容量上限被清理。记录保留，重新请求一次即可重新下载。",
@@ -2002,11 +2023,15 @@
     },
     "filter": {
       "allStates": "全部状态",
-      "allPlatforms": "全部平台"
+      "allPlatforms": "全部平台",
+      "search": "搜索下载",
+      "searchPlaceholder": "标题、作者或作品 ID"
     },
     "empty": {
       "title": "还没有保存任何内容",
-      "description": "可以在上方开始一个。文件写入服务器的媒体卷，按 平台/作者/作品 的结构存放，旁边附带 meta.json。"
+      "description": "可以在上方开始一个。文件写入服务器的媒体卷，按 平台/作者/作品 的结构存放，旁边附带 meta.json。",
+      "filteredTitle": "没有匹配的下载",
+      "filteredDescription": "没有符合上面搜索和筛选条件的下载。清空搜索，或换一个状态或平台试试。"
     },
     "toast": {
       "started": "已开始下载",
@@ -2056,6 +2081,7 @@
     },
     "target": {
       "unrecognised": "这不是本实例能识别的链接",
+      "shortLink": "这是短链接，要先打开才知道它指向哪里。请打开后粘贴完整地址，或改用「批量作品」，它会自动展开短链接。",
       "expected": {
         "video": "这是主页链接。请粘贴作品链接，或者改用“保存该作者的作品”。",
         "user": "这是作品链接。请改为粘贴作者的主页链接或 sec_user_id。"
@@ -2066,7 +2092,7 @@
         "label": "单个作品",
         "description": "粘贴链接或作品 ID。如果本实例没见过这个作品，会先抓取再下载。链接不会决定去连接哪个主机——它只会和本程序认识的平台做匹配，实际用到的只有里面的作品 ID。",
         "field": "链接或作品 ID",
-        "hint": "可以是分享链接、包含链接的分享文案，或者纯作品 ID。链接自带平台信息；纯 ID 需要用左边的菜单指定。",
+        "hint": "可以是分享链接、包含链接的分享文案，或者纯作品 ID。链接自带平台信息，B 站的 BV 号和 av 号也是；纯数字需要用左边的菜单指定。",
         "placeholder": "https://www.douyin.com/video/7408915107113127220",
         "action": "保存媒体"
       },
@@ -2082,7 +2108,7 @@
         "label": "评论",
         "description": "读取一个作品的评论并保存为 JSON 文件。评论是数据不是媒体，所以它下载到你的浏览器，而不是服务器的媒体卷。",
         "field": "链接或作品 ID",
-        "hint": "最多翻 5 页、每页 50 条，走身份池读取。每一页都是一次真实请求。",
+        "hint": "最多翻 5 页，走身份池读取，每页按平台上限取：抖音 50 条、TikTok 35 条、B 站 20 条。每一页都是一次真实请求。",
         "placeholder": "https://www.douyin.com/video/7408915107113127220",
         "action": "保存评论"
       },
@@ -2090,7 +2116,7 @@
         "label": "作者的作品",
         "description": "把某个作者最近一页的作品全部排队下载。粘贴他的主页链接即可，平台信息从链接里来。",
         "field": "主页链接或作者 ID",
-        "hint": "可以是主页链接，也可以是资料库和调试台里给你的那串 sec_user_id。链接自带平台信息；纯 ID 需要用左边的菜单指定。",
+        "hint": "可以是主页链接，也可以是资料库和调试台里给你的作者 ID：抖音是 sec_user_id，TikTok 是 secUid，B 站是数字 mid。链接自带平台信息；纯 ID 需要用左边的菜单指定。",
         "placeholder": "https://www.douyin.com/user/MS4wLjABAAAA… 或 MS4wLjABAAAA…",
         "action": "排队下载"
       }
@@ -2103,7 +2129,10 @@
       "label": "下载多少个",
       "hint": "从最新的开始，自动翻页直到取够这么多。每个作品都是一次下载，每翻一页都是一次走身份池的读取。",
       "count": "最新的 {count} 个",
-      "all": "全部（feed 给多少取多少）"
+      "all": "全部（feed 给多少取多少）",
+      "confirmTitle": "把这个作者的全部作品都排队下载？",
+      "confirmBody": "这会通过身份池读取他最多 {pages} 页作品（大约 {posts} 个），并为每个作品发起一次下载。每次下载都会消耗身份池并占用媒体卷空间。运行过程中可以随时停止。",
+      "confirmAction": "全部排队"
     },
     "progress": {
       "files": "{done}/{total} 个文件",
@@ -2117,6 +2146,36 @@
       "hint": "从头重新抓取这个作品。没有断点续传——媒体链接带签名且会过期，已下载的部分接不上去。",
       "started": "正在重新下载",
       "failed": "重试失败"
+    },
+    "detail": {
+      "loading": "正在加载这条下载…",
+      "openInLibrary": "在资料库中查看"
+    },
+    "page": {
+      "range": "第 {from}-{to} 条，共 {total} 条",
+      "previous": "上一页",
+      "next": "下一页"
+    },
+    "run": {
+      "reading": "正在读取第 {page} 页 · 已找到 {found} 个",
+      "queued": "已排队 {done} / {total} 个 · 失败 {failed} 个 · {skipped} 个本地已有",
+      "commentsSaved": "{count, plural, =0 {没有可保存的评论} other {已保存 # 条评论}}",
+      "stop": "停止",
+      "dismiss": "关闭",
+      "stopped": "已停止。之后的内容没有读取，也没有排队。",
+      "errorStop": "在第 {page} 页停止：{message} 前面几页取到的内容已保留。",
+      "loginStop": {
+        "author": "从第 {page} 页起需要已登录的 {platform} 身份，所以在这里停下，并把前面几页取到的作品排了队。",
+        "comments": "从第 {page} 页起需要已登录的 {platform} 身份，所以在这里停下，并保存了前面几页取到的评论。"
+      },
+      "loginFirst": "读取这个需要已登录的 {platform} 身份，但当前没有可用的。",
+      "signIn": "添加已登录的身份",
+      "firstError": "第一个失败的原因：{message}",
+      "guest": {
+        "bilibiliComments": "这次是游客身份应答的，而 B 站只给游客看最热的三条评论——实际评论可能多得多。",
+        "douyinAuthor": "这次是游客身份应答的，而抖音给游客看的作者作品会漏掉最新的几条——最新作品可能不在其中。",
+        "generic": "这次是游客身份应答的，拿到的可能比已登录身份看到的少。"
+      }
     }
   },
   "library": {
@@ -2151,7 +2210,13 @@
       "storedOnly": "仅已下载",
       "notStoredOnly": "仅未下载",
       "activeCount": "有 {count} 个筛选条件生效",
-      "noneActive": "未筛选，显示全部"
+      "noneActive": "未筛选，显示全部",
+      "authorChip": "作者：{name}",
+      "tagChip": "标签：#{tag}",
+      "removeAuthor": "取消按这个作者筛选",
+      "removeTag": "取消按这个标签筛选",
+      "byAuthor": "只看 {name} 的作品",
+      "byTag": "只看带 #{tag} 标签的作品"
     },
     "column": {
       "post": "作品",
@@ -2189,7 +2254,9 @@
       "goneHint": "这个作品在平台上已经没有了。这里保留的是本实例当时看到的样子。",
       "savedNoVideo": "这个作品的媒体已保存，但没有视频文件——图集类作品保存的是图片。",
       "exportFiles": "导出已保存的文件",
-      "transcribeUnsaved": "请先用下方的按钮把媒体保存到本实例；转写读取的是已保存的文件，而不是平台上的。"
+      "transcribeUnsaved": "请先用下方的按钮把媒体保存到本实例；转写读取的是已保存的文件，而不是平台上的。",
+      "loading": "正在加载作品…",
+      "openDownload": "查看对应的下载"
     },
     "page": {
       "previous": "上一页",
@@ -2198,7 +2265,9 @@
     },
     "empty": {
       "title": "还没有归档任何内容",
-      "description": "作品会在被解析时自动归档。用解析工具或接口解析一个作品，它就会出现在这里。"
+      "description": "作品在被抓取时会自动归档。在「下载」页面保存一个——单个链接、一批链接或某个作者的作品都行——或者在调试台、通过接口解析一个，它就会出现在这里。",
+      "filteredTitle": "没有匹配的作品",
+      "filteredDescription": "没有符合这些筛选条件的归档作品。去掉一个条件，或者全部清除。"
     },
     "toast": {
       "stored": "已开始保存。完成后会出现在「下载」列表里，这里也会出现播放器。",
@@ -2279,7 +2348,19 @@
       "addTo": "加入合集",
       "removeFrom": "从当前合集移出",
       "noCollections": "还没有合集",
-      "delete": "删除"
+      "delete": "删除",
+      "store": "保存媒体",
+      "storeHint": "把选中的作品逐个下载到本实例的磁盘。已经保存过的只计数，不会重新抓取。",
+      "storeProgress": "正在保存 {done} / {total}…",
+      "storeDone": "已排队 {done} 个 · {skipped} 个已保存过 · 失败 {failed} 个",
+      "transcribe": "转写",
+      "transcribeHint": "为选中的、媒体已保存在本地的视频逐个发起转写。图集和还没保存的作品会被跳过并计数。",
+      "transcribeProgress": "正在转写 {done} / {total}…",
+      "transcribeDone": "已提交转写 {done} 个 · 跳过 {skipped} 个（不是已保存的视频） · 失败 {failed} 个",
+      "export": "导出选中项",
+      "stop": "停止",
+      "stopped": "在处理完全部选中项之前停止了。",
+      "firstError": "第一个失败的原因：{message}"
     },
     "delete": {
       "title": "确定删除这些作品？",
@@ -2295,6 +2376,10 @@
     "pauseConfirm": "{count, plural, other {确定暂停全部 # 个关注目标？}}已经采集到的内容不受影响，它们只是不再运行，直到你重新启用。",
     "paused": "已暂停",
     "remove": "移除",
+    "removeTitle": "停止关注 {target}？",
+    "removeBody": "它的采集计划会被删除。已经采集到的内容仍保留在归档和快照历史里。",
+    "editLabel": "编辑 {target}",
+    "openInLibrary": "在资料库中查看它采集到的内容（{target}）",
     "neverRun": "尚未运行",
     "failing": "{count, plural, other {连续失败 # 次}}",
     "toggleLabel": "定时采集 {target}",
@@ -2319,10 +2404,22 @@
       "kind": "关注",
       "target": "目标",
       "targetHint": {
-        "author": "作者的稳定 ID——抖音是 sec_user_id，TikTok 是数字 ID。不要填抖音号，用户会改。",
-        "content": "作品 ID，和归档里保存的一致。"
+        "author": "主页链接，或作者的稳定 ID：抖音是 sec_user_id，TikTok 是 secUid，B 站是数字 mid。不要填抖音号之类的用户名，用户会改。填链接时平台以链接为准。",
+        "content": "作品链接，或归档里保存的作品 ID（B 站是 BV 号）。填链接时平台以链接为准。"
       },
-      "interval": "每隔"
+      "interval": "每隔",
+      "label": "名称",
+      "labelHint": "可不填。留空时，首次运行会自动填上作者的名字。"
+    },
+    "target": {
+      "unrecognised": "这不是本实例能识别的链接。",
+      "shortLink": "这是短链接，要先打开才知道它指向哪里。请在浏览器里打开后粘贴完整地址。",
+      "expectedUser": "这是作品链接。关注作者请粘贴他的主页链接，或者把「关注」改成作品。",
+      "expectedVideo": "这是主页链接。关注作品请粘贴作品自己的链接，或者把「关注」改成作者。"
+    },
+    "edit": {
+      "title": "编辑关注目标",
+      "labelHint": "清空后名称交还给平台：下一次运行会自动填上。"
     },
     "kind": {
       "author": "一个作者",
@@ -2343,6 +2440,7 @@
     "toast": {
       "added": "已开始关注，首次采集已入队",
       "addFailed": "无法关注该目标",
+      "saved": "已保存",
       "removed": "已停止关注。已经采集到的内容全部保留。",
       "paused": "{count, plural, other {已暂停 # 个目标}}"
     }

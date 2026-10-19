@@ -141,7 +141,7 @@ async def add(
         platform=platform,
         kind=kind,
         target_id=target,
-        label=(label or None),
+        label=(label or "").strip() or None,
         interval_seconds=interval_seconds,
         pages=max(1, min(pages, 10)),
         next_run_at=datetime.now(UTC),
@@ -181,11 +181,21 @@ async def update_entry(
     interval_seconds: int | None = None,
     enabled: bool | None = None,
     pages: int | None = None,
+    label: str | None = None,
+    label_given: bool = False,
     floor: int,
 ) -> WatchlistEntry | None:
+    """Change one entry. ``label_given`` tells a cleared label from an absent one.
+
+    Sent-and-null and not-sent are the same value and different requests, as
+    with a collection's note: null clears the label, so the next run fills it
+    from the platform again, and leaving it out keeps whatever is there.
+    """
     entry = await session.get(WatchlistEntry, entry_id)
     if entry is None:
         return None
+    if label_given:
+        entry.label = (label or "").strip() or None
     if interval_seconds is not None:
         if interval_seconds < floor:
             raise InvalidParam(
@@ -332,9 +342,13 @@ async def mark_result(
 ) -> None:
     """Record how the submitted task turned out.
 
-    ``label`` is filled from the first successful run so an operator who pasted
-    a sec_user_id sees a nickname afterwards. It is only ever written, never
-    cleared: a rename upstream should update it, a failed run should not blank it.
+    ``label`` is filled from a successful run so an operator who pasted a
+    sec_user_id sees a nickname afterwards - but only while the entry has none.
+    It used to be written on every run, which followed a rename upstream and
+    also overwrote, an interval later, any name the operator had given it on
+    create, where the API promised it would be used. A name somebody chose
+    wins; clearing it hands the label back to the platform. A failed run never
+    blanks it.
 
     A failure here also backs the entry off. That is the case worth having -
     an id that does not exist fails at the platform, not at submission, so a
@@ -352,7 +366,7 @@ async def mark_result(
         return
     entry.consecutive_failures = 0
     entry.last_error = None
-    if label:
+    if label and not entry.label:
         entry.label = label
 
 

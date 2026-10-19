@@ -7,6 +7,7 @@ the pool it burns is the one every interactive request shares.
 
 from __future__ import annotations
 
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -115,3 +116,65 @@ class TestLabel:
         # The label is a convenience. An unrecognised shape must not fail a
         # collection that otherwise worked.
         assert watchlist.label_from_result(payload) is None
+
+
+class OneEntry:
+    """A session holding a single watchlist entry."""
+
+    def __init__(self, held: SimpleNamespace) -> None:
+        self.held = held
+
+    async def get(self, _model: object, _key: object) -> SimpleNamespace:
+        return self.held
+
+
+class TestNamedByTheOperator:
+    """A name somebody gave an entry outlives the runs that follow it."""
+
+    async def test_a_run_does_not_overwrite_a_chosen_label(self):
+        """It used to: every successful run wrote the platform's nickname, so a
+        label given on create - which the API promised would be used - lasted
+        until the first run, and one edited in the console until the next."""
+        held = entry(label="the cooking one", consecutive_failures=0, last_error=None)
+        await watchlist.mark_result(OneEntry(held), uuid.uuid4(), label="someone")  # type: ignore[arg-type]
+        assert held.label == "the cooking one"
+
+    async def test_a_run_still_names_an_entry_that_has_none(self):
+        held = entry(label=None, consecutive_failures=0, last_error=None)
+        await watchlist.mark_result(OneEntry(held), uuid.uuid4(), label="someone")  # type: ignore[arg-type]
+        assert held.label == "someone"
+
+    async def test_an_edit_sets_it(self):
+        held = entry(label="someone")
+        await watchlist.update_entry(
+            OneEntry(held),  # type: ignore[arg-type]
+            uuid.uuid4(),
+            label="  the cooking one ",
+            label_given=True,
+            floor=900,
+        )
+        assert held.label == "the cooking one"
+
+    @pytest.mark.parametrize("cleared", [None, "", "   "])
+    async def test_clearing_it_hands_it_back_to_the_platform(self, cleared):
+        held = entry(label="the cooking one")
+        await watchlist.update_entry(
+            OneEntry(held),  # type: ignore[arg-type]
+            uuid.uuid4(),
+            label=cleared,
+            label_given=True,
+            floor=900,
+        )
+        assert held.label is None
+
+    async def test_leaving_it_out_keeps_it(self):
+        """Sent-and-null and not-sent are different requests: pausing an entry
+        must not wipe its name."""
+        held = entry(label="the cooking one", enabled=True)
+        await watchlist.update_entry(
+            OneEntry(held),  # type: ignore[arg-type]
+            uuid.uuid4(),
+            enabled=False,
+            floor=900,
+        )
+        assert held.label == "the cooking one"

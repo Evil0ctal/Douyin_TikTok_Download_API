@@ -69,7 +69,7 @@ curl -sS "$DTK_BASE_URL/api/v1/auth/me" -H "X-API-Key: $DTK_API_KEY"
 | `tiktok:read` | TikTok 内容接口，以及对 TikTok 链接的 `/parse` |
 | `bilibili:read` | B 站内容接口，以及对 B 站链接的 `/parse` |
 | `archive:read` | `GET /api/v1/archive…`——本实例已经存下来的内容 |
-| `archive:export` | `GET /api/v1/archive/export`——一次调用拿走整个集合 |
+| `archive:export` | `GET /api/v1/archive/export`——一次调用拿走整个集合；`POST /api/v1/archive/export`——只导出请求体里列出的作品 |
 | `media:read` | 下载记录与已存文件 |
 | `media:write` | 发起、置顶和取消下载，以及删除下载的文件 |
 | `identity:manage` | 身份池，以及 `identity`、`explain` 这两个请求参数 |
@@ -651,6 +651,7 @@ B 站的分页大小上限是 **20**；`count` 超过它是 `400`。
 | `GET /healthz`、`GET /readyz` | 普通 JSON 对象 | 给负载均衡器用的探针；`/healthz` 不碰任何依赖，`/readyz` 在 Postgres 或 Redis 挂掉时返回 `503` |
 | `GET /api/v1/tasks/{task_id}/events` | `text/event-stream` | Server-sent events |
 | `GET /api/v1/archive/export` | `application/x-ndjson` | 每行一条作品，按页流式输出；上限 50000 行；需要 `archive:export` |
+| `POST /api/v1/archive/export` | `application/x-ndjson` | 同上，但导出的是 `items` 里列出的作品，而不是按筛选条件 |
 | `GET /api/v1/downloads/{download_id}/files/{name}` | 文件自身的类型 | 已存的文件字节，带一个让浏览器保存而不是渲染的 `Content-Disposition` |
 
 ## 完整示例

@@ -364,6 +364,10 @@ class ArchiveFilter:
     #: for the rest, None for both. Like the collection filter this is a fact
     #: about what was kept rather than about the post.
     stored: bool | None = None
+    #: Only these posts, by (platform, content_id): a hand-picked selection,
+    #: which is what exporting the console's selected cards sends. None for no
+    #: restriction; an empty tuple matches nothing.
+    keys: tuple[tuple[str, str], ...] | None = None
 
 
 def _cursor_encode(row: ArchivedContent) -> str:
@@ -465,6 +469,10 @@ def _apply(statement: Any, spec: ArchiveFilter) -> Any:
         )
     if spec.stored is not None:
         statement = statement.where(_stored_clause() if spec.stored else ~_stored_clause())
+    if spec.keys is not None:
+        statement = statement.where(
+            tuple_(ArchivedContent.platform, ArchivedContent.content_id).in_(list(spec.keys))
+        )
     if spec.query and spec.query.strip():
         statement = statement.where(_search_clause(spec.query.strip()))
     return statement

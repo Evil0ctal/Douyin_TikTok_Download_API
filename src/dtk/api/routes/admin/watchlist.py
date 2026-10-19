@@ -138,7 +138,10 @@ async def update_watch(
     entry_id: uuid.UUID = ENTRY_ID,
     principal: Principal = Depends(manage_pool),
 ) -> Any:
-    """Change the interval, the page depth, or whether it runs at all.
+    """Change the label, the interval, the page depth, or whether it runs at all.
+
+    A label set here is kept: runs fill one in only while the entry has none.
+    Send `label: null` to hand it back to the platform's nickname.
 
     Re-enabling clears the failure backoff: the operator is asserting that
     whatever was wrong is fixed, and making them wait out an eight-hour backoff
@@ -151,6 +154,8 @@ async def update_watch(
         interval_seconds=body.interval_seconds,
         enabled=body.enabled,
         pages=body.pages,
+        label=body.label,
+        label_given="label" in body.model_fields_set,
         floor=_floor(request),
     )
     if entry is None:

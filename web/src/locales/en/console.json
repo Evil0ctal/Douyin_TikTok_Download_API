@@ -1895,7 +1895,9 @@
     },
     "filter": {
       "allStates": "All states",
-      "allPlatforms": "All platforms"
+      "allPlatforms": "All platforms",
+      "search": "Search transcriptions",
+      "searchPlaceholder": "Words from the text, a title or a post id"
     },
     "normalization": {
       "applied": "Applied",
@@ -1904,7 +1906,10 @@
     },
     "empty": {
       "title": "No transcriptions yet",
-      "description": "Open a stored video's details on the Downloads page to start one."
+      "description": "Open a stored video's details on the Downloads page to start one.",
+      "action": "Go to Downloads",
+      "filteredTitle": "Nothing matches",
+      "filteredDescription": "No transcription matches the search and filters above."
     },
     "detail": {
       "title": "Transcription details",
@@ -1921,7 +1926,9 @@
       "created": "Created",
       "started": "Started",
       "finished": "Finished",
-      "provisional": "Provisional text. Punctuation and number formatting are applied once the whole recording is done."
+      "provisional": "Provisional text. Punctuation and number formatting are applied once the whole recording is done.",
+      "openDownload": "Open the download",
+      "openInLibrary": "Open in the Library"
     },
     "cancel": {
       "action": "Cancel transcription",
@@ -1948,6 +1955,18 @@
       "asr": "Recognising speech",
       "punctuation": "Adding punctuation",
       "normalization": "Writing numbers as digits"
+    },
+    "page": {
+      "range": "{from}-{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "transcriber": {
+      "offTitle": "Transcription is not turned on",
+      "offBody": "The transcriber is optional and off by default. With the guided install, turn it on from the menu: bash install.sh --manage, then Manage, 11 (Transcription on or off). On an install of your own, start the transcriber compose profile and set DTK_TRANSCRIBER_URL.",
+      "downTitle": "The transcriber is not answering",
+      "downBody": "It is configured, but it failed its health check, so nothing can be transcribed until it is back. See whether its container is running with ./dtkctl ps, and why it stopped with ./dtkctl logs transcriber.",
+      "guide": "How to turn it on"
     }
   },
   "downloads": {
@@ -1961,7 +1980,9 @@
       "failed": "Could not start the transcription",
       "evicted": "The video file has been cleaned up. Download it again before transcribing.",
       "unfinished": "Wait for the download to finish before transcribing.",
-      "noVideo": "This download has no completed video file to transcribe."
+      "noVideo": "This download has no completed video file to transcribe.",
+      "open": "Open the transcript",
+      "openRunning": "Open the transcript (in progress)"
     },
     "evicted": "Cleaned up",
     "evictedHint": "The files were removed from the media volume - by hand, or to stay under the media ceiling. The record is kept, and asking again fetches them back.",
@@ -2002,11 +2023,15 @@
     },
     "filter": {
       "allStates": "Any state",
-      "allPlatforms": "Every platform"
+      "allPlatforms": "Every platform",
+      "search": "Search downloads",
+      "searchPlaceholder": "Title, author or post id"
     },
     "empty": {
       "title": "Nothing stored yet",
-      "description": "Start one above. Files land on the server's media volume, laid out as platform/author/post with a meta.json beside them."
+      "description": "Start one above. Files land on the server's media volume, laid out as platform/author/post with a meta.json beside them.",
+      "filteredTitle": "Nothing matches",
+      "filteredDescription": "No download matches the search and filters above. Clear the search, or pick another state or platform."
     },
     "toast": {
       "started": "Download started",
@@ -2056,6 +2081,7 @@
     },
     "target": {
       "unrecognised": "That is not a link this instance recognises",
+      "shortLink": "That is a short link, which says nothing until it is opened. Open it and paste the full address, or use Many posts, which follows it.",
       "expected": {
         "video": "That is a profile link. Paste a post link, or use \"Save this author's posts\".",
         "user": "That is a post link. Paste the author's profile link or their sec_user_id."
@@ -2066,7 +2092,7 @@
         "label": "A post",
         "description": "Paste a link or a post id. If this instance has never seen the post it fetches it first, then downloads it. A link is not a host this dials: it is matched against the platforms this build knows, and only the post id inside it is used.",
         "field": "Link or post id",
-        "hint": "A share link, the share text around one, or a bare post id. A link says which platform it is; a bare id needs the menu beside it.",
+        "hint": "A share link, the share text around one, or a bare post id. A link says which platform it is, and so does a Bilibili BV or av id; a bare number needs the menu beside it.",
         "placeholder": "https://www.douyin.com/video/7408915107113127220",
         "action": "Save the media"
       },
@@ -2082,7 +2108,7 @@
         "label": "Comments",
         "description": "Read a post's comments and save them as a JSON file. Comments are data rather than media, so they come to your browser, not to the server's media volume.",
         "field": "Link or post id",
-        "hint": "Reads up to 5 pages of 50 through the identity pool. Each page is a real request.",
+        "hint": "Reads up to 5 pages through the identity pool, each as long as the platform serves: 50 comments on Douyin, 35 on TikTok, 20 on Bilibili. Each page is a real request.",
         "placeholder": "https://www.douyin.com/video/7408915107113127220",
         "action": "Save the comments"
       },
@@ -2090,7 +2116,7 @@
         "label": "An author's posts",
         "description": "Queue a download for everything on an author's most recent page. Paste their profile link; the platform comes from the link.",
         "field": "Profile link or author id",
-        "hint": "A profile link, or the bare sec_user_id the archive and the playground give you. The platform comes from a link; a bare id needs the menu.",
+        "hint": "A profile link, or the bare author id the archive and the playground give you: sec_user_id on Douyin, secUid on TikTok, the numeric mid on Bilibili. The platform comes from a link; a bare id needs the menu.",
         "placeholder": "https://www.douyin.com/user/MS4wLjABAAAA…",
         "action": "Queue their posts"
       }
@@ -2103,7 +2129,10 @@
       "label": "How many posts",
       "hint": "Newest first, paging the feed until it has this many. Every post is a download and every page is a read through the identity pool.",
       "count": "The newest {count}",
-      "all": "Everything the feed will give up"
+      "all": "Everything the feed will give up",
+      "confirmTitle": "Queue everything this author has posted?",
+      "confirmBody": "This reads up to {pages} pages of their posts through the identity pool - around {posts} posts - and starts one download for each. Every download spends the pool and fills the media volume. You can stop it while it runs.",
+      "confirmAction": "Queue them all"
     },
     "progress": {
       "files": "{done}/{total} files",
@@ -2117,6 +2146,36 @@
       "hint": "Fetches the post again from scratch. There is no resume - media links are signed and expire, so partial bytes cannot be continued.",
       "started": "Trying again",
       "failed": "Could not retry"
+    },
+    "detail": {
+      "loading": "Loading the download…",
+      "openInLibrary": "Open in the Library"
+    },
+    "page": {
+      "range": "{from}-{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "run": {
+      "reading": "Reading page {page} · {found} found",
+      "queued": "Queued {done} of {total} · {failed} failed · {skipped} already here",
+      "commentsSaved": "{count, plural, =0 {No comments to save} one {# comment saved} other {# comments saved}}",
+      "stop": "Stop",
+      "dismiss": "Dismiss",
+      "stopped": "Stopped. Nothing after that point was read or queued.",
+      "errorStop": "Stopped at page {page}: {message} What the earlier pages gave is kept.",
+      "loginStop": {
+        "author": "Page {page} onwards needs a signed-in {platform} identity, so it stopped there and queued what the earlier pages gave.",
+        "comments": "Page {page} onwards needs a signed-in {platform} identity, so it stopped there and saved what the earlier pages gave."
+      },
+      "loginFirst": "Reading this needs a signed-in {platform} identity, and none is available.",
+      "signIn": "Add a signed-in identity",
+      "firstError": "First failure: {message}",
+      "guest": {
+        "bilibiliComments": "A guest identity answered, and Bilibili shows a guest only the three hottest comments - the thread may be much longer.",
+        "douyinAuthor": "A guest identity answered, and Douyin leaves an author's newest posts out of what it shows a guest - the latest may be missing.",
+        "generic": "A guest identity answered, so this may be less than a signed-in identity would see."
+      }
     }
   },
   "library": {
@@ -2151,7 +2210,13 @@
       "storedOnly": "Downloaded only",
       "notStoredOnly": "Not downloaded",
       "activeCount": "{count, plural, one {# filter narrowing this list} other {# filters narrowing this list}}",
-      "noneActive": "Showing everything"
+      "noneActive": "Showing everything",
+      "authorChip": "Author: {name}",
+      "tagChip": "Tag: #{tag}",
+      "removeAuthor": "Stop narrowing to this author",
+      "removeTag": "Stop narrowing to this tag",
+      "byAuthor": "Show only posts by {name}",
+      "byTag": "Show only posts tagged #{tag}"
     },
     "column": {
       "post": "Post",
@@ -2189,7 +2254,9 @@
       "goneHint": "This post is no longer available on the platform. What is here is what this instance saw while it still was.",
       "savedNoVideo": "The media for this post is stored, but it has no video file - an image post keeps its pictures instead.",
       "exportFiles": "Export the stored files",
-      "transcribeUnsaved": "Save the media to this instance first, with the button below; the transcriber reads the stored file, not the platform's."
+      "transcribeUnsaved": "Save the media to this instance first, with the button below; the transcriber reads the stored file, not the platform's.",
+      "loading": "Loading the post…",
+      "openDownload": "Open the download"
     },
     "page": {
       "previous": "Previous",
@@ -2198,7 +2265,9 @@
     },
     "empty": {
       "title": "Nothing archived yet",
-      "description": "Posts are archived automatically as they are parsed. Parse one from the parse tool or the API and it will appear here."
+      "description": "Posts are archived automatically as they are fetched. Store one from Downloads - a link, a batch of links, or an author's posts - or parse one in the Playground or through the API, and it will appear here.",
+      "filteredTitle": "Nothing matches",
+      "filteredDescription": "No archived post matches these filters. Remove a filter, or clear them all."
     },
     "toast": {
       "stored": "Saving started. The row appears under Downloads and the player here once it lands.",
@@ -2279,7 +2348,19 @@
       "addTo": "Add to collection",
       "removeFrom": "Remove from this collection",
       "noCollections": "No collections yet",
-      "delete": "Delete"
+      "delete": "Delete",
+      "store": "Save media",
+      "storeHint": "Download each selected post to this instance's disk, one at a time. Posts already stored are counted, not fetched again.",
+      "storeProgress": "Saving {done} of {total}…",
+      "storeDone": "{done} queued · {skipped} already stored · {failed} failed",
+      "transcribe": "Transcribe",
+      "transcribeHint": "Transcribe each selected video whose media is stored here. Image posts and posts not saved yet are skipped and counted.",
+      "transcribeProgress": "Transcribing {done} of {total}…",
+      "transcribeDone": "{done} sent to the transcriber · {skipped} skipped, not a stored video · {failed} failed",
+      "export": "Export selected",
+      "stop": "Stop",
+      "stopped": "Stopped before the end of the selection.",
+      "firstError": "First failure: {message}"
     },
     "delete": {
       "title": "Delete these posts?",
@@ -2295,6 +2376,10 @@
     "pauseConfirm": "{count, plural, one {Pause # watched target?} other {Pause all # watched targets?}} Nothing already collected is affected; they simply stop running until you enable them again.",
     "paused": "Paused",
     "remove": "Remove",
+    "removeTitle": "Stop watching {target}?",
+    "removeBody": "Its schedule is removed. Everything it has already collected stays in the archive and in the snapshot history.",
+    "editLabel": "Edit {target}",
+    "openInLibrary": "See what it has collected, in the Library ({target})",
     "neverRun": "Not run yet",
     "failing": "{count, plural, one {# failure in a row} other {# failures in a row}}",
     "toggleLabel": "Collect {target} on a schedule",
@@ -2319,10 +2404,22 @@
       "kind": "Watch",
       "target": "Target",
       "targetHint": {
-        "author": "The author's stable id - sec_user_id on Douyin, the numeric id on TikTok. Not the handle: users change those.",
-        "content": "The post id, as the archive holds it."
+        "author": "A profile link, or the author's stable id: sec_user_id on Douyin, secUid on TikTok, the numeric mid on Bilibili. Not the handle - users change those. A link sets the platform.",
+        "content": "A post link, or the post id as the archive holds it - a BV id on Bilibili. A link sets the platform."
       },
-      "interval": "Every"
+      "interval": "Every",
+      "label": "Name",
+      "labelHint": "Optional. Left empty, the first run fills in the author's name."
+    },
+    "target": {
+      "unrecognised": "That is not a link this instance recognises.",
+      "shortLink": "That is a short link, which says nothing until it is opened. Open it and paste the full address.",
+      "expectedUser": "That is a post link. Watch an author with their profile link, or switch Watch to a post.",
+      "expectedVideo": "That is a profile link. Watch a post with its own link, or switch Watch to an author."
+    },
+    "edit": {
+      "title": "Edit a watched target",
+      "labelHint": "Empty hands the name back to the platform: the next run fills it in."
     },
     "kind": {
       "author": "An author",
@@ -2343,6 +2440,7 @@
     "toast": {
       "added": "Now watching; the first run is queued",
       "addFailed": "Could not watch that target",
+      "saved": "Saved",
       "removed": "Stopped watching. Everything already collected is kept.",
       "paused": "{count, plural, one {Paused # target} other {Paused # targets}}"
     }
