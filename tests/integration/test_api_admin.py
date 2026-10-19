@@ -498,6 +498,112 @@ async def test_a_new_key_is_shown_once_and_then_never_again(client: Any, api_app
     assert {"api_key.created", "api_key.revoked"} <= set(await audit_actions())
 
 
+async def test_an_edited_key_keeps_working_with_its_new_scopes(client: Any, api_app: Any) -> None:
+    """The 5.1.6 notes tell operators to edit a key to add `bilibili:read`.
+
+    There was no edit: the only way to widen a key was to mint another and hand
+    it to every script that held the first. The key itself must not change, or
+    an edit is a re-mint with extra steps.
+    """
+    await signed_in(client)
+    created = envelope(
+        await client.post(
+            "/api/v1/admin/api-keys",
+            json={"name": "scripts", "scopes": [Scope.DOUYIN_READ.value]},
+        )
+    )["data"]
+    headers = {"Authorization": f"Bearer {created['key']}"}
+
+    async with anonymous_client(api_app) as caller:
+        before = await caller.get("/api/v1/archive/stats", headers=headers)
+        assert before.status_code == 403
+
+        response = await client.patch(
+            f"/api/v1/admin/api-keys/{created['id']}",
+            json={
+                "name": "nightly scripts",
+                "scopes": [Scope.DOUYIN_READ.value, Scope.ARCHIVE_READ.value],
+            },
+        )
+        assert response.status_code == 200, response.text
+        row = envelope(response)["data"]
+        assert row["name"] == "nightly scripts"
+        assert set(row["scopes"]) == {Scope.DOUYIN_READ.value, Scope.ARCHIVE_READ.value}
+        assert row["prefix"] == created["prefix"]
+        assert created["key"] not in response.text
+
+        after = await caller.get("/api/v1/archive/stats", headers=headers)
+        assert after.status_code == 200
+
+    async with session_scope() as session:
+        audit = (
+            await session.scalars(select(AuditLog).where(AuditLog.action == "api_key.updated"))
+        ).one()
+    assert audit.target_id == created["id"]
+    assert set(audit.detail["fields"]) == {"name", "scopes"}
+    assert audit.detail["from"]["scopes"] == [Scope.DOUYIN_READ.value]
+
+
+async def test_an_edit_with_nothing_in_it_is_refused(client: Any) -> None:
+    user_id = await signed_in(client)
+    await make_api_key(user_id)
+    key_id = envelope(await client.get("/api/v1/admin/api-keys"))["data"][0]["id"]
+    response = await client.patch(f"/api/v1/admin/api-keys/{key_id}", json={})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_editing_a_key_that_does_not_exist_is_a_404(client: Any) -> None:
+    await signed_in(client)
+    response = await client.patch(f"/api/v1/admin/api-keys/{uuid.uuid4()}", json={"name": "x"})
+    assert response.status_code == 404
+
+
+async def test_a_revoked_key_cannot_be_edited(client: Any) -> None:
+    """Nothing can use it again; widening it would only make the audit trail
+    claim a key had a reach it never exercised."""
+    user_id = await signed_in(client)
+    await make_api_key(user_id)
+    key_id = envelope(await client.get("/api/v1/admin/api-keys"))["data"][0]["id"]
+    assert (await client.delete(f"/api/v1/admin/api-keys/{key_id}")).status_code == 200
+
+    response = await client.patch(
+        f"/api/v1/admin/api-keys/{key_id}", json={"scopes": [Scope.BILIBILI_READ.value]}
+    )
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["status"] == "revoked"
+
+
+async def test_a_key_cannot_edit_another_past_its_own_scopes(api_app: Any) -> None:
+    """The escalation the create route closed, reopened by an edit if the edit
+    did not run the same check."""
+    user_id = await make_user()
+    await make_api_key(user_id, scopes=(Scope.DOUYIN_READ,), name="target")
+    caller = await make_api_key(user_id, scopes=(Scope.IDENTITY_MANAGE,), name="caller")
+    async with session_scope() as session:
+        target_id = (await session.scalars(select(ApiKey.id).where(ApiKey.name == "target"))).one()
+
+    async with anonymous_client(api_app) as http:
+        response = await http.patch(
+            f"/api/v1/admin/api-keys/{target_id}",
+            json={"scopes": [Scope.ADMIN.value]},
+            headers={"Authorization": f"Bearer {caller}"},
+        )
+    assert response.status_code == 403
+    async with session_scope() as session:
+        stored = await session.get(ApiKey, target_id)
+        assert stored is not None
+        assert stored.scopes == [Scope.DOUYIN_READ.value]
+
+
+async def test_a_viewer_cannot_edit_a_key(client: Any) -> None:
+    owner = await make_user(username="owner")
+    await make_api_key(owner)
+    await signed_in(client, username="watcher", role=UserRole.VIEWER)
+    key_id = envelope(await client.get("/api/v1/admin/api-keys"))["data"][0]["id"]
+    response = await client.patch(f"/api/v1/admin/api-keys/{key_id}", json={"name": "mine now"})
+    assert response.status_code == 403
+
+
 async def test_key_creation_rejects_a_past_expiry(client: Any) -> None:
     await signed_in(client)
     response = await client.post(

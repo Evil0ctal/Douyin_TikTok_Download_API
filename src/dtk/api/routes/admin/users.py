@@ -8,6 +8,9 @@ instance has no support desk to undo a mistake:
   administrator can only be repaired from a shell inside the container;
 * deleting or re-keying an account revokes its sessions, so a removed user does
   not keep a working console tab.
+
+A third covers the one account that is not an administrator's to shape: the
+demo account belongs to ``demo.enabled``, and nothing here changes it.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import UserRole
 from dtk.db.models import User
 from dtk.db.repositories import UserRepository
+from dtk.services import demo
 
 log = get_logger(__name__)
 
@@ -80,6 +84,46 @@ def _refuse_hand_made_demo(role: UserRole | None) -> None:
         raise InvalidParam(
             "the demo account is created by turning on demo.enabled, not here",
             details={"field": "role", "setting": "demo.enabled"},
+        )
+
+
+def _refuse_demo_account_change(user: User, body: UserUpdate) -> None:
+    """The demo account's role and password belong to its switch.
+
+    Only *assigning* the demo role was refused, so the reverse went through: the
+    Users page saves a role the moment the picker changes, and one stray click
+    made the account whose password the login page prints for strangers an
+    administrator. Its password is no better a target. The login page and the
+    API keys page show a stored copy of it, which a reset here would leave
+    behind - the published password would stop working and the page would go on
+    printing it. Reissuing the pair keeps both copies in step.
+    """
+    if user.role != UserRole.DEMO.value:
+        return
+    if body.role is not None:
+        raise InvalidParam(
+            "the demo account's role is fixed; it is managed by demo.enabled",
+            details={"field": "role", "setting": demo.SETTING_KEY},
+        )
+    if body.password is not None:
+        raise InvalidParam(
+            "the demo password is published; reissue the demo pair instead of resetting it",
+            details={"field": "password", "setting": demo.SETTING_KEY},
+        )
+
+
+def _refuse_demo_account_delete(user: User) -> None:
+    """Turning the switch off withdraws the demo; deleting it only breaks it.
+
+    With the row gone the switch would still read on, every lookup of "the
+    demo account" would find nothing, and the next rotation would mint a new
+    one - so deleting it achieves less than switching it off and loses the
+    audit trail of which key made which call.
+    """
+    if user.role == UserRole.DEMO.value:
+        raise InvalidParam(
+            "the demo account is withdrawn by turning demo.enabled off, not deleted",
+            details={"field": "user_id", "setting": demo.SETTING_KEY},
         )
 
 
@@ -148,6 +192,9 @@ async def update_user(
     Changing your own password goes through ``/api/v1/auth/password``, which
     demands the current one; that check is meaningless here and would only
     stop an administrator from helping a user who forgot theirs.
+
+    The demo account is refused both: its role is fixed and its password is
+    reissued with the demo pair, never set by hand.
     """
     _refuse_hand_made_demo(body.role)
     session = request.state.db
@@ -157,6 +204,7 @@ async def update_user(
         raise NotFound("no such user")
     if body.role is None and body.password is None:
         raise InvalidParam("nothing to update", details={"fields": ["role", "password"]})
+    _refuse_demo_account_change(user, body)
 
     changed: list[str] = []
     if body.role is not None and body.role.value != user.role:
@@ -202,8 +250,9 @@ async def delete_user(
 ) -> Any:
     """Delete a console account and revoke its sessions.
 
-    You cannot delete the account you are signed in with, and the last
-    remaining administrator cannot be deleted either.
+    You cannot delete the account you are signed in with, the last remaining
+    administrator, or the demo account - turn `demo.enabled` off to withdraw
+    that one.
 
     **Parameters**
 
@@ -218,6 +267,7 @@ async def delete_user(
     user = await users.get(user_id)
     if user is None:
         raise NotFound("no such user")
+    _refuse_demo_account_delete(user)
     if user.role == UserRole.ADMIN.value and await _admin_count(request, excluding=user_id) == 0:
         raise InvalidParam(
             "this is the last administrator; an instance without one can only be "
