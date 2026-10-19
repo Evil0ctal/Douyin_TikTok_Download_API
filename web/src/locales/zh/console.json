@@ -1985,7 +1985,13 @@
       "storedOnly": "仅已下载",
       "notStoredOnly": "仅未下载",
       "activeCount": "有 {count} 个筛选条件生效",
-      "noneActive": "未筛选，显示全部"
+      "noneActive": "未筛选，显示全部",
+      "authorChip": "作者：{name}",
+      "tagChip": "标签：#{tag}",
+      "removeAuthor": "取消按这个作者筛选",
+      "removeTag": "取消按这个标签筛选",
+      "byAuthor": "只看 {name} 的作品",
+      "byTag": "只看带 #{tag} 标签的作品"
     },
     "column": {
       "post": "作品",
@@ -2023,7 +2029,9 @@
       "goneHint": "这个作品在平台上已经没有了。这里保留的是本实例当时看到的样子。",
       "savedNoVideo": "这个作品的媒体已保存，但没有视频文件——图集类作品保存的是图片。",
       "exportFiles": "导出已保存的文件",
-      "transcribeUnsaved": "请先用下方的按钮把媒体保存到本实例；转写读取的是已保存的文件，而不是平台上的。"
+      "transcribeUnsaved": "请先用下方的按钮把媒体保存到本实例；转写读取的是已保存的文件，而不是平台上的。",
+      "loading": "正在加载作品…",
+      "openDownload": "查看对应的下载"
     },
     "page": {
       "previous": "上一页",
@@ -2032,7 +2040,9 @@
     },
     "empty": {
       "title": "还没有归档任何内容",
-      "description": "作品会在被解析时自动归档。用解析工具或接口解析一个作品，它就会出现在这里。"
+      "description": "作品在被抓取时会自动归档。在「下载」页面保存一个——单个链接、一批链接或某个作者的作品都行——或者在调试台、通过接口解析一个，它就会出现在这里。",
+      "filteredTitle": "没有匹配的作品",
+      "filteredDescription": "没有符合这些筛选条件的归档作品。去掉一个条件，或者全部清除。"
     },
     "toast": {
       "stored": "已开始保存。完成后会出现在「下载」列表里，这里也会出现播放器。",
@@ -2113,7 +2123,19 @@
       "addTo": "加入合集",
       "removeFrom": "从当前合集移出",
       "noCollections": "还没有合集",
-      "delete": "删除"
+      "delete": "删除",
+      "store": "保存媒体",
+      "storeHint": "把选中的作品逐个下载到本实例的磁盘。已经保存过的只计数，不会重新抓取。",
+      "storeProgress": "正在保存 {done} / {total}…",
+      "storeDone": "已排队 {done} 个 · {skipped} 个已保存过 · 失败 {failed} 个",
+      "transcribe": "转写",
+      "transcribeHint": "为选中的、媒体已保存在本地的视频逐个发起转写。图集和还没保存的作品会被跳过并计数。",
+      "transcribeProgress": "正在转写 {done} / {total}…",
+      "transcribeDone": "已提交转写 {done} 个 · 跳过 {skipped} 个（不是已保存的视频） · 失败 {failed} 个",
+      "export": "导出选中项",
+      "stop": "停止",
+      "stopped": "在处理完全部选中项之前停止了。",
+      "firstError": "第一个失败的原因：{message}"
     },
     "delete": {
       "title": "确定删除这些作品？",

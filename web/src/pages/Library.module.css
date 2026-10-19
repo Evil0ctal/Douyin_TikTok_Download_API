@@ -66,10 +66,107 @@
 
 .tag {
   padding: var(--space-1) var(--space-2);
+  font: inherit;
   font-size: var(--text-xs);
   color: var(--text-secondary);
+  background: none;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* A tag narrows the library to the posts carrying it, so it looks pressable. */
+.tag:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.tag:focus-visible,
+.inlineLink:focus-visible,
+.filterChip button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * An author's name that filters by them. Text-shaped, because it sits inside
+ * a line of text - the table's sub line, the card's meta, a fact - and a
+ * button-shaped one would shout over the title above it.
+ */
+.inlineLink {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.inlineLink:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* The applied author and tag, which have no menu to show them in. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: 2px 2px 2px var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.filterChip button {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.filterChip button:hover {
+  color: var(--text);
+  background: var(--bg-inset);
+}
+
+/* Where the same post lives on the other content pages. */
+.crossLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.crossLinks a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.crossLinks a:hover {
+  text-decoration: underline;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -196,6 +293,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  /* Below the card's button now rather than inside it, so the button's own
+     gap no longer spaces it from the title. */
+  margin-top: var(--space-2);
+  min-width: 0;
   font-size: 10px;
   color: var(--text-muted);
 }

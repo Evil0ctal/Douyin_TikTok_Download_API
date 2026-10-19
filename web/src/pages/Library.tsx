@@ -1,10 +1,13 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link, useSearchParams } from 'wouter'
 
 import {
   Button,
   Card,
+  CompactProgress,
   ConfirmDialog,
+  CrossIcon,
   DataTable,
   DownloadIcon,
   Drawer,
@@ -19,14 +22,19 @@ import {
   Skeleton,
   TranscribeButton,
   type Column,
+  type ExistingTranscription,
   useToast,
+  useTranscriberState,
 } from '@/components'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
-import { apiDelete, apiPost, apiText } from '@/lib/api'
+import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
+import { apiDelete, apiGet, apiPost, apiText } from '@/lib/api'
+import { downloadHref, patchParams } from '@/lib/contentLinks'
 import { paths } from '@/lib/endpoints'
+import { atLeast } from '@/lib/roles'
 import { PLATFORMS } from '@/lib/types'
 
 import styles from './Library.module.css'
+import { NO_TALLY, eachInTurn, type StopFlag, type Tally } from './downloadRuns'
 
 /**
  * What this instance has already collected.
@@ -107,10 +115,17 @@ type GroupBy = 'none' | 'author' | 'saved'
 interface StoredMedia {
   download_id: string
   bytes_total: number
+  /**
+   * When the files landed. Optional: an older server does not send it, and
+   * the grouping then falls back to what it used before.
+   */
+  saved_at?: string | null
   /** File names, as `GET /downloads/{id}/files/{name}` takes them. */
   video: string | null
   cover: string | null
   images: string[]
+  /** The stored video's newest openable transcript, if it has one. */
+  transcription?: ExistingTranscription | null
 }
 
 interface ArchivePage {
@@ -144,10 +159,23 @@ interface Filters {
   /** '' for both, 'true' for downloaded only, 'false' for the rest. */
   stored: string
   q: string
+  /** One author's posts, by the platform's stable id - never the nickname. */
+  author_uid: string
+  /** Posts carrying this tag, without the `#`. */
+  tag: string
 }
 
 /** How long a small download usually takes to land, measured on a 9MB post. */
 const STORE_SETTLE_MS = 4000
+
+/** One empty page, so a page still loading keeps the same identity each render. */
+const NO_ROWS: ArchivedRow[] = []
+
+/** Posts per call to the selection endpoints - the API's own ceiling. */
+const SELECTION_CHUNK = 500
+
+/** The bulk actions that go one request per post, with a running count. */
+type BulkAction = 'store' | 'transcribe'
 
 const NO_FILTERS: Filters = {
   platform: '',
@@ -157,6 +185,81 @@ const NO_FILTERS: Filters = {
   collection: '',
   stored: '',
   q: '',
+  author_uid: '',
+  tag: '',
+}
+
+/**
+ * The URL name of each filter. The API's, except the author, which links from
+ * other pages name `author` (C4 in the console UX notes).
+ */
+const PARAM_OF: Readonly<Record<keyof Filters, string>> = {
+  platform: 'platform',
+  kind: 'kind',
+  duration_bucket: 'duration_bucket',
+  availability: 'availability',
+  collection: 'collection',
+  stored: 'stored',
+  q: 'q',
+  author_uid: 'author',
+  tag: 'tag',
+}
+
+/** Values a menu can hold; anything else in a URL is dropped rather than sent. */
+const KNOWN: Partial<Record<keyof Filters, readonly string[]>> = {
+  platform: PLATFORMS,
+  kind: KINDS,
+  duration_bucket: DURATIONS,
+  availability: AVAILABILITIES,
+  stored: ['true', 'false'],
+}
+
+/**
+ * The filters a URL asks for.
+ *
+ * A link to one post - `?platform=&content_id=` - names its platform too, and
+ * that platform is the drawer's, not a filter: read as one, opening a TikTok
+ * post from the downloads page would also have hidden every Douyin post behind
+ * it, and closing the drawer would have left the list narrowed for no reason
+ * anybody chose.
+ */
+function filtersFrom(params: URLSearchParams): Filters {
+  const linked = params.has('content_id')
+  const read = (field: keyof Filters): string => {
+    if (field === 'platform' && linked) return ''
+    const value = params.get(PARAM_OF[field]) ?? ''
+    const known = KNOWN[field]
+    return known && !known.includes(value) ? '' : value
+  }
+  return {
+    platform: read('platform'),
+    kind: read('kind'),
+    duration_bucket: read('duration_bucket'),
+    availability: read('availability'),
+    collection: read('collection'),
+    stored: read('stored'),
+    q: read('q'),
+    author_uid: read('author_uid'),
+    tag: read('tag'),
+  }
+}
+
+/** The URL patch that applies `next` in full. */
+function filterPatch(next: Filters): Record<string, string | null> {
+  const patch: Record<string, string | null> = {}
+  for (const field of Object.keys(PARAM_OF) as Array<keyof Filters>) {
+    patch[PARAM_OF[field]] = next[field] || null
+  }
+  return patch
+}
+
+/** The post a URL opens: `post=platform:id` from this page, or a C4 link. */
+function openedFrom(params: URLSearchParams): { platform: string; content_id: string } | null {
+  const post = params.get('post')
+  if (post && post.includes(':')) return refOf(post)
+  const contentId = params.get('content_id')
+  const platform = params.get('platform')
+  return contentId && platform ? { platform, content_id: contentId } : null
 }
 
 const COLLECTIONS_KEY = ['archive', 'collections'] as const
@@ -232,13 +335,34 @@ export default function Library() {
   const formatters = useFormatters()
   const invalidate = useInvalidate()
 
-  const [draft, setDraft] = useState<Filters>(NO_FILTERS)
-  const [applied, setApplied] = useState<Filters>(NO_FILTERS)
+  // The filters and the open post live in the URL, so the other pages can
+  // link to an author, a tag or one post, and a narrowed view survives a
+  // reload. Only the search text has a draft: the menus apply as they change.
+  const [params, setParams] = useSearchParams()
+  const setUrl = useCallback(
+    (patch: Record<string, string | null>) => {
+      setParams((prev) => patchParams(prev, patch), { replace: true })
+    },
+    [setParams],
+  )
+  const applied = useMemo(() => filtersFrom(params), [params])
+  const [draftQ, setDraftQ] = useState(applied.q)
+  const [seenQ, setSeenQ] = useState(applied.q)
+  if (seenQ !== applied.q) {
+    setSeenQ(applied.q)
+    setDraftQ(applied.q)
+  }
+  const draft: Filters = { ...applied, q: draftQ }
   // Every cursor walked so far, so Back is a step in the list rather than a
   // second request the server cannot answer - keyset paging is forward-only.
-  const [trail, setTrail] = useState<Array<string | null>>([null])
-  const [page, setPage] = useState(0)
-  const [inspecting, setInspecting] = useState<ArchivedRow | null>(null)
+  // Kept with the filters it was walked under, so new ones start at page one.
+  const filterKey = JSON.stringify(applied)
+  const [walk, setWalk] = useState<{ key: string; trail: Array<string | null>; page: number }>(
+    { key: filterKey, trail: [null], page: 0 },
+  )
+  const trail = walk.key === filterKey ? walk.trail : [null]
+  const page = walk.key === filterKey ? walk.page : 0
+  const opened = openedFrom(params)
   // Covers by default: an archive of posts looks like a wall of posts, and the
   // material for it - title, cover, author, duration - is already on the row.
   // The table stays for the questions a grid cannot answer, like sorting by
@@ -271,14 +395,38 @@ export default function Library() {
     params: queryOf(applied, cursor),
   })
 
+  /** Apply a whole set of filters. The open post closes: it may not be in the result. */
   const search = useCallback(
     (next: Filters) => {
-      setApplied(next)
-      setTrail([null])
-      setPage(0)
+      setUrl({ ...filterPatch(next), post: null, content_id: null })
     },
-    [setApplied],
+    [setUrl],
   )
+
+  /** Narrow to one field's value, keeping everything else that is set. */
+  const narrow = useCallback(
+    (field: 'author_uid' | 'tag', value: string): void => {
+      search({ ...applied, [field]: value })
+    },
+    [applied, search],
+  )
+
+  const openPost = (row: ArchivedRow): void => {
+    // A C4 link's platform belongs to the drawer it opened, and goes with it.
+    setUrl({
+      post: keyOf(row),
+      content_id: null,
+      ...(params.has('content_id') ? { platform: null } : {}),
+    })
+  }
+
+  const closePost = (): void => {
+    setUrl({
+      post: null,
+      content_id: null,
+      ...(params.has('content_id') ? { platform: null } : {}),
+    })
+  }
 
   const store = useApiMutation<{ download_id: string }, ArchivedRow>(
     (row) =>
@@ -348,17 +496,7 @@ export default function Library() {
       // an archive is meant to outgrow one response, and buffering it would
       // make the size of your own data the thing that breaks the export.
       const rows = await apiText(paths.archive.export, { params: queryOf(applied, null) })
-      const blob = new Blob([rows], { type: 'application/x-ndjson' })
-      const href = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = href
-      anchor.download = `archive-${new Date().toISOString().slice(0, 10)}.ndjson`
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => {
-        URL.revokeObjectURL(href)
-      }, 1_000)
+      saveNdjson(rows, `archive-${new Date().toISOString().slice(0, 10)}.ndjson`)
       return rows.split('\n').filter(Boolean).length
     },
     {
@@ -374,15 +512,125 @@ export default function Library() {
   /** Everything a bulk action needs, in the shape the API takes. */
   const chosen = useMemo(() => [...selected].map(refOf), [selected])
 
-  const afterBulk = useCallback(
-    (message: string) => {
-      void invalidate(['archive'])
-      void invalidate(['downloads'])
-      setSelected(new Set())
-      toast.success(message)
+  const afterBulk = (message: string): void => {
+    void invalidate(['archive'])
+    void invalidate(['downloads'])
+    setSelected(new Set())
+    toast.success(message)
+  }
+
+  /**
+   * The selected posts, exported as they are: picked across pages, sharing no
+   * filter, so the filtered export above cannot express them. Sent in chunks
+   * the size the API takes in one call, and joined into one file.
+   */
+  const exportSelected = useApiMutation<number, void>(
+    async () => {
+      let rows = ''
+      for (let start = 0; start < chosen.length; start += SELECTION_CHUNK) {
+        rows += await apiText(paths.archive.export, {
+          body: { items: chosen.slice(start, start + SELECTION_CHUNK) },
+        })
+      }
+      saveNdjson(rows, `archive-selected-${new Date().toISOString().slice(0, 10)}.ndjson`)
+      return rows.split('\n').filter(Boolean).length
     },
-    [invalidate, toast],
+    {
+      onSuccess: (count) => {
+        toast.success(t('library.toast.exported', { count }))
+      },
+      onError: (error) => {
+        toast.apiError(error, t('library.toast.exportFailed'))
+      },
+    },
   )
+
+  const session = useSession()
+  // Hidden below viewer as the drawer's button is: the demo account may not
+  // start a transcription, and could not open the page a success lands on.
+  const mayTranscribe = atLeast(session.data?.role ?? null, 'viewer')
+  const transcriber = useTranscriberState()
+
+  //: A bulk save or transcription under way: which, how many, how far.
+  const [bulkRun, setBulkRun] = useState<{
+    action: BulkAction
+    total: number
+    tally: Tally
+  } | null>(null)
+  const bulkStop = useRef<StopFlag>({ stopped: false })
+
+  /**
+   * Run one request per selected post, one at a time, with a running count.
+   *
+   * There is no bulk download or bulk transcription endpoint, and each request
+   * here can spend the identity pool or a transcriber slot, so it goes in turn
+   * and can be stopped between any two - a hundred at once is what the
+   * scheduler would otherwise have to undo.
+   */
+  const runBulk = async (
+    action: BulkAction,
+    call: (ref: { platform: string; content_id: string }) => Promise<'done' | 'skipped'>,
+  ): Promise<void> => {
+    const flag: StopFlag = { stopped: false }
+    bulkStop.current = flag
+    const refs = chosen
+    setBulkRun({ action, total: refs.length, tally: NO_TALLY })
+    const { tally, stopped } = await eachInTurn(refs, call, flag, (counted) => {
+      setBulkRun({ action, total: refs.length, tally: counted })
+    })
+    setBulkRun(null)
+    void invalidate(['archive'])
+    void invalidate(['downloads'])
+    // A save is a queued task, so the rows are not stored yet; one follow-up
+    // refresh covers the ordinary case, as for a single save.
+    window.setTimeout(() => {
+      void invalidate(['archive'])
+    }, STORE_SETTLE_MS)
+    setSelected(new Set())
+    const summary = t(`library.bulk.${action}Done`, {
+      done: tally.done,
+      skipped: tally.skipped,
+      failed: tally.failed,
+    })
+    const details = [
+      stopped ? t('library.bulk.stopped') : null,
+      tally.firstError ? t('library.bulk.firstError', { message: tally.firstError }) : null,
+    ].filter(Boolean)
+    const description = details.length > 0 ? details.join(' ') : undefined
+    if (tally.failed > 0) toast.warning(summary, { description })
+    else toast.success(summary, { description })
+  }
+
+  const storeSelected = (): void => {
+    void runBulk('store', async (ref) => {
+      // skip_existing: what is already on the disk is reported, not fetched
+      // twice - the same rule the author run on Downloads follows.
+      const result: { reused?: string | null } = await apiPost(
+        paths.downloads.create,
+        { ...ref, skip_existing: true },
+        { awaitTask: false },
+      )
+      return result.reused ? 'skipped' : 'done'
+    })
+  }
+
+  const transcribeSelected = (): void => {
+    void runBulk('transcribe', async (ref) => {
+      // The row as this page has it, or read now when it was picked on
+      // another page - only a video with stored media can be transcribed,
+      // and the rest are counted as skipped rather than sent to be refused.
+      const row =
+        items.find((item) => keyOf(item) === keyOf(ref)) ??
+        (await apiGet<ArchivedRow>(paths.archive.post(ref.platform, ref.content_id)))
+      if (row.kind !== 'video' || !row.stored?.video) return 'skipped'
+      await apiPost(
+        paths.transcriptions.create,
+        { download_id: row.stored.download_id, normalize: true, refresh: false },
+        { awaitTask: false },
+      )
+      return 'done'
+    })
+  }
 
   const addToCollection = useApiMutation<{ added: number }, string>(
     (collectionId) => apiPost(paths.archive.collectionItems(collectionId), { items: chosen }),
@@ -429,7 +677,7 @@ export default function Library() {
     },
   )
 
-  const items = useMemo(() => list.data?.items ?? [], [list.data])
+  const items = list.data?.items ?? NO_ROWS
 
   /**
    * Sections for the grid. "saved" buckets by the day this instance stored the
@@ -441,11 +689,16 @@ export default function Library() {
     if (groupBy === 'none') return [{ key: 'all', label: null, rows: items }]
     const buckets = new Map<string, { label: string; rows: ArchivedRow[] }>()
     for (const row of items) {
+      // When the files landed, not `last_seen_at`: that moves every time the
+      // post is parsed or re-checked, so a recheck carried a month-old save
+      // into today's group. An older server sends no `saved_at`, and the old
+      // reading is all there is then.
+      const saved = row.stored?.saved_at ?? row.last_seen_at
       const [key, label] =
         groupBy === 'author'
           ? [row.author.uid || 'unknown', row.author.nickname || row.author.uid || '—']
           : row.stored
-            ? [row.last_seen_at.slice(0, 10), row.last_seen_at.slice(0, 10)]
+            ? [saved.slice(0, 10), saved.slice(0, 10)]
             : ['unsaved', t('library.group.unsaved')]
       const bucket = buckets.get(key)
       if (bucket) bucket.rows.push(row)
@@ -453,6 +706,27 @@ export default function Library() {
     }
     return [...buckets.entries()].map(([key, value]) => ({ key, ...value }))
   }, [items, groupBy, t])
+
+  // The open post, from this page when it is on it and read on its own when
+  // it is not - a link from Downloads or Transcriptions names any post.
+  const listedPost = opened
+    ? (items.find((row) => keyOf(row) === keyOf(opened)) ?? null)
+    : null
+  const single = useApiQuery<ArchivedRow>({
+    key: ['archive', 'post', opened?.platform, opened?.content_id],
+    path: opened ? paths.archive.post(opened.platform, opened.content_id) : paths.archive.list,
+    enabled: opened !== null && listedPost === null && !list.isLoading,
+    retry: false,
+  })
+  const inspecting = opened ? (listedPost ?? single.data ?? null) : null
+
+  /** Who the author filter names, in words when any row on screen says. */
+  const authorName =
+    applied.author_uid
+      ? (items.find((row) => row.author.uid === applied.author_uid)?.author.nickname ??
+        (inspecting?.author.uid === applied.author_uid ? inspecting.author.nickname : null) ??
+        applied.author_uid)
+      : ''
 
   /** The stored video of whatever is open in the drawer, as a URL, or null. */
   const exportableVideo =
@@ -472,7 +746,13 @@ export default function Library() {
               {row.title || <span className="u-muted">{t('library.untitled')}</span>}
             </span>
             <span className={styles.sub}>
-              {row.author.nickname || row.author.uid} · {row.platform}
+              <AuthorButton
+                row={row}
+                onPick={(uid) => {
+                  narrow('author_uid', uid)
+                }}
+              />{' '}
+              · {row.platform}
             </span>
           </div>
         ),
@@ -535,7 +815,7 @@ export default function Library() {
         sortValue: (row) => row.last_seen_at,
       },
     ],
-    [formatters, t],
+    [formatters, narrow, t],
   )
 
   const total = stats.data?.contents ?? 0
@@ -587,9 +867,7 @@ export default function Library() {
               stored={stats.data?.stored ?? 0}
               of={total}
               onShow={() => {
-                const next = { ...NO_FILTERS, stored: 'true' }
-                setDraft(next)
-                search(next)
+                search({ ...NO_FILTERS, stored: 'true' })
               }}
             />
           }
@@ -618,9 +896,7 @@ export default function Library() {
                 stored={stats.data?.stored_by_platform?.[name] ?? 0}
                 of={stats.data?.by_platform[name] ?? 0}
                 onShow={() => {
-                  const next = { ...NO_FILTERS, platform: name, stored: 'true' }
-                  setDraft(next)
-                  search(next)
+                  search({ ...NO_FILTERS, platform: name, stored: 'true' })
                 }}
               />
             }
@@ -643,9 +919,9 @@ export default function Library() {
               to a word; picking "douyin" from a menu IS the decision. */}
           <div className={styles.searchRow}>
             <Input
-              value={draft.q}
+              value={draftQ}
               onChange={(event) => {
-                setDraft({ ...draft, q: event.target.value })
+                setDraftQ(event.target.value)
               }}
               placeholder={t('library.filter.searchPlaceholder')}
               aria-label={t('library.filter.search')}
@@ -668,9 +944,7 @@ export default function Library() {
                   // Applied on change, not on submit: `draft` and `applied`
                   // move together for these, and the text box is what keeps
                   // them apart.
-                  const next = { ...draft, [field]: event.target.value }
-                  setDraft(next)
-                  search(next)
+                  search({ ...draft, [field]: event.target.value })
                 }}
               >
                 <option value="">{t(blank)}</option>
@@ -685,9 +959,7 @@ export default function Library() {
               label={t('library.collection.filterLabel')}
               value={draft.collection}
               onChange={(event) => {
-                const next = { ...draft, collection: event.target.value }
-                setDraft(next)
-                search(next)
+                search({ ...draft, collection: event.target.value })
               }}
             >
               <option value="">{t('library.collection.any')}</option>
@@ -701,9 +973,7 @@ export default function Library() {
               label={t('library.filter.storedLabel')}
               value={draft.stored}
               onChange={(event) => {
-                const next = { ...draft, stored: event.target.value }
-                setDraft(next)
-                search(next)
+                search({ ...draft, stored: event.target.value })
               }}
             >
               <option value="">{t('library.filter.anyStored')}</option>
@@ -711,6 +981,32 @@ export default function Library() {
               <option value="false">{t('library.filter.notStoredOnly')}</option>
             </Select>
           </div>
+
+          {/* The two filters with no menu: an author and a tag are picked by
+              clicking one on a post, so they show here as chips, each with
+              its own way back out. */}
+          {applied.author_uid || applied.tag ? (
+            <div className={styles.chips}>
+              {applied.author_uid ? (
+                <FilterChip
+                  label={t('library.filter.authorChip', { name: authorName })}
+                  removeLabel={t('library.filter.removeAuthor')}
+                  onRemove={() => {
+                    search({ ...draft, author_uid: '' })
+                  }}
+                />
+              ) : null}
+              {applied.tag ? (
+                <FilterChip
+                  label={t('library.filter.tagChip', { tag: applied.tag })}
+                  removeLabel={t('library.filter.removeTag')}
+                  onRemove={() => {
+                    search({ ...draft, tag: '' })
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : null}
 
           {/* The two things that are not filters, kept off the filter grid so
               "clear" cannot be mistaken for one more thing to narrow by. */}
@@ -725,7 +1021,6 @@ export default function Library() {
                 variant="ghost"
                 disabled={activeFilters === 0}
                 onClick={() => {
-                  setDraft(NO_FILTERS)
                   search(NO_FILTERS)
                 }}
               >
@@ -748,8 +1043,29 @@ export default function Library() {
       <BulkBar
         selected={selected}
         collections={collections.data?.items ?? []}
-        busy={addToCollection.isPending || removeFromCollection.isPending || destroy.isPending}
+        busy={
+          addToCollection.isPending ||
+          removeFromCollection.isPending ||
+          destroy.isPending ||
+          exportSelected.isPending ||
+          bulkRun !== null
+        }
         activeCollection={applied.collection}
+        running={bulkRun}
+        onStop={() => {
+          bulkStop.current.stopped = true
+        }}
+        onStore={storeSelected}
+        onTranscribe={mayTranscribe ? transcribeSelected : null}
+        transcribeBlocked={
+          transcriber === 'off' || transcriber === 'down'
+            ? t(`transcriptions.transcriber.${transcriber}Title`)
+            : null
+        }
+        exporting={exportSelected.isPending}
+        onExport={() => {
+          exportSelected.mutate()
+        }}
         onAdd={(id) => {
           addToCollection.mutate(id)
         }}
@@ -812,10 +1128,16 @@ export default function Library() {
           onRetry={() => {
             void list.refetch()
           }}
-          onRowClick={setInspecting}
+          onRowClick={openPost}
           storageKey="library"
-          emptyTitle={t('library.empty.title')}
-          emptyDescription={t('library.empty.description')}
+          emptyTitle={
+            activeFilters > 0 ? t('library.empty.filteredTitle') : t('library.empty.title')
+          }
+          emptyDescription={
+            activeFilters > 0
+              ? t('library.empty.filteredDescription')
+              : t('library.empty.description')
+          }
         />
       ) : list.isLoading ? (
         <div className={styles.grid}>
@@ -833,8 +1155,12 @@ export default function Library() {
       ) : items.length === 0 ? (
         <Card>
           <EmptyState
-            title={t('library.empty.title')}
-            description={t('library.empty.description')}
+            title={activeFilters > 0 ? t('library.empty.filteredTitle') : t('library.empty.title')}
+            description={
+              activeFilters > 0
+                ? t('library.empty.filteredDescription')
+                : t('library.empty.description')
+            }
           />
         </Card>
       ) : (
@@ -860,7 +1186,10 @@ export default function Library() {
                     else next.add(keyOf(row))
                     setSelected(next)
                   }}
-                  onOpen={setInspecting}
+                  onOpen={openPost}
+                  onAuthor={(uid) => {
+                    narrow('author_uid', uid)
+                  }}
                 />
               ))}
             </div>
@@ -901,7 +1230,7 @@ export default function Library() {
             variant="secondary"
             disabled={page === 0}
             onClick={() => {
-              setPage((value) => Math.max(0, value - 1))
+              setWalk({ key: filterKey, trail, page: Math.max(0, page - 1) })
             }}
           >
             {t('library.page.previous')}
@@ -913,8 +1242,7 @@ export default function Library() {
             onClick={() => {
               const next = list.data?.cursor ?? null
               if (!next) return
-              setTrail((value) => [...value.slice(0, page + 1), next])
-              setPage((value) => value + 1)
+              setWalk({ key: filterKey, trail: [...trail.slice(0, page + 1), next], page: page + 1 })
             }}
           >
             {t('library.page.next')}
@@ -923,12 +1251,10 @@ export default function Library() {
       )}
 
       <Drawer
-        open={inspecting !== null}
-        onClose={() => {
-          setInspecting(null)
-        }}
-        title={inspecting?.title || t('library.untitled')}
-        description={inspecting ? `${inspecting.platform} · ${inspecting.content_id}` : undefined}
+        open={opened !== null}
+        onClose={closePost}
+        title={inspecting ? inspecting.title || t('library.untitled') : (opened?.content_id ?? '')}
+        description={opened ? `${opened.platform} · ${opened.content_id}` : undefined}
         footer={
           inspecting ? (
             <>
@@ -983,7 +1309,21 @@ export default function Library() {
           ) : undefined
         }
       >
-        {inspecting ? <Detail row={inspecting} /> : null}
+        {inspecting ? (
+          <Detail
+            row={inspecting}
+            onAuthor={(uid) => {
+              narrow('author_uid', uid)
+            }}
+            onTag={(tag) => {
+              narrow('tag', tag)
+            }}
+          />
+        ) : single.error ? (
+          <ErrorState error={single.error} compact />
+        ) : (
+          <p className="u-muted">{t('library.detail.loading')}</p>
+        )}
       </Drawer>
     </div>
   )
@@ -1046,6 +1386,13 @@ function BulkBar({
   collections,
   activeCollection,
   busy,
+  running,
+  onStop,
+  onStore,
+  onTranscribe,
+  transcribeBlocked,
+  exporting,
+  onExport,
   onAdd,
   onRemove,
   onDelete,
@@ -1057,6 +1404,16 @@ function BulkBar({
   /** The collection being filtered by, if any: "remove from" needs a target. */
   activeCollection: string
   busy: boolean
+  /** A save or transcription going post by post, or null. */
+  running: { action: BulkAction; total: number; tally: Tally } | null
+  onStop: () => void
+  onStore: () => void
+  /** Null below viewer, where the button would only ever be refused. */
+  onTranscribe: (() => void) | null
+  /** Why nothing can be transcribed on this instance, or null. */
+  transcribeBlocked: string | null
+  exporting: boolean
+  onExport: () => void
   onAdd: (collectionId: string) => void
   onRemove: (collectionId: string) => void
   onDelete: () => void
@@ -1065,11 +1422,58 @@ function BulkBar({
 }) {
   const { t } = useTranslation(['console', 'common'])
 
-  if (selected.size === 0) return null
+  if (selected.size === 0 && running === null) return null
+
+  // While one runs, the bar is its progress and its Stop: everything else
+  // would act on a selection that is half done.
+  if (running) {
+    const acted = running.tally.done + running.tally.skipped + running.tally.failed
+    return (
+      <div className={styles.bulkBar} role="region" aria-label={t('library.bulk.label')}>
+        <CompactProgress
+          value={acted}
+          max={running.total}
+          label={t(`library.bulk.${running.action}Progress`, {
+            done: acted,
+            total: running.total,
+          })}
+        />
+        <span className={styles.bulkSpacer} />
+        <Button size="sm" variant="secondary" onClick={onStop}>
+          {t('library.bulk.stop')}
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.bulkBar} role="region" aria-label={t('library.bulk.label')}>
       <span className={styles.bulkCount}>{t('library.bulk.count', { count: selected.size })}</span>
+
+      {/* What can be done to the posts themselves, before what files them. */}
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={busy}
+        title={t('library.bulk.storeHint')}
+        onClick={onStore}
+      >
+        {t('library.bulk.store')}
+      </Button>
+      {onTranscribe ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={busy || transcribeBlocked !== null}
+          title={transcribeBlocked ?? t('library.bulk.transcribeHint')}
+          onClick={onTranscribe}
+        >
+          {t('library.bulk.transcribe')}
+        </Button>
+      ) : null}
+      <Button size="sm" variant="secondary" disabled={busy} loading={exporting} onClick={onExport}>
+        {t('library.bulk.export')}
+      </Button>
 
       <Select
         aria-label={t('library.bulk.addTo')}
@@ -1261,11 +1665,13 @@ function CoverCard({
   selected,
   onToggle,
   onOpen,
+  onAuthor,
 }: {
   row: ArchivedRow
   selected: boolean
   onToggle: () => void
   onOpen: (row: ArchivedRow) => void
+  onAuthor: (uid: string) => void
 }) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
@@ -1306,15 +1712,79 @@ function CoverCard({
         </span>
       </span>
       <span className={styles.cardTitle}>{row.title || t('library.untitled')}</span>
+      </button>
+      {/* Outside the card's button, like the checkbox: the author is a second
+          thing to click, and a button inside a button is invalid and would
+          open the drawer as well. */}
       <span className={styles.cardMeta}>
-        <span className="u-truncate">{row.author.nickname || row.author.uid}</span>
+        <AuthorButton row={row} onPick={onAuthor} />
         <span className="u-mono">{row.platform}</span>
       </span>
-      </button>
     </div>
   )
 }
 
+/**
+ * An author's name that narrows the library to them.
+ *
+ * Plain text before - on the card, in the table and in the drawer - while the
+ * archive API took an author filter the console never offered. The uid is
+ * what is filtered on, never the nickname, which users change.
+ */
+function AuthorButton({ row, onPick }: { row: ArchivedRow; onPick: (uid: string) => void }) {
+  const { t } = useTranslation(['console', 'common'])
+  const name = row.author.nickname || row.author.uid
+  if (!row.author.uid) return <span className="u-truncate">{name}</span>
+  return (
+    <button
+      type="button"
+      className={styles.inlineLink}
+      title={t('library.filter.byAuthor', { name })}
+      onClick={(event) => {
+        // In a table row that opens the drawer on click, like Retry and Keep
+        // on the downloads page.
+        event.stopPropagation()
+        onPick(row.author.uid)
+      }}
+    >
+      {name}
+    </button>
+  )
+}
+
+/** One applied filter that has no menu, with its own way back out. */
+function FilterChip({
+  label,
+  removeLabel,
+  onRemove,
+}: {
+  label: string
+  removeLabel: string
+  onRemove: () => void
+}) {
+  return (
+    <span className={styles.filterChip}>
+      <span className="u-truncate">{label}</span>
+      <button type="button" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
+        <CrossIcon size={12} />
+      </button>
+    </span>
+  )
+}
+
+/** Hand the browser newline-delimited JSON, as the archive export streams it. */
+function saveNdjson(rows: string, filename: string): void {
+  const href = URL.createObjectURL(new Blob([rows], { type: 'application/x-ndjson' }))
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => {
+    URL.revokeObjectURL(href)
+  }, 1_000)
+}
 
 /**
  * Hand the browser a file this instance already holds.
@@ -1333,7 +1803,15 @@ function exportFile(url: string): void {
   anchor.remove()
 }
 
-function Detail({ row }: { row: ArchivedRow }) {
+function Detail({
+  row,
+  onAuthor,
+  onTag,
+}: {
+  row: ArchivedRow
+  onAuthor: (uid: string) => void
+  onTag: (tag: string) => void
+}) {
   const { t } = useTranslation(['console', 'common'])
   const formatters = useFormatters()
 
@@ -1362,8 +1840,8 @@ function Detail({ row }: { row: ArchivedRow }) {
     ? [...row.stored.images, ...(row.stored.cover ? [row.stored.cover] : [])]
     : []
 
+  // The author is a filter in its own row below the facts, not a fact.
   const facts: Array<[string, string]> = [
-    [t('library.detail.author'), row.author.nickname || row.author.uid],
     [t('library.column.published'), row.created_at ? formatters.dateTime(row.created_at) : '—'],
     [t('library.column.lastSeen'), formatters.dateTime(row.last_seen_at)],
     [t('library.detail.firstSeen'), formatters.dateTime(row.first_seen_at)],
@@ -1418,7 +1896,16 @@ function Detail({ row }: { row: ArchivedRow }) {
                 ? t('downloads.transcription.noVideo')
                 : null
           }
+          existing={row.stored?.transcription ?? null}
         />
+      ) : null}
+
+      {/* The download behind the stored files - its digests, its state, its
+          retry - lives on the Downloads page; this goes straight to it. */}
+      {row.stored ? (
+        <p className={styles.crossLinks}>
+          <Link href={downloadHref(row.stored.download_id)}>{t('library.detail.openDownload')}</Link>
+        </p>
       ) : null}
 
       {/* An image post has no video, so the footer's export button never
@@ -1442,6 +1929,12 @@ function Detail({ row }: { row: ArchivedRow }) {
       {row.description ? <p className={styles.description}>{row.description}</p> : null}
 
       <dl className={styles.facts}>
+        <div className={styles.fact}>
+          <dt className={styles.sub}>{t('library.detail.author')}</dt>
+          <dd className="u-truncate">
+            <AuthorButton row={row} onPick={onAuthor} />
+          </dd>
+        </div>
         {facts.map(([label, value]) => (
           <div key={label} className={styles.fact}>
             <dt className={styles.sub}>{label}</dt>
@@ -1450,12 +1943,22 @@ function Detail({ row }: { row: ArchivedRow }) {
         ))}
       </dl>
 
+      {/* Each tag narrows the library to the posts carrying it - the archive
+          API always took a tag filter, and the tags were plain text. */}
       {row.tags.length > 0 ? (
-        <div className="u-row">
+        <div className="u-row u-row-wrap">
           {row.tags.map((tag) => (
-            <span key={tag} className={styles.tag}>
+            <button
+              key={tag}
+              type="button"
+              className={styles.tag}
+              title={t('library.filter.byTag', { tag })}
+              onClick={() => {
+                onTag(tag)
+              }}
+            >
               #{tag}
-            </span>
+            </button>
           ))}
         </div>
       ) : null}

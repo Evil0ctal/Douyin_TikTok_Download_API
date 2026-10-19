@@ -1985,7 +1985,13 @@
       "storedOnly": "Downloaded only",
       "notStoredOnly": "Not downloaded",
       "activeCount": "{count, plural, one {# filter narrowing this list} other {# filters narrowing this list}}",
-      "noneActive": "Showing everything"
+      "noneActive": "Showing everything",
+      "authorChip": "Author: {name}",
+      "tagChip": "Tag: #{tag}",
+      "removeAuthor": "Stop narrowing to this author",
+      "removeTag": "Stop narrowing to this tag",
+      "byAuthor": "Show only posts by {name}",
+      "byTag": "Show only posts tagged #{tag}"
     },
     "column": {
       "post": "Post",
@@ -2023,7 +2029,9 @@
       "goneHint": "This post is no longer available on the platform. What is here is what this instance saw while it still was.",
       "savedNoVideo": "The media for this post is stored, but it has no video file - an image post keeps its pictures instead.",
       "exportFiles": "Export the stored files",
-      "transcribeUnsaved": "Save the media to this instance first, with the button below; the transcriber reads the stored file, not the platform's."
+      "transcribeUnsaved": "Save the media to this instance first, with the button below; the transcriber reads the stored file, not the platform's.",
+      "loading": "Loading the post…",
+      "openDownload": "Open the download"
     },
     "page": {
       "previous": "Previous",
@@ -2032,7 +2040,9 @@
     },
     "empty": {
       "title": "Nothing archived yet",
-      "description": "Posts are archived automatically as they are parsed. Parse one from the parse tool or the API and it will appear here."
+      "description": "Posts are archived automatically as they are fetched. Store one from Downloads - a link, a batch of links, or an author's posts - or parse one in the Playground or through the API, and it will appear here.",
+      "filteredTitle": "Nothing matches",
+      "filteredDescription": "No archived post matches these filters. Remove a filter, or clear them all."
     },
     "toast": {
       "stored": "Saving started. The row appears under Downloads and the player here once it lands.",
@@ -2113,7 +2123,19 @@
       "addTo": "Add to collection",
       "removeFrom": "Remove from this collection",
       "noCollections": "No collections yet",
-      "delete": "Delete"
+      "delete": "Delete",
+      "store": "Save media",
+      "storeHint": "Download each selected post to this instance's disk, one at a time. Posts already stored are counted, not fetched again.",
+      "storeProgress": "Saving {done} of {total}…",
+      "storeDone": "{done} queued · {skipped} already stored · {failed} failed",
+      "transcribe": "Transcribe",
+      "transcribeHint": "Transcribe each selected video whose media is stored here. Image posts and posts not saved yet are skipped and counted.",
+      "transcribeProgress": "Transcribing {done} of {total}…",
+      "transcribeDone": "{done} sent to the transcriber · {skipped} skipped, not a stored video · {failed} failed",
+      "export": "Export selected",
+      "stop": "Stop",
+      "stopped": "Stopped before the end of the selection.",
+      "firstError": "First failure: {message}"
     },
     "delete": {
       "title": "Delete these posts?",
