@@ -1859,6 +1859,7 @@
     },
     "target": {
       "unrecognised": "That is not a link this instance recognises",
+      "shortLink": "That is a short link, which says nothing until it is opened. Open it and paste the full address, or use Many posts, which follows it.",
       "expected": {
         "video": "That is a profile link. Paste a post link, or use \"Save this author's posts\".",
         "user": "That is a post link. Paste the author's profile link or their sec_user_id."
@@ -2151,6 +2152,11 @@
     "pauseConfirm": "{count, plural, one {Pause # watched target?} other {Pause all # watched targets?}} Nothing already collected is affected; they simply stop running until you enable them again.",
     "paused": "Paused",
     "remove": "Remove",
+    "removeTitle": "Stop watching {target}?",
+    "removeBody": "Its schedule is removed. Everything it has already collected stays in the archive and in the snapshot history.",
+    "editLabel": "Edit {target}",
+    "openInLibrary": "See what it has collected, in the Library ({target})",
+    "pagesShort": "{count, plural, one {# page a run} other {# pages a run}}",
     "neverRun": "Not run yet",
     "failing": "{count, plural, one {# failure in a row} other {# failures in a row}}",
     "toggleLabel": "Collect {target} on a schedule",
@@ -2175,10 +2181,24 @@
       "kind": "Watch",
       "target": "Target",
       "targetHint": {
-        "author": "The author's stable id - sec_user_id on Douyin, the numeric id on TikTok. Not the handle: users change those.",
-        "content": "The post id, as the archive holds it."
+        "author": "A profile link, or the author's stable id: sec_user_id on Douyin, secUid on TikTok, the numeric mid on Bilibili. Not the handle - users change those. A link sets the platform.",
+        "content": "A post link, or the post id as the archive holds it - a BV id on Bilibili. A link sets the platform."
       },
-      "interval": "Every"
+      "interval": "Every",
+      "label": "Name",
+      "labelHint": "Optional. Left empty, the first run fills in the author's name.",
+      "pages": "Pages per run"
+    },
+    "target": {
+      "unrecognised": "That is not a link this instance recognises.",
+      "shortLink": "That is a short link, which says nothing until it is opened. Open it and paste the full address.",
+      "expectedUser": "That is a post link. Watch an author with their profile link, or switch Watch to a post.",
+      "expectedVideo": "That is a profile link. Watch a post with its own link, or switch Watch to an author."
+    },
+    "edit": {
+      "title": "Edit a watched target",
+      "labelHint": "Empty hands the name back to the platform: the next run fills it in.",
+      "pagesHint": "Pages of the author's posts one run reads. Each page is one request through the identity pool, every run."
     },
     "kind": {
       "author": "An author",
@@ -2199,6 +2219,7 @@
     "toast": {
       "added": "Now watching; the first run is queued",
       "addFailed": "Could not watch that target",
+      "saved": "Saved",
       "removed": "Stopped watching. Everything already collected is kept.",
       "paused": "{count, plural, one {Paused # target} other {Paused # targets}}"
     }

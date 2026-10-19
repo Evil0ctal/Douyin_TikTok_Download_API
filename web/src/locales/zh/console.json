@@ -1859,6 +1859,7 @@
     },
     "target": {
       "unrecognised": "这不是本实例能识别的链接",
+      "shortLink": "这是短链接，要先打开才知道它指向哪里。请打开后粘贴完整地址，或改用「批量作品」，它会自动展开短链接。",
       "expected": {
         "video": "这是主页链接。请粘贴作品链接，或者改用“保存该作者的作品”。",
         "user": "这是作品链接。请改为粘贴作者的主页链接或 sec_user_id。"
@@ -2151,6 +2152,11 @@
     "pauseConfirm": "{count, plural, other {确定暂停全部 # 个关注目标？}}已经采集到的内容不受影响，它们只是不再运行，直到你重新启用。",
     "paused": "已暂停",
     "remove": "移除",
+    "removeTitle": "停止关注 {target}？",
+    "removeBody": "它的采集计划会被删除。已经采集到的内容仍保留在归档和快照历史里。",
+    "editLabel": "编辑 {target}",
+    "openInLibrary": "在资料库中查看它采集到的内容（{target}）",
+    "pagesShort": "{count, plural, other {每次 # 页}}",
     "neverRun": "尚未运行",
     "failing": "{count, plural, other {连续失败 # 次}}",
     "toggleLabel": "定时采集 {target}",
@@ -2175,10 +2181,24 @@
       "kind": "关注",
       "target": "目标",
       "targetHint": {
-        "author": "作者的稳定 ID——抖音是 sec_user_id，TikTok 是数字 ID。不要填抖音号，用户会改。",
-        "content": "作品 ID，和归档里保存的一致。"
+        "author": "主页链接，或作者的稳定 ID：抖音是 sec_user_id，TikTok 是 secUid，B 站是数字 mid。不要填抖音号之类的用户名，用户会改。填链接时平台以链接为准。",
+        "content": "作品链接，或归档里保存的作品 ID（B 站是 BV 号）。填链接时平台以链接为准。"
       },
-      "interval": "每隔"
+      "interval": "每隔",
+      "label": "名称",
+      "labelHint": "可不填。留空时，首次运行会自动填上作者的名字。",
+      "pages": "每次翻几页"
+    },
+    "target": {
+      "unrecognised": "这不是本实例能识别的链接。",
+      "shortLink": "这是短链接，要先打开才知道它指向哪里。请在浏览器里打开后粘贴完整地址。",
+      "expectedUser": "这是作品链接。关注作者请粘贴他的主页链接，或者把「关注」改成作品。",
+      "expectedVideo": "这是主页链接。关注作品请粘贴作品自己的链接，或者把「关注」改成作者。"
+    },
+    "edit": {
+      "title": "编辑关注目标",
+      "labelHint": "清空后名称交还给平台：下一次运行会自动填上。",
+      "pagesHint": "每次运行读取作者作品的页数。每一页都是一次走身份池的请求，每次运行都会发生。"
     },
     "kind": {
       "author": "一个作者",
@@ -2199,6 +2219,7 @@
     "toast": {
       "added": "已开始关注，首次采集已入队",
       "addFailed": "无法关注该目标",
+      "saved": "已保存",
       "removed": "已停止关注。已经采集到的内容全部保留。",
       "paused": "{count, plural, other {已暂停 # 个目标}}"
     }

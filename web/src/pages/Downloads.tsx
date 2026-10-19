@@ -26,11 +26,12 @@ import {
 } from '@/components'
 import { Pager, SearchBox } from '@/components/ListControls'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
-import { apiDelete, apiGet, apiPost, errorCodeOf, isApiError } from '@/lib/api'
+import { apiDelete, apiPost, errorCodeOf, isApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { asPlatform, libraryPostHref, patchParams } from '@/lib/contentLinks'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
+import { AVID, BVID, DIGITS, SEC_UID, TargetError, resolveLink } from '@/lib/targets'
 import {
   DOWNLOAD_STATES,
   PAGE_CEILING,
@@ -118,13 +119,6 @@ const MODES: readonly ModeSpec[] = [
   { id: 'author', wants: 'author', skippable: true },
 ]
 
-interface ParsedLink {
-  allowed: boolean
-  platform: string | null
-  resource: string
-  resource_id: string | null
-}
-
 /**
  * How deep a comment save goes. Each page is a real request through the pool,
  * and holds as many as the platform serves - PAGE_CEILING caps the size.
@@ -152,28 +146,6 @@ const AUTHOR_MAX_PAGES = 40
 const RETRYABLE: ReadonlySet<string> = new Set(['failed', 'partial', 'cancelled'])
 /** Still writing into its directory; the server refuses to remove files under it. */
 const LIVE: ReadonlySet<string> = new Set(['queued', 'running'])
-
-/**
- * A bare author id, as both platforms spell it.
- *
- * Douyin's `sec_user_id` and TikTok's `secUid` are the same base64-ish shape
- * and both start `MS4wLjABAAAA`. Matching the prefix rather than the whole
- * string keeps this a recognition test and not a validator - the platform
- * decides whether the id exists, and it says so plainly when asked.
- */
-const SEC_UID = /^MS4wLjABAAAA[\w-]+$/
-
-/**
- * A bare Bilibili video id: `BV1` and nine base-58 characters, or an av number.
- *
- * Either one names its platform by its shape, which a run of digits does not.
- * The box used to send anything that was not digits to the link parser, which
- * has no link to parse in `BV1xx411c7mD` and called it unrecognised - while
- * the API it would have gone to takes both spellings as a content id.
- */
-const BVID = /^BV1[1-9A-HJ-NP-Za-km-z]{9}$/
-const AVID = /^av\d{1,16}$/i
-const DIGITS = /^\d+$/
 
 /**
  * What the box holds, read before anything is sent.
@@ -613,14 +585,17 @@ export default function Downloads() {
     // a scrape of somebody else's list contains - see `shapeOf`.
     const read = shapeOf(target, opts.author === true)
     if (read.kind === 'bare') return { platform: read.fixed ?? platform, id: read.id }
-
-    const kind: ParsedLink = await apiGet(paths.tools.parseUrl, { params: { url: target.trim() } })
-    if (!kind.allowed || !kind.platform || !kind.resource_id) {
-      throw new Error(t('downloads.target.unrecognised'))
+    try {
+      return await resolveLink(target.trim(), opts.author ? 'user' : 'video')
+    } catch (error) {
+      if (!(error instanceof TargetError)) throw error
+      throw new Error(
+        error.problem === 'expectedVideo' || error.problem === 'expectedUser'
+          ? t(`downloads.target.expected.${opts.author ? 'user' : 'video'}`)
+          : t(`downloads.target.${error.problem}`),
+        { cause: error },
+      )
     }
-    const wanted = opts.author ? 'user' : 'video'
-    if (kind.resource !== wanted) throw new Error(t(`downloads.target.expected.${wanted}`))
-    return { platform: kind.platform as Platform, id: kind.resource_id }
   }
 
   //: The walk under way or last finished, for the author and comments modes.

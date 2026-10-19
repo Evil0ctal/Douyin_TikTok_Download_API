@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'wouter'
 
 import {
   Button,
@@ -9,6 +10,7 @@ import {
   Field,
   Input,
   MetricTile,
+  Modal,
   PageHeader,
   Select,
   Switch,
@@ -18,8 +20,10 @@ import {
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiPatch, apiPost } from '@/lib/api'
 import { cn } from '@/lib/cn'
+import { libraryAuthorHref, libraryPostHref } from '@/lib/contentLinks'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
+import { TargetError, resolveLink } from '@/lib/targets'
 import { PLATFORMS, type Platform } from '@/lib/types'
 
 import styles from './Watchlist.module.css'
@@ -43,9 +47,55 @@ import styles from './Watchlist.module.css'
 const WATCHLIST_KEY = ['admin', 'watchlist'] as const
 
 const KINDS = ['author', 'content'] as const
+type Kind = (typeof KINDS)[number]
 
 /** Intervals worth offering. Anything below the server's floor is refused. */
 const INTERVALS = [900, 3600, 6 * 3600, 12 * 3600, 24 * 3600] as const
+/** What the form starts on until the server says what its default is. */
+const FALLBACK_INTERVAL = 6 * 3600
+/** The server's bound on pages per run. */
+const PAGE_CHOICES = [1, 2, 3, 5, 10] as const
+
+/**
+ * What a link to each looks like, per platform. The Douyin example used to be
+ * the placeholder whatever was picked, on a page that takes three platforms.
+ */
+const PLACEHOLDER: Readonly<Record<Platform, Record<Kind, string>>> = {
+  douyin: {
+    author: 'https://www.douyin.com/user/MS4wLjABAAAA…',
+    content: 'https://www.douyin.com/video/7408915107113127220',
+  },
+  tiktok: {
+    author: 'https://www.tiktok.com/@handle',
+    content: 'https://www.tiktok.com/@handle/video/7408915107113127220',
+  },
+  bilibili: {
+    author: 'https://space.bilibili.com/2',
+    content: 'https://www.bilibili.com/video/BV1xx411c7mD',
+  },
+}
+
+/**
+ * Whether the box holds a bare id rather than something to parse.
+ *
+ * Every id these platforms use for an author or a post - sec_user_id, secUid,
+ * a numeric mid, a BV id, a post id - is letters, digits, `_` and `-`. A link
+ * has a `/` or a `.` in it, and share text has spaces.
+ */
+const BARE_ID = /^[\w-]+$/
+
+/**
+ * The intervals a menu should offer: the standard ones the server accepts,
+ * and whatever is chosen now. The default sat outside the menu whenever the
+ * server's floor was above six hours, so the menu showed its first option and
+ * the form submitted a value that was not on it.
+ */
+function intervalChoices(floor: number, extra: readonly number[]): number[] {
+  const allowed = INTERVALS.filter((seconds) => seconds >= floor)
+  return [...new Set([...allowed, ...extra.filter((seconds) => seconds >= floor)])].sort(
+    (a, b) => a - b,
+  )
+}
 
 interface WatchRow {
   id: string
@@ -72,6 +122,19 @@ interface WatchList {
   enabled: boolean
 }
 
+/**
+ * Where the library keeps what this entry collects, or null.
+ *
+ * A post is keyed the same way in both. An author is too on Douyin and
+ * Bilibili, where the id watched is the id archived. Not on TikTok: the post
+ * list takes the `secUid`, and the archive keys TikTok authors by their
+ * numeric id, so a link by the watched id would open an empty library.
+ */
+function libraryHref(row: WatchRow): string | null {
+  if (row.kind === 'content') return libraryPostHref(row.platform, row.target_id)
+  return row.platform === 'tiktok' ? null : libraryAuthorHref(row.target_id)
+}
+
 export default function Watchlist() {
   const { t } = useTranslation(['console', 'common'])
   const toast = useToast()
@@ -79,10 +142,15 @@ export default function Watchlist() {
   const invalidate = useInvalidate()
 
   const [platform, setPlatform] = useState<Platform>('douyin')
-  const [kind, setKind] = useState<(typeof KINDS)[number]>('author')
-  const [targetId, setTargetId] = useState('')
-  const [interval, setInterval] = useState<number>(6 * 3600)
+  const [kind, setKind] = useState<Kind>('author')
+  //: A link or an id, read on submit - see `BARE_ID`.
+  const [target, setTarget] = useState('')
+  const [label, setLabel] = useState('')
+  //: null until chosen: the server's default stands in for it until then.
+  const [interval, setInterval] = useState<number | null>(null)
   const [pausing, setPausing] = useState(false)
+  const [removing, setRemoving] = useState<WatchRow | null>(null)
+  const [editing, setEditing] = useState<WatchRow | null>(null)
 
   const query = useApiQuery<WatchList>({
     key: WATCHLIST_KEY,
@@ -90,21 +158,55 @@ export default function Watchlist() {
     poll: POLL.slow,
   })
 
+  const floor = query.data?.min_interval_seconds ?? 0
+  const serverDefault = query.data?.default_interval_seconds ?? FALLBACK_INTERVAL
+  const choices = intervalChoices(floor, [serverDefault])
+  // What the menu shows is what gets sent: the choice if there is one, the
+  // server's default otherwise, and never a value the menu does not list.
+  const chosenInterval =
+    interval !== null && choices.includes(interval)
+      ? interval
+      : choices.includes(serverDefault)
+        ? serverDefault
+        : (choices[0] ?? serverDefault)
+
   const refresh = (): void => {
     void invalidate(WATCHLIST_KEY)
   }
 
+  /**
+   * The platform and id to watch. A bare id goes with the menu beside it; a
+   * link is parsed - the platform it names wins over the menu, which is moved
+   * to match so the form says what was sent.
+   */
+  const resolveTarget = async (): Promise<{ platform: Platform; id: string }> => {
+    const text = target.trim()
+    if (BARE_ID.test(text)) return { platform, id: text }
+    try {
+      const resolved = await resolveLink(text, kind === 'author' ? 'user' : 'video')
+      setPlatform(resolved.platform)
+      return resolved
+    } catch (error) {
+      if (!(error instanceof TargetError)) throw error
+      throw new Error(t(`watchlist.target.${error.problem}`), { cause: error })
+    }
+  }
+
   const add = useApiMutation<WatchRow, void>(
-    () =>
-      apiPost(paths.watchlist.create, {
-        platform,
+    async () => {
+      const resolved = await resolveTarget()
+      return apiPost(paths.watchlist.create, {
+        platform: resolved.platform,
         kind,
-        target_id: targetId.trim(),
-        interval_seconds: interval,
-      }),
+        target_id: resolved.id,
+        interval_seconds: chosenInterval,
+        ...(label.trim() ? { label: label.trim() } : {}),
+      })
+    },
     {
       onSuccess: () => {
-        setTargetId('')
+        setTarget('')
+        setLabel('')
         refresh()
         toast.success(t('watchlist.toast.added'))
       },
@@ -128,6 +230,7 @@ export default function Watchlist() {
 
   const remove = useApiMutation<unknown, string>((id) => apiDelete(paths.watchlist.byId(id)), {
     onSuccess: () => {
+      setRemoving(null)
       refresh()
       toast.success(t('watchlist.toast.removed'))
     },
@@ -157,16 +260,34 @@ export default function Watchlist() {
         id: 'target',
         header: t('watchlist.column.target'),
         width: '32%',
-        cell: (row) => (
-          <div className={styles.cell}>
-            <span className="u-truncate" title={row.target_id}>
-              {row.label || row.target_id}
-            </span>
-            <span className={styles.sub}>
-              {t(`watchlist.kind.${row.kind}`)} · {row.platform}
-            </span>
-          </div>
-        ),
+        cell: (row) => {
+          const href = libraryHref(row)
+          const name = row.label || row.target_id
+          return (
+            <div className={styles.cell}>
+              {/* To what this entry has collected: the reason it exists. */}
+              {href ? (
+                <Link
+                  href={href}
+                  className={cn('u-truncate', styles.targetLink)}
+                  title={t('watchlist.openInLibrary', { target: row.target_id })}
+                >
+                  {name}
+                </Link>
+              ) : (
+                <span className="u-truncate" title={row.target_id}>
+                  {name}
+                </span>
+              )}
+              <span className={styles.sub}>
+                {t(`watchlist.kind.${row.kind}`)} · {row.platform}
+                {row.kind === 'author' && row.pages > 1
+                  ? ` · ${t('watchlist.pagesShort', { count: row.pages })}`
+                  : ''}
+              </span>
+            </div>
+          )
+        },
         sortValue: (row) => row.label ?? row.target_id,
       },
       {
@@ -233,21 +354,35 @@ export default function Watchlist() {
         sortValue: (row) => (row.enabled ? 1 : 0),
       },
       {
-        id: 'remove',
+        id: 'actions',
         header: '',
-        width: '100px',
+        width: '170px',
         hideable: false,
         cell: (row) => (
-          <Button
-            size="sm"
-            variant="ghost"
-            loading={remove.isPending && remove.variables === row.id}
-            onClick={() => {
-              remove.mutate(row.id)
-            }}
-          >
-            {t('watchlist.remove')}
-          </Button>
+          <span className="u-row">
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={t('watchlist.editLabel', { target: row.label || row.target_id })}
+              onClick={() => {
+                setEditing(row)
+              }}
+            >
+              {t('common:action.edit')}
+            </Button>
+            {/* Asks first. One click used to delete a schedule somebody had
+                tuned, with nothing between the click and the loss. */}
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={remove.isPending && remove.variables === row.id}
+              onClick={() => {
+                setRemoving(row)
+              }}
+            >
+              {t('watchlist.remove')}
+            </Button>
+          </span>
         ),
       },
     ],
@@ -304,9 +439,9 @@ export default function Watchlist() {
       </div>
 
       <Card title={t('watchlist.add.title')} description={t('watchlist.add.description')}>
-        {/* Four fields and a button, only one of which carries help text - the
-            case a flex row gets wrong, putting that field's control 20px above
-            its neighbours. u-form-row shares three rows between them. */}
+        {/* Five fields and a button, only some of which carry help text - the
+            case a flex row gets wrong, putting those fields' controls 20px
+            above their neighbours. u-form-row shares three rows between them. */}
         <form
           className={cn('u-form-row', styles.addForm)}
           onSubmit={(event) => {
@@ -332,7 +467,7 @@ export default function Watchlist() {
             <Select
               value={kind}
               onChange={(event) => {
-                setKind(event.target.value as (typeof KINDS)[number])
+                setKind(event.target.value as Kind)
               }}
             >
               {KINDS.map((value) => (
@@ -348,30 +483,42 @@ export default function Watchlist() {
             description={t(`watchlist.field.targetHint.${kind}`)}
           >
             <Input
-              value={targetId}
+              value={target}
+              mono
               onChange={(event) => {
-                setTargetId(event.target.value)
+                setTarget(event.target.value)
               }}
-              placeholder={kind === 'author' ? 'MS4wLjABAAAA…' : '7408915107113127220'}
+              placeholder={PLACEHOLDER[platform][kind]}
+            />
+          </Field>
+          <Field
+            id="watch-label"
+            label={t('watchlist.field.label')}
+            description={t('watchlist.field.labelHint')}
+          >
+            <Input
+              value={label}
+              maxLength={128}
+              onChange={(event) => {
+                setLabel(event.target.value)
+              }}
             />
           </Field>
           <Field id="watch-interval" label={t('watchlist.field.interval')}>
             <Select
-              value={String(interval)}
+              value={String(chosenInterval)}
               onChange={(event) => {
                 setInterval(Number(event.target.value))
               }}
             >
-              {INTERVALS.filter(
-                (seconds) => seconds >= (query.data?.min_interval_seconds ?? 0),
-              ).map((seconds) => (
+              {choices.map((seconds) => (
                 <option key={seconds} value={seconds}>
                   {formatters.duration(seconds * 1000)}
                 </option>
               ))}
             </Select>
           </Field>
-          <Button type="submit" variant="primary" loading={add.isPending} disabled={!targetId.trim()}>
+          <Button type="submit" variant="primary" loading={add.isPending} disabled={!target.trim()}>
             {t('watchlist.add.action')}
           </Button>
         </form>
@@ -405,6 +552,160 @@ export default function Watchlist() {
           setPausing(false)
         }}
       />
+
+      <ConfirmDialog
+        open={removing !== null}
+        danger
+        title={t('watchlist.removeTitle', { target: removing?.label || removing?.target_id || '' })}
+        description={t('watchlist.removeBody')}
+        confirmLabel={t('watchlist.remove')}
+        loading={remove.isPending}
+        onConfirm={() => {
+          if (removing) remove.mutate(removing.id)
+        }}
+        onCancel={() => {
+          setRemoving(null)
+        }}
+      />
+
+      {editing ? (
+        <EditEntry
+          // Remounted per entry, so the form starts from the row it edits.
+          key={editing.id}
+          row={editing}
+          floor={floor}
+          onClose={() => {
+            setEditing(null)
+          }}
+          onSaved={() => {
+            setEditing(null)
+            refresh()
+            toast.success(t('watchlist.toast.saved'))
+          }}
+        />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * Rename an entry, or change how often and how deep it runs.
+ *
+ * The API took all three from the start; the page offered none of them, so
+ * changing an interval meant removing the entry - and its failure history -
+ * and adding it again.
+ */
+function EditEntry({
+  row,
+  floor,
+  onClose,
+  onSaved,
+}: {
+  row: WatchRow
+  floor: number
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { t } = useTranslation(['console', 'common'])
+  const toast = useToast()
+  const formatters = useFormatters()
+  const [label, setLabel] = useState(row.label ?? '')
+  const [interval, setInterval] = useState(row.interval_seconds)
+  const [pages, setPages] = useState(row.pages)
+  // The entry's own interval stays on the menu even when it is off the
+  // standard list, or the menu would show one value and save another.
+  const choices = intervalChoices(floor, [row.interval_seconds])
+  const pageChoices = [...new Set([...PAGE_CHOICES, row.pages])].sort((a, b) => a - b)
+
+  const save = useApiMutation<WatchRow, void>(
+    () => {
+      // Only what changed. An unchanged label in particular is left out
+      // rather than resent: sending it would be harmless, sending '' for an
+      // auto-filled one would clear it.
+      const patch: Record<string, unknown> = {}
+      if (label.trim() !== (row.label ?? '')) patch['label'] = label.trim() || null
+      if (interval !== row.interval_seconds) patch['interval_seconds'] = interval
+      if (pages !== row.pages) patch['pages'] = pages
+      return apiPatch(paths.watchlist.byId(row.id), patch)
+    },
+    {
+      onSuccess: onSaved,
+      onError: (error) => {
+        toast.apiError(error)
+      },
+    },
+  )
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={t('watchlist.edit.title')}
+      description={`${t(`watchlist.kind.${row.kind}`)} · ${row.platform} · ${row.target_id}`}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t('common:action.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            loading={save.isPending}
+            onClick={() => {
+              save.mutate()
+            }}
+          >
+            {t('common:action.save')}
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="u-stack"
+        onSubmit={(event) => {
+          event.preventDefault()
+          save.mutate()
+        }}
+      >
+        <Input
+          label={t('watchlist.field.label')}
+          description={t('watchlist.edit.labelHint')}
+          value={label}
+          maxLength={128}
+          onChange={(event) => {
+            setLabel(event.target.value)
+          }}
+        />
+        <Select
+          label={t('watchlist.field.interval')}
+          value={String(interval)}
+          onChange={(event) => {
+            setInterval(Number(event.target.value))
+          }}
+        >
+          {choices.map((seconds) => (
+            <option key={seconds} value={seconds}>
+              {formatters.duration(seconds * 1000)}
+            </option>
+          ))}
+        </Select>
+        {/* Pages only mean something for an author: a post is one request. */}
+        {row.kind === 'author' ? (
+          <Select
+            label={t('watchlist.field.pages')}
+            description={t('watchlist.edit.pagesHint')}
+            value={String(pages)}
+            onChange={(event) => {
+              setPages(Number(event.target.value))
+            }}
+          >
+            {pageChoices.map((count) => (
+              <option key={count} value={count}>
+                {t('watchlist.pagesShort', { count })}
+              </option>
+            ))}
+          </Select>
+        ) : null}
+      </form>
+    </Modal>
   )
 }
