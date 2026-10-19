@@ -502,7 +502,7 @@
         "preferred": "A guest gets less here - Douyin leaves the newest posts out of an author's first page - so a login is used when rotation has one."
       },
       "unlisted": "Set through the API; this build does not list it.",
-      "sessionBoundNote": "Endpoints that answer only about the identity asking - its own likes and bookmarks - are not listed: they always need identity=, so rotation never reaches them.",
+      "sessionBoundNote": "Endpoints that answer only about the identity asking - its own bookmarks and bookmark folders - are not listed: they always need identity=, so rotation never reaches them.",
       "pickSome": "Tick at least one endpoint. To keep it out of rotation entirely, choose \"Only requests that name it\".",
       "bulkAction": "{count, plural, one {Set rotation for # identity} other {Set rotation for # identities}}",
       "bulkTitle": "{count, plural, one {Rotation for # identity} other {Rotation for # identities}}",

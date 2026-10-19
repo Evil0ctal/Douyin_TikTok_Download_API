@@ -20,8 +20,11 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch(
       <span className={styles.switchTrack} aria-hidden="true">
         <span className={styles.switchThumb} />
       </span>
+      {/* Stacked, as a checkbox's are. A bare span ran the hint straight on
+          from the label, so "Guests first" and the sentence explaining it read
+          as one run-on line on every switch that had a hint. */}
       {label || hint ? (
-        <span>
+        <span className={styles.checkboxText}>
           {label ? <span className={styles.checkboxLabel}>{label}</span> : null}
           {hint ? <span className={styles.description}>{hint}</span> : null}
         </span>
