@@ -103,6 +103,7 @@ class RequestLogRepository(Repository):
         request_id: uuid.UUID | None = None,
         endpoint: str | None = None,
         identity_id: uuid.UUID | None = None,
+        proxy_id: uuid.UUID | None = None,
         outcomes: Sequence[Outcome] | None = None,
     ) -> Sequence[RequestLog]:
         """Newest first, within a window. Both bounds are required arguments.
@@ -114,9 +115,10 @@ class RequestLogRepository(Repository):
         drop the chunks outside the window before reading anything.
 
         Ordering on ``ts DESC`` is what makes the filtered forms cheap as well:
-        ``ix_request_log_endpoint_ts`` and ``ix_request_log_identity_ts`` are
-        both ``(col, ts DESC)``, so a filtered page is an index scan that stops
-        at ``limit`` rather than a sort of the whole window.
+        ``ix_request_log_endpoint_ts``, ``ix_request_log_identity_ts`` and
+        ``ix_request_log_proxy_ts`` are all ``(col, ts DESC)``, so a filtered
+        page is an index scan that stops at ``limit`` rather than a sort of the
+        whole window.
 
         ``endpoint`` matches exactly. A substring match would read better in the
         console and would also discard those indexes, which is not a trade this
@@ -134,6 +136,8 @@ class RequestLogRepository(Repository):
             stmt = stmt.where(RequestLog.endpoint == endpoint)
         if identity_id is not None:
             stmt = stmt.where(RequestLog.identity_id == identity_id)
+        if proxy_id is not None:
+            stmt = stmt.where(RequestLog.proxy_id == proxy_id)
         if outcomes:
             stmt = stmt.where(RequestLog.outcome.in_([o.value for o in outcomes]))
         return (await self.session.scalars(stmt)).all()

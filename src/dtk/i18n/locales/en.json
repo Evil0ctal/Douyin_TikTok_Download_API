@@ -634,6 +634,7 @@
     },
     "param": {
       "action": "Only this action, such as `settings.update`.",
+      "audit_list.before_id": "With `before`, the id of the last entry already shown: entries that share its timestamp and sort after it are included, so a page boundary drops nothing.",
       "audit_list.user_id": "Only what this console account did.",
       "author_uid": "Only this author's posts.",
       "availability": "Only posts with this upstream status.",
@@ -677,6 +678,7 @@
       "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call. How long the cached answer lives depends on what was asked for and is set in the console: cache.content_ttl for one post (30 minutes by default), cache.author_ttl for a profile (15 minutes), cache.list_ttl for anything paged (5 minutes). Entries expire on their own and Redis is capped below its container limit, dropping the least recently used expiring keys before it fills, so the cache cannot grow without bound.",
       "request_id": "Only the request with this id.",
       "request_log.identity_id": "Only requests made with this identity.",
+      "request_log.proxy_id": "Only requests that went out through this proxy.",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid; on Bilibili, the numeric mid.",
       "session_ref": "The session digest from the list endpoint.",
       "sort": "hot or new. Only Bilibili offers a choice; Douyin and TikTok rank comments their own way, accept hot, and refuse new. Send the same value again with the cursor of a later page.",

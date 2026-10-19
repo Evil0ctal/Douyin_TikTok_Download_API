@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import select
 
 from dtk.api.deps import Principal
 from dtk.api.routes import operations
@@ -48,6 +49,7 @@ from dtk.api.routes.support import (
 from dtk.core.config import BootstrapSettings
 from dtk.core.errors import InvalidParam, NotFound
 from dtk.core.logging import get_logger
+from dtk.db.models import User
 from dtk.db.repositories import AuditRepository
 from dtk.ops.backup import (
     ARCHIVE_SUFFIX,
@@ -83,6 +85,13 @@ async def list_audit(
     before: datetime | None = Query(
         default=None, description="Only entries older than this timestamp. Page with it."
     ),
+    before_id: uuid.UUID | None = Query(
+        default=None,
+        description=(
+            "With `before`, the id of the last entry already shown: entries that share "
+            "its timestamp and sort after it are included, so a page boundary drops nothing."
+        ),
+    ),
     user_id: uuid.UUID | None = Query(
         default=None, description="Only what this console account did."
     ),
@@ -93,10 +102,21 @@ async def list_audit(
     Kept apart from ``request_log`` on purpose: this is the record of who
     changed what, and it must not be lost in the volume of ordinary traffic
     (doc 08).
+
+    Each row names its actor's account as well as its id. The id alone made
+    every actor on the console a UUID, and the account list that could resolve
+    it is administrator-only - so a viewer reading the trail could see that
+    something was changed and never by whom.
+
+    ``before`` with ``before_id`` pages: pass the last row shown. ``before``
+    alone is kept for callers that used it, and can skip rows that share the
+    boundary's timestamp.
     """
-    rows = await AuditRepository(request.state.db).list_recent(
-        limit=limit, action=action, before=before, user_id=user_id
+    session = request.state.db
+    rows = await AuditRepository(session).list_recent(
+        limit=limit, action=action, before=before, before_id=before_id, user_id=user_id
     )
+    usernames = await _usernames(session, {row.user_id for row in rows if row.user_id})
     return ok(
         request,
         [
@@ -105,6 +125,7 @@ async def list_audit(
                 "ts": iso(row.ts),
                 "action": row.action,
                 "user_id": str(row.user_id) if row.user_id else None,
+                "username": usernames.get(row.user_id) if row.user_id else None,
                 "api_key_id": str(row.api_key_id) if row.api_key_id else None,
                 "target_type": row.target_type,
                 "target_id": row.target_id,
@@ -123,6 +144,14 @@ async def list_audit(
             for row in rows
         ],
     )
+
+
+async def _usernames(session: Any, ids: set[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """One query for every actor on the page, never one per row."""
+    if not ids:
+        return {}
+    found = await session.execute(select(User.id, User.username).where(User.id.in_(ids)))
+    return {user_id: str(username) for user_id, username in found.tuples().all()}
 
 
 @router.post(

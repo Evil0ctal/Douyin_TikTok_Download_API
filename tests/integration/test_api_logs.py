@@ -21,14 +21,15 @@ from typing import Any
 import pytest
 
 from dtk.core.db import session_scope
-from dtk.core.types import Outcome, Platform, Scope
-from dtk.db.models import RequestLog
+from dtk.core.types import Outcome, Platform, Scope, UserRole
+from dtk.db.models import AuditLog, RequestLog
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
     anonymous_client,
     envelope,
     error_code,
     make_api_key,
+    make_user,
     signed_in,
 )
 
@@ -193,6 +194,30 @@ async def test_each_filter_narrows_the_result(client: Any) -> None:
     ] == [str(wanted)]
 
 
+async def test_the_proxy_filter_finds_what_one_egress_carried(client: Any) -> None:
+    """Which exit a platform is refusing: every identity behind it shares it."""
+    await signed_in(client)
+    egress, other = uuid.uuid4(), uuid.uuid4()
+    first = await seed(proxy_id=egress, identity_id=uuid.uuid4(), outcome=Outcome.RISK_CONTROL)
+    second = await seed(proxy_id=egress, identity_id=uuid.uuid4(), outcome=Outcome.OK)
+    await seed(proxy_id=other)
+    await seed(proxy_id=None)
+
+    found = await rows(client, proxy_id=str(egress))
+
+    assert {row["request_id"] for row in found} == {str(first), str(second)}
+    assert {row["proxy_id"] for row in found} == {str(egress)}
+    # And it composes with the others, as every filter here does.
+    risky = await rows(client, proxy_id=str(egress), outcome=[Outcome.RISK_CONTROL.value])
+    assert [row["request_id"] for row in risky] == [str(first)]
+
+
+async def test_a_malformed_proxy_id_is_refused(client: Any) -> None:
+    await signed_in(client)
+
+    assert error_code(await client.get(PATH, params={"proxy_id": "not-a-uuid"})) == "INVALID_PARAM"
+
+
 async def test_the_outcome_filter_repeats(client: Any) -> None:
     await signed_in(client)
     await seed(outcome=Outcome.OK)
@@ -284,6 +309,83 @@ async def test_both_log_tabs_share_the_audit_envelope(client: Any) -> None:
         body = envelope(await client.get(path))
         assert isinstance(body["data"], list), path
         assert body["error"] is None
+
+
+# --------------------------------------------------------------------------
+# The audit tab
+# --------------------------------------------------------------------------
+
+AUDIT = "/api/v1/admin/audit"
+
+
+async def seed_audit(
+    *,
+    ts: datetime,
+    action: str = "settings.updated",
+    user_id: uuid.UUID | None = None,
+    entry_id: uuid.UUID | None = None,
+) -> uuid.UUID:
+    row_id = entry_id or uuid.uuid4()
+    async with session_scope() as session:
+        session.add(AuditLog(id=row_id, ts=ts, action=action, user_id=user_id))
+    return row_id
+
+
+async def test_an_audit_row_names_its_actor(client: Any) -> None:
+    """A UUID in the "who" column answered nothing; the account list that could
+    resolve it is administrator-only, so a viewer never could."""
+    await signed_in(client)
+    operator = await make_user("night-shift", role=UserRole.OPERATOR)
+    await seed_audit(ts=datetime.now(UTC), user_id=operator)
+    await seed_audit(ts=datetime.now(UTC) - timedelta(seconds=1), user_id=None)
+
+    body = envelope(await client.get(AUDIT, params={"action": "settings.updated"}))["data"]
+
+    by_actor = {row["user_id"]: row for row in body}
+    assert by_actor[str(operator)]["username"] == "night-shift"
+    # Done by the system, or by an account since deleted: no name to give.
+    assert by_actor[None]["username"] is None
+
+
+async def test_the_audit_trail_filters_by_actor(client: Any) -> None:
+    await signed_in(client)
+    one = await make_user("one", role=UserRole.OPERATOR)
+    two = await make_user("two", role=UserRole.OPERATOR)
+    mine = await seed_audit(ts=datetime.now(UTC), user_id=one)
+    await seed_audit(ts=datetime.now(UTC), user_id=two)
+
+    body = envelope(await client.get(AUDIT, params={"user_id": str(one)}))["data"]
+
+    assert [row["id"] for row in body] == [str(mine)]
+
+
+async def test_paging_the_audit_trail_drops_nothing_at_a_shared_timestamp(client: Any) -> None:
+    """Every row one request writes shares its transaction's timestamp.
+
+    Paging on ``ts < before`` alone lost whichever of them fell past the page
+    boundary. The cursor is the last row shown - its time and its id - and
+    walking the trail with it returns every row exactly once.
+    """
+    await signed_in(client)
+    shared = datetime.now(UTC) - timedelta(minutes=5)
+    seeded = {
+        await seed_audit(ts=shared, action="proxy.deleted"),
+        await seed_audit(ts=shared, action="proxy.deleted"),
+        await seed_audit(ts=shared, action="proxy.deleted"),
+        await seed_audit(ts=shared - timedelta(seconds=1), action="proxy.deleted"),
+    }
+
+    walked: list[str] = []
+    params: dict[str, Any] = {"action": "proxy.deleted", "limit": 2}
+    for _ in range(5):
+        page = envelope(await client.get(AUDIT, params=params))["data"]
+        walked.extend(row["id"] for row in page)
+        if len(page) < 2:
+            break
+        params = {**params, "before": page[-1]["ts"], "before_id": page[-1]["id"]}
+
+    assert len(walked) == len(set(walked)) == 4
+    assert set(walked) == {str(entry) for entry in seeded}
 
 
 # --------------------------------------------------------------------------

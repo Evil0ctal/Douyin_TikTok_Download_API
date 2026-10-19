@@ -31,7 +31,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from dtk.core.logging import get_logger
@@ -735,11 +735,28 @@ class AuditRepository(Repository):
         *,
         limit: int = 100,
         before: datetime | None = None,
+        before_id: uuid.UUID | None = None,
         action: str | None = None,
         user_id: uuid.UUID | None = None,
     ) -> Sequence[AuditLog]:
-        stmt = select(AuditLog).order_by(AuditLog.ts.desc()).limit(limit)
-        if before is not None:
+        """Newest first, paged by ``(ts, id)``.
+
+        ``ts`` alone is not a cursor. It is the transaction's start time, so
+        every row one request writes shares it, and paging on ``ts < before``
+        silently dropped whichever of them fell past the page boundary. With
+        ``before_id`` the cursor is the last row actually shown, and the ``id``
+        tie-break makes the order total so the next page starts exactly after
+        it.
+        """
+        stmt = select(AuditLog).order_by(AuditLog.ts.desc(), AuditLog.id.desc()).limit(limit)
+        if before is not None and before_id is not None:
+            stmt = stmt.where(
+                or_(
+                    AuditLog.ts < before,
+                    and_(AuditLog.ts == before, AuditLog.id < before_id),
+                )
+            )
+        elif before is not None:
             stmt = stmt.where(AuditLog.ts < before)
         if action is not None:
             stmt = stmt.where(AuditLog.action == action)
