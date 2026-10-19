@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -69,6 +69,53 @@ USEFUL: frozenset[str] = frozenset(
     }
 )
 
+#: Cookie names only one platform sets, which is how a paste says where it came
+#: from. The console's import dialog opened on Douyin whatever was pasted, so a
+#: Bilibili jar was judged against Douyin's required cookies and refused for
+#: lacking a `ttwid` it was never going to have.
+#:
+#: Distinct names only. Douyin and TikTok are both ByteDance and share most of
+#: their jar - `ttwid`, `odin_tt`, `sessionid`, `sid_guard`, and `msToken` on
+#: both - so those decide nothing on their own. The Douyin set carries every
+#: spelling of the visitor id `dtk.signing.native.websign.UIFID_COOKIE_NAMES`
+#: looks for, and `s_v_web_id`, which is its `verifyFp`.
+PLATFORM_MARKERS: Mapping[Platform, frozenset[str]] = MappingProxyType(
+    {
+        Platform.BILIBILI: frozenset(
+            {"SESSDATA", "bili_jct", "buvid3", "buvid4", "b_nut", "buvid_fp", "DedeUserID"}
+        ),
+        Platform.TIKTOK: frozenset(
+            {
+                "store-idc",
+                "store-country-code",
+                "tt-target-idc",
+                "tt_chain_token",
+                "tiktok_webapp_theme",
+            }
+        ),
+        Platform.DOUYIN: frozenset(
+            {
+                "s_v_web_id",
+                "UIFID",
+                "UIFID_TEMP",
+                "UIFIDTEMP",
+                "uifid",
+                "uifid_temp",
+                "uifidtemp",
+                "IsDouyinActive",
+                "__ac_nonce",
+                "__ac_signature",
+            }
+        ),
+    }
+)
+
+#: Names a ByteDance jar carries on either platform. With no distinct marker
+#: beside them they still say "not Bilibili", and of the two ByteDance sites a
+#: jar with nothing TikTok-specific in it is a Douyin one in practice: a TikTok
+#: page sets its datacentre cookies on the first visit.
+BYTEDANCE_SHARED: frozenset[str] = frozenset({"ttwid", "odin_tt", "msToken"})
+
 #: Catalogue namespace the warning codes below render through.
 WARNING_KEY_PREFIX: str = "identity.import.warning."
 
@@ -117,6 +164,9 @@ class ImportReport:
     expires_at: datetime | None
     missing_required: tuple[str, ...]
     warnings: tuple[CookieWarning, ...] = field(default_factory=tuple)
+    #: Which platform the cookie names point at, whatever ``platform`` says.
+    #: None when they do not say; see :func:`detect_platform`.
+    detected_platform: Platform | None = None
 
     @property
     def usable(self) -> bool:
@@ -257,16 +307,49 @@ def infer_browser(user_agent: str | None) -> tuple[BrowserFamily | None, int | N
 #: "<sessionid>|<issued_unix>|<max_age_seconds>|<http_date>", URL-encoded.
 _SID_GUARD_RE = re.compile(r"^([^|]+)\|(\d+)\|(\d+)\|(.*)$")
 
+#: Bilibili's SESSDATA carries its own expiry: URL-decoded it is
+#: "<token>,<expiry_unix>,<suffix>", the suffix itself holding a `*`. Read
+#: from the value rather than from the cookie's Expires attribute, because
+#: every paste format but cookies.txt drops the attribute and keeps the value.
+_SESSDATA_RE = re.compile(r"^([^,]+),(\d+),(.*)$")
 
-def session_expiry(cookies: dict[str, str]) -> datetime | None:
+
+def session_expiry(cookies: Mapping[str, str]) -> datetime | None:
     """Best-effort expiry for a logged-in cookie set.
 
     Knowing this up front turns a silent mass failure - every request from that
     identity starting to fail at once - into a warning days ahead of time.
+
+    Douyin and TikTok say it in ``sid_guard``, Bilibili in ``SESSDATA``. Until
+    the second was read here, every Bilibili login showed no expiry at all, and
+    the warning this exists for never fired for one.
     """
     guard = cookies.get("sid_guard")
-    if not guard:
+    if guard:
+        return _sid_guard_expiry(guard)
+    sessdata = cookies.get("SESSDATA")
+    if sessdata:
+        return _sessdata_expiry(sessdata)
+    return None
+
+
+def _sessdata_expiry(value: str) -> datetime | None:
+    m = _SESSDATA_RE.match(unquote(value))
+    if not m:
         return None
+    try:
+        expires = int(m.group(2))
+    except ValueError:
+        return None
+    if expires <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(expires, tz=UTC)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _sid_guard_expiry(guard: str) -> datetime | None:
     m = _SID_GUARD_RE.match(unquote(guard))
     if not m:
         return None
@@ -281,6 +364,28 @@ def session_expiry(cookies: dict[str, str]) -> datetime | None:
         return datetime.fromtimestamp(issued + max_age, tz=UTC)
     except (OverflowError, OSError, ValueError):
         return None
+
+
+# --- platform detection ----------------------------------------------------------
+
+
+def detect_platform(names: Iterable[str]) -> Platform | None:
+    """The platform a jar's cookie names point at, or None when they do not say.
+
+    Counted rather than first-match, because the sets are distinct but a jar is
+    not always tidy: a browser that visited both ByteDance sites can hand over
+    a Douyin jar with one TikTok cookie in it. A tie is an honest None - the
+    caller keeps the platform the person chose rather than guessing for them.
+    """
+    present = set(names)
+    scores = {platform: len(present & markers) for platform, markers in PLATFORM_MARKERS.items()}
+    best = max(scores.values(), default=0)
+    if best:
+        leaders = [platform for platform, score in scores.items() if score == best]
+        return leaders[0] if len(leaders) == 1 else None
+    if present & BYTEDANCE_SHARED:
+        return Platform.DOUYIN
+    return None
 
 
 # --- top level -----------------------------------------------------------------
@@ -334,6 +439,7 @@ def build_report(
         expires_at=session_expiry(cookies) if authenticated else None,
         missing_required=missing,
         warnings=tuple(warnings),
+        detected_platform=detect_platform(cookies),
     )
 
 
@@ -342,6 +448,8 @@ def to_cookie_header(cookies: dict[str, str]) -> str:
 
 
 __all__ = [
+    "BYTEDANCE_SHARED",
+    "PLATFORM_MARKERS",
     "REQUIRED",
     "SESSION_MARKERS",
     "USEFUL",
@@ -352,6 +460,7 @@ __all__ = [
     "WarningCode",
     "build_report",
     "detect_format",
+    "detect_platform",
     "infer_browser",
     "mask_value",
     "parse_cookies",

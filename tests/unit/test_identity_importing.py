@@ -15,6 +15,8 @@ import pytest
 from dtk.core.types import BrowserFamily, Language, Platform
 from dtk.i18n.catalog import humanize, t
 from dtk.identity.importing import (
+    BYTEDANCE_SHARED,
+    PLATFORM_MARKERS,
     REQUIRED,
     SESSION_MARKERS,
     USEFUL,
@@ -25,6 +27,7 @@ from dtk.identity.importing import (
     WarningCode,
     build_report,
     detect_format,
+    detect_platform,
     infer_browser,
     parse_cookies,
     session_expiry,
@@ -173,6 +176,84 @@ class TestSessionExpiry:
 
     def test_absent_sid_guard_returns_none(self):
         assert session_expiry({"ttwid": "abc"}) is None
+
+    def test_parses_bilibili_sessdata(self):
+        # "<token>,<expiry>,<suffix>", URL-encoded. Synthetic: the shape of the
+        # real cookie, none of its value.
+        sessdata = "SYNTHETICa1b2%2C1792300000%2Cabcd%2A42"
+        assert session_expiry({"SESSDATA": sessdata}) == datetime.fromtimestamp(1792300000, tz=UTC)
+
+    def test_sessdata_unencoded_form_also_works(self):
+        got = session_expiry({"SESSDATA": "SYNTHETIC,1792300000,abcd*42"})
+        assert got == datetime.fromtimestamp(1792300000, tz=UTC)
+
+    @pytest.mark.parametrize(
+        "sessdata", ["", "garbage", "SYNTHETIC%2Cnotanumber%2Cx", "SYNTHETIC,0,x", "a,1"]
+    )
+    def test_unparseable_sessdata_returns_none(self, sessdata):
+        assert session_expiry({"SESSDATA": sessdata}) is None
+
+    def test_a_bilibili_login_is_dated_in_the_report(self):
+        report = build_report(
+            "buvid3=SYNTHETIC-b3infoc; SESSDATA=SYNTHETIC%2C1792300000%2Cx%2A1; bili_jct=SYN",
+            Platform.BILIBILI,
+            user_agent=CHROME_UA,
+        )
+        assert report.authenticated
+        assert report.expires_at == datetime.fromtimestamp(1792300000, tz=UTC)
+
+
+class TestPlatformDetection:
+    """The import dialog used to open on Douyin whatever was pasted.
+
+    So a Bilibili jar was judged against Douyin's required cookies and refused
+    for lacking a `ttwid` it never had. These are the names that say otherwise.
+    """
+
+    @pytest.mark.parametrize(
+        ("names", "expected"),
+        [
+            ({"buvid3", "SESSDATA", "bili_jct"}, Platform.BILIBILI),
+            ({"SESSDATA"}, Platform.BILIBILI),
+            ({"ttwid", "msToken", "tt_chain_token", "store-idc"}, Platform.TIKTOK),
+            ({"ttwid", "tt-target-idc"}, Platform.TIKTOK),
+            ({"ttwid", "odin_tt", "s_v_web_id", "UIFID_TEMP", "msToken"}, Platform.DOUYIN),
+            ({"ttwid", "UIFID"}, Platform.DOUYIN),
+            # Shared ByteDance names and nothing TikTok-specific beside them.
+            ({"ttwid", "odin_tt", "sessionid"}, Platform.DOUYIN),
+        ],
+    )
+    def test_the_names_say_where_a_jar_came_from(self, names, expected):
+        assert detect_platform(names) is expected
+
+    def test_names_that_say_nothing_detect_nothing(self):
+        assert detect_platform({"sessionid", "custom"}) is None
+        assert detect_platform(set()) is None
+
+    def test_a_tie_is_left_to_the_person(self):
+        """One marker each: guessing would switch a choice somebody made."""
+        assert detect_platform({"s_v_web_id", "store-idc"}) is None
+
+    def test_the_report_carries_the_detection_whatever_platform_was_chosen(self):
+        report = build_report(
+            "buvid3=SYNTHETIC-b3infoc; buvid4=SYNTHETIC-b4", Platform.DOUYIN, user_agent=CHROME_UA
+        )
+        assert report.detected_platform is Platform.BILIBILI
+        # Still judged as what was asked for, so the mismatch is visible.
+        assert report.missing_required == ("ttwid",)
+
+    def test_every_visitor_id_spelling_the_douyin_signer_reads_is_a_douyin_marker(self):
+        from dtk.signing.native.websign import UIFID_COOKIE_NAMES, VERIFY_FP_COOKIE
+
+        assert {*UIFID_COOKIE_NAMES, VERIFY_FP_COOKIE} <= PLATFORM_MARKERS[Platform.DOUYIN]
+
+    def test_markers_are_distinct_between_platforms(self):
+        sets = list(PLATFORM_MARKERS.values())
+        for index, first in enumerate(sets):
+            for second in sets[index + 1 :]:
+                assert not first & second
+        for markers in sets:
+            assert not markers & BYTEDANCE_SHARED
 
 
 class TestReport:

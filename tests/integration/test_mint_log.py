@@ -90,19 +90,29 @@ async def test_the_list_expires_on_its_own(redis_client) -> None:
 
 async def test_a_backoff_is_visible_and_carries_its_own_lifetime(redis_client) -> None:
     """The key's presence IS the state: nothing compares a deadline to a clock."""
-    await mint_log.backing_off(failures=3, seconds=120)
+    await mint_log.backing_off(
+        (Platform.DOUYIN, Platform.TIKTOK), route="browser", failures=3, seconds=120
+    )
 
     snapshot = await mint_log.snapshot()
+    assert snapshot["backoffs"]["douyin"]["failures"] == 3
+    assert snapshot["backoffs"]["tiktok"]["until"]
+    assert "bilibili" not in snapshot["backoffs"]
     assert snapshot["backoff"]["failures"] == 3
-    assert snapshot["backoff"]["until"]
-    assert 0 < await get_redis().ttl(mint_log.BACKOFF_KEY) <= 120
+    for platform in (Platform.DOUYIN, Platform.TIKTOK):
+        assert 0 < await get_redis().ttl(mint_log.backoff_key(platform)) <= 120
 
 
-async def test_a_success_lifts_the_backoff(redis_client) -> None:
-    await mint_log.backing_off(failures=3, seconds=120)
-    await mint_log.recovered()
+async def test_a_success_lifts_the_backoff_of_its_own_route_only(redis_client) -> None:
+    await mint_log.backing_off(
+        (Platform.DOUYIN, Platform.TIKTOK), route="browser", failures=3, seconds=120
+    )
+    await mint_log.backing_off((Platform.BILIBILI,), route="native", failures=1, seconds=60)
 
-    assert (await mint_log.snapshot())["backoff"] is None
+    await mint_log.recovered((Platform.DOUYIN, Platform.TIKTOK))
+
+    snapshot = await mint_log.snapshot()
+    assert set(snapshot["backoffs"]) == {"bilibili"}
 
 
 async def test_an_unreadable_entry_is_skipped_not_fatal(redis_client) -> None:
@@ -115,4 +125,9 @@ async def test_an_unreadable_entry_is_skipped_not_fatal(redis_client) -> None:
 
 
 async def test_an_empty_history_is_empty_not_missing(redis_client) -> None:
-    assert await mint_log.snapshot() == {"current": None, "recent": [], "backoff": None}
+    assert await mint_log.snapshot() == {
+        "current": None,
+        "recent": [],
+        "backoff": None,
+        "backoffs": {},
+    }

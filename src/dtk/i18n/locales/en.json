@@ -465,7 +465,7 @@
       },
       "identities_list": {
         "summary": "List identities with state and health",
-        "description": "The identity pool, newest first."
+        "description": "The identity pool, newest first. Retired identities are left out unless include_retired is set, state asks for them or identity_id names one. Each row says when its login expires (expires_at, null for a guest). meta.total is how many identities match, and meta.retired how many retired ones the same filters left out."
       },
       "identities_mint": {
         "summary": "Mint guest identities",
@@ -473,7 +473,7 @@
       },
       "identities_pool": {
         "summary": "Pool level against its low-water mark",
-        "description": "What the background refill job compares, per platform. `usable` counts live identities whose consecutive failure streak is still under `pool.max_fail_streak` - not the row count, because an identity that fails every request stays live and would otherwise keep a dead pool looking full. Below its `min_size` the worker mints one identity per minute until the pool is back at its `target_size`. Each platform row carries its own pair: `pool.<platform>.min_size` / `target_size` when set, the global `pool.min_size` / `pool.target_size` otherwise (`min_inherited` / `target_inherited` say which). `auto` is false when a platform's `min_size` is 0, which turns its automatic minting and its low-level alerts off. The top-level `min_size` and `target_size` are the global pair. `can_mint` says whether a platform can be minted here: Bilibili mints over plain HTTP, Douyin and TikTok need the browser container. Where it is false the marks have no effect and that platform's pool is whatever was imported by hand. The top-level `can_mint` is true when any platform can."
+        "description": "What the background refill job compares, per platform. `usable` counts live identities whose consecutive failure streak is still under `pool.max_fail_streak` - not the row count, because an identity that fails every request stays live and would otherwise keep a dead pool looking full. Below its `min_size` the worker mints one identity per minute until the pool is back at its `target_size`. Each platform row carries its own pair: `pool.<platform>.min_size` / `target_size` when set, the global `pool.min_size` / `pool.target_size` otherwise (`min_inherited` / `target_inherited` say which). `auto` is false when a platform's `min_size` is 0, which turns its automatic minting and its low-level alerts off. The top-level `min_size` and `target_size` are the global pair. `can_mint` says whether a platform can be minted here: Bilibili mints over plain HTTP, Douyin and TikTok need the browser container. Where it is false the marks have no effect and that platform's pool is whatever was imported by hand. The top-level `can_mint` is true when any platform can. `logins` counts each platform's logged-in identities: `rotating` ones rotation hands to the endpoints that need a login, `reserved` ones only a request naming them reaches, `cooling` ones it will hand out again, `limited` ones it hands out only where no login is needed. `login_required_for` names the endpoints that answer IDENTITY_LOGIN_REQUIRED while `rotating` is zero. `activity.backoffs` is the minting backoff per platform."
       },
       "identities_reset": {
         "summary": "Return an identity to rotation",
@@ -635,6 +635,7 @@
     "param": {
       "action": "Only this action, such as `settings.update`.",
       "audit_list.user_id": "Only what this console account did.",
+      "authenticated": "Only logged-in identities (true), or only guests (false).",
       "author_uid": "Only this author's posts.",
       "availability": "Only posts with this upstream status.",
       "aweme_id": "The post id, as an alternative to url: a Bilibili bvid such as BV1xx411c7mD or an av number on Bilibili. Provide exactly one of the two.",
@@ -654,9 +655,11 @@
       "explain": "Return the request as it went out - the signed URL, the headers and the identity's cookie jar - so it can be replayed outside this instance. The answer contains a credential, so it needs `identity:manage` and an operator role, it is written to the audit log, and it is stripped from the stored task result for any reader without that scope. Implies `refresh`: an explanation of a cached answer would describe a call this request did not make.",
       "healthy_only": "Only list proxies that passed their last probe.",
       "hours": "How far back the window reaches.",
+      "identities_list.identity_id": "Only this identity, retired or not.",
       "identity": "Send the request as this identity and no other, by id. For content only that account can see, such as your own private posts, fetched with a jar you imported from your own browser. Requires identity:manage; the request is never served from another identity and never from the response cache.",
       "identity_id": "The identity to act on.",
       "include_raw": "Also return the platform's own untouched payload alongside the normalized record.",
+      "include_retired": "Also list retired identities. They are kept for 90 days for their statistics and hold no cookies.",
       "key": "The setting to act on, as shown by the list endpoint.",
       "key_id": "The key to revoke.",
       "kind": "Only entries of this kind.",
@@ -677,9 +680,11 @@
       "refresh": "Ignore any cached or in-flight answer and make the request again. Two things make a repeat return the earlier answer - this instance joins an identical task that is already running or recently finished, and it caches the shaped body - and this turns off both. The fresh answer is still cached. It costs an identity and an upstream request, so it is for checking whether something changed rather than for every call. How long the cached answer lives depends on what was asked for and is set in the console: cache.content_ttl for one post (30 minutes by default), cache.author_ttl for a profile (15 minutes), cache.list_ttl for anything paged (5 minutes). Entries expire on their own and Redis is capped below its container limit, dropping the least recently used expiring keys before it fills, so the cache cannot grow without bound.",
       "request_id": "Only the request with this id.",
       "request_log.identity_id": "Only requests made with this identity.",
+      "rotation": "Only identities rotation hands out for every endpoint (rotating), only for requests that name them (reserved), or for a list of endpoints (limited).",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid; on Bilibili, the numeric mid.",
       "session_ref": "The session digest from the list endpoint.",
       "sort": "hot or new. Only Bilibili offers a choice; Douyin and TikTok rank comments their own way, accept hot, and refuse new. Send the same value again with the cursor of a later page.",
+      "source": "Only minted, or only imported, identities.",
       "state": "Only entries in this state.",
       "step": "Bucket width in seconds.",
       "stored": "True for posts whose media this instance is holding right now, false for the rest. Like `collection` this describes what was kept rather than the post.",
@@ -789,6 +794,7 @@
         "language": "That browser's `navigator.language`, e.g. `zh-CN`.",
         "platform": "Which platform the jar belongs to.",
         "proxy_id": "Send as this identity only through this exit. Omitted, the identity goes out directly from this server, for good: an identity's exit is fixed when it is stored.",
+        "reserved": "Store it out of rotation, for the requests that name it with identity= and nothing else. The same as an empty list on its rotation, set before rotation can hand it out once.",
         "timezone": "That browser's IANA zone, e.g. `Asia/Shanghai`. Should agree with the exit.",
         "user_agent": "The User-Agent of the browser the jar came from. Both platforms hash it into their signatures, so a jar sent under a different one is a contradiction they can see."
       },
