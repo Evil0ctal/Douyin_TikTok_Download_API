@@ -27,9 +27,10 @@ Or update the checkout first, then run the installer and pick Upgrade:
 cd /opt/dtk && git pull && bash install/install.sh --manage
 ```
 
-Three new migrations: the identity pool can hold Bilibili identities, a
-download can be one part of a multi-part video, and the request log is indexed
-by proxy for the Logs page's proxy filter. The browser image is unchanged since
+Four new migrations: the identity pool can hold Bilibili identities, a
+download can be one part of a multi-part video, the request log is indexed by
+proxy for the Logs page's proxy filter, and an identity keeps a note and the
+account its last session check named. The browser image is unchanged since
 5.1.4; nothing to rebuild. Your data is untouched.
 
 Two things do not happen by themselves:
@@ -132,11 +133,24 @@ Two things do not happen by themselves:
     a drawer, Diagnose takes a platform and the System page reports the
     downloader and transcriber, the Scheduler counts per platform, and every
     page hides what the role cannot do.
+- **Notes on identities, and rotation per endpoint.** An identity keeps a
+  note - whose account it is, where the cookie came from - set at import or in
+  the drawer, shown under its id and in the Playground's picker and the request
+  log, carried by an export. The session check remembers the account id the
+  platform named. The drawer's Rotation card chooses every endpoint, only the
+  ticked ones (the endpoints that need a login are marked, and one button ticks
+  just those), or only requests that name it; selected identities take one
+  choice at once. The Scheduler page shows, per endpoint, how many identities
+  can serve it and how many of them are logins.
 - **API additions behind those pages:** `PATCH /api/v1/admin/api-keys/{id}`,
   `GET /api/v1/system/capabilities`, `q` on `GET /api/v1/downloads` and
   `/transcriptions`, `POST /api/v1/archive/export` for a selection,
-  `proxy_id` on the request log, `platform` on `POST /admin/diagnose`, and the
-  downloader and transcriber in `GET /api/v1/system/status`.
+  `proxy_id` on the request log, `platform` on `POST /admin/diagnose`, the
+  downloader and transcriber in `GET /api/v1/system/status`,
+  `PATCH /api/v1/admin/identities/{id}` for the note,
+  `GET /api/v1/admin/identities/coverage`, `serves` on the identity list,
+  `identity_note` on the request log, and `login` / `paging_login` on each
+  capability.
 
 ### Changed
 
@@ -145,6 +159,11 @@ Two things do not happen by themselves:
   whatever the request looks like; it is reported as `UPSTREAM_RISK_CONTROL` and
   has the slowest token bucket of any Bilibili endpoint. Spread requests out,
   or add proxies.
+- **Logins are kept for the endpoints that need them.** Endpoints a guest
+  answers just as well now go to guest identities first, and to a login only
+  when no guest can take the request (`pool.<platform>.guests_first`, on by
+  default, a switch on the Scheduler page). Endpoints that need a login still
+  prefer or require one. Turn it off to have logins share that traffic again.
 - **Minting backs off per route.** A browser container that is down no longer
   stops the Bilibili pool from refilling. The identities pool panel says per
   platform whether it can be minted here (`can_mint` on each platform in
@@ -191,6 +210,13 @@ Two things do not happen by themselves:
   narrowed to an alert the page did not know (`capacity_warning`,
   `capacity_paused`, `media_evicted`), and the Settings page showed the
   channels as `[object Object]`.
+- **An instance without the browser container** was told on every Overview
+  visit that it had no Douyin and no TikTok identity, with a hint to mint one it
+  could not mint. A platform nothing will mint gets no alert now; the pool
+  card says why it is empty.
+- **"Keep it for requests that name it"** was the only rotation choice the
+  console had, and turning it on to keep a login for the author feed took the
+  login off the author feed. See the per-endpoint choice above.
 
 ### Security
 
@@ -225,8 +251,8 @@ docker compose -p dtk -f docker/compose.yml up -d
 cd /opt/dtk && git pull && bash install/install.sh --manage
 ```
 
-新增三个数据库迁移：身份池可以存放 B 站身份，一条下载可以是多 P 视频的某一 P，请求日志按代理
-建立索引，供日志页按代理筛选。浏览器镜像自 5.1.4 起没有变化，不需要重新构建。数据不受影响。
+新增四个数据库迁移：身份池可以存放 B 站身份，一条下载可以是多 P 视频的某一 P，请求日志按代理
+建立索引供日志页按代理筛选，身份可以保存备注以及上一次检查登录时平台给出的账号。浏览器镜像自 5.1.4 起没有变化，不需要重新构建。数据不受影响。
 
 有两件事不会自动发生：
 
@@ -296,16 +322,26 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
     会先确认，设置页里有专门页面的项改为链接，日志可按接口、代理和操作人筛选且筛选写进 URL，
     代理可以批量测试并打开详情，诊断可以选平台，系统页显示下载器和转写服务的状态，调度页按平台
     统计，每个页面都会隐藏当前角色用不了的操作。
+- **身份备注，以及按接口设置轮换。** 身份可以保存备注——是谁的账号、Cookie 从哪里来——导入时或在
+  详情里填写，显示在身份 ID 下面、调试台的身份下拉框和请求日志里，导出时一并带走。检查登录时会记下
+  平台给出的账号 ID。详情里的轮换卡片可以选择所有接口、只用于勾选的接口（需要登录的接口会标出来，
+  一个按钮就能只勾选它们）或只服务点名它的请求；也可以选中多个身份一次设置。调度页按接口显示有多少
+  身份可以服务它、其中多少是登录态。
 - **这些页面背后新增的 API：** `PATCH /api/v1/admin/api-keys/{id}`、
   `GET /api/v1/system/capabilities`、`GET /api/v1/downloads` 和 `/transcriptions` 的 `q`、
   按选择导出的 `POST /api/v1/archive/export`、请求日志的 `proxy_id`、`POST /admin/diagnose`
-  的 `platform`，以及 `GET /api/v1/system/status` 里的下载器和转写服务。
+  的 `platform`、`GET /api/v1/system/status` 里的下载器和转写服务、修改备注的
+  `PATCH /api/v1/admin/identities/{id}`、`GET /api/v1/admin/identities/coverage`、身份列表的
+  `serves`、请求日志的 `identity_note`，以及每个能力项的 `login` / `paging_login`。
 
 ### 变更
 
 - **UP 主投稿列表是 B 站防护最严的接口。** 同一个出口的突发请求会在几分钟内收到 HTTP 412
   拦截页，和请求长什么样无关；这会被报告为 `UPSTREAM_RISK_CONTROL`，它也是 B 站所有接口里
   令牌桶最慢的一个。请把请求分散开，或者加代理。
+- **登录态留给需要它的接口。** 游客也能拿到同样结果的接口现在先用游客身份，只有没有游客能接下请求
+  时才用登录态（`pool.<platform>.guests_first`，默认开启，开关在调度页）。需要登录的接口照旧优先或
+  只用登录态。想让登录态重新分担这类流量，关掉它即可。
 - **铸造按途径分别退避。** 浏览器容器挂掉不会再让 B 站的身份池停止补充。身份池面板会按平台
   说明能否在这里铸造（`GET /api/v1/admin/identities/pool` 里每个平台的 `can_mint`）。
 - **归档重新检查和历史回溯计入队列上限。** 它们原来作为少见的运维任务被豁免，但任何读取 Key
@@ -335,6 +371,10 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
   任何修改，改角色也会先确认。
 - **保存通知渠道会把它改成订阅全部事件**：当它只订阅了页面不认识的告警（`capacity_warning`、
   `capacity_paused`、`media_evicted`）时就会这样；设置页还把渠道显示成 `[object Object]`。
+- **没有浏览器容器的实例**每次打开概览都会被告知「还没有抖音身份」「还没有 TikTok 身份」，还提示去
+  铸造一个它根本铸造不了的身份。现在不会为任何不会被铸造的平台告警，身份池卡片会说明它为什么是空的。
+- **「只服务点名它的请求」原来是控制台里唯一的轮换选项**，为了把登录态留给作者作品列表而打开它，反而
+  让作者作品列表用不上这个登录态。见上面按接口设置轮换。
 
 ### 安全
 
