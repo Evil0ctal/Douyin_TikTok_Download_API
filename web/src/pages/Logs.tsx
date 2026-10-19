@@ -516,7 +516,17 @@ export default function Logs() {
         minWidth: '292px',
         header: t('console:field.identity'),
         mono: true,
-        cell: (row) => <CopyableId value={row.identity_id} />,
+        cell: (row) =>
+          row.identity_note ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <CopyableId value={row.identity_id} />
+              <span className="u-xs u-secondary" style={{ fontFamily: 'var(--font-sans)' }}>
+                {row.identity_note}
+              </span>
+            </div>
+          ) : (
+            <CopyableId value={row.identity_id} />
+          ),
       },
       {
         id: 'proxy',
@@ -956,6 +966,9 @@ export default function Logs() {
               <dt className="u-xs u-muted">{t('console:field.identity')}</dt>
               <dd className="u-stack-sm" style={{ margin: 0 }}>
                 <CopyableId value={openRequest.identity_id} />
+                {openRequest.identity_note ? (
+                  <span className="u-xs u-secondary">{openRequest.identity_note}</span>
+                ) : null}
                 {openRequest.identity_id ? (
                   <span className="u-row u-wrap u-xs">
                     <Button

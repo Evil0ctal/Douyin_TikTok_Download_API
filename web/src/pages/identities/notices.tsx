@@ -63,3 +63,28 @@ export function SuppressionNotice({ retired, deadSession, showAll, onToggle }: S
     </div>
   )
 }
+
+/**
+ * The endpoint filter the scheduler page links here with, said out loud.
+ *
+ * It has no control in the toolbar - "who serves this endpoint" is asked from
+ * the endpoint's side - so without this a table narrowed by it would look like
+ * a pool that had lost most of its identities.
+ */
+export function ServesNotice({ endpoint, onClear }: { endpoint: string; onClear: () => void }) {
+  const { t } = useTranslation(['console', 'common'])
+  return (
+    <div className={styles.notice}>
+      <span className={styles.noticeIcon} aria-hidden="true">
+        <SlidersIcon size={13} />
+      </span>
+      <div className="u-stack-sm u-grow">
+        <strong>{t('console:identity.serves.title', { endpoint })}</strong>
+        <p className="u-xs u-secondary">{t('console:identity.serves.why')}</p>
+      </div>
+      <Button size="sm" variant="secondary" onClick={onClear}>
+        {t('common:action.clear')}
+      </Button>
+    </div>
+  )
+}

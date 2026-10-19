@@ -49,6 +49,8 @@ export const paths = {
     reset: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/reset`,
     /** Which endpoints rotation may use it for: null all, [] none, or a list. */
     rotation: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/rotation`,
+    /** Per platform and endpoint, how many identities rotation may send. */
+    coverage: `${API_V1}/admin/identities/coverage`,
     /** Cookie names, roles and masked values. Never the values themselves. */
     cookies: (id: string) => `${API_V1}/admin/identities/${encodeURIComponent(id)}/cookies`,
     /** The same jar with its real values. Audited; operator role only. */

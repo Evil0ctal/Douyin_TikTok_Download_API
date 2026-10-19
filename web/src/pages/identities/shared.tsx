@@ -158,28 +158,6 @@ export function ExpiryTag({ expiresAt }: { expiresAt: string }) {
   )
 }
 
-/**
- * The endpoints that lose their last login if `identity` leaves rotation.
- *
- * Null when nothing would: a guest, an identity already out of rotation, a
- * platform whose endpoints all serve a guest, or one with another login in
- * rotation. The scheduler skips a reserved login even for an endpoint that
- * requires one (`Scheduler._rotation_pool`), so the moment the last one goes,
- * paging answers IDENTITY_LOGIN_REQUIRED.
- */
-export function lastLoginEndpoints(
-  identity: IdentityRow,
-  pool: PoolLevel | undefined,
-): string[] | null {
-  if (!identity.authenticated || !pool) return null
-  if (identity.state !== 'active' && identity.state !== 'degraded') return null
-  if (identity.rotation_endpoints != null) return null
-  const row = pool.platforms.find((entry) => entry.platform === identity.platform)
-  const needed = row?.login_required_for ?? []
-  if (!row?.logins || needed.length === 0) return null
-  return row.logins.rotating <= 1 ? needed : null
-}
-
 /** Each platform among `targets` whose last login in rotation is in `targets`. */
 export function lastLoginLosses(
   targets: IdentityRow[],

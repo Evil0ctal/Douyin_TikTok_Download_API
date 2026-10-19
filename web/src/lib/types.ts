@@ -134,6 +134,11 @@ export interface Identity {
    * `[]` for none, so only a request that names it uses it; or endpoint names.
    */
   rotation_endpoints?: string[] | null
+  /** The operator's own note: whose account it is, where the cookie came from. */
+  note?: string | null
+  /** The account the platform named the last time the session was checked. */
+  account_id?: string | null
+  account_seen_at?: string | null
   /**
    * Whether the identity still holds the session value its platform issues to
    * a browser. Never the value itself - only which cookie decides it and a
@@ -249,6 +254,8 @@ export interface RequestLogRow {
   platform: Platform
   endpoint: string
   identity_id?: string | null
+  /** That identity's note. Never sent to the demo account. */
+  identity_note?: string | null
   proxy_id?: string | null
   outcome: Outcome
   http_status?: number | null

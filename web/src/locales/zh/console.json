@@ -469,17 +469,47 @@
     },
     "rotation": {
       "title": "轮换",
-      "reserve": "只服务指定它的请求",
-      "reserveHint": "轮换不再分配这个身份，带 identity= 指定它的请求照常使用。适合让登录账号只做你明确交给它的事。它不计入身份池水位，补充任务会为一般流量另外铸造身份。",
       "limited": "只在这些接口上参与轮换：{endpoints}",
-      "limitedHint": "这是通过 API 设置的。关闭后它会重新在所有接口上参与轮换。",
-      "restore": "恢复在所有接口上参与轮换",
       "reserved": "保留",
       "reservedHint": "不参与轮换：只有指定了这个身份的请求会用到它",
       "limitedTag": "限定接口",
       "saved": "轮换设置已更新",
       "failed": "轮换设置更新失败",
-      "everywhere": "在所有接口上参与轮换。"
+      "everywhere": "在所有接口上参与轮换。",
+      "mode": "轮换可以把它用在哪里",
+      "modes": {
+        "all": "所有接口",
+        "limited": "只用于下面勾选的接口",
+        "reserved": "只服务点名它的请求"
+      },
+      "modeHint": {
+        "all": "轮换可以把它分配给任何接口。需要登录的接口照旧优先或只用登录态；开启「游客优先」时，其余接口只有在没有游客身份可用时才会用到登录态。",
+        "limited": "轮换只在勾选的接口上分配它，其他接口都不会用到——登录态只留给需要登录的接口，就这样设置。点名它的请求不受这个限制。",
+        "reserved": "轮换永远不会分配它，需要登录的翻页也不会：只有带 identity= 和它的 ID 的请求才会用它。它不计入身份池水位。"
+      },
+      "mixedPlatforms": "接口清单只能按一个平台设置，而选中的身份来自多个平台。",
+      "pickLogin": "只选需要登录的接口",
+      "pickAll": "全选",
+      "pickNone": "清空",
+      "login": {
+        "required": "需要登录",
+        "paging": "翻页需要登录",
+        "preferred": "登录后更完整"
+      },
+      "loginHint": {
+        "required": "游客身份在这里什么都拿不到，所以轮换只会分配登录态。",
+        "paging": "游客只能拿到第一页，后面拿不到，所以翻页只会分配登录态。",
+        "preferred": "游客在这里拿到的更少——抖音给游客看的作者作品第一页会略去最新的作品——所以有登录态时优先用登录态。"
+      },
+      "unlisted": "通过 API 设置的；这个版本的列表里没有它。",
+      "sessionBoundNote": "只回答发起请求的身份本人数据的接口（它自己的点赞和收藏）不在这里：它们总是需要 identity=，轮换根本不会用到它们。",
+      "pickSome": "至少勾选一个接口。想让它完全退出轮换，请选「只服务点名它的请求」。",
+      "bulkAction": "设置 {count} 个身份的轮换",
+      "bulkTitle": "{count} 个身份的轮换",
+      "bulkDescription": "对选中的每个身份应用同一个设置。已退休的身份不包括在内。",
+      "bulkApply": "应用到 {count} 个身份",
+      "bulkDone": "已设置 {count} 个身份的轮换",
+      "bulkLoses": "{platform}：{endpoints} 上参与轮换的登录态全都在这次选择里，设置之后这些接口第一页之后会返回 IDENTITY_LOGIN_REQUIRED。"
     },
     "history": {
       "title": "身份历史",
@@ -633,20 +663,39 @@
       "cooling": "{count} 个冷却中",
       "import": "导入登录态",
       "inRotation": "参与轮换的登录态：{count}",
-      "lastBody": "没有其他{platform}登录态在参与轮换。保留这一个之后，{endpoints} 第一页之后都会返回 IDENTITY_LOGIN_REQUIRED，除非请求指定了身份。",
+      "lastBody": "没有其他{platform}登录态在这些接口上参与轮换。设置之后，{endpoints} 第一页之后都会返回 IDENTITY_LOGIN_REQUIRED，除非请求指定了身份。",
       "lastRetire": "{platform}：退休后不再有参与轮换的登录态，{endpoints} 第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
-      "lastTitle": "保留最后一个{platform}登录态？",
+      "lastTitle": "把最后一个{platform}登录态从这些接口上撤下？",
       "limited": "{count} 个限定接口",
       "none": "一个都没有，所以 {endpoints} 第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
       "noneHint": "这些接口只给游客第一页，之后什么都不给。轮换即使在这里也会跳过保留的登录态，冷却中的则要等冷却结束。",
-      "reserveAnyway": "仍然保留",
-      "reserved": "{count} 个保留"
+      "reserved": "{count} 个保留",
+      "changeAnyway": "仍然修改"
     },
     "paging": {
       "ceiling": "只显示最新的 {shown} 个。请缩小筛选范围查看其余的。",
       "loadMore": "加载更多",
       "searchScope": "搜索只覆盖这些",
       "showing": "显示 {shown} / {total}"
+    },
+    "note": {
+      "label": "备注",
+      "placeholder": "是谁的账号、Cookie 从哪里来",
+      "none": "没有备注",
+      "add": "添加备注",
+      "count": "{used} / {max}",
+      "saved": "备注已保存",
+      "failed": "备注保存失败",
+      "importHint": "凡是显示这个身份的地方，都会在 ID 旁边显示备注。只能一行，最多 200 个字符。"
+    },
+    "account": {
+      "label": "平台账号",
+      "hint": "上一次检查登录时，平台说这些 Cookie 属于哪个账号。抖音对游客也会给一个 ID，所以对抖音来说它只能确认客户端被平台认出来了，不能证明已登录。",
+      "seen": "{when}检查"
+    },
+    "serves": {
+      "title": "只显示轮换可以分配给 {endpoint} 的身份",
+      "why": "包括在所有接口上参与轮换的，以及清单里列了这个接口的。只服务点名请求的身份不会出现在这里。"
     }
   },
   "proxy": {
@@ -2556,7 +2605,26 @@
       "pool": "要保持多少个身份，以及什么样的身份才算数。"
     },
     "overridesTitle": "这些值从哪来",
-    "overrides": "{count, plural, =0 {本页的每个值都来自内置默认或环境变量种子。} other {其中 # 项已存进数据库，覆盖了对应的环境变量种子。}}"
+    "overrides": "{count, plural, =0 {本页的每个值都来自内置默认或环境变量种子。} other {其中 # 项已存进数据库，覆盖了对应的环境变量种子。}}",
+    "coverage": {
+      "title": "登录态与接口覆盖",
+      "description": "按调度器分配身份的方式统计：每个接口从在它上面参与轮换的身份里分配。用 identity= 点名身份的请求不受这些限制。",
+      "guestsFirst": "不需要登录的接口游客优先",
+      "guestsFirstOn": "游客也能拿到同样结果的接口先用游客身份，没有游客身份可用时才用登录态。登录态留给需要登录的接口。",
+      "guestsFirstOff": "登录态和游客身份按最近使用时间平摊所有接口，登录态会被花在游客也能答得一样的请求上。",
+      "login": "登录要求",
+      "ready": "可分配",
+      "signedIn": "其中登录态",
+      "dedicated": "专门限定",
+      "cooling": "冷却中",
+      "open": "列出这些身份",
+      "noLogin": "没有登录态在轮换：第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
+      "reserved": "{count} 个身份只服务点名它的请求",
+      "caption": "{platform}的接口",
+      "footnote": "只回答发起请求的身份本人数据的接口不在列表里：它们总是需要 identity=。",
+      "saved": "设置已保存",
+      "saveFailed": "设置保存失败"
+    }
   },
   "about": {
     "contact": {

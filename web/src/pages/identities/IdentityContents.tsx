@@ -11,14 +11,20 @@ import {
   StatusBadge,
   useToast,
 } from '@/components'
-import { useApiMutation, useCopy, useFormatters } from '@/hooks'
+import { useApiMutation, useCopy, useFormatters, useInvalidate } from '@/hooks'
 import { apiGet, apiPost, waitForTask } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { paths } from '@/lib/endpoints'
 
 import styles from '../identities.module.css'
 import { Fact, usePlatformName } from './shared'
-import type { CookieInventory, IdentityRow, RevealedJar, SessionCheck } from './types'
+import {
+  IDENTITIES_KEY,
+  type CookieInventory,
+  type IdentityRow,
+  type RevealedJar,
+  type SessionCheck,
+} from './types'
 
 /**
  * The masked jar, and a way past the mask.
@@ -156,6 +162,7 @@ function SessionCheckButton({
 }) {
   const { t } = useTranslation(['console', 'common'])
   const toast = useToast()
+  const invalidate = useInvalidate()
   const [result, setResult] = useState<SessionCheck | null>(null)
 
   const check = useApiMutation<SessionCheck, void>(
@@ -168,8 +175,11 @@ function SessionCheckButton({
       return await waitForTask<SessionCheck>(task_id)
     },
     {
-      onSuccess: (answer) => {
+      onSuccess: async (answer) => {
         setResult(answer)
+        // The check stores the account it named; the drawer shows it beside
+        // the note, and should not wait for the next poll to.
+        if (answer.account_id) await invalidate(IDENTITIES_KEY)
       },
       onError: (error) => {
         toast.apiError(error, t('console:identity.session.checkFailed'))

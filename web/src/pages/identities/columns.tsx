@@ -89,7 +89,24 @@ export function useIdentityColumns({
       // answer the question it is now most often opened for.
       hideable: false,
       sortValue: (row) => row.id,
-      cell: (row) => <CopyableId value={row.id} />,
+      // The note under the id rather than in a column of its own: it is what
+      // tells three logins apart, and a column the operator hid would hide
+      // exactly that.
+      cell: (row) =>
+        row.note ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+            <CopyableId value={row.id} />
+            <span
+              className="u-xs u-secondary"
+              title={row.note}
+              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {row.note}
+            </span>
+          </div>
+        ) : (
+          <CopyableId value={row.id} />
+        ),
     },
     {
       id: 'proxy',

@@ -573,7 +573,17 @@ export interface CapabilityRow {
   endpoint: string
   /** Answers only about the identity sending it, so `identity` is required. */
   session_bound: boolean
+  /**
+   * What a guest identity loses here: on the first page, and on every later
+   * one (`paging_login`, null where later pages are no different). Absent from
+   * an API older than the per-endpoint login table.
+   */
+  login?: LoginNeed
+  paging_login?: LoginNeed | null
 }
+
+/** `none`: a guest gets the same answer; `preferred`: less; `required`: nothing. */
+export type LoginNeed = 'none' | 'preferred' | 'required'
 
 /** Keyed by platform. A platform this console does not know is ignored. */
 export type CapabilityTable = Readonly<Record<string, readonly CapabilityRow[] | undefined>>

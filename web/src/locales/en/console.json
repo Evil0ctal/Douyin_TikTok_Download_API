@@ -469,17 +469,47 @@
     },
     "rotation": {
       "title": "Rotation",
-      "reserve": "Only for requests that name it",
-      "reserveHint": "Rotation stops handing this identity out; a request with identity= still uses it. Use it to keep a logged-in account away from everything you did not ask it for. It is left out of the pool level, so the refill job mints a replacement for general traffic.",
       "limited": "Rotation uses it only for: {endpoints}",
-      "limitedHint": "Set through the API. Turning this off puts it back in rotation for every endpoint.",
-      "restore": "Back in rotation for every endpoint",
       "reserved": "Reserved",
       "reservedHint": "Out of rotation: only requests that name this identity use it",
       "limitedTag": "Limited",
       "saved": "Rotation updated",
       "failed": "Could not change the rotation",
-      "everywhere": "In rotation for every endpoint."
+      "everywhere": "In rotation for every endpoint.",
+      "mode": "What rotation may use it for",
+      "modes": {
+        "all": "Every endpoint",
+        "limited": "Only the endpoints ticked below",
+        "reserved": "Only requests that name it"
+      },
+      "modeHint": {
+        "all": "Rotation may hand it to any endpoint. Endpoints that need a login still prefer or require one, and with guests first on, the rest reach a login only when no guest can.",
+        "limited": "Rotation hands it out for the ticked endpoints and nothing else - how a login is kept for the endpoints that need one. A request that names it is never limited by this.",
+        "reserved": "Rotation never hands it out, not even for a later page that needs a login: only a request carrying identity= with its id uses it. It is left out of the pool level."
+      },
+      "mixedPlatforms": "A list of endpoints is set on one platform at a time, and the selection spans several.",
+      "pickLogin": "Only the ones that need a login",
+      "pickAll": "All",
+      "pickNone": "None",
+      "login": {
+        "required": "Needs a login",
+        "paging": "Later pages need a login",
+        "preferred": "Fuller with a login"
+      },
+      "loginHint": {
+        "required": "A guest identity gets nothing here, so rotation sends only logins.",
+        "paging": "A guest gets the first page and nothing after it, so later pages go only to logins.",
+        "preferred": "A guest gets less here - Douyin leaves the newest posts out of an author's first page - so a login is used when rotation has one."
+      },
+      "unlisted": "Set through the API; this build does not list it.",
+      "sessionBoundNote": "Endpoints that answer only about the identity asking - its own likes and bookmarks - are not listed: they always need identity=, so rotation never reaches them.",
+      "pickSome": "Tick at least one endpoint. To keep it out of rotation entirely, choose \"Only requests that name it\".",
+      "bulkAction": "{count, plural, one {Set rotation for # identity} other {Set rotation for # identities}}",
+      "bulkTitle": "{count, plural, one {Rotation for # identity} other {Rotation for # identities}}",
+      "bulkDescription": "One choice for every selected identity. Retired ones are left out.",
+      "bulkApply": "{count, plural, one {Apply to # identity} other {Apply to # identities}}",
+      "bulkDone": "{count, plural, one {Rotation set for # identity} other {Rotation set for # identities}}",
+      "bulkLoses": "{platform}: every login in rotation for {endpoints} is in this selection, so those would answer IDENTITY_LOGIN_REQUIRED past the first page."
     },
     "history": {
       "title": "Identity history",
@@ -633,20 +663,39 @@
       "cooling": "{count} cooling",
       "import": "Import a login",
       "inRotation": "Logged in, in rotation: {count}",
-      "lastBody": "No other logged-in {platform} identity is in rotation. Once this one is reserved, {endpoints} will answer IDENTITY_LOGIN_REQUIRED past the first page, unless the request names an identity.",
+      "lastBody": "No other logged-in {platform} identity is in rotation for them. After this, {endpoints} will answer IDENTITY_LOGIN_REQUIRED past the first page, unless the request names an identity.",
       "lastRetire": "{platform}: no logged-in identity would be left in rotation, so {endpoints} would answer IDENTITY_LOGIN_REQUIRED past the first page.",
-      "lastTitle": "Reserve the last {platform} login?",
+      "lastTitle": "Take the last {platform} login off these endpoints?",
       "limited": "{count} limited",
       "none": "None, so {endpoints} answer IDENTITY_LOGIN_REQUIRED past the first page.",
       "noneHint": "These endpoints serve a guest the first page and nothing after it. Rotation skips a reserved login even here, and a cooling one until its cooldown ends.",
-      "reserveAnyway": "Reserve it anyway",
-      "reserved": "{count} reserved"
+      "reserved": "{count} reserved",
+      "changeAnyway": "Change it anyway"
     },
     "paging": {
       "ceiling": "The newest {shown} are shown. Narrow the filters to reach the rest.",
       "loadMore": "Load more",
       "searchScope": "search covers these",
       "showing": "Showing {shown} of {total}"
+    },
+    "note": {
+      "label": "Note",
+      "placeholder": "Whose account, where the cookie came from",
+      "none": "No note",
+      "add": "Add a note",
+      "count": "{used} / {max}",
+      "saved": "Note saved",
+      "failed": "Could not save the note",
+      "importHint": "Shown beside its id wherever the identity appears. One line, at most 200 characters."
+    },
+    "account": {
+      "label": "Platform account",
+      "hint": "What the platform said these cookies belong to the last time the session was checked. Douyin names an id even for a guest, so for Douyin it confirms the client, not a login.",
+      "seen": "checked {when}"
+    },
+    "serves": {
+      "title": "Only identities rotation may send to {endpoint}",
+      "why": "Those in rotation for every endpoint, and those limited to a list that names it. Reserved identities never match."
     }
   },
   "proxy": {
@@ -2556,7 +2605,26 @@
       "pool": "How many identities to keep, and what counts as one worth keeping."
     },
     "overridesTitle": "Where these values come from",
-    "overrides": "{count, plural, =0 {Every value on this page is the built-in default or an environment seed.} one {# value is stored in the database and overrides its environment seed.} other {# values are stored in the database and override their environment seeds.}}"
+    "overrides": "{count, plural, =0 {Every value on this page is the built-in default or an environment seed.} one {# value is stored in the database and overrides its environment seed.} other {# values are stored in the database and override their environment seeds.}}",
+    "coverage": {
+      "title": "Logins and who serves each endpoint",
+      "description": "Counted the way the scheduler hands identities out: per endpoint, from those in rotation for it. A request that names an identity with identity= is not limited by any of this.",
+      "guestsFirst": "Guests first where no login is needed",
+      "guestsFirstOn": "Endpoints a guest answers just as well go to guest identities, and to a login only when no guest can. Logins are kept for the endpoints that need them.",
+      "guestsFirstOff": "Logins and guests share every endpoint by recency. A login is spent on requests a guest would have answered the same.",
+      "login": "Login",
+      "ready": "Can serve",
+      "signedIn": "Logins",
+      "dedicated": "Limited to it",
+      "cooling": "Cooling",
+      "open": "List these identities",
+      "noLogin": "No login in rotation: later pages answer IDENTITY_LOGIN_REQUIRED.",
+      "reserved": "{count, plural, one {# identity serves only requests that name it} other {# identities serve only requests that name them}}",
+      "caption": "{platform} endpoints",
+      "footnote": "Endpoints that answer only about the identity asking are not listed: they always need identity=.",
+      "saved": "Setting saved",
+      "saveFailed": "Could not save the setting"
+    }
   },
   "about": {
     "contact": {

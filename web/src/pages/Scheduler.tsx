@@ -35,6 +35,8 @@ import { POLL } from '@/lib/query'
 import { atLeast } from '@/lib/roles'
 import { IDENTITY_STATES, PLATFORMS, type IdentityState, type Platform } from '@/lib/types'
 
+import { CoverageCard } from './schedulerCoverage'
+
 /**
  * The scheduler, as a page rather than as two headings in a settings list.
  *
@@ -132,6 +134,8 @@ type Section = (typeof SECTIONS)[number]
  * value someone had chosen rather than "use the global one".
  */
 const PER_PLATFORM_MARK = /^pool\.[a-z]+\.(min_size|target_size)$/
+/** `pool.<platform>.guests_first`: a switch on the coverage card, not a row here. */
+const PER_PLATFORM_LOGINS = /^pool\.[a-z]+\.guests_first$/
 const MARK_FIELDS = ['min_size', 'target_size'] as const
 type MarkField = (typeof MARK_FIELDS)[number]
 /** The value that means "inherit the global mark" (src/dtk/core/config.py). */
@@ -173,7 +177,10 @@ export default function Scheduler() {
     return SECTIONS.map((section) => ({
       section,
       rows: rows.filter(
-        (row) => row.key.startsWith(`${section}.`) && !PER_PLATFORM_MARK.test(row.key),
+        (row) =>
+          row.key.startsWith(`${section}.`) &&
+          !PER_PLATFORM_MARK.test(row.key) &&
+          !PER_PLATFORM_LOGINS.test(row.key),
       ),
     })).filter((entry) => entry.rows.length > 0)
   }, [query.data])
@@ -315,6 +322,10 @@ export default function Scheduler() {
           caption={t('scheduler.census.title')}
         />
       </Card>
+
+      {/* Viewer and up, like the settings below: the route is read_admin and
+          this page is on the demo account's menu. */}
+      {canReadSettings ? <CoverageCard canWrite={canWrite} /> : null}
 
       <Card
         title={t('scheduler.rotationTitle')}

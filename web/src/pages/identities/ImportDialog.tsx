@@ -25,6 +25,7 @@ import { MISSING } from '@/lib/format'
 import { PLATFORMS, type Platform } from '@/lib/types'
 
 import styles from '../identities.module.css'
+import { NOTE_MAX } from './NoteField'
 import { Fact, hasLapsed, usePlatformInSentence, usePlatformName } from './shared'
 import {
   POOL_KEY,
@@ -104,6 +105,7 @@ export function ImportDialog({
   const [userAgent, setUserAgent] = useState('')
   const [proxyId, setProxyId] = useState('')
   const [reserved, setReserved] = useState(false)
+  const [note, setNote] = useState('')
   const [acknowledged, setAcknowledged] = useState(false)
   //: A file this build exported, once it has been read and understood. The
   //: paste path and this one cannot both be armed: they mean different things
@@ -250,6 +252,7 @@ export function ImportDialog({
         user_agent: userAgent.trim() || null,
         proxy_id: proxyId || null,
         reserved,
+        note: note.trim() || null,
         dry_run: false,
       }),
     {
@@ -288,6 +291,7 @@ export function ImportDialog({
     setUserAgent('')
     setProxyId('')
     setReserved(false)
+    setNote('')
     setAcknowledged(false)
     setPreview({ loading: false })
     clearBundle()
@@ -484,6 +488,18 @@ export function ImportDialog({
             {preview.loading ? <Skeleton height={120} radius="var(--radius)" /> : null}
             {preview.error ? <ErrorState error={preview.error} compact /> : null}
             {report && !preview.loading ? <CookieReportView report={report} /> : null}
+
+            <Input
+              label={t('console:identity.note.label')}
+              showOptional
+              value={note}
+              maxLength={NOTE_MAX}
+              placeholder={t('console:identity.note.placeholder')}
+              description={t('console:identity.note.importHint')}
+              onChange={(event) => {
+                setNote(event.target.value.replace(/[\r\n]+/g, ' '))
+              }}
+            />
 
             <div className="u-stack-sm">
               <Checkbox

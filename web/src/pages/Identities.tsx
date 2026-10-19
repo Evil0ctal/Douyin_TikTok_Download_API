@@ -37,9 +37,10 @@ import {
 import styles from './identities.module.css'
 import { useIdentityColumns } from './identities/columns'
 import { IdentityDrawer } from './identities/IdentityDrawer'
+import { BulkRotationDialog } from './identities/BulkRotationDialog'
 import { ImportDialog } from './identities/ImportDialog'
 import { MintDialog } from './identities/MintDialog'
-import { FilterSlot, SuppressionNotice } from './identities/notices'
+import { FilterSlot, ServesNotice, SuppressionNotice } from './identities/notices'
 import { ProbeDialog } from './identities/ProbeDialog'
 import { RefillCard } from './identities/RefillCard'
 import {
@@ -120,6 +121,8 @@ function searchable(row: IdentityRow, platformName: (platform: string) => string
     row.proxy_id ?? '',
     row.proxy_label ?? '',
     row.retire_reason ?? '',
+    row.note ?? '',
+    row.account_id ?? '',
   ]
 }
 
@@ -153,6 +156,7 @@ export default function Identities() {
     { open: false, preset: null, key: 0 },
   )
   const [retiring, setRetiring] = useState<IdentityRow[] | null>(null)
+  const [scoping, setScoping] = useState<{ rows: IdentityRow[]; key: number } | null>(null)
   const [resetting, setResetting] = useState<IdentityRow[] | null>(null)
   const [autoCheck, setAutoCheck] = useState<string | null>(null)
 
@@ -163,9 +167,18 @@ export default function Identities() {
       source: filters.source === 'all' ? undefined : filters.source,
       authenticated: filters.login === 'any' ? undefined : filters.login === 'yes',
       rotation: filters.rotation === 'any' ? undefined : filters.rotation,
+      serves: filters.serves ?? undefined,
       include_retired: filters.all || undefined,
     }),
-    [filters.platform, filters.state, filters.source, filters.login, filters.rotation, filters.all],
+    [
+      filters.platform,
+      filters.state,
+      filters.source,
+      filters.login,
+      filters.rotation,
+      filters.serves,
+      filters.all,
+    ],
   )
   // "Load more" counts pages for one set of filters; changing a filter starts
   // over rather than fetching four pages of something else.
@@ -334,6 +347,28 @@ export default function Identities() {
     },
   )
 
+  /** One rotation choice for every selected identity; see BulkRotationDialog. */
+  const scope = useApiMutation<
+    BulkOutcome<IdentityRow>,
+    { rows: IdentityRow[]; endpoints: string[] | null }
+  >(
+    ({ rows: targets, endpoints }) =>
+      runAll(targets, (identity) =>
+        apiPost(paths.identities.rotation(identity.id), { endpoints }),
+      ),
+    {
+      onSuccess: async (outcome) => {
+        reportBulk(
+          outcome,
+          t('console:identity.rotation.bulkDone', { count: outcome.done.length }),
+          t('console:identity.rotation.failed'),
+        )
+        setScoping(null)
+        await refresh()
+      },
+    },
+  )
+
   const retire = useApiMutation<BulkOutcome<IdentityRow>, IdentityRow[]>(
     (targets) =>
       runAll(targets, (identity) =>
@@ -474,6 +509,15 @@ export default function Identities() {
           setImporting((current) => ({ open: true, preset: platform, key: current.key + 1 }))
         }}
       />
+
+      {filters.serves ? (
+        <ServesNotice
+          endpoint={filters.serves}
+          onClear={() => {
+            setFilters({ serves: null })
+          }}
+        />
+      ) : null}
 
       {hidden.retired + hidden.deadSession > 0 || filters.all ? (
         <SuppressionNotice
@@ -640,6 +684,17 @@ export default function Identities() {
                   {t('console:identity.reset.bulk', { count: resettable.length })}
                 </Button>
               ) : null}
+              {canManage && retirable.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setScoping((current) => ({ rows: retirable, key: (current?.key ?? 0) + 1 }))
+                  }}
+                >
+                  {t('console:identity.rotation.bulkAction', { count: retirable.length })}
+                </Button>
+              ) : null}
               {canManage && selectedRows.length > 0 ? (
                 <Button
                   size="sm"
@@ -721,6 +776,19 @@ export default function Identities() {
           // question a login import leaves open: whether the platform takes it.
           if (authenticated) setAutoCheck(identityId)
           openIdentity(identityId)
+        }}
+      />
+
+      <BulkRotationDialog
+        key={scoping?.key ?? 0}
+        targets={scoping?.rows ?? null}
+        pool={pool.data}
+        busy={scope.isPending}
+        onCancel={() => {
+          setScoping(null)
+        }}
+        onApply={(endpoints) => {
+          if (scoping) scope.mutate({ rows: scoping.rows, endpoints })
         }}
       />
 

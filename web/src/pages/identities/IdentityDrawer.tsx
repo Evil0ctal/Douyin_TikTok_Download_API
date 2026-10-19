@@ -21,6 +21,7 @@ import { MISSING } from '@/lib/format'
 
 import styles from '../identities.module.css'
 import { IdentityContents } from './IdentityContents'
+import { NoteField } from './NoteField'
 import { RotationCard } from './RotationCard'
 import { ExpiryTag, Fact, needsReset, usePlatformName } from './shared'
 import type { CookieInventory, IdentityRow, PoolLevel, ProbeState } from './types'
@@ -237,6 +238,8 @@ export function IdentityDrawer({
               />
             ) : null}
           </div>
+
+          <NoteField identity={identity} canManage={canManage} onChanged={onChanged} />
 
           {/* Retired for a reason somebody wrote down - by hand, by the proxy
               prober, by the pool - and the row returned it on every poll

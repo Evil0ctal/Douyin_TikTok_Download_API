@@ -115,6 +115,8 @@ interface IdentityOption {
   source: 'minted' | 'imported'
   authenticated: boolean
   proxy_label?: string | null
+  /** The operator's note, which is how they tell their logins apart. */
+  note?: string | null
 }
 
 type PoolCounts = Record<IdentityState, number>
@@ -1063,6 +1065,9 @@ export default function Playground() {
       ...rows.map((row) => ({
         value: row.id,
         label: [
+          // First when there is one: it is what the operator wrote to tell
+          // their logins apart, and an id is read only to confirm it.
+          ...(row.note ? [row.note] : []),
           // Whole. Two identities sharing their first eight characters is
           // unlikely and picking the wrong one because of it is silent, and
           // an <option> is one of the few places with no hover and no copy

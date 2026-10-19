@@ -30,6 +30,12 @@ export interface IdentityFilters {
   all: boolean
   /** The identity whose drawer is open. */
   id: string | null
+  /**
+   * Only identities rotation may send to this endpoint. Set by the links on
+   * the scheduler page's coverage table rather than by a control here: it is
+   * the answer to "who serves this", which is asked from the endpoint's side.
+   */
+  serves: string | null
 }
 
 const DEFAULTS: IdentityFilters = {
@@ -41,6 +47,7 @@ const DEFAULTS: IdentityFilters = {
   q: '',
   all: false,
   id: null,
+  serves: null,
 }
 
 function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
@@ -75,6 +82,9 @@ export function useIdentityFilters(): [
       q: params.get('q') ?? '',
       all: params.get('all') === '1',
       id: params.get('id') || null,
+      // Shaped like an endpoint name or ignored: the server would refuse
+      // anything else, and a refused filter reads as an empty pool.
+      serves: /^[a-z]+\.[a-z_]+$/.test(params.get('serves') ?? '') ? params.get('serves') : null,
     }),
     [params],
   )
