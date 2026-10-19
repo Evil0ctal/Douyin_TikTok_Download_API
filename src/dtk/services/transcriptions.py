@@ -9,13 +9,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, literal, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.errors import InvalidParam, NotConfigured, NotFound
 from dtk.db.base import affected
-from dtk.db.models import MediaDownload, Transcription
+from dtk.db.models import ArchivedContent, MediaDownload, Transcription
 from dtk.ops.capacity import MEDIA_PATH
+from dtk.services.archive import LIKE_ESCAPE, escape_like
 
 MODEL: Final = "paraformer-zh-large-onnx-int8"
 NORMALIZER: Final = "wetext-zh-itn-0.1.8"
@@ -28,6 +29,31 @@ TERMINAL_STATES: Final = ("done", "failed", "cancelled")
 class TranscriptionFilter:
     platform: str | None = None
     state: str | None = None
+    #: A substring of the transcript, of the post's title as the archive holds
+    #: it, or of the content id.
+    query: str | None = None
+
+
+def _search_clause(term: str) -> Any:
+    """Match a search term against the transcript and the post it came from.
+
+    The title is read from the archive - the listing shows it from there - by
+    EXISTS rather than a join, so the count query stays the same statement.
+    Escaped and substring-matched for the reasons the archive search is: the
+    caller typed text, not a LIKE pattern, and Chinese has no word boundaries.
+    """
+    pattern = f"%{escape_like(term)}%"
+    return or_(
+        Transcription.content_id.ilike(pattern, escape=LIKE_ESCAPE),
+        Transcription.text.ilike(pattern, escape=LIKE_ESCAPE),
+        select(literal(1))
+        .where(
+            ArchivedContent.platform == Transcription.platform,
+            ArchivedContent.content_id == Transcription.content_id,
+            ArchivedContent.title.ilike(pattern, escape=LIKE_ESCAPE),
+        )
+        .exists(),
+    )
 
 
 def _sidecar_timestamp(value: Any) -> datetime | None:
@@ -164,6 +190,8 @@ async def search(
             statement = statement.where(Transcription.platform == spec.platform)
         if spec.state:
             statement = statement.where(Transcription.state == spec.state)
+        if spec.query and spec.query.strip():
+            statement = statement.where(_search_clause(spec.query.strip()))
         return statement
 
     rows: Sequence[Transcription] = (
@@ -182,6 +210,45 @@ async def search(
         (await session.execute(apply(select(func.count()).select_from(Transcription)))).scalar_one()
     )
     return list(rows), total
+
+
+#: The states that make a transcription worth opening rather than starting.
+#: A failed or cancelled one is not: asking again is what the reader wants
+#: there, and the API would start a new one anyway.
+OPENABLE_STATES: Final = (*LIVE_STATES, "done")
+
+
+async def latest_for_downloads(
+    session: AsyncSession, download_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, dict[str, Any]]:
+    """The newest openable transcription of each of these downloads, in one query.
+
+    What lets a page that lists downloads say "this one already has a
+    transcript" - the Transcribe button became a request whose only possible
+    outcome was being handed back the record the page could have linked to.
+    Newest wins, so a refresh still running is preferred over the text it is
+    replacing. Ids only, never text: a listing has no business carrying a
+    transcript, and this is attached to listings.
+    """
+    unique = list(dict.fromkeys(download_ids))
+    if not unique:
+        return {}
+    rows = (
+        await session.execute(
+            select(Transcription.download_id, Transcription.id, Transcription.state)
+            .where(
+                Transcription.download_id.in_(unique),
+                Transcription.state.in_(OPENABLE_STATES),
+            )
+            .order_by(Transcription.created_at.desc(), Transcription.id.desc())
+        )
+    ).all()
+    found: dict[uuid.UUID, dict[str, Any]] = {}
+    for download_id, transcription_id, state in rows:
+        if download_id is None or download_id in found:
+            continue
+        found[download_id] = {"transcription_id": str(transcription_id), "state": state}
+    return found
 
 
 async def delete_settled(session: AsyncSession, ids: Sequence[uuid.UUID]) -> int:
@@ -359,6 +426,7 @@ __all__ = [
     "LIVE_STATES",
     "MODEL",
     "NORMALIZER",
+    "OPENABLE_STATES",
     "TERMINAL_STATES",
     "TranscriptionFilter",
     "apply_result",
@@ -368,6 +436,7 @@ __all__ = [
     "delete_settled",
     "fail",
     "get",
+    "latest_for_downloads",
     "mark_running",
     "prepare",
     "relative_path",

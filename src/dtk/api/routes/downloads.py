@@ -33,6 +33,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import FileResponse
 
 from dtk.api.deps import Principal, enforce_rate_limit
+from dtk.api.routes import transcriptions as transcription_routes
 from dtk.api.routes.openapi import ACCEPTED_RESPONSES, I18N_KEY
 from dtk.api.routes.schemas import DedupeRequest, DownloadRequest, PinRequest, RetryRequest
 from dtk.api.routes.support import (
@@ -46,7 +47,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import DownloadState, Platform, Scope, UserRole
 from dtk.media import plan
 from dtk.ops import capacity
-from dtk.services import download_requests, downloads
+from dtk.services import download_requests, downloads, transcriptions
 
 log = get_logger(__name__)
 
@@ -58,7 +59,23 @@ PINNED_QUERY = Query(default=None, description="Only pinned downloads, or only u
 ON_DISK_QUERY = Query(default=None, description="True for downloads whose files are still stored.")
 LIMIT_QUERY = Query(default=None, ge=1, le=MAX_ADMIN_PAGE_SIZE, description="Rows per page.")
 OFFSET_QUERY = Query(default=0, ge=0, description="Rows to skip.")
+SEARCH_QUERY = Query(
+    default=None,
+    max_length=200,
+    description=(
+        "Substring of the post's title or author, as the archive holds them, or of its content id."
+    ),
+)
 DOWNLOAD_ID = Path(description="The download id returned when it was started.")
+
+
+async def _transcriptions_for(
+    request: Request, principal: Principal, rows: Sequence[Any]
+) -> dict[uuid.UUID, dict[str, Any]]:
+    """Which of these downloads already have a transcript, for a caller who may open one."""
+    if not rows or not transcription_routes.may_read(principal):
+        return {}
+    return await transcriptions.latest_for_downloads(request.state.db, [row.id for row in rows])
 
 
 @router.post(
@@ -391,6 +408,7 @@ async def list_downloads(
     state: DownloadState | None = STATE_QUERY,
     pinned: bool | None = PINNED_QUERY,
     on_disk: bool | None = ON_DISK_QUERY,
+    q: str | None = SEARCH_QUERY,
     limit: int | None = LIMIT_QUERY,
     offset: int = OFFSET_QUERY,
     principal: Principal = Depends(enforce_rate_limit),
@@ -402,6 +420,14 @@ async def list_downloads(
     from never having been fetched - and unlike that one, it can be undone by
     asking again.
 
+    **Parameters**
+
+    - `platform`, `state`, `pinned`, `on_disk` - narrow the result.
+    - `q` - substring of the post's title or author as the archive holds them,
+      or of its content id. Substring rather than word matching, so it behaves
+      the same in Chinese as in English.
+    - `limit`, `offset` - paging. `total` counts every match, not the page.
+
     **Returns**
 
     The downloads with their per-file digests and sizes, plus the total. A
@@ -409,15 +435,41 @@ async def list_downloads(
     downloader: `bytes` written so far, `bytes_expected` once every file's size
     is known (null until then), `bytes_per_second` over the last few seconds,
     and the same per file. It is null once the download settles.
+
+    `transcription` is the newest queued, running or finished transcription of
+    the download - its id and state - or null. Null as well for a caller who
+    may not read transcriptions.
     """
     principal.require(Scope.MEDIA_READ)
-    spec = downloads.DownloadFilter(platform=platform, state=state, pinned=pinned, on_disk=on_disk)
+    spec = downloads.DownloadFilter(
+        platform=platform, state=state, pinned=pinned, on_disk=on_disk, query=q
+    )
     rows, total = await downloads.search(
         request.state.db,
         spec,
         limit=limit or DEFAULT_ADMIN_PAGE_SIZE,
         offset=offset,
     )
+    return ok(
+        request,
+        {
+            "items": await _described(request, principal, rows),
+            "total": total,
+            "limit": limit or DEFAULT_ADMIN_PAGE_SIZE,
+            "offset": offset,
+        },
+    )
+
+
+async def _described(
+    request: Request, principal: Principal, rows: Sequence[Any]
+) -> list[dict[str, Any]]:
+    """Download rows with what the console shows beside them.
+
+    Shared by the listing and the single read, so a drawer opened from a link -
+    `/downloads?id=` - shows the same title, progress and transcript link as
+    one opened from the table.
+    """
     # One statement for the page. A table of content ids and byte counts is a
     # table of receipts; the archive already knows what was kept.
     titles = await downloads.titles_for(
@@ -425,22 +477,16 @@ async def list_downloads(
     )
     # Only the in-flight rows cost anything here, and only while there are any.
     progress = await _live_progress(request, rows)
-    return ok(
-        request,
+    transcribed = await _transcriptions_for(request, principal, rows)
+    return [
         {
-            "items": [
-                {
-                    **downloads.as_dict(row),
-                    "post": titles.get((row.platform, row.content_id)),
-                    "progress": progress.get(str(row.id)),
-                }
-                for row in rows
-            ],
-            "total": total,
-            "limit": limit or DEFAULT_ADMIN_PAGE_SIZE,
-            "offset": offset,
-        },
-    )
+            **downloads.as_dict(row),
+            "post": titles.get((row.platform, row.content_id)),
+            "progress": progress.get(str(row.id)),
+            "transcription": transcribed.get(row.id),
+        }
+        for row in rows
+    ]
 
 
 @router.get(
@@ -507,13 +553,15 @@ async def get_download(
     **Returns**
 
     The stored record: per-file name, size, sha256 and content type, plus
-    whether the files are still on the disk.
+    whether the files are still on the disk - and, as in the listing, the
+    post's title, live `progress` while it runs, and its `transcription`.
     """
     principal.require(Scope.MEDIA_READ)
     row = await downloads.get(request.state.db, download_id)
     if row is None:
         raise NotFound("no such download", details={"download_id": str(download_id)})
-    return ok(request, downloads.as_dict(row))
+    [described] = await _described(request, principal, [row])
+    return ok(request, described)
 
 
 @router.get(

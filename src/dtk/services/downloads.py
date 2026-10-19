@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
-from sqlalchemy import delete, func, select, tuple_, update
+from sqlalchemy import delete, func, literal, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.logging import get_logger
@@ -40,6 +40,7 @@ from dtk.db.base import affected
 from dtk.db.models import ArchivedContent, MediaDownload, Transcription
 from dtk.media import domains
 from dtk.media import plan as planner
+from dtk.services.archive import LIKE_ESCAPE, escape_like
 
 log = get_logger(__name__)
 
@@ -63,6 +64,9 @@ class DownloadFilter:
     pinned: bool | None = None
     #: True lists only what is still on disk, False only what has been evicted.
     on_disk: bool | None = None
+    #: A substring of the post's title or author as the archive holds them, or
+    #: of its content id. The download row itself has neither name.
+    query: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +402,37 @@ def _apply(statement: Any, spec: DownloadFilter) -> Any:
         statement = statement.where(MediaDownload.files_removed_at.is_(None))
     if spec.on_disk is False:
         statement = statement.where(MediaDownload.files_removed_at.is_not(None))
+    if spec.query and spec.query.strip():
+        statement = statement.where(_search_clause(spec.query.strip()))
     return statement
+
+
+def _search_clause(term: str) -> Any:
+    """Match a search term against what a person calls a download.
+
+    The row knows a content id and nothing a person would type, so the title
+    and the author come from the archive, the same place :func:`titles_for`
+    reads them for display - a search that matched something other than what
+    the table shows would find rows nobody can see why it found. EXISTS rather
+    than a join, because a join would also have to be added to the count.
+
+    Escaped and substring-matched for the archive's reasons: the caller typed
+    text rather than a pattern, and Chinese has no word boundaries to match on.
+    """
+    pattern = f"%{escape_like(term)}%"
+    return or_(
+        MediaDownload.content_id.ilike(pattern, escape=LIKE_ESCAPE),
+        select(literal(1))
+        .where(
+            ArchivedContent.platform == MediaDownload.platform,
+            ArchivedContent.content_id == MediaDownload.content_id,
+            or_(
+                ArchivedContent.title.ilike(pattern, escape=LIKE_ESCAPE),
+                ArchivedContent.author_nickname.ilike(pattern, escape=LIKE_ESCAPE),
+            ),
+        )
+        .exists(),
+    )
 
 
 async def search(
@@ -474,19 +508,32 @@ async def stored_for(
         key = (row.platform, row.content_id)
         if key in found:
             continue
-        files = [_file_row(item) for item in (row.files or [])]
-        found[key] = {
-            "download_id": str(row.id),
-            "bytes_total": int(row.bytes_total or 0),
-            "video": next(
-                (f["name"] for f in files if f["kind"] == "video" and f["state"] == "done"), None
-            ),
-            "cover": next(
-                (f["name"] for f in files if f["kind"] == "cover" and f["state"] == "done"), None
-            ),
-            "images": [f["name"] for f in files if f["kind"] == "image" and f["state"] == "done"],
-        }
+        found[key] = stored_entry(row)
     return found
+
+
+def stored_entry(row: MediaDownload) -> dict[str, Any]:
+    """One stored download, as the library card reads it.
+
+    ``saved_at`` is when the files landed, which is what "group by the day it
+    was saved" means. The library used to group by the post's `last_seen_at`
+    instead, and that moves every time the post is parsed or re-checked - so a
+    video saved a month ago jumped into today's group after a recheck.
+    """
+    files = [_file_row(item) for item in (row.files or [])]
+    saved = row.finished_at or row.created_at
+    return {
+        "download_id": str(row.id),
+        "bytes_total": int(row.bytes_total or 0),
+        "saved_at": saved.isoformat() if saved else None,
+        "video": next(
+            (f["name"] for f in files if f["kind"] == "video" and f["state"] == "done"), None
+        ),
+        "cover": next(
+            (f["name"] for f in files if f["kind"] == "cover" and f["state"] == "done"), None
+        ),
+        "images": [f["name"] for f in files if f["kind"] == "image" and f["state"] == "done"],
+    }
 
 
 async def directories_for(
@@ -913,6 +960,7 @@ __all__ = [
     "set_pinned",
     "sharing_directory",
     "stats",
+    "stored_entry",
     "stored_for",
     "titles_for",
 ]

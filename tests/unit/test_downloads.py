@@ -15,8 +15,11 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 
 from dtk.core.types import Platform
+from dtk.db.models import MediaDownload
 from dtk.services import downloads
 
 MB = 1024 * 1024
@@ -216,3 +219,65 @@ class TestSharedDirectories:
 
         assert set(plan.ids) == {first.id, second.id}
         assert plan.ids_by_path[shared] == (first.id, second.id)
+
+
+class TestSearch:
+    """`q` on the downloads list. The row knows a content id and nothing a
+    person would type, so the title and the author come from the archive."""
+
+    @staticmethod
+    def where(term: str) -> tuple[str, dict]:
+        statement = downloads._apply(select(MediaDownload), downloads.DownloadFilter(query=term))
+        compiled = statement.compile(dialect=postgresql.dialect())
+        return str(compiled), compiled.params
+
+    def test_matches_the_archived_title_and_author_through_exists(self):
+        sql, _ = self.where("cats")
+        assert "EXISTS" in sql
+        assert "archived_contents.title ILIKE" in sql
+        assert "archived_contents.author_nickname ILIKE" in sql
+        assert "media_downloads.content_id ILIKE" in sql
+
+    def test_wildcards_are_text_not_a_pattern(self):
+        """`50%_off` is a caption, not a LIKE pattern; unescaped it would match
+        every row with a 50 anywhere in it."""
+        _, params = self.where("50%_off")
+        assert "%50\\%\\_off%" in params.values()
+
+    def test_blank_matches_everything(self):
+        sql, _ = self.where("   ")
+        assert "ILIKE" not in sql
+
+
+class TestStoredEntry:
+    """What the library card reads about a stored download."""
+
+    @staticmethod
+    def stored(**overrides: object) -> SimpleNamespace:
+        created = datetime(2026, 10, 1, 8, 0, tzinfo=UTC)
+        fields: dict = {
+            "id": uuid.uuid4(),
+            "bytes_total": 4096,
+            "created_at": created,
+            "finished_at": created + timedelta(minutes=2),
+            "files": [
+                {"name": "video.mp4", "kind": "video", "state": "done", "bytes": 4000},
+                {"name": "cover.jpeg", "kind": "cover", "state": "done", "bytes": 96},
+            ],
+        }
+        fields.update(overrides)
+        return SimpleNamespace(**fields)
+
+    def test_saved_at_is_when_the_files_landed(self):
+        """Not the post's last_seen_at, which a recheck moves: grouping by it
+        put a video saved a month ago into today's group."""
+        row = self.stored()
+        entry = downloads.stored_entry(row)  # type: ignore[arg-type]
+        assert entry["saved_at"] == row.finished_at.isoformat()
+        assert entry["video"] == "video.mp4"
+        assert entry["cover"] == "cover.jpeg"
+
+    def test_a_row_without_a_finish_time_falls_back_to_when_it_was_asked_for(self):
+        row = self.stored(finished_at=None)
+        entry = downloads.stored_entry(row)  # type: ignore[arg-type]
+        assert entry["saved_at"] == row.created_at.isoformat()

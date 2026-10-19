@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import uuid
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Final
 
 from fastapi import APIRouter, Depends, Path, Query, Request
 
@@ -16,6 +16,7 @@ from dtk.api.routes.schemas import TranscriptionDeleteRequest, TranscriptionRequ
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
     MAX_ADMIN_PAGE_SIZE,
+    ROLE_RANK,
     guard,
     ok,
     resolve_wait,
@@ -35,6 +36,22 @@ router = APIRouter(prefix="/api/v1/transcriptions", tags=["transcriptions"])
 TRANSCRIPTION_ID = Path(description="The transcription id returned when it was started.")
 LIMIT_QUERY = Query(default=None, ge=1, le=MAX_ADMIN_PAGE_SIZE, description="Rows per page.")
 OFFSET_QUERY = Query(default=0, ge=0, description="Rows to skip.")
+
+#: What reading a transcription takes. Named once because two checks are built
+#: from it: the guard on the read routes below, and :func:`may_read`, which the
+#: downloads and archive listings ask before saying which rows have one.
+READ_SCOPES: Final[tuple[Scope, ...]] = (Scope.TRANSCRIPTION_READ, Scope.TRANSCRIPTION_WRITE)
+READ_ROLE: Final[UserRole] = UserRole.VIEWER
+
+
+def may_read(principal: Principal) -> bool:
+    """Whether this caller could open a transcription the listings link to.
+
+    Both halves of the read guard. ``permits`` answers yes to every console
+    session whatever its role, so the scope alone would hand the demo account
+    links to a page that refuses it.
+    """
+    return principal.permits(*READ_SCOPES) and ROLE_RANK[principal.role] >= ROLE_RANK[READ_ROLE]
 
 
 def _configured(request: Request) -> BootstrapSettings:
@@ -122,17 +139,28 @@ async def list_transcriptions(
     request: Request,
     platform: Platform | None = Query(default=None, description="Only this platform."),
     state: TranscriptionState | None = Query(default=None, description="Only this state."),
+    q: str | None = Query(
+        default=None,
+        max_length=200,
+        description=(
+            "Substring of the transcript, of the post's title as the archive holds it, "
+            "or of the content id."
+        ),
+    ),
     limit: int | None = LIMIT_QUERY,
     offset: int = OFFSET_QUERY,
-    _principal: Principal = Depends(
-        guard(scopes=(Scope.TRANSCRIPTION_READ, Scope.TRANSCRIPTION_WRITE))
-    ),
+    _principal: Principal = Depends(guard(scopes=READ_SCOPES, min_role=READ_ROLE)),
 ) -> Any:
-    """List durable transcription records newest first without returning full text."""
+    """List durable transcription records newest first without returning full text.
+
+    `q` matches a substring of the transcript, of the post's title or of its
+    content id - substring rather than word matching, so it works on Chinese.
+    `total` counts every match; page with `limit` and `offset`.
+    """
     page_size = limit or DEFAULT_ADMIN_PAGE_SIZE
     rows, total = await transcriptions.search(
         request.state.db,
-        transcriptions.TranscriptionFilter(platform=platform, state=state),
+        transcriptions.TranscriptionFilter(platform=platform, state=state, query=q),
         limit=page_size,
         offset=offset,
     )
@@ -183,9 +211,7 @@ async def delete_transcriptions(
 async def get_transcription(
     request: Request,
     transcription_id: uuid.UUID = TRANSCRIPTION_ID,
-    _principal: Principal = Depends(
-        guard(scopes=(Scope.TRANSCRIPTION_READ, Scope.TRANSCRIPTION_WRITE))
-    ),
+    _principal: Principal = Depends(guard(scopes=READ_SCOPES, min_role=READ_ROLE)),
 ) -> Any:
     """Read durable text, duration, model, normalization, source and lifecycle metadata."""
     row = await transcriptions.get(request.state.db, transcription_id)
@@ -245,4 +271,4 @@ async def cancel_transcription(
     return ok(request, transcriptions.as_dict(row))
 
 
-__all__ = ["router"]
+__all__ = ["READ_ROLE", "READ_SCOPES", "may_read", "router"]

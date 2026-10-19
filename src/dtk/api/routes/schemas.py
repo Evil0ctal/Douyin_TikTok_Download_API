@@ -771,6 +771,15 @@ class WatchUpdate(Body):
     interval_seconds: int | None = Field(
         default=None, ge=1, description="Change how often it runs. Same floor as on create."
     )
+    label: str | None = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "Rename it in the console. Send null or an empty string to clear it, and "
+            "the next successful run fills it in from the platform again; leave it out "
+            "to keep the current one."
+        ),
+    )
     enabled: bool | None = Field(
         default=None,
         description="Pause it or start it again. A paused entry keeps its history.",
