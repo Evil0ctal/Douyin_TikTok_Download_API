@@ -55,6 +55,20 @@ class TestStaleness:
         old = SimpleNamespace(last_seen_at=datetime.now(UTC) - timedelta(days=1))
         assert downloads.mirrors_are_stale(old, max_age_seconds=600) is True
 
+    def test_a_video_archived_without_its_stream_is_stale_however_fresh(self):
+        """Bilibili's lists carry a cover and no stream; planned from such a
+        row, a download finished "done" with only the cover."""
+        listed = SimpleNamespace(
+            last_seen_at=datetime.now(UTC), kind="video", media={"covers": [{"url": "x"}]}
+        )
+        assert downloads.mirrors_are_stale(listed, max_age_seconds=600) is True
+
+    def test_an_album_without_a_video_is_not_missing_one(self):
+        album = SimpleNamespace(
+            last_seen_at=datetime.now(UTC), kind="image_album", media={"images": [{"url": "x"}]}
+        )
+        assert downloads.mirrors_are_stale(album, max_age_seconds=600) is False
+
     def test_zero_always_re_parses(self):
         recent = SimpleNamespace(last_seen_at=datetime.now(UTC))
         assert downloads.mirrors_are_stale(recent, max_age_seconds=0) is True

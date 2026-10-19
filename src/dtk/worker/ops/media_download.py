@@ -88,6 +88,22 @@ async def run(
             details={"platform": download.platform, "content_id": download.content_id},
         )
 
+    # Still no stream after a fresh fetch - the follow-up for it was refused -
+    # and planning from this row would store the cover and call the download
+    # done. Failing says what happened, and a retry asks again.
+    if downloads.lacks_its_video(row):
+        detail = "the video's playable file could not be fetched this time; retry the download"
+        await downloads.fail(session, download_id, detail)
+        return {
+            "download_id": str(download_id),
+            "state": "failed",
+            "bytes_total": 0,
+            "file_count": 0,
+            "files": [],
+            "skipped": [],
+            "detail": detail,
+        }
+
     # A download created before its post was archived carries a placeholder
     # author, and the author is half the directory. Now that the fetch has
     # come back, the row can say where its files really go - before the job is

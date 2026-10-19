@@ -35,7 +35,7 @@ from sqlalchemy import delete, func, literal, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.logging import get_logger
-from dtk.core.types import Platform
+from dtk.core.types import ContentKind, Platform
 from dtk.db.base import affected
 from dtk.db.models import ArchivedContent, MediaDownload, Transcription
 from dtk.media import domains
@@ -81,8 +81,16 @@ def mirrors_are_stale(row: ArchivedContent, *, max_age_seconds: int) -> bool:
     stored yesterday answered 403 on 2026-09-08. Douyin's lasted longer. Rather
     than encode a per-platform guess, the age of the observation decides, and
     the window is a setting.
+
+    A video whose archived media has no video in it is stale however fresh it
+    is. Bilibili's lists - the popular boards, an uploader's posts - carry a
+    cover and no stream, and a post archived from one and downloaded inside
+    the window used to be planned from that row: the download finished
+    "done" with the cover and nothing else (measured 2026-10-19).
     """
     if max_age_seconds <= 0:
+        return True
+    if lacks_its_video(row):
         return True
     seen = row.last_seen_at
     if seen is None:
@@ -90,6 +98,12 @@ def mirrors_are_stale(row: ArchivedContent, *, max_age_seconds: int) -> bool:
     if seen.tzinfo is None:
         seen = seen.replace(tzinfo=UTC)
     return datetime.now(UTC) - seen > timedelta(seconds=max_age_seconds)
+
+
+def lacks_its_video(row: Any) -> bool:
+    """Whether a video post's archived media has no video stream in it."""
+    media = row.media if isinstance(getattr(row, "media", None), dict) else {}
+    return getattr(row, "kind", None) == ContentKind.VIDEO.value and not media.get("video")
 
 
 def plan_for(row: ArchivedContent, *, max_file_bytes: int) -> planner.Plan:
