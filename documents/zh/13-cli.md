@@ -573,7 +573,7 @@ hint: restore with the original key; without it the cookies and proxy URLs in th
 
 存在数据库里的运行时配置。
 
-实例初始化之后，`settings` 表就是权威来源，所以一个配错的值**不能**靠改 `.env` 加重启来修——这一点每个人都会被坑一次。这组命令就是在没有控制台的情况下修它的办法。配置表共有 62 项，完整目录及其含义和默认值在[配置参考](./03-configuration.md)。
+实例初始化之后，`settings` 表就是权威来源，所以一个配错的值**不能**靠改 `.env` 加重启来修——这一点每个人都会被坑一次。这组命令就是在没有控制台的情况下修它的办法。配置表共有 65 项，完整目录及其含义和默认值在[配置参考](./03-configuration.md)。
 
 ### `dtk config list`
 
@@ -597,7 +597,7 @@ no settings match that filter
 settings version 112
 ```
 
-关于作用域有两点。62 项配置里有 54 项是 `runtime`、8 项是 `sensitive`；`--scope bootstrap` 和 `--scope env_only` 能传，但永远匹配不到任何东西，因为那些配置只存在于环境变量里，从不进这张表。
+关于作用域有两点。65 项配置里有 57 项是 `runtime`、8 项是 `sensitive`；`--scope bootstrap` 和 `--scope env_only` 能传，但永远匹配不到任何东西，因为那些配置只存在于环境变量里，从不进这张表。
 
 另外，**取值是普通字符串的 `sensitive` 配置会被掩码。** 这是按声明而不是按形状决定的：注册表说了哪些配置敏感，然后每个展示面——这张表、admin API、写操作留下的审计记录——都用同一套规则掩码。掩码会保留前四个字符、其余替换成 `***`；长度不超过四个字符的值则整体变成 `***`，因为四个字符里露出三个算不上掩码。所以 `security.webhook_secret` 设成 `s3cr3t-value-abcdef` 时显示为 `s3cr***`，而 `security.request_proxy` 在默认值 `deny` 下显示为 `***`、改成其他可选值后则显示为 `allo***` 或 `publ***`。它既适用于真正的机密，也适用于 `security.request_proxy` 这种本身并不是机密的敏感配置。列表、布尔值和数字照原样显示，空字符串也照原样显示为空，因为“没设置”这件事值得看得见。
 

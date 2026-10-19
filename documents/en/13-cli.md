@@ -574,7 +574,7 @@ Archive schema versions 1 and 2 can both be read; anything newer is refused rath
 
 Runtime configuration stored in the database.
 
-The `settings` table is authoritative once an instance is initialized, so a misconfigured value **cannot** be fixed by editing `.env` and restarting — a fact that surprises everybody exactly once. These commands are how it gets fixed without the console. There are 62 settings in the table; the full catalogue with meanings and defaults is in [Configuration reference](./03-configuration.md).
+The `settings` table is authoritative once an instance is initialized, so a misconfigured value **cannot** be fixed by editing `.env` and restarting — a fact that surprises everybody exactly once. These commands are how it gets fixed without the console. There are 65 settings in the table; the full catalogue with meanings and defaults is in [Configuration reference](./03-configuration.md).
 
 ### `dtk config list`
 
@@ -598,7 +598,7 @@ no settings match that filter
 settings version 112
 ```
 
-Two things about the scopes. Of the 62 settings, 54 are `runtime` and 8 are `sensitive`; `--scope bootstrap` and `--scope env_only` are accepted but always match nothing, because those settings live in the environment and never in this table.
+Two things about the scopes. Of the 65 settings, 57 are `runtime` and 8 are `sensitive`; `--scope bootstrap` and `--scope env_only` are accepted but always match nothing, because those settings live in the environment and never in this table.
 
 And **a `sensitive` setting whose value is a plain string is masked.** That is by declaration, not by shape: the registry says which settings are sensitive, and every surface — this table, the admin API, the audit row a write leaves behind — masks them the same way. The mask keeps the first four characters and replaces the rest with `***`; a value of four characters or fewer is masked whole, because showing three of four characters is not a mask. So `security.webhook_secret` set to `s3cr3t-value-abcdef` reads `s3cr***`, and `security.request_proxy` reads `***` at its default `deny` but `allo***` or `publ***` once it is set to one of its other choices. It applies to genuinely secret values and also to a sensitive setting that is not itself a secret, such as `security.request_proxy`. Lists, booleans and numbers are shown as they are, and an empty string is shown as empty, because "not set" is worth being able to see.
 

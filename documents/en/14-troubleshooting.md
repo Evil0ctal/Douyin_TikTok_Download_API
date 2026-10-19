@@ -399,7 +399,7 @@ The console's **Identities** page (`/identities`) shows the same with health, an
 | Identities `degraded` | They hit the cooldown ceiling. One success clears the failure streak, but they rejoin only when the ceiling cooldown elapses. Reset one by hand from `/identities` if you know the cause is gone |
 | Identities `retired` | Retirement wipes the cookie jar and is not reversible. Mint or import replacements |
 | Enough identities, still `no_token` | You are simply asking faster than the quota allows — see [Requests are slow](#requests-are-slow) |
-| Identities `active`, and the error carries `details.reserved` | That many are kept out of rotation for this endpoint and serve only requests that name them — see [Keeping an identity out of rotation](./06-identities-and-proxies.md#keeping-an-identity-out-of-rotation). Mint or import identities for general traffic, or turn the switch off |
+| Identities `active`, and the error carries `details.reserved` | That many are kept out of rotation for this endpoint and serve only requests that name them — see [Keeping an identity out of rotation](./06-identities-and-proxies.md#keeping-an-identity-out-of-rotation). Mint or import identities for general traffic, or set their rotation back to **Every endpoint** |
 
 **The knobs.** `pool.min_size` (3) is the low-water mark the filler tops up from; `pool.target_size` (8) is where it stops. The filler runs every 60 seconds. `pool.max_fail_streak` (3) is when an identity stops counting toward the pool level, so the filler replaces it rather than counting a corpse.
 

@@ -550,15 +550,28 @@ Ids the caller typed are validated before they cost anything: `aweme_id=not-an-i
 | `/api/v1/tools/…` | `parse-url`, `parse-batch`, `sign`, `decode`, `identity` — dry runs and signing, no identity spent by the first four | [Playground and tools](./07-playground-and-tools.md) |
 | `/api/v1/archive/…` | What this instance has already stored: search, stats, collections, export, recheck, backfill | [Downloads, library and watchlist](./08-downloads-and-library.md) |
 | `/api/v1/downloads/…` | Media stored on the operator's disk | [Downloads, library and watchlist](./08-downloads-and-library.md) |
-| `/api/v1/admin/…` | Identities, proxies, keys, users, settings, logs, watchlist, backup | [Operations](./10-operations.md), [Users and API keys](./09-users-and-api-keys.md) |
+| `/api/v1/admin/…` | Identities, proxies, keys, users, settings, logs, watchlist, backup | [Identities and proxies](./06-identities-and-proxies.md), [Operations](./10-operations.md), [Users and API keys](./09-users-and-api-keys.md); the identity calls a script reaches for are below |
 | `/api/v1/auth/…` | Console sessions and password changes | [Users and API keys](./09-users-and-api-keys.md) |
 | `/api/v1/ios/…` | iOS Shortcut release metadata — unauthenticated | This page |
 | `/api/v1/system/status` | Version, health, pool census, storage | [Operations](./10-operations.md) |
-| `/api/v1/system/capabilities` | Which operations each platform serves, and which of them are session-bound. Any credential — every role, the demo account included, and any API key | This page |
+| `/api/v1/system/capabilities` | Which operations each platform serves, which of them are session-bound, and what a guest identity loses on each. Any credential — every role, the demo account included, and any API key | This page |
 
 Archive endpoints answer from local storage: no identity is spent, nothing is fetched, and a post that has since been deleted is still there with `availability` saying so. That makes `GET /api/v1/archive` the right call when you want what the instance already knows, and `/parse` the right call when you need it fresh.
 
 `GET /api/v1/system/capabilities` answers, per platform, the operations it serves — each with its scheduler endpoint name and `session_bound`, which marks the ones that answer only about the identity sending them and so are refused without `identity`. It reads the same table the content routes refuse from with `UNSUPPORTED_CONTENT`, so the two cannot disagree, and it never changes while the process runs. Ask it once rather than learning the platform differences one refusal at a time; the Playground greys its catalogue from it.
+
+Each operation also carries `login` and `paging_login`: what a guest identity loses on it — `none`, `preferred` or `required` — on the first page and on every page after it, `paging_login` being null where later pages are no different. They are what decides which identities rotation sends. `required` goes to logged-in identities only and answers `IDENTITY_LOGIN_REQUIRED` when rotation has none; `preferred` tries a login first and falls back to a guest; `none` goes to guests first while `pool.<platform>.guests_first` is on, and to logins and guests alike while it is off. Today `douyin.author_posts` and `bilibili.comments` are `preferred` with `paging_login: required`, `bilibili.comment_replies` is `none` with `paging_login: required`, and every other operation is `none` throughout. The console reads them to mark, in an identity's rotation checklist, the endpoints that need a login.
+
+The pool's own routes live under `/api/v1/admin/identities` and are described beside the console pages that use them, in [Identities and proxies](./06-identities-and-proxies.md). These are the ones a script that keeps a pool reaches for, and the fields that tell one identity from another. Every one of them needs the `admin` or `identity:manage` scope as well as the role shown.
+
+| Call | Role | What it takes and gives |
+| --- | --- | --- |
+| `GET /api/v1/admin/identities` | Viewer and up | The list. Each row carries `note`, and `account_id` with `account_seen_at` — the account the last session check named, and when; null until a check has named one. `serves=<endpoint>`, such as `douyin.author_posts`, keeps the identities rotation may hand out for it: those with no rotation list and those whose list names it. Reserved ones never match |
+| `PATCH /api/v1/admin/identities/{id}` | Operator | `{"note": "..."}` sets the note, `{"note": null}` or a blank one clears it. One line, at most 200 characters once trimmed, or `INVALID_PARAM`. The field is required, so `{}` is refused rather than read as clearing. Answers with the identity as the list shows it; audited as `identity.note_changed`, without the text |
+| `GET /api/v1/admin/identities/coverage` | Viewer and up; not the demo account | Per platform: `guests_first`, `reserved` (identities serving only requests that name them) and `endpoints`, one entry per operation with the capability fields above plus `ready` (active or degraded identities rotation may send there), `signed_in` (the logins among them), `cooling` and `dedicated` (ready ones limited to a list naming it). Counted the way the scheduler counts; a request with `identity=` is limited by none of it |
+| `POST /api/v1/admin/identities/import` | Operator | Takes an optional `note`, under the same rules as the `PATCH` |
+| `POST /api/v1/admin/identities/export`, `POST /api/v1/admin/identities/import/bundle` | Operator | Each exported entry carries its `note`, and a restore stores it with the identity. A note the restoring build would refuse is dropped rather than costing the identity. Rotation does not travel |
+| `GET /api/v1/admin/logs/requests` | Every role, the demo account included | Each row carries `identity_note`, the note on the identity that served it — null when it has none, and always null for the demo account, because a note is where somebody writes whose account a login is |
 
 ## Bilibili
 

@@ -414,7 +414,7 @@ Retention is a separate ceiling: `retention.request_log_days` defaults to 14, so
 | Request id | Copyable. This is what you quote in an issue |
 | HTTP status | As returned by the platform, when there was one |
 | Duration | Wall time for the upstream call |
-| Identity | Which identity served it |
+| Identity | Which identity served it, with the identity's note under the id when it has one |
 | Proxy | Which proxy it left through |
 | Error code | Stable machine code, never translated |
 | Reject reason | Why the scheduler refused to send it at all — see below |
@@ -439,7 +439,7 @@ A **reject reason** means the request never left the building. The scheduler dec
 
 A code this build has no translation for is shown exactly as it arrived — an untranslated reason is still the thing to quote in an issue; a missing-key stub is not.
 
-Clicking a row opens a drawer with the full record, plus the raw JSON collapsed at the bottom. Beside the identity and the proxy it offers "Only this identity" and "Only this proxy", which narrow the table to that one, and a link that opens the identity on its own page. Nothing in a row is a credential: the fetch layer logs the *logical endpoint name* it scheduled on, never the signed URL it built, and identities and proxies appear only as ids.
+Clicking a row opens a drawer with the full record, plus the raw JSON collapsed at the bottom. Beside the identity and the proxy it offers "Only this identity" and "Only this proxy", which narrow the table to that one, and a link that opens the identity on its own page. Nothing in a row is a credential: the fetch layer logs the *logical endpoint name* it scheduled on, never the signed URL it built, and proxies appear only as ids. An identity appears as its id with its note under it, in the table and in the drawer, so "which account served this" is answered on the row rather than by looking a UUID up on the Identities page. The demo account sees the id alone: this page is open to it, and a note is where somebody writes whose account a login is.
 
 ### Audit log tab
 

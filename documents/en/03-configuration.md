@@ -5,7 +5,7 @@
 > console, with an identity pool that maintains itself.
 > [All docs](../README.md) · [中文](../zh/03-configuration.md)
 
-After reading this you will know which settings need a restart and which do not, how to read and change the ones that do not from the console, the CLI or the API, and what every one of the 62 settings in the settings table does.
+After reading this you will know which settings need a restart and which do not, how to read and change the ones that do not from the console, the CLI or the API, and what every one of the 65 settings in the settings table does.
 
 ## The two layers
 
@@ -246,7 +246,7 @@ Six keys carry extra validation beyond their type, under four rules:
 
 ## The complete runtime reference
 
-All 62 keys, grouped by prefix. Defaults are exactly what the code declares.
+All 65 keys, grouped by prefix. Defaults are exactly what the code declares.
 
 ### `sched` — scheduler (7)
 
@@ -262,7 +262,7 @@ Edited on the **Scheduler** page in the console. See [Concepts](./04-concepts.md
 | `sched.circuit_min_samples` | `20` | Minimum requests observed before an endpoint may trip, so a short burst of failures cannot open the circuit. | Raise it on a busy instance where 20 samples is noise. |
 | `sched.circuit_min_identities` | `3` | How many distinct identities must be failing before an endpoint trips. Separates a broken endpoint from one broken identity. | Lower it to `1` only while debugging; it removes the distinction the setting exists to make. |
 
-### `pool` — identity pool (10)
+### `pool` — identity pool (13)
 
 Also on the **Scheduler** page. See [Identities and proxies](./06-identities-and-proxies.md).
 
@@ -272,6 +272,7 @@ Also on the **Scheduler** page. See [Identities and proxies](./06-identities-and
 | `pool.target_size` | `8` | How many identities the pool tries to keep per platform. | Raise it for more throughput, at the cost of more minting and more proxies. Values below `min_size` are ignored. |
 | `pool.douyin.min_size` / `pool.tiktok.min_size` / `pool.bilibili.min_size` | `-1` | One platform's own low-water mark. `-1` follows `pool.min_size`; `0` turns automatic minting off for that platform, together with its `pool_empty` / `pool_below_min` alerts. Imported and hand-minted identities still work. | Set the platform you do not use to `0`, for example TikTok on a server with no route to it. Anything below `-1` is refused. |
 | `pool.douyin.target_size` / `pool.tiktok.target_size` / `pool.bilibili.target_size` | `-1` | One platform's own top-up target. `-1` follows `pool.target_size`. Values below that platform's mark are raised to it. | When one platform carries most of the traffic and needs a bigger pool than the others. |
+| `pool.douyin.guests_first` / `pool.tiktok.guests_first` / `pool.bilibili.guests_first` | `True` | Answer that platform's endpoints that need no login from guest identities first - the active guests, or the degraded ones when none is active - and from a login only when no guest can take the request: none is in rotation for the endpoint, or every one is mid-request or out of quota. A guest is minted for nothing; a login is somebody's account, and a request a guest answers identically only wears it out for the endpoints that need it. Endpoints that need a login still prefer or require one. Off, logins and guests share every endpoint by recency. Read by the worker on every request. It is the switch on the Scheduler page's coverage card, not a row among the `pool.*` editors. | Off when the logins should share that traffic anyway, for instance a pool that is mostly logins. See [What needs a logged-in identity](./06-identities-and-proxies.md#what-needs-a-logged-in-identity). |
 | `pool.max_fail_streak` | `3` | Consecutive failures after which an identity stops counting towards the pool level, so the filler mints a replacement instead of counting a session that serves nothing. The streak is used rather than the health score because the score is empty until there is traffic, and scoring a fresh identity as unusable would turn the low-water mark into a minting loop. | Rarely. Raise it if a flaky proxy is causing needless re-minting. |
 | `pool.health_prior` | `0.8` | Assumed success rate for an identity with no history, 0–1. Decides how eagerly a freshly minted identity is scheduled. | Lower it if new identities are getting risk-controlled before they prove themselves. |
 

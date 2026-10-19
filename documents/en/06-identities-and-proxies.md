@@ -48,6 +48,8 @@ not try to "fix":
 | `consecutive_fails` | Failure streak. Cleared by one success; nothing else clears it except a manual reset. |
 | `cooldown_until` | When a cooling or degraded identity becomes schedulable again. |
 | `minted_at`, `last_used_at`, `retired_at`, `retire_reason` | Timeline. |
+| `note` | The operator's label for it: one line, at most 200 characters - whose account a login is, where its cookie came from. Nothing in the request path reads it. See [The identity drawer](#the-identity-drawer). |
+| `account_id`, `account_seen_at` | The account the platform named the last time the session was checked, and when. Empty until a check has named one. See [Checking a login](#checking-a-login). |
 
 An identity whose fingerprint has no inferable browser family and major version
 is **refused** rather than given a default. A TLS profile that contradicts the
@@ -168,16 +170,28 @@ how many retired ones the same filters left out.
 The console asks for 200 rows and polls every 5 seconds. The platform, state,
 source, login and rotation filters go to the server; the search box runs over
 the rows already loaded, because it matches what people type - a proxy label, a
-platform's name in this language - which the database does not hold. Under the
-table the page says "Showing N of M", and **Load more** asks for another 200, up
-to the server's 500; past that, narrow the filters.
+platform's name in this language - which the database does not hold. It matches
+an identity's note and its platform account as well, which is how one login is
+found among several. Under the table the page says "Showing N of M", and **Load
+more** asks for another 200, up to the server's 500; past that, narrow the
+filters.
 
 The filters live in the address - `/identities?platform=&login=&id=`, plus
-`state`, `source`, `rotation`, `q` and `all` - so the Overview's per-platform
-alerts link straight to one platform's identities and the request log straight
-to one identity's drawer, and a reload or the back button keeps the view. `login` is `yes` or
-`no`. A value this build does not know reads as no filter rather than an empty
-table, so a link written against a newer build still opens.
+`state`, `source`, `rotation`, `serves`, `q` and `all` - so the Overview's
+per-platform alerts link straight to one platform's identities and the request
+log straight to one identity's drawer, and a reload or the back button keeps the
+view. `login` is `yes` or `no`. A value this build does not know reads as no
+filter rather than an empty table, so a link written against a newer build still
+opens.
+
+`serves=<endpoint>` has no control in the toolbar: it is the question "who can
+serve this endpoint", asked from the endpoint's side, and the Scheduler page's
+coverage table links with it. It keeps the identities rotation may send there -
+those in rotation for every endpoint and those limited to a list that names it,
+never a reserved one - and the page says so in a notice above the table, with
+**Clear** beside it. Without the notice, a table narrowed that way would read as
+a pool that had lost most of its identities. It filters on rotation alone, so
+cooling identities are listed too.
 
 Every write on this page takes the operator role. Below it, Mint, Import, the
 row buttons, row selection and the refill card's editors are hidden rather than
@@ -242,7 +256,7 @@ the pool alerts speak instead of adding fresh identities to be burned.
 | Health | The measured score, or "No traffic". |
 | Platform | Douyin, TikTok or Bilibili, by name. |
 | Credential | The static session check described above. |
-| Identity id | The uuid, cut short where the column is narrow; a click copies the whole of it and the drawer prints it in full. Not hideable - this is what you paste into `?identity=`. |
+| Identity id | The uuid, cut short where the column is narrow, with the identity's note under it when it has one; a click copies the whole id and the drawer prints it in full. Not hideable - the id is what you paste into `?identity=`, and the note is what tells three logins apart, which a column the operator had hidden would hide. |
 | Proxy | The proxy's label when it has one, its id when it does not, "Server egress" when there is none. Never the URL, not even masked. |
 | Cooldown left | Time remaining, or `—`. |
 | Last used | Relative time, exact on hover. |
@@ -278,10 +292,22 @@ explicitly by state `retired` shows those rows regardless.
 - **Retire** - disabled on an already retired row. Retiring the last login a
   platform has in rotation names the endpoints that will then answer
   `IDENTITY_LOGIN_REQUIRED`.
-- Selecting rows adds **Reset**, **Export N** and **Retire** to the toolbar.
-  They act on the selected rows the current filters still show - a selection
-  used to survive a filter change and act on rows nobody could see - and report
-  "n done, m failed" rather than stopping at the first refusal.
+- Selecting rows adds **Reset**, **Set rotation for N identities**, **Export N**
+  and **Retire** to the toolbar. They act on the selected rows the current
+  filters still show - a selection used to survive a filter change and act on
+  rows nobody could see - and report "n done, m failed" rather than stopping at
+  the first refusal.
+- **Set rotation for N identities** gives every selected identity that is not
+  retired one rotation choice, the same three the drawer offers (see [Keeping an
+  identity out of rotation](#keeping-an-identity-out-of-rotation)). Three logins
+  bought for the author feed were otherwise three trips through three drawers. A
+  list of endpoints is offered only when every selected identity is on one
+  platform, because an endpoint name belongs to one; across platforms the choice
+  is every endpoint or only requests that name them. When the selection holds
+  every login a platform has in rotation for an endpoint that needs one, and the
+  choice takes them off it, the dialog names the endpoints that would then answer
+  `IDENTITY_LOGIN_REQUIRED` past the first page and turns the button red. It warns
+  rather than asks.
 - Clicking a row opens the drawer and puts the identity's id in the address
   (`?id=`).
 
@@ -301,6 +327,34 @@ identity, `/logs?tab=requests&identity_id=`), and for an operator **Test**,
 actions as the row, so having read why an identity is failing you do not have to
 close the drawer to find the button. A probe's outcome, HTTP status and latency
 show under them.
+
+Below the facts along the top sit the identity's note and its platform account.
+Three imported logins were three UUIDs, and the only way to know which account
+was which was to remember the order they went in.
+
+- **Note** is the operator's: one line, at most 200 characters - whose account
+  it is, where the cookie came from. **Add a note**, or **Edit** on one that
+  exists, opens it in place; Enter saves, Escape cancels without closing the
+  drawer, and saving it blank clears it. Below the operator role it is shown and
+  not editable. It appears under the id in the table, under the identity in the
+  request log, and first in each option of the Playground's identity picker.
+  Nothing in the request path reads it. A retired identity keeps its note, and
+  it can still be changed - "which account was this" is exactly what somebody
+  asks of one afterwards.
+- **Platform account** is the account the platform named the last time the
+  session was checked, and when - see [Checking a login](#checking-a-login).
+  The two answer one question from two sides: the note is what somebody
+  believes, the account id is what the platform answered, so a stale note, or
+  one login imported twice, still shows.
+
+The note is written with `PATCH /api/v1/admin/identities/{id}` and
+`{"note": "..."}`, or `{"note": null}` to clear it. The field is required, so
+an empty body cannot read as clearing it; a line break or more than 200
+characters once trimmed is refused with `INVALID_PARAM`. It takes the operator
+role, answers with the identity as the list shows it, and a change is audited
+as `identity.note_changed` - recording whether there was a note before and
+after, never its text, because a note is free text and somebody writes the
+phone number a login belongs to into it.
 
 ### Cookie inventory
 
@@ -369,8 +423,19 @@ successful responses. **Check the login** asks the platform
 | `refused` | The platform refused the check rather than answering it. Says nothing about the session. |
 | `unreachable` | No answer at all. A network or proxy problem, not a session one. |
 
+When the platform names an account, the check stores it on the identity as
+`account_id`, with the time in `account_seen_at`, and the drawer shows it as
+**Platform account**. A check that names none - `refused`, `unreachable` - leaves
+the stored one as it was: it says nothing about whose cookies these are, and must
+not erase what an earlier check learned. On Douyin the id comes with
+`indeterminate`, for a guest as much as for a login, so there it confirms that
+the platform recognised the client, not that it is logged in. What the id is
+for is telling identities apart: two logins with the same note, or one account
+imported twice, show the same id.
+
 The check runs through the normal pipeline, so it spends the identity exactly as
-real traffic would, but it records no outcome against it.
+real traffic would, but it records no outcome against its health. The account id
+is a fact about the cookies, not a verdict on them.
 
 ### Request history
 
@@ -490,13 +555,17 @@ anything is stored it reports:
 - warnings, as stable codes plus a sentence: `no_cookies`,
   `logged_in_session`, `unknown_browser`, `no_useful_cookies`.
 
-Two more fields are worth filling in:
+Three more fields are worth filling in:
 
 - **User agent** - from the same browser session. Douyin and TikTok hash it into
   their signatures, so a jar sent under a different one is a contradiction they
   can see. Without it the browser cannot be inferred and the import is refused.
 - **Proxy** - the egress this account normally signs in from. An imported jar is
   bound to it for life, exactly like a minted one.
+- **Note** - optional: whose account this is, or where the cookie came from. One
+  line, at most 200 characters, shown beside the id wherever the identity
+  appears and changeable later in the drawer. The import call takes it as
+  `note`.
 
 The API also accepts `language` and `timezone` on
 `POST /api/v1/admin/identities/import`; the console does not offer fields for
@@ -539,38 +608,73 @@ the reveal audit line, the pin gate, the expiry warning - costs something.
 Naming an identity serves the one request that names it, and on its own does
 nothing about the rest: the scheduler goes on handing the same account to every
 other request too, which is exactly the traffic that gets a logged-in account
-flagged. The drawer's **Rotation** card has a switch, **Only for requests that
-name it**, that stops this:
+flagged. The drawer's **Rotation** card decides what rotation may use the
+identity for, as one of three choices under **What rotation may use it for**:
 
-- **Rotation never hands it out.** Unpinned requests, the self-check and an
-  ad-hoc `dtk fetch` all skip it.
-- **A request with `identity=` still uses it**, in any state but retired. That
-  is the point of keeping it.
-- **It is left out of the pool level.** The refill job counts only identities
-  rotation may spend, so it mints a replacement for general traffic rather than
-  counting an account it is not allowed to use.
+| Choice | `endpoints` it stores | What rotation does with the identity |
+| --- | --- | --- |
+| **Every endpoint** | `null` | Hands it to any endpoint - the default. Endpoints that need a login still prefer or require one, and with guests first on, the rest reach a login only when no guest can; see [What needs a logged-in identity](#what-needs-a-logged-in-identity). |
+| **Only the endpoints ticked below** | A list of endpoint names from the identity's own platform | Hands it out for the ticked endpoints and nothing else. This is how a login is kept for the endpoints that need one. The table marks it **Limited**. |
+| **Only requests that name it** | `[]` | Never hands it out, not even for a later page that needs a login. The card shows the `identity=<id>` it is reached with, and the table marks it **Reserved**. |
+
+Until this card offered the middle choice, the console had one switch for the
+last, and somebody who wanted their login kept for the author feed turned it on
+and watched the author feed stop using it: the feed never names an identity, and
+"only the requests that name it" is all an empty list means.
+
+The middle choice opens a checklist of the platform's endpoints. The ones a guest
+is short-changed on are marked **Needs a login**, **Later pages need a login** or
+**Fuller with a login**, with what a guest gets instead on hover; today that is
+Douyin's author posts and Bilibili's comments and a comment's replies, all three
+**Later pages need a login**. **Only the ones that need a login** ticks the
+marked ones and nothing else; **All** and **None** do what they say. Endpoints
+that answer only about the identity asking - bookmarks, and Douyin's bookmark
+folders - are not listed: they always need `identity=`, so rotation never
+reaches them whatever a list says. An endpoint named in a list set through the
+API that this build does not offer is shown ticked, so saving does not drop it.
+
+Nothing changes until **Save**, and **Cancel** puts the stored choice back; both
+appear once something has changed. Taking the last login a platform has in
+rotation off an endpoint that requires one asks first - in the card, not in a
+dialog over the drawer, because both would answer Escape and cancelling the
+question used to close the drawer. It names the endpoints that would then answer
+`IDENTITY_LOGIN_REQUIRED` past the first page unless the request names an
+identity, and **Change it anyway** goes ahead. For several identities at once,
+select them and use **Set rotation for N identities** (see [Row
+actions](#row-actions)).
+
+For an identity kept out of rotation - wholly when reserved, for the endpoints
+left unticked when limited:
+
+- **Rotation never hands it out there.** Unpinned requests, the self-check and
+  an ad-hoc `dtk fetch` all skip it.
+- **A request with `identity=` still uses it**, for any endpoint, in any state
+  but retired. That is the point of keeping it.
+- **It is left out of the pool level**, limited or reserved. The refill job
+  counts only identities rotation may spend on every endpoint, so it mints a
+  replacement for general traffic rather than counting an account kept for one
+  endpoint or for none.
 - **It does not travel with an export.** It is a decision about this pool, not
   part of the identity.
 - **It is not a fallback.** When the only identities left for an endpoint are
-  reserved ones, an unpinned request answers `IDENTITY_POOL_EXHAUSTED` rather
+  ones kept off it, an unpinned request answers `IDENTITY_POOL_EXHAUSTED` rather
   than borrowing one, and `details.reserved` says how many it skipped - so a
   pool page full of active identities beside that error is a setting, not a
   scheduler fault.
 
-The import dialog has the same switch, and the import call takes
-`reserved: true`: the identity is stored out of rotation from the start, so a
-login imported to serve the requests that name it is never handed to anything
-else, not even in the moment between storing it and reserving it. Reserving the
-last login a platform has in rotation, from either place, says which endpoints
-will then answer `IDENTITY_LOGIN_REQUIRED` past the first page - and in the
-drawer it asks before it does.
+The import dialog offers the last choice as a checkbox, **Only for requests that
+name it**, and the import call takes `reserved: true`: the identity is stored out
+of rotation from the start, so a login imported to serve the requests that name
+it is never handed to anything else, not even in the moment between storing it
+and reserving it. Ticking it for a login when the platform has no other login in
+rotation says which endpoints will go on answering `IDENTITY_LOGIN_REQUIRED`
+past the first page.
 
-The API takes a finer version of the same setting:
-`POST /api/v1/admin/identities/{id}/rotation` with `{"endpoints": [...]}`.
-`null` puts the identity back for every endpoint, `[]` is the switch above, and
-a list of endpoint names - `douyin.author_posts`, say, from the identity's own
-platform - puts it back in rotation for those endpoints only. It needs the same
-role as resetting or retiring, and every change is audited.
+The card and the bulk dialog both write
+`POST /api/v1/admin/identities/{id}/rotation` with `{"endpoints": ...}`, taking
+the values in the table above; a list must name endpoints of the identity's own
+platform. It needs the same role as resetting or retiring, and every change is
+audited.
 
 ### What needs a logged-in identity
 
@@ -589,14 +693,35 @@ Bilibili does the same with a video's comments. Measured on 2026-10-18:
 | First page of `/api/v1/bilibili/video/comments` | The three hottest comments, and word that this is the last page | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
 | Any later page | Nothing - it was told the first page was the last | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once |
 
-Everything else is routed exactly as before, so a logged-in account is not worn
-out on traffic a guest can carry. On Douyin that is single posts, profiles, and
-comments and their pages, all served to a guest in full; all of TikTok
-likewise; and on Bilibili everything but the comment list itself - replies to a
-comment page normally for a guest.
+Everything else gives a guest the same answer as a login. On Douyin that is
+single posts, profiles, and comments and their pages; all of TikTok; and on
+Bilibili everything but the comment list and a comment's replies past their
+first page - a guest is served the first page of replies, up to 20, and nothing
+after it, so later pages of replies need a login just as comments do.
 
-Before this, rotation did not look at whether an identity was logged in. On
-Douyin, page 2 went to a guest, came back as 17 empty bytes, was reported as
+Those endpoints are answered by **guests first**, `pool.<platform>.guests_first`,
+on by default and set per platform. A guest is minted for nothing and replaced
+in a minute; a login is somebody's account, and spending it on a request a guest
+would have answered identically only wears it out for the endpoints that need
+it. So rotation tries the guests first - the active ones, or the degraded ones
+when none is active, because a guest failing costs a mint and a login failing
+costs the account - and the logins after them.
+
+The logins are a second tier the request moves on to, not a pool consulted only
+once the guests are gone. A guest that is mid-request or out of quota gives way
+to an idle login, so the setting never turns a request away that a free login
+could have served; it decides who goes first, and a pool of logins alone keeps
+working. Off, logins and guests share these endpoints by recency, as they did
+before the setting existed. Endpoints that need a login do not read it at all:
+they prefer or require one either way, and a login an endpoint prefers is waited
+for rather than swapped for a guest.
+
+The setting is the switch on the Scheduler page's coverage card (see [The
+Scheduler page](#the-scheduler-page-scheduler)). The worker reads it on every
+request, so a change takes effect without a restart.
+
+Before endpoints declared what a guest misses on them, rotation did not look at
+whether an identity was logged in. On Douyin, page 2 went to a guest, came back as 17 empty bytes, was reported as
 `UPSTREAM_RISK_CONTROL` and cooled that guest, while the imported login sat
 idle. The first page came from a guest too, and was missing the newest posts.
 
@@ -609,11 +734,18 @@ login** in the drawer tells you which it is.
 To read authors' full feeds:
 
 1. Import a logged-in cookie, from an account kept for this purpose.
-2. Keep it for author posts only:
+2. Keep it for the endpoints that need it. In its drawer's **Rotation** card,
+   choose **Only the endpoints ticked below**, press **Only the ones that need a
+   login**, and **Save**. For several logins at once, select them in the table
+   and use **Set rotation for N identities**. Rotation then hands them author
+   posts and nothing else, comments and lookups keep going to guests, and the
+   table marks them **Limited**. With guests first on, a login in rotation for
+   every endpoint already reaches the others only when no guest can; limiting it
+   also keeps it off them on the day the guests are gone - a browser container
+   down, a pool burnt - and takes it out of the pool level, so the refill job
+   mints guests to carry the rest. The same through the API:
    `POST /api/v1/admin/identities/{id}/rotation` with
-   `{"endpoints": ["douyin.author_posts"]}`. Rotation then hands it that
-   endpoint and nothing else, comments and lookups keep going to guests, and
-   the table marks it **Limited**.
+   `{"endpoints": ["douyin.author_posts"]}`.
 3. Expect it to be the bottleneck. One account serves every author-feed request
    one at a time, within its token bucket, and paging fast through many authors
    is exactly the pattern that gets an account flagged. Add accounts, not speed.
@@ -621,7 +753,9 @@ To read authors' full feeds:
 `IDENTITY_LOGIN_REQUIRED` carries `details.cooling`, the logged-in identities
 this request could use that are cooling down. `0` means none is in rotation for
 this endpoint: none was imported, or it is kept out of rotation. More than `0`
-means wait, or check whether their sessions have lapsed.
+means wait, or check whether their sessions have lapsed. The Scheduler page's
+coverage card shows, for every endpoint, how many logins rotation can send there
+and how many identities are cooling - before a request fails on it.
 
 Some lists belong to the account asking, not to anyone the request names:
 bookmarks on Douyin and TikTok (`/user/bookmarks`), and Douyin's bookmark folders
@@ -663,8 +797,10 @@ a page script hands to a browser, and the pool treats it accordingly.
   guest or a lapsed session.
 - **What a login is for.** Comments: a guest gets the three hottest and nothing
   more (see [What needs a logged-in identity](#what-needs-a-logged-in-identity)).
-  To keep an imported account for comments only, the rotation call above takes
-  `{"endpoints": ["bilibili.comments"]}`.
+  Later pages of a comment's replies need one too. To keep an imported account
+  for those, **Only the ones that need a login** in the Rotation card ticks
+  `bilibili.comments` and `bilibili.comment_replies`; the rotation call above
+  takes the same list.
 - **The uploader video list is the endpoint Bilibili guards hardest.** A burst
   of requests to `/api/v1/bilibili/user/posts` from one egress gets HTTP 412
   pages for a few minutes whatever the headers (measured), which this instance
@@ -694,6 +830,10 @@ audited by identity.
 - Retired identities export as an entry with an empty jar rather than being
   dropped - silently returning fewer than you asked for is how you find out
   mid-restore.
+- Each entry carries the identity's `note`. It is a label, not a credential, and
+  it is the one thing in the file that says whose account a login is. Rotation
+  does not travel: a restored identity is in rotation for every endpoint until
+  you choose otherwise.
 
 Restoring goes through the same Import dialog: choose the file under **Restore
 from a file** and the paste form switches off, because restoring a pool and
@@ -714,6 +854,9 @@ looks for.
 - Every entry is judged on its own: one expired jar does not stop the rest, and
   the response says what was stored, what was skipped and why.
 - `proxy_id` binds every restored identity to one exit.
+- An entry's `note` is restored with it. A note this build would refuse - longer
+  than 200 characters, or more than one line - is dropped and the identity
+  restored without it: the identity is worth more than the label on it.
 - `dry_run` answers all of that without writing.
 
 ## Testing, resetting, retiring
@@ -966,6 +1109,34 @@ than buried in an alphabetical settings list. It shows:
   reserved, cooling and degraded side by side. A request is only ever served by
   an identity of its own platform, so a sum across platforms can read healthy
   while one of them has nothing to give.
+- **Logins and who serves each endpoint** - the same pool, counted per endpoint,
+  because that is how the scheduler hands it out. A login limited to the author
+  feed is in the pool and absent from every other endpoint, a reserved one is
+  absent from all of them, and an endpoint that needs a login with none in
+  rotation fails every later page while the pool reads full - none of which the
+  per-platform counts show. Per platform the card has:
+
+  - the **Guests first where no login is needed** switch, which is
+    `pool.<platform>.guests_first` (see [What needs a logged-in
+    identity](#what-needs-a-logged-in-identity)), with a line saying what the
+    current position does;
+  - how many identities serve only requests that name them;
+  - a table, one row per endpoint rotation can reach. **Login** is the tag the
+    Rotation card's checklist uses. **Can serve** counts the active and
+    degraded identities rotation may send there - in rotation for every
+    endpoint, or limited to a list that names it - and links to them,
+    `/identities?platform=<platform>&serves=<endpoint>`. **Logins** is how many
+    of those are logins, a 0 shown in caution where the endpoint or its later
+    pages need one, because those pages then answer `IDENTITY_LOGIN_REQUIRED`.
+    **Limited to
+    it** is how many of them are limited to a list naming it, and **Cooling**
+    the ones resting that come back to it when they recover.
+
+  Endpoints that answer only about the identity asking are left out: they always
+  need `identity=`, and nothing on the card limits a request that names an
+  identity. The card reads `GET /api/v1/admin/identities/coverage`; it is shown
+  from the viewer role up and not to the demo account, which that route refuses.
+  Changing the switch takes the operator role.
 - **How one request picks an identity** - the five stages, in order:
 
   1. **The endpoint's circuit.** Opened by failures across at least
@@ -983,9 +1154,10 @@ than buried in an alphabetical settings list. It shows:
   random baseline the resulting spread is no better than chance. What the
   scheduler does guarantee, and what its tests assert strictly, is exclusivity,
   quota, and that no identity is starved. Do not read the rotation as turn-taking.
-- **Editors for every `sched.*` and `pool.*` setting**, and a disclosure saying
-  how many of them are stored in the database rather than coming from a default
-  or an environment seed.
+- **Editors for every `sched.*` and `pool.*` setting** but the per-platform ones -
+  the guests-first switches are on the coverage card and the marks are the grid
+  below - and a disclosure saying how many of them are stored in the database
+  rather than coming from a default or an environment seed.
 - **Pool size per platform** - the six `pool.<platform>.min_size` and
   `target_size` settings as one grid, platform by low-water mark and target,
   rather than six rows reading `-1` among the global marks, where `-1` looked
@@ -997,7 +1169,8 @@ than buried in an alphabetical settings list. It shows:
   after another, not atomically.
 
 Writing takes the operator role. The demo account sees the census and the
-rotation and no settings, since the settings route refuses it.
+rotation, and neither the settings nor the coverage card, since both routes
+refuse it.
 
 Per-endpoint health and circuit state are **not** on this page - they are on the
 Overview page (`/`), which lists every declared endpoint whether or not it has
@@ -1206,6 +1379,7 @@ other setting in [Configuration](./03-configuration.md).
 | `pool.target_size` | 8 | What it tops up to. Clamped up to `min_size` if set lower. |
 | `pool.<platform>.min_size` | -1 | This platform's own mark (`douyin`, `tiktok` or `bilibili`). -1 follows `pool.min_size`; 0 turns automatic minting and pool alerts off for the platform. |
 | `pool.<platform>.target_size` | -1 | This platform's own target. -1 follows `pool.target_size`. |
+| `pool.<platform>.guests_first` | true | This platform's endpoints that need no login are answered by guest identities first, and by a login only when no guest can take the request - none in rotation for them, or every one busy or out of quota. Endpoints that need a login are unaffected. Off, logins and guests share them by recency. Read on every request. |
 | `pool.max_fail_streak` | 3 | Failure streak at which an identity stops counting towards the pool level, so the filler replaces it instead of counting it. |
 | `pool.health_prior` | 0.8 | Assumed success rate for an identity with too little traffic to score. |
 | `sched.max_wait_seconds` | 10 | How long a request waits for an identity before failing. |

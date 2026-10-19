@@ -549,15 +549,28 @@ B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)�
 | `/api/v1/tools/…` | `parse-url`、`parse-batch`、`sign`、`decode`、`identity`——试跑与签名，前四个不消耗身份 | [调试台与工具](./07-playground-and-tools.md) |
 | `/api/v1/archive/…` | 本实例已存下来的内容：检索、统计、合集、导出、复检、回填 | [下载、素材库与监控](./08-downloads-and-library.md) |
 | `/api/v1/downloads/…` | 存在运营方磁盘上的媒体 | [下载、素材库与监控](./08-downloads-and-library.md) |
-| `/api/v1/admin/…` | 身份、代理、密钥、用户、设置、日志、关注列表、备份 | [运维](./10-operations.md)、[用户与 API 密钥](./09-users-and-api-keys.md) |
+| `/api/v1/admin/…` | 身份、代理、密钥、用户、设置、日志、关注列表、备份 | [身份与代理](./06-identities-and-proxies.md)、[运维](./10-operations.md)、[用户与 API 密钥](./09-users-and-api-keys.md)；脚本常用的身份接口见下文 |
 | `/api/v1/auth/…` | 控制台会话与改密码 | [用户与 API 密钥](./09-users-and-api-keys.md) |
 | `/api/v1/ios/…` | iOS 快捷指令的发布信息——无需认证 | 本文 |
 | `/api/v1/system/status` | 版本、健康、身份池统计、存储 | [运维](./10-operations.md) |
-| `/api/v1/system/capabilities` | 每个平台提供哪些操作，其中哪些只回答发请求的身份本人。任何凭据都能读——所有角色（包括演示账号）和任何 API Key | 本文 |
+| `/api/v1/system/capabilities` | 每个平台提供哪些操作，其中哪些只回答发请求的身份本人，以及游客身份在每个操作上会少拿到什么。任何凭据都能读——所有角色（包括演示账号）和任何 API Key | 本文 |
 
 归档类接口全部从本地存储作答：不消耗身份、不发起抓取，而一条后来被删掉的作品仍然在那里，`availability` 会说明这件事。所以想要「实例已经知道的东西」就用 `GET /api/v1/archive`，想要「最新的」才用 `/parse`。
 
 `GET /api/v1/system/capabilities` 按平台列出它提供的操作，每项带调度器接口名和 `session_bound`——后者标出那些只回答发请求的身份本人、因此不带 `identity` 就会被拒的操作。它读的正是内容路由据以返回 `UNSUPPORTED_CONTENT` 的那张表，所以两者不可能对不上，而且在进程运行期间不会变。与其一次次被拒绝才弄清各平台的差别，不如先问它一次；调试台就是按它把目录里的条目置灰的。
+
+每个操作还带 `login` 和 `paging_login`：游客身份在这个操作上会少拿到什么——`none`、`preferred` 或 `required`——分别对应第一页和之后的每一页；之后各页没有区别时 `paging_login` 为 null。轮换派哪些身份，就由它们决定。`required` 只派登录身份，轮换里没有登录身份时返回 `IDENTITY_LOGIN_REQUIRED`；`preferred` 先试登录身份，没有再退回游客；`none` 在 `pool.<platform>.guests_first` 开启时先派游客，关闭时登录身份和游客一视同仁。目前 `douyin.author_posts` 和 `bilibili.comments` 是 `preferred`、`paging_login` 为 `required`，`bilibili.comment_replies` 是 `none`、`paging_login` 为 `required`，其余所有操作从头到尾都是 `none`。控制台读它们，在身份的轮换清单里标出需要登录的接口。
+
+身份池自己的接口在 `/api/v1/admin/identities` 下面，和用到它们的控制台页面一起写在[身份与代理](./06-identities-and-proxies.md)里。下面是维护身份池的脚本最常用的几个，以及用来区分身份的那些字段。它们除了表里写的角色，都还需要 `admin` 或 `identity:manage` 权限。
+
+| 调用 | 角色 | 接收什么、返回什么 |
+| --- | --- | --- |
+| `GET /api/v1/admin/identities` | viewer 及以上 | 身份列表。每一行带 `note`，以及 `account_id` 和 `account_seen_at`——上一次检查登录态时平台给出的账号和检查时间；还没有哪次检查给出过账号时为 null。`serves=<接口>`（例如 `douyin.author_posts`）只保留轮换可以把它派到这个接口的身份：没有轮换清单的，以及清单里列了这个接口的。只服务点名请求的身份永远不在其中 |
+| `PATCH /api/v1/admin/identities/{id}` | operator | `{"note": "..."}` 设置备注，`{"note": null}` 或空白备注表示清除。只能一行，去掉首尾空白后最多 200 个字符，否则返回 `INVALID_PARAM`。这个字段是必填的，所以 `{}` 会被拒绝，而不是被当成清除。返回这个身份在列表里的样子；以 `identity.note_changed` 记入审计，不记内容 |
+| `GET /api/v1/admin/identities/coverage` | viewer 及以上；演示账号不行 | 按平台给出：`guests_first`、`reserved`（只服务点名请求的身份数）和 `endpoints`——每个操作一项，带上文的能力字段，外加 `ready`（轮换可以派到这里的可用和降级身份数）、`signed_in`（其中的登录身份）、`cooling` 和 `dedicated`（其中清单里专门列了这个接口的）。统计方式与调度器一致；带 `identity=` 的请求完全不受这些限制 |
+| `POST /api/v1/admin/identities/import` | operator | 接受可选的 `note`，规则与 `PATCH` 相同 |
+| `POST /api/v1/admin/identities/export`、`POST /api/v1/admin/identities/import/bundle` | operator | 导出的每个条目都带着它的 `note`，恢复时随身份一起存下。恢复它的版本会拒绝的备注会被丢掉，而不是连身份一起不要。轮换设置不随之带走 |
+| `GET /api/v1/admin/logs/requests` | 所有角色，包括演示账号 | 每一行带 `identity_note`，即承接这次请求的身份的备注——身份没有备注时为 null，对演示账号永远为 null，因为备注正是有人写下某个登录身份是谁的账号的地方 |
 
 ## B 站
 
