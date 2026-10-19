@@ -563,6 +563,10 @@
         "summary": "Whether this instance has an administrator yet",
         "description": "Unauthenticated by necessity: it is what the wizard asks first."
       },
+      "system_capabilities": {
+        "summary": "What each platform serves",
+        "description": "Every platform this instance knows, each with the operations it serves. An operation missing from a platform's list answers UNSUPPORTED_CONTENT there. `session_bound` marks the operations that answer only about the identity sending them, which are refused without `identity`."
+      },
       "task_cancel": {
         "summary": "Cancel a task",
         "description": "Gives up on a task that has not started. Only a queued task is stopped; one already running is left alone and reported as running, because its request is in flight and the identity's quota is already spent - recording a failure the worker never had would make the endpoint's risk rate lie. Nothing is deleted."
