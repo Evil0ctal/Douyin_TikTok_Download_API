@@ -5,9 +5,10 @@ shares neither the signing nor the identity machinery with Douyin and TikTok.
 This release brings it back with both: Bilibili's WBI signature in pure
 Python, and guest identities minted over plain HTTP - so a Bilibili pool fills
 itself with no browser container at all. Videos come back with a playable MP4,
-and downloading or transcribing one works like any other post. The release
-also hardens three things the 5.1.5 security review found next to the fix it
-shipped.
+and downloading or transcribing one works like any other post - one part of a
+multi-part video included. Most console pages were reworked around what the
+last few releases added, and the release also hardens three things the 5.1.5
+security review found next to the fix it shipped.
 
 ### Upgrading
 
@@ -26,9 +27,10 @@ Or update the checkout first, then run the installer and pick Upgrade:
 cd /opt/dtk && git pull && bash install/install.sh --manage
 ```
 
-Two new migrations: one lets the identity pool hold Bilibili identities, the
-other lets a download be one part of a multi-part video. The browser image is
-unchanged since 5.1.4; nothing to rebuild. Your data is untouched.
+Three new migrations: the identity pool can hold Bilibili identities, a
+download can be one part of a multi-part video, and the request log is indexed
+by proxy for the Logs page's proxy filter. The browser image is unchanged since
+5.1.4; nothing to rebuild. Your data is untouched.
 
 Two things do not happen by themselves:
 
@@ -106,6 +108,36 @@ Two things do not happen by themselves:
   video: starting one from the console, REST or MCP, the Transcriptions page,
   and what it costs.
 
+- **The console, page by page.** Most pages were reworked around what the
+  last few releases added:
+  - **Identities** - mint and import follow the platform (import detects it
+    from the cookies, and the server says which cookie does what), each
+    platform's logged-in coverage with a warning at none, login expiry, a
+    drawer that stays live and acts, filters in the URL, paging that no longer
+    hides older logins behind retired rows.
+  - **Downloads, Library, Transcriptions, Watchlist** - they link to each
+    other (`?id=`, `?author=`, `?tag=`), page and search past the first 100,
+    an author run reports its progress and can be stopped, the Library filters
+    by author and tag and acts on a selection, the Watchlist takes links and
+    names, a Bilibili post can be downloaded part by part, and a Transcribe
+    button that cannot work says how to turn the transcriber on.
+  - **Playground, Overview, sidebar** - the Playground greys what a platform
+    does not serve and fills real examples, a guest's partial answer is
+    flagged, Overview's tiles link and its pool is per platform, and the
+    sidebar's Tools group is now Content and Developer.
+  - **Operator pages** - API keys can be edited (and keys missing
+    `bilibili:read` are flagged), role changes and demo actions confirm,
+    Settings links the keys that have their own page, Logs filters by endpoint,
+    proxy and actor with the filters in the URL, Proxies test in bulk and open
+    a drawer, Diagnose takes a platform and the System page reports the
+    downloader and transcriber, the Scheduler counts per platform, and every
+    page hides what the role cannot do.
+- **API additions behind those pages:** `PATCH /api/v1/admin/api-keys/{id}`,
+  `GET /api/v1/system/capabilities`, `q` on `GET /api/v1/downloads` and
+  `/transcriptions`, `POST /api/v1/archive/export` for a selection,
+  `proxy_id` on the request log, `platform` on `POST /admin/diagnose`, and the
+  downloader and transcriber in `GET /api/v1/system/status`.
+
 ### Changed
 
 - **The uploader video list is the endpoint Bilibili guards hardest.** A burst
@@ -145,7 +177,20 @@ Two things do not happen by themselves:
   video yet stopped every time after exactly 2 MiB, and three part downloads in
   five failed that way. The downloader now asks the same mirror for the rest
   of the file from where it stopped, only accepting the rest of the same file,
-  and waits out an edge that answers 504 while it fetches from its origin.
+  and waits out an edge that answers 504 while it fetches from its origin. A
+  cold Akamai edge then refused the rest for over a minute, so an Akamai link
+  is now tried on Bilibili's own hosts first, where the same file came back
+  whole.
+- **A Bilibili post archived from a list downloaded only its cover.** Lists
+  carry no stream, and inside the mirror window the download was planned from
+  the list's row and finished "done". Such a post is now fetched first.
+- **The demo account could be made an administrator** with one click on the
+  Users page, which saved a role change on select. Any change to the demo
+  account is now refused by the server, and role changes confirm first.
+- **Saving a notification channel subscribed it to everything** when it was
+  narrowed to an alert the page did not know (`capacity_warning`,
+  `capacity_paused`, `media_evicted`), and the Settings page showed the
+  channels as `[object Object]`.
 
 ### Security
 
@@ -160,7 +205,8 @@ Two things do not happen by themselves:
 **B 站回来了。** v4 支持过它，v5 重写时把它放下了，因为它和抖音 / TikTok 不共用签名和身份
 体系。这个版本把这两样都补上了：纯 Python 的 B 站 WBI 签名，以及通过普通 HTTP 铸造的
 游客身份——所以 B 站的身份池不需要浏览器容器就能自己补齐。视频会带上可播放的 MP4，下载和
-转写都和其他平台的作品一样。这个版本还加固了 5.1.5 安全审查在那次修复之外发现的三处问题。
+转写都和其他平台的作品一样，多 P 视频的某一 P 也可以。控制台的大部分页面也围绕最近几个版本新增的功能重新整理了一遍，
+这个版本还加固了 5.1.5 安全审查在那次修复之外发现的三处问题。
 
 ### 升级方式
 
@@ -179,8 +225,8 @@ docker compose -p dtk -f docker/compose.yml up -d
 cd /opt/dtk && git pull && bash install/install.sh --manage
 ```
 
-新增两个数据库迁移：一个让身份池可以存放 B 站身份，另一个让一条下载可以是多 P 视频的某一 P。
-浏览器镜像自 5.1.4 起没有变化，不需要重新构建。数据不受影响。
+新增三个数据库迁移：身份池可以存放 B 站身份，一条下载可以是多 P 视频的某一 P，请求日志按代理
+建立索引，供日志页按代理筛选。浏览器镜像自 5.1.4 起没有变化，不需要重新构建。数据不受影响。
 
 有两件事不会自动发生：
 
@@ -235,6 +281,26 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
 - **README 新增两节**：离线转写，以及让 AI agent 通过 MCP 使用这个实例；用户指南里新增
   「把已存的视频转成文字」一节：从控制台、REST 或 MCP 发起转写，视频转写页面，以及它的代价。
 
+- **控制台逐页整理。** 大部分页面围绕最近几个版本新增的功能重新整理了一遍：
+  - **身份**——铸造和导入按平台适配（导入时根据 cookie 识别平台，并由服务端说明每个 cookie 的
+    作用），按平台显示已登录身份的覆盖情况、为 0 时提醒，显示登录有效期，详情抽屉实时刷新并
+    可直接操作，筛选写进 URL，分页不再让已退役的行把较早的登录身份挤出列表。
+  - **下载、资料库、视频转写、关注列表**——页面之间互相跳转（`?id=`、`?author=`、`?tag=`），
+    超过 100 条也能翻页和搜索，下载作者作品时显示进度并可停止，资料库可按作者和标签筛选并批量
+    操作，关注列表可以粘贴链接、起名，B 站作品可以按分 P 下载，转写服务没开时转写按钮会说明
+    怎么开启。
+  - **Playground、概览、侧栏**——Playground 会灰掉平台不支持的接口并填入真实示例，游客兜底的
+    不完整结果会被标出，概览的卡片可以点击跳转，身份池按平台显示，侧栏的「工具」组拆成了
+    「内容」和「开发者」。
+  - **管理页**——API Key 可以编辑（缺少 `bilibili:read` 的 Key 会被标出），改角色和演示模式操作
+    会先确认，设置页里有专门页面的项改为链接，日志可按接口、代理和操作人筛选且筛选写进 URL，
+    代理可以批量测试并打开详情，诊断可以选平台，系统页显示下载器和转写服务的状态，调度页按平台
+    统计，每个页面都会隐藏当前角色用不了的操作。
+- **这些页面背后新增的 API：** `PATCH /api/v1/admin/api-keys/{id}`、
+  `GET /api/v1/system/capabilities`、`GET /api/v1/downloads` 和 `/transcriptions` 的 `q`、
+  按选择导出的 `POST /api/v1/archive/export`、请求日志的 `proxy_id`、`POST /admin/diagnose`
+  的 `platform`，以及 `GET /api/v1/system/status` 里的下载器和转写服务。
+
 ### 变更
 
 - **UP 主投稿列表是 B 站防护最严的接口。** 同一个出口的突发请求会在几分钟内收到 HTTP 412
@@ -261,7 +327,14 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
 - **B 站下载会以 `partial` 结束、视频为空**：每当 CDN 提前切断传输就会这样——实测还没缓存这个
   视频的 Akamai 节点每次都在恰好 2 MiB 处断开，五次分 P 下载里有三次因此失败。现在下载器会从断开的
   位置向同一个镜像请求文件的剩余部分，只接受同一个文件的剩余部分；节点在从源站拉取时返回 504 的，
-  也会稍等再问。
+  也会稍等再问。冷启动的 Akamai 节点之后会在一分多钟内一直拒绝剩余部分，所以现在 Akamai 链接会
+  先换到 B 站自己的节点上尝试，同一个文件在那里能完整下载。
+- **从列表归档的 B 站作品下载时只存了封面。** 列表里没有视频流，而在镜像有效期内下载是按列表那一行
+  规划的，结果以「完成」结束。现在这种作品会先抓取详情。
+- **演示账号可以被一键提升为管理员**：用户页的角色下拉框一选就保存。现在服务端拒绝对演示账号的
+  任何修改，改角色也会先确认。
+- **保存通知渠道会把它改成订阅全部事件**：当它只订阅了页面不认识的告警（`capacity_warning`、
+  `capacity_paused`、`media_evicted`）时就会这样；设置页还把渠道显示成 `[object Object]`。
 
 ### 安全
 
