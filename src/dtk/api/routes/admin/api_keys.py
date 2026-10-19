@@ -39,7 +39,7 @@ log = get_logger(__name__)
 router = APIRouter(prefix="/api-keys")
 
 
-def _row(key: ApiKey, *, secret: str | None = None) -> dict[str, Any]:
+def _row(key: ApiKey, *, secret: str | None = None, demo_owned: bool = False) -> dict[str, Any]:
     """Everything about a key except the two things that authenticate it.
 
     ``secret`` is the one exception and it is only ever non-None for the
@@ -56,6 +56,10 @@ def _row(key: ApiKey, *, secret: str | None = None) -> dict[str, Any]:
         # not, so the page never has to infer it from the name.
         "demo": secret is not None,
         "secret": secret,
+        # Whether the demo account owns it, switch on or off, live or revoked.
+        # `demo` alone goes false the moment the demo is switched off, and the
+        # console then offered to edit a key the server refuses to edit.
+        "demo_owned": demo_owned,
         "id": str(key.id),
         "name": key.name,
         "prefix": key.prefix,
@@ -114,9 +118,12 @@ async def list_keys(
         revealed = await demo.reveal(request.state.db, request.app.state.cipher)
         published = revealed.api_key if revealed else None
 
+    account = await demo.find_user(request.state.db)
+
     def render(row: ApiKey) -> dict[str, Any]:
         readable = published if (published and row.demo_secret_encrypted) else None
-        return _row(row, secret=readable)
+        owned = account is not None and row.user_id == account.id
+        return _row(row, secret=readable, demo_owned=owned)
 
     return ok(request, [render(row) for row in rows])
 

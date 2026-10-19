@@ -595,6 +595,7 @@ async def test_the_demo_key_is_listed_in_full_and_others_are_not(api_app: Any, c
     ordinary = by_name["an operator's key"]
     assert ordinary["demo"] is False
     assert ordinary["secret"] is None
+    assert ordinary["demo_owned"] is False
 
 
 async def test_the_demo_key_stops_being_readable_when_the_demo_is_off(
@@ -608,6 +609,9 @@ async def test_the_demo_key_stops_being_readable_when_the_demo_is_off(
     published = next(row for row in rows if row["name"] == demo.DEMO_KEY_NAME)
     assert published["secret"] is None
     assert published["demo"] is False
+    # Still the demo's, which is what keeps the console from offering an edit
+    # the server refuses.
+    assert published["demo_owned"] is True
 
 
 async def test_a_rotation_logs_the_demo_out_and_nobody_else(api_app: Any) -> None:
