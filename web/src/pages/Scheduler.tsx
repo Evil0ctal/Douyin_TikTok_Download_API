@@ -22,7 +22,7 @@ import {
   type SettingRow,
 } from '@/components'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
-import { apiDelete, apiPut } from '@/lib/api'
+import { apiPut } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import { atLeast } from '@/lib/roles'
@@ -264,7 +264,7 @@ export default function Scheduler() {
             size="sm"
             icon={<RefreshIcon />}
             onClick={refresh}
-            loading={(query.isFetching && !query.isLoading) || (status.isFetching && !status.isLoading)}
+            loading={query.isFetching && !query.isLoading}
           >
             {t('common:action.refresh')}
           </Button>
@@ -444,14 +444,11 @@ function PoolMarksGrid({ settings, canWrite, onSaved }: PoolMarksGridProps) {
   const save = useApiMutation<unknown, void>(
     async () => {
       for (const { row, value } of changes) {
-        // Back to inherit is a reset where the override lives in the database,
-        // so the row stops counting as an override; elsewhere (an environment
-        // seed) only a stored -1 can say "inherit".
-        if (value === INHERIT && sourceOf(row) === 'database' && row.default === INHERIT) {
-          await apiDelete(paths.settings.byKey(row.key), { params: { confirm: true } })
-        } else {
-          await apiPut(paths.settings.byKey(row.key), { value, confirm: false })
-        }
+        // "Inherit" is stored as -1 rather than reached by deleting the
+        // override: a delete falls back to the environment seed, and this page
+        // cannot see whether one is set - a cleared cell would then quietly
+        // mean the seed's number instead of the global mark it shows.
+        await apiPut(paths.settings.byKey(row.key), { value, confirm: false })
       }
       return null
     },
