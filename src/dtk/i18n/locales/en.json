@@ -95,15 +95,18 @@
         "max_fail_streak": "Consecutive failures after which an identity stops counting towards the pool level, so the filler mints a replacement instead of counting a session that serves nothing. The failure streak is used rather than the health score because the score is empty until there is traffic, and scoring a freshly minted identity as unusable would turn the low-water mark into a minting loop.",
         "douyin": {
           "min_size": "Mint-below mark for Douyin only. -1 follows pool.min_size; 0 turns automatic minting off for Douyin, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
-          "target_size": "Top-up target for Douyin only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it."
+          "target_size": "Top-up target for Douyin only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it.",
+          "guests_first": "Answer Douyin endpoints that need no login with guest identities first, and use a signed-in one there only when no guest can. On by default: a guest is minted for nothing, a login is somebody's account, and a request a guest answers identically only wears a login out for the endpoints that need it. Endpoints that need a login still prefer or require one. Off, logins and guests share every endpoint."
         },
         "tiktok": {
           "min_size": "Mint-below mark for TikTok only. -1 follows pool.min_size; 0 turns automatic minting off for TikTok, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
-          "target_size": "Top-up target for TikTok only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it."
+          "target_size": "Top-up target for TikTok only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it.",
+          "guests_first": "Answer TikTok endpoints that need no login with guest identities first, and use a signed-in one there only when no guest can. On by default: a guest is minted for nothing, a login is somebody's account, and a request a guest answers identically only wears a login out for the endpoints that need it. Endpoints that need a login still prefer or require one. Off, logins and guests share every endpoint."
         },
         "bilibili": {
           "min_size": "Mint-below mark for Bilibili only. -1 follows pool.min_size; 0 turns automatic minting off for Bilibili, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
-          "target_size": "Top-up target for Bilibili only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it."
+          "target_size": "Top-up target for Bilibili only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it.",
+          "guests_first": "Answer Bilibili endpoints that need no login with guest identities first, and use a signed-in one there only when no guest can. On by default: a guest is minted for nothing, a login is somebody's account, and a request a guest answers identically only wears a login out for the endpoints that need it. Endpoints that need a login still prefer or require one. Off, logins and guests share every endpoint."
         }
       },
       "signing": {
@@ -491,6 +494,14 @@
         "summary": "Choose what rotation uses an identity for",
         "description": "Keeps an identity out of rotation, wholly or for all but some endpoints. null puts it back for every endpoint, the default; an empty list keeps it for requests that name it with identity= and nothing else; a list of endpoint names, which must belong to the identity's own platform, adds those back. A request that names the identity is never refused by this. It is left out of the pool level, and it does not travel with an export."
       },
+      "identities_update": {
+        "summary": "Change an identity's note",
+        "description": "Writes the note kept with an identity, such as the account a login signs in as, or clears it. One line, at most 200 characters once trimmed; null or blank clears it. Nothing in the request path reads it. A retired identity keeps its note and may still have it changed. Returns the identity as the list shows it."
+      },
+      "identities_coverage": {
+        "summary": "Which identities rotation sends to each endpoint",
+        "description": "Per platform and per endpoint, how many identities rotation may send, counted the way the scheduler counts: an identity serves an endpoint when it has no rotation list or its list names the endpoint, and is `ready` when active or degraded. Each platform carries `guests_first` (its pool.<platform>.guests_first) and `reserved` (identities that serve only requests naming them); each endpoint carries the capability table's `login`, `paging_login` and `session_bound`, plus `ready`, `signed_in` (ready logins), `cooling` and `dedicated` (ready identities limited to a list naming it). A request that names an identity with identity= is never limited by any of this."
+      },
       "identities_retire": {
         "summary": "Retire an identity",
         "description": "Retire and wipe. The statistics stay, the credential does not (doc 05)."
@@ -577,7 +588,7 @@
       },
       "system_capabilities": {
         "summary": "What each platform serves",
-        "description": "Every platform this instance knows, each with the operations it serves. An operation missing from a platform's list answers UNSUPPORTED_CONTENT there. `session_bound` marks the operations that answer only about the identity sending them, which are refused without `identity`."
+        "description": "Every platform this instance knows, each with the operations it serves. An operation missing from a platform's list answers UNSUPPORTED_CONTENT there. `session_bound` marks the operations that answer only about the identity sending them, which are refused without `identity`. `login` and `paging_login` say what a guest identity loses on each - `none`, `preferred` or `required` - on the first page and on every later page, `paging_login` being null where later pages are no different."
       },
       "task_cancel": {
         "summary": "Cancel a task",
@@ -725,7 +736,8 @@
       "transcriptions_list.q": "Substring of the transcript, of the post's title as the archive holds it, or of the content id. Matched as a substring rather than by word, so it behaves the same in Chinese as in English.",
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",
       "user_id": "The console account to act on.",
-      "wait": "Hold the connection until the task finishes, up to this many seconds - this is how to make the call synchronous. Finished in time gives 200 with the result; not finished gives 202 with the task id and `state: running`, which is not an error and loses nothing. Above the instance ceiling shown as `maximum` it is a 400, rejected rather than shortened. Omitted or 0 returns 202 at once. See the description at the top of this document."
+      "wait": "Hold the connection until the task finishes, up to this many seconds - this is how to make the call synchronous. Finished in time gives 200 with the result; not finished gives 202 with the task id and `state: running`, which is not an error and loses nothing. Above the instance ceiling shown as `maximum` it is a 400, rejected rather than shortened. Omitted or 0 returns 202 at once. See the description at the top of this document.",
+      "serves": "Only identities rotation may hand out for this endpoint, such as `douyin.author_posts`: those in ordinary rotation and those limited to a list that names it. Reserved identities never match."
     },
     "field": {
       "ApiKeyCreate": {
@@ -833,7 +845,8 @@
         "proxy_id": "Send as this identity only through this exit. Omitted, the identity goes out directly from this server, for good: an identity's exit is fixed when it is stored.",
         "reserved": "Store it out of rotation, for the requests that name it with identity= and nothing else. The same as an empty list on its rotation, set before rotation can hand it out once.",
         "timezone": "That browser's IANA zone, e.g. `Asia/Shanghai`. Should agree with the exit.",
-        "user_agent": "The User-Agent of the browser the jar came from. Both platforms hash it into their signatures, so a jar sent under a different one is a contradiction they can see."
+        "user_agent": "The User-Agent of the browser the jar came from. Both platforms hash it into their signatures, so a jar sent under a different one is a contradiction they can see.",
+        "note": "A note to keep with it, such as the account it signs in as. One line, at most 200 characters once trimmed."
       },
       "IdentityRequest": {
         "platform": "Which platform to mint a guest session for.",
@@ -935,6 +948,9 @@
         "interval_seconds": "Change how often it runs. Same floor as on create.",
         "label": "Rename it in the console. Send null or an empty string to clear it, and the next successful run fills it in from the platform again; leave it out to keep the current one.",
         "pages": "Change how many pages one run walks."
+      },
+      "IdentityUpdate": {
+        "note": "The note, or null to clear it. One line, at most 200 characters once trimmed; blank clears it too. Required, so that an empty body cannot read as clearing it."
       }
     },
     "response": {

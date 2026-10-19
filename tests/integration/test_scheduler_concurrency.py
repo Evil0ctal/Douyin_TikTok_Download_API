@@ -632,3 +632,92 @@ async def test_ordinary_endpoints_still_ignore_the_login(redis_client):
     lease = await sched.acquire("douyin.comments", Platform.DOUYIN)
 
     assert lease.identity_id == "identity-1"
+
+
+def guests_first(*platforms: Platform):
+    """The worker's ``pool.<platform>.guests_first``, on for these platforms."""
+    return lambda platform: platform in platforms
+
+
+async def test_guests_first_answers_an_ordinary_endpoint_with_a_guest(redis_client):
+    """The login is the least recently used and would win on recency alone."""
+    sched = Scheduler(
+        ListSource([make_candidate(1, signed_in=True), make_candidate(2, last_used=NOW)]),
+        SchedulerConfig(),
+        clock=AdvancingClock(step=0.0),
+        guests_first=guests_first(Platform.DOUYIN),
+    )
+
+    lease = await sched.acquire("douyin.comments", Platform.DOUYIN)
+
+    assert lease.identity_id == "identity-2"
+
+
+async def test_without_guests_first_a_login_shares_ordinary_endpoints(redis_client):
+    """The setting off is the old behaviour: recency decides, login or not."""
+    sched = Scheduler(
+        ListSource([make_candidate(1, signed_in=True), make_candidate(2, last_used=NOW)]),
+        SchedulerConfig(),
+        clock=AdvancingClock(step=0.0),
+        guests_first=guests_first(),
+    )
+
+    lease = await sched.acquire("douyin.comments", Platform.DOUYIN)
+
+    assert lease.identity_id == "identity-1"
+
+
+async def test_guests_first_still_reaches_a_login_when_no_guest_can(redis_client):
+    """A preference, never a refusal: the pool could serve this, so it does."""
+    sched = Scheduler(
+        ListSource([make_candidate(1, signed_in=True)]),
+        SchedulerConfig(),
+        clock=AdvancingClock(step=0.0),
+        guests_first=guests_first(Platform.DOUYIN),
+    )
+
+    lease = await sched.acquire("douyin.comments", Platform.DOUYIN)
+
+    assert lease.identity_id == "identity-1"
+
+
+async def test_guests_first_puts_a_degraded_guest_ahead_of_a_login(redis_client):
+    """A degraded guest failing costs a mint; a login failing costs an account."""
+    sched = Scheduler(
+        ListSource(
+            [make_candidate(1, signed_in=True), make_candidate(2, state=IdentityState.DEGRADED)]
+        ),
+        SchedulerConfig(),
+        clock=AdvancingClock(step=0.0),
+        guests_first=guests_first(Platform.DOUYIN),
+    )
+
+    lease = await sched.acquire("douyin.comments", Platform.DOUYIN)
+
+    assert lease.identity_id == "identity-2"
+
+
+async def test_guests_first_leaves_an_endpoint_that_wants_a_login_alone(redis_client):
+    sched = Scheduler(
+        ListSource([make_candidate(1), make_candidate(2, signed_in=True, last_used=NOW)]),
+        SchedulerConfig(),
+        clock=AdvancingClock(step=0.0),
+        guests_first=guests_first(Platform.DOUYIN),
+    )
+
+    lease = await sched.acquire(POSTS, Platform.DOUYIN, login=LoginNeed.PREFERRED)
+
+    assert lease.identity_id == "identity-2"
+
+
+async def test_guests_first_is_decided_per_platform(redis_client):
+    sched = Scheduler(
+        ListSource([make_candidate(1, signed_in=True), make_candidate(2, last_used=NOW)]),
+        SchedulerConfig(),
+        clock=AdvancingClock(step=0.0),
+        guests_first=guests_first(Platform.TIKTOK),
+    )
+
+    lease = await sched.acquire("douyin.comments", Platform.DOUYIN)
+
+    assert lease.identity_id == "identity-1"

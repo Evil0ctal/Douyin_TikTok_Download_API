@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -137,9 +137,15 @@ class Scheduler:
         clock: object | None = None,
         rng: random.Random | None = None,
         alerter: Alerter | None = None,
+        guests_first: Callable[[Platform], bool] | None = None,
     ) -> None:
         self._source = source
         self._config = config
+        # A callable rather than a flag in SchedulerConfig, because that is a
+        # snapshot taken when the worker starts, and this is a runtime setting
+        # an operator flips on the scheduler page and expects to take effect.
+        # Absent, logins and guests share every endpoint, as they always did.
+        self._guests_first = guests_first or (lambda _platform: False)
         # Injectable so tests can advance time without sleeping.
         self._now = clock if callable(clock) else _monotonic_epoch
         # Injectable so a test can make tie-breaking reproducible.
@@ -229,6 +235,13 @@ class Scheduler:
         less, and in every state before any guest: a degraded account still
         answers with the newest posts, which an active guest cannot. When the
         endpoint gives a guest nothing, guests are never reached at all.
+
+        Where it gives a guest the same, guests come first instead when the
+        platform's ``pool.<platform>.guests_first`` is on - in every state
+        before any login, for the same reason turned round: a degraded guest
+        failing costs a mint, a login failing costs somebody's account. A
+        login still answers once no guest can, so the setting never turns a
+        request away that the pool could have served.
         """
         rotating: dict[IdentityState, list[Candidate]] = {}
         reserved = 0
@@ -241,16 +254,21 @@ class Scheduler:
                 reserved += len(every) - len(rotating[state])
             return rotating[state]
 
-        # Degraded identities are the last resort within each pass, used only
-        # once the healthy ones are gone.
-        passes = {
-            LoginNeed.NONE: (False,),
-            LoginNeed.PREFERRED: (True, False),
+        # Who each pass may draw: only logins (True), only guests (False), or
+        # anyone (None). Degraded identities are the last resort within each
+        # pass, used only once the healthy ones are gone.
+        passes: tuple[bool | None, ...] = {
+            LoginNeed.NONE: (False, None) if self._guests_first(platform) else (None,),
+            LoginNeed.PREFERRED: (True, None),
             LoginNeed.REQUIRED: (True,),
         }[login]
-        for signed_in_only in passes:
+        for signed_in in passes:
             for state in (IdentityState.ACTIVE, IdentityState.DEGRADED):
-                pool = [c for c in await listed(state) if c.authenticated or not signed_in_only]
+                pool = [
+                    c
+                    for c in await listed(state)
+                    if signed_in is None or c.authenticated is signed_in
+                ]
                 if pool:
                     return pool
 

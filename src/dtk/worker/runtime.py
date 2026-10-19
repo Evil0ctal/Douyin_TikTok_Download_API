@@ -160,6 +160,11 @@ async def build_runtime(
             circuit=circuit_config(current),
         ),
         alerter=notifier,
+        # Read per request from the live source, so flipping it on the
+        # scheduler page takes effect without restarting the worker.
+        guests_first=lambda platform: bool(
+            config_source().get(f"pool.{platform.value}.guests_first")
+        ),
     )
     transport = WreqTransport()
 

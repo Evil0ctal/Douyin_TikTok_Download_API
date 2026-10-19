@@ -28,7 +28,9 @@ from fastapi import APIRouter, Depends, Request
 from dtk.api.deps import Principal
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.support import demo_read, ok
-from dtk.platforms.registry import available_platforms
+from dtk.core.types import LoginNeed
+from dtk.platforms.base import EndpointSpec
+from dtk.platforms.registry import available_platforms, get_adapter
 from dtk.worker import registry
 
 router = APIRouter(tags=["system"])
@@ -44,17 +46,37 @@ def capability_table() -> dict[str, list[dict[str, Any]]]:
     ``session_bound`` is carried because it changes what a caller has to send,
     not just whether the call exists: such an endpoint answers only about the
     identity sending it, so it is refused without ``identity``.
+
+    ``login`` and ``paging_login`` say what a guest identity loses on it -
+    ``none``, ``preferred`` or ``required`` - for the first page and for every
+    page after it, ``paging_login`` being null where later pages are no
+    different. It is what decides which identities rotation sends, and the
+    console could not offer "only the endpoints that need a login" without it.
     """
     table: dict[str, list[dict[str, Any]]] = {name: [] for name in available_platforms()}
     for definition in sorted(registry.ENDPOINTS.values(), key=lambda entry: entry.name):
+        spec = _spec(definition.platform.value, definition.name)
         table.setdefault(definition.platform.value, []).append(
             {
                 "operation": definition.capability.value,
                 "endpoint": definition.name,
                 "session_bound": definition.session_bound,
+                "login": spec.login.value if spec else LoginNeed.NONE.value,
+                "paging_login": (
+                    spec.paging_login.value if spec and spec.paging_login is not None else None
+                ),
             }
         )
     return table
+
+
+def _spec(platform: str, endpoint: str) -> EndpointSpec | None:
+    """The adapter's own declaration of an endpoint the registry serves."""
+    # EndpointTable has no .get(); ruff's suggestion to use one does not apply.
+    table = get_adapter(platform).endpoints
+    if endpoint not in table:
+        return None
+    return table[endpoint]
 
 
 @router.get(

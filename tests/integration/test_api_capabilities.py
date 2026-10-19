@@ -46,8 +46,16 @@ async def test_every_platform_is_listed_with_its_operations(client: Any) -> None
     for platform, rows in data.items():
         assert rows, f"{platform} lists nothing"
         for row in rows:
-            assert set(row) == {"operation", "endpoint", "session_bound"}
+            assert set(row) == {
+                "operation",
+                "endpoint",
+                "session_bound",
+                "login",
+                "paging_login",
+            }
             assert row["endpoint"] == f"{platform}.{row['operation']}"
+            assert row["login"] in {"none", "preferred", "required"}
+            assert row["paging_login"] in {None, "none", "preferred", "required"}
     # The core five are served everywhere; a platform without them is not
     # registered at all (`missing_capabilities`).
     for rows in data.values():

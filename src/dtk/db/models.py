@@ -81,6 +81,10 @@ SNAPSHOT_COMPRESSION_AFTER_DAYS: Final[int] = 7
 _UTC_NOW = func.now()
 _NEW_UUID = text("gen_random_uuid()")
 
+#: Longest note an identity may carry. Room for "signed in as X, cookie from
+#: the work laptop", and too short for a cookie jar pasted into the wrong box.
+IDENTITY_NOTE_MAX: Final[int] = 200
+
 
 def _repr(name: str, **fields: object) -> str:
     """Render a repr from an explicit allowlist of fields.
@@ -220,6 +224,10 @@ class Identity(Base):
             "platform IN ('douyin','tiktok','bilibili')", name="ck_identities_platform"
         ),
         CheckConstraint("source IN ('minted','imported')", name="ck_identities_source"),
+        CheckConstraint(
+            f"note IS NULL OR char_length(note) BETWEEN 1 AND {IDENTITY_NOTE_MAX}",
+            name="ck_identities_note_length",
+        ),
         # The scheduler's candidate query: healthy identities of one platform,
         # least recently used first.
         Index("ix_identities_platform_state_last_used", "platform", "state", "last_used_at"),
@@ -255,6 +263,15 @@ class Identity(Base):
     #: filtered by this - reserving an account is how you keep it for the
     #: requests that pin it (#789).
     rotation_endpoints: Mapped[list[str] | None] = mapped_column(ARRAY(Text), default=None)
+    #: Whatever the operator wants to remember about it - whose account it is,
+    #: where the cookie came from. Theirs alone: nothing reads it but people.
+    note: Mapped[str | None] = mapped_column(Text, default=None)
+    #: The account the platform said these cookies belong to, the last time the
+    #: session was checked. The note says what somebody believes; this says
+    #: what the platform answered, so two logins with the same note - or one
+    #: login imported twice - can still be told apart.
+    account_id: Mapped[str | None] = mapped_column(Text, default=None)
+    account_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
     def __repr__(self) -> str:
         # Never widen this with cookies_encrypted or fingerprint: the first is a
@@ -979,6 +996,7 @@ __all__ = [
     "CONTINUOUS_AGGREGATES",
     "DERIVED_VIEWS",
     "HYPERTABLES",
+    "IDENTITY_NOTE_MAX",
     "IDENTITY_SOURCE_VALUES",
     "IDENTITY_STATE_VALUES",
     "PLATFORM_VALUES",

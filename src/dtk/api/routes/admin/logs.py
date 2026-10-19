@@ -21,22 +21,25 @@ carries tokens (doc 08) - and the identity and proxy appear only as ids.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import select
 
 from dtk.api.deps import Principal
 from dtk.api.routes.openapi import I18N_KEY
 from dtk.api.routes.support import (
     DEFAULT_ADMIN_PAGE_SIZE,
     MAX_ADMIN_PAGE_SIZE,
+    ROLE_RANK,
     iso,
     ok,
     read_admin_demo,
 )
-from dtk.core.types import Outcome
-from dtk.db.models import RequestLog
+from dtk.core.types import Outcome, UserRole
+from dtk.db.models import Identity, RequestLog
 from dtk.db.timeseries import RequestLogRepository
 
 # Tagged by the aggregate router in __init__.py; repeating it here is what
@@ -52,7 +55,7 @@ MAX_MINUTES = 60 * 24 * 30
 DEFAULT_MINUTES = 60
 
 
-def _row(row: RequestLog) -> dict[str, Any]:
+def _row(row: RequestLog, notes: Mapping[uuid.UUID, str] | None = None) -> dict[str, Any]:
     """One log line, in the shape the console's table and drawer expect.
 
     Every field is named rather than dumped from the model. The drawer prints
@@ -67,6 +70,10 @@ def _row(row: RequestLog) -> dict[str, Any]:
         "platform": row.platform,
         "endpoint": row.endpoint,
         "identity_id": str(row.identity_id) if row.identity_id else None,
+        # The note somebody gave that identity, so "which account served this"
+        # is answered on the row rather than by looking the UUID up. None for
+        # no note, and for every row the demo account reads.
+        "identity_note": (notes or {}).get(row.identity_id) if row.identity_id else None,
         "proxy_id": str(row.proxy_id) if row.proxy_id else None,
         "outcome": row.outcome,
         "http_status": row.http_status,
@@ -143,7 +150,27 @@ async def list_request_log(
         proxy_id=proxy_id,
         outcomes=outcome,
     )
-    return ok(request, [_row(row) for row in rows])
+    notes = await _identity_notes(request, principal, rows)
+    return ok(request, [_row(row, notes) for row in rows])
+
+
+async def _identity_notes(
+    request: Request, principal: Principal, rows: Sequence[RequestLog]
+) -> dict[uuid.UUID, str]:
+    """The notes on the identities these rows name, for a reader who may see them.
+
+    One query over at most a page of ids. Not for the demo account: this page is
+    opened to it, and a note is where somebody writes whose account a login is.
+    """
+    if ROLE_RANK[principal.role] < ROLE_RANK[UserRole.VIEWER]:
+        return {}
+    ids = {row.identity_id for row in rows if row.identity_id is not None}
+    if not ids:
+        return {}
+    found = await request.state.db.execute(
+        select(Identity.id, Identity.note).where(Identity.id.in_(ids), Identity.note.is_not(None))
+    )
+    return {identity_id: note for identity_id, note in found.tuples().all() if note}
 
 
 __all__ = ["DEFAULT_MINUTES", "MAX_MINUTES", "router"]

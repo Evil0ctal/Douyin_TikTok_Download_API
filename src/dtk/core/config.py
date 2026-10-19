@@ -207,6 +207,29 @@ def _pool_platform_settings() -> list[SettingSpec]:
     ]
 
 
+def _pool_login_settings() -> list[SettingSpec]:
+    """``pool.<platform>.guests_first`` for every platform.
+
+    On by default. An endpoint that gives a guest the same answer as a login is
+    answered by a guest first, and reaches a signed-in identity only when no
+    guest can serve it: guests are minted for nothing and replaced in a minute,
+    a login is somebody's account, and spending one on a request a guest would
+    have answered identically only wears it out for the endpoints that need it.
+    Off, logins and guests share those endpoints as they used to.
+    """
+    return [
+        SettingSpec(
+            f"pool.{platform.value}.guests_first",
+            True,
+            Scope.RUNTIME,
+            bool,
+            f"Serve {platform.value} endpoints that need no login from guest identities "
+            "first, and use a signed-in one there only when no guest can",
+        )
+        for platform in Platform
+    ]
+
+
 def _watch_floor(value: Any) -> int:
     """A collection interval floor that is actually a floor.
 
@@ -289,6 +312,7 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             "the pool level, so the filler replaces it instead of counting it",
         ),
         *_pool_platform_settings(),
+        *_pool_login_settings(),
         SettingSpec(
             "pool.health_prior",
             0.8,

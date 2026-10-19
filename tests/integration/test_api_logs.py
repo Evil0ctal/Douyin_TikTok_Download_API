@@ -22,7 +22,7 @@ import pytest
 
 from dtk.core.db import session_scope
 from dtk.core.types import Outcome, Platform, Scope, UserRole
-from dtk.db.models import AuditLog, RequestLog
+from dtk.db.models import AuditLog, Identity, RequestLog
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
     anonymous_client,
@@ -276,6 +276,7 @@ async def test_a_row_carries_every_column_the_console_renders(client: Any) -> No
         "platform",
         "endpoint",
         "identity_id",
+        "identity_note",
         "proxy_id",
         "outcome",
         "http_status",
@@ -297,6 +298,32 @@ async def test_a_row_carries_every_column_the_console_renders(client: Any) -> No
     # The wire code, untranslated: the console has a phrase for each one and
     # shows an unrecognised code verbatim.
     assert row["reject_reason"] == "circuit_open"
+
+
+async def test_a_row_names_the_note_on_the_identity_that_served_it(client: Any) -> None:
+    """Which account answered, without looking a UUID up on another page."""
+    await signed_in(client)
+    noted, plain = uuid.uuid4(), uuid.uuid4()
+    async with session_scope() as session:
+        for identity_id, note in ((noted, "alice's login"), (plain, None)):
+            session.add(
+                Identity(
+                    id=identity_id,
+                    platform=Platform.DOUYIN.value,
+                    state="active",
+                    cookies_encrypted=b"ciphertext",
+                    fingerprint={},
+                    source="imported",
+                    note=note,
+                )
+            )
+    await seed(identity_id=noted)
+    await seed(identity_id=plain)
+    await seed(identity_id=None)
+
+    notes = sorted((row["identity_note"] or "") for row in await rows(client))
+
+    assert notes == ["", "", "alice's login"]
 
 
 async def test_both_log_tabs_share_the_audit_envelope(client: Any) -> None:

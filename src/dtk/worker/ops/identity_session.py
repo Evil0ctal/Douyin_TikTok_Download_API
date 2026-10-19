@@ -20,17 +20,25 @@ Neither uses an HTTP status to say it. A live session and a dead one both come
 back 200, and :func:`dtk.ops.probes.read_session` is where the difference is
 read.
 
-Like the identity probe, this records nothing against the identity: a check
-that cooled what it measured would move the state the operator is reading.
+Like the identity probe, this records nothing against the identity's health:
+a check that cooled what it measured would move the state the operator is
+reading. What it does keep is the account the platform named, because that is
+a fact about the cookies rather than a verdict on them, and it is the one way
+to tell two logins with the same note apart - or to see one imported twice.
 """
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import update
 
 from dtk.core.errors import InvalidParam
 from dtk.core.logging import get_logger
+from dtk.db.models import Identity
 from dtk.ops import pipeline, probes
 from dtk.ops.masking import mask_url
 
@@ -78,6 +86,15 @@ async def run(
         logged_in=probe.logged_in,
         reason=probe.reason,
     )
+    if probe.account_id:
+        # Only when the platform named one: a check that could not reach it
+        # says nothing about whose cookies these are, and must not erase what
+        # an earlier check learned. Committed by the operation runner.
+        await session.execute(
+            update(Identity)
+            .where(Identity.id == uuid.UUID(identity.id))
+            .values(account_id=probe.account_id, account_seen_at=datetime.now(UTC))
+        )
 
     return {
         "data": {

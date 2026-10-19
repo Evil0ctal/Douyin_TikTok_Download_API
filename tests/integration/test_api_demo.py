@@ -10,6 +10,7 @@ behind.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -17,7 +18,7 @@ from sqlalchemy import func, select
 
 from dtk.core.db import session_scope
 from dtk.core.types import PLATFORM_READ_SCOPES, Outcome, Platform, Scope, UserRole
-from dtk.db.models import ApiKey, RequestLog, Task, User
+from dtk.db.models import ApiKey, Identity, RequestLog, Task, User
 from dtk.services import demo
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
@@ -173,6 +174,7 @@ async def test_the_published_key_stops_working_when_the_switch_goes_off(api_app:
     "path",
     [
         "/api/v1/admin/identities",
+        "/api/v1/admin/identities/coverage",
         "/api/v1/admin/proxies",
         "/api/v1/admin/users",
         "/api/v1/admin/settings",
@@ -244,6 +246,45 @@ async def test_the_demo_can_read_only_demo_task_results(api_app: Any, client: An
     allowed = await client.get(f"/api/v1/tasks/{demo_task_id}")
     assert allowed.status_code == 200
     assert envelope(allowed)["data"]["data"] == {"secret": "result"}
+
+
+async def test_the_demo_reads_the_request_log_without_identity_notes(
+    api_app: Any, client: Any
+) -> None:
+    """A note is where somebody writes whose account a login is."""
+    identity_id = uuid.uuid4()
+    async with session_scope() as session:
+        session.add(
+            Identity(
+                id=identity_id,
+                platform="douyin",
+                state="active",
+                cookies_encrypted=b"ciphertext",
+                fingerprint={},
+                source="imported",
+                note="phone 13800000000",
+            )
+        )
+        session.add(
+            RequestLog(
+                ts=datetime.now(UTC),
+                request_id=uuid.uuid4(),
+                platform="douyin",
+                endpoint="douyin.content_detail",
+                identity_id=identity_id,
+                outcome="ok",
+                duration_ms=100,
+            )
+        )
+    credentials = await _provision(api_app)
+    _set_demo(api_app, True)
+    await login(client, demo.DEMO_USERNAME, credentials.password or "")
+
+    response = await client.get("/api/v1/admin/logs/requests")
+
+    assert response.status_code == 200, response.text
+    assert [row["identity_note"] for row in envelope(response)["data"]] == [None]
+    assert "13800000000" not in response.text
 
 
 @pytest.mark.parametrize(

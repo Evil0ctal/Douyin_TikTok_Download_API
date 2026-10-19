@@ -15,10 +15,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dtk.api.routes.passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
 from dtk.core.types import Platform, Scope, UserRole
+from dtk.db.models import IDENTITY_NOTE_MAX
 from dtk.services import collections
 
 #: Usernames are local console accounts, not display names: keep them to what
@@ -38,6 +39,26 @@ class Body(BaseModel):
     """Base for every request body: unknown fields are an error, not noise."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+def identity_note(value: str | None) -> str | None:
+    """An identity's note as stored: trimmed, one line, and absent when blank.
+
+    Blank is no note rather than an empty one, so clearing the box clears the
+    note. A line break is refused rather than folded: the note is shown on one
+    line in a table, and a multi-line paste in it is almost always the cookie
+    jar that was meant for the box above.
+    """
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if any(ord(char) < 32 or ord(char) == 127 for char in text):
+        raise ValueError("a note is one line, without control characters")
+    if len(text) > IDENTITY_NOTE_MAX:
+        raise ValueError(f"a note is at most {IDENTITY_NOTE_MAX} characters")
+    return text
 
 
 # --------------------------------------------------------------------------
@@ -233,6 +254,36 @@ class IdentityImport(Body):
             "rotation can hand it out once."
         ),
     )
+    note: str | None = Field(
+        default=None,
+        max_length=1024,
+        description=(
+            "A note to keep with it, such as the account it signs in as. One line, at "
+            f"most {IDENTITY_NOTE_MAX} characters once trimmed."
+        ),
+    )
+
+    _note = field_validator("note")(identity_note)
+
+
+class IdentityUpdate(Body):
+    """What an operator may change about an identity after storing it.
+
+    Only the note. The cookies, the proxy and the fingerprint are bound for
+    life (doc 02); rotation has its own route because it changes what the
+    scheduler does, and that is audited apart from a label.
+    """
+
+    note: str | None = Field(
+        description=(
+            "The note, or null to clear it. One line, at most "
+            f"{IDENTITY_NOTE_MAX} characters once trimmed; blank clears it too. "
+            "Required, so that an empty body cannot read as clearing it."
+        ),
+        max_length=1024,
+    )
+
+    _note = field_validator("note")(identity_note)
 
 
 class IdentityExport(Body):

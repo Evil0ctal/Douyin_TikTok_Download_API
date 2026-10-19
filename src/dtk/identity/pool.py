@@ -192,6 +192,7 @@ class IdentityPool:
         source: IdentitySource,
         proxy_id: uuid.UUID | None = None,
         authenticated: bool = False,
+        note: str | None = None,
     ) -> uuid.UUID:
         """Persist a new identity.
 
@@ -215,6 +216,7 @@ class IdentityPool:
             source=source.value,
             state=IdentityState.ACTIVE.value,
             minted_at=datetime.now(UTC),
+            note=note,
         )
         session.add(row)
         session.add(
