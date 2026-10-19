@@ -751,7 +751,8 @@
         "dry_run": "Report what would go without deleting anything."
       },
       "DiagnoseRequest": {
-        "include_smoke_test": "Run the end-to-end step, which fetches one fixed public link and therefore spends an identity. Skipping it keeps the whole diagnosis local."
+        "include_smoke_test": "Run the end-to-end step, which fetches one fixed public link and therefore spends an identity. Skipping it keeps the whole diagnosis local.",
+        "platform": "Which platform the end-to-end step fetches from. Omitted, the platform this instance can serve is chosen: the one with the most active identities in rotation, or Bilibili on an instance with no browser and no identities."
       },
       "DownloadRequest": {
         "content_id": "The post id, as the archive holds it. Text, never an integer: a 19-digit id exceeds the JavaScript safe range.",
@@ -928,6 +929,7 @@
     "reason": {
       "components_unreachable": "unreachable: {components}",
       "components_browser_rpc_down": "postgres and redis are reachable; browser-rpc is not ({detail})",
+      "components_sidecar_down": "postgres and redis are reachable; configured but not answering: {components}",
       "components_ok": "all components reachable",
       "egress_unreachable": "no platform domain could be reached directly",
       "egress_partial": "{reachable} of {total} platform domains reachable",
@@ -956,6 +958,7 @@
     "action": {
       "components_unreachable": "Check that the postgres and redis containers are running and that DTK_DATABASE_URL and DTK_REDIS_URL point at them.",
       "components_browser_rpc_down": "Minting and the signing fallback are unavailable. Start the browser container, or import cookies manually and stay on the native signer.",
+      "components_sidecar_down": "Media downloads or transcription fail until the container answers. Start its compose profile, or unset DTK_DOWNLOADER_URL or DTK_TRANSCRIBER_URL if it is not meant to run here.",
       "egress_unreachable": "This machine has no usable route to the platforms. Check DNS, the host firewall, and whether outbound traffic needs a proxy.",
       "egress_partial": "Requests for the unreachable platform will depend entirely on a working proxy.",
       "proxies_none": "Every identity will share this machine's egress IP. That is fine for a first look and a correlation risk for a busy pool.",

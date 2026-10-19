@@ -171,14 +171,22 @@ async def diagnose(
     a public issue.
     """
     include_smoke = body.include_smoke_test if body is not None else True
+    platform = body.platform if body is not None else None
+    params: dict[str, Any] = {"include_smoke_test": include_smoke}
+    detail: dict[str, Any] = {"smoke_test": include_smoke}
+    if platform is not None:
+        # Absent rather than null when unchosen: the worker picks a platform
+        # this instance can serve, and only an explicit choice overrides that.
+        params["platform"] = platform.value
+        detail["platform"] = platform.value
     task_id, _state = await operations.submit(
         request,
         principal,
         endpoint=Maintenance.DIAGNOSE.value,
-        params={"include_smoke_test": include_smoke},
+        params=params,
         coalesce=False,
     )
-    await audit(request, principal, "diagnose.requested", detail={"smoke_test": include_smoke})
+    await audit(request, principal, "diagnose.requested", detail=detail)
     return ok(request, {"task_id": str(task_id)}, status_code=202)
 
 

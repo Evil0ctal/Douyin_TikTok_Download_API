@@ -1,6 +1,7 @@
 """Run the six-step self check.
 
-Submitted by ``POST /admin/diagnose`` with ``{"include_smoke_test": bool}`` and
+Submitted by ``POST /admin/diagnose`` with ``{"include_smoke_test": bool}``,
+and ``"platform"`` when the caller chose which one the end-to-end step uses, and
 read by ``web/src/pages/Diagnose.tsx``, interface ``DiagnosticReport``:
 ``version``, ``started_at``, ``finished_at``, ``passed``, ``text`` and a
 ``steps`` array of ``ReportStep``. :meth:`dtk.ops.diagnose.DiagnosticReport.as_dict`
@@ -41,7 +42,13 @@ from dtk.core.redis import get_redis
 from dtk.core.types import Platform
 from dtk.identity.marks import strictest_min_size
 from dtk.ops import pipeline
-from dtk.ops.diagnose import STEP_TIMEOUT_SECONDS, DiagnoseContext, SmokeRunner, run_diagnostics
+from dtk.ops.diagnose import (
+    STEP_TIMEOUT_SECONDS,
+    DiagnoseContext,
+    SmokeRunner,
+    choose_smoke_platform,
+    run_diagnostics,
+)
 from dtk.ops.probes import SMOKE_URLS
 
 if TYPE_CHECKING:
@@ -50,10 +57,20 @@ if TYPE_CHECKING:
 
     from dtk.worker.ops import OperationDeps
 
-#: Platform the end-to-end step exercises. One is enough to answer "does a
-#: request still come back", and the console offers no choice; the CLI takes
-#: ``--platform`` for the operator who needs the other one.
-SMOKE_PLATFORM = Platform.DOUYIN
+
+def requested_platform(params: Mapping[str, Any]) -> Platform | None:
+    """The platform the caller asked the end-to-end step to use, if any.
+
+    The route validates it, so an unknown value here is a row written by some
+    other build. Choosing for it beats failing a self check over its options.
+    """
+    value = params.get("platform")
+    if not value:
+        return None
+    try:
+        return Platform(str(value))
+    except ValueError:
+        return None
 
 
 async def run(
@@ -62,6 +79,9 @@ async def run(
     """Probe every dependency and report what each one said."""
     include_smoke = bool(params.get("include_smoke_test", True))
     config = deps.config()
+    # Unconfigured browser-rpc is absent rather than broken: the signing step
+    # must skip on it, not fail on it.
+    rpc = deps.rpc if deps.rpc is not None and deps.rpc.configured else None
 
     engine: AsyncEngine | None = None
     redis: Redis | None = None
@@ -74,7 +94,11 @@ async def run(
         redis = get_redis()
 
     smoke: SmokeRunner | None = None
+    smoke_platform: Platform | None = None
     if include_smoke:
+        smoke_platform = requested_platform(params) or await choose_smoke_platform(
+            session, browser=rpc is not None
+        )
         smoke = partial(
             pipeline.smoke,
             session=session,
@@ -90,15 +114,18 @@ async def run(
                 session=session,
                 engine=engine,
                 redis=redis,
-                # Unconfigured browser-rpc is absent rather than broken: the
-                # signing step must skip on it, not fail on it.
-                rpc=deps.rpc if deps.rpc is not None and deps.rpc.configured else None,
+                rpc=rpc,
                 registry=deps.signers,
                 cipher=deps.cipher,
                 http=http,
                 smoke=smoke,
-                smoke_url=SMOKE_URLS[SMOKE_PLATFORM] if include_smoke else None,
+                smoke_url=SMOKE_URLS[smoke_platform] if smoke_platform is not None else None,
+                smoke_platform=smoke_platform,
                 min_active=strictest_min_size(config),
+                # The worker's own clients, built once with it: the same ones a
+                # download or a transcription would be handed to.
+                downloader=deps.downloader,
+                transcriber=deps.transcriber,
             )
         )
 
@@ -111,6 +138,7 @@ async def run(
             "failures": len(report.failures),
             "warnings": len(report.warnings),
             "smoke_test": include_smoke,
+            "smoke_platform": smoke_platform.value if smoke_platform is not None else None,
             "duration_ms": round(
                 (report.finished_at - report.started_at).total_seconds() * 1000, 2
             ),
@@ -118,4 +146,4 @@ async def run(
     }
 
 
-__all__ = ["SMOKE_PLATFORM", "run"]
+__all__ = ["requested_platform", "run"]

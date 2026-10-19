@@ -799,6 +799,14 @@ class DiagnoseRequest(Body):
             "spends an identity. Skipping it keeps the whole diagnosis local."
         ),
     )
+    platform: Platform | None = Field(
+        default=None,
+        description=(
+            "Which platform the end-to-end step fetches from. Omitted, the platform this "
+            "instance can serve is chosen: the one with the most active identities in "
+            "rotation, or Bilibili on an instance with no browser and no identities."
+        ),
+    )
 
 
 __all__ = [

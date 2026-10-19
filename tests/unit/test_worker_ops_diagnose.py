@@ -17,6 +17,7 @@ anything else afterwards.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -178,7 +179,7 @@ async def test_the_smoke_step_runs_on_the_stack_the_worker_already_has(
     monkeypatch.setattr(pipeline, "smoke", fake_smoke)
     seen = capture_context(monkeypatch)
 
-    await run_job(include_smoke_test=True)
+    await run_job(include_smoke_test=True, platform=Platform.DOUYIN.value)
     smoke = seen[0].smoke
     assert smoke is not None
     await smoke(cast(str, seen[0].smoke_url))
@@ -217,12 +218,85 @@ async def test_a_successful_smoke_test_reaches_the_report(
     monkeypatch.setattr(pipeline, "smoke", fake_smoke)
     only_step(monkeypatch, ops_diagnose.check_smoke)
 
-    result = await run_job(include_smoke_test=True)
+    result = await run_job(include_smoke_test=True, platform=Platform.DOUYIN.value)
 
     step = result["data"]["steps"][0]
     assert step["status"] == StepStatus.PASS.value
     assert step["code"] == StepCode.SMOKE_OK.value
     assert step["details"]["url"] == SMOKE_URLS[Platform.DOUYIN]
+    # Which platform was exercised is part of the answer, not something to
+    # infer from the shape of a link.
+    assert step["details"]["platform"] == Platform.DOUYIN.value
+    assert result["meta"]["smoke_platform"] == Platform.DOUYIN.value
+
+
+async def test_the_platform_the_caller_chose_is_the_one_fetched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = capture_context(monkeypatch)
+
+    await run_job(include_smoke_test=True, platform=Platform.BILIBILI.value)
+
+    assert seen[0].smoke_platform is Platform.BILIBILI
+    assert seen[0].smoke_url == SMOKE_URLS[Platform.BILIBILI]
+
+
+async def test_an_instance_without_a_browser_smoke_tests_what_it_can_mint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The regression: a Bilibili-only box failed step 6 on a Douyin link.
+
+    Nothing here says which identities exist - the placeholder session cannot
+    answer - so the choice falls to what the instance could mint. Without a
+    browser that is Bilibili, the one platform minted over plain HTTP; with
+    one it stays Douyin, as before.
+    """
+    seen = capture_context(monkeypatch)
+
+    await run_job(fake_deps(rpc=FakeRpc(configured=False)), include_smoke_test=True)
+    await run_job(fake_deps(rpc=FakeRpc(configured=True)), include_smoke_test=True)
+
+    assert seen[0].smoke_platform is Platform.BILIBILI
+    assert seen[0].smoke_url == SMOKE_URLS[Platform.BILIBILI]
+    assert seen[1].smoke_platform is Platform.DOUYIN
+
+
+async def test_a_platform_this_build_does_not_know_is_chosen_for(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stored row from another build must not fail the self check."""
+    seen = capture_context(monkeypatch)
+
+    await run_job(fake_deps(rpc=FakeRpc(configured=True)), platform="kuaishou")
+
+    assert seen[0].smoke_platform is Platform.DOUYIN
+
+
+async def test_declining_the_smoke_test_chooses_no_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = capture_context(monkeypatch)
+
+    result = await run_job(include_smoke_test=False, platform=Platform.TIKTOK.value)
+
+    assert seen[0].smoke_platform is None
+    assert seen[0].smoke_url is None
+    assert result["meta"]["smoke_platform"] is None
+
+
+async def test_the_sidecars_probed_are_the_workers_own_clients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = capture_context(monkeypatch)
+    downloader, transcriber = object(), object()
+    deps = replace(
+        fake_deps(), downloader=cast(Any, downloader), transcriber=cast(Any, transcriber)
+    )
+
+    await run_job(deps)
+
+    assert seen[0].downloader is downloader
+    assert seen[0].transcriber is transcriber
 
 
 async def test_a_failed_smoke_test_cannot_carry_what_it_was_holding(
