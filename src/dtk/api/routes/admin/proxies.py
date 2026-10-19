@@ -123,6 +123,63 @@ async def list_proxies(
     )
 
 
+@router.get(
+    "/{proxy_id}", summary="One proxy and what uses it", openapi_extra={I18N_KEY: "proxies_get"}
+)
+async def get_proxy(
+    request: Request,
+    proxy_id: uuid.UUID = Path(description="The proxy to read."),
+    principal: Principal = Depends(read_admin),
+) -> Any:
+    """One egress, with the identities bound to it.
+
+    The list says how many identities each proxy carries; this says which. It
+    is what an operator needs before deleting one - every identity listed here
+    is retired with it - and when one egress starts drawing risk control, since
+    every identity behind it shares its address.
+
+    **Parameters**
+
+    - `proxy_id` - the proxy to read.
+
+    **Returns**
+
+    The proxy as the list shows it, plus `identities`: each bound identity's
+    id, platform, state and when it was last used. Never a cookie.
+    """
+    session = request.state.db
+    proxy = await session.get(Proxy, proxy_id)
+    if proxy is None:
+        raise NotFound("no such proxy")
+    # Retired ones are left out, as they are from the count: retirement wipes
+    # the jar, so they are history rather than something this proxy carries.
+    bound = (
+        await session.scalars(
+            select(Identity)
+            .where(
+                Identity.proxy_id == proxy_id,
+                Identity.state != IdentityState.RETIRED.value,
+            )
+            .order_by(Identity.platform, Identity.minted_at.desc())
+        )
+    ).all()
+    payload = _row(request, proxy, identity_count=len(bound))
+    payload["identities"] = [
+        {
+            "id": str(identity.id),
+            "platform": identity.platform,
+            "state": identity.state,
+            "authenticated": identity.authenticated,
+            "consecutive_fails": identity.consecutive_fails,
+            "last_used_at": iso(identity.last_used_at),
+            # None in ordinary rotation; see Identity.rotation_endpoints.
+            "rotation_endpoints": identity.rotation_endpoints,
+        }
+        for identity in bound
+    ]
+    return ok(request, payload)
+
+
 @router.post(
     "", summary="Add one proxy", openapi_extra={I18N_KEY: "proxies_create", **CREATED_RESPONSES}
 )

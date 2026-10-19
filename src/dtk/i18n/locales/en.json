@@ -523,6 +523,10 @@
         "summary": "Delete a proxy and retire what used it",
         "description": "Delete one egress, and retire every identity bound to it."
       },
+      "proxies_get": {
+        "summary": "One proxy and what uses it",
+        "description": "One egress, with the identities bound to it: the ones a delete would retire, and the ones sharing its address."
+      },
       "proxies_import": {
         "summary": "Bulk import a pasted proxy list",
         "description": "Accept a block of lines and report the fate of each one."

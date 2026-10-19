@@ -374,6 +374,55 @@ async def test_the_proxy_list_counts_identities_and_says_why_one_failed(client: 
     assert listed[used["id"]]["last_error"] is None
 
 
+async def test_one_proxy_lists_the_identities_a_delete_would_retire(client: Any) -> None:
+    """The count says how many; the drawer before a delete needs which."""
+    await signed_in(client)
+    proxy = envelope(await client.post("/api/v1/admin/proxies", json={"url": PROXY_URL}))["data"]
+    imported = envelope(
+        await client.post(
+            "/api/v1/admin/identities/import",
+            json={
+                "platform": Platform.DOUYIN.value,
+                "cookies": COOKIE_BLOB,
+                "user_agent": CHROME_UA,
+                "proxy_id": proxy["id"],
+            },
+        )
+    )["data"]
+
+    response = await client.get(f"/api/v1/admin/proxies/{proxy['id']}")
+
+    detail = envelope(response)["data"]
+    assert detail["id"] == proxy["id"]
+    assert detail["identity_count"] == 1
+    assert [row["id"] for row in detail["identities"]] == [imported["identity_id"]]
+    assert detail["identities"][0]["platform"] == Platform.DOUYIN.value
+    # Masked like the list, and the jar never: this is the health view.
+    assert "sup3rsecret" not in response.text
+    assert "0123456789abcdef" not in response.text
+
+
+async def test_reading_a_missing_proxy_is_not_found(client: Any) -> None:
+    await signed_in(client)
+
+    response = await client.get(f"/api/v1/admin/proxies/{uuid.uuid4()}")
+
+    assert error_code(response) == "NOT_FOUND"
+
+
+async def test_a_viewer_may_read_a_proxy_but_not_delete_it(client: Any) -> None:
+    """The console hides the delete from a viewer; the server is what refuses it."""
+    await signed_in(client)
+    proxy = envelope(await client.post("/api/v1/admin/proxies", json={"url": PROXY_URL}))["data"]
+    await client.post("/api/v1/auth/logout")
+    await signed_in(client, username="watcher", role=UserRole.VIEWER)
+
+    assert (await client.get(f"/api/v1/admin/proxies/{proxy['id']}")).status_code == 200
+    assert error_code(await client.delete(f"/api/v1/admin/proxies/{proxy['id']}")) == (
+        "FORBIDDEN_SCOPE"
+    )
+
+
 async def test_updating_a_proxy_re_encrypts_under_its_own_id(client: Any) -> None:
     await signed_in(client)
     proxy = envelope(await client.post("/api/v1/admin/proxies", json={"url": PROXY_URL}))["data"]

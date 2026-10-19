@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import pytest
 
 from dtk import __version__
-from dtk.core.types import IdentityState, Platform
+from dtk.core.db import session_scope
+from dtk.core.types import IdentitySource, IdentityState, Platform
+from dtk.db.models import Identity
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
     anonymous_client,
@@ -91,6 +94,61 @@ async def test_system_status_reports_version_pool_and_storage(client: Any) -> No
     assert set(data["pool"][Platform.DOUYIN.value]) == {s.value for s in IdentityState}
     assert data["storage"]["db_size_bytes"] > 0
     assert "request_log" in data["storage"]["rows"]
+
+
+async def test_system_status_reports_the_optional_sidecars(client: Any) -> None:
+    """Contract C1: the downloader and the transcriber, shaped like browser_rpc.
+
+    Asserted as relationships for the same reason as the browser above: whether
+    either profile is configured depends on the environment the suite runs in
+    (CI points the downloader at a port nothing listens on). A configured one
+    must have been probed; an absent one must say so rather than look broken.
+    """
+    await signed_in(client)
+    components = envelope(await client.get("/api/v1/system/status"))["data"]["components"]
+
+    for name in ("downloader", "transcriber"):
+        sidecar = components[name]
+        assert set(sidecar) <= {"configured", "ok", "latency_ms", "detail_code"}, name
+        if sidecar["configured"]:
+            assert isinstance(sidecar["ok"], bool), f"a configured {name} was never probed"
+            if not sidecar["ok"]:
+                assert sidecar["detail_code"] in {"unreachable", "timeout", "degraded"}
+        else:
+            assert sidecar["ok"] is None
+
+
+async def test_system_status_counts_reserved_identities_per_platform(client: Any) -> None:
+    """Active and kept out of rotation (#789): counted, but not capacity."""
+    await signed_in(client)
+    async with session_scope() as session:
+        for platform, rotation in (
+            (Platform.DOUYIN, None),
+            (Platform.DOUYIN, []),
+            (Platform.BILIBILI, ["bilibili.content_detail"]),
+        ):
+            session.add(
+                Identity(
+                    id=uuid.uuid4(),
+                    platform=platform.value,
+                    state=IdentityState.ACTIVE.value,
+                    cookies_encrypted=b"ciphertext",
+                    fingerprint={},
+                    source=IdentitySource.IMPORTED.value,
+                    rotation_endpoints=rotation,
+                )
+            )
+
+    data = envelope(await client.get("/api/v1/system/status"))["data"]
+
+    assert data["reserved_active"] == {
+        Platform.DOUYIN.value: 1,
+        Platform.TIKTOK.value: 0,
+        Platform.BILIBILI.value: 1,
+    }
+    # The census is unchanged: reserved identities are still active ones.
+    assert data["pool"][Platform.DOUYIN.value][IdentityState.ACTIVE.value] == 2
+    assert data["pool"]["total_active"] == 3
 
 
 # --------------------------------------------------------------------------
