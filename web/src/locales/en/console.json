@@ -987,7 +987,7 @@
       "copied": "Report copied"
     },
     "expired": "The last report is no longer kept on the server. Run the check again for a fresh one.",
-    "readOnly": "Running the self check needs an operator role. A report somebody else ran opens from its link."
+    "readOnly": "Running the self check, and reading its report, needs an operator role."
   },
   "backup": {
     "keyExplainer": "Credentials are exported as ciphertext and the archive never contains the master key. A restore therefore needs the same DTK_SECRET_KEY that created it; under a different key the proxy URLs and cookie jars cannot be decrypted.",

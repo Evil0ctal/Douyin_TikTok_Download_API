@@ -572,6 +572,10 @@ export default function Proxies() {
               </Button>
               <Button
                 variant="secondary"
+                // An import probes what it created, and one bulk run at a time
+                // is all the page tracks: started mid-run, the new proxies
+                // would have gone untested without a word.
+                disabled={testing !== null}
                 onClick={() => {
                   setImportOpen(true)
                 }}
@@ -709,6 +713,7 @@ export default function Proxies() {
         proxy={openProxy}
         probe={openProxy ? probes[openProxy.id] : undefined}
         canManage={canManage}
+        busy={testing !== null}
         onClose={() => {
           setOpenId(null)
         }}

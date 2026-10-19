@@ -80,6 +80,8 @@ export interface ProxyDrawerProps {
   proxy: ProxyRowLike | null
   probe: ProbeState | undefined
   canManage: boolean
+  /** A bulk probe is running; a second probe of the same proxy would race it. */
+  busy?: boolean
   onClose: () => void
   onTest: (proxy: ProxyRowLike) => void
   onEdit: (proxy: ProxyRowLike) => void
@@ -112,6 +114,7 @@ export function ProxyDrawer({
   proxy,
   probe,
   canManage,
+  busy = false,
   onClose,
   onTest,
   onEdit,
@@ -161,6 +164,7 @@ export function ProxyDrawer({
               size="sm"
               variant="secondary"
               loading={probe?.running ?? false}
+              disabled={busy}
               onClick={() => {
                 onTest(proxy)
               }}

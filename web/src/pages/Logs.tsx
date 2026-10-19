@@ -64,11 +64,14 @@ const LIMITS = ['100', '200', '500'] as const
 const FILTER_DEBOUNCE_MS = 350
 
 /**
- * What the server's `uuid.UUID` accepts, minus the braces and urn forms nobody
- * types. Checked here because the server answers anything else with a 422, and
- * before this check every keystroke of a half-typed id flashed one.
+ * What the server's UUID parameters accept, minus the braces and urn forms
+ * nobody types: the hyphenated form, or 32 bare hex digits - not a mix of the
+ * two, which the validator refuses. Checked here because the server answers
+ * anything else with a 422, and before this check every keystroke of a
+ * half-typed id flashed one.
  */
-const UUID_PATTERN = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i
+const UUID_PATTERN =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
 
 function isUuid(value: string): boolean {
   return UUID_PATTERN.test(value.trim())
@@ -964,9 +967,13 @@ export default function Logs() {
                     >
                       {t('logs.onlyThisIdentity')}
                     </Button>
-                    <Link href={`/identities?id=${encodeURIComponent(openRequest.identity_id)}`}>
-                      {t('logs.openIdentity')}
-                    </Link>
+                    {/* Not for the demo account: /identities is off its menu
+                        and a typed address bounces it straight back. */}
+                    {canReadAudit ? (
+                      <Link href={`/identities?id=${encodeURIComponent(openRequest.identity_id)}`}>
+                        {t('logs.openIdentity')}
+                      </Link>
+                    ) : null}
                   </span>
                 ) : null}
               </dd>

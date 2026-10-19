@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'wouter'
 
@@ -328,14 +328,30 @@ export default function Diagnose() {
   const run = useApiQuery<TaskResponse>({
     key: ['diagnose', 'task', taskId],
     path: taskId ? paths.tasks.byId(taskId) : paths.diagnose,
-    enabled: taskId !== null,
-    // Foreground work: poll at the fast cadence until the task settles, then stop.
+    // Reading a diagnose task back takes the role that starts one (role_for_task
+    // in src/dtk/api/routes/operations.py), so below it a remembered id is not
+    // asked for at all rather than answered with a 403 every five seconds.
+    enabled: taskId !== null && canRun,
+    // An expired result is gone for good; retrying it only repeats the answer.
+    retry: (failures, error) => errorCodeOf(error) !== 'TASK_NOT_FOUND' && failures < 2,
+    // Foreground work: poll at the fast cadence until the task settles, then
+    // stop - and stop on an error too. A remembered id outlives its result, and
+    // an errored query has no state to settle on, so it polled forever.
     poll: POLL.fast,
     refetchInterval: (query) => {
+      if (query.state.status === 'error') return false
       const state = query.state.data?.state
       return state === 'done' || state === 'failed' ? false : POLL.fast
     },
   })
+
+  const expired = run.isError && errorCodeOf(run.error) === 'TASK_NOT_FOUND'
+  useEffect(() => {
+    // Forget it, so the next visit through the menu does not ask again. The
+    // address keeps it until the next run replaces it, which is harmless: the
+    // banner below is all it produces.
+    if (expired) writeStoredTask(null)
+  }, [expired])
 
   const state: TaskState | null = run.data?.state ?? null
   const report = run.data?.data ?? null
@@ -366,7 +382,7 @@ export default function Diagnose() {
         title={t('page.diagnose.title')}
         description={t('page.diagnose.description')}
         badge={
-          taskId ? (
+          taskId && canRun ? (
             <span className="u-row u-xs u-muted" style={{ gap: 'var(--space-2)' }}>
               <span>{t('field.taskId')}</span>
               <CopyableId value={taskId} />
@@ -445,7 +461,7 @@ export default function Diagnose() {
       ) : null}
 
       {run.isError ? (
-        errorCodeOf(run.error) === 'TASK_NOT_FOUND' ? (
+        expired ? (
           // A remembered run outlives its result: results are kept for a
           // limited time. That is the end of a report, not a fault.
           <Banner tone="accent" icon={<ClockIcon size={14} />}>
