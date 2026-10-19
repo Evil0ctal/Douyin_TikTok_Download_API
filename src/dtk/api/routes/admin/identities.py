@@ -516,9 +516,9 @@ def _count_logins(
 ) -> dict[str, dict[str, int]]:
     """Each platform's logged-in identities, by what rotation can do with them.
 
-    Mirrors `Scheduler._rotation_pool`: an endpoint that requires
-    a login leases from active and degraded identities that rotate for it, and
-    skips a reserved one even then. So "reserved" is checked first - a reserved
+    Mirrors `Scheduler._rotation_pool`: an endpoint that requires a login
+    leases from active and degraded identities that rotate for it, and skips a
+    reserved one even then. So "reserved" is checked first - a reserved
     identity that is also cooling is still one rotation will never reach - and
     a limited one counts as rotating only where its list names an endpoint that
     needs it.

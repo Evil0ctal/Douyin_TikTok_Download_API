@@ -113,6 +113,13 @@
     "rateLimit": "限额：剩余 {remaining} / {limit}",
     "breadcrumb": "面包屑导航"
   },
+  "platform": {
+    "name": {
+      "bilibili": "B站",
+      "douyin": "抖音",
+      "tiktok": "TikTok"
+    }
+  },
   "pool": {
     "summary": "{count} 个身份可用",
     "active": "可用",
@@ -248,7 +255,8 @@
       "health": "健康度",
       "cooldown": "冷却剩余",
       "minted": "铸造时间",
-      "session": "会话凭据"
+      "session": "会话凭据",
+      "kind": "类型"
     },
     "noProxy": "服务器出口",
     "source": {
@@ -258,7 +266,8 @@
     "failCount": "{count} 次失败",
     "retire": "退休",
     "retired": "已退休 {count} 个身份",
-    "bulkRetire": "批量退休",
+    "retireFailed": "退休失败",
+    "bulkRetire": "退休 {count} 个身份",
     "retireDialog": {
       "title": "确认退休 {count} 个身份？",
       "description": "退休会清除已存储的 cookie。统计数据保留，凭证不再保留，且无法恢复。"
@@ -275,17 +284,30 @@
       "allSources": "全部来源",
       "anyLogin": "登录态不限",
       "loggedInOnly": "仅登录态",
-      "guestOnly": "仅游客"
+      "guestOnly": "仅游客",
+      "anyRotation": "轮换不限",
+      "rotatingOnly": "参与轮换",
+      "reservedOnly": "仅保留的",
+      "limitedOnly": "仅限定接口的",
+      "searchPlaceholder": "搜索 ID、代理、原因"
     },
     "mint": {
       "action": "铸造",
       "title": "铸造身份",
-      "description": "铸造会通过代理驱动真实浏览器，每个需要几秒钟。",
+      "description": "游客身份，通过代理逐个铸造。",
       "count": "数量",
       "proxyHint": "身份会绑定在铸造时使用的代理上，之后不再更换。",
       "anyProxy": "由调度器选择",
       "done": "已铸造 {count} 个身份",
-      "failed": "铸造失败"
+      "failed": "铸造失败",
+      "browserOnly": "{platforms} 只能在浏览器容器里铸造，而本实例没有运行它。请改为导入 Cookie。",
+      "descriptionBrowser": "{platform}的游客身份通过代理在真实浏览器里铸造，每个需要几秒钟。",
+      "descriptionNative": "{platform}的游客身份通过代理用普通 HTTP 请求铸造，不需要浏览器，每个只要一两秒。",
+      "none": "本实例无法铸造任何平台的身份。请改为导入 Cookie。",
+      "partial": "已铸造 {done} 个，失败 {failed} 个",
+      "progress": "已完成 {finished}/{total}…",
+      "reasonTimes": "{reason}（×{count}）",
+      "submit": "铸造 {count} 个身份"
     },
     "import": {
       "action": "导入 cookie",
@@ -320,7 +342,17 @@
         "session": "登录态",
         "useful": "有帮助",
         "other": "其它"
-      }
+      },
+      "detected": "这些 Cookie 看起来来自{platform}。",
+      "needs": {
+        "bilibili": "buvid3 必填。SESSDATA 和 bili_jct 是登录态，SESSDATA 还带着过期时间。buvid4 和 b_nut 能让游客身份更像它来自的那个浏览器。",
+        "douyin": "ttwid 必填。sessionid 和 sid_guard 是登录态，sid_guard 还带着过期时间。odin_tt、s_v_web_id、msToken 和 UIFID_TEMP 能让游客身份更少被拒。",
+        "tiktok": "ttwid 必填，msToken 用于请求签名。sessionid 和 sid_guard 是登录态，sid_guard 还带着过期时间。"
+      },
+      "reserve": "只服务指定它的请求",
+      "reserveHint": "存入时就不参与轮换：只有用 identity= 指定它的请求才会用它。适合为读取某样东西而导入的账号，否则轮换会把它用在所有请求上。",
+      "reserveLastNote": "没有其他{platform}登录态在参与轮换，所以 {endpoints} 第一页之后仍会返回 IDENTITY_LOGIN_REQUIRED。",
+      "switchTo": "切换到{platform}"
     },
     "test": {
       "title": "身份测试",
@@ -390,11 +422,10 @@
       "reset": "恢复默认",
       "resetHint": "去掉这个平台单独设置的数字，重新沿用调度页上的全局值",
       "resetDone": "已恢复为全局阈值",
-      "nativeOnly": "没有配置浏览器容器。B 站的游客身份通过普通 HTTP 铸造，会自动补齐；抖音和 TikTok 只能用手动导入的身份。"
+      "nativeOnly": "没有配置浏览器容器。B 站的游客身份通过普通 HTTP 铸造，会自动补齐；抖音和 TikTok 只能用手动导入的身份。",
+      "loadFailed": "读取自动补充状态失败"
     },
     "mintLog": {
-      "inFlight": "正在铸造 {platform} 身份",
-      "idle": "空闲",
       "backoff": "连续失败 {failures} 次，{when} 之前不再重试",
       "ok": "铸造成功",
       "allOk": "最近 {count} 次全部成功",
@@ -406,15 +437,21 @@
         "proxy_undecryptable": "选中代理的 URL 解密失败；改用直连铸造会把这个身份绑死在一个它永远不会再用的出口上",
         "rpc_unavailable": "浏览器容器没有响应",
         "unusable_fingerprint": "浏览器返回的指纹里没有可用的版本号，与其配一个猜出来的 TLS 档案，不如直接拒绝这个身份",
-        "mint_refused": "B 站这次没有发放游客会话"
-      }
+        "mint_refused": "B 站这次没有发放游客会话",
+        "busy": "另一次铸造正在进行，这次没等到轮次就放弃了",
+        "locked": "另一个 worker 正在铸造，这次没等到轮次就放弃了",
+        "browser_rpc_unconfigured": "本实例没有可用来铸造这个平台的浏览器容器",
+        "disabled": "本实例无法铸造这个平台"
+      },
+      "now": "正在铸造"
     },
     "reset": {
       "action": "重置",
       "bulk": "重置 {count} 个身份",
       "done": "{count} 个身份已重新参与轮换",
       "dialogBody": "将清除冷却时间和连续失败计数，并把身份标记为可用。适用于失败并非它自己造成的情况——比如连续查了一批错误的 ID，或者代理已经修好了。如果会话本身已经废了，平台会在几次请求内再次拒绝它，它会重新进入冷却。",
-      "dialogTitle": "确定让 {count} 个身份重新参与轮换？"
+      "dialogTitle": "确定让 {count} 个身份重新参与轮换？",
+      "failed": "重置失败"
     },
     "rotation": {
       "title": "轮换",
@@ -427,7 +464,8 @@
       "reservedHint": "不参与轮换：只有指定了这个身份的请求会用到它",
       "limitedTag": "限定接口",
       "saved": "轮换设置已更新",
-      "failed": "轮换设置更新失败"
+      "failed": "轮换设置更新失败",
+      "everywhere": "在所有接口上参与轮换。"
     },
     "history": {
       "title": "身份历史",
@@ -453,7 +491,8 @@
       "empty": "这个身份一条 Cookie 都没有，发出去只会被拒。",
       "wiped": "已退休的身份会清空 Cookie，所以这里没有内容可看。",
       "missing": "缺少本程序视为必需的 Cookie：{names}。不管其余部分如何，用这个身份的请求都会被拒。",
-      "maskNote": "只显示每个值的首尾各四位。完整值从不会发到这个页面——Cookie 本身就是凭证，带登录态的那份等于别人的账号。",
+      "maskNote": "只显示每个值的首尾各四位。只有在下方主动请求时，完整值才会发到这个页面，每次读取都会写入审计日志。",
+      "maskNoteReadOnly": "只显示每个值的首尾各四位。查看完整值需要操作员角色。",
       "reveal": "显示真实内容",
       "revealFailed": "读不出这份 Cookie",
       "revealed": "这些是可用的凭证。看到这个屏幕的人都能以这个身份发请求。本次读取已写入审计日志。",
@@ -534,9 +573,66 @@
       "loaded": "{file} · {count} 个身份。载入文件后，下面的粘贴表单会关闭。",
       "submit": "恢复 {count} 个身份",
       "done": "{count, plural, =0 {没有恢复任何身份} other {已恢复 # 个身份}}",
-      "skipped": "{count} 个被跳过——它们的 Cookie 已过期或为空。",
+      "skipped": "{count} 个被跳过：{reasons}。",
       "failed": "无法从这个文件恢复",
-      "unreadable": "这不是「导出」写出的文件。"
+      "unreadable": "这不是「导出」写出的文件。",
+      "entry": "#{number} · {platform}",
+      "lapsed": "登录态已于 {date} 过期——仍会恢复，但只能以游客身份签名",
+      "logins": "登录态",
+      "missing": "缺少 {names}",
+      "ofTotal": "{count}/{total}",
+      "reason": {
+        "no_cookies": "没有 Cookie——导出前它就已经退休了",
+        "unknown_platform": "本程序不认识的平台",
+        "unusable": "不可用"
+      },
+      "reasonCount": "{reason}（{count}）",
+      "restorable": "可恢复",
+      "skippedLabel": "跳过"
+    },
+    "bulk": {
+      "partial": "成功 {done} 个，失败 {failed} 个"
+    },
+    "drawer": {
+      "copied": "已复制身份 ID",
+      "copyId": "复制 ID",
+      "expires": "登录态过期",
+      "export": "导出",
+      "notFound": "没有这个 ID 的身份。可能已被删除，或者链接有误。",
+      "openLogs": "在日志中查看",
+      "retireReason": "退休原因：{reason}",
+      "retiredAt": "退休时间"
+    },
+    "expiry": {
+      "days": "{count} 天后过期",
+      "expired": "已过期",
+      "expiredOn": "登录态已于 {date} 过期",
+      "hours": "{count} 小时后过期",
+      "on": "登录态将于 {date} 过期"
+    },
+    "kind": {
+      "guest": "游客",
+      "loggedIn": "已登录"
+    },
+    "logins": {
+      "breakdown": "（{parts}）",
+      "cooling": "{count} 个冷却中",
+      "import": "导入登录态",
+      "inRotation": "参与轮换的登录态：{count}",
+      "lastBody": "没有其他{platform}登录态在参与轮换。保留这一个之后，{endpoints} 第一页之后都会返回 IDENTITY_LOGIN_REQUIRED，除非请求指定了身份。",
+      "lastRetire": "{platform}：退休后不再有参与轮换的登录态，{endpoints} 第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
+      "lastTitle": "保留最后一个{platform}登录态？",
+      "limited": "{count} 个限定接口",
+      "none": "一个都没有，所以 {endpoints} 第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
+      "noneHint": "这些接口只给游客第一页，之后什么都不给。轮换即使在这里也会跳过保留的登录态，冷却中的则要等冷却结束。",
+      "reserveAnyway": "仍然保留",
+      "reserved": "{count} 个保留"
+    },
+    "paging": {
+      "ceiling": "只显示最新的 {shown} 个。请缩小筛选范围查看其余的。",
+      "loadMore": "加载更多",
+      "searchScope": "搜索只覆盖这些",
+      "showing": "显示 {shown} / {total}"
     }
   },
   "proxy": {
