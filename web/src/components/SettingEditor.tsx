@@ -45,7 +45,22 @@ export interface SettingRow {
   updated_by: string | null
 }
 
-type EditorKind = 'bool' | 'choice' | 'int' | 'float' | 'str' | 'list' | 'json'
+type EditorKind = 'bool' | 'choice' | 'int' | 'float' | 'str' | 'list' | 'json' | 'structured'
+
+/**
+ * Whether a list holds records rather than strings.
+ *
+ * The list editor is one entry per line, which is right for an allowlist and
+ * wrong for `notify.channels`: every channel went through `String(item)` and
+ * came out as `[object Object]`, and saving the row wrote that text back over
+ * the real channels. Read from the default as well as the value, so an empty
+ * list of records is not mistaken for an empty list of strings.
+ */
+function holdsRecords(row: SettingRow): boolean {
+  return [row.value, row.default].some(
+    (value) => Array.isArray(value) && value.some((item) => item !== null && typeof item === 'object'),
+  )
+}
 
 /** Group order follows the registry in src/dtk/core/config.py, not the alphabet. */
 function editorKind(row: SettingRow): EditorKind {
@@ -53,6 +68,9 @@ function editorKind(row: SettingRow): EditorKind {
   // signing modes as a picker is the difference between choosing one and
   // guessing at its spelling, and the server rejects a typo either way.
   if (row.choices && row.choices.length > 0) return 'choice'
+  // Shown, never edited here: a structured setting has a page of its own that
+  // knows its shape, and a text box that does not is how one gets destroyed.
+  if (holdsRecords(row)) return 'structured'
   switch (row.type) {
     case 'bool':
       return 'bool'
@@ -82,7 +100,7 @@ function toDraft(value: unknown, kind: EditorKind): string {
   if (kind === 'list') {
     return Array.isArray(value) ? value.map((item) => String(item)).join('\n') : ''
   }
-  if (kind === 'json') {
+  if (kind === 'json' || kind === 'structured') {
     try {
       return JSON.stringify(value ?? null, null, 2)
     } catch {
@@ -237,7 +255,8 @@ export function SettingEditor({ row, canWrite, canWriteSensitive, onSaved }: Row
   const [invalid, setInvalid] = useState<ParseFail['reason'] | null>(null)
   const [confirming, setConfirming] = useState<'save' | 'reset' | null>(null)
 
-  const locked = !canWrite || (row.sensitive && !canWriteSensitive)
+  const readOnly = kind === 'structured'
+  const locked = readOnly || !canWrite || (row.sensitive && !canWriteSensitive)
   const current = toDraft(row.value, kind)
   // A poll must not fight the operator: an untouched row simply follows the
   // server, and a touched one keeps what was typed until it is saved.
@@ -334,14 +353,23 @@ export function SettingEditor({ row, canWrite, canWriteSensitive, onSaved }: Row
         }}
         label={shown === 'true' ? t('common:value.enabled') : t('common:value.disabled')}
       />
-    ) : kind === 'list' || kind === 'json' ? (
+    ) : kind === 'list' || kind === 'json' || kind === 'structured' ? (
       <Textarea
         value={shown}
         rows={Math.min(8, Math.max(3, shown.split('\n').length + 1))}
         aria-label={row.key}
-        disabled={locked || save.isPending}
+        // Read-only rather than disabled, so the value can still be selected
+        // and copied.
+        disabled={(locked && !readOnly) || save.isPending}
+        readOnly={readOnly}
         error={errorText}
-        description={kind === 'list' ? t('settings.hint.onePerLine') : t('settings.hint.json')}
+        description={
+          kind === 'list'
+            ? t('settings.hint.onePerLine')
+            : kind === 'structured'
+              ? t('settings.hint.structured')
+              : t('settings.hint.json')
+        }
         onChange={(event) => {
           setTouched(true)
           setDraft(event.target.value)
@@ -393,37 +421,41 @@ export function SettingEditor({ row, canWrite, canWriteSensitive, onSaved }: Row
 
       <div style={{ flex: '0 1 320px', minWidth: '220px' }} className="u-stack-sm">
         {control}
-        <div className="u-row u-wrap" style={{ gap: 'var(--space-2)' }}>
-          <Button
-            size="sm"
-            variant={row.sensitive ? 'danger' : 'primary'}
-            disabled={locked || !dirty}
-            loading={save.isPending}
-            onClick={submit}
-          >
-            {t('common:action.save')}
-          </Button>
-          {dirty ? (
-            <Button size="sm" variant="ghost" onClick={cancel} disabled={save.isPending}>
-              {t('common:action.cancel')}
+        {/* Not drawn for a role that cannot use them: a Save that can only
+            answer 403 is a question the page should have answered itself. */}
+        {locked ? null : (
+          <div className="u-row u-wrap" style={{ gap: 'var(--space-2)' }}>
+            <Button
+              size="sm"
+              variant={row.sensitive ? 'danger' : 'primary'}
+              disabled={!dirty}
+              loading={save.isPending}
+              onClick={submit}
+            >
+              {t('common:action.save')}
             </Button>
-          ) : null}
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<RefreshIcon />}
-            disabled={locked || source !== 'database' || reset.isPending}
-            loading={reset.isPending}
-            title={source === 'database' ? undefined : t('settings.row.alreadyInherited')}
-            onClick={() => {
-              if (row.sensitive) setConfirming('reset')
-              else reset.mutate()
-            }}
-          >
-            {t('settings.row.reset')}
-          </Button>
-        </div>
-        {locked ? (
+            {dirty ? (
+              <Button size="sm" variant="ghost" onClick={cancel} disabled={save.isPending}>
+                {t('common:action.cancel')}
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<RefreshIcon />}
+              disabled={source !== 'database' || reset.isPending}
+              loading={reset.isPending}
+              title={source === 'database' ? undefined : t('settings.row.alreadyInherited')}
+              onClick={() => {
+                if (row.sensitive) setConfirming('reset')
+                else reset.mutate()
+              }}
+            >
+              {t('settings.row.reset')}
+            </Button>
+          </div>
+        )}
+        {locked && !readOnly ? (
           <p className="u-xs u-muted" style={{ margin: 0 }}>
             {row.sensitive && canWrite ? t('settings.sensitive.adminOnly') : t('settings.readOnly')}
           </p>
