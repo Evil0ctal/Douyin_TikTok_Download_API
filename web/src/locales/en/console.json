@@ -3,7 +3,8 @@
     "group": {
       "monitor": "Monitor",
       "pool": "Pool",
-      "tools": "Tools",
+      "content": "Content",
+      "developer": "Developer",
       "access": "Access",
       "operations": "Operations"
     },

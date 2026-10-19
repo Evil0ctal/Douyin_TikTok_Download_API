@@ -3,7 +3,8 @@
     "group": {
       "monitor": "监控",
       "pool": "资源池",
-      "tools": "工具",
+      "content": "内容",
+      "developer": "开发者",
       "access": "访问控制",
       "operations": "运维"
     },
