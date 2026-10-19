@@ -49,7 +49,7 @@
     "skip": "暂时跳过",
     "unavailableHint": "在其他容器旁边执行上面这条命令，在 .env 里设置 DTK_BROWSER_RPC_URL=http://browser-rpc:9000 然后重启。不启用它的话，可以在「身份池」页面粘贴你已登录浏览器里的 Cookie 来添加身份。",
     "continueWithoutMinting": "跳过铸造，继续",
-    "browserOnly": "{platforms} 只能在浏览器容器里铸造，而本实例没有运行它。可以用下面的命令启动，或者稍后在「身份池」页面为它们导入 Cookie。"
+    "browserOnly": "{platforms}只能在浏览器容器里铸造，而本实例没有运行它。可以用下面的命令启动，或者稍后在「身份池」页面为它们导入 Cookie。"
   },
   "smoke": {
     "url": "测试链接",

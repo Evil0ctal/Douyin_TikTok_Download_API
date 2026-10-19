@@ -19,7 +19,7 @@ import {
   Textarea,
   useToast,
 } from '@/components'
-import { useApiMutation, useFormatters } from '@/hooks'
+import { useApiMutation, useFormatters, usePlatformInSentence } from '@/hooks'
 import { apiGet, apiPost, isApiError } from '@/lib/api'
 import { copyText } from '@/lib/clipboard'
 import { paths } from '@/lib/endpoints'
@@ -119,6 +119,7 @@ interface SignResult {
 
 function SignForm({ onDecode }: { onDecode: (seed: DecodeSeed) => void }) {
   const { t } = useTranslation('console')
+  const platformPhrase = usePlatformInSentence()
   const toast = useToast()
   const [platform, setPlatform] = useState<Platform>('douyin')
   const [url, setUrl] = useState('')
@@ -166,7 +167,7 @@ function SignForm({ onDecode }: { onDecode: (seed: DecodeSeed) => void }) {
                     loadExample(name)
                   }}
                 >
-                  {t('tools.sign.loadExample', { platform: name })}
+                  {t('tools.sign.loadExample', { platform: platformPhrase(name) })}
                 </Button>
               ))}
             </div>

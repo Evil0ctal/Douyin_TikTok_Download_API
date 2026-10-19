@@ -39,6 +39,12 @@ export interface Formatters {
   duration: (milliseconds: number | null | undefined) => string
   latency: (milliseconds: number | null | undefined) => string
   timeZone: () => TimeZoneInfo
+  /**
+   * Names in a row, as this language separates them. Not Intl.ListFormat: its
+   * Chinese joins the last two with a bare conjunction character against a
+   * Latin name, which reads as one word.
+   */
+  list: (items: readonly string[]) => string
 }
 
 function toDate(value: DateInput): Date | null {
@@ -101,6 +107,11 @@ function createFormatters(language: Language): Formatters {
   return {
     language,
     locale,
+
+    list(items) {
+      // U+3001, the enumeration comma Chinese separates a list with.
+      return items.join(language === 'zh' ? '\u3001' : ', ')
+    },
 
     number(value, fractionDigits) {
       if (value === null || value === undefined || !Number.isFinite(value)) return MISSING

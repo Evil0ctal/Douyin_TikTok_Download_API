@@ -9,7 +9,7 @@ import { POLL } from '@/lib/query'
 import type { Platform } from '@/lib/types'
 
 import styles from '../identities.module.css'
-import { usePlatformName } from './shared'
+import { usePlatformInSentence, usePlatformName } from './shared'
 import { POOL_KEY, type MintActivity, type PoolLevel, type PoolPlatform } from './types'
 
 /** The value a per-platform setting stores to follow the global one. */
@@ -350,6 +350,7 @@ function RefillRow({
 }) {
   const { t } = useTranslation(['console', 'common'])
   const platformName = usePlatformName()
+  const platformPhrase = usePlatformInSentence()
   const invalid = draft.auto && parseDraft(draft, row) === null
 
   const title = !canMint
@@ -380,7 +381,7 @@ function RefillRow({
             checked={draft.auto}
             disabled={disabled}
             aria-label={t('console:identity.refill.autoFor', {
-              platform: platformName(row.platform),
+              platform: platformPhrase(row.platform),
             })}
             label={<span className="u-xs">{t('console:identity.refill.auto')}</span>}
             onChange={(event) => {
@@ -558,7 +559,10 @@ function PlatformActivity({
         <span className={styles.backoff}>
           {t('console:identity.mintLog.backoff', {
             failures: backoff.failures,
-            when: format.relative(backoff.until),
+            // A clock time: the sentence says "until", and "until in 12
+            // minutes" is what a relative time made of it. The backoff is
+            // capped at an hour, so the day is never in doubt.
+            when: format.time(backoff.until),
           })}
         </span>
       ) : null}

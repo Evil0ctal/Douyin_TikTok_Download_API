@@ -25,7 +25,7 @@ import { MISSING } from '@/lib/format'
 import { PLATFORMS, type Platform } from '@/lib/types'
 
 import styles from '../identities.module.css'
-import { Fact, hasLapsed, usePlatformName } from './shared'
+import { Fact, hasLapsed, usePlatformInSentence, usePlatformName } from './shared'
 import {
   POOL_KEY,
   type BundleImportResult,
@@ -95,6 +95,7 @@ export function ImportDialog({
   const format = useFormatters()
   const toast = useToast()
   const platformName = usePlatformName()
+  const platformPhrase = usePlatformInSentence()
 
   const pool = useApiQuery<PoolLevel>({ key: POOL_KEY, path: paths.identities.pool })
 
@@ -429,7 +430,7 @@ export function ImportDialog({
               <Banner tone="caution" icon={<InfoIcon size={14} />}>
                 <span className="u-row u-wrap">
                   <span>
-                    {t('console:identity.import.detected', { platform: platformName(detected) })}
+                    {t('console:identity.import.detected', { platform: platformPhrase(detected) })}
                   </span>
                   <Button
                     size="sm"
@@ -438,7 +439,7 @@ export function ImportDialog({
                       setPlatform(detected)
                     }}
                   >
-                    {t('console:identity.import.switchTo', { platform: platformName(detected) })}
+                    {t('console:identity.import.switchTo', { platform: platformPhrase(detected) })}
                   </Button>
                 </span>
               </Banner>
@@ -496,7 +497,7 @@ export function ImportDialog({
               {reserved && report?.authenticated && noLoginInRotation ? (
                 <p className="u-xs" style={{ margin: 0, color: 'var(--caution)' }}>
                   {t('console:identity.import.reserveLastNote', {
-                    platform: platformName(platform),
+                    platform: platformPhrase(platform),
                     endpoints: loginOnly.join(', '),
                   })}
                 </p>

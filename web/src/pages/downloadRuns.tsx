@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button, CompactProgress } from '@/components'
+import { usePlatformInSentence } from '@/hooks'
 import { apiRequest, errorCodeOf, isApiError, type QueryParams } from '@/lib/api'
 import { loginIdentitiesHref } from '@/lib/contentLinks'
 import type { Platform } from '@/lib/types'
@@ -220,6 +221,7 @@ function guestKey(run: RunState): string {
  */
 export function RunReport({ run, onStop, onDismiss, stopping }: RunReportProps) {
   const { t } = useTranslation(['console', 'common'])
+  const platformPhrase = usePlatformInSentence()
   const live = run.phase !== 'finished'
   const acted = run.tally.done + run.tally.skipped + run.tally.failed
 
@@ -271,10 +273,10 @@ export function RunReport({ run, onStop, onDismiss, stopping }: RunReportProps) 
       {run.stop?.reason === 'login' || run.needsLogin ? (
         <p className={styles.runNote}>
           {run.needsLogin
-            ? t('downloads.run.loginFirst', { platform: run.platform })
+            ? t('downloads.run.loginFirst', { platform: platformPhrase(run.platform) })
             : t(`downloads.run.loginStop.${run.kind}`, {
                 page: run.stop?.reason === 'login' ? run.stop.page : 2,
-                platform: run.platform,
+                platform: platformPhrase(run.platform),
               })}{' '}
           <SignInLink platform={run.platform} />
         </p>

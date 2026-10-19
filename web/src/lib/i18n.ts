@@ -23,6 +23,7 @@ import zhErrors from '@/locales/zh/errors.json'
 import zhSetup from '@/locales/zh/setup.json'
 
 import { currentLanguage, DEFAULT_LANGUAGE, LANGUAGES, subscribeLanguage } from './language'
+import { SPACING_POST_PROCESSOR } from './spacing'
 
 export const NAMESPACES = ['common', 'console', 'errors', 'setup'] as const
 export type Namespace = (typeof NAMESPACES)[number]
@@ -40,6 +41,7 @@ export function initI18n(): typeof i18next {
 
   void i18next
     .use(new ICU({ memoize: true }))
+    .use(SPACING_POST_PROCESSOR)
     .use(initReactI18next)
     .init({
       lng: currentLanguage(),
@@ -51,6 +53,9 @@ export function initI18n(): typeof i18next {
       defaultNS: 'common',
       resources,
       interpolation: { escapeValue: false },
+      // Spaces a platform name against the Chinese around it, after ICU has
+      // filled it in; see lib/spacing.ts.
+      postProcess: [SPACING_POST_PROCESSOR.name],
       returnEmptyString: false,
       debug: false,
     })

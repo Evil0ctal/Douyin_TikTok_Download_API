@@ -16,7 +16,7 @@ export {
   usePrefersReducedMotion,
 } from './useMediaQuery'
 export { useOnClickOutside } from './useOnClickOutside'
-export { usePlatformName } from './usePlatformName'
+export { usePlatformInSentence, usePlatformName } from './usePlatformName'
 export { useScrollLock } from './useScrollLock'
 export { SESSION_KEY, useSession, useSignOut } from './useSession'
 export { SETUP_STATUS_KEY, useSetupStatus } from './useSetupStatus'

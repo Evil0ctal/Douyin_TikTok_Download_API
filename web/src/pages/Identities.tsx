@@ -50,6 +50,7 @@ import {
   needsReset,
   runAll,
   saveJson,
+  usePlatformInSentence,
   usePlatformName,
   type BulkOutcome,
 } from './identities/shared'
@@ -128,6 +129,7 @@ export default function Identities() {
   const toast = useToast()
   const invalidate = useInvalidate()
   const platformName = usePlatformName()
+  const platformPhrase = usePlatformInSentence()
   const [filters, setFilters] = useIdentityFilters()
 
   // Every write on this page is `manage_pool` or a settings write, both of
@@ -753,7 +755,7 @@ export default function Identities() {
         {retireLosses.map((loss) => (
           <p key={loss.platform} className="u-xs" style={{ margin: 0, color: 'var(--caution)' }}>
             {t('console:identity.logins.lastRetire', {
-              platform: platformName(loss.platform),
+              platform: platformPhrase(loss.platform),
               endpoints: loss.endpoints.join(', '),
             })}
           </p>

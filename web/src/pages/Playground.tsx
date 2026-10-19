@@ -23,7 +23,7 @@ import {
   type PostTarget,
   type SelectOption,
 } from '@/components'
-import { useApiQuery, useFormatters, useSession } from '@/hooks'
+import { useApiQuery, useFormatters, usePlatformInSentence, useSession } from '@/hooks'
 import type { DecodedParameter } from '@/components'
 import { useApiMutation } from '@/hooks'
 import { apiPost, apiRequest, isApiError, type ApiError, type ResponseMeta } from '@/lib/api'
@@ -770,6 +770,7 @@ export default function Playground() {
   )
   const platformLabel = (name: Platform): string =>
     t(`platform.name.${name}`, { defaultValue: name })
+  const platformPhrase = usePlatformInSentence()
   /** The call cannot succeed for this session: the endpoint answers only about
    *  a pinned identity, and pinning is above this role. */
   const identityOutOfReach = sessionBound && !atLeast(role, 'operator')
@@ -935,7 +936,7 @@ export default function Playground() {
    *  answer is a refusal this page can already name. */
   const blocked: string | null =
     servedHere === false
-      ? t('playground.unservedNotice', { platform: platformLabel(platform) })
+      ? t('playground.unservedNotice', { platform: platformPhrase(platform) })
       : identityOutOfReach
         ? t('playground.identityRequiredForbidden')
         : null
@@ -1286,7 +1287,7 @@ export default function Playground() {
                       <span>{t(`playground.endpoint.${entry.id}`)}</span>
                       {unserved ? (
                         <span className={styles.endpointReason}>
-                          {t('playground.unserved', { platform: platformLabel(platform) })}
+                          {t('playground.unserved', { platform: platformPhrase(platform) })}
                         </span>
                       ) : null}
                     </span>
@@ -1342,7 +1343,7 @@ export default function Playground() {
           >
             {servedHere === false ? (
               <Notice tone="caution">
-                {t('playground.unservedNotice', { platform: platformLabel(platform) })}
+                {t('playground.unservedNotice', { platform: platformPhrase(platform) })}
               </Notice>
             ) : sessionBound ? (
               <Notice tone={identityOutOfReach ? 'caution' : 'info'}>
@@ -1365,7 +1366,7 @@ export default function Playground() {
                     setFieldErrors({})
                   }}
                 >
-                  {t('playground.loadExample', { platform: platformLabel(platform) })}
+                  {t('playground.loadExample', { platform: platformPhrase(platform) })}
                 </Button>
                 <span className="u-xs u-muted">{t('playground.loadExampleHint')}</span>
               </div>
@@ -1545,7 +1546,7 @@ export default function Playground() {
 
                 <dt className="u-xs u-muted">
                   {result.platformScoped
-                    ? t('playground.poolLabelFor', { platform: platformLabel(result.platform) })
+                    ? t('playground.poolLabelFor', { platform: platformPhrase(result.platform) })
                     : t('playground.poolLabel')}
                 </dt>
                 <dd className="u-mono u-xs">
@@ -1779,7 +1780,7 @@ export default function Playground() {
                 <span className="u-row u-wrap">
                   <span className="u-xs u-muted">
                     {poolPlatform
-                      ? t('playground.poolLabelFor', { platform: platformLabel(poolPlatform) })
+                      ? t('playground.poolLabelFor', { platform: platformPhrase(poolPlatform) })
                       : t('playground.poolLabel')}
                   </span>
                   {canOpen(role, '/identities') ? (
@@ -1813,7 +1814,7 @@ export default function Playground() {
                 {pool.active + pool.degraded === 0 && !system.isLoading && !system.isError ? (
                   <span className="u-xs" style={{ color: 'var(--warning)' }}>
                     {poolPlatform
-                      ? t('playground.poolEmptyHintFor', { platform: platformLabel(poolPlatform) })
+                      ? t('playground.poolEmptyHintFor', { platform: platformPhrase(poolPlatform) })
                       : t('playground.poolEmptyHint')}
                   </span>
                 ) : null}

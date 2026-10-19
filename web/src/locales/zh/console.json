@@ -116,7 +116,7 @@
   },
   "platform": {
     "name": {
-      "bilibili": "B站",
+      "bilibili": "B 站",
       "douyin": "抖音",
       "tiktok": "TikTok"
     }
@@ -243,6 +243,8 @@
     "noEndpointsHint": "平台适配器没有报告任何接口，这是部署问题，不是数据为空。",
     "noIdentities": "身份池为空",
     "noIdentitiesHint": "发起流量前先铸造或导入一个身份。",
+    "unservedBrowser": "铸造{platform}身份需要浏览器容器，这台实例没有运行。导入 Cookie 后才能调用它。",
+    "unservedOff": "{platform}的自动铸造已关闭，只能用导入的身份调用。",
     "alert": {
       "poolEmpty": "没有可用身份",
       "poolEmptyHint": "身份池恢复前，请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝。",
@@ -251,6 +253,9 @@
       "platformDownHint": "在恢复之前，{platform}的请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝；其他平台不受影响。",
       "platformEmpty": "还没有{platform}身份",
       "platformEmptyHint": "在为{platform}铸造或导入身份之前，对它的调用都会被拒绝。",
+      "platformEmptyAuto": "worker 每分钟检查一次，会自动铸造。第一个身份到位之前，对{platform}的调用都会被拒绝。",
+      "platformEmptyMinting": "正在铸造第一个。它到位之前，对{platform}的调用都会被拒绝。",
+      "platformEmptyBackoff": "铸造已连续失败 {failures} 次，{when} 之前不再重试。有身份之前，对{platform}的调用都会被拒绝。",
       "degraded": "{count} 个身份处于降级状态",
       "degradedHint": "降级身份仍会承接流量，但失败率高于其它身份。"
     },
@@ -309,7 +314,7 @@
       "anyProxy": "由调度器选择",
       "done": "已铸造 {count} 个身份",
       "failed": "铸造失败",
-      "browserOnly": "{platforms} 只能在浏览器容器里铸造，而本实例没有运行它。请改为导入 Cookie。",
+      "browserOnly": "{platforms}只能在浏览器容器里铸造，而本实例没有运行它。请改为导入 Cookie。",
       "descriptionBrowser": "{platform}的游客身份通过代理在真实浏览器里铸造，每个需要几秒钟。",
       "descriptionNative": "{platform}的游客身份通过代理用普通 HTTP 请求铸造，不需要浏览器，每个只要一两秒。",
       "none": "本实例无法铸造任何平台的身份。请改为导入 Cookie。",
@@ -423,7 +428,7 @@
       "saved": "补充阈值已更新",
       "saveFailed": "补充阈值更新失败",
       "auto": "自动",
-      "autoFor": "自动铸造 {platform} 身份",
+      "autoFor": "自动铸造{platform}身份",
       "offHint": "已关闭：不自动铸造，也不发身份池告警。导入的身份照常可用。",
       "inherited": "默认",
       "inheritedHint": "沿用调度页上的全局值",
@@ -1821,7 +1826,7 @@
       },
       "exampleLabel": "从示例开始",
       "exampleHint": "用一个真实浏览器请求填好下面所有字段。签名参数被去掉了，因为它们正是这个工具算出来的；Cookie 的值是占位符——一份 Cookie 就是一个活的登录态。真实的可以在“身份”标签页里铸造。",
-      "loadExample": "{platform} 主页请求",
+      "loadExample": "{platform}主页请求",
       "decodeThis": "反解这个签名"
     },
     "decode": {
@@ -2219,10 +2224,10 @@
       "stopped": "已停止。之后的内容没有读取，也没有排队。",
       "errorStop": "在第 {page} 页停止：{message} 前面几页取到的内容已保留。",
       "loginStop": {
-        "author": "从第 {page} 页起需要已登录的 {platform} 身份，所以在这里停下，并把前面几页取到的作品排了队。",
-        "comments": "从第 {page} 页起需要已登录的 {platform} 身份，所以在这里停下，并保存了前面几页取到的评论。"
+        "author": "从第 {page} 页起需要已登录的{platform}身份，所以在这里停下，并把前面几页取到的作品排了队。",
+        "comments": "从第 {page} 页起需要已登录的{platform}身份，所以在这里停下，并保存了前面几页取到的评论。"
       },
-      "loginFirst": "读取这个需要已登录的 {platform} 身份，但当前没有可用的。",
+      "loginFirst": "读取这个需要已登录的{platform}身份，但当前没有可用的。",
       "signIn": "添加已登录的身份",
       "firstError": "第一个失败的原因：{message}",
       "guest": {

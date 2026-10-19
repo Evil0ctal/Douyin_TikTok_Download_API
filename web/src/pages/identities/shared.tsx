@@ -7,7 +7,7 @@ import type { Platform } from '@/lib/types'
 import styles from '../identities.module.css'
 import type { IdentityRow, PoolLevel } from './types'
 
-export { usePlatformName } from '@/hooks/usePlatformName'
+export { usePlatformInSentence, usePlatformName } from '@/hooks/usePlatformName'
 
 export function Fact({
   label,

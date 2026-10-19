@@ -25,7 +25,9 @@ import { canOpen } from '@/lib/nav'
 import { POLL } from '@/lib/query'
 import { atLeast } from '@/lib/roles'
 import { IDENTITY_STATES, PLATFORMS, type IdentityState, type Outcome } from '@/lib/types'
-import { useApiQuery, useFormatters, useSession } from '@/hooks'
+import { useApiQuery, useFormatters, usePlatformInSentence, useSession } from '@/hooks'
+
+import { POOL_KEY, type MintBackoff, type PoolLevel } from './identities/types'
 
 /* -------------------------------------------------------------------------- */
 /* API shapes                                                                  */
@@ -150,6 +152,23 @@ interface PlatformCensus {
   usable: number
 }
 
+/** What the refill job reports for one platform, as far as the alerts need it. */
+interface PlatformSetup {
+  canMint: boolean
+  /** False when the platform's low-water mark is 0: nothing is minted for it. */
+  auto: boolean
+  minting: number
+  backoff: MintBackoff | null
+}
+
+/**
+ * Why a platform with nothing in it is not an alarm.
+ *
+ * `browser`: this instance has no browser container to mint it with.
+ * `off`: its low-water mark is 0, so nothing is minted for it on purpose.
+ */
+type Unserved = 'browser' | 'off'
+
 /** Quiet until the volume is nearly full, loud once it is. */
 function diskTone(storage: StorageTotals | undefined): 'warning' | 'danger' | undefined {
   const ceiling = storage?.max_bytes ?? 0
@@ -184,6 +203,26 @@ export default function Overview() {
     path: paths.system.status,
     poll: POLL.fast,
   })
+
+  /**
+   * How the refill job means to fill each platform. The census can say a
+   * platform is empty; only this says whether that is an outage, a pool about
+   * to be minted, or a platform this instance cannot mint at all - which is
+   * what Douyin and TikTok are without the browser container, and what every
+   * visit to such an instance was told was "No Douyin identity yet". Asked
+   * only where the identities page opens: the route refuses everyone else.
+   */
+  const identitiesOpen = canOpen(role, '/identities')
+  const poolLevel = useApiQuery<PoolLevel>({
+    key: POOL_KEY,
+    path: paths.identities.pool,
+    poll: POLL.normal,
+    enabled: identitiesOpen,
+  })
+  const setup = useMemo(() => poolSetup(poolLevel.data), [poolLevel.data])
+  // Until it has answered, an empty platform's alert waits instead of flashing
+  // the wrong one. Once it has failed, the census decides alone, as it used to.
+  const setupPending = session.isPending || (identitiesOpen && poolLevel.isPending)
 
   /**
    * What this instance has kept, as against what it has asked for.
@@ -452,9 +491,11 @@ export default function Overview() {
         poolKnown={system.data !== undefined && !system.isError}
         openCircuits={openCircuits}
         platforms={pool.platforms}
+        setup={setup}
+        setupPending={setupPending}
         poolDegraded={pool.byState.degraded ?? 0}
         onGoToIdentities={
-          canOpen(role, '/identities')
+          identitiesOpen
             ? (platform) => {
                 navigate(identitiesPath(platform))
               }
@@ -476,7 +517,11 @@ export default function Overview() {
               {pool.platforms.map((entry) => (
                 <span
                   key={entry.platform}
-                  style={entry.active === 0 ? { color: 'var(--caution)' } : undefined}
+                  style={
+                    entry.active === 0 && !unservedBy(entry, setup.get(entry.platform))
+                      ? { color: 'var(--caution)' }
+                      : undefined
+                  }
                 >
                   {platformLabel(entry.platform)}{' '}
                   <span className="u-mono">{format.number(entry.active)}</span>
@@ -618,8 +663,9 @@ export default function Overview() {
         ) : (
           <PoolDistribution
             platforms={pool.platforms}
+            setup={setup}
             total={pool.total}
-            linkable={canOpen(role, '/identities')}
+            linkable={identitiesOpen}
           />
         )}
       </Card>
@@ -707,6 +753,10 @@ interface AlertsProps {
   poolKnown: boolean
   openCircuits: EndpointHealthRow[]
   platforms: readonly PlatformCensus[]
+  /** Per platform, from the refill job; empty where this session cannot read it. */
+  setup: ReadonlyMap<string, PlatformSetup>
+  /** True until `setup` has answered or failed. */
+  setupPending: boolean
   poolDegraded: number
   /** Null when this session cannot open the identities page. */
   onGoToIdentities: ((platform?: string) => void) | null
@@ -720,25 +770,59 @@ interface AlertsProps {
  * census, so it fired only once all three platforms were empty: Douyin could
  * be refusing every call with IDENTITY_POOL_EXHAUSTED while TikTok's
  * identities kept the total above zero and the page stayed green.
+ *
+ * A platform nobody set up is said once, and only while something is coming:
+ * one this instance cannot mint, or mints nothing for on purpose, is not an
+ * alert at all. An instance run without the browser container - a supported
+ * way to run it, for Bilibili alone - was told on every visit that it had no
+ * Douyin and no TikTok identity, as if either were a fault.
  */
 function Alerts({
   poolKnown,
   openCircuits,
   platforms,
+  setup,
+  setupPending,
   poolDegraded,
   onGoToIdentities,
 }: AlertsProps) {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
-  const platformLabel = (name: string): string =>
-    t(`console:platform.name.${name}`, { defaultValue: name })
+  const platformPhrase = usePlatformInSentence()
 
   const dead = poolKnown ? platforms.filter((entry) => entry.usable === 0) : []
   // Every platform empty is one condition with one cause, not three alarms.
   const poolEmpty = dead.length > 0 && dead.length === platforms.length
+  // A platform that had identities and lost them is an outage whatever the
+  // reason. One that never had any waits for the refill job's word on it.
+  const alarming = poolEmpty
+    ? []
+    : dead.filter(
+        (entry) =>
+          entry.total > 0 ||
+          (!setupPending && unservedBy(entry, setup.get(entry.platform)) === null),
+      )
   const degraded = poolKnown ? poolDegraded : 0
 
-  if (openCircuits.length === 0 && dead.length === 0 && degraded === 0) return null
+  if (openCircuits.length === 0 && !poolEmpty && alarming.length === 0 && degraded === 0) {
+    return null
+  }
+
+  /** What happens next for a platform with no identity yet. */
+  const emptyHint = (platform: string): string => {
+    const values = { platform: platformPhrase(platform) }
+    const known = setup.get(platform)
+    if (!known) return t('console:overview.alert.platformEmptyHint', values)
+    if (known.minting > 0) return t('console:overview.alert.platformEmptyMinting', values)
+    if (known.backoff) {
+      return t('console:overview.alert.platformEmptyBackoff', {
+        ...values,
+        failures: known.backoff.failures,
+        when: format.time(known.backoff.until),
+      })
+    }
+    return t('console:overview.alert.platformEmptyAuto', values)
+  }
 
   return (
     <div className="u-stack-sm">
@@ -762,8 +846,8 @@ function Alerts({
           }
         />
       ) : (
-        dead.map((entry) => {
-          const name = platformLabel(entry.platform)
+        alarming.map((entry) => {
+          const name = platformPhrase(entry.platform)
           // A platform that had identities and lost them is an outage; one
           // that never had any is a platform nobody has set up yet, which is
           // worth saying and not worth a red banner.
@@ -778,12 +862,11 @@ function Alerts({
                   : 'console:overview.alert.platformDown',
                 { platform: name },
               )}
-              detail={t(
+              detail={
                 never
-                  ? 'console:overview.alert.platformEmptyHint'
-                  : 'console:overview.alert.platformDownHint',
-                { platform: name },
-              )}
+                  ? emptyHint(entry.platform)
+                  : t('console:overview.alert.platformDownHint', { platform: name })
+              }
               action={
                 onGoToIdentities ? (
                   <Button
@@ -882,6 +965,7 @@ const STATE_COLOR: Record<IdentityState, string> = {
 
 interface PoolDistributionProps {
   platforms: readonly PlatformCensus[]
+  setup: ReadonlyMap<string, PlatformSetup>
   total: number
   /** Whether each platform's name may link to its identities. */
   linkable: boolean
@@ -892,9 +976,10 @@ interface PoolDistributionProps {
  * green pool while one platform had nothing in it, which is the one thing
  * this card is for noticing.
  */
-function PoolDistribution({ platforms, total, linkable }: PoolDistributionProps) {
+function PoolDistribution({ platforms, setup, total, linkable }: PoolDistributionProps) {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
+  const platformPhrase = usePlatformInSentence()
 
   if (total === 0) {
     return <EmptyState title={t('console:overview.noIdentities')} description={t('console:overview.noIdentitiesHint')} />
@@ -904,6 +989,9 @@ function PoolDistribution({ platforms, total, linkable }: PoolDistributionProps)
     <div className="u-stack">
       {platforms.map((entry) => {
         const name = t(`console:platform.name.${entry.platform}`, { defaultValue: entry.platform })
+        // Where the alerts say nothing about an empty platform, this says why,
+        // so the zero reads as the setup it is rather than as a fault.
+        const unserved = unservedBy(entry, setup.get(entry.platform))
         return (
           <div key={entry.platform} className="u-stack-sm">
             <div className="u-row-between u-wrap">
@@ -914,14 +1002,29 @@ function PoolDistribution({ platforms, total, linkable }: PoolDistributionProps)
               )}
               <span
                 className="u-xs"
-                style={{ color: entry.active === 0 ? 'var(--caution)' : 'var(--text-muted)' }}
+                style={{
+                  color:
+                    entry.active === 0 && !unserved ? 'var(--caution)' : 'var(--text-muted)',
+                }}
               >
                 {t('console:pool.summary', { count: entry.active })}
               </span>
             </div>
+            {unserved ? (
+              <span className="u-xs u-muted">
+                {t(
+                  unserved === 'browser'
+                    ? 'console:overview.unservedBrowser'
+                    : 'console:overview.unservedOff',
+                  { platform: platformPhrase(entry.platform) },
+                )}
+              </span>
+            ) : null}
             <StateBar
               byState={entry.byState}
-              label={t('console:overview.poolDistributionFor', { platform: name })}
+              label={t('console:overview.poolDistributionFor', {
+                platform: platformPhrase(entry.platform),
+              })}
             />
             <div className="u-row u-wrap" style={{ gap: 'var(--space-4)' }}>
               {IDENTITY_STATES.map((state) => (
@@ -1037,6 +1140,36 @@ function poolCensus(status: SystemStatusResponse | undefined): {
     })
   }
   return { byState, total, platforms }
+}
+
+/** The refill job's report, by platform. Empty until it answers. */
+function poolSetup(level: PoolLevel | undefined): ReadonlyMap<string, PlatformSetup> {
+  const setup = new Map<string, PlatformSetup>()
+  if (!level) return setup
+  for (const row of level.platforms) {
+    setup.set(row.platform, {
+      canMint: row.can_mint ?? level.can_mint,
+      auto: row.auto,
+      minting: row.minting,
+      backoff: level.activity.backoffs?.[row.platform] ?? null,
+    })
+  }
+  return setup
+}
+
+/**
+ * Why an empty platform is not an alarm, or null when it is one.
+ *
+ * A platform no identity was ever stored for, and that nothing will mint, is
+ * one this instance was not set up to serve. Calls to it are refused, but that
+ * is the configuration rather than something to act on. One that had
+ * identities and lost them is an outage whatever the reason, so it never
+ * qualifies; nor does one the refill job has not reported on.
+ */
+function unservedBy(entry: PlatformCensus, setup: PlatformSetup | undefined): Unserved | null {
+  if (entry.total > 0 || !setup) return null
+  if (!setup.canMint) return 'browser'
+  return setup.auto ? null : 'off'
 }
 
 /**

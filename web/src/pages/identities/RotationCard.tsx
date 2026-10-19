@@ -6,7 +6,7 @@ import { useApiMutation } from '@/hooks'
 import { apiPost } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 
-import { lastLoginEndpoints, usePlatformName } from './shared'
+import { lastLoginEndpoints, usePlatformInSentence } from './shared'
 import type { IdentityRow, PoolLevel } from './types'
 
 /**
@@ -34,7 +34,7 @@ export function RotationCard({
 }) {
   const { t } = useTranslation(['console', 'common'])
   const toast = useToast()
-  const platformName = usePlatformName()
+  const platformPhrase = usePlatformInSentence()
   const [confirming, setConfirming] = useState<string[] | null>(null)
 
   const save = useApiMutation<{ rotation_endpoints: string[] | null }, string[] | null>(
@@ -106,12 +106,12 @@ export function RotationCard({
             <div className="u-stack-sm">
               <strong>
                 {t('console:identity.logins.lastTitle', {
-                  platform: platformName(identity.platform),
+                  platform: platformPhrase(identity.platform),
                 })}
               </strong>
               <span>
                 {t('console:identity.logins.lastBody', {
-                  platform: platformName(identity.platform),
+                  platform: platformPhrase(identity.platform),
                   endpoints: confirming.join(', '),
                 })}
               </span>

@@ -7,7 +7,7 @@ import { apiPost, isApiError, waitForTask } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { PLATFORMS, type Platform } from '@/lib/types'
 
-import { usePlatformName } from './shared'
+import { usePlatformInSentence, usePlatformName } from './shared'
 import { POOL_KEY, type PoolLevel, type ProxyOption } from './types'
 
 /** The platforms minted without a browser; see NATIVE_MINT_PLATFORMS. */
@@ -39,6 +39,7 @@ export function MintDialog({ open, proxies, onClose, onDone }: MintDialogProps) 
   const { t } = useTranslation(['console', 'common'])
   const toast = useToast()
   const platformName = usePlatformName()
+  const platformPhrase = usePlatformInSentence()
 
   // Shares the refill card's cache entry, so opening this costs no request.
   const pool = useApiQuery<PoolLevel>({ key: POOL_KEY, path: paths.identities.pool })
@@ -137,8 +138,8 @@ export function MintDialog({ open, proxies, onClose, onDone }: MintDialogProps) 
         platform === null
           ? t('console:identity.mint.description')
           : native
-            ? t('console:identity.mint.descriptionNative', { platform: platformName(platform) })
-            : t('console:identity.mint.descriptionBrowser', { platform: platformName(platform) })
+            ? t('console:identity.mint.descriptionNative', { platform: platformPhrase(platform) })
+            : t('console:identity.mint.descriptionBrowser', { platform: platformPhrase(platform) })
       }
       closeOnBackdrop={!busy}
       footer={
@@ -214,7 +215,7 @@ export function MintDialog({ open, proxies, onClose, onDone }: MintDialogProps) 
         {browserOnly.length > 0 && pool.isSuccess ? (
           <p className="u-xs u-muted" style={{ margin: 0 }}>
             {t('console:identity.mint.browserOnly', {
-              platforms: browserOnly.map(platformName).join(', '),
+              platforms: platformPhrase(browserOnly),
             })}
           </p>
         ) : null}

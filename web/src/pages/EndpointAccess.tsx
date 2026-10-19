@@ -16,7 +16,13 @@ import {
   Switch,
   useToast,
 } from '@/components'
-import { useApiMutation, useApiQuery, useInvalidate, useSession } from '@/hooks'
+import {
+  useApiMutation,
+  useApiQuery,
+  useInvalidate,
+  usePlatformInSentence,
+  useSession,
+} from '@/hooks'
 import { apiPut } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { atLeast } from '@/lib/roles'
@@ -111,6 +117,7 @@ function PlatformList({ path }: { path: string }) {
 
 export default function EndpointAccess() {
   const { t } = useTranslation('console')
+  const platformPhrase = usePlatformInSentence()
   const toast = useToast()
   const invalidate = useInvalidate()
   const session = useSession()
@@ -438,8 +445,8 @@ export default function EndpointAccess() {
         {pendingPlatforms.length > 0 ? (
           <p className="u-xs" style={{ margin: 0 }}>
             {pendingPlatforms.length === PLATFORMS.length
-              ? t('access.confirmEveryPlatform', { platforms: pendingPlatforms.join(', ') })
-              : t('access.confirmPlatforms', { platforms: pendingPlatforms.join(', ') })}
+              ? t('access.confirmEveryPlatform', { platforms: platformPhrase(pendingPlatforms) })
+              : t('access.confirmPlatforms', { platforms: platformPhrase(pendingPlatforms) })}
           </p>
         ) : null}
       </ConfirmDialog>

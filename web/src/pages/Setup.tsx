@@ -32,6 +32,8 @@ import {
   useApiMutation,
   useApiQuery,
   useFormatters,
+  usePlatformInSentence,
+  usePlatformName,
   useSetupStatus,
 } from '@/hooks'
 
@@ -536,6 +538,8 @@ interface PoolMintability {
 function MintStep({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation(['setup', 'console', 'common'])
   const toast = useToast()
+  const platformName = usePlatformName()
+  const platformPhrase = usePlatformInSentence()
 
   // Douyin and TikTok are minted in a real browser, and the browser is an
   // optional container - docker/compose.yml keeps it behind the `browser`
@@ -620,7 +624,7 @@ function MintStep({ onNext }: { onNext: () => void }) {
             onChange={(event) => {
               setPlatform(event.target.value as Platform)
             }}
-            options={mintable.map((value) => ({ value, label: value }))}
+            options={mintable.map((value) => ({ value, label: platformName(value) }))}
           />
           <Input
             label={t('console:identity.mint.count')}
@@ -639,7 +643,7 @@ function MintStep({ onNext }: { onNext: () => void }) {
         {browserOnly.length > 0 ? (
           <>
             <p className="u-xs u-muted">
-              {t('setup:mint.browserOnly', { platforms: browserOnly.join(', ') })}
+              {t('setup:mint.browserOnly', { platforms: platformPhrase(browserOnly) })}
             </p>
             <CodeBlock
               language="text"
