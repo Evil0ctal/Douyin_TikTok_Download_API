@@ -28,6 +28,7 @@ import { apiPost, apiPut, waitForTask } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { LANGUAGES, type Language } from '@/lib/language'
 import { POLL } from '@/lib/query'
+import { atLeast } from '@/lib/roles'
 
 /**
  * Alert channels and triggers.
@@ -61,7 +62,16 @@ interface SettingsResponse {
 const CHANNEL_TYPES = ['webhook', 'bark', 'wecom', 'dingtalk', 'telegram', 'smtp'] as const
 type ChannelType = (typeof CHANNEL_TYPES)[number]
 
-/** Mirrors TRIGGERS in src/dtk/ops/notify.py, which mirrors doc 15's table. */
+/**
+ * Mirrors TRIGGERS in src/dtk/ops/notify.py, which mirrors doc 15's table.
+ *
+ * It fell behind once: the capacity pair and media eviction were added on the
+ * server and not here, and because the page used to drop event names it did
+ * not know, saving any channel quietly re-subscribed a channel narrowed to
+ * `capacity_paused` to everything. Names this table lacks are now carried
+ * through untouched (see `toDraft`), so a lag here costs a label, not a
+ * subscription.
+ */
 interface TriggerSpec {
   event: string
   severity: 'error' | 'warning'
@@ -80,9 +90,29 @@ const TRIGGERS: readonly TriggerSpec[] = [
   { event: 'signature_stale', severity: 'error', dedupSeconds: 24 * HOUR, scope: 'endpoint' },
   { event: 'cookie_expiring', severity: 'warning', dedupSeconds: 24 * HOUR, scope: 'identity_id' },
   { event: 'backup_failed', severity: 'error', dedupSeconds: 24 * HOUR, scope: null },
+  { event: 'capacity_warning', severity: 'warning', dedupSeconds: 6 * HOUR, scope: 'worst_path' },
+  { event: 'capacity_paused', severity: 'error', dedupSeconds: 1 * HOUR, scope: 'worst_path' },
+  { event: 'media_evicted', severity: 'warning', dedupSeconds: 6 * HOUR, scope: null },
 ]
 
 const ALL_EVENTS: readonly string[] = TRIGGERS.map((trigger) => trigger.event)
+
+function isKnownEvent(event: string): boolean {
+  return ALL_EVENTS.includes(event)
+}
+
+/**
+ * The event list after one box was ticked or cleared.
+ *
+ * Empty means every event, so ticking the last known one collapses back to
+ * empty - which is also what lets a future event reach a channel that asked
+ * for everything. Names this console does not know ride along unchanged.
+ */
+function toggleEvent(events: readonly string[], event: string, on: boolean): string[] {
+  const selected = events.length === 0 ? [...ALL_EVENTS] : [...events]
+  const next = on ? [...new Set([...selected, event])] : selected.filter((item) => item !== event)
+  return ALL_EVENTS.every((known) => next.includes(known)) ? [] : next
+}
 
 /* -------------------------------------------------------------------------- */
 /* Channel shape                                                               */
@@ -160,7 +190,12 @@ interface ChannelDraft {
   name: string
   language: '' | Language
   enabled: boolean
-  /** Empty means every event; the descriptor omits the key in that case. */
+  /**
+   * Empty means every event; the descriptor omits the key in that case.
+   * Otherwise exactly what the descriptor lists, including names this console
+   * does not know - dropping those is what turned a narrowed channel into one
+   * that received everything.
+   */
   events: string[]
   fields: Record<FieldKey, string>
   ssl: boolean
@@ -232,7 +267,7 @@ function toDraft(record: Record<string, unknown>): ChannelDraft {
     name: readString(record, 'name', type),
     language: isLanguageValue(language) ? language : '',
     enabled: readBoolean(record, 'enabled', true),
-    events: events.filter((event) => ALL_EVENTS.includes(event)),
+    events,
     fields,
     ssl: readBoolean(record, 'ssl', false),
     starttls: readBoolean(record, 'starttls', true),
@@ -246,9 +281,11 @@ function toDescriptor(draft: ChannelDraft): Record<string, unknown> {
     enabled: draft.enabled,
   }
   if (draft.language) descriptor['language'] = draft.language
-  if (draft.events.length > 0 && draft.events.length < ALL_EVENTS.length) {
-    descriptor['events'] = draft.events
-  }
+  // Written as held. Collapsing "every known event" to "all" happens when a
+  // box is ticked (`toggleEvent`), never here: a count compared against this
+  // console's table cannot tell a full list from one that merely has as many
+  // entries, and the server reads what is written.
+  if (draft.events.length > 0) descriptor['events'] = draft.events
 
   for (const spec of FIELDS[draft.type]) {
     const value = draft.fields[spec.key].trim()
@@ -549,27 +586,43 @@ function ChannelEditor({ open, draft, existingNames, saving, onChange, onClose, 
           <div className="u-stack-sm">
             {TRIGGERS.map((trigger) => {
               const checked = draft.events.length === 0 || draft.events.includes(trigger.event)
+              // An empty list means every event, so clearing the last box
+              // would subscribe the channel to all of them. Disable the
+              // channel instead to silence it.
+              const last = checked && draft.events.length === 1
               return (
                 <Checkbox
                   key={trigger.event}
                   checked={checked}
-                  label={<span className="u-mono">{trigger.event}</span>}
-                  hint={t('notifications.event.dedupHint', {
-                    window: formatters.duration(trigger.dedupSeconds * 1000),
-                    scope: trigger.scope ?? t('notifications.event.scopeGlobal'),
-                  })}
+                  disabled={last}
+                  label={
+                    <span className="u-row u-wrap" style={{ gap: 'var(--space-2)' }}>
+                      <span className="u-mono">{trigger.event}</span>
+                      <span className="u-muted u-xs">{t(`notifications.eventText.${trigger.event}`)}</span>
+                    </span>
+                  }
+                  hint={
+                    last
+                      ? t('notifications.field.eventsLast')
+                      : t('notifications.event.dedupHint', {
+                          window: formatters.duration(trigger.dedupSeconds * 1000),
+                          scope: trigger.scope ?? t('notifications.event.scopeGlobal'),
+                        })
+                  }
                   onChange={(event) => {
-                    const selected = draft.events.length === 0 ? [...ALL_EVENTS] : draft.events
-                    patch({
-                      events: event.target.checked
-                        ? [...new Set([...selected, trigger.event])]
-                        : selected.filter((item) => item !== trigger.event),
-                    })
+                    patch({ events: toggleEvent(draft.events, trigger.event, event.target.checked) })
                   }}
                 />
               )
             })}
           </div>
+          {draft.events.some((event) => !isKnownEvent(event)) ? (
+            <p className="u-xs u-muted" style={{ margin: 'var(--space-2) 0 0' }}>
+              {t('notifications.field.eventsUnknown', {
+                events: draft.events.filter((event) => !isKnownEvent(event)).join(', '),
+              })}
+            </p>
+          ) : null}
         </fieldset>
 
         <Switch
@@ -627,7 +680,10 @@ export default function Notifications() {
   const [testing, setTesting] = useState<string | null>(null)
 
   const role = session.data?.role ?? null
-  const canWrite = role === null || role !== 'viewer'
+  // Channels are a runtime setting and the test route is `manage_pool`: an
+  // operator for both. A viewer is shown the configuration, not buttons that
+  // can only answer 403.
+  const canWrite = atLeast(role, 'operator')
 
   const rows = useMemo<SettingRow[]>(() => query.data?.settings ?? [], [query.data])
   const valueOf = (key: string): unknown => rows.find((row) => row.key === key)?.value
@@ -747,11 +803,16 @@ export default function Notifications() {
       id: 'events',
       header: t('notifications.column.events'),
       align: 'right',
-      cell: (row) => (
-        <span className="u-mono">
-          {row.events.length === 0 ? ALL_EVENTS.length : row.events.length}/{ALL_EVENTS.length}
-        </span>
-      ),
+      cell: (row) => {
+        const known = row.events.filter(isKnownEvent).length
+        const unknown = row.events.length - known
+        return (
+          <span className="u-mono" title={unknown > 0 ? row.events.join(', ') : undefined}>
+            {row.events.length === 0 ? ALL_EVENTS.length : known}/{ALL_EVENTS.length}
+            {unknown > 0 ? ` +${unknown}` : ''}
+          </span>
+        )
+      },
       width: '110px',
     },
     {
@@ -772,7 +833,7 @@ export default function Notifications() {
             size="sm"
             variant="ghost"
             loading={testing === row.name && sendTest.isPending}
-            disabled={!canWrite || sendTest.isPending}
+            disabled={sendTest.isPending}
             onClick={() => {
               setTesting(row.name)
               sendTest.mutate(row.name)
@@ -783,7 +844,6 @@ export default function Notifications() {
           <Button
             size="sm"
             variant="ghost"
-            disabled={!canWrite}
             onClick={() => {
               setEditing({ draft: row, index: channels.indexOf(row) })
             }}
@@ -793,7 +853,6 @@ export default function Notifications() {
           <Button
             size="sm"
             variant="ghost"
-            disabled={!canWrite}
             onClick={() => {
               setDeleting(row.name)
             }}
@@ -805,6 +864,8 @@ export default function Notifications() {
       width: '210px',
     },
   ]
+
+  const columns = canWrite ? channelColumns : channelColumns.filter((column) => column.id !== 'actions')
 
   const triggerColumns: Array<Column<TriggerSpec>> = [
     {
@@ -856,31 +917,32 @@ export default function Notifications() {
         title={t('page.notifications.title')}
         description={t('page.notifications.description')}
         actions={
-          <>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<BellIcon />}
-              disabled={!canWrite || sendTest.isPending}
-              loading={testing === null && sendTest.isPending}
-              onClick={() => {
-                setTesting(null)
-                sendTest.mutate(null)
-              }}
-            >
-              {t('notifications.action.testAll')}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!canWrite}
-              onClick={() => {
-                setEditing({ draft: emptyDraft(), index: null })
-              }}
-            >
-              {t('notifications.action.add')}
-            </Button>
-          </>
+          canWrite ? (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<BellIcon />}
+                disabled={sendTest.isPending}
+                loading={testing === null && sendTest.isPending}
+                onClick={() => {
+                  setTesting(null)
+                  sendTest.mutate(null)
+                }}
+              >
+                {t('notifications.action.testAll')}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setEditing({ draft: emptyDraft(), index: null })
+                }}
+              >
+                {t('notifications.action.add')}
+              </Button>
+            </>
+          ) : null
         }
       />
 
@@ -974,7 +1036,7 @@ export default function Notifications() {
             }
           >
             <DataTable
-              columns={channelColumns}
+              columns={columns}
               rows={channels}
               getRowId={(row) => row.name}
               storageKey="notification-channels"
@@ -982,16 +1044,17 @@ export default function Notifications() {
               emptyTitle={t('notifications.empty.title')}
               emptyDescription={t('notifications.empty.description')}
               emptyAction={
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={!canWrite}
-                  onClick={() => {
-                    setEditing({ draft: emptyDraft(), index: null })
-                  }}
-                >
-                  {t('notifications.action.add')}
-                </Button>
+                canWrite ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setEditing({ draft: emptyDraft(), index: null })
+                    }}
+                  >
+                    {t('notifications.action.add')}
+                  </Button>
+                ) : undefined
               }
               caption={t('notifications.channels.title')}
             />
