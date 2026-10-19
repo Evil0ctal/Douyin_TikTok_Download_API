@@ -350,7 +350,7 @@ func (m *manager) fetchItem(ctx context.Context, target *item, directory string,
 	}
 	m.log.Info("item stored",
 		"name", target.Name, "kind", target.Kind,
-		"host", result.Host, "bytes", result.Bytes)
+		"host", result.Host, "bytes", result.Bytes, "resumes", result.Resumes)
 	m.recordItem(target, "done", result.Bytes, result.SHA256, result.ContentType, "")
 }
 
