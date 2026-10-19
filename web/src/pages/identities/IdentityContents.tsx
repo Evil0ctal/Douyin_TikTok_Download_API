@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -177,17 +177,35 @@ function SessionCheckButton({
     },
   )
 
+  // A latch rather than the parent clearing the flag alone: StrictMode runs
+  // this effect twice in development, and each run was a request to the
+  // platform as this account.
+  const ran = useRef(false)
   const { mutate } = check
   useEffect(() => {
-    if (!autoRun) return
+    if (!autoRun || ran.current) return
+    ran.current = true
     onAutoRan()
     mutate()
   }, [autoRun, onAutoRan, mutate])
 
+  // In the card's body, not its header: the answer can be a three-line
+  // sentence, and the header's action slot does not shrink, so it pushed the
+  // title out of a drawer that then scrolled sideways.
   return (
-    <div className="u-row u-wrap">
+    <div className="u-stack-sm" style={{ alignItems: 'flex-start' }}>
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={check.isPending}
+        onClick={() => {
+          check.mutate()
+        }}
+      >
+        {t('console:identity.session.check')}
+      </Button>
       {result ? (
-        <span className="u-row" style={{ gap: 'var(--space-1)' }}>
+        <span className="u-row u-wrap" style={{ gap: 'var(--space-2)' }}>
           <StatusBadge
             kind="health"
             value={result.logged_in ? 'healthy' : 'unhealthy'}
@@ -201,16 +219,6 @@ function SessionCheckButton({
           {result.account_id ? <CopyableId value={result.account_id} /> : null}
         </span>
       ) : null}
-      <Button
-        size="sm"
-        variant="secondary"
-        loading={check.isPending}
-        onClick={() => {
-          check.mutate()
-        }}
-      >
-        {t('console:identity.session.check')}
-      </Button>
     </div>
   )
 }
@@ -257,16 +265,6 @@ export function IdentityContents({
     <Card
       title={t('console:identity.contents.title')}
       description={t('console:identity.contents.hint')}
-      actions={
-        canManage && identity.state !== 'retired' ? (
-          <SessionCheckButton
-            key={identity.id}
-            identity={identity}
-            autoRun={autoCheck}
-            onAutoRan={onAutoChecked}
-          />
-        ) : null
-      }
     >
       <div className="u-stack">
         <div className="u-row u-wrap">
@@ -296,6 +294,15 @@ export function IdentityContents({
             />
           ) : null}
         </div>
+
+        {canManage && identity.state !== 'retired' ? (
+          <SessionCheckButton
+            key={identity.id}
+            identity={identity}
+            autoRun={autoCheck}
+            onAutoRan={onAutoChecked}
+          />
+        ) : null}
 
         {loading ? (
           <Skeleton height={18} />

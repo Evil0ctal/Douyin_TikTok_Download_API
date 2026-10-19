@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Card, ConfirmDialog, Switch, useToast } from '@/components'
+import { AlertIcon, Banner, Button, Card, Switch, useToast } from '@/components'
 import { useApiMutation } from '@/hooks'
 import { apiPost } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
@@ -97,24 +97,50 @@ export function RotationCard({
             else save.mutate([])
           }}
         />
+        {/* Asked here, in the card, rather than in a dialog over the drawer:
+            the two overlays both answer Escape, so cancelling the question
+            closed the drawer it was asked from. Reserving is undone by the
+            same switch, so a question in place is enough. */}
+        {confirming !== null ? (
+          <Banner tone="caution" icon={<AlertIcon size={14} />}>
+            <div className="u-stack-sm">
+              <strong>
+                {t('console:identity.logins.lastTitle', {
+                  platform: platformName(identity.platform),
+                })}
+              </strong>
+              <span>
+                {t('console:identity.logins.lastBody', {
+                  platform: platformName(identity.platform),
+                  endpoints: confirming.join(', '),
+                })}
+              </span>
+              <span className="u-row u-wrap">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={save.isPending}
+                  onClick={() => {
+                    setConfirming(null)
+                  }}
+                >
+                  {t('common:action.cancel')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  loading={save.isPending}
+                  onClick={() => {
+                    save.mutate([])
+                  }}
+                >
+                  {t('console:identity.logins.reserveAnyway')}
+                </Button>
+              </span>
+            </div>
+          </Banner>
+        ) : null}
       </div>
-      <ConfirmDialog
-        open={confirming !== null}
-        danger
-        loading={save.isPending}
-        title={t('console:identity.logins.lastTitle', { platform: platformName(identity.platform) })}
-        description={t('console:identity.logins.lastBody', {
-          platform: platformName(identity.platform),
-          endpoints: (confirming ?? []).join(', '),
-        })}
-        confirmLabel={t('console:identity.logins.reserveAnyway')}
-        onCancel={() => {
-          setConfirming(null)
-        }}
-        onConfirm={() => {
-          save.mutate([])
-        }}
-      />
     </Card>
   )
 }

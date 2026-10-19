@@ -77,6 +77,8 @@ import {
 const PAGE_LIMIT = 200
 /** MAX_ADMIN_PAGE_SIZE on the server: past this the filters have to narrow. */
 const MAX_LIMIT = 500
+/** What one export, and one restore, accepts (`IdentityExport.identity_ids`). */
+const EXPORT_CHUNK = 200
 
 /**
  * One page of the listing, with what `meta` says about the rest.
@@ -363,12 +365,33 @@ export default function Identities() {
    * date so two exports do not overwrite each other, and the document carries
    * a warning field for whoever finds it later.
    */
-  const exporting = useApiMutation<IdentityBundleFile, string[]>(
-    (ids) => apiPost<IdentityBundleFile>(paths.identities.export, { identity_ids: ids }),
+  const exporting = useApiMutation<number, string[]>(
+    async (ids) => {
+      // In files of EXPORT_CHUNK. The route takes at most that many, and so
+      // does a restore: one merged document past it could be written and never
+      // read back. "Load more" lets the page hold more than one request's worth,
+      // and select-all then asked for all of it and got a 422.
+      const chunks: string[][] = []
+      for (let start = 0; start < ids.length; start += EXPORT_CHUNK) {
+        chunks.push(ids.slice(start, start + EXPORT_CHUNK))
+      }
+      const filename = exportFilename()
+      let written = 0
+      for (const [index, chunk] of chunks.entries()) {
+        const bundle = await apiPost<IdentityBundleFile>(paths.identities.export, {
+          identity_ids: chunk,
+        })
+        saveJson(
+          bundle,
+          chunks.length > 1 ? filename.replace(/\.json$/, `-part-${index + 1}.json`) : filename,
+        )
+        written += bundle.identities.length
+      }
+      return written
+    },
     {
-      onSuccess: (bundle) => {
-        saveJson(bundle, exportFilename())
-        toast.success(t('console:identity.export.done', { count: bundle.identities.length }))
+      onSuccess: (written) => {
+        toast.success(t('console:identity.export.done', { count: written }))
       },
       onError: (error) => {
         toast.apiError(error, t('console:identity.export.failed'))
@@ -761,6 +784,10 @@ export default function Identities() {
         exporting={exporting.isPending}
         onChanged={refresh}
         onClose={() => {
+          // The drawer and a confirm opened from it both listen for Escape, so
+          // cancelling "Retire 1 identity?" also closed the drawer behind it.
+          // The confirm is still open when both handlers run; that is the tell.
+          if (retiring !== null || resetting !== null) return
           openIdentity(null)
         }}
       />
