@@ -1101,8 +1101,14 @@ export default function Playground() {
 
   /* ---------------------------------------------------------------- view -- */
 
+  /** A parameter the platform's endpoint does not take is left out, as
+   *  ParamDef.platforms says. It used to be drawn disabled, under the role
+   *  message - "Needs the  role", with no role in it, since none was missing. */
   const paramsBySection = (section: ParamSection): ParamDef[] =>
-    endpoint.params.filter((param) => param.section === section)
+    endpoint.params.filter(
+      (param) =>
+        param.section === section && (!param.platforms || param.platforms.includes(platform)),
+    )
 
   const renderParam = (param: ParamDef) => {
     const permitted = allows(param)

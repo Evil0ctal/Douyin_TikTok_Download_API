@@ -258,7 +258,9 @@ const SEC_UID_PARAM: ParamDef = {
   where: 'query',
   section: 'target',
   oneOf: 'target',
-  placeholder: { douyin: 'MS4wLjABAAAA…', tiktok: 'MS4wLjABAAAA…', bilibili: '2' },
+  // A placeholder of "2" read as a filled-in value; a longer number reads as
+  // the shape of a mid.
+  placeholder: { douyin: 'MS4wLjABAAAA…', tiktok: 'MS4wLjABAAAA…', bilibili: '12345678' },
   descriptions: {
     tiktok: 'playground.paramFor.tiktok.sec_user_id',
     bilibili: 'playground.paramFor.bilibili.sec_user_id',
