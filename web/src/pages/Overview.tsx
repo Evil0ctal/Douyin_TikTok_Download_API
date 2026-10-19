@@ -142,6 +142,12 @@ interface PlatformCensus {
   byState: Record<string, number>
   total: number
   active: number
+  /**
+   * Active plus degraded: what rotation will actually hand a call. The
+   * scheduler falls back to a degraded identity once the active ones are
+   * gone, so a platform is refusing calls only when both are zero.
+   */
+  usable: number
 }
 
 /** Quiet until the volume is nearly full, loud once it is. */
@@ -727,7 +733,7 @@ function Alerts({
   const platformLabel = (name: string): string =>
     t(`console:platform.name.${name}`, { defaultValue: name })
 
-  const dead = poolKnown ? platforms.filter((entry) => entry.active === 0) : []
+  const dead = poolKnown ? platforms.filter((entry) => entry.usable === 0) : []
   // Every platform empty is one condition with one cause, not three alarms.
   const poolEmpty = dead.length > 0 && dead.length === platforms.length
   const degraded = poolKnown ? poolDegraded : 0
@@ -1021,19 +1027,26 @@ function poolCensus(status: SystemStatusResponse | undefined): {
       total += count
       platformTotal += count
     }
-    platforms.push({ platform, byState: counts, total: platformTotal, active: counts['active'] ?? 0 })
+    const active = counts['active'] ?? 0
+    platforms.push({
+      platform,
+      byState: counts,
+      total: platformTotal,
+      active,
+      usable: active + (counts['degraded'] ?? 0),
+    })
   }
   return { byState, total, platforms }
 }
 
 /**
  * The headline tile's colour: red when no platform can serve a call, amber
- * when one that had identities has none active, green otherwise. A platform
+ * when one that had identities can serve none, green otherwise. A platform
  * never set up does not turn it amber; its own alert says so.
  */
 function poolTone(platforms: readonly PlatformCensus[]): 'success' | 'warning' | 'danger' {
-  if (platforms.every((entry) => entry.active === 0)) return 'danger'
-  if (platforms.some((entry) => entry.active === 0 && entry.total > 0)) return 'warning'
+  if (platforms.every((entry) => entry.usable === 0)) return 'danger'
+  if (platforms.some((entry) => entry.usable === 0 && entry.total > 0)) return 'warning'
   return 'success'
 }
 

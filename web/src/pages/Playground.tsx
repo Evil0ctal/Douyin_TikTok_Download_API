@@ -1808,7 +1808,9 @@ export default function Playground() {
                     ))}
                   </div>
                 )}
-                {pool.active === 0 && !system.isLoading && !system.isError ? (
+                {/* Degraded identities still serve once the active ones are gone,
+                    so only both at zero means calls are refused. */}
+                {pool.active + pool.degraded === 0 && !system.isLoading && !system.isError ? (
                   <span className="u-xs" style={{ color: 'var(--warning)' }}>
                     {poolPlatform
                       ? t('playground.poolEmptyHintFor', { platform: platformLabel(poolPlatform) })
