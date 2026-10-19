@@ -4,18 +4,15 @@ import { useTranslation } from 'react-i18next'
 import {
   Button,
   Card,
-  CodeBlock,
   ConfirmDialog,
   CopyableId,
   DataTable,
-  EmptyState,
-  ErrorState,
-  GlobeIcon,
   Input,
   MaskedSecret,
   Modal,
   PageHeader,
   Select,
+  SpinnerIcon,
   StatusBadge,
   Textarea,
   useToast,
@@ -24,8 +21,11 @@ import {
 import { apiDelete, apiPost, apiPut, waitForTask, type ApiError } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
+import { atLeast } from '@/lib/roles'
 import type { Proxy } from '@/lib/types'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
+import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
+
+import { ProxyDrawer, type ProbeState, type ProxyProbeResult } from './ProxyDrawer'
 
 /* -------------------------------------------------------------------------- */
 /* Bulk paste parsing                                                          */
@@ -193,23 +193,39 @@ const IMPORT_REJECTIONS: ReadonlySet<string> = new Set([
   'port_out_of_range',
 ])
 
-/** What a proxy probe reports (mirrors ProxyProbe in src/dtk/ops/probes.py). */
-interface ProxyProbeResult {
-  ok?: boolean
-  latency_ms?: number | null
-  exit_ip?: string | null
-  country?: string | null
-  timezone?: string | null
-  detail?: string | null
-}
-
-interface ProbeState {
-  running: boolean
-  result?: ProxyProbeResult
-  error?: ApiError
-}
-
 const PROXIES_KEY = ['admin', 'proxies'] as const
+
+/**
+ * Probes run at once, at most. Each one is a worker task with its own 90 s
+ * budget; one at a time, an import of twenty dead proxies took half an hour to
+ * report, and all of them at once would queue twenty tasks behind whatever the
+ * worker was already doing.
+ */
+const PROBE_CONCURRENCY = 4
+const PROBE_TIMEOUT_MS = 90_000
+
+/** Which button started a bulk probe, so only that one shows its progress. */
+type TestScope = 'all' | 'selected'
+
+interface TestRun {
+  done: number
+  total: number
+  scope: TestScope
+}
+
+/** The host part of a masked URL - what an operator recognises a proxy by. */
+function hostOf(masked: string | null | undefined): string | null {
+  if (!masked) return null
+  const afterScheme = masked.includes('://') ? masked.slice(masked.indexOf('://') + 3) : masked
+  const authority = afterScheme.slice(afterScheme.lastIndexOf('@') + 1).split('/')[0] ?? ''
+  const [host] = splitHostPort(authority)
+  return host || null
+}
+
+/** What a single-proxy delete asks to be typed: the name it was given, else its host. */
+function confirmNameOf(proxy: ProxyRow): string {
+  return proxy.label?.trim() || hostOf(proxy.url_masked) || proxy.id
+}
 
 /* -------------------------------------------------------------------------- */
 /* Page                                                                        */
@@ -220,6 +236,11 @@ export default function Proxies() {
   const format = useFormatters()
   const toast = useToast()
   const invalidate = useInvalidate()
+  const session = useSession()
+  // Every write here is manage_pool on the server. The controls are hidden
+  // below that rather than shown and answered with a 403; the server is still
+  // the gate.
+  const canManage = atLeast(session.data?.role ?? null, 'operator')
 
   const list = useApiQuery<ProxyRow[]>({
     key: PROXIES_KEY,
@@ -231,11 +252,12 @@ export default function Proxies() {
   const [healthFilter, setHealthFilter] = useState<'all' | 'healthy' | 'unhealthy'>('all')
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [probes, setProbes] = useState<Record<string, ProbeState>>({})
+  const [testing, setTesting] = useState<TestRun | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<ProxyRow | null>(null)
   const [deleting, setDeleting] = useState<ProxyRow[] | null>(null)
-  const [probeDetail, setProbeDetail] = useState<{ proxy: ProxyRow; state: ProbeState } | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   const refresh = (): Promise<void> => invalidate(PROXIES_KEY)
 
@@ -251,22 +273,67 @@ export default function Proxies() {
     })
   }, [list.data, search, healthFilter])
 
+  const openProxy = (list.data ?? []).find((row) => row.id === openId) ?? null
+
   const setProbe = (id: string, state: ProbeState): void => {
     setProbes((current) => ({ ...current, [id]: state }))
   }
 
-  /** Queue a probe, wait for the task, then keep the answer beside the row. */
-  const runProbe = async (id: string): Promise<void> => {
+  /** Queue one probe and wait for it. True when the proxy answered. */
+  const probeOne = async (id: string): Promise<boolean> => {
     setProbe(id, { running: true })
     try {
       const queued = await apiPost<{ task_id: string }>(paths.proxies.test(id))
-      const result = await waitForTask<ProxyProbeResult>(queued.task_id, { timeoutMs: 90_000 })
+      const result = await waitForTask<ProxyProbeResult>(queued.task_id, {
+        timeoutMs: PROBE_TIMEOUT_MS,
+      })
       setProbe(id, { running: false, result })
-      await refresh()
+      return result.ok === true
     } catch (error) {
       setProbe(id, { running: false, error: error as ApiError })
-      toast.apiError(error, t('console:proxy.test.failed'))
+      return false
     }
+  }
+
+  /** One proxy, from its row or its drawer. Its failure is worth a toast of its own. */
+  const runProbe = async (id: string): Promise<void> => {
+    const ok = await probeOne(id)
+    await refresh()
+    if (!ok) toast.warning(t('console:proxy.test.failed'))
+  }
+
+  /**
+   * Many proxies, a few at a time, and one sentence at the end.
+   *
+   * After an import every failure used to raise its own toast, so pasting a
+   * provider list with a dozen dead lines buried the page in a dozen error
+   * toasts that stay until dismissed. The rows carry the per-proxy answer;
+   * the summary is the only thing worth interrupting for.
+   */
+  const testMany = async (ids: readonly string[], scope: TestScope): Promise<void> => {
+    if (ids.length === 0 || testing !== null) return
+    const queue = [...ids]
+    let ok = 0
+    let failed = 0
+    setTesting({ done: 0, total: queue.length, scope })
+    const worker = async (): Promise<void> => {
+      for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+        if (await probeOne(id)) ok += 1
+        else failed += 1
+        setTesting((current) => (current ? { ...current, done: current.done + 1 } : current))
+      }
+    }
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(PROBE_CONCURRENCY, queue.length) }, () => worker()),
+      )
+    } finally {
+      setTesting(null)
+      await refresh()
+    }
+    const summary = t('console:proxy.test.summary', { ok, failed })
+    if (failed > 0) toast.warning(summary)
+    else toast.success(summary)
   }
 
   const setHealthy = useApiMutation<unknown, { ids: string[]; healthy: boolean }>(
@@ -300,6 +367,7 @@ export default function Proxies() {
         toast.success(t('console:proxy.deleted', { count: ids.length }))
         setDeleting(null)
         setSelected(new Set())
+        if (openId && ids.includes(openId)) setOpenId(null)
         await refresh()
       },
       onError: (error) => {
@@ -307,6 +375,19 @@ export default function Proxies() {
       },
     },
   )
+
+  // What a delete takes with it. The list already counts the identities each
+  // proxy carries, so the dialog can say how many go rather than one generic
+  // sentence about identities in general.
+  const retiring = (deleting ?? []).reduce((sum, row) => sum + (row.identity_count ?? 0), 0)
+  const deletePhrase =
+    retiring === 0 || deleting === null
+      ? undefined
+      : deleting.length === 1 && deleting[0]
+        ? confirmNameOf(deleting[0])
+        : // Several proxies have no one name to type; the number of identities
+          // about to go is the thing worth having read.
+          String(retiring)
 
   const columns: Array<Column<ProxyRow>> = [
     {
@@ -409,50 +490,61 @@ export default function Proxies() {
       sortValue: (row) => row.created_at,
       cell: (row) => <span title={format.timestamp(row.created_at)}>{format.date(row.created_at)}</span>,
     },
-    {
-      id: 'actions',
-      header: <span className="u-sr-only">{t('common:action.more')}</span>,
-      hideable: false,
-      width: '210px',
-      cell: (row) => (
-        <span className="u-row">
-          <Button
-            size="sm"
-            variant="secondary"
-            loading={probes[row.id]?.running ?? false}
-            onClick={(event) => {
-              event.stopPropagation()
-              void runProbe(row.id)
-            }}
-          >
-            {t('common:action.test')}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(event) => {
-              event.stopPropagation()
-              setEditing(row)
-            }}
-          >
-            {t('common:action.edit')}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(event) => {
-              event.stopPropagation()
-              setDeleting([row])
-            }}
-          >
-            {t('common:action.delete')}
-          </Button>
-        </span>
-      ),
-    },
+    ...(canManage
+      ? [
+          {
+            id: 'actions',
+            header: <span className="u-sr-only">{t('common:action.more')}</span>,
+            hideable: false,
+            width: '210px',
+            cell: (row: ProxyRow) => (
+              <span className="u-row">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={probes[row.id]?.running ?? false}
+                  disabled={testing !== null}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void runProbe(row.id)
+                  }}
+                >
+                  {t('common:action.test')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setEditing(row)
+                  }}
+                >
+                  {t('common:action.edit')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setDeleting([row])
+                  }}
+                >
+                  {t('common:action.delete')}
+                </Button>
+              </span>
+            ),
+          } satisfies Column<ProxyRow>,
+        ]
+      : []),
   ]
 
   const selectedRows = rows.filter((row) => selected.has(row.id))
+  // Progress in the label rather than a spinner over it: `loading` hides the
+  // label, and "4 of 15" is what somebody waiting on a provider list wants.
+  const progressOf = (scope: TestScope): string | null =>
+    testing?.scope === scope
+      ? t('console:proxy.test.progress', { done: testing.done, total: testing.total })
+      : null
 
   return (
     <div className="u-page">
@@ -460,24 +552,39 @@ export default function Proxies() {
         title={t('console:page.proxies.title')}
         description={t('console:page.proxies.description')}
         actions={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setImportOpen(true)
-              }}
-            >
-              {t('console:proxy.import.action')}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setAddOpen(true)
-              }}
-            >
-              {t('console:proxy.add.action')}
-            </Button>
-          </>
+          canManage ? (
+            <>
+              <Button
+                variant="ghost"
+                icon={testing?.scope === 'all' ? <SpinnerIcon /> : undefined}
+                disabled={testing !== null || (list.data ?? []).length === 0}
+                onClick={() => {
+                  void testMany(
+                    (list.data ?? []).map((row) => row.id),
+                    'all',
+                  )
+                }}
+              >
+                {progressOf('all') ?? t('console:proxy.test.all')}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setImportOpen(true)
+                }}
+              >
+                {t('console:proxy.import.action')}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setAddOpen(true)
+                }}
+              >
+                {t('console:proxy.add.action')}
+              </Button>
+            </>
+          ) : undefined
         }
       />
 
@@ -493,25 +600,28 @@ export default function Proxies() {
           }}
           storageKey="proxies"
           defaultSort={{ columnId: 'health', direction: 'asc' }}
-          selectedIds={selected}
-          onSelectionChange={setSelected}
+          // Selection exists for the bulk actions, and every one of them is a
+          // write; a viewer would be ticking boxes that lead nowhere.
+          selectedIds={canManage ? selected : undefined}
+          onSelectionChange={canManage ? setSelected : undefined}
           flashValue={(row) => (row.healthy ? 'healthy' : 'unhealthy')}
           caption={t('console:page.proxies.title')}
           onRowClick={(row) => {
-            const state = probes[row.id]
-            if (state?.result || state?.error) setProbeDetail({ proxy: row, state })
+            setOpenId(row.id)
           }}
           emptyTitle={t('console:proxy.empty.title')}
           emptyDescription={t('console:proxy.empty.description')}
           emptyAction={
-            <Button
-              variant="primary"
-              onClick={() => {
-                setImportOpen(true)
-              }}
-            >
-              {t('console:proxy.import.action')}
-            </Button>
+            canManage ? (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setImportOpen(true)
+                }}
+              >
+                {t('console:proxy.import.action')}
+              </Button>
+            ) : undefined
           }
           toolbar={
             <>
@@ -539,8 +649,23 @@ export default function Proxies() {
                   ]}
                 />
               </FilterSlot>
-              {selected.size > 0 ? (
+              {canManage && selected.size > 0 ? (
                 <>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={testing?.scope === 'selected' ? <SpinnerIcon /> : undefined}
+                    disabled={testing !== null || selectedRows.length === 0}
+                    onClick={() => {
+                      void testMany(
+                        selectedRows.map((row) => row.id),
+                        'selected',
+                      )
+                    }}
+                  >
+                    {progressOf('selected') ??
+                      t('console:proxy.test.selected', { count: selectedRows.length })}
+                  </Button>
                   <Button
                     size="sm"
                     variant="secondary"
@@ -577,6 +702,28 @@ export default function Proxies() {
         />
       </Card>
 
+      <ProxyDrawer
+        proxy={openProxy}
+        probe={openProxy ? probes[openProxy.id] : undefined}
+        canManage={canManage}
+        onClose={() => {
+          setOpenId(null)
+        }}
+        onTest={(proxy) => {
+          void runProbe(proxy.id)
+        }}
+        onEdit={(proxy) => {
+          const row = (list.data ?? []).find((entry) => entry.id === proxy.id)
+          setOpenId(null)
+          if (row) setEditing(row)
+        }}
+        onDelete={(proxy) => {
+          const row = (list.data ?? []).find((entry) => entry.id === proxy.id)
+          setOpenId(null)
+          if (row) setDeleting([row])
+        }}
+      />
+
       <ProxyFormDialog
         key={editing?.id ?? 'new'}
         open={addOpen || editing !== null}
@@ -599,7 +746,13 @@ export default function Proxies() {
         }}
         onImported={async (created) => {
           await refresh()
-          for (const proxy of created) await runProbe(proxy.id)
+          // Not awaited: the dialog's submit stayed spinning until the last
+          // probe of the batch came back, which on a list of dead proxies was
+          // minutes. The report is ready now; the probes report on the rows.
+          void testMany(
+            created.map((proxy) => proxy.id),
+            'all',
+          )
         }}
       />
 
@@ -610,6 +763,7 @@ export default function Proxies() {
         title={t('console:proxy.delete.title', { count: deleting?.length ?? 0 })}
         description={t('console:proxy.delete.description')}
         confirmLabel={t('common:action.delete')}
+        confirmPhrase={deletePhrase}
         onCancel={() => {
           setDeleting(null)
         }}
@@ -617,21 +771,30 @@ export default function Proxies() {
           remove.mutate((deleting ?? []).map((row) => row.id))
         }}
       >
-        <ul className="u-stack-sm u-mono u-xs" style={{ paddingInlineStart: 'var(--space-4)' }}>
-          {(deleting ?? []).slice(0, 8).map((row) => (
-            <li key={row.id}>{row.url_masked ?? row.id}</li>
-          ))}
-        </ul>
+        <div className="u-stack-sm">
+          <p
+            className="u-xs"
+            style={{ margin: 0, color: retiring > 0 ? 'var(--danger)' : undefined }}
+          >
+            {retiring > 0
+              ? t('console:proxy.delete.retires', { count: retiring })
+              : t('console:proxy.delete.retiresNone')}
+          </p>
+          <ul className="u-stack-sm u-mono u-xs" style={{ paddingInlineStart: 'var(--space-4)' }}>
+            {(deleting ?? []).slice(0, 8).map((row) => (
+              <li key={row.id}>
+                {row.url_masked ?? row.id}
+                {row.identity_count ? (
+                  <span className="u-muted">
+                    {' · '}
+                    {t('console:proxy.delete.rowIdentities', { count: row.identity_count })}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
       </ConfirmDialog>
-
-      <ProbeResultDialog
-        open={probeDetail !== null}
-        proxy={probeDetail?.proxy ?? null}
-        state={probeDetail?.state ?? null}
-        onClose={() => {
-          setProbeDetail(null)
-        }}
-      />
     </div>
   )
 }
@@ -945,70 +1108,6 @@ function ImportReportView({ report }: { report: ImportReport }) {
           ))}
         </ul>
       ) : null}
-    </div>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Probe result                                                                */
-/* -------------------------------------------------------------------------- */
-
-interface ProbeResultDialogProps {
-  open: boolean
-  proxy: ProxyRow | null
-  state: ProbeState | null
-  onClose: () => void
-}
-
-function ProbeResultDialog({ open, proxy, state, onClose }: ProbeResultDialogProps) {
-  const { t } = useTranslation(['console', 'common'])
-  const format = useFormatters()
-
-  if (!proxy) return null
-
-  const result = state?.result
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={t('console:proxy.test.title')}
-      description={proxy.url_masked ?? proxy.id}
-      footer={
-        <Button variant="secondary" onClick={onClose}>
-          {t('common:action.close')}
-        </Button>
-      }
-    >
-      {state?.error ? <ErrorState error={state.error} /> : null}
-      {result ? (
-        <div className="u-stack">
-          <StatusBadge kind="health" value={result.ok ? 'healthy' : 'unhealthy'} />
-          <dl className="u-stack-sm">
-            <DetailRow label={t('console:field.latency')} value={format.latency(result.latency_ms)} />
-            <DetailRow label={t('console:proxy.exitIp')} value={result.exit_ip ?? format.number(null)} mono />
-            <DetailRow label={t('console:field.country')} value={result.country ?? format.number(null)} mono />
-            <DetailRow
-              label={t('console:proxy.column.timezone')}
-              value={result.timezone ?? format.number(null)}
-              mono
-            />
-          </dl>
-          {result.detail ? <CodeBlock code={result.detail} language="text" /> : null}
-        </div>
-      ) : null}
-      {!result && !state?.error ? <EmptyState icon={<GlobeIcon size={16} />} /> : null}
-    </Modal>
-  )
-}
-
-function DetailRow({ label, value, mono }: { label: ReactNode; value: ReactNode; mono?: boolean }) {
-  return (
-    <div className="u-row-between">
-      <dt className="u-muted u-xs">{label}</dt>
-      <dd className={mono ? 'u-mono' : undefined} style={{ margin: 0 }}>
-        {value}
-      </dd>
     </div>
   )
 }

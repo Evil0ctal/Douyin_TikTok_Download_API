@@ -569,7 +569,23 @@
     },
     "delete": {
       "title": "确认删除 {count} 个代理？",
-      "description": "绑定在被删代理上的身份会被退休：身份不能改用其它出口发出请求。"
+      "description": "绑定在被删代理上的身份会被退休：身份不能改用其它出口发出请求。",
+      "retires": "这会退休 {count} 个身份：它们的 Cookie 会被清除，无法恢复。",
+      "retiresNone": "没有身份绑定在它上面，不会退休任何身份。",
+      "rowIdentities": "{count} 个身份"
+    },
+    "drawer": {
+      "title": "代理",
+      "checked": "{when}检查过",
+      "neverChecked": "从未检查",
+      "lastError": "最近一次错误",
+      "identities": "{count, plural, =0 {绑定的身份} other {绑定的身份（{count} 个）}}",
+      "noIdentities": "没有身份绑定在这个代理上。",
+      "reserved": "不参与轮换",
+      "recentTitle": "最近的请求",
+      "recentHint": "过去 24 小时内经由这个代理的最近 {count} 条请求。",
+      "recentEmpty": "过去 24 小时内没有经由这个代理的请求。",
+      "viewRequests": "查看请求"
     },
     "bulk": {
       "enable": "标记为可用",
@@ -610,7 +626,11 @@
     },
     "test": {
       "title": "代理探测",
-      "failed": "探测失败"
+      "failed": "探测失败",
+      "all": "全部测试",
+      "selected": "测试选中的 {count} 个",
+      "progress": "正在测试 {done}/{total}",
+      "summary": "{ok} 个正常，{failed} 个失败"
     }
   },
   "settings": {

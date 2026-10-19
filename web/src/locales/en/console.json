@@ -569,7 +569,23 @@
     },
     "delete": {
       "title": "Delete {count, plural, one {# proxy} other {# proxies}}?",
-      "description": "Identities bound to a deleted proxy are retired: an identity must never go out through a different egress."
+      "description": "Identities bound to a deleted proxy are retired: an identity must never go out through a different egress.",
+      "retires": "{count, plural, one {This retires # identity: its cookies are wiped and it cannot be brought back.} other {This retires # identities: their cookies are wiped and they cannot be brought back.}}",
+      "retiresNone": "No identity is bound to it, so none is retired.",
+      "rowIdentities": "{count, plural, one {# identity} other {# identities}}"
+    },
+    "drawer": {
+      "title": "Proxy",
+      "checked": "Checked {when}",
+      "neverChecked": "Never checked",
+      "lastError": "Last error",
+      "identities": "{count, plural, =0 {Bound identities} one {# bound identity} other {# bound identities}}",
+      "noIdentities": "No identity is bound to this proxy.",
+      "reserved": "Kept out of rotation",
+      "recentTitle": "Recent requests",
+      "recentHint": "{count, plural, one {The latest request through this proxy in the last 24 hours.} other {The latest # requests through this proxy in the last 24 hours.}}",
+      "recentEmpty": "No request went out through this proxy in the last 24 hours.",
+      "viewRequests": "View requests"
     },
     "bulk": {
       "enable": "Mark healthy",
@@ -610,7 +626,11 @@
     },
     "test": {
       "title": "Proxy probe",
-      "failed": "Probe failed"
+      "failed": "Probe failed",
+      "all": "Test all",
+      "selected": "Test {count} selected",
+      "progress": "Testing {done} of {total}",
+      "summary": "{ok} ok, {failed} failed"
     }
   },
   "settings": {
