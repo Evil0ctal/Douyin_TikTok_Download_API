@@ -2179,8 +2179,27 @@
   "scheduler": {
     "pool": {
       "active": "当前可被调度",
+      "activeReserved": "当前可被调度；未计入 {count} 个保留身份",
       "cooling": "因风控命中而暂歇，冷却到期会自动回到可用",
       "degraded": "冷却已到上限。最后手段，只在没有可用身份时才会启用"
+    },
+    "census": {
+      "title": "按平台",
+      "description": "请求只会由同平台的身份来发。保留身份虽然可用，但只服务指名它的请求，所以不算作可调度。",
+      "schedulable": "可调度",
+      "reserved": "保留"
+    },
+    "marks": {
+      "title": "各平台身份池大小",
+      "description": "留空表示沿用格子里显示的全局 pool.min_size 或 pool.target_size。低水位设为 0 会关闭该平台的自动铸造。",
+      "min_size": "低水位",
+      "target_size": "目标数量",
+      "inherit": "沿用 {value}",
+      "cellLabel": "{platform}：{field}",
+      "invalid": "请填 0 或更大的整数",
+      "save": "{count, plural, =0 {保存} other {保存 {count} 项修改}}",
+      "saved": "身份池大小已保存",
+      "saveFailed": "保存身份池大小失败"
     },
     "rotationTitle": "一次请求是怎么挑身份的",
     "rotationDescription": "五道关卡，按此顺序。五道全过才会拿到租约；否则连同原因一起被拒绝，这个原因会记进请求日志。",

@@ -2179,8 +2179,27 @@
   "scheduler": {
     "pool": {
       "active": "Schedulable right now",
+      "activeReserved": "{count, plural, one {Schedulable right now; # reserved identity is not counted} other {Schedulable right now; # reserved identities are not counted}}",
       "cooling": "Resting off a risk-control hit; they come back on their own",
       "degraded": "Hit the cooldown ceiling. Last resort, used only when nothing is active"
+    },
+    "census": {
+      "title": "Per platform",
+      "description": "A request is only ever served by an identity of its own platform. Reserved identities are active but serve only the requests that name them, so they are not counted as schedulable.",
+      "schedulable": "Schedulable",
+      "reserved": "Reserved"
+    },
+    "marks": {
+      "title": "Pool size per platform",
+      "description": "Leave a cell empty to inherit the global pool.min_size or pool.target_size shown in it. A low-water mark of 0 turns automatic minting off for that platform.",
+      "min_size": "Low-water mark",
+      "target_size": "Target",
+      "inherit": "inherits {value}",
+      "cellLabel": "{platform}: {field}",
+      "invalid": "A whole number, 0 or more",
+      "save": "{count, plural, =0 {Save} one {Save # change} other {Save # changes}}",
+      "saved": "Pool sizes saved",
+      "saveFailed": "Could not save the pool sizes"
     },
     "rotationTitle": "How one request picks an identity",
     "rotationDescription": "Five stages, in this order. A request that clears all five gets a lease; anything else is refused with the reason, which is what the request log records.",
