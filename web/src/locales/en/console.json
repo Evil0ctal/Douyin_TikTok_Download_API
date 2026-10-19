@@ -363,7 +363,7 @@
         "douyin": "ttwid is required. sessionid and sid_guard are the login, and sid_guard also says when it expires. odin_tt, s_v_web_id, msToken and UIFID_TEMP make a guest refused less often.",
         "tiktok": "ttwid is required, and msToken is what requests are signed with. sessionid and sid_guard are the login, and sid_guard also says when it expires."
       },
-      "reserve": "Only for requests that name it",
+      "reserve": "Only requests that name it",
       "reserveHint": "Stored out of rotation: only a request that names it with identity= uses it. For an account imported to read one thing with, which rotation would otherwise spend on everything.",
       "reserveLastNote": "No other {platform} login is in rotation, so {endpoints} will go on answering IDENTITY_LOGIN_REQUIRED past the first page.",
       "switchTo": "Switch to {platform}"

@@ -224,8 +224,11 @@ class Scheduler:
 
     async def _rotation_pool(
         self, endpoint: str, platform: Platform, login: LoginNeed
-    ) -> list[Candidate]:
-        """The identities unpinned traffic for ``endpoint`` may be handed.
+    ) -> list[list[Candidate]]:
+        """The identities unpinned traffic for ``endpoint`` may be handed, in tiers.
+
+        Each tier is ranked and tried in turn; a later one is reached only when
+        every identity in the ones before it is busy or out of quota.
 
         Filtered here, not in the source: the pinned branch reads the same
         source, and an identity reserved for the requests that name it has to
@@ -237,11 +240,15 @@ class Scheduler:
         endpoint gives a guest nothing, guests are never reached at all.
 
         Where it gives a guest the same, guests come first instead when the
-        platform's ``pool.<platform>.guests_first`` is on - in every state
-        before any login, for the same reason turned round: a degraded guest
-        failing costs a mint, a login failing costs somebody's account. A
-        login still answers once no guest can, so the setting never turns a
-        request away that the pool could have served.
+        platform's ``pool.<platform>.guests_first`` is on, as a tier of their
+        own ahead of the logins: a guest failing costs a mint, a login failing
+        costs somebody's account. The logins are a second tier rather than a
+        pool consulted only when no guest exists, so a guest that is mid-request
+        or out of quota gives way to an idle login - the first version returned
+        the guests alone, and with every guest busy a request waited out its
+        deadline beside a login doing nothing. The opposite is deliberate for a
+        login an endpoint prefers: that one is waited for, not swapped for a
+        guest, or most first pages would go to guests on a busy instance.
         """
         rotating: dict[IdentityState, list[Candidate]] = {}
         reserved = 0
@@ -257,11 +264,13 @@ class Scheduler:
         # Who each pass may draw: only logins (True), only guests (False), or
         # anyone (None). Degraded identities are the last resort within each
         # pass, used only once the healthy ones are gone.
+        guests_first = login is LoginNeed.NONE and self._guests_first(platform)
         passes: tuple[bool | None, ...] = {
-            LoginNeed.NONE: (False, None) if self._guests_first(platform) else (None,),
+            LoginNeed.NONE: (False, True) if guests_first else (None,),
             LoginNeed.PREFERRED: (True, None),
             LoginNeed.REQUIRED: (True,),
         }[login]
+        tiers: list[list[Candidate]] = []
         for signed_in in passes:
             for state in (IdentityState.ACTIVE, IdentityState.DEGRADED):
                 pool = [
@@ -270,7 +279,14 @@ class Scheduler:
                     if signed_in is None or c.authenticated is signed_in
                 ]
                 if pool:
-                    return pool
+                    tiers.append(pool)
+                    break
+            # Only guests-first carries on past a pass that found someone: its
+            # logins are the tier a busy guest gives way to.
+            if tiers and not guests_first:
+                return tiers
+        if tiers:
+            return tiers
 
         if login is LoginNeed.REQUIRED:
             cooling = [
@@ -329,31 +345,32 @@ class Scheduler:
                     "the named identity is retired, still minting, or not on this platform",
                     waitable=False,
                 )
-            pool = [pinned]
+            tiers = [[pinned]]
         else:
-            pool = await self._rotation_pool(endpoint, platform, login)
+            tiers = await self._rotation_pool(endpoint, platform, login)
 
         recent = await last_used_map()
         saw_inflight = False
         saw_no_token = False
-        for candidate in self._rank(pool, seed, recent):
-            lease, why = await try_acquire(
-                candidate.identity_id,
-                endpoint,
-                policy,
-                now=now,
-                inflight_ttl=self._config.inflight_ttl_seconds,
-            )
-            if lease is not None:
-                log.debug(
-                    "scheduler.lease.granted",
-                    identity_id=candidate.identity_id,
-                    endpoint=endpoint,
-                    tokens_left=round(lease.tokens_left, 3),
+        for pool in tiers:
+            for candidate in self._rank(pool, seed, recent):
+                lease, why = await try_acquire(
+                    candidate.identity_id,
+                    endpoint,
+                    policy,
+                    now=now,
+                    inflight_ttl=self._config.inflight_ttl_seconds,
                 )
-                return lease
-            saw_inflight |= why == "inflight"
-            saw_no_token |= why == "no_token"
+                if lease is not None:
+                    log.debug(
+                        "scheduler.lease.granted",
+                        identity_id=candidate.identity_id,
+                        endpoint=endpoint,
+                        tokens_left=round(lease.tokens_left, 3),
+                    )
+                    return lease
+                saw_inflight |= why == "inflight"
+                saw_no_token |= why == "no_token"
 
         if identity_id is not None:
             # Naming the pin matters: "every identity is busy" sends an operator

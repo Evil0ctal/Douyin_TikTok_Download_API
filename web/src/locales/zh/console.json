@@ -363,7 +363,7 @@
         "douyin": "ttwid 必填。sessionid 和 sid_guard 是登录态，sid_guard 还带着过期时间。odin_tt、s_v_web_id、msToken 和 UIFID_TEMP 能让游客身份更少被拒。",
         "tiktok": "ttwid 必填，msToken 用于请求签名。sessionid 和 sid_guard 是登录态，sid_guard 还带着过期时间。"
       },
-      "reserve": "只服务指定它的请求",
+      "reserve": "只服务点名它的请求",
       "reserveHint": "存入时就不参与轮换：只有用 identity= 指定它的请求才会用它。适合为读取某样东西而导入的账号，否则轮换会把它用在所有请求上。",
       "reserveLastNote": "没有其他{platform}登录态在参与轮换，所以 {endpoints} 第一页之后仍会返回 IDENTITY_LOGIN_REQUIRED。",
       "switchTo": "切换到{platform}"

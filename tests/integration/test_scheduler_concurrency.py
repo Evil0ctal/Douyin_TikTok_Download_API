@@ -681,6 +681,23 @@ async def test_guests_first_still_reaches_a_login_when_no_guest_can(redis_client
     assert lease.identity_id == "identity-1"
 
 
+async def test_guests_first_lets_a_busy_guest_give_way_to_an_idle_login(redis_client):
+    """The first version returned the guests alone, so with every guest
+    mid-request a call waited out its deadline beside a login doing nothing."""
+    sched = Scheduler(
+        ListSource([make_candidate(1, signed_in=True), make_candidate(2)]),
+        SchedulerConfig(max_wait_seconds=0.2, poll_interval_seconds=0.01),
+        clock=AdvancingClock(),
+        guests_first=guests_first(Platform.DOUYIN),
+    )
+    held = await sched.acquire("douyin.comments", Platform.DOUYIN)
+    assert held.identity_id == "identity-2"
+
+    lease = await sched.acquire("douyin.comments", Platform.DOUYIN)
+
+    assert lease.identity_id == "identity-1"
+
+
 async def test_guests_first_puts_a_degraded_guest_ahead_of_a_login(redis_client):
     """A degraded guest failing costs a mint; a login failing costs an account."""
     sched = Scheduler(
