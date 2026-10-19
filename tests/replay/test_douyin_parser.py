@@ -69,6 +69,7 @@ def test_content_model_has_no_unasserted_fields() -> None:
         "music",
         "tags",
         "location",
+        "parts",
         "fetched_at",
         "raw",
     }
@@ -94,6 +95,7 @@ def test_video_normal_every_field() -> None:
     assert content.is_private is False
     assert content.tags == ["sunrise", "harbour"]
     assert content.location == "Synthetic Harbour Lookout"
+    assert content.parts == []
     assert content.fetched_at == FETCHED_AT
     assert content.raw == payload["aweme_detail"]
 

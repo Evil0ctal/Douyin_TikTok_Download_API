@@ -1,0 +1,52 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": [
+    {
+      "cid": 20000001,
+      "page": 1,
+      "from": "vupload",
+      "part": "Synthetic part",
+      "duration": 492,
+      "vid": "",
+      "weblink": "",
+      "dimension": {
+        "width": 2592,
+        "height": 1080,
+        "rotate": 0
+      },
+      "ctime": 1791805810
+    },
+    {
+      "cid": 20000258,
+      "page": 2,
+      "from": "vupload",
+      "part": "Synthetic part",
+      "duration": 617,
+      "vid": "",
+      "weblink": "",
+      "dimension": {
+        "width": 2592,
+        "height": 1080,
+        "rotate": 0
+      },
+      "ctime": 1791805810
+    },
+    {
+      "cid": 20000259,
+      "page": 3,
+      "from": "vupload",
+      "part": "Synthetic part",
+      "duration": 540,
+      "vid": "",
+      "weblink": "",
+      "dimension": {
+        "width": 2592,
+        "height": 1080,
+        "rotate": 0
+      },
+      "ctime": 1791805810
+    }
+  ]
+}

@@ -770,7 +770,11 @@ class TaskWorker:
             # database out of whatever strangers happened to paste.
             if parsed and not run.is_demo:
                 await self._record_snapshots(session, parsed[-1], config)
-                await self._archive(session, parsed[-1], config)
+                # A detail read for a later part carries that part's file.
+                # Archived, it would replace the first part's, and the next
+                # download of the post would store this part under its name.
+                if not _names_a_later_part(params):
+                    await self._archive(session, parsed[-1], config)
 
         return _result_payload(
             call.definition.name, call.platform, result, pinned=ctx.identity_id is not None
@@ -815,6 +819,11 @@ class TaskWorker:
             return
         if written:
             log.debug("worker.archived", contents=written)
+
+
+def _names_a_later_part(params: Mapping[str, Any]) -> bool:
+    part = params.get(registry.PART)
+    return part is not None and str(part).strip().isdigit() and int(str(part).strip()) > 1
 
 
 def _snapshot_targets(parsed: Any) -> tuple[Any, ...]:

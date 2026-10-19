@@ -67,6 +67,23 @@ class Capability(StrEnum):
     MIX_POSTS = "mix_posts"
     AUTHOR_FOLLOWERS = "author_followers"
     AUTHOR_FOLLOWING = "author_following"
+    #: The parts of a video uploaded in several. Bilibili only.
+    CONTENT_PARTS = "content_parts"
+    #: Site-curated lists of posts, keyed by nobody. Bilibili's four boards.
+    POPULAR = "popular"
+    POPULAR_WEEKLY = "popular_weekly"
+    POPULAR_PRECIOUS = "popular_precious"
+    RANKING = "ranking"
+
+
+#: Every capability that answers a site-curated list rather than something
+#: about one post or one author. They take no id, only a page.
+BOARDS: Final[tuple[Capability, ...]] = (
+    Capability.POPULAR,
+    Capability.POPULAR_WEEKLY,
+    Capability.POPULAR_PRECIOUS,
+    Capability.RANKING,
+)
 
 
 #: The P0 set from docs/design/11-data-contracts.md. A platform is only usable
@@ -133,6 +150,8 @@ COUNT: Final = "count"
 #: A :class:`dtk.core.types.CommentSort` value. Mapped only where a platform
 #: takes it; :func:`comment_sort_params` decides what the others are sent.
 SORT: Final = "sort"
+#: Which part of a video uploaded in several, from 1. Bilibili only.
+PART: Final = "part"
 
 #: Platform spellings accepted for a canonical name. ``aweme_id`` and
 #: ``item_id`` are the same thing on both platforms as far as a caller is
@@ -256,7 +275,16 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
     # builder). The comment endpoints want the numeric aid and get it from the
     # bvid, so the caller never has to know there are two.
     Platform.BILIBILI: {
-        Capability.CONTENT_DETAIL: {CONTENT_ID: "bvid"},
+        # `part` picks which part's file the detail's follow-up fetches; the
+        # detail itself is the whole upload's either way.
+        Capability.CONTENT_DETAIL: {CONTENT_ID: "bvid", PART: "part"},
+        Capability.CONTENT_PARTS: {CONTENT_ID: "bvid"},
+        # No id: a board is the site's, not anybody's. Precious and ranking
+        # answer one page and drop the cursor; weekly's cursor is an issue.
+        Capability.POPULAR: {CURSOR: "cursor", COUNT: "count"},
+        Capability.POPULAR_WEEKLY: {CURSOR: "cursor", COUNT: "count"},
+        Capability.POPULAR_PRECIOUS: {CURSOR: "cursor", COUNT: "count"},
+        Capability.RANKING: {CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_PROFILE: {AUTHOR_ID: "mid"},
         Capability.AUTHOR_POSTS: {AUTHOR_ID: "mid", CURSOR: "cursor", COUNT: "count"},
         Capability.COMMENTS: {
@@ -302,6 +330,12 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.MIX_POSTS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWERS: "cache.list_ttl",
         Capability.AUTHOR_FOLLOWING: "cache.list_ttl",
+        # A video's parts are fixed once uploaded, like its detail.
+        Capability.CONTENT_PARTS: "cache.content_ttl",
+        Capability.POPULAR: "cache.list_ttl",
+        Capability.POPULAR_WEEKLY: "cache.list_ttl",
+        Capability.POPULAR_PRECIOUS: "cache.list_ttl",
+        Capability.RANKING: "cache.list_ttl",
     }
 )
 
@@ -497,6 +531,21 @@ class EndpointDefinition:
                 return adapter.parse_collection_posts(
                     payload, fetched_at=when, cursor=str(cursor) if cursor is not None else None
                 )
+            case Capability.CONTENT_PARTS:
+                return adapter.parse_content_parts(payload)
+            case (
+                Capability.POPULAR
+                | Capability.POPULAR_WEEKLY
+                | Capability.POPULAR_PRECIOUS
+                | Capability.RANKING
+            ):
+                cursor = canonical.get(CURSOR)
+                return adapter.parse_popular(
+                    payload,
+                    board=self.capability.value,
+                    fetched_at=when,
+                    cursor=str(cursor) if cursor is not None else None,
+                )
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
@@ -683,6 +732,7 @@ def resolve(endpoint: str, params: Mapping[str, Any], config: Config) -> Resolve
 __all__ = [
     "ALIASES",
     "AUTHOR_ID",
+    "BOARDS",
     "COMMENT_ID",
     "CONTENT_ID",
     "COUNT",
@@ -692,6 +742,7 @@ __all__ = [
     "HANDLE_PLATFORMS",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",
+    "PART",
     "SORT",
     "UNIQUE_ID",
     "Capability",

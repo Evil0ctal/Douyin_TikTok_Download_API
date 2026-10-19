@@ -506,6 +506,16 @@ class DownloadRequest(Body):
             "posts and forty already on disk."
         ),
     )
+    part: int | None = Field(
+        default=None,
+        ge=1,
+        le=1000,
+        description=(
+            "Bilibili only: which part of a video uploaded in several, from 1. Omitted, "
+            "it is the part a link's `?p=` names, or the first. A later part is stored "
+            "beside the first, in a directory of its own."
+        ),
+    )
 
 
 class TranscriptionRequest(Body):

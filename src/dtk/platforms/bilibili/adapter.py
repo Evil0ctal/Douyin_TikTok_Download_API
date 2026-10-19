@@ -13,7 +13,7 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, Page
+from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -45,19 +45,57 @@ class BilibiliAdapter:
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:
         return parser.detect_risk_control(payload)
 
-    def follow_up(self, endpoint: str, payload: Mapping[str, Any]) -> FollowUp | None:
-        """A video's detail is followed by its ``playurl``, for the file itself.
+    def follow_up(
+        self,
+        endpoint: str,
+        payload: Mapping[str, Any],
+        params: Mapping[str, Any] | None = None,
+    ) -> FollowUp | None:
+        """The second request two answers here need.
 
-        One more signed request per detail, made by the fetch layer under the
-        same scheduler. Without it a Bilibili post would archive with no stream,
-        and a download of it would have nothing to fetch.
+        A video's detail is followed by its ``playurl``, for the file itself -
+        the first part's, or the part ``params`` names. One more signed request
+        per detail, made by the fetch layer under the same scheduler. Without
+        it a Bilibili post would archive with no stream, and a download of it
+        would have nothing to fetch.
+
+        The weekly selection's index is followed by the issue: the one the
+        cursor names, or the newest. The index alone lists no videos, so that
+        follow-up is required.
         """
+        asked = params or {}
+        if endpoint == endpoints.POPULAR_WEEKLY:
+            cursor = str(asked.get("cursor") or "").strip()
+            number = int(cursor) if cursor.isdigit() and int(cursor) > 0 else None
+            number = number or parser.latest_issue(payload)
+            if number is None:
+                return None
+            return FollowUp(
+                endpoint=endpoints.POPULAR_WEEKLY_ISSUE,
+                params={"number": str(number)},
+                merge=parser.merge_issue,
+                required=True,
+            )
         if endpoint != endpoints.CONTENT_DETAIL:
             return None
         data = payload.get("data")
         bvid = data.get("bvid") if isinstance(data, Mapping) else None
+        if not isinstance(bvid, str):
+            return None
+        part = asked.get("part")
+        if part is not None and params_module.part_number(part) > 1:
+            number = params_module.part_number(part)
+            return FollowUp(
+                endpoint=endpoints.CONTENT_STREAMS,
+                params={"bvid": bvid, "cid": parser.part_cid(payload, number)},
+                merge=parser.merge_part_streams(number),
+                # The detail without this part's file would be parsed as the
+                # post with no stream, and a download of the part would fail
+                # with "no downloadable media" instead of saying why.
+                required=True,
+            )
         cid = parser.first_part_cid(payload)
-        if not isinstance(bvid, str) or cid is None:
+        if cid is None:
             return None
         return FollowUp(
             endpoint=endpoints.CONTENT_STREAMS,
@@ -109,6 +147,19 @@ class BilibiliAdapter:
         parent_id: str | None = None,
     ) -> Page[Comment]:
         return parser.parse_comment_replies(payload, content_id=content_id, parent_id=parent_id)
+
+    def parse_content_parts(self, payload: Mapping[str, Any]) -> Page[ContentPart]:
+        return parser.parse_content_parts(payload)
+
+    def parse_popular(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        board: str,
+        fetched_at: datetime,
+        cursor: str | None = None,
+    ) -> Page[Content]:
+        return parser.parse_popular(payload, board=board, fetched_at=fetched_at, cursor=cursor)
 
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()

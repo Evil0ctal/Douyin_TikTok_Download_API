@@ -38,7 +38,7 @@ from urllib.parse import urlencode
 
 from dtk.core.errors import InvalidParam
 from dtk.core.types import LoginNeed, Platform
-from dtk.models import Author, Collection, Comment, Content, Page
+from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
 
 HttpMethod = Literal["GET", "POST"]
 
@@ -426,6 +426,12 @@ class FollowUp:
     #: Builder keywords, as for :meth:`PlatformAdapter.build_request`.
     params: Mapping[str, Any]
     merge: Merge
+    #: Whether the first answer means anything without this one. A video's
+    #: detail does - title, author and counts are real without the stream -
+    #: so by default a failed follow-up leaves the first answer to be parsed.
+    #: The weekly selection's index does not: it is a list of issue numbers,
+    #: and parsed on its own it would read as an issue with no videos in it.
+    required: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -509,11 +515,18 @@ class PlatformAdapter(Protocol):
         """Name the risk-control signature in ``payload``, or ``None``."""
         ...
 
-    def follow_up(self, endpoint: str, payload: Mapping[str, Any]) -> FollowUp | None:
+    def follow_up(
+        self,
+        endpoint: str,
+        payload: Mapping[str, Any],
+        params: Mapping[str, Any] | None = None,
+    ) -> FollowUp | None:
         """A second call this answer needs before parsing, or ``None``.
 
-        Most answers are complete; see :class:`FollowUp` for the one that is
-        not. A failed follow-up leaves the first answer to be parsed as it is.
+        Most answers are complete; see :class:`FollowUp` for the ones that are
+        not. ``params`` are the builder keywords the first call was made with,
+        for a follow-up that depends on what was asked as well as on what came
+        back - which part of a video, which issue of a list.
         """
         ...
 
@@ -550,6 +563,22 @@ class PlatformAdapter(Protocol):
         content_id: str | None = None,
         parent_id: str | None = None,
     ) -> Page[Comment]: ...
+
+    def parse_content_parts(self, payload: Mapping[str, Any]) -> Page[ContentPart]: ...
+
+    def parse_popular(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        board: str,
+        fetched_at: datetime,
+        cursor: str | None = None,
+    ) -> Page[Content]:
+        """A site-curated list of posts. ``board`` is the capability that asked -
+        ``popular``, ``popular_weekly``, ``popular_precious`` or ``ranking`` -
+        and ``cursor`` the page it asked for, which a numbered list needs to
+        say what comes next."""
+        ...
 
 
 __all__ = [

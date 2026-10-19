@@ -50,9 +50,10 @@ from dtk.core.errors import (
     UnsupportedContent,
 )
 from dtk.core.logging import get_logger
-from dtk.core.types import PLATFORM_READ_SCOPES, CommentSort, Platform, Scope
+from dtk.core.types import PLATFORM_READ_SCOPES, CommentSort, Platform, PopularBoard, Scope
 from dtk.i18n.messages import render_error
 from dtk.platforms.paging import max_page_size
+from dtk.services.download_requests import resolve_part
 from dtk.urls import ResourceKind, UrlKind, first_url, identify, require_content_id
 from dtk.worker import registry
 
@@ -181,6 +182,23 @@ SORT_QUERY = Query(
         "hot or new. Only Bilibili offers a choice; Douyin and TikTok rank comments "
         "their own way, accept hot, and refuse new. Send the same value again with "
         "the cursor of a later page."
+    ),
+)
+PART_QUERY = Query(
+    default=None,
+    ge=1,
+    le=1000,
+    description=(
+        "Bilibili only: which part of a video uploaded in several, from 1. A link's ?p= "
+        "says the same. The stream returned is that part's."
+    ),
+)
+BOARD_QUERY = Query(
+    default=PopularBoard.HOT,
+    description=(
+        "hot: popular now, paged by number. weekly: the weekly selection, newest issue "
+        "first; the cursor is the next older issue. precious: the editors' all-time "
+        "selection, one page. rank: the site-wide top 100, one page."
     ),
 )
 COMMENT_ID_QUERY = Query(
@@ -442,6 +460,7 @@ async def video(
     platform: Platform = PLATFORM_PATH,
     url: str | None = URL_QUERY,
     aweme_id: str | None = AWEME_ID_QUERY,
+    part: int | None = PART_QUERY,
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
@@ -462,6 +481,8 @@ async def video(
     - `url` - a link to the post. Text with a link inside it is accepted, so
       the clipboard content the apps produce can be sent unedited.
     - `aweme_id` - the post id, if you already have it.
+    - `part` - Bilibili only: which part of a video uploaded in several, from
+      1; a link's `?p=` says the same. The stream returned is that part's.
     - `include_raw` - also return the platform's own untouched payload.
     - `wait` - seconds to wait for the result. Omit it to get `202` and a task
       id to poll.
@@ -475,10 +496,14 @@ async def video(
     **Returns**
 
     The post's media URLs, cover, caption, statistics, author and timestamps,
-    normalized to the same shape for both platforms.
+    normalized to the same shape for every platform. A Bilibili video lists its
+    parts in `parts`.
     """
     authorize(principal, platform)
     params = _content_params(platform, url=url, aweme_id=aweme_id)
+    later = resolve_part(platform, part, url)
+    if later is not None:
+        params["part"] = later
     params["include_raw"] = include_raw
     return await operations.submit_and_wait(
         request,
@@ -637,6 +662,134 @@ async def comment_replies(
         request,
         principal,
         endpoint=endpoint_name(platform, Operation.COMMENT_REPLIES),
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/video/parts",
+    summary="The parts of a video",
+    openapi_extra={I18N_KEY: "content_parts", **ASYNC_RESPONSES},
+)
+async def video_parts(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    aweme_id: str | None = AWEME_ID_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Every part of a video uploaded in several, in order. Bilibili only.
+
+    Identify the video by **either** `url` **or** `aweme_id`. A single-part
+    video lists its one part. The same list arrives with `/video` as `parts`;
+    this is the cheaper call when the list is all you need.
+
+    **Parameters**
+
+    - `platform` - `bilibili`. Douyin and TikTok answer `UNSUPPORTED_CONTENT`.
+    - `url` - a link to the video.
+    - `aweme_id` - the bvid (an `av` number is accepted too).
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      `/video`.
+
+    **Returns**
+
+    Each part's 1-based `part` number, `cid`, `title`, `duration_ms`, `width`
+    and `height`. Pass the number as `part` to `/video` for that part's stream,
+    or to `POST /api/v1/downloads` to store it.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.CONTENT_PARTS)
+    params = _content_params(platform, url=url, aweme_id=aweme_id)
+    params["include_raw"] = include_raw
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+#: Which operation reads each board.
+_BOARDS: dict[PopularBoard, Operation] = {
+    PopularBoard.HOT: Operation.POPULAR,
+    PopularBoard.WEEKLY: Operation.POPULAR_WEEKLY,
+    PopularBoard.PRECIOUS: Operation.POPULAR_PRECIOUS,
+    PopularBoard.RANK: Operation.RANKING,
+}
+
+
+@router.get(
+    "/{platform}/popular",
+    summary="A site-curated list of posts",
+    openapi_extra={I18N_KEY: "popular", **ASYNC_RESPONSES},
+)
+async def popular(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    board: PopularBoard = BOARD_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of a list the site itself curates. Bilibili only.
+
+    **Parameters**
+
+    - `platform` - `bilibili`. Douyin and TikTok answer `UNSUPPORTED_CONTENT`.
+    - `board` - which list:
+      - `hot` (the default): what is popular now, paged by number.
+      - `weekly`: the weekly selection, 50 videos an issue, newest issue
+        first. The cursor is the next older issue's number; pass an issue
+        number to start there.
+      - `precious`: the editors' all-time selection, one page.
+      - `rank`: the site-wide top 100, one page.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - items per page, for `hot` only; the others are the size the
+      site makes them.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      the other list endpoints. The lists are the same for everyone, so a
+      repeat inside `cache.list_ttl` (5 minutes by default) is free.
+
+    **Returns**
+
+    A page of posts in the same shape as `/user/posts`, plus the cursor for
+    the next page.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, _BOARDS[board])
+    params: dict[str, Any] = {
+        "cursor": cursor,
+        "count": resolve_count(count, maximum=max_page_size(platform)),
+        "include_raw": include_raw,
+    }
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
         params=params,
         wait=resolve_wait(request, wait),
         proxy=await resolve_request_proxy(request, proxy),

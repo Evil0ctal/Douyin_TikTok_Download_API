@@ -112,7 +112,7 @@ class TestJobPayload:
             last_seen_at=datetime.now(UTC),
             media={"video": {"url": "https://v9-v2-mps-cdn.douyinvod.com/x/v.mp4"}},
         )
-        download = SimpleNamespace(id=uuid.uuid4())
+        download = SimpleNamespace(id=uuid.uuid4(), part=None)
         plan = downloads.plan_for(content, max_file_bytes=MB)
         payload = downloads.job_payload(download, content, plan)
 
@@ -130,6 +130,44 @@ class TestJobPayload:
         # absolute one would make the row wrong the moment the volume moves.
         content = SimpleNamespace(platform="tiktok", author_uid="1", content_id="2")
         assert downloads.directory_of(content) == "tiktok/1/2"
+
+    def test_a_later_part_is_stored_beside_the_post_not_inside_it(self):
+        """The sidecar removes a directory recursively; a part nested in the
+        post's own would go whenever the first part's files did."""
+        content = SimpleNamespace(platform="bilibili", author_uid="9", content_id="BV1xx411c7mD")
+        assert downloads.directory_of(content, 3) == "bilibili/9/BV1xx411c7mD-p3"
+        assert downloads.pending_directory("bilibili", "BV1xx411c7mD", 3) == (
+            "bilibili/_pending/BV1xx411c7mD-p3"
+        )
+
+    def test_the_sidecar_is_told_the_part_s_directory_and_number(self):
+        """It names the directory from `content_id`, so a part has to be spelt
+        there exactly as `directory_of` spells it."""
+        content = SimpleNamespace(
+            platform="bilibili",
+            content_id="BV1xx411c7mD",
+            kind="video",
+            web_url="https://www.bilibili.com/video/BV1xx411c7mD",
+            title="t",
+            description="d",
+            platform_created_at=None,
+            duration_ms=1000,
+            author_uid="9",
+            author_nickname="n",
+            music_id=None,
+            music_title=None,
+            tags=[],
+            location=None,
+            last_seen_at=datetime.now(UTC),
+            media={"video": {"url": "https://upos-sz-mirrorcos.bilivideo.com/x/v.mp4"}},
+        )
+        download = SimpleNamespace(id=uuid.uuid4(), part=3)
+        plan = downloads.plan_for(content, max_file_bytes=MB)
+        payload = downloads.job_payload(download, content, plan)
+
+        assert payload["content_id"] == "BV1xx411c7mD-p3"
+        assert payload["meta"]["part"] == 3
+        assert payload["meta"]["content_id"] == "BV1xx411c7mD"
 
 
 class TestPlanFor:

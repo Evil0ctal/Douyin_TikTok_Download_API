@@ -754,6 +754,17 @@ class ToolSet:
                 description="Answer from disk when this post's media is already stored.",
             ),
         ] = True,
+        part: Annotated[
+            int | None,
+            Field(
+                default=None,
+                description=(
+                    "Bilibili only: which part of a video uploaded in several, from 1. "
+                    "Omit for the part the URL's ?p= names, or the first. Each part is "
+                    "its own download_id."
+                ),
+            ),
+        ] = None,
         context: Context | None = None,
     ) -> dict[str, Any]:
         """Store one post's video and images on this instance.
@@ -765,7 +776,7 @@ class ToolSet:
         default) a post already on disk is answered without fetching anything.
         """
         return await self._guarded(
-            self._download_media(url, platform, content_id, skip_existing, context)
+            self._download_media(url, platform, content_id, skip_existing, context, part)
         )
 
     async def _download_media(
@@ -775,6 +786,7 @@ class ToolSet:
         content_id: str | None,
         skip_existing: bool,
         context: Context | None,
+        part: int | None = None,
     ) -> dict[str, Any]:
         caller = self._authorize_scope(Scope.MEDIA_WRITE, context)
         gateway = self._ctx.downloads
@@ -788,6 +800,7 @@ class ToolSet:
             skip_existing=skip_existing,
             requested_by=getattr(caller, "api_key_id", None),
             is_demo=getattr(caller, "role", None) is UserRole.DEMO,
+            part=part,
         )
         download_id = str(record["download_id"])
         task_id = str(record["task_id"]) if record.get("task_id") else None

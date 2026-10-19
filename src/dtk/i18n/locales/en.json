@@ -630,6 +630,14 @@
       "watchlist_update": {
         "summary": "Change or pause a watched target",
         "description": "Change the interval, the page depth, or whether it runs at all."
+      },
+      "popular": {
+        "summary": "A site-curated list of posts",
+        "description": "One page of a list the site itself curates - Bilibili's popular now, weekly selection, editors' selection or top 100. Bilibili only."
+      },
+      "content_parts": {
+        "summary": "The parts of a video",
+        "description": "Every part of a video uploaded in several, in order, with each part's number, title and length. Bilibili only."
       }
     },
     "param": {
@@ -639,6 +647,7 @@
       "availability": "Only posts with this upstream status.",
       "aweme_id": "The post id, as an alternative to url: a Bilibili bvid such as BV1xx411c7mD or an av number on Bilibili. Provide exactly one of the two.",
       "before": "Only entries older than this timestamp. Page with it.",
+      "board": "Which list: hot (popular now, paged by number), weekly (the weekly selection; the cursor is the next older issue), precious (the editors' all-time selection, one page) or rank (the site-wide top 100, one page).",
       "collection": "Only posts in this collection, by id. Unlike every other filter here this one is not a property of the post: somebody put them in it.",
       "collection_id": "The collection to act on.",
       "comment_id": "The parent comment whose replies you want. Ids come from the comments endpoint.",
@@ -669,6 +678,7 @@
       "offset": "Rows to skip.",
       "on_disk": "True for downloads whose files are still stored.",
       "outcome": "Only these outcomes. Repeat the parameter to allow several.",
+      "part": "Bilibili only: which part of a video uploaded in several, from 1. A link's ?p= says the same. Omitted, the first part.",
       "pinned": "Only pinned downloads, or only unpinned.",
       "platform": "Which platform the request is addressed to: douyin, tiktok or bilibili. It must match the link you pass. Not every endpoint is served on every platform.",
       "proxy": "Send the upstream request through this proxy, as a full URL such as http://host:port. Refused unless an administrator has enabled security.request_proxy.",
@@ -749,6 +759,7 @@
       },
       "DownloadRequest": {
         "content_id": "The post id, as the archive holds it. Text, never an integer: a 19-digit id exceeds the JavaScript safe range.",
+        "part": "Bilibili only: which part of a video uploaded in several, from 1. Omitted, it is the part a link's `?p=` names, or the first. A later part is stored beside the first, in a directory of its own.",
         "platform": "Which platform the post is on. Implied by `url` when given.",
         "skip_existing": "Return the existing download instead of fetching the post again, when this instance already holds its media. What re-running a feed wants: three new posts and forty already on disk.",
         "url": "A share link, or the share text with one inside it. Only the post id it yields is used; nothing here decides which host gets contacted."

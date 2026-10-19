@@ -102,6 +102,7 @@ class DownloadGateway(Protocol):
         skip_existing: bool,
         requested_by: Any | None,
         is_demo: bool,
+        part: int | None = None,
     ) -> dict[str, Any]: ...
 
     async def get(self, download_id: str) -> dict[str, Any]: ...

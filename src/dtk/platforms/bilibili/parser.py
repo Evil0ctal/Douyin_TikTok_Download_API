@@ -22,16 +22,19 @@ Where Bilibili differs from the other two, and how it lands in the models:
   its ``data`` in under :data:`STREAMS_KEY`. A detail without it parses into a
   video with no stream rather than failing - the rest of the answer is real.
 * **There are no image albums.** Every item is a video.
+* **A video can come in parts.** It is still one post, keyed by its
+  bvid; ``parts`` lists them, and the stream is whichever part was asked
+  for - the first unless the request named another.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, Final
 
-from dtk.core.errors import UpstreamRiskControl
+from dtk.core.errors import InvalidParam, UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
 from dtk.models import (
     Author,
@@ -39,6 +42,7 @@ from dtk.models import (
     Collection,
     Comment,
     Content,
+    ContentPart,
     ContentStats,
     Image,
     Media,
@@ -65,6 +69,10 @@ SPACE_DOMAIN: Final = "https://space.bilibili.com"
 #: Where the fetch layer puts the ``playurl`` answer inside a detail payload.
 #: Prefixed so it can never collide with a field Bilibili adds to ``data``.
 STREAMS_KEY: Final = "__dtk_streams"
+#: Which part the stream under :data:`STREAMS_KEY` is, when it is not the first.
+PART_KEY: Final = "__dtk_part"
+#: Where the fetch layer puts one weekly issue inside the index that named it.
+ISSUE_KEY: Final = "__dtk_issue"
 
 #: Envelope codes that are a refusal of the caller rather than an answer.
 #: -352 "risk check failed" and -412 "request intercepted" were both seen on
@@ -154,7 +162,7 @@ def _author(node: Node, *, name_key: str = "name", face_key: str | None = "face"
 # --------------------------------------------------------------------------
 
 
-def _stream(data: Node) -> VideoStream | None:
+def _stream(data: Node, dimension: Node | None) -> VideoStream | None:
     """The progressive MP4 in a ``playurl`` answer, mirrors included.
 
     Only a single-part MP4 is a stream here. Bilibili answers some requests
@@ -174,7 +182,7 @@ def _stream(data: Node) -> VideoStream | None:
     urls = clean_urls([part.get("url"), *(part.get("backup_url") or [])])
     if not urls:
         return None
-    width, height = _dimension(data.opt_child("dimension"))
+    width, height = _dimension(dimension)
     return VideoStream(
         url=urls[0],
         urls=urls,
@@ -207,29 +215,47 @@ def _state(node: Node) -> tuple[bool, bool]:
     return False, state is not None and state < 0
 
 
-def parse_content(payload: Mapping[str, Any], *, fetched_at: datetime) -> Content:
-    """Parse ``/x/web-interface/wbi/view``, with ``playurl`` folded in if it came.
+def _part(node: Node) -> ContentPart:
+    width, height = _dimension(node.opt_child("dimension"))
+    return ContentPart(
+        part=optional_int(node.get("page")) or 0,
+        cid=node.id("cid"),
+        title=_prose(node.get("part")),
+        duration_ms=seconds_to_ms(node.get("duration")),
+        width=width,
+        height=height,
+    )
 
-    A video in several parts is one post here; the stream is the first part's,
-    since that is what its link plays.
+
+def _video(
+    node: Node,
+    *,
+    fetched_at: datetime,
+    stream: VideoStream | None = None,
+    parts: list[ContentPart] | None = None,
+) -> Content:
+    """One archive object - the detail's ``data``, or an item of a list.
+
+    The popular lists, the weekly selection, the editors' selection and the
+    ranking all carry the same object the detail does, minus the stream and
+    the part list, so one function reads all five.
     """
-    data = _guard(payload).child("data")
-    bvid = data.id("bvid")
-    stat = data.child("stat")
-    is_deleted, is_private = _state(data)
-    cover = _image(data.get("pic"))
+    bvid = node.id("bvid")
+    stat = node.child("stat")
+    is_deleted, is_private = _state(node)
+    cover = _image(node.get("pic"))
     return Content(
         platform=_PLATFORM,
         content_id=bvid,
         kind=ContentKind.VIDEO,
         web_url=content_web_url(bvid),
-        title=data.text("title"),
-        description=_prose(data.get("desc")),
-        created_at=epoch_to_datetime(data.get("pubdate")),
-        duration_ms=seconds_to_ms(data.get("duration")),
+        title=node.text("title"),
+        description=_prose(node.get("desc")),
+        created_at=epoch_to_datetime(node.get("pubdate")),
+        duration_ms=seconds_to_ms(node.get("duration")),
         is_deleted=is_deleted,
         is_private=is_private,
-        author=_author(data.child("owner")),
+        author=_author(node.child("owner")),
         stats=ContentStats(
             play_count=optional_int(stat.get("view")),
             digg_count=optional_int(stat.get("like")),
@@ -237,13 +263,39 @@ def parse_content(payload: Mapping[str, Any], *, fetched_at: datetime) -> Conten
             share_count=optional_int(stat.get("share")),
             collect_count=optional_int(stat.get("favorite")),
         ),
-        media=Media(
-            covers=[cover] if cover else [],
-            video=_stream(data),
-        ),
+        media=Media(covers=[cover] if cover else [], video=stream),
+        parts=parts or [],
         fetched_at=fetched_at,
-        raw=data.raw(),
+        raw=node.raw(),
     )
+
+
+def parse_content(payload: Mapping[str, Any], *, fetched_at: datetime) -> Content:
+    """Parse ``/x/web-interface/wbi/view``, with ``playurl`` folded in if it came.
+
+    A video in several parts is one post here, its parts listed in ``parts``.
+    The stream is the part that was asked for - the first, unless the request
+    named another - and its size is that part's, not the first's.
+    """
+    data = _guard(payload).child("data")
+    pages = data.opt_children("pages")
+    parts = [_part(page) for page in pages]
+    # The detail's own `dimension` is the first part's. Another part's is on
+    # its own page entry, and a 4:3 second part reported at the first's 16:9
+    # is a wrong size for every player that sizes itself from it.
+    wanted = optional_int(data.get(PART_KEY)) or 1
+    playing = next(
+        (page for page in pages if wanted > 1 and optional_int(page.get("page")) == wanted),
+        None,
+    )
+    dimension = playing.opt_child("dimension") if playing else data.opt_child("dimension")
+    return _video(data, fetched_at=fetched_at, stream=_stream(data, dimension), parts=parts)
+
+
+def parse_content_parts(payload: Mapping[str, Any]) -> Page[ContentPart]:
+    """Parse ``/x/player/pagelist``: every part, in order, in one answer."""
+    pages = _guard(payload).children("data")
+    return Page(items=[_part(page) for page in pages], cursor=None, has_more=False)
 
 
 def first_part_cid(payload: Mapping[str, Any]) -> str | None:
@@ -255,6 +307,27 @@ def first_part_cid(payload: Mapping[str, Any]) -> str | None:
     return str(cid) if cid else None
 
 
+def part_cid(payload: Mapping[str, Any], part: int) -> str:
+    """The cid of one part of a detail, by its 1-based position.
+
+    Refused by name when the video has fewer parts, rather than quietly
+    answered with the first: a download of "part 12" of an 11-part video
+    that stored part 1 under that name is worse than no download.
+    """
+    data = payload.get("data")
+    pages = data.get("pages") if isinstance(data, Mapping) else None
+    for page in pages if isinstance(pages, list) else []:
+        if isinstance(page, Mapping) and optional_int(page.get("page")) == part:
+            cid = optional_int(page.get("cid"))
+            if cid:
+                return str(cid)
+    count = len(pages) if isinstance(pages, list) else 0
+    raise InvalidParam(
+        f"this video has {count} part(s); there is no part {part}",
+        details={"field": "part", "value": part, "parts": count},
+    )
+
+
 def merge_streams(detail: Mapping[str, Any], streams: Mapping[str, Any]) -> dict[str, Any]:
     """A copy of ``detail`` with ``streams``'s ``data`` under :data:`STREAMS_KEY`."""
     merged = dict(detail)
@@ -263,6 +336,44 @@ def merge_streams(detail: Mapping[str, Any], streams: Mapping[str, Any]) -> dict
         data[STREAMS_KEY] = dict(streams["data"])
     merged["data"] = data
     return merged
+
+
+def merge_part_streams(
+    part: int,
+) -> Callable[[Mapping[str, Any], Mapping[str, Any]], dict[str, Any]]:
+    """:func:`merge_streams`, recording which part the stream belongs to."""
+
+    def merge(detail: Mapping[str, Any], streams: Mapping[str, Any]) -> dict[str, Any]:
+        merged = merge_streams(detail, streams)
+        merged["data"][PART_KEY] = part
+        return merged
+
+    return merge
+
+
+def merge_issue(index: Mapping[str, Any], issue: Mapping[str, Any]) -> dict[str, Any]:
+    """A copy of the weekly index with one issue's ``data`` under :data:`ISSUE_KEY`."""
+    merged = dict(index)
+    data = dict(index.get("data") or {})
+    if isinstance(issue.get("data"), Mapping):
+        data[ISSUE_KEY] = dict(issue["data"])
+    merged["data"] = data
+    return merged
+
+
+def latest_issue(payload: Mapping[str, Any]) -> int | None:
+    """The newest issue the weekly index lists. It lists newest first, but the
+    largest number is taken rather than the first entry, which costs nothing
+    and does not depend on the order holding."""
+    data = payload.get("data")
+    issues = data.get("list") if isinstance(data, Mapping) else None
+    numbers = [
+        optional_int(item.get("number"))
+        for item in (issues if isinstance(issues, list) else [])
+        if isinstance(item, Mapping)
+    ]
+    found = [number for number in numbers if number]
+    return max(found) if found else None
 
 
 _CLOCK = re.compile(r"(?:(\d+):)?(\d+):(\d{1,2})")
@@ -320,6 +431,54 @@ def _numbered_page(
     total = optional_int(page.get(count)) or 0
     more = per_page > 0 and current * per_page < total
     return more, str(current + 1) if more else None
+
+
+#: The capabilities :func:`parse_popular` answers, by the name the registry
+#: passes as ``board``.
+BOARD_HOT: Final = "popular"
+BOARD_WEEKLY: Final = "popular_weekly"
+BOARD_PRECIOUS: Final = "popular_precious"
+BOARD_RANKING: Final = "ranking"
+
+
+def parse_popular(
+    payload: Mapping[str, Any],
+    *,
+    board: str,
+    fetched_at: datetime,
+    cursor: str | None = None,
+) -> Page[Content]:
+    """Parse one of the four site-curated lists into a page of posts.
+
+    They page three different ways, which is the whole reason this is one
+    function with a ``board`` rather than four copies of the item loop:
+
+    * **popular** pages by number. Its ``no_more`` is not to be trusted - a
+      page past the end came back empty with ``no_more: false`` on
+      2026-10-19 - so an empty page is the end whatever it says.
+    * **popular_weekly** pages by issue, newest first. The cursor is the
+      next older issue's number, and issue 1 is the last page.
+    * **popular_precious** and **ranking** are one page each.
+    """
+    data = _guard(payload).child("data")
+    if board == BOARD_WEEKLY:
+        issue = data.opt_child(ISSUE_KEY)
+        if issue is None:
+            # The fetch layer raises when this follow-up fails, so reaching
+            # here means the index came back without a usable issue number.
+            raise data.missing(ISSUE_KEY)
+        items = [_video(item, fetched_at=fetched_at) for item in issue.listed_children("list")]
+        config = issue.opt_child("config")
+        number = optional_int(config.get("number")) if config else None
+        older = number - 1 if number and number > 1 else None
+        return Page(items=items, cursor=str(older) if older else None, has_more=older is not None)
+
+    items = [_video(item, fetched_at=fetched_at) for item in data.listed_children("list")]
+    if board != BOARD_HOT:
+        return Page(items=items, cursor=None, has_more=False)
+    current = optional_int(cursor) or 1
+    more = bool(items) and not optional_bool(data.get("no_more"), default=False)
+    return Page(items=items, cursor=str(current + 1) if more else None, has_more=more)
 
 
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
@@ -545,12 +704,21 @@ def parse_comment_replies(
 
 
 __all__ = [
+    "BOARD_HOT",
+    "BOARD_PRECIOUS",
+    "BOARD_RANKING",
+    "BOARD_WEEKLY",
+    "ISSUE_KEY",
+    "PART_KEY",
     "RISK_CODES",
     "STREAMS_KEY",
     "author_web_url",
     "content_web_url",
     "detect_risk_control",
     "first_part_cid",
+    "latest_issue",
+    "merge_issue",
+    "merge_part_streams",
     "merge_streams",
     "parse_author",
     "parse_author_collections",
@@ -559,4 +727,7 @@ __all__ = [
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_content_parts",
+    "parse_popular",
+    "part_cid",
 ]

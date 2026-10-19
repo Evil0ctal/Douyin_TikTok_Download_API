@@ -26,9 +26,10 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
-from dtk.core.errors import Internal, InvalidParam, NotFound
+from dtk.core.errors import DtkError, Internal, InvalidParam, NotFound
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.db.models import ArchivedContent
@@ -75,7 +76,11 @@ async def run(
         await downloads.fail(session, download_id, "media downloads are disabled")
         raise InvalidParam("media downloads are disabled")
 
-    row = await _content(deps, session, download, config)
+    row = (
+        await _part_content(deps, session, download)
+        if download.part
+        else await _content(deps, session, download, config)
+    )
     if row is None:
         await downloads.fail(session, download_id, "this instance has not archived that post")
         raise NotFound(
@@ -183,6 +188,58 @@ async def _content(
         action="using the archived mirrors",
     )
     return row
+
+
+async def _part_content(
+    deps: OperationDeps, session: AsyncSession, download: Any
+) -> ArchivedContent | None:
+    """One later part of a video, fetched for its own file and never archived.
+
+    The archive holds the post with its first part's file: that is what the
+    post's link plays and what the library shows. Archived, this part's file
+    would replace it, and the next download of the post itself - served from
+    the archive while its mirrors are fresh - would store this part under the
+    post's name. So the row built here is handed to the planner and dropped.
+
+    Always fetched, never planned from anything stored: nothing stored holds
+    this part's file. A failure is the download's, with the reason - "this
+    video has 11 parts" is what a caller asking for part 12 needs to read.
+    """
+    fetch = deps.fetch
+    if fetch is None:
+        return None
+    config = deps.config()
+    parsed: list[Any] = []
+    try:
+        call = registry.resolve(
+            f"{download.platform}.content_detail",
+            {"content_id": download.content_id, registry.PART: download.part},
+            config,
+        )
+
+        def capture(payload: dict[str, Any]) -> Any:
+            model = call.parse(payload)
+            parsed.append(model)
+            return model
+
+        await fetch.fetch(
+            session,
+            call.platform,
+            call.endpoint,
+            call.params,
+            parse=capture,
+            cache_ttl=0,
+            ctx=FetchContext(),
+        )
+    except DtkError as exc:
+        await session.commit()
+        await downloads.fail(session, download.id, str(exc))
+        raise
+    if not parsed:
+        return None
+    await session.commit()
+    content = parsed[-1]
+    return ArchivedContent(**archive.content_row(content, now=datetime.now(UTC), store_raw=False))
 
 
 async def _reparse(

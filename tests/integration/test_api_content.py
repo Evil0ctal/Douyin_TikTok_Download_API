@@ -901,3 +901,103 @@ async def test_an_order_that_does_not_exist_is_a_validation_error(client: Any) -
     )
 
     assert error_code(response) == "INVALID_PARAM"
+
+
+# --------------------------------------------------------------------------
+# Bilibili's boards and parts
+# --------------------------------------------------------------------------
+
+
+async def _queued(response: Any) -> Task:
+    assert response.status_code == 202, response.text
+    async with session_scope() as session:
+        row = await session.get(Task, uuid.UUID(envelope(response)["data"]["task_id"]))
+    assert row is not None
+    return row
+
+
+@pytest.mark.parametrize(
+    ("board", "endpoint"),
+    [
+        ("hot", "bilibili.popular"),
+        ("weekly", "bilibili.popular_weekly"),
+        ("precious", "bilibili.popular_precious"),
+        ("rank", "bilibili.ranking"),
+    ],
+)
+async def test_each_board_reaches_its_own_endpoint(client: Any, board: str, endpoint: str) -> None:
+    await signed_in(client)
+    row = await _queued(await client.get("/api/v1/bilibili/popular", params={"board": board}))
+    assert row.endpoint == endpoint
+
+
+async def test_the_board_defaults_to_what_is_popular_now(client: Any) -> None:
+    await signed_in(client)
+    row = await _queued(await client.get("/api/v1/bilibili/popular"))
+    assert row.endpoint == "bilibili.popular"
+
+
+async def test_a_platform_without_boards_says_so(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/popular")
+
+    assert error_code(response) == "UNSUPPORTED_CONTENT"
+    assert envelope(response)["error"]["details"]["supported"] == ["bilibili"]
+
+
+async def test_a_board_that_does_not_exist_is_a_validation_error(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/bilibili/popular", params={"board": "monthly"})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_the_parts_of_a_video_reach_the_queue(client: Any) -> None:
+    await signed_in(client)
+    row = await _queued(
+        await client.get("/api/v1/bilibili/video/parts", params={"aweme_id": BILIBILI_VIDEO_ID})
+    )
+    assert row.endpoint == "bilibili.content_parts"
+
+
+async def test_tiktok_has_no_parts(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/tiktok/video/parts", params={"aweme_id": an_id()})
+    assert error_code(response) == "UNSUPPORTED_CONTENT"
+
+
+async def test_a_part_of_a_video_is_asked_for_by_number(client: Any) -> None:
+    await signed_in(client)
+    row = await _queued(
+        await client.get(
+            "/api/v1/bilibili/video", params={"aweme_id": BILIBILI_VIDEO_ID, "part": 3}
+        )
+    )
+    assert row.params["part"] == 3
+
+
+async def test_a_link_to_a_later_part_asks_for_that_part(client: Any) -> None:
+    await signed_in(client)
+    row = await _queued(
+        await client.get(
+            "/api/v1/bilibili/video",
+            params={"url": f"https://www.bilibili.com/video/{BILIBILI_VIDEO_ID}?p=4"},
+        )
+    )
+    assert row.params["part"] == 4
+
+
+async def test_the_first_part_is_the_ordinary_detail(client: Any) -> None:
+    """Spelt as part 1 it is the same question as no part, and coalesces."""
+    await signed_in(client)
+    row = await _queued(
+        await client.get(
+            "/api/v1/bilibili/video", params={"aweme_id": BILIBILI_VIDEO_ID, "part": 1}
+        )
+    )
+    assert "part" not in row.params
+
+
+async def test_a_douyin_post_has_no_parts(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/video", params={"aweme_id": an_id(), "part": 2})
+    assert error_code(response) == "INVALID_PARAM"

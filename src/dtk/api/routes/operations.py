@@ -79,6 +79,11 @@ class Operation(StrEnum):
     MIX_POSTS = "mix_posts"
     AUTHOR_FOLLOWERS = "author_followers"
     AUTHOR_FOLLOWING = "author_following"
+    CONTENT_PARTS = "content_parts"
+    POPULAR = "popular"
+    POPULAR_WEEKLY = "popular_weekly"
+    POPULAR_PRECIOUS = "popular_precious"
+    RANKING = "ranking"
 
 
 class Maintenance(StrEnum):

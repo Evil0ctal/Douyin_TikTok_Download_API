@@ -175,6 +175,7 @@ class ServiceDownloadGateway:
         skip_existing: bool,
         requested_by: Any | None,
         is_demo: bool,
+        part: int | None = None,
     ) -> dict[str, Any]:
         async with session_scope() as session:
             result = await download_requests.start(
@@ -187,6 +188,7 @@ class ServiceDownloadGateway:
                 skip_existing=skip_existing,
                 requested_by=requested_by,
                 is_demo=is_demo,
+                part=part,
             )
         return result.as_dict()
 

@@ -1586,3 +1586,129 @@ async def test_cancelling_still_leaves_a_finished_download_alone(
     assert body["state"] == "done"
     assert sidecar.asked == []
     assert await _removed_at(download_id) == [None]
+
+
+# --------------------------------------------------------------------------
+# Parts of a video uploaded in several
+# --------------------------------------------------------------------------
+
+
+BILIBILI_ID = "BV1xx411c7mD"
+
+
+async def _start(api_app: Any, key: str, body: dict[str, Any]) -> Any:
+    async with anonymous_client(api_app) as caller:
+        return await caller.post("/api/v1/downloads", json=body, headers={"X-API-Key": key})
+
+
+async def test_a_later_part_is_its_own_download_in_its_own_directory(
+    api_app, db_engine, redis_client
+):
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    response = await _start(
+        api_app, key, {"platform": "bilibili", "content_id": BILIBILI_ID, "part": 3}
+    )
+
+    assert response.status_code == 202, response.text
+    body = envelope(response)["data"]
+    assert body["part"] == 3
+    assert body["directory"].endswith(f"/{BILIBILI_ID}-p3")
+    async with session_scope() as session:
+        row = (await session.scalars(select(MediaDownload))).one()
+    assert row.part == 3
+
+
+async def test_two_parts_of_one_post_download_side_by_side(api_app, db_engine, redis_client):
+    """One live download per post was the rule because two wrote into one
+    directory. Two parts do not, so neither waits for - or joins - the other."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    first = await _start(api_app, key, {"platform": "bilibili", "content_id": BILIBILI_ID})
+    third = await _start(
+        api_app, key, {"platform": "bilibili", "content_id": BILIBILI_ID, "part": 3}
+    )
+    again = await _start(
+        api_app, key, {"platform": "bilibili", "content_id": BILIBILI_ID, "part": 3}
+    )
+
+    assert first.status_code == third.status_code == 202
+    assert envelope(again)["data"]["reused"] == "in_flight"
+    assert envelope(again)["data"]["download_id"] == envelope(third)["data"]["download_id"]
+    async with session_scope() as session:
+        assert len((await session.scalars(select(MediaDownload))).all()) == 2
+
+
+async def test_part_one_is_the_post_s_own_download(api_app, db_engine, redis_client):
+    """Spelt either way it is the first part, which every download made before
+    parts existed is - so it joins the same in-flight download."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    plain = await _start(api_app, key, {"platform": "bilibili", "content_id": BILIBILI_ID})
+    one = await _start(api_app, key, {"platform": "bilibili", "content_id": BILIBILI_ID, "part": 1})
+
+    assert envelope(plain)["data"]["part"] is None
+    assert envelope(one)["data"]["reused"] == "in_flight"
+
+
+async def test_a_link_s_part_is_the_part_downloaded(api_app, db_engine, redis_client):
+    """Pasting the link a player is on downloads what that player plays."""
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    response = await _start(
+        api_app, key, {"url": f"https://www.bilibili.com/video/{BILIBILI_ID}/?p=2&vd_source=x"}
+    )
+
+    assert envelope(response)["data"]["part"] == 2
+
+
+async def test_a_link_and_a_part_that_disagree_are_refused(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    response = await _start(
+        api_app, key, {"url": f"https://www.bilibili.com/video/{BILIBILI_ID}?p=2", "part": 3}
+    )
+
+    assert error_code(response) == "INVALID_PARAM"
+    assert envelope(response)["error"]["details"]["field"] == "part"
+
+
+async def test_a_part_of_a_douyin_post_is_refused(api_app, db_engine, redis_client):
+    user_id = await make_user()
+    key = await media_key(user_id)
+
+    response = await _start(
+        api_app, key, {"platform": "douyin", "content_id": CONTENT_ID, "part": 2}
+    )
+
+    assert error_code(response) == "INVALID_PARAM"
+    async with session_scope() as session:
+        assert (await session.scalars(select(MediaDownload))).all() == []
+
+
+async def test_a_stored_part_is_not_the_post_s_media_in_the_library(
+    api_app, db_engine, redis_client
+):
+    """The library shows what the post's link plays. Part 7 stored alone is not that."""
+    now = datetime.now(UTC)
+    async with session_scope() as session:
+        session.add(
+            MediaDownload(
+                platform="bilibili",
+                content_id=BILIBILI_ID,
+                part=7,
+                author_uid="9",
+                state="done",
+                directory=f"bilibili/9/{BILIBILI_ID}-p7",
+                files=[{"name": "video.mp4", "kind": "video", "bytes": 1}],
+                created_at=now,
+                finished_at=now,
+            )
+        )
+    async with session_scope() as session:
+        assert await downloads.stored_for(session, [("bilibili", BILIBILI_ID)]) == {}

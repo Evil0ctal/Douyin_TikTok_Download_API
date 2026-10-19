@@ -111,7 +111,33 @@ def _page(cursor: str | None) -> str:
     return text
 
 
-def content_detail_params(*, bvid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
+def part_number(value: object) -> int:
+    """A part's 1-based position, as the site's own ``?p=`` links count it."""
+    text = str(value).strip()
+    if not text.isdigit() or int(text) < 1:
+        raise InvalidParam(
+            "part must be a positive whole number, counted from 1",
+            details={"field": "part", "value": text[:16]},
+        )
+    return int(text)
+
+
+def content_detail_params(
+    *, bvid: str, part: int | None = None, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """The detail of one video.
+
+    ``part`` is not sent - the detail is the whole upload's, whichever part
+    is wanted. It is accepted here so the fetch layer hands it on to the
+    ``playurl`` follow-up, which is where it chooses the file; validating it
+    now refuses a bad one before any request is spent.
+    """
+    if part is not None:
+        part_number(part)
+    return {"bvid": content_bvid(bvid)}
+
+
+def content_parts_params(*, bvid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     return {"bvid": content_bvid(bvid)}
 
 
@@ -241,6 +267,63 @@ def collection_posts_params(
     }
 
 
+def popular_params(
+    *,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    return {"pn": _page(cursor), "ps": str(count)}
+
+
+def popular_weekly_params(
+    *,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The index of issues, which takes nothing.
+
+    The cursor is an issue number and is used by the follow-up that fetches
+    the issue. It is checked here so a malformed one is refused before the
+    index is read; ``count`` is accepted and not sent, an issue being 50.
+    """
+    if cursor is not None and str(cursor).strip() not in ("", "0"):
+        _page(cursor)
+    return {}
+
+
+def popular_weekly_issue_params(
+    *, number: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    return {"number": _page(number)}
+
+
+def popular_precious_params(
+    *,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """All 98 at once; the endpoint answers the same list for every page."""
+    return {"page_size": "100", "page": "1"}
+
+
+def ranking_params(
+    *,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The whole site's top 100, in one answer.
+
+    ``rid=0`` is every category. The dm report is the rank page's: without it
+    a guest is answered -352, as the uploader space is, whether or not the
+    request is signed.
+    """
+    return {"rid": "0", "type": "all", "web_location": "333.934", **dm_params(profile)}
+
+
 __all__ = [
     "DEFAULT_PAGE_SIZE",
     "DEFAULT_PROFILE",
@@ -252,7 +335,14 @@ __all__ = [
     "comment_replies_params",
     "comments_params",
     "content_detail_params",
+    "content_parts_params",
     "content_streams_params",
     "dm_params",
+    "part_number",
+    "popular_params",
+    "popular_precious_params",
+    "popular_weekly_issue_params",
+    "popular_weekly_params",
     "profile_for",
+    "ranking_params",
 ]

@@ -106,6 +106,22 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy(
             "bilibili.collection_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.2
         ),
+        EndpointPolicy("bilibili.content_parts", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
+        # The boards are the same lists for everyone and are cached, so they
+        # are asked rarely; unsigned and light, they sit with the detail.
+        EndpointPolicy("bilibili.popular", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("bilibili.popular_weekly", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        # Asked once per weekly page, right after the index. Same rate, or
+        # every page would wait on it.
+        EndpointPolicy(
+            "bilibili.popular_weekly_issue", capacity=4, refill_per_sec=0.20, risk_weight=1.0
+        ),
+        EndpointPolicy(
+            "bilibili.popular_precious", capacity=4, refill_per_sec=0.20, risk_weight=1.0
+        ),
+        # Guarded like the uploader space - without the dm report it answers
+        # -352 - so it gets the comment endpoints' slower bucket.
+        EndpointPolicy("bilibili.ranking", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
     ]
 }
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from typing import Any, Final
+from urllib.parse import parse_qs, urlsplit
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,10 +46,13 @@ class DownloadStart:
     #: anything, which is a slower first response.
     archived: bool = True
     reused: str | None = None
+    #: Which part of a video uploaded in several; None is the first.
+    part: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "download_id": str(self.download_id),
+            "part": self.part,
             "task_id": str(self.task_id) if self.task_id else None,
             "state": self.state,
             "directory": self.directory,
@@ -131,6 +135,45 @@ def resolve_target(
     return platform, require_content_id(content_id, platform=platform)
 
 
+#: The platforms whose videos come in parts.
+PART_PLATFORMS: Final[frozenset[Platform]] = frozenset({Platform.BILIBILI})
+
+
+def resolve_part(platform: Platform, part: int | None, url: str | None) -> int | None:
+    """Which part is meant: the one asked for, or the one the link plays.
+
+    A Bilibili link to a later part carries it as ``?p=3``, and the URL layer
+    keeps that parameter for exactly this; pasting the link a player is on
+    should download what that player plays. The first part is None, whichever
+    way it was spelt, because that is what every download made before parts
+    existed is - and the in-flight index treats the two as one.
+    """
+    from_link = _part_in(url) if url and platform in PART_PLATFORMS else None
+    if part is not None and from_link is not None and part != from_link:
+        raise InvalidParam(
+            "the link and part name different parts",
+            details={"field": "part", "part": part, "url_part": from_link},
+        )
+    wanted = part if part is not None else from_link
+    if wanted is None:
+        return None
+    if platform not in PART_PLATFORMS:
+        raise InvalidParam(
+            f"{platform.value} videos do not come in parts",
+            details={"field": "part", "platform": platform.value},
+        )
+    if wanted < 1:
+        raise InvalidParam("part counts from 1", details={"field": "part", "value": wanted})
+    return wanted if wanted > 1 else None
+
+
+def _part_in(url: str) -> int | None:
+    candidate = first_url(url) or url
+    values = parse_qs(urlsplit(candidate).query).get("p") or []
+    text = values[0].strip() if values else ""
+    return int(text) if text.isdigit() else None
+
+
 async def start(
     session: AsyncSession,
     *,
@@ -142,11 +185,13 @@ async def start(
     skip_existing: bool = False,
     requested_by: uuid.UUID | None = None,
     is_demo: bool = False,
+    part: int | None = None,
 ) -> DownloadStart:
     """Validate, create or reuse, commit, then publish one download task."""
     ensure_configured(downloader_configured=downloader_configured, config=config)
 
     target_platform, target_id = resolve_target(url=url, platform=platform, content_id=content_id)
+    part = resolve_part(target_platform, part, url)
     verdict = capacity.evaluate(
         warn_percent=float(config.get("capacity.warn_percent")),
         hard_stop_percent=float(config.get("capacity.hard_stop_percent")),
@@ -158,7 +203,7 @@ async def start(
         )
 
     # Two reasons not to start a second one, and only one of them is optional.
-    live, stored = await downloads.existing_for(session, target_platform.value, target_id)
+    live, stored = await downloads.existing_for(session, target_platform.value, target_id, part)
     if live is not None:
         # Never optional. Two downloads of a post write to one directory - it is
         # keyed by platform, author and post - and the sidecar renames
@@ -182,8 +227,13 @@ async def start(
                 session,
                 platform=target_platform.value,
                 content_id=target_id,
+                part=part,
                 requested_by=requested_by,
             )
+        elif part is not None:
+            # The archive holds the first part's file, so it says nothing about
+            # this one; the worker asks for this part's and plans from that.
+            download = await downloads.create(session, row, part=part, requested_by=requested_by)
         else:
             # Planned here as well as in the worker, so a post that IS archived
             # and has nothing fetchable is a 400 the caller reads now rather
@@ -198,7 +248,7 @@ async def start(
             skipped = tuple(plan.skipped)
             download = await downloads.create(session, row, requested_by=requested_by)
     except IntegrityError:
-        return await _joined(session, target_platform.value, target_id)
+        return await _joined(session, target_platform.value, target_id, part)
 
     # Never coalesced: two requests for the same post are two deliberate acts,
     # and the second one is usually "the first did not work" - joining them onto
@@ -218,7 +268,7 @@ async def start(
     try:
         await session.commit()
     except IntegrityError:
-        return await _joined(session, target_platform.value, target_id)
+        return await _joined(session, target_platform.value, target_id, part)
 
     try:
         await tasks.enqueue(task_id, endpoint=ENDPOINT)
@@ -241,6 +291,7 @@ async def start(
         platform=target_platform.value,
         items=len(planned),
         archived=row is not None,
+        part=part,
     )
     return DownloadStart(
         download_id=download.id,
@@ -250,10 +301,13 @@ async def start(
         planned=planned,
         skipped=skipped,
         archived=row is not None,
+        part=part,
     )
 
 
-async def _joined(session: AsyncSession, platform: str, content_id: str) -> DownloadStart:
+async def _joined(
+    session: AsyncSession, platform: str, content_id: str, part: int | None = None
+) -> DownloadStart:
     """Answer a request the in-flight index refused.
 
     `ux_media_downloads_in_flight` fires when another request for this post got
@@ -266,7 +320,7 @@ async def _joined(session: AsyncSession, platform: str, content_id: str) -> Down
     is called from three places rather than wrapped once around the end.
     """
     await session.rollback()
-    live, _ = await downloads.existing_for(session, platform, content_id)
+    live, _ = await downloads.existing_for(session, platform, content_id, part)
     if live is None:
         # The other request settled and cleared the way between the refusal and
         # this lookup. Nothing to join, and pretending otherwise would hand back
@@ -289,6 +343,7 @@ def _existing(download: Any, *, reason: str) -> DownloadStart:
         state=download.state,
         directory=download.directory,
         reused=reason,
+        part=download.part,
     )
 
 
@@ -296,6 +351,7 @@ __all__ = [
     "CAPACITY_RETRY_AFTER",
     "DownloadStart",
     "ensure_configured",
+    "resolve_part",
     "resolve_target",
     "start",
 ]

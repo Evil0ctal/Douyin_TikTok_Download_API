@@ -94,6 +94,32 @@ class TestParameters:
     ) -> None:
         assert params.author_posts_params(mid="2", cursor=cursor)["pn"] == page
 
+    @pytest.mark.parametrize(("cursor", "page"), [(None, "1"), ("", "1"), ("4", "4")])
+    def test_the_popular_list_pages_by_number(self, cursor: str | None, page: str) -> None:
+        assert params.popular_params(cursor=cursor, count=20) == {"pn": page, "ps": "20"}
+
+    def test_a_weekly_cursor_is_an_issue_number(self) -> None:
+        """Checked before the index is read, which costs a request."""
+        assert params.popular_weekly_params(cursor="394") == {}
+        with pytest.raises(InvalidParam):
+            params.popular_weekly_params(cursor="latest")
+
+    def test_the_ranking_sends_the_rank_page_s_report(self) -> None:
+        """Without the dm report a guest is answered -352 (measured)."""
+        built = params.ranking_params()
+        assert built["rid"] == "0"
+        assert {"dm_img_str", "dm_cover_img_str"} <= set(built)
+
+    @pytest.mark.parametrize("part", [0, -1, "two", "1.5"])
+    def test_a_part_is_a_positive_whole_number(self, part: object) -> None:
+        with pytest.raises(InvalidParam) as caught:
+            params.content_detail_params(bvid="BV1xx411c7mD", part=part)  # type: ignore[arg-type]
+        assert caught.value.details["field"] == "part"
+
+    def test_the_part_is_not_sent_with_the_detail(self) -> None:
+        """The detail is the whole upload's; the part chooses the file."""
+        assert params.content_detail_params(bvid="BV1xx411c7mD", part=3) == {"bvid": "BV1xx411c7mD"}
+
     def test_a_cursor_that_is_not_a_page_is_refused(self) -> None:
         with pytest.raises(InvalidParam):
             params.author_posts_params(mid="2", cursor="abc")
@@ -123,6 +149,12 @@ class TestParameters:
             endpoints.COMMENT_REPLIES: {"bvid": "BV1xx411c7mD", "root": "1"},
             endpoints.AUTHOR_COLLECTIONS: {"mid": "2"},
             endpoints.COLLECTION_POSTS: {"media_id": "1"},
+            endpoints.CONTENT_PARTS: {"bvid": "BV1xx411c7mD"},
+            endpoints.POPULAR: {},
+            endpoints.POPULAR_WEEKLY: {},
+            endpoints.POPULAR_WEEKLY_ISSUE: {"number": "395"},
+            endpoints.POPULAR_PRECIOUS: {},
+            endpoints.RANKING: {},
             endpoints.SESSION_CHECK: {},
         }.items():
             adapter.build_request(name, profile=profile, **kwargs)

@@ -30,6 +30,20 @@ class CommentSort(StrEnum):
     NEW = "new"
 
 
+class PopularBoard(StrEnum):
+    """Which site-curated list ``/{platform}/popular`` reads.
+
+    Bilibili's four, named for what they are rather than for its paths: what
+    is popular now, the weekly selection, the editors' all-time selection, and
+    the site-wide top 100.
+    """
+
+    HOT = "hot"
+    WEEKLY = "weekly"
+    PRECIOUS = "precious"
+    RANK = "rank"
+
+
 class ContentKind(StrEnum):
     VIDEO = "video"
     IMAGE_ALBUM = "image_album"

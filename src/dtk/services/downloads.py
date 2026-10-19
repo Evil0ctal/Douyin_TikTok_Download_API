@@ -108,15 +108,20 @@ def job_payload(
     job, so the allowlist is narrowed to the platform the post came from.
     """
     platform = Platform(row.platform)
+    meta = planner.sidecar(row, plan)
+    if download.part:
+        meta["part"] = download.part
     return {
         "id": download.id.hex,
         "platform": row.platform,
         "author_uid": row.author_uid,
-        "content_id": row.content_id,
+        # The last path segment, which is how the sidecar names the directory
+        # - so a later part has to be spelt here the way `directory_of` does.
+        "content_id": _segment(row.content_id, download.part),
         "domains": sorted(domains.MEDIA_DOMAINS_BY_PLATFORM.get(platform, frozenset())),
         "user_agent": planner.USER_AGENT,
         "referer": planner.REFERER.get(platform, ""),
-        "meta": planner.sidecar(row, plan),
+        "meta": meta,
         "items": [item.as_payload() for item in plan.items],
     }
 
@@ -128,12 +133,27 @@ def job_payload(
 PENDING_AUTHOR: Final = "_pending"
 
 
-def directory_of(row: ArchivedContent) -> str:
-    return f"{row.platform}/{row.author_uid}/{row.content_id}"
+def _segment(content_id: str, part: int | None) -> str:
+    """A post's directory name, or a later part's beside it.
+
+    Beside, not inside: the sidecar removes a directory recursively, so a part
+    nested under the post's own would go whenever the first part's files did.
+    """
+    return f"{content_id}-p{part}" if part else content_id
 
 
-def pending_directory(platform: str, content_id: str) -> str:
-    return f"{platform}/{PENDING_AUTHOR}/{content_id}"
+def directory_of(row: ArchivedContent, part: int | None = None) -> str:
+    return f"{row.platform}/{row.author_uid}/{_segment(row.content_id, part)}"
+
+
+def pending_directory(platform: str, content_id: str, part: int | None = None) -> str:
+    return f"{platform}/{PENDING_AUTHOR}/{_segment(content_id, part)}"
+
+
+def _same_part(part: int | None) -> Any:
+    """The rows for this part - NULL being the first, which every row was
+    before parts existed."""
+    return MediaDownload.part.is_(None) if part is None else MediaDownload.part == part
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +162,7 @@ def pending_directory(platform: str, content_id: str) -> str:
 
 
 async def existing_for(
-    session: AsyncSession, platform: str, content_id: str
+    session: AsyncSession, platform: str, content_id: str, part: int | None = None
 ) -> tuple[MediaDownload | None, MediaDownload | None]:
     """The live download for this post, and the newest stored one.
 
@@ -160,6 +180,9 @@ async def existing_for(
     than a hazard - re-downloading is how you refresh a post - so the caller
     decides, and the caller that wants it most is a feed being re-run for the
     handful of posts an author has added since last time.
+
+    Both questions are asked of one part. Another part of the same post writes
+    into its own directory and is a different set of bytes.
     """
     rows = (
         (
@@ -168,6 +191,7 @@ async def existing_for(
                 .where(
                     MediaDownload.platform == platform,
                     MediaDownload.content_id == content_id,
+                    _same_part(part),
                 )
                 .order_by(MediaDownload.created_at.desc())
             )
@@ -186,6 +210,7 @@ async def create(
     session: AsyncSession,
     row: ArchivedContent,
     *,
+    part: int | None = None,
     requested_by: uuid.UUID | None = None,
 ) -> MediaDownload:
     """Record the intent to download, before anything is fetched.
@@ -196,9 +221,10 @@ async def create(
     download = MediaDownload(
         platform=row.platform,
         content_id=row.content_id,
+        part=part,
         author_uid=row.author_uid,
         state="queued",
-        directory=directory_of(row),
+        directory=directory_of(row, part),
         requested_by=requested_by,
     )
     session.add(download)
@@ -219,6 +245,7 @@ async def create_pending(
     *,
     platform: str,
     content_id: str,
+    part: int | None = None,
     requested_by: uuid.UUID | None = None,
 ) -> MediaDownload:
     """The same, for a post this instance has never seen.
@@ -232,9 +259,10 @@ async def create_pending(
     download = MediaDownload(
         platform=platform,
         content_id=content_id,
+        part=part,
         author_uid="",
         state="queued",
-        directory=pending_directory(platform, content_id),
+        directory=pending_directory(platform, content_id, part),
         requested_by=requested_by,
     )
     session.add(download)
@@ -252,7 +280,7 @@ async def adopt(session: AsyncSession, download: MediaDownload, row: ArchivedCon
     if download.author_uid:
         return
     download.author_uid = row.author_uid
-    download.directory = directory_of(row)
+    download.directory = directory_of(row, download.part)
     await session.flush()
 
 
@@ -450,7 +478,8 @@ async def stored_for(
 
     Keyed by (platform, content_id) because that is what the archive has; the
     newest live download per key wins, since re-downloading a post leaves the
-    older rows behind.
+    older rows behind. Only the first part counts: it is what the post's link
+    plays, and a stored part 7 is not "this post's video".
     """
     if not keys:
         return {}
@@ -460,6 +489,7 @@ async def stored_for(
                 select(MediaDownload)
                 .where(
                     tuple_(MediaDownload.platform, MediaDownload.content_id).in_(list(keys)),
+                    MediaDownload.part.is_(None),
                     MediaDownload.files_removed_at.is_(None),
                     MediaDownload.state == "done",
                 )
@@ -579,12 +609,13 @@ async def find_duplicates(session: AsyncSession) -> list[Duplicate]:
         .all()
     )
 
-    by_post: dict[tuple[str, str], list[MediaDownload]] = {}
+    # Per part: two parts of one post are two different files, not a copy.
+    by_post: dict[tuple[str, str, int | None], list[MediaDownload]] = {}
     for row in rows:
-        by_post.setdefault((row.platform, row.content_id), []).append(row)
+        by_post.setdefault((row.platform, row.content_id, row.part), []).append(row)
 
     duplicates: list[Duplicate] = []
-    for (platform, content_id), copies in by_post.items():
+    for (platform, content_id, _part), copies in by_post.items():
         if len(copies) < 2:
             continue
         keeper = next((row for row in copies if row.files_removed_at is None), copies[0])
@@ -850,8 +881,10 @@ def _with_export_name(row: MediaDownload, item: Any) -> Any:
         return item
     return {
         **item,
+        # A later part's files are named for the part, or two parts of one
+        # post saved to the same folder would overwrite each other.
         "export_name": planner.export_name(
-            str(row.platform), str(row.content_id), str(item["name"])
+            str(row.platform), _segment(str(row.content_id), row.part), str(item["name"])
         ),
     }
 
@@ -862,6 +895,7 @@ def as_dict(row: MediaDownload) -> dict[str, Any]:
         "id": str(row.id),
         "platform": row.platform,
         "content_id": row.content_id,
+        "part": row.part,
         "author_uid": row.author_uid,
         "state": row.state,
         "directory": row.directory,

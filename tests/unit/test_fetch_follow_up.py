@@ -3,19 +3,27 @@
 The fetch layer makes it, so it is scheduled, signed and logged like any other
 call - and it must never be what fails the request. A Bilibili detail without
 its stream is still the post.
+
+Unless the plan says it is required. The weekly selection's index without the
+issue it names is no answer at all, and a part asked for by number without
+its own file would download as nothing; those fail as the first call would.
 """
 
 from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import urlencode
 
-from dtk.core.errors import DtkError, IdentityPoolExhausted
+import pytest
+
+from dtk.core.errors import DtkError, IdentityPoolExhausted, NotFound, UpstreamRiskControl
 from dtk.core.types import BrowserFamily, LoginNeed, Outcome, Platform
 from dtk.identity.pool import LiveIdentity
 from dtk.platforms.bilibili.parser import STREAMS_KEY
 from dtk.scheduler.leases import Lease
 from dtk.services.fetch import FetchContext, FetchService
+from dtk.signing.base import SIGNER_BROWSER, SignedParams
 from dtk.transport.base import Fingerprint, RawResponse
 from tests.replay.support import load
 from tests.unit.test_fetch_classification import (
@@ -32,6 +40,8 @@ from tests.unit.test_fetch_classification import (
 
 DETAIL = "bilibili.content_detail"
 STREAMS = "bilibili.content_streams"
+WEEKLY = "bilibili.popular_weekly"
+ISSUE = "bilibili.popular_weekly_issue"
 
 
 class Scripted(FakeTransport):
@@ -69,14 +79,24 @@ def bilibili_identity() -> LiveIdentity:
     )
 
 
+async def keeps_the_query(platform: Platform, spec: Any, sender: Any) -> SignedParams:
+    """A signer that sends the builder's parameters as they are, so a test can
+    read which part or issue a follow-up asked for off the URL."""
+    params = {key: str(value) for key, value in (spec.get("params") or {}).items()}
+    return SignedParams(query=urlencode(params), params=params, signer=SIGNER_BROWSER)
+
+
 def bilibili_service(
-    transport: FakeTransport, *, scheduler: FakeScheduler | None = None
+    transport: FakeTransport,
+    *,
+    scheduler: FakeScheduler | None = None,
+    sign: Any = signer,
 ) -> FetchService:
     return FetchService(
         scheduler=scheduler or FakeScheduler(),  # type: ignore[arg-type]
         pool=FakePool(bilibili_identity()),  # type: ignore[arg-type]
         transport=transport,  # type: ignore[arg-type]
-        sign=signer,
+        sign=sign,
         cooldown_base=60,
     )
 
@@ -85,7 +105,14 @@ def answer(payload: Any) -> RawResponse:
     return response(200, body=json.dumps(payload).encode())
 
 
-async def fetch_detail(svc: FetchService, session: FakeSession, **ctx: Any) -> list[Any]:
+async def fetch_detail(
+    svc: FetchService,
+    session: FakeSession,
+    *,
+    endpoint: str = DETAIL,
+    params: dict[str, Any] | None = None,
+    **ctx: Any,
+) -> list[Any]:
     seen: list[Any] = []
 
     def parse(payload: dict[str, Any]) -> dict[str, Any]:
@@ -95,8 +122,8 @@ async def fetch_detail(svc: FetchService, session: FakeSession, **ctx: Any) -> l
     await svc.fetch(
         session,  # type: ignore[arg-type]
         Platform.BILIBILI,
-        DETAIL,
-        {"bvid": "BV1xx411c7mD"},
+        endpoint,
+        {"bvid": "BV1xx411c7mD"} if params is None else params,
         parse=parse,
         ctx=FetchContext(**ctx),
     )
@@ -174,3 +201,83 @@ async def test_an_answer_that_needs_nothing_more_is_one_request() -> None:
 def test_the_error_the_scheduler_refused_with_is_a_dtk_error() -> None:
     """What `_follow_up` catches; a plain exception would still fail the call."""
     assert issubclass(IdentityPoolExhausted, DtkError)
+
+
+async def test_a_named_part_is_fetched_by_its_own_cid() -> None:
+    detail = load("bilibili", "video_multipart")
+    transport = Scripted(answer(detail), answer(load("bilibili", "content_streams")))
+
+    seen = await fetch_detail(
+        bilibili_service(transport, sign=keeps_the_query),
+        FakeSession(),
+        params={"bvid": "BV1xx411c7mD", "part": 3},
+    )
+
+    third = str(detail["data"]["pages"][2]["cid"])
+    assert f"cid={third}" in transport.specs[1].url
+    assert seen[0]["data"]["__dtk_part"] == 3
+
+
+async def test_a_named_part_whose_file_is_refused_fails_the_request() -> None:
+    """Parsed without it, part 3 would be the post with no stream, and its
+    download would fail as "no downloadable media" instead of saying why."""
+    transport = Scripted(
+        answer(load("bilibili", "video_multipart")),
+        answer({"code": -352, "message": "risk", "ttl": 1, "data": {"v_voucher": "x"}}),
+    )
+
+    with pytest.raises(UpstreamRiskControl):
+        await fetch_detail(
+            bilibili_service(transport),
+            FakeSession(),
+            params={"bvid": "BV1xx411c7mD", "part": 3},
+        )
+
+
+async def test_the_weekly_index_is_followed_by_its_newest_issue() -> None:
+    index = load("bilibili", "popular_weekly_index")
+    transport = Scripted(answer(index), answer(load("bilibili", "popular_weekly_issue")))
+    session = FakeSession()
+
+    seen = await fetch_detail(
+        bilibili_service(transport, sign=keeps_the_query), session, endpoint=WEEKLY, params={}
+    )
+
+    assert "__dtk_issue" in seen[0]["data"]
+    assert f"number={index['data']['list'][0]['number']}" in transport.specs[1].url
+    assert [row.endpoint for row in rows(session)] == [WEEKLY, ISSUE]
+
+
+async def test_an_issue_that_does_not_exist_is_not_found() -> None:
+    """Not an empty issue: the index alone parsed as one would read as a
+    week in which nothing was selected."""
+    transport = Scripted(
+        answer(load("bilibili", "popular_weekly_index")),
+        answer(load("bilibili", "popular_weekly_missing")),
+    )
+
+    with pytest.raises(NotFound):
+        await fetch_detail(
+            bilibili_service(transport),
+            FakeSession(),
+            endpoint=WEEKLY,
+            params={"cursor": "999"},
+        )
+
+
+async def test_a_refused_issue_fails_the_request() -> None:
+    transport = Scripted(answer(load("bilibili", "popular_weekly_index")))
+
+    class RefusesIssues(FakeScheduler):
+        async def acquire(self, endpoint: str, platform: Platform, **kwargs: Any) -> Lease:
+            if endpoint == ISSUE:
+                raise IdentityPoolExhausted("no identity available for this endpoint")
+            return await super().acquire(endpoint, platform, **kwargs)
+
+    with pytest.raises(IdentityPoolExhausted):
+        await fetch_detail(
+            bilibili_service(transport, scheduler=RefusesIssues()),
+            FakeSession(),
+            endpoint=WEEKLY,
+            params={},
+        )

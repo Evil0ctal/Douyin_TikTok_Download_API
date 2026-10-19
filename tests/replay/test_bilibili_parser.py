@@ -14,11 +14,16 @@ from typing import Any
 
 import pytest
 
-from dtk.core.errors import UpstreamChanged, UpstreamRiskControl
+from dtk.core.errors import InvalidParam, UpstreamChanged, UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
 from dtk.platforms import get_adapter
 from dtk.platforms.bilibili import parser
-from dtk.platforms.bilibili.endpoints import CONTENT_DETAIL, CONTENT_STREAMS
+from dtk.platforms.bilibili.endpoints import (
+    CONTENT_DETAIL,
+    CONTENT_STREAMS,
+    POPULAR_WEEKLY,
+    POPULAR_WEEKLY_ISSUE,
+)
 from dtk.platforms.bilibili.ids import bv_to_av
 from tests.replay.support import FETCHED_AT, load, without
 
@@ -150,6 +155,157 @@ class TestFollowUp:
         before = copy.deepcopy(detail)
         parser.merge_streams(detail, bili("content_streams"))
         assert detail == before
+
+
+class TestParts:
+    def test_a_detail_lists_every_part_in_order(self) -> None:
+        payload = bili("video_multipart")
+        content = ADAPTER.parse_content(payload, fetched_at=FETCHED_AT)
+
+        pages = payload["data"]["pages"]
+        assert [part.part for part in content.parts] == list(range(1, len(pages) + 1))
+        first = content.parts[0]
+        assert first.cid == str(pages[0]["cid"])
+        assert first.duration_ms == pages[0]["duration"] * 1000
+        assert (first.width, first.height) == (2592, 1080)
+
+    def test_the_part_list_endpoint_answers_the_same_parts(self) -> None:
+        payload = bili("content_parts")
+        page = ADAPTER.parse_content_parts(payload)
+
+        assert [part.part for part in page.items] == [1, 2, 3]
+        assert page.items[1].cid == str(payload["data"][1]["cid"])
+        assert page.items[1].title == payload["data"][1]["part"]
+        assert page.has_more is False
+        assert page.cursor is None
+
+    def test_a_named_part_asks_for_that_part_s_file(self) -> None:
+        payload = bili("video_multipart")
+        follow_up = ADAPTER.follow_up(CONTENT_DETAIL, payload, {"bvid": "x", "part": 3})
+
+        assert follow_up is not None
+        assert follow_up.params["cid"] == str(payload["data"]["pages"][2]["cid"])
+        # Without its own file the part would be parsed as a post with none,
+        # and its download would fail without saying why.
+        assert follow_up.required is True
+
+    def test_the_first_part_is_asked_for_as_it_always_was(self) -> None:
+        payload = bili("video_multipart")
+        follow_up = ADAPTER.follow_up(CONTENT_DETAIL, payload, {"bvid": "x", "part": 1})
+
+        assert follow_up is not None
+        assert follow_up.params["cid"] == str(payload["data"]["cid"])
+        assert follow_up.required is False
+
+    def test_a_part_past_the_last_is_refused_by_name(self) -> None:
+        with pytest.raises(InvalidParam) as caught:
+            ADAPTER.follow_up(CONTENT_DETAIL, bili("video_multipart"), {"bvid": "x", "part": 12})
+        assert caught.value.details == {"field": "part", "value": 12, "parts": 11}
+
+    def test_the_stream_is_sized_as_the_part_it_plays(self) -> None:
+        """The detail's own dimension is the first part's."""
+        detail = bili("video_multipart")
+        detail["data"]["pages"][2]["dimension"] = {"width": 1440, "height": 1080, "rotate": 0}
+        follow_up = ADAPTER.follow_up(CONTENT_DETAIL, detail, {"bvid": "x", "part": 3})
+        assert follow_up is not None
+        merged = follow_up.merge(detail, bili("content_streams"))
+
+        video = ADAPTER.parse_content(merged, fetched_at=FETCHED_AT).media.video
+        assert video is not None
+        assert (video.width, video.height) == (1440, 1080)
+
+
+class TestPopular:
+    def test_the_popular_list_is_a_page_of_posts(self) -> None:
+        payload = bili("popular_hot_page1")
+        page = ADAPTER.parse_popular(payload, board="popular", fetched_at=FETCHED_AT)
+
+        item = payload["data"]["list"][0]
+        first = page.items[0]
+        assert first.content_id == item["bvid"]
+        assert first.author.uid == str(item["owner"]["mid"])
+        assert first.stats.play_count == item["stat"]["view"]
+        assert first.duration_ms == item["duration"] * 1000
+        assert page.has_more is True
+        assert page.cursor == "2"
+
+    def test_the_next_page_counts_from_the_one_asked_for(self) -> None:
+        page = ADAPTER.parse_popular(
+            bili("popular_hot_page1"), board="popular", fetched_at=FETCHED_AT, cursor="4"
+        )
+        assert page.cursor == "5"
+
+    def test_an_empty_page_is_the_end_whatever_it_says(self) -> None:
+        """Past the end, `no_more` still said false (measured 2026-10-19)."""
+        payload = bili("popular_hot_end")
+        assert payload["data"]["no_more"] is False
+
+        page = ADAPTER.parse_popular(payload, board="popular", fetched_at=FETCHED_AT, cursor="30")
+        assert page.items == []
+        assert page.has_more is False
+        assert page.cursor is None
+
+    @pytest.mark.parametrize(
+        ("board", "fixture"), [("popular_precious", "popular_precious"), ("ranking", "ranking_all")]
+    )
+    def test_the_one_page_boards_end_after_one_page(self, board: str, fixture: str) -> None:
+        payload = bili(fixture)
+        page = ADAPTER.parse_popular(payload, board=board, fetched_at=FETCHED_AT)
+
+        assert [item.content_id for item in page.items] == [
+            item["bvid"] for item in payload["data"]["list"]
+        ]
+        assert page.has_more is False
+        assert page.cursor is None
+
+
+class TestWeekly:
+    def weekly(self, cursor: str | None = None) -> dict[str, Any]:
+        index = bili("popular_weekly_index")
+        follow_up = ADAPTER.follow_up(POPULAR_WEEKLY, index, {"cursor": cursor})
+        assert follow_up is not None
+        return follow_up.merge(index, bili("popular_weekly_issue"))
+
+    def test_the_newest_issue_is_read_off_the_index(self) -> None:
+        """With no number the issue endpoint answers issue 1, the oldest."""
+        index = bili("popular_weekly_index")
+        follow_up = ADAPTER.follow_up(POPULAR_WEEKLY, index, {})
+
+        assert follow_up is not None
+        assert follow_up.endpoint == POPULAR_WEEKLY_ISSUE
+        assert follow_up.params == {"number": str(index["data"]["list"][0]["number"])}
+        assert follow_up.required is True
+
+    def test_a_cursor_names_the_issue(self) -> None:
+        follow_up = ADAPTER.follow_up(
+            POPULAR_WEEKLY, bili("popular_weekly_index"), {"cursor": "120"}
+        )
+        assert follow_up is not None
+        assert follow_up.params == {"number": "120"}
+
+    def test_an_issue_pages_on_to_the_one_before_it(self) -> None:
+        issue = bili("popular_weekly_issue")["data"]
+        page = ADAPTER.parse_popular(self.weekly(), board="popular_weekly", fetched_at=FETCHED_AT)
+
+        assert [item.content_id for item in page.items] == [i["bvid"] for i in issue["list"]]
+        assert page.cursor == str(issue["config"]["number"] - 1)
+        assert page.has_more is True
+
+    def test_issue_one_is_the_last_page(self) -> None:
+        payload = self.weekly()
+        payload["data"]["__dtk_issue"]["config"]["number"] = 1
+        page = ADAPTER.parse_popular(payload, board="popular_weekly", fetched_at=FETCHED_AT)
+
+        assert page.has_more is False
+        assert page.cursor is None
+
+    def test_the_index_alone_is_not_an_issue(self) -> None:
+        """The fetch layer raises when the issue cannot be had; an index that
+        still reaches the parser is a shape this build does not know."""
+        with pytest.raises(UpstreamChanged):
+            ADAPTER.parse_popular(
+                bili("popular_weekly_index"), board="popular_weekly", fetched_at=FETCHED_AT
+            )
 
 
 class TestAuthors:

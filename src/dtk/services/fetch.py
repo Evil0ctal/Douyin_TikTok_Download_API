@@ -611,7 +611,9 @@ class FetchService:
                 # endpoint answers in a shape this build cannot read.
                 raise UpstreamChanged("response.body", platform=platform.value)
 
-            payload = await self._follow_up(session, adapter, endpoint, call.payload, ctx)
+            payload = await self._follow_up(
+                session, adapter, endpoint, call.payload, ctx, params=params
+            )
             parsed = parse(payload)
             result = _dump(parsed, include_raw=ctx.include_raw)
             guest_fallback = (
@@ -646,6 +648,8 @@ class FetchService:
         endpoint: str,
         payload: dict[str, Any],
         ctx: FetchContext,
+        *,
+        params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """The second call an answer asked for, folded in - or the answer alone.
 
@@ -654,11 +658,14 @@ class FetchService:
         endpoint name, so it is neither free nor invisible. A pinned request
         stays on its identity.
 
-        Its failure is not the request's. Bilibili's detail is a real answer
-        without its ``playurl``; refusing it because the second call was
-        rate-limited would turn a missing stream into a missing post.
+        Its failure is not the request's, unless the plan says it is.
+        Bilibili's detail is a real answer without its ``playurl``; refusing it
+        because the second call was rate-limited would turn a missing stream
+        into a missing post. The weekly selection's index is not an answer at
+        all without the issue it names, and a part asked for by number is not
+        that part without its own file - those raise as the first call would.
         """
-        plan = adapter.follow_up(endpoint, payload)
+        plan = adapter.follow_up(endpoint, payload, params)
         if plan is None:
             return payload
         spec = adapter.endpoints.specs.get(plan.endpoint)
@@ -680,6 +687,8 @@ class FetchService:
                 after=endpoint,
                 error=exc.code.value,
             )
+            if plan.required:
+                raise
             return payload
         if extra.outcome is not Outcome.OK or extra.payload is None:
             log.warning(
@@ -689,6 +698,8 @@ class FetchService:
                 outcome=extra.outcome.value,
                 error=extra.error_code,
             )
+            if plan.required:
+                raise _follow_up_error(plan.endpoint, extra.outcome, self._cooldown_base)
             return payload
         return plan.merge(payload, extra.payload)
 
@@ -821,6 +832,23 @@ def _to_transport_spec(
         # make every log line unique and uncorrelatable.
         endpoint=endpoint,
     )
+
+
+def _follow_up_error(endpoint: str, outcome: Outcome, cooldown: int) -> DtkError:
+    """What a required follow-up's failure is, in the first call's terms."""
+    details = {"endpoint": endpoint}
+    if outcome is Outcome.RISK_CONTROL:
+        return UpstreamRiskControl(
+            "the platform returned a risk-control response",
+            retry_after=cooldown,
+            details=details,
+        )
+    if outcome is Outcome.BUSINESS_ERROR:
+        return NotFound("the requested content does not exist or is unavailable", details=details)
+    if outcome is Outcome.NETWORK_ERROR:
+        return UpstreamUnreachable("upstream unreachable", details=details)
+    # Classified OK and still no JSON: the shape this build cannot read.
+    return UpstreamChanged("response.body", platform=endpoint.split(".", 1)[0])
 
 
 def _elapsed_ms(started: float) -> int:

@@ -635,13 +635,17 @@ class MediaDownload(Base):
         # of them writes - so the guarantee lives here, which is the only place
         # that sees them all. Partial, so a settled download never blocks a
         # retry.
+        # Per part as well since 0014: a part writes into its own directory.
+        # NULL and 1 are both the first part, so they collide as they must.
         Index(
             "ux_media_downloads_in_flight",
             "platform",
             "content_id",
+            text("COALESCE(part, 1)"),
             unique=True,
             postgresql_where=text("state IN ('queued', 'running')"),
         ),
+        CheckConstraint("part IS NULL OR part > 1", name="ck_media_downloads_part"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -649,10 +653,15 @@ class MediaDownload(Base):
     )
     platform: Mapped[str] = mapped_column(Text)
     content_id: Mapped[str] = mapped_column(Text)
+    #: Which part of a video uploaded in several, from 2. NULL is the first,
+    #: which is the post's own download and the one the library shows; a
+    #: later part is stored in a directory of its own beside it.
+    part: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     author_uid: Mapped[str] = mapped_column(Text)
     #: queued | running | done | partial | failed | cancelled
     state: Mapped[str] = mapped_column(Text, server_default=text("'queued'"))
-    #: Relative to the media root, as <platform>/<author_uid>/<content_id>.
+    #: Relative to the media root, as <platform>/<author_uid>/<content_id>,
+    #: with ``-p<part>`` on the last segment for a later part.
     #: Never absolute: the path inside the container is not the path on the
     #: host, and storing one would make the row wrong the moment the volume
     #: is mounted somewhere else.

@@ -120,6 +120,23 @@ class Author(_Base):
     raw: dict | None = None
 
 
+class ContentPart(_Base):
+    """One part of a video uploaded in several, as Bilibili allows.
+
+    A post is still one post: its id, title and statistics are the whole
+    upload's. A part is what a player plays and a download stores, and it is
+    addressed by its 1-based position, which is what the site's own ``?p=``
+    links count. ``cid`` is Bilibili's id for it and is what ``playurl`` takes.
+    """
+
+    part: int
+    cid: str
+    title: str
+    duration_ms: int | None = None
+    width: int | None = None
+    height: int | None = None
+
+
 class Content(_Base):
     platform: Platform
     content_id: str
@@ -141,6 +158,10 @@ class Content(_Base):
     #: Hashtags without the leading '#'.
     tags: list[str] = Field(default_factory=list)
     location: str | None = None
+    #: The parts of a video uploaded in several, in order. Bilibili only, where
+    #: a single-part video lists its one part; empty on the other platforms,
+    #: which have no such thing.
+    parts: list[ContentPart] = Field(default_factory=list)
 
     fetched_at: datetime
     raw: dict | None = None
@@ -212,6 +233,7 @@ __all__ = [
     "Collection",
     "Comment",
     "Content",
+    "ContentPart",
     "ContentStats",
     "Image",
     "Media",

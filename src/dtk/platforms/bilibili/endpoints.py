@@ -21,7 +21,13 @@ from dtk.platforms.bilibili.params import (
     comment_replies_params,
     comments_params,
     content_detail_params,
+    content_parts_params,
     content_streams_params,
+    popular_params,
+    popular_precious_params,
+    popular_weekly_issue_params,
+    popular_weekly_params,
+    ranking_params,
 )
 
 
@@ -49,6 +55,24 @@ class BilibiliAPIEndpoints:
     USER_FOLDERS: Final = f"{API_DOMAIN}/x/v3/fav/folder/created/list-all"
     # What is in one folder.
     FOLDER_ITEMS: Final = f"{API_DOMAIN}/x/v3/fav/resource/list"
+    # The parts of a video uploaded in several, unsigned. The detail
+    # carries the same list as `pages`; this answers without the rest.
+    VIDEO_PARTS: Final = f"{API_DOMAIN}/x/player/pagelist"
+    # What is popular now, paged by number. An empty page past the end still
+    # says `no_more: false` (pn=30 on 2026-10-19), so emptiness is the end.
+    POPULAR: Final = f"{API_DOMAIN}/x/web-interface/popular"
+    # Every issue of the weekly selection, newest first, and one issue's 50.
+    # With no `number` the issue endpoint answers issue 1, the oldest, so the
+    # newest has to be read off the index first.
+    POPULAR_WEEKLY_INDEX: Final = f"{API_DOMAIN}/x/web-interface/popular/series/list"
+    POPULAR_WEEKLY_ISSUE: Final = f"{API_DOMAIN}/x/web-interface/popular/series/one"
+    # The editors' all-time selection: 98 videos, all of them in one answer
+    # whatever page is asked for.
+    POPULAR_PRECIOUS: Final = f"{API_DOMAIN}/x/web-interface/popular/precious"
+    # The site-wide top 100. Without the rank page's dm report it answers a
+    # guest -352, signed or not; with it, 100 videos, signed or not (measured
+    # 2026-10-19). So it is sent unsigned, as the folder endpoints are.
+    RANKING: Final = f"{API_DOMAIN}/x/web-interface/ranking/v2"
     # Whose session is this. A guest is told `-101` and `isLogin: false`.
     NAV: Final = f"{API_DOMAIN}/x/web-interface/nav"
     # Mints a guest's `buvid3` and `buvid4`; see dtk.identity.minting.native.
@@ -63,6 +87,12 @@ COMMENTS: Final = "bilibili.comments"
 COMMENT_REPLIES: Final = "bilibili.comment_replies"
 AUTHOR_COLLECTIONS: Final = "bilibili.author_collections"
 COLLECTION_POSTS: Final = "bilibili.collection_posts"
+CONTENT_PARTS: Final = "bilibili.content_parts"
+POPULAR: Final = "bilibili.popular"
+POPULAR_WEEKLY: Final = "bilibili.popular_weekly"
+POPULAR_WEEKLY_ISSUE: Final = "bilibili.popular_weekly_issue"
+POPULAR_PRECIOUS: Final = "bilibili.popular_precious"
+RANKING: Final = "bilibili.ranking"
 SESSION_CHECK: Final = "bilibili.session_check"
 
 #: Cookies and User-Agent come from the identity.
@@ -77,6 +107,13 @@ DEFAULT_HEADERS: Final[dict[str, str]] = {
 _SPACE_HEADERS: Final[tuple[tuple[str, str], ...]] = (
     ("Referer", f"{BilibiliAPIEndpoints.SPACE_DOMAIN}/"),
     ("Origin", BilibiliAPIEndpoints.SPACE_DOMAIN),
+)
+
+
+#: What the ranking page sends; the endpoint answers -352 without it.
+_RANK_HEADERS: Final[tuple[tuple[str, str], ...]] = (
+    ("Referer", f"{BilibiliAPIEndpoints.WWW_DOMAIN}/v/popular/rank/all"),
+    ("Origin", BilibiliAPIEndpoints.WWW_DOMAIN),
 )
 
 
@@ -173,6 +210,65 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="List the videos in a folder",
     ),
     EndpointSpec(
+        name=CONTENT_PARTS,
+        path=BilibiliAPIEndpoints.VIDEO_PARTS,
+        required=("bvid",),
+        build=content_parts_params,
+        risk_weight=1.0,
+        signed=False,
+        # An id that is no video is `-400` here rather than `-404`; either
+        # way the classifier calls it a business error, which is NOT_FOUND.
+        summary="List the parts of a video",
+    ),
+    EndpointSpec(
+        name=POPULAR,
+        path=BilibiliAPIEndpoints.POPULAR,
+        required=(),
+        build=popular_params,
+        risk_weight=1.0,
+        signed=False,
+        summary="List what is popular now",
+    ),
+    EndpointSpec(
+        name=POPULAR_WEEKLY,
+        path=BilibiliAPIEndpoints.POPULAR_WEEKLY_INDEX,
+        required=(),
+        build=popular_weekly_params,
+        risk_weight=1.0,
+        signed=False,
+        # The index is read first, for the newest issue's number, and the
+        # issue itself is the follow-up - see BilibiliAdapter.follow_up.
+        summary="List one issue of the weekly selection",
+    ),
+    EndpointSpec(
+        name=POPULAR_WEEKLY_ISSUE,
+        path=BilibiliAPIEndpoints.POPULAR_WEEKLY_ISSUE,
+        required=("number",),
+        build=popular_weekly_issue_params,
+        risk_weight=1.0,
+        signed=False,
+        summary="Fetch one issue of the weekly selection",
+    ),
+    EndpointSpec(
+        name=POPULAR_PRECIOUS,
+        path=BilibiliAPIEndpoints.POPULAR_PRECIOUS,
+        required=(),
+        build=popular_precious_params,
+        risk_weight=1.0,
+        signed=False,
+        summary="List the editors' all-time selection",
+    ),
+    EndpointSpec(
+        name=RANKING,
+        path=BilibiliAPIEndpoints.RANKING,
+        required=(),
+        build=ranking_params,
+        risk_weight=1.2,
+        signed=False,
+        headers=_RANK_HEADERS,
+        summary="List the site-wide top 100",
+    ),
+    EndpointSpec(
         name=SESSION_CHECK,
         path=BilibiliAPIEndpoints.NAV,
         required=(),
@@ -191,9 +287,15 @@ __all__ = [
     "COMMENTS",
     "COMMENT_REPLIES",
     "CONTENT_DETAIL",
+    "CONTENT_PARTS",
     "CONTENT_STREAMS",
     "DEFAULT_HEADERS",
     "ENDPOINTS",
+    "POPULAR",
+    "POPULAR_PRECIOUS",
+    "POPULAR_WEEKLY",
+    "POPULAR_WEEKLY_ISSUE",
+    "RANKING",
     "SESSION_CHECK",
     "BilibiliAPIEndpoints",
 ]

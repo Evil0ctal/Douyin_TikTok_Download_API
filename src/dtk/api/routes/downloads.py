@@ -99,6 +99,10 @@ async def start_download(
     - `skip_existing` - hand back the download this instance already has rather
       than fetching the post again. What re-running a feed wants: the author
       added three posts and the other forty are on the disk already.
+    - `part` - Bilibili only: which part of a video uploaded in several, from
+      1. A link's `?p=` says the same thing; omitted, it is the first part.
+      Each part is its own download, stored in its own directory, and is
+      transcribed as one.
 
     A download already in flight for the same post is joined whatever
     `skip_existing` says, and that is not a preference. Two downloads of one
@@ -123,6 +127,7 @@ async def start_download(
         skip_existing=body.skip_existing,
         requested_by=principal.api_key_id,
         is_demo=principal.role is UserRole.DEMO,
+        part=body.part,
     )
     return ok(request, result.as_dict(), status_code=200 if result.reused else 202)
 

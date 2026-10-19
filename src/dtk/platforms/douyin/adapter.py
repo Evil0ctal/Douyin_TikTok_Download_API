@@ -15,7 +15,7 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, Page
+from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -47,7 +47,12 @@ class DouyinAdapter:
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:
         return parser.detect_risk_control(payload)
 
-    def follow_up(self, endpoint: str, payload: Mapping[str, Any]) -> FollowUp | None:
+    def follow_up(
+        self,
+        endpoint: str,
+        payload: Mapping[str, Any],
+        params: Mapping[str, Any] | None = None,
+    ) -> FollowUp | None:
         """Every answer here is complete as it comes."""
         return None
 
@@ -122,6 +127,27 @@ class DouyinAdapter:
         self, payload: Mapping[str, Any], *, content_id: str | None = None
     ) -> list[Comment]:
         return parser.parse_reply_previews(payload, content_id=content_id)
+
+    def parse_content_parts(self, payload: Mapping[str, Any]) -> Page[ContentPart]:
+        """Douyin has no videos in parts, so no part list is registered."""
+        raise UnsupportedContent(
+            "Douyin videos are not uploaded in parts",
+            details={"platform": self.platform.value, "capability": "content_parts"},
+        )
+
+    def parse_popular(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        board: str,
+        fetched_at: datetime,
+        cursor: str | None = None,
+    ) -> Page[Content]:
+        """No site-curated list is registered for Douyin; Bilibili's are."""
+        raise UnsupportedContent(
+            "Douyin has no popular list here",
+            details={"platform": self.platform.value, "capability": board},
+        )
 
 
 ADAPTER: PlatformAdapter = DouyinAdapter()

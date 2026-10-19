@@ -58,6 +58,15 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
     "user_collections_none",
     "collection_posts_page1",
     "risk_control_voucher",
+    "content_parts",
+    "content_parts_missing",
+    "popular_hot_page1",
+    "popular_hot_end",
+    "popular_weekly_index",
+    "popular_weekly_issue",
+    "popular_weekly_missing",
+    "popular_precious",
+    "ranking_all",
 )
 
 
