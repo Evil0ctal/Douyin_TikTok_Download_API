@@ -135,9 +135,12 @@ Navigation is grouped by what you reach for during an incident rather than by th
 | --- | --- |
 | Monitor | Overview (`/`) |
 | Pool | Identities (`/identities`), Proxies (`/proxies`), Scheduler (`/scheduler`) |
-| Tools | Playground (`/playground`), Building blocks (`/tools`), Library (`/library`), Watchlist (`/watchlist`), Downloads (`/downloads`), API docs (`/docs`), MCP (`/mcp-guide`) |
+| Content | Library (`/library`), Downloads (`/downloads`), Transcriptions (`/transcriptions`), Watchlist (`/watchlist`) |
+| Developer | Playground (`/playground`), Building blocks (`/tools`), API docs (`/docs`), MCP (`/mcp-guide`) |
 | Access | API keys (`/api-keys`), Endpoint access (`/endpoint-access`), Users (`/users`) |
 | Operations | Logs (`/logs`), System (`/system`), Diagnose (`/diagnose`), Backup (`/backup`), Notifications (`/notifications`), Settings (`/settings`) |
+
+Content and Developer used to be one "Tools" group of eight, which put what this instance has collected in the same list as the pages for building against its API. Every row also has an icon of its own, because in the collapsed rail the icon is all there is to tell two pages apart.
 
 Two things are pinned under the scrolling navigation rather than living in a group:
 
@@ -157,11 +160,12 @@ the documentation — every nav row, and the page that explains it.
 | Identities | `/identities` | [Identities and proxies](./06-identities-and-proxies.md) |
 | Proxies | `/proxies` | [Identities and proxies](./06-identities-and-proxies.md) |
 | Scheduler | `/scheduler` | [Identities and proxies](./06-identities-and-proxies.md) |
+| Library | `/library` | [Downloads, library and watchlist](./08-downloads-and-library.md) |
+| Downloads | `/downloads` | [Downloads, library and watchlist](./08-downloads-and-library.md) |
+| Transcriptions | `/transcriptions` | [Downloads, library and watchlist](./08-downloads-and-library.md#turning-a-stored-video-into-text) |
+| Watchlist | `/watchlist` | [Downloads, library and watchlist](./08-downloads-and-library.md) |
 | Playground | `/playground` | [Playground and tools](./07-playground-and-tools.md) |
 | Building blocks | `/tools` | [Playground and tools](./07-playground-and-tools.md) |
-| Library | `/library` | [Downloads, library and watchlist](./08-downloads-and-library.md) |
-| Watchlist | `/watchlist` | [Downloads, library and watchlist](./08-downloads-and-library.md) |
-| Downloads | `/downloads` | [Downloads, library and watchlist](./08-downloads-and-library.md) |
 | API docs | `/docs` | [Playground and tools](./07-playground-and-tools.md) |
 | MCP | `/mcp-guide` | [MCP and AI agents](./12-mcp.md) |
 | API keys | `/api-keys` | [Users and API keys](./09-users-and-api-keys.md) |
@@ -203,7 +207,8 @@ Learning these once saves reading them four times.
 - **Nothing animates on a refresh.** A row highlights only when its status genuinely changed, never on a poll — a table that fades every five seconds cannot be read.
 - **Times are shown in your local zone; the server stores UTC.** Tables that deal in timestamps say so under the filters.
 - **Pages poll rather than stream.** Pool state and anything you watch during an incident refreshes every 5 seconds, charts every 8, slow inventories every 10.
-- **Your role gates what you can do, not what you can see.** A `viewer` can read every page in this document; running the self-check or changing a setting requires `operator` or `admin`. See [Users and API keys](./09-users-and-api-keys.md).
+- **Your role gates what you can do, not what you can see.** A `viewer` can read every page in this document; running the self-check (and reading its report) or changing a setting requires `operator` or `admin`. See [Users and API keys](./09-users-and-api-keys.md).
+- **Tiles and drawers link to the page that holds the detail.** For the public demo account, a link to a page it cannot open is left out rather than offered and answered with a 403 — it gets the Downloads tile's link but not the Watchlist's.
 
 ## Overview
 
@@ -228,9 +233,13 @@ Alert banners appear above everything else, and only for conditions you must act
 
 | Alert | Tone | Meaning | What to do |
 | --- | --- | --- | --- |
-| No active identity | Danger | The pool has zero `active` identities. Requests are rejected with `IDENTITY_POOL_EXHAUSTED` until it recovers | Mint or import from the Identities page — the banner carries a button |
+| No active identity | Danger | No platform has an `active` or `degraded` identity. Every request is rejected with `IDENTITY_POOL_EXHAUSTED` until the pool recovers | Mint or import from the Identities page — the banner carries a button |
+| No active *platform* identity | Danger | That platform had identities and has none `active` or `degraded` left. Its requests are rejected with `IDENTITY_POOL_EXHAUSTED`; the other platforms are unaffected | The banner's button opens that platform's identities |
+| No *platform* identity yet | Caution | That platform has never had an identity, so calls to it are refused until one is minted or imported | Mint or import one, or ignore it if you do not use that platform |
 | *N* degraded identities | Caution | Those identities still serve traffic but fail more often than the rest | Investigate on the Identities page; a persistent degradation usually means a dead proxy or a stale cookie jar |
 | One banner per open circuit | Danger | That endpoint is tripped. The banner names the endpoint, the reason and how long until it reopens | See the endpoint health table below |
+
+The pool alarm is per platform. Summed across platforms it fired only once all three were empty, so Douyin could be refusing every call while TikTok's identities kept the total above zero and the page stayed green. A `degraded` identity counts as able to serve, because the scheduler falls back to one once the active ones are gone. When every platform is empty you get the single "No active identity" banner rather than three, and a platform nobody has set up is amber rather than red, so an instance that only uses one platform is told once instead of alarmed forever.
 
 Pool alarms are suppressed while the census is still loading or has failed. Without that, the page flashes a red "no usable identity" alarm on every load and parks one permanently whenever the status call errors.
 
@@ -238,8 +247,8 @@ Pool alarms are suppressed while the census is still loading or has failed. With
 
 | Tile | Source | Colour rule |
 | --- | --- | --- |
-| Active identities | Pool census summed across platforms | Green above zero, red at zero |
-| Requests | Total requests in the selected window, with a sparkline | — |
+| Active identities | Pool census summed across platforms. Footer: the active count per platform, a platform at zero in caution colour. Links to Identities | Red when no platform has a usable identity, amber when a platform that had identities has none, green otherwise |
+| Requests | Total requests in the selected window, with a sparkline. Links to the request log | — |
 | Success rate | `ok` ÷ total in the window | Caution below 90%, green at or above it |
 | Risk-control rate | `risk_control` ÷ total | Red whenever it is above zero |
 | Average duration | Request-weighted mean duration | — |
@@ -253,17 +262,18 @@ Every tile above is about requests. None of them says what the instance is accum
 
 | Tile | Source | Colour rule |
 | --- | --- | --- |
-| Archived posts | Rows in the content archive. Footer: how many distinct authors | — |
-| Media downloaded | Archived posts whose media is stored. Footer: of how many archived | — |
-| Disk used | Measured from the media volume when the downloader answers, otherwise the stored-media total recorded in the database — the sum of the download rows, not the database size. Footer: the ceiling from `media.max_bytes` | Warning at 75% of the ceiling, danger at 90% |
-| Downloading now | Jobs in flight. Footer: how many failed or partial | — |
-| On the watchlist | Watchlist entries. Footer: how many are failing | Warning when any are failing |
+| Archived posts | Rows in the content archive. Footer: how many distinct authors. Links to Library | — |
+| Media downloaded | Archived posts whose media is stored. Footer: of how many archived. Links to Downloads | — |
+| Disk used | Measured from the media volume when the downloader answers, otherwise the stored-media total recorded in the database — the sum of the download rows, not the database size. Footer: the ceiling from `media.max_bytes`. Links to Downloads | Warning at 75% of the ceiling, danger at 90% |
+| Downloading now | Jobs in flight. Footer: how many failed or partial. Links to Downloads | — |
+| On the watchlist | Watchlist entries. Footer: how many are failing. Links to Watchlist | Warning when any are failing |
+| Transcriptions | Stored videos turned into text. Links to Transcriptions. Shown from `viewer` up, because the route refuses the demo account | — |
 
 Disk is quiet until it is nearly full, and loud once it is, because past the ceiling the oldest unpinned downloads start being evicted. See [Downloads, library and watchlist](./08-downloads-and-library.md).
 
 ### Pool state distribution
 
-A proportional bar plus a count per state, across platforms: `minting`, `active`, `cooling`, `degraded`, `retired`. `cooling` is not a problem — it is the scheduler resting an identity on purpose. A pool that is mostly `degraded` or `retired` is. [Concepts](./04-concepts.md) explains the state machine.
+One proportional bar per platform, each with a count per state: `minting`, `active`, `cooling`, `degraded`, `retired`. The platform's name links to its identities and sits beside its active count; a platform with nothing in it draws an empty track rather than vanishing. One bar across all platforms used to show a healthy green pool while one platform had nothing in it, which is the one thing this card is for noticing. `cooling` is not a problem — it is the scheduler resting an identity on purpose. A pool that is mostly `degraded` or `retired` is. [Concepts](./04-concepts.md) explains the state machine.
 
 ### Charts
 
@@ -316,15 +326,15 @@ The header shows version and commit, and a Refresh button that forces a re-read 
 
 ### Components
 
-Reachability and round-trip time for `postgres`, `redis` and `browser_rpc`, **as measured by the server, not by your browser**. That distinction matters: a slow row here is a slow dependency, not a slow laptop.
+Reachability and round-trip time for `postgres`, `redis`, `browser_rpc` and the two optional sidecars, `downloader` and `transcriber`, **as measured by the server, not by your browser**. That distinction matters: a slow row here is a slow dependency, not a slow laptop.
 
 | State | Means |
 | --- | --- |
 | Healthy | The probe answered. Latency is the round trip |
-| Unhealthy | The probe ran and failed or timed out. The detail column carries `timeout` or the exception's type name, untranslated — and an unreachable `browser_rpc` reports no detail at all here. For the driver's own words, run Diagnose and read step 1 |
-| Unknown | The component reported neither — in practice, `browser_rpc` with no URL configured. The detail column then says "Not configured" |
+| Unhealthy | The probe ran and failed or timed out. For `postgres` and `redis` the detail column carries `timeout` or the exception's type name, untranslated. For `browser_rpc` and the sidecars it says why in words: configured and not answering, configured and too slow to answer, or answering but not ready to work — a transcriber still loading its model, or missing `ffmpeg`, is the last of these. For the driver's own words, run Diagnose and read step 1 |
+| Unknown | The component reported neither — in practice, `browser_rpc`, `downloader` or `transcriber` with no URL configured. The detail column then says "Not configured" and names the compose profile (`browser`, `downloader`, `transcriber`) that is not running here |
 
-`browser_rpc` also reports its warm context count in the detail column when it is healthy. An unreachable `browser_rpc` is never a reason to take the instance out of rotation: minting is not on the request path, so `/readyz` deliberately ignores it and only requires Postgres and Redis.
+`browser_rpc` also reports its warm context count in the detail column when it is healthy. An unreachable `browser_rpc` is never a reason to take the instance out of rotation: minting is not on the request path, so `/readyz` deliberately ignores it and only requires Postgres and Redis. The same holds for the sidecars, which sit behind profiles you may never start. Their answers are reused for 10 seconds, because the downloader answers its health check by walking the media volume and several pages poll this route — so a sidecar you have just started can take a refresh or two to turn healthy.
 
 ### Chromium and wreq profile
 
@@ -347,9 +357,9 @@ Read "estimated" literally. `count(*)` on the request log is a full scan of the 
 
 ### Update check
 
-**Off by default, and nothing leaves the machine unless you turn it on.** The toggle writes the runtime setting `system.check_updates`, so the choice survives a restart. A `viewer` cannot change it.
+**On by default, and the request is made by your browser, never by the server.** The toggle writes the runtime setting `system.check_updates`, so the choice survives a restart. A `viewer` cannot change it, and the demo account does not see the card at all: the settings it is built on are not readable by that account.
 
-When enabled, "Check now" makes one request **from your browser to `api.github.com`** — never from the server. The result compares the latest release tag against your running version, treating `v5.0.0` and `5.0.0` as the same release. A deployment with no outbound access should leave this off; quietly calling home from an operations console is not a decision to make on an operator's behalf.
+While it is on, the console asks once per 24 hours per browser after you sign in, and shows a notice only if a newer release exists — never to the demo account, which cannot upgrade anything. "Check now" makes the same request on demand, **from your browser to `api.github.com`**. The result compares the latest release tag against your running version, treating `v5.0.0` and `5.0.0` as the same release. Because the browser asks and the server does not, the request carries nothing about the deployment, which is why it is on: an instance that never learns it is out of date is the more common harm on a self-hosted tool. Turn it off on an air-gapped box.
 
 ## Logs
 
@@ -366,11 +376,16 @@ High volume. One structured row per upstream request.
 | Filter | Notes |
 | --- | --- |
 | Request id | Exact match on a UUID |
-| Endpoint | Exact logical endpoint name, e.g. `douyin.content_detail` |
+| Endpoint | A choice from every declared logical endpoint, grouped by platform — `bilibili.*` included — whether or not it has traffic. The match is exact, so it is a list rather than a box: a near miss of a name found nothing and looked like an empty log |
 | Identity id | Every request made with one identity |
+| Proxy id | Every request that went out through one proxy. This is the filter for finding the exit a platform refuses: a Bilibili 412 is a verdict on an address, not on a cookie, and every identity behind one proxy shares the address |
 | Time range | 15 minutes, 1 hour (default), 6 hours, 24 hours, 7 days, 30 days |
 | Rows | 100 (default), 200, 500 |
 | Outcome | Toggle buttons; several may be active at once. "All" clears them |
+
+An id filter is applied once you stop typing and the id is complete. A half-typed one says it is not applied yet instead of being sent — the server types these as UUIDs and would answer every keystroke with a 422.
+
+The filters other pages link to live in the address: `/logs?tab=requests&request_id=&identity_id=&proxy_id=&endpoint=` and `/logs?tab=audit&user_id=`. "Show me what this proxy did" is therefore a link, and a filtered view can be pasted to a colleague. The time range, the row count and the outcomes stay out of the address.
 
 Two limits here are structural rather than cosmetic. Both the window and the row count are **mandatory** and neither has an "all" setting: an unbounded read of `request_log` is the one query on this API that can stall an instance. The server caps the window at 30 days and the row count at 500. The consequence worth knowing is that **a request id older than your window is simply not found** — widen the range rather than assuming the row is gone.
 
@@ -418,40 +433,46 @@ A **reject reason** means the request never left the building. The scheduler dec
 | `queue_full` | The wait queue was full |
 | `wait_timeout` | Gave up waiting for an identity |
 | `pinned_unavailable` | A specifically named identity could not serve it |
+| `no_login` | The request needs a signed-in identity and rotation has none. Minting cannot fix this; importing a logged-in cookie jar can |
 
 A code this build has no translation for is shown exactly as it arrived — an untranslated reason is still the thing to quote in an issue; a missing-key stub is not.
 
-Clicking a row opens a drawer with the full record, plus the raw JSON collapsed at the bottom. Nothing in a row is a credential: the fetch layer logs the *logical endpoint name* it scheduled on, never the signed URL it built, and identities and proxies appear only as ids.
+Clicking a row opens a drawer with the full record, plus the raw JSON collapsed at the bottom. Beside the identity and the proxy it offers "Only this identity" and "Only this proxy", which narrow the table to that one, and a link that opens the identity on its own page. Nothing in a row is a credential: the fetch layer logs the *logical endpoint name* it scheduled on, never the signed URL it built, and identities and proxies appear only as ids.
 
 ### Audit log tab
 
-Low volume, and kept out of the request log so it is never buried by ordinary traffic. It answers "who changed what".
+Low volume, and kept out of the request log so it is never buried by ordinary traffic. It answers "who changed what". The demo account is refused this log, so it is not offered the tab.
 
-Filters are just **Action** (an exact action name such as `api_key.created` or `settings.updated`) and **Rows**.
+Filters are **Action** (an exact action name such as `api_key.created` or `settings.updated`), **Who** and **Rows**. Who lists the accounts that appear in the rows on screen — the account list itself is administrator-only, and a `viewer` reading the trail still needs "only what this person did". Below the table, **Load older** fetches the next page past the oldest row shown.
 
 | Column | Meaning |
 | --- | --- |
 | Timestamp | Local time |
 | Action | Dotted action name |
-| Who | Username if known; otherwise the user id; otherwise the API key that did it; otherwise "System" |
+| Who | Username if known, otherwise the user id — followed by the API key when the action was taken with one. An entry with neither reads "System" |
 | Target | Target type and id, e.g. `setting` + the key name |
 | Source address | Client IP. Hidden by default |
 
-The drawer shows the entry's detail payload. **Settings changes are re-masked on the way out**: a settings row records the old and the new value, and some settings hold credentials. Rows written before masking existed at the source are still in this table — nothing trims it — so they are masked again on read.
+The drawer shows the entry's detail payload, with "Only this account's actions" to filter by its author. **Settings changes are re-masked on the way out**: a settings row records the old and the new value, and some settings hold credentials. Rows written before masking existed at the source are still in this table — nothing trims it — so they are masked again on read.
 
 ## Diagnose
 
 `/diagnose` — **"I deployed it and I get no data. Which of the four places it could be, is it?"** The cause is normally in the proxy, the cookie jar, the signing path or the network, and guessing costs a round trip per guess. This page walks all of them and hands back one block of text.
 
-Running it requires the `operator` or `admin` role. A `viewer` can open the page but the run will be refused.
+Running it, and reading its report, requires the `operator` or `admin` role. A `viewer` can open the page, and finds a line saying so where the Run button would be.
 
 ### How a run works
 
 Pressing **Run self check** issues `POST /api/v1/admin/diagnose`, which returns `202` with a task id rather than doing the work inline — a diagnosis dials proxies and makes real outbound requests, none of which belongs on an HTTP handler in the container that is supposed to stay responsive. The console then polls the task every 5 seconds until it settles, marking each step as its result lands. The task id is shown in the header, copyable.
 
-One option: **Include the end-to-end fetch**, on by default. Turning it off skips step 6 and keeps the entire run local — which also means it spends no identity.
+The run is remembered in the address (`?task=`) and in this tab's session storage, so leaving the page and coming back shows the same report rather than throwing it away while its task is still on the server. A remembered run whose result the server no longer keeps says so, and asks you to run the check again.
 
-The 15-second timeout is a per-request network timeout on the steps that make outbound calls, not a deadline on a step: component probes in step 1 are bounded at 3 seconds each, and the end-to-end fetch in step 6 at 25. The six steps run one after another, so a slow step does hold up the rest — step 3 is the one to watch, because it dials at most 20 proxies, oldest first, at up to 15 seconds each.
+Two options:
+
+- **Include the end-to-end fetch**, on by default. Turning it off skips step 6 and keeps the entire run local — which also means it spends no identity.
+- **Platform for the end-to-end fetch.** "Automatic", the default, uses the platform with the most active identities in rotation — a reserved account is not what rotation hands out — and with none anywhere, Douyin when a browser is configured and Bilibili when not. It used to be Douyin always, so an instance that only served Bilibili failed step 6 over a platform it never meant to serve, while the one it did serve went untested. Pick a platform to test that one instead.
+
+The 15-second timeout is a per-request network timeout on the steps that make outbound calls, not a deadline on a step: component probes in step 1 are bounded at 3 seconds each (8 for the downloader and the transcriber, since a downloader measuring a large volume is slow, not down), and the end-to-end fetch in step 6 at 25. The six steps run one after another, so a slow step does hold up the rest — step 3 is the one to watch, because it dials at most 20 proxies, oldest first, at up to 15 seconds each.
 
 ### The report is redacted at the source
 
@@ -465,14 +486,14 @@ Each step reports a stable code, and the sentence you read is rendered from that
 
 | # | Step | What it actually does |
 | --- | --- | --- |
-| 1 | `components` | Round-trips Postgres, Redis and `browser-rpc` |
-| 2 | `egress` | Fetches `https://www.douyin.com/` and `https://www.tiktok.com/` **directly, without a proxy** — this is how "no internet" is told apart from "bad proxy" |
+| 1 | `components` | Round-trips Postgres, Redis and `browser-rpc`, and the downloader and the transcriber where their profiles are configured |
+| 2 | `egress` | Fetches `https://www.douyin.com/`, `https://www.tiktok.com/` and `https://www.bilibili.com/` **directly, without a proxy** — this is how "no internet" is told apart from "bad proxy" |
 | 3 | `proxies` | Dials up to the 20 oldest configured proxies (`MAX_PROXIES_PROBED`) and asks an echo service for the exit address, then reports exit IP, stored country and whether the row is marked healthy |
 | 4 | `pool` | Counts identities per state, and reports when the last successful request was and how long the oldest active identity has been idle |
 | 5 | `signing` | Signs one fixed request each for Douyin and TikTok with the native algorithm and compares it against `browser-rpc` — the same shadow comparison the signer registry runs in production. Bilibili is not compared: `browser-rpc` never signs it, so there is no second signature to hold the native one against |
-| 6 | `smoke` | Pulls one fixed public link through resolve → sign → fetch → classify |
+| 6 | `smoke` | Pulls one fixed public link of the chosen platform through resolve → sign → fetch → classify, and names the platform in its details |
 
-Note that step 6 uses a link the server ships, not one you supply — unlike the setup wizard's fourth step, which asks you for one. A post that has since been deleted or made private still **passes**: the platform explained itself, which is all this step is asking.
+Note that step 6 uses a link the server ships, one per platform, not one you supply — unlike the setup wizard's fourth step, which asks you for one. A post that has since been deleted or made private still **passes**: the platform explained itself, which is all this step is asking.
 
 ### Reading a result
 
@@ -486,17 +507,18 @@ Four statuses: **Pass**, **Warning**, **Fail** and **Skipped**. The run's verdic
 
 | Outcome | Status | What it means and what to do |
 | --- | --- | --- |
-| `components_ok` | Pass | All three answered |
+| `components_ok` | Pass | Everything configured answered |
 | `components_browser_rpc_down` | Warning | Postgres and Redis are fine; `browser-rpc` is not. Minting and the signing fallback are unavailable. Start the browser container, or import cookies by hand and stay on the native signer |
+| `components_sidecar_down` | Warning | Postgres and Redis are fine; the downloader or the transcriber is configured and not answering. Media downloads or transcription fail until it does. Start its compose profile, or unset `DTK_DOWNLOADER_URL` or `DTK_TRANSCRIBER_URL` if it is not meant to run here. A profile nobody started is not graded at all |
 | `components_unreachable` | **Fail** | Postgres and/or Redis are unreachable. Check that those containers are running and that `DTK_DATABASE_URL` and `DTK_REDIS_URL` point at them. Nothing else in the report can be trusted while this is red |
 
 #### Step 2 — egress
 
 | Outcome | Status | What it means and what to do |
 | --- | --- | --- |
-| `egress_ok` | Pass | Douyin's and TikTok's domains both reachable directly |
-| `egress_partial` | Warning | One of the two is unreachable. Requests for that platform will depend entirely on a working proxy |
-| `egress_unreachable` | **Fail** | No route to either. Check DNS, the host firewall, and whether outbound traffic on this host has to go through a proxy |
+| `egress_ok` | Pass | Douyin's, TikTok's and Bilibili's domains are all reachable directly |
+| `egress_partial` | Warning | Some of the three are unreachable; the reason says how many answered. Requests for those platforms will depend entirely on a working proxy |
+| `egress_unreachable` | **Fail** | No route to any of them. Check DNS, the host firewall, and whether outbound traffic on this host has to go through a proxy |
 
 #### Step 3 — proxies
 
@@ -553,7 +575,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose --skip-smoke
 docker compose -p dtk -f docker/compose.yml exec api dtk diagnose --json
 ```
 
-The CLI additionally accepts `--platform`, `--smoke-url`, `--probe-url` and `-o/--output`. See [CLI reference](./13-cli.md).
+The CLI additionally accepts `--smoke-url`, `--probe-url` and `-o/--output`. Its `--platform` defaults to Douyin rather than choosing automatically, so on an instance that serves only Bilibili pass `--platform bilibili`. See [CLI reference](./13-cli.md).
 
 ## Which page answers which question
 

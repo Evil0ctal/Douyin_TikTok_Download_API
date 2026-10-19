@@ -48,7 +48,9 @@ The whole pass logs one `worker.maintenance.done` line with the counts. If you s
 
 ## Settings and how a change takes effect
 
-Runtime configuration lives in the database, not in `.env`. The console page is **Settings** at `/settings`, grouped by key prefix: signing, cache, snapshot, archive, media, watchlist, capacity, retention, api, security, notify, system, and `other` for anything with an unlisted prefix. Scheduler and identity-pool keys (`sched.*`, `pool.*`) are deliberately not here — they live on `/scheduler`, next to the pool they act on.
+Runtime configuration lives in the database, not in `.env`. The console page is **Settings** at `/settings`, grouped by key prefix: signing, cache, snapshot, archive, media, watchlist, capacity, retention, demo, api, security, notify, system, and `other` for anything with an unlisted prefix. Scheduler and identity-pool keys (`sched.*`, `pool.*`) are deliberately not here — they live on `/scheduler`, next to the pool they act on, where each platform's low-water mark and target are edited as one grid.
+
+A search box filters on keys and descriptions, and **Overridden only** narrows the page to database overrides. A few keys stay in their group but are not edited there; each is a pointer to the place that edits it: `demo.enabled` to the Demo mode card at the top of this page, `notify.*` to Notifications, `api.public_endpoints` to Endpoint access and `system.check_updates` to System. A generic row was not merely redundant for these, it was wrong: switching `demo.enabled` from a plain toggle threw away the only response that carries the demo password and key, and `notify.channels`, a list of objects, was shown as `[object Object]` and saved back that way over every channel. Any other value that is a list of records is shown read-only. Save, Cancel and Reset are not drawn for a role that cannot use them.
 
 Every row names its **source**, which is the single most useful thing on the page:
 
@@ -306,11 +308,11 @@ The event set is fixed. Deduplication is the feature, not an optimisation: witho
 
 A window is only held for an alert that actually reached somebody. If every channel refused it, the mark is released so the next occurrence gets a fresh attempt — otherwise one refused connection would buy up to a day of silence.
 
-**Narrowing a channel's events has a sharp edge.** By default a channel receives every event, which is stored by *omitting* the event list. The console's checklist offers only the first seven events in the table above; the three disk-related ones (`capacity_warning`, `capacity_paused`, `media_evicted`) are not on it. So the moment you untick a single box, the channel is stored with an explicit list that cannot contain the disk events, and it stops receiving them. If you want capacity alerts, leave every box ticked on at least one channel.
+**Narrowing a channel's events.** By default a channel receives every event, which is stored by *omitting* the event list — so an event added in a later release reaches it too. The console's checklist offers all ten events in the table above. Untick one and the channel is stored with an explicit list; tick every box again and it goes back to "every event". The last ticked box cannot be cleared, because an empty list would mean everything: disable the channel to silence it. An event name this console does not know is kept as stored and shown in the editor. Earlier consoles offered only the first seven and dropped any other name whenever a channel was saved, so a channel narrowed to a disk event quietly went back to receiving everything — worth checking a narrowed channel's list once after upgrading.
 
 ## Testing a channel
 
-`/notifications` has **Send test alert** in the header (all channels) and a **Test** button on each row (that channel). Operator role or better.
+`/notifications` has **Send test alert** in the header (all channels) and a **Test** button on each row (that channel). Operator role or better; a `viewer` is not shown these buttons, nor the ones that add, edit or delete a channel.
 
 A test does not consult the deduplication windows at all — neither claiming one nor reading one — so pressing the button twice sends twice, and proving a channel does not consume the suppression window of a real alert. The test body names the channel it was sent to, which is how you tell two phones apart.
 
@@ -371,10 +373,10 @@ There are two unauthenticated probes and three authenticated views. Point your m
 | --- | --- | --- |
 | Liveness | `GET /healthz` | `200`, `{"status":"ok","uptime_seconds":…}`. Touches no dependency on purpose: a liveness probe that hits the database turns a brief hiccup into a restart storm. |
 | Readiness | `GET /readyz` | `200` with `postgres` and `redis` both `ok`; `503` otherwise. Browser RPC is deliberately excluded — minting is off the request path, so an instance without it is degraded, not unready. |
-| Instance status | `GET /api/v1/system/status`, console `/system` | Components reachable with sane latencies; Chromium major and wreq profile major aligned; `settings_version` matching what you expect. |
+| Instance status | `GET /api/v1/system/status`, console `/system` | Components reachable with sane latencies — the downloader and the transcriber too, where their profiles run; Chromium major and wreq profile major aligned; `settings_version` matching what you expect. |
 | Endpoint health | `GET /api/v1/admin/endpoints/health`, console Overview | `circuit_open: false` everywhere; risk rate well under `sched.circuit_risk_threshold` (0.6). |
 | Traffic mix | `GET /api/v1/admin/metrics/timeseries`, console Overview | Mostly `ok`; `risk_control` rare and not concentrated on one endpoint. |
-| Pool level | console `/identities`, `/system` | Active identities at or above `pool.min_size` (3) for each platform you use. |
+| Pool level | console `/scheduler`, `/identities`, Overview | Identities at or above that platform's low-water mark (`pool.min_size`, 3, unless the platform has its own) for each platform you use. Read the Scheduler page's "schedulable" count per platform: it is the active count minus reserved identities, which serve only the requests that name them and are not capacity. |
 | Disk | console `/system`, `capacity_*` alerts | Below `capacity.warn_percent`. |
 | Background loops | `worker` logs | A `worker.maintenance.done` line every ~5 minutes; no repeating `worker.loop.failed`. |
 | Backups | console `/backup` | An archive from within your backup interval, with the key check reading `This key`. |
@@ -387,9 +389,9 @@ curl -fsS http://127.0.0.1:8000/readyz
 docker compose -p dtk -f docker/compose.yml ps
 ```
 
-The console's **Logs** page (`/logs`) has two tabs: the request log, searchable by request id, endpoint, outcome and time range, and the audit trail — who changed what, kept in its own table so it is never buried by ordinary traffic. Settings changes, backup and restore requests, notification tests and diagnostics all leave an audit row.
+The console's **Logs** page (`/logs`) has two tabs: the request log, searchable by request id, endpoint, identity, proxy, outcome and time range, and the audit trail — who changed what, kept in its own table so it is never buried by ordinary traffic. The id, endpoint and account filters live in the address (`/logs?tab=requests&proxy_id=…`, `/logs?tab=audit&user_id=…`), so a filtered view is a link you can keep or send. Settings changes, backup and restore requests, notification tests and diagnostics all leave an audit row.
 
-For a structured self-check covering egress, proxies, signing and an end-to-end request, run the diagnosis — from the console at `/diagnose`, or:
+For a structured self-check covering the components (the downloader and the transcriber included, where configured), egress to all three platforms, proxies, signing and an end-to-end request, run the diagnosis — from the console at `/diagnose`, where the end-to-end step runs on a platform you pick or, by default, the one this instance serves most, or:
 
 ```bash
 docker compose -p dtk -f docker/compose.yml exec api dtk diagnose

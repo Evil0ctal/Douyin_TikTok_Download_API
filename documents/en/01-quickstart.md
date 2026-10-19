@@ -333,7 +333,7 @@ id and the parsed JSON. That is your first successful parse.
 ## Step 7 — Parse a link from the console
 
 The wizard's smoke test runs once. For a repeatable call, use **Playground** in
-the sidebar (under *Tools*).
+the sidebar (under *Developer*).
 
 1. Pick `POST /api/v1/parse` from the catalogue on the left.
 2. Put a share link, a bare post URL, or the whole clipboard text a platform app

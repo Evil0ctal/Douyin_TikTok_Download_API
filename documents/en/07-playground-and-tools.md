@@ -40,7 +40,7 @@ for the shell, the navigation and the roles.
 The page fills the viewport as three resizable panes rather than one scrolling
 column:
 
-1. **Endpoints** — the catalogue, and below it this session's history.
+1. **Endpoints** — the platform picker, the catalogue, and below it this session's history.
 2. **Request** — the form for the selected endpoint.
 3. **Response** — status, payloads, failure facts, signature, snippets.
 
@@ -59,14 +59,22 @@ reason to be on the page.
 
 ### The endpoint catalogue
 
-Fifteen entries. The first is platform-agnostic; the other fourteen take a
-platform selector (`douyin`, `tiktok` or `bilibili`) at the top of the form and
-are addressed as `/api/v1/{platform}/...`.
+Seventeen entries. The first is platform-agnostic; the other sixteen are
+addressed as `/api/v1/{platform}/...` for the platform picked above the catalogue
+(`douyin`, `tiktok` or `bilibili`). The picker sits above the list rather than in
+the form because the list depends on it: an entry the selected platform does not
+serve stays in the list, greyed, with "Not served on *platform*" under it, and
+selecting it says so and disables **Send**. It used to sit in the form, the
+catalogue offered every entry on every platform, and the first a reader learned of
+a gap was the refusal. What each platform serves comes from
+`GET /api/v1/system/capabilities` (see the [REST API guide](./11-api.md#everything-else));
+until that answers, nothing is greyed.
 
 | Entry | Method | Path | Scheduler endpoint |
 | --- | --- | --- | --- |
 | Parse any link | `POST` | `/api/v1/parse` | decided after the link is expanded |
 | Post detail | `GET` | `/api/v1/{platform}/video` | `{platform}.content_detail` |
+| Video parts (multi-part videos) | `GET` | `/api/v1/{platform}/video/parts` | `{platform}.content_parts` |
 | Post comments | `GET` | `/api/v1/{platform}/video/comments` | `{platform}.comments` |
 | Comment replies | `GET` | `/api/v1/{platform}/video/comments/replies` | `{platform}.comment_replies` |
 | Author profile | `GET` | `/api/v1/{platform}/user` | `{platform}.author_profile` |
@@ -77,27 +85,30 @@ are addressed as `/api/v1/{platform}/...`.
 | Saved posts (every folder) | `GET` | `/api/v1/{platform}/user/bookmarks` | `{platform}.author_bookmarks` |
 | One folder's details | `GET` | `/api/v1/{platform}/collection` | `{platform}.collection_detail` |
 | Saved posts (one folder) | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}.collection_posts` |
-| Mix / playlist posts | `GET` | `/api/v1/{platform}/mix/posts` | `{platform}.mix_posts` |
+| Author's own series (mix / playlist) | `GET` | `/api/v1/{platform}/mix/posts` | `{platform}.mix_posts` |
 | Author followers | `GET` | `/api/v1/{platform}/user/followers` | `{platform}.author_followers` |
 | Author following | `GET` | `/api/v1/{platform}/user/following` | `{platform}.author_following` |
+| Popular and rankings | `GET` | `/api/v1/{platform}/popular` | `{platform}.popular`, `.popular_weekly`, `.popular_precious` or `.ranking`, by board |
 
 Not every platform serves every entry, and asking for one it does not serve is
 refused at the API boundary with `UNSUPPORTED_CONTENT` (400) naming the platform
 and the capability: no request id, and no scheduler endpoint of that name for the
 failure panel to match.
 
-The last two rows are TikTok only. The registry declares
+**Author followers** and **Author following** are TikTok only. The registry declares
 `tiktok.author_followers` and `tiktok.author_following` and no Douyin or Bilibili
 equivalent. On Douyin the asymmetry is the
 platform's own — Douyin answers "not signed in" for a follow graph even to a
 healthy guest identity, and a route that submitted the task anyway would hand back
 an empty page and let you conclude the author has no followers. The Playground
-starts on Douyin, so this is what you get if you click one of them first.
+starts on Douyin, where both rows are greyed.
 
-Bilibili serves seven of the fourteen: post detail, comments, comment replies,
+Bilibili serves nine of the sixteen: post detail, comments, comment replies,
 author profile, author posts, an author's public folders (**Bookmark folders**,
-which on Bilibili takes the author) and one folder's videos (**Saved posts (one
-folder)**). Every other entry answers `UNSUPPORTED_CONTENT` on Bilibili. Post
+which on Bilibili takes the author), one folder's videos (**Saved posts (one
+folder)**), and the two entries no other platform has — **Video parts**, which
+lists a multi-part video's parts with their titles and lengths, and **Popular and
+rankings**. Every other entry answers `UNSUPPORTED_CONTENT` on Bilibili. Post
 detail there makes a second request for the playable file, which is scheduled,
 signed and written to the request log under its own name,
 `bilibili.content_streams`; if it fails the detail still comes back, without
@@ -107,7 +118,9 @@ differs.
 The scheduler endpoint name is what the token bucket and the circuit breaker are
 keyed on, and it is the name the failure panel and the health table use. `POST
 /api/v1/parse` has no fixed one because the worker only learns which endpoint it
-needs after following the link.
+needs after following the link. **Popular and rankings** has four: its `board`
+(`hot`, `weekly`, `precious` or `rank`) picks one of four upstream operations, each
+with its own circuit, so the health shown is the chosen board's.
 
 The catalogue is a hand-written list of the read endpoints, not a rendering of the
 OpenAPI document — the rest of the API (identities, downloads, settings, archive)
@@ -123,11 +136,20 @@ and the form says so on both if neither is. On Bilibili the same two fields take
 a bvid such as `BV1xx411c7mD` (an av number is accepted and converted) and the
 author's numeric `mid`. Some endpoints have a genuinely
 required field instead: `comment_id` for replies, `mix_id` for a mix,
-`collection_id` for a folder.
+`collection_id` for a folder. On Bilibili, **Post detail** also takes `part`:
+which part of a multi-part video to return the stream of.
+
+Placeholders follow the selected platform, and **Load a *platform* example** fills
+the target with a real, public post or author on it, so the first call made with
+it succeeds. It is not offered where no target can be named in advance — a
+comment, a folder, a mix. A parameter the selected platform's endpoint does not
+take is left out of the form rather than shown disabled: Douyin's folder list has
+no author field, and only Bilibili's comments take `sort`.
 
 **Paging.** `cursor` and `count`, on the endpoints that page. `count` is capped at
-50 by the form and by the API. On Bilibili the API's ceiling is 20, and a larger
-`count` is a 400.
+the platform's own page ceiling, by the form and by the API: 50 on Douyin, 35 on
+TikTok, 20 on Bilibili. A larger `count` is a 400; the form used to allow 50
+everywhere and leave the API to say so.
 
 **Request.** The envelope parameters every read endpoint accepts:
 
@@ -136,7 +158,7 @@ required field instead: `comment_id` for replies, `mix_id` for a mix,
 | `include_raw` | boolean | on | Also return the platform's own untouched payload. The API's own default is off; the console turns it on because comparing the two is what this page is for. It is large — a single post runs to hundreds of kilobytes. |
 | `wait` | number | empty | Hold the connection this many seconds waiting for the task. Empty or 0 returns a task id immediately. The form allows 0–30; the instance ceiling is `api.max_wait_seconds` (default 30) and asking for more is a 400. |
 | `proxy` | text | empty | Send the upstream request through this egress. Refused unless an administrator has set `security.request_proxy` to `public` or `any`. |
-| `identity` | picker | any | Send as one named identity and no other. Needs `identity:manage` (or `admin`) and an operator role. |
+| `identity` | picker | any | Send as one named identity and no other. Needs `identity:manage` (or `admin`) and an operator role. Required where the endpoint answers only about the identity sending it — see below. |
 | `refresh` | boolean | off | Ignore the response cache and any identical task already in flight, and ask upstream again. |
 | `explain` | boolean | off | Report the request as it actually went out. See below. |
 
@@ -151,6 +173,15 @@ rather than letting you send a Douyin identity to a TikTok endpoint and read the
 
 If the picker is empty, the caller cannot list identities. That is not a bug on
 this page: the same scope gates listing them and using one.
+
+Some endpoints answer only about the identity sending them: **Saved posts (every
+folder)** on Douyin and TikTok, and **Bookmark folders** on Douyin, whose request
+carries no user id. The capability table marks them `session_bound`, and the form
+then marks `identity` required and says so above the fields, rather than letting a
+400 say it after the call. Pin a logged-in identity: a guest has nothing saved to
+show. Pinning takes the operator role, so a session below it is told the call
+cannot succeed for it, and **Send** is disabled instead of spending a request on a
+known refusal.
 
 The `proxy` field is offered even on an instance where `security.request_proxy` is
 `deny`, which is the default. That is deliberate — a refusal that names the setting
@@ -205,6 +236,20 @@ On success, four collapsible panels:
   here; it fills `cursor` in and sends again, which spends another request.
 - **Copy-ready call** — see [Copy-ready snippets](#copy-ready-snippets).
 
+Two things can appear above them:
+
+- **A guest identity answered.** When `meta.guest_fallback` is set, no logged-in
+  identity was available and a guest served the call, so the answer may hold less
+  than a logged-in one would see: Douyin leaves an author's newest posts out of a
+  guest's first page, and Bilibili shows a guest three comments and no second page.
+  Nothing in the payload says so except that flag, which nothing used to read. The
+  warning links to the platform's logged-in identities, to add one.
+- **Next.** A result that is one post offers **Download media** and **Open in
+  Library**; an author offers **This author in Library**. The download is the same
+  request the Downloads page sends with its defaults, so "already downloaded"
+  means the same from both. The demo account, which cannot start downloads, is
+  not offered one.
+
 ### When a call fails
 
 The failure panel opens automatically and puts five things in one place: the
@@ -220,7 +265,7 @@ identities*:
 | --- | --- |
 | A code, an identity, circuit `closed`, healthy pool | This request or this target. Read the error code. |
 | Circuit `open` on this endpoint | The breaker tripped on repeated failures; the endpoint is being rested. Every endpoint's circuit is listed on the Overview page (`/`) — see [Console overview](./05-console-overview.md) — and [Identities and proxies](./06-identities-and-proxies.md) says what to do while one is open. |
-| `active 0` in the pool | Nothing can serve any request. Calls are rejected with `IDENTITY_POOL_EXHAUSTED` until an identity recovers. See [Identities and proxies](./06-identities-and-proxies.md). |
+| `active 0` and `degraded 0` in the pool | Nothing on the call's platform can serve it — the census shown is that platform's. Calls to it are rejected with `IDENTITY_POOL_EXHAUSTED` until an identity recovers. See [Identities and proxies](./06-identities-and-proxies.md). |
 | No request id at all | The call never reached the scheduler — it was rejected at the API boundary (scope, validation, rate limit). |
 
 The serving identity is resolved from two sources. If the run asked for an
@@ -239,7 +284,10 @@ on the runs you intend to explain.
 Below the response, and available even before you have made any call, is the
 **Endpoint and pool** panel: the circuit for the selected endpoint (or a count of
 how many of all endpoints are tripped), success rate, risk rate and sample count,
-and a per-state census of the identity pool. It is polled every few seconds, so it
+and a per-state census of the selected platform's identity pool (every platform
+together for **Parse any link**, which works the platform out from the link), with
+a link to that platform's identities and a warning when none of them is active or
+degraded. It is polled every few seconds, so it
 is current at the moment a call fails. An operator who arrives to find out why
 nothing works needs this before they need a response body.
 
@@ -626,7 +674,11 @@ it, which is what the Douyin and TikTok apps actually put on the clipboard.
 
 It reports the platform, what kind of resource the link names, the id, the handle
 where there is one, the canonical URL, whether it is a supported target at all, and
-whether it needs expanding.
+whether it needs expanding. A recognised post link offers **Download media** and
+**Open in Library**, and a Douyin or Bilibili profile link the author in the
+Library — the same buttons as the Playground's. A TikTok profile link yields the
+`@handle`, which is not the key the archive files an author under, so it offers
+neither.
 
 Which id you get differs by platform, because the endpoints differ: a Douyin
 profile link yields a `sec_user_id`, a TikTok one yields the `@handle`, because
@@ -681,7 +733,8 @@ all — which is the part worth doing for free, because the alternative is an up
 request that spends an identity to be told the same thing.
 
 **Copy the ids** puts every recognised id on the clipboard, one per line, skipping
-the `bad_id` rows.
+the `bad_id` rows. It works over plain `http` too, where the browser offers no
+clipboard API, and says so when copying failed rather than claiming it worked.
 
 ### Mint an identity
 

@@ -19,7 +19,7 @@ The console splits "what I have seen" from "what I am holding" from "what I keep
 
 A fourth page, **Transcriptions** (`/transcriptions`), holds the text made from stored videos when the optional transcriber is on; it costs CPU on this machine and nothing upstream. See [Turning a stored video into text](#turning-a-stored-video-into-text).
 
-All of them live in the **Tools** group in the sidebar. A post can be in the archive without its media being on disk (the usual case), and a download can outlive its archive row — the downloads table still describes a real directory on the volume even if the post was later deleted from the library.
+All of them live in the **Content** group in the sidebar. A post can be in the archive without its media being on disk (the usual case), and a download can outlive its archive row — the downloads table still describes a real directory on the volume even if the post was later deleted from the library.
 
 ## The media downloader is optional
 
@@ -111,6 +111,8 @@ If the post is archived and has nothing downloadable, you get a `400` with the r
 ### One part of a multi-part video
 
 A Bilibili upload can come in several parts (分P). A plain download stores the first part, the one the post's link plays. To store another, pass `part` (counted from 1) to `POST /api/v1/downloads`, or paste the link a player is on — `?p=3` in a Bilibili link means part 3 and is read the same way. `part: 1` is the post's own download, whichever way it is spelt. Asking for a part past the last one fails with the number of parts the video has. Douyin and TikTok posts have no parts, and `part` there is a `400`.
+
+On the Downloads page, a Bilibili post in the **A post** mode gets a **Part** menu under the box. It starts on the first part, or on the one a pasted link's `?p=` names, and **List the parts** fills it with the rest, by title and length — on request rather than as you type, because listing costs a real request through the pool and most videos have one part. A part's row and drawer are marked `P3`.
 
 Each part is its own download, with its own `download_id`, stored in a directory beside the post's: `bilibili/<mid>/<bvid>-p3/`. Beside, not inside, because removing a download removes its directory, and a part nested in the post's own would go whenever the first part's files did. Two parts of one post can download at the same time; a second request for the same part joins the one in flight, as for any post. Saved to your computer, a part's files are named for it (`dtk-bilibili-<bvid>-p3-video.mp4`), so parts saved to one folder do not overwrite each other.
 
@@ -267,7 +269,7 @@ Asking twice is cheap. A finished transcription of the same file is handed back 
 
 ### The Transcriptions page
 
-`/transcriptions`, in the same **Tools** group, lists every transcription newest first with its state, a preview of the text, the video's duration, the model and whether numbers were normalised. A running one shows its stage — Decoding audio, Finding speech, Recognising speech, Adding punctuation, Writing numbers as digits — and its details drawer shows the text recognised so far, marked provisional until punctuation and numbers are applied at the end. A finished one can be exported as a `.txt`.
+`/transcriptions`, in the same **Content** group, lists every transcription newest first with its state, a preview of the text, the video's duration, the model and whether numbers were normalised. A running one shows its stage — Decoding audio, Finding speech, Recognising speech, Adding punctuation, Writing numbers as digits — and its details drawer shows the text recognised so far, marked provisional until punctuation and numbers are applied at the end. A finished one can be exported as a `.txt`.
 
 The list pages 100 at a time and searches the text, the post's title and its id; its filters and the open drawer are kept in the address (`/transcriptions?id=<transcription id>`). A transcript's drawer links to the download it was made from and to the post in the Library. While the transcriber is off — the default — the Transcribe buttons are disabled and say how to turn it on, and so does this page when it is empty.
 

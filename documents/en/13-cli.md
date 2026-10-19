@@ -247,8 +247,8 @@ The six steps, in order:
 
 | # | Step | What it checks |
 |---|---|---|
-| 1 | `components` | Postgres, Redis and browser-rpc are reachable |
-| 2 | `egress` | This machine can reach Douyin's and TikTok's domains directly |
+| 1 | `components` | Postgres, Redis and browser-rpc are reachable, and so are the downloader and the transcriber where this deployment configures them |
+| 2 | `egress` | This machine can reach Douyin's, TikTok's and Bilibili's domains directly |
 | 3 | `proxies` | Each proxy: reachability and exit IP. The country it shows is the one already stored on the proxy row, not a fresh GeoIP lookup |
 | 4 | `pool` | How many usable identities there are, and how stale the oldest is |
 | 5 | `signing` | The pure-Python signature against browser-rpc's, for Douyin and TikTok — the same shadow comparison the registry runs in production. Bilibili is not compared, because browser-rpc never signs it |

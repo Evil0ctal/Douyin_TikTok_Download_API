@@ -28,8 +28,8 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose
 
 | # | 步骤 | 它证明了什么 |
 |---|---|---|
-| 1 | `components` | 本进程能连上 PostgreSQL、Redis 和 browser-rpc。Postgres 和 Redis 不通是 `fail`；browser-rpc 不通只是 `warn`，因为它是可选的 |
-| 2 | `egress` | 本机能**直连**（不走代理）`https://www.douyin.com/` 和 `https://www.tiktok.com/`。用来区分「没网」和「代理坏了」 |
+| 1 | `components` | 本进程能连上 PostgreSQL、Redis 和 browser-rpc，配置了的话还有下载器和转写服务。Postgres 和 Redis 不通是 `fail`；browser-rpc 或配置了的 sidecar 不通只是 `warn`，因为它们是可选的 |
+| 2 | `egress` | 本机能**直连**（不走代理）`https://www.douyin.com/`、`https://www.tiktok.com/` 和 `https://www.bilibili.com/`。用来区分「没网」和「代理坏了」 |
 | 3 | `proxies` | 每个已配置的代理是否真的能过流量，以及出口在哪（出口 IP、国家）。最多探测 20 个代理 |
 | 4 | `pool` | 有多少身份处于 `active`，以及最后一次成功请求是什么时候 |
 | 5 | `signing` | 进程内的签名算法与真实浏览器算出的签名是否一致，对浏览器会签的平台（抖音和 TikTok）分别比对。没配 browser-rpc 时跳过——没有第二个签名器可比 |
@@ -730,7 +730,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - **TLS 指纹。** TikTok 会检查它与 User-Agent 是否一致，所以 Chrome 的 UA 必须走 Chrome 的 TLS profile。裸 `curl` 无论签名多对都会被拒。
 - **一份 cookie。** 签名正确但没有 cookie 依然什么都拿不到：平台应答的是一个*会话*。`POST /api/v1/tools/identity` 可以铸一份（抖音和 TikTok 需要 browser-rpc；B 站访客身份不需要浏览器）。在抖音上，cookie 还是 `x-secsdk-web-signature` 的计算对象——没有 visitor id，`headers` 会返回空，受签名保护的接口会点名 `uifid` 拒绝你。
 
-`POST /api/v1/tools/decode` 反过来读一个签名参数，用来核对别人给你的签名到底编了什么。两者都在控制台的**工具**页（`/tools`）上；见[调试台与工具](./07-playground-and-tools.md)。
+`POST /api/v1/tools/decode` 反过来读一个签名参数，用来核对别人给你的签名到底编了什么。两者都在控制台的**基础工具**页（`/tools`）上；见[调试台与工具](./07-playground-and-tools.md)。
 
 ### 真正在扛流量的是哪个签名器
 

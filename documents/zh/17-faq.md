@@ -352,11 +352,11 @@ docker manifest inspect timescale/timescaledb-ha:pg17 | grep architecture
 
 ### 它会"回传数据"吗？
 
-不会，而且每一处本来可能外连的地方都是显式选择加入的：
+不会。服务端自己不会发这种请求，而每一处可能外连的地方，要么默认关闭，要么是由你的浏览器发出的：
 
 | 外发请求 | 默认 | 说明 |
 | --- | --- | --- |
-| 更新检查 | `system.check_updates` 为 `false` | 配置说明写的是"这会发出外部请求，因此需要你主动开启"。控制台的检查是在**你的浏览器**里点击时向 GitHub releases API 发起的，永远不是服务端发的 |
+| 更新检查 | `system.check_updates` 为 `true` | 控制台由**你的浏览器**向 GitHub releases API 发起检查——登录后每天一次，以及你点「立即检查」时——永远不是服务端发的，所以它不携带任何关于这套部署的信息。断网环境里请关掉 |
 | 赞助商 Logo | 由你自己的实例提供 | 本地的一份 16 KB 副本，这样打开控制台不会告诉第三方你的部署存在 |
 | 地理探测 | 铸造时通过身份的代理访问 `ipinfo.io` | 把 `DTK_BROWSER_GEO_PROBE_URL` 设为空即可关闭 |
 | 任务回调 | `security.enable_task_webhook` 为 `false` | 即使开启，回调地址也必须是 `https`，而且不能解析到私有地址或回环地址，因为调用方自带的回调 URL 是最典型的请求伪造入口 |

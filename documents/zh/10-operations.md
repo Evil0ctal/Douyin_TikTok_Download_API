@@ -47,7 +47,9 @@ docker compose -p dtk -f docker/compose.yml ps
 
 ## 设置页，以及一次修改何时生效
 
-运行时配置存在数据库里，不在 `.env` 里。控制台页面是 `/settings`，按 key 前缀分组：signing、cache、snapshot、archive、media、watchlist、capacity、retention、api、security、notify、system，前缀不在列表里的归到 `other`。调度器和身份池相关的 key（`sched.*`、`pool.*`）刻意不在这里——它们在 `/scheduler` 页面，和它们作用的那个池放在一起。
+运行时配置存在数据库里，不在 `.env` 里。控制台页面是 `/settings`，按 key 前缀分组：signing、cache、snapshot、archive、media、watchlist、capacity、retention、demo、api、security、notify、system，前缀不在列表里的归到 `other`。调度器和身份池相关的 key（`sched.*`、`pool.*`）刻意不在这里——它们在 `/scheduler` 页面，和它们作用的那个池放在一起，每个平台的低水位和目标值在那里作为一张表格统一编辑。
+
+搜索框按 key 和说明文字筛选，**只看已覆盖的** 则只留下数据库覆盖的那些行。有几个 key 仍留在各自的分组里，但不在这里编辑，而是指向真正编辑它的地方：`demo.enabled` 指向本页顶部的演示模式卡片，`notify.*` 指向通知页，`api.public_endpoints` 指向接口访问控制页，`system.check_updates` 指向系统信息页。对这几个 key，通用的行编辑器不只是多余，而是会出错：用一个普通开关切换 `demo.enabled`，会把唯一一次带回演示账号密码和 Key 的响应扔掉；`notify.channels` 是一个对象列表，以前会显示成 `[object Object]`，保存时还会原样写回去，盖掉所有渠道。其他由对象组成的列表值一律只读显示。角色用不了的保存、取消和重置按钮根本不会画出来。
 
 每一行都会标明**来源**，这是这个页面上最有用的一件事：
 
@@ -305,11 +307,11 @@ rm drill.tar.gz
 
 只有真正送达了某个人的告警才会占住窗口。如果所有渠道都拒绝了这条告警，标记会被释放，下一次发生时会重新尝试——否则一次被拒的连接就能换来长达一天的沉默。
 
-**给渠道缩小事件范围有个尖锐的坑。** 默认情况下一个渠道接收所有事件，这是通过*不写*事件列表来表示的。控制台的勾选框只列出上表中的前七个事件，三个磁盘相关事件（`capacity_warning`、`capacity_paused`、`media_evicted`）不在其中。所以你只要取消勾选任意一项，这个渠道就会被存成一个显式列表，而这个列表里不可能包含那三个磁盘事件，于是它就再也收不到它们了。如果你要磁盘告警，请至少让一个渠道保持全部勾选。
+**给渠道缩小事件范围。** 默认情况下一个渠道接收所有事件，这是通过*不写*事件列表来表示的——所以以后版本新增的事件也会发给它。控制台的勾选框列出了上表全部十个事件。取消勾选一项，这个渠道就会被存成一个显式列表；把所有框重新勾上，它又回到「全部事件」。最后一个勾选的框取消不掉，因为空列表的意思是全部：想让它安静，就把这个渠道停用。控制台不认识的事件名会按原样保留，并显示在编辑框里。以前的控制台只列出前七个，而且保存任何一个渠道时都会把其余的事件名丢掉，于是一个只订阅了磁盘事件的渠道会悄悄变回接收全部——升级之后值得把缩小过范围的渠道检查一遍。
 
 ## 测试渠道
 
-`/notifications` 页头有**发送测试告警**（所有渠道），每一行还有一个**测试**按钮（该渠道）。需要 operator 及以上角色。
+`/notifications` 页头有**发送测试告警**（所有渠道），每一行还有一个**测试**按钮（该渠道）。需要 operator 及以上角色；`viewer` 看不到这些按钮，也看不到添加、编辑和删除渠道的按钮。
 
 测试完全不走去重窗口——既不占用也不读取——所以按两次就会发两次，而且用测试验证渠道不会消耗真实告警的抑制窗口。测试正文里会写明发到了哪个渠道，这样你拿着两部手机也能分清是哪一个。
 
@@ -370,10 +372,10 @@ rm drill.tar.gz
 | --- | --- | --- |
 | 存活 | `GET /healthz` | `200`，`{"status":"ok","uptime_seconds":…}`。刻意不碰任何依赖：一个会查数据库的存活探针，会把数据库的短暂抖动变成一场重启风暴。 |
 | 就绪 | `GET /readyz` | `200`，且 `postgres` 与 `redis` 均为 `ok`；否则 `503`。浏览器 RPC 被刻意排除在外——铸造不在请求路径上，没有它的实例是降级，不是未就绪。 |
-| 实例状态 | `GET /api/v1/system/status`、控制台 `/system` | 各组件可达且延迟正常；Chromium 主版本与 wreq profile 主版本一致；`settings_version` 与预期相符。 |
+| 实例状态 | `GET /api/v1/system/status`、控制台 `/system` | 各组件可达且延迟正常——启用了 profile 的话，下载器和转写服务也算在内；Chromium 主版本与 wreq profile 主版本一致；`settings_version` 与预期相符。 |
 | 接口健康 | `GET /api/v1/admin/endpoints/health`、控制台「总览」 | 所有接口 `circuit_open: false`；风控率远低于 `sched.circuit_risk_threshold`（0.6）。 |
 | 流量构成 | `GET /api/v1/admin/metrics/timeseries`、控制台「总览」 | 绝大多数是 `ok`；`risk_control` 很少见，且不集中在某一个接口上。 |
-| 池水位 | 控制台 `/identities`、`/system` | 你在用的每个平台，active 身份数不低于 `pool.min_size`（3）。 |
+| 池水位 | 控制台 `/scheduler`、`/identities`、总览 | 你在用的每个平台，身份数不低于该平台的低水位（`pool.min_size`，默认 3，平台单独设置过的以它为准）。看调度器页面上每个平台的「可调度」数：它是 active 数减去保留身份——保留身份只服务点名要它的请求，不算容量。 |
 | 磁盘 | 控制台 `/system`、`capacity_*` 告警 | 低于 `capacity.warn_percent`。 |
 | 后台循环 | `worker` 日志 | 每约 5 分钟一条 `worker.maintenance.done`；没有反复出现的 `worker.loop.failed`。 |
 | 备份 | 控制台 `/backup` | 存在一份在你的备份周期内的归档，且密钥校验显示 `当前密钥`。 |
@@ -386,9 +388,9 @@ curl -fsS http://127.0.0.1:8000/readyz
 docker compose -p dtk -f docker/compose.yml ps
 ```
 
-控制台的「日志」页面（`/logs`）有两个标签页：请求日志，可按 request id、接口、结果和时间范围检索；以及审计记录——谁改了什么，单独存表，这样它永远不会被普通流量淹没。设置变更、备份与恢复请求、告警测试和自检都会留下审计记录。
+控制台的「日志」页面（`/logs`）有两个标签页：请求日志，可按 request id、接口、身份、代理、结果和时间范围检索；以及审计记录——谁改了什么，单独存表，这样它永远不会被普通流量淹没。ID、接口和账号这几个筛选条件都保存在地址里（`/logs?tab=requests&proxy_id=…`、`/logs?tab=audit&user_id=…`），所以筛好的视图就是一个可以收藏、也可以发给别人的链接。设置变更、备份与恢复请求、告警测试和自检都会留下审计记录。
 
-想做一次覆盖出网、代理、签名和端到端请求的结构化自检，可以运行诊断——在控制台 `/diagnose`，或者：
+想做一次覆盖各组件（配置了的话，包括下载器和转写服务）、三个平台的出网、代理、签名和端到端请求的结构化自检，可以运行诊断——在控制台 `/diagnose`，端到端那一步可以选平台，默认用这个实例服务得最多的那个；或者：
 
 ```bash
 docker compose -p dtk -f docker/compose.yml exec api dtk diagnose

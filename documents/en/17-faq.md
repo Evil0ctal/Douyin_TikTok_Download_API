@@ -429,11 +429,11 @@ which one fails.
 
 ### Does it phone home?
 
-No, and the places it could have are each an explicit opt-in:
+No. The server makes no such request on its own, and each place one could leave is either off by default or made by your browser:
 
 | Outbound request | Default | Notes |
 | --- | --- | --- |
-| Update check | `system.check_updates` is `false` | Documented as "outbound request; the user opts in rather than being opted in". The console's check runs from **your browser** to the GitHub releases API when you click it, never from the server |
+| Update check | `system.check_updates` is `true` | The console asks the GitHub releases API from **your browser**, once a day after sign-in and when you click "Check now", never from the server, so it carries nothing about the deployment. Turn it off on an air-gapped box |
 | Sponsor logo | Served from your own instance | A 16 KB local copy, so loading the console does not tell a third party that your deployment exists |
 | Geo probe | `ipinfo.io` through the identity's proxy, at mint time | Set `DTK_BROWSER_GEO_PROBE_URL` empty to disable it |
 | Task callbacks | `security.enable_task_webhook` is `false` | And when enabled, the URL must be `https` and must not resolve to a private or loopback address, because a caller-supplied callback URL is a request-forgery vector |

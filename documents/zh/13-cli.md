@@ -246,8 +246,8 @@ dtk diagnose [OPTIONS]
 
 | # | 步骤 | 检查什么 |
 |---|---|---|
-| 1 | `components` | Postgres、Redis、browser-rpc 是否可达 |
-| 2 | `egress` | 本机能否直连抖音和 TikTok 的域名 |
+| 1 | `components` | Postgres、Redis、browser-rpc 是否可达；本部署配置了下载器和转写服务的话，它们也要可达 |
+| 2 | `egress` | 本机能否直连抖音、TikTok 和 B 站的域名 |
 | 3 | `proxies` | 逐个代理：连通性和出口 IP。它显示的国家是代理行上已经存好的那个，不是新做一次 GeoIP 查询 |
 | 4 | `pool` | 有多少可用身份，最老的一个有多陈旧 |
 | 5 | `signing` | 纯 Python 签名与 browser-rpc 的签名比对，抖音和 TikTok 各一次——就是生产环境里 registry 跑的那套影子对比。B 站不参与比对，因为 browser-rpc 从不为它签名 |

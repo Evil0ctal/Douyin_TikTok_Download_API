@@ -29,8 +29,8 @@ The two run the same code. The difference is where: the console submits a backgr
 
 | # | Step | What it proves |
 |---|---|---|
-| 1 | `components` | This process can reach PostgreSQL, Redis and browser-rpc. Postgres and Redis failing is a `fail`; browser-rpc failing is only a `warn`, because it is optional |
-| 2 | `egress` | This machine can reach `https://www.douyin.com/` and `https://www.tiktok.com/` **directly**, with no proxy. Separates "no internet" from "bad proxy" |
+| 1 | `components` | This process can reach PostgreSQL, Redis and browser-rpc, and the downloader and the transcriber where they are configured. Postgres and Redis failing is a `fail`; browser-rpc, or a configured sidecar, failing is only a `warn`, because they are optional |
+| 2 | `egress` | This machine can reach `https://www.douyin.com/`, `https://www.tiktok.com/` and `https://www.bilibili.com/` **directly**, with no proxy. Separates "no internet" from "bad proxy" |
 | 3 | `proxies` | Each configured proxy carries traffic, and where it comes out (exit IP, country). At most 20 proxies are probed |
 | 4 | `pool` | How many identities are `active`, and when the last successful request was |
 | 5 | `signing` | The in-process signing algorithms produce the same signature a real browser does, per platform the browser signs — Douyin and TikTok. Skipped when browser-rpc is not configured — there is nothing to compare against |
@@ -756,7 +756,7 @@ Three things must line up between signing and sending or the platform refuses th
 - **The TLS fingerprint.** TikTok checks it agrees with the User-Agent, so a Chrome UA must travel over a Chrome TLS profile. Plain `curl` is refused whatever the signature says.
 - **A cookie jar.** A correct signature with no cookies still gets nothing: the platform answers a *session*. `POST /api/v1/tools/identity` mints one (browser-rpc for Douyin and TikTok; a Bilibili guest needs no browser). On Douyin the jar is also what `x-secsdk-web-signature` is computed over — without a visitor id, `headers` comes back empty and the sign-protected endpoints refuse the request naming `uifid`.
 
-`POST /api/v1/tools/decode` reads a signature parameter back, which is how you check what a signature you were sent actually encodes. Both are on the console's **Tools** page (`/tools`); see [Playground and tools](./07-playground-and-tools.md).
+`POST /api/v1/tools/decode` reads a signature parameter back, which is how you check what a signature you were sent actually encodes. Both are on the console's **Building blocks** page (`/tools`); see [Playground and tools](./07-playground-and-tools.md).
 
 ### Which signer is actually carrying traffic
 

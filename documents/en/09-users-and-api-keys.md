@@ -52,7 +52,7 @@ administrator can see it while handing a role out.
 | Read the overview, library, downloads, logs and system pages | yes | yes | yes | yes |
 | Read identities, proxies, API keys and settings | yes | yes | yes | no |
 | Manage identities and proxies | yes | yes | no | no |
-| Create and revoke API keys | yes | yes | no | no |
+| Create, edit and revoke API keys | yes | yes | no | no |
 | Run the self check | yes | yes | no | no |
 | Change runtime settings | yes | yes | no | no |
 | Change sensitive settings: allowlist, CORS, download proxy | yes | no | no | no |
@@ -81,13 +81,24 @@ Three things follow that surprise people:
   refuses the action. The demo account's sidebar is trimmed, because a stranger
   learns nothing from a list of links that all answer 403, while an operator
   being refused the Users page learns something true about their own instance.
-  The Users page hides the account list and disables its buttons for a
-  non-administrator, because a page whose every control errors is worse than a
-  page that says why.
+  Inside a page it is the other way round: a control your role cannot use is
+  not drawn at all, rather than drawn disabled. A non-administrator gets no
+  account list and no account buttons on the Users page, only a line saying
+  why; below operator the API keys page offers no create, edit or revoke. A
+  page whose every control errors is worse than a page that says why.
 - **The `demo` role cannot be assigned by hand.** It is created by the
   `demo.enabled` switch, and the users API refuses to create or move any account
   into it — otherwise you would get a second demo account with a password an
-  administrator chose and no key to go with it.
+  administrator chose and no key to go with it. The demo account itself is out
+  of reach too: the server refuses to change its role, reset its password or
+  delete it. One stray click on its role used to make the account whose password
+  the login page prints an administrator, and a reset would leave that printed
+  password stale; reissue the pair under **Settings → Demo mode**, or turn
+  `demo.enabled` off to withdraw it. Its row on the Users page is locked and
+  links there. What the demo publishes — on or off, the account name, the key's
+  prefix and scopes, never the password or the key — is readable at
+  `GET /api/v1/admin/demo` by any viewer or better; reissuing stays
+  administrator-only.
 
 ## Managing console accounts
 
@@ -132,6 +143,11 @@ one if you need a different name.
 The role dropdown on each row of the Users table, or `PUT` with `{"role": ...}`.
 Nothing else changes and no session is signed out.
 
+The console asks before it saves, and warns once more when the change grants
+`admin` or demotes the account you are signed in with. The dropdown used to
+save on change, and a slip of the mouse is not a decision. `demo` is never
+offered.
+
 ### Resetting someone else's password
 
 `PUT` with `{"password": ...}`. This is the administrator's reset for a person
@@ -139,6 +155,12 @@ who forgot theirs; it deliberately does *not* ask for the current password,
 because that check would only stop an administrator from helping. Every session
 that account had open is revoked, including one they are sitting in front of.
 The response reports how many with `revoked_sessions`.
+
+On the console it is **Reset password** on the account's row. Your own row has
+none: that would sign this tab out too, and your own password goes through the
+form that asks for the current one. Nothing secret is shown after a reset; the
+confirmation names the account and how many sessions were signed out, so tell
+the person the new password over a channel you trust.
 
 Changing **your own** password is a different endpoint and does require the
 current one — see [Passwords](#passwords).
@@ -338,12 +360,28 @@ curl -X POST http://127.0.0.1:8000/api/v1/admin/api-keys \
 | `expires_at` | An ISO timestamp in the future, or `null` for a key that never expires. A past timestamp is refused with `INVALID_PARAM`. |
 
 The console offers expiry as never, 7, 30, 90 or 365 days; the API takes any
-future instant.
+future instant. Its scope picker has two starting points: **All platform
+reads** (`douyin:read`, `tiktok:read`, `bilibili:read`) and **Read only** (those
+plus `archive:read`, `media:read` and `transcription:read`). Each replaces the
+ticked set and the boxes stay editable. Neither includes a scope that writes or
+administers, because a preset holding `media:write` would be one click from
+filling a disk.
 
 Creating a key is `manage_pool`: an **operator** role or better, and — if you
 are calling with a key rather than a session — the `admin` or `identity:manage`
 scope. The key is always owned by whoever created it. There is no way to mint a
 key on someone else's behalf.
+
+A key's name and scopes can be changed later without changing the key:
+`PATCH /api/v1/admin/api-keys/{key_id}` with `name`, `scopes` or both, or
+**Edit** on the key's row. `scopes` replaces the list rather than adding to it.
+Whatever holds the key keeps the same value and gets the new scopes on its next
+call — which is the point: a release that adds a platform adds its read scope,
+and without an edit the only way to give an existing key that scope was a new
+key handed out to every script that used the old one. The guard is the same as
+for creating, and so is the escalation check below. An edit is refused with
+`INVALID_PARAM` for a revoked key, and for the demo account's key, whose scopes
+demo mode decides — reissue the demo pair instead.
 
 ### The shape of a key, and the one time you see it
 
@@ -369,8 +407,17 @@ first; add `?mine_only=true` for just your own. Reading the list is `read_admin`
 — any signed-in console user, viewer included, can see the names, prefixes,
 owners, scopes, limits and last-used times of everyone's keys. No secret is in
 that response, but the inventory is not private between accounts. The console
-page adds a search box and filters by status and scope, all evaluated in the
-browser over the full list.
+page shows the owner — a username to an administrator, who may read the account
+list, and "You" or "Another account" to everyone else — and its **Only my
+keys** switch is `mine_only`. Its search box and filters by status and scope
+are evaluated in the browser over the full list.
+
+A live key that reads Douyin or TikTok but not Bilibili is flagged. Keys keep
+the scopes they were minted with and an upgrade adds none, so every key from
+before Bilibili arrived is refused there until somebody adds `bilibili:read`.
+A banner counts them, and an operator gets **Add bilibili:read** beside each
+one, which is the edit above with one scope added. A key holding `admin` is not
+flagged; it already reaches everything.
 
 `last_used_at` is written on every authenticated request that key makes, which
 makes it the fastest way to answer "is anything still using this?" before
@@ -423,9 +470,10 @@ ones it holds and anything extra is refused with `FORBIDDEN_SCOPE` listing what
 was refused and what is held. Without this, a key holding only `identity:manage`
 — refused `GET /api/v1/admin/users` and refused a write to a sensitive setting —
 could have minted itself a key with `scopes: ["admin"]` and done both, one
-request apart. A console session is exempt from this particular check because it
-is bounded by its role rather than by scopes, and the route already requires an
-operator.
+request apart. The same check bounds an edit: the new list may hold nothing the
+calling key does not. A console session is exempt from this particular check
+because it is bounded by its role rather than by scopes, and the route already
+requires an operator.
 
 **A key carries its owner's role, and the role floor still applies.** So an
 operator *can* mint a key with the `admin` scope, and that key still cannot
@@ -438,7 +486,7 @@ keys go with it.
 requires a console session.
 
 **A key cannot be given to someone else safely.** Keys have no per-object
-ownership: any operator can revoke any key, and any key holding
+ownership: any operator can edit or revoke any key, and any key holding
 `identity:manage` can pin requests to any identity in the pool. If two people
 need separate blast radii, give them separate accounts, not separate keys on one
 account.
@@ -488,6 +536,10 @@ operator role, and it works on anyone's key.
   time; there is no cache to wait out.
 - It cannot be undone. A revoked key stays revoked; mint a replacement.
 - Anything still using the key starts getting `401 UNAUTHENTICATED`.
+
+Revoking the key the demo publishes, alone or in a bulk revoke, warns first: it
+stops the demo API for every visitor until the demo pair is reissued, while the
+demo login keeps working.
 
 The list's status column is computed from the row: `active`, `expired` (the
 `expires_at` has passed) or `revoked`. Revoking an already-revoked key is a
@@ -574,10 +626,17 @@ state and all-on means all-safe: a row reads **Key required** while its switch i
 on and **No key needed** once it is off. Turning one off is what removes a
 credential check, and that is the direction the page asks you to confirm.
 
+The confirmation, and the warning card that lists every opened route, say which
+platforms a route serves. A `{platform}` route serves every platform this build
+supports, including any a later release adds: a route opened before Bilibili
+arrived started spending a Bilibili pool the day Bilibili shipped, and nothing
+on the page said so. The warning card also has **Close all**, which asks first.
+
 `api.public_endpoints` is flagged SENSITIVE, so writing it needs an
 administrator, the `admin` scope, and `confirm: true` in the request body. The
-console supplies the confirmation from its own dialog. Every change is written
-to the audit trail as `settings.updated_sensitive`.
+console supplies the confirmation from its own dialog. Below administrator the
+page draws no switches and no **Close all**, only a line saying why. Every
+change is written to the audit trail as `settings.updated_sensitive`.
 
 ### What can never be opened
 
@@ -654,6 +713,7 @@ Sensitive operations are written to the audit trail, readable at
 | `user.password_changed` | someone changes their own password |
 | `user.sessions_revoked` | someone signs their other devices out |
 | `api_key.created` | a key is minted, with its name, prefix, scopes and rate limit |
+| `api_key.updated` | a key's name or scopes are edited, with what they were and what they became |
 | `api_key.revoked` | a key is revoked |
 | `settings.updated_sensitive` | a SENSITIVE setting changes, `api.public_endpoints` included |
 

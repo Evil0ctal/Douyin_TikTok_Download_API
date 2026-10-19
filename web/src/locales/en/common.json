@@ -2,7 +2,7 @@
   "app": {
     "name": "DTK",
     "console": "Console",
-    "tagline": "Self-hosted Douyin and TikTok data API",
+    "tagline": "Self-hosted Douyin, TikTok and Bilibili data API",
     "documentTitle": "{page} · DTK console"
   },
   "action": {

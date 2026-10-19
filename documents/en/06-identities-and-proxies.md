@@ -113,10 +113,12 @@ The cookie that decides it, per platform:
 | --- | --- | --- |
 | `tiktok` | `msToken` | 144 |
 | `douyin` | `UIFID_TEMP` | 32 |
+| `bilibili` | `buvid3` | 1 - present is enough |
 
-Bilibili has no session cookie registered, so a Bilibili identity reads
-`unknown` (Unreadable) in this column. That is not a fault, and the default
-view does not hide it for that.
+No bootstrap value of Bilibili's `buvid3` has been measured, so being present
+is enough. Earlier builds registered nothing for Bilibili and every Bilibili row
+read `unknown` (Unreadable) here - which on this column means "this build cannot
+tell", and that was not true of a cookie it refuses to import without.
 
 **Health** is how this identity's recent requests actually went. The column is
 computed from the same aggregate and the same two windows the scheduler ranks
@@ -156,9 +158,30 @@ Multiplying means any one factor collapsing drags the whole score down.
 ## The Identities page (/identities)
 
 The list is `GET /api/v1/admin/identities` (newest first, `limit` default 100,
-maximum 500). The console asks for 200 rows and polls every 5 seconds; the
-search, source and login filters run over that page in the browser, so every
-count it quotes is exact.
+maximum 500, paged with `offset`). Retired identities are left out unless the
+request sets `include_retired`, asks for state `retired`, or names one
+`identity_id`. They are kept for 90 days, and when the console fetched them and
+hid them itself, a bad week of retirements pushed older logins off the page
+without a word. `meta.total` says how many identities match, and `meta.retired`
+how many retired ones the same filters left out.
+
+The console asks for 200 rows and polls every 5 seconds. The platform, state,
+source, login and rotation filters go to the server; the search box runs over
+the rows already loaded, because it matches what people type - a proxy label, a
+platform's name in this language - which the database does not hold. Under the
+table the page says "Showing N of M", and **Load more** asks for another 200, up
+to the server's 500; past that, narrow the filters.
+
+The filters live in the address - `/identities?platform=&login=&id=`, plus
+`state`, `source`, `rotation`, `q` and `all` - so the Overview's per-platform
+alerts link straight to one platform's identities and the request log straight
+to one identity's drawer, and a reload or the back button keeps the view. `login` is `yes` or
+`no`. A value this build does not know reads as no filter rather than an empty
+table, so a link written against a newer build still opens.
+
+Every write on this page takes the operator role. Below it, Mint, Import, the
+row buttons, row selection and the refill card's editors are hidden rather than
+disabled; the server is the gate either way.
 
 ### The automatic refill card
 
@@ -178,12 +201,22 @@ At the top of the page, reading `GET /api/v1/admin/identities/pool`:
   automatically and raises no pool alerts, which is what a deployment that only
   serves one platform wants. Saving writes only what you changed. The mark must
   be at least 1 while Auto is on, and the target may not be lower than it.
-- A mint activity row: what is being minted right now, the last 20 attempts as a
-  strip of ticks with the reason in each tooltip, and the backoff when repeated
-  failures have put the sweep to sleep. It comes from the worker through Redis,
-  because a failed mint writes no identity row - which is exactly why a pool that
-  stubbornly will not refill used to look identical to one nobody asked to
-  refill.
+- A login line per platform: how many logged-in identities rotation can reach,
+  with the reserved, cooling and limited ones counted beside it. Where a platform
+  has endpoints that refuse a guest past the first page (Douyin's author posts,
+  Bilibili's comments) and no login is in rotation, the line names those
+  endpoints, says they will answer `IDENTITY_LOGIN_REQUIRED`, and offers
+  **Import a login** preset to that platform. Until this line, that error was
+  the first sign that the only imported login had been reserved, had cooled or
+  had lapsed.
+- A mint activity line per platform: what is being minted right now, that
+  platform's share of the last 20 attempts as a strip of ticks with the reason
+  in each tooltip, and the backoff when repeated failures have put the sweep to
+  sleep. Per platform because the worker rests the browser and the plain-HTTP
+  route separately; one shared strip read a down browser as Bilibili failing
+  too. It comes from the worker through Redis, because a failed mint writes no
+  identity row - which is exactly why a pool that stubbornly will not refill used
+  to look identical to one nobody asked to refill.
 - If `DTK_BROWSER_RPC_URL` is not set, Douyin and TikTok cannot be minted: their
   number editors disappear, their pools are whatever you import by hand, and
   their thresholds have no effect. Bilibili's row stays editable and keeps
@@ -205,16 +238,15 @@ the pool alerts speak instead of adding fresh identities to be burned.
 
 | Column | Notes |
 | --- | --- |
-| State | `active` / `cooling` / `degraded` / `retired`. |
+| State | `active` / `cooling` / `degraded` / `retired`, with **Reserved** or **Limited** under the badge when rotation does not hand the identity out everywhere. |
 | Health | The measured score, or "No traffic". |
-| Platform | `douyin`, `tiktok` or `bilibili`. |
+| Platform | Douyin, TikTok or Bilibili, by name. |
 | Credential | The static session check described above. |
-| Identity id | The full uuid, with a copy button. Not hideable - this is what you paste into `?identity=`. |
-| Proxy | The proxy's label when it has one, its id when it does not, "no proxy" when there is none. Never the URL, not even masked. |
+| Identity id | The uuid, cut short where the column is narrow; a click copies the whole of it and the drawer prints it in full. Not hideable - this is what you paste into `?identity=`. |
+| Proxy | The proxy's label when it has one, its id when it does not, "Server egress" when there is none. Never the URL, not even masked. |
 | Cooldown left | Time remaining, or `—`. |
 | Last used | Relative time, exact on hover. |
-| Source | Minted or Imported. |
-| Logged in | A lock icon when the jar carries a session. |
+| Kind | Minted or Imported, then Guest or Logged in (with a lock). A login also says when it lapses - "expires in 3d", "expires in 5h" or "expired", the date on hover - highlighted inside a week, which is the time to re-import one. The date is read from the session cookie (`sid_guard`, or Bilibili's `SESSDATA`), so a session the platform ended early still shows its old date; **Check the login** is for that. Sorting puts logins first, soonest to lapse first. One column where Source and Logged in used to spend two on two words. |
 | Consecutive fails, Minted | Hidden by default; enable them from the column menu. |
 
 Rows flash on a poll only when the state, credential verdict, failure streak or
@@ -224,12 +256,14 @@ flashes every row on every poll teaches you to stop reading the flash.
 ### What the default view hides
 
 By default the table drops two kinds of row and says so in a notice above it,
-with the counts and a **Show all** button:
+with the counts and a **Show all** button (`all=1` in the address):
 
-- **Retired** identities - the credential was wiped, so they cannot serve a
-  request.
-- Identities whose credential verdict is `missing` or `too_short` - the platform
-  refuses them even with a correct signature.
+- **Retired** identities - left out by the server and counted from
+  `meta.retired`; **Show all** asks for them with `include_retired`. The
+  credential was wiped, so they cannot serve a request.
+- Identities whose credential verdict is `missing` or `too_short` - held back
+  in the browser from the rows loaded; the platform refuses them even with a
+  correct signature.
 
 Cooling and degraded identities are **not** hidden. Hiding a recovering pool is
 how a console reports "no identities" to an operator who has forty. Filtering
@@ -241,14 +275,32 @@ explicitly by state `retired` shows those rows regardless.
   result. See [Testing, resetting, retiring](#testing-resetting-retiring).
 - **Reset** - shown only when it would do something: the identity is cooling or
   degraded, or carries a non-zero failure streak.
-- **Retire** - disabled on an already retired row.
+- **Retire** - disabled on an already retired row. Retiring the last login a
+  platform has in rotation names the endpoints that will then answer
+  `IDENTITY_LOGIN_REQUIRED`.
 - Selecting rows adds **Reset**, **Export N** and **Retire** to the toolbar.
-- Clicking a row opens the drawer.
+  They act on the selected rows the current filters still show - a selection
+  used to survive a filter change and act on rows nobody could see - and report
+  "n done, m failed" rather than stopping at the first refusal.
+- Clicking a row opens the drawer and puts the identity's id in the address
+  (`?id=`).
 
 ## The identity drawer
 
 Clicking any row opens a drawer that answers two questions: what this identity
 *is*, and what it has been *doing*.
+
+It reads its row from the polled list, so a reset, a retirement or a cooldown
+ending shows in it rather than only in the table behind it; a link naming an
+identity that is not on the loaded page fetches that one on its own. Along the
+top are the platform, the failure streak, the last use, any cooldown, a login's
+expiry, and for a retired identity when and why it was retired. Then the
+actions: **Copy id**, **Open in Logs** (the request log filtered to this
+identity, `/logs?tab=requests&identity_id=`), and for an operator **Test**,
+**Reset** where it would do something, **Export** and **Retire** - the same
+actions as the row, so having read why an identity is failing you do not have to
+close the drawer to find the button. A probe's outcome, HTTP status and latency
+show under them.
 
 ### Cookie inventory
 
@@ -267,7 +319,7 @@ them apart.
 | Role | Meaning |
 | --- | --- |
 | `required` | This build refuses to use an identity without it. Today that is `ttwid` on Douyin and TikTok, and `buvid3` on Bilibili. |
-| `session` | Carries a logged-in session: `sessionid`, `sessionid_ss`, `sid_tt`, `sid_guard`, `uid_tt`, `sid_ucp_v1`, and Bilibili's `SESSDATA`. |
+| `session` | Carries a logged-in session: `sessionid`, `sessionid_ss`, `sid_tt`, `sid_guard`, `uid_tt`, `sid_ucp_v1`, and Bilibili's `SESSDATA`. Bilibili's `bili_jct` and `DedeUserID` are shown here too, as part of a login, though neither proves one on its own. |
 | `useful` | Not required, but an identity carrying it is refused less often: `odin_tt`, `s_v_web_id`, `msToken`, `passport_csrf_token`, `tt_csrf_token`, `__ac_nonce`, Bilibili's `buvid4`, `b_nut`, `buvid_fp` and `_uuid`, plus the cookies this build's signer reads. |
 | `other` | Set by the platform and kept as received. Not something this build reads. |
 
@@ -369,7 +421,10 @@ optionally a proxy to mint behind. Each identity is submitted as its own task
 (`POST /api/v1/admin/identities/mint`, `202`), the dialog waits for each, and
 each takes seconds - tens of seconds is normal. Mints are serialized across the
 whole deployment, so a request for five identities runs five mints one after
-another; a job waits up to 180 seconds for its turn before giving up.
+another; a job waits up to 180 seconds for its turn before giving up. The dialog
+offers only the platforms this instance can mint (`can_mint` per platform), names
+the others with a pointer to importing instead, and ends with one summary - "3
+minted, 2 failed" and the worker's reason - rather than a toast per failure.
 
 When a mint produces nothing, the task fails with a reason code:
 
@@ -417,12 +472,19 @@ is the server's own reading of the paste, not the browser's guess. Before
 anything is stored it reports:
 
 - the detected format;
-- every cookie name, its role, and a masked value (the console never receives
-  the real ones);
+- which platform the cookie names point at. When that is not the platform
+  chosen in the dialog, it says so and offers **Switch to ...** - offered, not
+  done, because switching under someone still typing would re-judge their
+  paste. The dialog used to open on Douyin whatever was pasted, so a Bilibili
+  jar was judged against Douyin's required cookies and refused for a `ttwid` it
+  was never going to have. Each platform's box also lists the cookies it needs;
+- every cookie name, its role for the chosen platform as the server judges it,
+  and a masked value (the console never receives the real ones);
 - the inferred browser family and major version, from the User-Agent you supply.
   Edge and Opera map onto Chrome, which is their real TLS profile;
 - whether the jar carries a logged-in session;
-- for a logged-in Douyin or TikTok jar, the expiry read out of `sid_guard`;
+- for a logged-in jar, the expiry read out of `sid_guard` (Douyin, TikTok) or
+  `SESSDATA` (Bilibili);
 - missing required cookies - without `ttwid` (Douyin, TikTok) or `buvid3`
   (Bilibili) the jar cannot be stored at all;
 - warnings, as stable codes plus a sentence: `no_cookies`,
@@ -440,10 +502,18 @@ The API also accepts `language` and `timezone` on
 `POST /api/v1/admin/identities/import`; the console does not offer fields for
 them.
 
+Storing closes the dialog and opens the new identity's drawer, and for a login
+runs **Check the login** at once - whether the platform takes the session is the
+one question an import leaves open. The success toast carries a **Copy id**
+button, for `identity=`.
+
 ### A logged-in jar is not a guest identity
 
-The dialog puts a warning at the top and a checkbox at the bottom, and neither
-is decoration:
+The dialog always puts a warning at the top, and for a jar that carries a login -
+or a restore file holding one - asks for a checkbox at the bottom before it
+stores anything. Neither is decoration. The checkbox is asked only of a login:
+making someone swear a guest's visitor id is a password taught them to tick it
+without reading.
 
 - **A logged-in cookie set is equivalent to the account password.** Whoever
   holds it can act as that account. It is stored encrypted and no endpoint
@@ -456,8 +526,9 @@ is decoration:
 - A pinned request is never served from another identity and never from the
   response cache. The answer is only correct when it comes from that session.
 - The worker warns 3 days before an imported session expires (a
-  `cookie_expiring` notification), using the expiry it read out of `sid_guard`.
-  That turns a silent mass failure into a warning days ahead of time.
+  `cookie_expiring` notification), using the expiry it read out of `sid_guard`,
+  or Bilibili's `SESSDATA`. That turns a silent mass failure into a warning days
+  ahead of time.
 
 Guest identities are cheap and disposable: when one burns, the pool mints
 another. A logged-in identity is not, which is why every affordance around it -
@@ -485,6 +556,14 @@ name it**, that stops this:
   than borrowing one, and `details.reserved` says how many it skipped - so a
   pool page full of active identities beside that error is a setting, not a
   scheduler fault.
+
+The import dialog has the same switch, and the import call takes
+`reserved: true`: the identity is stored out of rotation from the start, so a
+login imported to serve the requests that name it is never handed to anything
+else, not even in the moment between storing it and reserving it. Reserving the
+last login a platform has in rotation, from either place, says which endpoints
+will then answer `IDENTITY_LOGIN_REQUIRED` past the first page - and in the
+drawer it asks before it does.
 
 The API takes a finer version of the same setting:
 `POST /api/v1/admin/identities/{id}/rotation` with `{"endpoints": [...]}`.
@@ -522,8 +601,8 @@ Douyin, page 2 went to a guest, came back as 17 empty bytes, was reported as
 idle. The first page came from a guest too, and was missing the newest posts.
 
 An identity counts as logged in when its jar carried a session cookie
-(`sessionid` and the like, `SESSDATA` on Bilibili) at import - the **Logged in**
-column. A session that
+(`sessionid` and the like, `SESSDATA` on Bilibili) at import - **Logged in** in
+the Kind column, and the table's login filter. A session that
 lapses later still counts, and its refusals cool it like any other; **Check the
 login** in the drawer tells you which it is.
 
@@ -565,9 +644,9 @@ a page script hands to a browser, and the pool treats it accordingly.
   instance's TLS-impersonating transport and behind the identity's proxy. The
   session is still created by the same client, from the same exit, that will
   later spend it - the rule the browser path keeps. So an install with no
-  browser container still keeps a Bilibili pool: the refill job and the **Mint
-  identities** dialog mint it (`dtk identity mint` still goes through
-  browser-rpc), the refill card shows Bilibili as mintable, and since the refill
+  browser container still keeps a Bilibili pool: the refill job, the **Mint
+  identities** dialog and `dtk identity mint` all mint it, the refill card
+  shows Bilibili as mintable, and since the refill
   job backs off per minting route, a browser container that is down does not
   stop Bilibili refilling.
 - **Its own marks.** `pool.bilibili.min_size` and `pool.bilibili.target_size`
@@ -575,7 +654,9 @@ a page script hands to a browser, and the pool treats it accordingly.
   `0` turns automatic minting off.
 - **Importing.** A Bilibili jar needs `buvid3`, or it cannot be stored.
   `SESSDATA` marks it as a logged-in session - treat it like the account's
-  password. `buvid4`, `b_nut`, `buvid_fp` and `_uuid` are worth bringing along.
+  password - and carries its own expiry, which the table shows and the
+  `cookie_expiring` warning uses. `buvid4`, `b_nut`, `buvid_fp` and `_uuid` are
+  worth bringing along.
 - **Checking the login.** **Check the login** asks Bilibili's
   `/x/web-interface/nav`, which really does tell a live login apart: `live`,
   with the account's mid, when it answers `isLogin: true`; `signed_out` for a
@@ -596,9 +677,12 @@ a page script hands to a browser, and the pool treats it accordingly.
 
 Selecting rows and pressing **Export N** calls
 `POST /api/v1/admin/identities/export` and saves
-`dtk-identities-<timestamp>.json` to your downloads folder. Use it to move a
-working pool to a second instance, to keep a copy before a risky change, or to
-hand one identity to somebody debugging.
+`dtk-identities-<timestamp>.json` to your downloads folder; the drawer's
+**Export** does the same for one identity. More than 200 go out as several files
+of 200 (`-part-1.json`, `-part-2.json`, ...), because that is what one export
+call and one restore accept. Use it to move a working pool to a second instance,
+to keep a copy before a risky change, or to hand one identity to somebody
+debugging.
 
 **What lands on disk is a credential file.** Every jar in it works until the
 platform expires it, and a logged-in one is somebody's account. The document
@@ -614,7 +698,9 @@ audited by identity.
 Restoring goes through the same Import dialog: choose the file under **Restore
 from a file** and the paste form switches off, because restoring a pool and
 typing in one jar are different actions and a dialog that guessed which you meant
-would guess wrong on the day it mattered.
+would guess wrong on the day it mattered. A loaded file is first checked with a
+dry run, so the dialog lists what can be restored and what will be skipped, with
+the reasons, before anything is written.
 
 The bundle route (`POST /api/v1/admin/identities/import/bundle`) carries each
 entry's original fingerprint. That is the point of it: re-pasting an exported jar
@@ -733,7 +819,8 @@ fate of every line, quoting rejected ones with any credential part stripped:
 | `port_out_of_range` | The port is not between 1 and 65535. |
 
 An optional label is applied to every proxy in the batch. Everything that
-imported successfully is probed immediately.
+imported successfully is probed immediately, the same way **Test all** probes
+(below); the dialog does not wait for the probes to finish.
 
 ### Probing, health and geography
 
@@ -742,6 +829,13 @@ through the proxy and reports latency, exit address, country and time zone. A
 fresh HTTP client is used per probe: connection pools are bound to an egress, and
 reusing one across proxies would report the health of whichever exit the pooled
 connection happens to hold.
+
+**Test selected** and **Test all** run that probe over many proxies, four at a
+time, with the progress on the button ("Testing 4 of 15") and one summary at the
+end ("12 ok, 3 failed"). Each probe has a 90-second budget, so one at a time a
+list of twenty dead proxies took half an hour to report, and a toast per failure
+buried the page; the rows carry each proxy's answer, and the summary is the only
+thing worth interrupting for.
 
 `socks5://` and `socks5h://` proxies are probed exactly like `http://` ones.
 Earlier builds could not probe them at all: **Test** answered `INTERNAL` and the
@@ -784,8 +878,20 @@ Created. Two of them need a note:
   across all platforms. A `0` on a proxy you meant identities to use is the
   first thing to check when requests still go out direct: an identity is bound
   when it is minted or imported, never afterwards. To see which identities sit
-  behind a proxy, use the Identities page: the Proxy column shows the label, and
-  the search box matches proxy ids.
+  behind a proxy, open its drawer (below), or use the Identities page: the Proxy
+  column shows the label, and the search box matches proxy ids.
+
+Clicking a row opens the proxy's drawer: the whole last error (the column clamps
+it to two lines), the probe result when there is one, the identities bound to it
+(`GET /api/v1/admin/proxies/{id}`; retired ones left out, each linking to its
+identity, and marked when kept out of rotation), and the last 24 hours of
+requests that went out through it, with **View requests** linking to
+`/logs?tab=requests&proxy_id=`. That last part is the evidence when a platform
+starts refusing an egress: a Bilibili 412 is a verdict on an address, and every
+identity behind one proxy shares it. Test, Edit and Delete are in the drawer's
+footer. Every write on this page takes the operator role, so below it Add, Bulk
+import, Test, Edit, Delete and row selection are hidden; the list and the drawer
+stay readable.
 
 You can also override health by hand (**Mark healthy** / **Mark unhealthy** on
 selected rows, or the `healthy` field on `PUT /api/v1/admin/proxies/{id}`), for
@@ -798,7 +904,10 @@ Deleting a proxy **retires every identity bound to it**, wiping their cookies.
 That is not a safety margin the code could relax: an identity is tied to the exit
 it was minted behind, so an identity whose proxy is gone has no future - keeping
 it would eventually mean sending its cookies out through some other address. The
-confirmation dialog says how many identities will go with it.
+confirmation dialog says how many identities will go with it, and lists each
+proxy with its own count. When that number is above zero you confirm by typing:
+the proxy's label, or its host when it has none - or, deleting several at once,
+the number of identities about to be retired.
 
 If the proxy is only temporarily down, do nothing: the prober cools its
 identities and they come back when it does.
@@ -846,10 +955,17 @@ first. The addresses to use and the errors along the way are in
 This page is the scheduler's settings, put beside the pool they act on rather
 than buried in an alphabetical settings list. It shows:
 
-- **Three tiles** - how many identities are `active`, `cooling` and `degraded`
-  right now. Every number below is a statement about this census, and reading
-  them apart from it is how a low-water mark gets set to a value the pool has
-  never been near.
+- **Three tiles** - how many identities are schedulable, `cooling` and
+  `degraded` right now. Schedulable is `active` minus the reserved identities
+  (`reserved_active` in `GET /api/v1/system/status`): a reserved identity is
+  active, but only a request that names it can use it, so it is not capacity.
+  Every number below is a statement about this census, and reading them apart
+  from it is how a low-water mark gets set to a value the pool has never been
+  near.
+- **Per platform** - the same census one row per platform, with schedulable,
+  reserved, cooling and degraded side by side. A request is only ever served by
+  an identity of its own platform, so a sum across platforms can read healthy
+  while one of them has nothing to give.
 - **How one request picks an identity** - the five stages, in order:
 
   1. **The endpoint's circuit.** Opened by failures across at least
@@ -870,6 +986,18 @@ than buried in an alphabetical settings list. It shows:
 - **Editors for every `sched.*` and `pool.*` setting**, and a disclosure saying
   how many of them are stored in the database rather than coming from a default
   or an environment seed.
+- **Pool size per platform** - the six `pool.<platform>.min_size` and
+  `target_size` settings as one grid, platform by low-water mark and target,
+  rather than six rows reading `-1` among the global marks, where `-1` looked
+  like a value someone had chosen. An empty cell inherits, and shows the global
+  value it inherits; clearing a cell stores `-1` rather than deleting the
+  override, because a delete falls back to the environment seed, which this page
+  cannot see. One **Save** writes the grid's changes together, so a target is
+  not left below its own floor between two clicks - the writes still go one
+  after another, not atomically.
+
+Writing takes the operator role. The demo account sees the census and the
+rotation and no settings, since the settings route refuses it.
 
 Per-endpoint health and circuit state are **not** on this page - they are on the
 Overview page (`/`), which lists every declared endpoint whether or not it has
@@ -965,6 +1093,14 @@ switch and the setting it writes cannot disagree about what a path is called.
 - Opening one writes `api.public_endpoints`, a SENSITIVE setting (the write
   carries an explicit confirmation flag), as a list of
   `"<METHOD> <path template>"` strings exactly as the API document spells them.
+  Being SENSITIVE, only an administrator can change it: below that role the
+  switches are hidden, with a line saying why.
+- **Each open endpoint says which platforms it serves**, in the warning card
+  that lists them and in the confirmation. A route with `{platform}` in its path
+  serves every platform this build supports, including any added later - an
+  endpoint opened before 5.1.6 began spending a Bilibili pool the day Bilibili
+  shipped, and nothing on this page said so. The warning card also has **Close
+  all**, which asks first.
 - **Admin, authentication and setup paths can never be opened.** `/api/v1/admin`,
   `/api/v1/auth` and `/api/setup` are refused by the server whatever the setting
   says, so those rows render locked with no switch - a switch that lied would be
@@ -1045,7 +1181,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk identity list --platfor
 | Command | What it does |
 | --- | --- |
 | `dtk identity list [--platform P] [--state S] [--limit N]` | Identities with state, browser, proxy, streak, cooldown and last use. Cookie jars never appear. |
-| `dtk identity mint --platform P [--count N] [--proxy ID]` | Mint through browser-rpc, 1 to 20. Fails with an actionable message when `DTK_BROWSER_RPC_URL` is unset. |
+| `dtk identity mint --platform P [--count N] [--proxy ID]` | Mint 1 to 20: Bilibili over plain HTTP, Douyin and TikTok through browser-rpc. For those two it fails with an actionable message when `DTK_BROWSER_RPC_URL` is unset. |
 | `dtk identity test <id> [--url URL] [--timeout S]` | One real signed request. No lease, no quota, no bookkeeping. |
 | `dtk identity retire <id> [--reason TEXT]` | Retire and wipe. Retiring twice is refused rather than overwriting the original reason. |
 | `dtk proxy list [--healthy]` | Proxies with masked URLs, geography and probe state. An unprobed proxy reads `unchecked`, not `healthy`. |

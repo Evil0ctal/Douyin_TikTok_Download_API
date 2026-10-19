@@ -2,7 +2,7 @@
   "app": {
     "name": "DTK",
     "console": "控制台",
-    "tagline": "自部署的抖音与 TikTok 数据接口",
+    "tagline": "自部署的抖音、TikTok 和 B 站数据接口",
     "documentTitle": "{page} · DTK 控制台"
   },
   "action": {

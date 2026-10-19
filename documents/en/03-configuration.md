@@ -392,7 +392,7 @@ Easiest to edit on the **Notifications** page, which validates a channel as you 
 
 | Key | Default | What it does | When you would change it |
 | --- | --- | --- | --- |
-| `system.check_updates` | `False` | Whether the console offers its update check. The request goes from your browser to GitHub, never from the server, and it is opt-in because some deployments have no egress at all. | Turn it on if you want to be told about releases. |
+| `system.check_updates` | `True` | Whether the console checks for a newer release: once a day per browser after sign-in, and on demand from the System page. The request goes from your browser to GitHub, never from the server, so it carries nothing about the deployment. | Turn it off on an air-gapped box. |
 
 ### `demo` — the public demo (2, one sensitive)
 

@@ -554,8 +554,11 @@ Ids the caller typed are validated before they cost anything: `aweme_id=not-an-i
 | `/api/v1/auth/…` | Console sessions and password changes | [Users and API keys](./09-users-and-api-keys.md) |
 | `/api/v1/ios/…` | iOS Shortcut release metadata — unauthenticated | This page |
 | `/api/v1/system/status` | Version, health, pool census, storage | [Operations](./10-operations.md) |
+| `/api/v1/system/capabilities` | Which operations each platform serves, and which of them are session-bound. Any credential — every role, the demo account included, and any API key | This page |
 
 Archive endpoints answer from local storage: no identity is spent, nothing is fetched, and a post that has since been deleted is still there with `availability` saying so. That makes `GET /api/v1/archive` the right call when you want what the instance already knows, and `/parse` the right call when you need it fresh.
+
+`GET /api/v1/system/capabilities` answers, per platform, the operations it serves — each with its scheduler endpoint name and `session_bound`, which marks the ones that answer only about the identity sending them and so are refused without `identity`. It reads the same table the content routes refuse from with `UNSUPPORTED_CONTENT`, so the two cannot disagree, and it never changes while the process runs. Ask it once rather than learning the platform differences one refusal at a time; the Playground greys its catalogue from it.
 
 ## Bilibili
 

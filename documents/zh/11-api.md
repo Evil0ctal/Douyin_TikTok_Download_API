@@ -553,8 +553,11 @@ B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)�
 | `/api/v1/auth/…` | 控制台会话与改密码 | [用户与 API 密钥](./09-users-and-api-keys.md) |
 | `/api/v1/ios/…` | iOS 快捷指令的发布信息——无需认证 | 本文 |
 | `/api/v1/system/status` | 版本、健康、身份池统计、存储 | [运维](./10-operations.md) |
+| `/api/v1/system/capabilities` | 每个平台提供哪些操作，其中哪些只回答发请求的身份本人。任何凭据都能读——所有角色（包括演示账号）和任何 API Key | 本文 |
 
 归档类接口全部从本地存储作答：不消耗身份、不发起抓取，而一条后来被删掉的作品仍然在那里，`availability` 会说明这件事。所以想要「实例已经知道的东西」就用 `GET /api/v1/archive`，想要「最新的」才用 `/parse`。
+
+`GET /api/v1/system/capabilities` 按平台列出它提供的操作，每项带调度器接口名和 `session_bound`——后者标出那些只回答发请求的身份本人、因此不带 `identity` 就会被拒的操作。它读的正是内容路由据以返回 `UNSUPPORTED_CONTENT` 的那张表，所以两者不可能对不上，而且在进程运行期间不会变。与其一次次被拒绝才弄清各平台的差别，不如先问它一次；调试台就是按它把目录里的条目置灰的。
 
 ## B 站
 
