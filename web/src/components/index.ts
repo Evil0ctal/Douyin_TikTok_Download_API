@@ -29,6 +29,9 @@ export type { CompactProgressProps } from './CompactProgress'
 export { ConfirmDialog } from './ConfirmDialog'
 export type { ConfirmDialogProps } from './ConfirmDialog'
 
+export { ContentNextSteps } from './ContentNextSteps'
+export type { AuthorTarget, ContentNextStepsProps, PostTarget } from './ContentNextSteps'
+
 export { CopyableId } from './CopyableId'
 export type { CopyableIdProps } from './CopyableId'
 

@@ -1203,6 +1203,7 @@
     "endpoint": {
       "parse": "解析任意链接",
       "video": "作品详情",
+      "parts": "视频分P（多 P 视频）",
       "comments": "作品评论",
       "replies": "评论回复",
       "user": "作者资料",
@@ -1215,7 +1216,8 @@
       "collectionPosts": "收藏的作品（单个收藏夹）",
       "mix": "作者自建合集（合辑 / 播放列表）",
       "followers": "作者粉丝列表",
-      "following": "作者关注列表"
+      "following": "作者关注列表",
+      "popular": "热门与排行榜"
     },
     "endpointLabel": "接口",
     "explainAbsent": "本次运行没有要求说明发出的是什么请求，所以这里没有内容可看。请求确实发生过，本实例也确切知道自己向上游发了什么。",
@@ -1225,13 +1227,35 @@
     "explainRun": "重新发起并说明本次请求",
     "failureDescription": "错误码、承载本次请求的身份、熔断状态与身份池现状，集中在一处。",
     "failureTitle": "这次调用为什么失败",
+    "guest": {
+      "action": "添加已登录身份",
+      "bilibiliComments": "B 站只给游客看最热的三条评论（sort=new 时为最新的三条），且没有下一页。",
+      "douyinAuthorPosts": "抖音给游客看的作者作品列表会略去最新的作品，所以这里的前几条未必是最新的；后续翻页也需要已登录身份。",
+      "generic": "内容可能比已登录身份看到的少。",
+      "title": "由于没有可用的已登录身份，本次由游客身份应答。"
+    },
     "healthUnavailable": "无法获取接口健康度。",
     "historyEmpty": "你发起的调用会出现在这里。",
     "historyRestore": "把这些参数填回表单，不会重新发送。",
     "historyTitle": "本次会话",
     "identityAuto": "任意身份（由调度器挑选）",
     "identityLoggedIn": "已登录",
+    "identityRequired": "这个接口只回答发起请求的身份本人的数据，所以需要在下方 identity 中指定一个身份。请选已登录的：游客身份没有任何收藏可看。",
+    "identityRequiredForbidden": "这个接口只回答发起请求的身份本人的数据，必须用 identity 指定身份，而指定身份需要 operator 角色。当前会话无法发起这个调用，operator 可以。",
+    "loadExample": "填入{platform}示例",
+    "loadExampleHint": "用一个真实、公开的目标填好表单。",
     "metaTitle": "响应元数据",
+    "next": {
+      "download": "下载媒体",
+      "downloadFailed": "无法开始下载",
+      "downloadFetchingFirst": "先获取作品信息，再下载媒体",
+      "downloadReused": "{reason, select, in_flight {这个作品正在下载} other {已经下载过，无需重复}}",
+      "downloadStarted": "已开始下载",
+      "openAuthor": "在内容库查看该作者",
+      "openDownload": "在下载页打开",
+      "openPost": "在内容库打开",
+      "title": "下一步"
+    },
     "nextPage": "获取下一页",
     "nextPageHint": "这一页带有游标。获取下一页会再消耗一次请求。",
     "noRequestId": "未返回",
@@ -1242,11 +1266,15 @@
     "outOfRange": "请输入 {min} 到 {max} 之间的值。",
     "param": {
       "aweme_id": "作品 ID，与链接二选一。",
+      "board": "选择榜单：hot（当下热门，默认）、weekly（每周必看）、precious（入站必刷）或 rank（排行榜）。",
+      "boardCursor": "hot 填页码，weekly 填期数；precious 和 rank 各只有一份列表，会忽略它。",
+      "collection_id": "收藏夹 ID，可从收藏夹链接或收藏夹列表中获取。",
       "comment_id": "要查看回复的那条评论。",
-      "count": "每页条数，最多 50。",
+      "count": "每页条数，该平台最多 {max}。",
       "cursor": "上一页返回的不透明游标，首页留空。",
       "explain": "报告本次请求由哪个身份发出、使用了哪份 cookie，以及确切的上游 URL。会跳过缓存，且需要 operator 角色。",
       "identity": "只用指定的这一个身份发送，不会换成别的。用于只有该账号能看到的内容。该请求永远不会由其他身份代发，也不会走缓存。",
+      "identitySessionBound": "此接口必填：它只回答发起请求的身份本人的数据。该请求永远不会由其他身份代发，也不会走缓存。",
       "include_raw": "同时返回未经处理的平台原始响应。",
       "mix_id": "合集 ID，可从合集或播放列表链接中获取。",
       "needsRole": "需要 {role} 角色。当前登录的角色在此之下，所以这个参数不会被发送。",
@@ -1257,9 +1285,22 @@
       "url": "作品或主页链接，也可以直接粘贴分享文案。",
       "wait": "服务端在同一连接上等待结果的秒数，超时则改为返回 task_id。"
     },
+    "paramFor": {
+      "bilibili": {
+        "aweme_id": "bvid，例如 BV1xx411c7mD；av 号会自动转换。与链接二选一。",
+        "sec_user_id": "作者的数字 mid，即 space.bilibili.com 链接里的那串数字。与链接二选一。"
+      },
+      "tiktok": {
+        "profileUrl": "主页链接给出的是 @用户名，只有作者资料接口接受它；作者的各类列表需要 sec_user_id。",
+        "sec_user_id": "作者的 secUid，以 MS4wLjABAAAA 开头。与链接二选一。"
+      }
+    },
     "poolEmptyHint": "当前没有可用身份，在恢复之前请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝。",
+    "poolEmptyHintFor": "当前没有可用的{platform}身份，在恢复之前{platform}的请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝；其他平台不受影响。",
     "poolInline": "可用 {active} · 冷却 {cooling} · 降级 {degraded}",
     "poolLabel": "身份池",
+    "poolLabelFor": "{platform}身份池",
+    "poolManage": "管理",
     "poolUnavailable": "无法获取身份池状态。",
     "rawAbsent": "未请求",
     "rawDescription": "平台自身返回的数据；解析器出问题时，它就是证据。",
@@ -1295,8 +1336,10 @@
     "snippetNote": "控制台使用会话 Cookie 鉴权；在浏览器之外请使用 Authorization: Bearer 或 X-API-Key。",
     "snippetTitle": "可直接复制的调用示例",
     "taskState": "任务",
+    "unserved": "{platform}不提供",
+    "unservedNotice": "{platform}不提供这个接口，调用只会以 UNSUPPORTED_CONTENT 被拒绝。请换一个平台或接口。",
     "upstreamCurl": "本次上游请求的 curl",
-    "upstreamCurlNote": "指向的是平台自己的接口，不是本 API。query 必须逐字节原样发送——重新编码就会改变签名覆盖的内容——并保留 User-Agent，两个平台都会把它计入签名。TikTok 还会校验 TLS 指纹与 User-Agent 是否自洽，因此无论签名多正确，裸 curl 在 TikTok 上都会被拒。"
+    "upstreamCurlNote": "指向的是平台自己的接口，不是本 API。query 必须逐字节原样发送——重新编码就会改变签名覆盖的内容——并保留 User-Agent，抖音和 TikTok 都会把它计入签名。TikTok 还会校验 TLS 指纹与 User-Agent 是否自洽，因此无论签名多正确，裸 curl 在 TikTok 上都会被拒。"
   },
   "parse": {
     "inputTitle": "链接",

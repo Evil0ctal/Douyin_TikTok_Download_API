@@ -132,6 +132,27 @@
   color: var(--accent);
 }
 
+.endpointLabel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* An endpoint the selected platform does not serve. Still a button - choosing
+ * it shows why in the form - but it reads as unavailable at a glance. */
+.endpointItem[data-unserved='true'] {
+  color: var(--text-muted);
+}
+
+.endpointItem[data-unserved='true']:hover {
+  color: var(--text-secondary);
+}
+
+.endpointReason {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
 /* History is what makes this a workbench rather than a form. Nothing about a
  * run was repeatable before: every send cleared the last result and there was
  * no way to put the same parameters back. */
@@ -197,6 +218,45 @@
   flex-wrap: wrap;
   gap: var(--space-4);
   align-items: center;
+}
+
+/* A condition on this call, in both the request and the response pane. */
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--notice-tone, var(--border));
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.notice[data-tone='info'] {
+  --notice-tone: var(--accent);
+}
+
+.notice[data-tone='caution'] {
+  --notice-tone: var(--caution);
+}
+
+.notice[data-tone='warning'] {
+  --notice-tone: var(--warning);
+}
+
+.noticeIcon {
+  flex: 0 0 auto;
+  color: var(--notice-tone, var(--text-muted));
+  line-height: 0;
+  padding-top: 2px;
+}
+
+.noticeBody {
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 
 /* -------------------------------------------------------------------------- */

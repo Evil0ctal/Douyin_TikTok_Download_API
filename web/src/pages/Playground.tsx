@@ -1,27 +1,34 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'wouter'
 
 import {
+  AlertIcon,
   Button,
   Checkbox,
   CodeBlock,
+  ContentNextSteps,
   CopyableId,
   Disclosure,
   EmptyState,
   ErrorCodeBadge,
+  InfoIcon,
   Input,
   Select,
   SignatureDecode,
   SplitPane,
   StatusBadge,
   useErrorInfo,
+  type AuthorTarget,
+  type PostTarget,
   type SelectOption,
 } from '@/components'
 import { useApiQuery, useFormatters, useSession } from '@/hooks'
 import type { DecodedParameter } from '@/components'
 import { useApiMutation } from '@/hooks'
 import { apiPost, apiRequest, isApiError, type ApiError, type ResponseMeta } from '@/lib/api'
-import { API_V1, paths } from '@/lib/endpoints'
+import { paths } from '@/lib/endpoints'
+import { canOpen } from '@/lib/nav'
 import { POLL } from '@/lib/query'
 import { atLeast } from '@/lib/roles'
 import {
@@ -35,6 +42,19 @@ import {
   type UserRole,
 } from '@/lib/types'
 import styles from './playground.module.css'
+import {
+  CATALOG,
+  DEFAULT_ENDPOINT,
+  EXPLAIN_PARAM,
+  IDENTITY_PARAM,
+  SECTION_ORDER,
+  exampleValues,
+  forPlatform,
+  supportOf,
+  type CapabilityTable,
+  type ParamDef,
+  type ParamSection,
+} from './playgroundCatalog'
 
 /**
  * Endpoint workbench.
@@ -58,374 +78,6 @@ import styles from './playground.module.css'
  * now collapsed by default and opened on purpose; the failure panel is the one
  * exception, because on a failed call it is the entire reason to be here.
  */
-
-/* -------------------------------------------------------------------------- */
-/* Endpoint catalog                                                            */
-/* -------------------------------------------------------------------------- */
-
-type ParamKind = 'text' | 'number' | 'boolean' | 'choice'
-type ParamWhere = 'query' | 'body'
-/** Which block of the form a parameter belongs in. Purely presentational. */
-type ParamSection = 'target' | 'paging' | 'request'
-
-interface ParamDef {
-  /** Wire name. Never translated (docs/design/14-i18n.md). */
-  name: string
-  kind: ParamKind
-  where: ParamWhere
-  section: ParamSection
-  required?: boolean
-  /** Members of a group are alternatives: exactly one has to be filled in. */
-  oneOf?: string
-  /**
-   * The platforms whose endpoint actually takes this parameter. Absent means
-   * all of them.
-   *
-   * The platforms are not symmetric: Douyin's bookmark-folder list carries no
-   * user id and answers only about the identity sending it, so an author there
-   * is refused rather than ignored. Hiding the control is what stops that
-   * refusal from being how a reader finds out.
-   */
-  platforms?: Platform[]
-  placeholder?: string
-  min?: number
-  max?: number
-  defaultValue?: string
-  /** A `choice` parameter's values. Leaving it unset sends nothing: the API's own default. */
-  choices?: readonly string[]
-  /**
-   * The role this parameter needs, when it needs more than reading does.
-   *
-   * Disables the control and keeps the value out of the request. It is not the
-   * gate - `resolve_explain` and `resolve_request_identity` are, and they run
-   * again for every call whatever the console did. What this buys is that a
-   * demo visitor is told the parameter needs an operator instead of ticking a
-   * box and being answered 403 by a workbench whose whole job is to make a
-   * request legible.
-   */
-  minRole?: UserRole
-}
-
-interface EndpointDef {
-  id: string
-  method: 'GET' | 'POST'
-  /** Path template, rendered with the selected platform. */
-  path: (platform: Platform) => string
-  /** Scheduler endpoint suffix used to look health up, or null for the front door. */
-  operation: string | null
-  platformScoped: boolean
-  params: ParamDef[]
-}
-
-const URL_PARAM: ParamDef = {
-  name: 'url',
-  kind: 'text',
-  where: 'query',
-  section: 'target',
-  oneOf: 'target',
-  placeholder: 'https://www.douyin.com/video/7300000000000000000',
-}
-
-const WAIT_PARAM: ParamDef = {
-  name: 'wait',
-  kind: 'number',
-  where: 'query',
-  section: 'request',
-  min: 0,
-  max: 30,
-}
-const CURSOR_PARAM: ParamDef = { name: 'cursor', kind: 'text', where: 'query', section: 'paging' }
-const COUNT_PARAM: ParamDef = {
-  name: 'count',
-  kind: 'number',
-  where: 'query',
-  section: 'paging',
-  min: 1,
-  max: 50,
-}
-/**
- * Accepted by every read endpoint since the page endpoints gained it. It used
- * to be declared on three, while the response panel offered an "include the raw
- * payload and run again" button on all of them - which re-sent the identical
- * request, because the builder only walks the selected endpoint's parameters.
- */
-const RAW_PARAM: ParamDef = {
-  name: 'include_raw',
-  kind: 'boolean',
-  where: 'query',
-  section: 'request',
-  defaultValue: 'true',
-}
-/**
- * Every data endpoint accepts one, and every instance refuses it until an
- * operator sets security.request_proxy. Offering the field anyway is the point:
- * a refusal here names the setting, which is more use than the field not
- * existing.
- */
-const PROXY_PARAM: ParamDef = {
-  name: 'proxy',
-  kind: 'text',
-  where: 'query',
-  section: 'request',
-  placeholder: 'http://user:pass@host:port',
-}
-/**
- * Send as one named identity and no other. Rendered as a picker rather than as
- * a text input, because the value is a uuid nobody types from memory and the
- * thing a reader is actually choosing between is "which of my accounts".
- */
-const IDENTITY_PARAM: ParamDef = {
-  name: 'identity',
-  kind: 'text',
-  where: 'query',
-  section: 'request',
-  // Pinning reveals which jar served a call and lets a caller aim at one
-  // account, so the API gates it exactly as `explain` is gated.
-  minRole: 'operator',
-}
-/**
- * Ask again for real. Two separate mechanisms make a repeat call cheap - the
- * task layer joins an identical run that is already going or has just
- * finished, and the fetch layer caches the shaped body - and both are correct
- * defaults right up until the question is "has this changed since I last
- * looked", which is the question a workbench exists to answer.
- */
-const REFRESH_PARAM: ParamDef = {
-  name: 'refresh',
-  kind: 'boolean',
-  where: 'query',
-  section: 'request',
-}
-const SEC_UID_PARAM: ParamDef = {
-  name: 'sec_user_id',
-  kind: 'text',
-  where: 'query',
-  section: 'target',
-  oneOf: 'target',
-  placeholder: 'MS4wLjABAAAA',
-}
-const PROFILE_URL_PARAM: ParamDef = {
-  ...URL_PARAM,
-  placeholder: 'https://www.douyin.com/user/MS4wLjABAAAA',
-}
-//? Douyin's collects/list/ takes no author at all; see ParamDef.platforms.
-const TIKTOK_ONLY_PROFILE_URL_PARAM: ParamDef = { ...PROFILE_URL_PARAM, platforms: ['tiktok'] }
-const TIKTOK_ONLY_SEC_UID_PARAM: ParamDef = { ...SEC_UID_PARAM, platforms: ['tiktok'] }
-//? Folders: TikTok and Bilibili are asked about an author, Douyin about the session.
-const FOLDER_OWNER_URL_PARAM: ParamDef = { ...PROFILE_URL_PARAM, platforms: ['tiktok', 'bilibili'] }
-const FOLDER_OWNER_SEC_UID_PARAM: ParamDef = { ...SEC_UID_PARAM, platforms: ['tiktok', 'bilibili'] }
-const AWEME_ID_PARAM: ParamDef = {
-  name: 'aweme_id',
-  kind: 'text',
-  where: 'query',
-  section: 'target',
-  oneOf: 'target',
-  placeholder: '7300000000000000000',
-}
-
-/**
- * Ask what request this instance actually made.
- *
- * Costs a cache miss - an explanation describes an attempt, and a cached answer
- * made none - and returns the identity's own cookie jar, so it is gated on the
- * console's own role rather than on a read scope. Off by default for both
- * reasons; the panels below say what turning it on buys.
- */
-const EXPLAIN_PARAM: ParamDef = {
-  name: 'explain',
-  kind: 'boolean',
-  where: 'query',
-  section: 'request',
-  minRole: 'operator',
-}
-
-/** The ones every read endpoint carries, in the order the API declares them. */
-const ENVELOPE_PARAMS: readonly ParamDef[] = [
-  RAW_PARAM,
-  WAIT_PARAM,
-  PROXY_PARAM,
-  IDENTITY_PARAM,
-  REFRESH_PARAM,
-  EXPLAIN_PARAM,
-]
-const PAGE_PARAMS: readonly ParamDef[] = [CURSOR_PARAM, COUNT_PARAM]
-//? Bilibili only: Douyin and TikTok rank comments their own way and refuse `new`.
-const SORT_PARAM: ParamDef = {
-  name: 'sort',
-  kind: 'choice',
-  where: 'query',
-  section: 'paging',
-  choices: ['hot', 'new'],
-  platforms: ['bilibili'],
-}
-
-const CATALOG: readonly EndpointDef[] = [
-  {
-    id: 'parse',
-    method: 'POST',
-    path: () => paths.parse,
-    operation: null,
-    platformScoped: false,
-    params: [
-      {
-        name: 'url',
-        kind: 'text',
-        where: 'body',
-        section: 'target',
-        required: true,
-        placeholder: 'https://v.douyin.com/iRNBho6G/',
-      },
-      { ...RAW_PARAM, where: 'body' },
-      WAIT_PARAM,
-      PROXY_PARAM,
-      IDENTITY_PARAM,
-      REFRESH_PARAM,
-      EXPLAIN_PARAM,
-    ],
-  },
-  {
-    id: 'video',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/video`,
-    operation: 'content_detail',
-    platformScoped: true,
-    params: [URL_PARAM, AWEME_ID_PARAM, ...ENVELOPE_PARAMS],
-  },
-  {
-    id: 'comments',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/video/comments`,
-    operation: 'comments',
-    platformScoped: true,
-    params: [URL_PARAM, AWEME_ID_PARAM, ...PAGE_PARAMS, SORT_PARAM, ...ENVELOPE_PARAMS],
-  },
-  {
-    id: 'replies',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/video/comments/replies`,
-    operation: 'comment_replies',
-    platformScoped: true,
-    params: [
-      { name: 'comment_id', kind: 'text', where: 'query', section: 'target', required: true },
-      { ...AWEME_ID_PARAM, oneOf: undefined },
-      ...PAGE_PARAMS,
-      ...ENVELOPE_PARAMS,
-    ],
-  },
-  {
-    id: 'user',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user`,
-    operation: 'author_profile',
-    platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...ENVELOPE_PARAMS],
-  },
-  {
-    id: 'posts',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user/posts`,
-    operation: 'author_posts',
-    platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
-  },
-  {
-    id: 'likes',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user/likes`,
-    operation: 'author_likes',
-    platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
-  },
-  {
-    id: 'reposts',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user/reposts`,
-    operation: 'author_reposts',
-    platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
-  },
-  {
-    id: 'collections',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user/collections`,
-    operation: 'author_collections',
-    platformScoped: true,
-    params: [
-      FOLDER_OWNER_URL_PARAM,
-      FOLDER_OWNER_SEC_UID_PARAM,
-      ...PAGE_PARAMS,
-      ...ENVELOPE_PARAMS,
-    ],
-  },
-  {
-    id: 'bookmarks',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user/bookmarks`,
-    operation: 'author_bookmarks',
-    platformScoped: true,
-    params: [
-      TIKTOK_ONLY_PROFILE_URL_PARAM,
-      TIKTOK_ONLY_SEC_UID_PARAM,
-      ...PAGE_PARAMS,
-      ...ENVELOPE_PARAMS,
-    ],
-  },
-  {
-    id: 'collectionDetail',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/collection`,
-    operation: 'collection_detail',
-    platformScoped: true,
-    params: [
-      { name: 'collection_id', kind: 'text', where: 'query', section: 'target', required: true },
-      ...ENVELOPE_PARAMS,
-    ],
-  },
-  {
-    id: 'collectionPosts',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/collection/posts`,
-    operation: 'collection_posts',
-    platformScoped: true,
-    params: [
-      { name: 'collection_id', kind: 'text', where: 'query', section: 'target', required: true },
-      ...PAGE_PARAMS,
-      ...ENVELOPE_PARAMS,
-    ],
-  },
-  {
-    id: 'mix',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/mix/posts`,
-    operation: 'mix_posts',
-    platformScoped: true,
-    params: [
-      { name: 'mix_id', kind: 'text', where: 'query', section: 'target', required: true },
-      ...PAGE_PARAMS,
-      ...ENVELOPE_PARAMS,
-    ],
-  },
-  {
-    id: 'followers',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user/followers`,
-    operation: 'author_followers',
-    platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
-  },
-  {
-    id: 'following',
-    method: 'GET',
-    path: (platform) => `${API_V1}/${platform}/user/following`,
-    operation: 'author_following',
-    platformScoped: true,
-    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
-  },
-]
-
-const DEFAULT_ENDPOINT = CATALOG[0] as EndpointDef
-
-const SECTION_ORDER: readonly ParamSection[] = ['target', 'paging', 'request']
 
 /* -------------------------------------------------------------------------- */
 /* Health, pool and identity shapes                                            */
@@ -496,8 +148,67 @@ function poolCounts(pool: unknown, depth = 0): PoolCounts {
   return totals
 }
 
+/**
+ * One platform's census, or every platform's summed when the call names none.
+ *
+ * The panel used to sum all three whatever was selected, so a Bilibili call
+ * failing with IDENTITY_POOL_EXHAUSTED sat beside "active 6" - six Douyin
+ * identities that could never have served it - and the empty-pool hint only
+ * appeared once every platform was empty.
+ */
+function poolFor(pool: unknown, platform: Platform | null): PoolCounts {
+  if (platform === null) return poolCounts(pool)
+  if (typeof pool !== 'object' || pool === null) return { ...EMPTY_POOL }
+  return poolCounts((pool as Record<string, unknown>)[platform])
+}
+
 interface SystemStatusLike {
   pool?: unknown
+}
+
+function isPlatform(value: unknown): value is Platform {
+  return typeof value === 'string' && (PLATFORMS as readonly string[]).includes(value)
+}
+
+/** A single post, as `video` and the front door answer one. A page has `items`
+ *  and is not one post, however many it holds. */
+function postTargetOf(data: unknown): PostTarget | null {
+  if (!data || typeof data !== 'object') return null
+  const record = data as Record<string, unknown>
+  if ('items' in record) return null
+  const contentId = record['content_id']
+  const platform = record['platform']
+  if (typeof contentId !== 'string' || !contentId || !isPlatform(platform)) return null
+  return { platform, contentId }
+}
+
+/** An author profile. `uid` is the archive's key for an author, which is why it
+ *  and not `sec_uid` goes to the Library: on TikTok the two differ. */
+function authorTargetOf(data: unknown): AuthorTarget | null {
+  if (!data || typeof data !== 'object') return null
+  const record = data as Record<string, unknown>
+  if ('items' in record || 'content_id' in record) return null
+  const uid = record['uid']
+  const platform = record['platform']
+  if (typeof uid !== 'string' || !uid || typeof record['nickname'] !== 'string') return null
+  if (!isPlatform(platform)) return null
+  return { platform, uid }
+}
+
+/**
+ * What a guest's answer from this endpoint leaves out, where that has been
+ * measured; everything else gets the general sentence. The same two cases
+ * `dtk.mcp.prose` explains to an agent, and keyed the same way, by endpoint.
+ */
+const GUEST_NOTES: Readonly<Record<string, string>> = {
+  'douyin.author_posts': 'playground.guest.douyinAuthorPosts',
+  'bilibili.comments': 'playground.guest.bilibiliComments',
+}
+
+/** The worker's own flag, wherever this call's metadata put it: on the HTTP
+ *  envelope when `wait` held the connection, on the task when it did not. */
+function servedByGuest(result: RunResult): boolean {
+  return result.resultMeta?.['guest_fallback'] === true || result.meta?.['guest_fallback'] === true
 }
 
 /**
@@ -574,9 +285,10 @@ function readExplanation(meta: ResponseMeta | undefined): Explanation | null {
 /**
  * The User-Agent out of a header map, whatever case the sender spelled it.
  *
- * Worth finding: both platforms hash it into the signature, so it is the input
- * the decoder most needs, and "the UA I am sending is not the UA I signed with"
- * is the most common way a reproduced request fails while looking correct.
+ * Worth finding: Douyin and TikTok hash it into the signature, so it is the
+ * input the decoder most needs there, and "the UA I am sending is not the UA I
+ * signed with" is the most common way a reproduced request fails while looking
+ * correct. Bilibili's WBI signs the query alone and never sees it.
  */
 function userAgentOf(headers: Record<string, string>): string | null {
   for (const [name, value] of Object.entries(headers)) {
@@ -932,6 +644,33 @@ function buildSnippet(kind: SnippetLanguage, input: SnippetInput): string {
   ].join('\n')
 }
 
+/**
+ * One sentence about this call the reader should see before reading the
+ * rest: that the platform does not serve it, that it needs a pinned identity,
+ * that a guest answered it. A rule down the left in the tone's colour, the
+ * same shape as the overview's alerts, so it reads as a condition and not as
+ * part of the form.
+ */
+function Notice({
+  tone,
+  action,
+  children,
+}: {
+  tone: 'info' | 'caution' | 'warning'
+  action?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <div className={styles.notice} data-tone={tone} role={tone === 'info' ? 'note' : 'status'}>
+      <span className={styles.noticeIcon}>
+        {tone === 'info' ? <InfoIcon size={13} /> : <AlertIcon size={13} />}
+      </span>
+      <span className={styles.noticeBody}>{children}</span>
+      {action}
+    </div>
+  )
+}
+
 /* -------------------------------------------------------------------------- */
 /* Run state                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -950,6 +689,10 @@ interface RunResult {
   error?: unknown
   requestId: string | null
   healthEndpoint: string | null
+  /** The platform selected when it was sent; the form may have moved on since. */
+  platform: Platform
+  /** Whether that platform was part of the call, or only of the form. */
+  platformScoped: boolean
 }
 
 /** One entry in the session's run history. Held in memory only: a request can
@@ -990,16 +733,49 @@ export default function Playground() {
     (!param.minRole || atLeast(role, param.minRole)) &&
     (!param.platforms || param.platforms.includes(platform))
 
+  const [, navigate] = useLocation()
+
   const endpoint = useMemo(
     () => CATALOG.find((entry) => entry.id === endpointId) ?? DEFAULT_ENDPOINT,
     [endpointId],
   )
 
-  const healthEndpointName = endpoint.operation
+  /** The board decides the operation on `popular`; everywhere else it is fixed. */
+  const operation = endpoint.operationFor ? endpoint.operationFor(values) : endpoint.operation
+  const healthEndpointName = operation
     ? endpoint.platformScoped
-      ? `${platform}.${endpoint.operation}`
-      : endpoint.operation
+      ? `${platform}.${operation}`
+      : operation
     : null
+
+  /**
+   * What each platform serves. Static for the life of the API process, so it
+   * is fetched once and never polled. A failure, or an API too old to have
+   * the route, leaves every endpoint offered, which is how the page behaved
+   * before it could ask.
+   */
+  const capabilities = useApiQuery<CapabilityTable>({
+    key: ['system', 'capabilities'],
+    path: paths.system.capabilities,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  })
+  // Memoized for the compiler rather than for speed. The form's rules read this,
+  // and as a plain call's result the React compiler could not rule out that it
+  // changed after the request preview was built from it: it then refused to
+  // compile the page, and reported `send` as running during render.
+  const { served: servedHere, sessionBound } = useMemo(
+    () => supportOf(endpoint, platform, capabilities.data, operation),
+    [endpoint, platform, capabilities.data, operation],
+  )
+  const platformLabel = (name: Platform): string =>
+    t(`platform.name.${name}`, { defaultValue: name })
+  /** The call cannot succeed for this session: the endpoint answers only about
+   *  a pinned identity, and pinning is above this role. */
+  const identityOutOfReach = sessionBound && !atLeast(role, 'operator')
+  /** What "Load example" would fill in here, or null when nothing can - which
+   *  includes an endpoint this platform does not serve. */
+  const example = servedHere === false ? null : exampleValues(endpoint, platform)
 
   const health = useApiQuery<EndpointHealthRow[]>({
     key: ['admin', 'endpoints-health'],
@@ -1069,6 +845,11 @@ export default function Playground() {
   const valueOf = (param: ParamDef, overrides?: Record<string, string>): string =>
     overrides?.[param.name] ?? values[param.name] ?? param.defaultValue ?? ''
 
+  /** Required by the catalogue, or - for `identity` - by the endpoint answering
+   *  only about the identity asking it. */
+  const isRequired = (param: ParamDef): boolean =>
+    Boolean(param.required) || (param.name === IDENTITY_PARAM.name && sessionBound)
+
   /** Overrides let a button ("include the raw payload and run again") apply a value
    *  and send in the same click, without waiting for the state to settle. */
   const buildRequest = (
@@ -1097,22 +878,23 @@ export default function Playground() {
       }
 
       if (!raw) {
-        if (param.required) errors[param.name] = t('playground.required')
+        if (isRequired(param)) errors[param.name] = t('playground.required')
         continue
       }
 
       if (param.kind === 'number') {
         const parsed = Number(raw)
+        const max = forPlatform(param.max, platform)
         if (!Number.isFinite(parsed)) {
           errors[param.name] = t('playground.notANumber')
           continue
         }
         if (param.min !== undefined && parsed < param.min) {
-          errors[param.name] = t('playground.outOfRange', { min: param.min, max: param.max ?? 0 })
+          errors[param.name] = t('playground.outOfRange', { min: param.min, max: max ?? 0 })
           continue
         }
-        if (param.max !== undefined && parsed > param.max) {
-          errors[param.name] = t('playground.outOfRange', { min: param.min ?? 0, max: param.max })
+        if (max !== undefined && parsed > max) {
+          errors[param.name] = t('playground.outOfRange', { min: param.min ?? 0, max })
           continue
         }
       }
@@ -1149,7 +931,17 @@ export default function Playground() {
     [snippet, endpoint.method, path, preview.query, preview.body, i18n.language],
   )
 
+  /** Why Send is off, or null when it is on. Both are calls whose only possible
+   *  answer is a refusal this page can already name. */
+  const blocked: string | null =
+    servedHere === false
+      ? t('playground.unservedNotice', { platform: platformLabel(platform) })
+      : identityOutOfReach
+        ? t('playground.identityRequiredForbidden')
+        : null
+
   const send = async (overrides?: Record<string, string>): Promise<void> => {
+    if (blocked) return
     const { query, body, errors } = buildRequest(overrides)
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) return
@@ -1198,6 +990,8 @@ export default function Playground() {
         resultMeta: response.resultMeta,
         requestId: response.meta.request_id ?? null,
         healthEndpoint: healthEndpointName,
+        platform,
+        platformScoped: endpoint.platformScoped,
       })
       remember(true, elapsedMs)
     } catch (error) {
@@ -1214,6 +1008,8 @@ export default function Playground() {
         resultMeta: apiError?.resultMeta,
         requestId: apiError?.requestId ?? null,
         healthEndpoint: healthEndpointName,
+        platform,
+        platformScoped: endpoint.platformScoped,
       })
       remember(false, elapsedMs)
     } finally {
@@ -1238,7 +1034,17 @@ export default function Playground() {
     ? (healthRows.find((row) => row.endpoint === healthEndpointName) ?? null)
     : null
   const openCircuits = healthRows.filter((row) => circuitOf(row) !== 'closed')
-  const pool = poolCounts(system.data?.pool)
+  /** The pool that could serve this call: the selected platform's, or all of
+   *  them for the front door, which works the platform out from the link. */
+  const poolPlatform: Platform | null = endpoint.platformScoped ? platform : null
+  const pool = poolFor(system.data?.pool, poolPlatform)
+  const identitiesHref = poolPlatform
+    ? `/identities?platform=${encodeURIComponent(poolPlatform)}`
+    : '/identities'
+  /** The failure panel describes the call that failed, not the form as it is now. */
+  const failurePool = result?.platformScoped
+    ? poolFor(system.data?.pool, result.platform)
+    : poolFor(system.data?.pool, null)
 
   /**
    * Identities this call could actually be pinned to: the right platform, and
@@ -1271,6 +1077,12 @@ export default function Playground() {
   const normalized = result?.ok ? stripRaw(result.data) : null
   const raw = result?.ok ? pickRaw(result.data) : null
   const cursor = result?.ok ? nextCursor(result.data) : null
+  const resultPost = result?.ok ? postTargetOf(result.data) : null
+  const resultAuthor = result?.ok && !resultPost ? authorTargetOf(result.data) : null
+  const guestServed = result?.ok ? servedByGuest(result) : false
+  /** The platform the guest answered on. The front door's comes from the post
+   *  it returned, since the form's platform played no part in that call. */
+  const guestPlatform = resultPost?.platform ?? resultAuthor?.platform ?? result?.platform
 
   /* A platform switch can strip the pinned identity out from under the form.
    * Clearing it beats sending a Douyin identity to a TikTok endpoint and
@@ -1294,19 +1106,29 @@ export default function Playground() {
 
   const renderParam = (param: ParamDef) => {
     const permitted = allows(param)
+    const required = isRequired(param)
     /* Say which role it takes, in place of what the parameter does. A reader
-       who cannot use a control is not helped by a description of it. */
-    const describe = (key: string): string =>
-      permitted
-        ? t(key)
-        : t('playground.param.needsRole', { role: param.minRole as UserRole })
+       who cannot use a control is not helped by a description of it. A
+       platform whose ids look different gets its own sentence; the page size
+       is told its platform's ceiling. */
+    const description = permitted
+      ? t(
+          param.descriptions?.[platform] ??
+            (param.name === IDENTITY_PARAM.name && sessionBound
+              ? 'playground.param.identitySessionBound'
+              : (param.descriptionKey ?? `playground.param.${param.name}`)),
+          { max: forPlatform(param.max, platform) },
+        )
+      : t('playground.param.needsRole', { role: param.minRole as UserRole })
 
-    if (param.name === 'identity') {
+    if (param.name === IDENTITY_PARAM.name) {
       return (
         <Select
           key={param.name}
           label={<span className="u-mono">{param.name}</span>}
-          description={describe('playground.param.identity')}
+          description={description}
+          required={required}
+          error={fieldErrors[param.name]}
           value={permitted ? valueOf(param) : ''}
           options={identityOptions}
           disabled={!permitted}
@@ -1321,7 +1143,7 @@ export default function Playground() {
         <Select
           key={param.name}
           label={<span className="u-mono">{param.name}</span>}
-          description={describe(`playground.param.${param.name}`)}
+          description={description}
           value={permitted ? valueOf(param) : ''}
           options={[
             { value: '', label: t('playground.choiceDefault') },
@@ -1344,7 +1166,7 @@ export default function Playground() {
             setValue(param.name, event.target.checked ? 'true' : 'false')
           }}
           label={<span className="u-mono">{param.name}</span>}
-          hint={describe(`playground.param.${param.name}`)}
+          hint={description}
         />
       )
     }
@@ -1352,12 +1174,12 @@ export default function Playground() {
       <Input
         key={param.name}
         label={<span className="u-mono">{param.name}</span>}
-        description={describe(`playground.param.${param.name}`)}
-        required={param.required}
-        showOptional={!param.required && !param.oneOf}
+        description={description}
+        required={required}
+        showOptional={!required && !param.oneOf}
         mono
         inputMode={param.kind === 'number' ? 'numeric' : undefined}
-        placeholder={param.placeholder}
+        placeholder={forPlatform(param.placeholder, platform)}
         value={permitted ? valueOf(param) : ''}
         error={fieldErrors[param.name]}
         disabled={!permitted}
@@ -1398,6 +1220,10 @@ export default function Playground() {
             variant="primary"
             size="sm"
             loading={running}
+            // `undefined` rather than false when sendable: the button then
+            // falls back to disabling itself while loading.
+            disabled={blocked !== null ? true : undefined}
+            title={blocked ?? undefined}
             onClick={() => {
               void send()
             }}
@@ -1418,24 +1244,50 @@ export default function Playground() {
       >
         {/* ---------------------------------------------------- catalogue -- */}
         <div className={styles.pane}>
+          {/* Above the list, not inside the form: the list depends on it. It
+              used to sit in the request pane, so the catalogue offered every
+              endpoint whatever the platform, and the first a reader learned
+              of a gap was the refusal. */}
+          <Select
+            label={t('console:field.platform')}
+            value={platform}
+            options={PLATFORMS.map((entry) => ({ value: entry, label: platformLabel(entry) }))}
+            onChange={(event) => {
+              setPlatform(event.target.value as Platform)
+              setFieldErrors({})
+            }}
+          />
           <h2 className={styles.paneHeading}>{t('playground.catalogTitle')}</h2>
           <ul className={styles.endpointList}>
-            {CATALOG.map((entry) => (
-              <li key={entry.id}>
-                <button
-                  type="button"
-                  className={styles.endpointItem}
-                  aria-current={entry.id === endpointId}
-                  onClick={() => {
-                    setEndpointId(entry.id)
-                    setFieldErrors({})
-                  }}
-                >
-                  <span className={styles.endpointVerb}>{entry.method}</span>
-                  <span>{t(`playground.endpoint.${entry.id}`)}</span>
-                </button>
-              </li>
-            ))}
+            {CATALOG.map((entry) => {
+              // Greyed, not hidden: a reader looking for Bilibili likes should
+              // find the row and the reason, not wonder whether they missed it.
+              const unserved = supportOf(entry, platform, capabilities.data).served === false
+              return (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    className={styles.endpointItem}
+                    aria-current={entry.id === endpointId}
+                    data-unserved={unserved || undefined}
+                    onClick={() => {
+                      setEndpointId(entry.id)
+                      setFieldErrors({})
+                    }}
+                  >
+                    <span className={styles.endpointVerb}>{entry.method}</span>
+                    <span className={styles.endpointLabel}>
+                      <span>{t(`playground.endpoint.${entry.id}`)}</span>
+                      {unserved ? (
+                        <span className={styles.endpointReason}>
+                          {t('playground.unserved', { platform: platformLabel(platform) })}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
 
           <h2 className={styles.paneHeading}>{t('playground.historyTitle')}</h2>
@@ -1462,7 +1314,7 @@ export default function Playground() {
                     <span>
                       {t(`playground.endpoint.${entry.endpointId}`)}
                       {CATALOG.find((e) => e.id === entry.endpointId)?.platformScoped
-                        ? ` · ${entry.platform}`
+                        ? ` · ${platformLabel(entry.platform)}`
                         : ''}
                     </span>
                     <span className="u-mono u-muted">{format.latency(entry.elapsedMs)}</span>
@@ -1482,16 +1334,34 @@ export default function Playground() {
               void send()
             }}
           >
-            {endpoint.platformScoped ? (
-              <div className={styles.paramGrid}>
-                <Select
-                  label={t('console:field.platform')}
-                  value={platform}
-                  options={PLATFORMS.map((entry) => ({ value: entry, label: entry }))}
-                  onChange={(event) => {
-                    setPlatform(event.target.value as Platform)
+            {servedHere === false ? (
+              <Notice tone="caution">
+                {t('playground.unservedNotice', { platform: platformLabel(platform) })}
+              </Notice>
+            ) : sessionBound ? (
+              <Notice tone={identityOutOfReach ? 'caution' : 'info'}>
+                {identityOutOfReach
+                  ? t('playground.identityRequiredForbidden')
+                  : t('playground.identityRequired')}
+              </Notice>
+            ) : null}
+
+            {/* Every endpoint whose target can be named in advance. The values
+                are real and public, so the first call made with them succeeds -
+                which is the thing a reader pressing this is asking for. */}
+            {example ? (
+              <div className="u-row u-wrap">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setValues((current) => ({ ...current, ...example }))
+                    setFieldErrors({})
                   }}
-                />
+                >
+                  {t('playground.loadExample', { platform: platformLabel(platform) })}
+                </Button>
+                <span className="u-xs u-muted">{t('playground.loadExampleHint')}</span>
               </div>
             ) : null}
 
@@ -1558,6 +1428,40 @@ export default function Playground() {
                 )}
               </span>
             </div>
+          ) : null}
+
+          {/* Above the payload, because the payload looks complete. A guest's
+              answer is real data with the newest posts or all but three
+              comments missing, and nothing in it says so except this flag. */}
+          {result && guestServed ? (
+            <Notice
+              tone="warning"
+              action={
+                guestPlatform && canOpen(role, '/identities') ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      navigate(
+                        `/identities?platform=${encodeURIComponent(guestPlatform)}&login=yes`,
+                      )
+                    }}
+                  >
+                    {t('playground.guest.action')}
+                  </Button>
+                ) : null
+              }
+            >
+              <strong>{t('playground.guest.title')}</strong>{' '}
+              {t(
+                (result.healthEndpoint ? GUEST_NOTES[result.healthEndpoint] : undefined) ??
+                  'playground.guest.generic',
+              )}
+            </Notice>
+          ) : null}
+
+          {resultPost || resultAuthor ? (
+            <ContentNextSteps post={resultPost} author={resultAuthor} />
           ) : null}
 
           {/* The failure panel is the page's reason for existing and is never
@@ -1633,12 +1537,16 @@ export default function Playground() {
                   ) : null}
                 </dd>
 
-                <dt className="u-xs u-muted">{t('playground.poolLabel')}</dt>
+                <dt className="u-xs u-muted">
+                  {result.platformScoped
+                    ? t('playground.poolLabelFor', { platform: platformLabel(result.platform) })
+                    : t('playground.poolLabel')}
+                </dt>
                 <dd className="u-mono u-xs">
                   {t('playground.poolInline', {
-                    active: pool.active,
-                    cooling: pool.cooling,
-                    degraded: pool.degraded,
+                    active: failurePool.active,
+                    cooling: failurePool.cooling,
+                    degraded: failurePool.degraded,
                   })}
                 </dd>
               </dl>
@@ -1862,7 +1770,24 @@ export default function Playground() {
                   </div>
                 )}
 
-                <span className="u-xs u-muted">{t('playground.poolLabel')}</span>
+                <span className="u-row u-wrap">
+                  <span className="u-xs u-muted">
+                    {poolPlatform
+                      ? t('playground.poolLabelFor', { platform: platformLabel(poolPlatform) })
+                      : t('playground.poolLabel')}
+                  </span>
+                  {canOpen(role, '/identities') ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        navigate(identitiesHref)
+                      }}
+                    >
+                      {t('playground.poolManage')}
+                    </Button>
+                  ) : null}
+                </span>
                 {system.isError ? (
                   <span className="u-xs" style={{ color: 'var(--caution)' }}>
                     {t('playground.poolUnavailable')}
@@ -1879,7 +1804,9 @@ export default function Playground() {
                 )}
                 {pool.active === 0 && !system.isLoading && !system.isError ? (
                   <span className="u-xs" style={{ color: 'var(--warning)' }}>
-                    {t('playground.poolEmptyHint')}
+                    {poolPlatform
+                      ? t('playground.poolEmptyHintFor', { platform: platformLabel(poolPlatform) })
+                      : t('playground.poolEmptyHint')}
                   </span>
                 ) : null}
               </div>
