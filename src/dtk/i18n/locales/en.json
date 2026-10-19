@@ -223,6 +223,10 @@
         "summary": "Revoke an API key",
         "description": "Revoke one API key."
       },
+      "api_keys_update": {
+        "summary": "Rename an API key or change its scopes",
+        "description": "Change a key's name or scopes without changing the key itself: whatever already holds it keeps using it, with the new scopes from its next call. Scopes are replaced, not added to, and are bounded by your own. Refused for a revoked key and for the published demo key, whose scopes the demo decides."
+      },
       "archive_backfill": {
         "summary": "Archive an author's history",
         "description": "Walks one author's posts past the first page and archives every one. Separate from the watchlist on purpose: a watchlist entry is for what is new and runs forever, while a backfill is a one-off with a very different cost. Stops at the first empty page, at the page ceiling, or when the platform says there is no more history."
@@ -385,7 +389,7 @@
       },
       "demo_show": {
         "summary": "Show the demo account",
-        "description": "What this instance publishes as its demo: whether it is on, the account name, the API key prefix and its scopes. Never the password or the key itself."
+        "description": "What this instance publishes as its demo: whether it is on, the account name, the API key prefix, its scopes and any scope this release publishes that the key does not hold yet. Never the password or the key itself."
       },
       "diagnose": {
         "summary": "Run the six-step self check",
@@ -642,6 +646,7 @@
     },
     "param": {
       "action": "Only this action, such as `settings.update`.",
+      "api_keys_update.key_id": "The key to change.",
       "audit_list.user_id": "Only what this console account did.",
       "author_uid": "Only this author's posts.",
       "availability": "Only posts with this upstream status.",
@@ -707,6 +712,10 @@
         "name": "What the key is for. Shown in the list and in the audit log.",
         "rate_limit": "Requests per minute. Null means the instance default. Abuse protection only - this project has no billing.",
         "scopes": "What the key may do. A key can never be given a scope its creator does not hold, so this is bounded by your own."
+      },
+      "ApiKeyUpdate": {
+        "name": "Rename the key. Shown in the list and in the audit log.",
+        "scopes": "Replace what the key may do with exactly this list. Bounded by your own scopes, as when creating one."
       },
       "ArchiveDelete": {
         "items": "The posts to act on. Past this limit make two calls rather than hold one transaction open across the archive.",

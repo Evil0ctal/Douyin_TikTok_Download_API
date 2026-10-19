@@ -311,7 +311,7 @@ The administrator's credentials:
 
 - Username must match `^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$` — letters, digits,
   dot, dash, underscore, 3 to 64 characters, not starting with punctuation.
-- Password: the API's floor is 8 characters, the wizard asks for 12.
+- Password: at least 8 characters, the same floor the API, the CLI and the Users page hold.
 - **There is no password reset by email.** Recovery is a CLI command:
   `docker compose -p dtk -f docker/compose.yml exec api dtk user passwd <name>`.
 

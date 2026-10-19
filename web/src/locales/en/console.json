@@ -618,6 +618,18 @@
     "precedence": "Order of precedence: database override, then the .env seed, then the code default. Once a key is stored here, editing .env changes nothing until the row is reset.",
     "precedenceCount": "{count, plural, one {# key currently overrides its .env value} other {# keys currently override their .env value}}",
     "readOnly": "Your role can read settings but not change them.",
+    "search": "Search keys and descriptions",
+    "overriddenOnly": "Overridden only",
+    "noMatch": {
+      "title": "No setting matches",
+      "description": "Nothing matches the search and the filter. Clear them to see every setting."
+    },
+    "managed": {
+      "demo": "Switched in the Demo mode card above",
+      "endpointAccess": "Edited on the Endpoint access page",
+      "notifications": "Edited on the Notifications page",
+      "system": "Edited on the System page"
+    },
     "source": {
       "database": "Database override",
       "databaseHint": "Stored in the settings table. This value wins, and the .env entry is ignored until you reset the row.",
@@ -637,7 +649,8 @@
     },
     "hint": {
       "onePerLine": "One entry per line.",
-      "json": "JSON value."
+      "json": "JSON value.",
+      "structured": "Structured value, shown read-only. Change it on the page that manages it, or through the API."
     },
     "row": {
       "default": "Default: {value}",
@@ -683,14 +696,14 @@
     "groupHint": {
       "sched": "Waiting, queueing, cooldowns and the thresholds that trip an endpoint.",
       "pool": "Water marks and the conservative per-identity request rate.",
-      "signing": "Which signer produces the request signature. The in-process algorithms no longer match what either platform sends, so the browser is the working default.",
+      "signing": "Which signer produces the request signature. The in-process algorithms are the default and need no browser; the browser signer is the fallback for the day a platform ships a new SDK.",
       "cache": "How long a parsed result stays reusable.",
       "snapshot": "Deduplication window for writes to the content history.",
       "retention": "How long logs, events and tasks are kept. Content snapshots are never deleted automatically.",
       "api": "Abuse limits, the long-poll ceiling and the default response language.",
       "security": "Every key here is sensitive: allowlists, CORS and the download proxy.",
       "notify": "Delivery switch, channels and the default alert language.",
-      "system": "Instance behaviour, including the opt-in update check.",
+      "system": "Instance behaviour, including the daily update check, which is on by default.",
       "other": "Keys with no group of their own.",
       "archive": "What this instance keeps after a task result expires. The archive holds the current state of a post; the metric history beside it holds how it changed.",
       "capacity": "How this instance behaves as the disk fills. It warns, then pauses background writers - it never deletes.",
@@ -700,8 +713,8 @@
     },
     "choice": {
       "signing.mode": {
-        "rpc": "Browser (recommended) - runs the platform's own script",
-        "native": "In-process algorithms - no browser needed",
+        "rpc": "Browser - runs the platform's own script; the fallback when a platform changes its SDK",
+        "native": "In-process algorithms (recommended) - no browser needed",
         "auto": "In-process, switching to the browser when signatures start failing"
       },
       "security.request_proxy": {
@@ -723,11 +736,28 @@
       "password": "Password",
       "apiKey": "API key",
       "enabledButMissing": "Demo mode is on but no account exists. Reissue the credentials to mint one.",
+      "stateOn": "Demo mode is on.",
+      "stateOff": "Demo mode is off.",
+      "adminOnly": "Only an administrator can switch it or reissue its credentials.",
+      "cannotRead": "Your account cannot read the demo's state. Ask an administrator whether demo mode is on.",
+      "missingScopes": "The published key was minted without {scopes}, which this release publishes. Reissue the credentials to add it - that also ends every open demo session.",
+      "missingScopesReadOnly": "The published key was minted without {scopes}, which this release publishes. An administrator can reissue the credentials to add it.",
+      "confirm": {
+        "onTitle": "Turn demo mode on?",
+        "onBody": "This publishes a shared read-only account and API key: anyone who can reach this instance can sign in with them and call the platform endpoints. The password and the key are shown once, right after this.",
+        "offTitle": "Turn demo mode off?",
+        "offBody": "Every open demo session ends now and the published API key stops working. Nothing is deleted: turning demo mode back on restores the same account and key.",
+        "rotateTitle": "Reissue the demo credentials?",
+        "rotateBody": "This generates a new password and API key, revokes the current key and ends every open demo session at once. Anyone using the published password or key is cut off until you publish the new pair."
+      },
       "note": "The demo account is read-only: it calls the platform endpoints and reads the pages that carry no credential. It cannot download, change a setting or see the identity pool. Its requests are not written to the request log or the archive, and its tasks are swept within minutes. Turning demo mode off ends every open demo session and stops the key working, without deleting anything.",
       "toast": {
         "on": "Demo mode is on",
         "off": "Demo mode is off",
-        "rotated": "New demo credentials issued"
+        "rotated": "New demo credentials issued",
+        "onFailed": "Could not turn demo mode on",
+        "offFailed": "Could not turn demo mode off",
+        "rotateFailed": "Could not reissue the demo credentials"
       }
     }
   },
@@ -806,6 +836,8 @@
       "languageInherit": "Use the default",
       "events": "Events",
       "eventsHint": "Clear what this channel should not receive. The deduplication window of each event is fixed and shown beside it.",
+      "eventsLast": "At least one event stays ticked. To silence the channel, disable it.",
+      "eventsUnknown": "Also subscribed to events this console does not know: {events}. They are kept as they are.",
       "enabled": "Enabled",
       "enabledHint": "A disabled channel is kept but skipped.",
       "maskedHint": "Shown masked. Leave it untouched to keep the stored value; type a new one to replace it, or clear it to remove it."
@@ -829,7 +861,10 @@
       "proxy_unhealthy": "A proxy failed its probe and was taken out of rotation.",
       "signature_stale": "The local signature stopped matching the browser result; the algorithm has drifted.",
       "cookie_expiring": "A logged-in cookie jar is close to expiry and needs renewing.",
-      "backup_failed": "A backup run did not finish."
+      "backup_failed": "A backup run did not finish.",
+      "capacity_warning": "Disk usage on a volume this instance writes to passed the warning threshold.",
+      "capacity_paused": "Disk usage passed the hard stop: background collection and new downloads are paused until space is freed.",
+      "media_evicted": "Stored media was deleted to stay under the size ceiling. The alert lists what was removed."
     },
     "toast": {
       "saved": "Saved",
@@ -1021,9 +1056,12 @@
     "you": "you",
     "adminOnly": "Only an administrator can manage accounts. Your own password and sessions are below.",
     "cannotDeleteSelf": "You cannot delete the account you are signed in with.",
+    "demoLocked": "Managed by demo mode.",
+    "demoLockedLink": "Open settings",
     "action": {
       "create": "Add user",
-      "changeRole": "Change role"
+      "changeRole": "Change role",
+      "resetPassword": "Reset password"
     },
     "column": {
       "id": "User id",
@@ -1050,7 +1088,7 @@
       "backup": "Create and restore backups",
       "diagnose": "Run the self check",
       "fetch": "Call the platform endpoints",
-      "keys": "Create and revoke API keys",
+      "keys": "Create, edit and revoke API keys",
       "pool": "Manage identities and proxies",
       "read": "Read the pool, proxies, keys and settings",
       "readPublic": "Read the overview, library, downloads, logs and system pages",
@@ -1097,7 +1135,20 @@
       "deleteDescription": "Type {username} to confirm.",
       "deleteWarning": "The account and every session it opened are removed. The last administrator cannot be deleted.",
       "signOutTitle": "Sign out other devices?",
-      "signOutDescription": "Every session except this one is revoked immediately."
+      "signOutDescription": "Every session except this one is revoked immediately.",
+      "roleTitle": "Change this account's role?",
+      "roleDescription": "{username} goes from {from} to {to}. It takes effect on their next request.",
+      "roleSelfWarning": "This is the account you are signed in with. Below administrator you can no longer manage accounts, and only another administrator can give the role back.",
+      "roleAdminWarning": "An administrator can change sensitive settings, manage every account and restore backups."
+    },
+    "reset": {
+      "title": "Reset the password for {username}",
+      "description": "For someone who cannot sign in. Tell them the new password over a channel you trust: it is not shown again once saved, here or anywhere else.",
+      "revokes": "Every session this account has open is signed out.",
+      "submit": "Reset password",
+      "done": "Password reset for {username}",
+      "doneHint": "{count, plural, =0 {No session was open.} one {# session was signed out.} other {# sessions were signed out.}}",
+      "failed": "Could not reset the password"
     },
     "toast": {
       "created": "User {username} created",
@@ -1120,14 +1171,31 @@
     "createdAck": "I have stored this key somewhere safe",
     "createdDone": "Done",
     "activeCount": "{count, plural, one {# active key} other {# active keys}}",
+    "editTitle": "Edit API key",
+    "editDescription": "Change the name or the scopes. The key itself stays the same, so whatever already uses it keeps working and gets the new scopes on its next call.",
+    "editedToast": "Key {name} saved",
+    "editFailed": "Could not save the key",
     "field": {
       "name": "Name",
+      "owner": "Owner",
       "prefix": "Prefix"
     },
+    "owner": {
+      "demo": "Demo account",
+      "other": "Another account",
+      "you": "You"
+    },
+    "mineOnly": "Only my keys",
     "nameHint": "Something recognisable in the audit log, such as the script or host that will use it.",
     "nameRequired": "Give the key a name.",
     "scopesHint": "A key reaches only the endpoint groups ticked here. Identity management and cookie import always require identity:manage.",
     "scopesRequired": "Pick at least one scope.",
+    "preset": {
+      "clear": "Clear",
+      "label": "Start from",
+      "platformReads": "All platform reads",
+      "readOnly": "Read only"
+    },
     "scope": {
       "douyinRead": "Read Douyin data",
       "tiktokRead": "Read TikTok data",
@@ -1173,6 +1241,13 @@
     "revokeDescription": "Calls made with {name} start failing with UNAUTHENTICATED on the next request. This cannot be undone.",
     "revokedToast": "Key revoked",
     "revokeFailed": "Could not revoke the key",
+    "revokeDemoWarning": "This is the key the demo publishes. Revoking it stops the demo API for every visitor until the demo credentials are reissued; the demo login keeps working. To replace the key, reissue the credentials under Settings → Demo mode instead.",
+    "addBilibili": "Add bilibili:read",
+    "bilibiliAddedToast": "{name} can now read Bilibili",
+    "bilibiliGap": "No bilibili:read",
+    "bilibiliGapHint": "Reads Douyin or TikTok but not Bilibili. A key keeps the scopes it was created with; upgrading does not add new ones.",
+    "bilibiliGapBanner": "{count, plural, one {# active key reads} other {# active keys read}} Douyin or TikTok but not Bilibili. Keys keep the scopes they were created with, so a key from before Bilibili was added is refused there until bilibili:read is added. Use Add bilibili:read beside each key that should have it.",
+    "bilibiliGapBannerReadOnly": "{count, plural, one {# active key reads} other {# active keys read}} Douyin or TikTok but not Bilibili. Keys keep the scopes they were created with; an operator can add bilibili:read to the ones that should have it.",
     "emptyTitle": "No API keys yet",
     "emptyDescription": "Create one per script or agent, so a single leak can be revoked without disturbing anything else.",
     "search": "Search name, prefix or scope",
@@ -1185,7 +1260,7 @@
     "bulkRevokeTitle": "Revoke the selected keys?",
     "bulkRevokeBody": "{count, plural, one {# key stops working immediately} other {# keys stop working immediately}}. Anything using them starts getting 401 on its next call. Revoking cannot be undone; mint a replacement instead.",
     "bulkRevokedToast": "{count, plural, one {# key revoked} other {# keys revoked}}",
-    "demoNote": "The demo key is shown in full because it is published — anyone trying this instance is meant to copy it. It calls the Douyin and TikTok endpoints and nothing else.",
+    "demoNote": "The demo key is shown in full because it is published — anyone trying this instance is meant to copy it. It reads the platform endpoints and nothing else: no archive, no downloads, no administration.",
     "demoWhy": "Every other key shows only its prefix, and that is not a setting: the server stores a digest, so there is no plaintext to reveal."
   },
   "playground": {

@@ -24,6 +24,7 @@ import shell from '@/components/shell.module.css'
 import { apiPost, apiRequest, isApiError, waitForTask } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
+import { MIN_PASSWORD_LENGTH } from '@/lib/passwords'
 import { PLATFORMS, type Platform } from '@/lib/types'
 import {
   SESSION_KEY,
@@ -45,9 +46,6 @@ type StepId = (typeof STEPS)[number]
 
 /** Mirrors USERNAME_PATTERN in src/dtk/api/routes/schemas.py. */
 const USERNAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/
-
-/** The wizard asks for more than the server's floor; the copy promises twelve. */
-const MIN_PASSWORD_LENGTH = 12
 
 interface ProxyImportReport {
   created: Array<{ id: string; url_masked: string | null; label?: string | null }>
@@ -354,7 +352,7 @@ function AdminStep({ onDone }: { onDone: () => void }) {
         />
         <Input
           label={t('setup:admin.password')}
-          description={t('setup:admin.passwordHint')}
+          description={t('setup:admin.passwordHint', { min: MIN_PASSWORD_LENGTH })}
           error={passwordError}
           type="password"
           required

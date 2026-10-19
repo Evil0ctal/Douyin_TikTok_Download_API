@@ -20,11 +20,14 @@ import {
   useToast,
   type Column,
 } from '@/components'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
-import { apiDelete, apiPost } from '@/lib/api'
+import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
+import { apiDelete, apiPatch, apiPost } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
+import { atLeast } from '@/lib/roles'
 import { SCOPES, type ApiKeySummary, type Scope } from '@/lib/types'
+
+import { SCOPE_COPY, ScopePicker, lacksBilibili, sameScopes } from './apiKeyScopes'
 
 /**
  * API keys.
@@ -39,9 +42,15 @@ import { SCOPES, type ApiKeySummary, type Scope } from '@/lib/types'
  * one runaway script cannot drain the identity pool. The copy says so in every
  * place the number appears, because "rate limit" reads as "paid tier" to
  * anyone who has used a commercial API.
+ *
+ * Creating, editing and revoking need an operator (`manage_pool`); a viewer
+ * and the demo account read the list and see none of those controls, rather
+ * than pressing one and being told 403.
  */
 
 const KEYS_QUERY = ['admin', 'api-keys'] as const
+/** The Users page's key and shape, so the two share one cached list. */
+const USERS_QUERY = ['admin', 'users'] as const
 
 /** Key status as the server reports it; recomputed locally when it does not. */
 type KeyStatus = 'active' | 'revoked' | 'expired'
@@ -52,6 +61,13 @@ const KEY_STATUSES: readonly KeyStatus[] = ['active', 'expired', 'revoked']
 interface ApiKeyRow extends ApiKeySummary {
   status?: KeyStatus
   user_id?: string
+  /** The demo account's key, whether or not the demo is on right now. */
+  demo_owned?: boolean
+}
+
+interface OwnerRow {
+  id: string
+  username: string
 }
 
 /**
@@ -72,11 +88,22 @@ interface CreateBody {
   expires_at: string | null
 }
 
+interface UpdateBody {
+  name?: string
+  scopes?: Scope[]
+}
+
 interface Draft {
   name: string
   scopes: Scope[]
   rateLimit: string
   expiresInDays: string
+}
+
+interface EditDraft {
+  row: ApiKeyRow
+  name: string
+  scopes: Scope[]
 }
 
 /**
@@ -92,21 +119,6 @@ interface DraftError {
 type DraftErrors = Partial<Record<'name' | 'scopes' | 'rateLimit', DraftError>>
 
 const EMPTY_DRAFT: Draft = { name: '', scopes: [], rateLimit: '', expiresInDays: '0' }
-
-/** Scope values are wire identifiers and are never translated; these name their copy keys. */
-const SCOPE_COPY: Record<Scope, string> = {
-  'douyin:read': 'douyinRead',
-  'tiktok:read': 'tiktokRead',
-  'bilibili:read': 'bilibiliRead',
-  'identity:manage': 'identityManage',
-  'archive:read': 'archiveRead',
-  'archive:export': 'archiveExport',
-  'media:read': 'mediaRead',
-  'media:write': 'mediaWrite',
-  'transcription:read': 'transcriptionRead',
-  'transcription:write': 'transcriptionWrite',
-  admin: 'admin',
-}
 
 const EXPIRY_DAYS = ['0', '7', '30', '90', '365'] as const
 
@@ -125,17 +137,44 @@ function secretOf(created: CreatedKey): string {
   return created.secret ?? created.key ?? ''
 }
 
+/** The published demo key, recognised whether or not the demo is on. */
+function isDemoKey(row: ApiKeyRow): boolean {
+  return Boolean(row.demo || row.demo_owned)
+}
+
 export default function ApiKeys() {
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
   const toast = useToast()
   const invalidate = useInvalidate()
+  const session = useSession()
+
+  const role = session.data?.role ?? null
+  const me = session.data?.id ?? null
+  const canManage = atLeast(role, 'operator')
+  const isAdmin = atLeast(role, 'admin')
+
+  const [mineOnly, setMineOnly] = useState(false)
 
   const keys = useApiQuery<ApiKeyRow[]>({
-    key: KEYS_QUERY,
+    key: mineOnly ? [...KEYS_QUERY, 'mine'] : KEYS_QUERY,
     path: paths.apiKeys.list,
+    params: mineOnly ? { mine_only: true } : undefined,
     poll: POLL.slow,
   })
+
+  // Owner names come from the accounts list, which only an administrator may
+  // read. Everybody else sees "you" or "another account" - the key list does
+  // not carry usernames, so it cannot become the way a viewer enumerates them.
+  const owners = useApiQuery<OwnerRow[]>({
+    key: USERS_QUERY,
+    path: paths.users.list,
+    enabled: isAdmin,
+  })
+  const ownerNames = useMemo(
+    () => new Map((owners.data ?? []).map((owner) => [owner.id, owner.username])),
+    [owners.data],
+  )
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<KeyStatus | 'all'>('all')
@@ -148,6 +187,8 @@ export default function ApiKeys() {
   const [created, setCreated] = useState<CreatedKey | null>(null)
   const [acknowledged, setAcknowledged] = useState(false)
   const [revoking, setRevoking] = useState<ApiKeyRow | null>(null)
+  const [editing, setEditing] = useState<EditDraft | null>(null)
+  const [editErrors, setEditErrors] = useState<DraftErrors>({})
 
   const create = useApiMutation<CreatedKey, CreateBody>(
     (body) => apiPost<CreatedKey>(paths.apiKeys.list, body),
@@ -176,6 +217,21 @@ export default function ApiKeys() {
       toast.apiError(error, t('apiKeys.revokeFailed'))
     },
   })
+
+  const update = useApiMutation<ApiKeyRow, { row: ApiKeyRow; body: UpdateBody; message: string }>(
+    ({ row, body }) => apiPatch<ApiKeyRow>(paths.apiKeys.byId(row.id), body),
+    {
+      onSuccess: (_result, { message }) => {
+        setEditing(null)
+        setEditErrors({})
+        toast.success(message)
+        void invalidate(KEYS_QUERY)
+      },
+      onError: (error) => {
+        toast.apiError(error, t('apiKeys.editFailed'))
+      },
+    },
+  )
 
   const submit = (): void => {
     const nextErrors: DraftErrors = {}
@@ -209,18 +265,36 @@ export default function ApiKeys() {
     })
   }
 
-  const errorText = (error: DraftError | undefined): string | undefined =>
-    error ? t(error.key, error.args) : undefined
+  /** Sends only what changed, so an edit that touches nothing sends nothing. */
+  const submitEdit = (): void => {
+    if (!editing) return
+    const nextErrors: DraftErrors = {}
+    const name = editing.name.trim()
+    if (!name) nextErrors.name = { key: 'apiKeys.nameRequired' }
+    if (editing.scopes.length === 0) nextErrors.scopes = { key: 'apiKeys.scopesRequired' }
+    setEditErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0) return
 
-  const toggleScope = (scope: Scope): void => {
-    setDraft((current) => ({
-      ...current,
-      scopes: current.scopes.includes(scope)
-        ? current.scopes.filter((entry) => entry !== scope)
-        : [...current.scopes, scope],
-    }))
+    const body: UpdateBody = {}
+    if (name !== editing.row.name) body.name = name
+    if (!sameScopes(editing.scopes, editing.row.scopes)) body.scopes = editing.scopes
+    if (Object.keys(body).length === 0) {
+      setEditing(null)
+      return
+    }
+    update.mutate({ row: editing.row, body, message: t('apiKeys.editedToast', { name }) })
   }
 
+  const addBilibili = (row: ApiKeyRow): void => {
+    update.mutate({
+      row,
+      body: { scopes: [...row.scopes, 'bilibili:read'] },
+      message: t('apiKeys.bilibiliAddedToast', { name: row.name }),
+    })
+  }
+
+  const errorText = (error: DraftError | undefined): string | undefined =>
+    error ? t(error.key, error.args) : undefined
 
   /**
    * The clock used to classify a key as expired.
@@ -233,123 +307,182 @@ export default function ApiKeys() {
    */
   const asOf = keys.dataUpdatedAt
 
-  const columns = useMemo<Array<Column<ApiKeyRow>>>(
-    () => [
-      {
-        id: 'name',
-        header: t('apiKeys.field.name'),
-        cell: (row) => <span className="u-truncate">{row.name}</span>,
-        sortValue: (row) => row.name,
-        hideable: false,
-      },
-      {
-        id: 'prefix',
-        header: t('apiKeys.field.prefix'),
-        mono: true,
-        // The demo key shows in full; every other key shows the prefix and
-        // an ellipsis, because a prefix is all the server has. That asymmetry
-        // is the point rather than an oversight, and the note under the table
-        // says so - otherwise it reads as "keys are readable here", which is
-        // the impression this page must never give.
-        cell: (row) =>
-          row.demo && row.secret ? (
-            <MaskedSecret value={row.secret} copyable />
+  /** Live, editable and missing Bilibili: the rows the upgrade note is about. */
+  const needsBilibili = (row: ApiKeyRow): boolean =>
+    keyStatus(row, asOf) === 'active' && !isDemoKey(row) && lacksBilibili(row.scopes)
+
+  const ownerOf = (row: ApiKeyRow): string => {
+    if (row.user_id && row.user_id === me) return t('apiKeys.owner.you')
+    if (row.demo_owned) return t('apiKeys.owner.demo')
+    return (row.user_id && ownerNames.get(row.user_id)) || t('apiKeys.owner.other')
+  }
+
+  const baseColumns: Array<Column<ApiKeyRow>> = [
+    {
+      id: 'name',
+      header: t('apiKeys.field.name'),
+      cell: (row) => <span className="u-truncate">{row.name}</span>,
+      sortValue: (row) => row.name,
+      hideable: false,
+    },
+    {
+      id: 'prefix',
+      header: t('apiKeys.field.prefix'),
+      mono: true,
+      // The demo key shows in full; every other key shows the prefix and
+      // an ellipsis, because a prefix is all the server has. That asymmetry
+      // is the point rather than an oversight, and the note under the table
+      // says so - otherwise it reads as "keys are readable here", which is
+      // the impression this page must never give.
+      cell: (row) =>
+        row.demo && row.secret ? (
+          <MaskedSecret value={row.secret} copyable />
+        ) : (
+          <MaskedSecret value={`dtk_${row.prefix}_...`} />
+        ),
+      sortValue: (row) => row.prefix,
+    },
+    {
+      id: 'owner',
+      header: t('apiKeys.field.owner'),
+      cell: (row) => (
+        <span className="u-truncate" title={row.user_id}>
+          {ownerOf(row)}
+        </span>
+      ),
+      sortValue: (row) => ownerOf(row),
+      hideOnMobile: true,
+    },
+    {
+      id: 'status',
+      header: t('console:field.state'),
+      cell: (row) => <StatusBadge kind="key" value={keyStatus(row, asOf)} />,
+      sortValue: (row) => keyStatus(row, asOf),
+    },
+    {
+      id: 'scopes',
+      header: t('console:field.scopes'),
+      cell: (row) => (
+        <span className="u-row u-wrap">
+          {row.scopes.length === 0 ? (
+            <span className="u-muted">{t('common:value.none')}</span>
           ) : (
-            <MaskedSecret value={`dtk_${row.prefix}_...`} />
-          ),
-        sortValue: (row) => row.prefix,
-      },
-      {
-        id: 'status',
-        header: t('console:field.state'),
-        cell: (row) => <StatusBadge kind="key" value={keyStatus(row, asOf)} />,
-        sortValue: (row) => keyStatus(row, asOf),
-      },
-      {
-        id: 'scopes',
-        header: t('console:field.scopes'),
-        cell: (row) => (
-          <span className="u-row u-wrap">
-            {row.scopes.length === 0 ? (
-              <span className="u-muted">{t('common:value.none')}</span>
+            row.scopes.map((scope) => (
+              <span
+                key={scope}
+                className="u-mono u-xs"
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0 var(--space-1)',
+                  color: 'var(--text-secondary)',
+                }}
+                title={t(`apiKeys.scopeHint.${SCOPE_COPY[scope]}`)}
+              >
+                {scope}
+              </span>
+            ))
+          )}
+          {needsBilibili(row) ? (
+            canManage ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                title={t('apiKeys.bilibiliGapHint')}
+                loading={update.isPending && update.variables?.row.id === row.id}
+                disabled={update.isPending}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  addBilibili(row)
+                }}
+              >
+                {t('apiKeys.addBilibili')}
+              </Button>
             ) : (
-              row.scopes.map((scope) => (
-                <span
-                  key={scope}
-                  className="u-mono u-xs"
-                  style={{
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '0 var(--space-1)',
-                    color: 'var(--text-secondary)',
-                  }}
-                  title={t(`apiKeys.scopeHint.${SCOPE_COPY[scope]}`)}
-                >
-                  {scope}
-                </span>
-              ))
-            )}
+              <span className="u-xs" style={{ color: 'var(--caution)' }} title={t('apiKeys.bilibiliGapHint')}>
+                {t('apiKeys.bilibiliGap')}
+              </span>
+            )
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      id: 'rateLimit',
+      header: t('console:field.rateLimit'),
+      align: 'right',
+      width: '110px',
+      cell: (row) =>
+        row.rate_limit == null ? (
+          <span className="u-muted">{t('apiKeys.rateLimitDefault')}</span>
+        ) : (
+          <span className="u-mono">
+            {t('apiKeys.rateLimitValue', { value: format.number(row.rate_limit) })}
           </span>
         ),
-      },
-      {
-        id: 'rateLimit',
-        header: t('console:field.rateLimit'),
-        align: 'right',
-        width: '110px',
-        cell: (row) =>
-          row.rate_limit == null ? (
-            <span className="u-muted">{t('apiKeys.rateLimitDefault')}</span>
-          ) : (
-            <span className="u-mono">
-              {t('apiKeys.rateLimitValue', { value: format.number(row.rate_limit) })}
-            </span>
-          ),
-        sortValue: (row) => row.rate_limit ?? null,
-      },
-      {
-        id: 'expiresAt',
-        header: t('console:field.expiresAt'),
-        width: '120px',
-        cell: (row) =>
-          row.expires_at ? (
-            <span className="u-mono" title={format.timestamp(row.expires_at)}>
-              {format.date(row.expires_at)}
-            </span>
-          ) : (
-            <span className="u-muted">{t('apiKeys.expiryNever')}</span>
-          ),
-        sortValue: (row) => row.expires_at ?? null,
-      },
-      {
-        id: 'lastUsedAt',
-        header: t('console:field.lastUsedAt'),
-        cell: (row) =>
-          row.last_used_at ? (
-            <span title={format.timestamp(row.last_used_at)}>{format.relative(row.last_used_at)}</span>
-          ) : (
-            <span className="u-muted">{t('common:time.never')}</span>
-          ),
-        sortValue: (row) => row.last_used_at ?? null,
-      },
-      {
-        id: 'createdAt',
-        header: t('console:field.createdAt'),
-        cell: (row) => (
-          <span className="u-mono u-nowrap">{format.dateTime(row.created_at)}</span>
+      sortValue: (row) => row.rate_limit ?? null,
+    },
+    {
+      id: 'expiresAt',
+      header: t('console:field.expiresAt'),
+      width: '120px',
+      cell: (row) =>
+        row.expires_at ? (
+          <span className="u-mono" title={format.timestamp(row.expires_at)}>
+            {format.date(row.expires_at)}
+          </span>
+        ) : (
+          <span className="u-muted">{t('apiKeys.expiryNever')}</span>
         ),
-        sortValue: (row) => row.created_at,
-      },
-      {
-        id: 'actions',
-        header: <span className="u-sr-only">{t('common:action.more')}</span>,
-        align: 'right',
-        hideable: false,
-        cell: (row) => (
+      sortValue: (row) => row.expires_at ?? null,
+    },
+    {
+      id: 'lastUsedAt',
+      header: t('console:field.lastUsedAt'),
+      cell: (row) =>
+        row.last_used_at ? (
+          <span title={format.timestamp(row.last_used_at)}>{format.relative(row.last_used_at)}</span>
+        ) : (
+          <span className="u-muted">{t('common:time.never')}</span>
+        ),
+      sortValue: (row) => row.last_used_at ?? null,
+    },
+    {
+      id: 'createdAt',
+      header: t('console:field.createdAt'),
+      cell: (row) => <span className="u-mono u-nowrap">{format.dateTime(row.created_at)}</span>,
+      sortValue: (row) => row.created_at,
+    },
+  ]
+
+  const actionsColumn: Column<ApiKeyRow> = {
+    id: 'actions',
+    header: <span className="u-sr-only">{t('common:action.more')}</span>,
+    align: 'right',
+    hideable: false,
+    cell: (row) => {
+      const revoked = keyStatus(row, asOf) === 'revoked'
+      return (
+        <span className="u-row" style={{ justifyContent: 'flex-end', gap: 'var(--space-1)' }}>
+          {/* The demo's scopes are the demo's to decide; the server refuses
+              an edit, so the button is not offered to be refused. */}
+          {revoked || isDemoKey(row) ? null : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(event) => {
+                event.stopPropagation()
+                setEditErrors({})
+                setEditing({ row, name: row.name, scopes: [...row.scopes] })
+              }}
+            >
+              {t('common:action.edit')}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
-            disabled={keyStatus(row, asOf) === 'revoked'}
+            disabled={revoked}
             onClick={(event) => {
               event.stopPropagation()
               setRevoking(row)
@@ -357,11 +490,11 @@ export default function ApiKeys() {
           >
             {t('apiKeys.revoke')}
           </Button>
-        ),
-      },
-    ],
-    [t, format, asOf],
-  )
+        </span>
+      )
+    },
+  }
+  const columns = canManage ? [...baseColumns, actionsColumn] : baseColumns
 
   const all = keys.data
   /**
@@ -369,6 +502,8 @@ export default function ApiKeys() {
    * the instance in one page, so the counts stay exact and the controls answer
    * instantly. Matching is on the wire values - the prefix, the name, the raw
    * scope strings - so the same query behaves identically in both languages.
+   * "Only my keys" is the exception and goes to the server, which has always
+   * offered it as `mine_only`.
    */
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -388,6 +523,7 @@ export default function ApiKeys() {
     () => (all ?? []).filter((row) => keyStatus(row, asOf) === 'active').length,
     [all, asOf],
   )
+  const bilibiliGaps = (all ?? []).filter(needsBilibili).length
 
   /** Selected keys that are still worth revoking; a revoked one is a no-op. */
   const revocable = useMemo(
@@ -418,29 +554,36 @@ export default function ApiKeys() {
     void invalidate(KEYS_QUERY)
   }
 
+  const openCreate = (): void => {
+    setErrors({})
+    setCreateOpen(true)
+  }
+
+  /** Revoking the published key here is legal and almost always a mistake. */
+  const demoRevokeWarning = (
+    <Banner tone="caution" icon={<AlertIcon size={14} />}>
+      {t('apiKeys.revokeDemoWarning')}
+    </Banner>
+  )
+
   return (
     <div className="u-page">
       <PageHeader
         title={t('page.apiKeys.title')}
         description={t('page.apiKeys.description')}
         badge={
-          rows && rows.length > 0 ? (
+          rows.length > 0 ? (
             <span className="u-muted u-xs u-mono">
               {t('apiKeys.activeCount', { count: activeCount })}
             </span>
           ) : null
         }
         actions={
-          <Button
-            variant="primary"
-            icon={<KeyIcon />}
-            onClick={() => {
-              setErrors({})
-              setCreateOpen(true)
-            }}
-          >
-            {t('apiKeys.create')}
-          </Button>
+          canManage ? (
+            <Button variant="primary" icon={<KeyIcon />} onClick={openCreate}>
+              {t('apiKeys.create')}
+            </Button>
+          ) : null
         }
       />
 
@@ -463,12 +606,20 @@ export default function ApiKeys() {
         </Banner>
       ) : null}
 
+      {bilibiliGaps > 0 ? (
+        <Banner tone="caution" icon={<AlertIcon size={14} />}>
+          {canManage
+            ? t('apiKeys.bilibiliGapBanner', { count: bilibiliGaps })
+            : t('apiKeys.bilibiliGapBannerReadOnly', { count: bilibiliGaps })}
+        </Banner>
+      ) : null}
+
       <DataTable
         columns={columns}
         rows={rows}
         getRowId={(row) => row.id}
-        selectedIds={selected}
-        onSelectionChange={setSelected}
+        selectedIds={canManage ? selected : undefined}
+        onSelectionChange={canManage ? setSelected : undefined}
         toolbar={
           <>
             <Input
@@ -507,7 +658,19 @@ export default function ApiKeys() {
               ]}
               style={{ width: '190px' }}
             />
-            {revocable.length > 0 ? (
+            {/* The demo account is only ever shown its own key, so the filter
+                would change nothing for it. */}
+            {role === 'demo' ? null : (
+              <Checkbox
+                checked={mineOnly}
+                label={t('apiKeys.mineOnly')}
+                onChange={(event) => {
+                  setMineOnly(event.target.checked)
+                  setSelected(new Set())
+                }}
+              />
+            )}
+            {canManage && revocable.length > 0 ? (
               <Button
                 size="sm"
                 variant="danger"
@@ -530,19 +693,15 @@ export default function ApiKeys() {
         }}
         storageKey="api-keys"
         defaultSort={{ columnId: 'createdAt', direction: 'desc' }}
-        flashValue={(row) => keyStatus(row, asOf)}
+        flashValue={(row) => `${keyStatus(row, asOf)} ${row.scopes.join(' ')}`}
         emptyTitle={t('apiKeys.emptyTitle')}
         emptyDescription={t('apiKeys.emptyDescription')}
         emptyAction={
-          <Button
-            variant="primary"
-            icon={<KeyIcon />}
-            onClick={() => {
-              setCreateOpen(true)
-            }}
-          >
-            {t('apiKeys.create')}
-          </Button>
+          canManage ? (
+            <Button variant="primary" icon={<KeyIcon />} onClick={openCreate}>
+              {t('apiKeys.create')}
+            </Button>
+          ) : undefined
         }
         caption={t('page.apiKeys.title')}
       />
@@ -559,7 +718,9 @@ export default function ApiKeys() {
         onCancel={() => {
           setBulkRevoking(false)
         }}
-      />
+      >
+        {revocable.some(isDemoKey) ? demoRevokeWarning : null}
+      </ConfirmDialog>
 
       <Modal
         open={createOpen}
@@ -604,51 +765,14 @@ export default function ApiKeys() {
             }}
           />
 
-          <fieldset
-            style={{ border: 0, margin: 0, padding: 0 }}
-            aria-describedby="api-key-scopes-hint"
-          >
-            <legend
-              style={{
-                fontSize: 'var(--text-sm)',
-                fontWeight: 'var(--weight-medium)',
-                padding: 0,
-                marginBottom: 'var(--space-1)',
-              }}
-            >
-              {t('console:field.scopes')}
-            </legend>
-            <p id="api-key-scopes-hint" className="u-xs u-muted" style={{ margin: '0 0 var(--space-2)' }}>
-              {t('apiKeys.scopesHint')}
-            </p>
-            <div className="u-stack-sm">
-              {SCOPES.map((scope) => (
-                <Checkbox
-                  key={scope}
-                  checked={draft.scopes.includes(scope)}
-                  onChange={() => {
-                    toggleScope(scope)
-                  }}
-                  label={
-                    <span className="u-row">
-                      <span className="u-mono">{scope}</span>
-                      <span className="u-muted u-xs">{t(`apiKeys.scope.${SCOPE_COPY[scope]}`)}</span>
-                    </span>
-                  }
-                  hint={t(`apiKeys.scopeHint.${SCOPE_COPY[scope]}`)}
-                />
-              ))}
-            </div>
-            {errors.scopes ? (
-              <p
-                className="u-xs"
-                role="alert"
-                style={{ color: 'var(--danger)', margin: 'var(--space-2) 0 0' }}
-              >
-                {errorText(errors.scopes)}
-              </p>
-            ) : null}
-          </fieldset>
+          <ScopePicker
+            id="api-key-create-scopes"
+            value={draft.scopes}
+            error={errorText(errors.scopes)}
+            onChange={(scopes) => {
+              setDraft((current) => ({ ...current, scopes }))
+            }}
+          />
 
           <Input
             label={t('console:field.rateLimit')}
@@ -683,6 +807,65 @@ export default function ApiKeys() {
             }))}
           />
         </form>
+      </Modal>
+
+      <Modal
+        open={editing !== null}
+        onClose={() => {
+          setEditing(null)
+        }}
+        title={t('apiKeys.editTitle')}
+        description={t('apiKeys.editDescription')}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              disabled={update.isPending}
+              onClick={() => {
+                setEditing(null)
+              }}
+            >
+              {t('common:action.cancel')}
+            </Button>
+            <Button variant="primary" loading={update.isPending} onClick={submitEdit}>
+              {t('common:action.save')}
+            </Button>
+          </>
+        }
+      >
+        {editing ? (
+          <form
+            className="u-stack"
+            onSubmit={(event) => {
+              event.preventDefault()
+              submitEdit()
+            }}
+          >
+            <p className="u-xs u-muted" style={{ margin: 0 }}>
+              <span className="u-mono">{`dtk_${editing.row.prefix}_...`}</span>
+            </p>
+            <Input
+              label={t('apiKeys.field.name')}
+              description={t('apiKeys.nameHint')}
+              required
+              value={editing.name}
+              error={errorText(editErrors.name)}
+              maxLength={128}
+              autoComplete="off"
+              onChange={(event) => {
+                setEditing({ ...editing, name: event.target.value })
+              }}
+            />
+            <ScopePicker
+              id="api-key-edit-scopes"
+              value={editing.scopes}
+              error={errorText(editErrors.scopes)}
+              onChange={(scopes) => {
+                setEditing({ ...editing, scopes })
+              }}
+            />
+          </form>
+        ) : null}
       </Modal>
 
       <Modal
@@ -782,7 +965,9 @@ export default function ApiKeys() {
         onConfirm={() => {
           if (revoking) revoke.mutate(revoking.id)
         }}
-      />
+      >
+        {revoking && isDemoKey(revoking) ? demoRevokeWarning : null}
+      </ConfirmDialog>
     </div>
   )
 }

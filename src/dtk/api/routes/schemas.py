@@ -381,6 +381,24 @@ class ApiKeyCreate(Body):
     )
 
 
+class ApiKeyUpdate(Body):
+    """A key's label and reach. Never its secret: whatever holds it keeps working."""
+
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="Rename the key. Shown in the list and in the audit log.",
+    )
+    scopes: list[Scope] | None = Field(
+        default=None,
+        description=(
+            "Replace what the key may do with exactly this list. Bounded by your own "
+            "scopes, as when creating one."
+        ),
+    )
+
+
 class SettingUpdate(Body):
     value: object = Field(
         description=(
@@ -816,6 +834,7 @@ __all__ = [
     "MAX_PASTE_CHARS",
     "USERNAME_PATTERN",
     "ApiKeyCreate",
+    "ApiKeyUpdate",
     "BackfillRequest",
     "BackupRequest",
     "BatchItem",

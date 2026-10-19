@@ -271,7 +271,7 @@ docker compose -p dtk -f docker/compose.yml logs api \
 
 - 用户名必须匹配 `^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$` —— 字母、数字、点、短横、
   下划线，3 到 64 个字符，且不能以标点开头。
-- 密码：API 的下限是 8 位，向导要求 12 位。
+- 密码：至少 8 位，与 API、CLI 和用户页的下限一致。
 - **没有邮件找回密码。** 恢复手段是一条 CLI 命令：
   `docker compose -p dtk -f docker/compose.yml exec api dtk user passwd <name>`。
 

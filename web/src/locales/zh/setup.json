@@ -3,7 +3,7 @@
   "subtitle": "四步完成，然后就可以开始使用控制台。",
   "tokenBanner": {
     "title": "需要初始化令牌",
-    "description": "令牌已打印在容器日志中。执行 docker compose logs api 取得后粘贴到此处。",
+    "description": "令牌打印在 api 容器的日志里，就在包含 /setup?token= 的那一行。用安装脚本部署的，在 dtk 目录下执行 ./dtkctl logs api；否则执行 docker compose -p dtk -f docker/compose.yml logs api。取得后粘贴到此处。",
     "label": "初始化令牌",
     "hint": "令牌在 api 容器启动 24 小时后失效。"
   },
@@ -30,7 +30,7 @@
     "username": "用户名",
     "password": "密码",
     "confirmPassword": "确认密码",
-    "passwordHint": "至少 12 位。本项目没有邮件找回密码，只能通过 CLI 重置。",
+    "passwordHint": "至少 {min} 位。本项目没有邮件找回密码，只能通过 CLI 重置。",
     "mismatch": "两次输入的密码不一致。",
     "submit": "创建管理员"
   },
