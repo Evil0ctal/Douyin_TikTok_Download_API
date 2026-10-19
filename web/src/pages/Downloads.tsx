@@ -42,6 +42,7 @@ import {
 } from '@/lib/types'
 
 import styles from './Downloads.module.css'
+import { BILIBILI_LINK, PartPicker, partFromLink } from './downloadParts'
 import {
   NO_TALLY,
   RunReport,
@@ -224,12 +225,26 @@ function postRequest(
   text: string,
   platform: Platform,
   skipExisting: boolean,
+  part: number | null,
 ): Record<string, unknown> {
   // Built in one place on purpose: a field only some posts take - Bilibili's
-  // part number is the next one - belongs here, beside the target it narrows.
+  // part number - belongs here, beside the target it narrows. Sent only when
+  // it says something: the first part is what a plain request stores.
+  const narrowed = part !== null && part > 1 ? { part } : {}
   return shape.kind === 'bare'
-    ? { platform: shape.fixed ?? platform, content_id: shape.id, skip_existing: skipExisting }
-    : { url: text.trim(), skip_existing: skipExisting }
+    ? {
+        platform: shape.fixed ?? platform,
+        content_id: shape.id,
+        skip_existing: skipExisting,
+        ...narrowed,
+      }
+    : { url: text.trim(), skip_existing: skipExisting, ...narrowed }
+}
+
+/** Whether this target is a Bilibili video, the one kind that has parts. */
+function isBilibiliPost(shape: TargetShape, text: string, platform: Platform): boolean {
+  if (shape.kind === 'bare') return (shape.fixed ?? platform) === 'bilibili'
+  return shape.kind === 'link' && BILIBILI_LINK.test(text)
 }
 
 interface DownloadFile {
@@ -283,6 +298,8 @@ interface DownloadRow {
   id: string
   platform: string
   content_id: string
+  /** Which part of a Bilibili video uploaded in several; null is the first. */
+  part?: number | null
   author_uid: string
   state: DownloadState
   directory: string
@@ -432,6 +449,8 @@ export default function Downloads() {
   //: A link or a post id. One box, because the share sheet gives a link and
   //: asking which one you have is asking you to classify your own clipboard.
   const [target, setTarget] = useState('')
+  //: Which part of a Bilibili video, as text; empty is the first part.
+  const [part, setPart] = useState('')
   //: How many duplicates a dry run found, while the confirmation is up.
   const [deduping, setDeduping] = useState<number | null>(null)
   const [mode, setMode] = useState<DownloadMode>('post')
@@ -557,12 +576,15 @@ export default function Downloads() {
     void
   >(
     () =>
-      apiPost(paths.downloads.create, postRequest(shape, target, platform, skipExisting), {
-        awaitTask: false,
-      }),
+      apiPost(
+        paths.downloads.create,
+        postRequest(shape, target, platform, skipExisting, part ? Number(part) : null),
+        { awaitTask: false },
+      ),
     {
       onSuccess: (result) => {
         setTarget('')
+        setPart('')
         refresh()
         toast.success(
           // Three outcomes worth telling apart: it is already here, it has to
@@ -992,6 +1014,7 @@ export default function Downloads() {
               </span>
               <div className={styles.cell} style={{ minWidth: 0, maxWidth: '310px' }}>
                 <span className="u-truncate" title={row.directory}>
+                  {row.part ? `P${row.part} · ` : ''}
                   {row.post?.title || row.content_id}
                 </span>
                 <span className={styles.sub}>
@@ -1242,6 +1265,8 @@ export default function Downloads() {
               value={target}
               onChange={(event) => {
                 setTarget(event.target.value)
+                // A link to a later part says which; the picker starts there.
+                setPart(String(partFromLink(event.target.value) ?? ''))
               }}
               mono
               placeholder={t(`downloads.mode.${mode}.placeholder`)}
@@ -1272,6 +1297,18 @@ export default function Downloads() {
               setRun(null)
             }}
           />
+        ) : null}
+
+        {/* Keyed by the target, so a different video starts with no list. */}
+        {mode === 'post' && isBilibiliPost(shape, target, platform) ? (
+          <div className={styles.startOptions}>
+            <PartPicker
+              key={target.trim()}
+              query={shape.kind === 'bare' ? { aweme_id: shape.id } : { url: target.trim() }}
+              value={part}
+              onChange={setPart}
+            />
+          </div>
         ) : null}
 
         {/* How far to go, and what to skip. Both belong under the form rather
@@ -1517,7 +1554,10 @@ export default function Downloads() {
         onClose={() => {
           inspect(null)
         }}
-        title={inspected?.post?.title || inspected?.content_id || inspectingId || ''}
+        title={
+          (inspected?.part ? `P${inspected.part} · ` : '') +
+          (inspected?.post?.title || inspected?.content_id || inspectingId || '')
+        }
         description={inspected?.directory}
       >
         {inspected ? (

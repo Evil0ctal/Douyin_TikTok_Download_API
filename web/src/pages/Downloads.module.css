@@ -202,6 +202,20 @@
   max-width: 260px;
 }
 
+/* The part menu and the button that fills it, side by side until the phone
+   width runs out. */
+.partPicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.partField {
+  min-width: 0;
+  width: min(100%, 420px);
+}
+
 /*
  * The account of an author or comments run, under the form that started it.
  *

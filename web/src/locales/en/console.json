@@ -1489,6 +1489,7 @@
       "include_raw": "Also return the untouched platform payload.",
       "mix_id": "The collection's id, from a mix or playlist link.",
       "needsRole": "Needs the {role} role. This instance is signed in below that, so the parameter is not sent.",
+      "part": "Which part of a video uploaded in several, from 1. The stream returned is that part's. Empty is the first part, or the one the link's ?p= names.",
       "proxy": "Send the upstream request through this proxy. Refused unless an administrator has enabled security.request_proxy.",
       "refresh": "Ignore any cached or in-flight answer and ask upstream again. Without it a repeat inside the cache window is free: 30 minutes for one post, 15 for a profile, 5 for anything paged (cache.* in Settings). A refresh costs an identity and a real request.",
       "sec_user_id": "Stable author id. Provide this or a link.",
@@ -2228,6 +2229,17 @@
         "douyinAuthor": "A guest identity answered, and Douyin leaves an author's newest posts out of what it shows a guest - the latest may be missing.",
         "generic": "A guest identity answered, so this may be less than a signed-in identity would see."
       }
+    },
+    "part": {
+      "label": "Part",
+      "hint": "Bilibili videos can come in several parts. A plain download stores the first; pick another to store that one, in a folder of its own. A link's ?p= picks it too.",
+      "first": "First part",
+      "numbered": "Part {part}",
+      "option": "P{part} · {title} · {duration}",
+      "load": "List the parts",
+      "loaded": "{count, plural, one {# part} other {# parts}}",
+      "single": "This video has one part.",
+      "failed": "Could not list the parts. The first part, or the one the link names, is still downloadable."
     }
   },
   "library": {

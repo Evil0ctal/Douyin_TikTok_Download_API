@@ -324,6 +324,16 @@ const ENVELOPE_PARAMS: readonly ParamDef[] = [
   EXPLAIN_PARAM,
 ]
 const PAGE_PARAMS: readonly ParamDef[] = [CURSOR_PARAM, COUNT_PARAM]
+//? Bilibili only: which part of a video uploaded in several. A link's ?p= says the same.
+const PART_PARAM: ParamDef = {
+  name: 'part',
+  kind: 'number',
+  where: 'query',
+  section: 'target',
+  min: 1,
+  max: 1000,
+  platforms: ['bilibili'],
+}
 //? Bilibili only: Douyin and TikTok rank comments their own way and refuse `new`.
 const SORT_PARAM: ParamDef = {
   name: 'sort',
@@ -393,7 +403,7 @@ export const CATALOG: readonly EndpointDef[] = [
     operation: 'content_detail',
     platformScoped: true,
     example: 'post',
-    params: [URL_PARAM, AWEME_ID_PARAM, ...ENVELOPE_PARAMS],
+    params: [URL_PARAM, AWEME_ID_PARAM, PART_PARAM, ...ENVELOPE_PARAMS],
   },
   {
     id: 'parts',
