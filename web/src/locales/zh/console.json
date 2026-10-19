@@ -1021,9 +1021,12 @@
     "you": "当前账号",
     "adminOnly": "账号管理仅管理员可用。修改自己的密码与查看会话在下方。",
     "cannotDeleteSelf": "不能删除当前登录的账号。",
+    "demoLocked": "由演示模式管理。",
+    "demoLockedLink": "前往设置",
     "action": {
       "create": "新增用户",
-      "changeRole": "修改角色"
+      "changeRole": "修改角色",
+      "resetPassword": "重置密码"
     },
     "column": {
       "id": "用户 id",
@@ -1050,7 +1053,7 @@
       "backup": "创建与恢复备份",
       "diagnose": "执行自检",
       "fetch": "调用平台接口",
-      "keys": "创建与撤销 API Key",
+      "keys": "创建、编辑与撤销 API Key",
       "pool": "管理身份池与代理",
       "read": "查看身份池、代理、Key 与设置",
       "readPublic": "查看总览、资料库、下载、日志与系统信息",
@@ -1097,7 +1100,20 @@
       "deleteDescription": "输入 {username} 以确认。",
       "deleteWarning": "账号及其打开的所有会话都会被移除。最后一个管理员无法删除。",
       "signOutTitle": "登出其它设备？",
-      "signOutDescription": "除当前会话外的所有会话会立即失效。"
+      "signOutDescription": "除当前会话外的所有会话会立即失效。",
+      "roleTitle": "修改这个账号的角色？",
+      "roleDescription": "{username} 将从「{from}」变为「{to}」，下一次请求起生效。",
+      "roleSelfWarning": "这是你当前登录的账号。降到管理员以下后你将无法再管理账号，只有其他管理员才能把角色改回来。",
+      "roleAdminWarning": "管理员可以修改敏感配置、管理所有账号，也能恢复备份。"
+    },
+    "reset": {
+      "title": "重置 {username} 的密码",
+      "description": "用于对方登录不了的情况。请通过可信的渠道把新密码告诉对方：保存之后它不会再在任何地方显示。",
+      "revokes": "这个账号已打开的所有会话都会被登出。",
+      "submit": "重置密码",
+      "done": "已重置 {username} 的密码",
+      "doneHint": "{count, plural, =0 {当时没有已打开的会话。} other {已登出 # 个会话。}}",
+      "failed": "重置密码失败"
     },
     "toast": {
       "created": "已创建用户 {username}",
@@ -1120,14 +1136,31 @@
     "createdAck": "我已妥善保存该密钥",
     "createdDone": "完成",
     "activeCount": "{count} 个可用密钥",
+    "editTitle": "编辑 API Key",
+    "editDescription": "修改名称或 scope。密钥本身不变，正在使用它的程序照常工作，下一次调用起按新的 scope 生效。",
+    "editedToast": "已保存密钥 {name}",
+    "editFailed": "保存密钥失败",
     "field": {
       "name": "名称",
+      "owner": "所有者",
       "prefix": "前缀"
     },
+    "owner": {
+      "demo": "演示账号",
+      "other": "其他账号",
+      "you": "你"
+    },
+    "mineOnly": "只看我的密钥",
     "nameHint": "取一个在审计日志里能认出来的名字，例如使用它的脚本或主机。",
     "nameRequired": "请填写名称。",
     "scopesHint": "密钥只能访问这里勾选的接口组。身份管理与 cookie 导入始终需要 identity:manage。",
     "scopesRequired": "至少选择一个 scope。",
+    "preset": {
+      "clear": "清空",
+      "label": "快速选择",
+      "platformReads": "全部平台读取",
+      "readOnly": "只读"
+    },
     "scope": {
       "douyinRead": "读取抖音数据",
       "tiktokRead": "读取 TikTok 数据",
@@ -1173,6 +1206,13 @@
     "revokeDescription": "使用 {name} 的调用会在下一次请求时返回 UNAUTHENTICATED。该操作不可撤销。",
     "revokedToast": "密钥已撤销",
     "revokeFailed": "撤销密钥失败",
+    "revokeDemoWarning": "这是演示对外公开的 Key。在这里撤销后，所有访客都无法再调用演示 API，直到重新签发演示凭据为止；演示账号仍然可以登录。想换一把 Key，请到「设置 → 演示模式」里重新签发凭据。",
+    "addBilibili": "添加 bilibili:read",
+    "bilibiliAddedToast": "{name} 现在可以读取 B 站了",
+    "bilibiliGap": "缺少 bilibili:read",
+    "bilibiliGapHint": "能读取抖音或 TikTok，但不能读取 B 站。密钥保留创建时的 scope，升级不会自动添加新的。",
+    "bilibiliGapBanner": "有 {count} 个可用密钥能读取抖音或 TikTok，却不能读取 B 站。密钥保留创建时的 scope，所以在 B 站支持加入之前创建的密钥，要手动加上 bilibili:read 才能调用 B 站接口。需要的密钥旁边点「添加 bilibili:read」即可。",
+    "bilibiliGapBannerReadOnly": "有 {count} 个可用密钥能读取抖音或 TikTok，却不能读取 B 站。密钥保留创建时的 scope，需要的话可以请运维或管理员为其加上 bilibili:read。",
     "emptyTitle": "还没有 API Key",
     "emptyDescription": "建议为每个脚本或 Agent 单独创建，这样泄露时只撤销其中一个即可，不影响其它调用方。",
     "search": "按名称、前缀或 scope 搜索",
@@ -1185,7 +1225,7 @@
     "bulkRevokeTitle": "确定吊销选中的密钥？",
     "bulkRevokeBody": "这 {count} 个密钥会立即失效，正在使用它们的程序下一次调用就会收到 401。吊销无法撤销，需要的话请另行创建。",
     "bulkRevokedToast": "已吊销 {count} 个密钥",
-    "demoNote": "演示 Key 之所以显示完整明文，是因为它本来就是公开的——任何试用这台实例的人都可以直接复制。它只能调用抖音和 TikTok 的爬虫接口，别的都不行。",
+    "demoNote": "演示 Key 之所以显示完整明文，是因为它本来就是公开的——任何试用这台实例的人都可以直接复制。它只能读取平台接口，别的都不行：不能读归档、不能下载，也不能做任何管理操作。",
     "demoWhy": "其它所有 Key 只显示前缀，这不是一个开关：服务端存的是摘要，根本没有明文可以还原。"
   },
   "playground": {

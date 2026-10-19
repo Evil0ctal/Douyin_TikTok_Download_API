@@ -1021,9 +1021,12 @@
     "you": "you",
     "adminOnly": "Only an administrator can manage accounts. Your own password and sessions are below.",
     "cannotDeleteSelf": "You cannot delete the account you are signed in with.",
+    "demoLocked": "Managed by demo mode.",
+    "demoLockedLink": "Open settings",
     "action": {
       "create": "Add user",
-      "changeRole": "Change role"
+      "changeRole": "Change role",
+      "resetPassword": "Reset password"
     },
     "column": {
       "id": "User id",
@@ -1050,7 +1053,7 @@
       "backup": "Create and restore backups",
       "diagnose": "Run the self check",
       "fetch": "Call the platform endpoints",
-      "keys": "Create and revoke API keys",
+      "keys": "Create, edit and revoke API keys",
       "pool": "Manage identities and proxies",
       "read": "Read the pool, proxies, keys and settings",
       "readPublic": "Read the overview, library, downloads, logs and system pages",
@@ -1097,7 +1100,20 @@
       "deleteDescription": "Type {username} to confirm.",
       "deleteWarning": "The account and every session it opened are removed. The last administrator cannot be deleted.",
       "signOutTitle": "Sign out other devices?",
-      "signOutDescription": "Every session except this one is revoked immediately."
+      "signOutDescription": "Every session except this one is revoked immediately.",
+      "roleTitle": "Change this account's role?",
+      "roleDescription": "{username} goes from {from} to {to}. It takes effect on their next request.",
+      "roleSelfWarning": "This is the account you are signed in with. Below administrator you can no longer manage accounts, and only another administrator can give the role back.",
+      "roleAdminWarning": "An administrator can change sensitive settings, manage every account and restore backups."
+    },
+    "reset": {
+      "title": "Reset the password for {username}",
+      "description": "For someone who cannot sign in. Tell them the new password over a channel you trust: it is not shown again once saved, here or anywhere else.",
+      "revokes": "Every session this account has open is signed out.",
+      "submit": "Reset password",
+      "done": "Password reset for {username}",
+      "doneHint": "{count, plural, =0 {No session was open.} one {# session was signed out.} other {# sessions were signed out.}}",
+      "failed": "Could not reset the password"
     },
     "toast": {
       "created": "User {username} created",
@@ -1120,14 +1136,31 @@
     "createdAck": "I have stored this key somewhere safe",
     "createdDone": "Done",
     "activeCount": "{count, plural, one {# active key} other {# active keys}}",
+    "editTitle": "Edit API key",
+    "editDescription": "Change the name or the scopes. The key itself stays the same, so whatever already uses it keeps working and gets the new scopes on its next call.",
+    "editedToast": "Key {name} saved",
+    "editFailed": "Could not save the key",
     "field": {
       "name": "Name",
+      "owner": "Owner",
       "prefix": "Prefix"
     },
+    "owner": {
+      "demo": "Demo account",
+      "other": "Another account",
+      "you": "You"
+    },
+    "mineOnly": "Only my keys",
     "nameHint": "Something recognisable in the audit log, such as the script or host that will use it.",
     "nameRequired": "Give the key a name.",
     "scopesHint": "A key reaches only the endpoint groups ticked here. Identity management and cookie import always require identity:manage.",
     "scopesRequired": "Pick at least one scope.",
+    "preset": {
+      "clear": "Clear",
+      "label": "Start from",
+      "platformReads": "All platform reads",
+      "readOnly": "Read only"
+    },
     "scope": {
       "douyinRead": "Read Douyin data",
       "tiktokRead": "Read TikTok data",
@@ -1173,6 +1206,13 @@
     "revokeDescription": "Calls made with {name} start failing with UNAUTHENTICATED on the next request. This cannot be undone.",
     "revokedToast": "Key revoked",
     "revokeFailed": "Could not revoke the key",
+    "revokeDemoWarning": "This is the key the demo publishes. Revoking it stops the demo API for every visitor until the demo credentials are reissued; the demo login keeps working. To replace the key, reissue the credentials under Settings → Demo mode instead.",
+    "addBilibili": "Add bilibili:read",
+    "bilibiliAddedToast": "{name} can now read Bilibili",
+    "bilibiliGap": "No bilibili:read",
+    "bilibiliGapHint": "Reads Douyin or TikTok but not Bilibili. A key keeps the scopes it was created with; upgrading does not add new ones.",
+    "bilibiliGapBanner": "{count, plural, one {# active key reads} other {# active keys read}} Douyin or TikTok but not Bilibili. Keys keep the scopes they were created with, so a key from before Bilibili was added is refused there until bilibili:read is added. Use Add bilibili:read beside each key that should have it.",
+    "bilibiliGapBannerReadOnly": "{count, plural, one {# active key reads} other {# active keys read}} Douyin or TikTok but not Bilibili. Keys keep the scopes they were created with; an operator can add bilibili:read to the ones that should have it.",
     "emptyTitle": "No API keys yet",
     "emptyDescription": "Create one per script or agent, so a single leak can be revoked without disturbing anything else.",
     "search": "Search name, prefix or scope",
@@ -1185,7 +1225,7 @@
     "bulkRevokeTitle": "Revoke the selected keys?",
     "bulkRevokeBody": "{count, plural, one {# key stops working immediately} other {# keys stop working immediately}}. Anything using them starts getting 401 on its next call. Revoking cannot be undone; mint a replacement instead.",
     "bulkRevokedToast": "{count, plural, one {# key revoked} other {# keys revoked}}",
-    "demoNote": "The demo key is shown in full because it is published — anyone trying this instance is meant to copy it. It calls the Douyin and TikTok endpoints and nothing else.",
+    "demoNote": "The demo key is shown in full because it is published — anyone trying this instance is meant to copy it. It reads the platform endpoints and nothing else: no archive, no downloads, no administration.",
     "demoWhy": "Every other key shows only its prefix, and that is not a setting: the server stores a digest, so there is no plaintext to reveal."
   },
   "playground": {
