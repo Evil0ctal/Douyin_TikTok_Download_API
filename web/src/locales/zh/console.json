@@ -921,7 +921,13 @@
       "saved": "已保存",
       "saveFailed": "保存更新检查设置失败"
     },
-    "notConfigured": "未配置"
+    "notConfigured": "未配置",
+    "notConfiguredProfile": "未配置：这台机器没有运行 {profile} profile",
+    "detailCode": {
+      "unreachable": "已配置，但没有响应",
+      "timeout": "已配置，但响应太慢",
+      "degraded": "有响应，但还不能工作"
+    }
   },
   "diagnose": {
     "redacted": "报告在离开服务端之前已经脱敏：代理密码、cookie 与 API Key 一律掩码。可以直接粘贴到公开 issue 里。",
@@ -938,7 +944,7 @@
       "idle": "未执行"
     },
     "step": {
-      "components": "postgres、redis 与 browser-rpc 是否可达。",
+      "components": "postgres、redis 与 browser-rpc 是否可达；启用了对应 profile 时，也检查下载器和转写服务。",
       "egress": "本机能否直连平台域名。",
       "proxies": "逐个探测代理的连通性、出口 IP 与 GeoIP。",
       "pool": "有多少可用身份，以及最老的身份多久没成功过。",
@@ -953,7 +959,10 @@
       "title": "执行范围",
       "description": "六个步骤按顺序执行，每步都有独立超时，卡住的依赖不会拖住其余步骤。",
       "smoke": "包含端到端冒烟测试",
-      "smokeHint": "第 6 步会用一条固定的公开链接走完整链路。关闭它可以让整个自检只在本地进行。"
+      "smokeHint": "第 6 步会用一条固定的公开链接走完整链路。关闭它可以让整个自检只在本地进行。",
+      "platform": "端到端测试用的平台",
+      "platformAuto": "自动",
+      "platformHint": "自动时选轮换中身份最多的平台；一个身份都没有时，配置了浏览器选 Douyin，否则选 Bilibili。"
     },
     "steps": {
       "title": "步骤",
@@ -976,7 +985,9 @@
     "toast": {
       "startFailed": "启动自检失败",
       "copied": "报告已复制"
-    }
+    },
+    "expired": "上一份报告已不在服务器上保留，请重新自检生成新的报告。",
+    "readOnly": "执行自检需要运维及以上角色。别人执行的报告可以通过链接打开。"
   },
   "backup": {
     "keyExplainer": "凭证以密文导出，备份包不含主密钥。因此恢复时必须提供创建它的那把 DTK_SECRET_KEY；密钥不同则代理地址与 cookie 都无法解密。",

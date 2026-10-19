@@ -921,7 +921,13 @@
       "saved": "Saved",
       "saveFailed": "Could not save the update-check setting"
     },
-    "notConfigured": "Not configured"
+    "notConfigured": "Not configured",
+    "notConfiguredProfile": "Not configured: the {profile} profile is not running here",
+    "detailCode": {
+      "unreachable": "Configured, and not answering",
+      "timeout": "Configured, and too slow to answer",
+      "degraded": "Answering, but not ready to work"
+    }
   },
   "diagnose": {
     "redacted": "The report is redacted before it leaves the server: proxy passwords, cookies and API keys are masked. It is safe to paste into a public issue.",
@@ -938,7 +944,7 @@
       "idle": "Not run"
     },
     "step": {
-      "components": "Postgres, Redis and the browser RPC answer.",
+      "components": "Postgres, Redis and the browser RPC answer, and so do the downloader and the transcriber where their profiles run.",
       "egress": "This host reaches the platform domains directly.",
       "proxies": "Every proxy dials, and reports its exit address and country.",
       "pool": "How many identities are usable, and how long since the oldest one succeeded.",
@@ -953,7 +959,10 @@
       "title": "What to run",
       "description": "All six steps run in order. Each has its own timeout, so a hung dependency cannot stall the rest.",
       "smoke": "Include the end-to-end fetch",
-      "smokeHint": "Step 6 pulls one fixed public link through the whole pipeline. Turn it off to keep the run entirely local."
+      "smokeHint": "Step 6 pulls one fixed public link through the whole pipeline. Turn it off to keep the run entirely local.",
+      "platform": "Platform for the end-to-end fetch",
+      "platformAuto": "Automatic",
+      "platformHint": "Automatic uses the platform with the most identities in rotation. With none anywhere, Douyin when a browser is configured and Bilibili when not."
     },
     "steps": {
       "title": "Steps",
@@ -976,7 +985,9 @@
     "toast": {
       "startFailed": "Could not start the self check",
       "copied": "Report copied"
-    }
+    },
+    "expired": "The last report is no longer kept on the server. Run the check again for a fresh one.",
+    "readOnly": "Running the self check needs an operator role. A report somebody else ran opens from its link."
   },
   "backup": {
     "keyExplainer": "Credentials are exported as ciphertext and the archive never contains the master key. A restore therefore needs the same DTK_SECRET_KEY that created it; under a different key the proxy URLs and cookie jars cannot be decrypted.",

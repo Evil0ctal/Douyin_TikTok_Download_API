@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'wouter'
 
 import {
   ActivityIcon,
@@ -16,15 +17,17 @@ import {
   LockIcon,
   MinusIcon,
   PageHeader,
+  Select,
   SpinnerIcon,
   Switch,
   useToast,
 } from '@/components'
-import { useApiMutation, useApiQuery, useCopy, useFormatters } from '@/hooks'
-import { apiPost, type ApiErrorPayload } from '@/lib/api'
+import { useApiMutation, useApiQuery, useCopy, useFormatters, useSession } from '@/hooks'
+import { apiPost, errorCodeOf, type ApiErrorPayload } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
-import type { TaskState } from '@/lib/types'
+import { atLeast } from '@/lib/roles'
+import { PLATFORMS, type Platform, type TaskState } from '@/lib/types'
 
 /**
  * The six-step self check.
@@ -74,6 +77,35 @@ interface TaskResponse {
   finished_at?: string | null
   data?: DiagnosticReport | null
   error?: ApiErrorPayload | null
+}
+
+/**
+ * Where the run being shown is remembered: in the address, so the report can
+ * be linked, and in this tab's session storage, so leaving the page and coming
+ * back through the menu - which drops the address - still finds it. It was
+ * only component state, and the first navigation away threw the report out
+ * while the task that produced it was still sitting on the server.
+ */
+const TASK_PARAM = 'task'
+const TASK_STORAGE_KEY = 'dtk.diagnose.task'
+
+function readStoredTask(): string | null {
+  try {
+    return window.sessionStorage.getItem(TASK_STORAGE_KEY)
+  } catch {
+    // Storage refused (private window, blocked site data): the address alone
+    // still carries the run.
+    return null
+  }
+}
+
+function writeStoredTask(taskId: string | null): void {
+  try {
+    if (taskId) window.sessionStorage.setItem(TASK_STORAGE_KEY, taskId)
+    else window.sessionStorage.removeItem(TASK_STORAGE_KEY)
+  } catch {
+    // As above: the address is enough on its own.
+  }
 }
 
 const TONE: Record<DisplayStatus, string> = {
@@ -250,19 +282,42 @@ export default function Diagnose() {
   const formatters = useFormatters()
   const { copied, copy } = useCopy()
 
+  const session = useSession()
+  // POST /admin/diagnose is manage_pool: an operator or better. A viewer
+  // reaches this page from the menu, so it says why there is no Run button
+  // instead of offering one that answers 403.
+  const canRun = atLeast(session.data?.role ?? null, 'operator')
+
   const [includeSmoke, setIncludeSmoke] = useState(true)
-  const [taskId, setTaskId] = useState<string | null>(null)
+  // Empty is "let the server choose": the platform with the most identities
+  // in rotation, which on a Bilibili-only box is Bilibili rather than a Douyin
+  // link it has nothing to fetch with.
+  const [platform, setPlatform] = useState<Platform | ''>('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [storedTask, setStoredTask] = useState<string | null>(readStoredTask)
+  const taskId = searchParams.get(TASK_PARAM) || storedTask
+
+  const remember = (id: string): void => {
+    writeStoredTask(id)
+    setStoredTask(id)
+    const next = new URLSearchParams(searchParams)
+    next.set(TASK_PARAM, id)
+    setSearchParams(next, { replace: true })
+  }
 
   const start = useApiMutation<{ task_id: string }, void>(
     () =>
       apiPost<{ task_id: string }>(
         paths.diagnose,
-        { include_smoke_test: includeSmoke },
+        {
+          include_smoke_test: includeSmoke,
+          ...(includeSmoke && platform ? { platform } : {}),
+        },
         { awaitTask: false },
       ),
     {
       onSuccess: (accepted) => {
-        setTaskId(accepted.task_id)
+        remember(accepted.task_id)
       },
       onError: (error) => {
         toast.apiError(error, t('diagnose.toast.startFailed'))
@@ -319,17 +374,19 @@ export default function Diagnose() {
           ) : null
         }
         actions={
-          <Button
-            variant="primary"
-            icon={<ActivityIcon />}
-            loading={start.isPending || running}
-            disabled={start.isPending || running}
-            onClick={() => {
-              start.mutate()
-            }}
-          >
-            {taskId ? t('diagnose.action.rerun') : t('diagnose.action.run')}
-          </Button>
+          canRun ? (
+            <Button
+              variant="primary"
+              icon={<ActivityIcon />}
+              loading={start.isPending || running}
+              disabled={start.isPending || running}
+              onClick={() => {
+                start.mutate()
+              }}
+            >
+              {taskId ? t('diagnose.action.rerun') : t('diagnose.action.run')}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -337,20 +394,44 @@ export default function Diagnose() {
         {t('diagnose.redacted')}
       </Banner>
 
-      <Card
-        title={t('diagnose.options.title')}
-        description={t('diagnose.options.description')}
-      >
-        <Switch
-          checked={includeSmoke}
-          disabled={running}
-          label={t('diagnose.options.smoke')}
-          hint={t('diagnose.options.smokeHint')}
-          onChange={(event) => {
-            setIncludeSmoke(event.target.checked)
-          }}
-        />
-      </Card>
+      {canRun ? (
+        <Card
+          title={t('diagnose.options.title')}
+          description={t('diagnose.options.description')}
+        >
+          <div className="u-stack">
+            <Switch
+              checked={includeSmoke}
+              disabled={running}
+              label={t('diagnose.options.smoke')}
+              hint={t('diagnose.options.smokeHint')}
+              onChange={(event) => {
+                setIncludeSmoke(event.target.checked)
+              }}
+            />
+            <div style={{ maxWidth: '320px' }}>
+              <Select
+                label={t('diagnose.options.platform')}
+                description={t('diagnose.options.platformHint')}
+                className="u-mono"
+                value={platform}
+                disabled={running || !includeSmoke}
+                options={[
+                  { value: '', label: t('diagnose.options.platformAuto') },
+                  ...PLATFORMS.map((value) => ({ value, label: value })),
+                ]}
+                onChange={(event) => {
+                  setPlatform(event.target.value as Platform | '')
+                }}
+              />
+            </div>
+          </div>
+        </Card>
+      ) : session.data ? (
+        <Banner tone="caution" icon={<LockIcon size={14} />}>
+          {t('diagnose.readOnly')}
+        </Banner>
+      ) : null}
 
       {start.isError ? (
         <Card>
@@ -364,14 +445,22 @@ export default function Diagnose() {
       ) : null}
 
       {run.isError ? (
-        <Card>
-          <ErrorState
-            error={run.error}
-            onRetry={() => {
-              void run.refetch()
-            }}
-          />
-        </Card>
+        errorCodeOf(run.error) === 'TASK_NOT_FOUND' ? (
+          // A remembered run outlives its result: results are kept for a
+          // limited time. That is the end of a report, not a fault.
+          <Banner tone="accent" icon={<ClockIcon size={14} />}>
+            {t('diagnose.expired')}
+          </Banner>
+        ) : (
+          <Card>
+            <ErrorState
+              error={run.error}
+              onRetry={() => {
+                void run.refetch()
+              }}
+            />
+          </Card>
+        )
       ) : null}
 
       {failed && run.data?.error ? (
