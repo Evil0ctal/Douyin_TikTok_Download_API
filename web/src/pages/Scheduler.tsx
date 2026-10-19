@@ -57,7 +57,7 @@ interface SettingsResponse {
 
 interface SystemStatusLike {
   pool?: unknown
-  /** Active identities kept out of rotation (#789), per platform. */
+  /** Active identities kept out of rotation (issue 789), per platform. */
   reserved_active?: Record<string, number> | null
 }
 
@@ -99,7 +99,7 @@ interface PlatformCensus {
  * It used to add `active` up across all three platforms and call the sum
  * "schedulable right now". Neither half held: a Douyin request cannot be
  * served by a Bilibili identity, and an identity kept for the requests that
- * name it (#789) is active without being anything rotation will hand out.
+ * name it (issue 789) is active without being anything rotation will hand out.
  */
 function census(status: SystemStatusLike | undefined): PlatformCensus[] {
   return PLATFORMS.map((platform) => {

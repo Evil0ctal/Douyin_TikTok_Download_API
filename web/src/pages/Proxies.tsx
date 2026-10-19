@@ -279,27 +279,30 @@ export default function Proxies() {
     setProbes((current) => ({ ...current, [id]: state }))
   }
 
-  /** Queue one probe and wait for it. True when the proxy answered. */
-  const probeOne = async (id: string): Promise<boolean> => {
+  /** Queue one probe and wait for it; the answer is also kept beside the row. */
+  const probeOne = async (id: string): Promise<ProbeState> => {
     setProbe(id, { running: true })
+    let settled: ProbeState
     try {
       const queued = await apiPost<{ task_id: string }>(paths.proxies.test(id))
       const result = await waitForTask<ProxyProbeResult>(queued.task_id, {
         timeoutMs: PROBE_TIMEOUT_MS,
       })
-      setProbe(id, { running: false, result })
-      return result.ok === true
+      settled = { running: false, result }
     } catch (error) {
-      setProbe(id, { running: false, error: error as ApiError })
-      return false
+      settled = { running: false, error: error as ApiError }
     }
+    setProbe(id, settled)
+    return settled
   }
 
   /** One proxy, from its row or its drawer. Its failure is worth a toast of its own. */
   const runProbe = async (id: string): Promise<void> => {
-    const ok = await probeOne(id)
+    const settled = await probeOne(id)
     await refresh()
-    if (!ok) toast.warning(t('console:proxy.test.failed'))
+    // The task failing carries a code and a request id worth keeping; a probe
+    // that ran and found the proxy dead is said in the row and the drawer.
+    if (settled.error) toast.apiError(settled.error, t('console:proxy.test.failed'))
   }
 
   /**
@@ -318,7 +321,7 @@ export default function Proxies() {
     setTesting({ done: 0, total: queue.length, scope })
     const worker = async (): Promise<void> => {
       for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
-        if (await probeOne(id)) ok += 1
+        if ((await probeOne(id)).result?.ok === true) ok += 1
         else failed += 1
         setTesting((current) => (current ? { ...current, done: current.done + 1 } : current))
       }
