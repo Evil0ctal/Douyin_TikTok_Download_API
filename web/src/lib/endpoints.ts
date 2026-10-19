@@ -72,7 +72,11 @@ export const paths = {
   archive: {
     list: `${API_V1}/archive`,
     stats: `${API_V1}/archive/stats`,
+    /** GET exports what a filter matches; POST, the posts named in the body. */
     export: `${API_V1}/archive/export`,
+    /** One archived post, with what is stored for it, as a listed row has. */
+    post: (platform: string, contentId: string) =>
+      `${API_V1}/archive/${encodeURIComponent(platform)}/${encodeURIComponent(contentId)}`,
     recheck: `${API_V1}/archive/recheck`,
     backfill: `${API_V1}/archive/backfill`,
     /** Removes the archive rows and, unless told otherwise, the stored files. */
@@ -99,6 +103,8 @@ export const paths = {
     /** Starts a settled download over. There is no resume; see the route. */
     retry: `${API_V1}/downloads/retry`,
     storage: `${API_V1}/downloads/storage`,
+    /** One download, with the same title, progress and transcript as a listed row. */
+    byId: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}`,
     pin: (id: string) => `${API_V1}/downloads/${encodeURIComponent(id)}/pin`,
     /**
      * DELETE removes the files and keeps the record, which then reads as

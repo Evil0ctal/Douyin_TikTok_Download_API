@@ -117,8 +117,17 @@ export { TimeSeriesChart } from './TimeSeriesChart'
 export type { ChartPoint, ChartSeries, TimeSeriesChartProps } from './TimeSeriesChart'
 
 export { ToastProvider, useToast } from './Toast'
-export { TranscribeButton } from './TranscribeButton'
-export type { TranscribeButtonProps } from './TranscribeButton'
+export {
+  TranscribeButton,
+  TranscriberNotice,
+  transcriberGuideHref,
+  useTranscriberState,
+} from './TranscribeButton'
+export type {
+  ExistingTranscription,
+  TranscribeButtonProps,
+  TranscriberState,
+} from './TranscribeButton'
 export type { ToastApi, ToastOptions, ToastTone } from './Toast'
 
 export { TopBar } from './TopBar'

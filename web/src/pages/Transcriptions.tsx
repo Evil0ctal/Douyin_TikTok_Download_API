@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link, useSearchParams } from 'wouter'
 
 import {
   Button,
+  Card,
   CompactProgress,
   ConfirmDialog,
   CopyableId,
@@ -12,11 +14,16 @@ import {
   PageHeader,
   Select,
   StatusBadge,
+  TranscriberNotice,
+  transcriberGuideHref,
   type Column,
   useToast,
+  useTranscriberState,
 } from '@/components'
+import { Pager, SearchBox } from '@/components/ListControls'
 import { useApiMutation, useApiQuery, useCopy, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiPost } from '@/lib/api'
+import { asPlatform, downloadHref, libraryPostHref, patchParams } from '@/lib/contentLinks'
 import { paths } from '@/lib/endpoints'
 import { MISSING } from '@/lib/format'
 import { POLL } from '@/lib/query'
@@ -84,6 +91,8 @@ interface TranscriptionList {
 
 type Confirmation = { kind: 'cancel' | 'delete'; ids: string[] } | null
 const LIST_KEY = ['transcriptions'] as const
+/** Rows per page: the API's own default, so the first page is what it always was. */
+const PAGE_SIZE = 100
 const LIVE = new Set<TranscriptionState>(['queued', 'running'])
 /** The sidecar's stage names, which are identifiers and are translated here. */
 const STAGES = new Set(['queued', 'decode', 'vad', 'asr', 'punctuation', 'normalization'])
@@ -105,11 +114,6 @@ function formatMediaDuration(milliseconds: number | null | undefined): string {
   return hours > 0 ? `${hours}:${clock}` : clock
 }
 
-function selectedFromUrl(): string | null {
-  if (typeof window === 'undefined') return null
-  return new URLSearchParams(window.location.search).get('id')
-}
-
 function saveText(row: TranscriptionRow): void {
   const href = URL.createObjectURL(new Blob([row.text ?? ''], { type: 'text/plain;charset=utf-8' }))
   const anchor = document.createElement('a')
@@ -122,23 +126,44 @@ function saveText(row: TranscriptionRow): void {
 }
 
 export default function Transcriptions() {
-  const { t } = useTranslation(['console', 'common'])
+  const { t, i18n } = useTranslation(['console', 'common'])
   const toast = useToast()
   const formatters = useFormatters()
   const invalidate = useInvalidate()
   const copy = useCopy()
-  const [stateFilter, setStateFilter] = useState<TranscriptionState | ''>('')
-  const [platformFilter, setPlatformFilter] = useState<Platform | ''>('')
+  const transcriber = useTranscriberState()
+  // Filters and the open drawer live in the URL, as on Downloads and the
+  // Library, so the links between the three pages land on a row and a view.
+  const [params, setParams] = useSearchParams()
+  const setFilter = (patch: Record<string, string | null>): void => {
+    setParams((prev) => patchParams(prev, patch), { replace: true })
+  }
+  const stateParam = params.get('state') ?? ''
+  const stateFilter: TranscriptionState | '' = (
+    TRANSCRIPTION_STATES as readonly string[]
+  ).includes(stateParam)
+    ? (stateParam as TranscriptionState)
+    : ''
+  const platformFilter: Platform | '' = asPlatform(params.get('platform'), PLATFORMS)
+  const search = params.get('q') ?? ''
+  const inspectingId = params.get('id')
+  // Local, and tied to the filters it was turned under, so a new filter starts
+  // at the first page without an effect to reset it.
+  const filterKey = `${stateFilter}|${platformFilter}|${search}`
+  const [paging, setPaging] = useState({ key: filterKey, offset: 0 })
+  const offset = paging.key === filterKey ? paging.offset : 0
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
-  const [inspectingId, setInspectingId] = useState<string | null>(selectedFromUrl)
   const [confirming, setConfirming] = useState<Confirmation>(null)
 
   const list = useApiQuery<TranscriptionList>({
-    key: [...LIST_KEY, stateFilter, platformFilter],
+    key: [...LIST_KEY, stateFilter, platformFilter, search, offset],
     path: paths.transcriptions.list,
     params: {
       ...(stateFilter ? { state: stateFilter } : {}),
       ...(platformFilter ? { platform: platformFilter } : {}),
+      ...(search ? { q: search } : {}),
+      limit: PAGE_SIZE,
+      offset,
     },
     // Fast only while something is moving, as on Downloads: a page of settled
     // records polled every five seconds was a steady load for nothing.
@@ -162,17 +187,11 @@ export default function Transcriptions() {
   }
 
   const openDetail = (id: string): void => {
-    setInspectingId(id)
-    const url = new URL(window.location.href)
-    url.searchParams.set('id', id)
-    window.history.replaceState(null, '', url)
+    setFilter({ id })
   }
 
   const closeDetail = (): void => {
-    setInspectingId(null)
-    const url = new URL(window.location.href)
-    url.searchParams.delete('id')
-    window.history.replaceState(null, '', url)
+    setFilter({ id: null })
   }
 
   const cancel = useApiMutation<TranscriptionRow, string>(
@@ -211,6 +230,10 @@ export default function Transcriptions() {
   const selectedHasLive = selectedRows.some((row) => isLive(row))
   const stageLabel = (stage: string): string =>
     STAGES.has(stage) ? t(`transcriptions.stage.${stage}`) : stage
+  const filtered = Boolean(search || stateFilter || platformFilter)
+  // Off is the default, and every Transcribe button used to fail on it with
+  // TRANSCRIBER_UNAVAILABLE; an empty page said to go and press one.
+  const blocked = transcriber === 'off' || transcriber === 'down'
 
   const columns = useMemo<Array<Column<TranscriptionRow>>>(
     () => [
@@ -320,6 +343,14 @@ export default function Transcriptions() {
         actions={<Button variant="secondary" onClick={refresh}>{t('common:action.refresh')}</Button>}
       />
 
+      {/* With records on screen the empty state never shows, and they are
+          still readable; what is gone is starting new ones, so say that. */}
+      {(transcriber === 'off' || transcriber === 'down') && rows.length > 0 ? (
+        <Card title={t(`transcriptions.transcriber.${transcriber}Title`)}>
+          <TranscriberNotice state={transcriber} />
+        </Card>
+      ) : null}
+
       <DataTable
         columns={columns}
         rows={rows}
@@ -333,15 +364,45 @@ export default function Transcriptions() {
         onRowClick={(row) => openDetail(row.transcription_id)}
         defaultSort={{ columnId: 'created', direction: 'desc' }}
         flashValue={(row) => row.state}
-        emptyTitle={t('transcriptions.empty.title')}
-        emptyDescription={t('transcriptions.empty.description')}
+        emptyTitle={
+          filtered
+            ? t('transcriptions.empty.filteredTitle')
+            : blocked
+              ? t(`transcriptions.transcriber.${transcriber}Title`)
+              : t('transcriptions.empty.title')
+        }
+        emptyDescription={
+          filtered
+            ? t('transcriptions.empty.filteredDescription')
+            : blocked
+              ? t(`transcriptions.transcriber.${transcriber}Body`)
+              : t('transcriptions.empty.description')
+        }
+        emptyAction={
+          filtered ? undefined : transcriber === 'off' ? (
+            <a href={transcriberGuideHref(i18n.language)} target="_blank" rel="noreferrer noopener">
+              {t('transcriptions.transcriber.guide')}
+            </a>
+          ) : (
+            <Link href="/downloads">{t('transcriptions.empty.action')}</Link>
+          )
+        }
         toolbar={
           <>
+            <SearchBox
+              value={search}
+              label={t('transcriptions.filter.search')}
+              placeholder={t('transcriptions.filter.searchPlaceholder')}
+              onSearch={(value) => {
+                setFilter({ q: value })
+                setSelected(new Set())
+              }}
+            />
             <Select
               aria-label={t('transcriptions.column.state')}
               value={stateFilter}
               onChange={(event) => {
-                setStateFilter(event.target.value as TranscriptionState | '')
+                setFilter({ state: event.target.value })
                 setSelected(new Set())
               }}
             >
@@ -354,7 +415,7 @@ export default function Transcriptions() {
               aria-label={t('transcriptions.column.platform')}
               value={platformFilter}
               onChange={(event) => {
-                setPlatformFilter(event.target.value as Platform | '')
+                setFilter({ platform: event.target.value })
                 setSelected(new Set())
               }}
             >
@@ -379,6 +440,17 @@ export default function Transcriptions() {
             ) : null}
           </>
         }
+      />
+
+      <Pager
+        offset={offset}
+        pageSize={PAGE_SIZE}
+        total={list.data?.total ?? 0}
+        onOffset={(next) => {
+          setPaging({ key: filterKey, offset: next })
+          setSelected(new Set())
+        }}
+        range={(from, to, total) => t('transcriptions.page.range', { from, to, total })}
       />
 
       <Drawer
@@ -432,6 +504,23 @@ export default function Transcriptions() {
             </div>
             {!detail.text && detail.progress?.partial_text ? (
               <p className="u-xs u-muted">{t('transcriptions.detail.provisional')}</p>
+            ) : null}
+            {/* The video this came from, and the post it belongs to. The
+                download used to be here only as an id to copy. The post link
+                needs the archive to hold it, which is what `post` says. */}
+            {detail.download_id || detail.post ? (
+              <p className={styles.crossLinks}>
+                {detail.download_id ? (
+                  <Link href={downloadHref(detail.download_id)}>
+                    {t('transcriptions.detail.openDownload')}
+                  </Link>
+                ) : null}
+                {detail.post ? (
+                  <Link href={libraryPostHref(detail.platform, detail.content_id)}>
+                    {t('transcriptions.detail.openInLibrary')}
+                  </Link>
+                ) : null}
+              </p>
             ) : null}
             <dl className={styles.metadata}>
               <dt>{t('transcriptions.detail.model')}</dt><dd>{detail.model}</dd>

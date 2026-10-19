@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link, useSearchParams } from 'wouter'
 
 import {
   BatchParse,
@@ -11,6 +12,7 @@ import {
   ConfirmDialog,
   DataTable,
   Drawer,
+  ErrorState,
   Field,
   Input,
   MetricTile,
@@ -19,11 +21,14 @@ import {
   StatusBadge,
   TranscribeButton,
   type Column,
+  type ExistingTranscription,
   useToast,
 } from '@/components'
+import { Pager, SearchBox } from '@/components/ListControls'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
-import { apiDelete, apiGet, apiPost, isApiError } from '@/lib/api'
+import { apiDelete, apiGet, apiPost, errorCodeOf, isApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
+import { asPlatform, libraryPostHref, patchParams } from '@/lib/contentLinks'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
 import {
@@ -35,6 +40,14 @@ import {
 } from '@/lib/types'
 
 import styles from './Downloads.module.css'
+import {
+  NO_TALLY,
+  RunReport,
+  eachInTurn,
+  walkPages,
+  type RunState,
+  type StopFlag,
+} from './downloadRuns'
 
 /**
  * Media stored on this instance's own disk.
@@ -105,19 +118,6 @@ const MODES: readonly ModeSpec[] = [
   { id: 'author', wants: 'author', skippable: true },
 ]
 
-/** One page of comments, as the read endpoint returns it. */
-interface CommentPage {
-  items: unknown[]
-  cursor: string | null
-  has_more: boolean
-}
-
-interface AuthorPage {
-  items: Array<{ content_id: string }>
-  cursor: string | null
-  has_more: boolean
-}
-
 interface ParsedLink {
   allowed: boolean
   platform: string | null
@@ -125,10 +125,15 @@ interface ParsedLink {
   resource_id: string | null
 }
 
-/** How deep a comment save goes. Each page is a real request through the pool. */
+/**
+ * How deep a comment save goes. Each page is a real request through the pool,
+ * and holds as many as the platform serves - PAGE_CEILING caps the size.
+ */
 const COMMENT_PAGES = 5
 const COMMENT_PAGE_SIZE = 50
 const AUTHOR_PAGE_SIZE = 20
+/** Rows per page of the table: the API's own default, so the first page is unchanged. */
+const PAGE_SIZE = 100
 /**
  * How many of an author's posts to take, offered as a menu rather than a
  * number field.
@@ -158,6 +163,46 @@ const LIVE: ReadonlySet<string> = new Set(['queued', 'running'])
  */
 const SEC_UID = /^MS4wLjABAAAA[\w-]+$/
 
+/**
+ * A bare Bilibili video id: `BV1` and nine base-58 characters, or an av number.
+ *
+ * Either one names its platform by its shape, which a run of digits does not.
+ * The box used to send anything that was not digits to the link parser, which
+ * has no link to parse in `BV1xx411c7mD` and called it unrecognised - while
+ * the API it would have gone to takes both spellings as a content id.
+ */
+const BVID = /^BV1[1-9A-HJ-NP-Za-km-z]{9}$/
+const AVID = /^av\d{1,16}$/i
+const DIGITS = /^\d+$/
+
+/**
+ * What the box holds, read before anything is sent.
+ *
+ * `fixed` is the platform the text itself names, which only a Bilibili BV or
+ * av id does; null means the platform menu decides. A link is resolved by the
+ * server's parser, which knows every host this build accepts.
+ */
+type TargetShape =
+  | { kind: 'empty' }
+  | { kind: 'link' }
+  | { kind: 'bare'; id: string; fixed: Platform | null }
+
+function shapeOf(text: string, wantsAuthor: boolean): TargetShape {
+  const trimmed = text.trim()
+  if (!trimmed) return { kind: 'empty' }
+  if (wantsAuthor) {
+    // Douyin's sec_user_id and TikTok's secUid share a shape, and Bilibili's
+    // mid is plain digits - none of them says which platform it came from.
+    return SEC_UID.test(trimmed) || DIGITS.test(trimmed)
+      ? { kind: 'bare', id: trimmed, fixed: null }
+      : { kind: 'link' }
+  }
+  if (BVID.test(trimmed) || AVID.test(trimmed)) {
+    return { kind: 'bare', id: trimmed, fixed: 'bilibili' }
+  }
+  return DIGITS.test(trimmed) ? { kind: 'bare', id: trimmed, fixed: null } : { kind: 'link' }
+}
+
 /** Hand the browser a file. The archive export does the same thing. */
 function saveJson(data: unknown, filename: string): void {
   const href = URL.createObjectURL(
@@ -177,7 +222,6 @@ function saveJson(data: unknown, filename: string): void {
 const DOWNLOADS_KEY = ['downloads'] as const
 const STORAGE_KEY = ['downloads', 'storage'] as const
 
-
 /**
  * Whether the platform menu decides this input's platform.
  *
@@ -188,16 +232,31 @@ const STORAGE_KEY = ['downloads', 'storage'] as const
  * for a bare author id too, because Douyin's `sec_user_id` and TikTok's
  * `secUid` are the same `MS4wLjABAAAA…` shape and nothing in the string says
  * which platform it came from. With the menu greyed out at its default, every
- * author download went to Douyin and TikTok was unreachable.
+ * author download went to Douyin and TikTok was unreachable. Bilibili's
+ * numeric `mid` was the same mistake again, later: refused as a link, with
+ * the menu that should have said "bilibili" disabled.
  *
  * An empty box counts as using the menu: it is the platform whatever is typed
  * next will be read as. A link does not - the link settles it, and the API
- * refuses a link that disagrees with the menu rather than guessing.
+ * refuses a link that disagrees with the menu rather than guessing. Nor does a
+ * BV id, which names its platform itself.
  */
-function usesPlatformMenu(text: string, wantsAuthor: boolean): boolean {
-  const trimmed = text.trim()
-  if (!trimmed) return true
-  return wantsAuthor ? SEC_UID.test(trimmed) : /^\d+$/.test(trimmed)
+function usesPlatformMenu(shape: TargetShape): boolean {
+  return shape.kind === 'empty' || (shape.kind === 'bare' && shape.fixed === null)
+}
+
+/** The request body for one post. */
+function postRequest(
+  shape: TargetShape,
+  text: string,
+  platform: Platform,
+  skipExisting: boolean,
+): Record<string, unknown> {
+  // Built in one place on purpose: a field only some posts take - Bilibili's
+  // part number is the next one - belongs here, beside the target it narrows.
+  return shape.kind === 'bare'
+    ? { platform: shape.fixed ?? platform, content_id: shape.id, skip_existing: skipExisting }
+    : { url: text.trim(), skip_existing: skipExisting }
 }
 
 interface DownloadFile {
@@ -272,6 +331,12 @@ interface DownloadRow {
   post: { title: string | null; author: string | null; duration_ms: number | null } | null
   /** Live, from the sidecar, and only while the download is in flight. */
   progress: DownloadProgress | null
+  /**
+   * The newest queued, running or finished transcription of this download.
+   * Optional: an older server does not send it, and one sends null to a
+   * caller who could not open it anyway.
+   */
+  transcription?: ExistingTranscription | null
 }
 
 interface DownloadList {
@@ -407,12 +472,32 @@ export default function Downloads() {
   // Written as a lookup with a literal fallback rather than MODES[0], which
   // TypeScript cannot prove is there and eslint will not let us assert.
   const active = MODES.find((entry) => entry.id === mode) ?? POST_MODE
-  const [stateFilter, setStateFilter] = useState<DownloadState | ''>('')
+
+  // The filters and the open drawer live in the URL, so a link from another
+  // page - `/downloads?id=` from a transcript, say - lands on the right row,
+  // and a filtered view survives a reload or a pasted link.
+  const [params, setParams] = useSearchParams()
+  const setFilter = (patch: Record<string, string | null>): void => {
+    setParams((prev) => patchParams(prev, patch), { replace: true })
+  }
+  const stateParam = params.get('state') ?? ''
+  const stateFilter: DownloadState | '' = (DOWNLOAD_STATES as readonly string[]).includes(
+    stateParam,
+  )
+    ? (stateParam as DownloadState)
+    : ''
   //: Server side, like the state filter, because "the most recent TikTok
   //: downloads" has to mean the most recent of all of them and not the most
   //: recent of whatever page happened to load.
-  const [platformFilter, setPlatformFilter] = useState<Platform | ''>('')
-  const [inspecting, setInspecting] = useState<DownloadRow | null>(null)
+  const platformFilter = asPlatform(params.get('platform'), PLATFORMS)
+  const search = params.get('q') ?? ''
+  const inspectingId = params.get('id')
+  // The page is local rather than in the URL, and belongs to the filters it
+  // was turned under: a new filter starts at the first page without an effect
+  // to reset it.
+  const filterKey = `${stateFilter}|${platformFilter}|${search}`
+  const [paging, setPaging] = useState({ key: filterKey, offset: 0 })
+  const offset = paging.key === filterKey ? paging.offset : 0
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [confirming, setConfirming] = useState<'delete' | null>(null)
   const [working, setWorking] = useState(false)
@@ -424,11 +509,14 @@ export default function Downloads() {
   })
 
   const list = useApiQuery<DownloadList>({
-    key: [...DOWNLOADS_KEY, stateFilter, platformFilter],
+    key: [...DOWNLOADS_KEY, stateFilter, platformFilter, search, offset],
     path: paths.downloads.list,
     params: {
       ...(stateFilter ? { state: stateFilter } : {}),
       ...(platformFilter ? { platform: platformFilter } : {}),
+      ...(search ? { q: search } : {}),
+      limit: PAGE_SIZE,
+      offset,
     },
     // Fast while something is in flight, slow otherwise: a transfer is the one
     // thing on this page that changes on its own. The rows on screen decide as
@@ -443,10 +531,27 @@ export default function Downloads() {
 
   // The drawer follows its row through each refresh. It used to hold the copy
   // taken at the click, so a download opened while running showed no progress
-  // and no files, and kept showing nothing after it had landed.
-  const inspected = inspecting
-    ? (list.data?.items.find((row) => row.id === inspecting.id) ?? inspecting)
+  // and no files, and kept showing nothing after it had landed. A row that is
+  // not on this page - opened from a link, or past the first hundred - is read
+  // on its own, and polled the same way while it is still running.
+  const listed = inspectingId
+    ? (list.data?.items.find((row) => row.id === inspectingId) ?? null)
     : null
+  const single = useApiQuery<DownloadRow>({
+    key: [...DOWNLOADS_KEY, 'one', inspectingId],
+    path: inspectingId ? paths.downloads.byId(inspectingId) : paths.downloads.list,
+    enabled: Boolean(inspectingId) && listed === null && !list.isLoading,
+    retry: false,
+    refetchInterval: (query) =>
+      query.state.status !== 'error' && query.state.data && LIVE.has(query.state.data.state)
+        ? POLL.live
+        : false,
+  })
+  const inspected = inspectingId ? (listed ?? single.data ?? null) : null
+
+  const inspect = (id: string | null): void => {
+    setFilter({ id })
+  }
 
   const refresh = (): void => {
     void invalidate(DOWNLOADS_KEY)
@@ -454,27 +559,23 @@ export default function Downloads() {
   }
 
   /**
-   * One box, two shapes.
+   * One box, three shapes.
    *
    * People have a link far more often than an id - the share sheet gives a
    * link - and asking which one this is would be asking them to classify their
-   * own clipboard. Digits are an id, anything else is a link, and the API
-   * refuses either if it cannot make sense of it.
+   * own clipboard. Digits and a Bilibili BV or av id are ids, anything else is
+   * a link, and the API refuses either if it cannot make sense of it.
    */
-  const looksLikeId = /^\d+$/.test(target.trim())
+  const shape = shapeOf(target, active.wants === 'author')
 
   const start = useApiMutation<
     { download_id: string; skipped?: string[]; archived?: boolean; reused?: string | null },
     void
   >(
     () =>
-      apiPost(
-        paths.downloads.create,
-        looksLikeId
-          ? { platform, content_id: target.trim(), skip_existing: skipExisting }
-          : { url: target.trim(), skip_existing: skipExisting },
-        { awaitTask: false },
-      ),
+      apiPost(paths.downloads.create, postRequest(shape, target, platform, skipExisting), {
+        awaitTask: false,
+      }),
     {
       onSuccess: (result) => {
         setTarget('')
@@ -500,28 +601,73 @@ export default function Downloads() {
   /**
    * Turn whatever is in the box into a platform and an id.
    *
-   * A bare id is taken at face value with the platform menu beside it; anything
-   * else goes to /tools/parse-url, which is the same allowlist the download
-   * endpoint uses, so an unrecognised host never becomes a request.
+   * A bare id is taken at face value with the platform menu beside it, or with
+   * the platform it names itself; anything else goes to /tools/parse-url, which
+   * is the same allowlist the download endpoint uses, so an unrecognised host
+   * never becomes a request.
    */
   const resolveTarget = async (
     opts: { author?: boolean } = {},
   ): Promise<{ platform: Platform; id: string }> => {
-    const text = target.trim()
-    if (/^\d+$/.test(text) && !opts.author) return { platform, id: text }
-    // A bare author id, which is what the archive and the playground hand you
-    // and what a scrape of somebody else's list contains. Douyin's is
-    // `MS4wLjABAAAA…` and TikTok's is the same shape, so the prefix is the
-    // test; anything else goes to the parser as a link.
-    if (opts.author && SEC_UID.test(text)) return { platform, id: text }
+    // A bare author id is what the archive and the playground hand you and what
+    // a scrape of somebody else's list contains - see `shapeOf`.
+    const read = shapeOf(target, opts.author === true)
+    if (read.kind === 'bare') return { platform: read.fixed ?? platform, id: read.id }
 
-    const kind: ParsedLink = await apiGet(paths.tools.parseUrl, { params: { url: text } })
+    const kind: ParsedLink = await apiGet(paths.tools.parseUrl, { params: { url: target.trim() } })
     if (!kind.allowed || !kind.platform || !kind.resource_id) {
       throw new Error(t('downloads.target.unrecognised'))
     }
     const wanted = opts.author ? 'user' : 'video'
     if (kind.resource !== wanted) throw new Error(t(`downloads.target.expected.${wanted}`))
     return { platform: kind.platform as Platform, id: kind.resource_id }
+  }
+
+  //: The walk under way or last finished, for the author and comments modes.
+  const [run, setRun] = useState<RunState | null>(null)
+  const stopFlag = useRef<StopFlag>({ stopped: false })
+  const [stopping, setStopping] = useState(false)
+  //: "Everything the feed will give up" asks first; see `runAuthor`.
+  const [confirmingAll, setConfirmingAll] = useState(false)
+  const running = run !== null && run.phase !== 'finished'
+
+  const beginRun = (): StopFlag => {
+    const flag: StopFlag = { stopped: false }
+    stopFlag.current = flag
+    setStopping(false)
+    return flag
+  }
+
+  /**
+   * A run that failed before it read anything.
+   *
+   * One that needed a signed-in identity for its very first page says so, with
+   * the way to add one, rather than a bare error code; anything else is the
+   * error itself.
+   */
+  const runFailed = (
+    error: unknown,
+    kind: RunState['kind'],
+    which: Platform | null,
+    title: string,
+  ): void => {
+    if (which !== null && errorCodeOf(error) === 'IDENTITY_LOGIN_REQUIRED') {
+      setRun({
+        kind,
+        platform: which,
+        phase: 'finished',
+        page: 1,
+        found: 0,
+        total: 0,
+        tally: NO_TALLY,
+        guest: false,
+        stop: null,
+        needsLogin: true,
+      })
+      return
+    }
+    setRun(null)
+    toast.apiError(error, title)
   }
 
   /**
@@ -533,107 +679,160 @@ export default function Downloads() {
    * hands the browser a blob, the same way the archive export already works.
    * It spends the identity pool like any other read, which is why the page
    * says how many pages it is about to ask for.
+   *
+   * What was read is saved however the walk ended: Bilibili refuses a guest the
+   * second page, and the first page's comments are still the comments.
    */
-  const saveComments = useApiMutation<number, void>(
-    async () => {
-      const { platform: which, id } = await resolveTarget()
-      const all: unknown[] = []
-      let cursor: string | null = null
-      for (let page = 0; page < COMMENT_PAGES; page += 1) {
-        const body: CommentPage = await apiGet(`${API_V1}/${which}/video/comments`, {
-          params: {
-            aweme_id: id,
-            count: String(Math.min(COMMENT_PAGE_SIZE, PAGE_CEILING[which])),
-            ...(cursor ? { cursor } : {}),
-          },
-        })
-        all.push(...body.items)
-        if (!body.has_more || !body.cursor) break
-        cursor = body.cursor
+  const runComments = async (): Promise<void> => {
+    const flag = beginRun()
+    let which: Platform | null = null
+    try {
+      const resolved = await resolveTarget()
+      which = resolved.platform
+      const base: RunState = {
+        kind: 'comments',
+        platform: resolved.platform,
+        phase: 'reading',
+        page: 1,
+        found: 0,
+        total: 0,
+        tally: NO_TALLY,
+        guest: false,
+        stop: null,
       }
-      saveJson(all, `comments-${which}-${id}.json`)
-      return all.length
-    },
-    {
-      onSuccess: (count) => {
-        toast.success(t('downloads.comments.done', { count }))
-      },
-      onError: (error) => {
-        toast.apiError(error, t('downloads.comments.failed'))
-      },
-    },
-  )
+      setRun(base)
+      const walked = await walkPages<unknown>({
+        path: `${API_V1}/${resolved.platform}/video/comments`,
+        params: {
+          aweme_id: resolved.id,
+          count: String(Math.min(COMMENT_PAGE_SIZE, PAGE_CEILING[resolved.platform])),
+        },
+        want: Number.POSITIVE_INFINITY,
+        maxPages: COMMENT_PAGES,
+        flag,
+        onPage: (page, found) => {
+          setRun({ ...base, page, found })
+        },
+      })
+      if (walked.items.length > 0) {
+        saveJson(walked.items, `comments-${resolved.platform}-${resolved.id}.json`)
+      }
+      setRun({
+        ...base,
+        phase: 'finished',
+        found: walked.items.length,
+        guest: walked.guest,
+        stop: walked.stop,
+      })
+      toast.success(t('downloads.comments.done', { count: walked.items.length }))
+    } catch (error) {
+      runFailed(error, 'comments', which, t('downloads.comments.failed'))
+    }
+  }
 
   /**
    * Queue a download for everything an author has posted.
    *
-   * One page of their feed, then one download request per post. Bounded on
-   * purpose: this is the control on the page that can spend the identity pool
-   * dozens of times from one click, and a number the operator can see beats a
-   * "download everything" button whose cost is discovered afterwards.
+   * Their feed first, then one download request per post. Bounded on purpose:
+   * this is the control on the page that can spend the identity pool dozens of
+   * times from one click, and a number the operator can see beats a "download
+   * everything" button whose cost is discovered afterwards. It reports each
+   * page and each post as it goes, and stops between any two of them.
    */
-  const saveAuthor = useApiMutation<{ queued: number; posts: number; skipped: number }, void>(
-    async () => {
-      const { platform: which, id } = await resolveTarget({ author: true })
+  const runAuthor = async (): Promise<void> => {
+    const flag = beginRun()
+    let which: Platform | null = null
+    try {
+      const resolved = await resolveTarget({ author: true })
+      which = resolved.platform
       const wanted = depth === 0 ? Number.POSITIVE_INFINITY : depth
+      const base: RunState = {
+        kind: 'author',
+        platform: resolved.platform,
+        phase: 'reading',
+        page: 1,
+        found: 0,
+        total: 0,
+        tally: NO_TALLY,
+        guest: false,
+        stop: null,
+      }
+      setRun(base)
 
       // Walked page by page, because one page is whatever the platform felt
       // like returning - 23 here, not the 20 that was asked for - and "the
       // most recent 100" has to mean 100 rather than "however many five pages
       // happened to be".
-      const posts: Array<{ content_id: string }> = []
-      let cursor: string | null = null
-      for (let page = 0; page < AUTHOR_MAX_PAGES && posts.length < wanted; page += 1) {
-        const feed: AuthorPage = await apiGet(`${API_V1}/${which}/user/posts`, {
-          params: {
-            sec_user_id: id,
-            count: String(AUTHOR_PAGE_SIZE),
-            ...(cursor ? { cursor } : {}),
-          },
-        })
-        posts.push(...feed.items)
-        if (!feed.has_more || !feed.cursor) break
-        cursor = feed.cursor
+      const walked = await walkPages<{ content_id: string }>({
+        path: `${API_V1}/${resolved.platform}/user/posts`,
+        params: { sec_user_id: resolved.id, count: String(AUTHOR_PAGE_SIZE) },
+        want: wanted,
+        maxPages: AUTHOR_MAX_PAGES,
+        flag,
+        onPage: (page, found) => {
+          setRun({ ...base, page, found })
+        },
+      })
+      const read: RunState = {
+        ...base,
+        phase: 'queueing',
+        found: walked.items.length,
+        total: walked.items.length,
+        guest: walked.guest,
+        stop: walked.stop,
       }
-      const taking = posts.slice(0, wanted === Number.POSITIVE_INFINITY ? posts.length : wanted)
+      // Stopped while reading means stop: queueing what was found anyway
+      // would be the opposite of what the button said.
+      if (walked.stop?.reason === 'stopped') {
+        setRun({ ...read, phase: 'finished', total: 0 })
+        return
+      }
+      setRun(read)
 
-      let queued = 0
-      let skipped = 0
-      for (const post of taking) {
-        try {
+      const { tally, stopped } = await eachInTurn(
+        walked.items,
+        async (post) => {
           // The server decides what "already downloaded" means, so this and a
           // single post's button cannot drift apart about it - and it also
           // joins anything already in flight, which is what stops a feed
           // racing itself into the same directory twice.
           const result: { reused?: string | null } = await apiPost(
             paths.downloads.create,
-            { platform: which, content_id: post.content_id, skip_existing: skipExisting },
+            {
+              platform: resolved.platform,
+              content_id: post.content_id,
+              skip_existing: skipExisting,
+            },
             { awaitTask: false },
           )
-          if (result.reused) skipped += 1
-          else queued += 1
-        } catch {
-          // One post with nothing fetchable must not abandon the rest; the
-          // counts reported at the end are what actually happened.
-        }
-      }
-      return { queued, posts: taking.length, skipped }
-    },
-    {
-      onSuccess: ({ queued, posts, skipped }) => {
-        setTarget('')
-        refresh()
-        toast.success(
-          skipped > 0
-            ? t('downloads.author.doneSkipping', { queued, posts, skipped })
-            : t('downloads.author.done', { queued, posts }),
-        )
-      },
-      onError: (error) => {
-        toast.apiError(error, t('downloads.author.failed'))
-      },
-    },
-  )
+          return result.reused ? 'skipped' : 'done'
+        },
+        flag,
+        (counted) => {
+          setRun({ ...read, tally: counted })
+        },
+      )
+      setRun({
+        ...read,
+        phase: 'finished',
+        tally,
+        stop: stopped ? { reason: 'stopped' } : walked.stop,
+      })
+      setTarget('')
+      refresh()
+      toast.success(
+        tally.skipped > 0
+          ? t('downloads.author.doneSkipping', {
+              queued: tally.done,
+              posts: walked.items.length,
+              skipped: tally.skipped,
+            })
+          : t('downloads.author.done', { queued: tally.done, posts: walked.items.length }),
+      )
+    } catch (error) {
+      runFailed(error, 'author', which, t('downloads.author.failed'))
+    }
+  }
 
   /**
    * Start a settled download over.
@@ -858,7 +1057,10 @@ export default function Downloads() {
             size="sm"
             variant={row.pinned ? 'primary' : 'ghost'}
             loading={pin.isPending && pin.variables?.id === row.id}
-            onClick={() => {
+            onClick={(event) => {
+              // Inside a clickable row, like Retry beside it. Without this a
+              // pin also opened the drawer, over the table being worked on.
+              event.stopPropagation()
               pin.mutate({ id: row.id, pinned: !row.pinned })
             }}
             title={row.pinned ? t('downloads.unpinHint') : t('downloads.pinHint')}
@@ -981,21 +1183,25 @@ export default function Downloads() {
           className={cn('u-form-row', styles.startForm)}
           onSubmit={(event) => {
             event.preventDefault()
-            if (!target.trim()) return
+            if (!target.trim() || running) return
             if (mode === 'post') start.mutate()
-            else if (mode === 'comments') saveComments.mutate()
-            else saveAuthor.mutate()
+            else if (mode === 'comments') void runComments()
+            // "Everything" can be forty pages and hundreds of downloads from
+            // one click, so it is the one depth that asks first.
+            else if (depth === 0) setConfirmingAll(true)
+            else void runAuthor()
           }}
         >
           {/* Enabled exactly when `resolveTarget` reads it - see
               `usesPlatformMenu`. A link says which platform it is and the API
               refuses one that disagrees with this rather than guessing, so the
               menu is disabled while a link is in the box; a bare id says
-              nothing, so it is not. */}
+              nothing, so it is not. A BV id says Bilibili, and the menu shows
+              it rather than a platform that will not be used. */}
           <Field id="download-platform" label={t('downloads.field.platform')}>
             <Select
-              value={platform}
-              disabled={!usesPlatformMenu(target, active.wants === 'author')}
+              value={shape.kind === 'bare' && shape.fixed ? shape.fixed : platform}
+              disabled={!usesPlatformMenu(shape)}
               onChange={(event) => {
                 setPlatform(event.target.value as Platform)
               }}
@@ -1024,13 +1230,29 @@ export default function Downloads() {
           <Button
             type="submit"
             variant="primary"
-            loading={start.isPending || saveComments.isPending || saveAuthor.isPending}
-            disabled={!target.trim()}
+            loading={start.isPending || running}
+            disabled={!target.trim() || running}
           >
             {t(`downloads.mode.${mode}.action`)}
           </Button>
         </form>
         )}
+
+        {/* While it runs, wherever the tabs are: the Stop button has to stay
+            reachable. Once it is over, only beside the mode it came from. */}
+        {run && (running || run.kind === mode) ? (
+          <RunReport
+            run={run}
+            stopping={stopping}
+            onStop={() => {
+              stopFlag.current.stopped = true
+              setStopping(true)
+            }}
+            onDismiss={() => {
+              setRun(null)
+            }}
+          />
+        ) : null}
 
         {/* How far to go, and what to skip. Both belong under the form rather
             than in it: they are settings for the run, not another thing to
@@ -1089,6 +1311,23 @@ export default function Downloads() {
       </Card>
 
       <ConfirmDialog
+        open={confirmingAll}
+        title={t('downloads.depth.confirmTitle')}
+        description={t('downloads.depth.confirmBody', {
+          pages: AUTHOR_MAX_PAGES,
+          posts: AUTHOR_MAX_PAGES * AUTHOR_PAGE_SIZE,
+        })}
+        confirmLabel={t('downloads.depth.confirmAction')}
+        onConfirm={() => {
+          setConfirmingAll(false)
+          void runAuthor()
+        }}
+        onCancel={() => {
+          setConfirmingAll(false)
+        }}
+      />
+
+      <ConfirmDialog
         open={deduping !== null}
         danger
         title={t('downloads.dedupe.confirmTitle', { count: deduping ?? 0 })}
@@ -1116,18 +1355,36 @@ export default function Downloads() {
         storageKey="downloads"
         selectedIds={selected}
         onSelectionChange={setSelected}
-        onRowClick={setInspecting}
+        onRowClick={(row) => {
+          inspect(row.id)
+        }}
         defaultSort={{ columnId: 'finished', direction: 'desc' }}
         flashValue={(row) => row.state}
-        emptyTitle={t('downloads.empty.title')}
-        emptyDescription={t('downloads.empty.description')}
+        emptyTitle={
+          search || stateFilter || platformFilter
+            ? t('downloads.empty.filteredTitle')
+            : t('downloads.empty.title')
+        }
+        emptyDescription={
+          search || stateFilter || platformFilter
+            ? t('downloads.empty.filteredDescription')
+            : t('downloads.empty.description')
+        }
         toolbar={
           <>
+            <SearchBox
+              value={search}
+              label={t('downloads.filter.search')}
+              placeholder={t('downloads.filter.searchPlaceholder')}
+              onSearch={(value) => {
+                setFilter({ q: value })
+              }}
+            />
             <Select
               aria-label={t('downloads.column.state')}
               value={stateFilter}
               onChange={(event) => {
-                setStateFilter(event.target.value as DownloadState | '')
+                setFilter({ state: event.target.value })
               }}
             >
               <option value="">{t('downloads.filter.allStates')}</option>
@@ -1141,7 +1398,7 @@ export default function Downloads() {
               aria-label={t('downloads.column.platform')}
               value={platformFilter}
               onChange={(event) => {
-                setPlatformFilter(event.target.value as Platform | '')
+                setFilter({ platform: event.target.value })
               }}
             >
               <option value="">{t('downloads.filter.allPlatforms')}</option>
@@ -1199,6 +1456,17 @@ export default function Downloads() {
         }
       />
 
+      <Pager
+        offset={offset}
+        pageSize={PAGE_SIZE}
+        total={list.data?.total ?? 0}
+        onOffset={(next) => {
+          setPaging({ key: filterKey, offset: next })
+          setSelected(new Set())
+        }}
+        range={(from, to, total) => t('downloads.page.range', { from, to, total })}
+      />
+
       <ConfirmDialog
         open={confirming === 'delete'}
         danger
@@ -1221,15 +1489,23 @@ export default function Downloads() {
         }}
       />
 
+      {/* Titled by the post, as the row is. It was titled by the content id,
+          which is the one thing about a post nobody recognises it by. */}
       <Drawer
-        open={inspecting !== null}
+        open={inspectingId !== null}
         onClose={() => {
-          setInspecting(null)
+          inspect(null)
         }}
-        title={inspecting?.content_id ?? ''}
-        description={inspecting?.directory}
+        title={inspected?.post?.title || inspected?.content_id || inspectingId || ''}
+        description={inspected?.directory}
       >
-        {inspected ? <Detail row={inspected} /> : null}
+        {inspected ? (
+          <Detail row={inspected} />
+        ) : single.error ? (
+          <ErrorState error={single.error} compact />
+        ) : (
+          <p className="u-muted">{t('downloads.detail.loading')}</p>
+        )}
       </Drawer>
     </div>
   )
@@ -1304,7 +1580,21 @@ function Detail({ row }: { row: DownloadRow }) {
       {row.error ? <p className="u-muted">{row.error}</p> : null}
       {!row.on_disk ? <p className="u-xs u-muted">{t('downloads.evictedHint')}</p> : null}
 
-      <TranscribeButton downloadId={row.id} unavailable={unavailableReason} />
+      <TranscribeButton
+        downloadId={row.id}
+        unavailable={unavailableReason}
+        existing={row.transcription ?? null}
+      />
+
+      {/* The same post as the library holds it: description, tags, author.
+          Only when the archive has it - media can outlive its archive row. */}
+      {row.post ? (
+        <p className={styles.crossLinks}>
+          <Link href={libraryPostHref(row.platform, row.content_id)}>
+            {t('downloads.detail.openInLibrary')}
+          </Link>
+        </p>
+      ) : null}
 
       <ul className={styles.files}>
         {row.files.map((file) => (

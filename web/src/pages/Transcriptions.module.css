@@ -62,3 +62,21 @@
 .error {
   color: var(--danger);
 }
+
+/* Where the same video lives on the other content pages. */
+.crossLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.crossLinks a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.crossLinks a:hover {
+  text-decoration: underline;
+}
