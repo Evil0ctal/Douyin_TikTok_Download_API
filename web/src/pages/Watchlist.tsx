@@ -53,8 +53,6 @@ type Kind = (typeof KINDS)[number]
 const INTERVALS = [900, 3600, 6 * 3600, 12 * 3600, 24 * 3600] as const
 /** What the form starts on until the server says what its default is. */
 const FALLBACK_INTERVAL = 6 * 3600
-/** The server's bound on pages per run. */
-const PAGE_CHOICES = [1, 2, 3, 5, 10] as const
 
 /**
  * What a link to each looks like, per platform. The Douyin example used to be
@@ -281,9 +279,6 @@ export default function Watchlist() {
               )}
               <span className={styles.sub}>
                 {t(`watchlist.kind.${row.kind}`)} · {row.platform}
-                {row.kind === 'author' && row.pages > 1
-                  ? ` · ${t('watchlist.pagesShort', { count: row.pages })}`
-                  : ''}
               </span>
             </div>
           )
@@ -589,11 +584,14 @@ export default function Watchlist() {
 }
 
 /**
- * Rename an entry, or change how often and how deep it runs.
+ * Rename an entry, or change how often it runs.
  *
- * The API took all three from the start; the page offered none of them, so
- * changing an interval meant removing the entry - and its failure history -
- * and adding it again.
+ * The page offered neither, so changing an interval meant removing the entry
+ * - and its failure history - and adding it again.
+ *
+ * Not the page depth, although the API stores one: a scheduled run reads one
+ * page of the newest posts whatever `pages` says (`watchlist.task_for`), and a
+ * control that changes nothing would be a promise the worker does not keep.
  */
 function EditEntry({
   row,
@@ -611,11 +609,9 @@ function EditEntry({
   const formatters = useFormatters()
   const [label, setLabel] = useState(row.label ?? '')
   const [interval, setInterval] = useState(row.interval_seconds)
-  const [pages, setPages] = useState(row.pages)
   // The entry's own interval stays on the menu even when it is off the
   // standard list, or the menu would show one value and save another.
   const choices = intervalChoices(floor, [row.interval_seconds])
-  const pageChoices = [...new Set([...PAGE_CHOICES, row.pages])].sort((a, b) => a - b)
 
   const save = useApiMutation<WatchRow, void>(
     () => {
@@ -625,7 +621,6 @@ function EditEntry({
       const patch: Record<string, unknown> = {}
       if (label.trim() !== (row.label ?? '')) patch['label'] = label.trim() || null
       if (interval !== row.interval_seconds) patch['interval_seconds'] = interval
-      if (pages !== row.pages) patch['pages'] = pages
       return apiPatch(paths.watchlist.byId(row.id), patch)
     },
     {
@@ -688,23 +683,6 @@ function EditEntry({
             </option>
           ))}
         </Select>
-        {/* Pages only mean something for an author: a post is one request. */}
-        {row.kind === 'author' ? (
-          <Select
-            label={t('watchlist.field.pages')}
-            description={t('watchlist.edit.pagesHint')}
-            value={String(pages)}
-            onChange={(event) => {
-              setPages(Number(event.target.value))
-            }}
-          >
-            {pageChoices.map((count) => (
-              <option key={count} value={count}>
-                {t('watchlist.pagesShort', { count })}
-              </option>
-            ))}
-          </Select>
-        ) : null}
       </form>
     </Modal>
   )

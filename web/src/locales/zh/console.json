@@ -2156,7 +2156,6 @@
     "removeBody": "它的采集计划会被删除。已经采集到的内容仍保留在归档和快照历史里。",
     "editLabel": "编辑 {target}",
     "openInLibrary": "在资料库中查看它采集到的内容（{target}）",
-    "pagesShort": "{count, plural, other {每次 # 页}}",
     "neverRun": "尚未运行",
     "failing": "{count, plural, other {连续失败 # 次}}",
     "toggleLabel": "定时采集 {target}",
@@ -2186,8 +2185,7 @@
       },
       "interval": "每隔",
       "label": "名称",
-      "labelHint": "可不填。留空时，首次运行会自动填上作者的名字。",
-      "pages": "每次翻几页"
+      "labelHint": "可不填。留空时，首次运行会自动填上作者的名字。"
     },
     "target": {
       "unrecognised": "这不是本实例能识别的链接。",
@@ -2197,8 +2195,7 @@
     },
     "edit": {
       "title": "编辑关注目标",
-      "labelHint": "清空后名称交还给平台：下一次运行会自动填上。",
-      "pagesHint": "每次运行读取作者作品的页数。每一页都是一次走身份池的请求，每次运行都会发生。"
+      "labelHint": "清空后名称交还给平台：下一次运行会自动填上。"
     },
     "kind": {
       "author": "一个作者",
