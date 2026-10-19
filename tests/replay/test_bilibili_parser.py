@@ -34,6 +34,13 @@ def bili(name: str) -> dict[str, Any]:
     return load("bilibili", name)
 
 
+def with_streams_from(streams: dict[str, Any]) -> dict[str, Any]:
+    payload = bili("video_normal")
+    follow_up = ADAPTER.follow_up(CONTENT_DETAIL, payload)
+    assert follow_up is not None
+    return follow_up.merge(payload, streams)
+
+
 def with_streams(detail: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = detail or bili("video_normal")
     follow_up = ADAPTER.follow_up(CONTENT_DETAIL, payload)
@@ -155,6 +162,34 @@ class TestFollowUp:
         before = copy.deepcopy(detail)
         parser.merge_streams(detail, bili("content_streams"))
         assert detail == before
+
+
+class TestMirrors:
+    def test_an_akamai_upos_link_is_tried_on_bilibili_s_own_hosts_first(self) -> None:
+        """A cold Akamai edge cut transfers off and then refused the rest for
+        over a minute; the same signed path on bilivideo.com came back whole."""
+        streams = bili("content_streams")
+        akam = "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/1/2/3/3-1-16.mp4?os=akam&upsig=x"
+        streams["data"]["durl"][0]["url"] = akam
+        streams["data"]["durl"][0]["backup_url"] = []
+        video = ADAPTER.parse_content(with_streams_from(streams), fetched_at=FETCHED_AT).media.video
+
+        assert video is not None
+        assert [url.split("/upgcxcode")[0] for url in video.urls] == [
+            "https://upos-sz-mirrorcos.bilivideo.com",
+            "https://upos-sz-mirrorcosov.bilivideo.com",
+            "https://upos-hz-mirrorakam.akamaized.net",
+        ]
+        # The path and the signature are the same file's; only the host moves.
+        assert {url.split(".com", 1)[-1] for url in video.urls[:2]} == {
+            akam.split(".net", 1)[-1]
+        }
+
+    def test_a_bilibili_hosted_link_is_left_as_it_came(self) -> None:
+        video = ADAPTER.parse_content(with_streams(), fetched_at=FETCHED_AT).media.video
+        assert video is not None
+        assert all("akamaized" not in url for url in video.urls)
+        assert len(video.urls) == len(set(video.urls))
 
 
 class TestParts:

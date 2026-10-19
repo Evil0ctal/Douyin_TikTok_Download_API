@@ -33,6 +33,7 @@ import re
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, Final
+from urllib.parse import urlsplit, urlunsplit
 
 from dtk.core.errors import InvalidParam, UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
@@ -162,6 +163,31 @@ def _author(node: Node, *, name_key: str = "name", face_key: str | None = "face"
 # --------------------------------------------------------------------------
 
 
+#: Bilibili's own upos hosts, tried before an Akamai one carrying the same file.
+#:
+#: Measured 2026-10-19: an Akamai upos edge that had not cached a video yet cut
+#: the transfer off after 2 to 11 MiB, every time, and then answered 503 to a
+#: request for the rest for over a minute - three part downloads in five
+#: failed. The same signed path on these hosts answered in full (209 MB and
+#: 57 MB, no cut), as download tools that swap the upos host have long relied
+#: on. The Akamai URL stays last, for an egress these do not serve.
+UPOS_HOSTS: Final[tuple[str, ...]] = (
+    "upos-sz-mirrorcos.bilivideo.com",
+    "upos-sz-mirrorcosov.bilivideo.com",
+)
+
+
+def _upos_alternates(urls: list[str]) -> list[str]:
+    """``urls`` with Bilibili-hosted copies of any Akamai upos URL put first."""
+    alternates: list[str] = []
+    for url in urls:
+        parts = urlsplit(url)
+        host = parts.hostname or ""
+        if host.startswith("upos-") and host.endswith(".akamaized.net"):
+            alternates.extend(urlunsplit(parts._replace(netloc=other)) for other in UPOS_HOSTS)
+    return clean_urls([*alternates, *urls])
+
+
 def _stream(data: Node, dimension: Node | None) -> VideoStream | None:
     """The progressive MP4 in a ``playurl`` answer, mirrors included.
 
@@ -179,7 +205,7 @@ def _stream(data: Node, dimension: Node | None) -> VideoStream | None:
     fmt = optional_str(streams.get("format")) or ""
     if not fmt.startswith("mp4"):
         return None
-    urls = clean_urls([part.get("url"), *(part.get("backup_url") or [])])
+    urls = _upos_alternates(clean_urls([part.get("url"), *(part.get("backup_url") or [])]))
     if not urls:
         return None
     width, height = _dimension(dimension)
@@ -712,6 +738,7 @@ __all__ = [
     "PART_KEY",
     "RISK_CODES",
     "STREAMS_KEY",
+    "UPOS_HOSTS",
     "author_web_url",
     "content_web_url",
     "detect_risk_control",
