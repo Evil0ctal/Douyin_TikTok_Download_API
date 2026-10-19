@@ -410,9 +410,9 @@ function markKey(platform: string, field: MarkField): string {
  * `pool.<platform>.min_size` and `target_size` as a grid, with "inherit the
  * global mark" spelled out as an empty cell showing the value it inherits.
  *
- * Saved together: a low-water mark and a target are read as a pair by the
- * filler, and saving one of them leaves the pool briefly configured with a
- * target below its own floor.
+ * One Save for the grid: the filler reads a low-water mark and a target as a
+ * pair, and editing them one row at a time is how a target ends up below its
+ * own floor between two clicks.
  */
 function PoolMarksGrid({ settings, canWrite, onSaved }: PoolMarksGridProps) {
   const { t } = useTranslation(['console', 'common'])
