@@ -17,7 +17,7 @@ from sqlalchemy import delete, select
 
 from dtk.core.db import session_scope
 from dtk.core.types import IdentityState, Platform, Scope, UserRole
-from dtk.db.models import ApiKey, AuditLog, Identity, IdentityEvent, Proxy, Setting
+from dtk.db.models import ApiKey, AuditLog, Identity, IdentityEvent, Proxy, Setting, Task
 from dtk.ops import backup
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
@@ -1093,6 +1093,29 @@ async def test_maintenance_jobs_are_queued(client: Any) -> None:
         response = await client.post(path, json=body)
         assert response.status_code == 202, path
         assert envelope(response)["data"]["task_id"]
+
+
+async def test_the_self_check_carries_the_platform_it_was_asked_for(client: Any) -> None:
+    """Chosen, it reaches the worker; unchosen, it is absent so the worker picks."""
+    await signed_in(client)
+
+    chosen = await client.post(
+        "/api/v1/admin/diagnose", json={"include_smoke_test": True, "platform": "bilibili"}
+    )
+    unchosen = await client.post("/api/v1/admin/diagnose", json={"include_smoke_test": True})
+
+    async with session_scope() as session:
+        params = {str(row.id): row.params for row in (await session.scalars(select(Task))).all()}
+    assert params[envelope(chosen)["data"]["task_id"]]["platform"] == "bilibili"
+    assert "platform" not in params[envelope(unchosen)["data"]["task_id"]]
+
+
+async def test_the_self_check_refuses_a_platform_it_does_not_know(client: Any) -> None:
+    await signed_in(client)
+
+    response = await client.post("/api/v1/admin/diagnose", json={"platform": "kuaishou"})
+
+    assert error_code(response) == "INVALID_PARAM"
 
 
 async def test_backup_is_administrator_only(client: Any) -> None:
