@@ -1275,8 +1275,8 @@
     "outOfRange": "请输入 {min} 到 {max} 之间的值。",
     "param": {
       "aweme_id": "作品 ID，与链接二选一。",
-      "board": "选择榜单：hot（当下热门，默认）、weekly（每周必看）、precious（入站必刷）或 rank（排行榜）。",
-      "boardCursor": "hot 填页码，weekly 填期数；precious 和 rank 各只有一份列表，会忽略它。",
+      "board": "选择榜单：hot（当下热门，默认）、weekly（每周必看）、precious（入站必刷）或 rank（全站排行榜前 100）。",
+      "boardCursor": "hot 填页码，weekly 填期数（留空为最新一期）；precious 和 rank 各只有一页，会忽略它。",
       "collection_id": "收藏夹 ID，可从收藏夹链接或收藏夹列表中获取。",
       "comment_id": "要查看回复的那条评论。",
       "count": "每页条数，该平台最多 {max}。",

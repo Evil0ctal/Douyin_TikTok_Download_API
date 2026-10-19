@@ -1275,8 +1275,8 @@
     "outOfRange": "Enter a value between {min} and {max}.",
     "param": {
       "aweme_id": "Post id. Provide this or a link.",
-      "board": "Which list: hot (popular now, the default), weekly (the weekly picks), precious (the all-time picks) or rank (the leaderboard).",
-      "boardCursor": "For hot, the page number. For weekly, the issue number. precious and rank are one list each and ignore it.",
+      "board": "Which list: hot (popular now, the default), weekly (the weekly selection), precious (the editors' all-time selection) or rank (the site-wide top 100).",
+      "boardCursor": "For hot, the page number. For weekly, the issue number; empty is the newest issue. precious and rank are one page each and ignore it.",
       "collection_id": "The folder's id, from a folder link or from the folder list.",
       "comment_id": "The comment whose replies you want.",
       "count": "Items per page, up to {max} on this platform.",
