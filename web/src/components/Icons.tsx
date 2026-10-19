@@ -473,3 +473,25 @@ export function BookIcon(props: IconProps) {
     </Svg>
   )
 }
+
+/** Three stacked blocks, for the page called "Building blocks". It shared the
+ *  Playground's terminal, so two adjacent rows looked like one page twice. */
+export function BlocksIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="2.5" y="8.5" width="5" height="5" rx="1" />
+      <rect x="8.5" y="8.5" width="5" height="5" rx="1" />
+      <rect x="5.5" y="2.5" width="5" height="5" rx="1" />
+    </Svg>
+  )
+}
+
+/** A frame with subtitle lines. Transcriptions used the Logs list glyph. */
+export function CaptionsIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="2" y="3.5" width="12" height="9" rx="1.5" />
+      <path d="M4.5 8.25h4M10.25 8.25h1.25M4.5 10.25h2M8.25 10.25h3.25" />
+    </Svg>
+  )
+}

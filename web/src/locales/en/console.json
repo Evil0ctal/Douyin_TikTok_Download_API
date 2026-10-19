@@ -3,7 +3,8 @@
     "group": {
       "monitor": "Monitor",
       "pool": "Pool",
-      "tools": "Tools",
+      "content": "Content",
+      "developer": "Developer",
       "access": "Access",
       "operations": "Operations"
     },
@@ -231,7 +232,8 @@
     },
     "endpointCount": "{count, plural, one {# endpoint declared} other {# endpoints declared}}",
     "poolDistribution": "Pool state distribution",
-    "poolHint": "Every identity, by state, across platforms.",
+    "poolDistributionFor": "{platform} identities by state",
+    "poolHint": "Every identity, by state, per platform.",
     "rates": "Success and risk-control rate",
     "ratesHint": "Share of requests per bucket. Times are local; the server stores UTC.",
     "volume": "Request volume",
@@ -244,11 +246,18 @@
     "alert": {
       "poolEmpty": "No active identity",
       "poolEmptyHint": "Requests are rejected with IDENTITY_POOL_EXHAUSTED until the pool recovers.",
+      "platformAction": "Open {platform} identities",
+      "platformDown": "No active {platform} identity",
+      "platformDownHint": "{platform} requests are rejected with IDENTITY_POOL_EXHAUSTED until one recovers. The other platforms are unaffected.",
+      "platformEmpty": "No {platform} identity yet",
+      "platformEmptyHint": "Calls to {platform} are refused until an identity is minted or imported for it.",
       "degraded": "{count, plural, one {# degraded identity} other {# degraded identities}}",
       "degradedHint": "Degraded identities still serve traffic, but they fail more often than the rest."
     },
     "byEndpoint": "Success rate by endpoint",
-    "byEndpointHint": "The busiest endpoints in this window, up to six. Pick one above to see it on its own."
+    "byEndpointHint": "The busiest endpoints in this window, up to six. Pick one above to see it on its own.",
+    "transcriptions": "Transcriptions",
+    "transcriptionsHint": "stored videos turned into text"
   },
   "identity": {
     "column": {
@@ -1405,6 +1414,7 @@
     "endpoint": {
       "parse": "Parse any link",
       "video": "Post detail",
+      "parts": "Video parts (multi-part videos)",
       "comments": "Post comments",
       "replies": "Comment replies",
       "user": "Author profile",
@@ -1417,7 +1427,8 @@
       "collectionPosts": "Saved posts (one folder)",
       "mix": "Author's own series (mix / playlist)",
       "followers": "Author followers",
-      "following": "Author following"
+      "following": "Author following",
+      "popular": "Popular and rankings"
     },
     "endpointLabel": "Endpoint",
     "explainAbsent": "This run did not ask what request was made, so there is nothing to show. It happened, and this instance knows exactly what it sent upstream.",
@@ -1427,13 +1438,35 @@
     "explainRun": "Send again and explain it",
     "failureDescription": "The stable code, the identity that served it, the circuit and the pool, in one place.",
     "failureTitle": "Why this call failed",
+    "guest": {
+      "action": "Add a logged-in identity",
+      "bilibiliComments": "Bilibili shows a guest only the three hottest comments (the three newest with sort=new) and no further page.",
+      "douyinAuthorPosts": "Douyin leaves an author's newest posts out of what it shows a guest, so the first items here may not be the latest, and later pages need a logged-in identity.",
+      "generic": "It may hold less than a logged-in identity would see.",
+      "title": "A guest identity answered, because no logged-in one was available."
+    },
     "healthUnavailable": "Endpoint health is unavailable.",
     "historyEmpty": "Calls you make appear here.",
     "historyRestore": "Put these parameters back in the form. It does not re-send.",
     "historyTitle": "This session",
     "identityAuto": "Any identity (scheduler picks)",
     "identityLoggedIn": "logged in",
+    "identityRequired": "This endpoint answers only about the identity sending it, so it needs one pinned in identity below. Pick a logged-in one: a guest has nothing saved to show.",
+    "identityRequiredForbidden": "This endpoint answers only about the identity sending it, so it needs one pinned with identity, and pinning takes the operator role. This session cannot make the call; an operator can.",
+    "loadExample": "Load a {platform} example",
+    "loadExampleHint": "Fills the target with a real, public one.",
     "metaTitle": "Response metadata",
+    "next": {
+      "download": "Download media",
+      "downloadFailed": "Could not start the download",
+      "downloadFetchingFirst": "Fetching the post first, then its media",
+      "downloadReused": "{reason, select, in_flight {Already downloading this post} other {Already downloaded; nothing to do}}",
+      "downloadStarted": "Download started",
+      "openAuthor": "This author in Library",
+      "openDownload": "Open in Downloads",
+      "openPost": "Open in Library",
+      "title": "Next"
+    },
     "nextPage": "Fetch the next page",
     "nextPageHint": "This page has a cursor. Fetching the next one spends another request.",
     "noRequestId": "Not reported",
@@ -1444,11 +1477,15 @@
     "outOfRange": "Enter a value between {min} and {max}.",
     "param": {
       "aweme_id": "Post id. Provide this or a link.",
+      "board": "Which list: hot (popular now, the default), weekly (the weekly selection), precious (the editors' all-time selection) or rank (the site-wide top 100).",
+      "boardCursor": "For hot, the page number. For weekly, the issue number; empty is the newest issue. precious and rank are one page each and ignore it.",
+      "collection_id": "The folder's id, from a folder link or from the folder list.",
       "comment_id": "The comment whose replies you want.",
-      "count": "Items per page, up to 50.",
+      "count": "Items per page, up to {max} on this platform.",
       "cursor": "Opaque cursor from the previous page. Leave empty for the first page.",
       "explain": "Report which identity served the request, the cookie jar it used, and the exact upstream URL. Skips the cache and needs the operator role.",
       "identity": "Send as one named identity and no other. For content only that account can see. The request is never served from another identity and never from the cache.",
+      "identitySessionBound": "Required here: this endpoint answers about the identity sending it and nobody else. The request is never served from another identity and never from the cache.",
       "include_raw": "Also return the untouched platform payload.",
       "mix_id": "The collection's id, from a mix or playlist link.",
       "needsRole": "Needs the {role} role. This instance is signed in below that, so the parameter is not sent.",
@@ -1459,9 +1496,22 @@
       "url": "A post or profile link, or the share text around one.",
       "wait": "Seconds the server may hold the connection before answering with a task id instead."
     },
+    "paramFor": {
+      "bilibili": {
+        "aweme_id": "A bvid such as BV1xx411c7mD; an av number is converted. Provide this or a link.",
+        "sec_user_id": "The author's numeric mid, the number in a space.bilibili.com link. Provide this or a link."
+      },
+      "tiktok": {
+        "profileUrl": "A profile link names an @handle, which only the author profile accepts. The author lists need sec_user_id.",
+        "sec_user_id": "The author's secUid, which starts MS4wLjABAAAA. Provide this or a link."
+      }
+    },
     "poolEmptyHint": "No identity is active. Requests are rejected with IDENTITY_POOL_EXHAUSTED until one recovers.",
+    "poolEmptyHintFor": "No {platform} identity is active. {platform} requests are rejected with IDENTITY_POOL_EXHAUSTED until one recovers; the other platforms are unaffected.",
     "poolInline": "active {active} · cooling {cooling} · degraded {degraded}",
     "poolLabel": "Identity pool",
+    "poolLabelFor": "{platform} identity pool",
+    "poolManage": "Manage",
     "poolUnavailable": "Pool state is unavailable.",
     "rawAbsent": "not requested",
     "rawDescription": "The platform payload, kept because it is the evidence when a parser breaks.",
@@ -1497,8 +1547,10 @@
     "snippetNote": "The console authenticates with a session cookie. Outside the browser use Authorization: Bearer or X-API-Key.",
     "snippetTitle": "Copy-ready call",
     "taskState": "Task",
+    "unserved": "Not served on {platform}",
+    "unservedNotice": "{platform} does not serve this endpoint, so the call would only be refused with UNSUPPORTED_CONTENT. Pick another platform or endpoint.",
     "upstreamCurl": "The upstream request as curl",
-    "upstreamCurlNote": "The platform's own endpoint, not this API. Send the query byte for byte — re-encoding it changes what the signature covers — and keep the User-Agent, which both platforms hash in. TikTok also checks that the TLS fingerprint agrees with the User-Agent, so plain curl is refused there whatever the signature says."
+    "upstreamCurlNote": "The platform's own endpoint, not this API. Send the query byte for byte — re-encoding it changes what the signature covers — and keep the User-Agent, which Douyin and TikTok hash in. TikTok also checks that the TLS fingerprint agrees with the User-Agent, so plain curl is refused there whatever the signature says."
   },
   "parse": {
     "inputTitle": "Links",
@@ -1561,7 +1613,7 @@
     "detectedWithRejects": "{count, plural, one {# link} other {# links}} ready · {rejected, plural, one {# line not recognised} other {# lines not recognised}}",
     "rejected": {
       "content_id": "A post id with no platform on it. Paste the link instead, or say which platform it belongs to.",
-      "bad_id": "This looks like a post id but cannot be one — both platforms mint ids whose high bits are the second they were issued.",
+      "bad_id": "All digits, but not a Douyin or TikTok post id: theirs carry the second they were issued in the high bits, and this one does not hold a real time. A Bilibili video goes in as its BV id or its link.",
       "unknown": "No Douyin, TikTok or Bilibili link in this line."
     }
   },
@@ -1706,7 +1758,7 @@
       "title": "Sign a platform API URL",
       "description": "Pure arithmetic. Nothing is fetched and no identity is spent.",
       "urlHint": "The full API URL including its query. The signature is appended to what you send.",
-      "userAgentHint": "Both platforms hash this into the signature. Leave it blank for a Chrome default.",
+      "userAgentHint": "Douyin and TikTok hash this into the signature; Bilibili's WBI signature does not use it. Leave it blank for a Chrome default.",
       "userAgentPlaceholder": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Chrome/146.0.0.0 Safari/537.36",
       "msTokenHint": "TikTok only. Sealed into the signature, so it must be the token the request will carry - an invented value is worse than none.",
       "msTokenPlaceholder": "Leave blank if you have none",
@@ -1776,7 +1828,7 @@
       "valueLabel": "Signature or signed URL",
       "valueHint": "A whole signed URL is the most useful form: only then is the string each parameter covers known exactly, so only then can the checks run. A single parameter value, or a name=value pair, works too.",
       "valuePlaceholder": "https://www.douyin.com/aweme/v1/web/aweme/detail/?…&a_bogus=…",
-      "userAgentHint": "Both platforms hash the User-Agent into the signature. Fill this in and the result says whether the UA you are sending is the one the signature was computed with — which is the most common way a hand-built request fails while looking correct.",
+      "userAgentHint": "Douyin and TikTok hash the User-Agent into the signature; Bilibili's WBI signature does not. Fill this in and the result says whether the UA you are sending is the one the signature was computed with — which is the most common way a hand-built request fails while looking correct.",
       "parameterLabel": "Read it as",
       "parameterHint": "Left on auto, the value is identified by properties no other parameter has. Name it yourself if you are holding something unusual.",
       "parameterAuto": "Identify it automatically",
@@ -1858,7 +1910,7 @@
       "title": "Batch ids",
       "description": "Sort a pasted list of links and post ids without fetching anything. No identity is spent and nothing leaves this machine.",
       "field": "Links and ids",
-      "hint": "One per line. Blank lines and duplicates are dropped. A post id carries the second it was issued, so a typo is named here instead of becoming an upstream request.",
+      "hint": "One per line. Blank lines and duplicates are dropped. A Douyin or TikTok post id carries the second it was issued, so a typo is named here instead of becoming an upstream request; a Bilibili BV id is recognised on its own.",
       "action": "{count, plural, =0 {Parse} one {Parse # line} other {Parse # lines}}",
       "copyIds": "Copy the ids",
       "copied": "Ids copied",
@@ -2549,7 +2601,7 @@
       "become": "To sponsor this project, see github.com/sponsors/evil0ctal.",
       "label": "Sponsor"
     },
-    "tagline": "A self-hosted API for Douyin and TikTok data, and a console for running it.",
+    "tagline": "A self-hosted API for Douyin, TikTok and Bilibili data, and a console for running it.",
     "title": "About"
   },
   "mcp": {

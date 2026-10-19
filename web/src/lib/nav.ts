@@ -3,9 +3,15 @@
  *
  * Pages come from docs/design/07-frontend.md; the grouping is what an operator
  * reaches for during an incident, not the order the docs list them in.
+ *
+ * Content and Developer were one "Tools" group of eight - over a third of the
+ * sidebar under one heading - which put what this instance has collected
+ * (library, downloads, transcripts, watchlist) in a list with the pages for
+ * building against its API, and made the group the one place a reader had to
+ * scan rather than glance.
  */
 
-export const NAV_GROUPS = ['monitor', 'pool', 'tools', 'access', 'operations'] as const
+export const NAV_GROUPS = ['monitor', 'pool', 'content', 'developer', 'access', 'operations'] as const
 export type NavGroup = (typeof NAV_GROUPS)[number]
 
 export type NavIconName =
@@ -27,6 +33,8 @@ export type NavIconName =
   | 'clock'
   | 'users'
   | 'lock'
+  | 'blocks'
+  | 'captions'
 
 export interface NavItem {
   path: string
@@ -54,15 +62,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/identities', labelKey: 'nav.identities', group: 'pool', icon: 'idCard' },
   { path: '/proxies', labelKey: 'nav.proxies', group: 'pool', icon: 'globe' },
   { path: '/scheduler', labelKey: 'nav.scheduler', group: 'pool', icon: 'sliders', demo: true },
-  { path: '/playground', labelKey: 'nav.playground', group: 'tools', icon: 'terminal', demo: true },
-  { path: '/tools', labelKey: 'nav.tools', group: 'tools', icon: 'terminal', demo: true },
-  { path: '/library', labelKey: 'nav.library', group: 'tools', icon: 'archive', demo: true },
-  { path: '/watchlist', labelKey: 'nav.watchlist', group: 'tools', icon: 'clock' },
-  { path: '/downloads', labelKey: 'nav.downloads', group: 'tools', icon: 'download', demo: true },
-  { path: '/transcriptions', labelKey: 'nav.transcriptions', group: 'tools', icon: 'list' },
-  { path: '/docs', labelKey: 'nav.apiDocs', group: 'tools', icon: 'book', demo: true },
+  { path: '/library', labelKey: 'nav.library', group: 'content', icon: 'archive', demo: true },
+  { path: '/downloads', labelKey: 'nav.downloads', group: 'content', icon: 'download', demo: true },
+  { path: '/transcriptions', labelKey: 'nav.transcriptions', group: 'content', icon: 'captions' },
+  { path: '/watchlist', labelKey: 'nav.watchlist', group: 'content', icon: 'clock' },
+  { path: '/playground', labelKey: 'nav.playground', group: 'developer', icon: 'terminal', demo: true },
+  { path: '/tools', labelKey: 'nav.tools', group: 'developer', icon: 'blocks', demo: true },
+  { path: '/docs', labelKey: 'nav.apiDocs', group: 'developer', icon: 'book', demo: true },
   // Not '/mcp': that path is the MCP endpoint itself, mounted on the API.
-  { path: '/mcp-guide', labelKey: 'nav.mcp', group: 'tools', icon: 'plug', demo: true },
+  { path: '/mcp-guide', labelKey: 'nav.mcp', group: 'developer', icon: 'plug', demo: true },
   { path: '/api-keys', labelKey: 'nav.apiKeys', group: 'access', icon: 'key', demo: true },
   { path: '/endpoint-access', labelKey: 'nav.endpointAccess', group: 'access', icon: 'lock' },
   { path: '/users', labelKey: 'nav.users', group: 'access', icon: 'users' },

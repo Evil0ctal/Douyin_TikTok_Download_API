@@ -10,7 +10,9 @@ import {
   ActivityIcon,
   ArchiveIcon,
   BellIcon,
+  BlocksIcon,
   BookIcon,
+  CaptionsIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -53,6 +55,8 @@ const NAV_ICONS: Record<NavIconName, (props: IconProps) => ReactElement> = {
   download: DownloadIcon,
   clock: ClockIcon,
   users: UsersIcon,
+  blocks: BlocksIcon,
+  captions: CaptionsIcon,
 }
 
 export interface SidebarProps {

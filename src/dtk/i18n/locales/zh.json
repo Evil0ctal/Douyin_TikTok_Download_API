@@ -575,6 +575,10 @@
         "summary": "本实例是否已有管理员",
         "description": "必须免鉴权：这是初始化向导问的第一个问题。"
       },
+      "system_capabilities": {
+        "summary": "各平台支持的接口",
+        "description": "列出本实例认识的每个平台及其支持的操作。不在某平台列表中的操作，在该平台上会返回 UNSUPPORTED_CONTENT。`session_bound` 标记的操作只回答发起请求的身份本人的数据，不带 `identity` 会被拒绝。"
+      },
       "task_cancel": {
         "summary": "取消任务",
         "description": "放弃一个还没开始的任务。只有排队中的任务会被停止；已经在运行的任务保持原样并如实返回运行中，因为它的请求已经发出、身份配额已经花掉——记录一个 worker 从未遇到的失败会让接口的风控率失真。不会删除任何东西。"

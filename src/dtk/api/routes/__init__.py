@@ -7,6 +7,7 @@ Layout, in the order a caller meets it:
 
 ======================  ===================================================
 ``system``              ``/healthz``, ``/readyz``, ``/api/v1/system/status``
+``capabilities``        ``/api/v1/system/capabilities`` - what each platform serves
 ``setup``               ``/api/setup/*`` - the one-time bootstrap
 ``auth``                ``/api/v1/auth/*`` - console sessions
 ``ios``                 ``/api/v1/ios/shortcut``
@@ -32,6 +33,7 @@ from dtk.api.routes import (
     admin,
     archive,
     auth,
+    capabilities,
     content,
     downloads,
     ios,
@@ -50,6 +52,7 @@ log = get_logger(__name__)
 #: Routers in registration order.
 ROUTERS = (
     system.router,
+    capabilities.router,
     setup.router,
     auth.router,
     ios.router,

@@ -167,6 +167,8 @@ export const paths = {
   },
   system: {
     status: `${API_V1}/system/status`,
+    /** Which operations each platform serves, and which need a pinned identity. */
+    capabilities: `${API_V1}/system/capabilities`,
     health: '/healthz',
     ready: '/readyz',
   },
