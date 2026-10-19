@@ -174,6 +174,10 @@ class PoolFiller:
     def _route_backing_off(self, platform: Platform) -> bool:
         return self._now() < self._blocked_until.get(self._route(platform), 0.0)
 
+    def _route_platforms(self, route: str) -> tuple[Platform, ...]:
+        """Every platform minted by ``route``: what one of its failures rests."""
+        return tuple(platform for platform in Platform if self._route(platform) == route)
+
     # -- one tick ----------------------------------------------------------
 
     async def tick(self) -> FillResult:
@@ -399,7 +403,7 @@ class PoolFiller:
             proxy_id=str(proxy.id) if proxy is not None else None,
         )
         await mint_log.finished(platform, ok=True, reason="minted", identity_id=identity_id)
-        await mint_log.recovered()
+        await mint_log.recovered(self._route_platforms(route))
         return FillResult(
             platform=platform,
             identity_id=identity_id,
@@ -450,7 +454,9 @@ class PoolFiller:
             error=str(exc)[:200],
         )
         await mint_log.finished(platform, ok=False, reason=reason, error=str(exc))
-        await mint_log.backing_off(failures=failures, seconds=delay)
+        await mint_log.backing_off(
+            self._route_platforms(route), route=route, failures=failures, seconds=delay
+        )
         return FillResult(platform=platform, reason=reason)
 
     # -- proxies -----------------------------------------------------------

@@ -134,15 +134,51 @@
 }
 
 /*
- * A row per platform, because each one now has its own switch and marks
- * (issue 763). Still one line each: the card's job is to answer "is it topping
- * itself up" at a glance, not to become a settings form.
+ * A block per platform, because each one now has its own switch and marks
+ * (issue 763), its own logins and its own minting record. Two short lines
+ * each: the card's job is to answer "is it topping itself up, and can it page"
+ * at a glance, not to become a settings form.
  */
 .refillRows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   padding: 0 var(--space-4) var(--space-3);
+}
+
+.refillPlatform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Indented under the chip, so it reads as that platform's and not the next. */
+.refillMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding-left: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  color: var(--text-secondary);
+}
+
+.refillMeta:empty {
+  display: none;
+}
+
+/* How many logins rotation can reach. Caution, not danger, at none: it is a
+   fact about paging, and the platform's first pages still answer. */
+.logins {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.logins[data-missing='true'] {
+  color: var(--caution);
 }
 
 .refillRow {
@@ -185,16 +221,14 @@
 /* -------------------------------------------------------------------------- */
 
 /*
- * One more line on the refill card, present only when there is something to
- * say. An instance that has never minted renders nothing here at all.
+ * Part of each platform's second line, present only when there is something to
+ * say. A platform that has never been minted renders nothing here at all.
  */
 .mintRow {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-2);
-  font-size: var(--text-xs);
+  gap: var(--space-2) var(--space-3);
 }
 
 .minting {
@@ -205,9 +239,10 @@
   white-space: nowrap;
 }
 
+/* Allowed to wrap: it is a sentence with a time in it, and on a phone it is
+   wider than the card. */
 .backoff {
   color: var(--caution);
-  white-space: nowrap;
 }
 
 .pulse {
@@ -383,4 +418,134 @@
 
 .role_useful {
   color: var(--text-secondary);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Table cells                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/* Source on top, login and its expiry under it: one column where there were
+   two, Source and Logged in, at 230px between them. */
+.kind {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.kindLogin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+  font-size: var(--text-xs);
+}
+
+/*
+ * When a login lapses. Highlighted inside a week, because that is the time it
+ * takes to notice, open the browser it came from and copy a fresh jar - and
+ * loud once it has, because the identity is then a guest in all but name.
+ */
+.expiry {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.expiry[data-tone='soon'] {
+  color: var(--caution);
+  font-weight: var(--weight-medium);
+}
+
+.expiry[data-tone='expired'] {
+  color: var(--danger);
+  font-weight: var(--weight-medium);
+}
+
+/* "Showing 200 of 340", under the table, with the way to the rest. */
+.paging {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Import                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/* The statement that the paste is the account. Same ground and edge as the
+   notice above the table, for the same kind of statement. */
+.riskPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.reportPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.reportCookies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* One entry of a file being restored that will not come back as it was. */
+.bundleEntry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Drawer                                                                      */
+/* -------------------------------------------------------------------------- */
+
+.drawerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A link, because it goes somewhere: middle-click opens the log in a tab. Sized
+   like the small buttons beside it so the row reads as one set of actions. */
+.drawerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.drawerLink:hover {
+  background: var(--accent-subtle);
+}
+
+.drawerLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }

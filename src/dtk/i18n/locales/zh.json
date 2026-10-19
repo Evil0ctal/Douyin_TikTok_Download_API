@@ -469,7 +469,7 @@
       },
       "identities_list": {
         "summary": "列出身份及其状态与健康度",
-        "description": "身份池，最新的在前。"
+        "description": "身份池，最新的在前。默认不含已退休的身份，除非设置了 include_retired、state 指定了退休状态，或 identity_id 指名了某一个。每一行会给出登录态何时过期（expires_at，访客为 null）。meta.total 是符合条件的身份总数，meta.retired 是同样条件下被略去的已退休身份数。"
       },
       "identities_mint": {
         "summary": "铸造访客身份",
@@ -477,7 +477,7 @@
       },
       "identities_pool": {
         "summary": "身份池水位与自动补充阈值",
-        "description": "后台补充任务按平台比较的那两个数字。`usable` 统计的是仍然存活、且连续失败次数低于 `pool.max_fail_streak` 的身份，而不是行数——一个每次请求都失败的身份依然算存活，只数行会让一个已经不能用的池子看起来是满的。低于该平台的 `min_size` 时，worker 每分钟铸造一个身份，直到回到它的 `target_size`。每个平台行带着自己的一对阈值：设置了 `pool.<platform>.min_size` / `target_size` 就用它们，否则沿用全局的 `pool.min_size` / `pool.target_size`（`min_inherited` / `target_inherited` 表示是哪一种）。某个平台的 `min_size` 为 0 时 `auto` 为 false，表示关闭它的自动铸造和水位告警。顶层的 `min_size` 和 `target_size` 是全局那一对。`can_mint` 表示某个平台能否在这里铸造：B 站通过普通 HTTP 铸造，抖音和 TikTok 需要浏览器容器。为 false 时两个阈值不起作用，该平台的池子里只有手动导入的身份。顶层的 `can_mint` 在任一平台可以铸造时为 true。"
+        "description": "后台补充任务按平台比较的那两个数字。`usable` 统计的是仍然存活、且连续失败次数低于 `pool.max_fail_streak` 的身份，而不是行数——一个每次请求都失败的身份依然算存活，只数行会让一个已经不能用的池子看起来是满的。低于该平台的 `min_size` 时，worker 每分钟铸造一个身份，直到回到它的 `target_size`。每个平台行带着自己的一对阈值：设置了 `pool.<platform>.min_size` / `target_size` 就用它们，否则沿用全局的 `pool.min_size` / `pool.target_size`（`min_inherited` / `target_inherited` 表示是哪一种）。某个平台的 `min_size` 为 0 时 `auto` 为 false，表示关闭它的自动铸造和水位告警。顶层的 `min_size` 和 `target_size` 是全局那一对。`can_mint` 表示某个平台能否在这里铸造：B 站通过普通 HTTP 铸造，抖音和 TikTok 需要浏览器容器。为 false 时两个阈值不起作用，该平台的池子里只有手动导入的身份。顶层的 `can_mint` 在任一平台可以铸造时为 true。`logins` 按平台统计已登录的身份：`rotating` 是轮换会分配给需要登录的接口的，`reserved` 是只有指名它的请求才用得到的，`cooling` 是冷却结束后会重新参与轮换的，`limited` 是只在不需要登录的接口上参与轮换的。`login_required_for` 列出在 `rotating` 为 0 时会返回 IDENTITY_LOGIN_REQUIRED 的接口。`activity.backoffs` 是按平台给出的铸造退避状态。"
       },
       "identities_reset": {
         "summary": "让身份重新参与轮换",
@@ -648,6 +648,7 @@
       "action": "仅返回该动作，例如 `settings.update`。",
       "api_keys_update.key_id": "要修改的密钥。",
       "audit_list.user_id": "仅返回该控制台账号的操作。",
+      "authenticated": "为 true 时只返回已登录的身份，为 false 时只返回访客身份。",
       "author_uid": "仅返回该作者的作品。",
       "availability": "仅返回上游状态为此的作品。",
       "aweme_id": "作品 ID，与 url 二选一，二者必须且只能提供一个。B 站是 BV 号（如 BV1xx411c7mD），也接受 av 号。",
@@ -668,9 +669,11 @@
       "explain": "把这次请求原样报告回来——已签名的 URL、请求头，以及该身份的 cookie，这样就能在本实例之外复现同一个请求。返回内容含凭据，因此需要 `identity:manage` 权限和 operator 角色，会记入审计日志，并且对没有该权限的读取者会从存储的任务结果中剔除。它隐含 `refresh`：解释一个命中缓存的响应，描述的会是本次请求根本没发出过的那一次调用。",
       "healthy_only": "仅列出上次探测通过的代理。",
       "hours": "统计窗口回溯多少小时。",
+      "identities_list.identity_id": "只返回这一个身份，无论是否已退休。",
       "identity": "按 ID 指定用哪个身份发送，且只用这一个。用于只有该账号能看到的内容，例如用你从自己浏览器导入的 Cookie 抓取自己的私密作品。需要 identity:manage 权限；该请求永远不会由其他身份代发，也永远不会命中响应缓存。",
       "identity_id": "要操作的身份 ID。",
       "include_raw": "在归一化结果之外，同时返回平台自身的原始响应。",
+      "include_retired": "同时列出已退休的身份。它们会为统计保留 90 天，不再持有任何 Cookie。",
       "key": "要操作的配置项，取值见列表接口。",
       "key_id": "要吊销的密钥 ID。",
       "kind": "仅返回该类型的条目。",
@@ -692,9 +695,11 @@
       "refresh": "忽略缓存和正在进行中的相同任务，重新发起一次请求。有两个机制会让重复调用拿到上一次的结果——本实例会合并到一个已在运行或刚刚完成的相同任务，以及会缓存整理后的响应体——这个参数会同时关掉两者。新取到的结果仍然会写入缓存。它会消耗一个身份和一次上游请求，适合用来确认内容有没有变化，而不是每次调用都带上。缓存能存多久取决于请求的内容，在控制台里可以改：单个作品用 cache.content_ttl（默认 30 分钟），作者主页用 cache.author_ttl（15 分钟），所有分页接口用 cache.list_ttl（5 分钟）。条目到期自动清除，同时 Redis 设了低于容器上限的内存封顶，快满时会先淘汰最久未用、且带过期时间的键，所以缓存不会无限增长。",
       "request_id": "仅返回该请求 ID 对应的那一条。",
       "request_log.identity_id": "仅返回由该身份发出的请求。",
+      "rotation": "只返回在所有接口上参与轮换的身份（rotating）、只服务指定它的请求的身份（reserved），或只在部分接口上参与轮换的身份（limited）。",
       "sec_user_id": "作者的稳定 ID，与 url 二选一。在 TikTok 上即 secUid；在 B 站上是数字 mid。",
       "session_ref": "会话摘要，取自列表接口。",
       "sort": "hot（最热）或 new（最新）。只有 B 站可选；抖音和 TikTok 按自己的方式排序，接受 hot，拒绝 new。翻到后面的页时，带上游标的同时请传同一个值。",
+      "source": "只返回铸造的身份，或只返回导入的身份。",
       "state": "仅返回处于该状态的条目。",
       "step": "分桶宽度，单位为秒。",
       "stored": "为 true 时仅返回媒体文件当前仍由本实例保存的作品，false 则返回其余的。和 `collection` 一样，它描述的是「留下了什么」而不是作品本身。",
@@ -809,6 +814,7 @@
         "language": "那个浏览器的 `navigator.language`，例如 `zh-CN`。",
         "platform": "这份 cookie 属于哪个平台。",
         "proxy_id": "以该身份发出的请求只走这个出口。留空时，这个身份会一直从这台服务器直连出去：身份的出口在存入时就固定了。",
+        "reserved": "存入时就不参与轮换，只服务带 identity= 指定它的请求。等同于把它的轮换设为空列表，只是在轮换有机会分配它之前就设好了。",
         "timezone": "那个浏览器的 IANA 时区，例如 `Asia/Shanghai`。应与出口所在地一致。",
         "user_agent": "这份 cookie 所来自的浏览器的 User-Agent。两个平台都会把它计入签名，所以用另一个 UA 发送这份 cookie，是它们看得见的自相矛盾。"
       },

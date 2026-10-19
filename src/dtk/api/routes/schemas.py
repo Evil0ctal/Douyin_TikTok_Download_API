@@ -225,6 +225,14 @@ class IdentityImport(Body):
             "is far easier to spot than to debug."
         ),
     )
+    reserved: bool = Field(
+        default=False,
+        description=(
+            "Store it out of rotation, for the requests that name it with `identity=` "
+            "and nothing else. The same as an empty list on its rotation, set before "
+            "rotation can hand it out once."
+        ),
+    )
 
 
 class IdentityExport(Body):
