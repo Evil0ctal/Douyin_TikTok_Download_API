@@ -184,7 +184,7 @@ B 站的 UP 主投稿列表是 B 站防得最严的接口：同一个出口短�
 
 ### `download_media`
 
-接受完整作品 `url`，或者 `platform` 加 `content_id`；短链接仍需先调用 `parse_url`。`skip_existing` 默认是 true，因此代理重复调用会复用磁盘上已有的文件。
+接受完整作品 `url`，或者 `platform` 加 `content_id`；短链接仍需先调用 `parse_url`。`skip_existing` 默认是 true，因此代理重复调用会复用磁盘上已有的文件。在 B 站上，`part`（从 1 开始）用来保存多 P 视频的某一 P；URL 里的 `?p=` 也是同一个意思，每一 P 都有自己的 `download_id`。
 
 它需要 `media:write`，并且会改变本实例：文件会写到运营者的磁盘上，本实例还没解析过的作品会先通过身份池抓取一次。工具最多等待 `api.mcp_tool_timeout`。完成时返回保存下来的下载记录和 `download_id`；耗时更长时返回 `pending`，带一段 `message`、交给 `get_task_result` 的 `task_id`，以及 `download_id`。什么都没存下的下载——没有可抓取的媒体，或者被取消——会作为工具错误返回并说明原因，而不是 `ok`。文件保留在服务端媒体卷上，不通过 MCP 传输。
 

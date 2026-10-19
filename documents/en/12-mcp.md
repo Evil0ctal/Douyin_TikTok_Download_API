@@ -185,7 +185,7 @@ No credential, identity id, cookie, fingerprint or proxy address appears anywher
 
 ### `download_media`
 
-Accepts either a full post `url`, or `platform` plus `content_id`. Short links must go through `parse_url` first. `skip_existing` defaults to true, so repeated agent calls reuse the files already on disk.
+Accepts either a full post `url`, or `platform` plus `content_id`. Short links must go through `parse_url` first. `skip_existing` defaults to true, so repeated agent calls reuse the files already on disk. On Bilibili, `part` (from 1) stores one part of a video uploaded in several; a URL's `?p=` says the same, and each part is its own `download_id`.
 
 It needs `media:write`, and it changes this instance: files land on the operator's disk, and a post this instance has not parsed yet is fetched through the identity pool first. The tool waits up to `api.mcp_tool_timeout`. A completed call returns the stored download record and its `download_id`; a longer download returns `pending` with a `message`, the `task_id` to pass to `get_task_result`, and the `download_id`. A download that stored nothing — no fetchable media, or cancelled — is a tool error that says why, not an `ok`. Files stay on the server's media volume and are not transferred through MCP.
 

@@ -528,6 +528,10 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `GET` | `/api/v1/{platform}/user/reposts` | `tiktok:read` | **仅 TikTok。** 作者转发的作品。分页 |
 | `GET` | `/api/v1/{platform}/user/followers` | `tiktok:read` | **仅 TikTok** |
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **仅 TikTok** |
+| `GET` | `/api/v1/{platform}/video/parts` | `bilibili:read` | **仅 B 站。** 多 P 视频的分 P 列表。`url` **或** `aweme_id` |
+| `GET` | `/api/v1/{platform}/popular` | `bilibili:read` | **仅 B 站。** 站点维护的榜单：`board` 为 `hot`、`weekly`、`precious` 或 `rank`。榜单本身分页的就分页 |
+
+B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)。
 
 除了核心那五个之外，各平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。B 站提供核心五个加上收藏夹，其余的也以同样方式作答——见 [B 站](#b-站)。`user/likes` 抖音和 TikTok 都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
 
@@ -591,6 +595,8 @@ B 站走的是与另外两个平台相同的路由、参数和信封：`{platfor
 | `user/posts` | UP 主的投稿；B 站防得最严的接口——见下文 |
 | `user/collections` | 作者公开的收藏夹 |
 | `collection/posts` | 某个收藏夹里的视频，按页码分页 |
+| `video/parts` | 视频的分 P——见下文 |
+| `popular` | 站点维护的四个榜单——见下文 |
 | `user/likes`、`user/reposts`、`user/bookmarks`、`user/followers`、`user/following`、`collection`、`mix/posts` | `UNSUPPORTED_CONTENT`，指明平台和它缺少的能力 |
 
 `POST /api/v1/parse` 和识别其他平台一样识别 B 站链接。收藏夹链接返回的是这个收藏夹第一页的视频，因为 B 站没有单独的收藏夹详情。
@@ -599,7 +605,28 @@ B 站走的是与另外两个平台相同的路由、参数和信封：`{platfor
 
 B 站的详情应答里没有可播放的文件。所以实例会再发第二个请求 `playurl`，取视频第一个分 P 的流，并把它并进结果里。这个请求和其他请求一样经过调度、签名并写进请求日志，用的是它自己的接口名 `bilibili.content_streams`——在日志页上，一个视频会对应两行。如果它失败，详情照样返回，只是没有 `media.video`：丢了流，不该连已经拿到的标题、作者和计数也一起丢掉。
 
-这个流是一个渐进式 MP4，不是 DASH，所以下载出来是一个文件。实测访客身份在较早的投稿上最高拿到 1080p，在新近的投稿上是 720p。多 P 视频算一条作品，流取的是第一个分 P。
+这个流是一个渐进式 MP4，不是 DASH，所以下载出来是一个文件。实测访客身份在较早的投稿上最高拿到 1080p，在新近的投稿上是 720p。多 P 视频算一条作品，流取的是第一个分 P，除非 `part` 指定了别的——见[视频的分 P](#视频的分-p)。
+
+### 视频的分 P
+
+B 站的投稿可以分成好几 P——剧集分成好几集，课程分成好几章。它仍然是一条作品，只有一个 BV 号、一个标题和一组计数，`/video` 会在 `parts` 里列出它的分 P：每一 P 从 1 开始的序号 `part`、`cid`、`title`、`duration_ms`、`width` 和 `height`。单 P 视频列出它唯一的一 P；抖音和 TikTok 上 `parts` 为空。`GET /api/v1/bilibili/video/parts` 只返回这份列表，不带详情的其余部分，用的是更轻的不签名请求。
+
+在 `/video` 上加 `part=N`，返回的流就是那一 P 的而不是第一 P 的，`width` 和 `height` 也是那一 P 的。链接里的 `?p=N` 是同一个意思，也会这样读取，所以播放器当前所在的链接请求的就是它正在播放的那一 P；链接和 `part` 不一致时会被拒绝。超过最后一 P 会返回 `INVALID_PARAM`，并说明一共有几 P。读取后面分 P 的结果不会写进归档：归档保存的是带第一 P 文件的作品，也就是作品链接播放、普通下载保存的那一 P。
+
+`POST /api/v1/downloads` 上的 `part` 用来保存某一 P——见[多 P 视频的某一 P](./08-downloads-and-library.md#多-p-视频的某一-p)。
+
+### 热门榜单
+
+`GET /api/v1/bilibili/popular` 读取站点自己维护的榜单。`board` 选择是哪一个，每个都按站点自己的方式翻页：
+
+| `board` | 是什么 | 翻页 |
+| --- | --- | --- |
+| `hot`（默认） | 综合热门 | 按页码；`count` 最多 20。翻过最后一页时站点仍说还有更多并返回空页，所以空页会被报告为最后一页 |
+| `weekly` | 每周必看，每期 50 个视频，每周五更新 | 按期，最新的在前。第一页是最新一期，从期号索引里读出；游标是上一期的期号，传入期号就从那一期开始。第 1 期是最后一页。不存在的期号返回 `NOT_FOUND` |
+| `precious` | 入站必刷，编辑精选的经典视频 | 只有一页，大约一百个视频 |
+| `rank` | 全站排行榜 Top 100 | 只有一页 |
+
+每一项都是和 `user/posts` 同样形状的作品——标题、作者、计数、封面、时长——并且和所有列表一样会写进归档。实测（2026 年 10 月）四个榜单访客身份都能拿到；排行榜要带上排行榜页面发送的画布报告才行，本实例会带上。榜单对所有人都一样，所以在 `cache.list_ttl` 之内重复请求是免费的。抖音和 TikTok 返回 `UNSUPPORTED_CONTENT`。
 
 ### 评论：访客只拿到三条
 

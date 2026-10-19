@@ -26,9 +26,9 @@ Or update the checkout first, then run the installer and pick Upgrade:
 cd /opt/dtk && git pull && bash install/install.sh --manage
 ```
 
-One new migration, which lets the identity pool hold Bilibili identities. The
-browser image is unchanged since 5.1.4; nothing to rebuild. Your data is
-untouched.
+Two new migrations: one lets the identity pool hold Bilibili identities, the
+other lets a download be one part of a multi-part video. The browser image is
+unchanged since 5.1.4; nothing to rebuild. Your data is untouched.
 
 Two things do not happen by themselves:
 
@@ -66,6 +66,17 @@ Two things do not happen by themselves:
   - The signing tools: `/tools/sign` signs with WBI, and `/tools/decode` checks
     a `w_rid` against the query it came on.
 
+  - `popular?board=hot|weekly|precious|rank` - the four lists the site curates:
+    what is popular now (paged), the weekly selection (one issue a page, newest
+    first, the cursor naming the next older issue), the editors' all-time
+    selection and the top 100. All four answer a guest identity.
+  - `video/parts` - the parts of a video uploaded in several, which `video`
+    now also lists as `parts`. `part=N` on `video` returns that part's stream,
+    and a link's `?p=N` means the same.
+  - Comments `sort=hot|new` - newest first as well as hottest. Douyin and
+    TikTok rank their own way: `hot` is accepted there, `new` is refused rather
+    than answered with the hottest. Also on the MCP `list_comments` tool.
+
   The other endpoints - likes, reposts, bookmarks, followers, mixes - answer
   `UNSUPPORTED_CONTENT` on Bilibili. Its pool has its own marks,
   `pool.bilibili.min_size` and `pool.bilibili.target_size`; set the first to 0
@@ -79,6 +90,12 @@ Two things do not happen by themselves:
   `bytes`, `bytes_expected` and `bytes_per_second`, overall and per file. They
   come from the 5.1.6 downloader image; with an older one the bar still counts
   files.
+- **Download one part of a multi-part video.** `part` on `POST
+  /api/v1/downloads` and the MCP `download_media` tool, or a pasted link's
+  `?p=`. Each part is its own download in a directory beside the post's
+  (`<bvid>-p3/`), so two parts can download at once and removing one never
+  takes the other, and it is transcribed as its own video. A plain download
+  still stores the first part, the one the post's link plays.
 - **Transcribe from the Library.** A saved video post's drawer has
   **Transcribe video**, as the downloads drawer does. On a post not saved yet it
   is disabled and says to store it first, because the transcriber reads the
@@ -123,6 +140,12 @@ Two things do not happen by themselves:
 - **Saving a TikTok post's comments from the Downloads page** asked for 50 a
   page, above TikTok's 35, and failed. It stays under each platform's ceiling
   now.
+- **Bilibili downloads failed as `partial` with an empty video** whenever the
+  CDN cut the transfer short - measured, an Akamai edge that had not cached the
+  video yet stopped every time after exactly 2 MiB, and three part downloads in
+  five failed that way. The downloader now asks the same mirror for the rest
+  of the file from where it stopped, only accepting the rest of the same file,
+  and waits out an edge that answers 504 while it fetches from its origin.
 
 ### Security
 
@@ -156,8 +179,8 @@ docker compose -p dtk -f docker/compose.yml up -d
 cd /opt/dtk && git pull && bash install/install.sh --manage
 ```
 
-新增一个数据库迁移，让身份池可以存放 B 站身份。浏览器镜像自 5.1.4 起没有变化，不需要重新
-构建。数据不受影响。
+新增两个数据库迁移：一个让身份池可以存放 B 站身份，另一个让一条下载可以是多 P 视频的某一 P。
+浏览器镜像自 5.1.4 起没有变化，不需要重新构建。数据不受影响。
 
 有两件事不会自动发生：
 
@@ -186,6 +209,13 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
   - 签名工具：`/tools/sign` 用 WBI 签名，`/tools/decode` 会把 `w_rid` 和它所在的查询串
     对照校验。
 
+  - `popular?board=hot|weekly|precious|rank`——站点维护的四个榜单：综合热门（分页）、每周必看
+    （每页一期，最新的在前，游标是上一期的期号）、入站必刷和排行榜 Top 100。四个榜单游客身份都能拿到。
+  - `video/parts`——多 P 视频的分 P 列表，`video` 现在也会在 `parts` 里列出。`video` 加上
+    `part=N` 返回那一 P 的视频流，链接里的 `?p=N` 是同一个意思。
+  - 评论 `sort=hot|new`——除了最热，也能按最新排。抖音和 TikTok 按自己的方式排序：接受 `hot`，
+    `new` 会被拒绝，而不是悄悄返回最热的。MCP 的 `list_comments` 工具也支持。
+
   其余接口——喜欢、转发、收藏、粉丝、合集——在 B 站上返回 `UNSUPPORTED_CONTENT`。B 站的
   身份池有自己的水位 `pool.bilibili.min_size` 和 `pool.bilibili.target_size`；不想铸造 B 站
   身份，把前者设为 0 即可。
@@ -195,6 +225,10 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
   `GET /api/v1/downloads` 的 `progress` 里也有同样的数字：`bytes`、`bytes_expected` 和
   `bytes_per_second`，整体和每个文件各一份。这些数字来自 5.1.6 的下载器镜像；用旧镜像时，
   进度条仍按文件数计算。
+- **下载多 P 视频的某一 P。** 在 `POST /api/v1/downloads` 和 MCP 的 `download_media` 工具里传
+  `part`，或者粘贴带 `?p=` 的链接。每一 P 都是独立的下载，存在作品目录旁边的单独目录里
+  （`<bvid>-p3/`），所以两个分 P 可以同时下载，删掉其中一个也不会带走另一个，转写时也按独立的视频
+  处理。普通下载仍然只存第一 P，也就是作品链接播放的那一 P。
 - **在资料库里转写。** 已保存的视频作品的抽屉里有 **转写视频**，和下载抽屉一样。作品还没保存时
   按钮是灰的，并提示先保存，因为转写读取的是已保存的文件。演示账号仍然不能转写：这个接口不在它的
   写操作白名单里，公开的 Key 也没有转写权限。
@@ -224,6 +258,10 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
   下还有一个哈希。现在改为读取该账号自己的会话索引。请先升级再轮换，正如上面「升级方式」所说。
 - **在下载页保存 TikTok 作品的评论**时每页请求 50 条，超过了 TikTok 的 35，所以会失败。现在
   它不会超过各平台的上限。
+- **B 站下载会以 `partial` 结束、视频为空**：每当 CDN 提前切断传输就会这样——实测还没缓存这个
+  视频的 Akamai 节点每次都在恰好 2 MiB 处断开，五次分 P 下载里有三次因此失败。现在下载器会从断开的
+  位置向同一个镜像请求文件的剩余部分，只接受同一个文件的剩余部分；节点在从源站拉取时返回 504 的，
+  也会稍等再问。
 
 ### 安全
 

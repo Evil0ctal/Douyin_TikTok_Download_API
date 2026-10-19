@@ -529,6 +529,10 @@ See [Playground and tools](./07-playground-and-tools.md), which is the console's
 | `GET` | `/api/v1/{platform}/user/reposts` | `tiktok:read` | **TikTok only.** Posts an author reposted. Paged |
 | `GET` | `/api/v1/{platform}/user/followers` | `tiktok:read` | **TikTok only** |
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **TikTok only** |
+| `GET` | `/api/v1/{platform}/video/parts` | `bilibili:read` | **Bilibili only.** The parts of a video uploaded in several. `url` **or** `aweme_id` |
+| `GET` | `/api/v1/{platform}/popular` | `bilibili:read` | **Bilibili only.** A site-curated list: `board` is `hot`, `weekly`, `precious` or `rank`. Paged where the list is |
+
+`/video` also takes `part` on Bilibili — see [A video's parts](#a-videos-parts).
 
 The platforms are not symmetric past the core five, and the asymmetry is reported rather than papered over. Asking Douyin for `followers` or `following` returns `UNSUPPORTED_CONTENT` with `details.supported` naming the platforms that do serve it — a route that submitted the task anyway would answer with an empty page and let you conclude the author has no followers. Bilibili serves the core five plus folders and answers the rest the same way - see [Bilibili](#bilibili). `user/likes` is offered on Douyin and TikTok, but Douyin does not serve that list to a guest identity: it needs an imported logged-in identity, and on TikTok an empty page usually means the author keeps their likes private.
 
@@ -592,6 +596,8 @@ Share and tracking parameters such as `vd_source`, `spm_id_from`, `buvid` and `s
 | `user/posts` | The uploader's videos; the endpoint Bilibili guards hardest — see below |
 | `user/collections` | An author's public folders |
 | `collection/posts` | One folder's videos, paged by page number |
+| `video/parts` | A video's parts — see below |
+| `popular` | The four site-curated lists — see below |
 | `user/likes`, `user/reposts`, `user/bookmarks`, `user/followers`, `user/following`, `collection`, `mix/posts` | `UNSUPPORTED_CONTENT`, naming the platform and the capability it lacks |
 
 `POST /api/v1/parse` recognises Bilibili links like any other. A folder link is answered with the folder's first page of videos, since Bilibili has no separate folder detail.
@@ -600,7 +606,28 @@ Share and tracking parameters such as `vd_source`, `spm_id_from`, `buvid` and `s
 
 Bilibili's detail answer carries no playable file. So the instance makes a second request, `playurl`, for the first part of the video, and folds the stream into the result. That request is scheduled, signed and written to the request log like any other, under its own endpoint name `bilibili.content_streams` — expect two rows per video on the Logs page. If it fails, the detail is still returned, just without `media.video`: losing the stream should not cost you the title, author and counts that did arrive.
 
-The stream is one progressive MP4, not DASH, so a download is one file. Measured, a guest got up to 1080p on older uploads and 720p on a current one. A video in several parts is one post, and the stream is the first part's.
+The stream is one progressive MP4, not DASH, so a download is one file. Measured, a guest got up to 1080p on older uploads and 720p on a current one. A video in several parts is one post, and the stream is the first part's unless `part` names another — see [A video's parts](#a-videos-parts).
+
+### A video's parts
+
+A Bilibili upload can come in several parts (分P) — a series cut into episodes, a lecture into chapters. It is still one post with one bvid, one title and one set of counts, and `/video` lists its parts as `parts`: each one's 1-based `part` number, `cid`, `title`, `duration_ms`, `width` and `height`. A single-part video lists its one part; on Douyin and TikTok `parts` is empty. `GET /api/v1/bilibili/video/parts` answers the same list without the rest of the detail, from a lighter unsigned request.
+
+`part=N` on `/video` makes the stream that part's instead of the first's, and its `width` and `height` that part's too. A link's `?p=N` means the same and is read the same way, so the URL a player is on asks for what it plays; a link and a `part` that disagree are refused. A part past the last is `INVALID_PARAM`, naming how many parts there are. A read of a later part is not written to the archive: the archive keeps the post with its first part's file, which is what its link plays and what a plain download stores.
+
+`part` on `POST /api/v1/downloads` stores one part — see [One part of a multi-part video](./08-downloads-and-library.md#one-part-of-a-multi-part-video).
+
+### The popular boards
+
+`GET /api/v1/bilibili/popular` reads the lists the site itself curates. `board` picks which, and each pages the way the site does:
+
+| `board` | What it is | Pages |
+| --- | --- | --- |
+| `hot` (default) | What is popular now | By page number; `count` up to 20. Past the end the site keeps saying there is more and returns an empty page, so an empty page is reported as the end |
+| `weekly` | The weekly selection (每周必看), 50 videos an issue, published on Fridays | By issue, newest first. The first page is the newest issue, read off the index of issues; the cursor is the next older issue's number, and passing an issue number starts there. Issue 1 is the last page. An issue that does not exist is `NOT_FOUND` |
+| `precious` | The editors' all-time selection (入站必刷) | One page, about a hundred videos |
+| `rank` | The site-wide top 100 (排行榜) | One page |
+
+Each item is a post in the same shape as `user/posts` — title, author, counts, cover, duration — and, as with every list, is written to the archive. All four answered a guest identity when measured (October 2026); the ranking does so only with the canvas report the rank page sends, which this instance sends. The lists are the same for everyone, so a repeat inside `cache.list_ttl` is free. Douyin and TikTok answer `UNSUPPORTED_CONTENT`.
 
 ### Comments: a guest gets three
 

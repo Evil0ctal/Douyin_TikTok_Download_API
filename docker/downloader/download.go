@@ -204,7 +204,7 @@ func (f *fetcher) fetchOne(ctx context.Context, spec transferSpec, mirror string
 	}
 
 	rest := func(offset int64) (*http.Response, error) {
-		return f.resume(ctx, spec, target, offset, response)
+		return f.resumeWithPatience(ctx, spec, target, offset, response)
 	}
 	sum, written, resumes, err := f.spool(response.Body, spec, response.ContentLength, rest)
 	if err != nil {
@@ -265,9 +265,45 @@ func (f *fetcher) resume(ctx context.Context, spec transferSpec, target *url.URL
 	}
 	if response.StatusCode != http.StatusPartialContent || !continuesAt(response.Header.Get("Content-Range"), offset, first.ContentLength) {
 		closeBody(response)
-		return nil, fmt.Errorf("asked for the rest from byte %d, answered %d %q", offset, response.StatusCode, response.Header.Get("Content-Range"))
+		return nil, &rangeRefused{offset: offset, status: response.StatusCode, span: response.Header.Get("Content-Range")}
 	}
 	return response, nil
+}
+
+// resumeWaits are the pauses between asking again for the rest of a file when
+// the far end answered with a server error. An edge still pulling the object
+// from its origin answers 504 to the request for the rest - measured on
+// Bilibili's Akamai edge, 2026-10-19 - and a moment later it has it.
+var resumeWaits = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
+
+// resumeWithPatience is resume, asked again after a pause while the answer is
+// one that time can mend: a 5xx, a 429, or a connection that failed. A 200 or
+// a range that is not the rest is a different file, and is final.
+func (f *fetcher) resumeWithPatience(ctx context.Context, spec transferSpec, target *url.URL, offset int64, first *http.Response) (*http.Response, error) {
+	for attempt := 0; ; attempt++ {
+		response, err := f.resume(ctx, spec, target, offset, first)
+		var refused *rangeRefused
+		final := errors.As(err, &refused) && refused.status < 500 && refused.status != http.StatusTooManyRequests
+		if err == nil || final || attempt >= len(resumeWaits) {
+			return response, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(resumeWaits[attempt]):
+		}
+	}
+}
+
+// rangeRefused is a request for the rest that was answered, but not with it.
+type rangeRefused struct {
+	offset int64
+	status int
+	span   string
+}
+
+func (r *rangeRefused) Error() string {
+	return fmt.Sprintf("asked for the rest from byte %d, answered %d %q", r.offset, r.status, r.span)
 }
 
 // continuesAt says whether a Content-Range is exactly the rest of the file.

@@ -72,7 +72,7 @@ The layout is one directory per post:
 
 What the planner decides before anything is fetched:
 
-- **One video per post.** Every bitrate the platform offers is treated as a mirror of the same file — the first that lands wins. Storing four copies of one clip is not a feature. The parser's order is kept, and it puts the watermark-free stream first. A Bilibili video is one progressive MP4 rather than separate audio and video tracks, so it is one file too; a video in several parts is one post, and the file is the first part. Measured with a guest identity, that file is up to 1080p on older uploads and 720p on a current one.
+- **One video per post.** Every bitrate the platform offers is treated as a mirror of the same file — the first that lands wins. Storing four copies of one clip is not a feature. The parser's order is kept, and it puts the watermark-free stream first. A Bilibili video is one progressive MP4 rather than separate audio and video tracks, so it is one file too; a video in several parts is one post, and the file is the first part unless you ask for another (see [One part of a multi-part video](#one-part-of-a-multi-part-video)). Measured with a guest identity, that file is up to 1080p on older uploads and 720p on a current one.
 - **One cover**, added last, and only if the post has not already hit the item cap.
 - **At most 64 files** per post. A Douyin image album tops out around 35 slides; the cap guards against a malformed payload becoming a thousand-item job.
 - **Images are capped at 32 MiB** each, or `media.max_file_bytes` if that is lower. A 500 MB "image" is a sign something is wrong.
@@ -107,6 +107,14 @@ Three things can happen, and the toast tells you which:
 Short links (`v.douyin.com/...`, `vm.tiktok.com/...`, `b23.tv/...`) are refused here, by design: resolving one means following it, and this endpoint makes no network calls. Send them to `POST /api/v1/parse` — which expands them in the background — and the post is archived by the time you come back. The **Many posts** mode accepts short links directly, because it goes through the parse pipeline.
 
 If the post is archived and has nothing downloadable, you get a `400` with the reasons now, rather than a task that fails a minute later.
+
+### One part of a multi-part video
+
+A Bilibili upload can come in several parts (分P). A plain download stores the first part, the one the post's link plays. To store another, pass `part` (counted from 1) to `POST /api/v1/downloads`, or paste the link a player is on — `?p=3` in a Bilibili link means part 3 and is read the same way. `part: 1` is the post's own download, whichever way it is spelt. Asking for a part past the last one fails with the number of parts the video has. Douyin and TikTok posts have no parts, and `part` there is a `400`.
+
+Each part is its own download, with its own `download_id`, stored in a directory beside the post's: `bilibili/<mid>/<bvid>-p3/`. Beside, not inside, because removing a download removes its directory, and a part nested in the post's own would go whenever the first part's files did. Two parts of one post can download at the same time; a second request for the same part joins the one in flight, as for any post. Saved to your computer, a part's files are named for it (`dtk-bilibili-<bvid>-p3-video.mp4`), so parts saved to one folder do not overwrite each other.
+
+The Library shows what the post's link plays, so it counts the first part's download as the post's stored media and not a later part's. A transcription follows the download, so transcribing part 3 is transcribing part 3's download. `GET /api/v1/bilibili/video/parts` lists the parts with their numbers, titles and lengths ([API](./11-api.md#a-videos-parts)).
 
 ### Many posts (batch parse and download)
 
@@ -175,11 +183,13 @@ The table polls every 2 seconds while anything is in flight and every 10 seconds
 
 Clicking a row opens a drawer with the player, the per-file list, each file's SHA-256, and a save link per completed file. The drawer follows the row as the table refreshes: opened on a running download, it shows each file's own progress and speed, and the stored files once it lands.
 
-## Retrying, and why there is no resume
+## Retrying, and why there is no resume across attempts
 
 Retry is offered on `failed`, `partial` and `cancelled` rows. It calls `POST /api/v1/downloads/retry` with the `download_id` and starts the same post over from scratch, re-parsing the post first if the stored mirrors have gone stale (older than `media.mirror_max_age_seconds`, 600 seconds by default).
 
-There is no resume, and there could not usefully be one. The sidecar writes to `<name>.part` and truncates it on every attempt, because media URLs are signed and expire: bytes fetched an hour ago cannot be continued against a link that now answers `403`. Asking again is what works.
+There is no resume across attempts, and there could not usefully be one. The sidecar writes to `<name>.part` and truncates it on every attempt, because media URLs are signed and expire: bytes fetched an hour ago cannot be continued against a link that now answers `403`. Asking again is what works.
+
+**Within** one transfer it is different. Some CDN edges end a transfer early: measured on Bilibili in October 2026, an Akamai edge serving a video it had not cached yet stopped after exactly 2 MiB with "unexpected EOF", every time, while the same request a minute later came back whole. So when a mirror stops short of the length it declared, the sidecar asks the same mirror for the rest — a `Range` request from the byte it stopped at — up to three times, seconds later, against the same link. It only accepts a `206` covering exactly the rest of the same file (`If-Range` carries the first answer's validator), so a file replaced in between is refused rather than spliced on. An edge that answers the request for the rest with a server error — measured, a `504` while it was still pulling the file from its origin — is asked again after one, two and four seconds. The downloader log's `item stored` line says how many times a transfer had to be resumed.
 
 Retry is refused while a download is still running — a second attempt would race the first into the same directory. A download that gets stuck is failed by the maintenance pass **two hours** after it was created (the pass runs every five minutes), after which the row is retryable. Nothing on disk is touched by that: files that did land stay where they are.
 
@@ -237,7 +247,7 @@ Note what this is not: the server does not proxy media on demand. Saving a file 
 
 A finished download's video can be transcribed on this machine. The `transcriber` sidecar runs FunASR models — Paraformer to recognise the speech, FSMN-VAD to find where someone is speaking, CT-Transformer to put the punctuation back — and it sits on a network with no route out, so the audio never leaves the host. It is optional and off by default: [the transcriber profile](./02-installation.md#the-optional-profiles) turns it on, and [Preparing the FunASR ONNX models](./18-funasr-models.md) gets the ~500 MB of models it needs. The guided installer does both if you say yes to transcription.
 
-Know what it is for before you queue a hundred: the models are the general **Mandarin** ones, so Chinese speech comes out well and other languages poorly. The result is **one whole text per video** — no timestamps, no speaker labels. A Bilibili download is transcribed exactly like a Douyin or TikTok one; for a video in several parts, that is the first part, because that is the file that was stored.
+Know what it is for before you queue a hundred: the models are the general **Mandarin** ones, so Chinese speech comes out well and other languages poorly. The result is **one whole text per video** — no timestamps, no speaker labels. A Bilibili download is transcribed exactly like a Douyin or TikTok one; for a video in several parts, it is the part that download stored — the first, unless you downloaded another.
 
 ### Starting one
 

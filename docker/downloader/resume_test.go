@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // cuttingMirror serves payload with its full length declared, and drops the
@@ -21,11 +22,15 @@ import (
 // answered as a well-behaved CDN would, unless changed is set, in which case
 // the object is "replaced" and the If-Range no longer matches.
 type cuttingMirror struct {
-	payload  string
-	cut      int
-	cuts     int32
-	changed  bool
+	payload string
+	cut     int
+	cuts    int32
+	changed bool
+	// How many requests for the rest are answered 504 first, as an edge
+	// still pulling the object from its origin does.
+	busy     int32
 	requests atomic.Int32
+	ranged   atomic.Int32
 	ifRange  atomic.Value
 }
 
@@ -33,6 +38,10 @@ func (m *cuttingMirror) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	attempt := m.requests.Add(1)
 	if value := r.Header.Get("If-Range"); value != "" {
 		m.ifRange.Store(value)
+	}
+	if r.Header.Get("Range") != "" && m.ranged.Add(1) <= m.busy {
+		w.WriteHeader(http.StatusGatewayTimeout)
+		return
 	}
 	w.Header().Set("Content-Type", "video/mp4")
 	w.Header().Set("Accept-Ranges", "bytes")
@@ -146,5 +155,42 @@ func TestContinuesAtWantsExactlyTheRest(t *testing.T) {
 		if got := continuesAt(tc.header, 100, 1000); got != tc.want {
 			t.Errorf("continuesAt(%q) = %v, want %v", tc.header, got, tc.want)
 		}
+	}
+}
+
+func TestFetchWaitsForAnEdgeStillFetchingTheRest(t *testing.T) {
+	saved := resumeWaits
+	resumeWaits = []time.Duration{time.Millisecond, time.Millisecond, time.Millisecond}
+	t.Cleanup(func() { resumeWaits = saved })
+	mirror := &cuttingMirror{payload: strings.Repeat("0123456789", 5000), cut: 12000, cuts: 1, busy: 2}
+
+	result, _, err := fetchFrom(t, mirror)
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if result.Bytes != int64(len(mirror.payload)) {
+		t.Errorf("bytes = %d, want the whole object", result.Bytes)
+	}
+	if got := mirror.ranged.Load(); got != 3 {
+		t.Errorf("requests for the rest = %d, want two 504s and the one that worked", got)
+	}
+}
+
+func TestFetchDoesNotWaitOnARefusalTimeCannotMend(t *testing.T) {
+	saved := resumeWaits
+	resumeWaits = []time.Duration{time.Hour}
+	t.Cleanup(func() { resumeWaits = saved })
+	// A replaced file answers 200 to If-Range; waiting an hour would not help.
+	mirror := &cuttingMirror{payload: strings.Repeat("abcdefghij", 5000), cut: 12000, cuts: 1, changed: true}
+
+	done := make(chan error, 1)
+	go func() { _, _, err := fetchFrom(t, mirror); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a replaced file was accepted")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("waited before giving up on a refusal no wait could mend")
 	}
 }
