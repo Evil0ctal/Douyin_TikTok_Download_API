@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'wouter'
 
 import {
   AlertIcon,
@@ -21,10 +22,19 @@ import {
   type Column,
   useToast,
 } from '@/components'
-import { useApiMutation, useApiQuery, useFormatters, useInvalidate, useSession } from '@/hooks'
+import {
+  SESSION_KEY,
+  useApiMutation,
+  useApiQuery,
+  useFormatters,
+  useInvalidate,
+  useSession,
+} from '@/hooks'
 import { apiDelete, apiPost, apiPut } from '@/lib/api'
 import { paths } from '@/lib/endpoints'
+import { MIN_PASSWORD_LENGTH } from '@/lib/passwords'
 import { POLL } from '@/lib/query'
+import { atLeast } from '@/lib/roles'
 import { USER_ROLES, type UserRole } from '@/lib/types'
 
 /**
@@ -39,12 +49,23 @@ import { USER_ROLES, type UserRole } from '@/lib/types'
  * last administrator cannot be demoted or deleted, and you cannot delete the
  * account you are signed in with. A self-hosted instance without an
  * administrator can only be repaired from a shell.
+ *
+ * A role change is confirmed before it is sent. The picker used to save on
+ * change, and one slip on the demo account's row made the account whose
+ * password the login page publishes an administrator. That row is now locked
+ * outright - the server refuses any change to it as well - and `demo` is not
+ * offered as a role, because demo mode mints it and nobody assigns it.
  */
 
 const USERS_KEY = ['admin', 'users'] as const
 const SESSIONS_KEY = ['auth', 'sessions'] as const
 
-const MIN_PASSWORD_LENGTH = 8
+/** Roles an administrator hands out. `demo` belongs to demo mode, not to this page. */
+const ASSIGNABLE_ROLES: readonly UserRole[] = USER_ROLES.filter((role) => role !== 'demo')
+
+function isAssignable(value: string): value is UserRole {
+  return (ASSIGNABLE_ROLES as readonly string[]).includes(value)
+}
 
 interface UserRow {
   id: string
@@ -148,6 +169,22 @@ interface CreateDraft {
   role: UserRole
 }
 
+interface RoleChange {
+  user: UserRow
+  role: UserRole
+}
+
+interface ResetDraft {
+  user: UserRow
+  password: string
+  repeat: string
+  touched: boolean
+}
+
+interface UpdateResult {
+  revoked_sessions?: number
+}
+
 export default function Users() {
   const { t } = useTranslation(['console', 'common'])
   const toast = useToast()
@@ -156,7 +193,7 @@ export default function Users() {
   const session = useSession()
 
   const role = session.data?.role ?? null
-  const isAdmin = role === null || role === 'admin'
+  const isAdmin = atLeast(role, 'admin')
 
   const users = useApiQuery<UserRow[]>({
     key: USERS_KEY,
@@ -176,6 +213,8 @@ export default function Users() {
   const [touched, setTouched] = useState(false)
   const [deleting, setDeleting] = useState<UserRow | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [roleChange, setRoleChange] = useState<RoleChange | null>(null)
+  const [resetting, setResetting] = useState<ResetDraft | null>(null)
 
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -198,17 +237,46 @@ export default function Users() {
     },
   )
 
-  const changeRole = useApiMutation<unknown, { user: UserRow; role: UserRole }>(
+  const changeRole = useApiMutation<unknown, RoleChange>(
     (variables) => apiPut(paths.users.byId(variables.user.id), { role: variables.role }),
     {
       onSuccess: (_result, variables) => {
+        setRoleChange(null)
         void invalidate(USERS_KEY)
+        // Demoting yourself changes what this console may show you.
+        if (variables.user.id === session.data?.id) void invalidate(SESSION_KEY)
         toast.success(
-          t('users.toast.roleChanged', { username: variables.user.username, role: variables.role }),
+          t('users.toast.roleChanged', {
+            username: variables.user.username,
+            role: t(`common:state.role.${variables.role}`),
+          }),
         )
       },
       onError: (error) => {
+        setRoleChange(null)
         toast.apiError(error, t('users.toast.roleFailed'))
+      },
+    },
+  )
+
+  // The administrator's reset: no current password, and every session the
+  // account has open is signed out. The new password is neither echoed in the
+  // toast nor kept in state once it has been sent.
+  const resetPassword = useApiMutation<UpdateResult | null, { user: UserRow; password: string }>(
+    (variables) =>
+      apiPut<UpdateResult | null>(paths.users.byId(variables.user.id), {
+        password: variables.password,
+      }),
+    {
+      onSuccess: (result, variables) => {
+        setResetting(null)
+        toast.success(t('users.reset.done', { username: variables.user.username }), {
+          description: t('users.reset.doneHint', { count: result?.revoked_sessions ?? 0 }),
+        })
+      },
+      onError: (error) => {
+        setResetting((current) => (current ? { ...current, password: '', repeat: '' } : current))
+        toast.apiError(error, t('users.reset.failed'))
       },
     },
   )
@@ -261,6 +329,19 @@ export default function Users() {
 
   const usernameInvalid = draft.username.trim().length < 3
   const draftPasswordInvalid = draft.password.length < MIN_PASSWORD_LENGTH
+
+  const resetTooShort =
+    resetting !== null && resetting.touched && resetting.password.length < MIN_PASSWORD_LENGTH
+  const resetMismatch =
+    resetting !== null && resetting.repeat.length > 0 && resetting.repeat !== resetting.password
+  const resetInvalid =
+    resetting === null ||
+    resetting.password.length < MIN_PASSWORD_LENGTH ||
+    resetting.repeat !== resetting.password
+
+  const roleLabel = (value: UserRole): string => t(`common:state.role.${value}`)
+  const promoting = roleChange?.role === 'admin'
+  const demotingSelf = roleChange !== null && roleChange.user.id === session.data?.id
 
   const userColumns: Array<Column<UserRow>> = [
     {
@@ -331,35 +412,55 @@ export default function Users() {
       header: <span className="u-sr-only">{t('common:action.more')}</span>,
       hideable: false,
       align: 'right',
-      cell: (row) => (
-        <span className="u-row" style={{ justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
-          <Select
-            aria-label={t('users.action.changeRole')}
-            value={row.role}
-            style={{ maxWidth: '150px' }}
-            disabled={!isAdmin || changeRole.isPending}
-            onChange={(event) => {
-              const value = event.target.value
-              if ((USER_ROLES as readonly string[]).includes(value) && value !== row.role) {
-                changeRole.mutate({ user: row, role: value as UserRole })
-              }
-            }}
-            options={USER_ROLES.map((value) => ({ value, label: t(`common:state.role.${value}`) }))}
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={!isAdmin || row.id === session.data?.id}
-            title={row.id === session.data?.id ? t('users.cannotDeleteSelf') : undefined}
-            onClick={() => {
-              setDeleting(row)
-            }}
-          >
-            {t('common:action.delete')}
-          </Button>
-        </span>
-      ),
-      width: '260px',
+      cell: (row) =>
+        row.role === 'demo' ? (
+          // Its role and password belong to demo mode and the server refuses
+          // both here; what this row can offer is the way to where they live.
+          <span className="u-xs u-muted">
+            {t('users.demoLocked')} <Link href="/settings">{t('users.demoLockedLink')}</Link>
+          </span>
+        ) : (
+          <span className="u-row u-wrap" style={{ justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
+            <Select
+              aria-label={t('users.action.changeRole')}
+              value={row.role}
+              style={{ maxWidth: '150px' }}
+              disabled={changeRole.isPending}
+              onChange={(event) => {
+                const value = event.target.value
+                if (isAssignable(value) && value !== row.role) {
+                  setRoleChange({ user: row, role: value })
+                }
+              }}
+              options={ASSIGNABLE_ROLES.map((value) => ({ value, label: roleLabel(value) }))}
+            />
+            {/* Your own goes through the form below, which asks for the current
+                password; this one would also sign you out of this tab. */}
+            {row.id === session.data?.id ? null : (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setResetting({ user: row, password: '', repeat: '', touched: false })
+                }}
+              >
+                {t('users.action.resetPassword')}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={row.id === session.data?.id}
+              title={row.id === session.data?.id ? t('users.cannotDeleteSelf') : undefined}
+              onClick={() => {
+                setDeleting(row)
+              }}
+            >
+              {t('common:action.delete')}
+            </Button>
+          </span>
+        ),
+      width: '360px',
     },
   ]
 
@@ -491,22 +592,25 @@ export default function Users() {
             >
               {t('common:action.refresh')}
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<UsersIcon />}
-              disabled={!isAdmin}
-              onClick={() => {
-                setCreating(true)
-              }}
-            >
-              {t('users.action.create')}
-            </Button>
+            {isAdmin ? (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<UsersIcon />}
+                onClick={() => {
+                  setCreating(true)
+                }}
+              >
+                {t('users.action.create')}
+              </Button>
+            ) : null}
           </>
         }
       />
 
-      {isAdmin ? null : (
+      {/* Not while the session is still loading: "only an administrator" on
+          an administrator's screen, even for a frame, reads as a demotion. */}
+      {role === null || isAdmin ? null : (
         <Banner tone="caution" icon={<AlertIcon size={14} />}>
           {t('users.adminOnly')}
         </Banner>
@@ -697,11 +801,11 @@ export default function Users() {
             description={t('users.create.roleHint')}
             onChange={(event) => {
               const value = event.target.value
-              if ((USER_ROLES as readonly string[]).includes(value)) {
-                setDraft({ ...draft, role: value as UserRole })
+              if (isAssignable(value)) {
+                setDraft({ ...draft, role: value })
               }
             }}
-            options={USER_ROLES.map((value) => ({ value, label: t(`common:state.role.${value}`) }))}
+            options={ASSIGNABLE_ROLES.map((value) => ({ value, label: roleLabel(value) }))}
           />
         </div>
       </Modal>
@@ -725,6 +829,113 @@ export default function Users() {
           {t('users.confirm.deleteWarning')}
         </Banner>
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={roleChange !== null}
+        danger={promoting || demotingSelf}
+        loading={changeRole.isPending}
+        title={t('users.confirm.roleTitle')}
+        description={
+          roleChange
+            ? t('users.confirm.roleDescription', {
+                username: roleChange.user.username,
+                from: roleLabel(roleChange.user.role),
+                to: roleLabel(roleChange.role),
+              })
+            : undefined
+        }
+        confirmLabel={t('users.action.changeRole')}
+        onCancel={() => {
+          setRoleChange(null)
+        }}
+        onConfirm={() => {
+          if (roleChange) changeRole.mutate(roleChange)
+        }}
+      >
+        {demotingSelf ? (
+          <Banner tone="caution" icon={<AlertIcon size={14} />}>
+            {t('users.confirm.roleSelfWarning')}
+          </Banner>
+        ) : promoting ? (
+          <Banner tone="caution" icon={<AlertIcon size={14} />}>
+            {t('users.confirm.roleAdminWarning')}
+          </Banner>
+        ) : null}
+      </ConfirmDialog>
+
+      <Modal
+        open={resetting !== null}
+        onClose={() => {
+          if (!resetPassword.isPending) setResetting(null)
+        }}
+        title={t('users.reset.title', { username: resetting?.user.username ?? '' })}
+        description={t('users.reset.description')}
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              disabled={resetPassword.isPending}
+              onClick={() => {
+                setResetting(null)
+              }}
+            >
+              {t('common:action.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              form="user-reset-password"
+              variant="danger"
+              loading={resetPassword.isPending}
+            >
+              {t('users.reset.submit')}
+            </Button>
+          </>
+        }
+      >
+        {resetting ? (
+          <form
+            id="user-reset-password"
+            className="u-stack"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setResetting({ ...resetting, touched: true })
+              if (resetInvalid) return
+              resetPassword.mutate({ user: resetting.user, password: resetting.password })
+            }}
+          >
+            {/* A username the browser can see, so a password manager files the
+                new password under this account rather than under whoever is
+                signed in. */}
+            <input type="text" autoComplete="username" value={resetting.user.username} readOnly hidden />
+            <Input
+              label={t('users.password.next')}
+              type="password"
+              autoComplete="new-password"
+              required
+              value={resetting.password}
+              description={t('users.password.rule', { min: MIN_PASSWORD_LENGTH })}
+              error={resetTooShort ? t('users.password.tooShort', { min: MIN_PASSWORD_LENGTH }) : undefined}
+              onChange={(event) => {
+                setResetting({ ...resetting, password: event.target.value })
+              }}
+            />
+            <Input
+              label={t('users.password.repeat')}
+              type="password"
+              autoComplete="new-password"
+              required
+              value={resetting.repeat}
+              error={resetMismatch ? t('users.password.mismatch') : undefined}
+              onChange={(event) => {
+                setResetting({ ...resetting, repeat: event.target.value })
+              }}
+            />
+            <Banner tone="caution" icon={<LogoutIcon size={14} />}>
+              {t('users.reset.revokes')}
+            </Banner>
+          </form>
+        ) : null}
+      </Modal>
 
       <ConfirmDialog
         open={signingOut}

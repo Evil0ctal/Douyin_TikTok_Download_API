@@ -3,7 +3,7 @@
   "subtitle": "Four steps, then the console is yours.",
   "tokenBanner": {
     "title": "Setup token required",
-    "description": "The token was printed to the container log. Run docker compose logs api and paste it here.",
+    "description": "The token is in the api container's log, on the line with /setup?token=. In the dtk directory run ./dtkctl logs api if you used the installer, or docker compose -p dtk -f docker/compose.yml logs api otherwise, and paste it here.",
     "label": "Setup token",
     "hint": "The token expires 24 hours after the api container starts."
   },
@@ -30,7 +30,7 @@
     "username": "Username",
     "password": "Password",
     "confirmPassword": "Confirm password",
-    "passwordHint": "At least 12 characters. There is no password reset by email; recovery is a CLI command.",
+    "passwordHint": "At least {min} characters. There is no password reset by email; recovery is a CLI command.",
     "mismatch": "The two passwords do not match.",
     "submit": "Create administrator"
   },
