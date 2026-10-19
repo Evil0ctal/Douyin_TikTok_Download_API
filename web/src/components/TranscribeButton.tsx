@@ -7,7 +7,6 @@ import { useApiMutation, useApiQuery, useSession } from '@/hooks'
 import { apiPost } from '@/lib/api'
 import { transcriptHref } from '@/lib/contentLinks'
 import { paths } from '@/lib/endpoints'
-import { POLL } from '@/lib/query'
 import { atLeast } from '@/lib/roles'
 
 /** A transcription a listing says already exists for the download. */
@@ -46,10 +45,12 @@ interface StatusComponents {
 }
 
 export function useTranscriberState(): TranscriberState {
+  // Read when it is needed rather than polled: the status call probes every
+  // component, and whether a compose profile is on changes by redeploying,
+  // not while a drawer is open.
   const status = useApiQuery<StatusComponents>({
     key: ['system', 'status'],
     path: paths.system.status,
-    poll: POLL.slow,
     retry: false,
   })
   const component = status.data?.components?.['transcriber']

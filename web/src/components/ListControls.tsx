@@ -74,11 +74,26 @@ export interface PagerProps {
   onOffset: (offset: number) => void
   /** "101-200 of 340", rendered by the page in its own words. */
   range: (from: number, to: number, total: number) => string
+  /**
+   * The two buttons' words. The shared "next" is a wizard's "next step" in
+   * Chinese, which read wrongly beside "previous page".
+   */
+  labels: { previous: string; next: string }
+}
+
+/**
+ * Where the last page starts, for a list of `total` rows.
+ *
+ * For stepping back when the page being shown no longer exists: its last rows
+ * deleted, or deduplicated away, left an empty page that showed the empty
+ * state of a list that was not empty, under "101-100 of 100".
+ */
+export function lastPageOffset(total: number, pageSize: number): number {
+  return Math.max(0, Math.floor((total - 1) / pageSize) * pageSize)
 }
 
 /** Previous, where this page sits in the whole, and Next. Hidden for one page. */
-export function Pager({ offset, pageSize, total, onOffset, range }: PagerProps) {
-  const { t } = useTranslation('common')
+export function Pager({ offset, pageSize, total, onOffset, range, labels }: PagerProps) {
   if (total <= pageSize && offset === 0) return null
   const from = total === 0 ? 0 : offset + 1
   const to = Math.min(offset + pageSize, total)
@@ -91,7 +106,7 @@ export function Pager({ offset, pageSize, total, onOffset, range }: PagerProps) 
           onOffset(Math.max(0, offset - pageSize))
         }}
       >
-        {t('action.previous')}
+        {labels.previous}
       </Button>
       <span className="u-xs u-muted">{range(from, to, total)}</span>
       <Button
@@ -101,7 +116,7 @@ export function Pager({ offset, pageSize, total, onOffset, range }: PagerProps) 
           onOffset(offset + pageSize)
         }}
       >
-        {t('action.next')}
+        {labels.next}
       </Button>
     </div>
   )

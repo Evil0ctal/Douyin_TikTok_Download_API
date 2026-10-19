@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { keepPreviousData } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'wouter'
 
 import {
@@ -20,7 +21,7 @@ import {
   useToast,
   useTranscriberState,
 } from '@/components'
-import { Pager, SearchBox } from '@/components/ListControls'
+import { Pager, SearchBox, lastPageOffset } from '@/components/ListControls'
 import { useApiMutation, useApiQuery, useCopy, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiPost } from '@/lib/api'
 import { asPlatform, downloadHref, libraryPostHref, patchParams } from '@/lib/contentLinks'
@@ -169,7 +170,17 @@ export default function Transcriptions() {
     // records polled every five seconds was a steady load for nothing.
     refetchInterval: (query) =>
       query.state.data?.items.some((row) => isLive(row)) ? POLL.fast : POLL.slow,
+    // The page on screen stays while the next one loads, rather than the
+    // table blinking to its loading state and the pager to "0 of 0".
+    placeholderData: keepPreviousData,
   })
+
+  // A page past the end - its last rows deleted - would show "No
+  // transcriptions yet" over a list that has some. Step back to the last page.
+  const listedTotal = list.isPlaceholderData ? undefined : list.data?.total
+  if (listedTotal !== undefined && offset > 0 && offset >= listedTotal) {
+    setPaging({ key: filterKey, offset: lastPageOffset(listedTotal, PAGE_SIZE) })
+  }
 
   const inspecting = useApiQuery<TranscriptionRow>({
     key: ['transcriptions', 'detail', inspectingId],
@@ -379,7 +390,7 @@ export default function Transcriptions() {
               : t('transcriptions.empty.description')
         }
         emptyAction={
-          filtered ? undefined : transcriber === 'off' ? (
+          filtered || transcriber === 'down' ? undefined : transcriber === 'off' ? (
             <a href={transcriberGuideHref(i18n.language)} target="_blank" rel="noreferrer noopener">
               {t('transcriptions.transcriber.guide')}
             </a>
@@ -451,6 +462,10 @@ export default function Transcriptions() {
           setSelected(new Set())
         }}
         range={(from, to, total) => t('transcriptions.page.range', { from, to, total })}
+        labels={{
+          previous: t('transcriptions.page.previous'),
+          next: t('transcriptions.page.next'),
+        }}
       />
 
       <Drawer

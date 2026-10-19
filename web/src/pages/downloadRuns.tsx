@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { Link } from 'wouter'
 
 import { Button, CompactProgress } from '@/components'
 import { apiRequest, errorCodeOf, isApiError, type QueryParams } from '@/lib/api'
@@ -190,6 +189,21 @@ export interface RunReportProps {
   stopping: boolean
 }
 
+/**
+ * The way to add a signed-in identity, in a new tab.
+ *
+ * Not an in-app link: leaving Downloads stops the run, and this note shows
+ * while the posts the first pages gave are still being queued.
+ */
+function SignInLink({ platform }: { platform: Platform }) {
+  const { t } = useTranslation(['console', 'common'])
+  return (
+    <a href={loginIdentitiesHref(platform)} target="_blank" rel="noreferrer noopener">
+      {t('downloads.run.signIn')}
+    </a>
+  )
+}
+
 /** Which guest note fits: the two endpoints where a guest measurably gets less. */
 function guestKey(run: RunState): string {
   if (run.kind === 'comments' && run.platform === 'bilibili') return 'bilibiliComments'
@@ -262,7 +276,7 @@ export function RunReport({ run, onStop, onDismiss, stopping }: RunReportProps) 
                 page: run.stop?.reason === 'login' ? run.stop.page : 2,
                 platform: run.platform,
               })}{' '}
-          <Link href={loginIdentitiesHref(run.platform)}>{t('downloads.run.signIn')}</Link>
+          <SignInLink platform={run.platform} />
         </p>
       ) : null}
 
@@ -270,8 +284,7 @@ export function RunReport({ run, onStop, onDismiss, stopping }: RunReportProps) 
           two notes and two links for one cause is noise. */}
       {run.guest && run.stop?.reason !== 'login' && !run.needsLogin ? (
         <p className={styles.runNote}>
-          {t(`downloads.run.guest.${guestKey(run)}`)}{' '}
-          <Link href={loginIdentitiesHref(run.platform)}>{t('downloads.run.signIn')}</Link>
+          {t(`downloads.run.guest.${guestKey(run)}`)} <SignInLink platform={run.platform} />
         </p>
       ) : null}
     </div>

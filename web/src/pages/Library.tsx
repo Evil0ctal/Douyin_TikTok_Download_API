@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'wouter'
 
@@ -557,7 +557,20 @@ export default function Library() {
     total: number
     tally: Tally
   } | null>(null)
-  const bulkStop = useRef<StopFlag>({ stopped: false })
+  //: The running bulk action's stop flag, in a holder the unmount can reach.
+  const bulkStop = useRef<{ flag: StopFlag; busy: boolean }>({
+    flag: { stopped: false },
+    busy: false,
+  })
+
+  // Leaving the page stops a bulk run rather than leaving it spending the
+  // pool, one post at a time, with nothing left on screen to stop it.
+  useEffect(() => {
+    const holder = bulkStop.current
+    return () => {
+      holder.flag.stopped = true
+    }
+  }, [])
 
   /**
    * Run one request per selected post, one at a time, with a running count.
@@ -571,13 +584,18 @@ export default function Library() {
     action: BulkAction,
     call: (ref: { platform: string; content_id: string }) => Promise<'done' | 'skipped'>,
   ): Promise<void> => {
+    // Set before anything is awaited: a second click in the same moment
+    // would otherwise start a second run that Stop cannot reach.
+    if (bulkStop.current.busy) return
     const flag: StopFlag = { stopped: false }
-    bulkStop.current = flag
+    bulkStop.current.flag = flag
+    bulkStop.current.busy = true
     const refs = chosen
     setBulkRun({ action, total: refs.length, tally: NO_TALLY })
     const { tally, stopped } = await eachInTurn(refs, call, flag, (counted) => {
       setBulkRun({ action, total: refs.length, tally: counted })
     })
+    bulkStop.current.busy = false
     setBulkRun(null)
     void invalidate(['archive'])
     void invalidate(['downloads'])
@@ -1053,7 +1071,7 @@ export default function Library() {
         activeCollection={applied.collection}
         running={bulkRun}
         onStop={() => {
-          bulkStop.current.stopped = true
+          bulkStop.current.flag.stopped = true
         }}
         onStore={storeSelected}
         onTranscribe={mayTranscribe ? transcribeSelected : null}

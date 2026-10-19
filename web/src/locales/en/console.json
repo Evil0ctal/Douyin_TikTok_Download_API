@@ -1737,7 +1737,9 @@
       "normalization": "Writing numbers as digits"
     },
     "page": {
-      "range": "{from}-{to} of {total}"
+      "range": "{from}-{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
     },
     "transcriber": {
       "offTitle": "Transcription is not turned on",
@@ -1930,7 +1932,9 @@
       "openInLibrary": "Open in the Library"
     },
     "page": {
-      "range": "{from}-{to} of {total}"
+      "range": "{from}-{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
     },
     "run": {
       "reading": "Reading page {page} · {found} found",

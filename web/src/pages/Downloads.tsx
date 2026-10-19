@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { keepPreviousData } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'wouter'
 
 import {
@@ -24,7 +25,7 @@ import {
   type ExistingTranscription,
   useToast,
 } from '@/components'
-import { Pager, SearchBox } from '@/components/ListControls'
+import { Pager, SearchBox, lastPageOffset } from '@/components/ListControls'
 import { useApiMutation, useApiQuery, useFormatters, useInvalidate } from '@/hooks'
 import { apiDelete, apiPost, errorCodeOf, isApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -499,7 +500,18 @@ export default function Downloads() {
       (query.state.data?.items.some((row) => LIVE.has(row.state)) ?? false)
         ? POLL.live
         : POLL.slow,
+    // The page on screen stays while the next one loads, rather than the
+    // table blinking to its loading state and the pager to "0 of 0".
+    placeholderData: keepPreviousData,
   })
+
+  // A page past the end - its last rows deleted, or deduplicated away - would
+  // show the empty state of a list that is not empty. Step back to the last
+  // page there is.
+  const listedTotal = list.isPlaceholderData ? undefined : list.data?.total
+  if (listedTotal !== undefined && offset > 0 && offset >= listedTotal) {
+    setPaging({ key: filterKey, offset: lastPageOffset(listedTotal, PAGE_SIZE) })
+  }
 
   // The drawer follows its row through each refresh. It used to hold the copy
   // taken at the click, so a download opened while running showed no progress
@@ -600,17 +612,44 @@ export default function Downloads() {
 
   //: The walk under way or last finished, for the author and comments modes.
   const [run, setRun] = useState<RunState | null>(null)
-  const stopFlag = useRef<StopFlag>({ stopped: false })
+  //: The current run's stop flag, in a holder that outlives the runs, so the
+  //: unmount below can reach whichever run is current.
+  const runControl = useRef<{ flag: StopFlag; busy: boolean }>({
+    flag: { stopped: false },
+    busy: false,
+  })
+  //: From the click to the end of the run. `run` only exists once the link is
+  //: resolved - a profile read on TikTok can take seconds - and a second Enter
+  //: in that window started a second walk the Stop button could not reach.
+  const [busy, setBusy] = useState(false)
   const [stopping, setStopping] = useState(false)
   //: "Everything the feed will give up" asks first; see `runAuthor`.
   const [confirmingAll, setConfirmingAll] = useState(false)
-  const running = run !== null && run.phase !== 'finished'
+  const running = busy || (run !== null && run.phase !== 'finished')
 
-  const beginRun = (): StopFlag => {
+  // Leaving the page stops the run. It used to carry on with no page to show
+  // it and no Stop to press - up to forty pages and hundreds of downloads.
+  useEffect(() => {
+    const holder = runControl.current
+    return () => {
+      holder.flag.stopped = true
+    }
+  }, [])
+
+  /** A fresh stop flag for a new run, or null while one is already going. */
+  const beginRun = (): StopFlag | null => {
+    if (runControl.current.busy) return null
     const flag: StopFlag = { stopped: false }
-    stopFlag.current = flag
+    runControl.current.flag = flag
+    runControl.current.busy = true
+    setBusy(true)
     setStopping(false)
     return flag
+  }
+
+  const endRun = (): void => {
+    runControl.current.busy = false
+    setBusy(false)
   }
 
   /**
@@ -660,6 +699,7 @@ export default function Downloads() {
    */
   const runComments = async (): Promise<void> => {
     const flag = beginRun()
+    if (!flag) return
     let which: Platform | null = null
     try {
       const resolved = await resolveTarget()
@@ -702,6 +742,8 @@ export default function Downloads() {
       toast.success(t('downloads.comments.done', { count: walked.items.length }))
     } catch (error) {
       runFailed(error, 'comments', which, t('downloads.comments.failed'))
+    } finally {
+      endRun()
     }
   }
 
@@ -716,6 +758,7 @@ export default function Downloads() {
    */
   const runAuthor = async (): Promise<void> => {
     const flag = beginRun()
+    if (!flag) return
     let which: Platform | null = null
     try {
       const resolved = await resolveTarget({ author: true })
@@ -806,6 +849,8 @@ export default function Downloads() {
       )
     } catch (error) {
       runFailed(error, 'author', which, t('downloads.author.failed'))
+    } finally {
+      endRun()
     }
   }
 
@@ -1220,7 +1265,7 @@ export default function Downloads() {
             run={run}
             stopping={stopping}
             onStop={() => {
-              stopFlag.current.stopped = true
+              runControl.current.flag.stopped = true
               setStopping(true)
             }}
             onDismiss={() => {
@@ -1440,6 +1485,7 @@ export default function Downloads() {
           setSelected(new Set())
         }}
         range={(from, to, total) => t('downloads.page.range', { from, to, total })}
+        labels={{ previous: t('downloads.page.previous'), next: t('downloads.page.next') }}
       />
 
       <ConfirmDialog

@@ -1737,7 +1737,9 @@
       "normalization": "规范数字写法"
     },
     "page": {
-      "range": "第 {from}-{to} 条，共 {total} 条"
+      "range": "第 {from}-{to} 条，共 {total} 条",
+      "previous": "上一页",
+      "next": "下一页"
     },
     "transcriber": {
       "offTitle": "转写功能未开启",
@@ -1930,7 +1932,9 @@
       "openInLibrary": "在资料库中查看"
     },
     "page": {
-      "range": "第 {from}-{to} 条，共 {total} 条"
+      "range": "第 {from}-{to} 条，共 {total} 条",
+      "previous": "上一页",
+      "next": "下一页"
     },
     "run": {
       "reading": "正在读取第 {page} 页 · 已找到 {found} 个",

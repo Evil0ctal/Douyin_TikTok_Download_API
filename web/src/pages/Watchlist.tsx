@@ -84,15 +84,16 @@ const BARE_ID = /^[\w-]+$/
 
 /**
  * The intervals a menu should offer: the standard ones the server accepts,
- * and whatever is chosen now. The default sat outside the menu whenever the
+ * and the one the form holds. The default sat outside the menu whenever the
  * server's floor was above six hours, so the menu showed its first option and
  * the form submitted a value that was not on it.
+ *
+ * `current` is listed whatever the floor: an entry made before the floor was
+ * raised keeps its interval, and its edit menu has to show what it has.
  */
-function intervalChoices(floor: number, extra: readonly number[]): number[] {
+function intervalChoices(floor: number, current: readonly number[]): number[] {
   const allowed = INTERVALS.filter((seconds) => seconds >= floor)
-  return [...new Set([...allowed, ...extra.filter((seconds) => seconds >= floor)])].sort(
-    (a, b) => a - b,
-  )
+  return [...new Set([...allowed, ...current])].sort((a, b) => a - b)
 }
 
 interface WatchRow {
@@ -158,7 +159,9 @@ export default function Watchlist() {
 
   const floor = query.data?.min_interval_seconds ?? 0
   const serverDefault = query.data?.default_interval_seconds ?? FALLBACK_INTERVAL
-  const choices = intervalChoices(floor, [serverDefault])
+  // The server's default is offered only when it clears the floor: a new
+  // entry below it would be refused.
+  const choices = intervalChoices(floor, serverDefault >= floor ? [serverDefault] : [])
   // What the menu shows is what gets sent: the choice if there is one, the
   // server's default otherwise, and never a value the menu does not list.
   const chosenInterval =
