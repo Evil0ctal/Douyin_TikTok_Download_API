@@ -31,13 +31,24 @@ Delete this header block before publishing.
 
 ### Upgrading
 
-<!-- Delete if a plain pull and restart is enough; say so explicitly if it is. -->
+<!-- Say what the upgrade needs beyond the command - a setting to change, an
+     image that is not pulled - or say that it needs nothing. Never tell the
+     reader to edit DTK_IMAGE_TAG: dtkctl writes it, and `latest` needs none. -->
+
+Installed with the script, in the install directory:
+
+```bash
+./dtkctl upgrade
+```
+
+By hand:
 
 ```bash
 cd /opt/dtk && git pull
-# set DTK_IMAGE_TAG=X.Y.Z in .env — no `v`, see the tag table at the bottom
 export COMPOSE_ENV_FILES=.env   # without this, `image:` ignores the root .env
-docker compose -p dtk -f docker/compose.yml pull api worker downloader
+# DTK_IMAGE_TAG=latest needs no edit; a pinned one becomes X.Y.Z - no `v`, see the tag table
+docker compose -p dtk -f docker/compose.yml pull api worker downloader transcriber
+docker compose -p dtk -f docker/compose.yml build browser-rpc   # with --profile browser
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
 ```
@@ -77,13 +88,23 @@ pool, the archive, the settings and the API keys stay where they are.
 
 ### 升级方式
 
-<!-- 如果拉一下重启就够，删掉代码块并明说「拉一下重启即可」。 -->
+<!-- 写清升级在这条命令之外还需要什么——要改的设置、不会被拉的镜像——没有就明说不需要。
+     不要让读者去改 DTK_IMAGE_TAG：dtkctl 会写它，`latest` 根本不用改。 -->
+
+用脚本装的，在安装目录里：
+
+```bash
+./dtkctl upgrade
+```
+
+手工升级：
 
 ```bash
 cd /opt/dtk && git pull
-# 在 .env 里把 DTK_IMAGE_TAG 改成 X.Y.Z —— 不带 v，见文末标签表
 export COMPOSE_ENV_FILES=.env   # 不加这句，image: 的插值读不到根目录的 .env
-docker compose -p dtk -f docker/compose.yml pull api worker downloader
+# DTK_IMAGE_TAG=latest 的不用改；钉了版本的改成 X.Y.Z —— 不带 v，见文末标签表
+docker compose -p dtk -f docker/compose.yml pull api worker downloader transcriber
+docker compose -p dtk -f docker/compose.yml build browser-rpc   # 开了 --profile browser 时
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
 ```
