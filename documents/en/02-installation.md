@@ -22,7 +22,7 @@ There are two ways to install this. Pick one before reading further.
 | Who it is for | Almost everyone, production included | Environments where Docker is not an option, or you are changing the code |
 | You install on the host | Docker, and nothing else | PostgreSQL 17 + TimescaleDB, Redis 8, Python 3.12, uv — plus Node 22 if you build the console |
 | Time to a running stack | However long the pull takes | Half an hour and up, half of it on TimescaleDB |
-| Upgrading | Change the tag, `pull`, migrate, `up -d` | `git pull`, `uv sync`, migrate, restart the systemd units |
+| Upgrading | `./dtkctl upgrade`, or by hand `git pull`, `pull`, migrate, `up -d` | `git pull`, `uv sync`, migrate, restart the systemd units |
 | Resource ceilings, read-only rootfs, dropped capabilities, non-root user | Already in the compose file | You rebuild them yourself with systemd |
 | When you ask me about a problem | I can reproduce it exactly | Your box is one of a kind and I am guessing |
 | Start reading at | [First install](#first-install) | [Running without Docker](#running-without-docker) for development, [A production install without Docker](#a-production-install-without-docker) for a server |
@@ -293,9 +293,10 @@ matter where you put it — and opens a menu instead of installing:
 
 - **Status** — versions, containers, disk, and a comparison against the latest
   GitHub release
-- **Upgrade** — pins `DTK_IMAGE_TAG` to the target, pulls, migrates, restarts.
-  Migrations run before the swap, so a failure leaves the old containers up
-  with nothing changed
+- **Upgrade** — updates the checkout, pulls the target release (or rebuilds
+  the images, on an install built from source), rebuilds the browser image,
+  migrates, restarts, and writes the version into `.env` itself. Migrations run
+  before the swap, so a failure leaves the old containers up with nothing changed
 - **Manage** — passwords, an extra administrator, account list, backup,
   restore, self check, logs, restart, any runtime setting, disk cleanup, and
   transcription on or off. Turning it on runs the same model step as the
@@ -306,7 +307,19 @@ matter where you put it — and opens a menu instead of installing:
 - **Stop or remove** — three levels: stop, stop and delete the volumes, or that
   plus the install directory. The last two require typing `delete`, not a y/n
 
-`bash install.sh --manage` goes straight to that menu.
+`bash install.sh --manage` goes straight to that menu, and the upgrade has a
+command of its own that asks nothing, run in the install directory:
+
+```bash
+./dtkctl upgrade          # the latest release
+./dtkctl upgrade 5.1.6    # or that one
+```
+
+That is the whole upgrade - the version in `.env` is the script's to keep, not
+yours. After updating the checkout it hands over to the copy of the script that
+came with it, so the steps it runs are always the new version's. An install
+made before 5.1.6 gets the command the first time it is upgraded: from the menu,
+or once with `git pull && bash install/install.sh --upgrade` in its directory.
 
 **The rest of this page is still worth reading.** What the script does is what
 follows; it just does it for you. When you want to know why it chose something,
@@ -1279,10 +1292,10 @@ first, or the port is already taken.
 ## Upgrading
 
 The least effort is the [guided script](#installing-and-managing-it-with-the-script):
-run it again and pick Upgrade. It compares against the latest GitHub release,
-pins `DTK_IMAGE_TAG`, pulls, migrates and restarts — with the migration before
-the swap, so a failure leaves the old containers running. What follows is every
-step of that, by hand.
+`./dtkctl upgrade` in its directory. It asks GitHub for the latest release,
+pulls it, migrates and restarts — with the migration before the swap, so a
+failure leaves the old containers running — and writes the new version into
+`.env` itself. What follows is every step of that, by hand.
 
 **Back up first.** The archive is a logical export, not a volume snapshot, and restoring it needs
 the same `DTK_SECRET_KEY` — credentials are exported still encrypted.
@@ -1309,9 +1322,16 @@ Then upgrade:
 
 ```bash
 git pull
-docker compose -p dtk -f docker/compose.yml build
+export COMPOSE_ENV_FILES=.env    # so compose reads DTK_IMAGE_TAG and the browser pin from .env
+docker compose -p dtk -f docker/compose.yml build              # built from source
+docker compose -p dtk -f docker/compose.yml pull api worker    # or: on the published images
 docker compose -p dtk -f docker/compose.yml up -d --wait
 ```
+
+On the published images with `DTK_IMAGE_TAG=latest`, nothing in `.env` changes:
+`latest` is the newest release. A pinned version or `sha-` build moves in `.env`
+before the pull, and that edit is the price of the pin; it is the one step
+`./dtkctl upgrade` takes off your hands.
 
 `migrate` runs on every start and Alembic is idempotent, so schema changes apply themselves. Named
 volumes survive rebuilds.
@@ -1322,12 +1342,14 @@ below apply to it too.
 
 Three things to know:
 
-- **`build` only builds the services in the active profiles.** To rebuild the browser, downloader
-  or transcriber image, repeat the profile flags — and for the browser supply `CLOAKBROWSER_COMMIT`
-  again, since it is a build argument read from your shell or `docker/.env`, not from the root
-  `.env`. On published images, an upgrade pulls the transcriber at the new tag with the rest; moving
-  to a tag from before transcription means turning it off first, because that tag has no transcriber
-  image to pull.
+- **`build` and `pull` only reach the services in the active profiles.** To update the browser,
+  downloader or transcriber image, repeat the profile flags - and pull `downloader` and
+  `transcriber` by name on the published images, or they keep the old version beside a new API.
+  The browser image is never published, so it is rebuilt on every upgrade, which needs
+  `CLOAKBROWSER_COMMIT` - a build argument read through compose interpolation, which is why the
+  export above. Under a tag that does not change (`latest`, or a source build's `dev`) a skipped
+  rebuild leaves the old browser code running. Moving to a tag from before transcription means
+  turning it off first, because that tag has no transcriber image to pull.
 - **Migrations are forward-only from the CLI.** `dtk migrate` upgrades; there is no downgrade
   command. Rolling back a release that changed the schema means restoring a backup taken before it.
 - **Never change `DTK_SECRET_KEY` as part of an upgrade.** Every stored cookie and proxy credential

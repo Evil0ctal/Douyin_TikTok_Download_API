@@ -19,7 +19,7 @@
 | 适合谁 | 绝大多数人，生产也包括在内 | 不能用 Docker 的环境，或者你要改代码 |
 | 宿主机上要自己装 | 只有 Docker | PostgreSQL 17 + TimescaleDB、Redis 8、Python 3.12、uv；要构建控制台还得有 Node 22 |
 | 起一套要多久 | 拉镜像的时间 | 半小时起步，其中一半花在 TimescaleDB 上 |
-| 升级 | 改 tag、`pull`、跑迁移、`up -d` | `git pull`、`uv sync`、跑迁移、重启 systemd |
+| 升级 | `./dtkctl upgrade`；手工则是 `git pull`、`pull`、跑迁移、`up -d` | `git pull`、`uv sync`、跑迁移、重启 systemd |
 | 资源上限、只读根文件系统、能力裁剪、非 root 用户 | compose 文件里已经写好 | 你自己用 systemd 补回来 |
 | 出问题来问我 | 我这边能一比一复现 | 你那台机器是独一份，我只能猜 |
 | 从这里开始读 | [首次安装](#首次安装) | [不用 Docker 运行](#不用-docker-运行)（开发）、[在裸机上做生产部署](#在裸机上做生产部署)（生产） |
@@ -259,8 +259,8 @@ bash install.zh.sh
 而不是重新安装：
 
 - **状态** —— 版本、容器、磁盘占用，并和 GitHub 最新 Release 比一下
-- **升级** —— 把 `DTK_IMAGE_TAG` 钉到目标版本，拉镜像、跑迁移、重启。迁移在切换之前跑，
-  失败了旧容器还在，什么都没被换掉
+- **升级** —— 更新代码、拉目标版本的镜像（源码构建的安装则是重新构建）、重建浏览器镜像、
+  跑迁移、重启，并且自己把版本号写进 `.env`。迁移在切换之前跑，失败了旧容器还在，什么都没被换掉
 - **管理** —— 改口令、加管理员、账号列表、备份、恢复、自检、日志、重启、改任意运行时设置、
   清理磁盘，以及开关转写。打开时走和安装时一样的模型步骤，拉取或构建镜像，再重建整套容器；
   关闭时删掉那个容器，模型留在原地。两种情况都只改 `dtkctl` 里那一个 `--profile` 参数，
@@ -268,7 +268,16 @@ bash install.zh.sh
 - **停止或移除** —— 三档：只停、连数据卷一起删、再连安装目录一起删。后两档要求打出
   `delete` 这个词，不是 y/n
 
-`bash install.zh.sh --manage` 可以直接进这个菜单。
+`bash install.zh.sh --manage` 可以直接进这个菜单；升级还有一条什么都不问的命令，在安装目录里运行：
+
+```bash
+./dtkctl upgrade          # 升到最新的 Release
+./dtkctl upgrade 5.1.6    # 或者升到这个版本
+```
+
+升级就是这一条——`.env` 里的版本号归脚本管，不归你管。它更新完代码，会把剩下的步骤交给随新代码
+一起来的那份脚本，所以跑的永远是新版本的步骤。5.1.6 之前装的实例，第一次升级时就会有这条命令：
+从菜单里升，或者在它的目录里跑一次 `git pull && bash install/install.zh.sh --upgrade`。
 
 **本页剩下的内容还是值得读。** 脚本做的就是下面这些事，只是替你做了；想知道它为什么
 那样做、或者想偏离它的默认选择时，答案都在下面。
@@ -1137,9 +1146,9 @@ Postgres 或 Redis 挂掉时，`/readyz` 返回 `503` 并带上分组件的明�
 
 ## 升级
 
-最省事的办法是 [引导式脚本](#用脚本装和管)：再跑一次，选「升级」。它会和 GitHub 最新
-Release 比版本、把 `DTK_IMAGE_TAG` 钉住、拉镜像、跑迁移、重启，并且迁移在切换容器之前
-跑 —— 失败了旧容器还在。下面是它做的每一步，手工版。
+最省事的办法是 [引导式脚本](#用脚本装和管)：在它的目录里运行 `./dtkctl upgrade`。它会向
+GitHub 问最新的 Release、拉镜像、跑迁移、重启，迁移在切换容器之前跑 —— 失败了旧容器还在 ——
+并且自己把新版本号写进 `.env`。下面是它做的每一步，手工版。
 
 **先备份。** 归档是逻辑导出，不是卷快照，而且恢复它需要同一个 `DTK_SECRET_KEY`——凭据是以加密状态导出的。
 
@@ -1163,9 +1172,15 @@ docker compose -p dtk -f docker/compose.yml cp \
 
 ```bash
 git pull
-docker compose -p dtk -f docker/compose.yml build
+export COMPOSE_ENV_FILES=.env    # 让 compose 从 .env 里读 DTK_IMAGE_TAG 和浏览器的 pin
+docker compose -p dtk -f docker/compose.yml build              # 源码构建
+docker compose -p dtk -f docker/compose.yml pull api worker    # 或者：用已发布镜像
 docker compose -p dtk -f docker/compose.yml up -d --wait
 ```
+
+用已发布镜像且 `DTK_IMAGE_TAG=latest` 的，`.env` 什么都不用改：`latest` 就是最新的 Release。
+钉了版本号或 `sha-` 构建的，拉之前先在 `.env` 里改掉它，这就是钉住的代价；`./dtkctl upgrade`
+替你省掉的正是这一步。
 
 `migrate` 每次启动都会跑，Alembic 是幂等的，所以表结构变更会自己应用。命名卷在重建中保留。
 
@@ -1174,10 +1189,11 @@ docker compose -p dtk -f docker/compose.yml up -d --wait
 
 有三件事需要知道：
 
-- **`build` 只构建当前激活 profile 里的服务。** 要重建浏览器、下载器或转写镜像，就把 profile 参数带上——
-  浏览器还得再次提供 `CLOAKBROWSER_COMMIT`，因为它是构建参数，取自你的 shell 或 `docker/.env`，而不是根目录
-  `.env`。用已发布镜像时，升级会把 transcriber 和其他镜像一起拉到新 tag；要退到转写功能之前的 tag，得先关掉
-  转写，因为那个 tag 根本没有 transcriber 镜像可拉。
+- **`build` 和 `pull` 只作用于当前激活 profile 里的服务。** 要更新浏览器、下载器或转写镜像，就把 profile
+  参数带上——用已发布镜像时还要点名拉 `downloader` 和 `transcriber`，否则它们停在旧版本，旁边是新的 API。
+  浏览器镜像从不发布，所以每次升级都要重建，这需要 `CLOAKBROWSER_COMMIT`——它是构建参数，走 compose 插值，
+  所以上面要 export。tag 不变时（`latest`，或源码构建的 `dev`）漏掉这次重建，跑着的就还是旧的浏览器代码。
+  要退到转写功能之前的 tag，得先关掉转写，因为那个 tag 根本没有 transcriber 镜像可拉。
 - **CLI 里的迁移是单向的。** `dtk migrate` 只升不降，没有 downgrade 命令。要回滚一个改过表结构的版本，
   意味着恢复它之前的备份。
 - **绝不要在升级中顺手改 `DTK_SECRET_KEY`。** 所有已存的 cookie 和代理凭据都用它加密。如果它非改不可，

@@ -410,9 +410,14 @@ docker compose -p dtk -f docker/compose.yml exec api \
 docker compose -p dtk -f docker/compose.yml exec api \
   dtk backup list --dir /var/lib/dtk/backups
 
-# 2. Pull, rebuild, restart.
+# 2. Upgrade. Installed with the script, this is the whole step:
+./dtkctl upgrade
+#    By hand: update the checkout, then pull (published images) or build
+#    (from source) with the same --profile flags you run, and restart.
 git pull
-docker compose -p dtk -f docker/compose.yml build
+export COMPOSE_ENV_FILES=.env
+docker compose -p dtk -f docker/compose.yml pull api worker   # or: build
+docker compose -p dtk -f docker/compose.yml build browser-rpc # with --profile browser
 docker compose -p dtk -f docker/compose.yml up -d --wait
 
 # 3. Confirm.
@@ -425,9 +430,10 @@ docker compose -p dtk -f docker/compose.yml logs --tail 50 migrate
 Points worth knowing before you upgrade:
 
 - **Keep `DTK_SECRET_KEY` unchanged.** Changing it makes every stored cookie jar and proxy URL undecryptable and every existing archive unrestorable. If it must be rotated, retire the affected identities and re-import or re-mint them.
-- **Roll back by tag, not by database.** Migrations move forward; there is no downgrade path documented here. If a release misbehaves, check out the previous tag, rebuild, and restore from the backup you took in step 1 — into an empty database, since a restore fills gaps rather than reverting.
-- **`build` and `up` only touch the services in the active profiles.** If you deploy with `--profile browser` or `--profile downloader`, repeat those flags on both commands. Compose reads the file rather than the running stack, so without them nothing rebuilds `browser-rpc` or `downloader`: they keep serving the old image while `api` and `worker` move forward, and nothing warns you. [Installation and deployment](./02-installation.md) has the flags in full.
-- **Browser images are pinned deliberately.** `CLOAKBROWSER_COMMIT` is a build argument, and like the published address it is compose interpolation: it is read from `docker/.env` or your shell, not from the repository-root `.env`. Pass it on the command line when you rebuild the browser image, or point compose at the root file with `COMPOSE_ENV_FILES=.env`. It identifies exactly one revision; several unrelated repositories publish identically described "cloakbrowser" projects, so a floating tag would not identify any particular software. Change it on purpose, and re-check signing afterwards.
+- **The version is not yours to edit when the script installed it.** `./dtkctl upgrade` writes `DTK_IMAGE_TAG` into `.env` after the new images are on the machine, never before, so a failed pull leaves it pointing at what is running. By hand, `DTK_IMAGE_TAG=latest` needs no edit; a pin is moved in `.env` before the pull.
+- **Roll back by tag, not by database.** Migrations move forward; there is no downgrade path documented here. If a release misbehaves, go back to the previous version - `./dtkctl upgrade 5.1.5`, or the old pin by hand - and restore from the backup you took in step 1, into an empty database, since a restore fills gaps rather than reverting.
+- **`build`, `pull` and `up` only touch the services in the active profiles.** If you deploy with `--profile browser`, `--profile downloader` or `--profile transcriber`, repeat those flags on every command, and name `downloader` and `transcriber` on the pull. Compose reads the file rather than the running stack, so without them nothing updates `browser-rpc`, `downloader` or `transcriber`: they keep serving the old image while `api` and `worker` move forward, and nothing warns you. [Installation and deployment](./02-installation.md) has the flags in full.
+- **Browser images are pinned deliberately.** `CLOAKBROWSER_COMMIT` is a build argument, and like the published address it is compose interpolation: it is read from `docker/.env` or your shell, not from the repository-root `.env`, unless `COMPOSE_ENV_FILES=.env` points compose there as above. It identifies exactly one revision; several unrelated repositories publish identically described "cloakbrowser" projects, so a floating tag would not identify any particular software. Change it on purpose, and re-check signing afterwards. The image itself is rebuilt on every upgrade, because its code comes from the checkout.
 - **Watch for version drift** on `/system` after an upgrade: the Chromium major that produces signatures and the wreq TLS profile major that replays fingerprints have to agree.
 - **Scale by restarting workers, not by editing intervals.** `docker compose -p dtk -f docker/compose.yml up -d --scale worker=4`.
 

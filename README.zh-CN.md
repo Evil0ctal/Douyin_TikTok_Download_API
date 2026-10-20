@@ -408,15 +408,24 @@ docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化�
 ### 镜像从哪来
 
 默认是本地构建：`up` 第一次会用仓库里的 Dockerfile 把应用镜像编出来，几分钟。
-如果你不想在自己机器上编译，把 compose 指向已发布的镜像即可：
+如果你不想在自己机器上编译，在同一个 `.env` 里把 compose 指向已发布的镜像即可：
 
 ```bash
-export DTK_IMAGE=evil0ctal/douyin_tiktok_download_api
-export DTK_IMAGE_TAG=latest
+cat >> .env <<'EOF'
+DTK_IMAGE=evil0ctal/douyin_tiktok_download_api
+DTK_IMAGE_TAG=latest
+EOF
+export COMPOSE_ENV_FILES=.env
 docker compose -p dtk -f docker/compose.yml pull
 docker compose -p dtk -f docker/compose.yml up -d
 ```
 
+这两个变量是 compose 自己读的，不是容器读的，而 compose 默认去 `docker/.env` 里找，
+除非 `COMPOSE_ENV_FILES` 另有所指。少了那行 export，它什么也找不到，退回本地镜像名，
+又悄悄从源码编了一遍——所以每个要敲 compose 的 shell 里都得有它。脚本生成的 `dtkctl`
+替你带着。
+
+`latest` 就是最新的 Release，只在发版时才会变，所以以后更新不用改这里的任何东西。
 `pull` 这一步不能省：compose 里这些服务同时写了 `image` 和 `build`，本机没有这个镜像时
 它会自己去编，而不是去拉。
 
@@ -472,34 +481,45 @@ docker compose -p dtk -f docker/compose.yml up -d
 每 24 小时最多一次。那个请求是**你的浏览器**发给 GitHub 的，服务器不会往外发任何东西
 ——所以它不会告诉任何人你这台实例存在。气人的话在设置里关掉。
 
-更新本身就是拉镜像加重启。用脚本装的话，再跑一次选「升级」就行：
+用脚本装的，在安装目录里一条命令：
 
 ```bash
-bash install.zh.sh --manage    # 选 2
+cd /opt/dtk           # 或 ~/dtk —— 你装在哪就是哪
+./dtkctl upgrade      # 升到最新的 Release；./dtkctl upgrade 5.1.6 升到指定版本
 ```
+
+它会更新代码、拉新镜像（源码构建的安装则是重新构建）、重建浏览器镜像、跑迁移、重启，
+并且自己把升到的版本号写进 `.env`。不需要手动改任何东西。5.1.6 之前装的实例还没有
+`upgrade`，那就在同一个目录里先跑一次 `git pull && bash install/install.zh.sh --upgrade`，
+之后就都是 `./dtkctl upgrade` 了。运行 `bash install.zh.sh --manage` 选 2，效果一样。
 
 手工版是这样：
 
 ```bash
 cd /opt/dtk && git pull
+export COMPOSE_ENV_FILES=.env
 
-# 用已发布镜像的（推荐）：把 .env 里的 DTK_IMAGE_TAG 改成新版本
-docker compose -p dtk -f docker/compose.yml pull api worker downloader
+# 用已发布镜像的（推荐）。写上你在跑的服务：开了下载器和转写的，
+# 加上 downloader 和 transcriber，--profile 参数也和启动时一样。
+docker compose -p dtk -f docker/compose.yml pull api worker
+docker compose -p dtk -f docker/compose.yml build browser-rpc   # 只在开了 --profile browser 时
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
 ```
 
-自己构建的话把 `pull` 换成 `build`。`migrate` 每次启动都会跑，Alembic 是幂等的，
-所以单独跑那一步只是想在切换容器之前先把库升上去。
+`DTK_IMAGE_TAG=latest` 的话不用先改任何东西。钉了版本号或 `sha-` 构建的，这就是钉住的
+代价：拉之前先在 `.env` 里把它改掉——脚本替你做的正是这一步。自己构建的话把 `pull` 换成
+`build`。`migrate` 每次启动都会跑，Alembic 是幂等的，所以单独跑那一步只是想在切换容器
+之前先把库升上去。
 
 **你的数据不会动。** 命名卷（`postgres-data`、`redis-data`、`media-data`）不随容器
 重建而消失，身份池、归档、设置和 API Key 都在原地。
 
-浏览器镜像只有在 `docker/Dockerfile.browser` 或 CloakBrowser 的 pin 变了才需要重建，
-一般的版本更新不用管它。
+浏览器镜像从这份代码构建、从不拉取，所以每次更新都要重建：tag 不变的话——`latest`，
+或者本地构建的 `dev`——跑着的还是旧代码。有缓存，很快。
 
-想回退就把 `DTK_IMAGE_TAG` 改回上一个 `sha-` 或版本号再 `up -d`。
-迁移不提供自动降级——升级前备份数据库，这是唯一稳妥的回退路径。
+想回退，用脚本装的就 `./dtkctl upgrade 5.1.5`，手工的就把 `DTK_IMAGE_TAG` 改回上一个
+版本号或 `sha-` 再 `up -d`。迁移不提供自动降级——升级前备份数据库，这是唯一稳妥的回退路径。
 
 
 ## 📖 文档

@@ -441,18 +441,27 @@ their page scripts. Bilibili guests are minted over plain HTTP either way.
 
 By default it is built locally: the first `up` compiles the application image from the
 Dockerfile in this repository, which takes a few minutes. To skip that, point compose at
-the published image instead:
+the published image instead, in the same `.env`:
 
 ```bash
-export DTK_IMAGE=evil0ctal/douyin_tiktok_download_api
-export DTK_IMAGE_TAG=latest
+cat >> .env <<'EOF'
+DTK_IMAGE=evil0ctal/douyin_tiktok_download_api
+DTK_IMAGE_TAG=latest
+EOF
+export COMPOSE_ENV_FILES=.env
 docker compose -p dtk -f docker/compose.yml pull
 docker compose -p dtk -f docker/compose.yml up -d
 ```
 
-The `pull` is not optional: these services declare both `image` and `build`, so compose
-builds from the local Dockerfile whenever the image is not already on the machine rather
-than reaching for a registry.
+These two are read by compose itself rather than by the containers, and compose looks for
+them in `docker/.env` unless `COMPOSE_ENV_FILES` says otherwise. Without the export it
+finds nothing, falls back to the local names and quietly builds from source again, so it
+belongs in every shell you run compose from. The script's `dtkctl` carries it for you.
+
+`latest` is the newest release and moves only when one is cut, so updating later needs
+nothing edited here. The `pull` is not optional: these services declare both `image` and
+`build`, so compose builds from the local Dockerfile whenever the image is not already on
+the machine rather than reaching for a registry.
 
 Images are published for `linux/amd64` and `linux/arm64`, so Apple Silicon and a
 Raspberry Pi both run natively. The browser container is not published: it installs
@@ -513,38 +522,52 @@ a day. That request goes from **your browser** to GitHub — the server never
 sends anything outward, so it does not tell anyone this instance exists. Turn it
 off in Settings if you would rather it did not.
 
-Updating is a pull and a restart. If you installed with the script, run it
-again and pick Upgrade:
+If you installed with the script, it is one command in the install directory:
 
 ```bash
-bash install.sh --manage    # pick 2
+cd /opt/dtk           # or ~/dtk - wherever you installed it
+./dtkctl upgrade      # the latest release; ./dtkctl upgrade 5.1.6 for a given one
 ```
+
+It updates the checkout, pulls the new images (or rebuilds them, on an install built
+from source), rebuilds the browser image, migrates, restarts, and writes the version it
+moved to into `.env` itself. There is nothing to edit by hand. An install from before
+5.1.6 does not have `upgrade` yet; there, once, run `git pull && bash install/install.sh
+--upgrade` in the same directory, and from then on it is `./dtkctl upgrade`. Running
+`bash install.sh --manage` and picking 2 does the same from the menu.
 
 By hand it is:
 
 ```bash
 cd /opt/dtk && git pull
+export COMPOSE_ENV_FILES=.env
 
-# Running the published images (recommended): point DTK_IMAGE_TAG at the new one
-docker compose -p dtk -f docker/compose.yml pull api worker downloader
+# Running the published images (recommended). Name the services you run:
+# add downloader and transcriber if you enabled them, with the same --profile flags.
+docker compose -p dtk -f docker/compose.yml pull api worker
+docker compose -p dtk -f docker/compose.yml build browser-rpc   # only with --profile browser
 docker compose -p dtk -f docker/compose.yml run --rm migrate
 docker compose -p dtk -f docker/compose.yml up -d
 ```
 
-Building locally instead? Swap `pull` for `build`. `migrate` runs on every start
-and Alembic is idempotent, so running it separately is only about getting the
-schema up before the containers switch over.
+With `DTK_IMAGE_TAG=latest` there is nothing to change first. A pinned version or
+`sha-` build is the one thing a pin costs: move it in `.env` before you pull, which is
+the step the script does for you. Building locally instead? Swap `pull` for `build`.
+`migrate` runs on every start and Alembic is idempotent, so running it separately is
+only about getting the schema up before the containers switch over.
 
 **Your data stays put.** The named volumes (`postgres-data`, `redis-data`,
 `media-data`) survive a rebuild, so the identity pool, the archive, the settings
 and the API keys are all where you left them.
 
-The browser image only needs rebuilding when `docker/Dockerfile.browser` or the
-CloakBrowser pin changes, which a normal version bump does not touch.
+The browser image is built from this checkout, never pulled, so rebuild it on every
+update: under a tag that stays the same - `latest`, or a local build's `dev` - the old
+one keeps running the old code. Cached layers keep it short.
 
-To go back, set `DTK_IMAGE_TAG` to the previous `sha-` or version and `up -d`
-again. Migrations have no automatic downgrade — back the database up before
-upgrading, which is the only rollback that always works.
+To go back, `./dtkctl upgrade 5.1.5` with the script, or set `DTK_IMAGE_TAG` to the
+previous version or `sha-` by hand and `up -d` again. Migrations have no automatic
+downgrade — back the database up before upgrading, which is the only rollback that
+always works.
 
 
 ## 📖 Documentation

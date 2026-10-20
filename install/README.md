@@ -59,9 +59,23 @@ menu instead of installing:
 **Upgrading** compares the running version against the latest GitHub release —
 a pre-release suffix counts as older, so `5.1.0.dev0` is behind `5.1.0`. It
 pins `DTK_IMAGE_TAG` to the version rather than following `latest`, so you can
-say what is running and put it back. The data is untouched: the named volumes
-survive, and if migrations fail the old containers are still up and nothing was
-swapped.
+say what is running and put it back, and it writes that pin itself: nobody edits
+`.env` to upgrade. The data is untouched: the named volumes survive, and if
+migrations fail the old containers are still up and nothing was swapped.
+
+The same upgrade without the menu, from the install directory:
+
+```bash
+./dtkctl upgrade          # the latest release
+./dtkctl upgrade 5.1.6    # or a given one
+```
+
+It updates the checkout first and then hands over to the copy of this script
+that came with it, so the steps are always the new version's. An install that
+builds from source has no version to choose: it rebuilds its images from the
+new checkout instead of pulling. An install from before 5.1.6 has no `upgrade`
+until its first upgrade — from the menu, or once with
+`git pull && bash install/install.sh --upgrade` in its directory.
 
 **Manage** covers the things people otherwise ask how to do:
 
@@ -258,8 +272,21 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
 
 **升级**会把运行中的版本和 GitHub 最新 Release 比一下 —— 带预发布后缀的算旧，
 所以 `5.1.0.dev0` 排在 `5.1.0` 前面。它把 `DTK_IMAGE_TAG` 钉在具体版本上而不是
-跟着 `latest` 跑，这样你说得出现在跑的是哪个，也换得回去。数据不受影响：命名卷
-不会消失；万一迁移失败，旧容器还在跑，什么都没被替换。
+跟着 `latest` 跑，这样你说得出现在跑的是哪个，也换得回去；这个 pin 也是它自己写的，
+升级不需要任何人去改 `.env`。数据不受影响：命名卷不会消失；万一迁移失败，旧容器
+还在跑，什么都没被替换。
+
+不进菜单也能升级，在安装目录里：
+
+```bash
+./dtkctl upgrade          # 升到最新的 Release
+./dtkctl upgrade 5.1.6    # 或者升到指定版本
+```
+
+它先更新代码，再把剩下的交给随新代码来的那份脚本，所以跑的永远是新版本的步骤。
+从源码构建的安装没有版本可选：它用新代码重新构建镜像，而不是拉取。5.1.6 之前装的
+实例，要等第一次升级之后才有 `upgrade` —— 从菜单里升，或者在它的目录里跑一次
+`git pull && bash install/install.zh.sh --upgrade`。
 
 **管理**覆盖的就是大家平时会来问怎么做的那些事：
 

@@ -409,9 +409,14 @@ docker compose -p dtk -f docker/compose.yml exec api \
 docker compose -p dtk -f docker/compose.yml exec api \
   dtk backup list --dir /var/lib/dtk/backups
 
-# 2. 拉取、重建、重启。
+# 2. 升级。用脚本装的，这一步就是全部：
+./dtkctl upgrade
+#    手工：更新代码，然后带上你在用的 --profile 参数拉取（已发布镜像）
+#    或构建（源码），再重启。
 git pull
-docker compose -p dtk -f docker/compose.yml build
+export COMPOSE_ENV_FILES=.env
+docker compose -p dtk -f docker/compose.yml pull api worker   # 或者：build
+docker compose -p dtk -f docker/compose.yml build browser-rpc # 开了 --profile browser 时
 docker compose -p dtk -f docker/compose.yml up -d --wait
 
 # 3. 确认。
@@ -424,9 +429,10 @@ docker compose -p dtk -f docker/compose.yml logs --tail 50 migrate
 升级之前值得知道的几点：
 
 - **不要改 `DTK_SECRET_KEY`。** 改了它，所有已存的 Cookie 罐和代理 URL 都无法解密，所有现有归档也都无法恢复。如果必须轮换，就退休受影响的身份，然后重新导入或重新铸造。
-- **回滚靠 tag，不靠数据库。** 迁移只向前走，本文不提供降级路径。如果某个版本有问题，检出上一个 tag、重建，然后用第 1 步的备份恢复——恢复到空数据库里，因为恢复是补齐而不是回退。
-- **`build` 和 `up` 只作用于当前激活 profile 里的服务。** 如果你的部署带了 `--profile browser` 或 `--profile downloader`，这两条命令都要把 profile 参数重复带上。compose 读的是文件而不是正在运行的栈，不带参数时没有任何东西会重建 `browser-rpc` 和 `downloader`：它们会继续跑旧镜像，而 `api` 和 `worker` 已经往前走了，并且不会有任何提示。完整的 profile 参数见[安装与部署](./02-installation.md)。
-- **浏览器镜像是刻意钉死的。** `CLOAKBROWSER_COMMIT` 是构建参数，和发布地址一样走 compose 插值：它从 `docker/.env` 或你的 shell 读取，而不是根目录的 `.env`。重建浏览器镜像时在命令行里传给它，或者用 `COMPOSE_ENV_FILES=.env` 让 compose 去读根目录那个文件。它精确指向某一个 revision；有好几个互不相关的仓库都发布着描述雷同的 "cloakbrowser" 项目，浮动 tag 并不能标识任何一份具体的软件。要改就有意识地改，改完重新验证签名。
+- **脚本装的实例，版本号不用你改。** `./dtkctl upgrade` 是在新镜像已经到本机之后才把 `DTK_IMAGE_TAG` 写进 `.env` 的，绝不提前，所以拉取失败时它仍然指向正在跑的那个。手工部署的，`DTK_IMAGE_TAG=latest` 不用改；钉了版本的，拉之前先在 `.env` 里改掉。
+- **回滚靠 tag，不靠数据库。** 迁移只向前走，本文不提供降级路径。如果某个版本有问题，回到上一个版本——`./dtkctl upgrade 5.1.5`，或者手工改回旧的 pin——然后用第 1 步的备份恢复，恢复到空数据库里，因为恢复是补齐而不是回退。
+- **`build`、`pull` 和 `up` 只作用于当前激活 profile 里的服务。** 如果你的部署带了 `--profile browser`、`--profile downloader` 或 `--profile transcriber`，每条命令都要把 profile 参数重复带上，拉取时还要点名 `downloader` 和 `transcriber`。compose 读的是文件而不是正在运行的栈，不带参数时没有任何东西会更新 `browser-rpc`、`downloader` 和 `transcriber`：它们会继续跑旧镜像，而 `api` 和 `worker` 已经往前走了，并且不会有任何提示。完整的 profile 参数见[安装与部署](./02-installation.md)。
+- **浏览器镜像是刻意钉死的。** `CLOAKBROWSER_COMMIT` 是构建参数，和发布地址一样走 compose 插值：它从 `docker/.env` 或你的 shell 读取，而不是根目录的 `.env`，除非像上面那样用 `COMPOSE_ENV_FILES=.env` 让 compose 去读根目录那个文件。它精确指向某一个 revision；有好几个互不相关的仓库都发布着描述雷同的 "cloakbrowser" 项目，浮动 tag 并不能标识任何一份具体的软件。要改就有意识地改，改完重新验证签名。镜像本身每次升级都要重建，因为它的代码来自这份代码目录。
 - **升级后留意版本漂移**：`/system` 上产出签名的 Chromium 主版本，和重放指纹的 wreq TLS profile 主版本必须一致。
 - **扩容靠加 worker，不靠改间隔**：`docker compose -p dtk -f docker/compose.yml up -d --scale worker=4`。
 
