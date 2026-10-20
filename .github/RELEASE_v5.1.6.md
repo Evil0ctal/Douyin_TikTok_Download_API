@@ -527,7 +527,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 |---|---|
 | Git tag / Git 标签 | `v5.1.6` |
 | `DTK_IMAGE_TAG` — this release / 这个版本 | `5.1.6` |
-| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-<40-char commit>` |
+| `DTK_IMAGE_TAG` — this exact build / 钉死这次构建 | `sha-9b1ab4b98e42b731bcf1d938d4d7b55a0be10839` |
 
 The Docker tag drops the `v`: `docker/metadata-action` strips it when publishing,
 so `:v5.1.6` was never pushed. One value names all three published images.
