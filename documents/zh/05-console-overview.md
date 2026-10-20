@@ -155,10 +155,10 @@ MCP 那一项指向 `/mcp-guide` 而不是 `/mcp`，因为 `/mcp` 属于挂在 A
 | 身份池 | `/identities` | [身份与代理](./06-identities-and-proxies.md) |
 | 代理 | `/proxies` | [身份与代理](./06-identities-and-proxies.md) |
 | 调度器 | `/scheduler` | [身份与代理](./06-identities-and-proxies.md) |
-| 资料库 | `/library` | [下载、素材库与监控](./08-downloads-and-library.md) |
-| 下载 | `/downloads` | [下载、素材库与监控](./08-downloads-and-library.md) |
-| 视频转写 | `/transcriptions` | [下载、素材库与监控](./08-downloads-and-library.md#把已存的视频转成文字) |
-| 关注列表 | `/watchlist` | [下载、素材库与监控](./08-downloads-and-library.md) |
+| 资料库 | `/library` | [下载、资料库与关注列表](./08-downloads-and-library.md) |
+| 下载 | `/downloads` | [下载、资料库与关注列表](./08-downloads-and-library.md) |
+| 视频转写 | `/transcriptions` | [下载、资料库与关注列表](./08-downloads-and-library.md#把已存的视频转成文字) |
+| 关注列表 | `/watchlist` | [下载、资料库与关注列表](./08-downloads-and-library.md) |
 | 调试台 | `/playground` | [调试台与工具](./07-playground-and-tools.md) |
 | 基础工具 | `/tools` | [调试台与工具](./07-playground-and-tools.md) |
 | 接口文档 | `/docs` | [调试台与工具](./07-playground-and-tools.md) |
@@ -266,7 +266,7 @@ MCP 那一项指向 `/mcp-guide` 而不是 `/mcp`，因为 `/mcp` 属于挂在 A
 | 关注中 | 关注列表条目数。脚注：多少个正在失败。链接到关注列表 | 有失败项时为警告色 |
 | 转写 | 已转成文字的已存视频数。链接到视频转写。`viewer` 及以上才显示，因为这个接口拒绝演示账号 | — |
 
-磁盘这张卡片在快满之前一直安静，接近上限时才变吵，因为超过上限之后最旧的未置顶下载就会开始被清理。见[下载、素材库与监控](./08-downloads-and-library.md)。
+磁盘这张卡片在快满之前一直安静，接近上限时才变吵，因为超过上限之后最旧的未置顶下载就会开始被清理。见[下载、资料库与关注列表](./08-downloads-and-library.md)。
 
 ### 身份池状态分布
 

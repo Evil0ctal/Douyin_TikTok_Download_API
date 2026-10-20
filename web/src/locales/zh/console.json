@@ -702,7 +702,7 @@
   },
   "proxy": {
     "column": {
-      "label": "备注",
+      "label": "名称",
       "address": "地址",
       "geo": "出口地区",
       "identities": "身份数",
@@ -760,7 +760,7 @@
       "action": "批量导入",
       "title": "导入代理",
       "description": "粘贴列表即可，逐行识别格式，导入成功的会立刻探测。",
-      "labelField": "本批备注",
+      "labelField": "本批代理的名称",
       "labelHint": "会应用到本次导入的每一个代理。",
       "pasteHint": "每行粘贴一个代理，可以先看解析结果。",
       "parsed": "已解析 {count} 行",

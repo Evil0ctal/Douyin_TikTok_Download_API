@@ -902,7 +902,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk --version
 
 ### API 不肯把文件给我
 
-这是下载器的设计：它只负责把字节落到磁盘上，不做中继。API 以只读方式挂载媒体卷，并在 `media:read` scope 后面把已存文件交给控制台；下载器本身从不向调用方中继媒体。见[下载、素材库与监控](./08-downloads-and-library.md)。
+这是下载器的设计：它只负责把字节落到磁盘上，不做中继。API 以只读方式挂载媒体卷，并在 `media:read` scope 后面把已存文件交给控制台；下载器本身从不向调用方中继媒体。见[下载、资料库与关注列表](./08-downloads-and-library.md)。
 
 ---
 
