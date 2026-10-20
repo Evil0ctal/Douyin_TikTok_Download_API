@@ -52,6 +52,32 @@ class TestSessionVerdict:
     def test_a_bilibili_jar_without_its_visitor_id_is_missing_one(self) -> None:
         assert _session_health("bilibili", {"SESSDATA": "x"})["verdict"] == "missing"
 
+    def test_a_douyin_login_from_a_browser_holds_its_visitor_id_as_uifid(self) -> None:
+        """A browser's jar spells it `UIFID`; only a mint yields `UIFID_TEMP`.
+
+        Judged on `UIFID_TEMP` alone, every imported login read "missing", and
+        the Identities page hid it as a spent session - the one identity the
+        operator had just imported, while the signer was signing with it.
+        """
+        jar = {"UIFID": "SYNTHETIC" + "a" * 300, "sessionid": "SYNTHETICsession"}
+        assert _session_health("douyin", jar) == {"cookie": "UIFID", "verdict": "ok", "held": True}
+
+    def test_a_douyin_verdict_is_on_the_value_the_signer_signs_with(self) -> None:
+        """Both spellings present: the one `pick_uifid` reads first decides."""
+        jar = {"UIFID_TEMP": "SYNTHETIC" + "a" * 40, "uifid": "SYNTHETICshort"}
+        assert _session_health("douyin", jar) == {
+            "cookie": "uifid",
+            "verdict": "too_short",
+            "held": True,
+        }
+
+    def test_a_douyin_jar_without_one_names_the_cookie_a_mint_yields(self) -> None:
+        assert _session_health("douyin", {"ttwid": "SYNTHETIC"}) == {
+            "cookie": "UIFID_TEMP",
+            "verdict": "missing",
+            "held": False,
+        }
+
 
 class TestCookieRoles:
     def test_required_is_judged_for_the_platform_asked_about(self) -> None:

@@ -102,6 +102,15 @@ _SESSION_COOKIE: Final[Mapping[str, tuple[str, int]]] = MappingProxyType(
     }
 )
 
+#: Every name the session value goes by where a platform has more than one,
+#: in the order the signer reads them. The name above is the one a mint yields,
+#: and a browser's jar spells Douyin's `UIFID`: judged on `UIFID_TEMP` alone,
+#: every login imported from a browser read "missing" and the Identities page
+#: hid it as a spent session, while the signer was signing with it.
+_SESSION_SPELLINGS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {Platform.DOUYIN.value: UIFID_COOKIE_NAMES}
+)
+
 
 def _parse_cookies(header: str) -> dict[str, str]:
     """The jar as name/value pairs. Same shape `IdentityPool.load` reads."""
@@ -125,6 +134,12 @@ def _session_health(platform: str, cookies: Mapping[str, str]) -> dict[str, Any]
     if expected is None:
         return {"cookie": None, "verdict": "unknown"}
     name, minimum = expected
+    # The spelling the signer would read first, so the verdict is on the value
+    # it signs with; none held, and the cell names the one a mint yields.
+    name = next(
+        (spelling for spelling in _SESSION_SPELLINGS.get(platform, ()) if cookies.get(spelling)),
+        name,
+    )
     value = cookies.get(name) or ""
     if not value:
         verdict = "missing"

@@ -217,6 +217,10 @@ Two things do not happen by themselves:
 - **"Keep it for requests that name it"** was the only rotation choice the
   console had, and turning it on to keep a login for the author feed took the
   login off the author feed. See the per-endpoint choice above.
+- **A Douyin login imported from a browser was hidden as a spent session.**
+  The Credential column read only `UIFID_TEMP`, which a mint yields; a browser's
+  jar spells it `UIFID`, which the signer was already signing with. It now
+  reads every spelling the signer does.
 
 ### Security
 
@@ -375,6 +379,8 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
   铸造一个它根本铸造不了的身份。现在不会为任何不会被铸造的平台告警，身份池卡片会说明它为什么是空的。
 - **「只服务点名它的请求」原来是控制台里唯一的轮换选项**，为了把登录态留给作者作品列表而打开它，反而
   让作者作品列表用不上这个登录态。见上面按接口设置轮换。
+- **从浏览器导入的抖音登录态被当成会话已失效隐藏。**「会话凭据」一列只认铸造出来的 `UIFID_TEMP`，
+  而浏览器导出的 Cookie 里叫 `UIFID`——签名器一直在用它签名。现在这一列和签名器认同样的几种写法。
 
 ### 安全
 

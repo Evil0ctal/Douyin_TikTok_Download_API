@@ -117,6 +117,15 @@ The cookie that decides it, per platform:
 | `douyin` | `UIFID_TEMP` | 32 |
 | `bilibili` | `buvid3` | 1 - present is enough |
 
+Douyin's value goes by more than one name: a minted identity holds `UIFID_TEMP`,
+a login exported from a browser holds `UIFID`, and the signer accepts a few
+other spellings too. The column looks for them in the order the signer reads
+them, judges the first one that has a value, and names that one in the cell; it
+shows `UIFID_TEMP` only when the jar holds none. Earlier builds looked at
+`UIFID_TEMP` alone, so every Douyin login imported from a browser read
+`missing` (Missing) and the list hid it as a spent session - while the signer
+was signing with it all along.
+
 No bootstrap value of Bilibili's `buvid3` has been measured, so being present
 is enough. Earlier builds registered nothing for Bilibili and every Bilibili row
 read `unknown` (Unreadable) here - which on this column means "this build cannot
