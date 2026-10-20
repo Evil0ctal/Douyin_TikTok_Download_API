@@ -48,6 +48,22 @@ class VideoStream(_Base):
     watermark: bool = False
 
 
+class AlbumImage(Image):
+    """One slide of an image album.
+
+    A type of its own rather than a field on :class:`Image`, because an avatar
+    or a cover never moves: putting ``video`` on every image would print
+    ``"video": null`` beside every avatar in every response.
+    """
+
+    #: The clip a live photo plays when it is held: a few seconds of MP4 that
+    #: the still was taken from. Douyin marks such a slide ``live_photo_type:
+    #: 1`` and hangs the clip off the slide itself; an album may mix them with
+    #: ordinary stills, which leave this ``None``. Before this field existed
+    #: the clips were reachable only through ``include_raw``.
+    video: VideoStream | None = None
+
+
 class Media(_Base):
     #: Usually more than one: an animated cover plus a static fallback.
     covers: list[Image] = Field(default_factory=list)
@@ -56,7 +72,7 @@ class Media(_Base):
     #: Alternate bitrates for the same video.
     streams: list[VideoStream] = Field(default_factory=list)
     #: Present when kind is IMAGE_ALBUM.
-    images: list[Image] = Field(default_factory=list)
+    images: list[AlbumImage] = Field(default_factory=list)
 
 
 class Music(_Base):
@@ -228,6 +244,7 @@ class Page[T](BaseModel):
 
 
 __all__ = [
+    "AlbumImage",
     "Author",
     "AuthorStats",
     "Collection",

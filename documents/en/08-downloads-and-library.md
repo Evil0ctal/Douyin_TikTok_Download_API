@@ -64,6 +64,7 @@ The layout is one directory per post:
 ├── video.mp4        # or .mov, .webm, .m4v
 ├── cover.jpg        # one, never two
 ├── image-01.jpg     # image posts: one file per slide
+├── image-01.mp4     # a live photo's clip, beside its still
 ├── image-02.jpg
 └── meta.json
 ```
@@ -73,9 +74,10 @@ The layout is one directory per post:
 What the planner decides before anything is fetched:
 
 - **One video per post.** Every bitrate the platform offers is treated as a mirror of the same file — the first that lands wins. Storing four copies of one clip is not a feature. The parser's order is kept, and it puts the watermark-free stream first. A Bilibili video is one progressive MP4 rather than separate audio and video tracks, so it is one file too; a video in several parts is one post, and the file is the first part unless you ask for another (see [One part of a multi-part video](#one-part-of-a-multi-part-video)). Measured with a guest identity, that file is up to 1080p on older uploads and 720p on a current one.
+- **A live photo keeps its clip.** A Douyin slide that is a live photo carries a few seconds of MP4 of its own, and it is stored right after its still under the same name — `image-01.mp4` beside `image-01.webp`. An album can mix them with ordinary stills, which have no clip. The clip is not the post's video: the library does not play it as the post and the transcriber does not read it. An album archived before 5.1.6 has no clips in its stored manifest, so its first download after the upgrade re-parses the post first, however fresh its links are.
 - **One cover**, added last, and only if the post has not already hit the item cap.
-- **At most 64 files** per post. A Douyin image album tops out around 35 slides; the cap guards against a malformed payload becoming a thousand-item job.
-- **Images are capped at 32 MiB** each, or `media.max_file_bytes` if that is lower. A 500 MB "image" is a sign something is wrong.
+- **At most 128 files** per post. A Douyin image album tops out around 35 slides, and with every one a live photo that is 71 files with the cover; the cap guards against a malformed payload becoming a thousand-item job.
+- **Images are capped at 32 MiB** each, or `media.max_file_bytes` if that is lower. A 500 MB "image" is a sign something is wrong. A live photo's clip is held to the same cap: it measured about 0.6 MB at 720p.
 - **Extensions are taken from the URL only when recognised** — `mp4`, `mov`, `webm`, `m4v` for video and `jpg`, `jpeg`, `png`, `webp`, `heic`, `gif` for images — otherwise the kind's default is used. A query string ending in `.php` cannot name a file on your disk.
 - **Every mirror is checked against the media host allowlist** before a job exists, and anything dropped is reported back as a `skipped` reason.
 
@@ -138,7 +140,7 @@ The rejected kinds are answered locally, without spending a task, and appear in 
 
 Submission is one request per chunk; **tracking is per row**. Each row then lives its own life — its own state, its own error, its own retry — because a synchronous bulk endpoint would smear one dead link into a single error for the whole paste. Rows are polled every 1.5 seconds, 8 at a time, round-robin so the tail of a long paste is not starved.
 
-The results table columns are: state, link, title, author, platform, kind, content id, plays, likes, and the error code. Comments, shares and published time are available but hidden by default — use the table's column chooser. Clicking a finished row opens a drawer with the video player, the images, the counters, per-file download buttons and the raw result payload.
+The results table columns are: state, link, title, author, platform, kind, content id, plays, likes, and the error code. Comments, shares and published time are available but hidden by default — use the table's column chooser. Clicking a finished row opens a drawer with the video player, the images, the counters, per-file download buttons and the raw result payload. A live photo plays its clip in place of the still, and gets a download button of its own for it.
 
 The toolbar:
 
@@ -250,7 +252,7 @@ The four tiles at the top of the page report: bytes stored (against the ceiling,
 
 ## Saving a stored file to your own computer
 
-A stored file can be handed to your browser. In the downloads drawer each completed file has a **Save this file** link; in the library drawer, **Export the video file** and one link per stored image or cover.
+A stored file can be handed to your browser. In the downloads drawer each completed file has a **Save this file** link; in the library drawer, **Export the video file** and one link per stored image (and live photo clip) or cover.
 
 This goes through `GET /api/v1/downloads/{download_id}/files/{name}` and requires the `media:read` scope. The endpoint fetches nothing: it rebuilds the path from the stored row — the download's own directory plus a name that has to appear in that row's file list — resolves it, and checks the result still lands inside the media root. A name that is not in the record is a `404` whether or not something of that name exists on disk. A download whose files were evicted answers `404` with `reason: "evicted"` rather than going back to the platform; ask for the download again to restore it.
 
@@ -347,7 +349,7 @@ Open a post to get its drawer. The footer carries three actions:
 
 - **Archive their history** — a backfill: walks this author's posts past the first page and archives every one. Deliberately separate from the watchlist, because a watchlist entry is for what is new and runs forever, while a backfill is a one-off with a very different cost. The console asks for the server default of 5 pages; the API accepts 1–20 and the worker caps it at 20 pages of 20 posts. It stops at the first empty page, at the ceiling, or when the platform says there is no more history. It costs one upstream request per page and needs that platform's read scope.
 - **Store on this instance** — starts a download for this post. If the media is already stored the button reads **Saved · fetch again** and its tooltip says how large the stored copy is; using it fetches a fresh copy and replaces what is there. (This button does not set `skip_existing`, which is why it re-fetches rather than doing nothing.) Downloading is a queued task, so the row is not stored the instant the toast appears — the page re-checks a few seconds later, and the download itself appears immediately on the Downloads page.
-- **Export the video file** — hands your browser the stored video, when there is one. Image posts have no video, so this button does not appear for them; their slides get one link each in the drawer body instead, because a browser will not start thirty downloads from a single click and pretending otherwise would silently save one file out of thirty.
+- **Export the video file** — hands your browser the stored video, when there is one. Image posts have no video, so this button does not appear for them; their slides — and a live photo's clip, next to its still — get one link each in the drawer body instead, because a browser will not start thirty downloads from a single click and pretending otherwise would silently save one file out of thirty.
 
 The drawer also plays the stored video inline, from this instance's disk rather than from the platform: no CDN link to expire, no hotlink check to fail, and nobody outside this machine is told what is being watched. It preloads metadata only, so a 240 MB video does not start transferring because a drawer opened.
 

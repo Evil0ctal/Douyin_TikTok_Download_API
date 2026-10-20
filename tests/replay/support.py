@@ -70,9 +70,16 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
 )
 
 
+#: Douyin's set is the common one plus the shape only it has: an album of live
+#: photos, whose slides each carry a clip of their own (#792).
+DOUYIN_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "video_live_photo")
+
+
 def fixture_names(platform: str) -> tuple[str, ...]:
     """The fixtures ``platform`` ships."""
-    return BILIBILI_FIXTURE_NAMES if platform == "bilibili" else FIXTURE_NAMES
+    if platform == "bilibili":
+        return BILIBILI_FIXTURE_NAMES
+    return DOUYIN_FIXTURE_NAMES if platform == "douyin" else FIXTURE_NAMES
 
 
 #: Key names that must never appear in a fixture. Fixtures come from real
@@ -169,6 +176,7 @@ def keys_in(payload: Any) -> set[str]:
 
 __all__ = [
     "BILIBILI_FIXTURE_NAMES",
+    "DOUYIN_FIXTURE_NAMES",
     "FETCHED_AT",
     "FIXTURES",
     "FIXTURE_NAMES",

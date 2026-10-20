@@ -65,9 +65,24 @@ class TestStaleness:
 
     def test_an_album_without_a_video_is_not_missing_one(self):
         album = SimpleNamespace(
-            last_seen_at=datetime.now(UTC), kind="image_album", media={"images": [{"url": "x"}]}
+            last_seen_at=datetime.now(UTC),
+            kind="image_album",
+            media={"images": [{"url": "x", "video": None}]},
         )
         assert downloads.mirrors_are_stale(album, max_age_seconds=600) is False
+
+    def test_an_album_archived_before_live_clips_were_kept_is_stale(self):
+        """#792: a slide with no `video` key at all was archived by the parser
+        that dropped the clip, and planning from it stores the stills alone."""
+        before = SimpleNamespace(
+            last_seen_at=datetime.now(UTC), kind="image_album", media={"images": [{"url": "x"}]}
+        )
+        assert downloads.mirrors_are_stale(before, max_age_seconds=600) is True
+        # A video post's manifest has no slides, and its own rule applies.
+        video = SimpleNamespace(
+            last_seen_at=datetime.now(UTC), kind="video", media={"video": {"url": "x"}}
+        )
+        assert downloads.mirrors_are_stale(video, max_age_seconds=600) is False
 
     def test_zero_always_re_parses(self):
         recent = SimpleNamespace(last_seen_at=datetime.now(UTC))
@@ -333,3 +348,20 @@ class TestStoredEntry:
         row = self.stored(finished_at=None)
         entry = downloads.stored_entry(row)  # type: ignore[arg-type]
         assert entry["saved_at"] == row.created_at.isoformat()
+
+    def test_an_album_s_live_clips_are_listed_apart_from_its_video(self):
+        """A clip is not the post's video: the library would play the first
+        five seconds of an album as if it were the post, and offer to transcribe
+        it."""
+        row = self.stored(
+            files=[
+                {"name": "image-01.webp", "kind": "image", "state": "done", "bytes": 90},
+                {"name": "image-01.mp4", "kind": "live_video", "state": "done", "bytes": 600},
+                {"name": "image-02.webp", "kind": "image", "state": "done", "bytes": 90},
+                {"name": "image-02.mp4", "kind": "live_video", "state": "failed", "bytes": 0},
+            ]
+        )
+        entry = downloads.stored_entry(row)  # type: ignore[arg-type]
+        assert entry["video"] is None
+        assert entry["images"] == ["image-01.webp", "image-02.webp"]
+        assert entry["live_videos"] == ["image-01.mp4"]

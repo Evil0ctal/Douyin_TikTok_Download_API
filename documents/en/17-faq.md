@@ -313,6 +313,20 @@ To be exact about what that means: nothing here removes a watermark. It selects
 the stream the platform already publishes without one. If a post has only a
 watermarked stream, that is what you get.
 
+### Does it get the video behind a live photo?
+
+Yes, on Douyin. A post of live photos is an image album whose slides each carry
+a few seconds of MP4, and the normalized answer puts that clip on the slide
+itself, as `media.images[i].video` - the same shape as `media.video`, with its
+mirrors in `urls`. A slide that is an ordinary still has `video: null`, and one
+album can mix the two. Before 5.1.6 the clips were only in the raw payload, so
+`include_raw` was the way to them.
+
+A download stores each clip beside its still under the same name
+(`image-01.webp` and `image-01.mp4`), and the drawer of the Downloads page's
+**Many posts** mode plays it in place of the still and offers it as its own
+download. On TikTok a photo post's slides are parsed as stills only.
+
 ### What can it actually fetch?
 
 A link, a share message with text around it, a short link, or a bare post id, on

@@ -32,6 +32,7 @@ from typing import Any, Final
 from dtk.core.errors import UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
 from dtk.models import (
+    AlbumImage,
     Author,
     AuthorStats,
     Collection,
@@ -254,13 +255,42 @@ def _bitrate_streams(video: Node) -> list[VideoStream]:
     return streams
 
 
-def _album_images(detail: Node) -> list[Image]:
-    images: list[Image] = []
+def _live_clip(item: Node, *, require_media: bool) -> VideoStream | None:
+    """The clip behind a live photo slide, or ``None`` for a still.
+
+    Measured 2026-10-20 on one author's twenty posts: a live slide carries
+    ``live_photo_type: 1`` and ``clip_type: 5`` beside a ``video`` of its own,
+    whose ``play_addr`` is about five seconds of 720p MP4. A still has no
+    ``video`` at all, or ``"video": null``. The post-level ``video`` of such a
+    post is no help - its ``play_addr`` is the background music.
+
+    A slide that says it is live and has no readable clip raises, the way a
+    slide with no picture does: returning the still alone is exactly the half
+    answer #792 was about, and it would go unnoticed for as long as it did
+    before.
+    """
+    video = item.opt_child("video")
+    addr = video.opt_child("play_addr") if video is not None else None
+    clip = _stream(addr, watermark=False, fallback=video) if addr is not None else None
+    if clip is None and require_media and optional_int(item.get("live_photo_type")):
+        if video is None:
+            raise item.missing("video")
+        raise video.missing("play_addr" if addr is None else "play_addr.url_list")
+    return clip
+
+
+def _album_images(detail: Node, *, require_media: bool) -> list[AlbumImage]:
+    images: list[AlbumImage] = []
     for item in detail.opt_children("images"):
         image = image_from_url_list(item.data)
         if image is None:
             raise item.missing("url_list")
-        images.append(image)
+        images.append(
+            AlbumImage(
+                **image.model_dump(),
+                video=_live_clip(item, require_media=require_media),
+            )
+        )
     return images
 
 
@@ -269,7 +299,7 @@ def _media(detail: Node, kind: ContentKind, *, require_media: bool) -> Media:
     covers = _covers(video)
 
     if kind is ContentKind.IMAGE_ALBUM:
-        images = _album_images(detail)
+        images = _album_images(detail, require_media=require_media)
         if require_media and not images:
             raise detail.missing("images")
         return Media(covers=covers, video=None, streams=[], images=images)

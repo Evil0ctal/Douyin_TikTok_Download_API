@@ -65,6 +65,59 @@ def test_an_album_numbers_its_slides() -> None:
     ]
 
 
+def test_a_live_photo_stores_its_clip_beside_its_still() -> None:
+    """#792: the clip takes the still's stem and a kind of its own.
+
+    Not "video": that kind is what the library plays as the post and what the
+    transcriber reads, and the first five-second clip of an album is neither.
+    """
+    clip = "https://v5-dy-ov-experiment.zjcdn.com/x/video/tos/cn/live-1/?a=6383"
+    result = planner.build(
+        {
+            "images": [
+                {"url": IMAGE.replace(".jpg", ".webp"), "video": {"url": clip, "urls": [clip]}},
+                {"url": IMAGE + "?2", "video": None},
+                {"url": IMAGE + "?3", "video": {"url": "https://evil.example/clip.mp4"}},
+            ]
+        },
+        Platform.DOUYIN,
+        max_file_bytes=512 * MB,
+    )
+    assert [(item.name, item.kind) for item in result.items] == [
+        ("image-01.webp", "image"),
+        ("image-01.mp4", planner.LIVE_VIDEO_KIND),
+        ("image-02.jpg", "image"),
+        ("image-03.jpg", "image"),
+    ]
+    live = result.items[1]
+    assert live.mirrors == (clip,)
+    # Several edges answer an mp4 with octet-stream; the clip is a video for that.
+    assert live.accept == planner.VIDEO_ACCEPT
+    # A few seconds long: held to the image ceiling, not the video one.
+    assert live.max_bytes == planner.IMAGE_MAX_BYTES
+    # A clip off the allowlist is dropped with a reason, and its still kept.
+    assert any("evil.example" in reason for reason in result.skipped)
+
+
+def test_a_full_album_of_live_photos_fits_under_the_cap() -> None:
+    # 35 slides is about the most an album holds; each a live photo, with the
+    # cover, is 71 files. The cap was 64 before clips were stored.
+    clip = "https://v5-dy-ov-experiment.zjcdn.com/x/video/tos/cn/live/?a="
+    result = planner.build(
+        {
+            "images": [
+                {"url": f"{IMAGE}?{index}", "video": {"url": f"{clip}{index}"}}
+                for index in range(35)
+            ],
+            "covers": [{"url": COVER}],
+        },
+        Platform.DOUYIN,
+        max_file_bytes=512 * MB,
+    )
+    assert len(result.items) == 71
+    assert result.items[-1].name == "cover.jpeg"
+
+
 def test_the_extension_comes_from_the_url_only_when_it_is_one_we_know() -> None:
     result = planner.build(
         {"video": {"url": "https://v9-v2-mps-cdn.douyinvod.com/x/opaque-object-key"}},

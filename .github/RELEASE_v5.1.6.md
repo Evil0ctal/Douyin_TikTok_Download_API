@@ -115,6 +115,15 @@ Two things do not happen by themselves:
   (`<bvid>-p3/`), so two parts can download at once and removing one never
   takes the other, and it is transcribed as its own video. A plain download
   still stores the first part, the one the post's link plays.
+- **The clip behind a Douyin live photo** (#792). Each slide of a live photo
+  album now carries its few seconds of MP4 as `media.images[i].video`, shaped
+  like `media.video`; a still in the same album has `video: null`. Until now
+  the clip was only in the raw payload. A download stores it beside its still
+  under the same name (`image-01.webp`, `image-01.mp4`), and the parse drawer
+  plays it and offers it as its own download. An album archived before the
+  upgrade is re-parsed once, when it is next downloaded, so it gets its clips
+  too. The cap on files per post is 128, up from 64, which a full album of live
+  photos would have met.
 - **Transcribe from the Library.** A saved video post's drawer has
   **Transcribe video**, as the downloads drawer does. On a post not saved yet it
   is disabled and says to store it first, because the transcriber reads the
@@ -390,6 +399,11 @@ docker compose -p dtk -f docker/compose.yml up -d
   `part`，或者粘贴带 `?p=` 的链接。每一 P 都是独立的下载，存在作品目录旁边的单独目录里
   （`<bvid>-p3/`），所以两个分 P 可以同时下载，删掉其中一个也不会带走另一个，转写时也按独立的视频
   处理。普通下载仍然只存第一 P，也就是作品链接播放的那一 P。
+- **抖音实况图的视频**（#792）。实况图集里的每张图现在都带上它那段几秒的 MP4，即
+  `media.images[i].video`，结构和 `media.video` 一样；同一个图集里的普通静图是 `video: null`。
+  以前这段视频只在原始响应里。下载时它和静图同名存放（`image-01.webp`、`image-01.mp4`），
+  批量解析的抽屉里能直接播放，也能单独下载。升级前归档的图集，下次下载时会先重新解析一次，
+  同样能拿到视频。每个作品的文件数上限从 64 提到 128，否则一个全是实况图的图集会碰到它。
 - **在资料库里转写。** 已保存的视频作品的抽屉里有 **转写视频**，和下载抽屉一样。作品还没保存时
   按钮是灰的，并提示先保存，因为转写读取的是已保存的文件。演示账号仍然不能转写：这个接口不在它的
   写操作白名单里，公开的 Key 也没有转写权限。

@@ -29,6 +29,7 @@ from typing import Any, Final
 from dtk.core.errors import UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
 from dtk.models import (
+    AlbumImage,
     Author,
     AuthorStats,
     Collection,
@@ -280,18 +281,20 @@ def _image_from_url_holder(node: Node | None) -> Image | None:
     return image_from_urls(holder.get("urlList"))
 
 
-def _album_images(image_post: Node) -> list[Image]:
-    images: list[Image] = []
+def _album_images(image_post: Node) -> list[AlbumImage]:
+    images: list[AlbumImage] = []
     for item in image_post.children("images"):
         image = _image_from_url_holder(item)
         if image is None:
             raise item.missing("imageURL")
+        # `video` stays None: the slides of a photo post here carry an
+        # `imageURL` and no clip, unlike a Douyin live photo's.
         images.append(
-            image.model_copy(
-                update={
-                    "width": optional_int(item.get("imageWidth")) or image.width,
-                    "height": optional_int(item.get("imageHeight")) or image.height,
-                }
+            AlbumImage(
+                url=image.url,
+                urls=image.urls,
+                width=optional_int(item.get("imageWidth")) or image.width,
+                height=optional_int(item.get("imageHeight")) or image.height,
             )
         )
     return images

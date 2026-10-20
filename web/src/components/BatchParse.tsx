@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useApiMutation, useFormatters } from '@/hooks'
@@ -77,11 +77,16 @@ interface VideoStream {
   watermark?: boolean
 }
 
+/** A slide of an album. `video` is set on a live photo: the clip it plays. */
+interface AlbumImage extends MediaImage {
+  video?: VideoStream | null
+}
+
 interface MediaLike {
   covers?: MediaImage[]
   video?: VideoStream | null
   streams?: VideoStream[]
-  images?: MediaImage[]
+  images?: AlbumImage[]
 }
 
 interface AuthorLike {
@@ -1154,26 +1159,51 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
                   gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
                 }}
               >
-                {previewImages.map((image, index) => (
-                  <a
-                    key={image.url}
-                    href={image.url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    style={{ display: 'block' }}
-                  >
-                    <img
-                      src={image.url}
-                      alt={t('parse.imageAlt', { index: index + 1 })}
-                      loading="lazy"
-                      style={{
-                        width: '100%',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                    />
-                  </a>
-                ))}
+                {previewImages.map((image, index) => {
+                  const clip = mirrorsOf(image.video)
+                  const frame = {
+                    width: '100%',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-subtle)',
+                  }
+                  // A live photo plays its clip over the still, the way the
+                  // app does when it is held. `preload="none"`: an album of
+                  // thirty clips should not start thirty transfers on open.
+                  return clip.length > 0 ? (
+                    <figure key={image.url} style={{ margin: 0 }}>
+                      <video
+                        controls
+                        loop
+                        muted
+                        playsInline
+                        preload="none"
+                        poster={image.url}
+                        aria-label={t('parse.liveAlt', { index: index + 1 })}
+                        style={{ ...frame, display: 'block', background: 'var(--bg-inset)' }}
+                      >
+                        {clip.map((url) => (
+                          <source key={url} src={url} />
+                        ))}
+                      </video>
+                      <figcaption className="u-xs u-muted">{t('parse.liveBadge')}</figcaption>
+                    </figure>
+                  ) : (
+                    <a
+                      key={image.url}
+                      href={image.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      style={{ display: 'block' }}
+                    >
+                      <img
+                        src={image.url}
+                        alt={t('parse.imageAlt', { index: index + 1 })}
+                        loading="lazy"
+                        style={frame}
+                      />
+                    </a>
+                  )
+                })}
               </div>
             ) : null}
 
@@ -1217,20 +1247,38 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
                   emptyLabel={t('parse.noCover')}
                 />
                 {previewImages.map((image, index) => (
-                  <DownloadButton
-                    key={image.url}
-                    label={t('parse.downloadImage', { index: index + 1 })}
-                    mirrors={mirrorsOf(image)}
-                    state={downloads[`${previewRow.id}:image-${index}`]}
-                    onDownload={() => {
-                      void download(
-                        `${previewRow.id}:image-${index}`,
-                        mirrorsOf(image),
-                        `image-${index + 1}.jpg`,
-                      )
-                    }}
-                    emptyLabel={t('parse.noImage')}
-                  />
+                  <Fragment key={image.url}>
+                    <DownloadButton
+                      label={t('parse.downloadImage', { index: index + 1 })}
+                      mirrors={mirrorsOf(image)}
+                      state={downloads[`${previewRow.id}:image-${index}`]}
+                      onDownload={() => {
+                        void download(
+                          `${previewRow.id}:image-${index}`,
+                          mirrorsOf(image),
+                          `image-${index + 1}.jpg`,
+                        )
+                      }}
+                      emptyLabel={t('parse.noImage')}
+                    />
+                    {/* Only on a live photo, whose clip is a file of its own:
+                        saving the still alone was all it offered before (issue 792). */}
+                    {image.video ? (
+                      <DownloadButton
+                        label={t('parse.downloadLiveVideo', { index: index + 1 })}
+                        mirrors={mirrorsOf(image.video)}
+                        state={downloads[`${previewRow.id}:live-${index}`]}
+                        onDownload={() => {
+                          void download(
+                            `${previewRow.id}:live-${index}`,
+                            mirrorsOf(image.video),
+                            `image-${index + 1}.mp4`,
+                          )
+                        }}
+                        emptyLabel={t('parse.noVideo')}
+                      />
+                    ) : null}
+                  </Fragment>
                 ))}
                 <p className="u-xs u-muted" style={{ margin: 0 }}>
                   {t('parse.downloadNote')}

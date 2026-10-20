@@ -1,4 +1,5 @@
 from dtk.models.content import (
+    AlbumImage,
     Author,
     AuthorStats,
     Collection,
@@ -14,6 +15,7 @@ from dtk.models.content import (
 )
 
 __all__ = [
+    "AlbumImage",
     "Author",
     "AuthorStats",
     "Collection",

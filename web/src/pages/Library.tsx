@@ -124,6 +124,12 @@ interface StoredMedia {
   video: string | null
   cover: string | null
   images: string[]
+  /**
+   * The clips of an album's live photos, each named after its slide
+   * (`image-01.mp4` beside `image-01.webp`). Optional: an older server does
+   * not send it.
+   */
+  live_videos?: string[]
   /** The stored video's newest openable transcript, if it has one. */
   transcription?: ExistingTranscription | null
 }
@@ -1852,10 +1858,14 @@ function Detail({
    *
    * The video is not here: it has a button of its own in the footer, and a
    * second link to the same bytes is clutter rather than a choice. The cover
-   * is, because "the thumbnail" is a thing people ask for.
+   * is, because "the thumbnail" is a thing people ask for. A live photo's clip
+   * follows its still, which the shared stem sorts it next to.
    */
   const stored = row.stored
-    ? [...row.stored.images, ...(row.stored.cover ? [row.stored.cover] : [])]
+    ? [
+        ...[...row.stored.images, ...(row.stored.live_videos ?? [])].sort(),
+        ...(row.stored.cover ? [row.stored.cover] : []),
+      ]
     : []
 
   // The author is a filter in its own row below the facts, not a fact.

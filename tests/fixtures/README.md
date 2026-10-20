@@ -51,12 +51,14 @@ Keep those properties when you replace a fixture with a captured one: capture th
 ## What each file is for
 
 Same set on both platforms, so the cross-platform normalization can be compared
-directly (`docs/design/11-data-contracts.md`, acceptance criterion 1).
+directly (`docs/design/11-data-contracts.md`, acceptance criterion 1). Douyin adds
+`video_live_photo.json`, a shape TikTok has no counterpart for.
 
 | File | Covers |
 |---|---|
 | `video_normal.json` | The happy path: a public video with media, stats, music, hashtags and a location |
 | `video_image_album.json` | Douyin image album / TikTok photo mode - `kind=image_album`, no video stream, `duration_ms=None` |
+| `video_live_photo.json` | Douyin only: an album whose slides are live photos, each with a clip under `images[i].video`, around one still. Structure from a capture of 2026-10-20, values synthetic (#792) |
 | `video_deleted.json` | Withdrawn post: metadata survives, media URLs do not. Must parse, not raise |
 | `video_private.json` | Restricted post, same media-free shape but a different flag |
 | `video_long_desc.json` | Multi-line description with emoji and six hashtags - pins the title/description split |

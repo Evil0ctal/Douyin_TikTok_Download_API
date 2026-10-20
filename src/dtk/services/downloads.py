@@ -90,7 +90,7 @@ def mirrors_are_stale(row: ArchivedContent, *, max_age_seconds: int) -> bool:
     """
     if max_age_seconds <= 0:
         return True
-    if lacks_its_video(row):
+    if lacks_its_video(row) or predates_live_clips(row):
         return True
     seen = row.last_seen_at
     if seen is None:
@@ -104,6 +104,22 @@ def lacks_its_video(row: Any) -> bool:
     """Whether a video post's archived media has no video stream in it."""
     media = row.media if isinstance(getattr(row, "media", None), dict) else {}
     return getattr(row, "kind", None) == ContentKind.VIDEO.value and not media.get("video")
+
+
+def predates_live_clips(row: Any) -> bool:
+    """Whether an album was archived by a parser that dropped live photo clips.
+
+    Every slide archived since #792 states ``video``, as ``null`` on a still,
+    so a slide with no such key at all was written before. Planned from it, a
+    live photo album would store its stills and call the download done - the
+    same half answer a video post without its stream gets. One re-parse writes
+    the key, and the question does not come up for that post again.
+    """
+    media = row.media if isinstance(getattr(row, "media", None), dict) else {}
+    images = media.get("images")
+    if getattr(row, "kind", None) != ContentKind.IMAGE_ALBUM.value or not isinstance(images, list):
+        return False
+    return any(isinstance(image, dict) and "video" not in image for image in images)
 
 
 def plan_for(row: ArchivedContent, *, max_file_bytes: int) -> planner.Plan:
@@ -577,6 +593,12 @@ def stored_entry(row: MediaDownload) -> dict[str, Any]:
             (f["name"] for f in files if f["kind"] == "cover" and f["state"] == "done"), None
         ),
         "images": [f["name"] for f in files if f["kind"] == "image" and f["state"] == "done"],
+        # The clips of an album's live photos, each named after its slide.
+        "live_videos": [
+            f["name"]
+            for f in files
+            if f["kind"] == planner.LIVE_VIDEO_KIND and f["state"] == "done"
+        ],
     }
 
 
