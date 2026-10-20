@@ -9,7 +9,7 @@
 
 🚀 A self-hosted data API for [Douyin](https://www.douyin.com), [TikTok](https://www.tiktok.com) and [Bilibili](https://www.bilibili.com). One `docker compose up`, an identity pool that maintains itself, and a REST API, MCP server and web console on top.
 
-Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors, comments and search, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL. A video it has downloaded can be turned into text on the same machine, offline, and an AI agent can drive all of it over MCP.
+Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors and comments, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL. A video it has downloaded can be turned into text on the same machine, offline, and an AI agent can drive all of it over MCP.
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
@@ -185,9 +185,10 @@ docker rm -f dtk-v4   # the container from the run above holds the name
 docker compose -p dtk-v4 up -d
 ```
 
-`main` is v5 now and `latest` follows `main`, so **pin the tag to stay on v4**. `V4.1.2`
-is the last v4 release; the branch merged a few PRs after it (Bilibili downloads, cookie
-hot-reload), and that code is published under the commit tag `5be4838`.
+`main` is v5 now and `latest` is the newest v5 release — it moves when a release is cut, never
+on a push to `main` — so **pin the tag to stay on v4**. `V4.1.2` is the last v4 release; the
+branch merged a few PRs after it (Bilibili downloads, cookie hot-reload), and that code is
+published under the commit tag `5be4838`.
 
 There is no guided installer for v4 — the script in Quick start below installs v5. What
 is above is all v4 gets: the branch still takes PRs, but nothing new is built on it, and
@@ -215,6 +216,8 @@ illegal** — they are for making friends and talking about the work.
 | Comments | ✅ | ✅ | ✅ |
 | Comment replies | ✅ | ✅ | ✅ |
 | Public folders and what is in them | ❌ | ✅ | ✅ |
+| A video's parts, for one uploaded in several | — | — | ✅ |
+| The site's popular boards: hot, weekly, all-time picks, top 100 | ❌ | ❌ | ✅ |
 | Followers | ❌ | ✅ | ❌ |
 | Following | ❌ | ✅ | ❌ |
 
@@ -223,6 +226,9 @@ two endpoints are not registered at all: an endpoint that always returns an empt
 is worth nothing. Importing your own logged-in cookies widens what the rest can see, too.
 On Bilibili that matters most for comments: a guest is shown the three hottest and no
 more, so an imported login is what turns that into the full thread.
+
+The dashes are not gaps: a Douyin or TikTok post is never more than one video, so it has no
+parts to list.
 
 Media downloads, the content archive, counter snapshots, collections and a watchlist
 are built in; none of them needs another service.
@@ -262,7 +268,8 @@ speech, FSMN-VAD to find where someone is talking, CT-Transformer for punctuatio
 on a network with no route out, so the audio never leaves the host and no API is called.
 
 - **Where:** the **Transcriptions** page in the console, a **Transcribe video** button on every
-  finished download, `POST /api/v1/transcriptions`, or the `transcribe_video` MCP tool
+  finished download, the **Library** (one stored post, or a whole selection at once),
+  `POST /api/v1/transcriptions`, or the `transcribe_video` MCP tool
 - **What you get:** one whole text per video, with numbers written as digits, exportable as `.txt`
 - **How fast:** a 3 min 13 s clip took 3.7 seconds on two CPU cores; no GPU needed
 - **What it is good at:** Mandarin. The models are the general Chinese ones, so other languages
@@ -424,6 +431,11 @@ docker compose -p dtk -f docker/compose.yml logs api   # prints the setup token
 
 Open <http://127.0.0.1:8000> and use the token from the log to create the first
 administrator.
+
+That starts no browser container, and without it (`--profile browser`, see
+[the optional profiles](./documents/en/02-installation.md#the-optional-profiles)) Douyin and
+TikTok identities can only be imported, not minted: both hand a visitor its cookies from inside
+their page scripts. Bilibili guests are minted over plain HTTP either way.
 
 ### Where the image comes from
 

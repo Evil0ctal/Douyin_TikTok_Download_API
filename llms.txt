@@ -8,8 +8,9 @@
 > is proxied through a third party.
 
 Built with Python 3.12, FastAPI, PostgreSQL + TimescaleDB and Redis; the console
-is React. It fetches posts, authors, comments, mixes and search from Douyin and
-TikTok, and videos, uploaders, comments and public folders from Bilibili. It
+is React. It fetches posts, authors, comments and mixes from Douyin and
+TikTok, and videos (part by part for one uploaded in several), uploaders,
+comments, public folders and the site's popular boards from Bilibili. It
 downloads video and image albums using the watermark-free stream the platform
 already publishes (it selects that stream, it does not strip a watermark) — a
 Bilibili video is one progressive MP4 — and archives what it collects so a post
@@ -36,7 +37,7 @@ and Simplified Chinese and the two say the same thing.
 
 - [Quick start](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/01-quickstart.md): The stack running on one host, an administrator account, and one link parsed — from the console and from `curl`.
 - [Installation and deployment](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/02-installation.md): The compose file service by service, every `DTK_*` variable, profiles, reverse proxies, upgrading, running without Docker, and mirrors for installing from mainland China.
-- [Configuration reference](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/03-configuration.md): The two configuration layers and all 62 settings, with defaults and when to change them.
+- [Configuration reference](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/03-configuration.md): The two configuration layers and all 65 settings, with defaults and when to change them.
 - [Security](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/15-security.md): What the instance protects, what you are responsible for, and what to do before you expose a port.
 
 ## Understand it
@@ -47,7 +48,7 @@ and Simplified Chinese and the two say the same thing.
 
 ## Call it
 
-- [REST API guide](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/11-api.md): Authentication, the uniform response envelope, the asynchronous task model, paging, the errors a client has to handle, and Bilibili's ids and the endpoints it serves. 110 operations; the generated reference is at `/swagger`, `/redoc` and `/openapi.json`.
+- [REST API guide](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/11-api.md): Authentication, the uniform response envelope, the asynchronous task model, paging, the errors a client has to handle, and Bilibili's ids and the endpoints it serves. 116 operations; the generated reference is at `/swagger`, `/redoc` and `/openapi.json`.
 - [MCP and AI agents](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/12-mcp.md): Pointing Claude Code, Claude Desktop, Codex CLI or any MCP client at your own instance, and what the ten tools return. MCP runs inside the API process and shares its service layer.
 - [Users and API keys](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/09-users-and-api-keys.md): Roles, scopes, per-key rate limits, and what to hand a script.
 - [CLI reference](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/13-cli.md): The `dtk` command — the same service layer from a terminal.
@@ -65,7 +66,7 @@ and Simplified Chinese and the two say the same thing.
 
 ## 简体中文文档
 
-- [文档首页](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/README.zh-CN.md): 全部 17 页，按你要做的事分组。
+- [文档首页](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/README.zh-CN.md): 全部 18 页，按你要做的事分组。
 - [快速开始](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/01-quickstart.md): 在一台机器上把整套跑起来，建管理员账号，解析第一条链接。
 - [安装与部署](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md): compose 逐个服务讲解、全部 `DTK_*` 变量、反向代理、升级、不用 Docker 的装法，以及中国大陆的换源准备。
 - [REST API 指南](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/11-api.md): 认证、统一信封、异步任务模型、翻页与错误处理，以及 B 站的 id 和它支持的接口。
@@ -75,5 +76,5 @@ and Simplified Chinese and the two say the same thing.
 ## Optional
 
 - [Contributing](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/16-contributing.md): Development setup, the test suites, and the conventions CI enforces.
-- [Docker images](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api): `evil0ctal/douyin_tiktok_download_api` and `-downloader`. A release tag has no leading `v`: the git tag `v5.0.1` publishes the image `5.0.1`.
+- [Docker images](https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api): `evil0ctal/douyin_tiktok_download_api`, `-downloader` and `-transcriber`. A release tag has no leading `v`: the git tag `v5.0.1` publishes the image `5.0.1`.
 - [Releases](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases): Bilingual release notes, with the git tag and image tag listed side by side.

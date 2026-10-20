@@ -9,7 +9,7 @@
 
 🚀 自部署的[抖音](https://www.douyin.com) / [TikTok](https://www.tiktok.com) / [B 站（哔哩哔哩）](https://www.bilibili.com)数据接口服务。一条 `docker compose up`，自动维护身份池，对外提供 REST API、MCP 与 Web 控制台。
 
-开源、免费、跑在你自己的机器上 —— 不用注册、没有配额、链路上没有第三方。它能取作品、作者、评论和搜索，下载视频和图集时拿到的是**无水印**的流（它挑的是平台本来就提供的那条干净流，而不是「去掉」了什么），采集到的内容存在你自己的 PostgreSQL 里。下载下来的视频可以在同一台机器上离线转成文字，AI agent 也能通过 MCP 直接调用这一切。
+开源、免费、跑在你自己的机器上 —— 不用注册、没有配额、链路上没有第三方。它能取作品、作者和评论，下载视频和图集时拿到的是**无水印**的流（它挑的是平台本来就提供的那条干净流，而不是「去掉」了什么），采集到的内容存在你自己的 PostgreSQL 里。下载下来的视频可以在同一台机器上离线转成文字，AI agent 也能通过 MCP 直接调用这一切。
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
@@ -172,7 +172,8 @@ docker rm -f dtk-v4   # 上面 docker run 起的那个占着同一个名字
 docker compose -p dtk-v4 up -d
 ```
 
-`main` 现在是 v5，`latest` 跟着 `main` 走，**想留在 v4 就固定 tag，别用 `latest`**。
+`main` 现在是 v5，`latest` 指向最新的 v5 发布版——它只在发版时移动，推送到 `main` 不会动它——
+所以**想留在 v4 就固定 tag，别用 `latest`**。
 `V4.1.2` 是 v4 最后一个发布版；之后 v4 分支又合了几个 PR（B 站下载、cookie 热更新），
 那份代码对应的镜像 tag 是 commit sha `5be4838`。
 
@@ -199,12 +200,16 @@ v4 没有一键脚本，下面「快速开始」里那个装的是 v5。v4 就�
 | 评论 | ✅ | ✅ | ✅ |
 | 评论回复 | ✅ | ✅ | ✅ |
 | 公开收藏夹及其内容 | ❌ | ✅ | ✅ |
+| 多 P 视频的分 P 列表 | — | — | ✅ |
+| 站点热门榜：综合热门、每周必看、入站必刷、排行榜 Top 100 | ❌ | ❌ | ✅ |
 | 粉丝列表 | ❌ | ✅ | ❌ |
 | 关注列表 | ❌ | ✅ | ❌ |
 
 抖音的粉丝和关注列表只对已登录会话开放，游客身份拿不到，所以这两个接口干脆没注册：
 注册一个永远返回空页的接口没意义。导入你自己的登录 Cookie 之后，其余接口能看到的内容也会更多。
 这一点在 B 站的评论上最明显：游客只能看到最热的三条，导入登录身份之后才能看到完整评论。
+
+短横线不是缺功能：抖音和 TikTok 的一个作品永远只有一个视频，没有分 P 可列。
 
 媒体下载、内容归档、计数快照、合集、定时监控都是内置的，不需要额外服务。
 
@@ -241,7 +246,8 @@ claude mcp add --transport http dtk http://127.0.0.1:8000/mcp/ \
 任何外部接口。
 
 - **在哪用：** 控制台的 **视频转写** 页面、每个已完成下载上的 **转写视频** 按钮、
-  `POST /api/v1/transcriptions`，或者 MCP 工具 `transcribe_video`
+  **资料库**（单个已存作品，或一次转写选中的一批）、`POST /api/v1/transcriptions`，
+  或者 MCP 工具 `transcribe_video`
 - **得到什么：** 每个视频一整段文字，数字写成阿拉伯数字，可以导出 `.txt`
 - **多快：** 一段 3 分 13 秒的视频，两个 CPU 核用了 3.7 秒；不需要 GPU
 - **擅长什么：** 普通话。模型是通用中文模型，其他语言效果差
@@ -394,6 +400,10 @@ docker compose -p dtk -f docker/compose.yml logs api   # 打印首次初始化�
 ```
 
 打开 <http://127.0.0.1:8000>，用日志里的令牌创建第一个管理员账号。
+
+这样起来的栈不带浏览器容器。没有它（`--profile browser`，见
+[可选 profile](./documents/zh/02-installation.md#可选-profile)），抖音和 TikTok 的身份只能导入、
+不能铸造：这两个平台是在页面脚本里把 Cookie 发给访客的。B 站游客走普通 HTTP 铸造，有没有它都行。
 
 ### 镜像从哪来
 
