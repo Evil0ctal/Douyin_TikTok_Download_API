@@ -279,8 +279,13 @@ Two things do not happen by themselves:
 - **`dtk diagnose` called the downloader and transcriber "not configured"** on
   a deployment that runs both: the CLI built its context without them.
 - **The coverage card's Can serve opened a longer list than its number**: the
-  link also listed cooling and minting identities. It opens exactly the ones it
-  counts, and Cooling links to its own.
+  link also listed cooling and minting identities, and on Douyin's author likes,
+  which only a login is sent to, the number counted every guest as well. Both
+  now hold what rotation would send, and Cooling links to its own.
+- **Example paths in Chinese read 未知 ("unknown")**: the API document's
+  `DELETE /api/v1/downloads/{download_id}/files` and the `api.public_endpoints`
+  setting's `GET /api/v1/{platform}/video` were filled in as template arguments,
+  and every read of the settings logged one missing.
 
 ### Security
 
@@ -486,8 +491,10 @@ docker compose -p dtk -f docker/compose.yml up -d
 - **代理页的批量启用、停用和删除遇到第一个失败就停下**，只弹一个笼统的提示，也不说已经改了哪些行。
   现在每一行都会执行，并报告哪些被拒、为什么。
 - **`dtk diagnose` 把下载器和转写服务说成「未配置」**，哪怕部署里两个都在跑：CLI 构建上下文时没带上它们。
-- **覆盖卡片的「能服务」点进去的列表比数字长**：链接把冷却中和铸造中的身份也列了出来。现在它打开的
-  正好是它数的那些，「冷却中」也有自己的链接。
+- **覆盖卡片的「可分配」点进去的列表比数字长**：链接把冷却中和铸造中的身份也列了出来；抖音作者的喜欢列表只会派给登录态，
+  数字却把所有游客也算了进去。现在数字和列表都只算轮换真正会派去的身份，「冷却中」也有自己的链接。
+- **中文里的示例路径显示成「未知」**：API 文档里的 `DELETE /api/v1/downloads/{download_id}/files` 和设置项
+  `api.public_endpoints` 说明里的 `GET /api/v1/{platform}/video` 被当成模板参数填了值，每次读取设置都会记一条缺参数的警告。
 
 ### 安全
 
