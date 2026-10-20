@@ -63,6 +63,11 @@ readonly MODEL_FILES=(
 )
 readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
 
+# This file's name inside an install's checkout. dtkctl runs that copy to
+# upgrade, and an upgrade hands over to it once the checkout is new. The
+# Chinese script names itself, so an install made in Chinese stays in Chinese.
+readonly SCRIPT_NAME="install.sh"
+
 # The CloakBrowser revision the browser image installs - the same one
 # .env.example carries, verified end to end with this repository. It is a
 # build argument, and dtkctl points Compose interpolation at the root .env, so
@@ -115,6 +120,8 @@ fi
 ASSUME_YES=0
 CHECK_ONLY=0
 MANAGE_ONLY=0
+UPGRADE_ONLY=0
+UPGRADE_TARGET=""
 
 # Anything we create outside the install directory is registered here, so an
 # interrupt does not leave it behind.
@@ -1177,14 +1184,26 @@ write_control_script() {
     printf '#   ./dtkctl restart api     restart one service\n'
     printf '#   ./dtkctl down            stop, keep the data\n'
     printf '#   ./dtkctl down -v         stop and delete the volumes. Irreversible.\n'
+    printf '#   ./dtkctl upgrade         to the latest release: pull, migrate, restart\n'
+    printf '#   ./dtkctl upgrade 5.1.6   to that release instead\n'
     printf '#\n'
     printf '# The three things it carries that are easy to forget: the project name, the\n'
     printf '# host override file, and COMPOSE_ENV_FILES - without which compose looks for\n'
     printf '# docker/.env and silently interpolates defaults.\n'
+    printf '#\n'
+    printf '# On published images the version is DTK_IMAGE_TAG in .env; upgrade writes it.\n'
     printf 'set -euo pipefail\n'
     # Single quotes on purpose: these expand when dtkctl runs, not now.
     # shellcheck disable=SC2016
     printf 'cd "$(dirname "$0")"\n'
+    # Not a compose command, so it shadows nothing. Upgrading used to mean
+    # editing DTK_IMAGE_TAG in .env by hand and then remembering the checkout,
+    # the pull, the browser build and the migration, in that order. The
+    # installer that came with the checkout knows them, and writes the tag.
+    # shellcheck disable=SC2016
+    printf 'if [ "${1:-}" = upgrade ]; then\n'
+    # shellcheck disable=SC2016
+    printf '  shift\n  DTK_PROJECT=%s DTK_INSTALL_DIR="$PWD" exec bash install/%s --upgrade "$@"\nfi\n' "$PROJECT" "$SCRIPT_NAME"
     printf 'export COMPOSE_ENV_FILES=.env\n'
     printf 'exec docker compose -p %s %s' "$PROJECT" "$files"
     [ "$WANT_BROWSER" = 1 ] && printf ' --profile browser'
@@ -1194,6 +1213,26 @@ write_control_script() {
   } >"$ctl"
   chmod 755 "$ctl"
   ok "Wrote dtkctl — use it instead of raw docker compose."
+}
+
+# The first compose command of an install creates its networks, and Docker
+# gives each one a subnet from a fixed set of pools. A host that has run a lot
+# of stacks runs out - the networks of projects long gone keep theirs - and all
+# compose says is one line about "address pools", which does not say what to do.
+run_creating_networks() {
+  local log status=0
+  log="$(mktemp)" || die "Could not create a temporary file."
+  TMP_FILES+=("$log")
+  "$@" 2>&1 | tee "$log" || status=$?
+  if [ "$status" != 0 ] && grep -qiE 'address pools have been fully subnetted|non-overlapping IPv4 address pool' "$log"; then
+    warn "Docker has no free address range left for this install's networks."
+    info "Every Docker network takes a subnet from a fixed set, and networks left behind"
+    info "by stacks that are gone keep theirs. Remove the ones no container uses:"
+    dim  "  docker network prune"
+    info "If that frees nothing, give Docker more ranges with default-address-pools"
+    info "in /etc/docker/daemon.json, restart Docker, and run this script again."
+  fi
+  return "$status"
 }
 
 bring_up() {
@@ -1233,10 +1272,10 @@ bring_up() {
   fi
 
   info "Applying database migrations."
-  "$ctl" run --rm migrate || die "Migrations failed. Read the output above."
+  run_creating_networks "$ctl" run --rm migrate || die "Migrations failed. Read the output above."
 
   info "Bringing services up."
-  "$ctl" up -d --wait || die "The stack did not come up healthy. Try: $ctl logs"
+  run_creating_networks "$ctl" up -d --wait || die "The stack did not come up healthy. Try: $ctl logs"
   ok "All services healthy."
 }
 
@@ -1481,10 +1520,24 @@ image_tag_for() {
   esac
 }
 
+# Run with the version being moved to, so a pull or build in the middle of an
+# upgrade asks for the new images while .env still names the old ones. A
+# source install has no version to name: it keeps whatever tag .env gives it,
+# and setting an empty one would build over the `dev` images instead.
+with_target_tag() {
+  if [ -n "$UPGRADE_TO" ]; then
+    DTK_IMAGE_TAG="$UPGRADE_TO" "$@"
+  else
+    "$@"
+  fi
+}
+
+# $1 is the published tag to move to, or empty on an install that builds from
+# source, which follows the checkout instead.
 do_upgrade() {
-  local target
-  target="$(image_tag_for "$1")"
-  step "Upgrading to $target"
+  UPGRADE_TO=""
+  [ -z "${1:-}" ] || UPGRADE_TO="$(image_tag_for "$1")"
+  step "Upgrading${UPGRADE_TO:+ to $UPGRADE_TO}"
   info "Your data is untouched: the named volumes survive this."
   printf '\n'
 
@@ -1493,23 +1546,48 @@ do_upgrade() {
   git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
     || warn "The checkout has local changes; leaving it alone."
 
-  # Pull BEFORE pinning. Writing the tag first and then failing to fetch it
-  # leaves the deployment pointing at an image that does not exist - the stack
-  # keeps running on what is already up, but the next `up -d` cannot start. The
-  # tag goes on the command for this pull only; .env is not touched until the
-  # image is known to be there.
-  info "Pulling."
-  local services=(api worker)
-  [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
-  # Only a published transcriber is pulled; a local build is rebuilt by `up`.
-  if [ "$WANT_TRANSCRIBER" = 1 ] && [ -n "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
-    services+=(transcriber)
+  # The rest is the new version's to do. This copy of the script is whatever
+  # was on disk before the fetch, and it cannot know what the new compose file
+  # needs - a service added since, a step that moved - so it hands over to the
+  # one that came with the checkout. Once: the handover is marked.
+  if [ -z "${DTK_UPGRADE_HANDOVER:-}" ] && [ -f "$INSTALL_DIR/install/$SCRIPT_NAME" ]; then
+    info "Handing over to the installer that came with the new checkout."
+    DTK_UPGRADE_HANDOVER=1 DTK_PROJECT="$PROJECT" DTK_INSTALL_DIR="$INSTALL_DIR" \
+      exec bash "$INSTALL_DIR/install/$SCRIPT_NAME" --upgrade ${UPGRADE_TO:+"$UPGRADE_TO"}
   fi
-  if ! DTK_IMAGE_TAG="$target" "$CTL" pull "${services[@]}"; then
-    die "Could not pull $target. Nothing was changed and the old version is still running.
+
+  if [ "$USE_PUBLISHED" = 1 ]; then
+    # Pull BEFORE pinning. Writing the tag first and then failing to fetch it
+    # leaves the deployment pointing at an image that does not exist - the
+    # stack keeps running on what is already up, but the next `up -d` cannot
+    # start. The tag goes on the command for this pull only; .env is not
+    # touched until the image is known to be there.
+    info "Pulling."
+    local services=(api worker)
+    [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
+    # Only a published transcriber is pulled. A local one is built by `up`,
+    # because the tag it is asked for is new and so not on the machine yet.
+    if [ "$WANT_TRANSCRIBER" = 1 ] && [ -n "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
+      services+=(transcriber)
+    fi
+    if ! with_target_tag "$CTL" pull "${services[@]}"; then
+      die "Could not pull $UPGRADE_TO. Nothing was changed and the old version is still running.
     Check the tag exists: https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags
     With transcription on, a release from before it has no transcriber image;
     turn transcription off from the menu first to go back that far."
+    fi
+  else
+    # Nothing to pull: `pull` asks Docker Hub for dtk-app, which has never
+    # existed, and every upgrade of a source install died right here. Its
+    # images come from the checkout that was just updated, under the tag they
+    # already have, so `up` has to be told about them by building.
+    info "Building the images from the new checkout. Cached layers keep this short."
+    local builds=(api)
+    [ "$WANT_DOWNLOADER" = 1 ] && builds+=(downloader)
+    [ "$WANT_TRANSCRIBER" = 1 ] && builds+=(transcriber)
+    if ! "$CTL" build "${builds[@]}"; then
+      die "The images failed to build. The old containers are still up; nothing was swapped."
+    fi
   fi
 
   # The browser image is built here, never pulled, so an upgrade rebuilds it
@@ -1519,28 +1597,100 @@ do_upgrade() {
   if [ "$WANT_BROWSER" = 1 ]; then
     ensure_browser_pin
     info "Building the browser image. Cached layers make this quick unless the pin changed."
-    if ! DTK_IMAGE_TAG="$target" "$CTL" build browser-rpc; then
+    if ! with_target_tag "$CTL" build browser-rpc; then
       die "The browser image failed to build. Nothing was changed and the old version is still running."
     fi
   fi
 
   # Pin the tag rather than following `latest`: an operator should be able to
   # say which build is running, and to put it back.
-  if grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
+  if [ -n "$UPGRADE_TO" ] && grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
     local tmp
     tmp="$(mktemp)" || die "Could not create a temporary file."
     TMP_FILES+=("$tmp")
-    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$target|" "$INSTALL_DIR/.env" >"$tmp"
+    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$UPGRADE_TO|" "$INSTALL_DIR/.env" >"$tmp"
     cat "$tmp" >"$INSTALL_DIR/.env"
     rm -f "$tmp"
-    ok "Pinned DTK_IMAGE_TAG=$target"
+    ok "Pinned DTK_IMAGE_TAG=$UPGRADE_TO"
   fi
+  # An install from before `./dtkctl upgrade` existed gets it now.
+  write_control_script
 
   info "Migrating."
   "$CTL" run --rm migrate || die "Migrations failed. The old containers are still up; nothing was swapped."
   info "Restarting."
   "$CTL" up -d --wait || die "The new version did not come up healthy. Try: $CTL logs api"
-  ok "Now on $(running_version || echo "$target")."
+  ok "Now on $(running_version || echo "${UPGRADE_TO:-the new checkout}")."
+}
+
+# The install an upgrade is for. Run from inside one - its own checkout's
+# script, or from its directory - it is that one, whatever it is called: the
+# project defaults to `dtk`, and looking that up from a deployment under
+# another name found nothing, or someone else's.
+install_to_upgrade() {
+  local here
+  if [ -n "${DTK_INSTALL_DIR:-}" ]; then
+    printf '%s' "$DTK_INSTALL_DIR"
+    return 0
+  fi
+  here="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")/.." 2>/dev/null && pwd || true)"
+  if [ -n "$here" ] && [ -x "$here/dtkctl" ]; then
+    printf '%s' "$here"
+  elif [ -x "$PWD/dtkctl" ]; then
+    printf '%s' "$PWD"
+  else
+    find_existing_install || true
+  fi
+}
+
+# The project name a dtkctl was written with.
+project_of() {
+  sed -n 's/^exec docker compose -p \([A-Za-z0-9_-]*\) .*/\1/p' "$1" | head -n 1
+}
+
+# What `./dtkctl upgrade [VERSION]` runs. Nothing is asked: the version is the
+# latest release unless one is named, the same default the menu offers.
+upgrade_unattended() {
+  if [ "$USE_PUBLISHED" = 0 ]; then
+    if [ -n "$UPGRADE_TARGET" ]; then
+      die "This install builds its images from source, so it runs what the checkout holds
+    and there is no published version to choose. Run ./dtkctl upgrade on its own."
+    fi
+    do_upgrade ""
+    return 0
+  fi
+
+  # Handed over from an upgrade already under way: what to move to was
+  # decided before the checkout changed, including "the same one again".
+  if [ -n "${DTK_UPGRADE_HANDOVER:-}" ]; then
+    do_upgrade "$UPGRADE_TARGET"
+    return 0
+  fi
+
+  local target="$UPGRADE_TARGET" installed
+  if [ -z "$target" ]; then
+    target="$(latest_release)"
+    if [ -z "$target" ]; then
+      die "Could not ask GitHub which release is the latest. Name it instead:
+      ./dtkctl upgrade 5.1.6"
+    fi
+  fi
+  target="$(image_tag_for "$target")"
+  installed="$(running_version || true)"
+  if [ -n "$installed" ] && [ "$target" = "$installed" ]; then
+    ok "Already on $target. Nothing to do."
+    return 0
+  fi
+  # Only between two version numbers: `latest` or a sha- build has no order.
+  case "$target" in
+    [0-9]*)
+      if [ -n "$installed" ] && version_is_newer "$installed" "$target"; then
+        warn "$target is older than the $installed that is running."
+        info "Migrations do not run backwards. If the old version will not start on the"
+        info "newer schema, restore a backup taken while it was running."
+      fi ;;
+  esac
+  do_upgrade "$target"
 }
 
 act_change_password() {
@@ -1868,7 +2018,9 @@ menu_existing() {
   while true; do
     printf '\n'
     info "  1  Status - versions, containers, disk"
-    if [ -n "$upgrade_line" ]; then
+    if [ "$USE_PUBLISHED" = 0 ]; then
+      info "  2  Update the checkout and rebuild"
+    elif [ -n "$upgrade_line" ]; then
       info "  2  Upgrade to $upgrade_line"
     else
       info "  2  Reinstall the current version (pull, migrate, restart)"
@@ -1881,6 +2033,13 @@ menu_existing() {
       2)
         local target current
         current="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+        if [ "$USE_PUBLISHED" = 0 ]; then
+          # Built from source, so it runs what the checkout holds. A tag typed
+          # here used to be pulled from Docker Hub as dtk-app, which fails.
+          do_upgrade ""
+          pause_for_reader
+          continue
+        fi
         if [ -n "$upgrade_line" ]; then
           target="$(ask_value "Which tag?" "$upgrade_line")"
         else
@@ -1920,6 +2079,9 @@ Usage: bash install.sh [options]
   --check        Detect the system and print what would happen, then stop.
                  Changes nothing.
   --manage       Go straight to the menu for an install that already exists.
+  --upgrade [VERSION]
+                 Upgrade the install that already exists, asking nothing: to
+                 the latest release, or to VERSION. ./dtkctl upgrade runs this.
   --help, -h     This text.
 
 Run it with no options and it works out which job it is doing: it installs when
@@ -1950,16 +2112,29 @@ main() {
       -y|--yes)   ASSUME_YES=1 ;;
       --check)    CHECK_ONLY=1 ;;
       --manage)   MANAGE_ONLY=1 ;;
+      --upgrade)
+        UPGRADE_ONLY=1
+        # The version is optional, so only a next word that is not an option.
+        if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then
+          UPGRADE_TARGET="$2"
+          shift
+        fi ;;
       -h|--help)  usage; exit 0 ;;
       *)          die "Unknown option: $1  (try --help)" ;;
     esac
     shift
   done
 
-  banner
+  # `./dtkctl upgrade` is a command someone types into a running install,
+  # not an install: the banner and the host report are noise there.
+  if [ "$UPGRADE_ONLY" = 0 ]; then
+    banner
+  fi
   detect_os
   detect_resources
-  report_host
+  if [ "$UPGRADE_ONLY" = 0 ]; then
+    report_host
+  fi
 
   step "Checking Docker"
   if ! check_docker_present; then
@@ -1983,6 +2158,20 @@ main() {
 
   ensure_docker_running
   check_compose || die "Compose v2 $COMPOSE_MIN or newer is required."
+
+  if [ "$UPGRADE_ONLY" = 1 ]; then
+    INSTALL_DIR="$(install_to_upgrade)"
+    if [ -z "$INSTALL_DIR" ] || [ ! -x "$INSTALL_DIR/dtkctl" ]; then
+      die "No install found for project '$PROJECT'.
+    Set DTK_INSTALL_DIR to where it lives, or run ./dtkctl upgrade from there."
+    fi
+    CTL="$INSTALL_DIR/dtkctl"
+    PROJECT="$(project_of "$CTL")"
+    [ -n "$PROJECT" ] || die "Could not read the project name from $CTL."
+    load_install_state
+    upgrade_unattended
+    exit 0
+  fi
 
   # An install that is already here turns this into a management tool rather
   # than an installer. Asked of Docker, so it is found wherever it was put -

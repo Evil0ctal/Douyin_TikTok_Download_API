@@ -2772,7 +2772,7 @@
     "notice": {
       "title": "A newer release is available",
       "body": "This instance runs {current}. The latest release is {latest}.",
-      "how": "Updating is a pull and a restart — see \"Updating\" in the README. Your data, settings and identity pool are untouched by it.",
+      "how": "Installed with the install script? Run ./dtkctl upgrade in its directory; it pulls, migrates and restarts, and records the new version itself. Otherwise see \"Updating to a new release\" in the README. Your data, settings and identity pool are untouched by it.",
       "releaseNotes": "Release notes"
     }
   }

@@ -60,6 +60,10 @@ readonly MODEL_FILES=(
 )
 readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
 
+# 这个文件在一份安装的代码目录里叫什么。dtkctl 升级时跑的是那一份，升级在代码
+# 更新之后也会交给它接着做。英文脚本写的是它自己的名字，所以用中文装的实例一直是中文。
+readonly SCRIPT_NAME="install.zh.sh"
+
 # 浏览器镜像安装的 CloakBrowser 版本，和 .env.example 里的是同一个，是本仓库端到端
 # 验证过的。它是构建参数，而 dtkctl 让 Compose 插值读根目录的 .env，所以写在那里。
 # 在有这一项之前，这个脚本每次开浏览器都会构建出一个没有浏览器的镜像；它的健康检查
@@ -108,6 +112,8 @@ fi
 ASSUME_YES=0
 CHECK_ONLY=0
 MANAGE_ONLY=0
+UPGRADE_ONLY=0
+UPGRADE_TARGET=""
 
 # 凡是建在安装目录之外的东西都登记在这里，这样中途 Ctrl-C 也不会留下垃圾。
 TMP_FILES=()
@@ -1139,14 +1145,25 @@ write_control_script() {
     printf '#   ./dtkctl restart api     重启单个服务\n'
     printf '#   ./dtkctl down            停掉，保留数据\n'
     printf '#   ./dtkctl down -v         停掉并删除数据卷。不可恢复。\n'
+    printf '#   ./dtkctl upgrade         升到最新的 Release：拉取、迁移、重启\n'
+    printf '#   ./dtkctl upgrade 5.1.6   改为升到指定的版本\n'
     printf '#\n'
     printf '# 它替你带上的三样最容易忘的东西：项目名、本机资源覆盖文件，以及\n'
     printf '# COMPOSE_ENV_FILES —— 没有它，compose 会去找 docker/.env，然后\n'
     printf '# 悄悄用默认值做插值。\n'
+    printf '#\n'
+    printf '# 用已发布镜像时，版本号是 .env 里的 DTK_IMAGE_TAG，由 upgrade 来写。\n'
     printf 'set -euo pipefail\n'
     # 单引号是故意的：这些要在 dtkctl 运行时展开，不是现在。
     # shellcheck disable=SC2016
     printf 'cd "$(dirname "$0")"\n'
+    # 它不是 compose 的命令，所以不会挡住任何东西。以前升级要手动改 .env 里的
+    # DTK_IMAGE_TAG，再自己记着按顺序更新代码、拉镜像、构建浏览器、跑迁移。
+    # 随代码来的安装脚本知道这些步骤，也由它来写版本号。
+    # shellcheck disable=SC2016
+    printf 'if [ "${1:-}" = upgrade ]; then\n'
+    # shellcheck disable=SC2016
+    printf '  shift\n  DTK_PROJECT=%s DTK_INSTALL_DIR="$PWD" exec bash install/%s --upgrade "$@"\nfi\n' "$PROJECT" "$SCRIPT_NAME"
     printf 'export COMPOSE_ENV_FILES=.env\n'
     printf 'exec docker compose -p %s %s' "$PROJECT" "$files"
     [ "$WANT_BROWSER" = 1 ] && printf ' --profile browser'
@@ -1156,6 +1173,25 @@ write_control_script() {
   } >"$ctl"
   chmod 755 "$ctl"
   ok "已写入 dtkctl —— 之后用它，别直接敲 docker compose。"
+}
+
+# 一次安装里第一条 compose 命令会创建它的网络，Docker 从固定的几个地址池里给每个
+# 网络分一段子网。跑过很多套栈的机器会分光 —— 早就不在的项目，网络还占着地址 ——
+# 而 compose 只报一行"address pools"，不告诉你该怎么办。
+run_creating_networks() {
+  local log status=0
+  log="$(mktemp)" || die "创建临时文件失败。"
+  TMP_FILES+=("$log")
+  "$@" 2>&1 | tee "$log" || status=$?
+  if [ "$status" != 0 ] && grep -qiE 'address pools have been fully subnetted|non-overlapping IPv4 address pool' "$log"; then
+    warn "Docker 已经没有空闲的地址段给这份安装的网络用了。"
+    info "每个 Docker 网络都要从一组固定的地址段里占一段，已经删掉的栈留下的网络"
+    info "也照样占着。先删掉没有容器在用的网络："
+    dim  "  docker network prune"
+    info "如果腾不出来，就在 /etc/docker/daemon.json 里用 default-address-pools"
+    info "给 Docker 多配几段地址，重启 Docker，再运行一次这个脚本。"
+  fi
+  return "$status"
 }
 
 bring_up() {
@@ -1194,10 +1230,10 @@ bring_up() {
   fi
 
   info "正在执行数据库迁移。"
-  "$ctl" run --rm migrate || die "迁移失败，请看上面的输出。"
+  run_creating_networks "$ctl" run --rm migrate || die "迁移失败，请看上面的输出。"
 
   info "正在启动各个服务。"
-  "$ctl" up -d --wait || die "服务没有全部进入健康状态。看一下：$ctl logs"
+  run_creating_networks "$ctl" up -d --wait || die "服务没有全部进入健康状态。看一下：$ctl logs"
   ok "所有服务健康。"
 }
 
@@ -1431,10 +1467,22 @@ image_tag_for() {
   esac
 }
 
+# 带着要升到的版本号去跑，这样升级途中的拉取和构建要的是新镜像，而 .env 里写的
+# 还是旧的。源码构建的安装没有版本号可写：它沿用 .env 给它的 tag，要是设成空值，
+# 构建出来的就会盖掉 `dev` 镜像。
+with_target_tag() {
+  if [ -n "$UPGRADE_TO" ]; then
+    DTK_IMAGE_TAG="$UPGRADE_TO" "$@"
+  else
+    "$@"
+  fi
+}
+
+# $1 是要升到的已发布 tag；源码构建的安装传空值，它跟着代码走。
 do_upgrade() {
-  local target
-  target="$(image_tag_for "$1")"
-  step "升级到 $target"
+  UPGRADE_TO=""
+  [ -z "${1:-}" ] || UPGRADE_TO="$(image_tag_for "$1")"
+  step "升级${UPGRADE_TO:+到 $UPGRADE_TO}"
   info "数据不受影响：命名卷不会随这次操作消失。"
   printf '\n'
 
@@ -1443,21 +1491,44 @@ do_upgrade() {
   git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
     || warn "本地有改动，保持原样不动。"
 
-  # 先拉，再钉。反过来的话，一旦拉取失败，部署就指向了一个不存在的镜像 ——
-  # 已经起着的容器照常跑，但下一次 `up -d` 起不来。这次拉取的 tag 只挂在命令上，
-  # 确认镜像确实存在之前不碰 .env。
-  info "正在拉取。"
-  local services=(api worker)
-  [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
-  # 只拉已发布的 transcriber；本地构建的由 `up` 重新构建。
-  if [ "$WANT_TRANSCRIBER" = 1 ] && [ -n "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
-    services+=(transcriber)
+  # 剩下的交给新版本来做。正在跑的这份脚本是更新代码之前磁盘上的那份，它不可能
+  # 知道新的 compose 文件需要什么 —— 后来加的服务、挪了位置的步骤 —— 所以交给随
+  # 代码一起来的那份接着做。只交一次：交接时会打上标记。
+  if [ -z "${DTK_UPGRADE_HANDOVER:-}" ] && [ -f "$INSTALL_DIR/install/$SCRIPT_NAME" ]; then
+    info "交给新代码里的安装脚本接着做。"
+    DTK_UPGRADE_HANDOVER=1 DTK_PROJECT="$PROJECT" DTK_INSTALL_DIR="$INSTALL_DIR" \
+      exec bash "$INSTALL_DIR/install/$SCRIPT_NAME" --upgrade ${UPGRADE_TO:+"$UPGRADE_TO"}
   fi
-  if ! DTK_IMAGE_TAG="$target" "$CTL" pull "${services[@]}"; then
-    die "拉不到 ${target}。什么都没改，旧版本还在正常运行。
+
+  if [ "$USE_PUBLISHED" = 1 ]; then
+    # 先拉，再钉。反过来的话，一旦拉取失败，部署就指向了一个不存在的镜像 ——
+    # 已经起着的容器照常跑，但下一次 `up -d` 起不来。这次拉取的 tag 只挂在命令上，
+    # 确认镜像确实存在之前不碰 .env。
+    info "正在拉取。"
+    local services=(api worker)
+    [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
+    # 只拉已发布的 transcriber。本地的那个由 `up` 构建，因为它要的 tag 是新的，
+    # 本机上还没有。
+    if [ "$WANT_TRANSCRIBER" = 1 ] && [ -n "$(env_value DTK_TRANSCRIBER_IMAGE)" ]; then
+      services+=(transcriber)
+    fi
+    if ! with_target_tag "$CTL" pull "${services[@]}"; then
+      die "拉不到 ${UPGRADE_TO}。什么都没改，旧版本还在正常运行。
     去确认这个 tag 是否存在：https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags
     开着转写时，早于转写功能的版本没有 transcriber 镜像；要退回那么早，
     先在菜单里把转写关掉。"
+    fi
+  else
+    # 没什么可拉的：`pull` 会去 Docker Hub 找 dtk-app，那个仓库从来不存在，源码
+    # 构建的安装以前每次升级都死在这里。它的镜像来自刚更新的代码，tag 还是原来那个，
+    # 所以得靠构建让 `up` 用上新的。
+    info "正在用新代码构建镜像。有缓存的话很快。"
+    local builds=(api)
+    [ "$WANT_DOWNLOADER" = 1 ] && builds+=(downloader)
+    [ "$WANT_TRANSCRIBER" = 1 ] && builds+=(transcriber)
+    if ! "$CTL" build "${builds[@]}"; then
+      die "镜像构建失败。旧容器还在跑，什么都没有被替换。"
+    fi
   fi
 
   # 浏览器镜像只在本机构建、从不拉取，所以升级时要按新代码重建它 —— 钉版本之前装的
@@ -1465,28 +1536,99 @@ do_upgrade() {
   if [ "$WANT_BROWSER" = 1 ]; then
     ensure_browser_pin
     info "正在构建浏览器镜像。只要钉的版本没变，有缓存的话很快。"
-    if ! DTK_IMAGE_TAG="$target" "$CTL" build browser-rpc; then
+    if ! with_target_tag "$CTL" build browser-rpc; then
       die "浏览器镜像构建失败。什么都没改，旧版本还在正常运行。"
     fi
   fi
 
   # 钉住具体的 tag，而不是跟着 `latest` 跑：运维应当说得出现在跑的是哪个构建，
   # 也应当能把它换回去。
-  if grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
+  if [ -n "$UPGRADE_TO" ] && grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
     local tmp
     tmp="$(mktemp)" || die "创建临时文件失败。"
     TMP_FILES+=("$tmp")
-    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$target|" "$INSTALL_DIR/.env" >"$tmp"
+    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$UPGRADE_TO|" "$INSTALL_DIR/.env" >"$tmp"
     cat "$tmp" >"$INSTALL_DIR/.env"
     rm -f "$tmp"
-    ok "已把 DTK_IMAGE_TAG 钉在 $target"
+    ok "已把 DTK_IMAGE_TAG 钉在 $UPGRADE_TO"
   fi
+  # 在有 `./dtkctl upgrade` 之前装的实例，从这里开始有了它。
+  write_control_script
 
   info "正在迁移。"
   "$CTL" run --rm migrate || die "迁移失败。旧容器还在跑，什么都没有被替换。"
   info "正在重启。"
   "$CTL" up -d --wait || die "新版本没能进入健康状态。看一下：$CTL logs api"
-  ok "现在是 $(running_version || echo "$target")。"
+  ok "现在是 $(running_version || echo "${UPGRADE_TO:-新的代码}")。"
+}
+
+# 这次升级是给哪份安装的。在某份安装里面运行 —— 用它代码目录里的脚本，或者就在
+# 它的目录下 —— 那就是这一份，不管它叫什么名字：项目名默认是 `dtk`，拿它去找一份
+# 用别的名字部署的实例，要么找不到，要么找到别人的。
+install_to_upgrade() {
+  local here
+  if [ -n "${DTK_INSTALL_DIR:-}" ]; then
+    printf '%s' "$DTK_INSTALL_DIR"
+    return 0
+  fi
+  here="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")/.." 2>/dev/null && pwd || true)"
+  if [ -n "$here" ] && [ -x "$here/dtkctl" ]; then
+    printf '%s' "$here"
+  elif [ -x "$PWD/dtkctl" ]; then
+    printf '%s' "$PWD"
+  else
+    find_existing_install || true
+  fi
+}
+
+# 某个 dtkctl 生成时用的项目名。
+project_of() {
+  sed -n 's/^exec docker compose -p \([A-Za-z0-9_-]*\) .*/\1/p' "$1" | head -n 1
+}
+
+# `./dtkctl upgrade [版本]` 跑的就是这个。什么都不问：没指定版本就用最新的
+# Release，和菜单给的默认值一样。
+upgrade_unattended() {
+  if [ "$USE_PUBLISHED" = 0 ]; then
+    if [ -n "$UPGRADE_TARGET" ]; then
+      die "这份安装的镜像是从源码构建的，跑的就是代码目录里的那份，
+    没有已发布的版本可选。直接运行 ./dtkctl upgrade 即可。"
+    fi
+    do_upgrade ""
+    return 0
+  fi
+
+  # 从一次正在进行的升级交接过来：升到哪个版本在代码变之前就定了，
+  # 包括"还是同一个版本"。
+  if [ -n "${DTK_UPGRADE_HANDOVER:-}" ]; then
+    do_upgrade "$UPGRADE_TARGET"
+    return 0
+  fi
+
+  local target="$UPGRADE_TARGET" installed
+  if [ -z "$target" ]; then
+    target="$(latest_release)"
+    if [ -z "$target" ]; then
+      die "没能向 GitHub 问到最新的 Release 是哪个。直接写上版本号：
+      ./dtkctl upgrade 5.1.6"
+    fi
+  fi
+  target="$(image_tag_for "$target")"
+  installed="$(running_version || true)"
+  if [ -n "$installed" ] && [ "$target" = "$installed" ]; then
+    ok "已经是 ${target}，不用升级。"
+    return 0
+  fi
+  # 只在两个版本号之间比较：`latest` 和 sha- 构建没有先后。
+  case "$target" in
+    [0-9]*)
+      if [ -n "$installed" ] && version_is_newer "$installed" "$target"; then
+        warn "$target 比正在运行的 $installed 旧。"
+        info "迁移不会倒着跑。如果旧版本在新的表结构上起不来，就恢复一份"
+        info "在旧版本运行时做的备份。"
+      fi ;;
+  esac
+  do_upgrade "$target"
 }
 
 act_change_password() {
@@ -1806,7 +1948,9 @@ menu_existing() {
   while true; do
     printf '\n'
     info "  1  状态 —— 版本、容器、磁盘"
-    if [ -n "$upgrade_line" ]; then
+    if [ "$USE_PUBLISHED" = 0 ]; then
+      info "  2  更新代码并重新构建"
+    elif [ -n "$upgrade_line" ]; then
       info "  2  升级到 $upgrade_line"
     else
       info "  2  重装当前版本（拉取、迁移、重启）"
@@ -1819,6 +1963,13 @@ menu_existing() {
       2)
         local target current
         current="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+        if [ "$USE_PUBLISHED" = 0 ]; then
+          # 源码构建，跑的就是代码目录里的那份。以前这里输入的 tag 会被当成
+          # dtk-app 去 Docker Hub 拉，必然失败。
+          do_upgrade ""
+          pause_for_reader
+          continue
+        fi
         if [ -n "$upgrade_line" ]; then
           target="$(ask_value "用哪个 tag？" "$upgrade_line")"
         else
@@ -1854,6 +2005,9 @@ usage() {
                  不建浏览器容器，不开转写。
   --check        只探测系统并打印将会发生什么，然后停下。不改任何东西。
   --manage       直接进入已有安装的管理菜单。
+  --upgrade [版本]
+                 什么都不问，直接升级已有的安装：升到最新的 Release，或者
+                 升到指定的版本。./dtkctl upgrade 跑的就是它。
   --help, -h     这段说明。
 
 不带任何选项运行时它会自己判断该做哪件事：没装过就安装，装过就打开菜单 ——
@@ -1883,16 +2037,29 @@ main() {
       -y|--yes)   ASSUME_YES=1 ;;
       --check)    CHECK_ONLY=1 ;;
       --manage)   MANAGE_ONLY=1 ;;
+      --upgrade)
+        UPGRADE_ONLY=1
+        # 版本号可以不给，所以只有下一个词不是选项时才当成版本号。
+        if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then
+          UPGRADE_TARGET="$2"
+          shift
+        fi ;;
       -h|--help)  usage; exit 0 ;;
       *)          die "无法识别的选项：$1（试试 --help）" ;;
     esac
     shift
   done
 
-  banner
+  # `./dtkctl upgrade` 是在一份运行中的安装里敲的命令，不是安装：
+  # 横幅和本机报告在那里只是噪音。
+  if [ "$UPGRADE_ONLY" = 0 ]; then
+    banner
+  fi
   detect_os
   detect_resources
-  report_host
+  if [ "$UPGRADE_ONLY" = 0 ]; then
+    report_host
+  fi
 
   step "检查 Docker"
   if ! check_docker_present; then
@@ -1916,6 +2083,20 @@ main() {
 
   ensure_docker_running
   check_compose || die "需要 Compose v2 $COMPOSE_MIN 或更新的版本。"
+
+  if [ "$UPGRADE_ONLY" = 1 ]; then
+    INSTALL_DIR="$(install_to_upgrade)"
+    if [ -z "$INSTALL_DIR" ] || [ ! -x "$INSTALL_DIR/dtkctl" ]; then
+      die "找不到项目 '$PROJECT' 的安装。
+    把 DTK_INSTALL_DIR 设成它所在的目录，或者到那个目录里运行 ./dtkctl upgrade。"
+    fi
+    CTL="$INSTALL_DIR/dtkctl"
+    PROJECT="$(project_of "$CTL")"
+    [ -n "$PROJECT" ] || die "没能从 $CTL 里读出项目名。"
+    load_install_state
+    upgrade_unattended
+    exit 0
+  fi
 
   # 已经装过的话，这个脚本就从"安装器"变成"管理工具"。位置是问 Docker 要的，
   # 所以不管当初装在哪都能找到 —— 不只是这个脚本会建议的那两个目录。
