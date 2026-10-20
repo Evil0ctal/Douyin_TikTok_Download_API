@@ -97,6 +97,9 @@ export function useIdentityColumns({
       // who asked for notes opened each drawer to find them.
       id: 'note',
       header: t('console:identity.note.label'),
+      // Room for the header and its sort arrow. With only short notes, or
+      // none, auto layout shrank the column to the word and clipped the arrow.
+      minWidth: '110px',
       sortValue: (row) => row.note ?? null,
       cell: (row) =>
         row.note ? (
