@@ -737,7 +737,8 @@
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",
       "user_id": "The console account to act on.",
       "wait": "Hold the connection until the task finishes, up to this many seconds - this is how to make the call synchronous. Finished in time gives 200 with the result; not finished gives 202 with the task id and `state: running`, which is not an error and loses nothing. Above the instance ceiling shown as `maximum` it is a 400, rejected rather than shortened. Omitted or 0 returns 202 at once. See the description at the top of this document.",
-      "serves": "Only identities rotation may hand out for this endpoint, such as `douyin.author_posts`: those in ordinary rotation and those limited to a list that names it. Reserved identities never match."
+      "serves": "Only identities rotation may hand out for this endpoint, such as `douyin.author_posts`: those in ordinary rotation and those limited to a list that names it. Reserved identities never match.",
+      "ready": "Only identities the scheduler would hand out now: active, or degraded as a fallback. With `serves`, the identities the coverage card counts as able to serve that endpoint."
     },
     "field": {
       "ApiKeyCreate": {

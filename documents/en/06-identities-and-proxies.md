@@ -200,7 +200,9 @@ those in rotation for every endpoint and those limited to a list that names it,
 never a reserved one - and the page says so in a notice above the table, with
 **Clear** beside it. Without the notice, a table narrowed that way would read as
 a pool that had lost most of its identities. It filters on rotation alone, so
-cooling identities are listed too.
+cooling identities are listed too - unless `ready=1` comes with it, as it does from
+the coverage table's **Can serve**: then only the active and degraded ones the
+scheduler would send there now, the identities that number counted.
 
 Every write on this page takes the operator role. Below it, Mint, Import, the
 row buttons, row selection and the refill card's editors are hidden rather than
@@ -1144,13 +1146,14 @@ than buried in an alphabetical settings list. It shows:
   - a table, one row per endpoint rotation can reach. **Login** is the tag the
     Rotation card's checklist uses. **Can serve** counts the active and
     degraded identities rotation may send there - in rotation for every
-    endpoint, or limited to a list that names it - and links to them,
-    `/identities?platform=<platform>&serves=<endpoint>`. **Logins** is how many
+    endpoint, or limited to a list that names it - and links to exactly those,
+    `/identities?platform=<platform>&serves=<endpoint>&ready=1`. **Logins** is how many
     of those are logins, a 0 shown in caution where the endpoint or its later
     pages need one, because those pages then answer `IDENTITY_LOGIN_REQUIRED`.
     **Limited to
     it** is how many of them are limited to a list naming it, and **Cooling**
-    the ones resting that come back to it when they recover.
+    the ones resting that come back to it when they recover, linked the same way
+    with `state=cooling`.
 
   Endpoints that answer only about the identity asking are left out: they always
   need `identity=`, and nothing on the card limits a request that names an

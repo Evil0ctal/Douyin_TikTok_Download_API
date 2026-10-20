@@ -103,8 +103,11 @@ export function CoverageCard({ canWrite }: { canWrite: boolean }) {
       mono: true,
       sortValue: (row) => row.ready,
       cell: (row) => (
+        // With `ready`, so the list holds what this number counts. Without
+        // it the cooling identities came along, and the list it opened was
+        // longer than the number it was opened from.
         <Link
-          href={`/identities?platform=${platform}&serves=${encodeURIComponent(row.endpoint)}`}
+          href={`/identities?platform=${platform}&serves=${encodeURIComponent(row.endpoint)}&ready=1`}
           title={t('console:scheduler.coverage.open')}
         >
           {row.ready}
@@ -140,7 +143,17 @@ export function CoverageCard({ canWrite }: { canWrite: boolean }) {
       align: 'right',
       mono: true,
       sortValue: (row) => row.cooling,
-      cell: (row) => row.cooling,
+      cell: (row) =>
+        row.cooling > 0 ? (
+          <Link
+            href={`/identities?platform=${platform}&serves=${encodeURIComponent(row.endpoint)}&state=cooling`}
+            title={t('console:scheduler.coverage.openCooling')}
+          >
+            {row.cooling}
+          </Link>
+        ) : (
+          row.cooling
+        ),
     },
   ]
 

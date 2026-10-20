@@ -71,7 +71,15 @@ export function SuppressionNotice({ retired, deadSession, showAll, onToggle }: S
  * the endpoint's side - so without this a table narrowed by it would look like
  * a pool that had lost most of its identities.
  */
-export function ServesNotice({ endpoint, onClear }: { endpoint: string; onClear: () => void }) {
+export function ServesNotice({
+  endpoint,
+  ready,
+  onClear,
+}: {
+  endpoint: string
+  ready: boolean
+  onClear: () => void
+}) {
   const { t } = useTranslation(['console', 'common'])
   return (
     <div className={styles.notice}>
@@ -79,8 +87,14 @@ export function ServesNotice({ endpoint, onClear }: { endpoint: string; onClear:
         <SlidersIcon size={13} />
       </span>
       <div className="u-stack-sm u-grow">
-        <strong>{t('console:identity.serves.title', { endpoint })}</strong>
-        <p className="u-xs u-secondary">{t('console:identity.serves.why')}</p>
+        <strong>
+          {t(ready ? 'console:identity.serves.readyTitle' : 'console:identity.serves.title', {
+            endpoint,
+          })}
+        </strong>
+        <p className="u-xs u-secondary">
+          {t(ready ? 'console:identity.serves.readyWhy' : 'console:identity.serves.why')}
+        </p>
       </div>
       <Button size="sm" variant="secondary" onClick={onClear}>
         {t('common:action.clear')}

@@ -168,6 +168,7 @@ export default function Identities() {
       authenticated: filters.login === 'any' ? undefined : filters.login === 'yes',
       rotation: filters.rotation === 'any' ? undefined : filters.rotation,
       serves: filters.serves ?? undefined,
+      ready: filters.ready || undefined,
       include_retired: filters.all || undefined,
     }),
     [
@@ -177,6 +178,7 @@ export default function Identities() {
       filters.login,
       filters.rotation,
       filters.serves,
+      filters.ready,
       filters.all,
     ],
   )
@@ -513,8 +515,9 @@ export default function Identities() {
       {filters.serves ? (
         <ServesNotice
           endpoint={filters.serves}
+          ready={filters.ready}
           onClear={() => {
-            setFilters({ serves: null })
+            setFilters({ serves: null, ready: false })
           }}
         />
       ) : null}

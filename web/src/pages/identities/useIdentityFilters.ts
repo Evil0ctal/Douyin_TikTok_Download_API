@@ -36,6 +36,12 @@ export interface IdentityFilters {
    * the answer to "who serves this", which is asked from the endpoint's side.
    */
   serves: string | null
+  /**
+   * Only what the scheduler would hand out now: active or degraded. The
+   * coverage table's "Can serve" links with it, so the list it opens holds
+   * the identities its number counted, and not the cooling ones beside them.
+   */
+  ready: boolean
 }
 
 const DEFAULTS: IdentityFilters = {
@@ -48,6 +54,7 @@ const DEFAULTS: IdentityFilters = {
   all: false,
   id: null,
   serves: null,
+  ready: false,
 }
 
 function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
@@ -85,6 +92,7 @@ export function useIdentityFilters(): [
       // Shaped like an endpoint name or ignored: the server would refuse
       // anything else, and a refused filter reads as an empty pool.
       serves: /^[a-z]+\.[a-z_]+$/.test(params.get('serves') ?? '') ? params.get('serves') : null,
+      ready: params.get('ready') === '1',
     }),
     [params],
   )

@@ -255,6 +255,24 @@ async def test_serves_lists_the_identities_rotation_may_send(client: Any) -> Non
     assert listed["meta"]["total"] == 2
 
 
+async def test_ready_lists_what_the_coverage_card_counts_as_able_to_serve(client: Any) -> None:
+    """The card's "Can serve" counts active and degraded identities and links
+    here. Without `ready` the list also held the cooling and the minting ones,
+    so the number and the list it opened never agreed."""
+    await signed_in(client)
+    active = await make_identity()
+    degraded = await make_identity(state="degraded", rotation=[POSTS])
+    await make_identity(state="cooling")
+    await make_identity(state="minting")
+
+    listed = envelope(
+        await client.get("/api/v1/admin/identities", params={"serves": POSTS, "ready": "true"})
+    )
+
+    assert {row["id"] for row in listed["data"]} == {str(active), str(degraded)}
+    assert listed["meta"]["total"] == 2
+
+
 async def test_coverage_counts_each_endpoint_the_way_the_scheduler_does(client: Any) -> None:
     await signed_in(client)
     await make_identity()

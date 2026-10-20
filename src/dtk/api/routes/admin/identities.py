@@ -354,6 +354,12 @@ class RotationFilter(StrEnum):
     LIMITED = "limited"
 
 
+#: The states the scheduler hands out: active, and degraded as a fallback.
+#: One tuple for the coverage card's count and the list it links to, which
+#: used to answer two different questions under one number.
+_SERVING_STATES: Final = (IdentityState.ACTIVE.value, IdentityState.DEGRADED.value)
+
+
 def _list_conditions(
     *,
     platform: Platform | None,
@@ -363,6 +369,7 @@ def _list_conditions(
     rotation: RotationFilter | None,
     identity_id: uuid.UUID | None,
     serves: str | None = None,
+    ready: bool = False,
 ) -> list[ColumnElement[bool]]:
     """The filters the listing and its total share, retired rows aside."""
     conditions: list[ColumnElement[bool]] = []
@@ -391,6 +398,8 @@ def _list_conditions(
                 Identity.rotation_endpoints.contains([serves]),
             )
         )
+    if ready:
+        conditions.append(Identity.state.in_(_SERVING_STATES))
     return conditions
 
 
@@ -441,6 +450,14 @@ async def list_identities(
             "list that names it. Reserved identities never match."
         ),
     ),
+    ready: bool = Query(
+        default=False,
+        description=(
+            "Only identities the scheduler would hand out now: active, or degraded "
+            "as a fallback. With `serves`, the identities the coverage card counts "
+            "as able to serve that endpoint."
+        ),
+    ),
     limit: int = Query(
         default=DEFAULT_ADMIN_PAGE_SIZE,
         ge=1,
@@ -470,6 +487,7 @@ async def list_identities(
     - `include_retired` - list retired identities as well.
     - `identity_id` - just this one identity.
     - `serves` - only identities rotation may hand out for this endpoint.
+    - `ready` - only those it would hand out now: active or degraded.
     - `limit`, `offset` - the page.
 
     **Returns**
@@ -492,6 +510,7 @@ async def list_identities(
         rotation=rotation,
         identity_id=identity_id,
         serves=serves,
+        ready=ready,
     )
     excluding = not include_retired and state is None and identity_id is None
     retired_left_out = 0
@@ -1513,7 +1532,7 @@ async def rotation_coverage(request: Request, principal: Principal = Depends(rea
     from dtk.api.routes.capabilities import capability_table
 
     config = request.app.state.config
-    serving = (IdentityState.ACTIVE.value, IdentityState.DEGRADED.value)
+    serving = _SERVING_STATES
     rows = (
         await request.state.db.execute(
             select(

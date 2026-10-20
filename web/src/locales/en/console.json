@@ -695,7 +695,9 @@
     },
     "serves": {
       "title": "Only identities rotation may send to {endpoint}",
-      "why": "Those in rotation for every endpoint, and those limited to a list that names it. Reserved identities never match."
+      "why": "Those in rotation for every endpoint, and those limited to a list that names it. Reserved identities never match.",
+      "readyTitle": "Only identities rotation can send to {endpoint} now",
+      "readyWhy": "Those in rotation for it, active or degraded: the ones the Scheduler page counts under Can serve. Cooling identities come back when they recover, and are listed under Cooling there."
     }
   },
   "proxy": {
@@ -2618,6 +2620,7 @@
       "dedicated": "Limited to it",
       "cooling": "Cooling",
       "open": "List these identities",
+      "openCooling": "List the cooling ones",
       "noLogin": "No login in rotation: where this endpoint needs one, it answers IDENTITY_LOGIN_REQUIRED.",
       "reserved": "{count, plural, one {# identity serves only requests that name it} other {# identities serve only requests that name them}}",
       "caption": "{platform} endpoints",
