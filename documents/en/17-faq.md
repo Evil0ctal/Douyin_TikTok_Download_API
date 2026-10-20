@@ -219,18 +219,21 @@ What an identity is actually worth is set by the token bucket, which is per
 
 | Endpoint | Burst | Refill | Sustained, one identity | Sustained, 8 identities |
 | --- | --- | --- | --- | --- |
-| `*.content_detail` | 5 | 0.30/s | 1 per 3.3s | ~2.4/s |
+| `*.content_detail`, `bilibili.content_streams` | 5 | 0.30/s | 1 per 3.3s | ~2.4/s |
 | `*.author_profile` | 4 | 0.20/s | 1 per 5s | ~1.6/s |
 | `*.comments`, `*.comment_replies`, `*.mix_posts` | 3 | 0.15/s | 1 per 6.7s | ~1.2/s |
 | `douyin.author_posts`, `tiktok.author_posts`, `*.author_likes` | 3 | 0.12/s | 1 per 8.3s | ~1/s |
 | `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12/s | 1 per 8.3s | ~1/s |
+| `bilibili.author_posts` | 2 | 0.08/s | 1 per 12.5s | ~0.6/s |
 | anything unregistered | 3 | 0.15/s | 1 per 6.7s | ~1.2/s |
 
 Those right-hand figures are ceilings under perfect spread, not promises: an
 identity also holds an exclusive lock for the duration of each request, so a slow
-upstream lowers them. Bilibili's uploader video list, `bilibili.author_posts`, is
-deliberately slower than its row would suggest: it is the endpoint Bilibili
-guards hardest, so it has the slowest bucket of any Bilibili endpoint (see
+upstream lowers them. A Bilibili video detail spends a token from both of the
+first row's buckets, because the playable file is a second request,
+`bilibili.content_streams`. Bilibili's uploader video list, `bilibili.author_posts`,
+has the slowest bucket of all on purpose: it is the endpoint Bilibili guards
+hardest (see
 [Troubleshooting](./14-troubleshooting.md#http-412-on-a-bilibili-uploaders-video-list)).
 
 Work backwards from what you actually need. If you parse a few dozen links a day,
@@ -272,8 +275,10 @@ Bilibili, yes, since 5.1.6. The others, no. v5 supports three platforms,
 in `src/dtk/core/types.py`.
 
 On Bilibili the instance serves one video, its comments and their replies, an
-author's profile and uploaded videos, the author's public favourites folders, and
-the videos in one folder; `POST /api/v1/parse` recognises Bilibili links,
+author's profile and uploaded videos, the author's public favourites folders, the
+videos in one folder, the parts of a video uploaded in several (each one
+downloadable on its own), and the site's popular boards - what is hot now, the
+weekly selection, the all-time picks and the top 100; `POST /api/v1/parse` recognises Bilibili links,
 including `b23.tv` short links. An author's likes, reposts, bookmarks, followers
 and following, a collection's detail (`collection`) and mixes (`mix/posts`) are
 not served there, and answer `UNSUPPORTED_CONTENT` naming the platform and the
@@ -313,8 +318,10 @@ watermarked stream, that is what you get.
 A link, a share message with text around it, a short link, or a bare post id, on
 any of the three platforms — plus author profiles, an author's posts, comments and
 their replies, and collections (on Bilibili, an author's public favourites
-folders). Douyin and TikTok add an author's likes and mixes, and TikTok followers
-and following; Bilibili serves none of those. The Playground page and the REST
+folders). Douyin and TikTok add an author's likes and mixes - Douyin shows likes
+only to a logged-in identity - and TikTok followers and following; Bilibili
+serves none of those, and adds instead a video's parts and the site's popular
+boards. The Playground page and the REST
 API expose the same set. See
 [Playground and tools](./07-playground-and-tools.md) and the
 [REST API guide](./11-api.md) for the full list, and

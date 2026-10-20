@@ -80,6 +80,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | HTTP 412 / `UPSTREAM_RISK_CONTROL` on a Bilibili uploader's video list | [HTTP 412 on a Bilibili uploader's video list](#http-412-on-a-bilibili-uploaders-video-list) |
 | An author's newest posts are missing, `IDENTITY_LOGIN_REQUIRED` on the next page | [An author's newest posts are missing, or the next page will not load](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) |
 | A Bilibili video's comments stop at three, or a later page of comments or of replies answers `IDENTITY_LOGIN_REQUIRED` | [Bilibili comments stop after three](#bilibili-comments-stop-after-three) |
+| `sort=new` on Douyin or TikTok comments answers `INVALID_PARAM` | [`sort=new` answers `INVALID_PARAM` on Douyin or TikTok](#sortnew-answers-invalid_param-on-douyin-or-tiktok) |
 | `UPSTREAM_RISK_CONTROL` on Bilibili with code -352, -412, -509 or -799 | [Bilibili's refusal codes](#bilibilis-refusal-codes) |
 | An imported login is never used, while guests do all the work | [An imported login sits idle](#an-imported-login-sits-idle) |
 | `UPSTREAM_UNREACHABLE`, or a proxy was added and nothing changed | [UPSTREAM_UNREACHABLE, and a platform this server cannot reach](#upstream_unreachable-and-a-platform-this-server-cannot-reach) |
@@ -458,7 +459,7 @@ If one of those endpoints is being called and the login still sits idle, check i
 | **Reserved** under its state | Its rotation is **Only requests that name it** - set in its drawer, or by the import dialog's checkbox. Rotation never hands it out, not even for a page that needs a login |
 | **Limited** under its state | Its rotation names other endpoints than the one being called |
 | `cooling` or `degraded` | It was refused recently. Open its drawer and **Check the login**: a lapsed session is refused like a guest |
-| It is not in the table at all | Its credential verdict is `missing` or `too_short`, which the default view hides - **Show all** brings it back. See [What the default view hides](./06-identities-and-proxies.md#what-the-default-view-hides) |
+| It is not in the table at all | Its credential verdict is `missing` or `too_short`, which the default view hides - **Show all** brings it back. See [What the default view hides](./06-identities-and-proxies.md#what-the-default-view-hides). Before 5.1.6 every Douyin login exported from a browser read `missing` there, because its jar spells the visitor id `UIFID` and the check read only a mint's `UIFID_TEMP`; see [Health, and the two different columns](./06-identities-and-proxies.md#health-and-the-two-different-columns) |
 
 The Scheduler page's coverage card shows the same from the other side: for every endpoint, how many logins rotation can send there and how many identities are cooling.
 
@@ -741,6 +742,21 @@ an empty page that reads as the end of the thread.
 have one and still get the guest's three, open its drawer and **Check the
 login**: Bilibili's own answer tells a live login from a lapsed one, and a lapsed
 one reports `signed_out`.
+
+### `sort=new` answers `INVALID_PARAM` on Douyin or TikTok
+
+**Symptom.** `GET /api/v1/douyin/video/comments?…&sort=new`, or the same on TikTok,
+answers `INVALID_PARAM` (400) with `details.field: "sort"` and `details.supported`
+naming `bilibili`.
+
+**What it means.** Neither platform's comment endpoint takes an order: each serves
+its comments ranked its own way, hottest first. `sort=hot` is accepted there,
+because that is what you get anyway; `sort=new` is refused by name, because sending
+nothing would hand back the hottest comments to a caller who asked for the newest,
+and nothing in the page would say so. MCP's `list_comments` refuses it the same way.
+
+**Fix.** Leave `sort` out, or send `hot`, on Douyin and TikTok. Only Bilibili orders
+comments both ways.
 
 ---
 

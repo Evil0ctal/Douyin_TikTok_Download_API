@@ -79,6 +79,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | B 站 UP 主投稿列表返回 HTTP 412 / `UPSTREAM_RISK_CONTROL` | [B 站 UP 主投稿列表返回 HTTP 412](#b-站-up-主投稿列表返回-http-412) |
 | 作者作品缺最新几条，翻页时返回 `IDENTITY_LOGIN_REQUIRED` | [作者作品列表缺最新几条，或者翻不了页](#作者作品列表缺最新几条或者翻不了页) |
 | B 站视频的评论只有三条，或者评论、回复的后面几页返回 `IDENTITY_LOGIN_REQUIRED` | [B 站评论只有三条](#b-站评论只有三条) |
+| 抖音或 TikTok 的评论加 `sort=new` 返回 `INVALID_PARAM` | [抖音或 TikTok 上 `sort=new` 返回 `INVALID_PARAM`](#抖音或-tiktok-上-sortnew-返回-invalid_param) |
 | B 站请求返回 `UPSTREAM_RISK_CONTROL`，带 -352、-412、-509 或 -799 | [B 站的拒绝码](#b-站的拒绝码) |
 | 导入的登录身份从来不被使用，活全让游客干了 | [导入的登录身份一直闲着](#导入的登录身份一直闲着) |
 | `UPSTREAM_UNREACHABLE`，或者加了代理却什么都没变 | [UPSTREAM_UNREACHABLE 和这台服务器连不上的平台](#upstream_unreachable-和这台服务器连不上的平台) |
@@ -457,7 +458,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk identity list
 | 状态下方标着**保留** | 它的轮换设置是**只服务点名它的请求**——在抽屉里设的，或者导入对话框里勾的。轮换永远不会派它出去，哪怕是需要登录的那一页 |
 | 状态下方标着**限定接口** | 它的轮换清单里列的不是正在被调用的那个接口 |
 | `cooling` 或 `degraded` | 它最近被拒绝过。打开它的抽屉点**检查登录态**：过期的会话会像游客一样被拒 |
-| 表格里根本没有它 | 它的会话凭据判定是 `missing` 或 `too_short`，默认视图会把它藏起来——点**显示全部**。见[默认视图隐藏了什么](./06-identities-and-proxies.md#默认视图隐藏了什么) |
+| 表格里根本没有它 | 它的会话凭据判定是 `missing` 或 `too_short`，默认视图会把它藏起来——点**显示全部**。见[默认视图隐藏了什么](./06-identities-and-proxies.md#默认视图隐藏了什么)。5.1.6 之前，从浏览器导出的抖音登录态在这里一律是 `missing`，因为它的 Cookie 里访客 ID 叫 `UIFID`，而检查只认铸造出来的 `UIFID_TEMP`；见[健康度，以及两个含义完全不同的列](./06-identities-and-proxies.md#健康度以及两个含义完全不同的列) |
 
 调度器页面的覆盖卡片从另一侧给出同样的信息：每个接口上轮换能派出几个登录身份、几个身份在冷却。
 
@@ -711,6 +712,17 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 **含义。** B 站只给访客一个视频最热的三条评论，并告诉它这就是最后一页（实测）。所以第一页在轮换里有已登录的 B 站身份时交给它，没有时回落到访客——并标上 `meta.guest_fallback`；之后的页只交给已登录身份，因为访客只会被告知没有更多了。`count` 改变不了这一点：B 站的评论接口不接受每页条数，这个参数会被接受然后忽略。单条评论的回复（`video/comments/replies`）晚一页停下：访客能拿到第一页、最多 20 条，之后每一页都是空的，而第一页明明写着一共有多少条（实测）。所以回复的第一页谁都可以拿，后面的页只交给已登录身份——轮换里一个都没有时立刻返回 `IDENTITY_LOGIN_REQUIRED`，而不是给一页看上去像是讨论串已经到头的空页。
 
 **修复。** 导入一份已登录的 B 站 Cookie——除了 `buvid3` 之外还带 `SESSDATA` 的那种——见 [B 站身份](./06-identities-and-proxies.md#b-站身份)。`SESSDATA` 就是登录态本身，请像对待密码一样对待这份 Cookie。如果你已经有了却仍然只拿到访客的三条，打开它的抽屉点**检查登录态**：B 站自己的应答能分清登录是否仍然有效，过期的会报 `signed_out`。
+
+### 抖音或 TikTok 上 `sort=new` 返回 `INVALID_PARAM`
+
+**症状。** `GET /api/v1/douyin/video/comments?…&sort=new`，或者 TikTok 上同样的请求，
+返回 `INVALID_PARAM`（400），`details.field` 是 `"sort"`，`details.supported` 里是 `bilibili`。
+
+**含义。** 这两个平台的评论接口都不接受排序：各自按自己的方式排，最热的在前。所以 `sort=hot`
+照样接受，因为本来拿到的就是它；`sort=new` 则被明确拒绝，因为什么都不传的话，问最新评论的人会
+拿到最热的，而页面里什么都不会告诉他。MCP 的 `list_comments` 也一样拒绝。
+
+**修复。** 在抖音和 TikTok 上不传 `sort`，或者传 `hot`。只有 B 站两种排序都支持。
 
 ---
 
