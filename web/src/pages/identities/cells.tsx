@@ -64,7 +64,7 @@ export function HealthCell({ identity }: { identity: IdentityRow }) {
     return (
       <span className="u-row">
         <StatusBadge kind="health" value={tone} size="sm" flash={false} />
-        <span className="u-mono u-xs">{format.percent(identity.health, 0)}</span>
+        <span className="u-mono u-xs u-nowrap">{format.percent(identity.health, 0)}</span>
       </span>
     )
   }
@@ -73,7 +73,9 @@ export function HealthCell({ identity }: { identity: IdentityRow }) {
     return (
       <span className="u-row" title={t('console:identity.health.noTrafficHint')}>
         <StatusBadge kind="health" value="unknown" size="sm" flash={false} />
-        <span className="u-xs u-muted">{t('console:identity.health.noTraffic')}</span>
+        {/* Unbroken: with the note column the table ran short of room and
+            broke the Chinese "no traffic" across two lines. */}
+        <span className="u-xs u-muted u-nowrap">{t('console:identity.health.noTraffic')}</span>
       </span>
     )
   }
@@ -85,7 +87,7 @@ export function HealthCell({ identity }: { identity: IdentityRow }) {
         size="sm"
         flash={false}
       />
-      <span className="u-mono u-xs u-muted">
+      <span className="u-mono u-xs u-muted u-nowrap">
         {t('console:identity.failCount', { count: identity.consecutive_fails })}
       </span>
     </span>
