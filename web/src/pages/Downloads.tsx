@@ -1240,15 +1240,26 @@ export default function Downloads() {
               refuses one that disagrees with this rather than guessing, so the
               menu is disabled while a link is in the box; a bare id says
               nothing, so it is not. A BV id says Bilibili, and the menu shows
-              it rather than a platform that will not be used. */}
+              it rather than a platform that will not be used. A link shows
+              that the link decides: left on its last value, a Bilibili link
+              sat beside a greyed-out "douyin". */}
           <Field id="download-platform" label={t('downloads.field.platform')}>
             <Select
-              value={shape.kind === 'bare' && shape.fixed ? shape.fixed : platform}
+              value={
+                shape.kind === 'link'
+                  ? ''
+                  : shape.kind === 'bare' && shape.fixed
+                    ? shape.fixed
+                    : platform
+              }
               disabled={!usesPlatformMenu(shape)}
               onChange={(event) => {
                 setPlatform(event.target.value as Platform)
               }}
             >
+              {shape.kind === 'link' ? (
+                <option value="">{t('downloads.field.platformFromLink')}</option>
+              ) : null}
               {PLATFORMS.map((name) => (
                 <option key={name} value={name}>
                   {name}

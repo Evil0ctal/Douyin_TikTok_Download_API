@@ -485,7 +485,7 @@
       "modeHint": {
         "all": "Rotation may hand it to any endpoint. Endpoints that need a login still prefer or require one, and with guests first on, the rest reach a login only when no guest can.",
         "limited": "Rotation hands it out for the ticked endpoints and nothing else - how a login is kept for the endpoints that need one. A request that names it is never limited by this.",
-        "reserved": "Rotation never hands it out, not even for a later page that needs a login: only a request carrying identity= with its id uses it. It is left out of the pool level."
+        "reserved": "Rotation never hands it out, not even for an endpoint or a later page that needs a login: only a request carrying identity= with its id uses it. It is left out of the pool level."
       },
       "mixedPlatforms": "A list of endpoints is set on one platform at a time, and the selection spans several.",
       "pickLogin": "Only the ones that need a login",
@@ -695,9 +695,9 @@
     },
     "serves": {
       "title": "Only identities rotation may send to {endpoint}",
-      "why": "Those in rotation for every endpoint, and those limited to a list that names it. Reserved identities never match.",
+      "why": "Those in rotation for every endpoint, and those limited to a list that names it. Reserved identities never match, and guests do not where the endpoint needs a login from its first page.",
       "readyTitle": "Only identities rotation can send to {endpoint} now",
-      "readyWhy": "Those in rotation for it, active or degraded: the ones the Scheduler page counts under Can serve. Cooling identities come back when they recover, and are listed under Cooling there."
+      "readyWhy": "Those in rotation for it, active or degraded, and only the logins where it needs one from its first page: the ones the Scheduler page counts under Can serve. Cooling identities come back when they recover, and are listed under Cooling there."
     }
   },
   "proxy": {
@@ -1536,6 +1536,7 @@
       "aweme_id": "Post id. Provide this or a link.",
       "board": "Which list: hot (popular now, the default), weekly (the weekly selection), precious (the editors' all-time selection) or rank (the site-wide top 100).",
       "boardCursor": "For hot, the page number. For weekly, the issue number; empty is the newest issue. precious and rank are one page each and ignore it.",
+      "boardCount": "Items per page for hot, up to {max}. The other boards come in the size the site makes them - an issue of weekly is 50, rank is 100 - and ignore it.",
       "collection_id": "The folder's id, from a folder link or from the folder list.",
       "comment_id": "The comment whose replies you want.",
       "count": "Items per page, up to {max} on this platform.",
@@ -2118,6 +2119,7 @@
     },
     "field": {
       "platform": "Platform",
+      "platformFromLink": "From the link",
       "contentId": "Content id",
       "contentIdHint": "The post id as the archive holds it. Parse the post first if it is not there yet."
     },
@@ -2291,6 +2293,7 @@
       "label": "Part",
       "hint": "Bilibili videos can come in several parts. A plain download stores the first; pick another to store that one, in a folder of its own. A link's ?p= picks it too.",
       "first": "First part",
+      "firstOption": "P1 · {title} · {duration} (the default)",
       "numbered": "Part {part}",
       "option": "P{part} · {title} · {duration}",
       "load": "List the parts",

@@ -1073,8 +1073,12 @@ export default function Playground() {
           // an <option> is one of the few places with no hover and no copy
           // button to fall back on.
           row.id,
-          row.state,
-          row.authenticated ? t('playground.identityLoggedIn') : row.source,
+          // In words, as the Identities page shows them: the raw `active` and
+          // `minted` sat beside a translated "logged in" in the same label.
+          t(`common:state.identity.${row.state}`, { defaultValue: row.state }),
+          row.authenticated
+            ? t('playground.identityLoggedIn')
+            : t(`identity.source.${row.source}`, { defaultValue: row.source }),
         ].join(' · '),
       })),
     ]

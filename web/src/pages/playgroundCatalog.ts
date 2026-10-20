@@ -366,6 +366,11 @@ const BOARD_CURSOR_PARAM: ParamDef = {
   ...CURSOR_PARAM,
   descriptionKey: 'playground.param.boardCursor',
 }
+/** Read by `hot` alone: the other boards come back 50, 100 or so at a time. */
+const BOARD_COUNT_PARAM: ParamDef = {
+  ...COUNT_PARAM,
+  descriptionKey: 'playground.param.boardCount',
+}
 
 /* -------------------------------------------------------------------------- */
 /* The catalogue                                                               */
@@ -555,7 +560,7 @@ export const CATALOG: readonly EndpointDef[] = [
     operationFor: (values) => BOARD_OPERATIONS[values['board'] || 'hot'] ?? 'popular',
     platformScoped: true,
     platforms: ['bilibili'],
-    params: [BOARD_PARAM, BOARD_CURSOR_PARAM, COUNT_PARAM, ...ENVELOPE_PARAMS],
+    params: [BOARD_PARAM, BOARD_CURSOR_PARAM, BOARD_COUNT_PARAM, ...ENVELOPE_PARAMS],
   },
 ]
 

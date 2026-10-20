@@ -73,8 +73,19 @@ export function PartPicker({
   }
 
   const chosen = Number(value)
+  // Named like the rest once the list is in: it was the one bare "first part"
+  // in a menu where every other entry had a title and a length.
+  const first = parts?.find((part) => part.part === 1)
   const options = [
-    { value: '', label: t('downloads.part.first') },
+    {
+      value: '',
+      label: first
+        ? t('downloads.part.firstOption', {
+            title: first.title,
+            duration: formatters.duration(first.duration_ms),
+          })
+        : t('downloads.part.first'),
+    },
     ...(parts ?? [])
       .filter((part) => part.part > 1)
       .map((part) => ({
