@@ -34,6 +34,7 @@ COOKIE_BLOB = "ttwid=1%7Cabcdefghijklmnop; odin_tt=0123456789abcdef"
 SESSION_COOKIE_BLOB = f"{COOKIE_BLOB}; sessionid=deadbeefcafebabe0123"  # SYNTHETIC
 POSTS = "douyin.author_posts"
 DETAIL = "douyin.content_detail"
+LIKES = "douyin.author_likes"
 
 
 async def make_identity(
@@ -302,6 +303,32 @@ async def test_coverage_counts_each_endpoint_the_way_the_scheduler_does(client: 
     assert (endpoints[DETAIL]["ready"], endpoints[DETAIL]["signed_in"]) == (1, 0)
     assert endpoints[DETAIL]["cooling"] == 1
     assert by_platform["tiktok"]["endpoints"][0]["ready"] == 0
+
+
+async def test_an_endpoint_only_logins_serve_counts_and_lists_only_logins(client: Any) -> None:
+    """Douyin's author likes go to logins alone, first page included. The card
+    put every guest in rotation under Can serve there, beside a 0 under Logins,
+    and the list it opened was those guests - none of whom the scheduler would
+    ever send to it."""
+    await signed_in(client)
+    await make_identity()
+    await make_identity(state="cooling")
+    login = await make_identity(authenticated=True)
+    resting_login = await make_identity(authenticated=True, state="cooling")
+
+    data = envelope(await client.get("/api/v1/admin/identities/coverage"))["data"]
+    douyin = next(entry for entry in data["platforms"] if entry["platform"] == "douyin")
+    likes = next(entry for entry in douyin["endpoints"] if entry["endpoint"] == LIKES)
+    ready = envelope(
+        await client.get("/api/v1/admin/identities", params={"serves": LIKES, "ready": "true"})
+    )
+    cooling = envelope(
+        await client.get("/api/v1/admin/identities", params={"serves": LIKES, "state": "cooling"})
+    )
+
+    assert (likes["ready"], likes["signed_in"], likes["cooling"]) == (1, 1, 1)
+    assert [row["id"] for row in ready["data"]] == [str(login)]
+    assert [row["id"] for row in cooling["data"]] == [str(resting_login)]
 
 
 async def test_coverage_reports_a_platform_with_guests_first_off(client: Any) -> None:

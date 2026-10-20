@@ -247,6 +247,16 @@ def test_placeholders_are_identical_across_languages():
             assert set(_PLACEHOLDER_RE.findall(MESSAGES[language][code])) == english, code
 
 
+def test_a_path_written_in_prose_keeps_its_braces():
+    """Every catalogue entry is formatted, so an example path's `{platform}` is
+    read as an argument nobody passes. The Chinese settings page and API
+    document both showed the word for "unknown" where the path parameter was,
+    and logged a missing argument on every read."""
+    for language in SUPPORTED_LANGUAGES:
+        for key, text in catalog_module.catalog(language).items():
+            assert not re.search(r"/\{[a-z_]+\}", text), (language.value, key)
+
+
 def test_translations_are_not_copies_of_the_english_text():
     for code in ErrorCode:
         assert MESSAGES[Language.ZH][code] != MESSAGES[Language.EN][code], code

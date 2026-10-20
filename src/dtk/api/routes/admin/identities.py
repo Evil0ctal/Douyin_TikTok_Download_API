@@ -360,6 +360,24 @@ class RotationFilter(StrEnum):
 _SERVING_STATES: Final = (IdentityState.ACTIVE.value, IdentityState.DEGRADED.value)
 
 
+def _logins_only(endpoint: str) -> bool:
+    """Whether rotation sends this endpoint nothing but logins, first page included.
+
+    The scheduler's pass for such an endpoint draws signed-in identities alone,
+    so a guest in rotation for it is never sent there. Counting the guests
+    anyway put "8" under Can serve beside Douyin's author likes, an endpoint
+    those eight could not serve once, and the list it opened was eight guests.
+    """
+    from dtk.platforms.base import LoginNeed
+    from dtk.platforms.registry import get_adapter
+
+    try:
+        table = get_adapter(Platform(endpoint.partition(".")[0])).endpoints
+    except ValueError:
+        return False
+    return endpoint in table and table[endpoint].login is LoginNeed.REQUIRED
+
+
 def _list_conditions(
     *,
     platform: Platform | None,
@@ -398,6 +416,8 @@ def _list_conditions(
                 Identity.rotation_endpoints.contains([serves]),
             )
         )
+        if _logins_only(serves):
+            conditions.append(Identity.authenticated.is_(True))
     if ready:
         conditions.append(Identity.state.in_(_SERVING_STATES))
     return conditions
@@ -447,7 +467,8 @@ async def list_identities(
         description=(
             "Only identities rotation may hand out for this endpoint, such as "
             "`douyin.author_posts`: those in ordinary rotation and those limited to a "
-            "list that names it. Reserved identities never match."
+            "list that names it. Reserved identities never match, and guests do not "
+            "where the endpoint needs a login from its first page."
         ),
     ),
     ready: bool = Query(
@@ -1515,9 +1536,10 @@ async def rotation_coverage(request: Request, principal: Principal = Depends(rea
     identity's rotation one at a time.
 
     Counted the way the scheduler counts: an identity serves an endpoint when it
-    has no rotation list or its list names the endpoint, and it is `ready` when
-    it is active or degraded. A request that names an identity with
-    `identity=` is never limited by any of this.
+    has no rotation list or its list names the endpoint - and is a login, where
+    the endpoint needs one from its first page - and it is `ready` when it is
+    active or degraded. A request that names an identity with `identity=` is
+    never limited by any of this.
 
     **Returns**
 
@@ -1550,10 +1572,12 @@ async def rotation_coverage(request: Request, principal: Principal = Depends(rea
         endpoints: list[dict[str, Any]] = []
         for entry in table.get(platform.value, []):
             name = entry["endpoint"]
+            logins_only = _logins_only(name)
             rotating = [
                 row
                 for row in mine
-                if row.rotation_endpoints is None or name in row.rotation_endpoints
+                if (row.rotation_endpoints is None or name in row.rotation_endpoints)
+                and (row.authenticated or not logins_only)
             ]
             ready = [row for row in rotating if row.state in serving]
             endpoints.append(

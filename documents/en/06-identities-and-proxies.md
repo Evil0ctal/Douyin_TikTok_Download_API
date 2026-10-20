@@ -197,7 +197,9 @@ opens.
 serve this endpoint", asked from the endpoint's side, and the Scheduler page's
 coverage table links with it. It keeps the identities rotation may send there -
 those in rotation for every endpoint and those limited to a list that names it,
-never a reserved one - and the page says so in a notice above the table, with
+never a reserved one, and only the logins where the endpoint needs one from its
+first page, as Douyin's author likes do - and the page says so in a notice above
+the table, with
 **Clear** beside it. Without the notice, a table narrowed that way would read as
 a pool that had lost most of its identities. It filters on rotation alone, so
 cooling identities are listed too - unless `ready=1` comes with it, as it does from
@@ -1146,7 +1148,8 @@ than buried in an alphabetical settings list. It shows:
   - a table, one row per endpoint rotation can reach. **Login** is the tag the
     Rotation card's checklist uses. **Can serve** counts the active and
     degraded identities rotation may send there - in rotation for every
-    endpoint, or limited to a list that names it - and links to exactly those,
+    endpoint, or limited to a list that names it, and only logins where the
+    endpoint needs one from its first page - and links to exactly those,
     `/identities?platform=<platform>&serves=<endpoint>&ready=1`. **Logins** is how many
     of those are logins, a 0 shown in caution where the endpoint or its later
     pages need one, because those pages then answer `IDENTITY_LOGIN_REQUIRED`.

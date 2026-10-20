@@ -568,7 +568,7 @@ B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)�
 
 | 调用 | 角色 | 接收什么、返回什么 |
 | --- | --- | --- |
-| `GET /api/v1/admin/identities` | viewer 及以上 | 身份列表。每一行带 `note`，以及 `account_id` 和 `account_seen_at`——上一次检查登录态时平台给出的账号和检查时间；还没有哪次检查给出过账号时为 null。`serves=<接口>`（例如 `douyin.author_posts`）只保留轮换可以把它派到这个接口的身份：没有轮换清单的，以及清单里列了这个接口的。只服务点名请求的身份永远不在其中 |
+| `GET /api/v1/admin/identities` | viewer 及以上 | 身份列表。每一行带 `note`，以及 `account_id` 和 `account_seen_at`——上一次检查登录态时平台给出的账号和检查时间；还没有哪次检查给出过账号时为 null。`serves=<接口>`（例如 `douyin.author_posts`）只保留轮换可以把它派到这个接口的身份：没有轮换清单的，以及清单里列了这个接口的。只服务点名请求的身份永远不在其中；接口从第一页起就需要登录时，游客身份也不在其中 |
 | `PATCH /api/v1/admin/identities/{id}` | operator | `{"note": "..."}` 设置备注，`{"note": null}` 或空白备注表示清除。只能一行，去掉首尾空白后最多 200 个字符，否则返回 `INVALID_PARAM`。这个字段是必填的，所以 `{}` 会被拒绝，而不是被当成清除。返回这个身份在列表里的样子；以 `identity.note_changed` 记入审计，不记内容 |
 | `GET /api/v1/admin/identities/coverage` | viewer 及以上；演示账号不行 | 按平台给出：`guests_first`、`reserved`（只服务点名请求的身份数）和 `endpoints`——每个操作一项，带上文的能力字段，外加 `ready`（轮换可以派到这里的可用和降级身份数）、`signed_in`（其中的登录身份）、`cooling` 和 `dedicated`（其中清单里专门列了这个接口的）。统计方式与调度器一致；带 `identity=` 的请求完全不受这些限制 |
 | `POST /api/v1/admin/identities/import` | operator | 接受可选的 `note`，规则与 `PATCH` 相同 |
