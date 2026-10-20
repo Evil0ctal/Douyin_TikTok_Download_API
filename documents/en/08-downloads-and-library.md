@@ -189,6 +189,21 @@ The table polls every 2 seconds while anything is in flight and every 10 seconds
 
 Clicking a row opens a drawer, titled by the post, with the player, the per-file list, each file's SHA-256, and a save link per completed file. It links to the post in the Library when the archive has it, and when the video already has a transcript, **Transcribe video** becomes **Open the transcript**. The drawer follows the row as the table refreshes: opened on a running download, it shows each file's own progress and speed, and the stored files once it lands.
 
+### The `progress` object
+
+Over the API the bar is `progress`, on every row of `GET /api/v1/downloads` and on `GET /api/v1/downloads/{download_id}`. It is read live from the sidecar and never stored, so it is `null` on a settled row, while the downloader is not configured or not answering, for a job the sidecar has forgotten (it keeps a bounded history and loses it on a restart), and on in-flight rows past the first 8 of a page. A `null` is "no bar", never "no progress".
+
+| Field | Type | What it is |
+| --- | --- | --- |
+| `bytes` | integer | Bytes written so far, summed over the files |
+| `bytes_expected` | integer or `null` | What the whole download will weigh: a finished file's real size, a running file's declared `Content-Length`, nothing for a failed file. `null` while any file has not started or its server declared no length — count files then, as the console does |
+| `bytes_per_second` | integer | Speed over the last few seconds, summed over the files that are running |
+| `files_done`, `files_total` | integer | Files finished, and files in the job |
+| `state` | string | The sidecar's own state for the job: `queued`, `running`, `done`, `partial`, `failed` or `cancelled`. It can settle a moment before the row does |
+| `items` | array | One entry per file, in the job's order: `name`, `kind` (`video`, `image` or `cover`), `state` (`queued`, `running`, `done` or `failed`), `bytes`, `bytes_expected` (`null` when the server declared none) and `bytes_per_second` (`0` unless it is running) |
+
+`bytes_expected` is for display only: the size ceiling is enforced in the sidecar on bytes actually written, never on what a server declared.
+
 ## Retrying, and why there is no resume across attempts
 
 Retry is offered on `failed`, `partial` and `cancelled` rows. It calls `POST /api/v1/downloads/retry` with the `download_id` and starts the same post over from scratch, re-parsing the post first if the stored mirrors have gone stale (older than `media.mirror_max_age_seconds`, 600 seconds by default).
@@ -362,6 +377,8 @@ A deleted post answers the platform's own not-found, and **that is the finding, 
 The worker queues a recheck by itself roughly every six hours, so the button is for when you want the answer now. Setting `archive.recheck_after_days` to 0 turns rechecking off entirely.
 
 Because it spends the identity pool, this endpoint requires a *platform* read scope (`douyin:read`, `tiktok:read` or `bilibili:read`) rather than `archive:read` — reading the archive is promised to cost nothing, and a recheck is a platform read wearing an archive name.
+
+For the same reason the recheck and the author backfill queue like reads. Once the worker queue is at `sched.queue_max` (500) they answer `503` with `QUEUE_FULL` and a `Retry-After` of `sched.max_wait_seconds` (10): wait that long and ask again. Asking while an identical one is still queued joins it rather than queueing a second. The worker's own scheduled recheck is submitted directly and never meets that ceiling.
 
 ## Deleting posts and their media
 

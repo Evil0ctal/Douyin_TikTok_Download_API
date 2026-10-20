@@ -106,6 +106,8 @@ hint: export DTK_SECRET_KEY, or run the CLI inside the container that has it
 | `DTK_DATABASE_URL` | `postgresql+asyncpg://dtk:dtk@postgres:5432/dtk` | 所有访问状态的命令 |
 | `DTK_REDIS_URL` | `redis://redis:6379/0` | `dtk config set`、`dtk identity retire`、`dtk diagnose`、`dtk worker` |
 | `DTK_BROWSER_RPC_URL` | 空（禁用） | `dtk identity mint` 铸造抖音和 TikTok 时必需；设置后，`dtk fetch`、`dtk identity test` 以及 `dtk diagnose` 的第 5 步会把它当作签名兜底 |
+| `DTK_DOWNLOADER_URL`、`DTK_DOWNLOADER_TOKEN` | 空（不下载媒体） | `dtk worker`，它通过这个 sidecar 存媒体；`dtk serve` 启动的应用，下载相关的路由要用；`dtk diagnose` 的第 1 步，只有设置了它才会检查下载器。令牌是和 sidecar 共享的密钥，两边必须一致 |
+| `DTK_TRANSCRIBER_URL`、`DTK_TRANSCRIBER_TOKEN` | 空（不转写） | 同样这三处，用于转写 sidecar |
 | `DTK_BIND_HOST` | `127.0.0.1` | `dtk serve` 未指定 `--host` 时 |
 | `DTK_BIND_PORT` | `8000` | `dtk serve` 未指定 `--port` 时 |
 | `DTK_LOG_LEVEL` | `info` | `dtk serve`（传给 uvicorn，它启动的 API 应用也会再读一次）和 `dtk worker`——worker 会用它配置日志栈。它**不会**改变其他命令的日志输出——`fetch`、`diagnose`、`config`、`identity`、`proxy`、`user`、`backup`、`migrate` |
@@ -155,7 +157,7 @@ docker compose -p dtk -f docker/compose.yml exec -T -e COLUMNS=10000 api \
 | 命令 | 作用 | 涉及 |
 |---|---|---|
 | `dtk fetch` | 解析一个链接并打印归一化后的结果 | 数据库、平台 |
-| `dtk diagnose` | 六步自检，输出一份报告 | 数据库、Redis、代理、browser-rpc、平台 |
+| `dtk diagnose` | 六步自检，输出一份报告 | 数据库、Redis、代理、browser-rpc、下载器、转写服务、平台 |
 | `dtk worker` | 前台运行任务 worker | 数据库、Redis |
 | `dtk migrate` | 执行数据库迁移 | 数据库 |
 | `dtk serve` | 运行 API 服务 | — |

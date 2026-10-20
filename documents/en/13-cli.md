@@ -107,6 +107,8 @@ hint: export DTK_SECRET_KEY, or run the CLI inside the container that has it
 | `DTK_DATABASE_URL` | `postgresql+asyncpg://dtk:dtk@postgres:5432/dtk` | Every command that touches state |
 | `DTK_REDIS_URL` | `redis://redis:6379/0` | `dtk config set`, `dtk identity retire`, `dtk diagnose`, `dtk worker` |
 | `DTK_BROWSER_RPC_URL` | empty (disabled) | `dtk identity mint` requires it for Douyin and TikTok; `dtk fetch`, `dtk identity test` and step 5 of `dtk diagnose` use it as the signing fallback when it is set |
+| `DTK_DOWNLOADER_URL`, `DTK_DOWNLOADER_TOKEN` | empty (no media downloads) | `dtk worker`, which stores media through the sidecar; the app `dtk serve` starts, for the download routes; step 1 of `dtk diagnose`, which reports the downloader only where this is set. The token is the sidecar's shared secret and has to match it |
+| `DTK_TRANSCRIBER_URL`, `DTK_TRANSCRIBER_TOKEN` | empty (no transcription) | The same three, for the transcription sidecar |
 | `DTK_BIND_HOST` | `127.0.0.1` | `dtk serve`, when `--host` is not given |
 | `DTK_BIND_PORT` | `8000` | `dtk serve`, when `--port` is not given |
 | `DTK_LOG_LEVEL` | `info` | `dtk serve` (handed to uvicorn, and read again by the API app it starts) and `dtk worker`, which configures the logging stack from it. It does **not** change the log output of the other commands — `fetch`, `diagnose`, `config`, `identity`, `proxy`, `user`, `backup`, `migrate` |
@@ -156,7 +158,7 @@ That parses. Commands that make no network calls — `dtk config get`, `dtk migr
 | Command | What it does | Touches |
 |---|---|---|
 | `dtk fetch` | Resolve one link and print the normalized result | DB, platform |
-| `dtk diagnose` | Six-step self-check, printed as a report | DB, Redis, proxies, browser-rpc, platform |
+| `dtk diagnose` | Six-step self-check, printed as a report | DB, Redis, proxies, browser-rpc, downloader, transcriber, platform |
 | `dtk worker` | Run the task worker in the foreground | DB, Redis |
 | `dtk migrate` | Apply database migrations | DB |
 | `dtk serve` | Run the API server | — |

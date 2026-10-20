@@ -72,6 +72,8 @@ curl -sS "$DTK_BASE_URL/api/v1/auth/me" -H "X-API-Key: $DTK_API_KEY"
 | `archive:export` | `GET /api/v1/archive/export`——一次调用拿走整个集合；`POST /api/v1/archive/export`——只导出请求体里列出的作品 |
 | `media:read` | 下载记录与已存文件 |
 | `media:write` | 发起、置顶和取消下载，以及删除下载的文件 |
+| `transcription:read` | `GET /api/v1/transcriptions…`——转写列表和单条转写的文本，账号须为 `viewer` 及以上角色 |
+| `transcription:write` | 发起、取消和删除转写；它同样能读 |
 | `identity:manage` | 身份池，以及 `identity`、`explain` 这两个请求参数 |
 | `admin` | 全部 |
 
@@ -304,7 +306,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 
 一旦 Redis 队列达到 `sched.queue_max`（默认 **500**），提交会被拒绝而不是继续排队：`503`，code 为 `QUEUE_FULL`，带 `Retry-After` 响应头，`details.queued` 给出当前深度。`retry_after` 取 `sched.max_wait_seconds`（默认 **10**）。让调用方干等着，比直接告诉它稍后再来更糟。
 
-有两个刻意的例外：能合并到**已在队列中**的相同任务上的请求会被放行（它并不增加积压）；运营方手动触发的维护作业豁免——因为队列一深就拒绝跑自检，等于恰好在最需要这个工具的时候把它收走。媒体下载**不**豁免，否则某个运营方的批量下载会把实例上所有读请求饿死。
+有两个刻意的例外：能合并到**已在队列中**的相同任务上的请求会被放行（它并不增加积压）；运营方手动触发的维护作业豁免——因为队列一深就拒绝跑自检，等于恰好在最需要这个工具的时候把它收走。媒体下载和转写**不**豁免，否则某个运营方的一次批量操作会把实例上所有读请求饿死。归档复检和作者回填也不豁免：它们只要求一个平台读权限，豁免的话任何只读 Key 都能把它们堆过上限，而每一个都是一串真实请求。
 
 ## 分页
 
@@ -533,7 +535,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 
 B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)。
 
-除了核心那五个之外，各平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。B 站提供核心五个加上收藏夹，其余的也以同样方式作答——见 [B 站](#b-站)。`user/likes` 抖音和 TikTok 都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
+除了核心那五个之外，各平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。B 站提供核心五个、收藏夹、视频分 P 和热门榜——后两个只有 B 站有——其余的也以同样方式作答——见 [B 站](#b-站)。`user/likes` 抖音和 TikTok 都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
 
 收藏夹是这种不对称最尖锐的一处。**抖音和 TikTok 都允许逐个把收藏夹设为公开或私密**，公开的那些用普通的池内身份就能读——两边都不需要登录。但收藏夹**列表**不同：TikTok 的（以及 B 站的）接受作者参数，能回答陌生人公开的收藏夹；抖音的请求里则根本没有用户 id，只回答发出请求的那个身份自己的收藏夹。所以在抖音上，`user/collections` 必须把 `identity` 指向导入的身份，而传 `url` 或 `sec_user_id` 会被拒绝而不是被忽略——忽略它的话，返回的会是你自己的收藏夹，却挂在别人的名下。每个收藏夹都会给出 `is_public` 和归属，所以你不需要猜自己处在哪种情况。
 
@@ -547,12 +549,13 @@ B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)�
 | --- | --- | --- |
 | `/api/v1/tasks/…` | 轮询、订阅、取消任务 | 本文 |
 | `/api/v1/tools/…` | `parse-url`、`parse-batch`、`sign`、`decode`、`identity`——试跑与签名，前四个不消耗身份 | [调试台与工具](./07-playground-and-tools.md) |
-| `/api/v1/archive/…` | 本实例已存下来的内容：检索、统计、合集、导出、复检、回填 | [下载、素材库与监控](./08-downloads-and-library.md) |
-| `/api/v1/downloads/…` | 存在运营方磁盘上的媒体 | [下载、素材库与监控](./08-downloads-and-library.md) |
+| `/api/v1/archive/…` | 本实例已存下来的内容：检索、统计、合集、导出、删除、复检、回填 | [下载、资料库与关注列表](./08-downloads-and-library.md) |
+| `/api/v1/downloads/…` | 存在运营方磁盘上的媒体 | [下载、资料库与关注列表](./08-downloads-and-library.md) |
+| `/api/v1/transcriptions/…` | 已下载视频的离线转写：发起、列出、读取、取消、删除 | [下载、资料库与关注列表](./08-downloads-and-library.md#把已存的视频转成文字) |
 | `/api/v1/admin/…` | 身份、代理、密钥、用户、设置、日志、关注列表、备份 | [身份与代理](./06-identities-and-proxies.md)、[运维](./10-operations.md)、[用户与 API 密钥](./09-users-and-api-keys.md)；脚本常用的身份接口见下文 |
 | `/api/v1/auth/…` | 控制台会话与改密码 | [用户与 API 密钥](./09-users-and-api-keys.md) |
 | `/api/v1/ios/…` | iOS 快捷指令的发布信息——无需认证 | 本文 |
-| `/api/v1/system/status` | 版本、健康、身份池统计、存储 | [运维](./10-operations.md) |
+| `/api/v1/system/status` | 版本、健康、身份池统计、存储，以及浏览器容器、下载器和转写服务是否应答 | [运维](./10-operations.md) |
 | `/api/v1/system/capabilities` | 每个平台提供哪些操作，其中哪些只回答发请求的身份本人，以及游客身份在每个操作上会少拿到什么。任何凭据都能读——所有角色（包括演示账号）和任何 API Key | 本文 |
 
 归档类接口全部从本地存储作答：不消耗身份、不发起抓取，而一条后来被删掉的作品仍然在那里，`availability` 会说明这件事。所以想要「实例已经知道的东西」就用 `GET /api/v1/archive`，想要「最新的」才用 `/parse`。
@@ -660,7 +663,7 @@ B 站的分页大小上限是 **20**；`count` 超过它是 `400`。
 
 ## 不走信封的响应
 
-有五个接口刻意用别的形式作答，分成四种形态。别把它们喂给你的信封解析器。
+有六个接口刻意用别的形式作答，分成四种形态。别把它们喂给你的信封解析器。
 
 | 接口 | Content type | 为什么 |
 | --- | --- | --- |

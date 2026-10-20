@@ -85,13 +85,27 @@ HTTP 请求，就会拿到 `buvid3` 和 `buvid4`，而 B 站 Cookie 罐需要的
   它会带 `ttwid`，通常还带 `s_v_web_id`、`odin_tt` 和 `msToken`，这就是一个完全合格
   的游客身份。在控制台的「身份池」页（`/identities`）导入，或者调用
   `POST /api/v1/admin/identities/import`。
-- **你要的内容只有登录后才可见**——你自己的私密作品、你在平台上关注了谁的名单，
-  或者任何平台设了门槛的数据；在 B 站上，还包括一个视频最热三条之外的评论，游客
-  只拿得到那三条。这时才需要导入那个账号的 Cookie 罐，并且每一次需要
-  它的请求都必须**指定**到那个身份上，因为用替代会话返回的答案根本不是你问的那个
-  问题的答案。
+- **你要的是游客拿不到的东西。** 分两种：
+  - 给游客的东西更少的接口：抖音作者的作品（游客的第一页缺最新几条，也没有第二页）、
+    B 站视频最热三条之外的评论，以及 B 站一条评论第一页之后的回复。导入一份已登录的
+    Cookie 罐，调度器会自己把这些请求交给它——不需要点名；游客优先开着时（默认），
+    其他请求仍然留给游客。
+  - 只属于那个账号本人的东西：它的收藏、它在抖音上的收藏夹、它自己的私密作品。
+    这些请求必须**指定**到那个身份上，因为用替代会话返回的答案根本不是你问的那个
+    问题的答案。
 
 两条流程都见[身份与代理](./06-identities-and-proxies.md)。
+
+### 我导入了登录身份，为什么它从来不被使用？
+
+多半是因为还没有人请求只有它才能答的东西。**游客优先**（`pool.<platform>.guests_first`，
+默认开启）会把游客能答得和登录态一样完整的请求交给游客，只有所有游客都在忙时才轮到
+登录身份；登录身份花在那些给游客的东西更少的接口上。这正是用意所在：游客的代价是
+一次铸造，登录身份的代价是某个人的账号。
+
+如果这些接口确实有人在调，它却仍然闲着，多半是它被设成只服务点名它的请求、被限定到
+别的接口、正在冷却，或者已经掉了登录。[导入的登录身份一直闲着](./14-troubleshooting.md#导入的登录身份一直闲着)
+逐一讲了这些情况，以及如果你宁愿让登录身份平摊所有请求，怎么关掉游客优先。
 
 ### 我的账号会被封吗？
 
@@ -274,6 +288,14 @@ TikTok 对已删除的作品返回两个不同的状态字段。两者都被归�
 下载器**启用**之后，文件按 `<平台>/<作者>/<作品 ID>/` 的结构落在一个 Docker 卷上，
 旁边有一个 `meta.json`；带 `media:read` 权限时，API 可以通过
 `GET /api/v1/downloads/{download_id}/files/{name}` 把文件交给浏览器。
+
+### 为什么下载只显示「1/2 个文件」，没有进度条？
+
+因为下载器比 API 旧。进度条背后的字节数、速度和剩余时间来自 5.1.6 的下载器镜像；
+更早的版本只在文件下完之后才报告它的大小。同一个版本错配还会让被 CDN 边缘节点
+提前切断的 B 站视频以 `partial` 结束，而 5.1.6 的下载器会从断开处续传。它是一个
+单独的镜像，所以升级时也得拉取或构建 `downloader`——见
+[进度只数文件，或者 B 站视频落地是空的](./14-troubleshooting.md#进度只数文件或者-b-站视频落地是空的)。
 
 ### 需要多少磁盘？
 
@@ -477,7 +499,8 @@ Ethereum (ERC20)、BNB Smart Chain (BEP20) 和 Bitcoin 的加密货币地址列�
 | **出口（egress）** | 请求实际发出的地址：一条代理，或者宿主机自己的连接。一个身份终生绑定一个出口。 |
 | **游客身份** | 没有登录态的身份。便宜、可弃，也是身份池默认铸造的东西。 |
 | **登录态 Cookie 罐** | 带真实会话（抖音和 TikTok 上是 `sessionid`、`sid_tt`、`sid_guard` 等；B 站上是 `SESSDATA`）的导入身份。等同于该账号的密码，请用小号。 |
-| **身份状态** | `minting`、`active`、`cooling`、`degraded`、`retired` 之一。只有 `active` 参与正常轮换；`retired` 的 Cookie 罐已被清空，无法恢复。 |
+| **身份状态** | `minting`、`active`、`cooling`、`degraded`、`retired` 之一。轮换选的是 `active` 的身份，一个 active 都没有了才用 `degraded` 的；`retired` 的 Cookie 罐已被清空，无法恢复。 |
+| **游客优先（guests first）** | `pool.<platform>.guests_first`，默认开启：在游客和登录态拿到的答案一样的接口上，先选游客，只有所有游客都在请求中或额度用完时才选登录身份。给游客的东西更少的接口无论开关如何，都优先或只用登录态。 |
 | **冷却（cooldown）** | 身份收到风控响应后的休息时间：`sched.cooldown_base_seconds` 按连续失败次数翻倍，再乘以该接口的风险权重，上限 `sched.cooldown_max_seconds`。 |
 | **健康度（health score）** | `success_rate × (1 − risk_rate) × 0.5^consecutive_fails`，取值在 `[0, 1]`。用相乘而不是加权求和，是为了让任何一项塌下来都能把总分拉下去。 |
 | **指定身份（pin）** | 指名某次请求必须走哪个身份。一次指定身份就是"只有一个成员的池"——任何拒绝都不会让它放宽，双向绕过响应缓存，并且只有一次传输尝试而不是三次。需要 `operator` 角色，外加 `admin` 或 `identity:manage` 权限（控制台会话只受角色限制）。 |
@@ -511,7 +534,7 @@ Ethereum (ERC20)、BNB Smart Chain (BEP20) 和 Bitcoin 的加密货币地址列�
 | **熔断器（circuit breaker）** | 按接口计。在 300 秒滚动窗口内，风控比例超过 `sched.circuit_risk_threshold`（0.6）、样本数不少于 `sched.circuit_min_samples`（20）、且失败横跨至少 `sched.circuit_min_identities`（3）个不同身份时触发。打开 300 秒，每 60 秒放一个探针。 |
 | **风控（risk control）** | 平台拒绝的是*这个身份*——验证码页、验证信封、429，或者一个 200 却把负载扣住不给。它会让身份的连续失败数加一、施加冷却，并计入熔断判断。它与业务错误的区分是刻意的：一条被删的视频绝不能算到一个好 Cookie 头上。 |
 | **结果（outcome）** | 对一次上游响应的分类：`ok`、`business_error`、`risk_control` 或 `network_error`。系统里每一个健康数字都挂在这一个判断上。 |
-| **拒绝原因（reject reason）** | 调度器拒发租约的理由，记录在 `request_log` 里：`circuit_open`、`no_identity`、`no_token`、`all_inflight`、`pinned_unavailable`、`wait_timeout`。还有一个 `queue_full`，它是 API 层在任务创建之前就做出的拒绝，只出现在错误信封的 `details.reject_reason` 里，永远不会写成 `request_log` 的行。 |
+| **拒绝原因（reject reason）** | 调度器拒发租约的理由，记录在 `request_log` 里：`circuit_open`、`no_identity`、`no_token`、`all_inflight`、`pinned_unavailable`、`no_login`、`wait_timeout`。还有一个 `queue_full`，它是 API 层在任务创建之前就做出的拒绝，只出现在错误信封的 `details.reject_reason` 里，永远不会写成 `request_log` 的行。 |
 | **合并（coalescing）** | 多个调用方同时问同一件事时，第一个任务在 Redis 里认领这个摘要（TTL 90 秒），其余的挂到同一个任务上，而不是各自排队。如果认领它的那个任务已经失败，这条认领会被丢弃而不是被加入。 |
 | **响应缓存** | 按归一化后的业务参数做键，而不是按原始 URL，所以同一个链接的两种写法命中同一条缓存。命中不消耗身份额度，但仍然会被记录。`?refresh=true` 跳过读取但照样写入。 |
 

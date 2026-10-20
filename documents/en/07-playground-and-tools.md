@@ -164,7 +164,12 @@ everywhere and leave the API to say so.
 
 The `identity` field is a picker rather than a text box, because the value is a
 UUID nobody types from memory and the real question is "which of my accounts".
-The list shows the full id, the identity's state and whether it is logged in.
+The first option, **Any identity (scheduler picks)**, leaves the choice to
+rotation. After it come up to 200 identities, newest first, each reading
+note · full id · state · `logged in`, or its source (`minted` or `imported`)
+for a guest. The note leads when there is one, because it is what tells your
+logins apart and the id is read only to confirm it; the id is printed whole,
+because an option has no hover and no copy button to fall back on.
 Retired identities are excluded — retirement wipes the jar, so there is nothing
 left to send as — and on a platform-scoped endpoint only that platform's
 identities are offered. Switching platform clears a pin that no longer applies,

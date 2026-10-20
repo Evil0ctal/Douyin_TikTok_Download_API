@@ -79,11 +79,14 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | `UPSTREAM_RISK_CONTROL` | [UPSTREAM_RISK_CONTROL](#upstream_risk_control) |
 | HTTP 412 / `UPSTREAM_RISK_CONTROL` on a Bilibili uploader's video list | [HTTP 412 on a Bilibili uploader's video list](#http-412-on-a-bilibili-uploaders-video-list) |
 | An author's newest posts are missing, `IDENTITY_LOGIN_REQUIRED` on the next page | [An author's newest posts are missing, or the next page will not load](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) |
-| A Bilibili video's comments stop at three, or their next page answers `IDENTITY_LOGIN_REQUIRED` | [Bilibili comments stop after three](#bilibili-comments-stop-after-three) |
+| A Bilibili video's comments stop at three, or a later page of comments or of replies answers `IDENTITY_LOGIN_REQUIRED` | [Bilibili comments stop after three](#bilibili-comments-stop-after-three) |
+| `UPSTREAM_RISK_CONTROL` on Bilibili with code -352, -412, -509 or -799 | [Bilibili's refusal codes](#bilibilis-refusal-codes) |
+| An imported login is never used, while guests do all the work | [An imported login sits idle](#an-imported-login-sits-idle) |
 | `UPSTREAM_UNREACHABLE`, or a proxy was added and nothing changed | [UPSTREAM_UNREACHABLE, and a platform this server cannot reach](#upstream_unreachable-and-a-platform-this-server-cannot-reach) |
 | `SIGNING_FAILED`, or empty responses with no error | [Signature errors and the signing self-check](#signature-errors-and-the-signing-self-check) |
 | browser-rpc is down or was never started | [The browser container is unavailable](#the-browser-container-is-unavailable) |
 | Downloads fail, or the files are not there | [Downloads fail or files are missing](#downloads-fail-or-files-are-missing) |
+| A download's progress counts files and never bytes, or a Bilibili download ends `partial` with an empty video | [Progress counts only files, or a Bilibili video lands empty](#progress-counts-only-files-or-a-bilibili-video-lands-empty) |
 | Collection stopped on its own; `CAPACITY_PAUSED` alert | [The disk is full](#the-disk-is-full) |
 | A proxy is marked unhealthy | [Proxies fail their probe](#proxies-fail-their-probe) |
 | An MCP client cannot connect to `/mcp` | [MCP client cannot connect](#mcp-client-cannot-connect) |
@@ -428,7 +431,7 @@ A business error — a deleted post, a private profile — changes nothing about
 | `body.empty` | HTTP 200 with no body at all | The plainest refusal there is |
 | `payload.withheld` | 200, intact envelope, the payload key present and empty | The envelope survived, the content was withheld |
 | `payload.bare_envelope` | 200 whose body is a status field and nothing else | A systematic refusal that used to look like a successful parse |
-| `envelope.risk_code` | Body-level status `10000` | TikTok's verification envelope |
+| `envelope.risk_code` | Body-level status `10000`, or Bilibili's `-352`, `-412`, `-509`, `-799` | TikTok's verification envelope; Bilibili refusing the caller - see [Bilibili's refusal codes](#bilibilis-refusal-codes) |
 
 **Fix, by cause.**
 
@@ -439,6 +442,27 @@ A business error — a deleted post, a private profile — changes nothing about
 - **A genuinely burnt identity.** Retire it and mint or import a replacement.
 
 **Reset one by hand** from `/identities` (the identity's **Reset** action) when you know the cause is gone — a proxy you have just fixed, for example. A retired identity is deliberately not resettable: retirement wiped the session.
+
+---
+
+## An imported login sits idle
+
+**Symptom.** You imported a logged-in cookie, and on `/identities` its **Last used** stays at "Never", or far behind the guests', while the guests answer everything.
+
+**What it means.** Usually that it is working as designed: **guests first**, `pool.<platform>.guests_first`, on by default. An endpoint that gives a guest the same answer as a login is served by guests first, and reaches a login only when every guest is busy or out of quota - a guest is minted for nothing, a login is somebody's account. The endpoints that give a guest less still go to the login first: Douyin's author posts, Bilibili's comments, and every later page of those and of Bilibili's comment replies. On an instance that asks for none of those, an idle login is a login kept for the requests only it can answer.
+
+If one of those endpoints is being called and the login still sits idle, check in this order:
+
+| What you see | Why |
+| --- | --- |
+| **Reserved** under its state | Its rotation is **Only requests that name it** - set in its drawer, or by the import dialog's checkbox. Rotation never hands it out, not even for a page that needs a login |
+| **Limited** under its state | Its rotation names other endpoints than the one being called |
+| `cooling` or `degraded` | It was refused recently. Open its drawer and **Check the login**: a lapsed session is refused like a guest |
+| It is not in the table at all | Its credential verdict is `missing` or `too_short`, which the default view hides - **Show all** brings it back. See [What the default view hides](./06-identities-and-proxies.md#what-the-default-view-hides) |
+
+The Scheduler page's coverage card shows the same from the other side: for every endpoint, how many logins rotation can send there and how many identities are cooling.
+
+**Fix.** To have the login share every endpoint with the guests, turn **guests first** off for that platform on the Scheduler page's coverage card; logins and guests then take turns by recency, and the change applies to the next request. To keep it for the endpoints that need it, leave the setting on and, in its drawer's **Rotation** card, choose **Only the endpoints ticked below** and **Only the ones that need a login**. A reserved login goes back into rotation with **Every endpoint**. See [What needs a logged-in identity](./06-identities-and-proxies.md#what-needs-a-logged-in-identity).
 
 ---
 
@@ -625,7 +649,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 - An HTTP status the platform uses to refuse a caller: **401, 403, 405, 412, 429, 444** (444 is nginx closing the connection with no response, which is what Douyin's edge does to a request it does not like).
 - A **challenge marker** in the first 4 KB of the body: `verify_center`, `verify_page`, `verifycenter`, `captcha`, `secsdk`, `byted_acrawler`, `slide_verify`, `tiktok-verify-page`. Scanned only when the body is *not* a clean success envelope — a video description containing the word "captcha" is not a captcha.
-- A body-level status of **10000** — TikTok's verification envelope.
+- A body-level status of **10000** — TikTok's verification envelope — or one of Bilibili's refusal codes, **-352, -412, -509, -799**; see [below](#bilibilis-refusal-codes).
 - **HTTP 200 with an empty body**, on an endpoint that has not declared its silence as meaningful.
 - **A payload key present and empty** (`aweme_detail`, `aweme_info`, `itemInfo`, `userInfo`, `user_info`, `user`) with nothing explaining it. An empty *list* is excluded on purpose: an empty `aweme_list` is the normal end of pagination, and treating it as risk control would cool an identity every time somebody reached the last page of a profile.
 - **A bare envelope**: HTTP 200 whose body is a status field, a message and tracing crumbs, and no payload at all. Douyin answers `author_posts` with a non-zero `max_cursor` exactly this way — 17 bytes — while the same request with `max_cursor=0` returns hundreds of kilobytes. It does so to a guest identity, and those pages now go only to logged-in ones; a logged-in identity that still gets it is being refused for real.
@@ -641,6 +665,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 - All of one proxy's identities → [Proxies fail their probe](#proxies-fail-their-probe).
 - `payload.bare_envelope` on `douyin.author_posts` → [An author's newest posts are missing, or the next page will not load](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load).
 - `http.risk_status` with HTTP 412 on `bilibili.author_posts` → the next subsection.
+- `envelope.risk_code` with a negative code on a Bilibili endpoint → [Bilibili's refusal codes](#bilibilis-refusal-codes).
 
 ### HTTP 412 on a Bilibili uploader's video list
 
@@ -649,6 +674,26 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 **What it means.** An uploader's video list is the endpoint Bilibili guards hardest. The request is already WBI-signed and carries the canvas/WebGL report (`dm_img_*`) the space page itself sends, and that does not help: a burst of requests from one egress gets HTTP 412 pages for a few minutes, whatever the headers say (measured). This instance reports that as `UPSTREAM_RISK_CONTROL` and cools the identity, which is the right reading — the address is being refused, and sending the next request from it would only prolong the refusal.
 
 **Fix.** Spread the requests out, and put Bilibili identities behind proxies so they do not all leave from one address. The endpoint already has the slowest token bucket of any Bilibili endpoint for this reason; what trips it is walking many uploaders in quick succession from a single exit, and what raises the ceiling is more identities behind more exits, not retrying sooner. More identities on the same exit do not help: the token bucket is kept per identity, and the refusal is per address.
+
+### Bilibili's refusal codes
+
+**Symptom.** A Bilibili request answers `UPSTREAM_RISK_CONTROL`, and its row on the Logs page carries the rule `envelope.risk_code` with one of these codes. The HTTP status is 200: Bilibili refuses in its JSON envelope, not in the status line.
+
+**What it means.** Bilibili says "no" to the caller with a negative `code`. These four are read as risk control and cool the identity that got them, like any other refusal - the cooldown multiplied by the endpoint's risk weight - and they count toward that endpoint's circuit breaker:
+
+| Code | Bilibili's meaning | Where it shows up |
+| --- | --- | --- |
+| `-352` | Risk check failed | An endpoint that wants the page's own browser report and did not get it. Measured 2026-10-18 on an uploader's space and 2026-10-19 on the top-100 ranking: without the `dm_img_*` canvas and WebGL summary the page sends, a guest is answered `-352`, signed or not. This instance sends that report on both, derived from the identity's operating system |
+| `-412` | Request intercepted | The JSON twin of the HTML 412 page in the previous subsection: the address is being refused |
+| `-509`, `-799` | Too many requests | Asking faster than Bilibili tolerates from one caller |
+
+Other negative codes are business errors and cost the identity nothing: `-404` and `-400` are content that is not there (`NOT_FOUND`), and `-101` is "not logged in" - what **Check the login** reads as a guest or a lapsed session.
+
+**Fix.**
+
+- `-509` / `-799`, or `-412`: the same as for the HTTP 412 above - spread the requests out and put Bilibili identities behind more than one exit. More identities on one address do not help.
+- `-352` on one identity, now and then: let it cool.
+- `-352` across the pool on one endpoint, every time: Bilibili has started checking something this instance does not send. Nothing about the identities will fix it; report it with a row's request id and `dtk fetch --raw` output for that endpoint.
 
 ---
 
@@ -683,8 +728,12 @@ signed-in Bilibili identity when rotation has one, and falls back to a guest -
 marked `meta.guest_fallback` - when it has none; later pages go only to a
 signed-in identity, because a guest would be told there are none. `count` does
 not change this: Bilibili's comment endpoint takes no page size, so the value is
-accepted and ignored. Replies to one comment (`video/comments/replies`) are not
-affected - they page normally for a guest.
+accepted and ignored. Replies to one comment (`video/comments/replies`) stop
+the same way one page later: a guest is served the first page, up to 20 replies,
+and every later page empty, while page one says how many there are. So the
+first page of replies goes to anyone, and later pages only to a signed-in
+identity - with none in rotation, `IDENTITY_LOGIN_REQUIRED` at once rather than
+an empty page that reads as the end of the thread.
 
 **Fix.** Import a signed-in Bilibili jar - one that carries `SESSDATA` as well as
 `buvid3` - see [Bilibili identities](./06-identities-and-proxies.md#bilibili-identities).
@@ -848,6 +897,23 @@ New downloads are paused because the disk crossed `capacity.hard_stop_percent`. 
 ### A download finished `partial`
 
 `partial` is its own state because a post with several files can land some and lose others — that is neither `done` nor `failed`. Look at the download's row on `/downloads` for which file is missing and why. Common causes: a single file exceeded `media.max_file_bytes` (512 MiB by default, counted on bytes actually written rather than on what the server claims), or a mirror expired mid-transfer.
+
+### Progress counts only files, or a Bilibili video lands empty
+
+**Symptom.** A running download shows "1/2 files" and nothing more - no bytes against a size, no percentage, speed or time left - and its `progress` in `GET /api/v1/downloads` has `bytes_expected: null` throughout. Or a Bilibili download ends `partial` with the cover stored and the video file failed, often after exactly 2 MiB.
+
+**What it means.** Both are fixed in the downloader, which is an image of its own, separate from the API's. The byte counts come from the 5.1.6 downloader: an older one reports a file's size only once it has finished, so the page can only count files. The empty Bilibili video is a CDN edge cutting the transfer short, and since 5.1.6 the downloader asks the same mirror for the rest of the file from where it stopped. An API on 5.1.6 next to an older downloader shows both symptoms, and that is what an upgrade that pulled or built `api` and `worker` but not `downloader` leaves behind.
+
+One download that counts files while the others draw a bar is not this: its server declared no size for a file, and the page counts files rather than drawing a bar against a guess.
+
+**Confirm it.** Compare the downloader's image with the API's version:
+
+```bash
+docker compose -p dtk -f docker/compose.yml --profile downloader images downloader
+docker compose -p dtk -f docker/compose.yml exec api dtk --version
+```
+
+**Fix.** Upgrade the downloader with the rest of the stack, as [Upgrading safely](./10-operations.md#upgrading-safely) describes - pulled with the published images, or rebuilt with `build downloader` on an install built from source - and then retry the failed download from its row on `/downloads`.
 
 ### The files were there and now they are not
 

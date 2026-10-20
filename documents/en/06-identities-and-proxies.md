@@ -265,11 +265,12 @@ the pool alerts speak instead of adding fresh identities to be burned.
 | Health | The measured score, or "No traffic". |
 | Platform | Douyin, TikTok or Bilibili, by name. |
 | Credential | The static session check described above. |
-| Identity id | The uuid, cut short where the column is narrow, with the identity's note under it when it has one; a click copies the whole id and the drawer prints it in full. Not hideable - the id is what you paste into `?identity=`, and the note is what tells three logins apart, which a column the operator had hidden would hide. |
+| Identity id | The uuid, cut short where the column is narrow; a click copies the whole id and the drawer prints it in full. Not hideable - the id is what you paste into `?identity=`. |
+| Note | The operator's label on one line, cut short when it is long with the whole text on hover, or `—`. A column of its own rather than a line under the id, where it read as part of the id and went unnoticed; it is what tells three logins apart at a glance. Sortable, and matched by the search box. |
 | Proxy | The proxy's label when it has one, its id when it does not, "Server egress" when there is none. Never the URL, not even masked. |
+| Kind | Minted or Imported, then Guest or Logged in (with a lock). A login also says when it lapses - "expires in 3d", "expires in 5h" or "expired", the date on hover - highlighted inside a week, which is the time to re-import one. The date is read from the session cookie (`sid_guard`, or Bilibili's `SESSDATA`), so a session the platform ended early still shows its old date; **Check the login** is for that. Sorting puts logins first, soonest to lapse first. One column where Source and Logged in used to spend two on two words. |
 | Cooldown left | Time remaining, or `—`. |
 | Last used | Relative time, exact on hover. |
-| Kind | Minted or Imported, then Guest or Logged in (with a lock). A login also says when it lapses - "expires in 3d", "expires in 5h" or "expired", the date on hover - highlighted inside a week, which is the time to re-import one. The date is read from the session cookie (`sid_guard`, or Bilibili's `SESSDATA`), so a session the platform ended early still shows its old date; **Check the login** is for that. Sorting puts logins first, soonest to lapse first. One column where Source and Logged in used to spend two on two words. |
 | Consecutive fails, Minted | Hidden by default; enable them from the column menu. |
 
 Rows flash on a poll only when the state, credential verdict, failure streak or

@@ -101,14 +101,33 @@ There are exactly two situations where your own cookies come into it:
   usually `s_v_web_id`, `odin_tt` and `msToken` too, which is a perfectly good
   guest identity. Import it from the console's Identities page or with
   `POST /api/v1/admin/identities/import`.
-- **You want content that is only visible to a logged-in account** — your own
-  private posts, a following list, anything the platform gates — on Bilibili,
-  a video's comments beyond the three hottest a guest is given. Then you import
-  that account's jar, and every request that needs it has to be *pinned* to that
-  identity, because an answer served from a substitute session would not be the
-  answer you asked for.
+- **You want what a guest is not given.** That comes in two kinds:
+  - Endpoints that give a guest less: a Douyin author's posts (a guest's first
+    page lacks the newest few, and there is no second page for it), a Bilibili
+    video's comments beyond the three hottest, and replies to a Bilibili comment
+    past their first page. Import a logged-in jar and the scheduler sends
+    those requests to it by itself - nothing has to name it, and with guests
+    first on (the default) every other request stays with the guests.
+  - What belongs to that one account: its bookmarks, its bookmark folders on
+    Douyin, its own private posts. Those requests have to be *pinned* to the
+    identity, because an answer served from a substitute session would not be
+    the answer you asked for.
 
 See [Identities and proxies](./06-identities-and-proxies.md) for both flows.
+
+### I imported a login. Why is it never used?
+
+Most likely because nothing asked for what only it can answer. **Guests first**
+(`pool.<platform>.guests_first`, on by default) sends a request that a guest
+answers as fully as a login to the guests, and reaches a login there only when
+every guest is busy; the login is spent on the endpoints that give a guest less. That
+is the point: a guest costs a mint, a login costs somebody's account.
+
+If those endpoints *are* being called and it still sits idle, it is probably
+reserved for requests that name it, limited to other endpoints, cooling, or
+signed out. [An imported login sits idle](./14-troubleshooting.md#an-imported-login-sits-idle)
+goes through them, and how to turn guests first off if you would rather the
+login shared everything.
 
 ### Will my account be banned?
 
@@ -335,6 +354,16 @@ When the downloader *is* enabled, files land on a Docker volume as
 `<platform>/<author>/<content id>/` with a `meta.json` beside them, and the API
 can hand one back to a browser from `GET /api/v1/downloads/{download_id}/files/{name}`
 with the `media:read` scope.
+
+### Why does a download show only "1/2 files" and no progress bar?
+
+Because the downloader is older than the API. The byte counts behind the bar,
+the speed and the time left come from the 5.1.6 downloader image; an older one
+reports a file's size only once it has finished. The same mismatch leaves
+Bilibili videos that a CDN edge cut short ending `partial`, which the 5.1.6
+downloader resumes instead. It is a separate image, so an upgrade has to pull or
+build `downloader` too - see
+[Progress counts only files, or a Bilibili video lands empty](./14-troubleshooting.md#progress-counts-only-files-or-a-bilibili-video-lands-empty).
 
 ### How much disk does it need?
 
@@ -571,7 +600,8 @@ precise definition elsewhere, the linked page has it.
 | **Egress** | The address a request leaves from: a proxy, or the host's own connection. One identity is bound to one egress for life. |
 | **Guest identity** | An identity with no login on it. Cheap, disposable, and what the pool mints by default. |
 | **Logged-in jar** | An imported identity carrying a real session (`sessionid`, `sid_tt`, `sid_guard`, … on Douyin and TikTok; `SESSDATA` on Bilibili). Equivalent to the account's password; use a throwaway account. |
-| **Identity state** | One of `minting`, `active`, `cooling`, `degraded`, `retired`. Only `active` is in normal rotation; `retired` has had its jar wiped and cannot be brought back. |
+| **Identity state** | One of `minting`, `active`, `cooling`, `degraded`, `retired`. Rotation draws `active` identities, and `degraded` ones only when no active one is left; `retired` has had its jar wiped and cannot be brought back. |
+| **Guests first** | `pool.<platform>.guests_first`, on by default: on an endpoint that gives a guest the same answer as a login, guests are drawn before logins, and a login only when every guest is busy or out of quota. Endpoints that give a guest less prefer or require a login either way. |
 | **Cooldown** | The rest an identity takes after a risk-control answer: `sched.cooldown_base_seconds` doubled per consecutive failure and multiplied by the endpoint's risk weight, capped at `sched.cooldown_max_seconds`. |
 | **Health score** | `success_rate × (1 − risk_rate) × 0.5^consecutive_fails`, in `[0, 1]`. Multiplied rather than summed so any one factor collapsing drags the whole score down. |
 | **Pinning (an identity)** | Naming the identity a request must go out on. A pin is a pool of one — it never widens on a refusal, skips the response cache in both directions, and gets one transport attempt instead of three. Requires the `operator` role plus the `admin` or `identity:manage` scope (a console session is bounded by role alone). |
@@ -605,7 +635,7 @@ precise definition elsewhere, the linked page has it.
 | **Circuit breaker** | Per-endpoint. It trips when the risk rate exceeds `sched.circuit_risk_threshold` (0.6) over at least `sched.circuit_min_samples` (20) observations spanning at least `sched.circuit_min_identities` (3) distinct identities in a rolling 300s window. Open for 300s, one probe per 60s. |
 | **Risk control** | The platform refusing *this identity* — a captcha interstitial, a verification envelope, a 429, or a 200 with the payload withheld. It increments the identity's failure streak, applies a cooldown, and counts toward the circuit breaker. Distinct from a business error on purpose: a deleted video must never be counted against a good cookie. |
 | **Outcome** | The classification of one upstream response: `ok`, `business_error`, `risk_control` or `network_error`. Every health number in the system hangs off this one decision. |
-| **Reject reason** | Why the scheduler refused a lease, recorded in `request_log`: `circuit_open`, `no_identity`, `no_token`, `all_inflight`, `pinned_unavailable`, `wait_timeout`. One more value, `queue_full`, is an API-layer refusal raised before a task exists, so it reaches you in the error envelope's `details.reject_reason` and never as a `request_log` row. |
+| **Reject reason** | Why the scheduler refused a lease, recorded in `request_log`: `circuit_open`, `no_identity`, `no_token`, `all_inflight`, `pinned_unavailable`, `no_login`, `wait_timeout`. One more value, `queue_full`, is an API-layer refusal raised before a task exists, so it reaches you in the error envelope's `details.reject_reason` and never as a `request_log` row. |
 | **Coalescing** | When several callers ask for the same thing at once, the first task claims the digest in Redis (90s TTL) and the rest attach to that task instead of queuing their own. A claim left by a task that already failed is dropped rather than joined. |
 | **Response cache** | Keyed on the normalized business parameters, not the raw URL, so two spellings of the same link hit the same entry. A hit costs no identity quota and is still logged. `?refresh=true` skips the read but still writes. |
 

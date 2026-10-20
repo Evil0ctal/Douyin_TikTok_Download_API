@@ -185,6 +185,24 @@ If you ever reproduce a request by hand, this is the trap. The `explain` option 
 
 The scheduler answers exactly one question — *which identity may send this request right now?* — or refuses with a reason that can be shown to the caller and recorded in `request_log`.
 
+### Who may be drawn: rotation and login tiers
+
+Before anything is ranked, the scheduler decides which identities this request may be handed at all, and in what order of tiers (`_rotation_pool` in `src/dtk/scheduler/scheduler.py`). Ranking, below, only ever orders the identities inside one tier.
+
+- **Rotation comes first.** An identity reserved for the requests that name it is never drawn, and one limited to a list of endpoints is drawn only for those. See [Keeping an identity out of rotation](./06-identities-and-proxies.md#keeping-an-identity-out-of-rotation).
+- **Then what the endpoint gives a guest.** Each endpoint declares it for its first page (`login`) and for every later page (`paging_login`): nothing lost, a login preferred, or a login required. The capability table reports both.
+
+| What a guest gets | Tiers, in order | With no login in rotation |
+| --- | --- | --- |
+| The same answer as a login, `pool.<platform>.guests_first` on (the default) | Guests, then logins | Guests alone |
+| The same answer as a login, the setting off | Guests and logins together, by recency | Guests alone |
+| Less - a login preferred (Douyin's author posts and Bilibili's comments, first page) | Logins only | A guest answers, flagged `meta.guest_fallback` and not cached |
+| Nothing - a login required (the same two past their first page, and Bilibili's comment replies past theirs) | Logins only | `no_login`, at once |
+
+Within each tier the active identities are drawn, and the degraded ones only when no active one is left in it; cooling identities are never drawn. A later tier is reached when every identity in the ones before it is busy or out of quota: a busy guest gives way to an idle login, so guests first decides who goes first and never turns away a request a free login could serve. The reverse is deliberate for a login an endpoint prefers — that one is waited for, not swapped for a guest, or on a busy instance most first pages would go to guests.
+
+`guests_first` is a runtime setting per platform, read on every request, and is the switch on the Scheduler page's coverage card. The reasoning, and the measurements behind each row, are in [What needs a logged-in identity](./06-identities-and-proxies.md#what-needs-a-logged-in-identity).
+
 ### Health ranking
 
 Each candidate identity gets a score in `[0, 1]`:
@@ -255,12 +273,13 @@ An open circuit lasts 300 seconds and lets exactly one probe through per 60 seco
 
 ### Refusals
 
-Waiting is bounded: `sched.max_wait_seconds` (default `10`), polled every 250ms. Rejecting early beats queueing indefinitely — a caller left hanging for a minute before failing is worse off than one told to retry immediately. Two refusals skip the wait entirely, because polling cannot change the answer.
+Waiting is bounded: `sched.max_wait_seconds` (default `10`), polled every 250ms. Rejecting early beats queueing indefinitely — a caller left hanging for a minute before failing is worse off than one told to retry immediately. Three refusals skip the wait entirely, because polling cannot change the answer.
 
 | `reject_reason` | Meaning | Waits? | Error the caller sees |
 | --- | --- | --- | --- |
 | `circuit_open` | This endpoint is tripped for everyone | No | `ENDPOINT_CIRCUIT_OPEN` (503) |
 | `pinned_unavailable` | The named identity is retired, still minting, or on another platform | No | `INVALID_PARAM` (400) |
+| `no_login` | The endpoint requires a login and none is in rotation for it | No | `IDENTITY_LOGIN_REQUIRED` (503), with `details.cooling` |
 | `no_identity` | No active or degraded identity exists for this platform | Yes | `IDENTITY_POOL_EXHAUSTED` (503) |
 | `no_token` | Every candidate is out of quota on this endpoint | Yes | `IDENTITY_POOL_EXHAUSTED` (503) |
 | `all_inflight` | Every candidate is mid-request | Yes | `IDENTITY_POOL_EXHAUSTED` (503) |
@@ -269,7 +288,7 @@ Waiting is bounded: `sched.max_wait_seconds` (default `10`), polled every 250ms.
 
 `pinned_unavailable` is deliberately a 400 and not a 503: the pool is fine, and waiting will not mend a parameter naming an identity that cannot serve the request.
 
-`queue_full` is the odd one out in that table. It is raised by the API when a submission arrives at the queue ceiling (`src/dtk/api/routes/operations.py`), before there is a task to schedule, so it reaches the caller in the error envelope's `details.reject_reason` and never becomes a `request_log` row. The other six are the scheduler's own, and those are the ones the Logs page can show you.
+`queue_full` is the odd one out in that table. It is raised by the API when a submission arrives at the queue ceiling (`src/dtk/api/routes/operations.py`), before there is a task to schedule, so it reaches the caller in the error envelope's `details.reject_reason` and never becomes a `request_log` row. The other seven are the scheduler's own, and those are the ones the Logs page can show you.
 
 ### Pinning an identity
 

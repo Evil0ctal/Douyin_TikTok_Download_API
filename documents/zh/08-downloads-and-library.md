@@ -188,6 +188,21 @@ B 站只给游客看最热的三条评论，而且没有第二页。如果是游
 
 点击一行会打开以作品标题命名的抽屉，里面有播放器、逐文件列表、每个文件的 SHA-256，以及每个已完成文件的保存链接。归档里有这个作品时，抽屉会链接到资料库中的它；视频已经有转写时，**转写视频** 会变成 **查看转写**。抽屉会随表格刷新跟着这一行更新：在下载进行中打开它，能看到每个文件各自的进度和速度，下载完成后会显示已保存的文件。
 
+### `progress` 对象
+
+在 API 里，这条进度条就是 `progress`：`GET /api/v1/downloads` 的每一行和 `GET /api/v1/downloads/{download_id}` 都带着它。它是实时向 sidecar 读的，从不落库，所以以下情况它是 `null`：已结束的行；下载器没配置或没应答；sidecar 已经忘了这个任务（它只保留有限的历史，重启就全丢）；以及一页里排在前 8 条之后的进行中行。`null` 的意思是"没有进度条"，不是"没有进展"。
+
+| 字段 | 类型 | 含义 |
+| --- | --- | --- |
+| `bytes` | 整数 | 目前已写入的字节数，所有文件相加 |
+| `bytes_expected` | 整数或 `null` | 整个下载最终的大小：已完成的文件按实际大小，进行中的文件按它声明的 `Content-Length`，失败的文件不计。只要有一个文件还没开始、或者它的服务器没有声明长度，就是 `null`——这时请像控制台那样改按文件数计算 |
+| `bytes_per_second` | 整数 | 最近几秒的速度，进行中的文件相加 |
+| `files_done`、`files_total` | 整数 | 已完成的文件数，以及任务里的文件总数 |
+| `state` | 字符串 | sidecar 自己记录的任务状态：`queued`、`running`、`done`、`partial`、`failed` 或 `cancelled`。它可能比这一行早一点结束 |
+| `items` | 数组 | 每个文件一项，按任务里的顺序：`name`、`kind`（`video`、`image` 或 `cover`）、`state`（`queued`、`running`、`done` 或 `failed`）、`bytes`、`bytes_expected`（服务器没声明时为 `null`）和 `bytes_per_second`（不在下载中时为 `0`） |
+
+`bytes_expected` 只用于显示：容量上限在 sidecar 里按实际写入的字节强制执行，从不采信服务器声明的大小。
+
 ## 重试，以及为什么两次尝试之间没有断点续传
 
 重试出现在 `failed`、`partial` 和 `cancelled` 的行上。它调用 `POST /api/v1/downloads/retry` 并带上 `download_id`，从头把同一个作品再走一遍；如果已存镜像太旧（超过 `media.mirror_max_age_seconds`，默认 600 秒），会先重新解析作品拿新链接。
@@ -361,6 +376,8 @@ dtk-<platform>-<content_id>-<stored name>
 worker 大约每六小时自己排一次重新检查，所以这个按钮是给「我现在就要答案」用的。把 `archive.recheck_after_days` 设为 0 会彻底关闭重新检查。
 
 因为它会消耗身份池，这个接口要求的是**平台**读取权限范围（`douyin:read`、`tiktok:read` 或 `bilibili:read`）而不是 `archive:read`——读归档承诺不花任何代价，而重新检查是一次披着归档名字的平台读取。
+
+出于同一个原因，重新检查和作者回溯抓取都像读请求一样排队。worker 队列到达 `sched.queue_max`（500）之后，它们会返回 `503` 和 `QUEUE_FULL`，并带 `Retry-After`，值为 `sched.max_wait_seconds`（10）：等这么久再发一次。在一个相同的请求还在排队时再发，会合并到它上面，而不是再排一个。worker 自己定时排的重新检查是直接提交的，不受这个上限约束。
 
 ## 删除作品及其媒体
 

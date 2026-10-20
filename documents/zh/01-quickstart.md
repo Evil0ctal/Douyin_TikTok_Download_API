@@ -314,11 +314,13 @@ request id、这次调用用的是哪个身份、该接口的熔断器此刻是�
 |---|---|
 | `douyin:read` | 抖音的解析、作品、作者、评论接口 |
 | `tiktok:read` | TikTok 的同类接口 |
-| `bilibili:read` | B 站的同类接口 |
+| `bilibili:read` | B 站的同类接口：没有喜欢、转发、收藏、合集和关注列表，多了热门榜和视频分 P |
 | `archive:read` | 本实例已经采集到的内容，直接由本地存储返回 |
 | `archive:export` | 一次请求遍历整个归档——这是唯一一个能把只读 Key 变成一份数据库副本的调用 |
 | `media:read` | 服务器磁盘上存了哪些媒体、占了多少空间 |
 | `media:write` | 发起下载、把某个下载置顶以免被清理、取消下载 |
+| `transcription:read` | 列出已下载视频的转写，读取转写文本 |
+| `transcription:write` | 发起、取消和删除转写 |
 | `identity:manage` | 铸造、导入、探测、退休身份。普通只读 Key 绝不该带上它 |
 | `admin` | 全部权限，含设置与用户 |
 

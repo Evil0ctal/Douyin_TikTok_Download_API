@@ -362,11 +362,13 @@ log, and tick only what it needs — for this walkthrough, `douyin:read`,
 |---|---|
 | `douyin:read` | Parse, post, author and comment endpoints for Douyin |
 | `tiktok:read` | The same endpoints for TikTok |
-| `bilibili:read` | The same endpoints for Bilibili |
+| `bilibili:read` | The same for Bilibili, which has no likes, reposts, bookmarks, mixes or follow lists, and adds the popular boards and a video's parts |
 | `archive:read` | What this instance has already stored, answered from local storage |
 | `archive:export` | Walk the entire archive in one request — the single call that turns a read key into a copy of the database |
 | `media:read` | What media is on the server's disk, and how much space it uses |
 | `media:write` | Start a download, pin one against cleanup, or cancel one |
+| `transcription:read` | List transcriptions of downloaded videos and read their text |
+| `transcription:write` | Start, cancel and delete a transcription |
 | `identity:manage` | Mint, import, test and retire identities. An ordinary read key must never carry this |
 | `admin` | Everything, settings and users included |
 
