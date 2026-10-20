@@ -345,8 +345,9 @@ was which was to remember the order they went in.
   it is, where the cookie came from. **Add a note**, or **Edit** on one that
   exists, opens it in place; Enter saves, Escape cancels without closing the
   drawer, and saving it blank clears it. Below the operator role it is shown and
-  not editable. It appears under the id in the table, under the identity in the
-  request log, and first in each option of the Playground's identity picker.
+  not editable. It has its own column beside the id in the table, which the
+  search box also matches, and it appears under the identity in the request
+  log and first in each option of the Playground's identity picker.
   Nothing in the request path reads it. A retired identity keeps its note, and
   it can still be changed - "which account was this" is exactly what somebody
   asks of one afterwards.

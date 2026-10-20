@@ -135,13 +135,14 @@ Two things do not happen by themselves:
     page hides what the role cannot do.
 - **Notes on identities, and rotation per endpoint.** An identity keeps a
   note - whose account it is, where the cookie came from - set at import or in
-  the drawer, shown under its id and in the Playground's picker and the request
-  log, carried by an export. The session check remembers the account id the
-  platform named. The drawer's Rotation card chooses every endpoint, only the
-  ticked ones (the endpoints that need a login are marked, and one button ticks
-  just those), or only requests that name it; selected identities take one
-  choice at once. The Scheduler page shows, per endpoint, how many identities
-  can serve it and how many of them are logins.
+  the drawer, shown in its own column of the identity table, in the Playground's
+  picker and in the request log, carried by an export. The session check
+  remembers the account id the platform named. The drawer's Rotation card
+  chooses every endpoint, only the ticked ones (the endpoints that need a
+  login are marked, and one button ticks just those), or only requests that
+  name it; selected identities take one choice at once. The Scheduler page
+  shows, per endpoint, how many identities can serve it and how many of them
+  are logins.
 - **API additions behind those pages:** `PATCH /api/v1/admin/api-keys/{id}`,
   `GET /api/v1/system/capabilities`, `q` on `GET /api/v1/downloads` and
   `/transcriptions`, `POST /api/v1/archive/export` for a selection,
@@ -327,7 +328,7 @@ cd /opt/dtk && git pull && bash install/install.sh --manage
     代理可以批量测试并打开详情，诊断可以选平台，系统页显示下载器和转写服务的状态，调度页按平台
     统计，每个页面都会隐藏当前角色用不了的操作。
 - **身份备注，以及按接口设置轮换。** 身份可以保存备注——是谁的账号、Cookie 从哪里来——导入时或在
-  详情里填写，显示在身份 ID 下面、调试台的身份下拉框和请求日志里，导出时一并带走。检查登录时会记下
+  详情里填写，显示在身份表格的备注列、调试台的身份下拉框和请求日志里，导出时一并带走。检查登录时会记下
   平台给出的账号 ID。详情里的轮换卡片可以选择所有接口、只用于勾选的接口（需要登录的接口会标出来，
   一个按钮就能只勾选它们）或只服务点名它的请求；也可以选中多个身份一次设置。调度页按接口显示有多少
   身份可以服务它、其中多少是登录态。

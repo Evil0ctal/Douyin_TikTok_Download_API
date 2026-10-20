@@ -89,23 +89,28 @@ export function useIdentityColumns({
       // answer the question it is now most often opened for.
       hideable: false,
       sortValue: (row) => row.id,
-      // The note under the id rather than in a column of its own: it is what
-      // tells three logins apart, and a column the operator hid would hide
-      // exactly that.
+      cell: (row) => <CopyableId value={row.id} />,
+    },
+    {
+      // A column of its own beside the id. It started as a small line under
+      // the id, which read as part of the id and went unnoticed: the operator
+      // who asked for notes opened each drawer to find them.
+      id: 'note',
+      header: t('console:identity.note.label'),
+      sortValue: (row) => row.note ?? null,
       cell: (row) =>
         row.note ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-            <CopyableId value={row.id} />
-            <span
-              className="u-xs u-secondary"
-              title={row.note}
-              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-            >
-              {row.note}
-            </span>
-          </div>
+          // Capped, because the table lays out automatically and one 200
+          // character note would otherwise widen the column for every row.
+          <span
+            className="u-truncate"
+            title={row.note}
+            style={{ display: 'block', maxWidth: '220px' }}
+          >
+            {row.note}
+          </span>
         ) : (
-          <CopyableId value={row.id} />
+          <span className="u-muted">{MISSING}</span>
         ),
     },
     {

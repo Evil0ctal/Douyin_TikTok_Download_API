@@ -303,7 +303,7 @@
       "rotatingOnly": "In rotation",
       "reservedOnly": "Reserved only",
       "limitedOnly": "Limited only",
-      "searchPlaceholder": "Search id, proxy, reason"
+      "searchPlaceholder": "Search id, note, proxy, reason"
     },
     "mint": {
       "action": "Mint",

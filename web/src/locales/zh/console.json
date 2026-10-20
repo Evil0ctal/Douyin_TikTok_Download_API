@@ -303,7 +303,7 @@
       "rotatingOnly": "参与轮换",
       "reservedOnly": "仅保留的",
       "limitedOnly": "仅限定接口的",
-      "searchPlaceholder": "搜索 ID、代理、原因"
+      "searchPlaceholder": "搜索 ID、备注、代理、原因"
     },
     "mint": {
       "action": "铸造",
