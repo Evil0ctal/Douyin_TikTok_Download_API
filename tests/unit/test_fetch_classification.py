@@ -1214,11 +1214,30 @@ class TestAbsentWhenNull:
         )
         assert classification.outcome is Outcome.OK
 
-    def test_only_the_folder_contents_declare_it(self):
+    def test_a_private_douyin_likes_list_asked_by_a_login_is_a_business_error(self):
+        """A guest is told "private" with zero bytes; a login, measured
+        2026-10-20 on fourteen private lists, with ``aweme_list: null`` and no
+        ``has_more``. That read as a changed schema - a 502 asking to be
+        reported - on the identity the endpoint now requires."""
+        private = {"status_code": 0, "aweme_list": None, "log_pb": {"impr_id": "x"}}
+        classification, _ = service()._classify(
+            get_adapter(Platform.DOUYIN), "douyin.author_likes", response(200, private)
+        )
+        assert classification.outcome is Outcome.BUSINESS_ERROR
+        assert classification.rule == "payload.absent"
+
+    def test_a_douyin_likes_page_is_still_a_page(self):
+        page = {"status_code": 0, "aweme_list": [], "has_more": 0, "max_cursor": 0}
+        classification, _ = service()._classify(
+            get_adapter(Platform.DOUYIN), "douyin.author_likes", response(200, page)
+        )
+        assert classification.outcome is Outcome.OK
+
+    def test_only_measured_endpoints_declare_it(self):
         declared = {
             name
             for platform in Platform
             for name, spec in get_adapter(platform).endpoints.specs.items()
             if spec.absent_when_null is not None
         }
-        assert declared == {"bilibili.collection_posts"}
+        assert declared == {"bilibili.collection_posts", "douyin.author_likes"}

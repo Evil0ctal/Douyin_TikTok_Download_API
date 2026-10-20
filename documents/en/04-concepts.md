@@ -197,7 +197,7 @@ Before anything is ranked, the scheduler decides which identities this request m
 | The same answer as a login, `pool.<platform>.guests_first` on (the default) | Guests, then logins | Guests alone |
 | The same answer as a login, the setting off | Guests and logins together, by recency | Guests alone |
 | Less - a login preferred (Douyin's author posts and Bilibili's comments, first page) | Logins only | A guest answers, flagged `meta.guest_fallback` and not cached |
-| Nothing - a login required (the same two past their first page, and Bilibili's comment replies past theirs) | Logins only | `no_login`, at once |
+| Nothing - a login required (the same two past their first page, Bilibili's comment replies past theirs, and Douyin's author likes on every page) | Logins only | `no_login`, at once |
 
 Within each tier the active identities are drawn, and the degraded ones only when no active one is left in it; cooling identities are never drawn. A later tier is reached when every identity in the ones before it is busy or out of quota: a busy guest gives way to an idle login, so guests first decides who goes first and never turns away a request a free login could serve. The reverse is deliberate for a login an endpoint prefers — that one is waited for, not swapped for a guest, or on a busy instance most first pages would go to guests.
 

@@ -395,7 +395,7 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `SIGNING_FAILED` | 502 | **yes** | Signing failed; the algorithm may be out of date |
 | `UPSTREAM_UNREACHABLE` | 502 | **yes** | Every attempt failed on the network before the platform answered; `details.proxied` says whether the last one went through a proxy. Usually this host's egress, not the platform |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **yes** | No identity free; `retry_after` estimates the recovery |
-| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - later pages of a Douyin author's posts, or of a Bilibili video's comments or replies. `details.cooling` counts the logged-in ones cooling down. Fixed by importing one, not by retrying; see [Identities](./06-identities-and-proxies.md#what-needs-a-logged-in-identity) |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - later pages of a Douyin author's posts, or of a Bilibili video's comments or replies, and every page of a Douyin author's likes. `details.cooling` counts the logged-in ones cooling down. Fixed by importing one, not by retrying; see [Identities](./06-identities-and-proxies.md#what-needs-a-logged-in-identity) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **yes** | This endpoint is paused after repeated failures |
 | `QUEUE_FULL` | 503 | **yes** | The queue is at its ceiling |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **yes** | The media sidecar is running somewhere and did not answer |

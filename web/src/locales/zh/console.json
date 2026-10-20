@@ -365,7 +365,7 @@
       },
       "reserve": "只服务点名它的请求",
       "reserveHint": "存入时就不参与轮换：只有用 identity= 指定它的请求才会用它。适合为读取某样东西而导入的账号，否则轮换会把它用在所有请求上。",
-      "reserveLastNote": "没有其他{platform}登录态在参与轮换，所以 {endpoints} 第一页之后仍会返回 IDENTITY_LOGIN_REQUIRED。",
+      "reserveLastNote": "没有其他{platform}登录态在参与轮换，所以 {endpoints} 在需要登录的地方仍会返回 IDENTITY_LOGIN_REQUIRED。",
       "switchTo": "切换到{platform}"
     },
     "test": {
@@ -509,7 +509,7 @@
       "bulkDescription": "对选中的每个身份应用同一个设置。已退休的身份不包括在内。",
       "bulkApply": "应用到 {count} 个身份",
       "bulkDone": "已设置 {count} 个身份的轮换",
-      "bulkLoses": "{platform}：{endpoints} 上参与轮换的登录态全都在这次选择里，设置之后这些接口第一页之后会返回 IDENTITY_LOGIN_REQUIRED。"
+      "bulkLoses": "{platform}：{endpoints} 上参与轮换的登录态全都在这次选择里，设置之后这些接口在需要登录的地方会返回 IDENTITY_LOGIN_REQUIRED。"
     },
     "history": {
       "title": "身份历史",
@@ -663,12 +663,12 @@
       "cooling": "{count} 个冷却中",
       "import": "导入登录态",
       "inRotation": "参与轮换的登录态：{count}",
-      "lastBody": "没有其他{platform}登录态在这些接口上参与轮换。设置之后，{endpoints} 第一页之后都会返回 IDENTITY_LOGIN_REQUIRED，除非请求指定了身份。",
-      "lastRetire": "{platform}：退休后不再有参与轮换的登录态，{endpoints} 第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
+      "lastBody": "没有其他{platform}登录态在这些接口上参与轮换。设置之后，{endpoints} 在需要登录的地方都会返回 IDENTITY_LOGIN_REQUIRED，除非请求指定了身份。",
+      "lastRetire": "{platform}：退休后不再有参与轮换的登录态，{endpoints} 在需要登录的地方会返回 IDENTITY_LOGIN_REQUIRED。",
       "lastTitle": "把最后一个{platform}登录态从这些接口上撤下？",
       "limited": "{count} 个限定接口",
-      "none": "一个都没有，所以 {endpoints} 第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
-      "noneHint": "这些接口只给游客第一页，之后什么都不给。轮换即使在这里也会跳过保留的登录态，冷却中的则要等冷却结束。",
+      "none": "一个都没有，所以 {endpoints} 在需要登录的地方会返回 IDENTITY_LOGIN_REQUIRED。",
+      "noneHint": "这些接口给游客的比给登录态的少：有的第一页之后什么都不给，有的一页都不给。轮换即使在这里也会跳过保留的登录态，冷却中的则要等冷却结束。",
       "reserved": "{count} 个保留",
       "changeAnyway": "仍然修改"
     },
@@ -2618,7 +2618,7 @@
       "dedicated": "专门限定",
       "cooling": "冷却中",
       "open": "列出这些身份",
-      "noLogin": "没有登录态在轮换：第一页之后会返回 IDENTITY_LOGIN_REQUIRED。",
+      "noLogin": "没有登录态在轮换：这个接口需要登录的地方会返回 IDENTITY_LOGIN_REQUIRED。",
       "reserved": "{count} 个身份只服务点名它的请求",
       "caption": "{platform}的接口",
       "footnote": "只回答发起请求的身份本人数据的接口不在列表里：它们总是需要 identity=。",

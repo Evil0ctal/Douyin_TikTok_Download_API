@@ -225,7 +225,9 @@ Douyin serves its follower and following lists only to a signed-in session, so t
 two endpoints are not registered at all: an endpoint that always returns an empty page
 is worth nothing. Importing your own logged-in cookies widens what the rest can see, too.
 On Bilibili that matters most for comments: a guest is shown the three hottest and no
-more, so an imported login is what turns that into the full thread.
+more, so an imported login is what turns that into the full thread. On Douyin it decides
+an author's liked posts outright: a guest is shown none, public or not, so that list
+needs a logged-in identity in the pool.
 
 The dashes are not gaps: a Douyin or TikTok post is never more than one video, so it has no
 parts to list.

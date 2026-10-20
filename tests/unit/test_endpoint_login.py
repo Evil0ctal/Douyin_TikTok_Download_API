@@ -44,6 +44,17 @@ def test_douyin_author_posts_prefers_a_login_and_pages_only_with_one():
     assert spec.login_for({"sec_user_id": "a", "cursor": "1787228699000"}) is LoginNeed.REQUIRED
 
 
+def test_douyin_author_likes_is_served_only_to_a_login():
+    """Measured 2026-10-20 on one author whose likes are public: a logged-in
+    identity got 20 posts and a next page, three guests got the zero-byte
+    answer Douyin gives a private list. Left at NONE, every unpinned lookup
+    went to a guest and came back "does not exist" for every author."""
+    spec = get_adapter(Platform.DOUYIN).endpoints.specs["douyin.author_likes"]
+
+    assert spec.login_for({"sec_user_id": "a"}) is LoginNeed.REQUIRED
+    assert spec.login_for({"sec_user_id": "a", "cursor": "1792223926000"}) is LoginNeed.REQUIRED
+
+
 @pytest.mark.parametrize("endpoint", ["douyin.comments", "douyin.content_detail"])
 def test_endpoints_a_guest_reads_in_full_are_left_alone(endpoint):
     """Measured on the same day: comments page fine for a guest. Marking them

@@ -104,8 +104,9 @@ There are exactly two situations where your own cookies come into it:
 - **You want what a guest is not given.** That comes in two kinds:
   - Endpoints that give a guest less: a Douyin author's posts (a guest's first
     page lacks the newest few, and there is no second page for it), a Bilibili
-    video's comments beyond the three hottest, and replies to a Bilibili comment
-    past their first page. Import a logged-in jar and the scheduler sends
+    video's comments beyond the three hottest, replies to a Bilibili comment
+    past their first page, and a Douyin author's likes, which a guest is never
+    shown even when they are public. Import a logged-in jar and the scheduler sends
     those requests to it by itself - nothing has to name it, and with guests
     first on (the default) every other request stays with the guests.
   - What belongs to that one account: its bookmarks, its bookmark folders on

@@ -307,4 +307,6 @@ async def test_capabilities_say_what_a_guest_loses_on_each_endpoint(client: Any)
     douyin = {entry["endpoint"]: entry for entry in data["douyin"]}
     assert (douyin[POSTS]["login"], douyin[POSTS]["paging_login"]) == ("preferred", "required")
     assert (douyin[DETAIL]["login"], douyin[DETAIL]["paging_login"]) == ("none", None)
+    # A guest is shown no likes at all, public or private.
+    assert douyin["douyin.author_likes"]["login"] == "required"
     assert {entry["login"] for entry in data["tiktok"]} == {"none"}

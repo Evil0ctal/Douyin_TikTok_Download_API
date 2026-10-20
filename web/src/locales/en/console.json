@@ -365,7 +365,7 @@
       },
       "reserve": "Only requests that name it",
       "reserveHint": "Stored out of rotation: only a request that names it with identity= uses it. For an account imported to read one thing with, which rotation would otherwise spend on everything.",
-      "reserveLastNote": "No other {platform} login is in rotation, so {endpoints} will go on answering IDENTITY_LOGIN_REQUIRED past the first page.",
+      "reserveLastNote": "No other {platform} login is in rotation, so {endpoints} will go on answering IDENTITY_LOGIN_REQUIRED wherever a login is needed.",
       "switchTo": "Switch to {platform}"
     },
     "test": {
@@ -509,7 +509,7 @@
       "bulkDescription": "One choice for every selected identity. Retired ones are left out.",
       "bulkApply": "{count, plural, one {Apply to # identity} other {Apply to # identities}}",
       "bulkDone": "{count, plural, one {Rotation set for # identity} other {Rotation set for # identities}}",
-      "bulkLoses": "{platform}: every login in rotation for {endpoints} is in this selection, so those would answer IDENTITY_LOGIN_REQUIRED past the first page."
+      "bulkLoses": "{platform}: every login in rotation for {endpoints} is in this selection, so those would answer IDENTITY_LOGIN_REQUIRED wherever a login is needed."
     },
     "history": {
       "title": "Identity history",
@@ -663,12 +663,12 @@
       "cooling": "{count} cooling",
       "import": "Import a login",
       "inRotation": "Logged in, in rotation: {count}",
-      "lastBody": "No other logged-in {platform} identity is in rotation for them. After this, {endpoints} will answer IDENTITY_LOGIN_REQUIRED past the first page, unless the request names an identity.",
-      "lastRetire": "{platform}: no logged-in identity would be left in rotation, so {endpoints} would answer IDENTITY_LOGIN_REQUIRED past the first page.",
+      "lastBody": "No other logged-in {platform} identity is in rotation for them. After this, {endpoints} will answer IDENTITY_LOGIN_REQUIRED wherever a login is needed, unless the request names an identity.",
+      "lastRetire": "{platform}: no logged-in identity would be left in rotation, so {endpoints} would answer IDENTITY_LOGIN_REQUIRED wherever a login is needed.",
       "lastTitle": "Take the last {platform} login off these endpoints?",
       "limited": "{count} limited",
-      "none": "None, so {endpoints} answer IDENTITY_LOGIN_REQUIRED past the first page.",
-      "noneHint": "These endpoints serve a guest the first page and nothing after it. Rotation skips a reserved login even here, and a cooling one until its cooldown ends.",
+      "none": "None, so {endpoints} answer IDENTITY_LOGIN_REQUIRED wherever a login is needed.",
+      "noneHint": "A guest gets less from these endpoints than a login: on some nothing after the first page, on some nothing at all. Rotation skips a reserved login even here, and a cooling one until its cooldown ends.",
       "reserved": "{count} reserved",
       "changeAnyway": "Change it anyway"
     },
@@ -2618,7 +2618,7 @@
       "dedicated": "Limited to it",
       "cooling": "Cooling",
       "open": "List these identities",
-      "noLogin": "No login in rotation: later pages answer IDENTITY_LOGIN_REQUIRED.",
+      "noLogin": "No login in rotation: where this endpoint needs one, it answers IDENTITY_LOGIN_REQUIRED.",
       "reserved": "{count, plural, one {# identity serves only requests that name it} other {# identities serve only requests that name them}}",
       "caption": "{platform} endpoints",
       "footnote": "Endpoints that answer only about the identity asking are not listed: they always need identity=.",

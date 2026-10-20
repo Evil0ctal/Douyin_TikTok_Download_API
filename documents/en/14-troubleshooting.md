@@ -449,7 +449,7 @@ A business error — a deleted post, a private profile — changes nothing about
 
 **Symptom.** You imported a logged-in cookie, and on `/identities` its **Last used** stays at "Never", or far behind the guests', while the guests answer everything.
 
-**What it means.** Usually that it is working as designed: **guests first**, `pool.<platform>.guests_first`, on by default. An endpoint that gives a guest the same answer as a login is served by guests first, and reaches a login only when every guest is busy or out of quota - a guest is minted for nothing, a login is somebody's account. The endpoints that give a guest less still go to the login first: Douyin's author posts, Bilibili's comments, and every later page of those and of Bilibili's comment replies. On an instance that asks for none of those, an idle login is a login kept for the requests only it can answer.
+**What it means.** Usually that it is working as designed: **guests first**, `pool.<platform>.guests_first`, on by default. An endpoint that gives a guest the same answer as a login is served by guests first, and reaches a login only when every guest is busy or out of quota - a guest is minted for nothing, a login is somebody's account. The endpoints that give a guest less still go to the login first: Douyin's author posts and author likes, Bilibili's comments, and every later page of those and of Bilibili's comment replies. On an instance that asks for none of those, an idle login is a login kept for the requests only it can answer.
 
 If one of those endpoints is being called and the login still sits idle, check in this order:
 

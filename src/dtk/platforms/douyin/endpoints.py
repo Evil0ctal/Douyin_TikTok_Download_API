@@ -276,6 +276,16 @@ ENDPOINTS: Final = EndpointTable.of(
         # without this flag, looking up anyone's likes cooled the identity that
         # asked, which is most of them, because most likes lists are private.
         empty_body_is_normal=True,
+        # And the silence is all a guest ever gets. Measured 2026-10-20: one
+        # author of fifteen had public likes, and a logged-in identity got 20
+        # posts and a next page while three guests got zero bytes - the same
+        # answer as a private list. Without this, every unpinned lookup went to
+        # a guest and reported every author's likes as not there.
+        login=LoginNeed.REQUIRED,
+        # What the same login is told about a private list: `aweme_list: null`
+        # and no `has_more`, measured on the other fourteen. Read as a page it
+        # was a missing field, a 502 asking to be reported as a schema change.
+        absent_when_null="aweme_list",
         summary="Posts an author has publicly liked",
     ),
     EndpointSpec(

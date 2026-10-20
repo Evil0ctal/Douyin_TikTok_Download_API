@@ -226,8 +226,8 @@ At the top of the page, reading `GET /api/v1/admin/identities/pool`:
   be at least 1 while Auto is on, and the target may not be lower than it.
 - A login line per platform: how many logged-in identities rotation can reach,
   with the reserved, cooling and limited ones counted beside it. Where a platform
-  has endpoints that refuse a guest past the first page (Douyin's author posts,
-  Bilibili's comments) and no login is in rotation, the line names those
+  has endpoints that refuse a guest (Douyin's author posts past their first page
+  and an author's likes on every page, Bilibili's comments past their first) and no login is in rotation, the line names those
   endpoints, says they will answer `IDENTITY_LOGIN_REQUIRED`, and offers
   **Import a login** preset to that platform. Until this line, that error was
   the first sign that the only imported login had been reserved, had cooled or
@@ -316,7 +316,7 @@ explicitly by state `retired` shows those rows regardless.
   is every endpoint or only requests that name them. When the selection holds
   every login a platform has in rotation for an endpoint that needs one, and the
   choice takes them off it, the dialog names the endpoints that would then answer
-  `IDENTITY_LOGIN_REQUIRED` past the first page and turns the button red. It warns
+  `IDENTITY_LOGIN_REQUIRED` wherever a login is needed and turns the button red. It warns
   rather than asks.
 - Clicking a row opens the drawer and puts the identity's id in the address
   (`?id=`).
@@ -637,7 +637,7 @@ The middle choice opens a checklist of the platform's endpoints. The ones a gues
 is short-changed on are marked **Needs a login**, **Later pages need a login** or
 **Fuller with a login**, with what a guest gets instead on hover; today that is
 Douyin's author posts and Bilibili's comments and a comment's replies, all three
-**Later pages need a login**. **Only the ones that need a login** ticks the
+**Later pages need a login**, and Douyin's author likes, **Needs a login**. **Only the ones that need a login** ticks the
 marked ones and nothing else; **All** and **None** do what they say. Endpoints
 that answer only about the identity asking - bookmarks, and Douyin's bookmark
 folders - are not listed: they always need `identity=`, so rotation never
@@ -649,8 +649,8 @@ appear once something has changed. Taking the last login a platform has in
 rotation off an endpoint that requires one asks first - in the card, not in a
 dialog over the drawer, because both would answer Escape and cancelling the
 question used to close the drawer. It names the endpoints that would then answer
-`IDENTITY_LOGIN_REQUIRED` past the first page unless the request names an
-identity, and **Change it anyway** goes ahead. For several identities at once,
+`IDENTITY_LOGIN_REQUIRED` wherever a login is needed unless the request names
+an identity, and **Change it anyway** goes ahead. For several identities at once,
 select them and use **Set rotation for N identities** (see [Row
 actions](#row-actions)).
 
@@ -679,7 +679,7 @@ of rotation from the start, so a login imported to serve the requests that name
 it is never handed to anything else, not even in the moment between storing it
 and reserving it. Ticking it for a login when the platform has no other login in
 rotation says which endpoints will go on answering `IDENTITY_LOGIN_REQUIRED`
-past the first page.
+wherever a login is needed.
 
 The card and the bulk dialog both write
 `POST /api/v1/admin/identities/{id}/rotation` with `{"endpoints": ...}`, taking
@@ -696,6 +696,15 @@ signed-in account. Measured on 2026-10-17:
 | --- | --- | --- |
 | First page of `/api/v1/douyin/user/posts` | An answer, short of the author's newest few posts | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
 | Any later page (a `cursor` other than `0`) | `{"status_code":0}` and nothing else | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once - no guest is sent to be refused |
+
+An author's likes go further: a guest gets nothing at all. Measured on 2026-10-20,
+on one author of fifteen whose likes were public:
+
+| Request | What a guest gets | What dtk does |
+| --- | --- | --- |
+| `/api/v1/douyin/user/likes`, any page | Zero bytes - the same answer as a private list, even for a public one | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once. A private list answers `NOT_FOUND`, for a login as it did for a guest |
+
+Until 5.1.6 these went to guests, so every author's likes read as private.
 
 Bilibili does the same with a video's comments. Measured on 2026-10-18:
 

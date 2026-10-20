@@ -394,7 +394,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `SIGNING_FAILED` | 502 | **是** | 签名失败，算法可能已失效 |
 | `UPSTREAM_UNREACHABLE` | 502 | **是** | 每次尝试都在平台应答之前就在网络层失败了；`details.proxied` 说明最后一次有没有走代理。多半是这台机器的出网问题，不是平台 |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **是** | 没有可用身份；`retry_after` 是恢复时间的估计 |
-| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——抖音作者作品列表的后续页，或 B 站视频评论及回复的后续页。`details.cooling` 是正在冷却的登录身份数。靠导入一份来解决，重试没用；见[身份](./06-identities-and-proxies.md#哪些内容需要登录身份) |
+| `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——抖音作者作品列表的后续页、B 站视频评论及回复的后续页，以及抖音作者喜欢列表的每一页。`details.cooling` 是正在冷却的登录身份数。靠导入一份来解决，重试没用；见[身份](./06-identities-and-proxies.md#哪些内容需要登录身份) |
 | `ENDPOINT_CIRCUIT_OPEN` | 503 | **是** | 该接口因连续失败被熔断暂停 |
 | `QUEUE_FULL` | 503 | **是** | 队列已达上限 |
 | `DOWNLOADER_UNAVAILABLE` | 503 | **是** | 媒体边车进程在跑但没有响应 |
