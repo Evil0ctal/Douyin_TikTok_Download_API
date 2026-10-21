@@ -38,7 +38,19 @@ from urllib.parse import urlencode
 
 from dtk.core.errors import InvalidParam
 from dtk.core.types import LoginNeed, Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
+from dtk.models import (
+    Author,
+    Collection,
+    Comment,
+    Content,
+    ContentPart,
+    Hashtag,
+    LiveRoom,
+    Mix,
+    MusicDetail,
+    Page,
+    TrendingTopic,
+)
 
 HttpMethod = Literal["GET", "POST"]
 
@@ -578,6 +590,47 @@ class PlatformAdapter(Protocol):
         ``popular``, ``popular_weekly``, ``popular_precious`` or ``ranking`` -
         and ``cursor`` the page it asked for, which a numbered list needs to
         say what comes next."""
+        ...
+
+    def parse_related_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        """The posts a platform recommends beside one, as one batch: none of
+        the three pages them in a way a caller could follow."""
+        ...
+
+    def parse_music_detail(self, payload: Mapping[str, Any]) -> MusicDetail: ...
+
+    def parse_music_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]: ...
+
+    def parse_hashtag_detail(self, payload: Mapping[str, Any]) -> Hashtag: ...
+
+    def parse_hashtag_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]: ...
+
+    def parse_search_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]: ...
+
+    def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]: ...
+
+    def parse_author_mixes(self, payload: Mapping[str, Any]) -> Page[Mix]: ...
+
+    def parse_live_room(
+        self, payload: Mapping[str, Any], *, room_id: str | None = None
+    ) -> LiveRoom:
+        """``room_id`` is the one the request named, for a platform whose
+        answer does not repeat it: Douyin's never mentions the web_rid."""
+        ...
+
+    def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]: ...
+
+    def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+        """The posts in one mix. Douyin's and TikTok's answer in the author post
+        list's own envelope; Bilibili's season answer is a folder's."""
         ...
 
 

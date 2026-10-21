@@ -64,9 +64,21 @@ def test_endpoints_a_guest_reads_in_full_are_left_alone(endpoint):
     assert spec.login_for({"cursor": "20"}) is LoginNeed.NONE
 
 
-def test_no_tiktok_endpoint_asks_for_a_login():
-    """Nothing about TikTok was measured, so nothing about it changes."""
-    specs = get_adapter(Platform.TIKTOK).endpoints.specs.values()
+def test_only_the_measured_tiktok_endpoints_ask_for_a_login():
+    """Search is the one TikTok answer measured to shrink for a guest.
 
-    assert {spec.login for spec in specs} == {LoginNeed.NONE}
-    assert {spec.paging_login for spec in specs} == {None}
+    On 2026-10-20 a guest got a thin first page of posts and an empty second
+    page of both posts and accounts. Nothing else about TikTok was measured
+    that way, so nothing else changes.
+    """
+    specs = get_adapter(Platform.TIKTOK).endpoints.specs
+    asks = {
+        name: (spec.login, spec.paging_login)
+        for name, spec in specs.items()
+        if spec.login is not LoginNeed.NONE or spec.paging_login is not None
+    }
+
+    assert asks == {
+        "tiktok.search_posts": (LoginNeed.PREFERRED, LoginNeed.REQUIRED),
+        "tiktok.search_authors": (LoginNeed.NONE, LoginNeed.REQUIRED),
+    }

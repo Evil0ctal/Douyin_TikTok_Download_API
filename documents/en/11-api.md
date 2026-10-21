@@ -447,8 +447,8 @@ Two separate mechanisms make a repeated request cheap, and both are on by defaul
 | Setting | Default | Applies to |
 | --- | --- | --- |
 | `cache.content_ttl` | 1800s (30 min) | One post |
-| `cache.author_ttl` | 900s (15 min) | An author profile |
-| `cache.list_ttl` | 300s (5 min) | Anything paged |
+| `cache.author_ttl` | 900s (15 min) | An author profile, a sound, a hashtag |
+| `cache.list_ttl` | 300s (5 min) | Anything paged, and a live room |
 
 `meta.cached` tells you which answer you got. Entries expire on their own, and Redis is capped below its container limit so the cache cannot grow without bound.
 
@@ -523,7 +523,7 @@ See [Playground and tools](./07-playground-and-tools.md), which is the console's
 | `GET` | `/api/v1/{platform}/user` | `{platform}:read` | Profile. `url` **or** `sec_user_id` |
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | Paged |
 | `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | Douyin and TikTok. Paged. See the platform note below |
-| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | Douyin and TikTok. `mix_id` — Douyin `mix_info`, TikTok `playlistId`. An author's own series, not a bookmark folder. Paged |
+| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id` — from `/user/mixes`, or a post's own: Douyin `mix_info`, TikTok `playlistId`. An author's own series, not a bookmark folder. Paged; a Bilibili season comes whole, in one page |
 | `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | Bookmark folders. Takes an author on TikTok and Bilibili (on Bilibili: public folders, all in one page); takes none on Douyin, and there needs `identity`. Paged |
 | `GET` | `/api/v1/{platform}/collection` | `tiktok:read` | **TikTok only.** One folder by `collection_id`: name, cover, count, owner, visibility |
 | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}:read` | Posts in one folder, by `collection_id`. Paged |
@@ -533,12 +533,34 @@ See [Playground and tools](./07-playground-and-tools.md), which is the console's
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **TikTok only** |
 | `GET` | `/api/v1/{platform}/video/parts` | `bilibili:read` | **Bilibili only.** The parts of a video uploaded in several. `url` **or** `aweme_id` |
 | `GET` | `/api/v1/{platform}/popular` | `bilibili:read` | **Bilibili only.** A site-curated list: `board` is `hot`, `weekly`, `precious` or `rank`. Paged where the list is |
+| `GET` | `/api/v1/{platform}/video/related` | `{platform}:read` | What the platform recommends beside a post. `url` **or** `aweme_id`. One batch, never paged |
+| `GET` | `/api/v1/{platform}/user/mixes` | `{platform}:read` | An author's own series — Douyin mixes, TikTok playlists, Bilibili seasons — each with the `mix_id` `/mix/posts` takes. `url` **or** `sec_user_id`. Paged |
+| `GET` | `/api/v1/{platform}/music` | `{platform}:read` | Douyin and TikTok. One sound: `url` **or** `music_id` |
+| `GET` | `/api/v1/{platform}/music/posts` | `{platform}:read` | Douyin and TikTok. The posts made with a sound. Paged |
+| `GET` | `/api/v1/{platform}/hashtag` | `{platform}:read` | Douyin and TikTok. One hashtag: `url`, `hashtag_id` or, on TikTok, `name` |
+| `GET` | `/api/v1/{platform}/hashtag/posts` | `tiktok:read` | **TikTok only.** The posts under a hashtag, by `hashtag_id`. Paged |
+| `GET` | `/api/v1/{platform}/search/posts` | `{platform}:read` | TikTok and Bilibili. The posts a `keyword` finds. Paged — see below for what a guest gets |
+| `GET` | `/api/v1/{platform}/search/users` | `{platform}:read` | TikTok and Bilibili. The accounts a `keyword` finds. Paged, as above |
+| `GET` | `/api/v1/{platform}/live` | `{platform}:read` | One live room: `url` **or** `room_id`. Whether it is on, and its pull URLs while it is |
+| `GET` | `/api/v1/{platform}/trending` | `{platform}:read` | Douyin and Bilibili. A trending board, whole: `board` is `hot`, `entertainment`, `society` or `challenge` on Douyin, `hot` on Bilibili |
 
 `/video` also takes `part` on Bilibili — see [A video's parts](#a-videos-parts).
 
-The platforms are not symmetric past the core five, and the asymmetry is reported rather than papered over. Asking Douyin for `followers` or `following` returns `UNSUPPORTED_CONTENT` with `details.supported` naming the platforms that do serve it — a route that submitted the task anyway would answer with an empty page and let you conclude the author has no followers. Bilibili serves the core five, folders, a video's parts and the popular boards — the last two on Bilibili alone — and answers the rest the same way - see [Bilibili](#bilibili). `user/likes` is offered on Douyin and TikTok, but Douyin does not serve that list to a guest identity: it needs an imported logged-in identity, and on TikTok an empty page usually means the author keeps their likes private.
+The platforms are not symmetric past the core five, and the asymmetry is reported rather than papered over. Asking Douyin for `followers` or `following` returns `UNSUPPORTED_CONTENT` with `details.supported` naming the platforms that do serve it — a route that submitted the task anyway would answer with an empty page and let you conclude the author has no followers. Bilibili serves the core five, folders, seasons, related videos, search, live rooms, the hot search, a video's parts and the popular boards — the last two on Bilibili alone — and answers the rest the same way - see [Bilibili](#bilibili). `user/likes` is offered on Douyin and TikTok, but Douyin does not serve that list to a guest identity: it needs an imported logged-in identity, and on TikTok an empty page usually means the author keeps their likes private.
 
 Bookmark folders are the sharpest case of that asymmetry. A folder is public or private **individually on Douyin and TikTok**, and a public one is readable with an ordinary pooled identity — no login anywhere. But the folder *list* differs: TikTok's — and Bilibili's — takes an author and will answer about a stranger's public folders, while Douyin's request carries no user id at all and answers only about the identity sending it. So on Douyin, `user/collections` needs `identity` pinned to an imported identity, and passing `url` or `sec_user_id` there is refused rather than ignored — ignoring it would hand back your own folders under somebody else's name. Every folder reports `is_public` and its owner, so you never have to guess which case you are in.
+
+### Search, sounds, hashtags and live rooms
+
+These are measured per platform like everything else, and the differences are declared rather than discovered. `GET /api/v1/system/capabilities` lists them, including what a guest identity loses on each.
+
+- **Search.** Bilibili pages both its video and its account search for a guest identity, up to the 50 pages it ever offers. TikTok gives a guest a thin first page of posts — one result for some queries — and an empty second page of posts and accounts alike, so a signed-in identity is used for the first page when the pool has one and is needed for every later page. Douyin refuses search to a guest by name (`status_code 2483`, "sign in before searching"); no signed-in answer has been measured, so it is not offered and answers `UNSUPPORTED_CONTENT`. Search draws from the slowest bucket the scheduler has.
+- **Sounds and hashtags.** A sound's id is the `music.music_id` of any post that uses it; a hashtag's is in a Douyin hashtag link, and on TikTok `/hashtag` looks one up by `name` (a TikTok tag link carries only the name). `/hashtag/posts` takes the numeric id, so on TikTok look the name up first. Douyin answers the posts under a hashtag to a guest with an empty body — so did its own hashtag page in a browser that was not signed in — and that list is not offered on Douyin yet. A sound or a hashtag nobody has is `NOT_FOUND`.
+- **Related posts** is a recommendation, so the same call can answer differently a minute later, and all three platforms answer an id that names no post with a full batch of unrelated ones — `/video` is the call that says whether a post exists.
+- **Live rooms** are addressed the way their links address them: the number in `live.douyin.com/<n>`, the @handle in TikTok's `/@<handle>/live`, the number in `live.bilibili.com/<n>`. While a room is live the answer carries `viewer_count`, `started_at` where the platform states it, and `streams`, one per protocol (`flv` or `hls`) and quality in the platform's own quality names. Pull URLs are signed and expire within hours; this reads a room and records nothing, and the URLs go to your own player or recorder straight from the platform's CDN. On Bilibili the pull URLs are a second request, made only while the room is on, and its `viewer_count` is the "watched" figure it prints rather than who is in the room now.
+- **Trending** boards are lists of phrases, not posts: each line carries its `rank`, the heat the platform prints, and `web_url`, the platform's own page for it. Douyin's main board opens with a line pinned above the ranking, which has a `rank` and heat of `null`.
+
+`POST /api/v1/parse` answers music, hashtag and live links with the endpoints above.
 
 Identify a post by **either** `url` **or** `aweme_id`, never both-or-neither; an author by **either** `url` **or** `sec_user_id` (TikTok calls it `secUid`; on Bilibili it is the numeric `mid`). A URL that already carries the id has it extracted at the edge, so both spellings coalesce onto one task. Text with a link buried in it is accepted — the clipboard content the platform apps produce can be sent unedited. Short links (`v.douyin.com`, `vm.tiktok.com`, `b23.tv`, `bili2233.cn`) are queued for expansion in the worker, because following one is a network call the API container does not make.
 
@@ -590,6 +612,8 @@ The parameter names are the API's, not the platform's, so they keep the spelling
 | An author | The numeric `mid` | `sec_user_id` |
 | A comment | The comment's id | `comment_id` |
 | A folder | The folder's id | `collection_id` |
+| A season | The `season_id` `/user/mixes` returns as `mix_id` | `mix_id` |
+| A live room | The number in a `live.bilibili.com` link | `room_id` |
 
 Results always carry the bvid as `content_id`, whichever form you sent. An author's `mid` comes back in both `uid` and `sec_uid`, as on Douyin, so the `sec_uid` of any result is always the id the author endpoints accept. Bilibili has no handles: `unique_id` is `null`.
 
@@ -601,6 +625,7 @@ Links that `url` and `/parse` recognise:
 | Short link | `b23.tv/<code>`, `bili2233.cn/<code>` — followed by the worker, like every short link |
 | Author | `space.bilibili.com/<mid>` (also with `/video` or `/upload`), `m.bilibili.com/space/<mid>` |
 | Folder | `space.bilibili.com/<mid>/favlist?fid=<id>`, `www.bilibili.com/list/ml<id>` |
+| Live room | `live.bilibili.com/<room>`, `live.bilibili.com/h5/<room>` |
 
 Share and tracking parameters such as `vd_source`, `spm_id_from`, `buvid` and `share_source` are dropped; `p` (the part) and `t` (the start time) are kept. `bilibili.tv`, the international site, is a different service and is not supported.
 
@@ -617,9 +642,15 @@ Share and tracking parameters such as `vd_source`, `spm_id_from`, `buvid` and `s
 | `collection/posts` | One folder's videos, paged by page number |
 | `video/parts` | A video's parts — see below |
 | `popular` | The four site-curated lists — see below |
-| `user/likes`, `user/reposts`, `user/bookmarks`, `user/followers`, `user/following`, `collection`, `mix/posts` | `UNSUPPORTED_CONTENT`, naming the platform and the capability it lacks |
+| `video/related` | The 40 videos the player lists beside one, in one answer |
+| `user/mixes` | The uploader's seasons. Its space lists older "series" beside them, which are a different id `/mix/posts` cannot read, so they are left out — the paging still counts them, so a last page can be empty |
+| `mix/posts` | One season's videos, all of them in one answer whatever page is asked |
+| `search/posts`, `search/users` | The search page's video and user tabs, paged by number for a guest too; the highlighting around matched words is taken out |
+| `live` | A live room; while it is on, a second request fetches its pull URLs |
+| `trending` | The hot search under the search box: `board=hot` only |
+| `user/likes`, `user/reposts`, `user/bookmarks`, `user/followers`, `user/following`, `collection`, `music`, `music/posts`, `hashtag`, `hashtag/posts` | `UNSUPPORTED_CONTENT`, naming the platform and the capability it lacks |
 
-`POST /api/v1/parse` recognises Bilibili links like any other. A folder link is answered with the folder's first page of videos, since Bilibili has no separate folder detail.
+`POST /api/v1/parse` recognises Bilibili links like any other, `live.bilibili.com/<room>` included. A folder link is answered with the folder's first page of videos, since Bilibili has no separate folder detail.
 
 ### A video costs two requests
 

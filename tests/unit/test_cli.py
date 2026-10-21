@@ -935,9 +935,48 @@ class TestTargets:
         from dtk.ops.pipeline import target_for
         from dtk.urls import identify
 
-        kind = identify("https://live.douyin.com/123456789")
+        # A Douyin mix link: /parse refuses it too, which is the point - the
+        # CLI and /parse answer the same links.
+        kind = identify("https://www.douyin.com/collection/7123456789012345678")
         with pytest.raises(UnsupportedContent):
             target_for(kind)
+
+    @pytest.mark.parametrize(
+        ("url", "endpoint", "params"),
+        [
+            (
+                "https://www.douyin.com/music/7661456186985761599",
+                "douyin.music_detail",
+                {"music_id": "7661456186985761599"},
+            ),
+            # The tag link carries a name, so it goes in as one even when it
+            # is all digits - the same rule /parse follows.
+            ("https://www.tiktok.com/tag/2024", "tiktok.hashtag_detail", {"name": "2024"}),
+            (
+                "https://live.douyin.com/615171448842",
+                "douyin.live_room",
+                {"room_id": "615171448842"},
+            ),
+            ("https://live.bilibili.com/545068", "bilibili.live_room", {"room_id": "545068"}),
+            (
+                "https://www.tiktok.com/@ventisfit/live",
+                "tiktok.live_room",
+                {"room_id": "ventisfit"},
+            ),
+        ],
+    )
+    def test_a_link_parse_answers_is_one_dtk_fetch_answers(
+        self, url: str, endpoint: str, params: dict[str, str]
+    ) -> None:
+        """`dtk fetch` refused every link but a post and a profile, after /parse
+        had learned sounds, hashtags and live rooms."""
+        from dtk.ops.pipeline import target_for
+        from dtk.urls import identify
+
+        target = target_for(identify(url))
+        assert target.endpoint == endpoint
+        assert target.params == params
+        assert target.endpoint.endswith(target.capability.value)
 
 
 # ---------------------------------------------------------------------------

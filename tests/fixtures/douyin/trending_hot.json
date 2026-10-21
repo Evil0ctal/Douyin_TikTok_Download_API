@@ -1,0 +1,129 @@
+{
+  "banner_dark": {
+    "uri": "synthetic",
+    "url_list": [
+      "https://p5-sign.example-cdn.invalid/obj/banner.png"
+    ]
+  },
+  "banner_light": {
+    "uri": "synthetic",
+    "url_list": [
+      "https://p5-sign.example-cdn.invalid/obj/banner.png"
+    ]
+  },
+  "data": {
+    "active_time": "2026-10-21 08:14:22",
+    "banner_display": {},
+    "display_style": 0,
+    "share_info": {},
+    "trending_desc": "实时上升热点",
+    "trending_list": [
+      {
+        "article_detail_count": 0,
+        "discuss_video_count": 1,
+        "display_style": 0,
+        "event_time": 1792456338,
+        "group_id": "7000000000000009999",
+        "hot_value": 0,
+        "hotlist_param": "{}",
+        "label": 0,
+        "sentence_id": "2799999",
+        "sentence_tag": 3002,
+        "video_count": 5,
+        "word": "Synthetic rising phrase",
+        "word_cover": {
+          "uri": "synthetic",
+          "url_list": [
+            "https://p9-sign.example-cdn.invalid/hot/rising.jpeg"
+          ]
+        },
+        "word_type": 3
+      }
+    ],
+    "word_list": [
+      {
+        "can_extend_detail": false,
+        "discuss_video_count": 1,
+        "hot_value": 0,
+        "hotlist_param": "{}",
+        "is_n1": true,
+        "label": 0,
+        "sentence_id": "2700000",
+        "topic_info": {},
+        "view_count": 0,
+        "word": "Synthetic trending phrase 0",
+        "word_type": 14,
+        "post_aweme_info": null
+      },
+      {
+        "article_detail_count": 0,
+        "can_extend_detail": false,
+        "discuss_video_count": 1,
+        "display_style": 0,
+        "event_time": 1792480319,
+        "group_id": "7000000000000000001",
+        "hot_value": 12124851,
+        "hotlist_param": "{}",
+        "is_n1": false,
+        "label": 3,
+        "label_url": "https://p3-sign.example-cdn.invalid/label/synthetic.png",
+        "max_rank": 1,
+        "position": 1,
+        "room_count": 0,
+        "sentence_id": "2700001",
+        "sentence_tag": 3002,
+        "video_count": 6,
+        "view_count": 64315168,
+        "word": "Synthetic trending phrase 1",
+        "word_cover": {
+          "uri": "synthetic",
+          "url_list": [
+            "https://p9-sign.example-cdn.invalid/hot/synthetic-1.jpeg"
+          ]
+        },
+        "word_type": 1,
+        "post_aweme_info": null,
+        "topic_info": {}
+      },
+      {
+        "article_detail_count": 0,
+        "can_extend_detail": false,
+        "discuss_video_count": 1,
+        "display_style": 0,
+        "event_time": 1792484206,
+        "group_id": "7000000000000000002",
+        "hot_value": 12123856,
+        "hotlist_param": "{}",
+        "label": 3,
+        "label_url": "https://p3-sign.example-cdn.invalid/label/synthetic.png",
+        "max_rank": 1,
+        "position": 2,
+        "sentence_id": "2700002",
+        "sentence_tag": 21000,
+        "video_count": 4,
+        "view_count": 67705290,
+        "word": "Synthetic trending phrase 2",
+        "word_cover": {
+          "uri": "synthetic",
+          "url_list": [
+            "https://p9-sign.example-cdn.invalid/hot/synthetic-2.jpeg"
+          ]
+        },
+        "word_type": 1,
+        "post_aweme_info": null,
+        "topic_info": {}
+      }
+    ]
+  },
+  "extra": {
+    "logid": "20261020000000000000000000000000000001",
+    "now": 1792540800000,
+    "time_cost": {
+      "stream_inner": 154
+    }
+  },
+  "log_pb": {
+    "impr_id": "20261020000000000000000000000000000001"
+  },
+  "status_code": 0
+}

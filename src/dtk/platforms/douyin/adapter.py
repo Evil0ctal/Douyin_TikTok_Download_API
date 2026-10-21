@@ -15,7 +15,19 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
+from dtk.models import (
+    Author,
+    Collection,
+    Comment,
+    Content,
+    ContentPart,
+    Hashtag,
+    LiveRoom,
+    Mix,
+    MusicDetail,
+    Page,
+    TrendingTopic,
+)
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -148,6 +160,76 @@ class DouyinAdapter:
             "Douyin has no popular list here",
             details={"platform": self.platform.value, "capability": board},
         )
+
+    def parse_related_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_related_posts(payload, fetched_at=fetched_at)
+
+    def parse_music_detail(self, payload: Mapping[str, Any]) -> MusicDetail:
+        return parser.parse_music_detail(payload)
+
+    def parse_music_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_music_posts(payload, fetched_at=fetched_at)
+
+    def parse_hashtag_detail(self, payload: Mapping[str, Any]) -> Hashtag:
+        return parser.parse_hashtag_detail(payload)
+
+    def parse_hashtag_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        """Not registered: Douyin answers a guest with an empty body here.
+
+        Measured 2026-10-20 with a minted guest and again in a browser that
+        was not signed in, whose own hashtag page got the same zero bytes. A
+        signed-in answer has not been seen, and a parser written without one
+        would be a guess at its shape - so the capability is missing rather
+        than wrong.
+        """
+        raise UnsupportedContent(
+            "Douyin lists the posts under a hashtag only to a signed-in session, "
+            "and that answer has not been measured here yet",
+            details={"platform": self.platform.value, "capability": "hashtag_posts"},
+        )
+
+    def parse_search_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        """Not registered: Douyin refuses search to a guest by name.
+
+        Measured 2026-10-20 on the general and the video search: `status_code
+        2483` and a message asking to sign in before searching, to a healthy
+        guest. As with the posts under a hashtag, no signed-in answer has been
+        seen to write a parser against.
+        """
+        raise UnsupportedContent(
+            "Douyin answers search only to a signed-in session, and that answer "
+            "has not been measured here yet",
+            details={"platform": self.platform.value, "capability": "search_posts"},
+        )
+
+    def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]:
+        raise UnsupportedContent(
+            "Douyin answers search only to a signed-in session, and that answer "
+            "has not been measured here yet",
+            details={"platform": self.platform.value, "capability": "search_authors"},
+        )
+
+    def parse_author_mixes(self, payload: Mapping[str, Any]) -> Page[Mix]:
+        return parser.parse_author_mixes(payload)
+
+    def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+        return parser.parse_author_posts(payload, fetched_at=fetched_at)
+
+    def parse_live_room(
+        self, payload: Mapping[str, Any], *, room_id: str | None = None
+    ) -> LiveRoom:
+        return parser.parse_live_room(payload, room_id=room_id)
+
+    def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+        return parser.parse_trending(payload)
 
 
 ADAPTER: PlatformAdapter = DouyinAdapter()

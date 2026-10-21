@@ -1,0 +1,36 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "room_info": {
+      "uid": 10000001,
+      "room_id": 30000001,
+      "short_id": 0,
+      "title": "Synthetic live title",
+      "cover": "https://cdn.example-cdn.invalid/bfs/live/new_room_cover/synthetic.jpg",
+      "live_status": 1,
+      "live_start_time": 1792518302,
+      "online": 992759,
+      "area_name": "Synthetic area",
+      "parent_area_name": "Synthetic",
+      "description": "Synthetic room description."
+    },
+    "anchor_info": {
+      "base_info": {
+        "uname": "Synthetic Creator",
+        "face": "https://cdn.example-cdn.invalid/bfs/face/synthetic.jpg",
+        "gender": "保密"
+      }
+    },
+    "watched_show": {
+      "switch": true,
+      "num": 2517,
+      "text_small": "2517",
+      "text_large": "2517人看过",
+      "icon": "",
+      "icon_location": 0,
+      "icon_web": ""
+    }
+  }
+}

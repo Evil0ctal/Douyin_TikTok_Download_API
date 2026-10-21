@@ -22,9 +22,12 @@ lenient parser would keep working while quietly mapping half the fields to
 
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Final
+from urllib.parse import quote
 
 from dtk.core.errors import UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
@@ -36,9 +39,14 @@ from dtk.models import (
     Comment,
     Content,
     ContentStats,
+    Hashtag,
     Image,
+    LiveRoom,
+    LiveStream,
     Media,
+    Mix,
     Music,
+    MusicDetail,
     Page,
     VideoStream,
 )
@@ -473,6 +481,261 @@ def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/related/item_list/``: one batch, with ``cursor: -1``."""
+    root = _guard(payload)
+    items = [content_from_node(item, fetched_at=fetched_at) for item in root.children("itemList")]
+    return Page(items=items, cursor=None, has_more=False)
+
+
+_SLUG_JUNK: Final = re.compile(r"[^0-9A-Za-z]+")
+
+
+def music_web_url(music_id: str, title: str | None) -> str:
+    """``/music/<title>-<id>``, as the site links a sound.
+
+    Only the id is read: ``original-sound-<id>``, ``x-<id>`` and ``-<id>``
+    all served the same page on 2026-10-20. The title is there because it is
+    what the site's own links carry, reduced to the characters they use.
+    """
+    slug = _SLUG_JUNK.sub("-", title or "").strip("-").lower()
+    return f"{WEB_DOMAIN}/music/{slug}-{music_id}"
+
+
+def parse_music_detail(payload: Mapping[str, Any]) -> MusicDetail:
+    """Parse ``/api/music/detail/``.
+
+    The sound, its counters and its publisher arrive as three siblings under
+    ``musicInfo``. ``author`` is absent for a library track rather than empty,
+    and the sound then has no owner.
+    """
+    info = _guard(payload).child("musicInfo")
+    node = info.child("music")
+    music_id = node.id("id")
+    base = _music(node) or Music()
+    stats = info.opt_child("stats")
+    owner = info.opt_child("author")
+    return MusicDetail(
+        **base.model_dump(exclude={"music_id"}),
+        music_id=music_id,
+        platform=_PLATFORM,
+        web_url=music_web_url(music_id, base.title),
+        content_count=optional_int(stats.get("videoCount")) if stats is not None else None,
+        is_original=optional_bool(node.get("original")) if node.has("original") else None,
+        owner=author_from_web_node(owner) if owner is not None else None,
+        raw=info.raw(),
+    )
+
+
+def parse_music_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/music/item_list/``, the shared item_list envelope."""
+    return parse_author_posts(payload, fetched_at=fetched_at)
+
+
+def hashtag_web_url(name: str) -> str:
+    return f"{WEB_DOMAIN}/tag/{quote(name, safe='')}"
+
+
+def parse_hashtag_detail(payload: Mapping[str, Any]) -> Hashtag:
+    """Parse ``/api/challenge/detail/``.
+
+    The counters are read from ``statsV2``, as a post's are: measured
+    2026-10-20, ``stats.videoCount`` was 0 beside a ``statsV2.videoCount`` of
+    194388, and ``stats.viewCount`` a rounded 5200000000 beside the exact
+    figure. ``stats`` is the fallback, for an answer that has nothing else.
+    """
+    info = _guard(payload).child("challengeInfo")
+    node = info.child("challenge")
+    primary = info.opt_child("statsV2")
+    secondary = info.opt_child("stats") or node.opt_child("stats")
+
+    def metric(name: str) -> int | None:
+        for source in (primary, secondary):
+            value = optional_int(source.get(name)) if source is not None else None
+            if value is not None:
+                return value
+        return None
+
+    name = node.text("title")
+    return Hashtag(
+        platform=_PLATFORM,
+        hashtag_id=node.id("id"),
+        name=name,
+        description=optional_str(node.get("desc")),
+        cover=image_from_urls(
+            node.get("coverLarger"),
+            node.get("coverMedium"),
+            node.get("profileLarger"),
+            node.get("profileMedium"),
+        ),
+        web_url=hashtag_web_url(name),
+        content_count=metric("videoCount"),
+        view_count=metric("viewCount"),
+        raw=info.raw(),
+    )
+
+
+def parse_hashtag_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/challenge/item_list/``, the shared item_list envelope."""
+    return parse_author_posts(payload, fetched_at=fetched_at)
+
+
+def parse_search_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/search/item/full/``.
+
+    The items are ordinary ``itemStruct`` objects; the envelope is snake_case
+    - ``item_list``, ``has_more`` as 0 or 1, a numeric ``cursor`` - and drops
+    ``item_list`` altogether on a page with nothing in it.
+    """
+    root = _guard(payload)
+    items = [
+        content_from_node(item, fetched_at=fetched_at) for item in root.listed_children("item_list")
+    ]
+    has_more = optional_bool(root.get("has_more")) and bool(items)
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def author_from_search_node(node: Node) -> Author:
+    """An account as the user search lists it: the comment endpoints' snake_case
+    user object, with the counters beside the name rather than in a block."""
+    author = author_from_comment_node(node)
+    stats = AuthorStats(
+        follower_count=optional_int(node.get("follower_count")),
+        following_count=optional_int(node.get("following_count")),
+        content_count=optional_int(node.get("aweme_count")),
+        total_digg=optional_int(node.get("total_favorited")),
+    )
+    return author.model_copy(update={"stats": None if stats == AuthorStats() else stats})
+
+
+def parse_search_authors(payload: Mapping[str, Any]) -> Page[Author]:
+    """Parse ``/api/search/user/full/``: ``user_list`` of ``{user_info, ...}``."""
+    root = _guard(payload)
+    entries = root.listed_children("user_list")
+    items = [author_from_search_node(entry.child("user_info")) for entry in entries]
+    has_more = optional_bool(root.get("has_more")) and bool(items)
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def playlist_web_url(unique_id: str, name: str, mix_id: str) -> str:
+    """``/@<handle>/playlist/<name>-<id>``, as the profile links a playlist.
+
+    The name is reduced the way :func:`music_web_url` reduces a title; only
+    the id after the last hyphen is what the URL layer reads back.
+    """
+    slug = _SLUG_JUNK.sub("-", name).strip("-")
+    return f"{WEB_DOMAIN}/@{unique_id}/playlist/{slug}-{mix_id}"
+
+
+def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
+    """Parse ``/api/user/playlist/``.
+
+    Each entry names itself twice - ``id``/``mixId``, ``name``/``mixName`` -
+    and was the same both times on every playlist measured; the first of each
+    is read. An author with none answers no ``playList`` key at all.
+    """
+    root = _guard(payload)
+    items: list[Mix] = []
+    for entry in root.listed_children("playList"):
+        mix_id = optional_id(entry.get("id")) or entry.id("mixId")
+        name = optional_str(entry.get("name")) or entry.text("mixName")
+        creator = entry.opt_child("creator")
+        handle = optional_str(creator.get("uniqueId")) if creator else None
+        items.append(
+            Mix(
+                platform=_PLATFORM,
+                mix_id=mix_id,
+                name=name,
+                cover=image_from_urls(entry.get("cover")),
+                item_count=optional_int(entry.get("videoCount")),
+                web_url=playlist_web_url(handle, name, mix_id) if handle else None,
+                owner_id=optional_str(creator.get("secUid")) if creator else None,
+                owner_name=handle,
+                raw=entry.raw(),
+            )
+        )
+    has_more = optional_bool(root.present("hasMore"))
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+#: A room's ``status`` while it broadcasts; 4 is ended, measured 2026-10-20.
+_LIVE_STATUS_ON: Final = 2
+
+#: The pull URL keys of one quality, in the order a player would try them.
+#: ``cmaf``, ``lls`` and the rest are left out: a player needs to know about
+#: them, and the two here are what every player and recorder takes.
+_LIVE_FORMATS: Final[tuple[str, ...]] = ("flv", "hls")
+
+
+def live_web_url(unique_id: str) -> str:
+    return f"{WEB_DOMAIN}/@{unique_id}/live"
+
+
+def _live_streams(room: Node) -> list[LiveStream]:
+    """The pull URLs, from ``streamData.pull_data.stream_data``.
+
+    That field is a JSON document inside a string, keyed by quality (``origin``,
+    ``hd``, ``sd``, ...), each with ``main.flv`` and ``main.hls``. A string
+    that will not decode is a stream the page could not play either, and
+    gives no streams rather than failing the room.
+    """
+    data = room.opt_child("streamData")
+    pull = data.opt_child("pull_data") if data else None
+    text = pull.get("stream_data") if pull else None
+    if not isinstance(text, str) or not text:
+        return []
+    try:
+        decoded = json.loads(text)
+    except ValueError:
+        return []
+    qualities = decoded.get("data") if isinstance(decoded, dict) else None
+    if not isinstance(qualities, dict):
+        return []
+    streams: list[LiveStream] = []
+    for quality, entry in qualities.items():
+        main = entry.get("main") if isinstance(entry, dict) else None
+        if not isinstance(main, dict):
+            continue
+        for fmt in _LIVE_FORMATS:
+            url = main.get(fmt)
+            if isinstance(url, str) and url:
+                streams.append(LiveStream(url=url, format=fmt, quality=str(quality)))
+    return streams
+
+
+def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -> LiveRoom:
+    """Parse ``/api-live/user/room/``: ``data.user`` and ``data.liveRoom``."""
+    data = _guard(payload).child("data")
+    user = data.child("user")
+    room = data.child("liveRoom")
+    author = author_from_web_node(user)
+    is_live = optional_int(room.get("status")) == _LIVE_STATUS_ON
+    stats = room.opt_child("liveRoomStats")
+    handle = author.unique_id or room_id or ""
+    return LiveRoom(
+        platform=_PLATFORM,
+        room_id=handle,
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=image_from_urls(room.get("coverUrl"), room.get("squareCoverImg")),
+        web_url=live_web_url(handle) if handle else None,
+        viewer_count=optional_int(stats.get("userCount")) if stats and is_live else None,
+        started_at=epoch_to_datetime(room.get("startTime")) if is_live else None,
+        author=author,
+        streams=_live_streams(room) if is_live else [],
+        raw=data.raw(),
+    )
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -633,17 +896,31 @@ __all__ = [
     "RISK_STATUS_CODES",
     "WEB_DOMAIN",
     "author_from_comment_node",
+    "author_from_search_node",
     "author_from_web_node",
     "author_web_url",
     "comment_from_node",
     "content_from_node",
     "content_web_url",
     "detect_risk_control",
+    "hashtag_web_url",
+    "live_web_url",
+    "music_web_url",
     "parse_author",
     "parse_author_collections",
+    "parse_author_mixes",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_hashtag_detail",
+    "parse_hashtag_posts",
+    "parse_live_room",
+    "parse_music_detail",
+    "parse_music_posts",
+    "parse_related_posts",
     "parse_reply_previews",
+    "parse_search_authors",
+    "parse_search_posts",
+    "playlist_web_url",
 ]

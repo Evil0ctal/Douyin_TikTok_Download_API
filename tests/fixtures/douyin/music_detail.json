@@ -1,0 +1,105 @@
+{
+  "detail_page_labels": null,
+  "disable_music_activity_setting": false,
+  "extra": {
+    "fatal_item_ids": [],
+    "logid": "20261020000000000000000000000000000001",
+    "now": 1792540800000
+  },
+  "feature_data": {},
+  "follow_shoot_buttons": null,
+  "high_upload_ratio": 0,
+  "log_pb": {
+    "impr_id": "20261020000000000000000000000000000001"
+  },
+  "lora_model_ids": null,
+  "msg": "success",
+  "music_activity_resource_infos": null,
+  "music_info": {
+    "album": "",
+    "audition_duration": 19,
+    "author": "Synthetic Creator",
+    "author_deleted": false,
+    "avatar_large": {
+      "height": 720,
+      "uri": "1080x1080/aweme-avatar/synthetic-author-01",
+      "url_list": [
+        "https://p3-pc.example-cdn.invalid/1080x1080/aweme-avatar/synthetic-author-01.jpeg"
+      ],
+      "width": 720
+    },
+    "avatar_medium": {
+      "height": 720,
+      "uri": "720x720/aweme-avatar/synthetic-author-01",
+      "url_list": [
+        "https://p3-pc.example-cdn.invalid/720x720/aweme-avatar/synthetic-author-01.jpeg"
+      ],
+      "width": 720
+    },
+    "avatar_thumb": {
+      "height": 720,
+      "uri": "100x100/aweme-avatar/synthetic-author-01",
+      "url_list": [
+        "https://p3-pc.example-cdn.invalid/100x100/aweme-avatar/synthetic-author-01.jpeg"
+      ],
+      "width": 720
+    },
+    "cover_large": {
+      "height": 720,
+      "uri": "1080x1080/aweme-avatar/synthetic-author-01",
+      "url_list": [
+        "https://p3-pc.example-cdn.invalid/1080x1080/aweme-avatar/synthetic-author-01.jpeg"
+      ],
+      "width": 720
+    },
+    "cover_medium": {
+      "height": 720,
+      "uri": "720x720/aweme-avatar/synthetic-author-01",
+      "url_list": [
+        "https://p3-pc.example-cdn.invalid/720x720/aweme-avatar/synthetic-author-01.jpeg"
+      ],
+      "width": 720
+    },
+    "cover_thumb": {
+      "height": 720,
+      "uri": "100x100/aweme-avatar/synthetic-author-01",
+      "url_list": [
+        "https://p3-pc.example-cdn.invalid/100x100/aweme-avatar/synthetic-author-01.jpeg"
+      ],
+      "width": 720
+    },
+    "duration": 19,
+    "id": 6800000000000000001,
+    "id_str": "6800000000000000001",
+    "is_commerce_music": false,
+    "is_original": false,
+    "is_original_sound": true,
+    "is_pgc": false,
+    "mid": "6800000000000000001",
+    "owner_handle": "88881111",
+    "owner_id": "1000000000000000001",
+    "owner_nickname": "Synthetic Creator",
+    "play_url": {
+      "height": 720,
+      "uri": "https://sf6-cdn-tos.example-cdn.invalid/obj/ies-music/synthetic.mp3",
+      "url_key": "6800000000000000001",
+      "url_list": [
+        "https://sf6-cdn-tos.example-cdn.invalid/obj/ies-music/synthetic.mp3"
+      ],
+      "width": 720
+    },
+    "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+    "shoot_duration": 19,
+    "source_platform": 23,
+    "status": 1,
+    "title": "original sound - Synthetic Creator",
+    "user_count": 103176,
+    "video_duration": 19
+  },
+  "rec_list": [],
+  "related_effects": null,
+  "related_musics": null,
+  "small_banner": [],
+  "status_code": 0,
+  "trends_infos": null
+}

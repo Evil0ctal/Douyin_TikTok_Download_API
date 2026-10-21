@@ -74,6 +74,24 @@ class Capability(StrEnum):
     POPULAR_WEEKLY = "popular_weekly"
     POPULAR_PRECIOUS = "popular_precious"
     RANKING = "ranking"
+    #: What the platform recommends beside one post: one batch, not a page.
+    RELATED_POSTS = "related_posts"
+    #: A sound a post is made with, and the posts that use it.
+    MUSIC_DETAIL = "music_detail"
+    MUSIC_POSTS = "music_posts"
+    #: A hashtag's page, and the posts filed under it.
+    HASHTAG_DETAIL = "hashtag_detail"
+    HASHTAG_POSTS = "hashtag_posts"
+    #: A keyword search, for posts and for accounts.
+    SEARCH_POSTS = "search_posts"
+    SEARCH_AUTHORS = "search_authors"
+    #: The series an author has published: Douyin's mixes, TikTok's playlists,
+    #: Bilibili's seasons. Their ids are what ``mix_posts`` takes.
+    AUTHOR_MIXES = "author_mixes"
+    #: A live room: whether it is broadcasting, and the pull URLs if it is.
+    LIVE_ROOM = "live_room"
+    #: A board of what people are searching for: words, not posts.
+    TRENDING = "trending"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -127,6 +145,20 @@ AUTHOR_ID: Final = "author_id"
 UNIQUE_ID: Final = "unique_id"
 MIX_ID: Final = "mix_id"
 COLLECTION_ID: Final = "collection_id"
+#: A sound, by the id a post's ``music`` carries and a music link ends in.
+MUSIC_ID: Final = "music_id"
+#: A hashtag by number. A TikTok tag link names it instead, and the name goes
+#: to HASHTAG_NAME - see ``dtk.worker.parsing.NAMED_BY_LINK``.
+HASHTAG_ID: Final = "hashtag_id"
+#: A hashtag by name, without the '#'. TikTok's detail answers either.
+HASHTAG_NAME: Final = "name"
+#: What a search looks for, as typed.
+KEYWORD: Final = "keyword"
+#: A live room by what its link carries: Douyin's web_rid, the owner's
+#: @handle on TikTok, Bilibili's room number.
+ROOM_ID: Final = "room_id"
+#: A :class:`dtk.core.types.TrendingBoard` value.
+BOARD: Final = "board"
 
 #: Every stable author id both platforms issue starts with this. It is the only
 #: way to tell one from an @handle without asking the platform.
@@ -210,7 +242,17 @@ ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
 #: Canonical parameters whose value is an identifier. Ids are always strings:
 #: a 19-digit aweme_id exceeds the JavaScript safe range (doc 11).
 _ID_PARAMS: Final[frozenset[str]] = frozenset(
-    {CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID, MIX_ID, COLLECTION_ID}
+    {
+        CONTENT_ID,
+        AUTHOR_ID,
+        UNIQUE_ID,
+        COMMENT_ID,
+        MIX_ID,
+        COLLECTION_ID,
+        MUSIC_ID,
+        HASHTAG_ID,
+        ROOM_ID,
+    }
 )
 
 #: canonical name -> platform builder keyword, per platform and capability.
@@ -242,6 +284,13 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        Capability.RELATED_POSTS: {CONTENT_ID: "aweme_id", COUNT: "count"},
+        Capability.MUSIC_DETAIL: {MUSIC_ID: "music_id"},
+        Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.HASHTAG_DETAIL: {HASHTAG_ID: "ch_id"},
+        Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.LIVE_ROOM: {ROOM_ID: "web_rid"},
+        Capability.TRENDING: {BOARD: "board"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -269,6 +318,21 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        Capability.RELATED_POSTS: {CONTENT_ID: "item_id", COUNT: "count"},
+        Capability.MUSIC_DETAIL: {MUSIC_ID: "music_id"},
+        Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.HASHTAG_DETAIL: {HASHTAG_ID: "challenge_id", HASHTAG_NAME: "challenge_name"},
+        Capability.HASHTAG_POSTS: {
+            HASHTAG_ID: "challenge_id",
+            CURSOR: "cursor",
+            COUNT: "count",
+        },
+        Capability.SEARCH_POSTS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.SEARCH_AUTHORS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        # A /@handle/live link names the owner, and the owner is how the
+        # room is asked for.
+        Capability.LIVE_ROOM: {ROOM_ID: "unique_id"},
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -308,6 +372,17 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        # Forty whatever is asked; the size is accepted and dropped, as the
+        # folder list's is.
+        Capability.RELATED_POSTS: {CONTENT_ID: "bvid", COUNT: "count"},
+        Capability.SEARCH_POSTS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.SEARCH_AUTHORS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.AUTHOR_MIXES: {AUTHOR_ID: "mid", CURSOR: "cursor", COUNT: "count"},
+        # A season, by its season_id. One answer: the page and size are
+        # accepted and dropped, as the folder list's are.
+        Capability.MIX_POSTS: {MIX_ID: "season_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.LIVE_ROOM: {ROOM_ID: "room_id"},
+        Capability.TRENDING: {BOARD: "board"},
     },
 }
 
@@ -336,6 +411,19 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.POPULAR_WEEKLY: "cache.list_ttl",
         Capability.POPULAR_PRECIOUS: "cache.list_ttl",
         Capability.RANKING: "cache.list_ttl",
+        Capability.RELATED_POSTS: "cache.list_ttl",
+        # A sound's title and publisher are fixed; its use count moves at the
+        # speed of an author's follower count.
+        Capability.MUSIC_DETAIL: "cache.author_ttl",
+        Capability.MUSIC_POSTS: "cache.list_ttl",
+        Capability.HASHTAG_DETAIL: "cache.author_ttl",
+        Capability.HASHTAG_POSTS: "cache.list_ttl",
+        Capability.SEARCH_POSTS: "cache.list_ttl",
+        Capability.SEARCH_AUTHORS: "cache.list_ttl",
+        Capability.AUTHOR_MIXES: "cache.list_ttl",
+        # Whether a room is on changes by the minute; the shortest TTL there is.
+        Capability.LIVE_ROOM: "cache.list_ttl",
+        Capability.TRENDING: "cache.list_ttl",
     }
 )
 
@@ -502,16 +590,15 @@ class EndpointDefinition:
                 return adapter.parse_content(payload, fetched_at=when)
             case Capability.AUTHOR_PROFILE:
                 return adapter.parse_author(payload)
-            case (
-                Capability.AUTHOR_POSTS
-                | Capability.AUTHOR_LIKES
-                | Capability.MIX_POSTS
-                | Capability.AUTHOR_REPOSTS
-            ):
-                # All four are a page of posts in the platform's own list
+            case Capability.AUTHOR_POSTS | Capability.AUTHOR_LIKES | Capability.AUTHOR_REPOSTS:
+                # All three are a page of posts in the platform's own list
                 # envelope - `aweme_list`/`max_cursor` on Douyin, `itemList`/
                 # `cursor` on TikTok - so one parser answers for all of them.
                 return adapter.parse_author_posts(payload, fetched_at=when)
+            case Capability.MIX_POSTS:
+                # Was in the group above until Bilibili had mixes: a season's
+                # videos come in a folder's envelope, not the space list's.
+                return adapter.parse_mix_posts(payload, fetched_at=when)
             case Capability.AUTHOR_FOLLOWERS | Capability.AUTHOR_FOLLOWING:
                 # One endpoint answers both, selected by a `scene` parameter, so
                 # one parser answers for both too.
@@ -545,6 +632,29 @@ class EndpointDefinition:
                     board=self.capability.value,
                     fetched_at=when,
                     cursor=str(cursor) if cursor is not None else None,
+                )
+            case Capability.RELATED_POSTS:
+                return adapter.parse_related_posts(payload, fetched_at=when)
+            case Capability.MUSIC_DETAIL:
+                return adapter.parse_music_detail(payload)
+            case Capability.MUSIC_POSTS:
+                return adapter.parse_music_posts(payload, fetched_at=when)
+            case Capability.HASHTAG_DETAIL:
+                return adapter.parse_hashtag_detail(payload)
+            case Capability.HASHTAG_POSTS:
+                return adapter.parse_hashtag_posts(payload, fetched_at=when)
+            case Capability.SEARCH_POSTS:
+                return adapter.parse_search_posts(payload, fetched_at=when)
+            case Capability.SEARCH_AUTHORS:
+                return adapter.parse_search_authors(payload)
+            case Capability.AUTHOR_MIXES:
+                return adapter.parse_author_mixes(payload)
+            case Capability.TRENDING:
+                return adapter.parse_trending(payload)
+            case Capability.LIVE_ROOM:
+                room = canonical.get(ROOM_ID)
+                return adapter.parse_live_room(
+                    payload, room_id=str(room) if room is not None else None
                 )
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
@@ -732,6 +842,7 @@ def resolve(endpoint: str, params: Mapping[str, Any], config: Config) -> Resolve
 __all__ = [
     "ALIASES",
     "AUTHOR_ID",
+    "BOARD",
     "BOARDS",
     "COMMENT_ID",
     "CONTENT_ID",
@@ -740,9 +851,14 @@ __all__ = [
     "ENDPOINTS",
     "ENVELOPE_PARAMS",
     "HANDLE_PLATFORMS",
+    "HASHTAG_ID",
+    "HASHTAG_NAME",
+    "KEYWORD",
+    "MUSIC_ID",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",
     "PART",
+    "ROOM_ID",
     "SORT",
     "UNIQUE_ID",
     "Capability",

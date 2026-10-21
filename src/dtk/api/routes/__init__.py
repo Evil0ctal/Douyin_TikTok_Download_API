@@ -13,6 +13,7 @@ Layout, in the order a caller meets it:
 ``ios``                 ``/api/v1/ios/shortcut``
 ``tasks``               ``/api/v1/tasks/{id}`` and its event stream
 ``content``             ``/api/v1/parse`` and the per-platform reads
+``discovery``           related posts, sounds, hashtags, search, live rooms
 ``tools``               ``/api/v1/tools/*`` - signing, link parsing
 ``archive``             ``/api/v1/archive/*`` - what this instance has stored
 ``downloads``           ``/api/v1/downloads/*`` - media stored on the local disk
@@ -35,6 +36,7 @@ from dtk.api.routes import (
     auth,
     capabilities,
     content,
+    discovery,
     downloads,
     ios,
     openapi,
@@ -58,6 +60,7 @@ ROUTERS = (
     ios.router,
     tasks.router,
     content.router,
+    discovery.router,
     archive.router,
     downloads.router,
     transcriptions.router,

@@ -21,14 +21,21 @@ from dtk.platforms.douyin.params import (
     author_bookmarks_params,
     author_collections_params,
     author_likes_params,
+    author_mixes_params,
     author_posts_params,
     author_profile_params,
     collection_posts_params,
     comment_replies_params,
     comments_params,
     content_detail_params,
+    hashtag_detail_params,
+    live_room_params,
     mix_posts_params,
+    music_detail_params,
+    music_posts_params,
+    related_posts_params,
     session_check_params,
+    trending_params,
 )
 
 
@@ -93,6 +100,21 @@ class DouyinAPIEndpoints:
     # Post detail
     POST_DETAIL: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/"
 
+    # A sound: its title, its publisher and how many posts use it
+    MUSIC_DETAIL: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/music/detail/"
+
+    # The posts that use one sound
+    MUSIC_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/music/aweme/"
+
+    # A hashtag's page. Douyin calls a hashtag a challenge throughout.
+    CHALLENGE_DETAIL: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/challenge/detail/"
+
+    # The posts under a hashtag. Answers a guest with no body at all - the
+    # hashtag page's own call did the same in a browser that was not signed
+    # in (2026-10-20) - so nothing here is registered against it until a
+    # signed-in answer has been seen.
+    CHALLENGE_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/challenge/aweme/"
+
     # Danmaku (on-video comments) for a single post
     POST_DANMAKU: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/danmaku/get_v2/"
 
@@ -110,6 +132,9 @@ class DouyinAPIEndpoints:
 
     # Posts in a mix (collection)
     MIX_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/mix/aweme/"
+
+    # The mixes one author has published
+    MIX_LIST: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/mix/list/"
 
     # Watch history
     USER_HISTORY: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/history/read/"
@@ -206,6 +231,13 @@ AUTHOR_BOOKMARKS: Final = "douyin.author_bookmarks"
 COLLECTION_POSTS: Final = "douyin.collection_posts"
 MIX_POSTS: Final = "douyin.mix_posts"
 SESSION_CHECK: Final = "douyin.session_check"
+RELATED_POSTS: Final = "douyin.related_posts"
+MUSIC_DETAIL: Final = "douyin.music_detail"
+MUSIC_POSTS: Final = "douyin.music_posts"
+HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
+AUTHOR_MIXES: Final = "douyin.author_mixes"
+LIVE_ROOM: Final = "douyin.live_room"
+TRENDING: Final = "douyin.trending"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -343,6 +375,87 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts inside one mix (series)",
     ),
     EndpointSpec(
+        name=RELATED_POSTS,
+        path=DouyinAPIEndpoints.POST_RELATED,
+        required=("aweme_id",),
+        build=related_posts_params,
+        risk_weight=1.2,
+        # Measured 2026-10-20 with a guest: a post id that does not exist is
+        # answered with ten posts all the same, so a full answer says nothing
+        # about whether the post it names is there.
+        summary="Posts the site recommends beside one post",
+    ),
+    EndpointSpec(
+        name=MUSIC_DETAIL,
+        path=DouyinAPIEndpoints.MUSIC_DETAIL,
+        required=("music_id",),
+        build=music_detail_params,
+        risk_weight=1.0,
+        # A sound that does not exist is `status_code: 0` and `music_info:
+        # null` (measured 2026-10-20), which read as a payload with a field
+        # missing - a schema change - instead of as not found.
+        absent_when_null="music_info",
+        summary="One sound: its title, publisher and how many posts use it",
+    ),
+    EndpointSpec(
+        name=MUSIC_POSTS,
+        path=DouyinAPIEndpoints.MUSIC_AWEME,
+        required=("music_id",),
+        build=music_posts_params,
+        risk_weight=1.5,
+        # Pages for a guest, unlike an author's posts: page two of a sound
+        # with 100k posts answered nine more and a next cursor (2026-10-20).
+        summary="Posts that use one sound, paged by cursor",
+    ),
+    EndpointSpec(
+        name=HASHTAG_DETAIL,
+        path=DouyinAPIEndpoints.CHALLENGE_DETAIL,
+        required=("ch_id",),
+        build=hashtag_detail_params,
+        risk_weight=1.0,
+        # A hashtag nobody has is `status_code: 0` and `ch_info: null`
+        # (measured 2026-10-20), the same shape as a missing sound.
+        absent_when_null="ch_info",
+        summary="One hashtag: its name, cover and counts",
+    ),
+    EndpointSpec(
+        name=AUTHOR_MIXES,
+        path=DouyinAPIEndpoints.MIX_LIST,
+        required=("sec_user_id",),
+        build=author_mixes_params,
+        risk_weight=1.5,
+        # Answers a guest in full: three mixes and has_more 0 for an author
+        # with three (2026-10-20).
+        summary="The mixes an author has published",
+    ),
+    EndpointSpec(
+        name=LIVE_ROOM,
+        path=DouyinAPIEndpoints.LIVE_INFO,
+        required=("web_rid",),
+        build=live_room_params,
+        risk_weight=1.2,
+        # The live site's own Referer; the www.douyin.com one the adapter
+        # sends by default is not where this page lives.
+        headers=(
+            ("Referer", f"{DouyinAPIEndpoints.LIVE_DOMAIN}/"),
+            ("Origin", DouyinAPIEndpoints.LIVE_DOMAIN),
+        ),
+        # Answers a guest with the room, its viewers and its pull URLs while
+        # it is live, and with the room marked ended when it is not
+        # (2026-10-20). A web_rid nobody has is `status_code: 4001038`.
+        summary="One live room: whether it is on, and how to play it",
+    ),
+    EndpointSpec(
+        name=TRENDING,
+        path=DouyinAPIEndpoints.DOUYIN_HOT_SEARCH,
+        required=(),
+        build=trending_params,
+        risk_weight=1.0,
+        # The same lists for everyone, answered to a guest: 51 lines on the
+        # main board, 50 on the challenge board (2026-10-20).
+        summary="One of the hot boards: what people are searching for",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -365,6 +478,7 @@ __all__ = [
     "AUTHOR_BOOKMARKS",
     "AUTHOR_COLLECTIONS",
     "AUTHOR_LIKES",
+    "AUTHOR_MIXES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
     "COLLECTION_POSTS",
@@ -373,6 +487,12 @@ __all__ = [
     "CONTENT_DETAIL",
     "DEFAULT_HEADERS",
     "ENDPOINTS",
+    "HASHTAG_DETAIL",
+    "LIVE_ROOM",
     "MIX_POSTS",
+    "MUSIC_DETAIL",
+    "MUSIC_POSTS",
+    "RELATED_POSTS",
+    "TRENDING",
     "DouyinAPIEndpoints",
 ]

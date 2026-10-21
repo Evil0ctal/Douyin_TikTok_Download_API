@@ -1,0 +1,48 @@
+{
+  "challengeInfo": {
+    "challenge": {
+      "coverLarger": "https://p16-sign.example-cdn.invalid/challenge/synthetic~1080x1080.jpeg",
+      "coverMedium": "https://p16-sign.example-cdn.invalid/challenge/synthetic~720x720.jpeg",
+      "coverThumb": "https://p16-sign.example-cdn.invalid/challenge/synthetic~100x100.jpeg",
+      "desc": "Synthetic hashtag description.",
+      "id": "1600000000000000101",
+      "isCommerce": false,
+      "profileLarger": "",
+      "profileMedium": "",
+      "profileThumb": "",
+      "splitTitle": "sunrise",
+      "stats": {
+        "videoCount": 0,
+        "viewCount": 5200000000
+      },
+      "title": "sunrise"
+    },
+    "challengeAnnouncement": {
+      "body": "",
+      "title": ""
+    },
+    "stats": {
+      "videoCount": 0,
+      "viewCount": 5200000000
+    },
+    "statsV2": {
+      "videoCount": "194388",
+      "viewCount": "5205317187"
+    }
+  },
+  "extra": {
+    "fatal_item_ids": [],
+    "logid": "20261020000000000000000000000000000001",
+    "now": 1792540800000
+  },
+  "log_pb": {
+    "impr_id": "20261020000000000000000000000000000001"
+  },
+  "shareMeta": {
+    "desc": "Watch short videos with #sunrise",
+    "title": "#sunrise on TikTok"
+  },
+  "statusCode": 0,
+  "status_code": 0,
+  "status_msg": ""
+}

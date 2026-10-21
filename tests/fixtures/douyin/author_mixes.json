@@ -1,0 +1,106 @@
+{
+  "cursor": 0,
+  "extra": {
+    "fatal_item_ids": [],
+    "logid": "20261020000000000000000000000000000001",
+    "now": 1792540800000
+  },
+  "has_more": 0,
+  "log_pb": {
+    "impr_id": "20261020000000000000000000000000000001"
+  },
+  "min_cursor": null,
+  "mix_infos": [
+    {
+      "author": {
+        "uid": "1000000000000000001",
+        "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+        "nickname": "Synthetic Creator",
+        "avatar_thumb": {
+          "uri": "douyin-avatar/synthetic-author-01",
+          "url_list": [
+            "https://p3-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg",
+            "https://p9-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg"
+          ],
+          "width": 720,
+          "height": 720
+        }
+      },
+      "cover_url": {
+        "height": 720,
+        "uri": "douyin-user-image-file/synthetic-mix-01",
+        "url_list": [
+          "https://p3-pc.example-cdn.invalid/douyin-user-image-file/synthetic-mix-01.jpeg"
+        ],
+        "width": 720
+      },
+      "create_time": 1762924411,
+      "desc": "Synthetic mix description.",
+      "extra": "{\"content_sub_type\":0,\"sub_type\":0,\"game_content_collection_id\":\"\",\"top_item_content_label\":{\"2019\":8},\"is_author_set_self_see\":0,\"series_type\":\"\",\"is_author_set_self_see_playlet\":0}",
+      "mix_id": "7300000000000000001",
+      "mix_name": "Synthetic Mix 1",
+      "mix_type": 0,
+      "share_info": {
+        "share_url": "https://www.iesdouyin.com/share/mix/detail/7300000000000000001/"
+      },
+      "statis": {
+        "collect_vv": 325350,
+        "current_episode": 0,
+        "play_vv": 119548,
+        "updated_to_episode": 8
+      },
+      "status": {
+        "is_collected": 0,
+        "status": 2
+      },
+      "update_time": 1792299993
+    },
+    {
+      "author": {
+        "uid": "1000000000000000001",
+        "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+        "nickname": "Synthetic Creator",
+        "avatar_thumb": {
+          "uri": "douyin-avatar/synthetic-author-01",
+          "url_list": [
+            "https://p3-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg",
+            "https://p9-pc-sign.example-cdn.invalid/aweme/100x100/douyin-avatar/synthetic-author-01.jpeg"
+          ],
+          "width": 720,
+          "height": 720
+        }
+      },
+      "cover_url": {
+        "height": 720,
+        "uri": "douyin-user-image-file/synthetic-mix-02",
+        "url_list": [
+          "https://p3-pc.example-cdn.invalid/douyin-user-image-file/synthetic-mix-02.jpeg"
+        ],
+        "width": 720
+      },
+      "create_time": 1765347461,
+      "desc": "",
+      "extra": "{\"content_sub_type\":0,\"sub_type\":0,\"game_content_collection_id\":\"\",\"top_item_content_label\":{\"2019\":14},\"is_author_set_self_see\":0,\"series_type\":\"\",\"is_author_set_self_see_playlet\":0}",
+      "mix_id": "7300000000000000002",
+      "mix_name": "Synthetic Mix 2",
+      "mix_type": 0,
+      "share_info": {
+        "share_url": "https://www.iesdouyin.com/share/mix/detail/7300000000000000002/"
+      },
+      "statis": {
+        "collect_vv": 125015,
+        "current_episode": 0,
+        "play_vv": 6423726,
+        "updated_to_episode": 14
+      },
+      "status": {
+        "is_collected": 0,
+        "status": 2
+      },
+      "update_time": 1792299914
+    }
+  ],
+  "status_code": 0,
+  "status_msg": null,
+  "total": 2
+}

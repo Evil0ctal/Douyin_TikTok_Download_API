@@ -13,7 +13,19 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
+from dtk.models import (
+    Author,
+    Collection,
+    Comment,
+    Content,
+    ContentPart,
+    Hashtag,
+    LiveRoom,
+    Mix,
+    MusicDetail,
+    Page,
+    TrendingTopic,
+)
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -118,6 +130,53 @@ class TikTokAdapter:
         raise UnsupportedContent(
             "TikTok has no popular list here",
             details={"platform": self.platform.value, "capability": board},
+        )
+
+    def parse_related_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_related_posts(payload, fetched_at=fetched_at)
+
+    def parse_music_detail(self, payload: Mapping[str, Any]) -> MusicDetail:
+        return parser.parse_music_detail(payload)
+
+    def parse_music_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_music_posts(payload, fetched_at=fetched_at)
+
+    def parse_hashtag_detail(self, payload: Mapping[str, Any]) -> Hashtag:
+        return parser.parse_hashtag_detail(payload)
+
+    def parse_hashtag_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_hashtag_posts(payload, fetched_at=fetched_at)
+
+    def parse_search_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_search_posts(payload, fetched_at=fetched_at)
+
+    def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]:
+        return parser.parse_search_authors(payload)
+
+    def parse_author_mixes(self, payload: Mapping[str, Any]) -> Page[Mix]:
+        return parser.parse_author_mixes(payload)
+
+    def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+        return parser.parse_author_posts(payload, fetched_at=fetched_at)
+
+    def parse_live_room(
+        self, payload: Mapping[str, Any], *, room_id: str | None = None
+    ) -> LiveRoom:
+        return parser.parse_live_room(payload, room_id=room_id)
+
+    def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+        """No board registered: nothing measured answers a guest with one."""
+        raise UnsupportedContent(
+            "TikTok has no trending board here",
+            details={"platform": self.platform.value, "capability": "trending"},
         )
 
 

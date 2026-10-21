@@ -229,6 +229,139 @@ class Collection(_Base):
     raw: dict | None = None
 
 
+class Mix(_Base):
+    """An author's own series: posts they put in order and published as one.
+
+    Douyin calls it a mix, TikTok a playlist and Bilibili a season - the same
+    Chinese word on both Chinese sites. Not a :class:`Collection`, which is a viewer filing
+    away other people's posts; the difference is whose posts they are, and it
+    decides which endpoint the id goes to - ``mix_id`` to ``/mix/posts``.
+    """
+
+    platform: Platform
+    mix_id: str
+    name: str
+    description: str | None = None
+    cover: Image | None = None
+    #: Posts in the series, as the platform counts them.
+    item_count: int | None = None
+    #: Plays across the series, where the platform counts them.
+    play_count: int | None = None
+    web_url: str | None = None
+    #: The author who published it, by the id the author endpoints take.
+    owner_id: str | None = None
+    owner_name: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    raw: dict | None = None
+
+
+class TrendingTopic(_Base):
+    """One line of a trending board: a phrase people are searching for.
+
+    Not a post. The boards list words, and the posts behind a word are a
+    search away; ``web_url`` is the platform's own page for it.
+    """
+
+    platform: Platform
+    word: str
+    #: Position on the board, from 1. ``None`` for a line pinned above the
+    #: ranking, which Douyin's board opens with.
+    rank: int | None = None
+    #: The heat the platform prints beside the word, in its own units.
+    hot_value: int | None = None
+    #: Posts the board files under the word, where it counts them.
+    content_count: int | None = None
+    cover: Image | None = None
+    web_url: str | None = None
+    raw: dict | None = None
+
+
+class LiveStream(_Base):
+    """One way to play a live room: a protocol at a quality.
+
+    Live pull URLs are signed and expire within hours, and a player or a
+    recorder is what reads them; nothing here proxies or records a stream.
+    """
+
+    url: str
+    #: ``flv`` or ``hls``, as the platform delivers it.
+    format: str
+    #: The platform's own name for the quality - Douyin's ``FULL_HD1``,
+    #: TikTok's ``origin``, Bilibili's ``qn`` number - since the ladders do not
+    #: line up between them.
+    quality: str | None = None
+
+
+class LiveRoom(_Base):
+    """A live room, broadcasting or not."""
+
+    platform: Platform
+    #: What ``/live`` takes to ask about this room again: Douyin's ``web_rid``
+    #: (the number in a live.douyin.com link), the @handle on TikTok, and
+    #: Bilibili's room number.
+    room_id: str
+    is_live: bool
+    title: str | None = None
+    cover: Image | None = None
+    web_url: str | None = None
+    #: The count the platform prints beside the room. Douyin and TikTok count
+    #: who is in the room now; Bilibili counts who has watched this broadcast.
+    viewer_count: int | None = None
+    like_count: int | None = None
+    started_at: datetime | None = None
+    author: Author | None = None
+    #: Empty when the room is not live.
+    streams: list[LiveStream] = Field(default_factory=list)
+    raw: dict | None = None
+
+
+class MusicDetail(Music):
+    """A sound on its own page: what a post's ``music`` names, and more.
+
+    A type of its own rather than more fields on :class:`Music`, for the
+    reason :class:`AlbumImage` is one: every post carries a ``music`` block,
+    and printing ``"content_count": null`` in each of them would describe a
+    count nobody asked for. Only the sound's own endpoint knows how many posts
+    use it and who published it.
+    """
+
+    platform: Platform
+    #: Required here, unlike on a post's block: the detail is asked for by it.
+    music_id: str
+    web_url: str | None = None
+    #: Posts that use the sound, as the platform counts them.
+    content_count: int | None = None
+    #: Whether this is the audio of the post it was first published with,
+    #: rather than a track from the platform's library.
+    is_original: bool | None = None
+    #: The account that published it, when the platform names one. A library
+    #: track usually has none.
+    owner: Author | None = None
+    raw: dict | None = None
+
+
+class Hashtag(_Base):
+    """A hashtag: the topic page a post's ``#tag`` opens.
+
+    ``Content.tags`` carries only the names; this is the page behind one of
+    them, with the id the posts under it are listed by.
+    """
+
+    platform: Platform
+    hashtag_id: str
+    #: Without the leading '#', as ``Content.tags`` spells it.
+    name: str
+    description: str | None = None
+    cover: Image | None = None
+    web_url: str | None = None
+    #: Posts filed under it, as the platform counts them. Douyin calls the
+    #: number ``user_count``; TikTok's is ``videoCount``.
+    content_count: int | None = None
+    view_count: int | None = None
+    raw: dict | None = None
+
+
 class Page[T](BaseModel):
     """A page of results with an opaque cursor.
 
@@ -252,9 +385,15 @@ __all__ = [
     "Content",
     "ContentPart",
     "ContentStats",
+    "Hashtag",
     "Image",
+    "LiveRoom",
+    "LiveStream",
     "Media",
+    "Mix",
     "Music",
+    "MusicDetail",
     "Page",
+    "TrendingTopic",
     "VideoStream",
 ]

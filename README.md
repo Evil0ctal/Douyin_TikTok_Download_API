@@ -9,7 +9,7 @@
 
 🚀 A self-hosted data API for [Douyin](https://www.douyin.com), [TikTok](https://www.tiktok.com) and [Bilibili](https://www.bilibili.com). One `docker compose up`, an identity pool that maintains itself, and a REST API, MCP server and web console on top.
 
-Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors and comments, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL. A video it has downloaded can be turned into text on the same machine, offline, and an AI agent can drive all of it over MCP.
+Open source, free, and it runs on your own machine — no signup, no quota, nobody else in the path. It fetches posts, authors and comments, sounds, hashtags, live rooms, trending boards and search results, downloads video and image albums **without a watermark** (it picks the clean stream the platform already publishes rather than stripping anything), and keeps what it collects in your own PostgreSQL. A video it has downloaded can be turned into text on the same machine, offline, and an AI agent can drive all of it over MCP.
 
 [![GitHub license](https://img.shields.io/github/license/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](LICENSE)
 [![Release Version](https://img.shields.io/github/v/release/Evil0ctal/Douyin_TikTok_Download_API?style=flat-square)](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/releases/latest)
@@ -212,7 +212,7 @@ illegal** — they are for making friends and talking about the work.
 | Author profile | ✅ | ✅ | ✅ |
 | An author's posts | ✅ | ✅ | ✅ |
 | An author's liked posts | ✅ | ✅ | ❌ |
-| Mixes / playlists | ✅ | ✅ | ❌ |
+| Mixes / playlists / seasons, and an author's list of them | ✅ | ✅ | ✅ |
 | Comments | ✅ | ✅ | ✅ |
 | Comment replies | ✅ | ✅ | ✅ |
 | Public folders and what is in them | ❌ | ✅ | ✅ |
@@ -220,10 +220,20 @@ illegal** — they are for making friends and talking about the work.
 | The site's popular boards: hot, weekly, all-time picks, top 100 | ❌ | ❌ | ✅ |
 | Followers | ❌ | ✅ | ❌ |
 | Following | ❌ | ✅ | ❌ |
+| Posts recommended beside a post | ✅ | ✅ | ✅ |
+| A sound, and the posts that use it | ✅ | ✅ | — |
+| A hashtag | ✅ | ✅ | — |
+| The posts under a hashtag | ❌ | ✅ | — |
+| Keyword search: posts and accounts | ❌ | ✅ | ✅ |
+| A live room: whether it is on, and its pull URLs | ✅ | ✅ | ✅ |
+| Trending boards | ✅ | ❌ | ✅ |
 
 Douyin serves its follower and following lists only to a signed-in session, so those
 two endpoints are not registered at all: an endpoint that always returns an empty page
-is worth nothing. Importing your own logged-in cookies widens what the rest can see, too.
+is worth nothing. Search and the posts under a hashtag are the same story: Douyin refuses
+both to a guest, and no signed-in answer has been measured yet, so neither is offered there.
+On TikTok search answers a guest one thin page, so an imported login is what pages it.
+Importing your own logged-in cookies widens what the rest can see, too.
 On Bilibili that matters most for comments: a guest is shown the three hottest and no
 more, so an imported login is what turns that into the full thread. On Douyin it decides
 an author's liked posts outright: a guest is shown none, public or not, so that list

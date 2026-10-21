@@ -446,8 +446,8 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | 设置 | 默认值 | 适用于 |
 | --- | --- | --- |
 | `cache.content_ttl` | 1800 秒（30 分钟） | 单条作品 |
-| `cache.author_ttl` | 900 秒（15 分钟） | 作者资料 |
-| `cache.list_ttl` | 300 秒（5 分钟） | 任何分页内容 |
+| `cache.author_ttl` | 900 秒（15 分钟） | 作者资料、音乐、话题 |
+| `cache.list_ttl` | 300 秒（5 分钟） | 任何分页内容，以及直播间 |
 
 `meta.cached` 告诉你拿到的是哪一种。条目会自行过期，而且 Redis 的上限设在容器限制之下，所以缓存不会无限增长。
 
@@ -522,7 +522,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `GET` | `/api/v1/{platform}/user` | `{platform}:read` | 作者资料。`url` **或** `sec_user_id` |
 | `GET` | `/api/v1/{platform}/user/posts` | `{platform}:read` | 分页 |
 | `GET` | `/api/v1/{platform}/user/likes` | `{platform}:read` | 抖音和 TikTok。分页。见下面的平台差异说明 |
-| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | 抖音和 TikTok。`mix_id`——抖音叫 `mix_info`，TikTok 叫 `playlistId`。是作者自建的合集，不是收藏夹。分页 |
+| `GET` | `/api/v1/{platform}/mix/posts` | `{platform}:read` | `mix_id`——来自 `/user/mixes`，或作品自带的：抖音叫 `mix_info`，TikTok 叫 `playlistId`。是作者自建的合集，不是收藏夹。分页；B 站合集一页返回全部 |
 | `GET` | `/api/v1/{platform}/user/collections` | `{platform}:read` | 收藏夹列表。TikTok 和 B 站接受作者参数（B 站上是公开收藏夹，一页返回全部）；抖音不接受，并且在抖音上必须带 `identity`。分页 |
 | `GET` | `/api/v1/{platform}/collection` | `tiktok:read` | **仅 TikTok。** 按 `collection_id` 查单个收藏夹：名称、封面、作品数、归属、是否公开 |
 | `GET` | `/api/v1/{platform}/collection/posts` | `{platform}:read` | 按 `collection_id` 取某个收藏夹里的作品。分页 |
@@ -532,12 +532,34 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `GET` | `/api/v1/{platform}/user/following` | `tiktok:read` | **仅 TikTok** |
 | `GET` | `/api/v1/{platform}/video/parts` | `bilibili:read` | **仅 B 站。** 多 P 视频的分 P 列表。`url` **或** `aweme_id` |
 | `GET` | `/api/v1/{platform}/popular` | `bilibili:read` | **仅 B 站。** 站点维护的榜单：`board` 为 `hot`、`weekly`、`precious` 或 `rank`。榜单本身分页的就分页 |
+| `GET` | `/api/v1/{platform}/video/related` | `{platform}:read` | 平台在某个作品旁推荐的作品。`url` **或** `aweme_id`。一次一批，不分页 |
+| `GET` | `/api/v1/{platform}/user/mixes` | `{platform}:read` | 作者自建的合集——抖音合集、TikTok 播放列表、B 站合集——每个都带有 `/mix/posts` 所用的 `mix_id`。`url` **或** `sec_user_id`。分页 |
+| `GET` | `/api/v1/{platform}/music` | `{platform}:read` | 抖音和 TikTok。一首音乐：`url` **或** `music_id` |
+| `GET` | `/api/v1/{platform}/music/posts` | `{platform}:read` | 抖音和 TikTok。使用这首音乐的作品。分页 |
+| `GET` | `/api/v1/{platform}/hashtag` | `{platform}:read` | 抖音和 TikTok。一个话题：`url`、`hashtag_id`，TikTok 上还可以用 `name` |
+| `GET` | `/api/v1/{platform}/hashtag/posts` | `tiktok:read` | **仅 TikTok。** 话题下的作品，按 `hashtag_id`。分页 |
+| `GET` | `/api/v1/{platform}/search/posts` | `{platform}:read` | TikTok 和 B 站。按 `keyword` 搜索作品。分页——游客能拿到什么见下文 |
+| `GET` | `/api/v1/{platform}/search/users` | `{platform}:read` | TikTok 和 B 站。按 `keyword` 搜索账号。分页，同上 |
+| `GET` | `/api/v1/{platform}/live` | `{platform}:read` | 一个直播间：`url` **或** `room_id`。是否在播，在播时附拉流地址 |
+| `GET` | `/api/v1/{platform}/trending` | `{platform}:read` | 抖音和 B 站。整张热榜：抖音的 `board` 为 `hot`、`entertainment`、`society` 或 `challenge`，B 站只有 `hot` |
 
 B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)。
 
-除了核心那五个之外，各平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。B 站提供核心五个、收藏夹、视频分 P 和热门榜——后两个只有 B 站有——其余的也以同样方式作答——见 [B 站](#b-站)。`user/likes` 抖音和 TikTok 都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
+除了核心那五个之外，各平台并不对称，而这种不对称是被如实报告出来、而不是被抹平的。向抖音要 `followers` 或 `following` 会返回 `UNSUPPORTED_CONTENT`，`details.supported` 列出哪些平台提供它——如果路由照样把任务提交上去，你会拿到一个空页，然后得出「这个作者没有粉丝」的结论。B 站提供核心五个、收藏夹、合集、相关推荐、搜索、直播间、热搜、视频分 P 和热门榜——最后两个只有 B 站有——其余的也以同样方式作答——见 [B 站](#b-站)。`user/likes` 抖音和 TikTok 都提供，但抖音不会把这个列表给游客身份看：它需要一份导入的已登录身份；而在 TikTok 上，空页通常意味着作者把喜欢列表设为私密。
 
 收藏夹是这种不对称最尖锐的一处。**抖音和 TikTok 都允许逐个把收藏夹设为公开或私密**，公开的那些用普通的池内身份就能读——两边都不需要登录。但收藏夹**列表**不同：TikTok 的（以及 B 站的）接受作者参数，能回答陌生人公开的收藏夹；抖音的请求里则根本没有用户 id，只回答发出请求的那个身份自己的收藏夹。所以在抖音上，`user/collections` 必须把 `identity` 指向导入的身份，而传 `url` 或 `sec_user_id` 会被拒绝而不是被忽略——忽略它的话，返回的会是你自己的收藏夹，却挂在别人的名下。每个收藏夹都会给出 `is_public` 和归属，所以你不需要猜自己处在哪种情况。
+
+### 搜索、音乐、话题与直播间
+
+这些和其他接口一样逐平台实测，差异是声明出来的，而不是等你撞上才发现。`GET /api/v1/system/capabilities` 会把它们列出来，包括游客身份在每个接口上会少拿到什么。
+
+- **搜索。** B 站的视频搜索和用户搜索对游客身份都能翻页，最多到它本身提供的 50 页。TikTok 只给游客一页很薄的作品结果——有的关键词只有一条——而作品和账号的第二页都是空的，所以池里有已登录身份时第一页优先用它，之后的每一页都必须用它。抖音明确拒绝游客搜索（`status_code 2483`，「请先登录，再继续搜索吧」）；已登录时的答复还没有实测过，所以暂未提供，返回 `UNSUPPORTED_CONTENT`。搜索走调度器里最慢的那个令牌桶。
+- **音乐与话题。** 音乐 ID 就是任意使用它的作品里的 `music.music_id`；话题 ID 在抖音的话题链接里，TikTok 上 `/hashtag` 可以按 `name` 查（TikTok 的话题链接只带名称）。`/hashtag/posts` 只接受数字 ID，所以在 TikTok 上要先按名称查出来。抖音对游客身份返回的话题作品是空响应体——没登录的浏览器打开它自己的话题页也一样——所以抖音上暂未提供这个列表。不存在的音乐或话题返回 `NOT_FOUND`。
+- **相关推荐**是推荐结果，同一个请求一分钟后可能答得不一样；而且三个平台对不存在的作品 ID 都会返回一整批不相关的作品——作品存不存在，要用 `/video` 来判断。
+- **直播间**按它的链接来定位：`live.douyin.com/<n>` 里的数字、TikTok `/@<用户名>/live` 里的用户名、`live.bilibili.com/<n>` 里的数字。正在直播时，答复里有 `viewer_count`、平台给出时的 `started_at`，以及 `streams`：每种协议（`flv` 或 `hls`）、每档清晰度各一条，清晰度用平台自己的名称。拉流地址带签名，几小时内过期；这里只读取直播间，不做任何录制，地址交给你自己的播放器或录制工具，直接从平台 CDN 拉流。B 站的拉流地址是第二个请求，只在直播间正在直播时才发；它的 `viewer_count` 是它自己显示的「看过」人数，而不是此刻在线的人数。
+- **热榜**列的是词，不是作品：每一行带 `rank`、平台显示的热度，以及 `web_url`——平台自己的词条页面。抖音主榜开头有一行置顶，它的 `rank` 和热度都是 `null`。
+
+`POST /api/v1/parse` 会用上面这些接口回答音乐、话题和直播间链接。
 
 作品用 `url` **或** `aweme_id` 指定，不能都给也不能都不给；作者用 `url` **或** `sec_user_id`（TikTok 里叫 `secUid`；B 站上是数字 `mid`）。已经带 ID 的 URL 会在入口处把 ID 提取出来，所以两种写法会合并到同一个任务上。夹着链接的文本也能接受——平台 App 生成的剪贴板内容可以原样发过来。短链接（`v.douyin.com`、`vm.tiktok.com`、`b23.tv`、`bili2233.cn`）会被排队交给 worker 展开，因为跟随一次跳转是一次网络调用，而 API 容器不做网络调用。
 
@@ -589,6 +611,8 @@ B 站走的是与另外两个平台相同的路由、参数和信封：`{platfor
 | 作者 | 数字 `mid` | `sec_user_id` |
 | 评论 | 评论的 ID | `comment_id` |
 | 收藏夹 | 收藏夹的 ID | `collection_id` |
+| 合集 | `/user/mixes` 以 `mix_id` 返回的 `season_id` | `mix_id` |
+| 直播间 | `live.bilibili.com` 链接里的数字 | `room_id` |
 
 无论你发的是哪种形式，结果里的 `content_id` 永远是 bvid。作者的 `mid` 会同时出现在 `uid` 和 `sec_uid` 里，和抖音一样，所以任何结果里的 `sec_uid` 永远是作者类接口接受的那个 ID。B 站没有用户名式的 handle：`unique_id` 为 `null`。
 
@@ -600,6 +624,7 @@ B 站走的是与另外两个平台相同的路由、参数和信封：`{platfor
 | 短链接 | `b23.tv/<code>`、`bili2233.cn/<code>`——和所有短链接一样交给 worker 展开 |
 | 作者 | `space.bilibili.com/<mid>`（也可以带 `/video` 或 `/upload`）、`m.bilibili.com/space/<mid>` |
 | 收藏夹 | `space.bilibili.com/<mid>/favlist?fid=<id>`、`www.bilibili.com/list/ml<id>` |
+| 直播间 | `live.bilibili.com/<房间号>`、`live.bilibili.com/h5/<房间号>` |
 
 `vd_source`、`spm_id_from`、`buvid`、`share_source` 这类分享与追踪参数会被丢掉；`p`（分 P）和 `t`（起始时间）会保留。国际站 `bilibili.tv` 是另一个服务，不受支持。
 
@@ -616,9 +641,15 @@ B 站走的是与另外两个平台相同的路由、参数和信封：`{platfor
 | `collection/posts` | 某个收藏夹里的视频，按页码分页 |
 | `video/parts` | 视频的分 P——见下文 |
 | `popular` | 站点维护的四个榜单——见下文 |
-| `user/likes`、`user/reposts`、`user/bookmarks`、`user/followers`、`user/following`、`collection`、`mix/posts` | `UNSUPPORTED_CONTENT`，指明平台和它缺少的能力 |
+| `video/related` | 播放页在某个视频旁列出的 40 个视频，一次返回 |
+| `user/mixes` | UP 主的合集。空间页里在它旁边还列着旧版的「系列」，那是另一种 ID，`/mix/posts` 读不了，所以不返回——但分页仍把它们计算在内，所以最后一页可能是空的 |
+| `mix/posts` | 一个合集里的视频，无论请求第几页都一次返回全部 |
+| `search/posts`、`search/users` | 搜索页的视频和用户标签页，游客也能按页码翻页；匹配词外面的高亮标记会被去掉 |
+| `live` | 直播间；正在直播时，再发一个请求取拉流地址 |
+| `trending` | 搜索框下的热搜：只有 `board=hot` |
+| `user/likes`、`user/reposts`、`user/bookmarks`、`user/followers`、`user/following`、`collection`、`music`、`music/posts`、`hashtag`、`hashtag/posts` | `UNSUPPORTED_CONTENT`，指明平台和它缺少的能力 |
 
-`POST /api/v1/parse` 和识别其他平台一样识别 B 站链接。收藏夹链接返回的是这个收藏夹第一页的视频，因为 B 站没有单独的收藏夹详情。
+`POST /api/v1/parse` 和识别其他平台一样识别 B 站链接，包括 `live.bilibili.com/<房间号>`。收藏夹链接返回的是这个收藏夹第一页的视频，因为 B 站没有单独的收藏夹详情。
 
 ### 一个视频要两次请求
 

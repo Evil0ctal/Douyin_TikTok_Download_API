@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Final
 
+from dtk.core.errors import InvalidParam
 from dtk.platforms.base import ClientProfile, ProfileSource, browser_version
 
 #: Douyin's web client identifies itself as a Chinese-locale desktop browser.
@@ -323,6 +324,145 @@ def mix_posts_params(
         "mix_id": str(mix_id),
         "cursor": _cursor(cursor),
         "count": str(count),
+    }
+
+
+def related_posts_params(
+    *,
+    aweme_id: str,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/aweme/related/``.
+
+    The page asks for the next batch with ``refresh_index`` and a
+    ``filterGids`` list of what it already showed, which is state only the
+    page holds; one batch is what can be asked for honestly, so the first is
+    what this sends. Measured 2026-10-20 with a guest: ``count=20`` came back
+    as 10 posts, the same 10 as ``count=10``.
+    """
+    return {
+        **base_params(profile),
+        "aweme_id": str(aweme_id),
+        "count": str(count),
+        "filterGids": "",
+        "refresh_index": "1",
+    }
+
+
+def music_detail_params(
+    *, music_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/music/detail/``."""
+    return {**base_params(profile), "music_id": str(music_id)}
+
+
+def music_posts_params(
+    *,
+    music_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/music/aweme/``.
+
+    The cursor is an item offset. Measured 2026-10-20 with a guest: ``count``
+    above 13 or so is answered with 13, and the next page starts where the
+    answer's ``cursor`` says.
+    """
+    return {
+        **base_params(profile),
+        "music_id": str(music_id),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
+def hashtag_detail_params(
+    *, ch_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/challenge/detail/``. A hashtag is a
+    "challenge" in every path and field name Douyin uses for it."""
+    return {**base_params(profile), "ch_id": str(ch_id)}
+
+
+def author_mixes_params(
+    *,
+    sec_user_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/mix/list/``: an author's series, paged by
+    an offset ``cursor``."""
+    return {
+        **base_params(profile),
+        "sec_user_id": str(sec_user_id),
+        "req_from": CHANNEL,
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
+def live_room_params(*, web_rid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
+    """Parameters for ``live.douyin.com/webcast/room/web/enter/``.
+
+    Not the ``www.douyin.com`` base set: the live site is its own web app
+    with its own short list, read off the live page's request. ``web_rid``
+    is the number in a ``live.douyin.com/<n>`` link - not the room id the
+    answer carries, which changes with every broadcast.
+    """
+    rid = str(web_rid).strip()
+    if not rid.isdigit():
+        raise InvalidParam(
+            "a Douyin live room is the number in its live.douyin.com link",
+            details={"field": "room_id"},
+        )
+    return {
+        "aid": AID,
+        "app_name": "douyin_web",
+        "live_id": "1",
+        "device_platform": "web",
+        "language": profile.browser_language,
+        "enter_from": "web_live",
+        "cookie_enabled": "true",
+        "screen_width": str(profile.screen_width),
+        "screen_height": str(profile.screen_height),
+        "browser_language": profile.browser_language,
+        "browser_platform": profile.browser_platform,
+        "browser_name": profile.browser_name,
+        "browser_version": profile.browser_version,
+        "web_rid": rid,
+        "enter_source": "",
+        "is_need_double_stream": "false",
+    }
+
+
+#: ``(board_type, board_sub_type)`` for each board, as the hot page asks.
+_TRENDING_BOARDS: Final[dict[str, tuple[str, str]]] = {
+    "hot": ("0", ""),
+    "entertainment": ("2", "2"),
+    "society": ("2", "4"),
+    "challenge": ("2", "hotspot_challenge"),
+}
+
+
+def trending_params(
+    *, board: str = "hot", profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/hot/search/list/``: one board, whole."""
+    if board not in _TRENDING_BOARDS:
+        raise InvalidParam(
+            f"Douyin has no {board!r} board",
+            details={"field": "board", "supported": sorted(_TRENDING_BOARDS)},
+        )
+    board_type, sub_type = _TRENDING_BOARDS[board]
+    return {
+        **base_params(profile),
+        "detail_list": "1",
+        "source": "6",
+        "board_type": board_type,
+        "board_sub_type": sub_type,
     }
 
 

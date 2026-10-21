@@ -1,0 +1,82 @@
+{
+  "data": {
+    "data": [
+      {
+        "id_str": "7300000000000000101",
+        "status": 2,
+        "status_str": "2",
+        "title": "Synthetic live title",
+        "user_count_str": "4000+",
+        "cover": {
+          "url_list": [
+            "https://p11-webcast.example-cdn.invalid/room/synthetic-cover.image"
+          ]
+        },
+        "stream_url": {
+          "default_resolution": "HD1",
+          "flv_pull_url": {
+            "FULL_HD1": "https://pull-flv-q11.example-cdn.invalid/third/stream-synthetic_uhd.flv?expire=0",
+            "HD1": "https://pull-flv-q11.example-cdn.invalid/third/stream-synthetic_hd.flv?expire=0"
+          },
+          "hls_pull_url_map": {
+            "FULL_HD1": "https://pull-hls-q11.example-cdn.invalid/third/stream-synthetic_uhd.m3u8?expire=0",
+            "HD1": "https://pull-hls-q11.example-cdn.invalid/third/stream-synthetic_hd.m3u8?expire=0"
+          },
+          "hls_pull_url": "https://pull-hls-q11.example-cdn.invalid/third/stream-synthetic_hd.m3u8?expire=0",
+          "stream_orientation": 1
+        },
+        "stats": {
+          "total_user_desp": "",
+          "like_count": 0,
+          "total_user_str": "10万+",
+          "user_count_str": "4474"
+        },
+        "room_view_stats": {
+          "is_hidden": false,
+          "display_short": "4474",
+          "display_middle": "4474",
+          "display_long": "4474在线观众",
+          "display_value": 4474,
+          "display_version": 1663849727,
+          "incremental": false,
+          "display_type": 1,
+          "display_short_anchor": "4474",
+          "display_middle_anchor": "4474",
+          "display_long_anchor": "4474在线观众"
+        },
+        "like_count": 15223,
+        "owner_user_id_str": "",
+        "owner": {
+          "id_str": "1000000000000000001",
+          "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+          "nickname": "Synthetic Creator"
+        }
+      }
+    ],
+    "enter_room_id": "7300000000000000101",
+    "extra": {},
+    "user": {
+      "id_str": "1000000000000000001",
+      "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+      "nickname": "Synthetic Creator",
+      "avatar_thumb": {
+        "url_list": [
+          "https://p11.example-cdn.invalid/aweme/100x100/synthetic-author-01.jpeg"
+        ]
+      }
+    },
+    "qrcode_url": "",
+    "enter_mode": 0,
+    "room_status": 0,
+    "partition_road_map": {},
+    "similar_rooms": [],
+    "shark_decision_conf": null,
+    "web_stream_url": null,
+    "login_lead": null,
+    "auth_cert_info": null
+  },
+  "extra": {
+    "now": 1792540800000
+  },
+  "status_code": 0
+}

@@ -116,8 +116,8 @@
       },
       "cache": {
         "content_ttl": "How long a parsed video detail stays reusable before it is fetched again.",
-        "author_ttl": "How long a parsed user profile stays reusable.",
-        "list_ttl": "How long a parsed list page stays reusable. Lists change more often than a single item, so this is usually the shortest of the three."
+        "author_ttl": "How long a parsed user profile, sound or hashtag stays reusable.",
+        "list_ttl": "How long a parsed list page or live room stays reusable. Lists change more often than a single item, so this is usually the shortest of the three."
       },
       "snapshot": {
         "min_interval_seconds": "Deduplication window for the content history. A second snapshot of the same item inside this window is skipped rather than stored."
@@ -524,7 +524,7 @@
       },
       "mix_posts": {
         "summary": "Posts inside a mix or playlist",
-        "description": "One page of the posts collected in a mix - Douyin's series, TikTok's playlist. The id comes from any post that belongs to one: mix_info on Douyin, playlistId on TikTok."
+        "description": "One page of the posts collected in a mix - Douyin's series, TikTok's playlist, Bilibili's season, whose videos come in one page. /user/mixes lists an author's; a post carries the id too: mix_info on Douyin, playlistId on TikTok."
       },
       "notify_test": {
         "summary": "Send a test alert",
@@ -665,6 +665,46 @@
       "content_parts": {
         "summary": "The parts of a video",
         "description": "Every part of a video uploaded in several, in order, with each part's number, title and length. Bilibili only."
+      },
+      "related_posts": {
+        "summary": "Posts recommended beside a post",
+        "description": "The posts the platform's own player lists next to one post, as one batch. A recommendation: the same call can answer differently later, and an id that names no post still gets a batch back."
+      },
+      "music_detail": {
+        "summary": "A sound",
+        "description": "One sound a post is made with: title, author, length, audio and cover, plus how many posts use it, whether it is a post's own audio, and who published it. Douyin and TikTok."
+      },
+      "music_posts": {
+        "summary": "Posts that use a sound",
+        "description": "One page of the posts made with one sound. A guest identity pages through these on both platforms. Douyin and TikTok."
+      },
+      "hashtag_detail": {
+        "summary": "A hashtag",
+        "description": "One hashtag's page: its name, cover and counts, and the id its posts are listed by. By link or id on both platforms, and by name on TikTok."
+      },
+      "hashtag_posts": {
+        "summary": "Posts under a hashtag",
+        "description": "One page of the posts filed under a hashtag, by its numeric id. TikTok; Douyin answers a guest with nothing here and is not offered yet."
+      },
+      "search_posts": {
+        "summary": "Search posts",
+        "description": "One page of the posts a keyword finds. Bilibili pages it for a guest identity; TikTok gives a guest a thin first page and needs a signed-in identity for every later one; Douyin refuses search to a guest and is not offered yet."
+      },
+      "search_authors": {
+        "summary": "Search accounts",
+        "description": "One page of the accounts a keyword finds, each with the id the author endpoints take. Bilibili pages it for a guest; TikTok answers a guest's first page only."
+      },
+      "author_mixes": {
+        "summary": "An author's own series",
+        "description": "One page of the series an author has published - Douyin's mixes, TikTok's playlists, Bilibili's seasons - each with the mix_id /mix/posts takes."
+      },
+      "live_room": {
+        "summary": "A live room",
+        "description": "One live room: whether it is broadcasting, its title, cover and broadcaster, and while it is live the viewer count and the pull URLs, one per protocol and quality. It reads a room and records nothing."
+      },
+      "trending": {
+        "summary": "What people are searching for",
+        "description": "A trending board, whole: the phrases people are searching for, ranked, with their heat and the platform's own page for each. Douyin's four boards and Bilibili's hot search."
       }
     },
     "param": {
@@ -692,6 +732,8 @@
       "endpoint": "Only this endpoint.",
       "entry_id": "The watchlist entry id.",
       "explain": "Return the request as it went out - the signed URL, the headers and the identity's cookie jar - so it can be replayed outside this instance. The answer contains a credential, so it needs `identity:manage` and an operator role, it is written to the audit log, and it is stripped from the stored task result for any reader without that scope. Implies `refresh`: an explanation of a cached answer would describe a call this request did not make.",
+      "hashtag_detail.name": "TikTok only: the hashtag's name, with or without the '#', as an alternative to url and hashtag_id. Douyin looks a hashtag up by its id alone.",
+      "hashtag_id": "The hashtag's numeric id, as an alternative to url: the number a Douyin hashtag link ends in, or the hashtag_id /hashtag returns.",
       "healthy_only": "Only list proxies that passed their last probe.",
       "hours": "How far back the window reaches.",
       "identities_list.identity_id": "Only this identity, retired or not.",
@@ -701,12 +743,14 @@
       "include_retired": "Also list retired identities. They are kept for 90 days for their statistics and hold no cookies.",
       "key": "The setting to act on, as shown by the list endpoint.",
       "key_id": "The key to revoke.",
+      "keyword": "What to search for, as you would type it into the platform's search box.",
       "kind": "Only entries of this kind.",
       "lang": "Response language for human-readable text. One of en or zh; anything else falls back to en.",
       "limit": "Maximum rows to return.",
       "mine_only": "Only list keys you created, rather than everyone's.",
       "minutes": "How far back to look. Rows older than the log's retention are gone.",
-      "mix_id": "The mix or playlist to read. Douyin returns it as mix_info, TikTok as playlistId.",
+      "mix_id": "The mix, playlist or season to read: the mix_id /user/mixes returns. A post carries it too, as mix_info on Douyin and playlistId on TikTok.",
+      "music_id": "The sound's id, as an alternative to url: the music_id in a post's music block, or the number a music link ends in. Provide exactly one of the two.",
       "name": "The file's name, exactly as the download record lists it.",
       "offset": "Rows to skip.",
       "on_disk": "True for downloads whose files are still stored.",
@@ -721,6 +765,7 @@
       "request_id": "Only the request with this id.",
       "request_log.identity_id": "Only requests made with this identity.",
       "request_log.proxy_id": "Only requests that went out through this proxy.",
+      "room_id": "The room, as an alternative to url: the number in a live.douyin.com or live.bilibili.com link, or on TikTok the @handle of the account broadcasting.",
       "rotation": "Only identities rotation hands out for every endpoint (rotating), only for requests that name them (reserved), or for a list of endpoints (limited).",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid; on Bilibili, the numeric mid.",
       "session_ref": "The session digest from the list endpoint.",
@@ -734,6 +779,7 @@
       "timeout": "Seconds to hold the stream open before closing it.",
       "transcription_id": "The transcription id returned when it was started.",
       "transcriptions_list.q": "Substring of the transcript, of the post's title as the archive holds it, or of the content id. Matched as a substring rather than by word, so it behaves the same in Chinese as in English.",
+      "trending.board": "Which board: hot (the default), entertainment, society or challenge. Douyin has all four; Bilibili has hot alone and refuses the others.",
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",
       "user_id": "The console account to act on.",
       "wait": "Hold the connection until the task finishes, up to this many seconds - this is how to make the call synchronous. Finished in time gives 200 with the result; not finished gives 202 with the task id and `state: running`, which is not an error and loses nothing. Above the instance ceiling shown as `maximum` it is a 400, rejected rather than shortened. Omitted or 0 returns 202 at once. See the description at the top of this document.",

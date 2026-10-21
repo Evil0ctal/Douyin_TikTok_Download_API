@@ -82,8 +82,8 @@ COUNT_QUERY = Query(
     # go upstream to be read back as "this author has nothing".
     description=(
         "Items per page. The ceiling depends on the platform: Douyin serves up to 50, "
-        "TikTok refuses more than 35. Above it this is a 400 naming the maximum, "
-        "rejected rather than shortened."
+        "TikTok refuses more than 35, Bilibili more than 20. Above it this is a 400 "
+        "naming the maximum, rejected rather than shortened."
     ),
 )
 CURSOR_QUERY = Query(
@@ -169,7 +169,10 @@ SEC_USER_ID_QUERY = Query(
 MIX_ID_QUERY = Query(
     min_length=1,
     max_length=64,
-    description="The mix or playlist to read; Douyin calls it mix_info, TikTok playlistId.",
+    description=(
+        "The mix, playlist or season to read: the mix_id /user/mixes returns. A post "
+        "carries it too, as mix_info on Douyin and playlistId on TikTok."
+    ),
 )
 COLLECTION_ID_QUERY = Query(
     min_length=1,
@@ -291,7 +294,7 @@ def vet_url(url: str, *, expected: Platform | None = None) -> UrlKind:
     return kind
 
 
-def _identifier(kind: UrlKind, wanted: ResourceKind) -> str | None:
+def identifier(kind: UrlKind, wanted: ResourceKind) -> str | None:
     """The resource id from a URL, when it is already the right kind.
 
     A short link yields nothing here on purpose: its target is unknowable
@@ -500,7 +503,7 @@ async def video(
     parts in `parts`.
     """
     authorize(principal, platform)
-    params = _content_params(platform, url=url, aweme_id=aweme_id)
+    params = content_params(platform, url=url, aweme_id=aweme_id)
     later = resolve_part(platform, part, url)
     if later is not None:
         params["part"] = later
@@ -573,7 +576,7 @@ async def comments(
     cursor for the next page.
     """
     authorize(principal, platform)
-    params = _content_params(platform, url=url, aweme_id=aweme_id)
+    params = content_params(platform, url=url, aweme_id=aweme_id)
     params.update(
         {
             "cursor": cursor,
@@ -649,7 +652,7 @@ async def comment_replies(
     page.
     """
     authorize(principal, platform)
-    params = _content_params(platform, url=url, aweme_id=aweme_id)
+    params = content_params(platform, url=url, aweme_id=aweme_id)
     params.update(
         {
             "comment_id": comment_id,
@@ -711,7 +714,7 @@ async def video_parts(
     """
     authorize(principal, platform)
     endpoint = supported(platform, Operation.CONTENT_PARTS)
-    params = _content_params(platform, url=url, aweme_id=aweme_id)
+    params = content_params(platform, url=url, aweme_id=aweme_id)
     params["include_raw"] = include_raw
     return await operations.submit_and_wait(
         request,
@@ -844,7 +847,7 @@ async def user(
     like and post counts.
     """
     authorize(principal, platform)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params["include_raw"] = include_raw
     return await operations.submit_and_wait(
         request,
@@ -911,7 +914,7 @@ async def user_posts(
     the next page.
     """
     authorize(principal, platform)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update(
         {
             "cursor": cursor,
@@ -988,7 +991,7 @@ async def user_likes(
     The same post shape as `/video`, plus the cursor for the next page.
     """
     authorize(principal, platform)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update(
         {
             "cursor": cursor,
@@ -1063,7 +1066,7 @@ async def user_reposts(
     the next page.
     """
     authorize(principal, platform)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update(
         {
             "cursor": cursor,
@@ -1153,7 +1156,7 @@ async def user_collections(
     # Douyin's folder list has no subject but the identity sending it, so an
     # author is neither required nor accepted there; TikTok's needs one.
     params: dict[str, Any] = (
-        _author_params(platform, url=url, sec_user_id=sec_user_id)
+        author_params(platform, url=url, sec_user_id=sec_user_id)
         if _accepts_author(endpoint)
         else _refuse_author(endpoint, url=url, sec_user_id=sec_user_id)
     )
@@ -1235,7 +1238,7 @@ async def user_bookmarks(
     authorize(principal, platform)
     endpoint = supported(platform, Operation.AUTHOR_BOOKMARKS)
     params: dict[str, Any] = (
-        _author_params(platform, url=url, sec_user_id=sec_user_id)
+        author_params(platform, url=url, sec_user_id=sec_user_id)
         if _accepts_author(endpoint)
         else _refuse_author(endpoint, url=url, sec_user_id=sec_user_id)
     )
@@ -1417,14 +1420,16 @@ async def mix_posts(
 ) -> Any:
     """One page of the posts collected in a mix.
 
-    A mix is Douyin's series and TikTok's playlist - an ordered set an author
-    groups their own posts into. The id comes from any post that belongs to
-    one: Douyin returns it as `mix_info`, TikTok as `playlistId`.
+    A mix is Douyin's series, TikTok's playlist and Bilibili's season - an
+    ordered set an author groups their own posts into. `/user/mixes` lists an
+    author's, and any post that belongs to one carries its id: Douyin returns
+    it as `mix_info`, TikTok as `playlistId`.
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`.
-    - `mix_id` - the mix or playlist to read.
+    - `platform` - `douyin`, `tiktok` or `bilibili`. A Bilibili season comes
+      back whole, in one page, whatever `cursor` and `count` say.
+    - `mix_id` - the mix, playlist or season to read.
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - posts per page.
@@ -1516,7 +1521,7 @@ async def user_followers(
     """
     authorize(principal, platform)
     endpoint = supported(platform, Operation.AUTHOR_FOLLOWERS)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update(
         {
             "cursor": cursor,
@@ -1589,7 +1594,7 @@ async def user_following(
     """
     authorize(principal, platform)
     endpoint = supported(platform, Operation.AUTHOR_FOLLOWING)
-    params = _author_params(platform, url=url, sec_user_id=sec_user_id)
+    params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params.update(
         {
             "cursor": cursor,
@@ -1615,7 +1620,7 @@ async def user_following(
 # --------------------------------------------------------------------------
 
 
-def _content_params(platform: Platform, *, url: str | None, aweme_id: str | None) -> dict[str, Any]:
+def content_params(platform: Platform, *, url: str | None, aweme_id: str | None) -> dict[str, Any]:
     """Accept either a link or an id, and normalize to what the worker needs.
 
     When the URL already carries the id, it is extracted here so two callers
@@ -1628,7 +1633,7 @@ def _content_params(platform: Platform, *, url: str | None, aweme_id: str | None
         )
     if url:
         kind = vet_url(url, expected=platform)
-        extracted = _identifier(kind, ResourceKind.VIDEO)
+        extracted = identifier(kind, ResourceKind.VIDEO)
         chosen = aweme_id or extracted
         # Only what the caller typed is checked. An id this system pulled out of
         # a URL it already recognised has been through the pattern that
@@ -1682,7 +1687,7 @@ def _require_pin(endpoint: str, identity: str | None) -> None:
         )
 
 
-def _author_params(
+def author_params(
     platform: Platform, *, url: str | None, sec_user_id: str | None
 ) -> dict[str, Any]:
     if not url and not sec_user_id:
@@ -1692,7 +1697,7 @@ def _author_params(
         )
     if url:
         kind = vet_url(url, expected=platform)
-        extracted = _identifier(kind, ResourceKind.USER)
+        extracted = identifier(kind, ResourceKind.USER)
         return {
             "sec_user_id": sec_user_id or extracted,
             "url": None if extracted else kind.url,
@@ -1700,4 +1705,13 @@ def _author_params(
     return {"sec_user_id": sec_user_id, "url": None}
 
 
-__all__ = ["authorize", "read_scope", "router", "vet_url"]
+__all__ = [
+    "author_params",
+    "authorize",
+    "content_params",
+    "identifier",
+    "read_scope",
+    "router",
+    "supported",
+    "vet_url",
+]

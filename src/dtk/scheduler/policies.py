@@ -62,6 +62,17 @@ _POLICIES: dict[str, EndpointPolicy] = {
         ),
         EndpointPolicy("douyin.author_bookmarks", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("douyin.collection_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        # One batch per post, never paged, but a recommender: what a page asks
+        # once per post opened, so faster than a list and slower than a detail.
+        EndpointPolicy("douyin.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        # A sound is one small object, like a profile; its posts page like a mix.
+        EndpointPolicy("douyin.music_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("douyin.music_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("douyin.hashtag_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("douyin.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("douyin.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        # The same board for everyone, cached; asked rarely, like Bilibili's.
+        EndpointPolicy("douyin.trending", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("tiktok.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         EndpointPolicy("tiktok.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
@@ -84,6 +95,18 @@ _POLICIES: dict[str, EndpointPolicy] = {
         ),
         EndpointPolicy("tiktok.author_followers", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.author_following", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy("tiktok.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        EndpointPolicy("tiktok.music_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("tiktok.music_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("tiktok.hashtag_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("tiktok.hashtag_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        # Search is the endpoint platforms watch hardest (doc 11 says so of
+        # all of them), so it gets the slowest bucket here and the heaviest
+        # weight a list carries.
+        EndpointPolicy("tiktok.search_posts", capacity=2, refill_per_sec=0.08, risk_weight=1.8),
+        EndpointPolicy("tiktok.search_authors", capacity=2, refill_per_sec=0.08, risk_weight=1.8),
+        EndpointPolicy("tiktok.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("tiktok.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("bilibili.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("bilibili.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         # Asked once per detail, by the fetch layer, for the file itself. Same
@@ -122,6 +145,17 @@ _POLICIES: dict[str, EndpointPolicy] = {
         # Guarded like the uploader space - without the dm report it answers
         # -352 - so it gets the comment endpoints' slower bucket.
         EndpointPolicy("bilibili.ranking", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
+        EndpointPolicy("bilibili.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        EndpointPolicy("bilibili.search_posts", capacity=2, refill_per_sec=0.08, risk_weight=1.5),
+        EndpointPolicy("bilibili.search_authors", capacity=2, refill_per_sec=0.08, risk_weight=1.5),
+        # Unsigned and from the space page, like the folder list beside them.
+        EndpointPolicy("bilibili.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
+        EndpointPolicy("bilibili.mix_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
+        EndpointPolicy("bilibili.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        EndpointPolicy("bilibili.trending", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        # Asked right after a room that is on, as content_streams follows a
+        # detail. The same rate, or every live room would wait on it.
+        EndpointPolicy("bilibili.live_streams", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
     ]
 }
 

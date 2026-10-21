@@ -92,13 +92,18 @@ class TestRefusals:
             await plan("https://www.douyin.com/", no_redirect)
 
     async def test_an_unsupported_resource_kind_says_so(self):
-        """A live room is a recognised link the project does not serve yet, and
-        the caller should be told that rather than 'invalid URL'."""
-        live = identify("https://live.douyin.com/123456789")
-        if live.platform is None:
-            pytest.skip("live links are not recognised by the URL layer")
-        with pytest.raises((UnsupportedContent, InvalidUrl)):
-            await plan("https://live.douyin.com/123456789", no_redirect)
+        """A search page is a recognised link /parse does not serve - the
+        search endpoints take a keyword - and the caller should be told that
+        rather than 'invalid URL'. This used a live room until /live existed."""
+        search = identify("https://www.douyin.com/search/cat")
+        assert search.platform is not None
+        with pytest.raises(UnsupportedContent):
+            await plan("https://www.douyin.com/search/cat", no_redirect)
+
+    async def test_a_live_link_is_answered_with_its_room(self):
+        endpoint, params = await plan("https://live.douyin.com/123456789", no_redirect)
+        assert endpoint == "douyin.live_room"
+        assert params == {"room_id": "123456789"}
 
 
 class TestExpansion:
@@ -140,6 +145,64 @@ def test_to_call_is_pure():
     assert params == {"content_id": "7372484719365098803"}
 
 
+@pytest.mark.parametrize(
+    ("link", "endpoint", "music_id"),
+    [
+        (
+            "https://www.douyin.com/music/7661456186985761599",
+            "douyin.music_detail",
+            "7661456186985761599",
+        ),
+        (
+            "https://www.tiktok.com/music/original-sound-7686730447438514957",
+            "tiktok.music_detail",
+            "7686730447438514957",
+        ),
+    ],
+)
+def test_a_music_link_is_answered_with_the_sound(link: str, endpoint: str, music_id: str):
+    assert to_call(identify(link)) == (endpoint, {"music_id": music_id})
+
+
+@pytest.mark.parametrize(
+    ("link", "endpoint", "params"),
+    [
+        (
+            "https://www.douyin.com/hashtag/1592544802272436",
+            "douyin.hashtag_detail",
+            {"hashtag_id": "1592544802272436"},
+        ),
+        ("https://www.tiktok.com/tag/hibachi", "tiktok.hashtag_detail", {"name": "hibachi"}),
+        # The case that made the name explicit: an all-digit hashtag is a
+        # name, and sent as an id it is hashtag number 2024 instead.
+        ("https://www.tiktok.com/tag/2024", "tiktok.hashtag_detail", {"name": "2024"}),
+    ],
+)
+def test_a_hashtag_link_is_answered_with_the_hashtag(link: str, endpoint: str, params: dict):
+    assert to_call(identify(link)) == (endpoint, params)
+
+
+class TestCompletingANamedLink:
+    """A short link to a TikTok tag, handed to an endpoint that names itself."""
+
+    @staticmethod
+    async def to_tag(url: str) -> str | None:
+        return "https://www.tiktok.com/tag/2024" if "/t/" in url else None
+
+    async def test_the_detail_gets_the_name(self):
+        filled = await parsing.complete(
+            "tiktok.hashtag_detail", {"url": "https://www.tiktok.com/t/ZTabcdef/"}, self.to_tag
+        )
+        assert filled == {"name": "2024"}
+
+    async def test_the_list_by_number_refuses_it_by_name(self):
+        with pytest.raises(InvalidParam) as caught:
+            await parsing.complete(
+                "tiktok.hashtag_posts", {"url": "https://www.tiktok.com/t/ZTabcdef/"}, self.to_tag
+            )
+        assert caught.value.details["reason"] == "named_resource"
+
+
 def test_a_bilibili_folder_link_is_answered_with_its_videos():
     """Bilibili has no folder detail; its folder list carries name, cover and size.
 
@@ -164,6 +227,13 @@ def test_a_bilibili_folder_link_is_answered_with_its_videos():
         "https://www.bilibili.com/video/BV1xx411c7mD",
         "https://space.bilibili.com/670061998",
         "https://space.bilibili.com/18202105/favlist?fid=58074805",
+        "https://www.douyin.com/music/7661456186985761599",
+        "https://www.tiktok.com/music/original-sound-7686730447438514957",
+        "https://www.douyin.com/hashtag/1592544802272436",
+        "https://www.tiktok.com/tag/hibachi",
+        "https://live.douyin.com/615171448842",
+        "https://www.tiktok.com/@ventisfit/live",
+        "https://live.bilibili.com/173551",
     ],
 )
 def test_every_link_kind_lands_on_an_endpoint_that_exists(link: str):

@@ -29,11 +29,12 @@ Where Bilibili differs from the other two, and how it lands in the models:
 
 from __future__ import annotations
 
+import html
 import re
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, Final
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from dtk.core.errors import InvalidParam, UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
@@ -46,8 +47,12 @@ from dtk.models import (
     ContentPart,
     ContentStats,
     Image,
+    LiveRoom,
+    LiveStream,
     Media,
+    Mix,
     Page,
+    TrendingTopic,
     VideoStream,
 )
 from dtk.platforms.bilibili.ids import av_to_bv
@@ -56,6 +61,7 @@ from dtk.platforms.common import (
     clean_urls,
     epoch_to_datetime,
     optional_bool,
+    optional_id,
     optional_int,
     optional_str,
     seconds_to_ms,
@@ -74,6 +80,8 @@ STREAMS_KEY: Final = "__dtk_streams"
 PART_KEY: Final = "__dtk_part"
 #: Where the fetch layer puts one weekly issue inside the index that named it.
 ISSUE_KEY: Final = "__dtk_issue"
+#: Where a live room's pull URLs are folded into its answer.
+LIVE_PLAY_KEY: Final = "__dtk_live_play"
 
 #: Envelope codes that are a refusal of the caller rather than an answer.
 #: -352 "risk check failed" and -412 "request intercepted" were both seen on
@@ -507,6 +515,326 @@ def parse_popular(
     return Page(items=items, cursor=str(current + 1) if more else None, has_more=more)
 
 
+def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/x/web-interface/archive/related``: the detail's own archive
+    object for each of the 40, minus the stream, in one unpaged answer."""
+    items = [_video(item, fetched_at=fetched_at) for item in _guard(payload).children("data")]
+    return Page(items=items, cursor=None, has_more=False)
+
+
+_HIGHLIGHT = re.compile(r"</?em[^>]*>")
+
+#: ``official_verify.type`` of a verified person and a verified organisation.
+_VERIFIED_TYPES: Final[frozenset[int]] = frozenset({0, 1})
+
+
+def _unmarked(value: Any) -> str:
+    """A search hit's text without the ``<em class="keyword">`` it wraps the
+    matched words in, and with the entities it escapes turned back."""
+    return html.unescape(_HIGHLIGHT.sub("", value)) if isinstance(value, str) else ""
+
+
+def _search_page(data: Node, items: list[Any]) -> tuple[bool, str | None]:
+    """``(has_more, cursor)`` from a search answer's ``page`` and ``numPages``.
+
+    ``numPages`` stops at 50 however many results there are, and this stops
+    there too. Page 51 still answered twenty videos on 2026-10-20, but nothing
+    says they are the next twenty rather than any twenty, and the page the
+    site shows ends at 50. A search with no hits has no ``result`` key and
+    ``numPages: 0``.
+    """
+    current = optional_int(data.get("page")) or 1
+    pages = optional_int(data.get("numPages")) or 0
+    more = bool(items) and current < pages
+    return more, str(current + 1) if more else None
+
+
+def parse_search_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/x/web-interface/wbi/search/type`` for ``search_type=video``.
+
+    A hit is not the archive object the lists carry: the uploader is spelled
+    out beside it (``mid``, ``author``, ``upic``), the length is a clock
+    string, and the title marks the matched words in HTML. Only hits with a
+    bvid are videos; the tab can carry others.
+    """
+    data = _guard(payload).child("data")
+    items: list[Content] = []
+    for hit in data.listed_children("result"):
+        bvid = optional_str(hit.get("bvid"))
+        if bvid is None:
+            continue
+        mid = hit.id("mid")
+        cover = _image(hit.get("pic"))
+        items.append(
+            Content(
+                platform=_PLATFORM,
+                content_id=bvid,
+                kind=ContentKind.VIDEO,
+                web_url=content_web_url(bvid),
+                title=_unmarked(hit.text("title")),
+                description=_prose(hit.get("description")),
+                created_at=epoch_to_datetime(hit.get("pubdate")),
+                duration_ms=_length_ms(hit.get("duration")),
+                author=Author(
+                    platform=_PLATFORM,
+                    uid=mid,
+                    sec_uid=mid,
+                    nickname=hit.text("author"),
+                    avatar=_image(hit.get("upic")),
+                    web_url=author_web_url(mid),
+                ),
+                stats=ContentStats(
+                    play_count=optional_int(hit.get("play")),
+                    digg_count=optional_int(hit.get("like")),
+                    comment_count=optional_int(hit.get("review")),
+                    collect_count=optional_int(hit.get("favorites")),
+                ),
+                media=Media(covers=[cover] if cover else []),
+                tags=[tag for tag in (optional_str(hit.get("tag")) or "").split(",") if tag],
+                fetched_at=fetched_at,
+                raw=hit.raw(),
+            )
+        )
+    has_more, cursor = _search_page(data, items)
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def parse_search_authors(payload: Mapping[str, Any]) -> Page[Author]:
+    """Parse ``/x/web-interface/wbi/search/type`` for ``search_type=bili_user``."""
+    data = _guard(payload).child("data")
+    items: list[Author] = []
+    for hit in data.listed_children("result"):
+        mid = hit.id("mid")
+        official = hit.opt_child("official_verify")
+        official_type = optional_int(official.get("type")) if official else None
+        items.append(
+            Author(
+                platform=_PLATFORM,
+                uid=mid,
+                sec_uid=mid,
+                nickname=_unmarked(hit.text("uname")),
+                signature=optional_str(hit.get("usign")),
+                avatar=_image(hit.get("upic")),
+                web_url=author_web_url(mid),
+                # 0 a person, 1 an organisation. Not the card's ">= 0": search
+                # spells "none" 127 where the card says -1 - twenty ordinary
+                # accounts of twenty on 2026-10-20 - and every one of them read
+                # as verified.
+                verified=official_type in _VERIFIED_TYPES,
+                stats=AuthorStats(
+                    follower_count=optional_int(hit.get("fans")),
+                    content_count=optional_int(hit.get("videos")),
+                ),
+            )
+        )
+    has_more, cursor = _search_page(data, items)
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def season_web_url(mid: str, season_id: str) -> str:
+    return f"{SPACE_DOMAIN}/{mid}/lists/{season_id}?type=season"
+
+
+def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
+    """Parse ``/x/polymer/web-space/seasons_series_list``: the seasons only.
+
+    The same list carries the space's series, after the seasons and in the
+    same page count. A series is a different id with a different endpoint
+    that also needs the uploader, so it is left out rather than handed back
+    with an id ``/mix/posts`` would refuse; the paging still counts them, so
+    a last page can be one with no seasons on it.
+    """
+    lists = _guard(payload).child("data").child("items_lists")
+    items: list[Mix] = []
+    for season in lists.listed_children("seasons_list"):
+        meta = season.child("meta")
+        season_id = meta.id("season_id")
+        mid = optional_id(meta.get("mid"))
+        items.append(
+            Mix(
+                platform=_PLATFORM,
+                mix_id=season_id,
+                # `name` is the title with the Chinese word for "collection"
+                # and a middle dot in front of it.
+                name=optional_str(meta.get("title")) or meta.text("name"),
+                description=optional_str(meta.get("description")),
+                cover=_image(meta.get("cover")),
+                item_count=optional_int(meta.get("total")),
+                web_url=season_web_url(mid, season_id) if mid else None,
+                owner_id=mid,
+                # `ptime` moved with the newest episode on every season seen.
+                updated_at=epoch_to_datetime(meta.get("ptime")),
+                raw=season.raw(),
+            )
+        )
+    has_more, cursor = _numbered_page(
+        lists.opt_child("page"), number="page_num", size="page_size", count="total"
+    )
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def parse_mix_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/x/space/fav/season/list``: every video in a season, at once."""
+    data = _guard(payload).child("data")
+    items = []
+    for media in data.listed_children("medias"):
+        counters = media.opt_child("cnt_info")
+        items.append(
+            _listed_video(
+                media,
+                fetched_at=fetched_at,
+                author=_author(media.child("upper")),
+                title_key="title",
+                description_key="intro",
+                cover_key="cover",
+                created_key="pubtime",
+                duration_ms=seconds_to_ms(media.get("duration")),
+                stats=ContentStats(
+                    play_count=optional_int(counters.get("play")) if counters else None,
+                    collect_count=optional_int(counters.get("collect")) if counters else None,
+                ),
+            )
+        )
+    return Page(items=items, cursor=None, has_more=False)
+
+
+LIVE_DOMAIN: Final = "https://live.bilibili.com"
+
+#: ``room_info.live_status`` while broadcasting. 0 is off and 2 is a room
+#: replaying recordings between broadcasts, which has no live pull URL.
+LIVE_STATUS_ON: Final = 1
+
+
+def live_web_url(room_id: str) -> str:
+    return f"{LIVE_DOMAIN}/{room_id}"
+
+
+def live_room_is_on(payload: Mapping[str, Any]) -> bool:
+    """Whether a room answer is a broadcast in progress, for the follow-up."""
+    data = payload.get("data")
+    room = data.get("room_info") if isinstance(data, Mapping) else None
+    return isinstance(room, Mapping) and optional_int(room.get("live_status")) == LIVE_STATUS_ON
+
+
+def merge_live_play(room: Mapping[str, Any], play: Mapping[str, Any]) -> dict[str, Any]:
+    """A copy of the room answer with ``play``'s ``data`` under :data:`LIVE_PLAY_KEY`."""
+    merged = dict(room)
+    data = dict(room.get("data") or {})
+    if isinstance(play.get("data"), Mapping):
+        data[LIVE_PLAY_KEY] = dict(play["data"])
+    merged["data"] = data
+    return merged
+
+
+def _live_streams(play: Node | None) -> list[LiveStream]:
+    """``playurl_info.playurl.stream[].format[].codec[]``, one URL each.
+
+    A URL is three pieces the player joins: ``url_info[0].host``, the codec's
+    ``base_url`` and ``url_info[0].extra``, the signed query. The first host
+    is the one the page plays from; the others are its fallbacks.
+    """
+    info = play.opt_child("playurl_info") if play else None
+    playurl = info.opt_child("playurl") if info else None
+    if playurl is None:
+        return []
+    streams: list[LiveStream] = []
+    for stream in playurl.opt_children("stream"):
+        for fmt in stream.opt_children("format"):
+            name = optional_str(fmt.get("format_name"))
+            for codec in fmt.opt_children("codec"):
+                base = optional_str(codec.get("base_url"))
+                hosts = codec.opt_children("url_info")
+                if base is None or not hosts:
+                    continue
+                host = optional_str(hosts[0].get("host")) or ""
+                extra = optional_str(hosts[0].get("extra")) or ""
+                quality = optional_int(codec.get("current_qn"))
+                streams.append(
+                    LiveStream(
+                        url=f"{host}{base}{extra}",
+                        format="flv" if name == "flv" else "hls",
+                        quality=str(quality) if quality is not None else None,
+                    )
+                )
+    return streams
+
+
+def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -> LiveRoom:
+    """Parse ``getInfoByRoom``, with ``getRoomPlayInfo`` folded in if it came.
+
+    The viewer count is ``watched_show.num``, which the room prints as "N
+    people watched": Bilibili does not state who is in the room now, and
+    ``online`` beside it is a popularity score in the hundreds of thousands
+    for a room of two thousand.
+    """
+    data = _guard(payload).child("data")
+    room = data.child("room_info")
+    number = room.id("room_id")
+    is_live = optional_int(room.get("live_status")) == LIVE_STATUS_ON
+    anchor = data.opt_child("anchor_info")
+    base = anchor.opt_child("base_info") if anchor else None
+    mid = optional_id(room.get("uid"))
+    author = (
+        Author(
+            platform=_PLATFORM,
+            uid=mid,
+            sec_uid=mid,
+            nickname=base.text("uname"),
+            avatar=_image(base.get("face")),
+            web_url=author_web_url(mid),
+        )
+        if base is not None and mid is not None
+        else None
+    )
+    watched = data.opt_child("watched_show")
+    return LiveRoom(
+        platform=_PLATFORM,
+        room_id=number,
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=_image(room.get("cover")),
+        web_url=live_web_url(number),
+        viewer_count=optional_int(watched.get("num")) if watched and is_live else None,
+        started_at=epoch_to_datetime(room.get("live_start_time")) if is_live else None,
+        author=author,
+        streams=_live_streams(data.opt_child(LIVE_PLAY_KEY)) if is_live else [],
+        raw=data.raw(),
+    )
+
+
+SEARCH_DOMAIN: Final = "https://search.bilibili.com"
+
+
+def search_web_url(keyword: str) -> str:
+    return f"{SEARCH_DOMAIN}/all?{urlencode({'keyword': keyword})}"
+
+
+def parse_trending(payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+    """Parse ``/x/web-interface/wbi/search/square``: ``data.trending.list``.
+
+    Ranked in the order given. ``top_list`` beside it holds the lines pinned
+    above the ranking, when there are any, and they come first with no rank.
+    """
+    trending = _guard(payload).child("data").child("trending")
+    items: list[TrendingTopic] = []
+    pinned = trending.listed_children("top_list")
+    ranked = trending.listed_children("list")
+    for index, line in enumerate([*pinned, *ranked]):
+        word = optional_str(line.get("show_name")) or line.text("keyword")
+        keyword = optional_str(line.get("keyword")) or word
+        items.append(
+            TrendingTopic(
+                platform=_PLATFORM,
+                word=word,
+                rank=index - len(pinned) + 1 if index >= len(pinned) else None,
+                hot_value=optional_int(line.get("heat_score")),
+                web_url=search_web_url(keyword),
+                raw=line.raw(),
+            )
+        )
+    return Page(items=items, cursor=None, has_more=False)
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/x/space/wbi/arc/search``.
 
@@ -735,6 +1063,9 @@ __all__ = [
     "BOARD_RANKING",
     "BOARD_WEEKLY",
     "ISSUE_KEY",
+    "LIVE_DOMAIN",
+    "LIVE_PLAY_KEY",
+    "LIVE_STATUS_ON",
     "PART_KEY",
     "RISK_CODES",
     "STREAMS_KEY",
@@ -744,17 +1075,29 @@ __all__ = [
     "detect_risk_control",
     "first_part_cid",
     "latest_issue",
+    "live_room_is_on",
+    "live_web_url",
     "merge_issue",
+    "merge_live_play",
     "merge_part_streams",
     "merge_streams",
     "parse_author",
     "parse_author_collections",
+    "parse_author_mixes",
     "parse_author_posts",
     "parse_collection_posts",
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
     "parse_content_parts",
+    "parse_live_room",
+    "parse_mix_posts",
     "parse_popular",
+    "parse_related_posts",
+    "parse_search_authors",
+    "parse_search_posts",
+    "parse_trending",
     "part_cid",
+    "search_web_url",
+    "season_web_url",
 ]

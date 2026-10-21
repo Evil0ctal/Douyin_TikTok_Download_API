@@ -13,7 +13,19 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
+from dtk.models import (
+    Author,
+    Collection,
+    Comment,
+    Content,
+    ContentPart,
+    Hashtag,
+    LiveRoom,
+    Mix,
+    MusicDetail,
+    Page,
+    TrendingTopic,
+)
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -62,8 +74,21 @@ class BilibiliAdapter:
         The weekly selection's index is followed by the issue: the one the
         cursor names, or the newest. The index alone lists no videos, so that
         follow-up is required.
+
+        A live room that is broadcasting is followed by ``getRoomPlayInfo``,
+        for the pull URLs.
         """
         asked = params or {}
+        if endpoint == endpoints.LIVE_ROOM:
+            # A room that is live is followed by its pull URLs. Not required:
+            # the room, its title and its broadcaster are real without them.
+            if not parser.live_room_is_on(payload):
+                return None
+            return FollowUp(
+                endpoint=endpoints.LIVE_STREAMS,
+                params={"room_id": str(asked.get("room_id") or "")},
+                merge=parser.merge_live_play,
+            )
         if endpoint == endpoints.POPULAR_WEEKLY:
             cursor = str(asked.get("cursor") or "").strip()
             number = int(cursor) if cursor.isdigit() and int(cursor) > 0 else None
@@ -160,6 +185,65 @@ class BilibiliAdapter:
         cursor: str | None = None,
     ) -> Page[Content]:
         return parser.parse_popular(payload, board=board, fetched_at=fetched_at, cursor=cursor)
+
+    def parse_related_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_related_posts(payload, fetched_at=fetched_at)
+
+    def parse_music_detail(self, payload: Mapping[str, Any]) -> MusicDetail:
+        """Bilibili has no sounds a post is made with; no music endpoint is
+        registered."""
+        raise UnsupportedContent(
+            "Bilibili videos do not carry a reusable sound",
+            details={"platform": self.platform.value, "capability": "music_detail"},
+        )
+
+    def parse_music_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        raise UnsupportedContent(
+            "Bilibili videos do not carry a reusable sound",
+            details={"platform": self.platform.value, "capability": "music_posts"},
+        )
+
+    def parse_hashtag_detail(self, payload: Mapping[str, Any]) -> Hashtag:
+        """Bilibili's tags are a video's labels, not pages with posts filed
+        under them the way a hashtag is; nothing is registered."""
+        raise UnsupportedContent(
+            "Bilibili has no hashtag pages",
+            details={"platform": self.platform.value, "capability": "hashtag_detail"},
+        )
+
+    def parse_hashtag_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        raise UnsupportedContent(
+            "Bilibili has no hashtag pages",
+            details={"platform": self.platform.value, "capability": "hashtag_posts"},
+        )
+
+    def parse_search_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_search_posts(payload, fetched_at=fetched_at)
+
+    def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]:
+        return parser.parse_search_authors(payload)
+
+    def parse_author_mixes(self, payload: Mapping[str, Any]) -> Page[Mix]:
+        return parser.parse_author_mixes(payload)
+
+    def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+        return parser.parse_mix_posts(payload, fetched_at=fetched_at)
+
+    def parse_live_room(
+        self, payload: Mapping[str, Any], *, room_id: str | None = None
+    ) -> LiveRoom:
+        return parser.parse_live_room(payload, room_id=room_id)
+
+    def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+        return parser.parse_trending(payload)
 
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()

@@ -116,8 +116,8 @@
       },
       "cache": {
         "content_ttl": "解析后的视频详情可复用多久，超时后重新抓取。",
-        "author_ttl": "解析后的用户主页信息可复用多久。",
-        "list_ttl": "解析后的列表页可复用多久。列表比单条内容变化更快，所以通常是三者中最短的。"
+        "author_ttl": "解析后的用户主页、音乐或话题可复用多久。",
+        "list_ttl": "解析后的列表页或直播间可复用多久。列表比单条内容变化更快，所以通常是三者中最短的。"
       },
       "snapshot": {
         "min_interval_seconds": "内容历史的去重窗口。同一条内容在窗口内的第二次快照会被跳过而不入库。"
@@ -524,7 +524,7 @@
       },
       "mix_posts": {
         "summary": "获取合辑 / 播放列表内的作品",
-        "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表。合辑 ID 可从任意属于该合辑的作品中获得：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
+        "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表，B 站称为合集（B 站一次返回全部视频）。/user/mixes 可列出某作者的合辑；作品里也带着合辑 ID：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
       },
       "notify_test": {
         "summary": "发送测试告警",
@@ -665,6 +665,46 @@
       "content_parts": {
         "summary": "视频的分P列表",
         "description": "按顺序列出多P视频的每一P，含序号、标题和时长。仅 B 站支持。"
+      },
+      "related_posts": {
+        "summary": "作品的相关推荐",
+        "description": "获取平台播放页在某个作品旁推荐的作品，一次一批。推荐结果会变，同样的请求稍后可能得到不同的答复；不存在的作品 ID 也会得到一批作品，所以有答复不代表作品存在。"
+      },
+      "music_detail": {
+        "summary": "音乐详情",
+        "description": "获取作品所用的一首音乐：标题、作者、时长、音频与封面，以及使用它的作品数、它是否为某个作品的原声、发布它的账号。支持抖音与 TikTok。"
+      },
+      "music_posts": {
+        "summary": "使用某音乐的作品",
+        "description": "获取使用同一首音乐的作品，一次一页。两个平台的游客身份都能翻页。支持抖音与 TikTok。"
+      },
+      "hashtag_detail": {
+        "summary": "话题详情",
+        "description": "获取一个话题页：名称、封面、各项计数，以及列出其作品所用的 ID。两个平台都支持按链接或 ID 查询，TikTok 还支持按名称。"
+      },
+      "hashtag_posts": {
+        "summary": "话题下的作品",
+        "description": "按话题的数字 ID 获取其下的作品，一次一页。支持 TikTok；抖音对游客身份不返回任何内容，暂未提供。"
+      },
+      "search_posts": {
+        "summary": "搜索作品",
+        "description": "按关键词搜索作品，一次一页。B 站的游客身份可以翻页；TikTok 只给游客一页较少的结果，之后的每一页都需要已登录的身份；抖音拒绝游客搜索，暂未提供。"
+      },
+      "search_authors": {
+        "summary": "搜索账号",
+        "description": "按关键词搜索账号，一次一页，每个账号都带有作者类接口所用的 ID。B 站的游客身份可以翻页；TikTok 只回答游客的第一页。"
+      },
+      "author_mixes": {
+        "summary": "作者的合集列表",
+        "description": "获取作者发布的合集，一次一页——抖音的合集、TikTok 的播放列表、B 站的合集——每一个都带有 /mix/posts 所用的 mix_id。"
+      },
+      "live_room": {
+        "summary": "直播间信息",
+        "description": "获取一个直播间：是否正在直播、标题、封面与主播，正在直播时还有观看人数和拉流地址（每种协议、每档清晰度各一条）。只读取直播间，不做任何录制。"
+      },
+      "trending": {
+        "summary": "热榜",
+        "description": "获取一整张热榜：大家正在搜索的词，按名次排列，带热度和平台自己的词条页面。支持抖音的四个榜单与 B 站热搜。"
       }
     },
     "param": {
@@ -692,6 +732,8 @@
       "endpoint": "仅限该端点。",
       "entry_id": "监控列表条目 ID。",
       "explain": "把这次请求原样报告回来——已签名的 URL、请求头，以及该身份的 cookie，这样就能在本实例之外复现同一个请求。返回内容含凭据，因此需要 `identity:manage` 权限和 operator 角色，会记入审计日志，并且对没有该权限的读取者会从存储的任务结果中剔除。它隐含 `refresh`：解释一个命中缓存的响应，描述的会是本次请求根本没发出过的那一次调用。",
+      "hashtag_detail.name": "仅 TikTok：话题名称，带不带 # 都可以，可代替 url 与 hashtag_id。抖音只能按 ID 查询话题。",
+      "hashtag_id": "话题的数字 ID，可代替 url：抖音话题链接末尾的数字，或 /hashtag 返回的 hashtag_id。",
       "healthy_only": "仅列出上次探测通过的代理。",
       "hours": "统计窗口回溯多少小时。",
       "identities_list.identity_id": "只返回这一个身份，无论是否已退休。",
@@ -701,12 +743,14 @@
       "include_retired": "同时列出已退休的身份。它们会为统计保留 90 天，不再持有任何 Cookie。",
       "key": "要操作的配置项，取值见列表接口。",
       "key_id": "要吊销的密钥 ID。",
+      "keyword": "要搜索的内容，就像在平台搜索框里输入的那样。",
       "kind": "仅返回该类型的条目。",
       "lang": "人类可读文本的响应语言，可选 en 或 zh，其余值一律回退英文。",
       "limit": "最多返回多少条。",
       "mine_only": "仅列出你自己创建的密钥，而不是所有人的。",
       "minutes": "回溯多少分钟。早于日志保留期的记录已经不在了。",
-      "mix_id": "要读取的合辑 / 播放列表 ID。抖音在 mix_info 字段返回，TikTok 在 playlistId 字段返回。",
+      "mix_id": "要读取的合集、播放列表或 B 站合集：/user/mixes 返回的 mix_id。作品里也带着它：抖音在 mix_info 字段，TikTok 在 playlistId 字段。",
+      "music_id": "音乐 ID，可代替 url：作品 music 字段中的 music_id，或音乐链接末尾的数字。两者只能提供一个。",
       "name": "文件名，需与下载记录中列出的完全一致。",
       "offset": "跳过多少条。",
       "on_disk": "为 true 时仅返回文件仍在本地的下载记录。",
@@ -721,6 +765,7 @@
       "request_id": "仅返回该请求 ID 对应的那一条。",
       "request_log.identity_id": "仅返回由该身份发出的请求。",
       "request_log.proxy_id": "仅返回经由该代理发出的请求。",
+      "room_id": "直播间，可代替 url：live.douyin.com 或 live.bilibili.com 链接中的数字；TikTok 则填正在直播的账号的 @用户名。",
       "rotation": "只返回在所有接口上参与轮换的身份（rotating）、只服务指定它的请求的身份（reserved），或只在部分接口上参与轮换的身份（limited）。",
       "sec_user_id": "作者的稳定 ID，与 url 二选一。在 TikTok 上即 secUid；在 B 站上是数字 mid。",
       "session_ref": "会话摘要，取自列表接口。",
@@ -734,6 +779,7 @@
       "timeout": "流保持打开多少秒后关闭。",
       "transcription_id": "发起转写时返回的转写 ID。",
       "transcriptions_list.q": "转写文本、作品标题（以归档中的为准）或作品 ID 中的子串。按子串匹配而非按词匹配，因此中英文行为一致。",
+      "trending.board": "哪一个榜单：hot（默认）、entertainment（娱乐）、society（社会）或 challenge（挑战）。抖音四个都有；B 站只有 hot，其他会被拒绝。",
       "url": "资源链接。允许直接传入包含链接的整段文本，因此可以把 App 复制的内容原样提交。",
       "user_id": "要操作的控制台账号 ID。",
       "wait": "保持连接直到任务完成，最多等这么多秒——**这就是把调用变成同步的方式**。在时限内完成返回 200 和结果；没完成则返回 202、任务 ID 和 `state: running`，这不是错误，也不会丢任何东西。超过参数上显示的 `maximum` 上限会返回 400，是拒绝而不是悄悄缩短。省略或传 0 会立刻返回 202。详见本文档顶部的说明。",

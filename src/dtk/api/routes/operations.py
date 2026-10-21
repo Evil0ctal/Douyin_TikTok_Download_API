@@ -84,6 +84,16 @@ class Operation(StrEnum):
     POPULAR_WEEKLY = "popular_weekly"
     POPULAR_PRECIOUS = "popular_precious"
     RANKING = "ranking"
+    RELATED_POSTS = "related_posts"
+    MUSIC_DETAIL = "music_detail"
+    MUSIC_POSTS = "music_posts"
+    HASHTAG_DETAIL = "hashtag_detail"
+    HASHTAG_POSTS = "hashtag_posts"
+    SEARCH_POSTS = "search_posts"
+    SEARCH_AUTHORS = "search_authors"
+    AUTHOR_MIXES = "author_mixes"
+    LIVE_ROOM = "live_room"
+    TRENDING = "trending"
 
 
 class Maintenance(StrEnum):

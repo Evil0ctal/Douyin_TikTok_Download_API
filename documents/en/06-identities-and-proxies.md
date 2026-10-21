@@ -714,11 +714,25 @@ Bilibili does the same with a video's comments. Measured on 2026-10-18:
 | First page of `/api/v1/bilibili/video/comments` | The three hottest comments, and word that this is the last page | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
 | Any later page | Nothing - it was told the first page was the last | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once |
 
+TikTok does the same with its search. Measured on 2026-10-20:
+
+| Request | What a guest gets | What dtk does |
+| --- | --- | --- |
+| First page of `/api/v1/tiktok/search/posts` | A thin page - one post for one keyword, eight for another - however many posts match | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
+| First page of `/api/v1/tiktok/search/users` | Ten accounts, and word that there are more | Guests first, like the endpoints below |
+| Any later page of either | No list at all | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once |
+
+A signed-in TikTok search has not been measured, so how much more a login gets
+there is not known.
+
 Everything else gives a guest the same answer as a login. On Douyin that is
-single posts, profiles, and comments and their pages; all of TikTok; and on
-Bilibili everything but the comment list and a comment's replies past their
-first page - a guest is served the first page of replies, up to 20, and nothing
-after it, so later pages of replies need a login just as comments do.
+single posts, profiles, and comments and their pages; all of TikTok but its
+search; and on Bilibili everything but the comment list and a comment's replies
+past their first page - a guest is served the first page of replies, up to 20,
+and nothing after it, so later pages of replies need a login just as comments
+do. Sounds, hashtags, mixes, live rooms, related posts and trending boards, and
+Bilibili's search, were measured with guests only: a guest got a full answer,
+so they are treated the same way.
 
 Those endpoints are answered by **guests first**, `pool.<platform>.guests_first`,
 on by default and set per platform. A guest is minted for nothing and replaced
@@ -1211,14 +1225,20 @@ refill lazily from elapsed time and idle ones expire after 24 hours.
 | --- | --- | --- | --- |
 | `douyin.content_detail`, `tiktok.content_detail` | 5 | 0.30 | 1.0 |
 | `douyin.author_profile`, `tiktok.author_profile` | 4 | 0.20 | 1.2 |
-| `douyin.comments`, `douyin.comment_replies`, `douyin.mix_posts` and the TikTok equivalents | 3 | 0.15 | 1.5 |
+| `douyin.related_posts`, `douyin.live_room` and the TikTok equivalents | 4 | 0.20 | 1.2 |
+| `douyin.music_detail`, `douyin.hashtag_detail`, `douyin.trending` and TikTok's sound and hashtag detail | 4 | 0.20 | 1.0 |
+| `douyin.comments`, `douyin.comment_replies`, `douyin.mix_posts`, `douyin.author_mixes`, `douyin.music_posts`, the TikTok equivalents and `tiktok.hashtag_posts` | 3 | 0.15 | 1.5 |
 | `douyin.author_posts`, `douyin.author_likes` and the TikTok equivalents | 3 | 0.12 | 1.8 |
 | `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12 | 1.8 |
+| `tiktok.search_posts`, `tiktok.search_authors` | 2 | 0.08 | 1.8 |
 | `douyin.session_check`, `tiktok.session_check`, `bilibili.session_check` | 3 | 0.20 | 1.0 |
 | `bilibili.content_detail`, `bilibili.content_streams` | 5 | 0.30 | 1.0 |
 | `bilibili.author_profile` | 4 | 0.20 | 1.0 |
-| `bilibili.comments`, `bilibili.comment_replies`, `bilibili.author_collections`, `bilibili.collection_posts` | 3 | 0.15 | 1.2 |
+| `bilibili.related_posts`, `bilibili.live_room` | 4 | 0.20 | 1.2 |
+| `bilibili.trending`, `bilibili.live_streams` | 4 | 0.20 | 1.0 |
+| `bilibili.comments`, `bilibili.comment_replies`, `bilibili.author_collections`, `bilibili.collection_posts`, `bilibili.author_mixes`, `bilibili.mix_posts` | 3 | 0.15 | 1.2 |
 | `bilibili.author_posts` | 2 | 0.08 | 1.8 |
+| `bilibili.search_posts`, `bilibili.search_authors` | 2 | 0.08 | 1.5 |
 | anything unregistered (`default`) | 3 | 0.15 | 1.5 |
 
 Read a refill rate as "one request every 1/rate seconds, per identity": 0.12/s is

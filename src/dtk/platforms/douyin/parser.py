@@ -39,10 +39,16 @@ from dtk.models import (
     Comment,
     Content,
     ContentStats,
+    Hashtag,
     Image,
+    LiveRoom,
+    LiveStream,
     Media,
+    Mix,
     Music,
+    MusicDetail,
     Page,
+    TrendingTopic,
     VideoStream,
 )
 from dtk.platforms.common import (
@@ -50,6 +56,7 @@ from dtk.platforms.common import (
     clean_urls,
     epoch_to_datetime,
     image_from_url_list,
+    image_from_urls,
     optional_bool,
     optional_id,
     optional_int,
@@ -519,6 +526,257 @@ def parse_collection_posts(payload: Mapping[str, Any], *, fetched_at: datetime) 
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/aweme/v1/web/aweme/related/``: one batch of recommendations.
+
+    The answer says ``has_more: 1`` and carries no cursor; the page asks for
+    another batch with state of its own (see ``related_posts_params``), so a
+    batch is returned as a last page rather than one promising a next that
+    nothing here could ask for.
+    """
+    root = _guard(payload)
+    items = [content_from_node(item, fetched_at=fetched_at) for item in root.children("aweme_list")]
+    return Page(items=items, cursor=None, has_more=False)
+
+
+def music_web_url(music_id: str) -> str:
+    return f"{WEB_DOMAIN}/music/{music_id}"
+
+
+def _music_owner(node: Node) -> Author | None:
+    """Who published a sound, from the ``owner_*`` fields beside it.
+
+    Not a user object: the detail flattens its publisher into ``sec_uid``,
+    ``owner_nickname`` and ``owner_handle`` with the avatar alongside. A
+    library track carries neither and has no owner rather than half of one.
+    """
+    sec_uid = optional_str(node.get("sec_uid"))
+    nickname = optional_str(node.get("owner_nickname"))
+    if sec_uid is None or nickname is None:
+        return None
+    return Author(
+        platform=_PLATFORM,
+        uid=sec_uid,
+        sec_uid=sec_uid,
+        unique_id=optional_str(node.get("owner_handle")),
+        nickname=nickname,
+        avatar=_avatar(node),
+        web_url=author_web_url(sec_uid),
+    )
+
+
+def parse_music_detail(payload: Mapping[str, Any]) -> MusicDetail:
+    """Parse ``/aweme/v1/web/music/detail/``.
+
+    ``is_original`` is read from ``is_original_sound``, not from the field
+    called ``is_original``: measured 2026-10-20, a sound lifted from a post
+    said ``is_original_sound: true`` and ``is_original: false``, the latter
+    being whether a musician released it as their own track.
+    """
+    node = _guard(payload).child("music_info")
+    music_id = optional_id(node.get("id_str")) or node.id("mid")
+    base = _music(node) or Music()
+    return MusicDetail(
+        **base.model_dump(exclude={"music_id"}),
+        music_id=music_id,
+        platform=_PLATFORM,
+        web_url=music_web_url(music_id),
+        content_count=optional_int(node.get("user_count")),
+        is_original=optional_bool(node.get("is_original_sound")),
+        owner=_music_owner(node),
+        raw=node.raw(),
+    )
+
+
+def parse_music_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/aweme/v1/web/music/aweme/``: posts, paged by an offset ``cursor``.
+
+    The ``cursor`` key and not ``max_cursor``, the same split as
+    :func:`parse_collection_posts`; one function does not serve both.
+    """
+    return parse_collection_posts(payload, fetched_at=fetched_at)
+
+
+def hashtag_web_url(hashtag_id: str) -> str:
+    return f"{WEB_DOMAIN}/hashtag/{hashtag_id}"
+
+
+def parse_hashtag_detail(payload: Mapping[str, Any]) -> Hashtag:
+    """Parse ``/aweme/v1/web/challenge/detail/``.
+
+    The cover is ``hashtag_profile``, a bare URL rather than the image holder
+    every other picture here comes in; ``cover_photo`` was null on the
+    hashtags measured.
+    """
+    node = _guard(payload).child("ch_info")
+    hashtag_id = node.id("cid")
+    return Hashtag(
+        platform=_PLATFORM,
+        hashtag_id=hashtag_id,
+        name=node.text("cha_name"),
+        description=optional_str(node.get("desc")),
+        cover=image_from_urls(node.get("hashtag_profile"))
+        or image_from_url_list(node.get("cover_photo")),
+        web_url=hashtag_web_url(hashtag_id),
+        content_count=optional_int(node.get("user_count")),
+        view_count=optional_int(node.get("view_count")),
+        raw=node.raw(),
+    )
+
+
+def mix_web_url(mix_id: str) -> str:
+    return f"{WEB_DOMAIN}/collection/{mix_id}"
+
+
+def _mix_from_node(node: Node) -> Mix:
+    """One ``mix_infos`` entry.
+
+    ``statis.updated_to_episode`` is how many posts the mix holds - eight on a
+    mix whose page lists eight - and ``play_vv`` its plays.
+    """
+    mix_id = node.id("mix_id")
+    statis = node.opt_child("statis")
+    owner = node.opt_child("author")
+    return Mix(
+        platform=_PLATFORM,
+        mix_id=mix_id,
+        name=node.text("mix_name"),
+        description=optional_str(node.get("desc")),
+        cover=image_from_url_list(node.get("cover_url")),
+        item_count=optional_int(statis.get("updated_to_episode")) if statis else None,
+        play_count=optional_int(statis.get("play_vv")) if statis else None,
+        web_url=mix_web_url(mix_id),
+        owner_id=optional_str(owner.get("sec_uid")) if owner else None,
+        owner_name=optional_str(owner.get("nickname")) if owner else None,
+        created_at=epoch_to_datetime(node.get("create_time")),
+        updated_at=epoch_to_datetime(node.get("update_time")),
+        raw=node.raw(),
+    )
+
+
+def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
+    """Parse ``/aweme/v1/web/mix/list/``, paged by an offset ``cursor``."""
+    root = _guard(payload)
+    items = [_mix_from_node(entry) for entry in root.listed_children("mix_infos")]
+    has_more = optional_bool(root.present("has_more"))
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+LIVE_DOMAIN: Final = "https://live.douyin.com"
+
+#: A room's ``status`` while it broadcasts; 4 is an ended broadcast. Measured
+#: 2026-10-20 on one room of each.
+_LIVE_STATUS_ON: Final = 2
+
+#: Where each stream format's URLs sit under ``stream_url``, keyed by quality.
+_PULL_URLS: Final[tuple[tuple[str, str], ...]] = (
+    ("flv_pull_url", "flv"),
+    ("hls_pull_url_map", "hls"),
+)
+
+
+def live_web_url(web_rid: str) -> str:
+    return f"{LIVE_DOMAIN}/{web_rid}"
+
+
+def _live_streams(room: Node) -> list[LiveStream]:
+    stream = room.opt_child("stream_url")
+    if stream is None:
+        return []
+    streams: list[LiveStream] = []
+    for key, fmt in _PULL_URLS:
+        urls = stream.opt_child(key)
+        if urls is None:
+            continue
+        for quality, url in urls.data.items():
+            if isinstance(url, str) and url:
+                streams.append(LiveStream(url=url, format=fmt, quality=str(quality)))
+    return streams
+
+
+def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -> LiveRoom:
+    """Parse ``live.douyin.com/webcast/room/web/enter/``.
+
+    The room is the first of ``data.data``, the broadcaster is ``data.user``.
+    The answer never repeats the ``web_rid`` it was asked by, so the caller's
+    is what ``room_id`` and the link are built from.
+
+    The viewer count is ``room_view_stats.display_value``: ``user_count_str``
+    beside it is the rounded figure the page prints ("4000+" over 4474).
+    """
+    data = _guard(payload).child("data")
+    rooms = data.children("data")
+    if not rooms:
+        raise data.missing("data[0]")
+    room = rooms[0]
+    is_live = optional_int(room.get("status")) == _LIVE_STATUS_ON
+    user = data.opt_child("user")
+    sec_uid = optional_str(user.get("sec_uid")) if user else None
+    author = (
+        Author(
+            platform=_PLATFORM,
+            uid=sec_uid,
+            sec_uid=sec_uid,
+            nickname=user.text("nickname"),
+            avatar=image_from_url_list(user.get("avatar_thumb")),
+            web_url=author_web_url(sec_uid),
+        )
+        if user is not None and sec_uid is not None
+        else None
+    )
+    stats = room.opt_child("room_view_stats")
+    viewers = optional_int(stats.get("display_value")) if stats else None
+    return LiveRoom(
+        platform=_PLATFORM,
+        room_id=room_id or room.id("id_str"),
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=image_from_url_list(room.get("cover")),
+        web_url=live_web_url(room_id) if room_id else None,
+        viewer_count=viewers if is_live else None,
+        like_count=optional_int(room.get("like_count")),
+        author=author,
+        streams=_live_streams(room) if is_live else [],
+        raw=data.raw(),
+    )
+
+
+def hot_web_url(sentence_id: str) -> str:
+    """The hot page's own page for one line, by its ``sentence_id``."""
+    return f"{WEB_DOMAIN}/hot/{sentence_id}"
+
+
+def parse_trending(payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+    """Parse ``/aweme/v1/web/hot/search/list/``: ``data.word_list``, whole.
+
+    The main board opens with a line that has no ``position`` and a
+    ``hot_value`` of 0 - pinned above the ranking - and that is what a rank
+    of ``None`` says. ``trending_list`` beside the words is a second, shorter
+    list of rising topics the page shows apart, and is left in ``raw``.
+    """
+    data = _guard(payload).child("data")
+    items: list[TrendingTopic] = []
+    for line in data.listed_children("word_list"):
+        sentence = optional_id(line.get("sentence_id"))
+        rank = optional_positive_int(line.get("position"))
+        items.append(
+            TrendingTopic(
+                platform=_PLATFORM,
+                word=line.text("word"),
+                rank=rank,
+                hot_value=optional_int(line.get("hot_value")) if rank else None,
+                content_count=optional_int(line.get("video_count")),
+                cover=image_from_url_list(line.get("word_cover")),
+                web_url=hot_web_url(sentence) if sentence else None,
+                raw=line.raw(),
+            )
+        )
+    return Page(items=items, cursor=None, has_more=False)
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -607,6 +865,7 @@ def parse_reply_previews(
 
 
 __all__ = [
+    "LIVE_DOMAIN",
     "RISK_STATUS_CODES",
     "WEB_DOMAIN",
     "author_from_node",
@@ -615,10 +874,22 @@ __all__ = [
     "content_from_node",
     "content_web_url",
     "detect_risk_control",
+    "hashtag_web_url",
+    "hot_web_url",
+    "live_web_url",
+    "mix_web_url",
+    "music_web_url",
     "parse_author",
+    "parse_author_mixes",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_hashtag_detail",
+    "parse_live_room",
+    "parse_music_detail",
+    "parse_music_posts",
+    "parse_related_posts",
     "parse_reply_previews",
+    "parse_trending",
 ]

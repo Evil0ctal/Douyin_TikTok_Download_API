@@ -44,6 +44,20 @@ class PopularBoard(StrEnum):
     RANK = "rank"
 
 
+class TrendingBoard(StrEnum):
+    """Which board ``/{platform}/trending`` reads.
+
+    Douyin's four hot lists - the main one, entertainment, society and the
+    challenge board - named for what they hold. Bilibili has the one, its hot
+    search, and answers ``hot`` only.
+    """
+
+    HOT = "hot"
+    ENTERTAINMENT = "entertainment"
+    SOCIETY = "society"
+    CHALLENGE = "challenge"
+
+
 class ContentKind(StrEnum):
     VIDEO = "video"
     IMAGE_ALBUM = "image_album"

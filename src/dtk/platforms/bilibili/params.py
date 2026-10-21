@@ -147,6 +147,124 @@ def content_streams_params(
     return {"bvid": content_bvid(bvid), "cid": numeric_id(cid, field="cid"), **STREAM_PARAMS}
 
 
+def related_posts_params(
+    *,
+    bvid: str,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The videos the player lists beside one, unsigned and unpaged.
+
+    The answer is 40 videos whatever is asked (measured 2026-10-20), so
+    ``count`` is accepted - the route sends it for every platform - and not
+    sent.
+    """
+    return {"bvid": content_bvid(bvid)}
+
+
+def _search(search_type: str, keyword: str, cursor: str | None, count: int) -> dict[str, str]:
+    text = str(keyword).strip()
+    if not text:
+        raise InvalidParam("a search needs a keyword", details={"field": "keyword"})
+    return {
+        "search_type": search_type,
+        "keyword": text,
+        "page": _page(cursor),
+        "page_size": str(count),
+    }
+
+
+def search_posts_params(
+    *,
+    keyword: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The search page's video tab, by page number. A guest pages it: page two
+    answered twenty more on 2026-10-20."""
+    return _search("video", keyword, cursor, count)
+
+
+def search_authors_params(
+    *,
+    keyword: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The search page's user tab, which Bilibili calls ``bili_user``."""
+    return _search("bili_user", keyword, cursor, count)
+
+
+def author_mixes_params(
+    *,
+    mid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The seasons on an uploader's space, by page number."""
+    return {
+        "mid": numeric_id(mid, field="author_id"),
+        "page_num": _page(cursor),
+        "page_size": str(count),
+    }
+
+
+def mix_posts_params(
+    *,
+    season_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Every video in one season.
+
+    The page number and size are sent because the site sends them, and they
+    change nothing: measured 2026-10-20 on a season of 50, ``pn=2&ps=20``
+    answered the same 50 as ``pn=1``. So it is one page, and ``cursor`` and
+    ``count`` are accepted - the route sends them for every platform - and
+    dropped.
+    """
+    return {"season_id": numeric_id(season_id, field="mix_id"), "pn": "1", "ps": "20"}
+
+
+def live_room_params(*, room_id: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
+    """A live room, by the number in its live.bilibili.com link."""
+    return {"room_id": numeric_id(room_id, field="room_id")}
+
+
+#: What the live player asks ``getRoomPlayInfo`` for: both protocols, every
+#: container, both codecs, at the original quality. Read off the live page.
+LIVE_PLAY_PARAMS: Final[dict[str, str]] = {
+    "protocol": "0,1",
+    "format": "0,1,2",
+    "codec": "0,1",
+    "qn": "10000",
+    "platform": "web",
+    "ptype": "8",
+}
+
+
+def live_streams_params(
+    *, room_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    return {"room_id": numeric_id(room_id, field="room_id"), **LIVE_PLAY_PARAMS}
+
+
+def trending_params(
+    *, board: str = "hot", profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """The hot search under the search box: ten lines, the size the page asks."""
+    if board != "hot":
+        raise InvalidParam(
+            "Bilibili has one trending board, hot",
+            details={"field": "board", "supported": ["hot"]},
+        )
+    return {"limit": "10", "platform": "web"}
+
+
 def author_profile_params(*, mid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     return {"mid": numeric_id(mid, field="author_id"), "photo": "true"}
 
@@ -327,8 +445,10 @@ def ranking_params(
 __all__ = [
     "DEFAULT_PAGE_SIZE",
     "DEFAULT_PROFILE",
+    "LIVE_PLAY_PARAMS",
     "STREAM_PARAMS",
     "author_collections_params",
+    "author_mixes_params",
     "author_posts_params",
     "author_profile_params",
     "collection_posts_params",
@@ -338,6 +458,9 @@ __all__ = [
     "content_parts_params",
     "content_streams_params",
     "dm_params",
+    "live_room_params",
+    "live_streams_params",
+    "mix_posts_params",
     "part_number",
     "popular_params",
     "popular_precious_params",
@@ -345,4 +468,8 @@ __all__ = [
     "popular_weekly_params",
     "profile_for",
     "ranking_params",
+    "related_posts_params",
+    "search_authors_params",
+    "search_posts_params",
+    "trending_params",
 ]

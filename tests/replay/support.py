@@ -33,6 +33,16 @@ FIXTURE_NAMES: tuple[str, ...] = (
     "comment_replies_page1",
     "risk_control_empty",
     "risk_control_captcha",
+    "related_posts",
+    "music_detail",
+    "music_detail_missing",
+    "music_posts_page1",
+    "hashtag_detail",
+    "hashtag_detail_missing",
+    "author_mixes",
+    "live_room_on",
+    "live_room_off",
+    "live_room_missing",
 )
 
 #: Bilibili's set differs where the platform does. It has no image albums, and
@@ -67,19 +77,44 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
     "popular_weekly_missing",
     "popular_precious",
     "ranking_all",
+    "related_posts",
+    "search_posts_page1",
+    "search_authors_page1",
+    "search_authors_none",
+    "author_mixes",
+    "mix_posts_page1",
+    "mix_posts_missing",
+    "live_room_on",
+    "live_room_off",
+    "live_room_missing",
+    "live_streams",
+    "trending",
 )
 
 
-#: Douyin's set is the common one plus the shape only it has: an album of live
-#: photos, whose slides each carry a clip of their own (#792).
-DOUYIN_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "video_live_photo")
+#: Douyin's set is the common one plus the shapes only it has: an album of
+#: live photos, whose slides each carry a clip of their own (#792), and the
+#: hot board.
+DOUYIN_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "video_live_photo", "trending_hot")
+
+#: TikTok's adds the posts under a hashtag, which Douyin serves only to a
+#: signed-in session and no capture of that exists.
+TIKTOK_FIXTURE_NAMES: tuple[str, ...] = (
+    *FIXTURE_NAMES,
+    "hashtag_posts_page1",
+    # And search, which Douyin refuses to a guest.
+    "search_posts_page1",
+    "search_posts_end",
+    "search_authors_page1",
+    "author_mixes_none",
+)
 
 
 def fixture_names(platform: str) -> tuple[str, ...]:
     """The fixtures ``platform`` ships."""
     if platform == "bilibili":
         return BILIBILI_FIXTURE_NAMES
-    return DOUYIN_FIXTURE_NAMES if platform == "douyin" else FIXTURE_NAMES
+    return DOUYIN_FIXTURE_NAMES if platform == "douyin" else TIKTOK_FIXTURE_NAMES
 
 
 #: Key names that must never appear in a fixture. Fixtures come from real
@@ -181,6 +216,7 @@ __all__ = [
     "FIXTURES",
     "FIXTURE_NAMES",
     "FORBIDDEN_KEY_PATTERN",
+    "TIKTOK_FIXTURE_NAMES",
     "fixture_names",
     "keys_in",
     "load",

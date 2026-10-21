@@ -88,11 +88,11 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 | --- | --- | --- |
 | `url` | 是 | 一个抖音、TikTok 或 B 站链接，或者包含链接的分享文本。短链（`v.douyin.com`、`vm.tiktok.com`、`b23.tv`、`bili2233.cn`）由服务端跟随展开。 |
 
-手上是链接而不是 ID 时就从这里开始：它自己判断平台和资源类型。夹带链接的分享文案也能接受——取字符串里的第一个 URL。
+手上是链接而不是 ID 时就从这里开始：它自己判断平台和资源类型。夹带链接的分享文案也能接受——取字符串里的第一个 URL。除了作品和作者主页，它也认音乐链接（抖音 `/music/<id>`、TikTok `/music/<标题>-<id>`）、话题链接（抖音 `/hashtag/<id>`、TikTok `/tag/<名称>`）和直播间链接（`live.douyin.com/<id>`、TikTok `/@<用户名>/live`、`live.bilibili.com/<id>`），返回与同名 REST 接口相同的内容——直播间正在直播时还带拉流地址。
 
 返回 `status`、`task_id`、`platform`、`resource`、`url`（归类后的链接）和 `data`。
 
-以下情况会直接拒绝、不消耗任何配额：链接的域名不属于抖音、TikTok 或 B 站（`INVALID_URL`）——`bilibili.tv` 也在此列，它是另一个服务；链接在受支持的域名上但不指向作品或作者主页——信息流、搜索页、设置页（`UNSUPPORTED_CONTENT`）；以及指向直播间、合集、音乐页、话题或搜索结果的链接，这套工具没有对应的 endpoint（`UNSUPPORTED_CONTENT`）。
+以下情况会直接拒绝、不消耗任何配额：链接的域名不属于抖音、TikTok 或 B 站（`INVALID_URL`）——`bilibili.tv` 也在此列，它是另一个服务；链接在受支持的域名上但不指向任何可获取的内容——信息流、设置页（`UNSUPPORTED_CONTENT`）；以及指向合集或搜索结果的链接，这套工具没有对应的 endpoint（`UNSUPPORTED_CONTENT`）。这两样 REST API 都能读：`/mix/posts` 和 `/search/posts`。
 
 ### `get_video`
 

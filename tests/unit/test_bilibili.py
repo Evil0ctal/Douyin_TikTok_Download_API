@@ -168,8 +168,15 @@ class TestEndpointTable:
             endpoints.CONTENT_STREAMS,
             endpoints.AUTHOR_POSTS,
             endpoints.COMMENTS,
+            endpoints.SEARCH_POSTS,
+            endpoints.SEARCH_AUTHORS,
+            endpoints.LIVE_ROOM,
+            endpoints.TRENDING,
         }
-        for name in signed:
+        # The live room is the one signed path that does not say so: measured
+        # 2026-10-20, getInfoByRoom answered a guest -352 unsigned and code 0
+        # with w_rid, on a path with no /wbi/ in it.
+        for name in signed - {endpoints.LIVE_ROOM}:
             assert "/wbi/" in endpoints.ENDPOINTS[name].path, name
 
     def test_comments_prefer_a_login_and_page_only_with_one(self) -> None:

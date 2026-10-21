@@ -1,0 +1,53 @@
+{
+  "ch_info": {
+    "allow_upload_cover": true,
+    "banner_list": null,
+    "billboard_name": "",
+    "billboard_rank": 0,
+    "billboard_type": 0,
+    "billboard_url": "",
+    "cha_attrs": null,
+    "cha_name": "sunrise",
+    "challenge_status": 1,
+    "cid": "1600000000000000001",
+    "collect_stat": 0,
+    "connect_music": [],
+    "create_time": 1518769076,
+    "desc": "Synthetic hashtag description.",
+    "extra_attr": {
+      "is_live": false,
+      "sort_available": true
+    },
+    "from_ugc_hashtag_bank": "0",
+    "hashtag_profile": "https://p11-sign.example-cdn.invalid/obj/image-cut-tos/synthetic.jpg",
+    "insert_template_category_list": null,
+    "is_challenge": 0,
+    "is_commerce": false,
+    "is_pgcshow": false,
+    "is_strong_music": false,
+    "link_type": 1,
+    "schema": "aweme://aweme/challenge/detail?cid=1600000000000000001",
+    "show_items": null,
+    "sub_type": 0,
+    "type": 0,
+    "update_time": 1790740120,
+    "user_count": 1016265,
+    "view_count": 9266189037,
+    "search_impr": {
+      "entity_id": "1600000000000000001"
+    }
+  },
+  "dynamic_list": null,
+  "extra": {
+    "fatal_item_ids": [],
+    "logid": "20261020000000000000000000000000000001",
+    "now": 1792540800000
+  },
+  "log_pb": {
+    "impr_id": "20261020000000000000000000000000000001"
+  },
+  "rec_list": null,
+  "shoot_mob_extras": {},
+  "slide_list": null,
+  "status_code": 0
+}

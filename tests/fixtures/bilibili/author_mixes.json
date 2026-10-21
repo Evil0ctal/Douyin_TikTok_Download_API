@@ -1,0 +1,140 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "items_lists": {
+      "page": {
+        "page_num": 2,
+        "page_size": 20,
+        "total": 32
+      },
+      "seasons_list": [
+        {
+          "archives": [
+            {
+              "aid": 100000001,
+              "bvid": "BV1y7411Q74g",
+              "ctime": 1613700013,
+              "duration": 1526,
+              "enable_vt": false,
+              "interactive_video": false,
+              "pic": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+              "playback_position": 0,
+              "pubdate": 1613700004,
+              "stat": {
+                "view": 4933358,
+                "vt": 0,
+                "danmaku": 38886
+              },
+              "state": 0,
+              "title": "Synthetic video title",
+              "ugc_pay": 0,
+              "vt_display": "",
+              "is_lesson_video": 0
+            }
+          ],
+          "meta": {
+            "category": 0,
+            "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic-season-0.jpg",
+            "description": "Synthetic season description.",
+            "mid": 10000001,
+            "name": "合集·Synthetic Season 1",
+            "ptime": 1693046328,
+            "season_id": 5000001,
+            "total": 2,
+            "title": "Synthetic Season 1"
+          },
+          "recent_aids": [
+            100000001
+          ]
+        },
+        {
+          "archives": [
+            {
+              "aid": 100000003,
+              "bvid": "BV1y7411Q74M",
+              "ctime": 1604745504,
+              "duration": 546,
+              "enable_vt": false,
+              "interactive_video": false,
+              "pic": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.png",
+              "playback_position": 0,
+              "pubdate": 1604746007,
+              "stat": {
+                "view": 1423518,
+                "vt": 0,
+                "danmaku": 4988
+              },
+              "state": 0,
+              "title": "Synthetic video title",
+              "ugc_pay": 0,
+              "vt_display": "",
+              "is_lesson_video": 0
+            }
+          ],
+          "meta": {
+            "category": 0,
+            "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic-season-1.jpg",
+            "description": "",
+            "mid": 10000001,
+            "name": "合集·Synthetic Season 2",
+            "ptime": 1693558800,
+            "season_id": 5000002,
+            "total": 10,
+            "title": "Synthetic Season 2"
+          },
+          "recent_aids": [
+            100000003
+          ]
+        }
+      ],
+      "series_list": [
+        {
+          "archives": [
+            {
+              "aid": 100000020,
+              "bvid": "BV1y7411Q7xf",
+              "ctime": 1789636846,
+              "duration": 336,
+              "enable_vt": false,
+              "interactive_video": false,
+              "pic": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+              "playback_position": 0,
+              "pubdate": 1789639200,
+              "stat": {
+                "view": 2151723,
+                "vt": 0,
+                "danmaku": 7715
+              },
+              "state": 0,
+              "title": "Synthetic video title",
+              "ugc_pay": 0,
+              "vt_display": "",
+              "is_lesson_video": 0
+            }
+          ],
+          "meta": {
+            "category": 1,
+            "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic-series.jpg",
+            "creator": "manual",
+            "ctime": 1607312611,
+            "description": "",
+            "keywords": [],
+            "last_update_ts": 1789639230,
+            "mid": 10000001,
+            "mtime": 1789639230,
+            "name": "Synthetic Series",
+            "raw_keywords": "",
+            "series_id": 6000001,
+            "state": 2,
+            "total": 115
+          },
+          "recent_aids": [
+            100000020
+          ]
+        }
+      ]
+    }
+  }
+}
