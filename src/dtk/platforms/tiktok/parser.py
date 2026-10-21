@@ -40,6 +40,7 @@ from dtk.models import (
     Hashtag,
     Image,
     Media,
+    Mix,
     Music,
     MusicDetail,
     Page,
@@ -618,6 +619,50 @@ def parse_search_authors(payload: Mapping[str, Any]) -> Page[Author]:
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def playlist_web_url(unique_id: str, name: str, mix_id: str) -> str:
+    """``/@<handle>/playlist/<name>-<id>``, as the profile links a playlist.
+
+    The name is reduced the way :func:`music_web_url` reduces a title; only
+    the id after the last hyphen is what the URL layer reads back.
+    """
+    slug = _SLUG_JUNK.sub("-", name).strip("-")
+    return f"{WEB_DOMAIN}/@{unique_id}/playlist/{slug}-{mix_id}"
+
+
+def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
+    """Parse ``/api/user/playlist/``.
+
+    Each entry names itself twice - ``id``/``mixId``, ``name``/``mixName`` -
+    and was the same both times on every playlist measured; the first of each
+    is read. An author with none answers no ``playList`` key at all.
+    """
+    root = _guard(payload)
+    items: list[Mix] = []
+    for entry in root.listed_children("playList"):
+        mix_id = optional_id(entry.get("id")) or entry.id("mixId")
+        name = optional_str(entry.get("name")) or entry.text("mixName")
+        creator = entry.opt_child("creator")
+        handle = optional_str(creator.get("uniqueId")) if creator else None
+        items.append(
+            Mix(
+                platform=_PLATFORM,
+                mix_id=mix_id,
+                name=name,
+                cover=image_from_urls(entry.get("cover")),
+                item_count=optional_int(entry.get("videoCount")),
+                web_url=playlist_web_url(handle, name, mix_id) if handle else None,
+                owner_id=optional_str(creator.get("secUid")) if creator else None,
+                owner_name=handle,
+                raw=entry.raw(),
+            )
+        )
+    has_more = optional_bool(root.present("hasMore"))
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -789,6 +834,7 @@ __all__ = [
     "music_web_url",
     "parse_author",
     "parse_author_collections",
+    "parse_author_mixes",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",
@@ -801,4 +847,5 @@ __all__ = [
     "parse_reply_previews",
     "parse_search_authors",
     "parse_search_posts",
+    "playlist_web_url",
 ]

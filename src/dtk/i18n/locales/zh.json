@@ -524,7 +524,7 @@
       },
       "mix_posts": {
         "summary": "获取合辑 / 播放列表内的作品",
-        "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表。合辑 ID 可从任意属于该合辑的作品中获得：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
+        "description": "分页获取一个合辑内的作品——抖音称为合辑，TikTok 称为播放列表，B 站称为合集（B 站一次返回全部视频）。/user/mixes 可列出某作者的合辑；作品里也带着合辑 ID：抖音在 mix_info 字段，TikTok 在 playlistId 字段。"
       },
       "notify_test": {
         "summary": "发送测试告警",
@@ -693,6 +693,10 @@
       "search_authors": {
         "summary": "搜索账号",
         "description": "按关键词搜索账号，一次一页，每个账号都带有作者类接口所用的 ID。B 站的游客身份可以翻页；TikTok 只回答游客的第一页。"
+      },
+      "author_mixes": {
+        "summary": "作者的合集列表",
+        "description": "获取作者发布的合集，一次一页——抖音的合集、TikTok 的播放列表、B 站的合集——每一个都带有 /mix/posts 所用的 mix_id。"
       }
     },
     "param": {
@@ -737,7 +741,7 @@
       "limit": "最多返回多少条。",
       "mine_only": "仅列出你自己创建的密钥，而不是所有人的。",
       "minutes": "回溯多少分钟。早于日志保留期的记录已经不在了。",
-      "mix_id": "要读取的合辑 / 播放列表 ID。抖音在 mix_info 字段返回，TikTok 在 playlistId 字段返回。",
+      "mix_id": "要读取的合集、播放列表或 B 站合集：/user/mixes 返回的 mix_id。作品里也带着它：抖音在 mix_info 字段，TikTok 在 playlistId 字段。",
       "music_id": "音乐 ID，可代替 url：作品 music 字段中的 music_id，或音乐链接末尾的数字。两者只能提供一个。",
       "name": "文件名，需与下载记录中列出的完全一致。",
       "offset": "跳过多少条。",

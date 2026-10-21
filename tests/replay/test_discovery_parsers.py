@@ -409,3 +409,119 @@ def test_douyin_does_not_offer_search() -> None:
     assert "douyin.search_authors" not in registry.ENDPOINTS
     with pytest.raises(UnsupportedContent):
         get_adapter("douyin").parse_search_authors({})
+
+
+# --------------------------------------------------------------------------
+# An author's own series
+# --------------------------------------------------------------------------
+
+
+def test_douyin_mixes_count_their_posts_and_plays() -> None:
+    page = get_adapter("douyin").parse_author_mixes(load("douyin", "author_mixes"))
+
+    first = page.items[0]
+    assert first.platform is Platform.DOUYIN
+    assert first.mix_id == "7300000000000000001"
+    assert first.name == "Synthetic Mix 1"
+    assert first.description == "Synthetic mix description."
+    assert first.cover is not None
+    assert first.item_count == 8
+    assert first.play_count == 119548
+    assert first.web_url == "https://www.douyin.com/collection/7300000000000000001"
+    assert first.owner_id == "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001"
+    assert first.owner_name == "Synthetic Creator"
+    assert first.created_at is not None
+    assert first.updated_at is not None
+    assert page.items[1].description is None
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_tiktok_playlists_link_to_the_profile_they_are_on() -> None:
+    page = get_adapter("tiktok").parse_author_mixes(load("tiktok", "author_mixes"))
+
+    first, second = page.items
+    assert first.mix_id == "7400000000000000001"
+    assert first.name == "Synthetic Playlist 1"
+    assert first.item_count == 7
+    assert first.play_count is None
+    assert first.owner_id == "MS4wLjABAAAA_SYNTHETIC_TIKTOK_AUTHOR_0001"
+    assert first.owner_name == "synthetic.creator"
+    assert first.web_url == (
+        "https://www.tiktok.com/@synthetic.creator/playlist/Synthetic-Playlist-1-7400000000000000001"
+    )
+    assert second.item_count == 13
+    assert page.has_more is False
+
+
+def test_a_tiktok_author_without_playlists_is_an_empty_page() -> None:
+    payload = load("tiktok", "author_mixes_none")
+    assert "playList" not in payload
+    page = get_adapter("tiktok").parse_author_mixes(payload)
+    assert page.items == []
+    assert page.has_more is False
+
+
+def test_bilibili_lists_the_seasons_and_leaves_the_series_out() -> None:
+    payload = load("bilibili", "author_mixes")
+    assert payload["data"]["items_lists"]["series_list"]
+    page = get_adapter("bilibili").parse_author_mixes(payload)
+
+    assert [mix.mix_id for mix in page.items] == ["5000001", "5000002"]
+    first = page.items[0]
+    # `title`, not `name`, which carries a Chinese "collection" prefix.
+    assert first.name == "Synthetic Season 1"
+    assert first.item_count == 2
+    assert first.owner_id == "10000001"
+    assert first.web_url == "https://space.bilibili.com/10000001/lists/5000001?type=season"
+    assert first.updated_at is not None
+    # Page 2 of 20 with 32 counted: the last page.
+    assert page.has_more is False
+
+
+def test_bilibili_mixes_page_by_number_over_seasons_and_series_both() -> None:
+    payload = load("bilibili", "author_mixes")
+    payload["data"]["items_lists"]["page"]["page_num"] = 1
+    page = get_adapter("bilibili").parse_author_mixes(payload)
+    assert page.has_more is True
+    assert page.cursor == "2"
+
+
+def test_a_bilibili_season_is_every_video_in_one_page() -> None:
+    page = get_adapter("bilibili").parse_mix_posts(
+        load("bilibili", "mix_posts_page1"), fetched_at=FETCHED_AT
+    )
+
+    assert [item.content_id for item in page.items] == ["BV1y7411Q74W", "BV1y7411Q74p"]
+    first = page.items[0]
+    assert first.author.uid == "10000001"
+    assert first.author.nickname == "Synthetic Creator"
+    assert first.duration_ms == 1_538_000
+    assert first.stats.play_count == 8982816
+    assert first.stats.collect_count == 135642
+    assert page.has_more is False
+
+
+@pytest.mark.parametrize("name", ["douyin", "tiktok"])
+def test_douyin_and_tiktok_mix_posts_still_read_the_author_list_envelope(name: str) -> None:
+    page = get_adapter(name).parse_mix_posts(load(name, "user_posts_page1"), fetched_at=FETCHED_AT)
+    assert page.items
+
+
+@pytest.mark.parametrize("name", ["douyin", "tiktok", "bilibili"])
+def test_mixes_resolve_through_the_registry(name: str) -> None:
+    definition = registry.definition_for(f"{name}.author_mixes")
+    assert definition.required == (registry.AUTHOR_ID,)
+    page = definition.parse(load(name, "author_mixes"))
+    assert page.items
+    assert registry.definition_for(f"{name}.mix_posts").required == (registry.MIX_ID,)
+
+
+def test_every_platform_produces_the_same_mix_shape() -> None:
+    shapes = {
+        name: set(
+            get_adapter(name).parse_author_mixes(load(name, "author_mixes")).items[0].model_dump()
+        )
+        for name in ("douyin", "tiktok", "bilibili")
+    }
+    assert shapes["douyin"] == shapes["tiktok"] == shapes["bilibili"]

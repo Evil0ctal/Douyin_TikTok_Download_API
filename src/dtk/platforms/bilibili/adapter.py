@@ -20,6 +20,7 @@ from dtk.models import (
     Content,
     ContentPart,
     Hashtag,
+    Mix,
     MusicDetail,
     Page,
 )
@@ -214,6 +215,12 @@ class BilibiliAdapter:
 
     def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]:
         return parser.parse_search_authors(payload)
+
+    def parse_author_mixes(self, payload: Mapping[str, Any]) -> Page[Mix]:
+        return parser.parse_author_mixes(payload)
+
+    def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+        return parser.parse_mix_posts(payload, fetched_at=fetched_at)
 
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()

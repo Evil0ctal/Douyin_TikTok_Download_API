@@ -620,6 +620,22 @@ def search_authors_params(
     }
 
 
+def author_mixes_params(
+    *,
+    sec_uid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/user/playlist/``: the playlists an author made."""
+    return {
+        **base_params(profile),
+        "secUid": str(sec_uid),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

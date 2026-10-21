@@ -269,3 +269,41 @@ async def test_bilibili_search_refuses_its_page_ceiling(client: Any) -> None:
         "/api/v1/bilibili/search/users", params={"keyword": "cat", "count": 21}
     )
     assert error_code(response) == "INVALID_PARAM"
+
+
+# --------------------------------------------------------------------------
+# An author's own series
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("platform", "author"),
+    [
+        ("douyin", "MS4wLjABAAAAexample"),
+        ("tiktok", "MS4wLjABAAAAexample"),
+        ("bilibili", "946974"),
+    ],
+)
+async def test_an_authors_mixes_queue(client: Any, platform: str, author: str) -> None:
+    await signed_in(client)
+    row = await queued(
+        await client.get(f"/api/v1/{platform}/user/mixes", params={"sec_user_id": author})
+    )
+    assert row.endpoint == f"{platform}.author_mixes"
+    assert row.params["sec_user_id"] == author
+
+
+async def test_an_authors_mixes_are_read_out_of_a_profile_link(client: Any) -> None:
+    await signed_in(client)
+    row = await queued(
+        await client.get(
+            "/api/v1/bilibili/user/mixes", params={"url": "https://space.bilibili.com/946974"}
+        )
+    )
+    assert row.params["sec_user_id"] == "946974"
+
+
+async def test_a_bilibili_season_is_a_mix(client: Any) -> None:
+    await signed_in(client)
+    row = await queued(await client.get("/api/v1/bilibili/mix/posts", params={"mix_id": "7039840"}))
+    assert row.endpoint == "bilibili.mix_posts"

@@ -21,6 +21,7 @@ from dtk.platforms.douyin.params import (
     author_bookmarks_params,
     author_collections_params,
     author_likes_params,
+    author_mixes_params,
     author_posts_params,
     author_profile_params,
     collection_posts_params,
@@ -130,6 +131,9 @@ class DouyinAPIEndpoints:
     # Posts in a mix (collection)
     MIX_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/mix/aweme/"
 
+    # The mixes one author has published
+    MIX_LIST: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/mix/list/"
+
     # Watch history
     USER_HISTORY: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/history/read/"
 
@@ -229,6 +233,7 @@ RELATED_POSTS: Final = "douyin.related_posts"
 MUSIC_DETAIL: Final = "douyin.music_detail"
 MUSIC_POSTS: Final = "douyin.music_posts"
 HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
+AUTHOR_MIXES: Final = "douyin.author_mixes"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -410,6 +415,16 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="One hashtag: its name, cover and counts",
     ),
     EndpointSpec(
+        name=AUTHOR_MIXES,
+        path=DouyinAPIEndpoints.MIX_LIST,
+        required=("sec_user_id",),
+        build=author_mixes_params,
+        risk_weight=1.5,
+        # Answers a guest in full: three mixes and has_more 0 for an author
+        # with three (2026-10-20).
+        summary="The mixes an author has published",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -432,6 +447,7 @@ __all__ = [
     "AUTHOR_BOOKMARKS",
     "AUTHOR_COLLECTIONS",
     "AUTHOR_LIKES",
+    "AUTHOR_MIXES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
     "COLLECTION_POSTS",

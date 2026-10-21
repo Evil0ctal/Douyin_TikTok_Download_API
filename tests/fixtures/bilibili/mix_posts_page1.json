@@ -1,0 +1,70 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "info": {
+      "id": 5000001,
+      "season_type": 1,
+      "title": "Synthetic Season 1",
+      "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic-season-0.jpg",
+      "upper": {
+        "mid": 10000001,
+        "name": "Synthetic Creator"
+      },
+      "cnt_info": {
+        "collect": 0,
+        "play": 37190432,
+        "danmaku": 176746,
+        "vt": 0
+      },
+      "media_count": 5,
+      "intro": "",
+      "enable_vt": 0
+    },
+    "medias": [
+      {
+        "id": 100000060,
+        "title": "Synthetic video title",
+        "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+        "duration": 1538,
+        "pubtime": 1749114000,
+        "bvid": "BV1y7411Q74W",
+        "upper": {
+          "mid": 10000001,
+          "name": "Synthetic Creator"
+        },
+        "cnt_info": {
+          "collect": 135642,
+          "play": 8982816,
+          "danmaku": 30041,
+          "vt": 0
+        },
+        "enable_vt": 0,
+        "vt_display": "",
+        "is_self_view": false
+      },
+      {
+        "id": 100000061,
+        "title": "Synthetic video title",
+        "cover": "https://cdn.example-cdn.invalid/bfs/archive/synthetic.jpg",
+        "duration": 2443,
+        "pubtime": 1766804501,
+        "bvid": "BV1y7411Q74p",
+        "upper": {
+          "mid": 10000001,
+          "name": "Synthetic Creator"
+        },
+        "cnt_info": {
+          "collect": 191125,
+          "play": 8455769,
+          "danmaku": 36234,
+          "vt": 0
+        },
+        "enable_vt": 0,
+        "vt_display": "",
+        "is_self_view": false
+      }
+    ]
+  }
+}

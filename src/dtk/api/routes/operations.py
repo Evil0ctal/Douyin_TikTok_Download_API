@@ -91,6 +91,7 @@ class Operation(StrEnum):
     HASHTAG_POSTS = "hashtag_posts"
     SEARCH_POSTS = "search_posts"
     SEARCH_AUTHORS = "search_authors"
+    AUTHOR_MIXES = "author_mixes"
 
 
 class Maintenance(StrEnum):

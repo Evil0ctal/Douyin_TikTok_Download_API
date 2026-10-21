@@ -85,6 +85,9 @@ class Capability(StrEnum):
     #: A keyword search, for posts and for accounts.
     SEARCH_POSTS = "search_posts"
     SEARCH_AUTHORS = "search_authors"
+    #: The series an author has published: Douyin's mixes, TikTok's playlists,
+    #: Bilibili's seasons. Their ids are what ``mix_posts`` takes.
+    AUTHOR_MIXES = "author_mixes"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -266,6 +269,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.MUSIC_DETAIL: {MUSIC_ID: "music_id"},
         Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
         Capability.HASHTAG_DETAIL: {HASHTAG_ID: "ch_id"},
+        Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -304,6 +308,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         },
         Capability.SEARCH_POSTS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
         Capability.SEARCH_AUTHORS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -348,6 +353,10 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.RELATED_POSTS: {CONTENT_ID: "bvid", COUNT: "count"},
         Capability.SEARCH_POSTS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
         Capability.SEARCH_AUTHORS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.AUTHOR_MIXES: {AUTHOR_ID: "mid", CURSOR: "cursor", COUNT: "count"},
+        # A season, by its season_id. One answer: the page and size are
+        # accepted and dropped, as the folder list's are.
+        Capability.MIX_POSTS: {MIX_ID: "season_id", CURSOR: "cursor", COUNT: "count"},
     },
 }
 
@@ -385,6 +394,7 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.HASHTAG_POSTS: "cache.list_ttl",
         Capability.SEARCH_POSTS: "cache.list_ttl",
         Capability.SEARCH_AUTHORS: "cache.list_ttl",
+        Capability.AUTHOR_MIXES: "cache.list_ttl",
     }
 )
 
@@ -551,16 +561,15 @@ class EndpointDefinition:
                 return adapter.parse_content(payload, fetched_at=when)
             case Capability.AUTHOR_PROFILE:
                 return adapter.parse_author(payload)
-            case (
-                Capability.AUTHOR_POSTS
-                | Capability.AUTHOR_LIKES
-                | Capability.MIX_POSTS
-                | Capability.AUTHOR_REPOSTS
-            ):
-                # All four are a page of posts in the platform's own list
+            case Capability.AUTHOR_POSTS | Capability.AUTHOR_LIKES | Capability.AUTHOR_REPOSTS:
+                # All three are a page of posts in the platform's own list
                 # envelope - `aweme_list`/`max_cursor` on Douyin, `itemList`/
                 # `cursor` on TikTok - so one parser answers for all of them.
                 return adapter.parse_author_posts(payload, fetched_at=when)
+            case Capability.MIX_POSTS:
+                # Was in the group above until Bilibili had mixes: a season's
+                # videos come in a folder's envelope, not the space list's.
+                return adapter.parse_mix_posts(payload, fetched_at=when)
             case Capability.AUTHOR_FOLLOWERS | Capability.AUTHOR_FOLLOWING:
                 # One endpoint answers both, selected by a `scene` parameter, so
                 # one parser answers for both too.
@@ -609,6 +618,8 @@ class EndpointDefinition:
                 return adapter.parse_search_posts(payload, fetched_at=when)
             case Capability.SEARCH_AUTHORS:
                 return adapter.parse_search_authors(payload)
+            case Capability.AUTHOR_MIXES:
+                return adapter.parse_author_mixes(payload)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:

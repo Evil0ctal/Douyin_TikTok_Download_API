@@ -385,6 +385,24 @@ def hashtag_detail_params(
     return {**base_params(profile), "ch_id": str(ch_id)}
 
 
+def author_mixes_params(
+    *,
+    sec_user_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/mix/list/``: an author's series, paged by
+    an offset ``cursor``."""
+    return {
+        **base_params(profile),
+        "sec_user_id": str(sec_user_id),
+        "req_from": CHANNEL,
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
 def comments_params(
     *,
     aweme_id: str,

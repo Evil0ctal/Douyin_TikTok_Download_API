@@ -124,3 +124,32 @@ class TestSearch:
         assert posts.login_for({"cursor": "12"}) is LoginNeed.REQUIRED
         assert users.login is LoginNeed.NONE
         assert users.login_for({"cursor": "10"}) is LoginNeed.REQUIRED
+
+
+class TestMixes:
+    def test_douyin_asks_for_an_authors_mixes(self) -> None:
+        built = query("douyin.author_mixes", sec_user_id="MS4wLjABAAAAx", cursor="12", count=12)
+        assert (built["sec_user_id"], built["cursor"], built["count"]) == (
+            "MS4wLjABAAAAx",
+            "12",
+            "12",
+        )
+        assert built["req_from"] == "channel_pc_web"
+
+    def test_tiktok_asks_for_an_authors_playlists(self) -> None:
+        built = query("tiktok.author_mixes", sec_uid="MS4wLjABAAAAx", count=20)
+        assert built["secUid"] == "MS4wLjABAAAAx"
+        assert built["cursor"] == "0"
+
+    def test_bilibili_pages_the_space_by_number(self) -> None:
+        built = query("bilibili.author_mixes", mid="946974", cursor="2", count=20)
+        assert built == {"mid": "946974", "page_num": "2", "page_size": "20"}
+
+    def test_a_bilibili_season_is_asked_for_whole(self) -> None:
+        """pn and ps change nothing (measured), so the cursor is not sent on."""
+        built = query("bilibili.mix_posts", season_id="7039840", cursor="3", count=5)
+        assert built == {"season_id": "7039840", "pn": "1", "ps": "20"}
+
+    def test_a_bilibili_season_id_is_a_number(self) -> None:
+        with pytest.raises(InvalidParam):
+            query("bilibili.mix_posts", season_id="abc")

@@ -197,6 +197,39 @@ def search_authors_params(
     return _search("bili_user", keyword, cursor, count)
 
 
+def author_mixes_params(
+    *,
+    mid: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The seasons on an uploader's space, by page number."""
+    return {
+        "mid": numeric_id(mid, field="author_id"),
+        "page_num": _page(cursor),
+        "page_size": str(count),
+    }
+
+
+def mix_posts_params(
+    *,
+    season_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Every video in one season.
+
+    The page number and size are sent because the site sends them, and they
+    change nothing: measured 2026-10-20 on a season of 50, ``pn=2&ps=20``
+    answered the same 50 as ``pn=1``. So it is one page, and ``cursor`` and
+    ``count`` are accepted - the route sends them for every platform - and
+    dropped.
+    """
+    return {"season_id": numeric_id(season_id, field="mix_id"), "pn": "1", "ps": "20"}
+
+
 def author_profile_params(*, mid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     return {"mid": numeric_id(mid, field="author_id"), "photo": "true"}
 
@@ -379,6 +412,7 @@ __all__ = [
     "DEFAULT_PROFILE",
     "STREAM_PARAMS",
     "author_collections_params",
+    "author_mixes_params",
     "author_posts_params",
     "author_profile_params",
     "collection_posts_params",
@@ -388,6 +422,7 @@ __all__ = [
     "content_parts_params",
     "content_streams_params",
     "dm_params",
+    "mix_posts_params",
     "part_number",
     "popular_params",
     "popular_precious_params",

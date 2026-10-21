@@ -169,7 +169,10 @@ SEC_USER_ID_QUERY = Query(
 MIX_ID_QUERY = Query(
     min_length=1,
     max_length=64,
-    description="The mix or playlist to read; Douyin calls it mix_info, TikTok playlistId.",
+    description=(
+        "The mix, playlist or season to read: the mix_id /user/mixes returns. A post "
+        "carries it too, as mix_info on Douyin and playlistId on TikTok."
+    ),
 )
 COLLECTION_ID_QUERY = Query(
     min_length=1,
@@ -1417,14 +1420,16 @@ async def mix_posts(
 ) -> Any:
     """One page of the posts collected in a mix.
 
-    A mix is Douyin's series and TikTok's playlist - an ordered set an author
-    groups their own posts into. The id comes from any post that belongs to
-    one: Douyin returns it as `mix_info`, TikTok as `playlistId`.
+    A mix is Douyin's series, TikTok's playlist and Bilibili's season - an
+    ordered set an author groups their own posts into. `/user/mixes` lists an
+    author's, and any post that belongs to one carries its id: Douyin returns
+    it as `mix_info`, TikTok as `playlistId`.
 
     **Parameters**
 
-    - `platform` - `douyin` or `tiktok`.
-    - `mix_id` - the mix or playlist to read.
+    - `platform` - `douyin`, `tiktok` or `bilibili`. A Bilibili season comes
+      back whole, in one page, whatever `cursor` and `count` say.
+    - `mix_id` - the mix, playlist or season to read.
     - `cursor` - the cursor returned by the previous page. Omit it for the
       first page; a response with no cursor is the last page.
     - `count` - posts per page.

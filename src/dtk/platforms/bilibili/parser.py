@@ -48,6 +48,7 @@ from dtk.models import (
     ContentStats,
     Image,
     Media,
+    Mix,
     Page,
     VideoStream,
 )
@@ -57,6 +58,7 @@ from dtk.platforms.common import (
     clean_urls,
     epoch_to_datetime,
     optional_bool,
+    optional_id,
     optional_int,
     optional_str,
     seconds_to_ms,
@@ -618,6 +620,73 @@ def parse_search_authors(payload: Mapping[str, Any]) -> Page[Author]:
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def season_web_url(mid: str, season_id: str) -> str:
+    return f"{SPACE_DOMAIN}/{mid}/lists/{season_id}?type=season"
+
+
+def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
+    """Parse ``/x/polymer/web-space/seasons_series_list``: the seasons only.
+
+    The same list carries the space's series, after the seasons and in the
+    same page count. A series is a different id with a different endpoint
+    that also needs the uploader, so it is left out rather than handed back
+    with an id ``/mix/posts`` would refuse; the paging still counts them, so
+    a last page can be one with no seasons on it.
+    """
+    lists = _guard(payload).child("data").child("items_lists")
+    items: list[Mix] = []
+    for season in lists.listed_children("seasons_list"):
+        meta = season.child("meta")
+        season_id = meta.id("season_id")
+        mid = optional_id(meta.get("mid"))
+        items.append(
+            Mix(
+                platform=_PLATFORM,
+                mix_id=season_id,
+                # `name` is the title with the Chinese word for "collection"
+                # and a middle dot in front of it.
+                name=optional_str(meta.get("title")) or meta.text("name"),
+                description=optional_str(meta.get("description")),
+                cover=_image(meta.get("cover")),
+                item_count=optional_int(meta.get("total")),
+                web_url=season_web_url(mid, season_id) if mid else None,
+                owner_id=mid,
+                # `ptime` moved with the newest episode on every season seen.
+                updated_at=epoch_to_datetime(meta.get("ptime")),
+                raw=season.raw(),
+            )
+        )
+    has_more, cursor = _numbered_page(
+        lists.opt_child("page"), number="page_num", size="page_size", count="total"
+    )
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def parse_mix_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/x/space/fav/season/list``: every video in a season, at once."""
+    data = _guard(payload).child("data")
+    items = []
+    for media in data.listed_children("medias"):
+        counters = media.opt_child("cnt_info")
+        items.append(
+            _listed_video(
+                media,
+                fetched_at=fetched_at,
+                author=_author(media.child("upper")),
+                title_key="title",
+                description_key="intro",
+                cover_key="cover",
+                created_key="pubtime",
+                duration_ms=seconds_to_ms(media.get("duration")),
+                stats=ContentStats(
+                    play_count=optional_int(counters.get("play")) if counters else None,
+                    collect_count=optional_int(counters.get("collect")) if counters else None,
+                ),
+            )
+        )
+    return Page(items=items, cursor=None, has_more=False)
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/x/space/wbi/arc/search``.
 
@@ -860,15 +929,18 @@ __all__ = [
     "merge_streams",
     "parse_author",
     "parse_author_collections",
+    "parse_author_mixes",
     "parse_author_posts",
     "parse_collection_posts",
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
     "parse_content_parts",
+    "parse_mix_posts",
     "parse_popular",
     "parse_related_posts",
     "parse_search_authors",
     "parse_search_posts",
     "part_cid",
+    "season_web_url",
 ]

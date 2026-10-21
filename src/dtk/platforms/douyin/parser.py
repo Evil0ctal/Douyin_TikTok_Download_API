@@ -42,6 +42,7 @@ from dtk.models import (
     Hashtag,
     Image,
     Media,
+    Mix,
     Music,
     MusicDetail,
     Page,
@@ -620,6 +621,47 @@ def parse_hashtag_detail(payload: Mapping[str, Any]) -> Hashtag:
     )
 
 
+def mix_web_url(mix_id: str) -> str:
+    return f"{WEB_DOMAIN}/collection/{mix_id}"
+
+
+def _mix_from_node(node: Node) -> Mix:
+    """One ``mix_infos`` entry.
+
+    ``statis.updated_to_episode`` is how many posts the mix holds - eight on a
+    mix whose page lists eight - and ``play_vv`` its plays.
+    """
+    mix_id = node.id("mix_id")
+    statis = node.opt_child("statis")
+    owner = node.opt_child("author")
+    return Mix(
+        platform=_PLATFORM,
+        mix_id=mix_id,
+        name=node.text("mix_name"),
+        description=optional_str(node.get("desc")),
+        cover=image_from_url_list(node.get("cover_url")),
+        item_count=optional_int(statis.get("updated_to_episode")) if statis else None,
+        play_count=optional_int(statis.get("play_vv")) if statis else None,
+        web_url=mix_web_url(mix_id),
+        owner_id=optional_str(owner.get("sec_uid")) if owner else None,
+        owner_name=optional_str(owner.get("nickname")) if owner else None,
+        created_at=epoch_to_datetime(node.get("create_time")),
+        updated_at=epoch_to_datetime(node.get("update_time")),
+        raw=node.raw(),
+    )
+
+
+def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
+    """Parse ``/aweme/v1/web/mix/list/``, paged by an offset ``cursor``."""
+    root = _guard(payload)
+    items = [_mix_from_node(entry) for entry in root.listed_children("mix_infos")]
+    has_more = optional_bool(root.present("has_more"))
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -717,8 +759,10 @@ __all__ = [
     "content_web_url",
     "detect_risk_control",
     "hashtag_web_url",
+    "mix_web_url",
     "music_web_url",
     "parse_author",
+    "parse_author_mixes",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",

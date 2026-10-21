@@ -22,6 +22,7 @@ from dtk.platforms.tiktok.params import (
     author_followers_params,
     author_following_params,
     author_likes_params,
+    author_mixes_params,
     author_posts_params,
     author_profile_params,
     author_reposts_params,
@@ -149,6 +150,7 @@ HASHTAG_DETAIL: Final = "tiktok.hashtag_detail"
 HASHTAG_POSTS: Final = "tiktok.hashtag_posts"
 SEARCH_POSTS: Final = "tiktok.search_posts"
 SEARCH_AUTHORS: Final = "tiktok.search_authors"
+AUTHOR_MIXES: Final = "tiktok.author_mixes"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -407,6 +409,17 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Accounts matching a keyword",
     ),
     EndpointSpec(
+        name=AUTHOR_MIXES,
+        path=TikTokAPIEndpoints.USER_PLAY_LIST,
+        required=("sec_uid",),
+        build=author_mixes_params,
+        risk_weight=1.5,
+        # Answers a guest: nine playlists and hasMore false for an author with
+        # nine, and an empty envelope with no playList key for one with none
+        # (2026-10-20).
+        summary="The playlists an author has made",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=TikTokAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -431,6 +444,7 @@ __all__ = [
     "AUTHOR_FOLLOWERS",
     "AUTHOR_FOLLOWING",
     "AUTHOR_LIKES",
+    "AUTHOR_MIXES",
     "AUTHOR_POSTS",
     "AUTHOR_PROFILE",
     "AUTHOR_REPOSTS",

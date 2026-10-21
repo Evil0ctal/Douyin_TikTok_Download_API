@@ -45,6 +45,7 @@ from dtk.models import (
     Content,
     ContentPart,
     Hashtag,
+    Mix,
     MusicDetail,
     Page,
 )
@@ -613,6 +614,13 @@ class PlatformAdapter(Protocol):
     ) -> Page[Content]: ...
 
     def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]: ...
+
+    def parse_author_mixes(self, payload: Mapping[str, Any]) -> Page[Mix]: ...
+
+    def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+        """The posts in one mix. Douyin's and TikTok's answer in the author post
+        list's own envelope; Bilibili's season answer is a folder's."""
+        ...
 
 
 __all__ = [

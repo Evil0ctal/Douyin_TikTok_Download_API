@@ -229,6 +229,33 @@ class Collection(_Base):
     raw: dict | None = None
 
 
+class Mix(_Base):
+    """An author's own series: posts they put in order and published as one.
+
+    Douyin calls it a mix, TikTok a playlist and Bilibili a season - the same
+    Chinese word on both Chinese sites. Not a :class:`Collection`, which is a viewer filing
+    away other people's posts; the difference is whose posts they are, and it
+    decides which endpoint the id goes to - ``mix_id`` to ``/mix/posts``.
+    """
+
+    platform: Platform
+    mix_id: str
+    name: str
+    description: str | None = None
+    cover: Image | None = None
+    #: Posts in the series, as the platform counts them.
+    item_count: int | None = None
+    #: Plays across the series, where the platform counts them.
+    play_count: int | None = None
+    web_url: str | None = None
+    #: The author who published it, by the id the author endpoints take.
+    owner_id: str | None = None
+    owner_name: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    raw: dict | None = None
+
+
 class MusicDetail(Music):
     """A sound on its own page: what a post's ``music`` names, and more.
 
@@ -301,6 +328,7 @@ __all__ = [
     "Hashtag",
     "Image",
     "Media",
+    "Mix",
     "Music",
     "MusicDetail",
     "Page",

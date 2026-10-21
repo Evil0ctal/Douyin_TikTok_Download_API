@@ -27,8 +27,10 @@ from dtk.api.routes.content import (
     PROXY_QUERY,
     RAW_QUERY,
     REFRESH_QUERY,
+    SEC_USER_ID_QUERY,
     URL_QUERY,
     WAIT_QUERY,
+    author_params,
     authorize,
     content_params,
     identifier,
@@ -451,6 +453,74 @@ async def hashtag_posts(
             "/hashtag and pass the hashtag_id it returns",
             details={"field": "url", "name": found, "hint": "GET /hashtag, then hashtag_id"},
         )
+    params["cursor"] = cursor
+    params["count"] = resolve_count(count, maximum=max_page_size(platform))
+    params["include_raw"] = include_raw
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/user/mixes",
+    summary="An author's own series",
+    openapi_extra={I18N_KEY: "author_mixes", **ASYNC_RESPONSES},
+)
+async def user_mixes(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    sec_user_id: str | None = SEC_USER_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the series an author has published.
+
+    Douyin calls them mixes, TikTok playlists and Bilibili seasons; each is
+    a set of the author's own posts in order, and its `mix_id` is what
+    `/mix/posts` takes. A guest identity reads all three.
+
+    Bilibili's space lists its older "series" beside the seasons. A series is
+    a different id that `/mix/posts` cannot read, so only the seasons come
+    back; the paging still counts the series, so the last page can be empty.
+
+    **Parameters**
+
+    - `platform` - `douyin`, `tiktok` or `bilibili`.
+    - `url` - a link to the author's profile.
+    - `sec_user_id` - the author's stable id: `secUid` on TikTok, the numeric
+      `mid` on Bilibili. A TikTok link names an @handle, which is looked up
+      first.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - series per page.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      the other list endpoints. A repeat inside `cache.list_ttl` (5 minutes by
+      default) is answered from the cache.
+
+    **Returns**
+
+    `mix_id`, `name`, `description`, `cover`, `item_count`, `play_count`
+    where the platform counts plays, `web_url`, and the owner's id and name.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.AUTHOR_MIXES)
+    params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params["cursor"] = cursor
     params["count"] = resolve_count(count, maximum=max_page_size(platform))
     params["include_raw"] = include_raw

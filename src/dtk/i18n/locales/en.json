@@ -524,7 +524,7 @@
       },
       "mix_posts": {
         "summary": "Posts inside a mix or playlist",
-        "description": "One page of the posts collected in a mix - Douyin's series, TikTok's playlist. The id comes from any post that belongs to one: mix_info on Douyin, playlistId on TikTok."
+        "description": "One page of the posts collected in a mix - Douyin's series, TikTok's playlist, Bilibili's season, whose videos come in one page. /user/mixes lists an author's; a post carries the id too: mix_info on Douyin, playlistId on TikTok."
       },
       "notify_test": {
         "summary": "Send a test alert",
@@ -693,6 +693,10 @@
       "search_authors": {
         "summary": "Search accounts",
         "description": "One page of the accounts a keyword finds, each with the id the author endpoints take. Bilibili pages it for a guest; TikTok answers a guest's first page only."
+      },
+      "author_mixes": {
+        "summary": "An author's own series",
+        "description": "One page of the series an author has published - Douyin's mixes, TikTok's playlists, Bilibili's seasons - each with the mix_id /mix/posts takes."
       }
     },
     "param": {
@@ -737,7 +741,7 @@
       "limit": "Maximum rows to return.",
       "mine_only": "Only list keys you created, rather than everyone's.",
       "minutes": "How far back to look. Rows older than the log's retention are gone.",
-      "mix_id": "The mix or playlist to read. Douyin returns it as mix_info, TikTok as playlistId.",
+      "mix_id": "The mix, playlist or season to read: the mix_id /user/mixes returns. A post carries it too, as mix_info on Douyin and playlistId on TikTok.",
       "music_id": "The sound's id, as an alternative to url: the music_id in a post's music block, or the number a music link ends in. Provide exactly one of the two.",
       "name": "The file's name, exactly as the download record lists it.",
       "offset": "Rows to skip.",
