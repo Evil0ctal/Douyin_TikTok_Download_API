@@ -91,6 +91,16 @@ KEYWORD_QUERY = Query(
     description="What to search for, as you would type it into the platform's search box.",
 )
 
+ROOM_ID_QUERY = Query(
+    default=None,
+    min_length=1,
+    max_length=64,
+    description=(
+        "The room, as an alternative to url: the number in a live.douyin.com or "
+        "live.bilibili.com link, or on TikTok the @handle of the account broadcasting."
+    ),
+)
+
 
 def _numeric_id(value: str, *, field: str) -> str:
     """An id both platforms issue as a run of digits, checked before it queues."""
@@ -523,6 +533,78 @@ async def user_mixes(
     params = author_params(platform, url=url, sec_user_id=sec_user_id)
     params["cursor"] = cursor
     params["count"] = resolve_count(count, maximum=max_page_size(platform))
+    params["include_raw"] = include_raw
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/live",
+    summary="A live room",
+    openapi_extra={I18N_KEY: "live_room", **ASYNC_RESPONSES},
+)
+async def live(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    room_id: str | None = ROOM_ID_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One live room: whether it is broadcasting, and how to play it if it is.
+
+    Identify it by **either** `url` **or** `room_id`. A room is addressed the
+    way its link addresses it: Douyin's `live.douyin.com/<web_rid>`, TikTok's
+    `/@<handle>/live`, Bilibili's `live.bilibili.com/<room>`.
+
+    This reads a room; it does not record one. The pull URLs it returns are
+    signed and expire within hours, and they go to a player or a recorder of
+    your own, straight from the platform's CDN.
+
+    **Parameters**
+
+    - `platform` - `douyin`, `tiktok` or `bilibili`.
+    - `url` - a link to the room.
+    - `room_id` - the number in a Douyin or Bilibili live link, or the
+      TikTok account's @handle.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      `/video`. A repeat inside `cache.list_ttl` (5 minutes by default) is
+      answered from the cache; pass `refresh` to see whether a room has just
+      gone on or off.
+
+    **Returns**
+
+    `room_id`, `is_live`, `title`, `cover`, `web_url`, the broadcaster as
+    `author`, and while the room is live `viewer_count`, `started_at` where
+    the platform states it, and `streams`: one entry per protocol (`flv` or
+    `hls`) and quality, in the platform's own quality names. Bilibili's
+    `viewer_count` is the "watched" figure it prints, not who is in the room
+    now. A room nobody has is `NOT_FOUND`.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.LIVE_ROOM)
+    if not url and not room_id:
+        raise InvalidParam("provide either url or room_id", details={"fields": ["url", "room_id"]})
+    if room_id:
+        params: dict[str, Any] = {"room_id": room_id.strip().lstrip("@"), "url": None}
+    else:
+        kind = vet_url(str(url), expected=platform)
+        found = identifier(kind, ResourceKind.LIVE)
+        params = {"room_id": found, "url": None if found else kind.url}
     params["include_raw"] = include_raw
     return await operations.submit_and_wait(
         request,

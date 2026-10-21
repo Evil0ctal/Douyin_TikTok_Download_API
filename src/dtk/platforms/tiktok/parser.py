@@ -22,6 +22,7 @@ lenient parser would keep working while quietly mapping half the fields to
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
 from datetime import datetime
@@ -39,6 +40,8 @@ from dtk.models import (
     ContentStats,
     Hashtag,
     Image,
+    LiveRoom,
+    LiveStream,
     Media,
     Mix,
     Music,
@@ -663,6 +666,75 @@ def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+#: A room's ``status`` while it broadcasts; 4 is ended, measured 2026-10-20.
+_LIVE_STATUS_ON: Final = 2
+
+#: The pull URL keys of one quality, in the order a player would try them.
+#: ``cmaf``, ``lls`` and the rest are left out: a player needs to know about
+#: them, and the two here are what every player and recorder takes.
+_LIVE_FORMATS: Final[tuple[str, ...]] = ("flv", "hls")
+
+
+def live_web_url(unique_id: str) -> str:
+    return f"{WEB_DOMAIN}/@{unique_id}/live"
+
+
+def _live_streams(room: Node) -> list[LiveStream]:
+    """The pull URLs, from ``streamData.pull_data.stream_data``.
+
+    That field is a JSON document inside a string, keyed by quality (``origin``,
+    ``hd``, ``sd``, ...), each with ``main.flv`` and ``main.hls``. A string
+    that will not decode is a stream the page could not play either, and
+    gives no streams rather than failing the room.
+    """
+    data = room.opt_child("streamData")
+    pull = data.opt_child("pull_data") if data else None
+    text = pull.get("stream_data") if pull else None
+    if not isinstance(text, str) or not text:
+        return []
+    try:
+        decoded = json.loads(text)
+    except ValueError:
+        return []
+    qualities = decoded.get("data") if isinstance(decoded, dict) else None
+    if not isinstance(qualities, dict):
+        return []
+    streams: list[LiveStream] = []
+    for quality, entry in qualities.items():
+        main = entry.get("main") if isinstance(entry, dict) else None
+        if not isinstance(main, dict):
+            continue
+        for fmt in _LIVE_FORMATS:
+            url = main.get(fmt)
+            if isinstance(url, str) and url:
+                streams.append(LiveStream(url=url, format=fmt, quality=str(quality)))
+    return streams
+
+
+def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -> LiveRoom:
+    """Parse ``/api-live/user/room/``: ``data.user`` and ``data.liveRoom``."""
+    data = _guard(payload).child("data")
+    user = data.child("user")
+    room = data.child("liveRoom")
+    author = author_from_web_node(user)
+    is_live = optional_int(room.get("status")) == _LIVE_STATUS_ON
+    stats = room.opt_child("liveRoomStats")
+    handle = author.unique_id or room_id or ""
+    return LiveRoom(
+        platform=_PLATFORM,
+        room_id=handle,
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=image_from_urls(room.get("coverUrl"), room.get("squareCoverImg")),
+        web_url=live_web_url(handle) if handle else None,
+        viewer_count=optional_int(stats.get("userCount")) if stats and is_live else None,
+        started_at=epoch_to_datetime(room.get("startTime")) if is_live else None,
+        author=author,
+        streams=_live_streams(room) if is_live else [],
+        raw=data.raw(),
+    )
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -831,6 +903,7 @@ __all__ = [
     "content_web_url",
     "detect_risk_control",
     "hashtag_web_url",
+    "live_web_url",
     "music_web_url",
     "parse_author",
     "parse_author_collections",
@@ -841,6 +914,7 @@ __all__ = [
     "parse_content",
     "parse_hashtag_detail",
     "parse_hashtag_posts",
+    "parse_live_room",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

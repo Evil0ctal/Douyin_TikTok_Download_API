@@ -41,6 +41,8 @@ from dtk.models import (
     ContentStats,
     Hashtag,
     Image,
+    LiveRoom,
+    LiveStream,
     Media,
     Mix,
     Music,
@@ -662,6 +664,85 @@ def parse_author_mixes(payload: Mapping[str, Any]) -> Page[Mix]:
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+LIVE_DOMAIN: Final = "https://live.douyin.com"
+
+#: A room's ``status`` while it broadcasts; 4 is an ended broadcast. Measured
+#: 2026-10-20 on one room of each.
+_LIVE_STATUS_ON: Final = 2
+
+#: Where each stream format's URLs sit under ``stream_url``, keyed by quality.
+_PULL_URLS: Final[tuple[tuple[str, str], ...]] = (
+    ("flv_pull_url", "flv"),
+    ("hls_pull_url_map", "hls"),
+)
+
+
+def live_web_url(web_rid: str) -> str:
+    return f"{LIVE_DOMAIN}/{web_rid}"
+
+
+def _live_streams(room: Node) -> list[LiveStream]:
+    stream = room.opt_child("stream_url")
+    if stream is None:
+        return []
+    streams: list[LiveStream] = []
+    for key, fmt in _PULL_URLS:
+        urls = stream.opt_child(key)
+        if urls is None:
+            continue
+        for quality, url in urls.data.items():
+            if isinstance(url, str) and url:
+                streams.append(LiveStream(url=url, format=fmt, quality=str(quality)))
+    return streams
+
+
+def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -> LiveRoom:
+    """Parse ``live.douyin.com/webcast/room/web/enter/``.
+
+    The room is the first of ``data.data``, the broadcaster is ``data.user``.
+    The answer never repeats the ``web_rid`` it was asked by, so the caller's
+    is what ``room_id`` and the link are built from.
+
+    The viewer count is ``room_view_stats.display_value``: ``user_count_str``
+    beside it is the rounded figure the page prints ("4000+" over 4474).
+    """
+    data = _guard(payload).child("data")
+    rooms = data.children("data")
+    if not rooms:
+        raise data.missing("data[0]")
+    room = rooms[0]
+    is_live = optional_int(room.get("status")) == _LIVE_STATUS_ON
+    user = data.opt_child("user")
+    sec_uid = optional_str(user.get("sec_uid")) if user else None
+    author = (
+        Author(
+            platform=_PLATFORM,
+            uid=sec_uid,
+            sec_uid=sec_uid,
+            nickname=user.text("nickname"),
+            avatar=image_from_url_list(user.get("avatar_thumb")),
+            web_url=author_web_url(sec_uid),
+        )
+        if user is not None and sec_uid is not None
+        else None
+    )
+    stats = room.opt_child("room_view_stats")
+    viewers = optional_int(stats.get("display_value")) if stats else None
+    return LiveRoom(
+        platform=_PLATFORM,
+        room_id=room_id or room.id("id_str"),
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=image_from_url_list(room.get("cover")),
+        web_url=live_web_url(room_id) if room_id else None,
+        viewer_count=viewers if is_live else None,
+        like_count=optional_int(room.get("like_count")),
+        author=author,
+        streams=_live_streams(room) if is_live else [],
+        raw=data.raw(),
+    )
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -750,6 +831,7 @@ def parse_reply_previews(
 
 
 __all__ = [
+    "LIVE_DOMAIN",
     "RISK_STATUS_CODES",
     "WEB_DOMAIN",
     "author_from_node",
@@ -759,6 +841,7 @@ __all__ = [
     "content_web_url",
     "detect_risk_control",
     "hashtag_web_url",
+    "live_web_url",
     "mix_web_url",
     "music_web_url",
     "parse_author",
@@ -768,6 +851,7 @@ __all__ = [
     "parse_comments",
     "parse_content",
     "parse_hashtag_detail",
+    "parse_live_room",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

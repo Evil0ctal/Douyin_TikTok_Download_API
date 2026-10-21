@@ -636,6 +636,21 @@ def author_mixes_params(
     }
 
 
+#: What the live page says it is when it asks about a room by its owner.
+LIVE_SOURCE_TYPE: Final = "54"
+
+
+def live_room_params(*, unique_id: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
+    """Parameters for ``/api-live/user/room/``: a live room, by its owner's
+    @handle - the only thing a ``/@handle/live`` link carries."""
+    handle = str(unique_id).strip().lstrip("@")
+    if not handle:
+        raise InvalidParam(
+            "a TikTok live room is named by its @handle", details={"field": "room_id"}
+        )
+    return {**base_params(profile), "uniqueId": handle, "sourceType": LIVE_SOURCE_TYPE}
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

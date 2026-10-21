@@ -84,3 +84,21 @@ class TestHashtags:
             elapsed_ms=200,
         )
         assert Classifier().classify(response).outcome is Outcome.BUSINESS_ERROR
+
+
+class TestLiveRooms:
+    def test_a_douyin_room_nobody_has_is_a_business_error(self) -> None:
+        """108 bytes, `status_code: 4001038` and "this cannot be viewed"."""
+        assert verdict(load("douyin", "live_room_missing")) is Outcome.BUSINESS_ERROR
+
+    def test_a_tiktok_handle_nobody_has_is_a_business_error(self) -> None:
+        """114 bytes, `statusCode: 19881007`, `message: user_not_found`."""
+        assert verdict(load("tiktok", "live_room_missing")) is Outcome.BUSINESS_ERROR
+
+    def test_a_bilibili_room_nobody_has_is_a_business_error(self) -> None:
+        """77 bytes, `code: 19002000` - when signed. Unsigned it is -352."""
+        assert verdict(load("bilibili", "live_room_missing")) is Outcome.BUSINESS_ERROR
+
+    def test_an_ended_broadcast_is_an_answer(self) -> None:
+        for platform in ("douyin", "tiktok", "bilibili"):
+            assert verdict(load(platform, "live_room_off")) is Outcome.OK, platform

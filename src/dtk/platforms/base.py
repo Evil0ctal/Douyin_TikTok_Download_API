@@ -45,6 +45,7 @@ from dtk.models import (
     Content,
     ContentPart,
     Hashtag,
+    LiveRoom,
     Mix,
     MusicDetail,
     Page,
@@ -616,6 +617,13 @@ class PlatformAdapter(Protocol):
     def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]: ...
 
     def parse_author_mixes(self, payload: Mapping[str, Any]) -> Page[Mix]: ...
+
+    def parse_live_room(
+        self, payload: Mapping[str, Any], *, room_id: str | None = None
+    ) -> LiveRoom:
+        """``room_id`` is the one the request named, for a platform whose
+        answer does not repeat it: Douyin's never mentions the web_rid."""
+        ...
 
     def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
         """The posts in one mix. Douyin's and TikTok's answer in the author post

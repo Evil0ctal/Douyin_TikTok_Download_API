@@ -525,3 +525,143 @@ def test_every_platform_produces_the_same_mix_shape() -> None:
         for name in ("douyin", "tiktok", "bilibili")
     }
     assert shapes["douyin"] == shapes["tiktok"] == shapes["bilibili"]
+
+
+# --------------------------------------------------------------------------
+# Live rooms
+# --------------------------------------------------------------------------
+
+
+def bilibili_live_on() -> dict:
+    """The room answer as the fetch layer hands it over: with its pull URLs."""
+    payload = load("bilibili", "live_room_on")
+    follow_up = get_adapter("bilibili").follow_up(
+        "bilibili.live_room", payload, {"room_id": "30000001"}
+    )
+    assert follow_up is not None
+    return follow_up.merge(payload, load("bilibili", "live_streams"))
+
+
+def test_a_douyin_room_that_is_live() -> None:
+    room = get_adapter("douyin").parse_live_room(
+        load("douyin", "live_room_on"), room_id="615171448842"
+    )
+
+    assert room.platform is Platform.DOUYIN
+    # The web_rid that asked, not the room id the answer carries.
+    assert room.room_id == "615171448842"
+    assert room.web_url == "https://live.douyin.com/615171448842"
+    assert room.is_live is True
+    assert room.title == "Synthetic live title"
+    assert room.cover is not None
+    # room_view_stats.display_value, not the rounded user_count_str.
+    assert room.viewer_count == 4474
+    assert room.like_count == 15223
+    assert room.author is not None
+    assert room.author.sec_uid == "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001"
+    assert {(s.format, s.quality) for s in room.streams} == {
+        ("flv", "FULL_HD1"),
+        ("flv", "HD1"),
+        ("hls", "FULL_HD1"),
+        ("hls", "HD1"),
+    }
+
+
+def test_a_douyin_room_that_has_ended_has_no_streams() -> None:
+    room = get_adapter("douyin").parse_live_room(load("douyin", "live_room_off"), room_id="1")
+    assert room.is_live is False
+    assert room.streams == []
+    assert room.viewer_count is None
+    assert room.title == "Synthetic ended broadcast"
+
+
+def test_a_tiktok_room_reads_the_streams_out_of_their_json_string() -> None:
+    room = get_adapter("tiktok").parse_live_room(load("tiktok", "live_room_on"))
+
+    assert room.room_id == "synthetic.creator"
+    assert room.web_url == "https://www.tiktok.com/@synthetic.creator/live"
+    assert room.is_live is True
+    assert room.viewer_count == 314
+    assert room.started_at is not None
+    assert room.author is not None
+    assert room.author.sec_uid == "MS4wLjABAAAA_SYNTHETIC_TIKTOK_AUTHOR_0001"
+    pairs = {(s.format, s.quality) for s in room.streams}
+    assert ("flv", "origin") in pairs
+    assert ("hls", "hd") in pairs
+    # The audio-only rendition has no hls, and an empty URL is not a stream.
+    assert ("hls", "ao") not in pairs
+    assert all(s.url for s in room.streams)
+
+
+def test_a_tiktok_room_with_a_stream_string_that_will_not_decode_has_no_streams() -> None:
+    payload = load("tiktok", "live_room_on")
+    payload["data"]["liveRoom"]["streamData"]["pull_data"]["stream_data"] = "{not json"
+    room = get_adapter("tiktok").parse_live_room(payload)
+    assert room.is_live is True
+    assert room.streams == []
+
+
+def test_a_tiktok_room_that_has_ended() -> None:
+    room = get_adapter("tiktok").parse_live_room(load("tiktok", "live_room_off"))
+    assert room.is_live is False
+    assert room.streams == []
+    assert room.started_at is None
+
+
+def test_a_bilibili_room_that_is_live_is_followed_by_its_pull_urls() -> None:
+    room = get_adapter("bilibili").parse_live_room(bilibili_live_on())
+
+    assert room.room_id == "30000001"
+    assert room.web_url == "https://live.bilibili.com/30000001"
+    assert room.is_live is True
+    assert room.viewer_count == 2517
+    assert room.author is not None
+    assert room.author.uid == "10000001"
+    assert room.author.nickname == "Synthetic Creator"
+    formats = [s.format for s in room.streams]
+    assert formats.count("flv") == 1
+    assert formats.count("hls") == 2
+    first = room.streams[0]
+    assert first.url == (
+        "https://d1--ov-gotcha07.example-cdn.invalid/live-bvc/000000/live_synthetic.flv?"
+        "expires=0&qn=10000&sign=synthetic"
+    )
+    assert first.quality == "10000"
+
+
+def test_a_bilibili_room_without_its_pull_urls_is_still_the_room() -> None:
+    room = get_adapter("bilibili").parse_live_room(load("bilibili", "live_room_on"))
+    assert room.is_live is True
+    assert room.streams == []
+
+
+def test_a_bilibili_room_that_is_off_asks_for_no_pull_urls() -> None:
+    payload = load("bilibili", "live_room_off")
+    assert get_adapter("bilibili").follow_up("bilibili.live_room", payload, {}) is None
+    room = get_adapter("bilibili").parse_live_room(payload)
+    assert room.is_live is False
+    assert room.viewer_count is None
+
+
+def test_every_platform_produces_the_same_live_room_shape() -> None:
+    shapes = [
+        set(
+            get_adapter("douyin")
+            .parse_live_room(load("douyin", "live_room_on"), room_id="1")
+            .model_dump()
+        ),
+        set(get_adapter("tiktok").parse_live_room(load("tiktok", "live_room_on")).model_dump()),
+        set(get_adapter("bilibili").parse_live_room(bilibili_live_on()).model_dump()),
+    ]
+    assert shapes[0] == shapes[1] == shapes[2]
+
+
+@pytest.mark.parametrize(
+    ("name", "room"),
+    [("douyin", "615171448842"), ("tiktok", "synthetic.creator"), ("bilibili", "30000001")],
+)
+def test_live_rooms_resolve_through_the_registry(name: str, room: str) -> None:
+    definition = registry.definition_for(f"{name}.live_room")
+    assert definition.required == (registry.ROOM_ID,)
+    parsed = definition.parse(load(name, "live_room_on"), params={"room_id": room})
+    assert parsed.room_id == room

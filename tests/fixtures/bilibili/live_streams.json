@@ -1,0 +1,109 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "room_id": 30000001,
+    "short_id": 0,
+    "uid": 10000001,
+    "live_status": 1,
+    "is_hidden": false,
+    "is_locked": false,
+    "encrypted": false,
+    "playurl_info": {
+      "playurl": {
+        "cid": 30000001,
+        "stream": [
+          {
+            "protocol_name": "http_stream",
+            "format": [
+              {
+                "format_name": "flv",
+                "codec": [
+                  {
+                    "codec_name": "avc",
+                    "current_qn": 10000,
+                    "accept_qn": [
+                      10000
+                    ],
+                    "base_url": "/live-bvc/000000/live_synthetic.flv?",
+                    "url_info": [
+                      {
+                        "host": "https://d1--ov-gotcha07.example-cdn.invalid",
+                        "extra": "expires=0&qn=10000&sign=synthetic",
+                        "stream_ttl": 3600
+                      },
+                      {
+                        "host": "https://d1--ov-gotcha08.example-cdn.invalid",
+                        "extra": "expires=0&qn=10000&sign=synthetic",
+                        "stream_ttl": 3600
+                      }
+                    ]
+                  }
+                ],
+                "master_url": ""
+              }
+            ]
+          },
+          {
+            "protocol_name": "http_hls",
+            "format": [
+              {
+                "format_name": "ts",
+                "codec": [
+                  {
+                    "codec_name": "avc",
+                    "current_qn": 10000,
+                    "accept_qn": [
+                      10000
+                    ],
+                    "base_url": "/live-bvc/000000/live_synthetic.m3u8?",
+                    "url_info": [
+                      {
+                        "host": "https://d1--ov-gotcha07.example-cdn.invalid",
+                        "extra": "expires=0&qn=10000&sign=synthetic",
+                        "stream_ttl": 3600
+                      },
+                      {
+                        "host": "https://d1--ov-gotcha08.example-cdn.invalid",
+                        "extra": "expires=0&qn=10000&sign=synthetic",
+                        "stream_ttl": 3600
+                      }
+                    ]
+                  }
+                ],
+                "master_url": ""
+              },
+              {
+                "format_name": "fmp4",
+                "codec": [
+                  {
+                    "codec_name": "avc",
+                    "current_qn": 10000,
+                    "accept_qn": [
+                      10000
+                    ],
+                    "base_url": "/live-bvc/000000/live_synthetic.m3u8?",
+                    "url_info": [
+                      {
+                        "host": "https://d1--ov-gotcha07.example-cdn.invalid",
+                        "extra": "expires=0&qn=10000&sign=synthetic",
+                        "stream_ttl": 3600
+                      },
+                      {
+                        "host": "https://d1--ov-gotcha08.example-cdn.invalid",
+                        "extra": "expires=0&qn=10000&sign=synthetic",
+                        "stream_ttl": 3600
+                      }
+                    ]
+                  }
+                ],
+                "master_url": ""
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

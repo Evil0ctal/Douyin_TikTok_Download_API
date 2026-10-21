@@ -601,6 +601,14 @@ BILIBILI_ROUTES: tuple[Route, ...] = (
         "https://space.bilibili.com/{id}",
         hosts=frozenset({"m.bilibili.com"}),
     ),
+    # A live room: live.bilibili.com/<room>, and the mobile page's /h5/<room>.
+    Route(
+        re.compile(r"^/(?:h5/)?(?P<id>\d+)(?:[/?#]|$)"),
+        ResourceKind.LIVE,
+        "https://live.bilibili.com/{id}",
+        content_kind=ContentKind.LIVE,
+        hosts=frozenset({"live.bilibili.com"}),
+    ),
 )
 
 ROUTES_BY_PLATFORM: dict[Platform, tuple[Route, ...]] = {

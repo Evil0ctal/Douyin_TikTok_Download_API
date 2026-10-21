@@ -230,6 +230,29 @@ def mix_posts_params(
     return {"season_id": numeric_id(season_id, field="mix_id"), "pn": "1", "ps": "20"}
 
 
+def live_room_params(*, room_id: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
+    """A live room, by the number in its live.bilibili.com link."""
+    return {"room_id": numeric_id(room_id, field="room_id")}
+
+
+#: What the live player asks ``getRoomPlayInfo`` for: both protocols, every
+#: container, both codecs, at the original quality. Read off the live page.
+LIVE_PLAY_PARAMS: Final[dict[str, str]] = {
+    "protocol": "0,1",
+    "format": "0,1,2",
+    "codec": "0,1",
+    "qn": "10000",
+    "platform": "web",
+    "ptype": "8",
+}
+
+
+def live_streams_params(
+    *, room_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    return {"room_id": numeric_id(room_id, field="room_id"), **LIVE_PLAY_PARAMS}
+
+
 def author_profile_params(*, mid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     return {"mid": numeric_id(mid, field="author_id"), "photo": "true"}
 
@@ -410,6 +433,7 @@ def ranking_params(
 __all__ = [
     "DEFAULT_PAGE_SIZE",
     "DEFAULT_PROFILE",
+    "LIVE_PLAY_PARAMS",
     "STREAM_PARAMS",
     "author_collections_params",
     "author_mixes_params",
@@ -422,6 +446,8 @@ __all__ = [
     "content_parts_params",
     "content_streams_params",
     "dm_params",
+    "live_room_params",
+    "live_streams_params",
     "mix_posts_params",
     "part_number",
     "popular_params",

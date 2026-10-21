@@ -20,6 +20,7 @@ from dtk.models import (
     Content,
     ContentPart,
     Hashtag,
+    LiveRoom,
     Mix,
     MusicDetail,
     Page,
@@ -164,6 +165,11 @@ class TikTokAdapter:
 
     def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
         return parser.parse_author_posts(payload, fetched_at=fetched_at)
+
+    def parse_live_room(
+        self, payload: Mapping[str, Any], *, room_id: str | None = None
+    ) -> LiveRoom:
+        return parser.parse_live_room(payload, room_id=room_id)
 
 
 ADAPTER: PlatformAdapter = TikTokAdapter()

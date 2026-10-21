@@ -153,3 +153,24 @@ class TestMixes:
     def test_a_bilibili_season_id_is_a_number(self) -> None:
         with pytest.raises(InvalidParam):
             query("bilibili.mix_posts", season_id="abc")
+
+
+class TestLiveRooms:
+    def test_douyin_asks_the_live_site_by_web_rid(self) -> None:
+        request = get_adapter("douyin").build_request("douyin.live_room", web_rid="615171448842")
+        assert request["url"].startswith("https://live.douyin.com/")
+        assert request["params"]["web_rid"] == "615171448842"
+        assert request["params"]["app_name"] == "douyin_web"
+        assert "device_platform" in request["params"]
+        assert request["headers"]["Referer"] == "https://live.douyin.com/"
+
+    def test_tiktok_asks_by_the_owners_handle(self) -> None:
+        built = query("tiktok.live_room", unique_id="@ventisfit")
+        assert built["uniqueId"] == "ventisfit"
+        assert built["sourceType"] == "54"
+
+    def test_bilibili_follows_a_live_room_with_its_play_info(self) -> None:
+        request = get_adapter("bilibili").build_request("bilibili.live_streams", room_id="173551")
+        assert request["params"]["room_id"] == "173551"
+        assert request["params"]["qn"] == "10000"
+        assert request["headers"]["Referer"] == "https://live.bilibili.com/"

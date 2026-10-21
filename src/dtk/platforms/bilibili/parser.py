@@ -47,6 +47,8 @@ from dtk.models import (
     ContentPart,
     ContentStats,
     Image,
+    LiveRoom,
+    LiveStream,
     Media,
     Mix,
     Page,
@@ -77,6 +79,8 @@ STREAMS_KEY: Final = "__dtk_streams"
 PART_KEY: Final = "__dtk_part"
 #: Where the fetch layer puts one weekly issue inside the index that named it.
 ISSUE_KEY: Final = "__dtk_issue"
+#: Where a live room's pull URLs are folded into its answer.
+LIVE_PLAY_KEY: Final = "__dtk_live_play"
 
 #: Envelope codes that are a refusal of the caller rather than an answer.
 #: -352 "risk check failed" and -412 "request intercepted" were both seen on
@@ -687,6 +691,110 @@ def parse_mix_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page
     return Page(items=items, cursor=None, has_more=False)
 
 
+LIVE_DOMAIN: Final = "https://live.bilibili.com"
+
+#: ``room_info.live_status`` while broadcasting. 0 is off and 2 is a room
+#: replaying recordings between broadcasts, which has no live pull URL.
+LIVE_STATUS_ON: Final = 1
+
+
+def live_web_url(room_id: str) -> str:
+    return f"{LIVE_DOMAIN}/{room_id}"
+
+
+def live_room_is_on(payload: Mapping[str, Any]) -> bool:
+    """Whether a room answer is a broadcast in progress, for the follow-up."""
+    data = payload.get("data")
+    room = data.get("room_info") if isinstance(data, Mapping) else None
+    return isinstance(room, Mapping) and optional_int(room.get("live_status")) == LIVE_STATUS_ON
+
+
+def merge_live_play(room: Mapping[str, Any], play: Mapping[str, Any]) -> dict[str, Any]:
+    """A copy of the room answer with ``play``'s ``data`` under :data:`LIVE_PLAY_KEY`."""
+    merged = dict(room)
+    data = dict(room.get("data") or {})
+    if isinstance(play.get("data"), Mapping):
+        data[LIVE_PLAY_KEY] = dict(play["data"])
+    merged["data"] = data
+    return merged
+
+
+def _live_streams(play: Node | None) -> list[LiveStream]:
+    """``playurl_info.playurl.stream[].format[].codec[]``, one URL each.
+
+    A URL is three pieces the player joins: ``url_info[0].host``, the codec's
+    ``base_url`` and ``url_info[0].extra``, the signed query. The first host
+    is the one the page plays from; the others are its fallbacks.
+    """
+    info = play.opt_child("playurl_info") if play else None
+    playurl = info.opt_child("playurl") if info else None
+    if playurl is None:
+        return []
+    streams: list[LiveStream] = []
+    for stream in playurl.opt_children("stream"):
+        for fmt in stream.opt_children("format"):
+            name = optional_str(fmt.get("format_name"))
+            for codec in fmt.opt_children("codec"):
+                base = optional_str(codec.get("base_url"))
+                hosts = codec.opt_children("url_info")
+                if base is None or not hosts:
+                    continue
+                host = optional_str(hosts[0].get("host")) or ""
+                extra = optional_str(hosts[0].get("extra")) or ""
+                quality = optional_int(codec.get("current_qn"))
+                streams.append(
+                    LiveStream(
+                        url=f"{host}{base}{extra}",
+                        format="flv" if name == "flv" else "hls",
+                        quality=str(quality) if quality is not None else None,
+                    )
+                )
+    return streams
+
+
+def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -> LiveRoom:
+    """Parse ``getInfoByRoom``, with ``getRoomPlayInfo`` folded in if it came.
+
+    The viewer count is ``watched_show.num``, which the room prints as "N
+    people watched": Bilibili does not state who is in the room now, and
+    ``online`` beside it is a popularity score in the hundreds of thousands
+    for a room of two thousand.
+    """
+    data = _guard(payload).child("data")
+    room = data.child("room_info")
+    number = room.id("room_id")
+    is_live = optional_int(room.get("live_status")) == LIVE_STATUS_ON
+    anchor = data.opt_child("anchor_info")
+    base = anchor.opt_child("base_info") if anchor else None
+    mid = optional_id(room.get("uid"))
+    author = (
+        Author(
+            platform=_PLATFORM,
+            uid=mid,
+            sec_uid=mid,
+            nickname=base.text("uname"),
+            avatar=_image(base.get("face")),
+            web_url=author_web_url(mid),
+        )
+        if base is not None and mid is not None
+        else None
+    )
+    watched = data.opt_child("watched_show")
+    return LiveRoom(
+        platform=_PLATFORM,
+        room_id=number,
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=_image(room.get("cover")),
+        web_url=live_web_url(number),
+        viewer_count=optional_int(watched.get("num")) if watched and is_live else None,
+        started_at=epoch_to_datetime(room.get("live_start_time")) if is_live else None,
+        author=author,
+        streams=_live_streams(data.opt_child(LIVE_PLAY_KEY)) if is_live else [],
+        raw=data.raw(),
+    )
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/x/space/wbi/arc/search``.
 
@@ -915,6 +1023,9 @@ __all__ = [
     "BOARD_RANKING",
     "BOARD_WEEKLY",
     "ISSUE_KEY",
+    "LIVE_DOMAIN",
+    "LIVE_PLAY_KEY",
+    "LIVE_STATUS_ON",
     "PART_KEY",
     "RISK_CODES",
     "STREAMS_KEY",
@@ -924,7 +1035,10 @@ __all__ = [
     "detect_risk_control",
     "first_part_cid",
     "latest_issue",
+    "live_room_is_on",
+    "live_web_url",
     "merge_issue",
+    "merge_live_play",
     "merge_part_streams",
     "merge_streams",
     "parse_author",
@@ -936,6 +1050,7 @@ __all__ = [
     "parse_comments",
     "parse_content",
     "parse_content_parts",
+    "parse_live_room",
     "parse_mix_posts",
     "parse_popular",
     "parse_related_posts",

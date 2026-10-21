@@ -403,6 +403,34 @@ def author_mixes_params(
     }
 
 
+def live_room_params(*, web_rid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
+    """Parameters for ``live.douyin.com/webcast/room/web/enter/``.
+
+    Not the ``www.douyin.com`` base set: the live site is its own web app
+    with its own short list, read off the live page's request. ``web_rid``
+    is the number in a ``live.douyin.com/<n>`` link - not the room id the
+    answer carries, which changes with every broadcast.
+    """
+    return {
+        "aid": AID,
+        "app_name": "douyin_web",
+        "live_id": "1",
+        "device_platform": "web",
+        "language": profile.browser_language,
+        "enter_from": "web_live",
+        "cookie_enabled": "true",
+        "screen_width": str(profile.screen_width),
+        "screen_height": str(profile.screen_height),
+        "browser_language": profile.browser_language,
+        "browser_platform": profile.browser_platform,
+        "browser_name": profile.browser_name,
+        "browser_version": profile.browser_version,
+        "web_rid": str(web_rid),
+        "enter_source": "",
+        "is_need_double_stream": "false",
+    }
+
+
 def comments_params(
     *,
     aweme_id: str,

@@ -92,13 +92,18 @@ class TestRefusals:
             await plan("https://www.douyin.com/", no_redirect)
 
     async def test_an_unsupported_resource_kind_says_so(self):
-        """A live room is a recognised link the project does not serve yet, and
-        the caller should be told that rather than 'invalid URL'."""
-        live = identify("https://live.douyin.com/123456789")
-        if live.platform is None:
-            pytest.skip("live links are not recognised by the URL layer")
-        with pytest.raises((UnsupportedContent, InvalidUrl)):
-            await plan("https://live.douyin.com/123456789", no_redirect)
+        """A search page is a recognised link /parse does not serve - the
+        search endpoints take a keyword - and the caller should be told that
+        rather than 'invalid URL'. This used a live room until /live existed."""
+        search = identify("https://www.douyin.com/search/cat")
+        assert search.platform is not None
+        with pytest.raises(UnsupportedContent):
+            await plan("https://www.douyin.com/search/cat", no_redirect)
+
+    async def test_a_live_link_is_answered_with_its_room(self):
+        endpoint, params = await plan("https://live.douyin.com/123456789", no_redirect)
+        assert endpoint == "douyin.live_room"
+        assert params == {"room_id": "123456789"}
 
 
 class TestExpansion:
@@ -203,6 +208,9 @@ def test_a_bilibili_folder_link_is_answered_with_its_videos():
         "https://www.tiktok.com/music/original-sound-7686730447438514957",
         "https://www.douyin.com/hashtag/1592544802272436",
         "https://www.tiktok.com/tag/hibachi",
+        "https://live.douyin.com/615171448842",
+        "https://www.tiktok.com/@ventisfit/live",
+        "https://live.bilibili.com/173551",
     ],
 )
 def test_every_link_kind_lands_on_an_endpoint_that_exists(link: str):

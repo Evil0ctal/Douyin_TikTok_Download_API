@@ -70,6 +70,7 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("douyin.music_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("douyin.hashtag_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("douyin.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("douyin.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         EndpointPolicy("tiktok.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
@@ -103,6 +104,7 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("tiktok.search_posts", capacity=2, refill_per_sec=0.08, risk_weight=1.8),
         EndpointPolicy("tiktok.search_authors", capacity=2, refill_per_sec=0.08, risk_weight=1.8),
         EndpointPolicy("tiktok.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        EndpointPolicy("tiktok.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("bilibili.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("bilibili.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         # Asked once per detail, by the fetch layer, for the file itself. Same
@@ -147,6 +149,10 @@ _POLICIES: dict[str, EndpointPolicy] = {
         # Unsigned and from the space page, like the folder list beside them.
         EndpointPolicy("bilibili.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
         EndpointPolicy("bilibili.mix_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
+        EndpointPolicy("bilibili.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        # Asked right after a room that is on, as content_streams follows a
+        # detail. The same rate, or every live room would wait on it.
+        EndpointPolicy("bilibili.live_streams", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
     ]
 }
 

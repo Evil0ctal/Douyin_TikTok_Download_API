@@ -29,6 +29,7 @@ from dtk.platforms.douyin.params import (
     comments_params,
     content_detail_params,
     hashtag_detail_params,
+    live_room_params,
     mix_posts_params,
     music_detail_params,
     music_posts_params,
@@ -234,6 +235,7 @@ MUSIC_DETAIL: Final = "douyin.music_detail"
 MUSIC_POSTS: Final = "douyin.music_posts"
 HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
 AUTHOR_MIXES: Final = "douyin.author_mixes"
+LIVE_ROOM: Final = "douyin.live_room"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -425,6 +427,23 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="The mixes an author has published",
     ),
     EndpointSpec(
+        name=LIVE_ROOM,
+        path=DouyinAPIEndpoints.LIVE_INFO,
+        required=("web_rid",),
+        build=live_room_params,
+        risk_weight=1.2,
+        # The live site's own Referer; the www.douyin.com one the adapter
+        # sends by default is not where this page lives.
+        headers=(
+            ("Referer", f"{DouyinAPIEndpoints.LIVE_DOMAIN}/"),
+            ("Origin", DouyinAPIEndpoints.LIVE_DOMAIN),
+        ),
+        # Answers a guest with the room, its viewers and its pull URLs while
+        # it is live, and with the room marked ended when it is not
+        # (2026-10-20). A web_rid nobody has is `status_code: 4001038`.
+        summary="One live room: whether it is on, and how to play it",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -457,6 +476,7 @@ __all__ = [
     "DEFAULT_HEADERS",
     "ENDPOINTS",
     "HASHTAG_DETAIL",
+    "LIVE_ROOM",
     "MIX_POSTS",
     "MUSIC_DETAIL",
     "MUSIC_POSTS",

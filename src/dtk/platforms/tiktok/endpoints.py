@@ -33,6 +33,7 @@ from dtk.platforms.tiktok.params import (
     content_detail_params,
     hashtag_detail_params,
     hashtag_posts_params,
+    live_room_params,
     mix_posts_params,
     music_detail_params,
     music_posts_params,
@@ -111,6 +112,9 @@ class TikTokAPIEndpoints:
     CHALLENGE_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/challenge/detail/"
     CHALLENGE_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/challenge/item_list/"
 
+    # A live room by its owner's handle, from the web app's own API host
+    LIVE_USER_ROOM: Final = f"{TIKTOK_DOMAIN}/api-live/user/room/"
+
     # Keyword search: posts, and accounts
     SEARCH_ITEM: Final = f"{TIKTOK_DOMAIN}/api/search/item/full/"
     SEARCH_USER: Final = f"{TIKTOK_DOMAIN}/api/search/user/full/"
@@ -151,6 +155,7 @@ HASHTAG_POSTS: Final = "tiktok.hashtag_posts"
 SEARCH_POSTS: Final = "tiktok.search_posts"
 SEARCH_AUTHORS: Final = "tiktok.search_authors"
 AUTHOR_MIXES: Final = "tiktok.author_mixes"
+LIVE_ROOM: Final = "tiktok.live_room"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -420,6 +425,17 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="The playlists an author has made",
     ),
     EndpointSpec(
+        name=LIVE_ROOM,
+        path=TikTokAPIEndpoints.LIVE_USER_ROOM,
+        required=("unique_id",),
+        build=live_room_params,
+        risk_weight=1.2,
+        # A guest is told the room, its viewers and its pull URLs while it is
+        # live, and the room marked ended when it is not; a handle nobody has
+        # is `statusCode: 19881007`, "user_not_found" (2026-10-20).
+        summary="One live room, by its owner's @handle",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=TikTokAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -457,6 +473,7 @@ __all__ = [
     "ENDPOINTS",
     "HASHTAG_DETAIL",
     "HASHTAG_POSTS",
+    "LIVE_ROOM",
     "MIX_POSTS",
     "MUSIC_DETAIL",
     "MUSIC_POSTS",

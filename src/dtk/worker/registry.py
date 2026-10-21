@@ -88,6 +88,8 @@ class Capability(StrEnum):
     #: The series an author has published: Douyin's mixes, TikTok's playlists,
     #: Bilibili's seasons. Their ids are what ``mix_posts`` takes.
     AUTHOR_MIXES = "author_mixes"
+    #: A live room: whether it is broadcasting, and the pull URLs if it is.
+    LIVE_ROOM = "live_room"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -150,6 +152,9 @@ HASHTAG_ID: Final = "hashtag_id"
 HASHTAG_NAME: Final = "name"
 #: What a search looks for, as typed.
 KEYWORD: Final = "keyword"
+#: A live room by what its link carries: Douyin's web_rid, the owner's
+#: @handle on TikTok, Bilibili's room number.
+ROOM_ID: Final = "room_id"
 
 #: Every stable author id both platforms issue starts with this. It is the only
 #: way to tell one from an @handle without asking the platform.
@@ -233,7 +238,17 @@ ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
 #: Canonical parameters whose value is an identifier. Ids are always strings:
 #: a 19-digit aweme_id exceeds the JavaScript safe range (doc 11).
 _ID_PARAMS: Final[frozenset[str]] = frozenset(
-    {CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID, MIX_ID, COLLECTION_ID, MUSIC_ID, HASHTAG_ID}
+    {
+        CONTENT_ID,
+        AUTHOR_ID,
+        UNIQUE_ID,
+        COMMENT_ID,
+        MIX_ID,
+        COLLECTION_ID,
+        MUSIC_ID,
+        HASHTAG_ID,
+        ROOM_ID,
+    }
 )
 
 #: canonical name -> platform builder keyword, per platform and capability.
@@ -270,6 +285,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
         Capability.HASHTAG_DETAIL: {HASHTAG_ID: "ch_id"},
         Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.LIVE_ROOM: {ROOM_ID: "web_rid"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -309,6 +325,9 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.SEARCH_POSTS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
         Capability.SEARCH_AUTHORS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        # A /@handle/live link names the owner, and the owner is how the
+        # room is asked for.
+        Capability.LIVE_ROOM: {ROOM_ID: "unique_id"},
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -357,6 +376,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         # A season, by its season_id. One answer: the page and size are
         # accepted and dropped, as the folder list's are.
         Capability.MIX_POSTS: {MIX_ID: "season_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.LIVE_ROOM: {ROOM_ID: "room_id"},
     },
 }
 
@@ -395,6 +415,8 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.SEARCH_POSTS: "cache.list_ttl",
         Capability.SEARCH_AUTHORS: "cache.list_ttl",
         Capability.AUTHOR_MIXES: "cache.list_ttl",
+        # Whether a room is on changes by the minute; the shortest TTL there is.
+        Capability.LIVE_ROOM: "cache.list_ttl",
     }
 )
 
@@ -620,6 +642,11 @@ class EndpointDefinition:
                 return adapter.parse_search_authors(payload)
             case Capability.AUTHOR_MIXES:
                 return adapter.parse_author_mixes(payload)
+            case Capability.LIVE_ROOM:
+                room = canonical.get(ROOM_ID)
+                return adapter.parse_live_room(
+                    payload, room_id=str(room) if room is not None else None
+                )
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
@@ -821,6 +848,7 @@ __all__ = [
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",
     "PART",
+    "ROOM_ID",
     "SORT",
     "UNIQUE_ID",
     "Capability",

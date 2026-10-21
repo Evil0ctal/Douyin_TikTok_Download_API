@@ -1,0 +1,52 @@
+{
+  "data": {
+    "data": [
+      {
+        "id_str": "7300000000000000102",
+        "status": 4,
+        "status_str": "4",
+        "title": "Synthetic ended broadcast",
+        "user_count_str": "0",
+        "mosaic_status": 0,
+        "mosaic_status_str": "",
+        "admin_user_ids": [],
+        "admin_user_ids_str": [],
+        "live_room_mode": 0,
+        "has_commerce_goods": false,
+        "linker_map": {},
+        "AnchorABMap": {},
+        "like_count": 0,
+        "owner_user_id_str": "",
+        "gift_msg_style": 0,
+        "fansclub_msg_style": 0,
+        "follow_msg_style": 0,
+        "share_msg_style": 0,
+        "admin_user_open_ids": [],
+        "admin_user_open_ids_str": [],
+        "owner_open_id_str": ""
+      }
+    ],
+    "enter_room_id": "7300000000000000102",
+    "user": {
+      "id_str": "1000000000000000001",
+      "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+      "nickname": "Synthetic Creator",
+      "avatar_thumb": {
+        "url_list": [
+          "https://p11.example-cdn.invalid/aweme/100x100/synthetic-author-01.jpeg"
+        ]
+      }
+    },
+    "qrcode_url": "",
+    "enter_mode": 0,
+    "room_status": 2,
+    "partition_road_map": {},
+    "similar_rooms": [],
+    "shark_decision_conf": "",
+    "auth_cert_info": ""
+  },
+  "extra": {
+    "now": 1792540800000
+  },
+  "status_code": 0
+}

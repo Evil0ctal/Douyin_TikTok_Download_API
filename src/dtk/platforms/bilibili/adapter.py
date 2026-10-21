@@ -20,6 +20,7 @@ from dtk.models import (
     Content,
     ContentPart,
     Hashtag,
+    LiveRoom,
     Mix,
     MusicDetail,
     Page,
@@ -72,8 +73,21 @@ class BilibiliAdapter:
         The weekly selection's index is followed by the issue: the one the
         cursor names, or the newest. The index alone lists no videos, so that
         follow-up is required.
+
+        A live room that is broadcasting is followed by ``getRoomPlayInfo``,
+        for the pull URLs.
         """
         asked = params or {}
+        if endpoint == endpoints.LIVE_ROOM:
+            # A room that is live is followed by its pull URLs. Not required:
+            # the room, its title and its broadcaster are real without them.
+            if not parser.live_room_is_on(payload):
+                return None
+            return FollowUp(
+                endpoint=endpoints.LIVE_STREAMS,
+                params={"room_id": str(asked.get("room_id") or "")},
+                merge=parser.merge_live_play,
+            )
         if endpoint == endpoints.POPULAR_WEEKLY:
             cursor = str(asked.get("cursor") or "").strip()
             number = int(cursor) if cursor.isdigit() and int(cursor) > 0 else None
@@ -221,6 +235,11 @@ class BilibiliAdapter:
 
     def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
         return parser.parse_mix_posts(payload, fetched_at=fetched_at)
+
+    def parse_live_room(
+        self, payload: Mapping[str, Any], *, room_id: str | None = None
+    ) -> LiveRoom:
+        return parser.parse_live_room(payload, room_id=room_id)
 
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()

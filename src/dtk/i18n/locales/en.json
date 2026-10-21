@@ -697,6 +697,10 @@
       "author_mixes": {
         "summary": "An author's own series",
         "description": "One page of the series an author has published - Douyin's mixes, TikTok's playlists, Bilibili's seasons - each with the mix_id /mix/posts takes."
+      },
+      "live_room": {
+        "summary": "A live room",
+        "description": "One live room: whether it is broadcasting, its title, cover and broadcaster, and while it is live the viewer count and the pull URLs, one per protocol and quality. It reads a room and records nothing."
       }
     },
     "param": {
@@ -757,6 +761,7 @@
       "request_id": "Only the request with this id.",
       "request_log.identity_id": "Only requests made with this identity.",
       "request_log.proxy_id": "Only requests that went out through this proxy.",
+      "room_id": "The room, as an alternative to url: the number in a live.douyin.com or live.bilibili.com link, or on TikTok the @handle of the account broadcasting.",
       "rotation": "Only identities rotation hands out for every endpoint (rotating), only for requests that name them (reserved), or for a list of endpoints (limited).",
       "sec_user_id": "The author's stable id, as an alternative to url. On TikTok this is secUid; on Bilibili, the numeric mid.",
       "session_ref": "The session digest from the list endpoint.",

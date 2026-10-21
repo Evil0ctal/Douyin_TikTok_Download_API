@@ -307,3 +307,36 @@ async def test_a_bilibili_season_is_a_mix(client: Any) -> None:
     await signed_in(client)
     row = await queued(await client.get("/api/v1/bilibili/mix/posts", params={"mix_id": "7039840"}))
     assert row.endpoint == "bilibili.mix_posts"
+
+
+# --------------------------------------------------------------------------
+# Live rooms
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("platform", "link", "room"),
+    [
+        ("douyin", "https://live.douyin.com/615171448842?show_type=live_cover", "615171448842"),
+        ("tiktok", "https://www.tiktok.com/@ventisfit/live", "ventisfit"),
+        ("bilibili", "https://live.bilibili.com/173551", "173551"),
+    ],
+)
+async def test_a_live_room_is_read_out_of_its_link(
+    client: Any, platform: str, link: str, room: str
+) -> None:
+    await signed_in(client)
+    row = await queued(await client.get(f"/api/v1/{platform}/live", params={"url": link}))
+    assert row.endpoint == f"{platform}.live_room"
+    assert row.params["room_id"] == room
+
+
+async def test_a_tiktok_room_takes_the_handle_with_or_without_the_at(client: Any) -> None:
+    await signed_in(client)
+    row = await queued(await client.get("/api/v1/tiktok/live", params={"room_id": "@ventisfit"}))
+    assert row.params["room_id"] == "ventisfit"
+
+
+async def test_a_live_room_needs_a_room(client: Any) -> None:
+    await signed_in(client)
+    assert error_code(await client.get("/api/v1/douyin/live")) == "INVALID_PARAM"

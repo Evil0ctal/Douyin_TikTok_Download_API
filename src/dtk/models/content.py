@@ -256,6 +256,45 @@ class Mix(_Base):
     raw: dict | None = None
 
 
+class LiveStream(_Base):
+    """One way to play a live room: a protocol at a quality.
+
+    Live pull URLs are signed and expire within hours, and a player or a
+    recorder is what reads them; nothing here proxies or records a stream.
+    """
+
+    url: str
+    #: ``flv`` or ``hls``, as the platform delivers it.
+    format: str
+    #: The platform's own name for the quality - Douyin's ``FULL_HD1``,
+    #: TikTok's ``origin``, Bilibili's ``qn`` number - since the ladders do not
+    #: line up between them.
+    quality: str | None = None
+
+
+class LiveRoom(_Base):
+    """A live room, broadcasting or not."""
+
+    platform: Platform
+    #: What ``/live`` takes to ask about this room again: Douyin's ``web_rid``
+    #: (the number in a live.douyin.com link), the @handle on TikTok, and
+    #: Bilibili's room number.
+    room_id: str
+    is_live: bool
+    title: str | None = None
+    cover: Image | None = None
+    web_url: str | None = None
+    #: The count the platform prints beside the room. Douyin and TikTok count
+    #: who is in the room now; Bilibili counts who has watched this broadcast.
+    viewer_count: int | None = None
+    like_count: int | None = None
+    started_at: datetime | None = None
+    author: Author | None = None
+    #: Empty when the room is not live.
+    streams: list[LiveStream] = Field(default_factory=list)
+    raw: dict | None = None
+
+
 class MusicDetail(Music):
     """A sound on its own page: what a post's ``music`` names, and more.
 
@@ -327,6 +366,8 @@ __all__ = [
     "ContentStats",
     "Hashtag",
     "Image",
+    "LiveRoom",
+    "LiveStream",
     "Media",
     "Mix",
     "Music",

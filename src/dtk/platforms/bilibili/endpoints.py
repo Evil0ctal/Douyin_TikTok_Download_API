@@ -24,6 +24,8 @@ from dtk.platforms.bilibili.params import (
     content_detail_params,
     content_parts_params,
     content_streams_params,
+    live_room_params,
+    live_streams_params,
     mix_posts_params,
     popular_params,
     popular_precious_params,
@@ -40,6 +42,8 @@ class BilibiliAPIEndpoints:
     """Bilibili web API endpoint URLs."""
 
     WWW_DOMAIN: Final = "https://www.bilibili.com"
+    LIVE_DOMAIN: Final = "https://live.bilibili.com"
+    LIVE_API_DOMAIN: Final = "https://api.live.bilibili.com"
     SPACE_DOMAIN: Final = "https://space.bilibili.com"
     API_DOMAIN: Final = "https://api.bilibili.com"
 
@@ -88,6 +92,12 @@ class BilibiliAPIEndpoints:
     # One season's videos, each with its uploader named - which the space's
     # own seasons_archives_list does not do - and all of them in one answer.
     SEASON_ITEMS: Final = f"{API_DOMAIN}/x/space/fav/season/list"
+    # A live room and its broadcaster. Signed: unsigned, a guest is answered
+    # -352 (measured 2026-10-20).
+    LIVE_ROOM_INFO: Final = f"{LIVE_API_DOMAIN}/xlive/web-room/v1/index/getInfoByRoom"
+    # The pull URLs of a room that is live, unsigned. A room that is not live
+    # answers with `playurl_info: null`.
+    LIVE_PLAY_INFO: Final = f"{LIVE_API_DOMAIN}/xlive/web-room/v2/index/getRoomPlayInfo"
     # One tab of the search page: `search_type` says which. Signed, and
     # answers a guest; the HTML `<em>` around each hit is in the title.
     SEARCH_TYPE: Final = f"{API_DOMAIN}/x/web-interface/wbi/search/type"
@@ -116,6 +126,8 @@ SEARCH_POSTS: Final = "bilibili.search_posts"
 SEARCH_AUTHORS: Final = "bilibili.search_authors"
 AUTHOR_MIXES: Final = "bilibili.author_mixes"
 MIX_POSTS: Final = "bilibili.mix_posts"
+LIVE_ROOM: Final = "bilibili.live_room"
+LIVE_STREAMS: Final = "bilibili.live_streams"
 SESSION_CHECK: Final = "bilibili.session_check"
 
 #: Cookies and User-Agent come from the identity.
@@ -130,6 +142,13 @@ DEFAULT_HEADERS: Final[dict[str, str]] = {
 _SPACE_HEADERS: Final[tuple[tuple[str, str], ...]] = (
     ("Referer", f"{BilibiliAPIEndpoints.SPACE_DOMAIN}/"),
     ("Origin", BilibiliAPIEndpoints.SPACE_DOMAIN),
+)
+
+
+#: What the live page sends.
+_LIVE_HEADERS: Final[tuple[tuple[str, str], ...]] = (
+    ("Referer", f"{BilibiliAPIEndpoints.LIVE_DOMAIN}/"),
+    ("Origin", BilibiliAPIEndpoints.LIVE_DOMAIN),
 )
 
 
@@ -321,6 +340,27 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="List the videos in a season",
     ),
     EndpointSpec(
+        name=LIVE_ROOM,
+        path=BilibiliAPIEndpoints.LIVE_ROOM_INFO,
+        required=("room_id",),
+        build=live_room_params,
+        risk_weight=1.2,
+        headers=_LIVE_HEADERS,
+        # A room nobody has is `code: 19002000`, a business answer. The pull
+        # URLs are the follow-up - see BilibiliAdapter.follow_up.
+        summary="Fetch a live room",
+    ),
+    EndpointSpec(
+        name=LIVE_STREAMS,
+        path=BilibiliAPIEndpoints.LIVE_PLAY_INFO,
+        required=("room_id",),
+        build=live_streams_params,
+        risk_weight=1.0,
+        signed=False,
+        headers=_LIVE_HEADERS,
+        summary="Fetch the pull URLs of a room that is live",
+    ),
+    EndpointSpec(
         name=SEARCH_POSTS,
         path=BilibiliAPIEndpoints.SEARCH_TYPE,
         required=("keyword",),
@@ -360,6 +400,8 @@ __all__ = [
     "CONTENT_STREAMS",
     "DEFAULT_HEADERS",
     "ENDPOINTS",
+    "LIVE_ROOM",
+    "LIVE_STREAMS",
     "MIX_POSTS",
     "POPULAR",
     "POPULAR_PRECIOUS",

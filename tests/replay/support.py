@@ -40,6 +40,9 @@ FIXTURE_NAMES: tuple[str, ...] = (
     "hashtag_detail",
     "hashtag_detail_missing",
     "author_mixes",
+    "live_room_on",
+    "live_room_off",
+    "live_room_missing",
 )
 
 #: Bilibili's set differs where the platform does. It has no image albums, and
@@ -81,6 +84,10 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
     "author_mixes",
     "mix_posts_page1",
     "mix_posts_missing",
+    "live_room_on",
+    "live_room_off",
+    "live_room_missing",
+    "live_streams",
 )
 
 

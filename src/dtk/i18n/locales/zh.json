@@ -697,6 +697,10 @@
       "author_mixes": {
         "summary": "作者的合集列表",
         "description": "获取作者发布的合集，一次一页——抖音的合集、TikTok 的播放列表、B 站的合集——每一个都带有 /mix/posts 所用的 mix_id。"
+      },
+      "live_room": {
+        "summary": "直播间信息",
+        "description": "获取一个直播间：是否正在直播、标题、封面与主播，正在直播时还有观看人数和拉流地址（每种协议、每档清晰度各一条）。只读取直播间，不做任何录制。"
       }
     },
     "param": {
@@ -757,6 +761,7 @@
       "request_id": "仅返回该请求 ID 对应的那一条。",
       "request_log.identity_id": "仅返回由该身份发出的请求。",
       "request_log.proxy_id": "仅返回经由该代理发出的请求。",
+      "room_id": "直播间，可代替 url：live.douyin.com 或 live.bilibili.com 链接中的数字；TikTok 则填正在直播的账号的 @用户名。",
       "rotation": "只返回在所有接口上参与轮换的身份（rotating）、只服务指定它的请求的身份（reserved），或只在部分接口上参与轮换的身份（limited）。",
       "sec_user_id": "作者的稳定 ID，与 url 二选一。在 TikTok 上即 secUid；在 B 站上是数字 mid。",
       "session_ref": "会话摘要，取自列表接口。",
