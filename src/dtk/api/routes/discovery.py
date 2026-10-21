@@ -48,6 +48,7 @@ from dtk.core.errors import InvalidParam
 from dtk.core.types import Platform
 from dtk.platforms.paging import max_page_size
 from dtk.urls import ResourceKind
+from dtk.worker import registry
 
 router = APIRouter(prefix="/api/v1", tags=["content"])
 
@@ -61,6 +62,24 @@ MUSIC_ID_QUERY = Query(
     description=(
         "The sound's id, as an alternative to url: the music_id in a post's music block, "
         "or the number a music link ends in. Provide exactly one of the two."
+    ),
+)
+
+HASHTAG_ID_QUERY = Query(
+    default=None,
+    max_length=_ID_MAX_LENGTH,
+    description=(
+        "The hashtag's numeric id, as an alternative to url: the number a Douyin "
+        "hashtag link ends in, or the hashtag_id /hashtag returns."
+    ),
+)
+HASHTAG_NAME_QUERY = Query(
+    default=None,
+    min_length=1,
+    max_length=100,
+    description=(
+        "TikTok only: the hashtag's name, with or without the '#', as an alternative "
+        "to url and hashtag_id. Douyin looks a hashtag up by its id alone."
     ),
 )
 
@@ -273,6 +292,159 @@ async def music_posts(
     params = addressed_params(
         platform, url=url, value=music_id, field="music_id", resource=ResourceKind.MUSIC
     )
+    params["cursor"] = cursor
+    params["count"] = resolve_count(count, maximum=max_page_size(platform))
+    params["include_raw"] = include_raw
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/hashtag",
+    summary="A hashtag",
+    openapi_extra={I18N_KEY: "hashtag_detail", **ASYNC_RESPONSES},
+)
+async def hashtag(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    hashtag_id: str | None = HASHTAG_ID_QUERY,
+    name: str | None = HASHTAG_NAME_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One hashtag's page: its name, cover and counts.
+
+    Identify it by **one** of `url`, `hashtag_id` or, on TikTok, `name`. A
+    TikTok tag link names the hashtag (`/tag/<name>`); a Douyin hashtag link
+    numbers it (`/hashtag/<id>`).
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Bilibili answers `UNSUPPORTED_CONTENT`.
+    - `url` - a link to the hashtag's page.
+    - `hashtag_id` - the hashtag's numeric id.
+    - `name` - TikTok only: the hashtag's name.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      `/video`. A repeat inside `cache.author_ttl` (15 minutes by default) is
+      answered from the cache.
+
+    **Returns**
+
+    `hashtag_id`, `name`, `description`, `cover`, `web_url`, and the counts
+    the platform states: `content_count` (posts filed under it) and
+    `view_count`. The `hashtag_id` is what `/hashtag/posts` takes. A hashtag
+    that does not exist is `NOT_FOUND`.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.HASHTAG_DETAIL)
+    if name is not None:
+        if registry.HASHTAG_NAME not in registry.ENDPOINTS[endpoint].accepts:
+            raise InvalidParam(
+                f"{platform.value} looks a hashtag up by its id; pass hashtag_id or a link",
+                details={"field": "name", "platform": platform.value},
+            )
+        if url or hashtag_id:
+            raise InvalidParam(
+                "provide one of url, hashtag_id or name",
+                details={"fields": ["url", "hashtag_id", "name"]},
+            )
+        params: dict[str, Any] = {"name": name.strip().lstrip("#"), "url": None}
+    else:
+        params = addressed_params(
+            platform,
+            url=url,
+            value=hashtag_id,
+            field="hashtag_id",
+            resource=ResourceKind.CHALLENGE,
+        )
+    params["include_raw"] = include_raw
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/hashtag/posts",
+    summary="Posts under a hashtag",
+    openapi_extra={I18N_KEY: "hashtag_posts", **ASYNC_RESPONSES},
+)
+async def hashtag_posts(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    hashtag_id: str | None = HASHTAG_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts filed under a hashtag. TikTok only, for now.
+
+    Identify the hashtag by **either** `url` **or** `hashtag_id`. The list is
+    keyed by the numeric id: a tag link carries only the name, so look it up
+    with `/hashtag` first and pass the `hashtag_id` it returns.
+
+    Douyin answers this list to a guest identity with nothing at all, and the
+    signed-in answer has not been measured, so it is not offered there yet
+    and answers `UNSUPPORTED_CONTENT`.
+
+    **Parameters**
+
+    - `platform` - `tiktok`.
+    - `url` - a link that carries the id.
+    - `hashtag_id` - the hashtag's numeric id.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page, up to 35.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      the other list endpoints. A repeat inside `cache.list_ttl` (5 minutes by
+      default) is answered from the cache.
+
+    **Returns**
+
+    A page of posts in the same shape as `/user/posts`, plus the cursor for
+    the next page.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.HASHTAG_POSTS)
+    params = addressed_params(
+        platform, url=url, value=hashtag_id, field="hashtag_id", resource=ResourceKind.CHALLENGE
+    )
+    found = params.get("hashtag_id")
+    if found is not None and not str(found).isdigit():
+        raise InvalidParam(
+            "that link names the hashtag rather than numbering it; look it up with "
+            "/hashtag and pass the hashtag_id it returns",
+            details={"field": "url", "name": found, "hint": "GET /hashtag, then hashtag_id"},
+        )
     params["cursor"] = cursor
     params["count"] = resolve_count(count, maximum=max_page_size(platform))
     params["include_raw"] = include_raw

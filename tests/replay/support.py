@@ -37,6 +37,8 @@ FIXTURE_NAMES: tuple[str, ...] = (
     "music_detail",
     "music_detail_missing",
     "music_posts_page1",
+    "hashtag_detail",
+    "hashtag_detail_missing",
 )
 
 #: Bilibili's set differs where the platform does. It has no image albums, and
@@ -79,12 +81,16 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
 #: photos, whose slides each carry a clip of their own (#792).
 DOUYIN_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "video_live_photo")
 
+#: TikTok's adds the posts under a hashtag, which Douyin serves only to a
+#: signed-in session and no capture of that exists.
+TIKTOK_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "hashtag_posts_page1")
+
 
 def fixture_names(platform: str) -> tuple[str, ...]:
     """The fixtures ``platform`` ships."""
     if platform == "bilibili":
         return BILIBILI_FIXTURE_NAMES
-    return DOUYIN_FIXTURE_NAMES if platform == "douyin" else FIXTURE_NAMES
+    return DOUYIN_FIXTURE_NAMES if platform == "douyin" else TIKTOK_FIXTURE_NAMES
 
 
 #: Key names that must never appear in a fixture. Fixtures come from real
@@ -186,6 +192,7 @@ __all__ = [
     "FIXTURES",
     "FIXTURE_NAMES",
     "FORBIDDEN_KEY_PATTERN",
+    "TIKTOK_FIXTURE_NAMES",
     "fixture_names",
     "keys_in",
     "load",

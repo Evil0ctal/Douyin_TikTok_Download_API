@@ -15,7 +15,16 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, MusicDetail, Page
+from dtk.models import (
+    Author,
+    Collection,
+    Comment,
+    Content,
+    ContentPart,
+    Hashtag,
+    MusicDetail,
+    Page,
+)
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -161,6 +170,26 @@ class DouyinAdapter:
         self, payload: Mapping[str, Any], *, fetched_at: datetime
     ) -> Page[Content]:
         return parser.parse_music_posts(payload, fetched_at=fetched_at)
+
+    def parse_hashtag_detail(self, payload: Mapping[str, Any]) -> Hashtag:
+        return parser.parse_hashtag_detail(payload)
+
+    def parse_hashtag_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        """Not registered: Douyin answers a guest with an empty body here.
+
+        Measured 2026-10-20 with a minted guest and again in a browser that
+        was not signed in, whose own hashtag page got the same zero bytes. A
+        signed-in answer has not been seen, and a parser written without one
+        would be a guess at its shape - so the capability is missing rather
+        than wrong.
+        """
+        raise UnsupportedContent(
+            "Douyin lists the posts under a hashtag only to a signed-in session, "
+            "and that answer has not been measured here yet",
+            details={"platform": self.platform.value, "capability": "hashtag_posts"},
+        )
 
 
 ADAPTER: PlatformAdapter = DouyinAdapter()

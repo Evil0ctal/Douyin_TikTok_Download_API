@@ -13,7 +13,16 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, MusicDetail, Page
+from dtk.models import (
+    Author,
+    Collection,
+    Comment,
+    Content,
+    ContentPart,
+    Hashtag,
+    MusicDetail,
+    Page,
+)
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -180,6 +189,22 @@ class BilibiliAdapter:
         raise UnsupportedContent(
             "Bilibili videos do not carry a reusable sound",
             details={"platform": self.platform.value, "capability": "music_posts"},
+        )
+
+    def parse_hashtag_detail(self, payload: Mapping[str, Any]) -> Hashtag:
+        """Bilibili's tags are a video's labels, not pages with posts filed
+        under them the way a hashtag is; nothing is registered."""
+        raise UnsupportedContent(
+            "Bilibili has no hashtag pages",
+            details={"platform": self.platform.value, "capability": "hashtag_detail"},
+        )
+
+    def parse_hashtag_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        raise UnsupportedContent(
+            "Bilibili has no hashtag pages",
+            details={"platform": self.platform.value, "capability": "hashtag_posts"},
         )
 
 

@@ -59,3 +59,28 @@ class TestSounds:
         """235 bytes, `statusCode: 100001` and `hasMore: false`."""
         payload = {"cursor": "0", "hasMore": False, "statusCode": 100001, "status_code": 0}
         assert verdict(payload) is Outcome.BUSINESS_ERROR
+
+
+class TestHashtags:
+    def test_a_douyin_hashtag_nobody_has_is_a_null_block(self) -> None:
+        """261 bytes, `status_code: 0`, `ch_info: null`."""
+        payload = load("douyin", "hashtag_detail_missing")
+        assert payload["ch_info"] is None
+        assert verdict(payload) is Outcome.OK
+        assert spec(Platform.DOUYIN, "douyin.hashtag_detail").absent_when_null == "ch_info"
+
+    def test_a_tiktok_hashtag_nobody_uses_is_a_business_error(self) -> None:
+        """205 bytes, `statusCode: 10205`."""
+        assert verdict(load("tiktok", "hashtag_detail_missing")) is Outcome.BUSINESS_ERROR
+
+    def test_the_posts_under_a_tiktok_hashtag_nobody_has_are_a_business_error(self) -> None:
+        """HTTP 400, 161 bytes: `statusCode: 10201`, "illegal ID given"."""
+        response = RawResponse(
+            status=400,
+            headers={"content-type": "application/json"},
+            body=json.dumps(
+                {"statusCode": 10201, "statusMsg": "illegal ID given", "status_code": 10201}
+            ).encode(),
+            elapsed_ms=200,
+        )
+        assert Classifier().classify(response).outcome is Outcome.BUSINESS_ERROR

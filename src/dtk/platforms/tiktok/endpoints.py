@@ -29,6 +29,8 @@ from dtk.platforms.tiktok.params import (
     comment_replies_params,
     comments_params,
     content_detail_params,
+    hashtag_detail_params,
+    hashtag_posts_params,
     mix_posts_params,
     music_detail_params,
     music_posts_params,
@@ -101,6 +103,10 @@ class TikTokAPIEndpoints:
     # Post detail
     POST_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/item/detail/"
 
+    # A hashtag, and the posts under it
+    CHALLENGE_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/challenge/detail/"
+    CHALLENGE_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/challenge/item_list/"
+
     # A sound, and the posts that use it
     MUSIC_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/music/detail/"
     MUSIC_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/music/item_list/"
@@ -132,6 +138,8 @@ SESSION_CHECK: Final = "tiktok.session_check"
 RELATED_POSTS: Final = "tiktok.related_posts"
 MUSIC_DETAIL: Final = "tiktok.music_detail"
 MUSIC_POSTS: Final = "tiktok.music_posts"
+HASHTAG_DETAIL: Final = "tiktok.hashtag_detail"
+HASHTAG_POSTS: Final = "tiktok.hashtag_posts"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -344,6 +352,27 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts that use one sound, paged by cursor",
     ),
     EndpointSpec(
+        name=HASHTAG_DETAIL,
+        path=TikTokAPIEndpoints.CHALLENGE_DETAIL,
+        # By id or by name; the builder takes either, as author_profile does.
+        required=(),
+        build=hashtag_detail_params,
+        risk_weight=1.0,
+        # A name nobody uses is `statusCode: 10205` (measured 2026-10-20).
+        summary="One hashtag: its name, cover and counts",
+    ),
+    EndpointSpec(
+        name=HASHTAG_POSTS,
+        path=TikTokAPIEndpoints.CHALLENGE_ITEM_LIST,
+        required=("challenge_id",),
+        build=hashtag_posts_params,
+        risk_weight=1.5,
+        # The item_list envelope again. Pages for a guest: 30 and a next
+        # cursor, then 30 more (2026-10-20). An id nobody has is HTTP 400 with
+        # `statusCode: 10201`, a business answer.
+        summary="Posts under one hashtag, paged by cursor",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=TikTokAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -378,6 +407,8 @@ __all__ = [
     "CONTENT_DETAIL",
     "DEFAULT_HEADERS",
     "ENDPOINTS",
+    "HASHTAG_DETAIL",
+    "HASHTAG_POSTS",
     "MIX_POSTS",
     "MUSIC_DETAIL",
     "MUSIC_POSTS",

@@ -37,6 +37,7 @@ from dtk.models import (
     Comment,
     Content,
     ContentStats,
+    Hashtag,
     Image,
     Media,
     Music,
@@ -526,6 +527,54 @@ def parse_music_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Pa
     return parse_author_posts(payload, fetched_at=fetched_at)
 
 
+def hashtag_web_url(name: str) -> str:
+    return f"{WEB_DOMAIN}/tag/{name}"
+
+
+def parse_hashtag_detail(payload: Mapping[str, Any]) -> Hashtag:
+    """Parse ``/api/challenge/detail/``.
+
+    The counters are read from ``statsV2``, as a post's are: measured
+    2026-10-20, ``stats.videoCount`` was 0 beside a ``statsV2.videoCount`` of
+    194388, and ``stats.viewCount`` a rounded 5200000000 beside the exact
+    figure. ``stats`` is the fallback, for an answer that has nothing else.
+    """
+    info = _guard(payload).child("challengeInfo")
+    node = info.child("challenge")
+    primary = info.opt_child("statsV2")
+    secondary = info.opt_child("stats") or node.opt_child("stats")
+
+    def metric(name: str) -> int | None:
+        for source in (primary, secondary):
+            value = optional_int(source.get(name)) if source is not None else None
+            if value is not None:
+                return value
+        return None
+
+    name = node.text("title")
+    return Hashtag(
+        platform=_PLATFORM,
+        hashtag_id=node.id("id"),
+        name=name,
+        description=optional_str(node.get("desc")),
+        cover=image_from_urls(
+            node.get("coverLarger"),
+            node.get("coverMedium"),
+            node.get("profileLarger"),
+            node.get("profileMedium"),
+        ),
+        web_url=hashtag_web_url(name),
+        content_count=metric("videoCount"),
+        view_count=metric("viewCount"),
+        raw=info.raw(),
+    )
+
+
+def parse_hashtag_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/challenge/item_list/``, the shared item_list envelope."""
+    return parse_author_posts(payload, fetched_at=fetched_at)
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -692,6 +741,7 @@ __all__ = [
     "content_from_node",
     "content_web_url",
     "detect_risk_control",
+    "hashtag_web_url",
     "music_web_url",
     "parse_author",
     "parse_author_collections",
@@ -699,6 +749,8 @@ __all__ = [
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_hashtag_detail",
+    "parse_hashtag_posts",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

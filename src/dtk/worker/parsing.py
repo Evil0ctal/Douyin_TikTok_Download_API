@@ -86,6 +86,7 @@ _ENDPOINT_BY_RESOURCE: dict[ResourceKind, str] = {
     # nothing reaches douyin.collection_detail, which does not exist.
     ResourceKind.COLLECTION: "collection_detail",
     ResourceKind.MUSIC: "music_detail",
+    ResourceKind.CHALLENGE: "hashtag_detail",
 }
 
 #: Where a platform answers a kind of link with a different call. Bilibili has
@@ -103,6 +104,8 @@ _PARAM_BY_RESOURCE: dict[ResourceKind, str] = {
     ResourceKind.USER: "author_id",
     ResourceKind.COLLECTION: "collection_id",
     ResourceKind.MUSIC: "music_id",
+    # A TikTok tag link carries the name, not a number; see HASHTAG_ID.
+    ResourceKind.CHALLENGE: "hashtag_id",
 }
 
 
@@ -331,6 +334,7 @@ async def plan(
 _RESOURCE_BY_PARAM: Final[dict[str, ResourceKind]] = {
     registry.CONTENT_ID: ResourceKind.VIDEO,
     registry.MUSIC_ID: ResourceKind.MUSIC,
+    registry.HASHTAG_ID: ResourceKind.CHALLENGE,
     registry.AUTHOR_ID: ResourceKind.USER,
 }
 

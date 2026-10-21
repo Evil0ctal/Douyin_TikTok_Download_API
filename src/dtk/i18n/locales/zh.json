@@ -677,6 +677,14 @@
       "music_posts": {
         "summary": "使用某音乐的作品",
         "description": "获取使用同一首音乐的作品，一次一页。两个平台的游客身份都能翻页。支持抖音与 TikTok。"
+      },
+      "hashtag_detail": {
+        "summary": "话题详情",
+        "description": "获取一个话题页：名称、封面、各项计数，以及列出其作品所用的 ID。两个平台都支持按链接或 ID 查询，TikTok 还支持按名称。"
+      },
+      "hashtag_posts": {
+        "summary": "话题下的作品",
+        "description": "按话题的数字 ID 获取其下的作品，一次一页。支持 TikTok；抖音对游客身份不返回任何内容，暂未提供。"
       }
     },
     "param": {
@@ -704,6 +712,8 @@
       "endpoint": "仅限该端点。",
       "entry_id": "监控列表条目 ID。",
       "explain": "把这次请求原样报告回来——已签名的 URL、请求头，以及该身份的 cookie，这样就能在本实例之外复现同一个请求。返回内容含凭据，因此需要 `identity:manage` 权限和 operator 角色，会记入审计日志，并且对没有该权限的读取者会从存储的任务结果中剔除。它隐含 `refresh`：解释一个命中缓存的响应，描述的会是本次请求根本没发出过的那一次调用。",
+      "hashtag_detail.name": "仅 TikTok：话题名称，带不带 # 都可以，可代替 url 与 hashtag_id。抖音只能按 ID 查询话题。",
+      "hashtag_id": "话题的数字 ID，可代替 url：抖音话题链接末尾的数字，或 /hashtag 返回的 hashtag_id。",
       "healthy_only": "仅列出上次探测通过的代理。",
       "hours": "统计窗口回溯多少小时。",
       "identities_list.identity_id": "只返回这一个身份，无论是否已退休。",

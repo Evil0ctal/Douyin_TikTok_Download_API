@@ -39,6 +39,7 @@ from dtk.models import (
     Comment,
     Content,
     ContentStats,
+    Hashtag,
     Image,
     Media,
     Music,
@@ -51,6 +52,7 @@ from dtk.platforms.common import (
     clean_urls,
     epoch_to_datetime,
     image_from_url_list,
+    image_from_urls,
     optional_bool,
     optional_id,
     optional_int,
@@ -591,6 +593,33 @@ def parse_music_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Pa
     return parse_collection_posts(payload, fetched_at=fetched_at)
 
 
+def hashtag_web_url(hashtag_id: str) -> str:
+    return f"{WEB_DOMAIN}/hashtag/{hashtag_id}"
+
+
+def parse_hashtag_detail(payload: Mapping[str, Any]) -> Hashtag:
+    """Parse ``/aweme/v1/web/challenge/detail/``.
+
+    The cover is ``hashtag_profile``, a bare URL rather than the image holder
+    every other picture here comes in; ``cover_photo`` was null on the
+    hashtags measured.
+    """
+    node = _guard(payload).child("ch_info")
+    hashtag_id = node.id("cid")
+    return Hashtag(
+        platform=_PLATFORM,
+        hashtag_id=hashtag_id,
+        name=node.text("cha_name"),
+        description=optional_str(node.get("desc")),
+        cover=image_from_urls(node.get("hashtag_profile"))
+        or image_from_url_list(node.get("cover_photo")),
+        web_url=hashtag_web_url(hashtag_id),
+        content_count=optional_int(node.get("user_count")),
+        view_count=optional_int(node.get("view_count")),
+        raw=node.raw(),
+    )
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -687,12 +716,14 @@ __all__ = [
     "content_from_node",
     "content_web_url",
     "detect_risk_control",
+    "hashtag_web_url",
     "music_web_url",
     "parse_author",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_hashtag_detail",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

@@ -150,3 +150,79 @@ async def test_a_sound_link_from_the_other_platform_is_refused(client: Any) -> N
         params={"url": f"https://www.tiktok.com/music/x-{MUSIC_ID}"},
     )
     assert error_code(response) == "INVALID_URL"
+
+
+# --------------------------------------------------------------------------
+# Hashtags
+# --------------------------------------------------------------------------
+
+HASHTAG_ID = "1592544802272436"
+
+
+@pytest.mark.parametrize("platform", ["douyin", "tiktok"])
+async def test_a_hashtag_queues_by_id(client: Any, platform: str) -> None:
+    await signed_in(client)
+    row = await queued(
+        await client.get(f"/api/v1/{platform}/hashtag", params={"hashtag_id": HASHTAG_ID})
+    )
+    assert row.endpoint == f"{platform}.hashtag_detail"
+    assert row.params["hashtag_id"] == HASHTAG_ID
+
+
+async def test_a_tiktok_hashtag_queues_by_name(client: Any) -> None:
+    await signed_in(client)
+    row = await queued(await client.get("/api/v1/tiktok/hashtag", params={"name": "#hibachi"}))
+    assert row.params["name"] == "hibachi"
+
+
+async def test_a_tiktok_tag_link_queues_its_name(client: Any) -> None:
+    await signed_in(client)
+    row = await queued(
+        await client.get(
+            "/api/v1/tiktok/hashtag", params={"url": "https://www.tiktok.com/tag/hibachi"}
+        )
+    )
+    assert row.params["hashtag_id"] == "hibachi"
+
+
+async def test_douyin_refuses_a_hashtag_name(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/hashtag", params={"name": "sunrise"})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_a_name_and_an_id_together_are_refused(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/hashtag", params={"name": "hibachi", "hashtag_id": "6929"}
+    )
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_the_posts_under_a_tiktok_hashtag_queue(client: Any) -> None:
+    await signed_in(client)
+    row = await queued(
+        await client.get(
+            "/api/v1/tiktok/hashtag/posts", params={"hashtag_id": "6929", "cursor": "30"}
+        )
+    )
+    assert row.endpoint == "tiktok.hashtag_posts"
+    assert row.params["cursor"] == "30"
+
+
+async def test_the_posts_under_a_tag_link_ask_for_the_id_first(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/tiktok/hashtag/posts", params={"url": "https://www.tiktok.com/tag/hibachi"}
+    )
+    assert error_code(response) == "INVALID_PARAM"
+    details = envelope(response)["error"]["details"]
+    assert details["field"] == "url"
+    assert details["name"] == "hibachi"
+
+
+async def test_douyin_does_not_offer_the_posts_under_a_hashtag(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/hashtag/posts", params={"hashtag_id": HASHTAG_ID})
+    assert error_code(response) == "UNSUPPORTED_CONTENT"
+    assert envelope(response)["error"]["details"]["supported"] == ["tiktok"]

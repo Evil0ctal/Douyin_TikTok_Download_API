@@ -190,3 +190,83 @@ def test_bilibili_has_no_sounds_to_ask_about() -> None:
     assert "bilibili.music_detail" not in registry.ENDPOINTS
     with pytest.raises(UnsupportedContent):
         get_adapter("bilibili").parse_music_detail({})
+
+
+# --------------------------------------------------------------------------
+# Hashtags
+# --------------------------------------------------------------------------
+
+
+def test_a_douyin_hashtag() -> None:
+    tag = get_adapter("douyin").parse_hashtag_detail(load("douyin", "hashtag_detail"))
+
+    assert tag.platform is Platform.DOUYIN
+    assert tag.hashtag_id == "1600000000000000001"
+    assert tag.name == "sunrise"
+    assert tag.description == "Synthetic hashtag description."
+    assert tag.cover is not None
+    assert tag.cover.url == "https://p11-sign.example-cdn.invalid/obj/image-cut-tos/synthetic.jpg"
+    assert tag.web_url == "https://www.douyin.com/hashtag/1600000000000000001"
+    assert tag.content_count == 1016265
+    assert tag.view_count == 9266189037
+    assert tag.raw is not None
+
+
+def test_a_tiktok_hashtag_reads_the_exact_counters() -> None:
+    tag = get_adapter("tiktok").parse_hashtag_detail(load("tiktok", "hashtag_detail"))
+
+    assert tag.hashtag_id == "1600000000000000101"
+    assert tag.name == "sunrise"
+    assert tag.web_url == "https://www.tiktok.com/tag/sunrise"
+    assert tag.cover is not None
+    # statsV2, not stats: the capture said 0 posts and a rounded view count
+    # beside the real figures.
+    assert tag.content_count == 194388
+    assert tag.view_count == 5205317187
+
+
+def test_a_tiktok_hashtag_without_statsv2_falls_back_to_stats() -> None:
+    payload = without(load("tiktok", "hashtag_detail"), "challengeInfo.statsV2")
+    tag = get_adapter("tiktok").parse_hashtag_detail(payload)
+    assert tag.content_count == 0
+    assert tag.view_count == 5200000000
+
+
+def test_an_empty_description_is_absent() -> None:
+    payload = load("douyin", "hashtag_detail")
+    payload["ch_info"]["desc"] = ""
+    assert get_adapter("douyin").parse_hashtag_detail(payload).description is None
+
+
+def test_both_platforms_produce_the_same_hashtag_shape() -> None:
+    douyin = get_adapter("douyin").parse_hashtag_detail(load("douyin", "hashtag_detail"))
+    tiktok = get_adapter("tiktok").parse_hashtag_detail(load("tiktok", "hashtag_detail"))
+    assert set(douyin.model_dump()) == set(tiktok.model_dump())
+
+
+@pytest.mark.parametrize(
+    ("name", "path"),
+    [("douyin", "ch_info"), ("tiktok", "challengeInfo"), ("tiktok", "challengeInfo.challenge")],
+)
+def test_a_hashtag_without_its_block_is_a_schema_change(name: str, path: str) -> None:
+    with pytest.raises(UpstreamChanged) as caught:
+        get_adapter(name).parse_hashtag_detail(without(load(name, "hashtag_detail"), path))
+    assert caught.value.details["path"] == path
+
+
+def test_the_posts_under_a_tiktok_hashtag_page_by_cursor() -> None:
+    page = get_adapter("tiktok").parse_hashtag_posts(
+        load("tiktok", "hashtag_posts_page1"), fetched_at=FETCHED_AT
+    )
+    assert [item.content_id for item in page.items] == RELATED_IDS["tiktok"]
+    assert page.cursor == "30"
+    assert page.has_more is True
+
+
+def test_douyin_does_not_offer_the_posts_under_a_hashtag() -> None:
+    from dtk.core.errors import UnsupportedContent
+
+    assert "douyin.hashtag_detail" in registry.ENDPOINTS
+    assert "douyin.hashtag_posts" not in registry.ENDPOINTS
+    with pytest.raises(UnsupportedContent):
+        get_adapter("douyin").parse_hashtag_posts({}, fetched_at=FETCHED_AT)

@@ -1,0 +1,95 @@
+"""Request building for the discovery endpoints.
+
+Each builder here encodes a measured fact about the platform - a spelling, a
+parameter the page sends, one it must not - and this pins them, so a later
+tidy-up that looks harmless cannot quietly undo one.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from dtk.core.errors import InvalidParam
+from dtk.platforms import get_adapter
+from dtk.worker import registry
+from tests.replay.support import FETCHED_AT
+
+
+def query(endpoint: str, **params: object) -> dict[str, str]:
+    platform = endpoint.split(".", 1)[0]
+    return get_adapter(platform).build_request(endpoint, **params)["params"]
+
+
+class TestRelatedPosts:
+    def test_douyin_asks_for_the_first_batch(self) -> None:
+        built = query("douyin.related_posts", aweme_id="7123456789012345678", count=10)
+        assert built["aweme_id"] == "7123456789012345678"
+        assert built["refresh_index"] == "1"
+        assert built["filterGids"] == ""
+
+    def test_tiktok_spells_the_post_item_id(self) -> None:
+        built = query("tiktok.related_posts", item_id="7123456789012345678", count=16)
+        assert built["itemID"] == "7123456789012345678"
+        assert built["count"] == "16"
+
+    def test_bilibili_sends_the_bvid_and_no_size(self) -> None:
+        built = query("bilibili.related_posts", bvid="av170001", count=10)
+        assert built == {"bvid": "BV17x411w7KC"}
+
+
+class TestSounds:
+    def test_the_two_tiktok_paths_spell_the_id_differently(self) -> None:
+        assert query("tiktok.music_detail", music_id="1")["musicId"] == "1"
+        assert query("tiktok.music_posts", music_id="1")["musicID"] == "1"
+
+    def test_douyin_pages_a_sound_by_cursor(self) -> None:
+        built = query("douyin.music_posts", music_id="1", cursor="13", count=12)
+        assert (built["music_id"], built["cursor"], built["count"]) == ("1", "13", "12")
+
+
+class TestHashtags:
+    def test_tiktok_looks_a_hashtag_up_by_id(self) -> None:
+        built = query("tiktok.hashtag_detail", challenge_id="6929")
+        assert built["challengeId"] == "6929"
+        assert "challengeName" not in built
+
+    def test_tiktok_sends_a_name_where_the_link_gave_one(self) -> None:
+        """A tag link is /tag/<name>; /parse hands the name over as the id."""
+        built = query("tiktok.hashtag_detail", challenge_id="hibachi")
+        assert built["challengeName"] == "hibachi"
+        assert "challengeId" not in built
+
+    def test_tiktok_drops_the_hash_from_a_name(self) -> None:
+        assert query("tiktok.hashtag_detail", challenge_name="#hibachi")["challengeName"] == (
+            "hibachi"
+        )
+
+    def test_tiktok_needs_one_or_the_other(self) -> None:
+        with pytest.raises(InvalidParam):
+            query("tiktok.hashtag_detail")
+
+    def test_the_posts_under_a_tiktok_hashtag_refuse_a_name(self) -> None:
+        """Sent as challengeID it is HTTP 400 "illegal ID given" - the answer an
+        id nobody has gets - so the caller would hear the hashtag is gone."""
+        with pytest.raises(InvalidParam) as caught:
+            query("tiktok.hashtag_posts", challenge_id="hibachi")
+        assert "/hashtag" in str(caught.value)
+
+    def test_douyin_calls_it_a_challenge(self) -> None:
+        assert query("douyin.hashtag_detail", ch_id="1592544802272436")["ch_id"] == (
+            "1592544802272436"
+        )
+
+    def test_a_canonical_name_reaches_the_tiktok_builder(self) -> None:
+        definition = registry.definition_for("tiktok.hashtag_detail")
+        assert definition.platform_params({"name": "hibachi"}) == {"challenge_name": "hibachi"}
+
+    def test_douyin_has_no_name_to_be_given(self) -> None:
+        definition = registry.definition_for("douyin.hashtag_detail")
+        with pytest.raises(InvalidParam):
+            definition.platform_params({"name": "hibachi"})
+
+
+def test_the_fixed_clock_is_shared() -> None:
+    """The replay helpers are imported here, so they must stay importable from unit."""
+    assert FETCHED_AT.tzinfo is not None

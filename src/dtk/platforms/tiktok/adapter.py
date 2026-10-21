@@ -13,7 +13,16 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, MusicDetail, Page
+from dtk.models import (
+    Author,
+    Collection,
+    Comment,
+    Content,
+    ContentPart,
+    Hashtag,
+    MusicDetail,
+    Page,
+)
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -132,6 +141,14 @@ class TikTokAdapter:
         self, payload: Mapping[str, Any], *, fetched_at: datetime
     ) -> Page[Content]:
         return parser.parse_music_posts(payload, fetched_at=fetched_at)
+
+    def parse_hashtag_detail(self, payload: Mapping[str, Any]) -> Hashtag:
+        return parser.parse_hashtag_detail(payload)
+
+    def parse_hashtag_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_hashtag_posts(payload, fetched_at=fetched_at)
 
 
 ADAPTER: PlatformAdapter = TikTokAdapter()

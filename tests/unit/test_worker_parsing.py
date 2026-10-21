@@ -159,6 +159,22 @@ def test_a_music_link_is_answered_with_the_sound(link: str, endpoint: str, music
     assert to_call(identify(link)) == (endpoint, {"music_id": music_id})
 
 
+@pytest.mark.parametrize(
+    ("link", "endpoint", "hashtag"),
+    [
+        (
+            "https://www.douyin.com/hashtag/1592544802272436",
+            "douyin.hashtag_detail",
+            "1592544802272436",
+        ),
+        ("https://www.tiktok.com/tag/hibachi", "tiktok.hashtag_detail", "hibachi"),
+    ],
+)
+def test_a_hashtag_link_is_answered_with_the_hashtag(link: str, endpoint: str, hashtag: str):
+    """A TikTok tag link carries the name; the builder sends it as one."""
+    assert to_call(identify(link)) == (endpoint, {"hashtag_id": hashtag})
+
+
 def test_a_bilibili_folder_link_is_answered_with_its_videos():
     """Bilibili has no folder detail; its folder list carries name, cover and size.
 
@@ -185,6 +201,8 @@ def test_a_bilibili_folder_link_is_answered_with_its_videos():
         "https://space.bilibili.com/18202105/favlist?fid=58074805",
         "https://www.douyin.com/music/7661456186985761599",
         "https://www.tiktok.com/music/original-sound-7686730447438514957",
+        "https://www.douyin.com/hashtag/1592544802272436",
+        "https://www.tiktok.com/tag/hibachi",
     ],
 )
 def test_every_link_kind_lands_on_an_endpoint_that_exists(link: str):

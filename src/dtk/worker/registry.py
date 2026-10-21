@@ -79,6 +79,9 @@ class Capability(StrEnum):
     #: A sound a post is made with, and the posts that use it.
     MUSIC_DETAIL = "music_detail"
     MUSIC_POSTS = "music_posts"
+    #: A hashtag's page, and the posts filed under it.
+    HASHTAG_DETAIL = "hashtag_detail"
+    HASHTAG_POSTS = "hashtag_posts"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -134,6 +137,11 @@ MIX_ID: Final = "mix_id"
 COLLECTION_ID: Final = "collection_id"
 #: A sound, by the id a post's ``music`` carries and a music link ends in.
 MUSIC_ID: Final = "music_id"
+#: A hashtag by number. A TikTok tag link names it instead, and that name
+#: arrives here too; the TikTok builder sends it as the name.
+HASHTAG_ID: Final = "hashtag_id"
+#: A hashtag by name, without the '#'. TikTok's detail answers either.
+HASHTAG_NAME: Final = "name"
 
 #: Every stable author id both platforms issue starts with this. It is the only
 #: way to tell one from an @handle without asking the platform.
@@ -217,7 +225,7 @@ ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
 #: Canonical parameters whose value is an identifier. Ids are always strings:
 #: a 19-digit aweme_id exceeds the JavaScript safe range (doc 11).
 _ID_PARAMS: Final[frozenset[str]] = frozenset(
-    {CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID, MIX_ID, COLLECTION_ID, MUSIC_ID}
+    {CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID, MIX_ID, COLLECTION_ID, MUSIC_ID, HASHTAG_ID}
 )
 
 #: canonical name -> platform builder keyword, per platform and capability.
@@ -252,6 +260,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.RELATED_POSTS: {CONTENT_ID: "aweme_id", COUNT: "count"},
         Capability.MUSIC_DETAIL: {MUSIC_ID: "music_id"},
         Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.HASHTAG_DETAIL: {HASHTAG_ID: "ch_id"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -282,6 +291,12 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.RELATED_POSTS: {CONTENT_ID: "item_id", COUNT: "count"},
         Capability.MUSIC_DETAIL: {MUSIC_ID: "music_id"},
         Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
+        Capability.HASHTAG_DETAIL: {HASHTAG_ID: "challenge_id", HASHTAG_NAME: "challenge_name"},
+        Capability.HASHTAG_POSTS: {
+            HASHTAG_ID: "challenge_id",
+            CURSOR: "cursor",
+            COUNT: "count",
+        },
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -357,6 +372,8 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         # speed of an author's follower count.
         Capability.MUSIC_DETAIL: "cache.author_ttl",
         Capability.MUSIC_POSTS: "cache.list_ttl",
+        Capability.HASHTAG_DETAIL: "cache.author_ttl",
+        Capability.HASHTAG_POSTS: "cache.list_ttl",
     }
 )
 
@@ -573,6 +590,10 @@ class EndpointDefinition:
                 return adapter.parse_music_detail(payload)
             case Capability.MUSIC_POSTS:
                 return adapter.parse_music_posts(payload, fetched_at=when)
+            case Capability.HASHTAG_DETAIL:
+                return adapter.parse_hashtag_detail(payload)
+            case Capability.HASHTAG_POSTS:
+                return adapter.parse_hashtag_posts(payload, fetched_at=when)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
@@ -767,6 +788,8 @@ __all__ = [
     "ENDPOINTS",
     "ENVELOPE_PARAMS",
     "HANDLE_PLATFORMS",
+    "HASHTAG_ID",
+    "HASHTAG_NAME",
     "MUSIC_ID",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",

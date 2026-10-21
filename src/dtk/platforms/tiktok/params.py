@@ -517,6 +517,60 @@ def music_posts_params(
     }
 
 
+def hashtag_detail_params(
+    *,
+    challenge_id: str | None = None,
+    challenge_name: str | None = None,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/challenge/detail/``, by id or by name.
+
+    Both answer (measured 2026-10-20). An id that is not a number is sent as
+    the name, and that is not leniency: a tag link is ``/tag/<name>`` and
+    carries no number, so the name is what a link - and ``/parse`` - hands
+    over in the id's place.
+    """
+    ident = (challenge_id or "").strip()
+    if ident.isdigit():
+        return {**base_params(profile), "challengeId": ident}
+    name = ((challenge_name or "").strip() or ident).lstrip("#")
+    if not name:
+        raise InvalidParam(
+            "a hashtag needs its id or its name",
+            details={"endpoint": "tiktok.hashtag_detail", "missing": ["hashtag_id", "name"]},
+        )
+    return {**base_params(profile), "challengeName": name}
+
+
+def hashtag_posts_params(
+    *,
+    challenge_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/challenge/item_list/``, which takes the id only.
+
+    A name is refused here rather than sent: ``challengeID=<name>`` is an
+    HTTP 400 and ``illegal ID given``, the same answer as an id nobody has,
+    which would tell the caller the hashtag does not exist.
+    """
+    ident = str(challenge_id).strip()
+    if not ident.isdigit():
+        raise InvalidParam(
+            "the posts under a TikTok hashtag are listed by its numeric id; "
+            "look the name up with /hashtag first and pass the hashtag_id it returns",
+            details={"endpoint": "tiktok.hashtag_posts", "field": "hashtag_id"},
+        )
+    return {
+        **base_params(profile),
+        "challengeID": ident,
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+    }
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

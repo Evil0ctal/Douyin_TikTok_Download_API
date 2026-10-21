@@ -1252,5 +1252,6 @@ class TestAbsentWhenNull:
         assert declared == {
             "bilibili.collection_posts",
             "douyin.author_likes",
+            "douyin.hashtag_detail",
             "douyin.music_detail",
         }

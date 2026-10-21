@@ -254,6 +254,27 @@ class MusicDetail(Music):
     raw: dict | None = None
 
 
+class Hashtag(_Base):
+    """A hashtag: the topic page a post's ``#tag`` opens.
+
+    ``Content.tags`` carries only the names; this is the page behind one of
+    them, with the id the posts under it are listed by.
+    """
+
+    platform: Platform
+    hashtag_id: str
+    #: Without the leading '#', as ``Content.tags`` spells it.
+    name: str
+    description: str | None = None
+    cover: Image | None = None
+    web_url: str | None = None
+    #: Posts filed under it, as the platform counts them. Douyin calls the
+    #: number ``user_count``; TikTok's is ``videoCount``.
+    content_count: int | None = None
+    view_count: int | None = None
+    raw: dict | None = None
+
+
 class Page[T](BaseModel):
     """A page of results with an opaque cursor.
 
@@ -277,6 +298,7 @@ __all__ = [
     "Content",
     "ContentPart",
     "ContentStats",
+    "Hashtag",
     "Image",
     "Media",
     "Music",

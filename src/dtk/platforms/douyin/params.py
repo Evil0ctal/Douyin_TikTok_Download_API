@@ -377,6 +377,14 @@ def music_posts_params(
     }
 
 
+def hashtag_detail_params(
+    *, ch_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/challenge/detail/``. A hashtag is a
+    "challenge" in every path and field name Douyin uses for it."""
+    return {**base_params(profile), "ch_id": str(ch_id)}
+
+
 def comments_params(
     *,
     aweme_id: str,

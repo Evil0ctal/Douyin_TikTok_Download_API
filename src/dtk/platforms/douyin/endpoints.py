@@ -27,6 +27,7 @@ from dtk.platforms.douyin.params import (
     comment_replies_params,
     comments_params,
     content_detail_params,
+    hashtag_detail_params,
     mix_posts_params,
     music_detail_params,
     music_posts_params,
@@ -101,6 +102,15 @@ class DouyinAPIEndpoints:
 
     # The posts that use one sound
     MUSIC_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/music/aweme/"
+
+    # A hashtag's page. Douyin calls a hashtag a challenge throughout.
+    CHALLENGE_DETAIL: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/challenge/detail/"
+
+    # The posts under a hashtag. Answers a guest with no body at all - the
+    # hashtag page's own call did the same in a browser that was not signed
+    # in (2026-10-20) - so nothing here is registered against it until a
+    # signed-in answer has been seen.
+    CHALLENGE_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/challenge/aweme/"
 
     # Danmaku (on-video comments) for a single post
     POST_DANMAKU: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/danmaku/get_v2/"
@@ -218,6 +228,7 @@ SESSION_CHECK: Final = "douyin.session_check"
 RELATED_POSTS: Final = "douyin.related_posts"
 MUSIC_DETAIL: Final = "douyin.music_detail"
 MUSIC_POSTS: Final = "douyin.music_posts"
+HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -388,6 +399,17 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts that use one sound, paged by cursor",
     ),
     EndpointSpec(
+        name=HASHTAG_DETAIL,
+        path=DouyinAPIEndpoints.CHALLENGE_DETAIL,
+        required=("ch_id",),
+        build=hashtag_detail_params,
+        risk_weight=1.0,
+        # A hashtag nobody has is `status_code: 0` and `ch_info: null`
+        # (measured 2026-10-20), the same shape as a missing sound.
+        absent_when_null="ch_info",
+        summary="One hashtag: its name, cover and counts",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -418,6 +440,7 @@ __all__ = [
     "CONTENT_DETAIL",
     "DEFAULT_HEADERS",
     "ENDPOINTS",
+    "HASHTAG_DETAIL",
     "MIX_POSTS",
     "MUSIC_DETAIL",
     "MUSIC_POSTS",

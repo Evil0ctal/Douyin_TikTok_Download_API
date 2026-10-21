@@ -677,6 +677,14 @@
       "music_posts": {
         "summary": "Posts that use a sound",
         "description": "One page of the posts made with one sound. A guest identity pages through these on both platforms. Douyin and TikTok."
+      },
+      "hashtag_detail": {
+        "summary": "A hashtag",
+        "description": "One hashtag's page: its name, cover and counts, and the id its posts are listed by. By link or id on both platforms, and by name on TikTok."
+      },
+      "hashtag_posts": {
+        "summary": "Posts under a hashtag",
+        "description": "One page of the posts filed under a hashtag, by its numeric id. TikTok; Douyin answers a guest with nothing here and is not offered yet."
       }
     },
     "param": {
@@ -704,6 +712,8 @@
       "endpoint": "Only this endpoint.",
       "entry_id": "The watchlist entry id.",
       "explain": "Return the request as it went out - the signed URL, the headers and the identity's cookie jar - so it can be replayed outside this instance. The answer contains a credential, so it needs `identity:manage` and an operator role, it is written to the audit log, and it is stripped from the stored task result for any reader without that scope. Implies `refresh`: an explanation of a cached answer would describe a call this request did not make.",
+      "hashtag_detail.name": "TikTok only: the hashtag's name, with or without the '#', as an alternative to url and hashtag_id. Douyin looks a hashtag up by its id alone.",
+      "hashtag_id": "The hashtag's numeric id, as an alternative to url: the number a Douyin hashtag link ends in, or the hashtag_id /hashtag returns.",
       "healthy_only": "Only list proxies that passed their last probe.",
       "hours": "How far back the window reaches.",
       "identities_list.identity_id": "Only this identity, retired or not.",
