@@ -708,6 +708,57 @@ class TestConfig:
         assert "sensitive setting" in result.output
         assert "cancelled" in result.output
 
+    def test_set_reads_the_value_from_stdin(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A credential given on stdin never appears in the process list."""
+        import dtk.services.settings_store as store
+
+        recorded: dict[str, Any] = {}
+
+        async def fake_set_value(key: str, value: Any, **_kwargs: Any) -> Any:
+            recorded["key"], recorded["value"] = key, value
+            return value
+
+        monkeypatch.setattr(store, "set_value", fake_set_value)
+        install_context(monkeypatch, FakeSession())
+        result = runner.invoke(
+            app,
+            ["config", "set", "security.webhook_secret", "--stdin", "--yes"],
+            input="a-webhook-secret-0123456789\r\n",
+        )
+        assert result.exit_code == 0, result.output
+        assert recorded == {
+            "key": "security.webhook_secret",
+            "value": "a-webhook-secret-0123456789",
+        }
+        assert "a-webhook-secret-0123456789" not in result.output
+
+    def test_set_takes_the_value_one_way_only(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        install_context(monkeypatch, FakeSession())
+        both = runner.invoke(
+            app, ["config", "set", "cache.content_ttl", "60", "--stdin"], input="70\n"
+        )
+        assert both.exit_code == 2
+        neither = runner.invoke(app, ["config", "set", "cache.content_ttl"])
+        assert neither.exit_code == 2
+        assert "--stdin" in neither.output
+
+    def test_the_sensitive_prompt_does_not_echo_a_secret(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        install_context(monkeypatch, FakeSession())
+        result = runner.invoke(
+            app,
+            ["config", "set", "security.webhook_secret", "--stdin"],
+            input="a-webhook-secret-0123456789\nn\n",
+        )
+        assert result.exit_code == 1
+        assert "sensitive setting" in result.output
+        assert "a-webhook-secret-0123456789" not in result.output
+
     def test_channel_credentials_are_redacted(self) -> None:
         value = [{"type": "telegram", "url": "https://api.telegram.org/bot123:ABCDEF/send"}]
         rendered = settings_cmd.render(settings_cmd.redact("notify.channels", value))

@@ -98,10 +98,40 @@ def get_setting(
     output.print_json({"key": key, "value": redact(key, value)})
 
 
+def read_value(value: str | None, *, from_stdin: bool) -> str:
+    """The new value, from the argument or from one line of stdin.
+
+    ``--stdin`` exists because an argument is visible to every process on the
+    host for as long as the command runs - in ``ps``, and through ``docker
+    exec`` in the host's process list too - and some of these values are
+    credentials: ``security.webhook_secret``, the tokens inside
+    ``notify.channels``. One line, CR and LF stripped, as ``user passwd`` reads
+    a password.
+    """
+    if from_stdin:
+        if value is not None:
+            output.usage("give the value as an argument or on stdin, not both")
+        import sys
+
+        line = sys.stdin.readline()
+        if not line.strip():
+            output.fail("no value on stdin")
+        return line.rstrip("\r\n")
+    if value is None:
+        output.usage("missing the value: give it as an argument, or pass --stdin")
+    return value
+
+
 @app.command("set")
 def set_setting(
     key: Annotated[str, typer.Argument(help="Setting key")],
-    value: Annotated[str, typer.Argument(help="New value; lists are comma separated")],
+    value: Annotated[
+        str | None, typer.Argument(help="New value; lists are comma separated")
+    ] = None,
+    from_stdin: Annotated[
+        bool,
+        typer.Option("--stdin", help="Read the value from one line of stdin instead"),
+    ] = False,
     yes: Annotated[
         bool, typer.Option("--yes", "-y", help="Do not ask before changing a sensitive setting")
     ] = False,
@@ -114,14 +144,18 @@ def set_setting(
     spec = RUNTIME_SETTINGS.get(key)
     if spec is None:
         output.usage(f"unknown setting: {key}")
+    raw = read_value(value, from_stdin=from_stdin)
 
     try:
-        coerced = coerce(key, value)
+        coerced = coerce(key, raw)
     except (ValueError, TypeError) as exc:
         output.usage(f"{key} expects {spec.type_.__name__}: {exc}")
 
+    # Redacted like the confirmation below it: a value read from stdin so that
+    # it stays out of the process list should not then be printed back.
     if spec.scope is Scope.SENSITIVE and not output.confirm(
-        f"{key} is a sensitive setting. Change it to {render(coerced)}?", assume_yes=yes
+        f"{key} is a sensitive setting. Change it to {render(redact(key, coerced))}?",
+        assume_yes=yes,
     ):
         output.fail("cancelled; nothing was changed")
 

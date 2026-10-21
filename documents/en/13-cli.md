@@ -626,13 +626,14 @@ docker compose -p dtk -f docker/compose.yml exec api dtk config get cache.conten
 ### `dtk config set`
 
 ```text
-dtk config set [OPTIONS] {key} {value}
+dtk config set [OPTIONS] {key} [value]
 ```
 
 | Argument / option | Type | Default | Meaning |
 |---|---|---|---|
 | `key` | string, required | — | Setting key |
-| `value` | string, required | — | New value; lists are comma separated |
+| `value` | string | — | New value; lists are comma separated. Required unless `--stdin` is given |
+| `--stdin` | flag | off | Read the value from one line of stdin instead |
 | `--yes`, `-y` | flag | off | Do not ask before changing a sensitive setting |
 
 The value is coerced to the declared type and validated *before* anything is written; a type mismatch is an invocation error, exit 2. The write then bumps the settings version and announces it on the Redis channel the API and workers listen on, so a running deployment picks the change up without a restart. This is the one `config` subcommand that needs Redis.
@@ -646,11 +647,18 @@ docker compose -p dtk -f docker/compose.yml exec api \
 ok  cache.content_ttl = 900
 ```
 
-Sensitive settings widen the attack surface — the URL allowlist, the CORS origins, the caller-supplied request proxy — so they ask for confirmation first. In a script, `-y` skips the prompt; do not reach for it habitually.
+Sensitive settings widen the attack surface — the URL allowlist, the CORS origins, the caller-supplied request proxy — so they ask for confirmation first. The question shows the new value masked the way `dtk config list` masks it. In a script, `-y` skips the prompt; do not reach for it habitually.
 
 ```bash
 docker compose -p dtk -f docker/compose.yml exec api \
   dtk config set security.url_allowlist "example.com,cdn.example.com" -y
+```
+
+For a credential — `security.webhook_secret`, a token inside `notify.channels` — pass `--stdin` and pipe the value in. An argument is visible to every process on the host for as long as the command runs, in `ps` and, through `docker exec`, in the host's process list as well. It reads one line and strips a trailing `CR` as well as the `LF`, as `dtk user passwd --stdin` does. Give the value as an argument or on stdin: both, or neither, is an invocation error, exit 2, and an empty line on stdin is refused. On a sensitive key the confirmation would read the next line of that same stdin, so add `-y` in a pipe:
+
+```bash
+printf '%s\n' "$WEBHOOK_SECRET" | docker compose -p dtk -f docker/compose.yml \
+  exec -T api dtk config set security.webhook_secret --stdin -y
 ```
 
 There is no `dtk config reset`. To return a setting to its default, set it explicitly to the default value shown by `dtk config list`, or clear the override from the console.

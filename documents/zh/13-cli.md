@@ -625,13 +625,14 @@ docker compose -p dtk -f docker/compose.yml exec api dtk config get cache.conten
 ### `dtk config set`
 
 ```text
-dtk config set [OPTIONS] {key} {value}
+dtk config set [OPTIONS] {key} [value]
 ```
 
 | 参数 / 选项 | 类型 | 默认值 | 含义 |
 |---|---|---|---|
 | `key` | 字符串，必填 | — | 配置键 |
-| `value` | 字符串，必填 | — | 新值；列表用逗号分隔 |
+| `value` | 字符串 | — | 新值；列表用逗号分隔。没给 `--stdin` 时必填 |
+| `--stdin` | 开关 | 关 | 改从 stdin 读一行作为新值 |
 | `--yes`、`-y` | 开关 | 关 | 修改敏感配置时不询问 |
 
 值会先按声明的类型转换并校验，**然后**才写入；类型不匹配属于调用错误，退出码 2。写入之后会递增 settings 版本号，并在 API 与 worker 都在监听的 Redis 频道上广播，于是运行中的部署无需重启就能生效。这是 `config` 组里唯一需要 Redis 的子命令。
@@ -645,11 +646,18 @@ docker compose -p dtk -f docker/compose.yml exec api \
 ok  cache.content_ttl = 900
 ```
 
-敏感配置会扩大攻击面——URL 白名单、CORS 来源、调用方自带的请求代理——所以修改前会先询问确认。脚本里可以用 `-y` 跳过；不要养成顺手加的习惯。
+敏感配置会扩大攻击面——URL 白名单、CORS 来源、调用方自带的请求代理——所以修改前会先询问确认。问题里显示的新值，和 `dtk config list` 一样是掩码过的。脚本里可以用 `-y` 跳过；不要养成顺手加的习惯。
 
 ```bash
 docker compose -p dtk -f docker/compose.yml exec api \
   dtk config set security.url_allowlist "example.com,cdn.example.com" -y
+```
+
+凭据类的值——`security.webhook_secret`、`notify.channels` 里的 token——用 `--stdin` 从管道喂进去。命令行参数在命令运行期间对这台机器上的每个进程都可见：在 `ps` 里，经由 `docker exec` 还会出现在宿主机的进程列表里。它只读一行，并且和 `dtk user passwd --stdin` 一样，同时去掉结尾的 `CR` 和 `LF`。值要么作为参数给，要么从 stdin 给：两样都给或者都没给，都是调用错误，退出码 2；stdin 上是空行也会被拒绝。敏感配置的确认会去读同一个 stdin 的下一行，所以管道里要加 `-y`：
+
+```bash
+printf '%s\n' "$WEBHOOK_SECRET" | docker compose -p dtk -f docker/compose.yml \
+  exec -T api dtk config set security.webhook_secret --stdin -y
 ```
 
 没有 `dtk config reset`。要把某项配置恢复默认，就把 `dtk config list` 显示的默认值显式设回去，或者在控制台里清掉这条覆盖。
