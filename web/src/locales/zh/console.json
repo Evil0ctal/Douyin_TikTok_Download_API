@@ -1485,7 +1485,17 @@
       "mix": "作者自建合集（合辑 / 播放列表）",
       "followers": "作者粉丝列表",
       "following": "作者关注列表",
-      "popular": "热门与排行榜"
+      "popular": "热门与排行榜",
+      "related": "相关推荐",
+      "mixes": "作者的合集（合集 / 播放列表）",
+      "music": "音乐详情",
+      "musicPosts": "使用某音乐的作品",
+      "hashtag": "话题详情",
+      "hashtagPosts": "话题下的作品",
+      "searchPosts": "搜索作品",
+      "searchUsers": "搜索账号",
+      "live": "直播间",
+      "trending": "热榜"
     },
     "endpointLabel": "接口",
     "explainAbsent": "本次运行没有要求说明发出的是什么请求，所以这里没有内容可看。请求确实发生过，本实例也确切知道自己向上游发了什么。",
@@ -1553,7 +1563,17 @@
       "sec_user_id": "作者稳定 ID，与链接二选一。",
       "sort": "评论排序：hot（默认，最热）或 new（最新）。翻页时带上游标的同时请保持同一个排序。",
       "url": "作品或主页链接，也可以直接粘贴分享文案。",
-      "wait": "服务端在同一连接上等待结果的秒数，超时则改为返回 task_id。"
+      "wait": "服务端在同一连接上等待结果的秒数，超时则改为返回 task_id。",
+      "music_id": "音乐 ID：作品 music 字段中的 music_id，或音乐链接末尾的数字。与链接二选一。",
+      "musicUrl": "音乐页面的链接，或包含它的分享文本。",
+      "hashtag_id": "话题的数字 ID：抖音话题链接中的数字，或话题详情返回的 hashtag_id。",
+      "hashtagUrl": "话题页面的链接。TikTok 的话题链接给的是名称而不是数字。",
+      "hashtagPostsUrl": "带有话题 ID 的链接。TikTok 的话题链接只有名称，请先用话题详情查出 ID。",
+      "hashtagName": "话题名称，带不带 # 都可以。名称、ID、链接三选一。",
+      "keyword": "要搜索的内容，就像在平台搜索框里输入的那样。",
+      "liveUrl": "直播间的链接。",
+      "room_id": "直播间链接中的数字。与链接二选一。",
+      "trendingBoard": "哪一个榜单：hot（默认）、entertainment（娱乐）、society（社会）或 challenge（挑战）。B 站只有 hot。"
     },
     "paramFor": {
       "bilibili": {
@@ -1562,7 +1582,8 @@
       },
       "tiktok": {
         "profileUrl": "主页链接给出的是 @用户名，只有作者资料接口接受它；作者的各类列表需要 sec_user_id。",
-        "sec_user_id": "作者的 secUid，以 MS4wLjABAAAA 开头。与链接二选一。"
+        "sec_user_id": "作者的 secUid，以 MS4wLjABAAAA 开头。与链接二选一。",
+        "room_id": "正在直播的账号的 @用户名，也就是 TikTok 直播链接里带的那一段。与链接二选一。"
       }
     },
     "poolEmptyHint": "当前没有可用身份，在恢复之前请求会以 IDENTITY_POOL_EXHAUSTED 被拒绝。",

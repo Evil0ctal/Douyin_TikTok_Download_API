@@ -1485,7 +1485,17 @@
       "mix": "Author's own series (mix / playlist)",
       "followers": "Author followers",
       "following": "Author following",
-      "popular": "Popular and rankings"
+      "popular": "Popular and rankings",
+      "related": "Related posts",
+      "mixes": "Author's series (mixes / playlists / seasons)",
+      "music": "Sound detail",
+      "musicPosts": "Posts using a sound",
+      "hashtag": "Hashtag detail",
+      "hashtagPosts": "Posts under a hashtag",
+      "searchPosts": "Search posts",
+      "searchUsers": "Search accounts",
+      "live": "Live room",
+      "trending": "Trending board"
     },
     "endpointLabel": "Endpoint",
     "explainAbsent": "This run did not ask what request was made, so there is nothing to show. It happened, and this instance knows exactly what it sent upstream.",
@@ -1553,7 +1563,17 @@
       "sec_user_id": "Stable author id. Provide this or a link.",
       "sort": "Order of the comments: hot (the default) or new. Send the same order again with a later page's cursor.",
       "url": "A post or profile link, or the share text around one.",
-      "wait": "Seconds the server may hold the connection before answering with a task id instead."
+      "wait": "Seconds the server may hold the connection before answering with a task id instead.",
+      "music_id": "The sound's id: the music_id in a post's music block, or the number a music link ends in. Provide this or a link.",
+      "musicUrl": "A link to the sound's page, or the share text around one.",
+      "hashtag_id": "The hashtag's numeric id: the number in a Douyin hashtag link, or the hashtag_id the hashtag detail returns.",
+      "hashtagUrl": "A link to the hashtag's page. A TikTok tag link names the hashtag rather than numbering it.",
+      "hashtagPostsUrl": "A link that carries the hashtag's id. A TikTok tag link names it instead, so look it up with the hashtag detail first.",
+      "hashtagName": "The hashtag's name, with or without the #. Provide this, an id or a link.",
+      "keyword": "What to search for, as you would type it into the platform's search box.",
+      "liveUrl": "A link to the live room.",
+      "room_id": "The number in the live room's link. Provide this or a link.",
+      "trendingBoard": "Which board: hot (the default), entertainment, society or challenge. Bilibili has hot only."
     },
     "paramFor": {
       "bilibili": {
@@ -1562,7 +1582,8 @@
       },
       "tiktok": {
         "profileUrl": "A profile link names an @handle, which only the author profile accepts. The author lists need sec_user_id.",
-        "sec_user_id": "The author's secUid, which starts MS4wLjABAAAA. Provide this or a link."
+        "sec_user_id": "The author's secUid, which starts MS4wLjABAAAA. Provide this or a link.",
+        "room_id": "The @handle of the account broadcasting, which is what a TikTok live link carries. Provide this or a link."
       }
     },
     "poolEmptyHint": "No identity is active. Requests are rejected with IDENTITY_POOL_EXHAUSTED until one recovers.",

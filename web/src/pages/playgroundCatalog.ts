@@ -372,6 +372,94 @@ const BOARD_COUNT_PARAM: ParamDef = {
   descriptionKey: 'playground.param.boardCount',
 }
 
+/** Read by Douyin and TikTok only: Bilibili answers no sound and no hashtag. */
+const SOUND_PLATFORMS: readonly Platform[] = ['douyin', 'tiktok']
+
+//? A sound's page. TikTok's link carries the title before the id; only the id is read.
+const MUSIC_URL_PARAM: ParamDef = {
+  ...URL_PARAM,
+  platforms: SOUND_PLATFORMS,
+  placeholder: {
+    douyin: 'https://www.douyin.com/music/7300000000000000000',
+    tiktok: 'https://www.tiktok.com/music/original-sound-7300000000000000000',
+    bilibili: '',
+  },
+  descriptionKey: 'playground.param.musicUrl',
+}
+const MUSIC_ID_PARAM: ParamDef = {
+  name: 'music_id',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  oneOf: 'target',
+  platforms: SOUND_PLATFORMS,
+  placeholder: '7300000000000000000',
+}
+//? A Douyin hashtag link numbers it; a TikTok tag link names it.
+const HASHTAG_URL_PARAM: ParamDef = {
+  ...URL_PARAM,
+  placeholder: {
+    douyin: 'https://www.douyin.com/hashtag/1592544802272436',
+    tiktok: 'https://www.tiktok.com/tag/fyp',
+    bilibili: '',
+  },
+  descriptionKey: 'playground.param.hashtagUrl',
+}
+const HASHTAG_ID_PARAM: ParamDef = {
+  name: 'hashtag_id',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  oneOf: 'target',
+  placeholder: '1592544802272436',
+}
+//? TikTok only: Douyin looks a hashtag up by its id alone and refuses a name.
+const HASHTAG_NAME_PARAM: ParamDef = {
+  name: 'name',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  oneOf: 'target',
+  platforms: ['tiktok'],
+  // eslint-disable-next-line local/no-untranslated-text -- a hashtag name, the same in any language
+  placeholder: 'fyp',
+  descriptionKey: 'playground.param.hashtagName',
+}
+const KEYWORD_PARAM: ParamDef = {
+  name: 'keyword',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  required: true,
+}
+//? A room is addressed the way its link addresses it, which differs by platform.
+const LIVE_URL_PARAM: ParamDef = {
+  ...URL_PARAM,
+  placeholder: {
+    douyin: 'https://live.douyin.com/615171448842',
+    tiktok: 'https://www.tiktok.com/@user/live',
+    bilibili: 'https://live.bilibili.com/173551',
+  },
+  descriptionKey: 'playground.param.liveUrl',
+}
+const ROOM_ID_PARAM: ParamDef = {
+  name: 'room_id',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  oneOf: 'target',
+  placeholder: { douyin: '615171448842', tiktok: 'user', bilibili: '173551' },
+  descriptions: { tiktok: 'playground.paramFor.tiktok.room_id' },
+}
+const TRENDING_BOARD_PARAM: ParamDef = {
+  name: 'board',
+  kind: 'choice',
+  where: 'query',
+  section: 'target',
+  choices: ['hot', 'entertainment', 'society', 'challenge'],
+  descriptionKey: 'playground.param.trendingBoard',
+}
+
 /* -------------------------------------------------------------------------- */
 /* The catalogue                                                               */
 /* -------------------------------------------------------------------------- */
@@ -561,6 +649,100 @@ export const CATALOG: readonly EndpointDef[] = [
     platformScoped: true,
     platforms: ['bilibili'],
     params: [BOARD_PARAM, BOARD_CURSOR_PARAM, BOARD_COUNT_PARAM, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'related',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/video/related`,
+    operation: 'related_posts',
+    platformScoped: true,
+    example: 'post',
+    params: [URL_PARAM, AWEME_ID_PARAM, COUNT_PARAM, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'mixes',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/user/mixes`,
+    operation: 'author_mixes',
+    platformScoped: true,
+    example: 'author',
+    params: [PROFILE_URL_PARAM, SEC_UID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'music',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/music`,
+    operation: 'music_detail',
+    platformScoped: true,
+    platforms: SOUND_PLATFORMS,
+    params: [MUSIC_URL_PARAM, MUSIC_ID_PARAM, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'musicPosts',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/music/posts`,
+    operation: 'music_posts',
+    platformScoped: true,
+    platforms: SOUND_PLATFORMS,
+    params: [MUSIC_URL_PARAM, MUSIC_ID_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'hashtag',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/hashtag`,
+    operation: 'hashtag_detail',
+    platformScoped: true,
+    platforms: SOUND_PLATFORMS,
+    params: [HASHTAG_URL_PARAM, HASHTAG_ID_PARAM, HASHTAG_NAME_PARAM, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'hashtagPosts',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/hashtag/posts`,
+    operation: 'hashtag_posts',
+    platformScoped: true,
+    platforms: ['tiktok'],
+    params: [
+      { ...HASHTAG_URL_PARAM, descriptionKey: 'playground.param.hashtagPostsUrl' },
+      HASHTAG_ID_PARAM,
+      ...PAGE_PARAMS,
+      ...ENVELOPE_PARAMS,
+    ],
+  },
+  {
+    id: 'searchPosts',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/search/posts`,
+    operation: 'search_posts',
+    platformScoped: true,
+    platforms: ['tiktok', 'bilibili'],
+    params: [KEYWORD_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'searchUsers',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/search/users`,
+    operation: 'search_authors',
+    platformScoped: true,
+    platforms: ['tiktok', 'bilibili'],
+    params: [KEYWORD_PARAM, ...PAGE_PARAMS, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'live',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/live`,
+    operation: 'live_room',
+    platformScoped: true,
+    params: [LIVE_URL_PARAM, ROOM_ID_PARAM, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'trending',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/trending`,
+    operation: 'trending',
+    platformScoped: true,
+    platforms: ['douyin', 'bilibili'],
+    params: [TRENDING_BOARD_PARAM, ...ENVELOPE_PARAMS],
   },
 ]
 
