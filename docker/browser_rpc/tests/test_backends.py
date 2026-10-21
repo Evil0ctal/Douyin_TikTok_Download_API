@@ -17,6 +17,7 @@ from browser_rpc.backends import build_backend
 from browser_rpc.backends.base import MintPlan, SignPlan
 from browser_rpc.backends.cloak import (
     CAPTURE_INIT_SCRIPT,
+    QUIET_MEDIA_SCRIPT,
     SIGN_SCRIPT,
     CloakBackend,
     CloakSigningContext,
@@ -148,6 +149,8 @@ class StubPage:
         # without it the signer sits above the SDK's patch and only ever sees
         # the unsigned URL.
         self.init_scripts: list[str] = []
+        self.evaluated: list[str] = []
+        self.in_front = False
 
     async def add_init_script(self, script: str) -> None:
         self.init_scripts.append(script)
@@ -155,7 +158,11 @@ class StubPage:
     async def goto(self, url: str, **_: object) -> None:
         self.url = url
 
+    async def bring_to_front(self) -> None:
+        self.in_front = True
+
     async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+        self.evaluated.append(script)
         # Two different questions arrive on this seam, and answering both with a
         # fingerprint made the readiness probe wait out its entire budget.
         if "__dtkSign" in script:
@@ -198,6 +205,76 @@ class TestWarmProfileDirectories:
         # Rebuilt every 30 minutes; a directory left behind each time fills the
         # profile tmpfs.
         assert not Path(opened[0]).exists()
+
+
+class TestWarmPagesGoToTheBackground:
+    """A warm page is a platform's home feed, which autoplays to nobody.
+
+    The demo's Douyin page held a renderer at 84% and a GPU process at 34% of a
+    2-core server for the 7.5 hours after it was opened, with no signature asked
+    of it in that time. So a warm page pauses its media and goes behind a blank
+    tab as soon as it can sign - and neither step may cost a page that works.
+    """
+
+    @staticmethod
+    def _backend(tmp_path: Path, context: StubContext) -> CloakBackend:
+        backend = CloakBackend(replace(Settings(backend="cloak"), profile_root=str(tmp_path)))
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            Path(profile_dir).mkdir(parents=True)
+            return context
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        return backend
+
+    @staticmethod
+    def _plan() -> SignPlan:
+        return SignPlan(
+            platform=Platform.DOUYIN,
+            url="https://www.douyin.com/aweme/v1/web/aweme/detail/",
+            query="aweme_id=7",
+            params={},
+        )
+
+    async def test_the_page_pauses_its_media_and_goes_behind_a_blank_tab(
+        self, tmp_path: Path
+    ) -> None:
+        browser = StubContext()
+        signing = await self._backend(tmp_path, browser).open_signing_context(
+            Platform.DOUYIN, FALLBACK_PROFILE
+        )
+        warm, cover = browser.pages
+        assert isinstance(warm, StubPage) and isinstance(cover, StubPage)
+        assert QUIET_MEDIA_SCRIPT in warm.evaluated
+        assert cover.in_front and not warm.in_front
+        # The blank tab is only a cover: signatures still come from the page
+        # that has the SDK loaded.
+        assert await signing.sign(self._plan()) == {"a_bogus": "stub"}
+        assert cover.evaluated == []
+        await signing.close()
+
+    async def test_a_page_that_cannot_be_quieted_still_signs(self, tmp_path: Path) -> None:
+        class LoudPage(StubPage):
+            async def evaluate(self, script: str, *rest: object) -> dict[str, object]:
+                if script == QUIET_MEDIA_SCRIPT:
+                    raise RuntimeError("Execution context was destroyed")
+                return await super().evaluate(script, *rest)
+
+        class NoTabs(StubContext):
+            async def new_page(self) -> StubPage:
+                if self.pages:
+                    raise RuntimeError("Target page, context or browser has been closed")
+                page = LoudPage()
+                self.pages.append(page)
+                return page
+
+        browser = NoTabs()
+        signing = await self._backend(tmp_path, browser).open_signing_context(
+            Platform.DOUYIN, FALLBACK_PROFILE
+        )
+        assert len(browser.pages) == 1
+        assert await signing.sign(self._plan()) == {"a_bogus": "stub"}
+        await signing.close()
 
 
 class TestFakeBackend:

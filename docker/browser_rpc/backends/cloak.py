@@ -256,6 +256,32 @@ async (input) => {
 }
 """
 
+#: Pauses the page's video now and whenever it starts again. Run once a warm
+#: page can sign, because what the page does with the rest of its life is play
+#: its feed to nobody.
+#:
+#: Both signing pages are the platforms' home feeds, which autoplay. The demo's
+#: Douyin page, measured on 2026-10-21, had held a renderer at 84% and a GPU
+#: process at 34% of a 2-core server for the 7.5 hours since it was opened -
+#: video decode and software compositing - and no signature had been asked of it
+#: in that time: a warm page is only rebuilt when it is used. Locally a TikTok
+#: page held 195% the same way. Whether a feed autoplays depends on the platform
+#: and the visitor's region, which is why it went unseen until then.
+#:
+#: Pausing is what a viewer does; nothing native is replaced, so there is no
+#: patched `play` for the platform's scripts to find. Measured fixes that did
+#: NOT work, so nobody tries them again: Page.setWebLifecycleState "frozen"
+#: left the video playing and the GPU process at 185%, and
+#: Emulation.setCPUThrottlingRate raised the renderer from 27% to 106%, because
+#: Chromium throttles by spinning.
+QUIET_MEDIA_SCRIPT = """
+() => {
+  const hush = (el) => { if (el instanceof HTMLMediaElement && !el.paused) el.pause(); };
+  document.querySelectorAll('video, audio').forEach(hush);
+  document.addEventListener('play', (event) => hush(event.target), true);
+}
+"""
+
 USER_AGENT_MAJOR_RE = re.compile(r"(?:Chrome|CriOS|Firefox|Version)/(\d+)")
 
 
@@ -628,6 +654,7 @@ class CloakBackend:
             major = browser_major_of(fingerprint.get("userAgent"))
             if major is not None:
                 self._chromium_major = major
+            await _send_to_background(context, page, platform)
         except Exception as exc:
             try:
                 await context.close()
@@ -638,6 +665,33 @@ class CloakBackend:
                 f"could not warm a signing page for {platform.value}: {exc}"
             ) from exc
         return CloakSigningContext(platform, context, page, profile_dir)
+
+
+async def _send_to_background(context: Any, page: Any, platform: Platform) -> None:
+    """Leave a warm page the way a visitor leaves a tab they are not watching.
+
+    Two steps, because each one stops what the other does not. Pausing the media
+    stops video decode and compositing - TikTok's page went from 195% to 2%. A
+    blank tab brought to the front makes the warm page a background tab, which
+    Chromium stops rendering: Douyin's page kept its loading spinners and other
+    CSS animations at 60 layouts a second with the video paused, and 1 a second
+    once behind a tab - 2-6% in all, against 60-80% as loaded. The page still
+    reports itself visible, because the driver emulates focus on every page, and
+    it signs from the background as fast as from the front: 8ms either way.
+
+    Neither step is allowed to cost a working page. A failure here means a
+    warm page that burns CPU, which is what it did before this existed; it
+    signs all the same.
+    """
+    try:
+        await page.evaluate(QUIET_MEDIA_SCRIPT)
+    except Exception as exc:
+        logger.warning("backend.cloak.quiet_media_failed platform=%s error=%s", platform.value, exc)
+    try:
+        cover = await context.new_page()
+        await cover.bring_to_front()
+    except Exception as exc:
+        logger.warning("backend.cloak.background_failed platform=%s error=%s", platform.value, exc)
 
 
 async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
