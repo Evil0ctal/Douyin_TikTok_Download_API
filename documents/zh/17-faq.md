@@ -185,11 +185,11 @@ HTTP 请求，就会拿到 `buvid3` 和 `buvid4`，而 B 站 Cookie 罐需要的
 | 接口 | 突发容量 | 补充速率 | 单身份持续速率 | 8 个身份持续速率 |
 | --- | --- | --- | --- | --- |
 | `*.content_detail`、`bilibili.content_streams` | 5 | 0.30/s | 3.3 秒一次 | 约 2.4/s |
-| `*.author_profile` | 4 | 0.20/s | 5 秒一次 | 约 1.6/s |
-| `*.comments`、`*.comment_replies`、`*.mix_posts` | 3 | 0.15/s | 6.7 秒一次 | 约 1.2/s |
+| `*.author_profile`、`*.related_posts`、`*.music_detail`、`*.hashtag_detail`、`*.live_room`、`*.trending`、`bilibili.live_streams` | 4 | 0.20/s | 5 秒一次 | 约 1.6/s |
+| `*.comments`、`*.comment_replies`、`*.mix_posts`、`*.author_mixes`、`*.music_posts`、`tiktok.hashtag_posts` | 3 | 0.15/s | 6.7 秒一次 | 约 1.2/s |
 | `douyin.author_posts`、`tiktok.author_posts`、`*.author_likes` | 3 | 0.12/s | 8.3 秒一次 | 约 1/s |
 | `tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12/s | 8.3 秒一次 | 约 1/s |
-| `bilibili.author_posts` | 2 | 0.08/s | 12.5 秒一次 | 约 0.6/s |
+| `bilibili.author_posts`、`*.search_posts`、`*.search_authors` | 2 | 0.08/s | 12.5 秒一次 | 约 0.6/s |
 | 未登记的接口 | 3 | 0.15/s | 6.7 秒一次 | 约 1.2/s |
 
 右边这一列是完全均摊情况下的天花板，不是承诺：身份在每次请求期间还持有独占锁，
@@ -230,9 +230,10 @@ B 站支持，从 5.1.6 起。其它的不支持。v5 支持三个平台：`douy
 
 在 B 站上，实例提供单个视频、视频的评论及其回复、作者主页和 UP 主投稿列表、作者公开
 的收藏夹、单个收藏夹里的视频、多 P 视频的分 P 列表（每一 P 都能单独下载），以及站点的
-热门榜单——综合热门、每周必看、入站必刷和排行榜 Top 100；`POST /api/v1/parse` 能识别 B 站链接，包括 `b23.tv`
-短链。作者的喜欢、转发、收藏、粉丝与关注列表，以及合集详情（`collection`）和合集作品
-（`mix/posts`），在 B 站上都不提供，会返回 `UNSUPPORTED_CONTENT` 并指明平台和能力。
+热门榜单——综合热门、每周必看、入站必刷和排行榜 Top 100——还有作者的合集及合集里的视频、
+视频旁的相关推荐、视频与 UP 主搜索、直播间和热搜；`POST /api/v1/parse` 能识别 B 站链接，包括 `b23.tv`
+短链和直播间。作者的喜欢、转发、收藏、粉丝与关注列表，以及收藏夹详情（`collection`）、音乐和话题，
+在 B 站上都不提供，会返回 `UNSUPPORTED_CONTENT` 并指明平台和能力。
 B 站国际版 `bilibili.tv` 是另一个服务，不受支持。ID、接口以及游客身份能拿到什么，
 见 [REST API 指南](./11-api.md#b-站)。
 
@@ -269,9 +270,10 @@ V4 也支持过 B 站，但 v5 与 V4 没有共用代码，所以什么都没有
 ### 它究竟能抓哪些东西？
 
 三个平台的链接、带文字的分享口令、短链，或者裸的作品 ID 都行；此外还有作者主页、
-作者的作品列表、评论及其回复，以及合集（在 B 站上是作者公开的收藏夹）。抖音和 TikTok
-另有作者的喜欢列表和合集作品——抖音的喜欢列表只给登录身份看——TikTok 上还有粉丝与关注列表；
-这些 B 站都不提供，它另有多 P 视频的分 P 列表和站点的热门榜单。调试台
+作者的作品列表、评论及其回复，以及收藏夹（在 B 站上是作者公开的收藏夹）。抖音和 TikTok
+另有作者的喜欢列表、音乐和话题——抖音的喜欢列表只给登录身份看——TikTok 上还有粉丝与关注列表和话题下的作品；
+这些 B 站都不提供，它另有多 P 视频的分 P 列表和站点的热门榜单。三个平台都有作者的合集、
+作品的相关推荐和直播间；TikTok 和 B 站能搜索，抖音和 B 站有热榜。调试台
 页面和 REST API 暴露的是同一套能力。完整清单见[调试台与工具](./07-playground-and-tools.md)
 和 [REST API 指南](./11-api.md)；为什么其中有些比另一些更费身份额度，见
 [核心概念](./04-concepts.md)。

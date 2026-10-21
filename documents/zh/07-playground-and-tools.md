@@ -59,6 +59,16 @@
 | 作者粉丝列表 | `GET` | `/api/v1/{platform}/user/followers` | `{platform}.author_followers` |
 | 作者关注列表 | `GET` | `/api/v1/{platform}/user/following` | `{platform}.author_following` |
 | 热门与排行榜 | `GET` | `/api/v1/{platform}/popular` | `{platform}.popular`、`.popular_weekly`、`.popular_precious` 或 `.ranking`，取决于榜单 |
+| 相关推荐 | `GET` | `/api/v1/{platform}/video/related` | `{platform}.related_posts` |
+| 作者的合集（合集 / 播放列表） | `GET` | `/api/v1/{platform}/user/mixes` | `{platform}.author_mixes` |
+| 音乐详情 | `GET` | `/api/v1/{platform}/music` | `{platform}.music_detail` |
+| 使用某音乐的作品 | `GET` | `/api/v1/{platform}/music/posts` | `{platform}.music_posts` |
+| 话题详情 | `GET` | `/api/v1/{platform}/hashtag` | `{platform}.hashtag_detail` |
+| 话题下的作品 | `GET` | `/api/v1/{platform}/hashtag/posts` | `{platform}.hashtag_posts` |
+| 搜索作品 | `GET` | `/api/v1/{platform}/search/posts` | `{platform}.search_posts` |
+| 搜索账号 | `GET` | `/api/v1/{platform}/search/users` | `{platform}.search_authors` |
+| 直播间 | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`；B 站直播间正在直播时还有 `bilibili.live_streams` |
+| 热榜 | `GET` | `/api/v1/{platform}/trending` | `{platform}.trending` |
 
 并不是每个平台都提供每一项。问一个平台不提供的那一项，会在 API 边界就被以 `UNSUPPORTED_CONTENT`（400）拒掉，并指明平台和能力：没有 request_id，失败面板也匹配不到同名的调度器接口。
 

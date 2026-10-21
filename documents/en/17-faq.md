@@ -220,11 +220,11 @@ What an identity is actually worth is set by the token bucket, which is per
 | Endpoint | Burst | Refill | Sustained, one identity | Sustained, 8 identities |
 | --- | --- | --- | --- | --- |
 | `*.content_detail`, `bilibili.content_streams` | 5 | 0.30/s | 1 per 3.3s | ~2.4/s |
-| `*.author_profile` | 4 | 0.20/s | 1 per 5s | ~1.6/s |
-| `*.comments`, `*.comment_replies`, `*.mix_posts` | 3 | 0.15/s | 1 per 6.7s | ~1.2/s |
+| `*.author_profile`, `*.related_posts`, `*.music_detail`, `*.hashtag_detail`, `*.live_room`, `*.trending`, `bilibili.live_streams` | 4 | 0.20/s | 1 per 5s | ~1.6/s |
+| `*.comments`, `*.comment_replies`, `*.mix_posts`, `*.author_mixes`, `*.music_posts`, `tiktok.hashtag_posts` | 3 | 0.15/s | 1 per 6.7s | ~1.2/s |
 | `douyin.author_posts`, `tiktok.author_posts`, `*.author_likes` | 3 | 0.12/s | 1 per 8.3s | ~1/s |
 | `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12/s | 1 per 8.3s | ~1/s |
-| `bilibili.author_posts` | 2 | 0.08/s | 1 per 12.5s | ~0.6/s |
+| `bilibili.author_posts`, `*.search_posts`, `*.search_authors` | 2 | 0.08/s | 1 per 12.5s | ~0.6/s |
 | anything unregistered | 3 | 0.15/s | 1 per 6.7s | ~1.2/s |
 
 Those right-hand figures are ceilings under perfect spread, not promises: an
@@ -278,9 +278,11 @@ On Bilibili the instance serves one video, its comments and their replies, an
 author's profile and uploaded videos, the author's public favourites folders, the
 videos in one folder, the parts of a video uploaded in several (each one
 downloadable on its own), and the site's popular boards - what is hot now, the
-weekly selection, the all-time picks and the top 100; `POST /api/v1/parse` recognises Bilibili links,
-including `b23.tv` short links. An author's likes, reposts, bookmarks, followers
-and following, a collection's detail (`collection`) and mixes (`mix/posts`) are
+weekly selection, the all-time picks and the top 100 - plus an author's seasons
+and the videos in one, the videos recommended beside one, video and uploader
+search, live rooms and the hot search; `POST /api/v1/parse` recognises Bilibili links,
+including `b23.tv` short links and live rooms. An author's likes, reposts, bookmarks, followers
+and following, a collection's detail (`collection`), sounds and hashtags are
 not served there, and answer `UNSUPPORTED_CONTENT` naming the platform and the
 capability. The international site `bilibili.tv` is a different service and is
 not supported. Ids, endpoints and what a guest identity gets are in the
@@ -332,10 +334,12 @@ download. On TikTok a photo post's slides are parsed as stills only.
 A link, a share message with text around it, a short link, or a bare post id, on
 any of the three platforms — plus author profiles, an author's posts, comments and
 their replies, and collections (on Bilibili, an author's public favourites
-folders). Douyin and TikTok add an author's likes and mixes - Douyin shows likes
-only to a logged-in identity - and TikTok followers and following; Bilibili
-serves none of those, and adds instead a video's parts and the site's popular
-boards. The Playground page and the REST
+folders). Douyin and TikTok add an author's likes, sounds and hashtags - Douyin
+shows likes only to a logged-in identity - and TikTok followers and following and
+the posts under a hashtag; Bilibili serves none of those, and adds instead a
+video's parts and the site's popular boards. All three serve an author's own
+series, the posts recommended beside one and live rooms; TikTok and Bilibili
+search, and Douyin and Bilibili serve a trending board. The Playground page and the REST
 API expose the same set. See
 [Playground and tools](./07-playground-and-tools.md) and the
 [REST API guide](./11-api.md) for the full list, and

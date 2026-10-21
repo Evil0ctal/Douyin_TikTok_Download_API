@@ -10,7 +10,11 @@
 Built with Python 3.12, FastAPI, PostgreSQL + TimescaleDB and Redis; the console
 is React. It fetches posts, authors, comments and mixes from Douyin and
 TikTok, and videos (part by part for one uploaded in several), uploaders,
-comments, public folders and the site's popular boards from Bilibili. It
+comments, public folders, seasons and the site's popular boards from
+Bilibili. Beside a post it reads the related posts on all three, sounds and
+hashtags on Douyin and TikTok, live rooms with their pull URLs on all three,
+trending boards on Douyin and Bilibili, and keyword search for posts and
+accounts on TikTok and Bilibili. It
 downloads video and image albums using the watermark-free stream the platform
 already publishes (it selects that stream, it does not strip a watermark) — a
 Bilibili video is one progressive MP4 — and archives what it collects so a post

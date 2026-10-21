@@ -89,6 +89,16 @@ until that answers, nothing is greyed.
 | Author followers | `GET` | `/api/v1/{platform}/user/followers` | `{platform}.author_followers` |
 | Author following | `GET` | `/api/v1/{platform}/user/following` | `{platform}.author_following` |
 | Popular and rankings | `GET` | `/api/v1/{platform}/popular` | `{platform}.popular`, `.popular_weekly`, `.popular_precious` or `.ranking`, by board |
+| Related posts | `GET` | `/api/v1/{platform}/video/related` | `{platform}.related_posts` |
+| Author's series (mixes / playlists / seasons) | `GET` | `/api/v1/{platform}/user/mixes` | `{platform}.author_mixes` |
+| Sound detail | `GET` | `/api/v1/{platform}/music` | `{platform}.music_detail` |
+| Posts using a sound | `GET` | `/api/v1/{platform}/music/posts` | `{platform}.music_posts` |
+| Hashtag detail | `GET` | `/api/v1/{platform}/hashtag` | `{platform}.hashtag_detail` |
+| Posts under a hashtag | `GET` | `/api/v1/{platform}/hashtag/posts` | `{platform}.hashtag_posts` |
+| Search posts | `GET` | `/api/v1/{platform}/search/posts` | `{platform}.search_posts` |
+| Search accounts | `GET` | `/api/v1/{platform}/search/users` | `{platform}.search_authors` |
+| Live room | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`, and `bilibili.live_streams` for a Bilibili room that is on |
+| Trending board | `GET` | `/api/v1/{platform}/trending` | `{platform}.trending` |
 
 Not every platform serves every entry, and asking for one it does not serve is
 refused at the API boundary with `UNSUPPORTED_CONTENT` (400) naming the platform
