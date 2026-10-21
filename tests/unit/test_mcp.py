@@ -560,8 +560,25 @@ class TestParseUrl:
     async def test_an_unsupported_resource_says_what_is_covered(self):
         tools = ToolSet(make_context())
         with pytest.raises(ToolError) as caught:
-            await tools.parse_url("https://live.douyin.com/123456789")
+            await tools.parse_url("https://www.douyin.com/search/cat")
         assert "UNSUPPORTED_CONTENT" in str(caught.value)
+        assert "live rooms" in str(caught.value)
+
+    @pytest.mark.parametrize(
+        "link",
+        [
+            "https://live.douyin.com/123456789",
+            "https://www.douyin.com/music/7661456186985761599",
+            "https://www.tiktok.com/tag/hibachi",
+            "https://live.bilibili.com/173551",
+        ],
+    )
+    async def test_a_sound_a_hashtag_and_a_live_room_go_to_parse(self, link):
+        """/parse answers them now; the tool set did not grow for it."""
+        tasks = FakeTasks(wait=TaskOutcome(TASK_ID, TaskState.DONE, {}))
+        tools = ToolSet(make_context(tasks))
+        await tools.parse_url(link)
+        assert tasks.submitted[0][0] == routing.PARSE_ENDPOINT
 
     async def test_an_allowed_host_that_points_at_nothing_costs_no_quota(self):
         """A feed or a settings page passes the allowlist but is not a resource.

@@ -65,13 +65,12 @@ MAX_COUNT: Final = 50
 
 #: Recognized resource kinds this tool set has no endpoint for. A short link is
 #: absent on purpose: what it points at is unknown until it has been followed.
+#: A sound, a hashtag and a live room left this set when /parse learned to
+#: answer them; the tool set did not grow for it, parse_url just goes further.
 _UNFETCHABLE: Final[frozenset[ResourceKind]] = frozenset(
     {
-        ResourceKind.LIVE,
         ResourceKind.LIVE_ROOM,
         ResourceKind.MIX,
-        ResourceKind.MUSIC,
-        ResourceKind.CHALLENGE,
         ResourceKind.SEARCH,
     }
 )
@@ -249,7 +248,8 @@ def route_url(kind: UrlKind) -> tuple[str, dict[str, Any]]:
     if kind.resource in _UNFETCHABLE:
         raise UnsupportedContent(
             f"that link points at a {kind.resource.value.replace('_', ' ')}, which this "
-            "tool set does not cover; it handles posts and user profiles",
+            "tool set does not cover; it handles posts, user profiles, sounds, hashtags "
+            "and live rooms",
             details={"resource": kind.resource.value, "url": kind.url},
         )
     return PARSE_ENDPOINT, {"url": kind.url}

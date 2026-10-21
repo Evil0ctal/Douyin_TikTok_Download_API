@@ -310,7 +310,9 @@ class ToolSet:
 
         The entry point to use when you have a link rather than an id: it works
         out the platform and the resource type itself and returns the normalized
-        post or author. Short links are expanded server-side.
+        post or author - or, for a link to one, the sound, the hashtag or the
+        live room (with its pull URLs while it is on). Short links are expanded
+        server-side.
         """
         return await self._guarded(self._parse_url(url, context))
 
