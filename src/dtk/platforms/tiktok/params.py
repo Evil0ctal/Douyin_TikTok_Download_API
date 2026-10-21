@@ -488,6 +488,35 @@ def related_posts_params(
     }
 
 
+def music_detail_params(
+    *, music_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``/api/music/detail/``. ``musicId``, lower-case d."""
+    return {**base_params(profile), "musicId": str(music_id)}
+
+
+def music_posts_params(
+    *,
+    music_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/music/item_list/``.
+
+    ``musicID`` here, upper-case D, where the detail says ``musicId``: the
+    two paths spell the same id differently, and each answers only its own
+    spelling. The cursor is an item offset.
+    """
+    return {
+        **base_params(profile),
+        "musicID": str(music_id),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+    }
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

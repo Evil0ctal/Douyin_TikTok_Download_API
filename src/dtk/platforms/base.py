@@ -38,7 +38,7 @@ from urllib.parse import urlencode
 
 from dtk.core.errors import InvalidParam
 from dtk.core.types import LoginNeed, Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
+from dtk.models import Author, Collection, Comment, Content, ContentPart, MusicDetail, Page
 
 HttpMethod = Literal["GET", "POST"]
 
@@ -586,6 +586,12 @@ class PlatformAdapter(Protocol):
         """The posts a platform recommends beside one, as one batch: none of
         the three pages them in a way a caller could follow."""
         ...
+
+    def parse_music_detail(self, payload: Mapping[str, Any]) -> MusicDetail: ...
+
+    def parse_music_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]: ...
 
 
 __all__ = [

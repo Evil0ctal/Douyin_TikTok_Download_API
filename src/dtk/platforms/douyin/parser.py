@@ -42,6 +42,7 @@ from dtk.models import (
     Image,
     Media,
     Music,
+    MusicDetail,
     Page,
     VideoStream,
 )
@@ -532,6 +533,64 @@ def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> 
     return Page(items=items, cursor=None, has_more=False)
 
 
+def music_web_url(music_id: str) -> str:
+    return f"{WEB_DOMAIN}/music/{music_id}"
+
+
+def _music_owner(node: Node) -> Author | None:
+    """Who published a sound, from the ``owner_*`` fields beside it.
+
+    Not a user object: the detail flattens its publisher into ``sec_uid``,
+    ``owner_nickname`` and ``owner_handle`` with the avatar alongside. A
+    library track carries neither and has no owner rather than half of one.
+    """
+    sec_uid = optional_str(node.get("sec_uid"))
+    nickname = optional_str(node.get("owner_nickname"))
+    if sec_uid is None or nickname is None:
+        return None
+    return Author(
+        platform=_PLATFORM,
+        uid=sec_uid,
+        sec_uid=sec_uid,
+        unique_id=optional_str(node.get("owner_handle")),
+        nickname=nickname,
+        avatar=_avatar(node),
+        web_url=author_web_url(sec_uid),
+    )
+
+
+def parse_music_detail(payload: Mapping[str, Any]) -> MusicDetail:
+    """Parse ``/aweme/v1/web/music/detail/``.
+
+    ``is_original`` is read from ``is_original_sound``, not from the field
+    called ``is_original``: measured 2026-10-20, a sound lifted from a post
+    said ``is_original_sound: true`` and ``is_original: false``, the latter
+    being whether a musician released it as their own track.
+    """
+    node = _guard(payload).child("music_info")
+    music_id = optional_id(node.get("id_str")) or node.id("mid")
+    base = _music(node) or Music()
+    return MusicDetail(
+        **base.model_dump(exclude={"music_id"}),
+        music_id=music_id,
+        platform=_PLATFORM,
+        web_url=music_web_url(music_id),
+        content_count=optional_int(node.get("user_count")),
+        is_original=optional_bool(node.get("is_original_sound")),
+        owner=_music_owner(node),
+        raw=node.raw(),
+    )
+
+
+def parse_music_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/aweme/v1/web/music/aweme/``: posts, paged by an offset ``cursor``.
+
+    The ``cursor`` key and not ``max_cursor``, the same split as
+    :func:`parse_collection_posts`; one function does not serve both.
+    """
+    return parse_collection_posts(payload, fetched_at=fetched_at)
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -628,11 +687,14 @@ __all__ = [
     "content_from_node",
     "content_web_url",
     "detect_risk_control",
+    "music_web_url",
     "parse_author",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_music_detail",
+    "parse_music_posts",
     "parse_related_posts",
     "parse_reply_previews",
 ]

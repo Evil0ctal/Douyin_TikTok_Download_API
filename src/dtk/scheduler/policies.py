@@ -65,6 +65,9 @@ _POLICIES: dict[str, EndpointPolicy] = {
         # One batch per post, never paged, but a recommender: what a page asks
         # once per post opened, so faster than a list and slower than a detail.
         EndpointPolicy("douyin.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        # A sound is one small object, like a profile; its posts page like a mix.
+        EndpointPolicy("douyin.music_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("douyin.music_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         EndpointPolicy("tiktok.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
@@ -88,6 +91,8 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("tiktok.author_followers", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.author_following", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        EndpointPolicy("tiktok.music_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
+        EndpointPolicy("tiktok.music_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("bilibili.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("bilibili.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         # Asked once per detail, by the fetch layer, for the file itself. Same

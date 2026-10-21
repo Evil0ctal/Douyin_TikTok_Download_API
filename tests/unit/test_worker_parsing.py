@@ -140,6 +140,25 @@ def test_to_call_is_pure():
     assert params == {"content_id": "7372484719365098803"}
 
 
+@pytest.mark.parametrize(
+    ("link", "endpoint", "music_id"),
+    [
+        (
+            "https://www.douyin.com/music/7661456186985761599",
+            "douyin.music_detail",
+            "7661456186985761599",
+        ),
+        (
+            "https://www.tiktok.com/music/original-sound-7686730447438514957",
+            "tiktok.music_detail",
+            "7686730447438514957",
+        ),
+    ],
+)
+def test_a_music_link_is_answered_with_the_sound(link: str, endpoint: str, music_id: str):
+    assert to_call(identify(link)) == (endpoint, {"music_id": music_id})
+
+
 def test_a_bilibili_folder_link_is_answered_with_its_videos():
     """Bilibili has no folder detail; its folder list carries name, cover and size.
 
@@ -164,6 +183,8 @@ def test_a_bilibili_folder_link_is_answered_with_its_videos():
         "https://www.bilibili.com/video/BV1xx411c7mD",
         "https://space.bilibili.com/670061998",
         "https://space.bilibili.com/18202105/favlist?fid=58074805",
+        "https://www.douyin.com/music/7661456186985761599",
+        "https://www.tiktok.com/music/original-sound-7686730447438514957",
     ],
 )
 def test_every_link_kind_lands_on_an_endpoint_that_exists(link: str):

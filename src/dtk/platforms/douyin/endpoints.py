@@ -28,6 +28,8 @@ from dtk.platforms.douyin.params import (
     comments_params,
     content_detail_params,
     mix_posts_params,
+    music_detail_params,
+    music_posts_params,
     related_posts_params,
     session_check_params,
 )
@@ -93,6 +95,12 @@ class DouyinAPIEndpoints:
 
     # Post detail
     POST_DETAIL: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/"
+
+    # A sound: its title, its publisher and how many posts use it
+    MUSIC_DETAIL: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/music/detail/"
+
+    # The posts that use one sound
+    MUSIC_AWEME: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/music/aweme/"
 
     # Danmaku (on-video comments) for a single post
     POST_DANMAKU: Final = f"{DOUYIN_DOMAIN}/aweme/v1/web/danmaku/get_v2/"
@@ -208,6 +216,8 @@ COLLECTION_POSTS: Final = "douyin.collection_posts"
 MIX_POSTS: Final = "douyin.mix_posts"
 SESSION_CHECK: Final = "douyin.session_check"
 RELATED_POSTS: Final = "douyin.related_posts"
+MUSIC_DETAIL: Final = "douyin.music_detail"
+MUSIC_POSTS: Final = "douyin.music_posts"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -356,6 +366,28 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts the site recommends beside one post",
     ),
     EndpointSpec(
+        name=MUSIC_DETAIL,
+        path=DouyinAPIEndpoints.MUSIC_DETAIL,
+        required=("music_id",),
+        build=music_detail_params,
+        risk_weight=1.0,
+        # A sound that does not exist is `status_code: 0` and `music_info:
+        # null` (measured 2026-10-20), which read as a payload with a field
+        # missing - a schema change - instead of as not found.
+        absent_when_null="music_info",
+        summary="One sound: its title, publisher and how many posts use it",
+    ),
+    EndpointSpec(
+        name=MUSIC_POSTS,
+        path=DouyinAPIEndpoints.MUSIC_AWEME,
+        required=("music_id",),
+        build=music_posts_params,
+        risk_weight=1.5,
+        # Pages for a guest, unlike an author's posts: page two of a sound
+        # with 100k posts answered nine more and a next cursor (2026-10-20).
+        summary="Posts that use one sound, paged by cursor",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -387,6 +419,8 @@ __all__ = [
     "DEFAULT_HEADERS",
     "ENDPOINTS",
     "MIX_POSTS",
+    "MUSIC_DETAIL",
+    "MUSIC_POSTS",
     "RELATED_POSTS",
     "DouyinAPIEndpoints",
 ]

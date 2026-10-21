@@ -229,6 +229,31 @@ class Collection(_Base):
     raw: dict | None = None
 
 
+class MusicDetail(Music):
+    """A sound on its own page: what a post's ``music`` names, and more.
+
+    A type of its own rather than more fields on :class:`Music`, for the
+    reason :class:`AlbumImage` is one: every post carries a ``music`` block,
+    and printing ``"content_count": null`` in each of them would describe a
+    count nobody asked for. Only the sound's own endpoint knows how many posts
+    use it and who published it.
+    """
+
+    platform: Platform
+    #: Required here, unlike on a post's block: the detail is asked for by it.
+    music_id: str
+    web_url: str | None = None
+    #: Posts that use the sound, as the platform counts them.
+    content_count: int | None = None
+    #: Whether this is the audio of the post it was first published with,
+    #: rather than a track from the platform's library.
+    is_original: bool | None = None
+    #: The account that published it, when the platform names one. A library
+    #: track usually has none.
+    owner: Author | None = None
+    raw: dict | None = None
+
+
 class Page[T](BaseModel):
     """A page of results with an opaque cursor.
 
@@ -255,6 +280,7 @@ __all__ = [
     "Image",
     "Media",
     "Music",
+    "MusicDetail",
     "Page",
     "VideoStream",
 ]

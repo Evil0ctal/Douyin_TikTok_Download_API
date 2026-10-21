@@ -13,7 +13,7 @@ from typing import Any
 
 from dtk.core.errors import UnsupportedContent
 from dtk.core.types import Platform
-from dtk.models import Author, Collection, Comment, Content, ContentPart, Page
+from dtk.models import Author, Collection, Comment, Content, ContentPart, MusicDetail, Page
 from dtk.platforms.base import (
     ClientProfile,
     EndpointTable,
@@ -165,6 +165,22 @@ class BilibiliAdapter:
         self, payload: Mapping[str, Any], *, fetched_at: datetime
     ) -> Page[Content]:
         return parser.parse_related_posts(payload, fetched_at=fetched_at)
+
+    def parse_music_detail(self, payload: Mapping[str, Any]) -> MusicDetail:
+        """Bilibili has no sounds a post is made with; no music endpoint is
+        registered."""
+        raise UnsupportedContent(
+            "Bilibili videos do not carry a reusable sound",
+            details={"platform": self.platform.value, "capability": "music_detail"},
+        )
+
+    def parse_music_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        raise UnsupportedContent(
+            "Bilibili videos do not carry a reusable sound",
+            details={"platform": self.platform.value, "capability": "music_posts"},
+        )
 
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()

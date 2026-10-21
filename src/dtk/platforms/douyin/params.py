@@ -349,6 +349,34 @@ def related_posts_params(
     }
 
 
+def music_detail_params(
+    *, music_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/music/detail/``."""
+    return {**base_params(profile), "music_id": str(music_id)}
+
+
+def music_posts_params(
+    *,
+    music_id: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/music/aweme/``.
+
+    The cursor is an item offset. Measured 2026-10-20 with a guest: ``count``
+    above 13 or so is answered with 13, and the next page starts where the
+    answer's ``cursor`` says.
+    """
+    return {
+        **base_params(profile),
+        "music_id": str(music_id),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+    }
+
+
 def comments_params(
     *,
     aweme_id: str,

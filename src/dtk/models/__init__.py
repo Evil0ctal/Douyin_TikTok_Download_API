@@ -10,6 +10,7 @@ from dtk.models.content import (
     Image,
     Media,
     Music,
+    MusicDetail,
     Page,
     VideoStream,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "Image",
     "Media",
     "Music",
+    "MusicDetail",
     "Page",
     "VideoStream",
 ]

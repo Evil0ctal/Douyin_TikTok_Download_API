@@ -82,3 +82,111 @@ def test_related_posts_resolve_through_the_registry(name: str) -> None:
     assert definition.cache_ttl_key == "cache.list_ttl"
     page = definition.parse(load(name, "related_posts"), fetched_at=FETCHED_AT)
     assert [item.content_id for item in page.items] == RELATED_IDS[name]
+
+
+# --------------------------------------------------------------------------
+# Sounds
+# --------------------------------------------------------------------------
+
+MUSIC_PLATFORMS = ("douyin", "tiktok")
+
+
+def test_a_douyin_sound_and_its_publisher() -> None:
+    sound = get_adapter("douyin").parse_music_detail(load("douyin", "music_detail"))
+
+    assert sound.platform is Platform.DOUYIN
+    assert sound.music_id == "6800000000000000001"
+    assert sound.title == "original sound - Synthetic Creator"
+    assert sound.author == "Synthetic Creator"
+    assert sound.duration_ms == 19_000
+    assert sound.play_url == "https://sf6-cdn-tos.example-cdn.invalid/obj/ies-music/synthetic.mp3"
+    assert sound.cover is not None
+    assert sound.web_url == "https://www.douyin.com/music/6800000000000000001"
+    assert sound.content_count == 103176
+    # `is_original_sound`, not `is_original`: the capture said true and false.
+    assert sound.is_original is True
+    assert sound.owner is not None
+    assert sound.owner.uid == sound.owner.sec_uid == "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001"
+    assert sound.owner.nickname == "Synthetic Creator"
+    assert sound.owner.unique_id == "88881111"
+    assert sound.raw is not None
+
+
+def test_a_douyin_library_track_has_no_owner() -> None:
+    payload = load("douyin", "music_detail")
+    for key in ("sec_uid", "owner_nickname", "owner_handle", "owner_id"):
+        payload["music_info"].pop(key)
+    assert get_adapter("douyin").parse_music_detail(payload).owner is None
+
+
+def test_a_tiktok_sound_and_its_publisher() -> None:
+    sound = get_adapter("tiktok").parse_music_detail(load("tiktok", "music_detail"))
+
+    assert sound.platform is Platform.TIKTOK
+    assert sound.music_id == "6900000000000000101"
+    assert sound.title == "original sound"
+    assert sound.author == "Synthetic Creator"
+    assert sound.duration_ms == 13_000
+    assert sound.play_url == "https://v16.example-cdn.invalid/music/synthetic.mp3"
+    assert sound.web_url == "https://www.tiktok.com/music/original-sound-6900000000000000101"
+    assert sound.content_count == 189400
+    assert sound.is_original is True
+    assert sound.owner is not None
+    assert sound.owner.sec_uid == "MS4wLjABAAAA_SYNTHETIC_TIKTOK_AUTHOR_0001"
+    assert sound.owner.unique_id == "synthetic.creator"
+
+
+def test_a_tiktok_sound_without_a_title_still_has_a_link() -> None:
+    payload = load("tiktok", "music_detail")
+    payload["musicInfo"]["music"]["title"] = ""
+    payload["musicInfo"].pop("author")
+    sound = get_adapter("tiktok").parse_music_detail(payload)
+    assert sound.web_url == "https://www.tiktok.com/music/-6900000000000000101"
+    assert sound.owner is None
+
+
+@pytest.mark.parametrize("name", MUSIC_PLATFORMS)
+def test_both_platforms_produce_the_same_sound_shape(name: str) -> None:
+    sound = get_adapter(name).parse_music_detail(load(name, "music_detail"))
+    other = get_adapter("tiktok" if name == "douyin" else "douyin").parse_music_detail(
+        load("tiktok" if name == "douyin" else "douyin", "music_detail")
+    )
+    assert set(sound.model_dump()) == set(other.model_dump())
+
+
+@pytest.mark.parametrize(
+    ("name", "path"),
+    [("douyin", "music_info"), ("tiktok", "musicInfo"), ("tiktok", "musicInfo.music")],
+)
+def test_a_sound_without_its_block_is_a_schema_change(name: str, path: str) -> None:
+    with pytest.raises(UpstreamChanged) as caught:
+        get_adapter(name).parse_music_detail(without(load(name, "music_detail"), path))
+    assert caught.value.details["path"] == path
+
+
+@pytest.mark.parametrize(("name", "cursor"), [("douyin", "13"), ("tiktok", "30")])
+def test_the_posts_of_a_sound_page_by_cursor(name: str, cursor: str) -> None:
+    page = get_adapter(name).parse_music_posts(
+        load(name, "music_posts_page1"), fetched_at=FETCHED_AT
+    )
+    assert [item.content_id for item in page.items] == RELATED_IDS[name]
+    assert page.cursor == cursor
+    assert page.has_more is True
+
+
+@pytest.mark.parametrize("name", MUSIC_PLATFORMS)
+def test_sounds_resolve_through_the_registry(name: str) -> None:
+    detail = registry.definition_for(f"{name}.music_detail")
+    posts = registry.definition_for(f"{name}.music_posts")
+    assert detail.required == posts.required == (registry.MUSIC_ID,)
+    assert detail.cache_ttl_key == "cache.author_ttl"
+    sound = detail.parse(load(name, "music_detail"))
+    assert sound.content_count is not None
+
+
+def test_bilibili_has_no_sounds_to_ask_about() -> None:
+    from dtk.core.errors import UnsupportedContent
+
+    assert "bilibili.music_detail" not in registry.ENDPOINTS
+    with pytest.raises(UnsupportedContent):
+        get_adapter("bilibili").parse_music_detail({})

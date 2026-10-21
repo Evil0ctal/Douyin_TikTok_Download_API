@@ -76,6 +76,9 @@ class Capability(StrEnum):
     RANKING = "ranking"
     #: What the platform recommends beside one post: one batch, not a page.
     RELATED_POSTS = "related_posts"
+    #: A sound a post is made with, and the posts that use it.
+    MUSIC_DETAIL = "music_detail"
+    MUSIC_POSTS = "music_posts"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -129,6 +132,8 @@ AUTHOR_ID: Final = "author_id"
 UNIQUE_ID: Final = "unique_id"
 MIX_ID: Final = "mix_id"
 COLLECTION_ID: Final = "collection_id"
+#: A sound, by the id a post's ``music`` carries and a music link ends in.
+MUSIC_ID: Final = "music_id"
 
 #: Every stable author id both platforms issue starts with this. It is the only
 #: way to tell one from an @handle without asking the platform.
@@ -212,7 +217,7 @@ ENVELOPE_PARAMS: Final[frozenset[str]] = frozenset(
 #: Canonical parameters whose value is an identifier. Ids are always strings:
 #: a 19-digit aweme_id exceeds the JavaScript safe range (doc 11).
 _ID_PARAMS: Final[frozenset[str]] = frozenset(
-    {CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID, MIX_ID, COLLECTION_ID}
+    {CONTENT_ID, AUTHOR_ID, UNIQUE_ID, COMMENT_ID, MIX_ID, COLLECTION_ID, MUSIC_ID}
 )
 
 #: canonical name -> platform builder keyword, per platform and capability.
@@ -245,6 +250,8 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             COUNT: "count",
         },
         Capability.RELATED_POSTS: {CONTENT_ID: "aweme_id", COUNT: "count"},
+        Capability.MUSIC_DETAIL: {MUSIC_ID: "music_id"},
+        Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -273,6 +280,8 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.RELATED_POSTS: {CONTENT_ID: "item_id", COUNT: "count"},
+        Capability.MUSIC_DETAIL: {MUSIC_ID: "music_id"},
+        Capability.MUSIC_POSTS: {MUSIC_ID: "music_id", CURSOR: "cursor", COUNT: "count"},
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -344,6 +353,10 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.POPULAR_PRECIOUS: "cache.list_ttl",
         Capability.RANKING: "cache.list_ttl",
         Capability.RELATED_POSTS: "cache.list_ttl",
+        # A sound's title and publisher are fixed; its use count moves at the
+        # speed of an author's follower count.
+        Capability.MUSIC_DETAIL: "cache.author_ttl",
+        Capability.MUSIC_POSTS: "cache.list_ttl",
     }
 )
 
@@ -556,6 +569,10 @@ class EndpointDefinition:
                 )
             case Capability.RELATED_POSTS:
                 return adapter.parse_related_posts(payload, fetched_at=when)
+            case Capability.MUSIC_DETAIL:
+                return adapter.parse_music_detail(payload)
+            case Capability.MUSIC_POSTS:
+                return adapter.parse_music_posts(payload, fetched_at=when)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
@@ -750,6 +767,7 @@ __all__ = [
     "ENDPOINTS",
     "ENVELOPE_PARAMS",
     "HANDLE_PLATFORMS",
+    "MUSIC_ID",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",
     "PART",

@@ -22,6 +22,7 @@ lenient parser would keep working while quietly mapping half the fields to
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Final
@@ -39,6 +40,7 @@ from dtk.models import (
     Image,
     Media,
     Music,
+    MusicDetail,
     Page,
     VideoStream,
 )
@@ -480,6 +482,50 @@ def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> 
     return Page(items=items, cursor=None, has_more=False)
 
 
+_SLUG_JUNK: Final = re.compile(r"[^0-9A-Za-z]+")
+
+
+def music_web_url(music_id: str, title: str | None) -> str:
+    """``/music/<title>-<id>``, as the site links a sound.
+
+    Only the id is read: ``original-sound-<id>``, ``x-<id>`` and ``-<id>``
+    all served the same page on 2026-10-20. The title is there because it is
+    what the site's own links carry, reduced to the characters they use.
+    """
+    slug = _SLUG_JUNK.sub("-", title or "").strip("-").lower()
+    return f"{WEB_DOMAIN}/music/{slug}-{music_id}"
+
+
+def parse_music_detail(payload: Mapping[str, Any]) -> MusicDetail:
+    """Parse ``/api/music/detail/``.
+
+    The sound, its counters and its publisher arrive as three siblings under
+    ``musicInfo``. ``author`` is absent for a library track rather than empty,
+    and the sound then has no owner.
+    """
+    info = _guard(payload).child("musicInfo")
+    node = info.child("music")
+    music_id = node.id("id")
+    base = _music(node) or Music()
+    stats = info.opt_child("stats")
+    owner = info.opt_child("author")
+    return MusicDetail(
+        **base.model_dump(exclude={"music_id"}),
+        music_id=music_id,
+        platform=_PLATFORM,
+        web_url=music_web_url(music_id, base.title),
+        content_count=optional_int(stats.get("videoCount")) if stats is not None else None,
+        is_original=optional_bool(node.get("original")) if node.has("original") else None,
+        owner=author_from_web_node(owner) if owner is not None else None,
+        raw=info.raw(),
+    )
+
+
+def parse_music_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/music/item_list/``, the shared item_list envelope."""
+    return parse_author_posts(payload, fetched_at=fetched_at)
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -646,12 +692,15 @@ __all__ = [
     "content_from_node",
     "content_web_url",
     "detect_risk_control",
+    "music_web_url",
     "parse_author",
     "parse_author_collections",
     "parse_author_posts",
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_music_detail",
+    "parse_music_posts",
     "parse_related_posts",
     "parse_reply_previews",
 ]

@@ -1,0 +1,25 @@
+{
+  "detail_page_labels": null,
+  "disable_music_activity_setting": false,
+  "extra": {
+    "fatal_item_ids": [],
+    "logid": "20261020000000000000000000000000000001",
+    "now": 1792540800000
+  },
+  "feature_data": {},
+  "follow_shoot_buttons": null,
+  "high_upload_ratio": 0,
+  "log_pb": {
+    "impr_id": "20261020000000000000000000000000000001"
+  },
+  "lora_model_ids": null,
+  "msg": "success",
+  "music_activity_resource_infos": null,
+  "music_info": null,
+  "rec_list": [],
+  "related_effects": null,
+  "related_musics": null,
+  "small_banner": [],
+  "status_code": 0,
+  "trends_infos": null
+}

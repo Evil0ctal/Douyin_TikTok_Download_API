@@ -1233,6 +1233,15 @@ class TestAbsentWhenNull:
         )
         assert classification.outcome is Outcome.OK
 
+    def test_a_douyin_sound_nobody_has_is_not_a_schema_change(self):
+        """Measured 2026-10-20: `status_code: 0` and `music_info: null`."""
+        payload = {"status_code": 0, "msg": "success", "music_info": None, "rec_list": []}
+        classification, _ = service()._classify(
+            get_adapter(Platform.DOUYIN), "douyin.music_detail", response(200, payload)
+        )
+        assert classification.outcome is Outcome.BUSINESS_ERROR
+        assert classification.rule == "payload.absent"
+
     def test_only_measured_endpoints_declare_it(self):
         declared = {
             name
@@ -1240,4 +1249,8 @@ class TestAbsentWhenNull:
             for name, spec in get_adapter(platform).endpoints.specs.items()
             if spec.absent_when_null is not None
         }
-        assert declared == {"bilibili.collection_posts", "douyin.author_likes"}
+        assert declared == {
+            "bilibili.collection_posts",
+            "douyin.author_likes",
+            "douyin.music_detail",
+        }

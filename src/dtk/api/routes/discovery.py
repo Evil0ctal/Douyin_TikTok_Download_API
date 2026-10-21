@@ -13,13 +13,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from dtk.api.deps import Principal, enforce_rate_limit
 from dtk.api.routes import operations
 from dtk.api.routes.content import (
     AWEME_ID_QUERY,
     COUNT_QUERY,
+    CURSOR_QUERY,
     EXPLAIN_QUERY,
     IDENTITY_QUERY,
     PLATFORM_PATH,
@@ -30,7 +31,9 @@ from dtk.api.routes.content import (
     WAIT_QUERY,
     authorize,
     content_params,
+    identifier,
     supported,
+    vet_url,
 )
 from dtk.api.routes.openapi import ASYNC_RESPONSES, I18N_KEY
 from dtk.api.routes.operations import Operation
@@ -41,10 +44,61 @@ from dtk.api.routes.support import (
     resolve_request_proxy,
     resolve_wait,
 )
+from dtk.core.errors import InvalidParam
 from dtk.core.types import Platform
 from dtk.platforms.paging import max_page_size
+from dtk.urls import ResourceKind
 
 router = APIRouter(prefix="/api/v1", tags=["content"])
+
+#: Longer than any id either platform issues for a sound or a hashtag, and
+#: short enough that nothing else fits.
+_ID_MAX_LENGTH = 32
+
+MUSIC_ID_QUERY = Query(
+    default=None,
+    max_length=_ID_MAX_LENGTH,
+    description=(
+        "The sound's id, as an alternative to url: the music_id in a post's music block, "
+        "or the number a music link ends in. Provide exactly one of the two."
+    ),
+)
+
+
+def _numeric_id(value: str, *, field: str) -> str:
+    """An id both platforms issue as a run of digits, checked before it queues."""
+    text = value.strip()
+    if not text.isdigit():
+        raise InvalidParam(
+            f"{field} must be the numeric id the platform issued",
+            details={"field": field, "value": text[:_ID_MAX_LENGTH]},
+        )
+    return text
+
+
+def addressed_params(
+    platform: Platform,
+    *,
+    url: str | None,
+    value: str | None,
+    field: str,
+    resource: ResourceKind,
+) -> dict[str, Any]:
+    """A link or an id for something that is not a post or an author.
+
+    The shape :func:`dtk.api.routes.content.content_params` gives a post: the
+    id read out of a full link here, so two spellings of one sound coalesce on
+    one task, and a short link forwarded for the worker to expand. A link to
+    the wrong kind of page goes on too, and is refused by name there
+    (``dtk.worker.parsing.complete``) once it is known what it points at.
+    """
+    if not url and not value:
+        raise InvalidParam(f"provide either url or {field}", details={"fields": ["url", field]})
+    if value:
+        return {field: _numeric_id(value, field=field), "url": None}
+    kind = vet_url(str(url), expected=platform)
+    extracted = identifier(kind, resource)
+    return {field: extracted, "url": None if extracted else kind.url}
 
 
 @router.get(
@@ -112,4 +166,127 @@ async def video_related(
     )
 
 
-__all__ = ["router"]
+@router.get(
+    "/{platform}/music",
+    summary="A sound",
+    openapi_extra={I18N_KEY: "music_detail", **ASYNC_RESPONSES},
+)
+async def music(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    music_id: str | None = MUSIC_ID_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One sound: the audio a post is made with, on its own page.
+
+    Identify it by **either** `url` **or** `music_id`. The id is the
+    `music.music_id` of any post that uses the sound.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`. Bilibili answers `UNSUPPORTED_CONTENT`.
+    - `url` - a link to the sound's page.
+    - `music_id` - the sound's id.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      `/video`. A repeat inside `cache.author_ttl` (15 minutes by default) is
+      answered from the cache.
+
+    **Returns**
+
+    Title, author name, length, a link to the audio and a cover, as a post's
+    `music` block carries them, plus what only the sound's page knows: how
+    many posts use it (`content_count`), whether it is a post's own audio
+    rather than a library track (`is_original`), and the account that
+    published it (`owner`), when the platform names one. A sound that does not
+    exist is `NOT_FOUND`.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.MUSIC_DETAIL)
+    params = addressed_params(
+        platform, url=url, value=music_id, field="music_id", resource=ResourceKind.MUSIC
+    )
+    params["include_raw"] = include_raw
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/music/posts",
+    summary="Posts that use a sound",
+    openapi_extra={I18N_KEY: "music_posts", **ASYNC_RESPONSES},
+)
+async def music_posts(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    url: str | None = URL_QUERY,
+    music_id: str | None = MUSIC_ID_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts made with a sound, in the platform's own order.
+
+    Identify the sound by **either** `url` **or** `music_id`. A guest identity
+    pages through these on both platforms; no login is needed.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `tiktok`.
+    - `url`, `music_id` - as on `/music`.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page. Douyin answers about 13 whatever is asked;
+      TikTok refuses more than 35.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      the other list endpoints. A repeat inside `cache.list_ttl` (5 minutes by
+      default) is answered from the cache.
+
+    **Returns**
+
+    A page of posts in the same shape as `/user/posts`, plus the cursor for
+    the next page.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.MUSIC_POSTS)
+    params = addressed_params(
+        platform, url=url, value=music_id, field="music_id", resource=ResourceKind.MUSIC
+    )
+    params["cursor"] = cursor
+    params["count"] = resolve_count(count, maximum=max_page_size(platform))
+    params["include_raw"] = include_raw
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+__all__ = ["addressed_params", "router"]

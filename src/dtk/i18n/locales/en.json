@@ -669,6 +669,14 @@
       "related_posts": {
         "summary": "Posts recommended beside a post",
         "description": "The posts the platform's own player lists next to one post, as one batch. A recommendation: the same call can answer differently later, and an id that names no post still gets a batch back."
+      },
+      "music_detail": {
+        "summary": "A sound",
+        "description": "One sound a post is made with: title, author, length, audio and cover, plus how many posts use it, whether it is a post's own audio, and who published it. Douyin and TikTok."
+      },
+      "music_posts": {
+        "summary": "Posts that use a sound",
+        "description": "One page of the posts made with one sound. A guest identity pages through these on both platforms. Douyin and TikTok."
       }
     },
     "param": {
@@ -711,6 +719,7 @@
       "mine_only": "Only list keys you created, rather than everyone's.",
       "minutes": "How far back to look. Rows older than the log's retention are gone.",
       "mix_id": "The mix or playlist to read. Douyin returns it as mix_info, TikTok as playlistId.",
+      "music_id": "The sound's id, as an alternative to url: the music_id in a post's music block, or the number a music link ends in. Provide exactly one of the two.",
       "name": "The file's name, exactly as the download record lists it.",
       "offset": "Rows to skip.",
       "on_disk": "True for downloads whose files are still stored.",

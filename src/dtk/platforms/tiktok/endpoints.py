@@ -30,6 +30,8 @@ from dtk.platforms.tiktok.params import (
     comments_params,
     content_detail_params,
     mix_posts_params,
+    music_detail_params,
+    music_posts_params,
     related_posts_params,
     session_check_params,
 )
@@ -99,6 +101,10 @@ class TikTokAPIEndpoints:
     # Post detail
     POST_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/item/detail/"
 
+    # A sound, and the posts that use it
+    MUSIC_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/music/detail/"
+    MUSIC_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/music/item_list/"
+
     # Comments on a post
     POST_COMMENT: Final = f"{TIKTOK_DOMAIN}/api/comment/list/"
 
@@ -124,6 +130,8 @@ AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
 SESSION_CHECK: Final = "tiktok.session_check"
 RELATED_POSTS: Final = "tiktok.related_posts"
+MUSIC_DETAIL: Final = "tiktok.music_detail"
+MUSIC_POSTS: Final = "tiktok.music_posts"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -314,6 +322,28 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts the site recommends beside one post",
     ),
     EndpointSpec(
+        name=MUSIC_DETAIL,
+        path=TikTokAPIEndpoints.MUSIC_DETAIL,
+        required=("music_id",),
+        build=music_detail_params,
+        risk_weight=1.0,
+        # A sound that does not exist is `statusCode: 10203` and no
+        # `musicInfo` (measured 2026-10-20): a business error, which is what
+        # the classifier already makes of a non-zero statusCode.
+        summary="One sound: its title, publisher and how many posts use it",
+    ),
+    EndpointSpec(
+        name=MUSIC_POSTS,
+        path=TikTokAPIEndpoints.MUSIC_ITEM_LIST,
+        required=("music_id",),
+        build=music_posts_params,
+        risk_weight=1.5,
+        # The itemList/hasMore/cursor envelope every item_list path here
+        # answers, so parse_author_posts reads it. Pages for a guest: 30, then
+        # 30 more and a next cursor (2026-10-20).
+        summary="Posts that use one sound, paged by cursor",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=TikTokAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -349,6 +379,8 @@ __all__ = [
     "DEFAULT_HEADERS",
     "ENDPOINTS",
     "MIX_POSTS",
+    "MUSIC_DETAIL",
+    "MUSIC_POSTS",
     "RELATED_POSTS",
     "TikTokAPIEndpoints",
 ]

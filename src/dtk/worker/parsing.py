@@ -85,6 +85,7 @@ _ENDPOINT_BY_RESOURCE: dict[ResourceKind, str] = {
     # own series is the same word. Nothing produces a Douyin COLLECTION, so
     # nothing reaches douyin.collection_detail, which does not exist.
     ResourceKind.COLLECTION: "collection_detail",
+    ResourceKind.MUSIC: "music_detail",
 }
 
 #: Where a platform answers a kind of link with a different call. Bilibili has
@@ -101,6 +102,7 @@ _PARAM_BY_RESOURCE: dict[ResourceKind, str] = {
     ResourceKind.VIDEO: "content_id",
     ResourceKind.USER: "author_id",
     ResourceKind.COLLECTION: "collection_id",
+    ResourceKind.MUSIC: "music_id",
 }
 
 
@@ -328,6 +330,7 @@ async def plan(
 #: comment; only the post has a link, so only the post is here.
 _RESOURCE_BY_PARAM: Final[dict[str, ResourceKind]] = {
     registry.CONTENT_ID: ResourceKind.VIDEO,
+    registry.MUSIC_ID: ResourceKind.MUSIC,
     registry.AUTHOR_ID: ResourceKind.USER,
 }
 

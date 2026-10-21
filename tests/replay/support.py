@@ -34,6 +34,9 @@ FIXTURE_NAMES: tuple[str, ...] = (
     "risk_control_empty",
     "risk_control_captcha",
     "related_posts",
+    "music_detail",
+    "music_detail_missing",
+    "music_posts_page1",
 )
 
 #: Bilibili's set differs where the platform does. It has no image albums, and

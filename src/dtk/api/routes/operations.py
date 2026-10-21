@@ -85,6 +85,8 @@ class Operation(StrEnum):
     POPULAR_PRECIOUS = "popular_precious"
     RANKING = "ranking"
     RELATED_POSTS = "related_posts"
+    MUSIC_DETAIL = "music_detail"
+    MUSIC_POSTS = "music_posts"
 
 
 class Maintenance(StrEnum):
