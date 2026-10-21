@@ -62,6 +62,9 @@ _POLICIES: dict[str, EndpointPolicy] = {
         ),
         EndpointPolicy("douyin.author_bookmarks", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("douyin.collection_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        # One batch per post, never paged, but a recommender: what a page asks
+        # once per post opened, so faster than a list and slower than a detail.
+        EndpointPolicy("douyin.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         EndpointPolicy("tiktok.author_profile", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.author_posts", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
@@ -84,6 +87,7 @@ _POLICIES: dict[str, EndpointPolicy] = {
         ),
         EndpointPolicy("tiktok.author_followers", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
         EndpointPolicy("tiktok.author_following", capacity=3, refill_per_sec=0.12, risk_weight=1.8),
+        EndpointPolicy("tiktok.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("bilibili.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("bilibili.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         # Asked once per detail, by the fetch layer, for the file itself. Same
@@ -122,6 +126,7 @@ _POLICIES: dict[str, EndpointPolicy] = {
         # Guarded like the uploader space - without the dm report it answers
         # -352 - so it gets the comment endpoints' slower bucket.
         EndpointPolicy("bilibili.ranking", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
+        EndpointPolicy("bilibili.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
     ]
 }
 

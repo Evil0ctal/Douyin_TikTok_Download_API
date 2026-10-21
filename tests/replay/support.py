@@ -33,6 +33,7 @@ FIXTURE_NAMES: tuple[str, ...] = (
     "comment_replies_page1",
     "risk_control_empty",
     "risk_control_captcha",
+    "related_posts",
 )
 
 #: Bilibili's set differs where the platform does. It has no image albums, and
@@ -67,6 +68,7 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
     "popular_weekly_missing",
     "popular_precious",
     "ranking_all",
+    "related_posts",
 )
 
 

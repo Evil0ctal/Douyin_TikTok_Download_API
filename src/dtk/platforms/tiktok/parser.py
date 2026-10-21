@@ -473,6 +473,13 @@ def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/related/item_list/``: one batch, with ``cursor: -1``."""
+    root = _guard(payload)
+    items = [content_from_node(item, fetched_at=fetched_at) for item in root.children("itemList")]
+    return Page(items=items, cursor=None, has_more=False)
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -645,5 +652,6 @@ __all__ = [
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_related_posts",
     "parse_reply_previews",
 ]

@@ -147,6 +147,21 @@ def content_streams_params(
     return {"bvid": content_bvid(bvid), "cid": numeric_id(cid, field="cid"), **STREAM_PARAMS}
 
 
+def related_posts_params(
+    *,
+    bvid: str,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The videos the player lists beside one, unsigned and unpaged.
+
+    The answer is 40 videos whatever is asked (measured 2026-10-20), so
+    ``count`` is accepted - the route sends it for every platform - and not
+    sent.
+    """
+    return {"bvid": content_bvid(bvid)}
+
+
 def author_profile_params(*, mid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     return {"mid": numeric_id(mid, field="author_id"), "photo": "true"}
 
@@ -345,4 +360,5 @@ __all__ = [
     "popular_weekly_params",
     "profile_for",
     "ranking_params",
+    "related_posts_params",
 ]

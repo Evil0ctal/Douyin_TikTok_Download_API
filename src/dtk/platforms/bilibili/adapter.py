@@ -161,6 +161,11 @@ class BilibiliAdapter:
     ) -> Page[Content]:
         return parser.parse_popular(payload, board=board, fetched_at=fetched_at, cursor=cursor)
 
+    def parse_related_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_related_posts(payload, fetched_at=fetched_at)
+
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()
 

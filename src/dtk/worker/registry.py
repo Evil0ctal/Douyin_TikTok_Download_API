@@ -74,6 +74,8 @@ class Capability(StrEnum):
     POPULAR_WEEKLY = "popular_weekly"
     POPULAR_PRECIOUS = "popular_precious"
     RANKING = "ranking"
+    #: What the platform recommends beside one post: one batch, not a page.
+    RELATED_POSTS = "related_posts"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -242,6 +244,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        Capability.RELATED_POSTS: {CONTENT_ID: "aweme_id", COUNT: "count"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -269,6 +272,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.MIX_POSTS: {MIX_ID: "mix_id", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWERS: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
         Capability.AUTHOR_FOLLOWING: {AUTHOR_ID: "sec_uid", CURSOR: "cursor", COUNT: "count"},
+        Capability.RELATED_POSTS: {CONTENT_ID: "item_id", COUNT: "count"},
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -308,6 +312,9 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        # Forty whatever is asked; the size is accepted and dropped, as the
+        # folder list's is.
+        Capability.RELATED_POSTS: {CONTENT_ID: "bvid", COUNT: "count"},
     },
 }
 
@@ -336,6 +343,7 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.POPULAR_WEEKLY: "cache.list_ttl",
         Capability.POPULAR_PRECIOUS: "cache.list_ttl",
         Capability.RANKING: "cache.list_ttl",
+        Capability.RELATED_POSTS: "cache.list_ttl",
     }
 )
 
@@ -546,6 +554,8 @@ class EndpointDefinition:
                     fetched_at=when,
                     cursor=str(cursor) if cursor is not None else None,
                 )
+            case Capability.RELATED_POSTS:
+                return adapter.parse_related_posts(payload, fetched_at=when)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:

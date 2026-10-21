@@ -519,6 +519,19 @@ def parse_collection_posts(payload: Mapping[str, Any], *, fetched_at: datetime) 
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/aweme/v1/web/aweme/related/``: one batch of recommendations.
+
+    The answer says ``has_more: 1`` and carries no cursor; the page asks for
+    another batch with state of its own (see ``related_posts_params``), so a
+    batch is returned as a last page rather than one promising a next that
+    nothing here could ask for.
+    """
+    root = _guard(payload)
+    items = [content_from_node(item, fetched_at=fetched_at) for item in root.children("aweme_list")]
+    return Page(items=items, cursor=None, has_more=False)
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -620,5 +633,6 @@ __all__ = [
     "parse_comment_replies",
     "parse_comments",
     "parse_content",
+    "parse_related_posts",
     "parse_reply_previews",
 ]

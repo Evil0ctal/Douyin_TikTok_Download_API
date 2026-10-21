@@ -28,6 +28,7 @@ from dtk.platforms.bilibili.params import (
     popular_weekly_issue_params,
     popular_weekly_params,
     ranking_params,
+    related_posts_params,
 )
 
 
@@ -73,6 +74,9 @@ class BilibiliAPIEndpoints:
     # guest -352, signed or not; with it, 100 videos, signed or not (measured
     # 2026-10-19). So it is sent unsigned, as the folder endpoints are.
     RANKING: Final = f"{API_DOMAIN}/x/web-interface/ranking/v2"
+    # The videos the player lists beside one. Unsigned; an id that names no
+    # video still answers 40 (measured 2026-10-20).
+    VIDEO_RELATED: Final = f"{API_DOMAIN}/x/web-interface/archive/related"
     # Whose session is this. A guest is told `-101` and `isLogin: false`.
     NAV: Final = f"{API_DOMAIN}/x/web-interface/nav"
     # Mints a guest's `buvid3` and `buvid4`; see dtk.identity.minting.native.
@@ -93,6 +97,7 @@ POPULAR_WEEKLY: Final = "bilibili.popular_weekly"
 POPULAR_WEEKLY_ISSUE: Final = "bilibili.popular_weekly_issue"
 POPULAR_PRECIOUS: Final = "bilibili.popular_precious"
 RANKING: Final = "bilibili.ranking"
+RELATED_POSTS: Final = "bilibili.related_posts"
 SESSION_CHECK: Final = "bilibili.session_check"
 
 #: Cookies and User-Agent come from the identity.
@@ -269,6 +274,15 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="List the site-wide top 100",
     ),
     EndpointSpec(
+        name=RELATED_POSTS,
+        path=BilibiliAPIEndpoints.VIDEO_RELATED,
+        required=("bvid",),
+        build=related_posts_params,
+        risk_weight=1.2,
+        signed=False,
+        summary="List the videos recommended beside one",
+    ),
+    EndpointSpec(
         name=SESSION_CHECK,
         path=BilibiliAPIEndpoints.NAV,
         required=(),
@@ -296,6 +310,7 @@ __all__ = [
     "POPULAR_WEEKLY",
     "POPULAR_WEEKLY_ISSUE",
     "RANKING",
+    "RELATED_POSTS",
     "SESSION_CHECK",
     "BilibiliAPIEndpoints",
 ]

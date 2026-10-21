@@ -28,6 +28,7 @@ from dtk.platforms.douyin.params import (
     comments_params,
     content_detail_params,
     mix_posts_params,
+    related_posts_params,
     session_check_params,
 )
 
@@ -206,6 +207,7 @@ AUTHOR_BOOKMARKS: Final = "douyin.author_bookmarks"
 COLLECTION_POSTS: Final = "douyin.collection_posts"
 MIX_POSTS: Final = "douyin.mix_posts"
 SESSION_CHECK: Final = "douyin.session_check"
+RELATED_POSTS: Final = "douyin.related_posts"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -343,6 +345,17 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts inside one mix (series)",
     ),
     EndpointSpec(
+        name=RELATED_POSTS,
+        path=DouyinAPIEndpoints.POST_RELATED,
+        required=("aweme_id",),
+        build=related_posts_params,
+        risk_weight=1.2,
+        # Measured 2026-10-20 with a guest: a post id that does not exist is
+        # answered with ten posts all the same, so a full answer says nothing
+        # about whether the post it names is there.
+        summary="Posts the site recommends beside one post",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -374,5 +387,6 @@ __all__ = [
     "DEFAULT_HEADERS",
     "ENDPOINTS",
     "MIX_POSTS",
+    "RELATED_POSTS",
     "DouyinAPIEndpoints",
 ]

@@ -149,6 +149,11 @@ class DouyinAdapter:
             details={"platform": self.platform.value, "capability": board},
         )
 
+    def parse_related_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_related_posts(payload, fetched_at=fetched_at)
+
 
 ADAPTER: PlatformAdapter = DouyinAdapter()
 

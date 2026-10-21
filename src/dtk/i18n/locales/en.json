@@ -665,6 +665,10 @@
       "content_parts": {
         "summary": "The parts of a video",
         "description": "Every part of a video uploaded in several, in order, with each part's number, title and length. Bilibili only."
+      },
+      "related_posts": {
+        "summary": "Posts recommended beside a post",
+        "description": "The posts the platform's own player lists next to one post, as one batch. A recommendation: the same call can answer differently later, and an id that names no post still gets a batch back."
       }
     },
     "param": {

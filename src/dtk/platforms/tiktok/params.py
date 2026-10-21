@@ -468,6 +468,26 @@ def mix_posts_params(
     }
 
 
+def related_posts_params(
+    *,
+    item_id: str,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/related/item_list/``.
+
+    One batch, not a page: the answer's ``cursor`` is ``-1`` and there is no
+    ``hasMore`` (measured 2026-10-20 with a guest, where ``count=30`` returned
+    27 posts).
+    """
+    return {
+        **base_params(profile),
+        "itemID": str(item_id),
+        "count": str(count),
+        "coverFormat": COVER_FORMAT,
+    }
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

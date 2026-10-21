@@ -326,6 +326,29 @@ def mix_posts_params(
     }
 
 
+def related_posts_params(
+    *,
+    aweme_id: str,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/aweme/related/``.
+
+    The page asks for the next batch with ``refresh_index`` and a
+    ``filterGids`` list of what it already showed, which is state only the
+    page holds; one batch is what can be asked for honestly, so the first is
+    what this sends. Measured 2026-10-20 with a guest: ``count=20`` came back
+    as 10 posts, the same 10 as ``count=10``.
+    """
+    return {
+        **base_params(profile),
+        "aweme_id": str(aweme_id),
+        "count": str(count),
+        "filterGids": "",
+        "refresh_index": "1",
+    }
+
+
 def comments_params(
     *,
     aweme_id: str,

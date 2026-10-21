@@ -30,6 +30,7 @@ from dtk.platforms.tiktok.params import (
     comments_params,
     content_detail_params,
     mix_posts_params,
+    related_posts_params,
     session_check_params,
 )
 
@@ -122,6 +123,7 @@ MIX_POSTS: Final = "tiktok.mix_posts"
 AUTHOR_FOLLOWERS: Final = "tiktok.author_followers"
 AUTHOR_FOLLOWING: Final = "tiktok.author_following"
 SESSION_CHECK: Final = "tiktok.session_check"
+RELATED_POSTS: Final = "tiktok.related_posts"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -302,6 +304,16 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Accounts an author follows",
     ),
     EndpointSpec(
+        name=RELATED_POSTS,
+        path=TikTokAPIEndpoints.GUESS_YOU_LIKE,
+        required=("item_id",),
+        build=related_posts_params,
+        risk_weight=1.2,
+        # Like Douyin's, it answers an id that names no post (13 posts on
+        # 2026-10-20), so an answer is not evidence the post exists.
+        summary="Posts the site recommends beside one post",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=TikTokAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -337,5 +349,6 @@ __all__ = [
     "DEFAULT_HEADERS",
     "ENDPOINTS",
     "MIX_POSTS",
+    "RELATED_POSTS",
     "TikTokAPIEndpoints",
 ]

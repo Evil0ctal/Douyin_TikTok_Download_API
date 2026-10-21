@@ -580,6 +580,13 @@ class PlatformAdapter(Protocol):
         say what comes next."""
         ...
 
+    def parse_related_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        """The posts a platform recommends beside one, as one batch: none of
+        the three pages them in a way a caller could follow."""
+        ...
+
 
 __all__ = [
     "FORM_CONTENT_TYPE",

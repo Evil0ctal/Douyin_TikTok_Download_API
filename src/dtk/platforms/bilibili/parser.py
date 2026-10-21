@@ -507,6 +507,13 @@ def parse_popular(
     return Page(items=items, cursor=str(current + 1) if more else None, has_more=more)
 
 
+def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/x/web-interface/archive/related``: the detail's own archive
+    object for each of the 40, minus the stream, in one unpaged answer."""
+    items = [_video(item, fetched_at=fetched_at) for item in _guard(payload).children("data")]
+    return Page(items=items, cursor=None, has_more=False)
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/x/space/wbi/arc/search``.
 
@@ -756,5 +763,6 @@ __all__ = [
     "parse_content",
     "parse_content_parts",
     "parse_popular",
+    "parse_related_posts",
     "part_cid",
 ]
