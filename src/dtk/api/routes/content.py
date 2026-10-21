@@ -82,8 +82,8 @@ COUNT_QUERY = Query(
     # go upstream to be read back as "this author has nothing".
     description=(
         "Items per page. The ceiling depends on the platform: Douyin serves up to 50, "
-        "TikTok refuses more than 35. Above it this is a 400 naming the maximum, "
-        "rejected rather than shortened."
+        "TikTok refuses more than 35, Bilibili more than 20. Above it this is a 400 "
+        "naming the maximum, rejected rather than shortened."
     ),
 )
 CURSOR_QUERY = Query(
