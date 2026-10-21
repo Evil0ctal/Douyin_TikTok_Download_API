@@ -1510,6 +1510,7 @@
       "bilibiliComments": "Bilibili shows a guest only the three hottest comments (the three newest with sort=new) and no further page.",
       "douyinAuthorPosts": "Douyin leaves an author's newest posts out of what it shows a guest, so the first items here may not be the latest, and later pages need a logged-in identity.",
       "generic": "It may hold less than a logged-in identity would see.",
+      "tiktokSearchPosts": "TikTok shows a guest a thin first page of search results - often a handful of posts - and no further page.",
       "title": "A guest identity answered, because no logged-in one was available."
     },
     "healthUnavailable": "Endpoint health is unavailable.",

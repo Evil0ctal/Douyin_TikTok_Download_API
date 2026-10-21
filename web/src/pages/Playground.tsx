@@ -199,12 +199,14 @@ function authorTargetOf(data: unknown): AuthorTarget | null {
 
 /**
  * What a guest's answer from this endpoint leaves out, where that has been
- * measured; everything else gets the general sentence. The same two cases
- * `dtk.mcp.prose` explains to an agent, and keyed the same way, by endpoint.
+ * measured; everything else gets the general sentence. The cases
+ * `dtk.mcp.prose` explains to an agent, keyed the same way, by endpoint, plus
+ * TikTok's post search, which no MCP tool reaches.
  */
 const GUEST_NOTES: Readonly<Record<string, string>> = {
   'douyin.author_posts': 'playground.guest.douyinAuthorPosts',
   'bilibili.comments': 'playground.guest.bilibiliComments',
+  'tiktok.search_posts': 'playground.guest.tiktokSearchPosts',
 }
 
 /** The worker's own flag, wherever this call's metadata put it: on the HTTP

@@ -1510,6 +1510,7 @@
       "bilibiliComments": "B 站只给游客看最热的三条评论（sort=new 时为最新的三条），且没有下一页。",
       "douyinAuthorPosts": "抖音给游客看的作者作品列表会略去最新的作品，所以这里的前几条未必是最新的；后续翻页也需要已登录身份。",
       "generic": "内容可能比已登录身份看到的少。",
+      "tiktokSearchPosts": "TikTok 只给游客很薄的一页搜索结果——常常只有几条——且没有下一页。",
       "title": "由于没有可用的已登录身份，本次由游客身份应答。"
     },
     "healthUnavailable": "无法获取接口健康度。",
