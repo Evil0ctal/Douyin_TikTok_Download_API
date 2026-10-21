@@ -354,4 +354,13 @@ async def test_capabilities_say_what_a_guest_loses_on_each_endpoint(client: Any)
     assert (douyin[DETAIL]["login"], douyin[DETAIL]["paging_login"]) == ("none", None)
     # A guest is shown no likes at all, public or private.
     assert douyin["douyin.author_likes"]["login"] == "required"
-    assert {entry["login"] for entry in data["tiktok"]} == {"none"}
+    # TikTok's one measured exception is search: a thin first page for a guest.
+    tiktok = {
+        entry["endpoint"]: (entry["login"], entry["paging_login"])
+        for entry in data["tiktok"]
+        if entry["login"] != "none" or entry["paging_login"] is not None
+    }
+    assert tiktok == {
+        "tiktok.search_posts": ("preferred", "required"),
+        "tiktok.search_authors": ("none", "required"),
+    }
