@@ -512,7 +512,7 @@ filesystem, process supervision — you put back yourself. That section lists th
 | Web console | `/` | Identity pool, scheduler, library, downloads, transcriptions, logs, diagnostics |
 | API reference | `/docs` | Swagger UI inside the console, English and Chinese |
 | Bare reference | `/swagger`, `/redoc` | No login required |
-| REST API | `/api/v1/...` | 116 operations |
+| REST API | `/api/v1/...` | 126 operations |
 | MCP | `/mcp` | Shares the service layer with REST; client setup at `/mcp-guide` in the console |
 | CLI | `dtk --help` | Same |
 
