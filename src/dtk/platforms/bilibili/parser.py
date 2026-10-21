@@ -34,7 +34,7 @@ import re
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, Final
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from dtk.core.errors import InvalidParam, UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
@@ -52,6 +52,7 @@ from dtk.models import (
     Media,
     Mix,
     Page,
+    TrendingTopic,
     VideoStream,
 )
 from dtk.platforms.bilibili.ids import av_to_bv
@@ -795,6 +796,39 @@ def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -
     )
 
 
+SEARCH_DOMAIN: Final = "https://search.bilibili.com"
+
+
+def search_web_url(keyword: str) -> str:
+    return f"{SEARCH_DOMAIN}/all?{urlencode({'keyword': keyword})}"
+
+
+def parse_trending(payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+    """Parse ``/x/web-interface/wbi/search/square``: ``data.trending.list``.
+
+    Ranked in the order given. ``top_list`` beside it holds the lines pinned
+    above the ranking, when there are any, and they come first with no rank.
+    """
+    trending = _guard(payload).child("data").child("trending")
+    items: list[TrendingTopic] = []
+    pinned = trending.listed_children("top_list")
+    ranked = trending.listed_children("list")
+    for index, line in enumerate([*pinned, *ranked]):
+        word = optional_str(line.get("show_name")) or line.text("keyword")
+        keyword = optional_str(line.get("keyword")) or word
+        items.append(
+            TrendingTopic(
+                platform=_PLATFORM,
+                word=word,
+                rank=index - len(pinned) + 1 if index >= len(pinned) else None,
+                hot_value=optional_int(line.get("heat_score")),
+                web_url=search_web_url(keyword),
+                raw=line.raw(),
+            )
+        )
+    return Page(items=items, cursor=None, has_more=False)
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/x/space/wbi/arc/search``.
 
@@ -1056,6 +1090,8 @@ __all__ = [
     "parse_related_posts",
     "parse_search_authors",
     "parse_search_posts",
+    "parse_trending",
     "part_cid",
+    "search_web_url",
     "season_web_url",
 ]

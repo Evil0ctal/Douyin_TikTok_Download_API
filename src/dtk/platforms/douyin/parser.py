@@ -48,6 +48,7 @@ from dtk.models import (
     Music,
     MusicDetail,
     Page,
+    TrendingTopic,
     VideoStream,
 )
 from dtk.platforms.common import (
@@ -743,6 +744,39 @@ def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -
     )
 
 
+def hot_web_url(sentence_id: str) -> str:
+    """The hot page's own page for one line, by its ``sentence_id``."""
+    return f"{WEB_DOMAIN}/hot/{sentence_id}"
+
+
+def parse_trending(payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+    """Parse ``/aweme/v1/web/hot/search/list/``: ``data.word_list``, whole.
+
+    The main board opens with a line that has no ``position`` and a
+    ``hot_value`` of 0 - pinned above the ranking - and that is what a rank
+    of ``None`` says. ``trending_list`` beside the words is a second, shorter
+    list of rising topics the page shows apart, and is left in ``raw``.
+    """
+    data = _guard(payload).child("data")
+    items: list[TrendingTopic] = []
+    for line in data.listed_children("word_list"):
+        sentence = optional_id(line.get("sentence_id"))
+        rank = optional_positive_int(line.get("position"))
+        items.append(
+            TrendingTopic(
+                platform=_PLATFORM,
+                word=line.text("word"),
+                rank=rank,
+                hot_value=optional_int(line.get("hot_value")) if rank else None,
+                content_count=optional_int(line.get("video_count")),
+                cover=image_from_url_list(line.get("word_cover")),
+                web_url=hot_web_url(sentence) if sentence else None,
+                raw=line.raw(),
+            )
+        )
+    return Page(items=items, cursor=None, has_more=False)
+
+
 def comment_from_node(
     node: Node,
     *,
@@ -841,6 +875,7 @@ __all__ = [
     "content_web_url",
     "detect_risk_control",
     "hashtag_web_url",
+    "hot_web_url",
     "live_web_url",
     "mix_web_url",
     "music_web_url",
@@ -856,4 +891,5 @@ __all__ = [
     "parse_music_posts",
     "parse_related_posts",
     "parse_reply_previews",
+    "parse_trending",
 ]

@@ -340,3 +340,35 @@ async def test_a_tiktok_room_takes_the_handle_with_or_without_the_at(client: Any
 async def test_a_live_room_needs_a_room(client: Any) -> None:
     await signed_in(client)
     assert error_code(await client.get("/api/v1/douyin/live")) == "INVALID_PARAM"
+
+
+# --------------------------------------------------------------------------
+# Trending boards
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("board", ["hot", "entertainment", "society", "challenge"])
+async def test_each_douyin_board_queues(client: Any, board: str) -> None:
+    await signed_in(client)
+    row = await queued(await client.get("/api/v1/douyin/trending", params={"board": board}))
+    assert row.endpoint == "douyin.trending"
+    assert row.params["board"] == board
+
+
+async def test_the_board_defaults_to_hot(client: Any) -> None:
+    await signed_in(client)
+    row = await queued(await client.get("/api/v1/bilibili/trending"))
+    assert row.params["board"] == "hot"
+
+
+async def test_a_board_that_does_not_exist_is_refused(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/trending", params={"board": "weekly"})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_tiktok_has_no_trending_board(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/tiktok/trending")
+    assert error_code(response) == "UNSUPPORTED_CONTENT"
+    assert envelope(response)["error"]["details"]["supported"] == ["bilibili", "douyin"]

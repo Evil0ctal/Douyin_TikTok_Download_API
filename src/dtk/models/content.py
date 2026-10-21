@@ -256,6 +256,27 @@ class Mix(_Base):
     raw: dict | None = None
 
 
+class TrendingTopic(_Base):
+    """One line of a trending board: a phrase people are searching for.
+
+    Not a post. The boards list words, and the posts behind a word are a
+    search away; ``web_url`` is the platform's own page for it.
+    """
+
+    platform: Platform
+    word: str
+    #: Position on the board, from 1. ``None`` for a line pinned above the
+    #: ranking, which Douyin's board opens with.
+    rank: int | None = None
+    #: The heat the platform prints beside the word, in its own units.
+    hot_value: int | None = None
+    #: Posts the board files under the word, where it counts them.
+    content_count: int | None = None
+    cover: Image | None = None
+    web_url: str | None = None
+    raw: dict | None = None
+
+
 class LiveStream(_Base):
     """One way to play a live room: a protocol at a quality.
 
@@ -373,5 +394,6 @@ __all__ = [
     "Music",
     "MusicDetail",
     "Page",
+    "TrendingTopic",
     "VideoStream",
 ]

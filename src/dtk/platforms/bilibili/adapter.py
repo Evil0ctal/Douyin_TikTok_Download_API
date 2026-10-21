@@ -24,6 +24,7 @@ from dtk.models import (
     Mix,
     MusicDetail,
     Page,
+    TrendingTopic,
 )
 from dtk.platforms.base import (
     ClientProfile,
@@ -240,6 +241,9 @@ class BilibiliAdapter:
         self, payload: Mapping[str, Any], *, room_id: str | None = None
     ) -> LiveRoom:
         return parser.parse_live_room(payload, room_id=room_id)
+
+    def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+        return parser.parse_trending(payload)
 
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()

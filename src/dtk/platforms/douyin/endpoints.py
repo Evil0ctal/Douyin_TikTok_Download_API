@@ -35,6 +35,7 @@ from dtk.platforms.douyin.params import (
     music_posts_params,
     related_posts_params,
     session_check_params,
+    trending_params,
 )
 
 
@@ -236,6 +237,7 @@ MUSIC_POSTS: Final = "douyin.music_posts"
 HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
 AUTHOR_MIXES: Final = "douyin.author_mixes"
 LIVE_ROOM: Final = "douyin.live_room"
+TRENDING: Final = "douyin.trending"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
 #: transport from the identity; only the platform-specific referer belongs here.
@@ -444,6 +446,16 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="One live room: whether it is on, and how to play it",
     ),
     EndpointSpec(
+        name=TRENDING,
+        path=DouyinAPIEndpoints.DOUYIN_HOT_SEARCH,
+        required=(),
+        build=trending_params,
+        risk_weight=1.0,
+        # The same lists for everyone, answered to a guest: 51 lines on the
+        # main board, 50 on the challenge board (2026-10-20).
+        summary="One of the hot boards: what people are searching for",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=DouyinAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -481,5 +493,6 @@ __all__ = [
     "MUSIC_DETAIL",
     "MUSIC_POSTS",
     "RELATED_POSTS",
+    "TRENDING",
     "DouyinAPIEndpoints",
 ]

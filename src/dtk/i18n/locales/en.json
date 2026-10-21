@@ -701,6 +701,10 @@
       "live_room": {
         "summary": "A live room",
         "description": "One live room: whether it is broadcasting, its title, cover and broadcaster, and while it is live the viewer count and the pull URLs, one per protocol and quality. It reads a room and records nothing."
+      },
+      "trending": {
+        "summary": "What people are searching for",
+        "description": "A trending board, whole: the phrases people are searching for, ranked, with their heat and the platform's own page for each. Douyin's four boards and Bilibili's hot search."
       }
     },
     "param": {
@@ -775,6 +779,7 @@
       "timeout": "Seconds to hold the stream open before closing it.",
       "transcription_id": "The transcription id returned when it was started.",
       "transcriptions_list.q": "Substring of the transcript, of the post's title as the archive holds it, or of the content id. Matched as a substring rather than by word, so it behaves the same in Chinese as in English.",
+      "trending.board": "Which board: hot (the default), entertainment, society or challenge. Douyin has all four; Bilibili has hot alone and refuses the others.",
       "url": "A link to the resource. Text with a link inside it is accepted, so clipboard content from the apps can be sent unedited.",
       "user_id": "The console account to act on.",
       "wait": "Hold the connection until the task finishes, up to this many seconds - this is how to make the call synchronous. Finished in time gives 200 with the result; not finished gives 202 with the task id and `state: running`, which is not an error and loses nothing. Above the instance ceiling shown as `maximum` it is a 400, rejected rather than shortened. Omitted or 0 returns 202 at once. See the description at the top of this document.",

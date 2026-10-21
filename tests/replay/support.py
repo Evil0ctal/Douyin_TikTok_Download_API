@@ -88,12 +88,14 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
     "live_room_off",
     "live_room_missing",
     "live_streams",
+    "trending",
 )
 
 
-#: Douyin's set is the common one plus the shape only it has: an album of live
-#: photos, whose slides each carry a clip of their own (#792).
-DOUYIN_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "video_live_photo")
+#: Douyin's set is the common one plus the shapes only it has: an album of
+#: live photos, whose slides each carry a clip of their own (#792), and the
+#: hot board.
+DOUYIN_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "video_live_photo", "trending_hot")
 
 #: TikTok's adds the posts under a hashtag, which Douyin serves only to a
 #: signed-in session and no capture of that exists.

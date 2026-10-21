@@ -49,6 +49,7 @@ from dtk.models import (
     Mix,
     MusicDetail,
     Page,
+    TrendingTopic,
 )
 
 HttpMethod = Literal["GET", "POST"]
@@ -624,6 +625,8 @@ class PlatformAdapter(Protocol):
         """``room_id`` is the one the request named, for a platform whose
         answer does not repeat it: Douyin's never mentions the web_rid."""
         ...
+
+    def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]: ...
 
     def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
         """The posts in one mix. Douyin's and TikTok's answer in the author post

@@ -1,0 +1,38 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "trending": {
+      "title": "bilibili热搜",
+      "trackid": "0",
+      "list": [
+        {
+          "keyword": "Synthetic hot keyword 0",
+          "show_name": "Synthetic hot keyword 0",
+          "icon": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/hot.png",
+          "uri": "",
+          "goto": "",
+          "heat_score": 1396338
+        },
+        {
+          "keyword": "Synthetic hot keyword 1",
+          "show_name": "Synthetic hot keyword 1",
+          "icon": "https://cdn.example-cdn.invalid/bfs/activity-plat/static/hot.png",
+          "uri": "",
+          "goto": "",
+          "heat_score": 966253
+        },
+        {
+          "keyword": "Synthetic hot keyword 2",
+          "show_name": "Synthetic hot keyword 2",
+          "icon": "",
+          "uri": "",
+          "goto": "",
+          "heat_score": 443340
+        }
+      ],
+      "top_list": []
+    }
+  }
+}

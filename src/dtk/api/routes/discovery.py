@@ -47,7 +47,7 @@ from dtk.api.routes.support import (
     resolve_wait,
 )
 from dtk.core.errors import InvalidParam
-from dtk.core.types import Platform
+from dtk.core.types import Platform, TrendingBoard
 from dtk.platforms.paging import max_page_size
 from dtk.urls import ResourceKind
 from dtk.worker import registry
@@ -98,6 +98,14 @@ ROOM_ID_QUERY = Query(
     description=(
         "The room, as an alternative to url: the number in a live.douyin.com or "
         "live.bilibili.com link, or on TikTok the @handle of the account broadcasting."
+    ),
+)
+
+TRENDING_BOARD_QUERY = Query(
+    default=TrendingBoard.HOT,
+    description=(
+        "Which board: hot (the default), entertainment, society or challenge. Douyin has "
+        "all four; Bilibili has hot alone and refuses the others."
     ),
 )
 
@@ -611,6 +619,59 @@ async def live(
         principal,
         endpoint=endpoint,
         params=params,
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/trending",
+    summary="What people are searching for",
+    openapi_extra={I18N_KEY: "trending", **ASYNC_RESPONSES},
+)
+async def trending(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    board: TrendingBoard = TRENDING_BOARD_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """A trending board: the phrases people are searching for, ranked.
+
+    Words, not posts - each line's `web_url` is the platform's own page for
+    it, and `/search/posts` finds the posts behind it where the platform
+    offers search.
+
+    **Parameters**
+
+    - `platform` - `douyin` or `bilibili`. TikTok answers `UNSUPPORTED_CONTENT`.
+    - `board` - Douyin's four: `hot`, `entertainment`, `society`,
+      `challenge`. Bilibili's hot search is `hot`, the default.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      the other list endpoints. The boards are the same for everyone, so a
+      repeat inside `cache.list_ttl` (5 minutes by default) is free.
+
+    **Returns**
+
+    One page with the whole board: each line's `word`, `rank` (null for a
+    line pinned above the ranking), `hot_value` in the platform's own units,
+    `content_count` where the board counts posts, `cover` and `web_url`.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.TRENDING)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params={"board": board.value, "include_raw": include_raw},
         wait=resolve_wait(request, wait),
         proxy=await resolve_request_proxy(request, proxy),
         refresh=refresh,

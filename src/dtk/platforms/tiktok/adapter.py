@@ -24,6 +24,7 @@ from dtk.models import (
     Mix,
     MusicDetail,
     Page,
+    TrendingTopic,
 )
 from dtk.platforms.base import (
     ClientProfile,
@@ -170,6 +171,13 @@ class TikTokAdapter:
         self, payload: Mapping[str, Any], *, room_id: str | None = None
     ) -> LiveRoom:
         return parser.parse_live_room(payload, room_id=room_id)
+
+    def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
+        """No board registered: nothing measured answers a guest with one."""
+        raise UnsupportedContent(
+            "TikTok has no trending board here",
+            details={"platform": self.platform.value, "capability": "trending"},
+        )
 
 
 ADAPTER: PlatformAdapter = TikTokAdapter()

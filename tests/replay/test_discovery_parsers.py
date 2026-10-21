@@ -665,3 +665,60 @@ def test_live_rooms_resolve_through_the_registry(name: str, room: str) -> None:
     assert definition.required == (registry.ROOM_ID,)
     parsed = definition.parse(load(name, "live_room_on"), params={"room_id": room})
     assert parsed.room_id == room
+
+
+# --------------------------------------------------------------------------
+# Trending boards
+# --------------------------------------------------------------------------
+
+
+def test_the_douyin_board_opens_with_a_pinned_line() -> None:
+    page = get_adapter("douyin").parse_trending(load("douyin", "trending_hot"))
+
+    pinned, first, second = page.items
+    assert pinned.platform is Platform.DOUYIN
+    assert pinned.rank is None
+    # A pinned line says hot_value 0; it is unranked, not cold.
+    assert pinned.hot_value is None
+    assert (first.rank, first.hot_value, first.content_count) == (1, 12124851, 6)
+    assert first.word == "Synthetic trending phrase 1"
+    assert first.web_url == "https://www.douyin.com/hot/2700001"
+    assert first.cover is not None
+    assert second.rank == 2
+    assert page.has_more is False
+
+
+def test_bilibili_hot_search_is_ranked_in_order() -> None:
+    page = get_adapter("bilibili").parse_trending(load("bilibili", "trending"))
+
+    assert [line.rank for line in page.items] == [1, 2, 3]
+    first = page.items[0]
+    assert first.word == "Synthetic hot keyword 0"
+    assert first.hot_value == 1396338
+    assert first.content_count is None
+    assert first.web_url == ("https://search.bilibili.com/all?keyword=Synthetic+hot+keyword+0")
+
+
+def test_bilibili_puts_pinned_lines_first_and_unranked() -> None:
+    payload = load("bilibili", "trending")
+    trending = payload["data"]["trending"]
+    trending["top_list"] = [dict(trending["list"][0], keyword="Pinned", show_name="Pinned")]
+    page = get_adapter("bilibili").parse_trending(payload)
+    assert [(line.word, line.rank) for line in page.items][:2] == [
+        ("Pinned", None),
+        ("Synthetic hot keyword 0", 1),
+    ]
+
+
+def test_both_boards_produce_the_same_shape() -> None:
+    douyin = get_adapter("douyin").parse_trending(load("douyin", "trending_hot")).items[0]
+    bilibili = get_adapter("bilibili").parse_trending(load("bilibili", "trending")).items[0]
+    assert set(douyin.model_dump()) == set(bilibili.model_dump())
+
+
+def test_tiktok_has_no_board() -> None:
+    from dtk.core.errors import UnsupportedContent
+
+    assert "tiktok.trending" not in registry.ENDPOINTS
+    with pytest.raises(UnsupportedContent):
+        get_adapter("tiktok").parse_trending({})

@@ -90,6 +90,8 @@ class Capability(StrEnum):
     AUTHOR_MIXES = "author_mixes"
     #: A live room: whether it is broadcasting, and the pull URLs if it is.
     LIVE_ROOM = "live_room"
+    #: A board of what people are searching for: words, not posts.
+    TRENDING = "trending"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -155,6 +157,8 @@ KEYWORD: Final = "keyword"
 #: A live room by what its link carries: Douyin's web_rid, the owner's
 #: @handle on TikTok, Bilibili's room number.
 ROOM_ID: Final = "room_id"
+#: A :class:`dtk.core.types.TrendingBoard` value.
+BOARD: Final = "board"
 
 #: Every stable author id both platforms issue starts with this. It is the only
 #: way to tell one from an @handle without asking the platform.
@@ -286,6 +290,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.HASHTAG_DETAIL: {HASHTAG_ID: "ch_id"},
         Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
         Capability.LIVE_ROOM: {ROOM_ID: "web_rid"},
+        Capability.TRENDING: {BOARD: "board"},
     },
     Platform.TIKTOK: {
         Capability.CONTENT_DETAIL: {CONTENT_ID: "item_id"},
@@ -377,6 +382,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         # accepted and dropped, as the folder list's are.
         Capability.MIX_POSTS: {MIX_ID: "season_id", CURSOR: "cursor", COUNT: "count"},
         Capability.LIVE_ROOM: {ROOM_ID: "room_id"},
+        Capability.TRENDING: {BOARD: "board"},
     },
 }
 
@@ -417,6 +423,7 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.AUTHOR_MIXES: "cache.list_ttl",
         # Whether a room is on changes by the minute; the shortest TTL there is.
         Capability.LIVE_ROOM: "cache.list_ttl",
+        Capability.TRENDING: "cache.list_ttl",
     }
 )
 
@@ -642,6 +649,8 @@ class EndpointDefinition:
                 return adapter.parse_search_authors(payload)
             case Capability.AUTHOR_MIXES:
                 return adapter.parse_author_mixes(payload)
+            case Capability.TRENDING:
+                return adapter.parse_trending(payload)
             case Capability.LIVE_ROOM:
                 room = canonical.get(ROOM_ID)
                 return adapter.parse_live_room(
@@ -833,6 +842,7 @@ def resolve(endpoint: str, params: Mapping[str, Any], config: Config) -> Resolve
 __all__ = [
     "ALIASES",
     "AUTHOR_ID",
+    "BOARD",
     "BOARDS",
     "COMMENT_ID",
     "CONTENT_ID",

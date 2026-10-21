@@ -171,6 +171,7 @@ class TestEndpointTable:
             endpoints.SEARCH_POSTS,
             endpoints.SEARCH_AUTHORS,
             endpoints.LIVE_ROOM,
+            endpoints.TRENDING,
         }
         # The live room is the one signed path that does not say so: measured
         # 2026-10-20, getInfoByRoom answered a guest -352 unsigned and code 0

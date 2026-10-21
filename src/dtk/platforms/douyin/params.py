@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Final
 
+from dtk.core.errors import InvalidParam
 from dtk.platforms.base import ClientProfile, ProfileSource, browser_version
 
 #: Douyin's web client identifies itself as a Chinese-locale desktop browser.
@@ -428,6 +429,34 @@ def live_room_params(*, web_rid: str, profile: ClientProfile = DEFAULT_PROFILE) 
         "web_rid": str(web_rid),
         "enter_source": "",
         "is_need_double_stream": "false",
+    }
+
+
+#: ``(board_type, board_sub_type)`` for each board, as the hot page asks.
+_TRENDING_BOARDS: Final[dict[str, tuple[str, str]]] = {
+    "hot": ("0", ""),
+    "entertainment": ("2", "2"),
+    "society": ("2", "4"),
+    "challenge": ("2", "hotspot_challenge"),
+}
+
+
+def trending_params(
+    *, board: str = "hot", profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``/aweme/v1/web/hot/search/list/``: one board, whole."""
+    if board not in _TRENDING_BOARDS:
+        raise InvalidParam(
+            f"Douyin has no {board!r} board",
+            details={"field": "board", "supported": sorted(_TRENDING_BOARDS)},
+        )
+    board_type, sub_type = _TRENDING_BOARDS[board]
+    return {
+        **base_params(profile),
+        "detail_list": "1",
+        "source": "6",
+        "board_type": board_type,
+        "board_sub_type": sub_type,
     }
 
 

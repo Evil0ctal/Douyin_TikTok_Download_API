@@ -35,6 +35,7 @@ from dtk.platforms.bilibili.params import (
     related_posts_params,
     search_authors_params,
     search_posts_params,
+    trending_params,
 )
 
 
@@ -101,6 +102,9 @@ class BilibiliAPIEndpoints:
     # One tab of the search page: `search_type` says which. Signed, and
     # answers a guest; the HTML `<em>` around each hit is in the title.
     SEARCH_TYPE: Final = f"{API_DOMAIN}/x/web-interface/wbi/search/type"
+    # The hot search the search box shows, signed. Its lines carry a
+    # heat_score and nothing about posts.
+    HOT_SEARCH: Final = f"{API_DOMAIN}/x/web-interface/wbi/search/square"
     # Whose session is this. A guest is told `-101` and `isLogin: false`.
     NAV: Final = f"{API_DOMAIN}/x/web-interface/nav"
     # Mints a guest's `buvid3` and `buvid4`; see dtk.identity.minting.native.
@@ -128,6 +132,7 @@ AUTHOR_MIXES: Final = "bilibili.author_mixes"
 MIX_POSTS: Final = "bilibili.mix_posts"
 LIVE_ROOM: Final = "bilibili.live_room"
 LIVE_STREAMS: Final = "bilibili.live_streams"
+TRENDING: Final = "bilibili.trending"
 SESSION_CHECK: Final = "bilibili.session_check"
 
 #: Cookies and User-Agent come from the identity.
@@ -377,6 +382,14 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Search uploaders by keyword",
     ),
     EndpointSpec(
+        name=TRENDING,
+        path=BilibiliAPIEndpoints.HOT_SEARCH,
+        required=(),
+        build=trending_params,
+        risk_weight=1.0,
+        summary="List the hot search",
+    ),
+    EndpointSpec(
         name=SESSION_CHECK,
         path=BilibiliAPIEndpoints.NAV,
         required=(),
@@ -412,5 +425,6 @@ __all__ = [
     "SEARCH_AUTHORS",
     "SEARCH_POSTS",
     "SESSION_CHECK",
+    "TRENDING",
     "BilibiliAPIEndpoints",
 ]

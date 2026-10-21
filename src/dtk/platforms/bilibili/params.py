@@ -253,6 +253,18 @@ def live_streams_params(
     return {"room_id": numeric_id(room_id, field="room_id"), **LIVE_PLAY_PARAMS}
 
 
+def trending_params(
+    *, board: str = "hot", profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """The hot search under the search box: ten lines, the size the page asks."""
+    if board != "hot":
+        raise InvalidParam(
+            "Bilibili has one trending board, hot",
+            details={"field": "board", "supported": ["hot"]},
+        )
+    return {"limit": "10", "platform": "web"}
+
+
 def author_profile_params(*, mid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     return {"mid": numeric_id(mid, field="author_id"), "photo": "true"}
 
@@ -459,4 +471,5 @@ __all__ = [
     "related_posts_params",
     "search_authors_params",
     "search_posts_params",
+    "trending_params",
 ]

@@ -16,6 +16,7 @@ from dtk.models.content import (
     Music,
     MusicDetail,
     Page,
+    TrendingTopic,
     VideoStream,
 )
 
@@ -37,5 +38,6 @@ __all__ = [
     "Music",
     "MusicDetail",
     "Page",
+    "TrendingTopic",
     "VideoStream",
 ]

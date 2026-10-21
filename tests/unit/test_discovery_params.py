@@ -174,3 +174,31 @@ class TestLiveRooms:
         assert request["params"]["room_id"] == "173551"
         assert request["params"]["qn"] == "10000"
         assert request["headers"]["Referer"] == "https://live.bilibili.com/"
+
+
+class TestTrending:
+    @pytest.mark.parametrize(
+        ("board", "board_type", "sub_type"),
+        [
+            ("hot", "0", ""),
+            ("entertainment", "2", "2"),
+            ("society", "2", "4"),
+            ("challenge", "2", "hotspot_challenge"),
+        ],
+    )
+    def test_douyin_names_each_board_the_way_its_page_does(
+        self, board: str, board_type: str, sub_type: str
+    ) -> None:
+        built = query("douyin.trending", board=board)
+        assert (built["board_type"], built["board_sub_type"]) == (board_type, sub_type)
+
+    def test_bilibili_has_one_board(self) -> None:
+        assert query("bilibili.trending", board="hot")["limit"] == "10"
+        with pytest.raises(InvalidParam):
+            query("bilibili.trending", board="society")
+
+    def test_every_board_name_is_one_the_route_offers(self) -> None:
+        from dtk.core.types import TrendingBoard
+
+        for board in TrendingBoard:
+            query("douyin.trending", board=board.value)
