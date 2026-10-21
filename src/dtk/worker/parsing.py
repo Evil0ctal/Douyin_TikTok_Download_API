@@ -90,6 +90,10 @@ _ENDPOINT_BY_RESOURCE: dict[ResourceKind, str] = {
     ResourceKind.LIVE: "live_room",
 }
 
+#: The kinds of link /parse turns into a call. `dtk fetch` reads it too, so the
+#: two entry points refuse the same links rather than each keeping a list.
+LINKED_RESOURCES: Final[frozenset[ResourceKind]] = frozenset(_ENDPOINT_BY_RESOURCE)
+
 #: Where a platform answers a kind of link with a different call. Bilibili has
 #: no folder detail - its folder list already carries the name, cover and size -
 #: so a folder link is answered with the folder's first page of videos. It used
@@ -444,6 +448,7 @@ __all__ = [
     "EXPAND_HEADERS",
     "EXPAND_RETRY_AFTER_SECONDS",
     "EXPAND_TIMEOUT_SECONDS",
+    "LINKED_RESOURCES",
     "NAMED_BY_LINK",
     "PoolEgress",
     "ProxySource",
