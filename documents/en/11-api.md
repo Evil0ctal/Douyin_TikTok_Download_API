@@ -447,8 +447,8 @@ Two separate mechanisms make a repeated request cheap, and both are on by defaul
 | Setting | Default | Applies to |
 | --- | --- | --- |
 | `cache.content_ttl` | 1800s (30 min) | One post |
-| `cache.author_ttl` | 900s (15 min) | An author profile |
-| `cache.list_ttl` | 300s (5 min) | Anything paged |
+| `cache.author_ttl` | 900s (15 min) | An author profile, a sound, a hashtag |
+| `cache.list_ttl` | 300s (5 min) | Anything paged, and a live room |
 
 `meta.cached` tells you which answer you got. Entries expire on their own, and Redis is capped below its container limit so the cache cannot grow without bound.
 

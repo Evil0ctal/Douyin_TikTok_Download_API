@@ -211,8 +211,8 @@ answer's lifetime depends on what was asked for and is configurable:
 | Setting | Default | Applies to |
 | --- | --- | --- |
 | `cache.content_ttl` | 1800 s (30 minutes) | one post |
-| `cache.author_ttl` | 900 s (15 minutes) | a profile |
-| `cache.list_ttl` | 300 s (5 minutes) | anything paged |
+| `cache.author_ttl` | 900 s (15 minutes) | a profile, sound or hashtag |
+| `cache.list_ttl` | 300 s (5 minutes) | anything paged, and a live room |
 
 Validation is client-side first: required fields, one-of groups, numbers, and
 ranges are checked before anything is sent, so a typo costs nothing.

@@ -116,8 +116,8 @@
       },
       "cache": {
         "content_ttl": "How long a parsed video detail stays reusable before it is fetched again.",
-        "author_ttl": "How long a parsed user profile stays reusable.",
-        "list_ttl": "How long a parsed list page stays reusable. Lists change more often than a single item, so this is usually the shortest of the three."
+        "author_ttl": "How long a parsed user profile, sound or hashtag stays reusable.",
+        "list_ttl": "How long a parsed list page or live room stays reusable. Lists change more often than a single item, so this is usually the shortest of the three."
       },
       "snapshot": {
         "min_interval_seconds": "Deduplication window for the content history. A second snapshot of the same item inside this window is skipped rather than stored."

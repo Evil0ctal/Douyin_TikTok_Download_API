@@ -445,10 +445,10 @@ docker compose -p dtk -f docker/compose.yml logs --tail 50 migrate
 | 接口 | 突发 | 补充速率 | 每身份 |
 | --- | --- | --- | --- |
 | `*.content_detail`、`bilibili.content_streams` | 5 | 0.30/s | 18 次/分钟 |
-| `*.author_profile` | 4 | 0.20/s | 12 次/分钟 |
-| `*.comments`、`*.comment_replies`、`*.mix_posts` | 3 | 0.15/s | 9 次/分钟 |
+| `*.author_profile`、`*.related_posts`、`*.music_detail`、`*.hashtag_detail`、`*.live_room`、`*.trending`、`bilibili.live_streams` | 4 | 0.20/s | 12 次/分钟 |
+| `*.comments`、`*.comment_replies`、`*.mix_posts`、`*.author_mixes`、`*.music_posts`、`tiktok.hashtag_posts` | 3 | 0.15/s | 9 次/分钟 |
 | `douyin.author_posts`、`tiktok.author_posts`、`*.author_likes`、`tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12/s | 7.2 次/分钟 |
-| `bilibili.author_posts` | 2 | 0.08/s | 4.8 次/分钟 |
+| `bilibili.author_posts`、`*.search_posts`、`*.search_authors` | 2 | 0.08/s | 4.8 次/分钟 |
 | `*.session_check` | 3 | 0.20/s | 12 次/分钟 |
 | 未注册的接口 | 3 | 0.15/s | 9 次/分钟 |
 

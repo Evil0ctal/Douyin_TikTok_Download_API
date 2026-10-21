@@ -291,8 +291,8 @@ Cached responses live in Redis, keyed per distinct request.
 | Key | Default | What it does | When you would change it |
 | --- | --- | --- | --- |
 | `cache.content_ttl` | `1800` | How long a parsed video detail stays reusable before it is fetched again. | Lower it if you need fresh counters; raise it to spend fewer identities on repeat lookups. Entries run 16–200 KB, so a long TTL costs Redis memory. |
-| `cache.author_ttl` | `900` | How long a parsed user profile stays reusable. | Same trade-off; profiles move slower than posts. |
-| `cache.list_ttl` | `300` | How long a parsed list page (author posts, comments, replies) stays reusable. | Lists change more often than a single item, so this is usually the shortest of the three. |
+| `cache.author_ttl` | `900` | How long a parsed user profile, sound or hashtag stays reusable. | Same trade-off; profiles move slower than posts. |
+| `cache.list_ttl` | `300` | How long a parsed list page (author posts, comments, replies, search results, trending boards) or live room stays reusable. | Lists change more often than a single item, so this is usually the shortest of the three. |
 
 ### `snapshot` — content history (1)
 

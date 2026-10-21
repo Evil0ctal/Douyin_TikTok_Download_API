@@ -446,8 +446,8 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | 设置 | 默认值 | 适用于 |
 | --- | --- | --- |
 | `cache.content_ttl` | 1800 秒（30 分钟） | 单条作品 |
-| `cache.author_ttl` | 900 秒（15 分钟） | 作者资料 |
-| `cache.list_ttl` | 300 秒（5 分钟） | 任何分页内容 |
+| `cache.author_ttl` | 900 秒（15 分钟） | 作者资料、音乐、话题 |
+| `cache.list_ttl` | 300 秒（5 分钟） | 任何分页内容，以及直播间 |
 
 `meta.cached` 告诉你拿到的是哪一种。条目会自行过期，而且 Redis 的上限设在容器限制之下，所以缓存不会无限增长。
 
