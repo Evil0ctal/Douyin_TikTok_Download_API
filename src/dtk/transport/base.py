@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from dtk.core.errors import DtkError, ErrorCode
@@ -299,6 +299,22 @@ class TransportIdentity:
         )
 
 
+def with_signed_cookies(
+    identity: TransportIdentity, cookies: Mapping[str, str] | None
+) -> TransportIdentity:
+    """``identity`` sending ``cookies`` in place of its own values for those names.
+
+    For the cookies a signature was computed under: a browser page seals its own
+    ``msToken``, and a request whose Cookie header names another one describes
+    two sessions at once. The identity's record is not touched - the override
+    lasts one request, and whatever the platform rotates in reply goes back to
+    the pool the usual way.
+    """
+    if not cookies:
+        return identity
+    return replace(identity, cookies={**identity.cookies, **cookies})
+
+
 class CookieSink(Protocol):
     """Receives cookies the platform set during a request.
 
@@ -347,4 +363,5 @@ __all__ = [
     "TransportIdentity",
     "mask_proxy_url",
     "scrub_url",
+    "with_signed_cookies",
 ]

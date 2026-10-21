@@ -53,6 +53,7 @@ from dtk.signing.base import (
     SigningFingerprint,
     SigningSession,
     StaticFingerprint,
+    encode_query,
     endpoint_of,
     platform_of,
 )
@@ -1361,6 +1362,73 @@ async def test_rpc_signer_leaves_x_bogus_unescaped() -> None:
     assert signed.algorithm is SignatureAlgorithm.X_BOGUS
 
 
+async def test_rpc_signer_sends_tiktok_the_query_its_page_will_hash() -> None:
+    """The page escapes a space before TikTok's SDK hashes the URL, so the
+    query has to arrive escaped already - or the seal covers a string the
+    request then does not send. It did not, and every endpoint that checks the
+    seal (`/api/post/item_list/`, `/api/user/detail/`) answered with nothing:
+    measured 2026-10-21, decoding a browser-signed item_list."""
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200, json={"X-Dynosaur": "DYN", "msToken": "PAGE", "X-Bogus": "1", "X-Gnarly": "GNA"}
+        )
+
+    spec = RequestSpec.get(
+        "https://www.tiktok.com/api/post/item_list/",
+        params={
+            "aid": "1988",
+            "browser_version": "5.0 (Windows)",
+            "root_referer": "https://www.tiktok.com/",
+        },
+    )
+    async with rpc_client(handler) as client:
+        signed = await RpcSigner(client, "http://rpc").sign(spec, FINGERPRINT)
+
+    business = "aid=1988&browser_version=5.0%20(Windows)&root_referer=https://www.tiktok.com/"
+    assert seen[0]["query"] == business
+    assert signed.query.startswith(f"{business}&")
+    assert " " not in signed.query
+
+
+async def test_rpc_signer_names_the_ms_token_its_page_sealed() -> None:
+    """The page seals its own msToken, never the jar's: TikTok rotates the
+    token as the page loads and the SDK keeps refreshing its copy. X-Gnarly
+    covers it, so the Cookie header has to follow the query, and the signature
+    says which value that is."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"X-Dynosaur": "DYN", "msToken": "PAGE-TOKEN", "X-Bogus": "1", "X-Gnarly": "GNA"},
+        )
+
+    session = SigningSession(cookies={MS_TOKEN_PARAM: "JAR-TOKEN", "ttwid": "t"})
+    async with rpc_client(handler) as client:
+        signed = await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT, session)
+
+    assert f"&{MS_TOKEN_PARAM}=PAGE-TOKEN&" in signed.query
+    assert dict(signed.cookies) == {MS_TOKEN_PARAM: "PAGE-TOKEN"}
+
+
+async def test_a_signature_over_the_jar_names_no_cookie() -> None:
+    """Nothing to override when no page token was sealed, and never natively:
+    the native signer seals the jar's own token."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"a_bogus": "SIG", "verifyFp": "verify_a"})
+
+    async with rpc_client(handler) as client:
+        browser = await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
+    native = await NativeSigner(Platform.TIKTOK).sign(
+        TIKTOK_SPEC, FINGERPRINT, SigningSession(cookies={MS_TOKEN_PARAM: "JAR-TOKEN"})
+    )
+    assert dict(browser.cookies) == {}
+    assert dict(native.cookies) == {}
+
+
 async def test_rpc_signer_rejects_a_response_without_a_signature() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"ms_token": "abc"})
@@ -1457,8 +1525,13 @@ async def test_both_signers_send_the_same_bytes_for_the_same_request(
     # still holds on both sides.
     token = str(spec.params[MS_TOKEN_PARAM])
     assert f"&{MS_TOKEN_PARAM}={token}&" in native_signed.query
-    assert captured[0].endswith(f"&{MS_TOKEN_PARAM}={token}")
     assert native_signed.query.count(f"{MS_TOKEN_PARAM}=") == 1
+    # And the business parameters byte for byte, which is what this test let
+    # through: the browser signer kept sending the space raw after the native
+    # one moved to %20, and only the endpoints that check the seal noticed.
+    business = native_signed.query.split(f"&{tiktok_sign.DYNOSAUR_PARAM}=", 1)[0]
+    assert "hello%20world" in business
+    assert captured[0] == f"{business}&{MS_TOKEN_PARAM}={token}"
 
 
 async def test_native_signer_reports_an_unsignable_query_as_a_signing_failure() -> None:
@@ -3289,6 +3362,22 @@ class TestTikTokSignature:
         )
         # What urlencode would have produced, and what the platform rejects.
         assert "%28" not in query and "%3A" not in query and "%2F" not in query
+
+    def test_the_browser_signer_encodes_through_the_same_function(self) -> None:
+        """One encoder for both signers: they drifted apart once, and the
+        browser path signed a query its request did not send."""
+        params = {
+            "browser_version": "5.0 (Windows)",
+            "root_referer": "https://www.tiktok.com/",
+            "msToken": "ab+/c==",
+            "keyword": "caf\u00e9 #1",
+        }
+        shared = encode_query(params, SignatureAlgorithm.X_BOGUS)
+        assert shared == tiktok_sign.encode_query(params.items())
+        assert shared == (
+            "browser_version=5.0%20(Windows)&root_referer=https://www.tiktok.com/"
+            "&msToken=ab+/c==&keyword=caf%C3%A9%20%231"
+        )
 
     def test_x_bogus_is_the_constant_the_sdk_sends(self) -> None:
         """A computed 16-character X-Bogus belongs to websockets, not to HTTP."""

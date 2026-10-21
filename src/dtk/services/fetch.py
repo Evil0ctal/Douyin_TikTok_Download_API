@@ -64,6 +64,7 @@ from dtk.transport.base import (
     Transport,
     TransportFailure,
     TransportIdentity,
+    with_signed_cookies,
 )
 from dtk.transport.base import RequestSpec as TransportRequestSpec
 from dtk.transport.classify import Classification
@@ -238,6 +239,11 @@ class SignedRequest(Protocol):
     def headers(self) -> Mapping[str, str]: ...
 
     @property
+    def cookies(self) -> Mapping[str, str]:
+        """Cookies the signature was computed under; they override the jar's."""
+        ...
+
+    @property
     def signer(self) -> str: ...
 
     def signed_url(self, base_url: str) -> str: ...
@@ -372,6 +378,10 @@ class FetchService:
             )
             signed = await self._sign(platform, spec, sender)
             signer = signed.signer
+            # Same reason: when the signer sealed a cookie of its own - the
+            # browser page's msToken - the request carries that one, or the
+            # query and the Cookie header describe two sessions.
+            sender = with_signed_cookies(sender, signed.cookies)
 
             outbound = _to_transport_spec(spec, signed, endpoint)
             if ctx.explain:
@@ -383,7 +393,7 @@ class FetchService:
                     method=outbound.method,
                     url=_full_url(outbound),
                     headers=_outbound_headers(identity.fingerprint, outbound.headers),
-                    cookie_header=_cookie_header(identity.cookies),
+                    cookie_header=_cookie_header(sender.cookies),
                     identity_id=str(lease.identity_id),
                     signer=signer,
                     endpoint=endpoint,

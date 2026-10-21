@@ -710,6 +710,38 @@ async def test_the_signature_and_the_request_describe_the_same_visitor() -> None
     assert signed_as[0].proxy_url == "http://user:pass@exit.example:8080"
 
 
+async def test_a_cookie_the_signature_names_goes_out_in_place_of_the_jars() -> None:
+    """The browser page seals its own msToken, so the Cookie header follows it.
+
+    TikTok rotates the token as the page loads, and X-Gnarly seals the one in
+    the query: sending the jar's beside it describes two sessions in one
+    request. The rest of the jar goes out unchanged, and the pool's record is
+    not rewritten - the override is this request's alone.
+    """
+    jar_identity = replace(identity(), cookies={"ttwid": "x", "msToken": "JAR"})
+
+    async def page_signer(platform: Platform, spec: PlatformRequestSpec, sender: TransportIdentity):
+        return SignedParams(
+            query="X-Gnarly=G",
+            params={"msToken": "PAGE", "X-Gnarly": "G"},
+            signer=SIGNER_BROWSER,
+            cookies={"msToken": "PAGE"},
+        )
+
+    transport = FakeTransport(response(200, {"status_code": 0, "aweme_detail": {"x": 1}}))
+    svc = FetchService(
+        scheduler=FakeScheduler(),  # type: ignore[arg-type]
+        pool=FakePool(jar_identity),  # type: ignore[arg-type]
+        transport=transport,  # type: ignore[arg-type]
+        sign=page_signer,
+        cooldown_base=60,
+    )
+    await run_fetch(svc, FakeSession())
+
+    assert dict(transport.senders[0].cookies) == {"ttwid": "x", "msToken": "PAGE"}
+    assert jar_identity.cookies == {"ttwid": "x", "msToken": "JAR"}
+
+
 class TestBareEnvelope:
     """A 200 carrying a status and no payload.
 

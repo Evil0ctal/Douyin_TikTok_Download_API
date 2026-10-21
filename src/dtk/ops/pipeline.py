@@ -48,7 +48,13 @@ from dtk.platforms import get_adapter
 from dtk.services.fetch import strip_raw
 from dtk.signing import RequestSpec as SigningRequest
 from dtk.signing import SignerRegistry, SigningSession, StaticFingerprint, native_signers
-from dtk.transport.base import Fingerprint, RawResponse, RequestSpec, TransportIdentity
+from dtk.transport.base import (
+    Fingerprint,
+    RawResponse,
+    RequestSpec,
+    TransportIdentity,
+    with_signed_cookies,
+)
 from dtk.urls import ResourceKind, UrlKind, resolve
 from dtk.worker import registry
 from dtk.worker.parsing import (
@@ -377,7 +383,8 @@ async def call_endpoint(
     url = signed.signed_url(spec["url"]) if signed.query else spec["url"]
 
     return await transport.request(
-        sender,
+        # The browser page seals its own msToken; the Cookie header follows it.
+        with_signed_cookies(sender, signed.cookies),
         RequestSpec(
             url=url,
             method=spec["method"],

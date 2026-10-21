@@ -211,3 +211,47 @@ class TestTheOpsPath:
         assert signed_specs[0].body == BODY
         assert sent[0].method == "POST"
         assert sent[0].body == BODY
+
+    async def test_a_cookie_the_signature_names_replaces_the_jars(self) -> None:
+        """`dtk fetch` sends what the API path sends: the browser page's sealed
+        msToken in the Cookie header, the rest of the jar as it is."""
+        from dtk.identity.pool import LiveIdentity
+        from dtk.ops import pipeline
+        from dtk.signing.base import SIGNER_BROWSER, SignedParams
+        from dtk.transport.base import Fingerprint, RawResponse
+        from dtk.worker.registry import ENDPOINTS, ResolvedCall
+
+        senders: list[Any] = []
+
+        class Signers:
+            async def sign(self, spec: RequestSpec, *args: Any, **kwargs: Any) -> Any:
+                return SignedParams(
+                    query="a=1&msToken=PAGE",
+                    params={"msToken": "PAGE"},
+                    signer=SIGNER_BROWSER,
+                    cookies={"msToken": "PAGE"},
+                )
+
+        class Transport:
+            async def request(self, identity: Any, spec: Any, timeout: Any = None) -> RawResponse:
+                senders.append(identity)
+                return RawResponse(status=200, headers={}, body=b"{}", final_url=spec.url)
+
+        identity = LiveIdentity(
+            id="6f1d7f4e-4c0a-4b3a-9f2e-1d0c8a5b7e31",
+            platform=Platform.DOUYIN,
+            cookies={"ttwid": "x", "msToken": "JAR"},
+            fingerprint=Fingerprint(user_agent=UA, platform="MacIntel", screen="1496x967"),
+            proxy_url=None,
+            authenticated=False,
+        )
+        call = ResolvedCall(
+            definition=ENDPOINTS["douyin.content_detail"],
+            params={"aweme_id": "7345492945006595379"},
+            cache_ttl=0,
+            parse=lambda payload: payload,
+        )
+
+        await pipeline.call_endpoint(Transport(), Signers(), identity, call)  # type: ignore[arg-type]
+
+        assert dict(senders[0].cookies) == {"ttwid": "x", "msToken": "PAGE"}

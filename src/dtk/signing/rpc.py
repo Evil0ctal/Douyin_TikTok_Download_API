@@ -44,6 +44,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.signing.base import (
     DEFAULT_ALGORITHMS,
+    MS_TOKEN_PARAM,
     SIGNER_BROWSER,
     RequestSpec,
     SignatureAlgorithm,
@@ -278,11 +279,22 @@ class RpcSigner:
         for param, value in added.items():
             parts.append(f"{param}={quote(value, safe='') if param in ENCODED_PARAMS else value}")
 
+        # The msToken a page seals is its own, not the jar's, so the Cookie
+        # header has to name the same one. The page is loaded with the
+        # identity's jar, but TikTok rotates the token the moment it loads and
+        # the SDK keeps refreshing its own copy - it is neither the jar's value
+        # nor the page's cookie a moment later, and planting the jar's back
+        # does not get it sealed (all measured 2026-10-21). X-Gnarly covers the
+        # token in the query, so the query cannot follow the jar; the cookie
+        # follows the query instead. The native signer has no such gap: it
+        # seals the jar's own token.
+        token = added.get(MS_TOKEN_PARAM)
         return SignedParams(
             query="&".join(parts),
             params=added,
             signer=SIGNER_BROWSER,
             algorithm=algorithm,
+            cookies={MS_TOKEN_PARAM: token} if token else {},
         )
 
     async def health(self) -> SignerHealth:
