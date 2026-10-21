@@ -259,4 +259,7 @@ class TestPlatformParity:
     def test_wire_values_match_the_application_enum(self) -> None:
         # Two enums, one wire format. They are separate because browser-rpc
         # ships as its own image, so nothing but a test keeps them aligned.
-        assert {p.value for p in Platform} == {p.value for p in dtk_types.Platform}
+        # Against the platforms the application routes here, not all of them:
+        # Bilibili signs natively and must never reach browser-rpc, and
+        # comparing with the whole enum failed from the day it was added.
+        assert {p.value for p in Platform} == {p.value for p in dtk_signing_base.RPC_PLATFORMS}
