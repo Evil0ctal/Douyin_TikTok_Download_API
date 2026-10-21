@@ -53,11 +53,19 @@ class TestHashtags:
         assert built["challengeId"] == "6929"
         assert "challengeName" not in built
 
-    def test_tiktok_sends_a_name_where_the_link_gave_one(self) -> None:
-        """A tag link is /tag/<name>; /parse hands the name over as the id."""
-        built = query("tiktok.hashtag_detail", challenge_id="hibachi")
-        assert built["challengeName"] == "hibachi"
+    def test_an_all_digit_name_is_still_a_name(self) -> None:
+        """#2024 is a hashtag; challengeId=2024 is a different one."""
+        built = query("tiktok.hashtag_detail", challenge_name="2024")
+        assert built["challengeName"] == "2024"
         assert "challengeId" not in built
+
+    def test_an_id_that_is_not_a_number_is_refused_not_guessed(self) -> None:
+        with pytest.raises(InvalidParam):
+            query("tiktok.hashtag_detail", challenge_id="hibachi")
+
+    def test_an_id_and_a_name_together_are_refused(self) -> None:
+        with pytest.raises(InvalidParam):
+            query("tiktok.hashtag_detail", challenge_id="6929", challenge_name="hibachi")
 
     def test_tiktok_drops_the_hash_from_a_name(self) -> None:
         assert query("tiktok.hashtag_detail", challenge_name="#hibachi")["challengeName"] == (
@@ -156,6 +164,10 @@ class TestMixes:
 
 
 class TestLiveRooms:
+    def test_a_douyin_room_is_a_number(self) -> None:
+        with pytest.raises(InvalidParam):
+            query("douyin.live_room", web_rid="abc")
+
     def test_douyin_asks_the_live_site_by_web_rid(self) -> None:
         request = get_adapter("douyin").build_request("douyin.live_room", web_rid="615171448842")
         assert request["url"].startswith("https://live.douyin.com/")

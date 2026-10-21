@@ -412,6 +412,12 @@ def live_room_params(*, web_rid: str, profile: ClientProfile = DEFAULT_PROFILE) 
     is the number in a ``live.douyin.com/<n>`` link - not the room id the
     answer carries, which changes with every broadcast.
     """
+    rid = str(web_rid).strip()
+    if not rid.isdigit():
+        raise InvalidParam(
+            "a Douyin live room is the number in its live.douyin.com link",
+            details={"field": "room_id"},
+        )
     return {
         "aid": AID,
         "app_name": "douyin_web",
@@ -426,7 +432,7 @@ def live_room_params(*, web_rid: str, profile: ClientProfile = DEFAULT_PROFILE) 
         "browser_platform": profile.browser_platform,
         "browser_name": profile.browser_name,
         "browser_version": profile.browser_version,
-        "web_rid": str(web_rid),
+        "web_rid": rid,
         "enter_source": "",
         "is_need_double_stream": "false",
     }

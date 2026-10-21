@@ -378,6 +378,21 @@ def test_bilibili_uploaders_from_search() -> None:
     assert page.cursor == "2"
 
 
+def test_an_unverified_bilibili_uploader_is_not_verified() -> None:
+    """Search spells "not verified" 127, not the card's -1 (measured)."""
+    payload = load("bilibili", "search_authors_page1")
+    payload["data"]["result"][0]["official_verify"] = {"type": 127, "desc": ""}
+    page = get_adapter("bilibili").parse_search_authors(payload)
+    assert page.items[0].verified is False
+    assert page.items[1].verified is True
+
+
+def test_a_tiktok_hashtag_link_is_quoted() -> None:
+    from dtk.platforms.tiktok.parser import hashtag_web_url
+
+    assert hashtag_web_url("a b#c") == "https://www.tiktok.com/tag/a%20b%23c"
+
+
 def test_a_bilibili_search_with_no_hits_is_an_empty_last_page() -> None:
     payload = load("bilibili", "search_authors_none")
     assert "result" not in payload["data"]

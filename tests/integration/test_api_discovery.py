@@ -175,14 +175,23 @@ async def test_a_tiktok_hashtag_queues_by_name(client: Any) -> None:
     assert row.params["name"] == "hibachi"
 
 
-async def test_a_tiktok_tag_link_queues_its_name(client: Any) -> None:
+@pytest.mark.parametrize("tag", ["hibachi", "2024"])
+async def test_a_tiktok_tag_link_queues_its_name(client: Any, tag: str) -> None:
+    """Even when the name is all digits: #2024 is not hashtag number 2024."""
     await signed_in(client)
     row = await queued(
         await client.get(
-            "/api/v1/tiktok/hashtag", params={"url": "https://www.tiktok.com/tag/hibachi"}
+            "/api/v1/tiktok/hashtag", params={"url": f"https://www.tiktok.com/tag/{tag}"}
         )
     )
-    assert row.params["hashtag_id"] == "hibachi"
+    assert row.params["name"] == tag
+    assert "hashtag_id" not in row.params
+
+
+async def test_a_bare_hash_is_not_a_name(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/tiktok/hashtag", params={"name": "#"})
+    assert error_code(response) == "INVALID_PARAM"
 
 
 async def test_douyin_refuses_a_hashtag_name(client: Any) -> None:
@@ -210,15 +219,16 @@ async def test_the_posts_under_a_tiktok_hashtag_queue(client: Any) -> None:
     assert row.params["cursor"] == "30"
 
 
-async def test_the_posts_under_a_tag_link_ask_for_the_id_first(client: Any) -> None:
+@pytest.mark.parametrize("tag", ["hibachi", "2024"])
+async def test_the_posts_under_a_tag_link_ask_for_the_id_first(client: Any, tag: str) -> None:
     await signed_in(client)
     response = await client.get(
-        "/api/v1/tiktok/hashtag/posts", params={"url": "https://www.tiktok.com/tag/hibachi"}
+        "/api/v1/tiktok/hashtag/posts", params={"url": f"https://www.tiktok.com/tag/{tag}"}
     )
     assert error_code(response) == "INVALID_PARAM"
     details = envelope(response)["error"]["details"]
     assert details["field"] == "url"
-    assert details["name"] == "hibachi"
+    assert details["name"] == tag
 
 
 async def test_douyin_does_not_offer_the_posts_under_a_hashtag(client: Any) -> None:
@@ -342,6 +352,17 @@ async def test_a_live_room_needs_a_room(client: Any) -> None:
     assert error_code(await client.get("/api/v1/douyin/live")) == "INVALID_PARAM"
 
 
+@pytest.mark.parametrize(
+    ("platform", "room"), [("douyin", "abc"), ("bilibili", "room"), ("tiktok", "@")]
+)
+async def test_a_room_that_cannot_be_one_is_refused_before_it_queues(
+    client: Any, platform: str, room: str
+) -> None:
+    await signed_in(client)
+    response = await client.get(f"/api/v1/{platform}/live", params={"room_id": room})
+    assert error_code(response) == "INVALID_PARAM"
+
+
 # --------------------------------------------------------------------------
 # Trending boards
 # --------------------------------------------------------------------------
@@ -364,6 +385,12 @@ async def test_the_board_defaults_to_hot(client: Any) -> None:
 async def test_a_board_that_does_not_exist_is_refused(client: Any) -> None:
     await signed_in(client)
     response = await client.get("/api/v1/douyin/trending", params={"board": "weekly"})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_bilibili_refuses_a_board_it_does_not_have(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/bilibili/trending", params={"board": "society"})
     assert error_code(response) == "INVALID_PARAM"
 
 

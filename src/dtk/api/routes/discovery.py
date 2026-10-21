@@ -48,9 +48,11 @@ from dtk.api.routes.support import (
 )
 from dtk.core.errors import InvalidParam
 from dtk.core.types import Platform, TrendingBoard
+from dtk.platforms import get_adapter
 from dtk.platforms.paging import max_page_size
 from dtk.urls import ResourceKind
 from dtk.worker import registry
+from dtk.worker.parsing import NAMED_BY_LINK
 
 router = APIRouter(prefix="/api/v1", tags=["content"])
 
@@ -108,6 +110,10 @@ TRENDING_BOARD_QUERY = Query(
         "all four; Bilibili has hot alone and refuses the others."
     ),
 )
+
+#: Platforms whose live room is named by its owner's @handle rather than
+#: numbered: a TikTok live link is ``/@<handle>/live`` and carries nothing else.
+_ROOMS_BY_HANDLE = frozenset({Platform.TIKTOK})
 
 
 def _numeric_id(value: str, *, field: str) -> str:
@@ -389,7 +395,12 @@ async def hashtag(
                 "provide one of url, hashtag_id or name",
                 details={"fields": ["url", "hashtag_id", "name"]},
             )
-        params: dict[str, Any] = {"name": name.strip().lstrip("#"), "url": None}
+        bare = name.strip().lstrip("#").strip()
+        if not bare:
+            raise InvalidParam(
+                "name is a hashtag's name, not just a '#'", details={"field": "name"}
+            )
+        params: dict[str, Any] = {"name": bare, "url": None}
     else:
         params = addressed_params(
             platform,
@@ -398,6 +409,11 @@ async def hashtag(
             field="hashtag_id",
             resource=ResourceKind.CHALLENGE,
         )
+        named = NAMED_BY_LINK.get((platform, ResourceKind.CHALLENGE))
+        if named is not None and hashtag_id is None and params.get("hashtag_id"):
+            # A TikTok tag link names its hashtag; see NAMED_BY_LINK for what
+            # reading it as a number did to #2024.
+            params[named] = params.pop("hashtag_id")
     params["include_raw"] = include_raw
     return await operations.submit_and_wait(
         request,
@@ -465,7 +481,11 @@ async def hashtag_posts(
         platform, url=url, value=hashtag_id, field="hashtag_id", resource=ResourceKind.CHALLENGE
     )
     found = params.get("hashtag_id")
-    if found is not None and not str(found).isdigit():
+    if (
+        hashtag_id is None
+        and found is not None
+        and (platform, ResourceKind.CHALLENGE) in (NAMED_BY_LINK)
+    ):
         raise InvalidParam(
             "that link names the hashtag rather than numbering it; look it up with "
             "/hashtag and pass the hashtag_id it returns",
@@ -608,7 +628,15 @@ async def live(
     if not url and not room_id:
         raise InvalidParam("provide either url or room_id", details={"fields": ["url", "room_id"]})
     if room_id:
-        params: dict[str, Any] = {"room_id": room_id.strip().lstrip("@"), "url": None}
+        room = room_id.strip().lstrip("@").strip()
+        if platform not in _ROOMS_BY_HANDLE and not room.isdigit():
+            raise InvalidParam(
+                f"a {platform.value} live room is the number in its link",
+                details={"field": "room_id", "value": room[:_ID_MAX_LENGTH]},
+            )
+        if not room:
+            raise InvalidParam("room_id is empty", details={"field": "room_id"})
+        params: dict[str, Any] = {"room_id": room, "url": None}
     else:
         kind = vet_url(str(url), expected=platform)
         found = identifier(kind, ResourceKind.LIVE)
@@ -667,6 +695,9 @@ async def trending(
     """
     authorize(principal, platform)
     endpoint = supported(platform, Operation.TRENDING)
+    # The builder knows which boards its platform has, and asking it here
+    # turns Bilibili's `board=society` into a 400 rather than a failed task.
+    get_adapter(platform).endpoints[endpoint].build_params(board=board.value)
     return await operations.submit_and_wait(
         request,
         principal,

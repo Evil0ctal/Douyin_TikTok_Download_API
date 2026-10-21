@@ -525,15 +525,25 @@ def hashtag_detail_params(
 ) -> dict[str, str]:
     """Parameters for ``/api/challenge/detail/``, by id or by name.
 
-    Both answer (measured 2026-10-20). An id that is not a number is sent as
-    the name, and that is not leniency: a tag link is ``/tag/<name>`` and
-    carries no number, so the name is what a link - and ``/parse`` - hands
-    over in the id's place.
+    Both answer (measured 2026-10-20). Which one a value is never gets
+    guessed from its digits: ``#2024`` is a name, and sending it as
+    ``challengeId=2024`` asks for a different hashtag. A tag link names its
+    hashtag, and :data:`dtk.worker.parsing.NAMED_BY_LINK` hands it over as one.
     """
     ident = (challenge_id or "").strip()
-    if ident.isdigit():
+    name = (challenge_name or "").strip().lstrip("#")
+    if ident and name:
+        raise InvalidParam(
+            "a hashtag is looked up by its id or by its name, not both",
+            details={"endpoint": "tiktok.hashtag_detail", "fields": ["hashtag_id", "name"]},
+        )
+    if ident:
+        if not ident.isdigit():
+            raise InvalidParam(
+                "hashtag_id is the number TikTok issues; pass a name as name",
+                details={"endpoint": "tiktok.hashtag_detail", "field": "hashtag_id"},
+            )
         return {**base_params(profile), "challengeId": ident}
-    name = ((challenge_name or "").strip() or ident).lstrip("#")
     if not name:
         raise InvalidParam(
             "a hashtag needs its id or its name",

@@ -147,8 +147,8 @@ MIX_ID: Final = "mix_id"
 COLLECTION_ID: Final = "collection_id"
 #: A sound, by the id a post's ``music`` carries and a music link ends in.
 MUSIC_ID: Final = "music_id"
-#: A hashtag by number. A TikTok tag link names it instead, and that name
-#: arrives here too; the TikTok builder sends it as the name.
+#: A hashtag by number. A TikTok tag link names it instead, and the name goes
+#: to HASHTAG_NAME - see ``dtk.worker.parsing.NAMED_BY_LINK``.
 HASHTAG_ID: Final = "hashtag_id"
 #: A hashtag by name, without the '#'. TikTok's detail answers either.
 HASHTAG_NAME: Final = "name"

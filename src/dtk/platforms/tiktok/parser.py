@@ -27,6 +27,7 @@ import re
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Final
+from urllib.parse import quote
 
 from dtk.core.errors import UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
@@ -532,7 +533,7 @@ def parse_music_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Pa
 
 
 def hashtag_web_url(name: str) -> str:
-    return f"{WEB_DOMAIN}/tag/{name}"
+    return f"{WEB_DOMAIN}/tag/{quote(name, safe='')}"
 
 
 def parse_hashtag_detail(payload: Mapping[str, Any]) -> Hashtag:

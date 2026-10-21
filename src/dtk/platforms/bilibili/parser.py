@@ -524,6 +524,9 @@ def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> 
 
 _HIGHLIGHT = re.compile(r"</?em[^>]*>")
 
+#: ``official_verify.type`` of a verified person and a verified organisation.
+_VERIFIED_TYPES: Final[frozenset[int]] = frozenset({0, 1})
+
 
 def _unmarked(value: Any) -> str:
     """A search hit's text without the ``<em class="keyword">`` it wraps the
@@ -613,8 +616,11 @@ def parse_search_authors(payload: Mapping[str, Any]) -> Page[Author]:
                 signature=optional_str(hit.get("usign")),
                 avatar=_image(hit.get("upic")),
                 web_url=author_web_url(mid),
-                # The card's convention: -1 is none, 0 a person, 1 an organisation.
-                verified=official_type is not None and official_type >= 0,
+                # 0 a person, 1 an organisation. Not the card's ">= 0": search
+                # spells "none" 127 where the card says -1 - twenty ordinary
+                # accounts of twenty on 2026-10-20 - and every one of them read
+                # as verified.
+                verified=official_type in _VERIFIED_TYPES,
                 stats=AuthorStats(
                     follower_count=optional_int(hit.get("fans")),
                     content_count=optional_int(hit.get("videos")),

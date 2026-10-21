@@ -165,19 +165,42 @@ def test_a_music_link_is_answered_with_the_sound(link: str, endpoint: str, music
 
 
 @pytest.mark.parametrize(
-    ("link", "endpoint", "hashtag"),
+    ("link", "endpoint", "params"),
     [
         (
             "https://www.douyin.com/hashtag/1592544802272436",
             "douyin.hashtag_detail",
-            "1592544802272436",
+            {"hashtag_id": "1592544802272436"},
         ),
-        ("https://www.tiktok.com/tag/hibachi", "tiktok.hashtag_detail", "hibachi"),
+        ("https://www.tiktok.com/tag/hibachi", "tiktok.hashtag_detail", {"name": "hibachi"}),
+        # The case that made the name explicit: an all-digit hashtag is a
+        # name, and sent as an id it is hashtag number 2024 instead.
+        ("https://www.tiktok.com/tag/2024", "tiktok.hashtag_detail", {"name": "2024"}),
     ],
 )
-def test_a_hashtag_link_is_answered_with_the_hashtag(link: str, endpoint: str, hashtag: str):
-    """A TikTok tag link carries the name; the builder sends it as one."""
-    assert to_call(identify(link)) == (endpoint, {"hashtag_id": hashtag})
+def test_a_hashtag_link_is_answered_with_the_hashtag(link: str, endpoint: str, params: dict):
+    assert to_call(identify(link)) == (endpoint, params)
+
+
+class TestCompletingANamedLink:
+    """A short link to a TikTok tag, handed to an endpoint that names itself."""
+
+    @staticmethod
+    async def to_tag(url: str) -> str | None:
+        return "https://www.tiktok.com/tag/2024" if "/t/" in url else None
+
+    async def test_the_detail_gets_the_name(self):
+        filled = await parsing.complete(
+            "tiktok.hashtag_detail", {"url": "https://www.tiktok.com/t/ZTabcdef/"}, self.to_tag
+        )
+        assert filled == {"name": "2024"}
+
+    async def test_the_list_by_number_refuses_it_by_name(self):
+        with pytest.raises(InvalidParam) as caught:
+            await parsing.complete(
+                "tiktok.hashtag_posts", {"url": "https://www.tiktok.com/t/ZTabcdef/"}, self.to_tag
+            )
+        assert caught.value.details["reason"] == "named_resource"
 
 
 def test_a_bilibili_folder_link_is_answered_with_its_videos():

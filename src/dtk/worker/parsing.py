@@ -99,6 +99,16 @@ _ENDPOINT_OVERRIDES: Final[Mapping[tuple[Platform, ResourceKind], str]] = {
     (Platform.BILIBILI, ResourceKind.COLLECTION): "collection_posts",
 }
 
+#: Links whose "id" is a name, and the parameter that takes the name.
+#:
+#: A TikTok tag link is ``/tag/<name>``. Handing that name over as the hashtag
+#: id sent ``#2024`` to TikTok as hashtag number 2024 - a different hashtag, or
+#: none - because the only way left to tell the two apart was whether the text
+#: was all digits. The link already says which it is, so it is read here.
+NAMED_BY_LINK: Final[Mapping[tuple[Platform, ResourceKind], str]] = {
+    (Platform.TIKTOK, ResourceKind.CHALLENGE): registry.HASHTAG_NAME,
+}
+
 #: The canonical parameter each endpoint expects the resolved id under.
 _PARAM_BY_RESOURCE: dict[ResourceKind, str] = {
     ResourceKind.VIDEO: "content_id",
@@ -307,7 +317,9 @@ def to_call(identified: UrlKind) -> tuple[str, dict[str, Any]]:
     capability = _ENDPOINT_OVERRIDES.get(
         (platform, identified.resource), _ENDPOINT_BY_RESOURCE[identified.resource]
     )
-    param = _PARAM_BY_RESOURCE[identified.resource]
+    param = NAMED_BY_LINK.get(
+        (platform, identified.resource), _PARAM_BY_RESOURCE[identified.resource]
+    )
     return f"{platform.value}.{capability}", {param: identified.resource_id}
 
 
@@ -410,12 +422,20 @@ async def complete(
             details={"url": url, "resource": identified.resource.value},
         )
 
+    named = NAMED_BY_LINK.get((definition.platform, identified.resource))
+    if named is not None and named not in definition.accepts:
+        # A short link to a TikTok tag reached an endpoint that lists by number.
+        raise InvalidParam(
+            f"the link names the {identified.resource.value} rather than numbering it, "
+            f"and {endpoint} takes the number; look it up by name first",
+            details={"field": "url", "reason": "named_resource", "name": identified.resource_id},
+        )
     filled = {
         key: value
         for key, value in params.items()
         if key != "url" and registry.ALIASES.get(key, key) != wanted
     }
-    filled[wanted] = identified.resource_id
+    filled[named or wanted] = identified.resource_id
     log.info("parse.completed", endpoint=endpoint, resource=identified.resource.value)
     return filled
 
@@ -424,6 +444,7 @@ __all__ = [
     "EXPAND_HEADERS",
     "EXPAND_RETRY_AFTER_SECONDS",
     "EXPAND_TIMEOUT_SECONDS",
+    "NAMED_BY_LINK",
     "PoolEgress",
     "ProxySource",
     "complete",
