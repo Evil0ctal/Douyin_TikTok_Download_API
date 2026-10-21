@@ -575,6 +575,49 @@ def parse_hashtag_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> 
     return parse_author_posts(payload, fetched_at=fetched_at)
 
 
+def parse_search_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/api/search/item/full/``.
+
+    The items are ordinary ``itemStruct`` objects; the envelope is snake_case
+    - ``item_list``, ``has_more`` as 0 or 1, a numeric ``cursor`` - and drops
+    ``item_list`` altogether on a page with nothing in it.
+    """
+    root = _guard(payload)
+    items = [
+        content_from_node(item, fetched_at=fetched_at) for item in root.listed_children("item_list")
+    ]
+    has_more = optional_bool(root.get("has_more")) and bool(items)
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def author_from_search_node(node: Node) -> Author:
+    """An account as the user search lists it: the comment endpoints' snake_case
+    user object, with the counters beside the name rather than in a block."""
+    author = author_from_comment_node(node)
+    stats = AuthorStats(
+        follower_count=optional_int(node.get("follower_count")),
+        following_count=optional_int(node.get("following_count")),
+        content_count=optional_int(node.get("aweme_count")),
+        total_digg=optional_int(node.get("total_favorited")),
+    )
+    return author.model_copy(update={"stats": None if stats == AuthorStats() else stats})
+
+
+def parse_search_authors(payload: Mapping[str, Any]) -> Page[Author]:
+    """Parse ``/api/search/user/full/``: ``user_list`` of ``{user_info, ...}``."""
+    root = _guard(payload)
+    entries = root.listed_children("user_list")
+    items = [author_from_search_node(entry.child("user_info")) for entry in entries]
+    has_more = optional_bool(root.get("has_more")) and bool(items)
+    cursor = optional_id(root.get("cursor")) if has_more else None
+    if has_more and cursor is None:
+        raise root.missing("cursor")
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -735,6 +778,7 @@ __all__ = [
     "RISK_STATUS_CODES",
     "WEB_DOMAIN",
     "author_from_comment_node",
+    "author_from_search_node",
     "author_from_web_node",
     "author_web_url",
     "comment_from_node",
@@ -755,4 +799,6 @@ __all__ = [
     "parse_music_posts",
     "parse_related_posts",
     "parse_reply_previews",
+    "parse_search_authors",
+    "parse_search_posts",
 ]

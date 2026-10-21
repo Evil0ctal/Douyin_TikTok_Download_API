@@ -1,0 +1,19 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "seid": "0",
+    "page": 1,
+    "pagesize": 20,
+    "numResults": 0,
+    "numPages": 0,
+    "suggest_keyword": "",
+    "rqt_type": "search",
+    "exp_list": {},
+    "egg_hit": 0,
+    "show_column": 0,
+    "in_black_key": 0,
+    "in_white_key": 0
+  }
+}

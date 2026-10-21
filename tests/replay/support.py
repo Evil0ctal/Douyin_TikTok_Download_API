@@ -74,6 +74,9 @@ BILIBILI_FIXTURE_NAMES: tuple[str, ...] = (
     "popular_precious",
     "ranking_all",
     "related_posts",
+    "search_posts_page1",
+    "search_authors_page1",
+    "search_authors_none",
 )
 
 
@@ -83,7 +86,14 @@ DOUYIN_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "video_live_photo")
 
 #: TikTok's adds the posts under a hashtag, which Douyin serves only to a
 #: signed-in session and no capture of that exists.
-TIKTOK_FIXTURE_NAMES: tuple[str, ...] = (*FIXTURE_NAMES, "hashtag_posts_page1")
+TIKTOK_FIXTURE_NAMES: tuple[str, ...] = (
+    *FIXTURE_NAMES,
+    "hashtag_posts_page1",
+    # And search, which Douyin refuses to a guest.
+    "search_posts_page1",
+    "search_posts_end",
+    "search_authors_page1",
+)
 
 
 def fixture_names(platform: str) -> tuple[str, ...]:

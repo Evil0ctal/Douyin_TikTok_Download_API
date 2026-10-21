@@ -685,6 +685,14 @@
       "hashtag_posts": {
         "summary": "Posts under a hashtag",
         "description": "One page of the posts filed under a hashtag, by its numeric id. TikTok; Douyin answers a guest with nothing here and is not offered yet."
+      },
+      "search_posts": {
+        "summary": "Search posts",
+        "description": "One page of the posts a keyword finds. Bilibili pages it for a guest identity; TikTok gives a guest a thin first page and needs a signed-in identity for every later one; Douyin refuses search to a guest and is not offered yet."
+      },
+      "search_authors": {
+        "summary": "Search accounts",
+        "description": "One page of the accounts a keyword finds, each with the id the author endpoints take. Bilibili pages it for a guest; TikTok answers a guest's first page only."
       }
     },
     "param": {
@@ -723,6 +731,7 @@
       "include_retired": "Also list retired identities. They are kept for 90 days for their statistics and hold no cookies.",
       "key": "The setting to act on, as shown by the list endpoint.",
       "key_id": "The key to revoke.",
+      "keyword": "What to search for, as you would type it into the platform's search box.",
       "kind": "Only entries of this kind.",
       "lang": "Response language for human-readable text. One of en or zh; anything else falls back to en.",
       "limit": "Maximum rows to return.",

@@ -191,6 +191,29 @@ class DouyinAdapter:
             details={"platform": self.platform.value, "capability": "hashtag_posts"},
         )
 
+    def parse_search_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        """Not registered: Douyin refuses search to a guest by name.
+
+        Measured 2026-10-20 on the general and the video search: `status_code
+        2483` and a message asking to sign in before searching, to a healthy
+        guest. As with the posts under a hashtag, no signed-in answer has been
+        seen to write a parser against.
+        """
+        raise UnsupportedContent(
+            "Douyin answers search only to a signed-in session, and that answer "
+            "has not been measured here yet",
+            details={"platform": self.platform.value, "capability": "search_posts"},
+        )
+
+    def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]:
+        raise UnsupportedContent(
+            "Douyin answers search only to a signed-in session, and that answer "
+            "has not been measured here yet",
+            details={"platform": self.platform.value, "capability": "search_authors"},
+        )
+
 
 ADAPTER: PlatformAdapter = DouyinAdapter()
 

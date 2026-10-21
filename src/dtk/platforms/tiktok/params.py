@@ -571,6 +571,55 @@ def hashtag_posts_params(
     }
 
 
+#: What the search page says a query came from when it is typed into the box.
+SEARCH_SOURCE: Final = "normal_search"
+
+
+def _keyword(keyword: str) -> str:
+    text = str(keyword).strip()
+    if not text:
+        raise InvalidParam("a search needs a keyword", details={"field": "keyword"})
+    return text
+
+
+def search_posts_params(
+    *,
+    keyword: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/search/item/full/``. The page pages it by ``offset``."""
+    return {
+        **base_params(profile),
+        "keyword": _keyword(keyword),
+        "offset": _cursor(cursor),
+        "count": str(count),
+        "search_source": SEARCH_SOURCE,
+    }
+
+
+def search_authors_params(
+    *,
+    keyword: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """Parameters for ``/api/search/user/full/``, which pages by ``cursor``.
+
+    Not ``offset`` as the post search does: measured 2026-10-20, ``offset=10``
+    answered the first page again, where ``cursor=10`` moved on.
+    """
+    return {
+        **base_params(profile),
+        "keyword": _keyword(keyword),
+        "cursor": _cursor(cursor),
+        "count": str(count),
+        "search_source": SEARCH_SOURCE,
+    }
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

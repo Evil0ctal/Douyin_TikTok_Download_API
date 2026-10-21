@@ -29,6 +29,8 @@ from dtk.platforms.bilibili.params import (
     popular_weekly_params,
     ranking_params,
     related_posts_params,
+    search_authors_params,
+    search_posts_params,
 )
 
 
@@ -77,6 +79,9 @@ class BilibiliAPIEndpoints:
     # The videos the player lists beside one. Unsigned; an id that names no
     # video still answers 40 (measured 2026-10-20).
     VIDEO_RELATED: Final = f"{API_DOMAIN}/x/web-interface/archive/related"
+    # One tab of the search page: `search_type` says which. Signed, and
+    # answers a guest; the HTML `<em>` around each hit is in the title.
+    SEARCH_TYPE: Final = f"{API_DOMAIN}/x/web-interface/wbi/search/type"
     # Whose session is this. A guest is told `-101` and `isLogin: false`.
     NAV: Final = f"{API_DOMAIN}/x/web-interface/nav"
     # Mints a guest's `buvid3` and `buvid4`; see dtk.identity.minting.native.
@@ -98,6 +103,8 @@ POPULAR_WEEKLY_ISSUE: Final = "bilibili.popular_weekly_issue"
 POPULAR_PRECIOUS: Final = "bilibili.popular_precious"
 RANKING: Final = "bilibili.ranking"
 RELATED_POSTS: Final = "bilibili.related_posts"
+SEARCH_POSTS: Final = "bilibili.search_posts"
+SEARCH_AUTHORS: Final = "bilibili.search_authors"
 SESSION_CHECK: Final = "bilibili.session_check"
 
 #: Cookies and User-Agent come from the identity.
@@ -283,6 +290,22 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="List the videos recommended beside one",
     ),
     EndpointSpec(
+        name=SEARCH_POSTS,
+        path=BilibiliAPIEndpoints.SEARCH_TYPE,
+        required=("keyword",),
+        build=search_posts_params,
+        risk_weight=1.5,
+        summary="Search videos by keyword",
+    ),
+    EndpointSpec(
+        name=SEARCH_AUTHORS,
+        path=BilibiliAPIEndpoints.SEARCH_TYPE,
+        required=("keyword",),
+        build=search_authors_params,
+        risk_weight=1.5,
+        summary="Search uploaders by keyword",
+    ),
+    EndpointSpec(
         name=SESSION_CHECK,
         path=BilibiliAPIEndpoints.NAV,
         required=(),
@@ -311,6 +334,8 @@ __all__ = [
     "POPULAR_WEEKLY_ISSUE",
     "RANKING",
     "RELATED_POSTS",
+    "SEARCH_AUTHORS",
+    "SEARCH_POSTS",
     "SESSION_CHECK",
     "BilibiliAPIEndpoints",
 ]

@@ -207,6 +207,14 @@ class BilibiliAdapter:
             details={"platform": self.platform.value, "capability": "hashtag_posts"},
         )
 
+    def parse_search_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]:
+        return parser.parse_search_posts(payload, fetched_at=fetched_at)
+
+    def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]:
+        return parser.parse_search_authors(payload)
+
 
 ADAPTER: PlatformAdapter = BilibiliAdapter()
 

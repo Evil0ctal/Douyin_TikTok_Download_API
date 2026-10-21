@@ -608,6 +608,12 @@ class PlatformAdapter(Protocol):
         self, payload: Mapping[str, Any], *, fetched_at: datetime
     ) -> Page[Content]: ...
 
+    def parse_search_posts(
+        self, payload: Mapping[str, Any], *, fetched_at: datetime
+    ) -> Page[Content]: ...
+
+    def parse_search_authors(self, payload: Mapping[str, Any]) -> Page[Author]: ...
+
 
 __all__ = [
     "FORM_CONTENT_TYPE",

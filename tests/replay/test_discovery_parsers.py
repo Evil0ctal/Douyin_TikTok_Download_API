@@ -270,3 +270,142 @@ def test_douyin_does_not_offer_the_posts_under_a_hashtag() -> None:
     assert "douyin.hashtag_posts" not in registry.ENDPOINTS
     with pytest.raises(UnsupportedContent):
         get_adapter("douyin").parse_hashtag_posts({}, fetched_at=FETCHED_AT)
+
+
+# --------------------------------------------------------------------------
+# Search
+# --------------------------------------------------------------------------
+
+
+def test_a_tiktok_post_search_is_ordinary_posts_paged_by_offset() -> None:
+    page = get_adapter("tiktok").parse_search_posts(
+        load("tiktok", "search_posts_page1"), fetched_at=FETCHED_AT
+    )
+    assert [item.content_id for item in page.items] == RELATED_IDS["tiktok"]
+    assert page.cursor == "12"
+    assert page.has_more is True
+
+
+def test_a_tiktok_search_page_with_nothing_left_has_no_list() -> None:
+    """What a guest's second page is: no item_list key, has_more 0."""
+    payload = load("tiktok", "search_posts_end")
+    assert "item_list" not in payload
+    page = get_adapter("tiktok").parse_search_posts(payload, fetched_at=FETCHED_AT)
+    assert page.items == []
+    assert page.cursor is None
+    assert page.has_more is False
+
+
+def test_an_empty_tiktok_page_claiming_more_is_still_the_end() -> None:
+    payload = load("tiktok", "search_posts_end")
+    payload["has_more"] = 1
+    page = get_adapter("tiktok").parse_search_posts(payload, fetched_at=FETCHED_AT)
+    assert page.has_more is False
+
+
+def test_tiktok_accounts_carry_the_id_the_author_endpoints_take() -> None:
+    page = get_adapter("tiktok").parse_search_authors(load("tiktok", "search_authors_page1"))
+
+    first = page.items[0]
+    assert first.platform is Platform.TIKTOK
+    assert first.uid == "6900000000000000001"
+    assert first.sec_uid == "MS4wLjABAAAA_SYNTHETIC_TIKTOK_SEARCHER_0001"
+    assert first.unique_id == "synthetic.searcher.1"
+    assert first.nickname == "Synthetic Searcher 1"
+    assert first.web_url == "https://www.tiktok.com/@synthetic.searcher.1"
+    assert first.verified is True
+    assert first.stats is not None
+    assert first.stats.follower_count == 128400
+    assert first.stats.total_digg == 3894512
+    assert page.items[1].verified is False
+    assert page.cursor == "10"
+    assert page.has_more is True
+
+
+def test_a_bilibili_hit_loses_its_highlighting() -> None:
+    page = get_adapter("bilibili").parse_search_posts(
+        load("bilibili", "search_posts_page1"), fetched_at=FETCHED_AT
+    )
+
+    first = page.items[0]
+    assert first.content_id == "BV1y7411Q74g"
+    assert first.title == "Synthetic video title & more"
+    assert first.web_url == "https://www.bilibili.com/video/BV1y7411Q74g"
+    assert first.duration_ms == 70_000
+    assert first.author.uid == first.author.sec_uid == "10000001"
+    assert first.author.nickname == "Synthetic Creator"
+    assert first.stats.play_count == 2898
+    assert first.stats.digg_count == 322
+    assert first.stats.comment_count == 23
+    assert first.stats.collect_count == 25
+    assert first.tags == ["synthetic", "fixture"]
+    assert first.media.covers[0].url == (
+        "https://i2.example-cdn.invalid/bfs/archive/synthetic-0.jpg"
+    )
+    assert first.media.video is None
+    assert page.cursor == "2"
+    assert page.has_more is True
+
+
+def test_bilibili_search_stops_at_the_last_page_it_names() -> None:
+    payload = load("bilibili", "search_posts_page1")
+    payload["data"]["page"] = 50
+    page = get_adapter("bilibili").parse_search_posts(payload, fetched_at=FETCHED_AT)
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_a_bilibili_hit_that_is_not_a_video_is_left_out() -> None:
+    payload = load("bilibili", "search_posts_page1")
+    payload["data"]["result"][1]["bvid"] = ""
+    page = get_adapter("bilibili").parse_search_posts(payload, fetched_at=FETCHED_AT)
+    assert [item.content_id for item in page.items] == ["BV1y7411Q74g"]
+
+
+def test_bilibili_uploaders_from_search() -> None:
+    page = get_adapter("bilibili").parse_search_authors(load("bilibili", "search_authors_page1"))
+
+    first = page.items[0]
+    assert first.uid == first.sec_uid == "10000021"
+    assert first.nickname == "Synthetic Uploader 1"
+    assert first.signature == "Fixture account for tests. Not a real person."
+    assert first.avatar is not None
+    assert first.avatar.url == "https://i2.example-cdn.invalid/bfs/face/synthetic-0.jpg"
+    assert first.web_url == "https://space.bilibili.com/10000021"
+    assert first.verified is True
+    assert first.stats is not None
+    assert (first.stats.follower_count, first.stats.content_count) == (1921477, 238)
+    assert page.cursor == "2"
+
+
+def test_a_bilibili_search_with_no_hits_is_an_empty_last_page() -> None:
+    payload = load("bilibili", "search_authors_none")
+    assert "result" not in payload["data"]
+    page = get_adapter("bilibili").parse_search_authors(payload)
+    assert page.items == []
+    assert page.has_more is False
+
+
+def test_search_results_share_the_shapes_the_other_lists_use() -> None:
+    tiktok = get_adapter("tiktok").parse_search_authors(load("tiktok", "search_authors_page1"))
+    bilibili = get_adapter("bilibili").parse_search_authors(
+        load("bilibili", "search_authors_page1")
+    )
+    assert set(tiktok.items[0].model_dump()) == set(bilibili.items[0].model_dump())
+
+
+@pytest.mark.parametrize("name", ["tiktok", "bilibili"])
+def test_searches_resolve_through_the_registry(name: str) -> None:
+    for capability in ("search_posts", "search_authors"):
+        definition = registry.definition_for(f"{name}.{capability}")
+        assert definition.required == (registry.KEYWORD,)
+        assert definition.cache_ttl_key == "cache.list_ttl"
+
+
+def test_douyin_does_not_offer_search() -> None:
+    from dtk.core.errors import UnsupportedContent
+
+    assert "douyin.search_posts" not in registry.ENDPOINTS
+    assert "douyin.search_authors" not in registry.ENDPOINTS
+    with pytest.raises(UnsupportedContent):
+        get_adapter("douyin").parse_search_authors({})

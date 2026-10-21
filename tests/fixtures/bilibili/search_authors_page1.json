@@ -1,0 +1,73 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "seid": "0",
+    "page": 1,
+    "pagesize": 20,
+    "numResults": 1000,
+    "numPages": 50,
+    "suggest_keyword": "",
+    "rqt_type": "search",
+    "exp_list": {},
+    "egg_hit": 0,
+    "result": [
+      {
+        "type": "bili_user",
+        "mid": 10000021,
+        "uname": "Synthetic Uploader 1",
+        "usign": "Fixture account for tests. Not a real person.",
+        "fans": 1921477,
+        "videos": 238,
+        "upic": "//i2.example-cdn.invalid/bfs/face/synthetic-0.jpg",
+        "face_nft": 0,
+        "face_nft_type": 0,
+        "verify_info": "",
+        "level": 6,
+        "gender": 3,
+        "is_upuser": 1,
+        "is_live": 0,
+        "room_id": 0,
+        "res": [],
+        "official_verify": {
+          "type": 1,
+          "desc": "Synthetic verification"
+        },
+        "hit_columns": [
+          "uname"
+        ],
+        "is_senior_member": 0
+      },
+      {
+        "type": "bili_user",
+        "mid": 10000022,
+        "uname": "Synthetic Uploader 2",
+        "usign": "Fixture account for tests. Not a real person.",
+        "fans": 1821418,
+        "videos": 1451,
+        "upic": "//i2.example-cdn.invalid/bfs/face/synthetic-1.jpg",
+        "face_nft": 0,
+        "face_nft_type": 0,
+        "verify_info": "",
+        "level": 6,
+        "gender": 2,
+        "is_upuser": 1,
+        "is_live": 0,
+        "room_id": 0,
+        "res": [],
+        "official_verify": {
+          "type": 1,
+          "desc": "Synthetic verification"
+        },
+        "hit_columns": [
+          "uname"
+        ],
+        "is_senior_member": 0
+      }
+    ],
+    "show_column": 0,
+    "in_black_key": 0,
+    "in_white_key": 0
+  }
+}

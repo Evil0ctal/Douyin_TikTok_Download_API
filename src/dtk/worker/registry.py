@@ -82,6 +82,9 @@ class Capability(StrEnum):
     #: A hashtag's page, and the posts filed under it.
     HASHTAG_DETAIL = "hashtag_detail"
     HASHTAG_POSTS = "hashtag_posts"
+    #: A keyword search, for posts and for accounts.
+    SEARCH_POSTS = "search_posts"
+    SEARCH_AUTHORS = "search_authors"
 
 
 #: Every capability that answers a site-curated list rather than something
@@ -142,6 +145,8 @@ MUSIC_ID: Final = "music_id"
 HASHTAG_ID: Final = "hashtag_id"
 #: A hashtag by name, without the '#'. TikTok's detail answers either.
 HASHTAG_NAME: Final = "name"
+#: What a search looks for, as typed.
+KEYWORD: Final = "keyword"
 
 #: Every stable author id both platforms issue starts with this. It is the only
 #: way to tell one from an @handle without asking the platform.
@@ -297,6 +302,8 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
             CURSOR: "cursor",
             COUNT: "count",
         },
+        Capability.SEARCH_POSTS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.SEARCH_AUTHORS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -339,6 +346,8 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         # Forty whatever is asked; the size is accepted and dropped, as the
         # folder list's is.
         Capability.RELATED_POSTS: {CONTENT_ID: "bvid", COUNT: "count"},
+        Capability.SEARCH_POSTS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
+        Capability.SEARCH_AUTHORS: {KEYWORD: "keyword", CURSOR: "cursor", COUNT: "count"},
     },
 }
 
@@ -374,6 +383,8 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.MUSIC_POSTS: "cache.list_ttl",
         Capability.HASHTAG_DETAIL: "cache.author_ttl",
         Capability.HASHTAG_POSTS: "cache.list_ttl",
+        Capability.SEARCH_POSTS: "cache.list_ttl",
+        Capability.SEARCH_AUTHORS: "cache.list_ttl",
     }
 )
 
@@ -594,6 +605,10 @@ class EndpointDefinition:
                 return adapter.parse_hashtag_detail(payload)
             case Capability.HASHTAG_POSTS:
                 return adapter.parse_hashtag_posts(payload, fetched_at=when)
+            case Capability.SEARCH_POSTS:
+                return adapter.parse_search_posts(payload, fetched_at=when)
+            case Capability.SEARCH_AUTHORS:
+                return adapter.parse_search_authors(payload)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
@@ -790,6 +805,7 @@ __all__ = [
     "HANDLE_PLATFORMS",
     "HASHTAG_ID",
     "HASHTAG_NAME",
+    "KEYWORD",
     "MUSIC_ID",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",

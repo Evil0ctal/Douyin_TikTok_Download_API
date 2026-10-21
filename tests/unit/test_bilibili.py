@@ -168,6 +168,8 @@ class TestEndpointTable:
             endpoints.CONTENT_STREAMS,
             endpoints.AUTHOR_POSTS,
             endpoints.COMMENTS,
+            endpoints.SEARCH_POSTS,
+            endpoints.SEARCH_AUTHORS,
         }
         for name in signed:
             assert "/wbi/" in endpoints.ENDPOINTS[name].path, name

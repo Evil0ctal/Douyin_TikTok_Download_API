@@ -93,3 +93,34 @@ class TestHashtags:
 def test_the_fixed_clock_is_shared() -> None:
     """The replay helpers are imported here, so they must stay importable from unit."""
     assert FETCHED_AT.tzinfo is not None
+
+
+class TestSearch:
+    def test_tiktok_pages_posts_by_offset_and_accounts_by_cursor(self) -> None:
+        posts = query("tiktok.search_posts", keyword="cat", cursor="12", count=12)
+        users = query("tiktok.search_authors", keyword="cat", cursor="10", count=10)
+        assert (posts["offset"], "cursor" in posts) == ("12", False)
+        assert (users["cursor"], "offset" in users) == ("10", False)
+        assert posts["search_source"] == users["search_source"] == "normal_search"
+
+    def test_bilibili_names_the_tab_it_searches(self) -> None:
+        posts = query("bilibili.search_posts", keyword="cat", cursor="2", count=20)
+        users = query("bilibili.search_authors", keyword="cat")
+        assert posts == {"search_type": "video", "keyword": "cat", "page": "2", "page_size": "20"}
+        assert users["search_type"] == "bili_user"
+        assert users["page"] == "1"
+
+    @pytest.mark.parametrize("endpoint", ["tiktok.search_posts", "bilibili.search_authors"])
+    def test_a_blank_keyword_is_refused_before_it_is_sent(self, endpoint: str) -> None:
+        with pytest.raises(InvalidParam):
+            query(endpoint, keyword="   ")
+
+    def test_tiktok_says_what_a_guest_loses(self) -> None:
+        from dtk.core.types import LoginNeed
+
+        posts = get_adapter("tiktok").endpoints["tiktok.search_posts"]
+        users = get_adapter("tiktok").endpoints["tiktok.search_authors"]
+        assert posts.login is LoginNeed.PREFERRED
+        assert posts.login_for({"cursor": "12"}) is LoginNeed.REQUIRED
+        assert users.login is LoginNeed.NONE
+        assert users.login_for({"cursor": "10"}) is LoginNeed.REQUIRED

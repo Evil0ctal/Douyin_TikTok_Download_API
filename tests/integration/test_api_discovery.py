@@ -226,3 +226,46 @@ async def test_douyin_does_not_offer_the_posts_under_a_hashtag(client: Any) -> N
     response = await client.get("/api/v1/douyin/hashtag/posts", params={"hashtag_id": HASHTAG_ID})
     assert error_code(response) == "UNSUPPORTED_CONTENT"
     assert envelope(response)["error"]["details"]["supported"] == ["tiktok"]
+
+
+# --------------------------------------------------------------------------
+# Search
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("platform", ["tiktok", "bilibili"])
+@pytest.mark.parametrize(
+    ("path", "endpoint"), [("search/posts", "search_posts"), ("search/users", "search_authors")]
+)
+async def test_a_search_queues_its_keyword(
+    client: Any, platform: str, path: str, endpoint: str
+) -> None:
+    await signed_in(client)
+    row = await queued(
+        await client.get(f"/api/v1/{platform}/{path}", params={"keyword": "  cat  ", "cursor": "2"})
+    )
+    assert row.endpoint == f"{platform}.{endpoint}"
+    assert row.params["keyword"] == "cat"
+    assert row.params["cursor"] == "2"
+
+
+async def test_a_search_needs_a_keyword(client: Any) -> None:
+    await signed_in(client)
+    assert error_code(await client.get("/api/v1/tiktok/search/posts")) == "INVALID_PARAM"
+    response = await client.get("/api/v1/tiktok/search/posts", params={"keyword": "   "})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_douyin_does_not_offer_search(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/douyin/search/posts", params={"keyword": "cat"})
+    assert error_code(response) == "UNSUPPORTED_CONTENT"
+    assert envelope(response)["error"]["details"]["supported"] == ["bilibili", "tiktok"]
+
+
+async def test_bilibili_search_refuses_its_page_ceiling(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/bilibili/search/users", params={"keyword": "cat", "count": 21}
+    )
+    assert error_code(response) == "INVALID_PARAM"

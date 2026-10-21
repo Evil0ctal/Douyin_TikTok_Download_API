@@ -1,0 +1,22 @@
+{
+  "status_code": 0,
+  "has_more": 0,
+  "cursor": 24,
+  "extra": {
+    "now": 1792540800000,
+    "logid": "20261020000000000000000000000000000001",
+    "fatal_item_ids": [],
+    "search_request_id": "",
+    "api_debug_info": null
+  },
+  "log_pb": {
+    "impr_id": "20261020000000000000000000000000000001"
+  },
+  "search_nil_info": {
+    "search_nil_type": "",
+    "is_load_more": "is_load_more",
+    "search_nil_item": "empty_session",
+    "text_type": 10
+  },
+  "backtrace": ""
+}

@@ -29,6 +29,7 @@ Where Bilibili differs from the other two, and how it lands in the models:
 
 from __future__ import annotations
 
+import html
 import re
 from collections.abc import Callable, Mapping
 from datetime import datetime
@@ -514,6 +515,109 @@ def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> 
     return Page(items=items, cursor=None, has_more=False)
 
 
+_HIGHLIGHT = re.compile(r"</?em[^>]*>")
+
+
+def _unmarked(value: Any) -> str:
+    """A search hit's text without the ``<em class="keyword">`` it wraps the
+    matched words in, and with the entities it escapes turned back."""
+    return html.unescape(_HIGHLIGHT.sub("", value)) if isinstance(value, str) else ""
+
+
+def _search_page(data: Node, items: list[Any]) -> tuple[bool, str | None]:
+    """``(has_more, cursor)`` from a search answer's ``page`` and ``numPages``.
+
+    ``numPages`` stops at 50 however many results there are, and this stops
+    there too. Page 51 still answered twenty videos on 2026-10-20, but nothing
+    says they are the next twenty rather than any twenty, and the page the
+    site shows ends at 50. A search with no hits has no ``result`` key and
+    ``numPages: 0``.
+    """
+    current = optional_int(data.get("page")) or 1
+    pages = optional_int(data.get("numPages")) or 0
+    more = bool(items) and current < pages
+    return more, str(current + 1) if more else None
+
+
+def parse_search_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
+    """Parse ``/x/web-interface/wbi/search/type`` for ``search_type=video``.
+
+    A hit is not the archive object the lists carry: the uploader is spelled
+    out beside it (``mid``, ``author``, ``upic``), the length is a clock
+    string, and the title marks the matched words in HTML. Only hits with a
+    bvid are videos; the tab can carry others.
+    """
+    data = _guard(payload).child("data")
+    items: list[Content] = []
+    for hit in data.listed_children("result"):
+        bvid = optional_str(hit.get("bvid"))
+        if bvid is None:
+            continue
+        mid = hit.id("mid")
+        cover = _image(hit.get("pic"))
+        items.append(
+            Content(
+                platform=_PLATFORM,
+                content_id=bvid,
+                kind=ContentKind.VIDEO,
+                web_url=content_web_url(bvid),
+                title=_unmarked(hit.text("title")),
+                description=_prose(hit.get("description")),
+                created_at=epoch_to_datetime(hit.get("pubdate")),
+                duration_ms=_length_ms(hit.get("duration")),
+                author=Author(
+                    platform=_PLATFORM,
+                    uid=mid,
+                    sec_uid=mid,
+                    nickname=hit.text("author"),
+                    avatar=_image(hit.get("upic")),
+                    web_url=author_web_url(mid),
+                ),
+                stats=ContentStats(
+                    play_count=optional_int(hit.get("play")),
+                    digg_count=optional_int(hit.get("like")),
+                    comment_count=optional_int(hit.get("review")),
+                    collect_count=optional_int(hit.get("favorites")),
+                ),
+                media=Media(covers=[cover] if cover else []),
+                tags=[tag for tag in (optional_str(hit.get("tag")) or "").split(",") if tag],
+                fetched_at=fetched_at,
+                raw=hit.raw(),
+            )
+        )
+    has_more, cursor = _search_page(data, items)
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
+def parse_search_authors(payload: Mapping[str, Any]) -> Page[Author]:
+    """Parse ``/x/web-interface/wbi/search/type`` for ``search_type=bili_user``."""
+    data = _guard(payload).child("data")
+    items: list[Author] = []
+    for hit in data.listed_children("result"):
+        mid = hit.id("mid")
+        official = hit.opt_child("official_verify")
+        official_type = optional_int(official.get("type")) if official else None
+        items.append(
+            Author(
+                platform=_PLATFORM,
+                uid=mid,
+                sec_uid=mid,
+                nickname=_unmarked(hit.text("uname")),
+                signature=optional_str(hit.get("usign")),
+                avatar=_image(hit.get("upic")),
+                web_url=author_web_url(mid),
+                # The card's convention: -1 is none, 0 a person, 1 an organisation.
+                verified=official_type is not None and official_type >= 0,
+                stats=AuthorStats(
+                    follower_count=optional_int(hit.get("fans")),
+                    content_count=optional_int(hit.get("videos")),
+                ),
+            )
+        )
+    has_more, cursor = _search_page(data, items)
+    return Page(items=items, cursor=cursor, has_more=has_more)
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/x/space/wbi/arc/search``.
 
@@ -764,5 +868,7 @@ __all__ = [
     "parse_content_parts",
     "parse_popular",
     "parse_related_posts",
+    "parse_search_authors",
+    "parse_search_posts",
     "part_cid",
 ]

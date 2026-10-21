@@ -83,6 +83,12 @@ HASHTAG_NAME_QUERY = Query(
     ),
 )
 
+KEYWORD_QUERY = Query(
+    min_length=1,
+    max_length=100,
+    description="What to search for, as you would type it into the platform's search box.",
+)
+
 
 def _numeric_id(value: str, *, field: str) -> str:
     """An id both platforms issue as a run of digits, checked before it queues."""
@@ -458,6 +464,170 @@ async def hashtag_posts(
         refresh=refresh,
         explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+async def _search(
+    request: Request,
+    principal: Principal,
+    *,
+    platform: Platform,
+    operation: Operation,
+    keyword: str,
+    cursor: str | None,
+    count: int | None,
+    include_raw: bool,
+    wait: float | None,
+    proxy: str | None,
+    identity: str | None,
+    refresh: bool,
+    explain: bool,
+) -> Any:
+    authorize(principal, platform)
+    endpoint = supported(platform, operation)
+    text = keyword.strip()
+    if not text:
+        raise InvalidParam("a search needs a keyword", details={"field": "keyword"})
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params={
+            "keyword": text,
+            "cursor": cursor,
+            "count": resolve_count(count, maximum=max_page_size(platform)),
+            "include_raw": include_raw,
+        },
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
+    "/{platform}/search/posts",
+    summary="Search posts",
+    openapi_extra={I18N_KEY: "search_posts", **ASYNC_RESPONSES},
+)
+async def search_posts(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    keyword: str = KEYWORD_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the posts a keyword finds, in the platform's own ranking.
+
+    **What a guest identity gets differs by platform**, and the capability
+    table (`GET /api/v1/system/capabilities`) says so per endpoint:
+
+    - **Bilibili** pages its video search for a guest, up to the 50 pages it
+      ever offers.
+    - **TikTok** gives a guest a thin first page and nothing after it, so a
+      signed-in identity is used when the pool has one and is needed for every
+      later page.
+    - **Douyin** refuses search to a guest by name (`status_code 2483`) and
+      the signed-in answer has not been measured, so it is not offered yet and
+      answers `UNSUPPORTED_CONTENT`.
+
+    Search is what platforms watch most closely, so these endpoints draw from
+    the slowest bucket the scheduler has.
+
+    **Parameters**
+
+    - `platform` - `tiktok` or `bilibili`.
+    - `keyword` - what to search for.
+    - `cursor` - the cursor returned by the previous page. Omit it for the
+      first page; a response with no cursor is the last page.
+    - `count` - posts per page: up to 35 on TikTok, 20 on Bilibili.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      the other list endpoints. A repeat inside `cache.list_ttl` (5 minutes by
+      default) is answered from the cache.
+
+    **Returns**
+
+    A page of posts in the same shape as `/user/posts`, plus the cursor for
+    the next page. A Bilibili hit is what the search page shows of a video -
+    title, uploader, counts and cover, with the highlighting taken out - and
+    no stream; `/video` has that.
+    """
+    return await _search(
+        request,
+        principal,
+        platform=platform,
+        operation=Operation.SEARCH_POSTS,
+        keyword=keyword,
+        cursor=cursor,
+        count=count,
+        include_raw=include_raw,
+        wait=wait,
+        proxy=proxy,
+        identity=identity,
+        refresh=refresh,
+        explain=explain,
+    )
+
+
+@router.get(
+    "/{platform}/search/users",
+    summary="Search accounts",
+    openapi_extra={I18N_KEY: "search_authors", **ASYNC_RESPONSES},
+)
+async def search_users(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    keyword: str = KEYWORD_QUERY,
+    cursor: str | None = CURSOR_QUERY,
+    count: int | None = COUNT_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """One page of the accounts a keyword finds.
+
+    Bilibili pages it for a guest identity; TikTok answers a guest's first
+    page in full and no later one, and answers ten a page whatever `count`
+    asks. Douyin is not offered, for the reason `/search/posts` gives.
+
+    **Parameters**
+
+    - `platform` - `tiktok` or `bilibili`.
+    - `keyword`, `cursor`, `count`, `include_raw`, `wait`, `proxy`, `identity`,
+      `refresh`, `explain` - as on `/search/posts`.
+
+    **Returns**
+
+    A page of authors in the same shape as `/user/followers`: each carries the
+    id the author endpoints take (`sec_uid`), and the follower and post
+    counts the search states.
+    """
+    return await _search(
+        request,
+        principal,
+        platform=platform,
+        operation=Operation.SEARCH_AUTHORS,
+        keyword=keyword,
+        cursor=cursor,
+        count=count,
+        include_raw=include_raw,
+        wait=wait,
+        proxy=proxy,
+        identity=identity,
+        refresh=refresh,
+        explain=explain,
     )
 
 

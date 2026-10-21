@@ -89,6 +89,8 @@ class Operation(StrEnum):
     MUSIC_POSTS = "music_posts"
     HASHTAG_DETAIL = "hashtag_detail"
     HASHTAG_POSTS = "hashtag_posts"
+    SEARCH_POSTS = "search_posts"
+    SEARCH_AUTHORS = "search_authors"
 
 
 class Maintenance(StrEnum):

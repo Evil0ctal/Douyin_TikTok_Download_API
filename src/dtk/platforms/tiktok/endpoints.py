@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Final
 
+from dtk.core.types import LoginNeed
 from dtk.platforms.base import EndpointSpec, EndpointTable
 from dtk.platforms.tiktok.params import (
     author_bookmarks_params,
@@ -35,6 +36,8 @@ from dtk.platforms.tiktok.params import (
     music_detail_params,
     music_posts_params,
     related_posts_params,
+    search_authors_params,
+    search_posts_params,
     session_check_params,
 )
 
@@ -107,6 +110,10 @@ class TikTokAPIEndpoints:
     CHALLENGE_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/challenge/detail/"
     CHALLENGE_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/challenge/item_list/"
 
+    # Keyword search: posts, and accounts
+    SEARCH_ITEM: Final = f"{TIKTOK_DOMAIN}/api/search/item/full/"
+    SEARCH_USER: Final = f"{TIKTOK_DOMAIN}/api/search/user/full/"
+
     # A sound, and the posts that use it
     MUSIC_DETAIL: Final = f"{TIKTOK_DOMAIN}/api/music/detail/"
     MUSIC_ITEM_LIST: Final = f"{TIKTOK_DOMAIN}/api/music/item_list/"
@@ -140,6 +147,8 @@ MUSIC_DETAIL: Final = "tiktok.music_detail"
 MUSIC_POSTS: Final = "tiktok.music_posts"
 HASHTAG_DETAIL: Final = "tiktok.hashtag_detail"
 HASHTAG_POSTS: Final = "tiktok.hashtag_posts"
+SEARCH_POSTS: Final = "tiktok.search_posts"
+SEARCH_AUTHORS: Final = "tiktok.search_authors"
 
 #: Cookies and User-Agent come from the identity; only the platform-specific
 #: referer belongs here.
@@ -373,6 +382,31 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="Posts under one hashtag, paged by cursor",
     ),
     EndpointSpec(
+        name=SEARCH_POSTS,
+        path=TikTokAPIEndpoints.SEARCH_ITEM,
+        required=("keyword",),
+        build=search_posts_params,
+        risk_weight=1.8,
+        # Measured 2026-10-20 with a guest: "dance" answered one post and
+        # has_more 0, "cat" eight, and every second page - for those and for a
+        # query that had said has_more 1 - came back with no list at all. So a
+        # guest is a thin first page and no paging.
+        login=LoginNeed.PREFERRED,
+        paging_login=LoginNeed.REQUIRED,
+        summary="Posts matching a keyword",
+    ),
+    EndpointSpec(
+        name=SEARCH_AUTHORS,
+        path=TikTokAPIEndpoints.SEARCH_USER,
+        required=("keyword",),
+        build=search_authors_params,
+        risk_weight=1.8,
+        # A guest gets ten accounts and has_more 1; the next page is empty
+        # with has_more 0 (2026-10-20), the same wall as the post search.
+        paging_login=LoginNeed.REQUIRED,
+        summary="Accounts matching a keyword",
+    ),
+    EndpointSpec(
         name=COMMENTS,
         path=TikTokAPIEndpoints.POST_COMMENT,
         required=("aweme_id",),
@@ -413,5 +447,7 @@ __all__ = [
     "MUSIC_DETAIL",
     "MUSIC_POSTS",
     "RELATED_POSTS",
+    "SEARCH_AUTHORS",
+    "SEARCH_POSTS",
     "TikTokAPIEndpoints",
 ]

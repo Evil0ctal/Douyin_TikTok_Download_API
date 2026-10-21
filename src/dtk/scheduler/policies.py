@@ -96,6 +96,11 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("tiktok.music_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.hashtag_detail", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("tiktok.hashtag_posts", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
+        # Search is the endpoint platforms watch hardest (doc 11 says so of
+        # all of them), so it gets the slowest bucket here and the heaviest
+        # weight a list carries.
+        EndpointPolicy("tiktok.search_posts", capacity=2, refill_per_sec=0.08, risk_weight=1.8),
+        EndpointPolicy("tiktok.search_authors", capacity=2, refill_per_sec=0.08, risk_weight=1.8),
         EndpointPolicy("bilibili.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("bilibili.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         # Asked once per detail, by the fetch layer, for the file itself. Same
@@ -135,6 +140,8 @@ _POLICIES: dict[str, EndpointPolicy] = {
         # -352 - so it gets the comment endpoints' slower bucket.
         EndpointPolicy("bilibili.ranking", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
         EndpointPolicy("bilibili.related_posts", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        EndpointPolicy("bilibili.search_posts", capacity=2, refill_per_sec=0.08, risk_weight=1.5),
+        EndpointPolicy("bilibili.search_authors", capacity=2, refill_per_sec=0.08, risk_weight=1.5),
     ]
 }
 

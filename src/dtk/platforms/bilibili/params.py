@@ -162,6 +162,41 @@ def related_posts_params(
     return {"bvid": content_bvid(bvid)}
 
 
+def _search(search_type: str, keyword: str, cursor: str | None, count: int) -> dict[str, str]:
+    text = str(keyword).strip()
+    if not text:
+        raise InvalidParam("a search needs a keyword", details={"field": "keyword"})
+    return {
+        "search_type": search_type,
+        "keyword": text,
+        "page": _page(cursor),
+        "page_size": str(count),
+    }
+
+
+def search_posts_params(
+    *,
+    keyword: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The search page's video tab, by page number. A guest pages it: page two
+    answered twenty more on 2026-10-20."""
+    return _search("video", keyword, cursor, count)
+
+
+def search_authors_params(
+    *,
+    keyword: str,
+    cursor: str | None = None,
+    count: int = DEFAULT_PAGE_SIZE,
+    profile: ClientProfile = DEFAULT_PROFILE,
+) -> dict[str, str]:
+    """The search page's user tab, which Bilibili calls ``bili_user``."""
+    return _search("bili_user", keyword, cursor, count)
+
+
 def author_profile_params(*, mid: str, profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
     return {"mid": numeric_id(mid, field="author_id"), "photo": "true"}
 
@@ -361,4 +396,6 @@ __all__ = [
     "profile_for",
     "ranking_params",
     "related_posts_params",
+    "search_authors_params",
+    "search_posts_params",
 ]
