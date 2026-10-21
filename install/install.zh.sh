@@ -31,6 +31,7 @@ IFS=$'\n\t'
 readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
 readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
+readonly COMPOSE_INSTALL_URL="https://docs.docker.com/compose/install/linux/"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md"
 
 # Compose 从 2.24 才有长格式的 `env_file:` 和 COMPOSE_ENV_FILES，而
@@ -287,6 +288,7 @@ as_root() {
 OS=""          # linux | macos | wsl | unsupported（不支持）
 DISTRO=""      # debian、ubuntu、fedora、rhel、arch、alpine、opensuse …
 DISTRO_LIKE="" # os-release 里的 ID_LIKE
+DISTRO_VERSION="" # os-release 里的 VERSION_ID
 DISTRO_NAME=""
 ARCH=""
 CPUS=""
@@ -308,6 +310,8 @@ detect_os() {
         DISTRO="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID:-}")"
         # shellcheck disable=SC1091
         DISTRO_LIKE="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID_LIKE:-}")"
+        # shellcheck disable=SC1091
+        DISTRO_VERSION="$(. /etc/os-release 2>/dev/null && printf '%s' "${VERSION_ID:-}")"
         # shellcheck disable=SC1091
         DISTRO_NAME="$(. /etc/os-release 2>/dev/null && printf '%s' "${PRETTY_NAME:-${NAME:-}}")"
       fi
@@ -419,7 +423,7 @@ check_compose() {
     key="$(version_key "$raw")"
     if [ "$key" -lt "$(version_key "$COMPOSE_MIN")" ]; then
       warn "当前 Compose 是 ${raw}，这套栈需要 $COMPOSE_MIN 或更新的版本。"
-      info "升级 Docker 之后再跑一次。见 $DOCS_URL"
+      info "装一个更新的 Compose 插件后再跑一次：$COMPOSE_INSTALL_URL"
       return 1
     fi
     ok "Docker Compose $raw"
@@ -427,27 +431,53 @@ check_compose() {
   fi
   if have docker-compose; then
     warn "检测到的是老的独立版 docker-compose（v1）。"
-    info "这套栈用到了 Compose v2 的特性。装一个当前版本的 Docker 即可，"
-    info "它自带 Compose 插件：$DOCKER_INSTALL_URL"
+    info "这套栈用到了 Compose v2 的特性。请安装 Compose 插件："
+    info "  $COMPOSE_INSTALL_URL"
     return 1
   fi
   warn "没有装 Docker Compose v2。"
+  info "安装 Compose 插件：$COMPOSE_INSTALL_URL"
   return 1
 }
 
+# 从发行版自己的软件包装 Docker 和 $COMPOSE_MIN 或更新的 Compose；包不够新的，
+# 就指向 Docker 介绍它自家软件源的页面。2026 年 10 月逐个核对过各发行版的软件源：
+# Debian 12 只有 Compose v1，openSUSE Leap 15.6 的 Compose 是 2.22，RHEL 系
+# 里叫 `docker` 的是 podman 的兼容层。这里以前对整个 RHEL 系都写 `dnf install docker docker-compose-plugin`，
+# 而那个插件包只在 Docker 自家的软件源里有，所以 dnf 会整行拒绝——连 Fedora
+# 也不例外，它其实两样都有，只是包名不同。
 docker_install_hint() {
-  local family
-  family="$(distro_family)"
-  case "$family" in
-    debian) printf '%s' "sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2" ;;
-    rhel)   printf '%s' "sudo dnf install -y docker docker-compose-plugin  # 老系统用 yum" ;;
-    suse)   printf '%s' "sudo zypper install -y docker docker-compose" ;;
-    arch)   printf '%s' "sudo pacman -S --needed docker docker-compose" ;;
-    alpine) printf '%s' "sudo apk add docker docker-cli-compose && sudo rc-update add docker default" ;;
+  local docs="https://docs.docker.com/engine/install"
+  case "$DISTRO" in
+    debian)
+      case "$DISTRO_VERSION" in
+        1[3-9]|[2-9][0-9]) printf '%s' "sudo apt-get update && sudo apt-get install -y docker.io docker-compose docker-buildx" ;;
+        *) printf '%s' "见 $docs/debian/" ;;
+      esac
+      return ;;
+    raspbian) printf '%s' "见 $docs/raspberry-pi-os/"; return ;;
+    fedora)   printf '%s' "sudo dnf install -y moby-engine docker-compose docker-buildx"; return ;;
+    rhel)     printf '%s' "见 $docs/rhel/"; return ;;
+    amzn)     printf '%s' "sudo dnf install -y docker，然后装 Compose 插件：$COMPOSE_INSTALL_URL"; return ;;
+  esac
+  case "$(distro_family)" in
+    debian)
+      case " $DISTRO $DISTRO_LIKE " in
+        *" ubuntu "*) printf '%s' "sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docker-buildx" ;;
+        *) printf '%s' "见 $docs/debian/" ;;
+      esac ;;
+    rhel) printf '%s' "见 $docs/centos/" ;;
+    suse)
+      case "$DISTRO_VERSION" in
+        1[0-5]|1[0-5].*) printf '%s' "sudo zypper install -y docker，然后装 Compose 插件：$COMPOSE_INSTALL_URL" ;;
+        *) printf '%s' "sudo zypper install -y docker docker-compose docker-buildx" ;;
+      esac ;;
+    arch)   printf '%s' "sudo pacman -S --needed docker docker-compose docker-buildx" ;;
+    alpine) printf '%s' "sudo apk add docker docker-cli-compose docker-cli-buildx && sudo rc-update add docker default" ;;
     nixos)  printf '%s' "在 configuration.nix 里加 virtualisation.docker.enable = true;" ;;
     void)   printf '%s' "sudo xbps-install -S docker docker-compose" ;;
     gentoo) printf '%s' "sudo emerge app-containers/docker app-containers/docker-compose" ;;
-    *)      printf '%s' "见 https://docs.docker.com/engine/install/" ;;
+    *)      printf '%s' "见 $docs/" ;;
   esac
 }
 
@@ -462,12 +492,14 @@ git_install_hint() {
   esac
 }
 
-# 官方的便捷安装脚本支不支持这个发行版。它覆盖 Debian、RHEL、SUSE 三系；
-# 在 Arch 和 Alpine 上它会直接拒绝，而让人去管道执行一个注定会拒绝他的脚本，
-# 比直接告诉他包管理器的那一条命令要糟糕。
+# 官方的便捷安装脚本支不支持这个发行版。它看的是 os-release 里的 ID，不是发行版
+# 系别：只认 ubuntu、debian、raspbian、centos、rhel、rocky、fedora，其余的
+# （SUSE、AlmaLinux、Amazon Linux 都在内）一律报 "Unsupported distribution"，
+# 有些衍生版还会被它对到一个并非其来源的上游版本。这里以前按系别判断，
+# 在整个 SUSE 系上都提议跑它，而它在那里从来没成功过。
 convenience_script_supported() {
-  case "$(distro_family)" in
-    debian|rhel|suse) return 0 ;;
+  case "$DISTRO" in
+    ubuntu|debian|raspbian|centos|rhel|rocky|fedora) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -497,7 +529,7 @@ offer_docker_install() {
   info ""
   info "两条路，都需要 sudo。"
   info ""
-  info "  1. 用你的包管理器："
+  info "  1. 手动安装："
   dim  "     $(docker_install_hint)"
   if convenience_script_supported; then
     info ""
@@ -528,12 +560,12 @@ offer_docker_install() {
       rm -f "$tmp"
       ok "Docker 安装完成。"
     else
-      die "请用上面那条命令装好 Docker，然后再跑一次这个脚本。"
+      die "请按上面的方法装好 Docker，然后再跑一次这个脚本。"
     fi
   else
     info ""
-    info "  2. Docker 官方安装脚本不支持 ${DISTRO_NAME}，所以请用上面那条"
-    info "     包管理器命令。"
+    info "  2. Docker 官方安装脚本不支持 ${DISTRO_NAME}，所以请按上面的"
+    info "     方法安装。"
     die "装好 Docker 之后再跑一次这个脚本。"
   fi
 }
@@ -2733,8 +2765,11 @@ main() {
   step "检查 Docker"
   if ! check_docker_present; then
     if [ "$CHECK_ONLY" = 1 ]; then
-      warn "没有装 Docker。正式运行时脚本会问你要不要装。"
-      info "这个系统对应的包管理器命令："
+      warn "没有装 Docker。"
+      if convenience_script_supported; then
+        info "正式运行时，脚本会提议替你跑 Docker 官方安装脚本。"
+      fi
+      info "这个系统上的安装方法："
       dim  "  $(docker_install_hint)"
       exit 0
     fi

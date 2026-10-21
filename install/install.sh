@@ -33,6 +33,7 @@ IFS=$'\n\t'
 readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
 readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
+readonly COMPOSE_INSTALL_URL="https://docs.docker.com/compose/install/linux/"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/02-installation.md"
 
 # Compose gained the long `env_file:` form and COMPOSE_ENV_FILES in 2.24, and
@@ -302,6 +303,7 @@ as_root() {
 OS=""          # linux | macos | wsl | unsupported
 DISTRO=""      # debian, ubuntu, fedora, rhel, arch, alpine, opensuse …
 DISTRO_LIKE="" # ID_LIKE from os-release
+DISTRO_VERSION="" # VERSION_ID from os-release
 DISTRO_NAME=""
 ARCH=""
 CPUS=""
@@ -323,6 +325,8 @@ detect_os() {
         DISTRO="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID:-}")"
         # shellcheck disable=SC1091
         DISTRO_LIKE="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID_LIKE:-}")"
+        # shellcheck disable=SC1091
+        DISTRO_VERSION="$(. /etc/os-release 2>/dev/null && printf '%s' "${VERSION_ID:-}")"
         # shellcheck disable=SC1091
         DISTRO_NAME="$(. /etc/os-release 2>/dev/null && printf '%s' "${PRETTY_NAME:-${NAME:-}}")"
       fi
@@ -435,7 +439,7 @@ check_compose() {
     key="$(version_key "$raw")"
     if [ "$key" -lt "$(version_key "$COMPOSE_MIN")" ]; then
       warn "Compose is $raw; this stack needs $COMPOSE_MIN or newer."
-      info "Update Docker, then run this again. See $DOCS_URL"
+      info "Install a newer Compose plugin, then run this again: $COMPOSE_INSTALL_URL"
       return 1
     fi
     ok "Docker Compose $raw"
@@ -443,27 +447,54 @@ check_compose() {
   fi
   if have docker-compose; then
     warn "Found the old standalone docker-compose (v1)."
-    info "This stack uses Compose v2 features. Install a current Docker, which"
-    info "ships Compose as a plugin: $DOCKER_INSTALL_URL"
+    info "This stack uses Compose v2 features. Install the Compose plugin:"
+    info "  $COMPOSE_INSTALL_URL"
     return 1
   fi
   warn "Docker Compose v2 is not installed."
+  info "Install the Compose plugin: $COMPOSE_INSTALL_URL"
   return 1
 }
 
+# Docker and Compose $COMPOSE_MIN or newer from the distribution's own
+# packages where those are new enough, else where Docker documents its own
+# repository. Checked against each archive in October 2026: Debian 12 has only
+# Compose v1, openSUSE Leap 15.6 has Compose 2.22, and on the RHEL family
+# `docker` is podman's shim. This used to say `dnf install docker docker-compose-plugin` for all
+# of RHEL, and that plugin package exists only in Docker's repository, so dnf
+# refused the whole line even on Fedora, which packages both under other names.
 docker_install_hint() {
-  local family
-  family="$(distro_family)"
-  case "$family" in
-    debian) printf '%s' "sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2" ;;
-    rhel)   printf '%s' "sudo dnf install -y docker docker-compose-plugin  # or: yum" ;;
-    suse)   printf '%s' "sudo zypper install -y docker docker-compose" ;;
-    arch)   printf '%s' "sudo pacman -S --needed docker docker-compose" ;;
-    alpine) printf '%s' "sudo apk add docker docker-cli-compose && sudo rc-update add docker default" ;;
+  local docs="https://docs.docker.com/engine/install"
+  case "$DISTRO" in
+    debian)
+      case "$DISTRO_VERSION" in
+        1[3-9]|[2-9][0-9]) printf '%s' "sudo apt-get update && sudo apt-get install -y docker.io docker-compose docker-buildx" ;;
+        *) printf '%s' "see $docs/debian/" ;;
+      esac
+      return ;;
+    raspbian) printf '%s' "see $docs/raspberry-pi-os/"; return ;;
+    fedora)   printf '%s' "sudo dnf install -y moby-engine docker-compose docker-buildx"; return ;;
+    rhel)     printf '%s' "see $docs/rhel/"; return ;;
+    amzn)     printf '%s' "sudo dnf install -y docker, then the Compose plugin: $COMPOSE_INSTALL_URL"; return ;;
+  esac
+  case "$(distro_family)" in
+    debian)
+      case " $DISTRO $DISTRO_LIKE " in
+        *" ubuntu "*) printf '%s' "sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 docker-buildx" ;;
+        *) printf '%s' "see $docs/debian/" ;;
+      esac ;;
+    rhel) printf '%s' "see $docs/centos/" ;;
+    suse)
+      case "$DISTRO_VERSION" in
+        1[0-5]|1[0-5].*) printf '%s' "sudo zypper install -y docker, then the Compose plugin: $COMPOSE_INSTALL_URL" ;;
+        *) printf '%s' "sudo zypper install -y docker docker-compose docker-buildx" ;;
+      esac ;;
+    arch)   printf '%s' "sudo pacman -S --needed docker docker-compose docker-buildx" ;;
+    alpine) printf '%s' "sudo apk add docker docker-cli-compose docker-cli-buildx && sudo rc-update add docker default" ;;
     nixos)  printf '%s' "add virtualisation.docker.enable = true; to configuration.nix" ;;
     void)   printf '%s' "sudo xbps-install -S docker docker-compose" ;;
     gentoo) printf '%s' "sudo emerge app-containers/docker app-containers/docker-compose" ;;
-    *)      printf '%s' "see https://docs.docker.com/engine/install/" ;;
+    *)      printf '%s' "see $docs/" ;;
   esac
 }
 
@@ -478,13 +509,15 @@ git_install_hint() {
   esac
 }
 
-# Whether the official convenience script supports this distribution. It covers
-# the Debian, RHEL and SUSE families; on Arch and Alpine it refuses, and telling
-# somebody to pipe a script that will refuse them is worse than telling them the
-# one command their package manager wants.
+# Whether the official convenience script supports this distribution. It goes
+# by os-release's ID, not by family: it knows ubuntu, debian, raspbian, centos,
+# rhel, rocky and fedora, says "Unsupported distribution" to the rest - SUSE,
+# AlmaLinux, Amazon Linux among them - and maps some derivatives to a parent
+# release they were not built from. This used to go by family and offered it
+# on all of SUSE, where it has never worked.
 convenience_script_supported() {
-  case "$(distro_family)" in
-    debian|rhel|suse) return 0 ;;
+  case "$DISTRO" in
+    ubuntu|debian|raspbian|centos|rhel|rocky|fedora) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -514,7 +547,7 @@ offer_docker_install() {
   info ""
   info "Two ways to fix that. Both need sudo."
   info ""
-  info "  1. Your package manager:"
+  info "  1. By hand:"
   dim  "     $(docker_install_hint)"
   if convenience_script_supported; then
     info ""
@@ -546,12 +579,12 @@ offer_docker_install() {
       rm -f "$tmp"
       ok "Docker installed."
     else
-      die "Install Docker with the command above, then run this script again."
+      die "Install Docker as shown above, then run this script again."
     fi
   else
     info ""
-    info "  2. Docker's own installer does not support $DISTRO_NAME, so use the"
-    info "     package manager command above."
+    info "  2. Docker's own installer does not support $DISTRO_NAME, so install"
+    info "     it as above."
     die "Install Docker, then run this script again."
   fi
 }
@@ -2863,8 +2896,11 @@ main() {
   step "Checking Docker"
   if ! check_docker_present; then
     if [ "$CHECK_ONLY" = 1 ]; then
-      warn "Docker is not installed. The script would offer to install it."
-      info "Package manager command for this system:"
+      warn "Docker is not installed."
+      if convenience_script_supported; then
+        info "A real run would offer to run Docker's own installer for you."
+      fi
+      info "How to install it on this system:"
       dim  "  $(docker_install_hint)"
       exit 0
     fi
