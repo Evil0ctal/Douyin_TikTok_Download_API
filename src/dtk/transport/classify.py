@@ -34,6 +34,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Final
+from urllib.parse import parse_qs, urlsplit
 
 from dtk.core.types import Outcome
 from dtk.transport.base import RawResponse, TransportFailure
@@ -232,10 +233,32 @@ EMPTY_PAYLOAD_KEYS: Final[tuple[str, ...]] = (
 #: also wrote a sentence for a human is a UI decision on their side, not a
 #: signal about ours.
 #:
+#: Nor does it have to give a reason at all. Measured 2026-10-21 for issue
+#: #795, a deleted image post (`/note/7697962930159039461`, which Douyin's own
+#: page calls nonexistent) answered::
+#:
+#:     200, 165 bytes, {"status_code": 0, "aweme_detail": null,
+#:                      "filter_detail": {"aweme_id": "7697962930159039461",
+#:                                        "filter_reason": ""}}
+#:
+#: while the same identity, a moment apart, got another post in full (51 KB),
+#: and a genuinely refused request - a broken signature, or no cookies - got a
+#: 403. Read as withholding, every such post cooled a healthy identity and was
+#: reported as UPSTREAM_RISK_CONTROL. So a container naming THE POST THE
+#: REQUEST ASKED FOR is an answer even when the reason is blank: the platform
+#: looked the post up and said, about that post, that there is nothing to see.
+#:
 #: What still reads as withholding is `aweme_detail` empty with no
-#: `filter_detail` at all - the payload gone with nothing said about it, which
-#: is what :func:`_withheld_payload` fires on.
+#: `filter_detail` at all, or with one that names no post or another one - the
+#: payload gone with nothing said about it, which is what
+#: :func:`_withheld_payload` fires on.
 PAYLOAD_REASON_KEYS: Final[tuple[str, ...]] = ("filter_detail",)
+#: The field in that container naming the post, and the query parameter the
+#: request named it by. Compared, never trusted alone: an id that is not the
+#: one asked for says nothing about this request.
+PAYLOAD_REASON_ID_PARAMS: Final[Mapping[str, str]] = MappingProxyType({"aweme_id": "aweme_id"})
+#: The detail reported for that case, so a log line says which one it was.
+PAYLOAD_REASON_UNGIVEN: Final = "no reason given"
 #: The field naming why, as a machine code. Observed: "core_dep" (no such post)
 #: and "status_self_see" (owner-only).
 PAYLOAD_REASON_CODE_KEYS: Final[tuple[str, ...]] = ("filter_reason",)
@@ -562,12 +585,28 @@ def _explained_absence(view: ResponseView) -> RuleResult:
         message = _first_text(reason, PAYLOAD_REASON_MESSAGE_KEYS)
         # Either half is the platform speaking about this post. A code with no
         # sentence is the ordinary case for a post that does not exist; a
-        # sentence with no code is what a withheld one carries. An empty
-        # container says nothing and is left to `payload.withheld`.
+        # sentence with no code is what a withheld one carries. Neither, but
+        # the post the request asked for named by id, is a deleted post as
+        # Douyin answers it now. Anything less is left to `payload.withheld`.
         if code and message:
             return f"{code}: {message}"
         if code or message:
             return code or message or False
+        if _names_the_requested_post(reason, view.response.final_url):
+            return PAYLOAD_REASON_UNGIVEN
+    return False
+
+
+def _names_the_requested_post(reason: Mapping[str, Any], url: str) -> bool:
+    """Whether ``reason`` names, by id, the post ``url`` asked for."""
+    if not url:
+        return False
+    asked = parse_qs(urlsplit(url).query)
+    for field, param in PAYLOAD_REASON_ID_PARAMS.items():
+        named = reason.get(field)
+        wanted = asked.get(param)
+        if isinstance(named, str) and named and wanted and wanted[0] == named:
+            return True
     return False
 
 

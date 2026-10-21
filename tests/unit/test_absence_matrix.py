@@ -3,7 +3,9 @@
 Every shape below was captured on 2026-09-10 by asking Douyin and TikTok for a
 post that was deleted, an id that never existed, an id of the wrong length, an
 author nobody has, and a likes list that is private - then recording the reply
-byte count, envelope and status fields verbatim.
+byte count, envelope and status fields verbatim. Re-captured on 2026-10-21 for
+issue #795, with Bilibili added: Douyin had started answering one deleted post
+with no reason at all, and the rest of the matrix still held.
 
 The point of pinning them is one asymmetry. Reading a refusal as an answer
 leaves a burnt identity in rotation, which is bad; reading an answer as a
@@ -74,6 +76,28 @@ class TestDouyinAbsence:
                 "aweme_detail": None,
                 "filter_detail": {"aweme_id": "7999999999999999999", "filter_reason": "delete"},
             }
+        )
+        assert verdict(response).outcome is Outcome.BUSINESS_ERROR
+
+    def test_a_deleted_post_named_without_a_reason_is_an_answer(self) -> None:
+        """200, 165 bytes, 2026-10-21: the post named, the reason blank.
+
+        Issue #795. Douyin's own page calls the post nonexistent, and the same
+        identity got another post in full a moment later, so this is the
+        platform answering about that post - which only holds because the id it
+        names is the one the request asked for.
+        """
+        response = RawResponse(
+            status=200,
+            headers={"content-type": "application/json"},
+            body=json.dumps(
+                {
+                    "status_code": 0,
+                    "aweme_detail": None,
+                    "filter_detail": {"aweme_id": "7697962930159039461", "filter_reason": ""},
+                }
+            ).encode(),
+            final_url="https://www.douyin.com/aweme/v1/web/aweme/detail/?aweme_id=7697962930159039461",
         )
         assert verdict(response).outcome is Outcome.BUSINESS_ERROR
 
@@ -187,6 +211,34 @@ class TestTikTokAbsence:
             {"status_code": 0, "status_msg": "", "comments": [{"cid": "1"}, {"cid": "2"}]}
         )
         assert verdict(response).outcome is Outcome.OK
+
+
+# --------------------------------------------------------------------------
+# Bilibili
+# --------------------------------------------------------------------------
+
+
+class TestBilibiliAbsence:
+    """Captured 2026-10-21. Bilibili says it in `code`, never with a silence."""
+
+    @pytest.mark.parametrize(
+        ("label", "payload"),
+        [
+            # "nothing here": a bvid nobody uploaded, and a mid nobody has.
+            ("no such video", {"code": -404, "message": "\u5565\u90fd\u6728\u6709", "ttl": 1}),
+            (
+                "no such author",
+                {"code": -404, "message": "\u5565\u90fd\u6728\u6709", "ttl": 1, "data": None},
+            ),
+            # "the submission is not visible": an aid that is gone.
+            (
+                "video not visible",
+                {"code": 62002, "message": "\u7a3f\u4ef6\u4e0d\u53ef\u89c1", "ttl": 1},
+            ),
+        ],
+    )
+    def test_a_missing_thing_is_an_answer(self, label: str, payload: dict[str, Any]) -> None:
+        assert verdict(answer(payload)).outcome is Outcome.BUSINESS_ERROR, label
 
 
 # --------------------------------------------------------------------------

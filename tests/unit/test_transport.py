@@ -12,7 +12,7 @@ import asyncio
 import json
 from collections.abc import Mapping
 from datetime import timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 import wreq
@@ -552,6 +552,40 @@ class TestClassifier:
             }
         )
         result = classify_detailed(response)
+        assert result.outcome is Outcome.RISK_CONTROL
+        assert result.rule == "payload.withheld"
+
+    #: Douyin's answer for a deleted image post, captured 2026-10-21 (#795):
+    #: the post named, no reason, no sentence.
+    UNEXPLAINED: ClassVar[dict[str, Any]] = {
+        "status_code": 0,
+        "aweme_detail": None,
+        "filter_detail": {"aweme_id": "7697962930159039461", "filter_reason": ""},
+        "log_pb": {"impr_id": "x"},
+    }
+
+    @staticmethod
+    def _asking_for(aweme_id: str, payload: Any) -> RawResponse:
+        return RawResponse(
+            status=200,
+            headers={"content-type": "application/json"},
+            body=json.dumps(payload).encode(),
+            final_url=(
+                "https://www.douyin.com/aweme/v1/web/aweme/detail/"
+                f"?device_platform=webapp&aid=6383&aweme_id={aweme_id}&a_bogus=x"
+            ),
+        )
+
+    def test_naming_the_post_asked_for_is_an_answer_without_a_reason(self) -> None:
+        """The post was deleted; Douyin's page says so and gives no reason here
+        either. Read as withholding, it cooled a healthy identity on every ask."""
+        result = classify_detailed(self._asking_for("7697962930159039461", self.UNEXPLAINED))
+        assert result.outcome is Outcome.BUSINESS_ERROR
+        assert result.rule == "payload.explained"
+        assert result.detail == "no reason given"
+
+    def test_naming_another_post_says_nothing_about_this_one(self) -> None:
+        result = classify_detailed(self._asking_for("7345492945006595379", self.UNEXPLAINED))
         assert result.outcome is Outcome.RISK_CONTROL
         assert result.rule == "payload.withheld"
 
