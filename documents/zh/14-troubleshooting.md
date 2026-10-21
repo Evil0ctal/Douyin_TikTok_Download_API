@@ -194,7 +194,7 @@ compose 读这个文件有两种完全不同的方式，很多人栽在这里：
 - **服务变量**来自 `env_file: ../.env`，这个路径由 compose 相对 `docker/compose.yml` 解析——所以尽管项目目录是 `docker/`，用到的仍然是仓库根目录的 `.env`。
 - **`compose.yml` 内部的插值**——也就是文件里那些 `${…}` 表达式——**不**读那个文件。它读的是 `docker/.env` 或者你的 shell。涉及六个变量：`DTK_BIND_HOST` 和 `DTK_BIND_PORT`（发布地址，`${DTK_BIND_HOST:-127.0.0.1}:${DTK_BIND_PORT:-8000}:8000`）、`DTK_IMAGE_TAG`（镜像标签）、`DTK_REDIS_MAXMEMORY`（redis 上限），以及 `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT`（浏览器镜像的构建参数）。完整拆解见[安装与部署](./02-installation.md)。
 
-所以这六个里的任何一个写进根目录的 `.env` 都不会有效果——最常被绊到的是 `DTK_BIND_HOST` 和 `CLOAKBROWSER_COMMIT`。改成在命令行里传，或者让 compose 去读根目录那份：
+所以这六个里的任何一个写进根目录的 `.env` 都不会有效果——最常被绊到的是 `DTK_BIND_HOST`，其次是为了换浏览器版本而设的 `CLOAKBROWSER_COMMIT`。改成在命令行里传，或者让 compose 去读根目录那份：
 
 ```bash
 DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
@@ -830,13 +830,14 @@ docker compose -p dtk -f docker/compose.yml logs browser-rpc | tail -40
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8 \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
+
+构建装的是 `docker/compose.yml` 指定的那个 CloakBrowser 版本，别的都不用设。
 
 ### 它报告健康却铸造不出身份
 
-即使浏览器后端启动失败，这个服务照样会应答 `/rpc/health`——这是刻意的，为的是给你一个原因而不是一个重启循环。所以 compose 的健康检查读的是 body 里的 `status` 字段，而不是满足于一个 200。最常见的原因是构建镜像时没给 `CLOAKBROWSER_COMMIT`。
+即使浏览器后端启动失败，这个服务照样会应答 `/rpc/health`——这是刻意的，为的是给你一个原因而不是一个重启循环。所以 compose 的健康检查读的是 body 里的 `status` 字段，而不是满足于一个 200。最常见的原因是镜像里根本没有浏览器：它是用裸的 `docker build` 构建的、没带 `--build-arg CLOAKBROWSER_COMMIT=…`，或者来自一份更早的代码——那时 `docker/compose.yml` 还没给它默认值。用上面那条命令经由 Compose 重新构建即可。
 
 ### Chromium 崩溃 报错 Target crashed 看起来像被平台封了
 

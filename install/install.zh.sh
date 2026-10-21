@@ -26,7 +26,9 @@ IFS=$'\n\t'
 
 # ------------------------------------------------------------------ 常量 --
 
-readonly REPO_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git"
+# DTK_REPO_URL 让克隆走一个镜像。有了代码目录之后，发布版本都从它自己的 origin 上找，
+# 所以之后也一直走那个镜像。
+readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
 readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md"
@@ -64,18 +66,21 @@ readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
 # 更新之后也会交给它接着做。英文脚本写的是它自己的名字，所以用中文装的实例一直是中文。
 readonly SCRIPT_NAME="install.zh.sh"
 
-# 浏览器镜像安装的 CloakBrowser 版本，和 .env.example 里的是同一个，是本仓库端到端
-# 验证过的。它是构建参数，而 dtkctl 让 Compose 插值读根目录的 .env，所以写在那里。
-# 在有这一项之前，这个脚本每次开浏览器都会构建出一个没有浏览器的镜像；它的健康检查
-# 读得出这一点，所以安装总是在 `up --wait` 那一步因 browser-rpc 不健康而失败。
-readonly CLOAKBROWSER_PIN="fbf005bc199920b592df17ac4d489324e29d56d8"
+# 这个项目往 .env 里写过的每一个 CloakBrowser commit：5.1.4 到 5.1.6 安装时写的是
+# 0.6.3 的，在那之前 .env.example（手动安装会照抄它）带的是 0.5.10 的。写死的那份让
+# 一个实例在代码的 requirements 已经换到 Playwright 1.64 之后还停在 0.5.10，所以升级时
+# 会把它们拿掉（settle_browser_pin）。这个列表是封闭的：现在已经没有任何地方会把默认值
+# 写进 .env，以后换 pin 也不用往这里加。
+readonly CLOAKBROWSER_WRITTEN_PINS="f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce fbf005bc199920b592df17ac4d489324e29d56d8"
 
 # 可以覆盖，这样试跑时不会碰到真正在用的 `dtk` 那套。做了校验，因为这个值会被写进
-# 生成的 dtkctl 里 —— 不是纯名字的东西到了那里就变成 shell 语法了。
+# 生成的 dtkctl 里 —— 不是纯名字的东西到了那里就变成 shell 语法了。用的是 Compose
+# 自己的规则，不是更宽松的一套：`MyDtk` 在这里能通过，却在第一次 pull 时失败，
+# 错误还怪到了镜像仓库头上。
 PROJECT="${DTK_PROJECT:-dtk}"
 case "$PROJECT" in
-  ''|*[!a-zA-Z0-9_-]*)
-    printf '错误：DTK_PROJECT 只能是字母、数字、短横线或下划线。\n' >&2
+  ''|[!a-z0-9]*|*[!a-z0-9_-]*)
+    printf '错误：DTK_PROJECT 只能是小写字母、数字、短横线或下划线，并且以字母或数字开头。\n' >&2
     exit 1 ;;
 esac
 
@@ -114,20 +119,35 @@ CHECK_ONLY=0
 MANAGE_ONLY=0
 UPGRADE_ONLY=0
 UPGRADE_TARGET=""
+NO_BACKUP=0
 
 # 凡是建在安装目录之外的东西都登记在这里，这样中途 Ctrl-C 也不会留下垃圾。
 TMP_FILES=()
+# 升级已经挪动了代码目录、但还没切换整套服务时会设上它：这时离开脚本 —— 出错、
+# 按 Ctrl-C —— 都会把代码目录和 .env 放回原样（undo_upgrade），这样说"什么都没改"
+# 的时候，那就是真的。
+UPGRADE_UNDO=""
+# 关掉回显读过一次密码之后会设上它。在那次读取里按 Ctrl-C，曾经让终端之后输入的
+# 任何东西都不再回显。
+SECRET_PROMPTED=0
 # 它必须以成功结束。脚本自然跑完时，退出码取最后执行的那条命令，也就是这个 trap；
 # 没有登记任何文件时那条命令是 `[ -n "" ]`，于是每次不需要临时文件的安装都在
 # 打印完「完成」之后报告失败。
 cleanup() {
   local f
+  if [ -n "$UPGRADE_UNDO" ]; then undo_upgrade; fi
+  if [ "$SECRET_PROMPTED" = 1 ] && [ -n "$TTY_IN" ]; then stty echo <"$TTY_IN" 2>/dev/null || true; fi
   for f in "${TMP_FILES[@]:-}"; do
     if [ -n "$f" ]; then rm -f "$f"; fi
   done
   return 0
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+# INT 和 TERM 会结束脚本。它们以前只跑 cleanup、别的什么都不做，而一个会返回的
+# trap 会让脚本接着往下走：在「启用浏览器容器吗？[Y/n]」那里按 Ctrl-C，取了默认值，
+# 然后接着去构建一个 6 GB 的镜像。
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # 从终端读一行。遇到 EOF 返回空而不是让脚本失败，这样终端被关掉时会落到默认值。
 read_line() {
@@ -163,6 +183,11 @@ ask_yes_no() {
 ask_value() {
   local prompt="$1" default="$2" validator="${3:-}" reply
   if [ "$ASSUME_YES" = 1 ] || [ -z "$TTY_IN" ]; then
+    # 预设值和手打的回答守同一条规则。--yes 时没有人能重新输入，而一个不对的端口
+    # 或路径，以前要到第一次 `docker compose pull` 才露出来，还是一条讲镜像仓库的消息。
+    if [ -n "$validator" ] && ! "$validator" "$default"; then
+      die "'${default}' 不能用作「${prompt}」的回答，而这里没有人可以问。改掉预设值再跑一次。"
+    fi
     printf '%s' "$default"
     return
   fi
@@ -176,6 +201,18 @@ ask_value() {
       return
     fi
   done
+}
+
+# 原样读一行，只去掉两头的空白。ask_value 会去掉所有空格，这对端口或路径合适，
+# 对一个设置项却是破坏：`GET /api/v1/x` 被存成了 `GET/api/v1/x`，校验还让它过了。
+ask_line() {
+  local prompt="$1" reply
+  [ -n "$TTY_IN" ] && [ "$ASSUME_YES" = 0 ] || return 0
+  printf '    %s ' "$prompt" >&2
+  reply="$(read_line)"
+  reply="${reply#"${reply%%[![:space:]]*}"}"
+  reply="${reply%"${reply##*[![:space:]]}"}"
+  printf '%s' "$reply"
 }
 
 valid_port() {
@@ -194,6 +231,17 @@ valid_path() {
     /|"") warn "这不是一个该往里装东西的目录。"; return 1 ;;
     /*|~*|./*|../*) return 0 ;;
     *) warn "请用绝对路径，比如 /opt/dtk。"; return 1 ;;
+  esac
+}
+
+# 展开开头的 ~。它从 `read` 进来时是字面字符，所以这里是对一个字符做模式匹配，
+# 不是在尝试展开。
+# shellcheck disable=SC2088
+expand_tilde() {
+  case "$1" in
+    "~") printf '%s' "$HOME" ;;
+    "~/"*) printf '%s' "$HOME/${1#\~/}" ;;
+    *) printf '%s' "$1" ;;
   esac
 }
 
@@ -227,7 +275,9 @@ as_root() {
   if [ "$(id -u)" = "0" ]; then
     "$@"
   else
-    dim "sudo $*"
+    have sudo || die "这一步需要 root，而这台机器没有装 sudo：$(printf '%q ' "$@")"
+    # 用 %q 而不是 "$*"：IFS 设成换行和制表符时，"$*" 会把命令的每个词各打在一行上。
+    dim "sudo $(printf '%q ' "$@")"
     sudo "$@"
   fi
 }
@@ -326,6 +376,25 @@ detect_resources() {
     MEM_MIB=0
   fi
   case "$MEM_MIB" in ''|*[!0-9]*) MEM_MIB=0 ;; esac
+}
+
+# Docker 守护进程能分出去的资源，资源上限要按它来定。在 Docker Desktop、OrbStack
+# 或远程 DOCKER_HOST 上，那是一台虚拟机，不是这台宿主机：一台 16 核的 Mac 前面挂着
+# 一个 2 CPU 的虚拟机，结果没写覆盖文件，browser-rpc 要了 4.0 个 CPU，Docker 直接拒绝。
+detect_docker_resources() {
+  local line cpus bytes mib
+  line="$(docker info --format '{{.NCPU}} {{.MemTotal}}' 2>/dev/null || true)"
+  cpus="${line%% *}"
+  bytes="${line##* }"
+  case "$cpus" in ''|*[!0-9]*) return 0 ;; esac
+  case "$bytes" in ''|*[!0-9]*) return 0 ;; esac
+  [ "$cpus" -gt 0 ] && [ "$bytes" -gt 0 ] || return 0
+  mib=$(( bytes / 1024 / 1024 ))
+  if [ "$UPGRADE_ONLY" = 0 ] && { [ "$cpus" != "$CPUS" ] || [ $(( mib - MEM_MIB )) -gt 256 ] || [ $(( MEM_MIB - mib )) -gt 256 ]; }; then
+    ok "Docker 在这里能用 ${cpus} 个 CPU 和 $(( mib / 1024 )).$(( (mib % 1024) * 10 / 1024 )) GiB 内存，整套服务就按这个来定规格。"
+  fi
+  CPUS="$cpus"
+  MEM_MIB="$mib"
 }
 
 # ---------------------------------------------------------------- docker --
@@ -564,6 +633,20 @@ set_env_value() {
   rm -f "$tmp"
 }
 
+# 把 KEY 那一行换成一条说明它为什么被拿掉的注释，写法和 set_env_value 一样。
+# 直接删掉的话，看 .env 的人找不到任何改动过的痕迹。
+drop_env_value() {
+  local key="$1" note="$2" env_file="$INSTALL_DIR/.env" tmp
+  grep -q "^${key}=" "$env_file" 2>/dev/null || return 0
+  tmp="$(mktemp)" || die "无法创建临时文件。"
+  TMP_FILES+=("$tmp")
+  awk -v key="$key" -v note="$note" '
+    index($0, key "=") == 1 { if (!done) print "# " note; done = 1; next }
+    { print }' "$env_file" >"$tmp"
+  cat "$tmp" >"$env_file"
+  rm -f "$tmp"
+}
+
 # 在 dtkctl 的 compose 那一行上原地加上或去掉一个 --profile。
 set_ctl_profile() {
   local name="$1" state="$2" flag tmp
@@ -627,7 +710,8 @@ models_present() {
 # 容器以 UID 10001 读模型，而不是以运行本脚本的用户。一个只对属主开放的目录，
 # 会让 transcriber 一直不健康，原因只写在那个容器自己的日志里。
 models_readable() {
-  [ -z "$(find "$1" \( -type d ! -perm -005 \) -o \( -type f ! -perm -004 \) 2>/dev/null | head -1)" ]
+  [ -z "$(find "$1" -maxdepth 0 ! -perm -005 2>/dev/null)" ] \
+    && [ -z "$(find "$1/asr" "$1/vad" "$1/punc" \( -type d ! -perm -005 \) -o \( -type f ! -perm -004 \) 2>/dev/null | head -1)" ]
 }
 
 model_repo_for() {
@@ -684,8 +768,15 @@ download_models() {
     fi
     mv -f "$tmp" "$root/$path"
   done
-  chmod -R a+rX "$root"
+  open_models "$root" || { warn "无法让容器读到 ${root}。"; return 1; }
   ok "十个文件都已校验，位于 ${root}"
+}
+
+# 让容器的 UID 10001 能读：目录本身，以及这个脚本往里放东西的那三个 —— 绝不对
+# 用户给的那个目录用 -R。「模型目录？」曾经收到过 ~，`chmod -R a+rX ~` 让整个家目录
+# 连同 .ssh 都变成了所有人可读。
+open_models() {
+  chmod a+rx "$1" && chmod -R a+rX "$1/asr" "$1/vad" "$1/punc"
 }
 
 # 只接受完整的 commit。tag 或分支会在钉住之后自己移动；不是十六进制的东西会变成
@@ -697,12 +788,58 @@ valid_commit() {
   [ "${#1}" -eq 40 ]
 }
 
-# 在钉版本之前装的实例里没有这一项，它们的浏览器镜像里也没有浏览器。只在缺失时
-# 补上、不覆盖：有人特意选的版本仍归他自己。
-ensure_browser_pin() {
-  if [ -z "$(env_value CLOAKBROWSER_COMMIT)" ]; then
-    set_env_value CLOAKBROWSER_COMMIT "$BROWSER_COMMIT"
-    ok "已在 .env 里把 CloakBrowser 钉在 ${BROWSER_COMMIT}。"
+# .env 里没指定时，这份代码构建的 CloakBrowser commit：它的 docker/compose.yml 里的
+# 默认值，docker/browser_rpc/requirements.txt 就是用它验证的。从代码目录里读，而不是
+# 记在这个脚本里，因为升级时跑的是一个版本的脚本、面对的是另一个版本的代码，只有代码
+# 自己知道它是用哪个验证的。
+compose_browser_pin() {
+  # 单引号：${...} 是要匹配的 compose 文本，不是展开。
+  # shellcheck disable=SC2016
+  sed -n 's/^ *CLOAKBROWSER_COMMIT: \${CLOAKBROWSER_COMMIT:-\([0-9a-f]\{40\}\)}.*$/\1/p' \
+    "$INSTALL_DIR/docker/compose.yml" 2>/dev/null | head -n 1
+}
+
+# 有那个默认值之前的版本 —— 5.1.6 及更早 —— 在 .env 里没有 commit 时构建不出浏览器，
+# 它的 .env.example 写着它要的那一个。
+example_browser_pin() {
+  sed -n 's/^CLOAKBROWSER_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' "$INSTALL_DIR/.env.example" 2>/dev/null | head -n 1
+}
+
+is_written_pin() {
+  case " $CLOAKBROWSER_WRITTEN_PINS " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# .env 里那个 CloakBrowser 版本如果是这个项目自己写进去的、而不是有人特意选的，
+# 就拿掉，让构建用 docker/compose.yml 里的那个 —— 也就是代码里 requirements 验证过的
+# 版本。一个九月装的实例就是这样留在了 0.5.10，升级它会构建出 0.5.10 配 Playwright
+# 1.64，这个组合谁都没跑过。有人特意选的版本保留，归他自己，但会告诉他这不是验证过的
+# 那个。不管开没开浏览器都做，这样之后再打开时构建出来的是对的。
+settle_browser_pin() {
+  local pin default legacy
+  pin="$(env_value CLOAKBROWSER_COMMIT)"
+  default="$(compose_browser_pin)"
+  if [ -z "$default" ]; then
+    legacy="$(example_browser_pin)"
+    [ -n "$legacy" ] || return 0
+    if [ -z "$pin" ] || { is_written_pin "$pin" && [ "$pin" != "$legacy" ]; }; then
+      set_env_value CLOAKBROWSER_COMMIT "$legacy"
+      ok ".env 里写上了 CLOAKBROWSER_COMMIT=${legacy:0:12}：这个版本要从那里写明的 commit 构建浏览器。"
+    fi
+    return 0
+  fi
+  [ -n "$pin" ] || return 0
+  if is_written_pin "$pin"; then
+    drop_env_value CLOAKBROWSER_COMMIT \
+      "CLOAKBROWSER_COMMIT=${pin} 已被 install/${SCRIPT_NAME} 拿掉：不设置时跟随 docker/compose.yml。"
+    ok "浏览器镜像现在跟随这份代码的 CloakBrowser 版本（${default:0:12}）。"
+    if [ "$pin" != "$default" ]; then
+      info "原来是 ${pin:0:12}，那是早先的版本写进 .env 的。"
+    fi
+  elif [ "$pin" != "$default" ]; then
+    warn ".env 里的 CLOAKBROWSER_COMMIT 钉在 ${pin:0:12}；这是有人特意选的，所以保留。"
+    info "这份代码的浏览器依赖是用 ${default:0:12} 验证的。"
+    info "想跟随代码，就把 .env 里那一行删掉。"
   fi
 }
 
@@ -713,6 +850,19 @@ valid_model_path() {
   case "$1" in
     *[!A-Za-z0-9._/~+-]*) warn "这个路径里只能用字母、数字和 . _ - + /。"; return 1 ;;
   esac
+  local dir
+  dir="$(absolute_path "$(expand_tilde "$1")")"
+  if [ -e "$dir" ] && [ ! -d "$dir" ]; then
+    warn "${dir} 已存在但不是目录。"
+    return 1
+  fi
+  # 模型放在它下面的 asr/、vad/ 和 punc/ 里，这个脚本只碰它的这一部分。一个装满别的
+  # 东西的目录是某个人的目录 —— 家目录、/srv —— 而不是专门放模型的。
+  if [ -d "$dir" ] && [ ! -d "$dir/asr" ] && [ ! -d "$dir/vad" ] && [ ! -d "$dir/punc" ] \
+      && [ -n "$(ls -A "$dir" 2>/dev/null || true)" ]; then
+    warn "${dir} 里已经有别的文件。请用一个新的或空的目录，比如 ${dir}/funasr-onnx。"
+    return 1
+  fi
   return 0
 }
 
@@ -721,30 +871,14 @@ choose_model_path() {
   MODELS_TO_FETCH=0
   dim "模型留在这台机器上，以只读方式挂载。已经放好模型的目录会原样使用。"
   MODEL_PATH="$(ask_value "模型目录？" "${MODEL_PATH:-$INSTALL_DIR/models/funasr-onnx}" valid_model_path)"
-  # 交互输入时已经校验过；--yes 取的预设值没有。
-  if ! valid_model_path "$MODEL_PATH"; then
-    WANT_TRANSCRIBER=0
-    return 0
-  fi
-  # 波浪号从 `read` 来时是字面字符，同 choose_directory。
-  # shellcheck disable=SC2088
-  case "$MODEL_PATH" in
-    "~") MODEL_PATH="$HOME" ;;
-    "~/"*) MODEL_PATH="$HOME/${MODEL_PATH#\~/}" ;;
-  esac
-  MODEL_PATH="$(absolute_path "$MODEL_PATH")"
+  MODEL_PATH="$(absolute_path "$(expand_tilde "$MODEL_PATH")")"
 
-  if [ -e "$MODEL_PATH" ] && [ ! -d "$MODEL_PATH" ]; then
-    warn "${MODEL_PATH} 已存在但不是目录。转写保持关闭。"
-    WANT_TRANSCRIBER=0
-    return 0
-  fi
   if models_present "$MODEL_PATH"; then
     ok "在 ${MODEL_PATH} 找到了模型。"
     if ! models_readable "$MODEL_PATH"; then
       warn "其中有些对其他用户不可读，而容器是以 UID 10001 读它们的。"
-      if ask_yes_no "把它们设为可读吗（chmod -R a+rX，不会变成可写）？" "y"; then
-        chmod -R a+rX "$MODEL_PATH" || { warn "chmod 失败。转写保持关闭。"; WANT_TRANSCRIBER=0; }
+      if ask_yes_no "把它们设为可读吗（对它本身和其中的 asr、vad、punc 加 a+rX，不会变成可写）？" "y"; then
+        open_models "$MODEL_PATH" || { warn "chmod 失败。转写保持关闭。"; WANT_TRANSCRIBER=0; }
       else
         WANT_TRANSCRIBER=0
         dim "在它们可读之前，转写保持关闭。"
@@ -801,7 +935,13 @@ USE_PUBLISHED="${DTK_USE_PUBLISHED:-1}"
 WANT_TRANSCRIBER="${DTK_ENABLE_TRANSCRIBER:-0}"
 MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
 MODELS_TO_FETCH=0
-BROWSER_COMMIT="${CLOAKBROWSER_COMMIT:-$CLOAKBROWSER_PIN}"
+# 除非有人选了版本，否则为空：那样就用 docker/compose.yml 里的。
+BROWSER_COMMIT="${CLOAKBROWSER_COMMIT:-}"
+# 读一次，然后从环境里拿掉，连同这个脚本钉住的版本一起。Compose 插值时 shell 里的值
+# 优先于 .env 里的，而这个脚本跑的每一个 dtkctl 都继承它的环境：shell 里有
+# DTK_BIND_HOST=0.0.0.0 时，「保持在 127.0.0.1」这个回答写进了 .env，整套服务却照样
+# 发布在了 0.0.0.0 上。
+unset DTK_BIND_HOST DTK_BIND_PORT DTK_TRANSCRIBER_MODEL_PATH CLOAKBROWSER_COMMIT DTK_IMAGE_TAG
 
 banner() {
   printf '\n'
@@ -840,16 +980,7 @@ choose_directory() {
   dim "代码、你的 .env 和控制脚本放在这里。媒体文件和数据库放在 Docker 数据卷里，"
   dim "不在这个目录下。"
   INSTALL_DIR="$(ask_value "安装目录？" "$default_dir" valid_path)"
-
-  # 开头的 ~ 得自己展开；从 `read` 拿到的是字面量。
-  # 这里的 ~ 是字面量：`read` 不做展开，它是以一个字符的形式进来的，
-  # 所以这是模式匹配，不是在尝试展开。
-  # shellcheck disable=SC2088
-  case "$INSTALL_DIR" in
-    "~") INSTALL_DIR="$HOME" ;;
-    "~/"*) INSTALL_DIR="$HOME/${INSTALL_DIR#\~/}" ;;
-  esac
-  INSTALL_DIR="$(absolute_path "$INSTALL_DIR")"
+  INSTALL_DIR="$(absolute_path "$(expand_tilde "$INSTALL_DIR")")"
 
   case "$INSTALL_DIR" in
     ""|"/"|"/usr"|"/etc"|"/var"|"/bin"|"/sbin"|"/lib"|"/boot"|"/home"|"/root")
@@ -857,54 +988,103 @@ choose_directory() {
   esac
 }
 
+# 这次安装会落到的那个同名项目留下的数据卷。Compose 按项目名给数据卷命名，所以新的
+# 安装会对着那个旧数据库启动 —— 用的是它不认识的新密码 —— 然后死在第一次迁移上。
+# 以前真的会走到那一步：用 `down` 停掉的安装，或者目录已经被删掉的安装，都没有任何
+# 容器可供查找。
+refuse_foreign_volumes() {
+  [ -f "$INSTALL_DIR/.env" ] && return 0
+  local volumes
+  volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null || true)"
+  [ -n "$volumes" ] || return 0
+  die "Docker 里已经有名为 '${PROJECT}' 的项目的数据卷：
+$(printf '%s\n' "$volumes" | sed 's/^/      /')
+    它们属于一份被停掉或被删掉、却没有带走数据卷的安装，而它们的数据库只有那份安装的
+    .env 才能打开，$INSTALL_DIR 里没有那份 .env。新安装会生成新密码，对着它们必然失败。
+      - 那份安装还在某个地方：到那里用 --manage 跑这个脚本，
+        或者把 DTK_INSTALL_DIR 设成它所在的目录。
+      - 换个名字、换个目录和它并存安装：
+          DTK_PROJECT=${PROJECT}2 DTK_INSTALL_DIR=\$HOME/${PROJECT}2 bash install.zh.sh
+      - 从头来过。这会永久删除那些数据：
+          docker volume rm $(printf '%s' "$volumes" | tr '\n' ' ')"
+}
+
 prepare_directory() {
   if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
     die "$INSTALL_DIR 已存在，而且不是目录。"
   fi
+  have git || die "没有装 git。用 $(git_install_hint) 装上，然后再跑一次。"
+
+  # 要安装的那个版本：检出它的 tag，并把它的版本号作为 DTK_IMAGE_TAG 写进 .env。main
+  # 跑在发布版本前面，以前克隆 main 的安装，一开始就是 main 的 compose.yml 套着上一个
+  # 发布版本的镜像。
+  resolve_target "${DTK_VERSION:-latest}"
 
   if [ -d "$INSTALL_DIR/.git" ]; then
     local origin
     origin="$(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || echo "")"
     case "$origin" in
-      *Douyin_TikTok_Download_API*)
-        ok "在 $INSTALL_DIR 发现已有的安装。"
-        info "你的 .env 和 Docker 数据卷不会被动。"
-        if ask_yes_no "把代码更新到最新的 main 吗？" "y"; then
-          git -C "$INSTALL_DIR" fetch --quiet origin main
-          git -C "$INSTALL_DIR" checkout --quiet main 2>/dev/null || true
-          # 用 --ff-only，绝不用 --hard：reset 会把别人有意做的改动扔掉，
-          # 这个脚本没有资格替人做这个决定。
-          git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main \
-            || warn "本地有改动，保持原样不动。"
-        fi
-        return
-        ;;
-      *)
-        die "$INSTALL_DIR 是别的项目的 git 仓库（${origin}）。
+      *Douyin_TikTok_Download_API*) : ;;
+      *) die "$INSTALL_DIR 是别的项目的 git 仓库（${origin}）。
     请换一个空目录。" ;;
     esac
+    [ -f "$INSTALL_DIR/docker/compose.yml" ] \
+      || die "$INSTALL_DIR 是这个项目 v5 之前的代码（里面没有 docker/compose.yml）。
+    v5 和它没有任何共同之处。请换一个空目录。"
+    if [ -x "$INSTALL_DIR/dtkctl" ] && [ "$(project_of "$INSTALL_DIR/dtkctl")" != "$PROJECT" ]; then
+      die "$INSTALL_DIR 是项目 '$(project_of "$INSTALL_DIR/dtkctl")' 的安装，不是 '${PROJECT}' 的。
+    里面的 .env 和 dtkctl 都属于那份安装。请换一个目录：DTK_INSTALL_DIR=..."
+    fi
+    ok "在 $INSTALL_DIR 发现已有的代码目录。"
+    info "你的 .env 和 Docker 数据卷不会被动。"
+    if checkout_is_at "$RELEASE_REF"; then
+      ok "它已经在 $RELEASE_REF 了。"
+    elif ask_yes_no "把它切到要安装的版本 $RELEASE_REF 吗？" "y"; then
+      checkout_ref "$RELEASE_REF"
+      ok "已检出 ${RELEASE_REF}。"
+    else
+      # 不切的话，代码目录会拿 $RELEASE_REF 的镜像去跑另一棵树的 compose.yml —— 切过去正是
+      # 为了防止这种错配。
+      die "那样会在另一份代码上跑 $RELEASE_REF 的镜像。什么都没改。
+    要装别的版本，就指定它：DTK_VERSION=5.1.6 bash install.zh.sh"
+    fi
+    return
   fi
 
   if [ -d "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null || true)" ]; then
     die "$INSTALL_DIR 非空，而且不是已有的安装。请换一个目录。"
   fi
 
-  step "获取源码"
-  have git || die "没有装 git。用 $(git_install_hint) 装上，然后再跑一次。"
-
+  step "获取 $RELEASE_REF"
   local parent
   parent="$(dirname "$INSTALL_DIR")"
-  if [ ! -d "$parent" ]; then
+  # 先以当前用户来建：一个他自己就能建的上级目录也用 sudo，会在他的家目录里留下
+  # 属于 root 的目录。
+  if [ ! -d "$parent" ] && ! mkdir -p "$parent" 2>/dev/null; then
+    ask_yes_no "$parent 不存在，需要 root 才能创建。用 sudo 创建吗？" "y" \
+      || die "请自己创建 ${parent}，或者换一个目录。"
     as_root mkdir -p "$parent"
   fi
   if [ ! -w "$parent" ]; then
+    ask_yes_no "$parent 不可写。用 sudo 创建 ${INSTALL_DIR}，并让它归你所有吗？" "y" \
+      || die "请换一个你能写入的目录。"
     as_root mkdir -p "$INSTALL_DIR"
     as_root chown "$(id -u):$(id -g)" "$INSTALL_DIR"
   fi
 
-  git clone --quiet --depth 1 --branch main "$REPO_URL" "$INSTALL_DIR" \
-    || die "克隆 $REPO_URL 失败。检查一下网络；在中国大陆多半要先换源：$DOCS_URL"
-  ok "已克隆到 $INSTALL_DIR"
+  # 先完整克隆 main，再把发布版本放在它上面。5.1.6 的安装脚本 —— 在检出更新的版本之前，
+  # `./dtkctl upgrade` 跑的就是它 —— 在交接之前会把代码目录快进到 origin/main，而这需要
+  # main 上从那个发布版本到最新提交之间的历史：只克隆 tag 就没有 origin/main，--depth 1
+  # 克隆 main 又只有最新提交、没有通往它的那段历史。不管哪种，那一步都会失败，升级就在
+  # 旧代码里接着跑了下去。main 的全部历史大约 14 MB。
+  local said
+  if ! said="$(git clone --quiet --single-branch --branch main "$REPO_URL" "$INSTALL_DIR" 2>&1)"; then
+    die "克隆 $REPO_URL 失败：
+$(printf '%s\n' "$said" | sed 's/^/      /')
+    检查一下网络；在中国大陆多半要先换源：$DOCS_URL"
+  fi
+  checkout_ref "$RELEASE_REF"
+  ok "已把 $RELEASE_REF 克隆到 $INSTALL_DIR"
 }
 
 ask_questions() {
@@ -942,11 +1122,24 @@ ask_questions() {
   # 那是有人明确要求，不是替他做的默认决定。
   [ "${DTK_ENABLE_BROWSER:-}" = "1" ] && browser_default="y"
   if ask_yes_no "启用浏览器容器吗？" "$browser_default"; then WANT_BROWSER=1; else WANT_BROWSER=0; fi
+  # 浏览器没开也要检查：不管开没开它都会写进 .env，之后打开浏览器的人会在一次构建
+  # 进行了好几分钟之后才被 Docker 拒绝。
+  if [ -n "$BROWSER_COMMIT" ] && ! valid_commit "$BROWSER_COMMIT"; then
+    die "CLOAKBROWSER_COMMIT 必须是完整的 40 位 commit，而不是 '${BROWSER_COMMIT}'。"
+  fi
   if [ "$WANT_BROWSER" = 1 ]; then
-    valid_commit "$BROWSER_COMMIT" \
-      || die "CLOAKBROWSER_COMMIT 必须是完整的 40 位 commit，而不是 '${BROWSER_COMMIT}'。"
-    dim "它会安装 commit ${BROWSER_COMMIT:0:12} 的 CloakBrowser，也就是这个脚本验证过的版本。"
-    dim "要换版本，改 .env 里的 CLOAKBROWSER_COMMIT。"
+    local verified
+    verified="$(compose_browser_pin)"
+    [ -n "$verified" ] || verified="$(example_browser_pin)"
+    if [ -z "$BROWSER_COMMIT" ]; then
+      dim "它会安装 commit ${verified:0:12} 的 CloakBrowser，也就是这个版本验证过的那个，"
+      dim "以后升级时会跟着代码走。"
+    else
+      dim "它会安装 commit ${BROWSER_COMMIT:0:12} 的 CloakBrowser，来自 CLOAKBROWSER_COMMIT。"
+      if [ "$BROWSER_COMMIT" != "$verified" ]; then
+        warn "这个版本验证过的是 ${verified:0:12}。你选的会写进 .env，升级时不会动它。"
+      fi
+    fi
   fi
 
   printf '\n'
@@ -1005,14 +1198,7 @@ write_env() {
   if [ -f "$env_file" ]; then
     ok "保留已有的 .env —— 现在的数据库就是用里面那些密钥建起来的。"
     info "想重新生成就自己删掉它，但那样旧的数据卷就打不开了。"
-    # dtkctl 马上要启动 transcriber，而一份在它出现之前写的 .env 会让 api
-    # 不知道它的地址，它自己也没有 token。
-    if [ "$WANT_TRANSCRIBER" = 1 ]; then
-      write_transcriber_env
-    fi
-    if [ "$WANT_BROWSER" = 1 ]; then
-      ensure_browser_pin
-    fi
+    reconcile_env
     return
   fi
 
@@ -1062,18 +1248,65 @@ write_env() {
     printf '\n'
     printf 'DTK_BIND_HOST=%s\n' "$BIND_HOST"
     printf 'DTK_BIND_PORT=%s\n' "$BIND_PORT"
-    # 不管开没开浏览器都写上，这样之后手动打开时，构建出来的镜像里有浏览器。
-    printf 'CLOAKBROWSER_COMMIT=%s\n' "$BROWSER_COMMIT"
+    # 只写有人选过的版本。不写的话用 docker/compose.yml 的默认值，它会随升级移动；
+    # 写在这里的话，代码里浏览器的 requirements 往前走了，它还留在原地。
+    # 有那个默认值之前的版本，由下面的 settle_browser_pin 给它写上 commit。
+    if [ -n "$BROWSER_COMMIT" ]; then
+      printf 'CLOAKBROWSER_COMMIT=%s\n' "$BROWSER_COMMIT"
+    elif [ -n "$(compose_browser_pin)" ]; then
+      printf '# CLOAKBROWSER_COMMIT= 不设置：浏览器跟随 docker/compose.yml。\n'
+    fi
     if [ "$USE_PUBLISHED" = 1 ]; then
       printf 'DTK_IMAGE=evil0ctal/douyin_tiktok_download_api\n'
-      printf 'DTK_IMAGE_TAG=latest\n'
+      # 写检出的那个发布版本，而不是 `latest`：那个 tag 会移动，而一份安装应该说得出
+      # 自己跑的是哪个构建 —— 升级时钉住它要升到的版本，也是同一个理由。
+      printf 'DTK_IMAGE_TAG=%s\n' "$RELEASE_TAG"
       printf 'DTK_DOWNLOADER_IMAGE=evil0ctal/douyin_tiktok_download_api-downloader\n'
       printf 'DTK_TRANSCRIBER_IMAGE=%s\n' "$TRANSCRIBER_IMAGE"
     fi
   } >"$env_file"
   umask "$old_umask"
   chmod 600 "$env_file"
+  # compose.yml 有默认值之前的版本，要的是写在这里的 commit。
+  settle_browser_pin
   ok "已写入 ${env_file}（仅属主可读）。"
+}
+
+# 一份中途停下的运行留下的 .env，为了它的密钥会保留下来，但刚刚给出的回答会覆盖掉
+# 它们所决定的那几行。以前它保留自己的值，而 dtkctl 用的是新的回答：浏览器开了却没有
+# 它的地址，下载开了却没有下载器的 URL，摘要里写着 127.0.0.1，而 .env 发布在 0.0.0.0 上。
+reconcile_env() {
+  set_env_value DTK_BIND_HOST "$BIND_HOST"
+  set_env_value DTK_BIND_PORT "$BIND_PORT"
+  if [ "$WANT_BROWSER" = 1 ]; then
+    set_env_value DTK_BROWSER_RPC_URL "http://browser-rpc:9000"
+  else
+    set_env_value DTK_BROWSER_RPC_URL ""
+  fi
+  if [ "$WANT_DOWNLOADER" = 1 ]; then
+    set_env_value DTK_DOWNLOADER_URL "http://downloader:9100"
+    [ -n "$(env_value DTK_DOWNLOADER_TOKEN)" ] || set_env_value DTK_DOWNLOADER_TOKEN "$(random_hex 24)"
+  else
+    set_env_value DTK_DOWNLOADER_URL ""
+  fi
+  # dtkctl 马上要启动 transcriber，而一份在它出现之前写的 .env 会让 api
+  # 不知道它的地址，它自己也没有 token。
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    write_transcriber_env
+  else
+    set_env_value DTK_TRANSCRIBER_URL ""
+  fi
+  if [ "$USE_PUBLISHED" = 1 ]; then
+    set_env_value DTK_IMAGE evil0ctal/douyin_tiktok_download_api
+    set_env_value DTK_IMAGE_TAG "$RELEASE_TAG"
+    set_env_value DTK_DOWNLOADER_IMAGE evil0ctal/douyin_tiktok_download_api-downloader
+  else
+    set_env_value DTK_IMAGE ""
+    set_env_value DTK_DOWNLOADER_IMAGE ""
+    set_env_value DTK_TRANSCRIBER_IMAGE ""
+  fi
+  [ -z "$BROWSER_COMMIT" ] || set_env_value CLOAKBROWSER_COMMIT "$BROWSER_COMMIT"
+  settle_browser_pin
 }
 
 # 容器要的核数超过宿主机实际核数时，Docker 会直接拒绝启动 —— 是硬报错，不是变慢；
@@ -1086,18 +1319,36 @@ write_host_override() {
   [ "$CPUS" -lt 4 ] && need_cpu=1
   [ "$MEM_MIB" -gt 0 ] && [ "$MEM_MIB" -lt 7800 ] && need_mem=1
 
+  local previous=""
+  if [ -f "$override" ]; then
+    previous="$(mktemp)" || die "无法创建临时文件。"
+    TMP_FILES+=("$previous")
+    cat "$override" >"$previous"
+  fi
+
   if [ "$need_cpu" = 0 ] && [ "$need_mem" = 0 ]; then
     rm -f "$override"
+    keep_edited_override "$previous" "$override"
     return
   fi
 
   step "按这台机器调整资源上限"
-  local api_cpu browser_cpu
-  api_cpu="$CPUS"; [ "$api_cpu" -gt 2 ] && api_cpu=2
-  browser_cpu="$CPUS"; [ "$browser_cpu" -gt 4 ] && browser_cpu=4
-  # 至少留半个核：浏览器把每个核都占死的话，铸造期间还要响应请求的 API 就饿死了。
-  if [ "$CPUS" -le 2 ]; then api_cpu="1.5"; browser_cpu="1.5"; fi
+  # compose.yml 里上限高于这台宿主机的每一个服务都要管，而且永远不超过宿主机：
+  # 容器要的核数超过实际核数时 Docker 会拒绝。以前在两核及以下的机器上一律给 API 固定
+  # 1.5 —— 而 migrate 和 worker 还留在 compose 给的 2.0 —— 结果单核机器连第一次迁移都
+  # 跑不了。
+  # api_cpu 管 api 和 worker，full_cpu 管 compose 给 2.0 的那几个（migrate、
+  # transcriber）。
+  local api_cpu full_cpu browser_cpu
+  case "$CPUS" in
+    1) api_cpu="1.0"; full_cpu="1.0"; browser_cpu="0.5" ;;
+    # 至少留半个核：浏览器把每个核都占死的话，铸造期间还要响应请求的 API 就饿死了。
+    2) api_cpu="1.5"; full_cpu="2.0"; browser_cpu="1.5" ;;
+    3) api_cpu="2.0"; full_cpu="2.0"; browser_cpu="3.0" ;;
+    *) api_cpu="2.0"; full_cpu="2.0"; browser_cpu="4.0" ;;
+  esac
 
+  local redis_mib=$(( MEM_MIB / 12 )) app_mib=$(( MEM_MIB / 9 )) dl_mib=$(( MEM_MIB / 20 ))
   {
     printf '# 由 install/install.zh.sh 按这台机器生成：%s 核 CPU，%s MiB 内存。\n' "$CPUS" "$MEM_MIB"
     printf '# docker/compose.yml 是按 4 vCPU / 8 GiB 的机器写的。那些上限不是预留，\n'
@@ -1108,24 +1359,49 @@ write_host_override() {
     printf '# 这些值可以随便改。删掉这个文件就回到默认值。\n'
     printf 'services:\n'
     if [ "$need_mem" = 1 ]; then
+      # compose.yml 里带 memswap_limit 的服务，每个 mem_limit 都要配上它。memswap_limit
+      # 低于 mem_limit 的容器 Docker 会拒绝，而 api 和 worker 继承的 512m，在大约 4.6
+      # 到 7.6 GiB 之间的每一台机器上都低于 MEM/9。
       printf '  postgres:\n    mem_limit: %sm\n' "$(( MEM_MIB / 4 ))"
-      printf '  redis:\n    mem_limit: %sm\n' "$(( MEM_MIB / 12 ))"
-      printf '  api:\n    mem_limit: %sm\n    cpus: %s\n' "$(( MEM_MIB / 9 ))" "$api_cpu"
-      printf '  worker:\n    mem_limit: %sm\n' "$(( MEM_MIB / 9 ))"
+      printf '  redis:\n    mem_limit: %sm\n' "$redis_mib"
+      printf '  migrate:\n    cpus: %s\n' "$full_cpu"
+      printf '  api:\n    mem_limit: %sm\n    memswap_limit: %sm\n    cpus: %s\n' "$app_mib" "$app_mib" "$api_cpu"
+      printf '  worker:\n    mem_limit: %sm\n    memswap_limit: %sm\n    cpus: %s\n' "$app_mib" "$app_mib" "$api_cpu"
       printf '  browser-rpc:\n    mem_limit: %sm\n    cpus: %s\n' "$(( MEM_MIB / 3 ))" "$browser_cpu"
-      printf '  downloader:\n    mem_limit: %sm\n    cpus: 1.0\n' "$(( MEM_MIB / 20 ))"
+      printf '  downloader:\n    mem_limit: %sm\n    memswap_limit: %sm\n    cpus: 1.0\n' "$dl_mib" "$dl_mib"
       # 固定值而不是按内存比例：它需要的就是模型加一个解码后的文件那么多（3 分钟
       # 的片段实测 0.9 GiB；一小时音频再多约 230 MB），和宿主机大小无关。和 compose
       # 一样不给 swap，因为换页的推理比失败的推理更慢。
-      printf '  transcriber:\n    mem_limit: 1536m\n    memswap_limit: 1536m\n'
+      printf '  transcriber:\n    mem_limit: 1536m\n    memswap_limit: 1536m\n    cpus: %s\n' "$full_cpu"
     else
+      printf '  migrate:\n    cpus: %s\n' "$full_cpu"
       printf '  api:\n    cpus: %s\n' "$api_cpu"
       printf '  worker:\n    cpus: %s\n' "$api_cpu"
       printf '  browser-rpc:\n    cpus: %s\n' "$browser_cpu"
       printf '  downloader:\n    cpus: 1.0\n'
+      printf '  transcriber:\n    cpus: %s\n' "$full_cpu"
     fi
   } >"$override"
   ok "已写入 compose.host.yml —— 上限已按 $CPUS 核 / $MEM_MIB MiB 缩放。"
+  keep_edited_override "$previous" "$override"
+
+  # Redis 到 maxmemory 时淘汰数据，到 mem_limit 时被杀掉，所以前者必须比后者低不少。
+  # compose.yml 的 320mb 在它的 512m 之下是这样；可在按小机器缩放过的上限之下就不是了，
+  # Redis 本该淘汰数据，却被 OOM 杀掉了 —— 连同任务队列一起。有人设过的值保留。
+  if [ "$need_mem" = 1 ] && [ $(( redis_mib * 6 / 10 )) -lt 320 ] && [ -z "$(env_value DTK_REDIS_MAXMEMORY)" ]; then
+    set_env_value DTK_REDIS_MAXMEMORY "$(( redis_mib * 6 / 10 ))mb"
+    ok "Redis 在 $(( redis_mib * 6 / 10 ))mb 时开始淘汰，低于它 ${redis_mib}m 的上限（.env 里的 DTK_REDIS_MAXMEMORY）。"
+  fi
+}
+
+# 这个文件上写着"这些值可以随便改"，所以重写它的那次运行，在原来的内容不同时会把它
+# 留下来，而不是把别人的改动扔掉。
+keep_edited_override() {
+  local previous="$1" override="$2"
+  [ -n "$previous" ] && [ -s "$previous" ] || return 0
+  if [ -f "$override" ] && cmp -s "$previous" "$override"; then return 0; fi
+  cat "$previous" >"$override.old"
+  info "原来的 compose.host.yml 保留为 compose.host.yml.old；有改动的话请从里面搬过来。"
 }
 
 # 之后所有命令的唯一入口。存在的理由是有三个参数每次都得带对，漏一个不会报错、
@@ -1145,8 +1421,8 @@ write_control_script() {
     printf '#   ./dtkctl restart api     重启单个服务\n'
     printf '#   ./dtkctl down            停掉，保留数据\n'
     printf '#   ./dtkctl down -v         停掉并删除数据卷。不可恢复。\n'
-    printf '#   ./dtkctl upgrade         升到最新的 Release：拉取、迁移、重启\n'
-    printf '#   ./dtkctl upgrade 5.1.6   改为升到指定的版本\n'
+    printf '#   ./dtkctl upgrade         升到最新的 Release：备份、拉取、迁移、重启\n'
+    printf '#   ./dtkctl upgrade 5.1.6   改为升到指定的版本（加 --no-backup 跳过备份）\n'
     printf '#\n'
     printf '# 它替你带上的三样最容易忘的东西：项目名、本机资源覆盖文件，以及\n'
     printf '# COMPOSE_ENV_FILES —— 没有它，compose 会去找 docker/.env，然后\n'
@@ -1154,16 +1430,27 @@ write_control_script() {
     printf '#\n'
     printf '# 用已发布镜像时，版本号是 .env 里的 DTK_IMAGE_TAG，由 upgrade 来写。\n'
     printf 'set -euo pipefail\n'
-    # 单引号是故意的：这些要在 dtkctl 运行时展开，不是现在。
+    # 单引号是故意的：这些要在 dtkctl 运行时展开，不是现在。这个循环顺着指向 dtkctl
+    # 的符号链接 —— 比如放进 PATH 的那种 —— 找回安装目录；只用 "$0" 的话，
+    # docker/compose.yml 和安装脚本都找不到。
     # shellcheck disable=SC2016
-    printf 'cd "$(dirname "$0")"\n'
+    printf 'here="$0"\nwhile [ -L "$here" ]; do\n  link="$(readlink "$here")"\n'
+    # shellcheck disable=SC2016
+    printf '  case "$link" in /*) here="$link" ;; *) here="$(dirname "$here")/$link" ;; esac\ndone\n'
+    # shellcheck disable=SC2016
+    printf 'cd "$(dirname "$here")"\n'
     # 它不是 compose 的命令，所以不会挡住任何东西。以前升级要手动改 .env 里的
     # DTK_IMAGE_TAG，再自己记着按顺序更新代码、拉镜像、构建浏览器、跑迁移。
     # 随代码来的安装脚本知道这些步骤，也由它来写版本号。
     # shellcheck disable=SC2016
-    printf 'if [ "${1:-}" = upgrade ]; then\n'
+    printf 'if [ "${1:-}" = upgrade ]; then\n  shift\n'
+    # 5.1.6 之前的版本，安装脚本没有 --upgrade。在这里就说清楚、并告诉他该改跑什么，
+    # 而不是落到一句"未知选项"。
+    printf '  if ! grep -q -- "--upgrade)" install/%s; then\n' "$SCRIPT_NAME"
+    printf '    printf "%%s\\n" "这个版本自己没有升级命令。请运行当前的安装脚本：" "  curl -fsSL %s/install/%s -o install.zh.sh && bash install.zh.sh --upgrade" >&2\n' "$REPO_RAW" "$SCRIPT_NAME"
+    printf '    exit 1\n  fi\n'
     # shellcheck disable=SC2016
-    printf '  shift\n  DTK_PROJECT=%s DTK_INSTALL_DIR="$PWD" exec bash install/%s --upgrade "$@"\nfi\n' "$PROJECT" "$SCRIPT_NAME"
+    printf '  DTK_PROJECT=%s DTK_INSTALL_DIR="$PWD" exec bash install/%s --upgrade "$@"\nfi\n' "$PROJECT" "$SCRIPT_NAME"
     printf 'export COMPOSE_ENV_FILES=.env\n'
     printf 'exec docker compose -p %s %s' "$PROJECT" "$files"
     [ "$WANT_BROWSER" = 1 ] && printf ' --profile browser'
@@ -1173,6 +1460,16 @@ write_control_script() {
   } >"$ctl"
   chmod 755 "$ctl"
   ok "已写入 dtkctl —— 之后用它，别直接敲 docker compose。"
+}
+
+# 在拉取任何东西之前，让 Compose 自己读一遍刚写好的配置。它不接受的项目名、端口或
+# 文件，以前要到 `pull` 时才露出来，还顶着一条怪罪镜像仓库的消息。
+validate_compose() {
+  local problem
+  if ! problem="$("$CTL" config -q 2>&1)"; then
+    die "Compose 不接受这份安装的配置：
+$(printf '%s\n' "$problem" | sed 's/^/      /')"
+  fi
 }
 
 # 一次安装里第一条 compose 命令会创建它的网络，Docker 从固定的几个地址池里给每个
@@ -1297,24 +1594,37 @@ show_result() {
 
 CTL=""   # 正在管理的那套安装的 dtkctl 路径
 
-# 已有部署在哪 —— 问 Docker，不靠猜。Compose 记录了它是从哪个配置文件起来的，
-# 安装目录就是那个文件的上上级。
+# 这个脚本所在的代码目录 —— 只在脚本是磁盘上的一个文件时才有。经 `curl | bash` 管道
+# 运行时它没有目录，以前拿来顶替的 "." 会让它变成运行时所在目录的上一级。
+own_checkout() {
+  local src="${BASH_SOURCE[0]:-}"
+  [ -n "$src" ] && [ -f "$src" ] || return 1
+  (cd "$(dirname "$src")/.." 2>/dev/null && pwd)
+}
+
+# DIR 是不是一份可以不经指明就当作安装来操作 —— 也就是会去运行它的 dtkctl —— 的目录：
+# 恰好待在某个目录里、里面有个叫 dtkctl 的文件，不足以成为执行它的理由。它得是这个项目的
+# 代码目录、带着 compose 文件，dtkctl 的属主是运行这个脚本的人或 root，而且别人写不了。
+# DTK_INSTALL_DIR，以及 dtkctl 替自己传进来的目录，照说的算。
+is_install_dir() {
+  local dir="$1" origin
+  [ -n "$dir" ] && [ -d "$dir/.git" ] && [ -f "$dir/docker/compose.yml" ] && [ -x "$dir/dtkctl" ] || return 1
+  origin="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+  case "$origin" in *Douyin_TikTok_Download_API*) : ;; *) return 1 ;; esac
+  [ -n "$(find "$dir/dtkctl" -maxdepth 0 \( -user "$(id -u)" -o -user 0 \) ! -perm -020 ! -perm -002 2>/dev/null)" ]
+}
+
+# 已有部署在哪 —— 问 Docker，不靠猜。Compose 建的每个容器都带着它来自哪些配置文件
+# 的标签，安装目录就是第一个文件的上上级。从标签里读，而不是让 python3 去解析
+# `compose ls`：没有 python3 的机器对那个的回答是空，脚本随后就在已有的安装上又装了一遍。
 find_existing_install() {
   local config dir
-  config="$(docker compose ls --all --format json 2>/dev/null | python3 -c "
-import sys, json
-try:
-    projects = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-for project in projects:
-    if project.get('Name') == '$PROJECT':
-        print(project.get('ConfigFiles', '').split(',')[0])
-        break
-" 2>/dev/null || true)"
+  config="$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT" \
+    --format '{{.Label "com.docker.compose.project.config_files"}}' 2>/dev/null | head -n 1 || true)"
+  config="${config%%,*}"
   [ -n "$config" ] || return 1
   dir="$(dirname "$(dirname "$config")")"
-  [ -f "$dir/docker/compose.yml" ] || return 1
+  is_install_dir "$dir" || return 1
   printf '%s' "$dir"
 }
 
@@ -1330,8 +1640,9 @@ load_install_state() {
   if grep -qF -- "--profile downloader" "$CTL"; then WANT_DOWNLOADER=1; fi
   if grep -qF -- "--profile transcriber" "$CTL"; then WANT_TRANSCRIBER=1; fi
   if [ -n "$(env_value DTK_IMAGE)" ]; then USE_PUBLISHED=1; fi
-  MODEL_PATH="$(env_value DTK_TRANSCRIBER_MODEL_PATH)"
-  [ -n "$MODEL_PATH" ] || MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
+  local recorded
+  recorded="$(env_value DTK_TRANSCRIBER_MODEL_PATH)"
+  [ -z "$recorded" ] || MODEL_PATH="$recorded"
 }
 
 # 运行中的实例自己报的版本。只有这个算数：磁盘上的代码可能比真正在服务的那个
@@ -1340,47 +1651,181 @@ running_version() {
   "$CTL" exec -T api dtk --version 2>/dev/null | tr -d '\r' | awk 'NF{print $NF}' | tail -1
 }
 
+# 一个 v5 的发布 tag，别的都不算：v5.1.6 算，V4.1.3 不算。v4 分支还在出版本，用的是
+# 大写 V 的 tag，GitHub 可能会把其中一个称作最新版；升级要是拿了它，就会把一个 v4 的
+# 镜像拉进 v5 的栈里。
+is_release_tag() {
+  printf '%s' "$1" | grep -Eq '^v([5-9]|[1-9][0-9]+)\.[0-9]+\.[0-9]+$'
+}
+
+# 发布版本从哪里来：有了代码目录之后就是它自己的 origin，这样镜像就一直是那个镜像。
+origin_url() {
+  # 只认它自己的 .git：在别的工作区里面的一个空目录上跑 `git -C`，回答的是那个工作区的 origin。
+  if [ -d "$INSTALL_DIR/.git" ]; then
+    git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null && return 0
+  fi
+  printf '%s' "$REPO_URL"
+}
+
+# 远端上以 $1 开头的最高的发布 tag（"5.1" 对应 v5.1.，任意版本对应 v）。它是
+# latest_release 的后备，也是 `5.1` 找到 5.1.6 的办法。
+highest_release_tag() {
+  local prefix="${1:-v}" best="" tag
+  for tag in $(git ls-remote --tags --refs "$(origin_url)" "refs/tags/${prefix}*" 2>/dev/null \
+      | sed -n 's|^[0-9a-f]*[[:space:]]*refs/tags/||p'); do
+    is_release_tag "$tag" || continue
+    if [ -z "$best" ] || version_is_newer "$tag" "$best"; then best="$tag"; fi
+  done
+  printf '%s' "$best"
+}
+
+# 最新的 v5 发布版本，以 tag 的形式给出。GitHub 的 "latest" 是 v5 版本时就用它 ——
+# 发布公告指向的就是它，而且要等镜像都传上去它才会移动 —— 否则，或者 API 没应答时，
+# 用最高的那个 tag。不用 python3：没有它的机器（Alpine、CoreOS）在这里拿到的是空，
+# 于是永远看不到升级。这份 JSON 只要一个字段，用 sed 读。
 latest_release() {
-  curl -fsSL --proto '=https' --tlsv1.2 -m 10 \
+  local tag
+  tag="$(curl -fsSL --proto '=https' --tlsv1.2 -m 10 \
     "https://api.github.com/repos/Evil0ctal/Douyin_TikTok_Download_API/releases/latest" 2>/dev/null \
-    | python3 -c "
-import sys, json
-try:
-    print(json.load(sys.stdin).get('tag_name', ''))
-except Exception:
-    pass
-" 2>/dev/null || true
+    | sed -n 's/^ *"tag_name": *"\([^"]*\)".*$/\1/p' | head -n 1 || true)"
+  if is_release_tag "$tag"; then
+    printf '%s' "$tag"
+  else
+    highest_release_tag v
+  fi
 }
 
 # $1 比 $2 新时返回真。带预发布后缀的版本比同样数字但没后缀的旧，所以
 # 5.1.0.dev0 排在 5.1.0 前面 —— 和控制台里 web/src/lib/version.ts 同一套规则。
+# 用 awk 而不是 python3，理由见 latest_release。
 version_is_newer() {
   [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 1
-  python3 - "$1" "$2" <<'PY' 2>/dev/null
-import re, sys
+  awk -v a="$1" -v b="$2" '
+    function parse(raw, out,    text, n, i, parts, rest) {
+      text = raw
+      sub(/^[ \t]+/, "", text); sub(/[ \t]+$/, "", text); sub(/^[vV]/, "", text)
+      if (!match(text, /^[0-9]+(\.[0-9]+)*/)) { out["n"] = 1; out[1] = 0; out["s"] = ""; return }
+      n = split(substr(text, 1, RLENGTH), parts, ".")
+      for (i = 1; i <= n; i++) out[i] = parts[i] + 0
+      out["n"] = n
+      rest = substr(text, RLENGTH + 1)
+      sub(/^[.\-_]/, "", rest)
+      out["s"] = rest
+    }
+    BEGIN {
+      parse(a, x); parse(b, y)
+      w = (x["n"] > y["n"]) ? x["n"] : y["n"]
+      for (i = 1; i <= w; i++) {
+        p = (i <= x["n"]) ? x[i] : 0
+        q = (i <= y["n"]) ? y[i] : 0
+        if (p != q) exit (p > q) ? 0 : 1
+      }
+      if (x["s"] == y["s"]) exit 1
+      if (x["s"] == "") exit 0
+      if (y["s"] == "") exit 1
+      exit (x["s"] > y["s"]) ? 0 : 1
+    }'
+}
 
-def parse(raw):
-    text = re.sub(r"^[vV]", "", raw.strip())
-    m = re.match(r"^(\d+(?:\.\d+)*)(.*)$", text)
-    if not m:
-        return ([0], "")
-    return ([int(p or 0) for p in m.group(1).split(".")],
-            re.sub(r"^[.\-_]", "", m.group(2)).strip())
+# resolve_target 接受的几种写法，在输入时就检查：以前在菜单的"升到哪个版本？"里打错一个字，
+# 会死在 resolve_target 里，整个会话跟着结束。
+valid_target() {
+  case "$1" in
+    latest) return 0 ;;
+    sha-*) valid_commit "${1#sha-}" && return 0 ;;
+    *) printf '%s' "${1#v}" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' && return 0 ;;
+  esac
+  warn "写一个版本号（如 5.1.6）、一个系列（如 5.1）、latest，或 sha-<40 位 commit>。"
+  return 1
+}
 
-a, b = parse(sys.argv[1]), parse(sys.argv[2])
-width = max(len(a[0]), len(b[0]))
-left = a[0] + [0] * (width - len(a[0]))
-right = b[0] + [0] * (width - len(b[0]))
-if left != right:
-    sys.exit(0 if left > right else 1)
-if a[1] == b[1]:
-    sys.exit(1)
-if not a[1]:
-    sys.exit(0)
-if not b[1]:
-    sys.exit(1)
-sys.exit(0 if a[1] > b[1] else 1)
-PY
+# 一个目标指的是什么，以升级需要的两种形式给出：RELEASE_TAG 用于 DTK_IMAGE_TAG
+# （5.1.6、sha-<40 位>），RELEASE_REF 用于代码目录（v5.1.6、那个 commit）。`latest` 和
+# `5.1` 会解析成它们所指的那个发布版本，这样 .env 钉住的是一个版本，而不是一个会移动的 tag。
+RELEASE_TAG=""
+RELEASE_REF=""
+resolve_target() {
+  local target="${1:-latest}" version
+  RELEASE_TAG=""
+  RELEASE_REF=""
+  case "$target" in
+    latest)
+      RELEASE_REF="$(latest_release)" ;;
+    sha-*)
+      valid_commit "${target#sha-}" \
+        || die "'${target}' 不是一个构建。sha- tag 带的是完整的 40 位 commit。"
+      RELEASE_TAG="$target"
+      RELEASE_REF="${target#sha-}"
+      return 0 ;;
+    *)
+      version="${target#v}"
+      if printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        RELEASE_REF="v$version"
+      elif printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+$'; then
+        RELEASE_REF="$(highest_release_tag "v$version.")"
+      else
+        die "'${target}' 不是一个版本。请写成 5.1.6 这样的版本、5.1 这样的系列、latest，或者 sha-<40 位 commit>。"
+      fi ;;
+  esac
+  [ -n "$RELEASE_REF" ] || die "找不到 '${target}' 对应的发布版本。检查一下网络，或者直接写明版本：5.1.6。"
+  is_release_tag "$RELEASE_REF" || die "'${target}' 不是 v5 的发布版本。"
+  RELEASE_TAG="${RELEASE_REF#v}"
+}
+
+# 代码目录必须就是构建那些镜像的那棵树。它以前不管装的是什么都跟着 origin/main 走，
+# 于是一个发布版本的镜像跑在 main 的 compose.yml、浏览器代码和安装脚本之下 —— 这些
+# 正是 docker-publish.yml 特意不放进 `latest` 的东西 —— 而退回一个更旧的版本根本不可能
+# 成功。用已发布镜像的安装检出它那个版本的 tag（detached）。从源码构建的安装一开始也在
+# 一个发布版本上，它的升级跟着 main 走，因为它构建的就是代码目录里的东西。所有失败都停在
+# 这里，在别的任何东西改动之前。
+checkout_ref() {
+  local ref="$1" dir="$INSTALL_DIR" origin
+  origin="$(origin_url)"
+  case "$ref" in
+    main)
+      git -C "$dir" fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main" \
+        || die "无法从 $origin 拉取 main。什么都没改。"
+      if [ "$(git -C "$dir" symbolic-ref -q --short HEAD 2>/dev/null || true)" != main ]; then
+        if git -C "$dir" show-ref --verify --quiet refs/heads/main; then
+          git -C "$dir" checkout --quiet main 2>/dev/null || checkout_failed main
+        else
+          git -C "$dir" checkout --quiet -b main origin/main 2>/dev/null || checkout_failed main
+        fi
+      fi
+      git -C "$dir" merge --ff-only --quiet origin/main 2>/dev/null \
+        || die "$dir 里的 main 有不在 $origin 上的提交，所以没法直接往前快进。
+    什么都没改。看一下：git -C $dir log --oneline origin/main..main" ;;
+    # 这些都不加 --depth：在完整克隆里加上它会让仓库变成浅克隆，切断上面那次快进
+    # 所依赖的历史。
+    v*)
+      git -C "$dir" fetch --quiet origin "+refs/tags/$ref:refs/tags/$ref" \
+        || die "无法从 $origin 拉取 ${ref}。什么都没改。"
+      git -C "$dir" checkout --quiet --detach "refs/tags/$ref" 2>/dev/null || checkout_failed "$ref" ;;
+    *)
+      git -C "$dir" fetch --quiet origin "$ref" \
+        || die "无法从 $origin 拉取 commit ${ref}。什么都没改。"
+      git -C "$dir" checkout --quiet --detach "$ref" 2>/dev/null || checkout_failed "$ref" ;;
+  esac
+  [ -f "$dir/docker/compose.yml" ] || die "$ref 里没有 docker/compose.yml，它不是一棵 v5 的代码树。"
+}
+
+checkout_failed() {
+  die "$INSTALL_DIR 里的代码有本地改动，切到 $1 会把它们覆盖掉：
+$(git -C "$INSTALL_DIR" status --short --untracked-files=no 2>/dev/null | sed 's/^/      /')
+    什么都没改。把它们挪进一个覆盖文件 —— compose.host.yml 就是一个 ——
+    或者先用这条命令收起来：git -C $INSTALL_DIR stash"
+}
+
+# 代码目录是不是已经就是 $1 所指的东西：一个 tag 或一个 commit。
+checkout_is_at() {
+  local head want
+  head="$(git -C "$INSTALL_DIR" rev-parse -q --verify HEAD 2>/dev/null || true)"
+  case "$1" in
+    v*) want="$(git -C "$INSTALL_DIR" rev-parse -q --verify "refs/tags/$1^{commit}" 2>/dev/null || true)" ;;
+    main) return 1 ;;
+    *) want="$1" ;;
+  esac
+  [ -n "$head" ] && [ "$head" = "$want" ]
 }
 
 ask_choice() {
@@ -1391,19 +1836,23 @@ ask_choice() {
 }
 
 # 不回显地读两遍口令。调用方把它从标准输入喂给命令；绝不作为参数传 ——
-# argv 对同机任何进程都可见。
+# argv 对同机任何进程都可见。什么都不输，或者终端没了，就是取消（返回 1）：它以前
+# 会回答「太短了」然后再问一遍，永远问下去 —— 终端关掉时，循环能转多快就问多快。
+# 调用方会设上 SECRET_PROMPTED，这样在这里按 Ctrl-C 不会让终端停在关掉回显的状态。
 read_password_twice() {
   local first second
+  [ -n "$TTY_IN" ] || return 1
   while true; do
-    printf '    新口令（至少 8 位）：' >&2
-    IFS= read -rs first <"$TTY_IN" || first=""
+    printf '    新口令（至少 8 位，留空取消）：' >&2
+    IFS= read -rs first <"$TTY_IN" || { printf '\n' >&2; return 1; }
     printf '\n' >&2
+    [ -n "$first" ] || return 1
     if [ "${#first}" -lt 8 ]; then
       warn "太短了。"
       continue
     fi
     printf '    再输一遍：' >&2
-    IFS= read -rs second <"$TTY_IN" || second=""
+    IFS= read -rs second <"$TTY_IN" || { printf '\n' >&2; return 1; }
     printf '\n' >&2
     if [ "$first" != "$second" ]; then
       warn "两次不一致。"
@@ -1446,25 +1895,18 @@ show_status() {
   info "Docker 占用的磁盘："
   docker system df 2>/dev/null | sed 's/^/      /'
 
+  # 只有确实知道时才说「已经是最新」。以前只要读得到最新版就这么回答 —— API 没起来
+  # 的时候，或者实例跑在发布版本前面的时候，也是这样。
   latest="$(latest_release)"
-  if [ -n "$latest" ] && [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
-    printf '\n'
+  [ -n "$latest" ] || return 0
+  printf '\n'
+  if [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
     warn "已经有 $latest 了，这个实例还在 ${installed}。"
-  elif [ -n "$latest" ]; then
-    printf '\n'
+  elif [ "$installed" = "${latest#v}" ]; then
     ok "已经是最新发布版（${latest}）。"
+  else
+    info "最新的发布版是 ${latest}。"
   fi
-}
-
-# GitHub 上的 release tag 是 `v5.0.1`，而它产出的镜像叫 `5.0.1`。
-# docker/metadata-action 的 `{{version}}` 会把 v 去掉，所以原样拿 release tag
-# 去钉，等于向 Docker Hub 要一个从来没发布过的东西。
-image_tag_for() {
-  local target="$1"
-  case "$target" in
-    v[0-9]*) printf '%s' "${target#v}" ;;
-    *) printf '%s' "$target" ;;
-  esac
 }
 
 # 带着要升到的版本号去跑，这样升级途中的拉取和构建要的是新镜像，而 .env 里写的
@@ -1478,32 +1920,143 @@ with_target_tag() {
   fi
 }
 
-# $1 是要升到的已发布 tag；源码构建的安装传空值，它跟着代码走。
+# 一次升级要升到什么：UPGRADE_TO 用于 DTK_IMAGE_TAG（5.1.7、sha-<40 位>；源码安装为空），
+# UPGRADE_REF 用于代码目录（v5.1.7、那个 commit，或者 main）。
+UPGRADE_TO=""
+UPGRADE_REF=""
+# 代码目录原来在哪里，以及 .env 原来的一份副本，给 undo_upgrade 用。
+UNDO_SHA=""
+UNDO_BRANCH=""
+UNDO_ENV=""
+
+# 从有人要求的东西 —— 一个版本、一个系列、latest、一个 sha- 构建，或者什么都没写，
+# 那就是最新的发布版本 —— 得出这次升级要升到哪里。从源码构建的安装则跟着 main 走。
+plan_upgrade() {
+  if [ "$USE_PUBLISHED" = 0 ]; then
+    if [ -n "${1:-}" ]; then
+      die "这份安装的镜像是从源码构建的，跑的就是代码目录里的那份，
+    没有已发布的版本可选。直接运行 ./dtkctl upgrade 即可。"
+    fi
+    UPGRADE_TO=""
+    UPGRADE_REF="main"
+    return 0
+  fi
+  resolve_target "${1:-latest}"
+  UPGRADE_TO="$RELEASE_TAG"
+  UPGRADE_REF="$RELEASE_REF"
+}
+
+# 把代码目录和 .env 恢复成升级开始时的样子。UPGRADE_UNDO 设着的时候 —— 从挪动代码
+# 目录开始，到整套服务切换完为止 —— cleanup 会跑它，所以一次在中间停下的升级，不管是
+# 出错还是按了 Ctrl-C，都会让安装保持原样。以前说"什么都没改"的时候，代码目录已经挪到
+# 了 main，.env 也已经钉在了新版本上。
+undo_upgrade() {
+  UPGRADE_UNDO=""
+  if [ -n "$UNDO_ENV" ] && [ -f "$UNDO_ENV" ]; then
+    cat "$UNDO_ENV" >"$INSTALL_DIR/.env"
+    rm -f "$UNDO_ENV"
+  fi
+  if [ -n "$UNDO_SHA" ]; then
+    local moved=0
+    if [ -n "$UNDO_BRANCH" ]; then
+      git -C "$INSTALL_DIR" checkout --quiet "$UNDO_BRANCH" 2>/dev/null \
+        && git -C "$INSTALL_DIR" reset --quiet --keep "$UNDO_SHA" 2>/dev/null && moved=1
+    else
+      git -C "$INSTALL_DIR" checkout --quiet --detach "$UNDO_SHA" 2>/dev/null && moved=1
+    fi
+    if [ "$moved" = 0 ]; then
+      warn "没能把代码目录放回原处。手动恢复："
+      dim "git -C $INSTALL_DIR checkout ${UNDO_BRANCH:-$UNDO_SHA}"
+      return 0
+    fi
+  fi
+  local where
+  where="$(git -C "$INSTALL_DIR" describe --tags --exact-match 2>/dev/null || true)"
+  warn "已恢复：代码目录重新回到 ${UNDO_BRANCH:-${where:-${UNDO_SHA:0:12}}}，.env 也和原来一样。"
+  info "原来在跑的版本还在跑。"
+}
+
+# 迁移只会往前走，所以迁移之前的那一刻最值得留一份归档。由现在正在跑的 api —— 也就是
+# 旧版本 —— 写进备份卷。没有东西在跑，就没有谁来做这份备份，这时只说一声，而不是让
+# 升级停下 —— 也许正是这次升级能让它重新跑起来。
+backup_before_upgrade() {
+  if [ "$NO_BACKUP" = 1 ]; then
+    info "不先备份（--no-backup）。"
+    return 0
+  fi
+  if [ -z "$(running_version || true)" ]; then
+    warn "API 没在跑，所以这次升级之前没有备份。"
+    return 0
+  fi
+  info "先备份，存进备份卷。"
+  # 单引号：DTK_BACKUP_DIR 要在容器里展开，不是在这里。
+  # shellcheck disable=SC2016
+  if ! "$CTL" exec -T api sh -c 'dtk backup create -o "$DTK_BACKUP_DIR"'; then
+    die "备份失败，所以什么都没有升级。看一下上面它的输出，或者不备份直接
+    升级：./dtkctl upgrade ${UPGRADE_TO:+$UPGRADE_TO }--no-backup"
+  fi
+}
+
+# 迁移不会往回走，所以一个不认识这个数据库当前所在迁移的版本，没法跑在它上面。在拉取
+# 任何东西之前就先问：正在跑的 api 说出它迁移到的 head，刚检出的代码里要么有这个迁移，
+# 要么没有。没有这一步的话，答案要到迁移那一步才出来，那时已经拉过镜像、构建过浏览器、
+# 还做过一次备份了。
+refuse_unknown_schema() {
+  local running="$1" head
+  head="$("$CTL" exec -T api dtk migrate --show 2>/dev/null | awk '/revision on disk/ {print $NF}' || true)"
+  case "$head" in ''|none) return 0 ;; esac
+  if ! ls "$INSTALL_DIR/src/dtk/db/migrations/versions/${head}_"*.py >/dev/null 2>&1; then
+    die "「${UPGRADE_TO:-这份代码}」没法跑在这个数据库上：它在迁移 ${head}，
+    而「${UPGRADE_TO:-这份代码}」里没有这个迁移${running:+ —— 是 ${running} 把它迁移到那里的}。迁移不会
+    往回走。回去的办法是重新装一份${UPGRADE_TO:+ ${UPGRADE_TO}}、沿用这份 .env —— 备份只能用
+    做它时的 DTK_SECRET_KEY 打开 —— 再把在它上面做的备份恢复进去。"
+  fi
+}
+
+# 升到 UPGRADE_TO / UPGRADE_REF 的这次升级，顺序本身就是重点：先挪代码目录，并交给
+# 随它而来的安装脚本；然后在 undo_upgrade 待命的情况下，做所有可能失败、又不碰正在跑的
+# 服务的事 —— Compose 读一遍新代码、拉取、构建浏览器、备份、迁移；这些都过了，才在
+# .env 里钉住版本、切换整套服务。迁移以前是在钉版本之后跑的，所以升到一个更旧的版本
+# 会在那里失败，而 .env 留着的却是那个版本。
 do_upgrade() {
-  UPGRADE_TO=""
-  [ -z "${1:-}" ] || UPGRADE_TO="$(image_tag_for "$1")"
-  step "升级${UPGRADE_TO:+到 $UPGRADE_TO}"
-  info "数据不受影响：命名卷不会随这次操作消失。"
-  printf '\n'
-
-  info "正在更新代码。"
-  git -C "$INSTALL_DIR" fetch --quiet origin main || warn "拉取失败，就用现有的代码。"
-  git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
-    || warn "本地有改动，保持原样不动。"
-
-  # 剩下的交给新版本来做。正在跑的这份脚本是更新代码之前磁盘上的那份，它不可能
-  # 知道新的 compose 文件需要什么 —— 后来加的服务、挪了位置的步骤 —— 所以交给随
-  # 代码一起来的那份接着做。只交一次：交接时会打上标记。
-  if [ -z "${DTK_UPGRADE_HANDOVER:-}" ] && [ -f "$INSTALL_DIR/install/$SCRIPT_NAME" ]; then
-    info "交给新代码里的安装脚本接着做。"
-    DTK_UPGRADE_HANDOVER=1 DTK_PROJECT="$PROJECT" DTK_INSTALL_DIR="$INSTALL_DIR" \
-      exec bash "$INSTALL_DIR/install/$SCRIPT_NAME" --upgrade ${UPGRADE_TO:+"$UPGRADE_TO"}
+  local before
+  if [ -z "${DTK_UPGRADE_AT_TARGET:-}" ]; then
+    step "升级${UPGRADE_TO:+到 $UPGRADE_TO}"
+    info "你的数据留在它的数据卷里。"
+    printf '\n'
+    UNDO_SHA="$(git -C "$INSTALL_DIR" rev-parse -q --verify HEAD 2>/dev/null || true)"
+    UNDO_BRANCH="$(git -C "$INSTALL_DIR" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+    info "正在把代码目录切到 ${UPGRADE_REF}。"
+    checkout_ref "$UPGRADE_REF"
+    UPGRADE_UNDO=1
+    # 剩下的是新代码的事，所以交给随那份代码来的安装脚本，它知道自己的 compose 文件
+    # 需要什么。只交给懂这种交接的那份：5.1.6 的会再把代码目录挪回 main，5.1.5 的根本
+    # 不认识 --upgrade，所以碰到这两个时，由这一份自己接着做。exec 不会跑 EXIT trap；
+    # 撤销由下一份负责。
+    local next="$INSTALL_DIR/install/$SCRIPT_NAME"
+    if [ -f "$next" ] && grep -q 'DTK_UPGRADE_AT_TARGET' "$next"; then
+      local args=(--upgrade)
+      [ -z "$UPGRADE_TO" ] || args+=("$UPGRADE_TO")
+      [ "$NO_BACKUP" = 0 ] || args+=(--no-backup)
+      info "交给 $UPGRADE_REF 自带的安装脚本接着做。"
+      DTK_UPGRADE_AT_TARGET=1 DTK_UPGRADE_HANDOVER=1 \
+        DTK_UPGRADE_UNDO_SHA="$UNDO_SHA" DTK_UPGRADE_UNDO_BRANCH="$UNDO_BRANCH" \
+        DTK_PROJECT="$PROJECT" DTK_INSTALL_DIR="$INSTALL_DIR" \
+        exec bash "$next" "${args[@]}"
+    fi
+  else
+    UNDO_SHA="${DTK_UPGRADE_UNDO_SHA:-}"
+    UNDO_BRANCH="${DTK_UPGRADE_UNDO_BRANCH:-}"
+    [ -z "$UNDO_SHA" ] || UPGRADE_UNDO=1
   fi
 
+  before="$(running_version || true)"
+  UNDO_ENV="$(mktemp "$INSTALL_DIR/.env.upgrade.XXXXXX")" || die "无法在 $INSTALL_DIR 里创建临时文件。"
+  cat "$INSTALL_DIR/.env" >"$UNDO_ENV"
+  refuse_unknown_schema "$before"
+  with_target_tag validate_compose
+
   if [ "$USE_PUBLISHED" = 1 ]; then
-    # 先拉，再钉。反过来的话，一旦拉取失败，部署就指向了一个不存在的镜像 ——
-    # 已经起着的容器照常跑，但下一次 `up -d` 起不来。这次拉取的 tag 只挂在命令上，
-    # 确认镜像确实存在之前不碰 .env。
     info "正在拉取。"
     local services=(api worker)
     [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
@@ -1513,7 +2066,7 @@ do_upgrade() {
       services+=(transcriber)
     fi
     if ! with_target_tag "$CTL" pull "${services[@]}"; then
-      die "拉不到 ${UPGRADE_TO}。什么都没改，旧版本还在正常运行。
+      die "拉不到 ${UPGRADE_TO}。
     去确认这个 tag 是否存在：https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags
     开着转写时，早于转写功能的版本没有 transcriber 镜像；要退回那么早，
     先在菜单里把转写关掉。"
@@ -1526,39 +2079,57 @@ do_upgrade() {
     local builds=(api)
     [ "$WANT_DOWNLOADER" = 1 ] && builds+=(downloader)
     [ "$WANT_TRANSCRIBER" = 1 ] && builds+=(transcriber)
-    if ! "$CTL" build "${builds[@]}"; then
-      die "镜像构建失败。旧容器还在跑，什么都没有被替换。"
-    fi
+    "$CTL" build "${builds[@]}" || die "镜像构建失败。"
   fi
 
-  # 浏览器镜像只在本机构建、从不拉取，所以升级时要按新代码重建它 —— 钉版本之前装的
-  # 实例，也是在这一步第一次得到一个真正带浏览器的镜像。放在写 tag 之前，理由同拉取。
+  # 浏览器镜像只在本机构建、从不拉取，所以升级时要按新代码重建它 —— 用的是那份代码
+  # 写明的 CloakBrowser commit。
+  settle_browser_pin
   if [ "$WANT_BROWSER" = 1 ]; then
-    ensure_browser_pin
-    info "正在构建浏览器镜像。只要钉的版本没变，有缓存的话很快。"
-    if ! with_target_tag "$CTL" build browser-rpc; then
-      die "浏览器镜像构建失败。什么都没改，旧版本还在正常运行。"
-    fi
+    info "正在构建浏览器镜像。有缓存的话很快；CloakBrowser 换了版本的话要重新下载"
+    info "Chromium，需要好几分钟。"
+    with_target_tag "$CTL" build browser-rpc || die "浏览器镜像构建失败。"
   fi
 
-  # 钉住具体的 tag，而不是跟着 `latest` 跑：运维应当说得出现在跑的是哪个构建，
-  # 也应当能把它换回去。
-  if [ -n "$UPGRADE_TO" ] && grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
-    local tmp
-    tmp="$(mktemp)" || die "创建临时文件失败。"
-    TMP_FILES+=("$tmp")
-    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$UPGRADE_TO|" "$INSTALL_DIR/.env" >"$tmp"
-    cat "$tmp" >"$INSTALL_DIR/.env"
-    rm -f "$tmp"
-    ok "已把 DTK_IMAGE_TAG 钉在 $UPGRADE_TO"
-  fi
-  # 在有 `./dtkctl upgrade` 之前装的实例，从这里开始有了它。
-  write_control_script
+  backup_before_upgrade
 
   info "正在迁移。"
-  "$CTL" run --rm migrate || die "迁移失败。旧容器还在跑，什么都没有被替换。"
+  # 有正在跑的 postgres 时，就对着它跑，不去动它。`run` 会像 `up` 一样启动一个服务的
+  # 依赖，并重建在新代码里配置有变化的那些：一次随后被拒绝的回退，仍然顺路把数据库
+  # 重启了一遍。
+  # 写成 ${deps[@]+...}，是因为 bash 3.2（macOS 自带的那个）在 set -u 下会把空数组
+  # 当成未绑定的变量。
+  local deps=()
+  if "$CTL" ps --status running --services 2>/dev/null | grep -qx postgres; then
+    deps=(--no-deps)
+  fi
+  if ! with_target_tag run_creating_networks "$CTL" run --rm ${deps[@]+"${deps[@]}"} migrate; then
+    case "$UPGRADE_TO" in
+      [0-9]*)
+        if [ -n "$before" ] && version_is_newer "$before" "$UPGRADE_TO"; then
+          die "$UPGRADE_TO 没法跑在这个数据库上：$before 已经把它迁移得更远了，
+    而迁移不会往回走。回到 $UPGRADE_TO 的办法是重新装一份它、沿用这份 .env —— 备份只能用
+    做它时的 DTK_SECRET_KEY 打开 —— 再把在 $UPGRADE_TO 上做的备份恢复进去。"
+        fi ;;
+    esac
+    die "迁移失败。看一下上面的输出。数据库可能已经执行了其中一部分；
+    如果需要回去，刚才做的那份备份就是退路。"
+  fi
+
+  if [ -n "$UPGRADE_TO" ]; then
+    set_env_value DTK_IMAGE_TAG "$UPGRADE_TO"
+    ok "已把 DTK_IMAGE_TAG 钉在 $UPGRADE_TO"
+  fi
+  # 还没有升级命令的话就给它加上，否则不动它。以前每次升级都重写它，别人在它的 compose
+  # 那一行上加的东西 —— 一个指向自己覆盖文件的 -f —— 就丢了，整套服务起来时也就没有它。
+  if ! grep -q '= upgrade ]' "$CTL"; then
+    write_control_script
+  fi
+  UPGRADE_UNDO=""
+  rm -f "$UNDO_ENV"
+
   info "正在重启。"
-  "$CTL" up -d --wait || die "新版本没能进入健康状态。看一下：$CTL logs api"
+  run_creating_networks "$CTL" up -d --wait || die "新版本没能进入健康状态。看一下：$CTL logs api"
   ok "现在是 $(running_version || echo "${UPGRADE_TO:-新的代码}")。"
 }
 
@@ -1571,10 +2142,10 @@ install_to_upgrade() {
     printf '%s' "$DTK_INSTALL_DIR"
     return 0
   fi
-  here="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")/.." 2>/dev/null && pwd || true)"
-  if [ -n "$here" ] && [ -x "$here/dtkctl" ]; then
+  here="$(own_checkout || true)"
+  if is_install_dir "$here"; then
     printf '%s' "$here"
-  elif [ -x "$PWD/dtkctl" ]; then
+  elif is_install_dir "$PWD"; then
     printf '%s' "$PWD"
   else
     find_existing_install || true
@@ -1589,56 +2160,47 @@ project_of() {
 # `./dtkctl upgrade [版本]` 跑的就是这个。什么都不问：没指定版本就用最新的
 # Release，和菜单给的默认值一样。
 upgrade_unattended() {
-  if [ "$USE_PUBLISHED" = 0 ]; then
-    if [ -n "$UPGRADE_TARGET" ]; then
-      die "这份安装的镜像是从源码构建的，跑的就是代码目录里的那份，
-    没有已发布的版本可选。直接运行 ./dtkctl upgrade 即可。"
+  # 由把代码目录挪到这里的那份安装脚本交接过来，升到什么它已经定好了。
+  if [ -n "${DTK_UPGRADE_AT_TARGET:-}" ]; then
+    UPGRADE_TO="$UPGRADE_TARGET"
+    UPGRADE_REF="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+    do_upgrade
+    return 0
+  fi
+  plan_upgrade "$UPGRADE_TARGET"
+  # 5.1.6 的安装脚本也会交接过来，在把代码目录挪到 main 之后，升到哪个版本已经定了
+  # —— 包括"还是同一个版本"。
+  if [ -z "${DTK_UPGRADE_HANDOVER:-}" ] && [ -n "$UPGRADE_TO" ]; then
+    local installed
+    installed="$(running_version || true)"
+    # 三样都要对上，不只是运行中的版本：一次停在半路的升级，以前会让 .env 或代码目录
+    # 停在另一个版本上，而这里却对那次本可以把它修好的运行说"不用升级"。
+    if [ "$installed" = "$UPGRADE_TO" ] && [ "$(env_value DTK_IMAGE_TAG)" = "$UPGRADE_TO" ] \
+        && checkout_is_at "$UPGRADE_REF"; then
+      ok "已经是 ${UPGRADE_TO}，不用升级。"
+      return 0
     fi
-    do_upgrade ""
-    return 0
+    case "$UPGRADE_TO" in
+      [0-9]*)
+        if [ -n "$installed" ] && version_is_newer "$installed" "$UPGRADE_TO"; then
+          warn "$UPGRADE_TO 比正在运行的 $installed 旧。"
+          info "只有它认识这个数据库经历过的每一次迁移，这才行得通。不认识的话，"
+          info "升级会停在迁移那一步，并把一切恢复原样。"
+        fi ;;
+    esac
   fi
-
-  # 从一次正在进行的升级交接过来：升到哪个版本在代码变之前就定了，
-  # 包括"还是同一个版本"。
-  if [ -n "${DTK_UPGRADE_HANDOVER:-}" ]; then
-    do_upgrade "$UPGRADE_TARGET"
-    return 0
-  fi
-
-  local target="$UPGRADE_TARGET" installed
-  if [ -z "$target" ]; then
-    target="$(latest_release)"
-    if [ -z "$target" ]; then
-      die "没能向 GitHub 问到最新的 Release 是哪个。直接写上版本号：
-      ./dtkctl upgrade 5.1.6"
-    fi
-  fi
-  target="$(image_tag_for "$target")"
-  installed="$(running_version || true)"
-  if [ -n "$installed" ] && [ "$target" = "$installed" ]; then
-    ok "已经是 ${target}，不用升级。"
-    return 0
-  fi
-  # 只在两个版本号之间比较：`latest` 和 sha- 构建没有先后。
-  case "$target" in
-    [0-9]*)
-      if [ -n "$installed" ] && version_is_newer "$installed" "$target"; then
-        warn "$target 比正在运行的 $installed 旧。"
-        info "迁移不会倒着跑。如果旧版本在新的表结构上起不来，就恢复一份"
-        info "在旧版本运行时做的备份。"
-      fi ;;
-  esac
-  do_upgrade "$target"
+  do_upgrade
 }
 
 act_change_password() {
   step "修改口令"
-  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "读取账号列表失败。"
+  "$CTL" exec -T -e COLUMNS=200 api dtk user list 2>/dev/null | sed 's/^/    /' || warn "读取账号列表失败。"
   printf '\n'
   local who password
   who="$(ask_value "改哪个账号？" "admin")"
   [ -n "$who" ] || return 0
-  password="$(read_password_twice)"
+  SECRET_PROMPTED=1
+  password="$(read_password_twice)" || { info "已取消。"; return 0; }
   if printf '%s' "$password" | "$CTL" exec -T api dtk user passwd "$who" --stdin; then
     ok "$who 的口令已修改。"
   else
@@ -1655,7 +2217,8 @@ act_add_admin() {
   local who password
   who="$(ask_value "新账号名？" "")"
   [ -n "$who" ] || { warn "没给名字。"; return 0; }
-  password="$(read_password_twice)"
+  SECRET_PROMPTED=1
+  password="$(read_password_twice)" || { info "已取消。"; return 0; }
   if printf '%s' "$password" | "$CTL" exec -T api dtk user create "$who" --role admin --stdin; then
     ok "已创建管理员 ${who}。"
   else
@@ -1666,9 +2229,12 @@ act_add_admin() {
 
 act_list_users() {
   step "账号列表"
-  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
+  "$CTL" exec -T -e COLUMNS=200 api dtk user list 2>/dev/null | sed 's/^/    /' || warn "读取账号列表失败。"
 }
 
+# 下面每一个 `dtk ... list` 都带着 COLUMNS=200 跑。没有终端时，rich 按 80 列排表格，
+# 放不下的单元格会折行 —— 一个备份文件名被拆成了 "dtk-backup-2026101" 和
+# "8T103850Z.tar.gz" 两行，而恢复时提示要你填的正是这个名字。
 act_backup() {
   step "备份"
   dim "备份文件写进备份卷，重建容器不会丢。"
@@ -1681,42 +2247,78 @@ act_backup() {
     printf '\n'
     # 单引号：DTK_BACKUP_DIR 要在容器里展开，不是在这里。
     # shellcheck disable=SC2016
-    "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' || true
+    "$CTL" exec -T -e COLUMNS=200 api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' || true
   else
     warn "备份失败，请看上面的输出。"
   fi
 }
 
+# 恢复做的是补齐：归档里有而数据库里没有的行会加进来，已经在的东西一样都不会被覆盖。
+# 它没法把一个实例带回更早的状态；恢复进一份新的空安装时，整个归档都会恢复进去。
+# 提示以前说它会替换数据库，而它从来没这么做过。
 act_restore() {
   step "恢复"
+  local listing archive
   # 单引号：DTK_BACKUP_DIR 要在容器里展开，不是在这里。
   # shellcheck disable=SC2016
-  "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' \
-    || { warn "没有找到备份文件。"; return 0; }
+  listing="$("$CTL" exec -T -e COLUMNS=200 api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null || true)"
+  if ! printf '%s' "$listing" | grep -q 'dtk-backup-'; then
+    warn "备份卷里没有备份文件。"
+    return 0
+  fi
+  printf '%s\n' "$listing" | sed 's/^/    /'
   printf '\n'
-  warn "恢复会替换当前数据库。现在里面的东西会没。"
-  local archive
-  archive="$(ask_value "备份文件路径（照上面列的填）？" "")"
+  dim "恢复会把归档里有、而这个数据库里没有的东西加进来。这里已有的东西不会被"
+  dim "覆盖，所以它不会把实例回滚到以前。"
+  archive="$(ask_value "备份文件（填上面列表里的名字，或容器里的路径）？" "")"
   [ -n "$archive" ] || return 0
   confirm_word "restore" || { info "已取消。"; return 0; }
-  "$CTL" exec -T api dtk backup restore "$archive" --yes || warn "恢复失败，请看上面的输出。"
+  # 列表打出来的是文件名，而 CLI 会把一个光秃秃的名字按它自己的工作目录去找，而不是
+  # 备份卷：照提示填一个名字，结果是 "no such file"。这个名字作为参数传给 sh，绝不拼进
+  # 命令里。
+  # shellcheck disable=SC2016
+  "$CTL" exec -T api sh -c 'case "$1" in */*) p="$1" ;; *) p="$DTK_BACKUP_DIR/$1" ;; esac; exec dtk backup restore "$p" --yes' sh "$archive" \
+    || warn "恢复失败，请看上面的输出。"
 }
 
 act_diagnose() {
   step "自检"
-  "$CTL" exec -T api dtk diagnose 2>&1 | sed 's/^/    /' || warn "自检没能跑起来。"
+  local status=0
+  "$CTL" exec -T api dtk diagnose 2>&1 | sed 's/^/    /' || status=$?
+  # 1 是报告在说有检查没通过，它刚刚已经打出来了。
+  case "$status" in
+    0) : ;;
+    1) warn "有些检查没通过；上面的报告写了是哪些。" ;;
+    *) warn "自检没能跑起来。整套服务起着吗？${CTL} ps" ;;
+  esac
 }
 
+# 按服务分别取，这样每个服务都有自己的份额。整套栈共用一个 --tail 时一共只截 80 行，
+# 在一份忙碌的安装上，那 80 行全是 postgres、redis 和 worker，api 一行都没有。
 act_logs() {
   step "日志"
-  dim "每个服务最后 60 行。想实时跟踪：$CTL logs -f api"
-  printf '\n'
-  "$CTL" logs --tail 60 2>&1 | tail -80
+  dim "每个服务最后 20 行。想实时跟踪其中一个：$CTL logs -f api"
+  local service
+  for service in $("$CTL" ps --services 2>/dev/null || true); do
+    printf '\n'
+    info "$service"
+    "$CTL" logs --no-log-prefix --tail 20 "$service" 2>&1 | sed 's/^/      /' || true
+  done
 }
 
+# 先 `up -d`，它会重建 .env 或 compose 文件有变化的那些容器 —— 光是 `restart` 会让
+# 容器留着旧的环境 —— 然后再重启应用服务。不重启 postgres 和 redis，以前一个普通的
+# `restart` 会把它们和其他东西一起停掉。
 act_restart() {
   step "重启"
-  "$CTL" restart || warn "重启失败。"
+  run_creating_networks "$CTL" up -d --wait || { warn "服务没能进入健康状态。试试：${CTL} logs"; return 0; }
+  local service apps=()
+  for service in $("$CTL" ps --services 2>/dev/null || true); do
+    case "$service" in postgres|redis) : ;; *) apps+=("$service") ;; esac
+  done
+  if [ "${#apps[@]}" -gt 0 ]; then
+    "$CTL" restart "${apps[@]}" || warn "重启失败。"
+  fi
   "$CTL" ps --format "table {{.Service}}\t{{.Status}}" 2>/dev/null || true
 }
 
@@ -1728,14 +2330,59 @@ act_setting() {
   local key value
   key="$(ask_value "设置项名字（留空则列出全部）？" "")"
   if [ -z "$key" ]; then
-    "$CTL" exec -T api dtk config list 2>&1 | sed 's/^/    /' | head -80
+    # 全部列出，并且绝不接 `| head`：这个列表有好几百行，head 读到 80 行就不读了，
+    # 发送列表的那一端收到 SIGPIPE，在 pipefail 下整个脚本一声不吭地就退出了。
+    "$CTL" exec -T -e COLUMNS=200 api dtk config list 2>&1 | sed 's/^/    /' || true
     return 0
   fi
   "$CTL" exec -T api dtk config get "$key" 2>&1 | sed 's/^/    /' || { warn "没有这个设置项。"; return 0; }
   printf '\n'
-  value="$(ask_value "新的值（留空则不改）？" "")"
+  value="$(ask_line "新的值（留空则不改）？")"
   [ -n "$value" ] || return 0
-  "$CTL" exec -T api dtk config set "$key" "$value" 2>&1 | sed 's/^/    /' || warn "被拒绝了。上面的校验信息说明了原因。"
+  ask_yes_no "把 $key 设成这个值吗？" "n" || { info "保持原样。"; return 0; }
+  # 值从标准输入传，不走 argv：只要 `docker exec` 还在跑，argv 就一直在宿主机的进程
+  # 列表里，而其中有些是凭据 —— webhook 的密钥、notify.channels 里的 token。加 --yes，
+  # 是因为这里刚刚问过了：CLI 对敏感设置项自己的那个提问没有换行，下面的 sed 就把它
+  # 扣着不放，菜单看起来像卡住了。
+  if "$CTL" exec -T api dtk config set --help 2>/dev/null | grep -q -- '--stdin'; then
+    printf '%s\n' "$value" | "$CTL" exec -T api dtk config set "$key" --stdin --yes 2>&1 | sed 's/^/    /' \
+      || warn "被拒绝了。上面的校验信息说明了原因。"
+  else
+    # 有 --stdin 之前的版本。值照它那里一直以来的做法放在 argv 上；升级之后就改走
+    # 标准输入。
+    "$CTL" exec -T api dtk config set "$key" "$value" --yes 2>&1 | sed 's/^/    /' \
+      || warn "被拒绝了。上面的校验信息说明了原因。"
+  fi
+  unset value
+}
+
+# 这份安装里没有任何东西在用的镜像，每行一个 "ref id"。
+stale_images() {
+  # 「在用」= 被任何一个存在的容器引用，无论它在跑还是停着 —— 不是「和 .env 里的
+  # tag 对得上」。从源码构建的安装 .env 里压根没有 tag，用那个当过滤条件时，
+  # 这里会提议删掉正在服务的那个镜像。栈开着时 Docker 会拒绝，栈一停就照删不误。
+  #
+  # 同样保留的还有：这份安装的配置里点名的每一个镜像，不管有没有对应的容器 —— 用
+  # `down` 停掉的栈一个容器都没有，否则它 6 GB 的浏览器镜像就会被删掉。本机构建的镜像，
+  # 只有 Compose 给它打了"为这个项目构建"的标签才会列出来：这些名字和项目名无关，
+  # 别的安装构建出来的看上去就像这份的。已发布的镜像只要没东西在用就会列出来；它们
+  # 可以重新拉。
+  local in_use configured
+  in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
+  configured="$("$CTL" config --images 2>/dev/null | sort -u || true)"
+  # 这里的 IFS 是换行和制表符，所以 `read ref id` 得被告知两个字段之间隔的是空格。
+  # 不告诉它的话，整行都进了 ref，什么都匹配不上，每个镜像都被当成没人用。
+  docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
+    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app|dtk-downloader|dtk-transcriber)' \
+    | while IFS=' ' read -r ref id; do
+        printf '%s\n' "$in_use" | grep -qxF "$ref" && continue
+        printf '%s\n' "$configured" | grep -qxF "$ref" && continue
+        case "$ref" in
+          evil0ctal/*) : ;;
+          *) [ "$(docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$id" 2>/dev/null || true)" = "$PROJECT" ] || continue ;;
+        esac
+        printf '%s %s\n' "$ref" "$id"
+      done || true
 }
 
 # 磁盘。这里真正在涨的是镜像和构建缓存，不是日志：每个服务都把 json-file 钉在
@@ -1754,35 +2401,28 @@ act_free_disk() {
   dim "会一直涨的是旧的镜像 tag 和构建缓存。"
   printf '\n'
 
-  # 「在用」= 被任何一个存在的容器引用，无论它在跑还是停着 —— 不是「和 .env 里的
-  # tag 对得上」。从源码构建的安装 .env 里压根没有 tag，用那个当过滤条件时，
-  # 这里会提议删掉正在服务的那个镜像。栈开着时 Docker 会拒绝，栈一停就照删不误。
-  local in_use images=""
-  in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
-  images="$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
-    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app|dtk-downloader|dtk-transcriber)' \
-    | while read -r ref id; do
-        printf '%s\n' "$in_use" | grep -qxF "$ref" || printf '%s %s\n' "$ref" "$id"
-      done || true)"
+  local images
+  images="$(stale_images)"
 
   if [ -n "$images" ]; then
-    info "本项目中、当前没有被任何容器使用的镜像："
+    info "这份安装里没有任何东西在用的镜像："
     printf '%s\n' "$images" | sed 's/^/      /'
     printf '\n'
     if ask_yes_no "删掉它们吗？" "y"; then
-      printf '%s\n' "$images" | awk '{print $2}' | sort -u | while read -r id; do
-        docker rmi "$id" >/dev/null 2>&1 && info "已删除 $id" || true
+      printf '%s\n' "$images" | while IFS=' ' read -r ref id; do
+        docker rmi "$ref" >/dev/null 2>&1 && info "已删除 $ref" || true
       done
     fi
   else
-    ok "本项目没有可清理的陈旧镜像。"
+    ok "这份安装没有闲置的镜像。"
   fi
 
   printf '\n'
   dim "构建缓存能极大加快浏览器镜像的重建 —— 小改动后重建只要几秒，全靠它。"
   dim "清掉就没这个便宜了。"
-  if ask_yes_no "顺便清掉构建缓存吗？" "n"; then
-    docker builder prune -af 2>&1 | tail -2 | sed 's/^/    /'
+  dim "它是 Docker 的，这台机器上构建的所有东西共用，不只属于这份安装。"
+  if ask_yes_no "清掉整台机器的 Docker 构建缓存吗？" "n"; then
+    docker builder prune -af 2>&1 | tail -2 | sed 's/^/    /' || true
   fi
 
   printf '\n'
@@ -1858,7 +2498,16 @@ act_transcription() {
   set_ctl_profile transcriber on
   info "正在启动它，并重建 api 和 worker，让它们知道它在哪。"
   if ! "$CTL" up -d --wait; then
-    warn "服务没能达到健康状态。原因通常在这里：${CTL} logs transcriber"
+    # 关回去，而不是让它开着：一个不健康的 transcriber 会让之后每一次 `up -d --wait`
+    # 都失败，包括升级的最后一步，而那一步是在迁移之后才跑的。
+    warn "它没能进入健康状态，所以转写重新关闭。原因通常在"
+    warn "transcriber 的日志里："
+    "$CTL" logs --no-log-prefix --tail 15 transcriber 2>&1 | sed 's/^/      /' || true
+    "$CTL" rm -sf transcriber >/dev/null 2>&1 || true
+    set_env_value DTK_TRANSCRIBER_URL ""
+    set_ctl_profile transcriber off
+    WANT_TRANSCRIBER=0
+    "$CTL" up -d --wait || warn "服务也没能恢复到健康状态。试试：${CTL} logs"
     return 0
   fi
   ok "转写已开启。在控制台里打开一个已存的视频，选「转写视频」即可。"
@@ -1866,6 +2515,7 @@ act_transcription() {
 
 # ------------------------------------------------------------------ 菜单 --
 
+# 做了点什么就返回 0 —— 调用方随后退出 —— 选「返回」则返回 1。
 menu_uninstall() {
   while true; do
     step "停止或移除"
@@ -1874,17 +2524,24 @@ menu_uninstall() {
     info "  3  在 2 的基础上，连 $INSTALL_DIR 一起删掉"
     info "  b  返回"
     case "$(ask_choice "选哪个？")" in
-      1) "$CTL" down --remove-orphans && ok "已停止。要再启动：$CTL up -d" ; return 0 ;;
+      # 用 `stop`，不用 `down`：down 会删掉容器，而容器上的标签正是这个脚本找到一份
+      # 安装的办法。down 之后，下一次运行什么都找不到，就开始在它上面重新安装。
+      1) "$CTL" stop && ok "已停止。要再启动：$CTL up -d" ; return 0 ;;
       2)
         warn "这会删掉数据库、媒体卷，以及里面的每一份备份。"
+        dim "想保留备份，先把它们拷出来：$CTL cp api:/var/lib/dtk/backups ./backups"
         confirm_word "delete" || { info "已取消。"; continue; }
-        "$CTL" down -v --remove-orphans && ok "已停止，数据卷已删除。"
+        "$CTL" down -v --remove-orphans || die "移除整套服务失败，见上面的输出。别的什么都没删。"
+        ok "已停止，数据卷已删除。"
         return 0 ;;
       3)
         warn "这会删掉数据卷，还会删掉 ${INSTALL_DIR}，包括你的 .env。"
         warn "反正没有那个 .env，数据本来也解不开。"
+        dim "想保留备份，先把它们拷出来：$CTL cp api:/var/lib/dtk/backups ~/dtk-backups"
         confirm_word "delete" || { info "已取消。"; continue; }
-        "$CTL" down -v --remove-orphans || true
+        # 失败就停在这里：一次失败的 `down -v` 之后再删目录，会留下数据卷和容器，
+        # 而唯一能打开它们的 .env 已经没了。
+        "$CTL" down -v --remove-orphans || die "移除整套服务失败，见上面的输出。${INSTALL_DIR} 原样留着。"
         # 不信任变量，而是加护栏：这是整个脚本唯一一处删目录树的地方，
         # 空值或者离谱的值绝不能走到 rm 那一步。
         case "$INSTALL_DIR" in
@@ -1894,7 +2551,7 @@ menu_uninstall() {
         [ -f "$INSTALL_DIR/docker/compose.yml" ] || die "$INSTALL_DIR 看着不像一份安装，不删。"
         rm -rf -- "$INSTALL_DIR" && ok "已删除 ${INSTALL_DIR}。"
         return 0 ;;
-      b|"") return 0 ;;
+      b|"") return 1 ;;
       *) warn "请选 1、2、3 或 b。" ;;
     esac
   done
@@ -1962,33 +2619,35 @@ menu_existing() {
       1) show_status; pause_for_reader ;;
       2)
         local target current
-        current="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+        current="$(env_value DTK_IMAGE_TAG)"
         if [ "$USE_PUBLISHED" = 0 ]; then
           # 源码构建，跑的就是代码目录里的那份。以前这里输入的 tag 会被当成
           # dtk-app 去 Docker Hub 拉，必然失败。
-          do_upgrade ""
+          plan_upgrade ""
+          do_upgrade
           pause_for_reader
           continue
         fi
         if [ -n "$upgrade_line" ]; then
-          target="$(ask_value "用哪个 tag？" "$upgrade_line")"
+          target="$(ask_value "升到哪个版本？" "${upgrade_line#v}" valid_target)"
         else
           # 没有更新的 Release，不等于无处可去。钉在 sha- 构建上的实例 —— 自述文档
           # 就是这么建议生产环境做的 —— 否则会永远停在这里：latest 跟着 Release 走，
-          # 而 Release 得有人去发。同一个输入框填个更旧的 tag，就是回滚。
-          dim "没有更新的 Release。你仍然可以换到另一个已发布的 tag："
-          dim "某个 sha-… 构建，或者 latest。Docker Hub 上能看到有哪些。"
-          target="$(ask_value "用哪个 tag？" "${current:-latest}")"
+          # 而 Release 得有人去发。同一个输入框也能填一个更旧的版本，最远能退到最后一个
+          # 不缺这个数据库任何迁移的版本。
+          dim "没有更新的 Release。你仍然可以换到另一个已发布的版本：比如 5.1.6"
+          dim "这样的版本号、某个 sha-… 构建，或者 latest。"
+          target="$(ask_value "升到哪个版本？" "${current:-latest}" valid_target)"
         fi
-        if [ -n "$target" ] && [ "$target" != "$current" ]; then
-          do_upgrade "$target"
-        elif [ -n "$target" ]; then
-          info "本来就是 ${target}。仍然重新拉取并重启一次。"
-          do_upgrade "$target"
+        [ -n "$target" ] || continue
+        plan_upgrade "$target"
+        if [ "$UPGRADE_TO" = "$current" ]; then
+          info "本来就是 ${UPGRADE_TO}。仍然拉取、迁移并重启一次。"
         fi
+        do_upgrade
         pause_for_reader ;;
       3) menu_manage ;;
-      4) menu_uninstall; return 0 ;;
+      4) if menu_uninstall; then return 0; fi ;;
       q|"") return 0 ;;
       *) warn "请选 1、2、3、4 或 q。" ;;
     esac
@@ -2007,7 +2666,10 @@ usage() {
   --manage       直接进入已有安装的管理菜单。
   --upgrade [版本]
                  什么都不问，直接升级已有的安装：升到最新的 Release，或者
-                 升到指定的版本。./dtkctl upgrade 跑的就是它。
+                 升到指定的版本（5.1.6、5.1、latest 或 sha-<commit>）。
+                 ./dtkctl upgrade 跑的就是它。迁移之前会先做一次备份；
+                 整套服务切换之前出了错，会把代码目录和 .env 放回原样。
+  --no-backup    配合 --upgrade：跳过那次备份。
   --help, -h     这段说明。
 
 不带任何选项运行时它会自己判断该做哪件事：没装过就安装，装过就打开菜单 ——
@@ -2016,7 +2678,10 @@ usage() {
 环境变量（每一个都能预设一个答案，配合 --yes 就是无人值守安装）：
   DTK_PROJECT            Compose 项目名。默认：dtk。
   DTK_INSTALL_DIR        装到哪里。默认：root 是 /opt/dtk，否则 ~/dtk。
-  DTK_BIND_HOST          127.0.0.1（默认）或 0.0.0.0。
+  DTK_REPO_URL           从哪里克隆，用于镜像源。默认：GitHub。
+  DTK_VERSION            要安装的版本：5.1.6、5.1、latest（默认）或 sha-<commit>。
+                         检出的就是它的 tag。
+  DTK_BIND_HOST         127.0.0.1（默认）或 0.0.0.0。
   DTK_BIND_PORT          默认：8000。
   DTK_ENABLE_BROWSER     1 构建浏览器容器，0（默认）不建。
   DTK_ENABLE_DOWNLOADER  1（默认）启用媒体下载，0 不启用。
@@ -2025,8 +2690,9 @@ usage() {
   DTK_TRANSCRIBER_MODEL_PATH
                          模型所在的目录，或者要下载到的目录。
                          默认：<安装目录>/models/funasr-onnx。
-  CLOAKBROWSER_COMMIT    浏览器镜像安装的 CloakBrowser commit。
-                         默认：${CLOAKBROWSER_PIN}。
+  CLOAKBROWSER_COMMIT    钉住浏览器镜像安装的 CloakBrowser commit。
+                         默认：不设置，跟随那个版本的 docker/compose.yml，
+                         并随升级移动。
   DTK_USE_PUBLISHED      1（默认）拉已发布镜像，0 从源码构建。
 EOF
 }
@@ -2037,15 +2703,18 @@ main() {
       -y|--yes)   ASSUME_YES=1 ;;
       --check)    CHECK_ONLY=1 ;;
       --manage)   MANAGE_ONLY=1 ;;
-      --upgrade)
-        UPGRADE_ONLY=1
-        # 版本号可以不给，所以只有下一个词不是选项时才当成版本号。
-        if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then
-          UPGRADE_TARGET="$2"
-          shift
-        fi ;;
+      --upgrade)  UPGRADE_ONLY=1 ;;
+      --no-backup) NO_BACKUP=1 ;;
       -h|--help)  usage; exit 0 ;;
-      *)          die "无法识别的选项：$1（试试 --help）" ;;
+      -*)         die "无法识别的选项：$1（试试 --help）" ;;
+      # --upgrade 可以带的版本号，放在哪都行：`upgrade 5.1.6 --no-backup` 和
+      # `upgrade --no-backup 5.1.6` 是同一个意思。
+      *)
+        if [ "$UPGRADE_ONLY" = 1 ] && [ -z "$UPGRADE_TARGET" ]; then
+          UPGRADE_TARGET="$1"
+        else
+          die "多余的参数：$1（试试 --help）"
+        fi ;;
     esac
     shift
   done
@@ -2083,6 +2752,7 @@ main() {
 
   ensure_docker_running
   check_compose || die "需要 Compose v2 $COMPOSE_MIN 或更新的版本。"
+  detect_docker_resources
 
   if [ "$UPGRADE_ONLY" = 1 ]; then
     INSTALL_DIR="$(install_to_upgrade)"
@@ -2098,27 +2768,56 @@ main() {
     exit 0
   fi
 
-  # 已经装过的话，这个脚本就从"安装器"变成"管理工具"。位置是问 Docker 要的，
-  # 所以不管当初装在哪都能找到 —— 不只是这个脚本会建议的那两个目录。
-  local found=""
-  if [ -z "${DTK_INSTALL_DIR:-}" ] && [ "$ASSUME_YES" = 0 ]; then
-    found="$(find_existing_install || true)"
-  elif [ "$MANAGE_ONLY" = 1 ]; then
-    found="${DTK_INSTALL_DIR:-$(find_existing_install || true)}"
+  # 已经装过的话，这个脚本就从"安装器"变成"管理工具"。每次都要找 —— 带 --yes 和
+  # DTK_INSTALL_DIR 时也找，以前这两种情况会跳过查找、直接装在它上面：在
+  # DTK_INSTALL_DIR 里找，从 Docker 给它的容器打的标签里找（所以不管当初装在哪都能
+  # 找到），也在这个脚本会建议的那个目录里找。
+  # 建议的那个目录只有装的是这个项目才算：不然 DTK_PROJECT=dtk2 会在那里找到 dtk 的安装、
+  # 打开它的菜单。
+  local found="" preset=""
+  if [ -n "${DTK_INSTALL_DIR:-}" ]; then
+    preset="$(absolute_path "$(expand_tilde "$DTK_INSTALL_DIR")")"
+    [ -x "$preset/dtkctl" ] && found="$preset"
   fi
-  if [ "$MANAGE_ONLY" = 1 ] && { [ -z "$found" ] || [ ! -x "$found/dtkctl" ]; }; then
+  if [ -z "$found" ] && [ -z "$preset" ]; then
+    # 这个脚本所在的代码目录，或者它运行时所在的目录，只要那是一份安装：在一份安装里跑
+    # `bash install/install.zh.sh --manage` 管理的就是那一份，不管它的项目叫什么 —— 脚本给出的
+    # 提示就是这么说的，而项目名不是 dtk 时它什么都找不到。
+    local here
+    here="$(own_checkout || true)"
+    if is_install_dir "$here"; then
+      found="$here"
+    elif is_install_dir "$PWD"; then
+      found="$PWD"
+    fi
+  fi
+  [ -n "$found" ] || found="$(find_existing_install || true)"
+  if [ -z "$found" ] && [ -z "$preset" ]; then
+    local suggested="$HOME/dtk"
+    [ "$(id -u)" = "0" ] && suggested="/opt/dtk"
+    if is_install_dir "$suggested" && [ "$(project_of "$suggested/dtkctl")" = "$PROJECT" ]; then
+      found="$suggested"
+    fi
+  fi
+  if [ "$MANAGE_ONLY" = 1 ] && [ -z "$found" ]; then
     die "没有找到项目 '${PROJECT}' 的安装。
     去掉 --manage 可以新建一个；或者用 DTK_INSTALL_DIR 指定它在哪。"
   fi
-  if [ -n "$found" ] && [ -x "$found/dtkctl" ]; then
+  if [ -n "$found" ]; then
     INSTALL_DIR="$found"
     CTL="$found/dtkctl"
+    PROJECT="$(project_of "$CTL")"
+    [ -n "$PROJECT" ] || die "没能从 $CTL 里读出项目名。"
     load_install_state
-    if [ -z "$TTY_IN" ]; then
-      warn "${INSTALL_DIR} 已经有一份安装了。"
-      info "想管理它请在终端里跑这个脚本，或者直接用 ${CTL}。"
+    if [ -z "$TTY_IN" ] || { [ "$ASSUME_YES" = 1 ] && [ "$MANAGE_ONLY" = 0 ]; }; then
+      ok "${INSTALL_DIR} 已经有一份安装了；什么都没改。"
+      info "升级它：$CTL upgrade"
+      info "在终端里管理它：bash $INSTALL_DIR/install/$SCRIPT_NAME --manage"
       exit 0
     fi
+    # 菜单里的每个决定都要问人。--yes 会在没人看见的情况下替人回答：「释放磁盘空间」
+    # 里的「删掉它们吗？」直接照做了，而「恢复」却悄悄什么都没做。
+    ASSUME_YES=0
     menu_existing
     exit 0
   fi
@@ -2132,6 +2831,7 @@ main() {
   fi
 
   choose_directory
+  refuse_foreign_volumes
   prepare_directory
   ask_questions
   fetch_models
@@ -2139,6 +2839,7 @@ main() {
   write_host_override
   write_control_script
   CTL="${INSTALL_DIR}/dtkctl"
+  validate_compose
   bring_up
   show_result
 }

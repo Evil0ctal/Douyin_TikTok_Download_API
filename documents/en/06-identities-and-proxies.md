@@ -479,19 +479,16 @@ heaviest service in the stack:
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=<40-char sha> \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
 
-Three separate things have to be true, and each of them fails differently. The
-container has to be running (the profile). `api` and `worker` have to be told
-where it is (`DTK_BROWSER_RPC_URL` in `.env`). And the image has to have been
-built with `CLOAKBROWSER_COMMIT`, which is read at **build time**, from your
-shell or `docker/.env` rather than from the repository-root `.env` - an image
-built without it contains no browser at all, comes up, reports healthy and mints
-nothing. See [the optional profiles and the CloakBrowser
-pin](./02-installation.md#the-optional-profiles) for the pinned commit to use
-and why it is a commit rather than a tag.
+Two separate things have to be true, and each of them fails differently. The
+container has to be running (the profile). And `api` and `worker` have to be
+told where it is (`DTK_BROWSER_RPC_URL` in `.env`). The CloakBrowser revision
+the image installs comes from `docker/compose.yml`, so a Compose build puts a
+browser in it without anything else set. See [the CloakBrowser
+pin](./02-installation.md#building-the-browser-image-the-cloakbrowser-pin) for
+why it is a commit rather than a tag, and how to build another one.
 
 Without any of it the Douyin and TikTok pools are whatever you import by hand,
 which is a supported mode, not an error. Bilibili goes on minting.

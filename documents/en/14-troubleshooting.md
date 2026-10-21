@@ -195,7 +195,7 @@ Compose reads that file in two different ways, and this catches people:
 - **Service variables** come from `env_file: ../.env`, whose path compose resolves relative to `docker/compose.yml` — so the repository-root `.env` is used even though the project directory is `docker/`.
 - **Interpolation inside `compose.yml`** — the `${…}` expressions in the file itself — does **not** read that file. It reads `docker/.env` or your shell. Six variables appear there: `DTK_BIND_HOST` and `DTK_BIND_PORT` (the published address, `${DTK_BIND_HOST:-127.0.0.1}:${DTK_BIND_PORT:-8000}:8000`), `DTK_IMAGE_TAG` (the image tags), `DTK_REDIS_MAXMEMORY` (the redis ceiling), and `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT` (build arguments for the browser image). The full breakdown is in [Installation and deployment](./02-installation.md).
 
-So any of those six in the root `.env` does nothing — `DTK_BIND_HOST` and `CLOAKBROWSER_COMMIT` are the two that catch people. Pass them on the command line, or point compose at the root file:
+So any of those six in the root `.env` does nothing — `DTK_BIND_HOST` is the one that catches people, and a `CLOAKBROWSER_COMMIT` you set to build another browser revision is the next. Pass them on the command line, or point compose at the root file:
 
 ```bash
 DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
@@ -864,13 +864,14 @@ docker compose -p dtk -f docker/compose.yml logs browser-rpc | tail -40
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8 \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
+
+The build installs the CloakBrowser revision `docker/compose.yml` names; nothing else needs setting.
 
 ### It reports healthy but mints nothing
 
-The service answers `/rpc/health` even when the browser backend failed to start — on purpose, so you get a reason instead of a restart loop. The compose healthcheck therefore reads the `status` field in the body rather than settling for a 200. An image built without `CLOAKBROWSER_COMMIT` is the usual cause.
+The service answers `/rpc/health` even when the browser backend failed to start — on purpose, so you get a reason instead of a restart loop. The compose healthcheck therefore reads the `status` field in the body rather than settling for a 200. The usual cause is an image with no browser in it: built with a plain `docker build` and no `--build-arg CLOAKBROWSER_COMMIT=…`, or from an older checkout whose `docker/compose.yml` had no default for it. Rebuilding through Compose with the command above fixes it.
 
 ### Chromium crashes with "Target crashed", and it reads like a platform block
 

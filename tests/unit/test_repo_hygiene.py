@@ -8,7 +8,9 @@ between a convention and its slow erosion.
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 from pathlib import Path
 from typing import ClassVar
 
@@ -16,6 +18,8 @@ import pytest
 
 from dtk.signing.native.abogus import structure_error
 from tests.support.marks import is_project_mark as _is_project_mark
+from tests.support.shell_code import differences as _installer_differences
+from tests.support.shell_code import skeleton as _shell_skeleton
 
 REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "src" / "dtk"
@@ -784,29 +788,11 @@ class TestInstallScripts:
 
     @classmethod
     def _signature(cls, path):
-        lines: list[str] = []
-        in_heredoc = False
-        tag = ""
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if in_heredoc:
-                # A heredoc body is prose for the reader, not code, and the
-                # English one contains words like "for" and "then".
-                if line.strip() == tag:
-                    in_heredoc = False
-                continue
-            opened = re.search(r"<<-?\s*([A-Za-z_]\w*)", line)
-            if opened:
-                in_heredoc, tag = True, opened.group(1)
-                lines.append(line[: opened.start()])
-                continue
-            if line.strip().startswith("#"):
-                continue
-            lines.append(line)
-        body = "\n".join(lines)
-        body = re.sub(r'"(?:[^"\\]|\\.)*"', '""', body, flags=re.S)
-        body = re.sub(r"'(?:[^'\\]|\\.)*'", "''", body, flags=re.S)
+        # Strings emptied by a reader that knows `$( )` and quotes nest inside
+        # them: a regex over quote pairs lost its place at the first
+        # "$(printf '%s' "$x" | tr ...)" and read prose as code from there on.
         signature: list[str] = []
-        for line in body.splitlines():
+        for line in _shell_skeleton(path).splitlines():
             named = re.match(r"^(\w+)\(\)", line)
             if named:
                 signature.append(f"fn:{named.group(1)}")
@@ -823,6 +809,19 @@ class TestInstallScripts:
         assert english == chinese, (
             "install.sh and install.zh.sh have diverged. They are a translation "
             "of each other: a change to one belongs in the other."
+        )
+
+    def test_the_two_installers_run_the_same_code(self):
+        """Every line that does something, and every string in it.
+
+        The structure above is control-flow words only, and a copy with
+        ``MEM_MIB / 9`` made ``/ 2`` or ``--ff-only`` made ``--no-ff`` still
+        matched it. Here a string has to be the same on both sides or
+        translated; only comments and the lines that print are free.
+        """
+        found = _installer_differences(*self.SCRIPTS)
+        assert not found, "install.zh.sh does something install.sh does not:\n" + "\n".join(
+            found[:20]
         )
 
     @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
@@ -854,16 +853,68 @@ class TestInstallScripts:
         # Blank out every string literal first, including the multi-line ones:
         # the scripts *document* the `curl … | bash` form inside their own help
         # text, and quoting it is not running it.
-        body = script.read_text(encoding="utf-8")
-        body = "\n".join(line for line in body.splitlines() if not line.strip().startswith("#"))
-        body = re.sub(r'"(?:[^"\\]|\\.)*"', '""', body, flags=re.S)
-        body = re.sub(r"'(?:[^'\\]|\\.)*'", "''", body, flags=re.S)
+        body = _shell_skeleton(script)
         offenders = [
             f"{script.name}: {line.strip()[:80]}"
             for line in body.splitlines()
             if re.search(r"(curl|wget)[^|#]*\|\s*(sudo\s+)?(ba)?sh\b", line)
         ]
         assert not offenders, "pipes remote code into a shell:\n" + "\n".join(offenders)
+
+    def test_the_browser_pin_is_one_value(self):
+        """The CloakBrowser commit and the Playwright it needs move together.
+
+        docker/compose.yml's default is the commit the browser image installs,
+        and requirements.txt pins what that commit was verified with. The
+        installers read the commit out of the checkout rather than carrying
+        their own copy, so the test runs their reader: if compose.yml's line
+        changes shape, an upgrade must not silently stop finding it. When the
+        commit lived in .env instead, it stayed put while the requirements
+        moved: an install kept CloakBrowser 0.5.10 on top of the Playwright 1.64
+        that 0.6.3 was released to fix.
+        """
+        compose = (REPO / "docker" / "compose.yml").read_text(encoding="utf-8")
+        defaults = re.findall(
+            r"CLOAKBROWSER_COMMIT: \$\{CLOAKBROWSER_COMMIT:-([0-9a-f]{40})\}", compose
+        )
+        assert len(defaults) == 1, "docker/compose.yml has to default CLOAKBROWSER_COMMIT once"
+        requirements = (REPO / "docker" / "browser_rpc" / "requirements.txt").read_text(
+            encoding="utf-8"
+        )
+        verified = re.findall(r"^# verified-with: ([0-9a-f]{40})$", requirements, flags=re.M)
+        assert verified == defaults, (
+            "requirements.txt's verified-with line names another commit than "
+            "docker/compose.yml defaults to - move them together"
+        )
+        for script in self.SCRIPTS:
+            body = script.read_text(encoding="utf-8")
+            reader = re.search(r"^compose_browser_pin\(\) \{\n.*?^\}$", body, flags=re.M | re.S)
+            assert reader, f"{script.name} has no compose_browser_pin"
+            result = subprocess.run(
+                ["bash", "-c", f"set -euo pipefail\n{reader.group(0)}\ncompose_browser_pin"],
+                env={"INSTALL_DIR": str(REPO), "PATH": os.environ.get("PATH", "")},
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            assert result.stdout.strip() == defaults[0], (
+                f"{script.name}'s compose_browser_pin does not read docker/compose.yml's default"
+            )
+            assert "CLOAKBROWSER_PIN=" not in body, (
+                f"{script.name} carries its own CloakBrowser commit again; read the checkout's"
+            )
+
+    def test_nothing_freezes_the_browser_pin_into_an_env_file(self):
+        """A pin in .env outlives the requirements it was verified with.
+
+        .env.example is what a manual install copies, so an active line there
+        is the same freeze the installers used to write.
+        """
+        example = (REPO / ".env.example").read_text(encoding="utf-8")
+        assert not re.search(r"^CLOAKBROWSER_COMMIT=\S", example, flags=re.M), (
+            ".env.example sets CLOAKBROWSER_COMMIT; leave it commented so "
+            "docker/compose.yml's default applies"
+        )
 
 
 def test_the_mark_alphabet_is_the_same_on_both_sides():

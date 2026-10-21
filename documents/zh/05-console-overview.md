@@ -89,15 +89,13 @@ docker compose -p dtk -f docker/compose.yml logs api
 
   ```bash
   echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-  CLOAKBROWSER_COMMIT=<40 位 sha> \
-    docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
   ```
 
-  控制台只打印其中 `docker compose` 那一行，而它省掉的两样东西都很关键。
-  `CLOAKBROWSER_COMMIT` 是决定镜像里到底有没有浏览器的构建参数——它默认为空，
-  缺了它构建出来的镜像照样能起来、健康检查照样通过，却一个身份也铸造不出来；
-  `.env.example` 里写着本仓库端到端验证过的那个 commit。`DTK_BROWSER_RPC_URL`
-  则是 `api` 与 `worker` 得知这个容器存在的唯一途径。见[安装与部署](./02-installation.md)。
+  控制台只打印其中 `docker compose` 那一行，而它省掉的那一行很关键：
+  `DTK_BROWSER_RPC_URL` 是 `api` 与 `worker` 得知这个容器存在的唯一途径。
+  镜像里装哪个 CloakBrowser 版本则不用你操心——`docker/compose.yml` 里写着这份代码
+  验证过的那一个。见[安装与部署](./02-installation.md)。
 
   不启用它也是受支持的运行方式——改为在「身份池」页面手动导入 Cookie。见[身份与代理](./06-identities-and-proxies.md)。
 - **第 4 步用的是你给的链接，不是内置链接。** 这一点和诊断页第 6 步正好相反，后者用的是服务端自带的固定公开链接。如果这一步失败，向导会把你指向诊断页——它把同一条链路拆成一步一步跑，并指出坏在哪一步。

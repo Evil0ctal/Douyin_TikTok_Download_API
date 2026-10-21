@@ -365,7 +365,15 @@ services:
         # publish identically described CloakBrowser repositories, so a floating
         # tag is not a version (docs/design/04-transport-signing.md).
         CLOAKBROWSER_REPO: ${CLOAKBROWSER_REPO:-https://github.com/CloakHQ/cloakbrowser}
-        CLOAKBROWSER_COMMIT: ${CLOAKBROWSER_COMMIT:-}
+        # The commit docker/browser_rpc/requirements.txt was verified with. It
+        # is a default here, not a line in .env, so that it moves with the
+        # checkout together with those requirements. When .env carried it, an
+        # install from September kept CloakBrowser 0.5.10 after the checkout's
+        # requirements had moved to the Playwright 1.64 that 0.6.3 was fixed
+        # for - a pair nobody had run. Set CLOAKBROWSER_COMMIT only to choose
+        # another revision on purpose; tests/unit/test_repo_hygiene.py keeps
+        # this, the requirements and the installers' CLOAKBROWSER_PIN equal.
+        CLOAKBROWSER_COMMIT: ${CLOAKBROWSER_COMMIT:-fbf005bc199920b592df17ac4d489324e29d56d8}
     # Same env file as the rest of the stack, for the same reason: every
     # DTK_BROWSER_* knob the README documents - the backend name above all - has
     # to be settable in one place. `environment:` wins over `env_file:`, so only

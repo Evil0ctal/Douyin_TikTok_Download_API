@@ -104,7 +104,9 @@ The [guided install script](../../install/README.md) can do all of the above for
 you, either when it installs (answer yes to offline transcription) or later from
 its menu (**Manage → 11 Transcription on or off**). It asks for the model
 directory, uses it as it is if the ten runtime files are already there, and
-otherwise offers to download them over HTTPS from ModelScope.
+otherwise offers to download them over HTTPS from ModelScope. A directory that
+already holds other files and no `asr`, `vad` or `punc` is refused: give it a
+new or empty one, such as a `funasr-onnx` inside it.
 
 The download is pinned to the verified commits in the table below rather than
 to the repositories' current state, and every file — the small ones included —
@@ -112,7 +114,8 @@ is checked against a SHA-256 the script carries. A file that does not match is
 deleted, not kept, and transcription stays off with everything else installed.
 It fetches only the runtime files, so it needs about 500 MiB rather than the
 1 GiB a Git clone keeps. The files are left readable by the container's UID
-10001.
+10001: the script changes permissions on the model directory itself and on its
+`asr`, `vad` and `punc`, and never recursively on the path you typed.
 
 ## Check file integrity
 

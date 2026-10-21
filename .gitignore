@@ -33,7 +33,9 @@ htmlcov/
 # Per machine by definition - a contributor's compose.host.yml once rode along
 # in a pull request - and the models are half a gigabyte.
 /compose.host.yml
+/compose.host.yml.old
 /dtkctl
+/.env.upgrade.*
 /models/
 /docker/models/
 

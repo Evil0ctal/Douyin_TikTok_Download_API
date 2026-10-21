@@ -59,9 +59,11 @@ With the headless browser (automatic identity minting and the signing fallback):
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=<sha> \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
+
+The CloakBrowser revision comes from `compose.yml`; see
+[The backend is pluggable, and pinned](#the-backend-is-pluggable-and-pinned).
 
 Leaving the profile off is a supported deployment, not a degraded one: a user who
 imports cookies by hand does not need the heaviest container in the stack, and
@@ -468,7 +470,10 @@ registry in `backends/__init__.py`.
 
 At least three GitHub organizations publish repositories called `cloakbrowser`
 with identical descriptions (`docs/design/04-transport-signing.md`), so the image
-takes a repository *and a commit*:
+takes a repository *and a commit*. `compose.yml` defaults both: the commit is
+the one `browser_rpc/requirements.txt` was verified with, and as a default
+rather than a line in `.env` it moves with the checkout together with those
+requirements. To build another revision on purpose (a full commit, never a tag):
 
 ```bash
 CLOAKBROWSER_REPO=https://github.com/CloakHQ/cloakbrowser \
@@ -486,8 +491,10 @@ docker build -f docker/Dockerfile.browser \
   --build-arg CLOAKBROWSER_COMMIT=<sha> -t dtk-browser-rpc:dev .
 ```
 
-Built with no commit, the image contains the service and the fake backend but no
-browser, and refuses to mint unless `DTK_BROWSER_BACKEND=fake` is set on purpose.
+Built with a plain `docker build` and no `CLOAKBROWSER_COMMIT` (the Dockerfile's
+own default is empty; only Compose supplies one), the image contains the service
+and the fake backend but no browser, and refuses to mint unless
+`DTK_BROWSER_BACKEND=fake` is set on purpose.
 Nothing falls back to the fake backend on its own: a pool quietly filling with
 synthetic identities looks healthy right up to the moment every request comes
 back risk-controlled.
@@ -598,6 +605,6 @@ procedure follows `docs/design/16-salvage-and-debug.md`.
 | `browser-rpc` mints nothing, `executable doesn't exist` | the pinned revision installs its browser outside `PLAYWRIGHT_BROWSERS_PATH`; see `Dockerfile.browser` |
 | api healthy but the console 404s | the console stage produced no `dist/`; check `web/package.json` has a `build` script |
 | `no worker entry point in this image` | the worker module is named differently; set `DTK_WORKER_COMMAND` |
-| browser-rpc unhealthy, log says `not installed in this image` | built without `CLOAKBROWSER_COMMIT` |
+| browser-rpc unhealthy, log says `not installed in this image` | built with a plain `docker build` and no `--build-arg CLOAKBROWSER_COMMIT=...`, or from a checkout whose `compose.yml` had no default for it; rebuild through Compose |
 | minting always times out | the proxy cannot reach the platform; test the proxy on its own before blaming the browser |
 | renderers crash under load | `shm_size` was lowered; Chromium needs more than the 64MB default |

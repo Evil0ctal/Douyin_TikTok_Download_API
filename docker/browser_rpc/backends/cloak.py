@@ -411,10 +411,11 @@ class CloakBackend:
                 return module
             last_error = ImportError(f"{name} has no {LAUNCH_ENTRY_POINT} entry point")
         raise BackendUnavailable(
-            "the CloakBrowser backend is not installed in this image. Rebuild with "
-            "a pinned revision (CLOAKBROWSER_COMMIT=<sha> docker compose --profile "
-            "browser build browser-rpc), or set DTK_BROWSER_BACKEND=fake for local "
-            "testing with synthetic identities.",
+            "the CloakBrowser backend is not installed in this image. Rebuild it "
+            "with Compose (docker compose --profile browser build browser-rpc), "
+            "which installs the revision docker/compose.yml pins - a plain docker "
+            "build needs --build-arg CLOAKBROWSER_COMMIT=<sha> - or set "
+            "DTK_BROWSER_BACKEND=fake for local testing with synthetic identities.",
             detail=str(last_error) if last_error else None,
         )
 

@@ -91,17 +91,14 @@ Details that catch people out:
 
   ```bash
   echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-  CLOAKBROWSER_COMMIT=<40-char sha> \
-    docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
   ```
 
-  The console prints only the `docker compose` line, and the two things it
-  leaves out are both load-bearing. `CLOAKBROWSER_COMMIT` is the build argument
-  that puts a browser in the image at all — it defaults to empty, and an image
-  built without it starts, reports healthy and mints nothing; `.env.example`
-  carries the revision this repository is verified against. `DTK_BROWSER_RPC_URL`
-  is how `api` and `worker` learn the container exists. See
-  [Installation](./02-installation.md).
+  The console prints only the `docker compose` line, and the line it leaves out
+  is load-bearing: `DTK_BROWSER_RPC_URL` is how `api` and `worker` learn the
+  container exists. Which CloakBrowser revision goes into the image needs
+  nothing from you — `docker/compose.yml` names the one this checkout is
+  verified against. See [Installation](./02-installation.md).
 
   Running without it is supported — you import cookie jars by hand from the Identities page. See [Identities and proxies](./06-identities-and-proxies.md).
 - **Step 4 uses your link, not a built-in one.** This is the opposite of the Diagnose page's step 6, which uses a fixed public link the server ships. If it fails, the wizard points you at Diagnose, which runs the same pipeline one stage at a time and names the stage that broke.

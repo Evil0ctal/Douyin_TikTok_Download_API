@@ -241,13 +241,16 @@ less install.zh.sh    # 先读一遍再跑
 bash install.zh.sh
 ```
 
-**第一次跑**：它识别发行版、检查 Docker（没有就问你要不要装）、按这台机器的核数和内存
-算出合适的资源上限，然后问你七个问题 —— 装哪、绑什么地址端口、要不要浏览器容器、
-要不要下载器、要不要离线转写、用已发布镜像还是源码构建。转写选了"要"，它还会问模型放在哪：
+**第一次跑**：它识别发行版、检查 Docker（没有就问你要不要装）、按 Docker 能用的核数和内存
+（在 Docker Desktop 或 OrbStack 上是虚拟机的）算出合适的资源上限，然后问你七个问题 —— 装哪、绑什么地址端口、要不要浏览器容器、
+要不要下载器、要不要离线转写、用已发布镜像还是源码构建。它克隆 `main`，再以分离状态检出最新 Release 的 tag
+—— `DTK_VERSION` 可以指定别的 Release，`DTK_REPO_URL` 可以指定从哪个镜像仓库克隆 —— 并把那个版本号作为
+`DTK_IMAGE_TAG` 写进 `.env`，而不是 `latest`。同一个项目名下已经有旧安装留下的数据卷时，它不会在上面另起炉灶：
+那个数据库只有旧安装的 `.env` 打得开，所以它会停下来告诉你该怎么办。转写选了"要"，它还会问模型放在哪：
 目录里已经有模型就直接用；是空的，就问你要不要下载 —— 从 ModelScope 下约 500 MB，钉在
 [准备 FunASR ONNX 模型](./18-funasr-models.md) 验证过的 commit 上，每个文件都对一遍 SHA-256。
-开了浏览器的话，[CloakBrowser 版本](#构建浏览器镜像cloakbrowser-版本固定)会以 `CLOAKBROWSER_COMMIT`
-写进 `.env`，`dtkctl` 让 Compose 在构建时读到它。跑完它生成三样东西，正是本页后面教你手写的那三样：
+开了浏览器的话，镜像装的是 `docker/compose.yml` 指定的那个 [CloakBrowser 版本](#构建浏览器镜像cloakbrowser-版本固定)；
+脚本不会把它抄进 `.env`，所以每次升级它都跟着代码走。跑完它生成三样东西，正是本页后面教你手写的那三样：
 
 | 它生成的 | 本页对应的章节 |
 |---|---|
@@ -256,28 +259,41 @@ bash install.zh.sh
 | `dtkctl`，带齐项目名、两个 compose 文件和 `COMPOSE_ENV_FILES` | 同上那一节 |
 
 **再跑一次**：它发现已经装过了（位置是问 Docker 要的，装在哪都找得到），于是打开菜单
-而不是重新安装：
+而不是重新安装。加了 `--yes`、设了 `DTK_INSTALL_DIR` 它也照样会找；加了 `--yes` 或者没有终端时，它什么都不改，
+只提示你用 `./dtkctl upgrade`。菜单是：
 
 - **状态** —— 版本、容器、磁盘占用，并和 GitHub 最新 Release 比一下
-- **升级** —— 更新代码、拉目标版本的镜像（源码构建的安装则是重新构建）、重建浏览器镜像、
-  跑迁移、重启，并且自己把版本号写进 `.env`。迁移在切换之前跑，失败了旧容器还在，什么都没被换掉
+- **升级** —— 把代码切到目标 Release 的 tag（源码构建的安装跟着 main 走）、检查新的 compose 配置、
+  拉目标版本的镜像（源码构建的安装则是重新构建）、重建浏览器镜像、做一份备份、跑迁移，这些都过了
+  才把版本号写进 `.env` 并重启。重启之前失败的话，代码和 `.env` 会放回原样，旧版本照样在跑
 - **管理** —— 改口令、加管理员、账号列表、备份、恢复、自检、日志、重启、改任意运行时设置、
   清理磁盘，以及开关转写。打开时走和安装时一样的模型步骤，拉取或构建镜像，再重建整套容器；
   关闭时删掉那个容器，模型留在原地。两种情况都只改 `dtkctl` 里那一个 `--profile` 参数，
-  你在那个文件里改过的其他东西都不会丢
-- **停止或移除** —— 三档：只停、连数据卷一起删、再连安装目录一起删。后两档要求打出
-  `delete` 这个词，不是 y/n
+  你在那个文件里改过的其他东西都不会丢。恢复时填列表里的归档名即可，而且和所有恢复一样，它只补缺、
+  什么都不覆盖（见[运维](./10-operations.md#恢复归档)）
+- **停止或移除** —— 三档：只停（容器保留，所以还找得到这份安装；`./dtkctl up -d` 就能再启动）、
+  连数据卷一起删、再连安装目录一起删。后两档要求打出 `delete` 这个词，不是 y/n，并且会先告诉你
+  怎么把备份拷出来
 
 `bash install.zh.sh --manage` 可以直接进这个菜单；升级还有一条什么都不问的命令，在安装目录里运行：
 
 ```bash
-./dtkctl upgrade          # 升到最新的 Release
-./dtkctl upgrade 5.1.6    # 或者升到这个版本
+./dtkctl upgrade                    # 升到最新的 Release
+./dtkctl upgrade 5.1.6              # 或者升到这个版本；也可以写 v5.1.6、5.1（5.1.x 里最新的）、sha-<commit>
+./dtkctl upgrade 5.1.6 --no-backup  # 不做升级前的那次备份
 ```
 
-升级就是这一条——`.env` 里的版本号归脚本管，不归你管。它更新完代码，会把剩下的步骤交给随新代码
-一起来的那份脚本，所以跑的永远是新版本的步骤。5.1.6 之前装的实例，第一次升级时就会有这条命令：
-从菜单里升，或者在它的目录里跑一次 `git pull && bash install/install.zh.sh --upgrade`。
+升级就是这一条——`.env` 里的版本号归脚本管，不归你管。它把代码切到那个 Release 的 tag 之后，会把剩下的步骤交给
+随它一起来的那份脚本，所以跑的永远是新版本的步骤。接下来依次是：Compose 对新配置的检查、拉取或构建、浏览器
+镜像、用 `dtk backup create` 往备份卷里做一份备份（只在 API 跑着时做；备份失败升级就停下）、跑迁移，这些之后
+才是 `.env` 里新的 `DTK_IMAGE_TAG` 和重启。重启之前任何一步失败，或者按了 Ctrl-C，代码和 `.env` 都会放回原样，
+正在跑的版本不受影响；再跑一次，就能把半路停下的升级做完。缺了这个数据库最新那次迁移的 Release，在拉任何东西
+之前就会被拒绝：迁移不会倒着跑，要回到那个版本，得新装一份它，再把在它上面做的备份恢复进去。5.1.6 之前装的
+实例，第一次升级时就会有这条命令：从菜单里升，或者在它的目录里跑一次 `git pull && bash install/install.zh.sh --upgrade`。
+
+升级还会拿掉本项目自己写进 `.env` 的那行 `CLOAKBROWSER_COMMIT`（旧 `.env.example` 里的 CloakBrowser 0.5.10，
+或 5.1.4 到 5.1.6 的安装脚本写的 0.6.3），原地留一行注释，从此浏览器镜像跟着代码走。你自己选的版本会保留，
+但会警告你这份代码的浏览器依赖是用另一个版本验证的。版本一变，重建浏览器镜像要下载新的 Chromium，得花上几分钟。
 
 **本页剩下的内容还是值得读。** 脚本做的就是下面这些事，只是替你做了；想知道它为什么
 那样做、或者想偏离它的默认选择时，答案都在下面。
@@ -507,11 +523,12 @@ EOF
 ```
 
 仓库根目录的 `.env.example` 列出了引导变量，大多数带注释（`DTK_BACKUP_DIR` 不在其中，另有几个也没有
-注释），想从模板起步就照着抄。其中有四行——`DTK_BIND_HOST`、`DTK_BIND_PORT`、`DTK_REDIS_MAXMEMORY` 和
-`CLOAKBROWSER_COMMIT`——是由 Compose 插值读取的，所以只有当这份文件同时喂给 Compose（放成 `docker/.env`、
-从 shell 传入，或者经由 `COMPOSE_ENV_FILES`）时才会生效。后两个除此之外没有任何读取方；前两个同时也是应用
-变量，但 `api` 容器在自己的 `environment:` 里钉死了监听地址，所以这份文件里的这两行要么经由插值改变发布
-地址，要么什么都不改。见下文 [Compose 读取 `.env` 的两种方式](#compose-读取-env-的两种方式)。
+注释），想从模板起步就照着抄。其中有三行——`DTK_BIND_HOST`、`DTK_BIND_PORT` 和 `DTK_REDIS_MAXMEMORY`——
+是由 Compose 插值读取的，所以只有当这份文件同时喂给 Compose（放成 `docker/.env`、从 shell 传入，或者经由
+`COMPOSE_ENV_FILES`）时才会生效。第三个除此之外没有任何读取方；前两个同时也是应用变量，但 `api` 容器在
+自己的 `environment:` 里钉死了监听地址，所以这份文件里的这两行要么经由插值改变发布地址，要么什么都不改。
+见下文 [Compose 读取 `.env` 的两种方式](#compose-读取-env-的两种方式)。`CLOAKBROWSER_COMMIT` 也是同一类
+变量，这份文件把它注释掉了：取值由 `docker/compose.yml` 提供。
 `.env` 已被 git 忽略，也在 `.dockerignore` 里排除，所以它是以 env 文件的形式送进容器的，从不会成为镜像内容。
 
 **3. 把整套栈拉起来。** 第一次会构建 `dtk-app` 镜像，其中包含一次 `npm ci` 和一次 `uv sync`，需要几分钟：
@@ -700,8 +717,7 @@ PID 1 必须去回收。
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT="<40-char sha>" \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
 
 需要同时满足两件事：容器要跑起来（profile），并且要告诉 `api` 和 `worker` 它在哪（`.env` 里的
@@ -746,8 +762,7 @@ Release 没有这个镜像，那就本地构建或者先升级。浏览器也在
 三个一起开：
 
 ```bash
-CLOAKBROWSER_COMMIT="<40-char sha>" COMPOSE_ENV_FILES=.env \
-  docker compose -p dtk -f docker/compose.yml \
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
   --profile browser --profile downloader --profile transcriber up -d --build
 ```
 
@@ -762,23 +777,35 @@ GitHub 上至少有三个组织发布着名叫 `cloakbrowser`、描述完全相�
 任何一份确定的软件；镜像因此同时接受**一个仓库和一个 commit**，并把这一对烙进 `DTK_BROWSER_BACKEND_PIN`，
 由 `/rpc/health` 报告出来。“这到底是哪个浏览器”这个问题，可以从运行中的系统回答，而不是靠翻构建历史。
 
+这两样都由 `docker/compose.yml` 提供：CloakHQ 的仓库，以及 `docker/browser_rpc/requirements.txt`——它钉着
+那个版本所需的 Playwright——验证时用的那个 commit（撰写本文时是 CloakBrowser 0.6.3，Chromium 146）。它们是
+compose 文件里的默认值，而不是 `.env` 里的一行，所以每次 `git pull` 都和那份依赖一起变；用 Compose 构建时
+什么都不用设：
+
+```bash
+docker compose -p dtk -f docker/compose.yml --profile browser build browser-rpc
+```
+
+想有意识地换一个版本，就自己设 `CLOAKBROWSER_COMMIT`——必须是完整的 40 位 commit，绝不能是 tag；从 fork
+构建时连 `CLOAKBROWSER_REPO` 一起设，因为默认的 commit 放到别的仓库上毫无意义：
+
 ```bash
 CLOAKBROWSER_REPO=https://github.com/CloakHQ/cloakbrowser \
-CLOAKBROWSER_COMMIT="<40-char sha>" \
+CLOAKBROWSER_COMMIT="<40 位 sha>" \
   docker compose -p dtk -f docker/compose.yml --profile browser build browser-rpc
 ```
 
-`.env.example` 里给了一个已知可用的起点：
-`CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8`（CloakBrowser 0.6.3，Chromium 146，
-2026-10-16 端到端验证过）。要改就有意识地改。
+换完重新验证签名和铸造：浏览器依赖是用默认版本验证的，不是用你那个。你设的值不会动，而默认值会跟着代码走，
+所以不再需要时记得把它删掉。
 
 **这两个是构建参数，由 Compose 插值解析，所以仓库根目录的 `.env` 是放错了地方。** 按上面那样写在 shell 里，
 或者写进 `docker/.env`，再或者用 `COMPOSE_ENV_FILES=.env` 执行构建，让 Compose 从根目录那份文件取值。
 下一节解释原因。
 
-不带 commit 构建出来的镜像里仍然有服务本身和 `fake` 后端，但没有 Chromium。此时除非你明确设置
-`DTK_BROWSER_BACKEND=fake`，它会拒绝铸造。没有任何东西会自己退回 fake 后端：一个悄悄被合成身份填满的
-身份池看起来非常健康，直到每一个请求都返回风控为止。
+用裸的 `docker build` 构建 `docker/Dockerfile.browser`、又没带 `--build-arg CLOAKBROWSER_COMMIT=…` 的话，
+镜像里仍然有服务本身和 `fake` 后端，但没有 Chromium：Dockerfile 自己的默认值是空的，只有 Compose 会提供
+那个 commit。此时除非你明确设置 `DTK_BROWSER_BACKEND=fake`，它会拒绝铸造。没有任何东西会自己退回 fake
+后端：一个悄悄被合成身份填满的身份池看起来非常健康，直到每一个请求都返回风控为止。
 
 如果你想固定到一个已经带浏览器的上游镜像，而不是从源码构建，就传一个 digest：
 
@@ -799,7 +826,7 @@ docker build -f docker/Dockerfile.browser \
 | `Dockerfile`、`Dockerfile.browser` | `DTK_UID` / `DTK_GID` | `10001` | 非特权运行用户 |
 | `Dockerfile.browser` | `BROWSER_BASE_IMAGE` | `python:${PYTHON_VERSION}-slim-bookworm` | 可换成已带 CloakBrowser 的 digest 固定镜像 |
 | `Dockerfile.browser` | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | 从哪个仓库安装 |
-| `Dockerfile.browser` | `CLOAKBROWSER_COMMIT` | *(空)* | 版本号。空的意味着镜像里没有浏览器 |
+| `Dockerfile.browser` | `CLOAKBROWSER_COMMIT` | *(空)*（compose 传它指定的那个 commit） | 版本号。空的——裸 `docker build` 不带它时就是这样——意味着镜像里没有浏览器 |
 | `Dockerfile.browser` | `CLOAKBROWSER_INSTALL_CMD` | `python -m cloakbrowser install` | 拉取浏览器二进制的命令；它属于你固定的那个版本，所以换 commit 时要顺手核对 |
 | `Dockerfile.browser` | `CLOAKBROWSER_HOME` | `/opt/cloakbrowser` | 浏览器装在哪。运行时根文件系统只读，所以 entrypoint 会把它软链到容器的 `HOME` 下 |
 | `Dockerfile.downloader` | `VERSION` | `dev`（compose 传 `${DTK_IMAGE_TAG:-dev}`） | 烙进二进制里的版本号 |
@@ -892,7 +919,7 @@ docker compose -p dtk -f docker/compose.yml config
 | `DTK_TRANSCRIBER_MODEL_PATH` | `./models/funasr-onnx` | 放着 `asr/`、`vad/`、`punc/` 的宿主机目录，只读挂载。默认值相对 `docker/` 解析，所以请写绝对路径 |
 | `DTK_REDIS_MAXMEMORY` | `320mb` | Redis 的 `maxmemory`。保持明显低于容器的 512m 上限 |
 | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | 浏览器镜像的构建参数 |
-| `CLOAKBROWSER_COMMIT` | *(空)* | 浏览器镜像的构建参数 |
+| `CLOAKBROWSER_COMMIT` | `docker/compose.yml` 指定的那个版本 | 浏览器镜像的构建参数。只在有意识地换版本时才设：必须是完整的 40 位 commit |
 
 另外还有两个容器直接需要、确实住在根目录 `.env` 里的变量：
 
@@ -1147,8 +1174,8 @@ Postgres 或 Redis 挂掉时，`/readyz` 返回 `503` 并带上分组件的明�
 ## 升级
 
 最省事的办法是 [引导式脚本](#用脚本装和管)：在它的目录里运行 `./dtkctl upgrade`。它会向
-GitHub 问最新的 Release、拉镜像、跑迁移、重启，迁移在切换容器之前跑 —— 失败了旧容器还在 ——
-并且自己把新版本号写进 `.env`。下面是它做的每一步，手工版。
+GitHub 问最新的 Release、检出它的 tag、拉镜像、备份、跑迁移、重启 —— 迁移跑完才把新版本号写进 `.env`，
+重启之前任何一步失败都会把代码和 `.env` 放回原样，旧容器照样在跑。下面是它做的每一步，手工版。
 
 **先备份。** 归档是逻辑导出，不是卷快照，而且恢复它需要同一个 `DTK_SECRET_KEY`——凭据是以加密状态导出的。
 
@@ -1172,7 +1199,7 @@ docker compose -p dtk -f docker/compose.yml cp \
 
 ```bash
 git pull
-export COMPOSE_ENV_FILES=.env    # 让 compose 从 .env 里读 DTK_IMAGE_TAG 和浏览器的 pin
+export COMPOSE_ENV_FILES=.env    # 让 compose 从 .env 里读 DTK_IMAGE_TAG
 docker compose -p dtk -f docker/compose.yml build              # 源码构建
 docker compose -p dtk -f docker/compose.yml pull api worker    # 或者：用已发布镜像
 docker compose -p dtk -f docker/compose.yml up -d --wait
@@ -1180,7 +1207,8 @@ docker compose -p dtk -f docker/compose.yml up -d --wait
 
 用已发布镜像且 `DTK_IMAGE_TAG=latest` 的，`.env` 什么都不用改：`latest` 就是最新的 Release。
 钉了版本号或 `sha-` 构建的，拉之前先在 `.env` 里改掉它，这就是钉住的代价；`./dtkctl upgrade`
-替你省掉的正是这一步。
+替你省掉的正是这一步。脚本装的代码停在某个 Release 的 tag 上而不是 `main` 上，所以那里的 `git pull`
+没有分支可拉；改用 `git fetch origin tag v5.1.7 && git checkout --detach v5.1.7`，写上你要升到的那个 Release。
 
 `migrate` 每次启动都会跑，Alembic 是幂等的，所以表结构变更会自己应用。命名卷在重建中保留。
 
@@ -1191,11 +1219,14 @@ docker compose -p dtk -f docker/compose.yml up -d --wait
 
 - **`build` 和 `pull` 只作用于当前激活 profile 里的服务。** 要更新浏览器、下载器或转写镜像，就把 profile
   参数带上——用已发布镜像时还要点名拉 `downloader` 和 `transcriber`，否则它们停在旧版本，旁边是新的 API。
-  浏览器镜像从不发布，所以每次升级都要重建，这需要 `CLOAKBROWSER_COMMIT`——它是构建参数，走 compose 插值，
-  所以上面要 export。tag 不变时（`latest`，或源码构建的 `dev`）漏掉这次重建，跑着的就还是旧的浏览器代码。
+  浏览器镜像从不发布，所以每次升级都要重建，装的是新的 `docker/compose.yml` 指定的 CloakBrowser 版本；
+  那个版本变了的话，重建要下载新的 Chromium，得花上几分钟。如果你的 `.env` 里还留着从旧 `.env.example` 抄来的
+  `CLOAKBROWSER_COMMIT`，除非那是你有意选的版本，否则删掉它——不然上面的 export 会让构建一直停在它上面，
+  而代码已经往前走了。tag 不变时（`latest`，或源码构建的 `dev`）漏掉这次重建，跑着的就还是旧的浏览器代码。
   要退到转写功能之前的 tag，得先关掉转写，因为那个 tag 根本没有 transcriber 镜像可拉。
 - **CLI 里的迁移是单向的。** `dtk migrate` 只升不降，没有 downgrade 命令。要回滚一个改过表结构的版本，
-  意味着恢复它之前的备份。
+  意味着新装一份旧版本，再把升级之前做的备份恢复进去，因为恢复是补齐而不是回退
+  （见[运维](./10-operations.md#安全地升级)）。`./dtkctl upgrade` 会在拉任何东西之前就拒绝这样的降级。
 - **绝不要在升级中顺手改 `DTK_SECRET_KEY`。** 所有已存的 cookie 和代理凭据都用它加密。如果它非改不可，
   就把受影响的身份退休，然后重新铸造或导入。
 

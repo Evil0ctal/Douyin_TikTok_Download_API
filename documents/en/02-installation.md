@@ -269,17 +269,23 @@ bash install.sh
 ```
 
 **The first run** works out the distribution, checks for Docker (and offers to
-install it), sizes the resource ceilings to this machine's cores and memory,
-then asks seven questions: where, which address and port, the browser container,
-media downloads, offline transcription, published images or a build. Say yes to
+install it), sizes the resource ceilings to the cores and memory Docker can use
+(on Docker Desktop or OrbStack, the VM's), then asks seven questions: where,
+which address and port, the browser container, media downloads, offline
+transcription, published images or a build. It clones
+`main` and checks out the latest release's tag, detached — `DTK_VERSION` names
+another release, `DTK_REPO_URL` a mirror to clone from — and writes that version
+into `.env` as `DTK_IMAGE_TAG`, not `latest`. It will not start over the volumes
+of an earlier install with the same project name: their database opens only
+with that install's `.env`, so it stops and says what to do instead. Say yes to
 transcription and it also asks where the models are: a directory that already
 holds them is used as it is, and an empty one is offered a download — about
 500 MB from ModelScope, pinned to the commits that
 [Preparing the FunASR ONNX models](./18-funasr-models.md) verified, with every
-file checked against its SHA-256. With the browser on, the
-[CloakBrowser pin](#building-the-browser-image-the-cloakbrowser-pin) goes into
-`.env` as `CLOAKBROWSER_COMMIT`, which `dtkctl` makes Compose read at build
-time. It writes three things, and they are exactly
+file checked against its SHA-256. With the browser on, the image installs the
+[CloakBrowser pin](#building-the-browser-image-the-cloakbrowser-pin) that
+`docker/compose.yml` names; the script does not copy it into `.env`, so it moves
+with the checkout on every upgrade. It writes three things, and they are exactly
 the three this page goes on to teach you to write by hand:
 
 | What it writes | The section here |
@@ -289,37 +295,64 @@ the three this page goes on to teach you to write by hand:
 | `dtkctl`, carrying the project name, both compose files and `COMPOSE_ENV_FILES` | the same section |
 
 **Run it again** and it finds the install — by asking Docker, so it does not
-matter where you put it — and opens a menu instead of installing:
+matter where you put it — and opens a menu instead of installing. It looks with
+`--yes` and with `DTK_INSTALL_DIR` set too; under `--yes`, or without a
+terminal, it changes nothing and points at `./dtkctl upgrade`. The menu:
 
 - **Status** — versions, containers, disk, and a comparison against the latest
   GitHub release
-- **Upgrade** — updates the checkout, pulls the target release (or rebuilds
-  the images, on an install built from source), rebuilds the browser image,
-  migrates, restarts, and writes the version into `.env` itself. Migrations run
-  before the swap, so a failure leaves the old containers up with nothing changed
+- **Upgrade** — moves the checkout to the target release's tag (an install
+  built from source follows main), checks the new compose configuration, pulls
+  the release (or rebuilds the images, on an install built from source),
+  rebuilds the browser image, takes a backup, migrates, and only then writes the
+  version into `.env` and restarts. A failure before the restart puts the
+  checkout and `.env` back, with the old version still running
 - **Manage** — passwords, an extra administrator, account list, backup,
   restore, self check, logs, restart, any runtime setting, disk cleanup, and
   transcription on or off. Turning it on runs the same model step as the
   install, pulls or builds the image, and recreates the stack; turning it off
   removes the container and leaves the models where they are. Either way only
   the one `--profile` flag in `dtkctl` changes, so anything else you edited in
-  that file survives
-- **Stop or remove** — three levels: stop, stop and delete the volumes, or that
-  plus the install directory. The last two require typing `delete`, not a y/n
+  that file survives. Restore takes an archive's name from the list, and like
+  every restore it adds what is missing without overwriting anything
+  ([Operations](./10-operations.md#restoring-an-archive))
+- **Stop or remove** — three levels: stop (the containers are kept, so the
+  install is still found; `./dtkctl up -d` starts it), stop and delete the
+  volumes, or that plus the install directory. The last two require typing
+  `delete`, not a y/n, and say how to copy the backups out first
 
 `bash install.sh --manage` goes straight to that menu, and the upgrade has a
 command of its own that asks nothing, run in the install directory:
 
 ```bash
-./dtkctl upgrade          # the latest release
-./dtkctl upgrade 5.1.6    # or that one
+./dtkctl upgrade                    # the latest release
+./dtkctl upgrade 5.1.6              # or that one; also v5.1.6, 5.1 (the newest 5.1.x), sha-<commit>
+./dtkctl upgrade 5.1.6 --no-backup  # without the backup it takes first
 ```
 
 That is the whole upgrade - the version in `.env` is the script's to keep, not
-yours. After updating the checkout it hands over to the copy of the script that
-came with it, so the steps it runs are always the new version's. An install
+yours. After moving the checkout to the release's tag it hands over to the copy
+of the script that came with it, so the steps it runs are always the new
+version's. Then, in this order: Compose's check of the new configuration, the
+pull or build, the browser image, a backup with `dtk backup create` into the
+backup volume (only if the API is running; a failed backup stops the upgrade),
+the migrations, and only after those the new `DTK_IMAGE_TAG` in `.env` and the
+restart. Any failure before the restart, or Ctrl-C, puts the checkout and `.env`
+back as they were (`Put back: ...`) and leaves the running version alone, and
+running it again finishes an upgrade that stopped half-way. A release that does
+not have the database's latest migration is refused before anything is pulled:
+migrations do not run backwards, and the way back to it is a new install of that
+version with a backup made on it restored. An install
 made before 5.1.6 gets the command the first time it is upgraded: from the menu,
 or once with `git pull && bash install/install.sh --upgrade` in its directory.
+
+An upgrade also takes out a `CLOAKBROWSER_COMMIT` line that this project wrote
+into `.env` itself (CloakBrowser 0.5.10 from an old `.env.example`, or 0.6.3
+from the installers of 5.1.4 to 5.1.6), leaving a comment in its place, so the browser
+image follows the checkout from then on. A revision you chose yourself is kept,
+with a warning that the checkout's browser dependencies were verified with
+another one. When the revision changes, the browser rebuild downloads a new
+Chromium and takes several minutes.
 
 **The rest of this page is still worth reading.** What the script does is what
 follows; it just does it for you. When you want to know why it chose something,
@@ -578,13 +611,15 @@ EOF
 
 `.env.example` in the repository root lists the bootstrap variables, most of them with a comment
 (`DTK_BACKUP_DIR` is missing from it, and a handful of the rest carry no comment); copy from it if
-you would rather start from a template. Four of its lines — `DTK_BIND_HOST`, `DTK_BIND_PORT`,
-`DTK_REDIS_MAXMEMORY` and `CLOAKBROWSER_COMMIT` — are read by Compose interpolation, so they take
-effect only if the file is also fed to Compose, as `docker/.env`, from your shell, or through
-`COMPOSE_ENV_FILES`. The last two are read by nothing else at all; the first two are application
-variables as well, but the `api` container pins its own bind address in `environment:`, so the
-copies in this file move the published port through interpolation or not at all. See
-[The two ways Compose reads `.env`](#the-two-ways-compose-reads-env) below.
+you would rather start from a template. Three of its lines — `DTK_BIND_HOST`, `DTK_BIND_PORT` and
+`DTK_REDIS_MAXMEMORY` — are read by Compose interpolation, so they take effect only if the file is
+also fed to Compose, as `docker/.env`, from your shell, or through `COMPOSE_ENV_FILES`. The third is
+read by nothing else at all; the first two are application variables as well, but the `api`
+container pins its own bind address in `environment:`, so the copies in this file move the
+published port through interpolation or not at all. See
+[The two ways Compose reads `.env`](#the-two-ways-compose-reads-env) below. `CLOAKBROWSER_COMMIT`
+is the same kind of variable, and the file leaves it commented out: `docker/compose.yml` supplies
+the value.
 `.env` is git-ignored and excluded by `.dockerignore`, so it reaches the containers as an env file
 and never as image content.
 
@@ -809,8 +844,7 @@ signing fallback (Bilibili needs neither):
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT="<40-char sha>" \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
 
 Two separate things have to be true: the container has to be running (the profile), and `api` and
@@ -861,8 +895,7 @@ browser runs on the same host, read
 All three at once:
 
 ```bash
-CLOAKBROWSER_COMMIT="<40-char sha>" COMPOSE_ENV_FILES=.env \
-  docker compose -p dtk -f docker/compose.yml \
+COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml \
   --profile browser --profile downloader --profile transcriber up -d --build
 ```
 
@@ -880,23 +913,39 @@ software, so the image takes a repository **and a commit**, and stamps the pair 
 `DTK_BROWSER_BACKEND_PIN`, which `/rpc/health` reports. "Which browser is this?" is answerable from
 the running system rather than from build history.
 
+`docker/compose.yml` supplies both: the CloakHQ repository, and the commit that
+`docker/browser_rpc/requirements.txt` — which pins the Playwright that revision needs — was verified
+with (CloakBrowser 0.6.3, Chromium 146, at the time of writing). They are defaults in the compose
+file rather than lines in `.env`, so they move together with those requirements on every
+`git pull`, and a Compose build needs nothing set:
+
+```bash
+docker compose -p dtk -f docker/compose.yml --profile browser build browser-rpc
+```
+
+To build another revision on purpose, set `CLOAKBROWSER_COMMIT` yourself — a full 40-character
+commit, never a tag — and `CLOAKBROWSER_REPO` with it when you build from a fork, because the
+default commit means nothing against a different repository:
+
 ```bash
 CLOAKBROWSER_REPO=https://github.com/CloakHQ/cloakbrowser \
 CLOAKBROWSER_COMMIT="<40-char sha>" \
   docker compose -p dtk -f docker/compose.yml --profile browser build browser-rpc
 ```
 
-`.env.example` carries a known-good starting point:
-`CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8` (CloakBrowser 0.6.3, Chromium 146,
-verified end to end on 2026-10-16). Change it deliberately.
+Then re-check signing and minting: the browser dependencies were verified with the default, not
+with yours. A value you set stays put while the default moves with the checkout, so take it out
+again once you no longer need it.
 
 **These two are build arguments, resolved by Compose interpolation, so the repository-root `.env` is
 the wrong place for them.** Put them in your shell as shown above, in `docker/.env`, or run the
 build with `COMPOSE_ENV_FILES=.env` so Compose interpolates from the root file. The next section
 explains why.
 
-Build without a commit and the image still contains the service and the `fake` backend, but no
-Chromium. It then refuses to mint unless you set `DTK_BROWSER_BACKEND=fake` on purpose. Nothing
+Build `docker/Dockerfile.browser` with a plain `docker build` and no
+`--build-arg CLOAKBROWSER_COMMIT=…`, and the image still contains the service and the `fake`
+backend, but no Chromium: the Dockerfile's own default is empty, and only Compose supplies the
+commit. It then refuses to mint unless you set `DTK_BROWSER_BACKEND=fake` on purpose. Nothing
 falls back to the fake backend on its own: a pool quietly filling with synthetic identities looks
 healthy right up to the moment every request comes back risk-controlled.
 
@@ -920,7 +969,7 @@ Build arguments, with the defaults the Dockerfiles declare:
 | `Dockerfile`, `Dockerfile.browser` | `DTK_UID` / `DTK_GID` | `10001` | The unprivileged runtime user |
 | `Dockerfile.browser` | `BROWSER_BASE_IMAGE` | `python:${PYTHON_VERSION}-slim-bookworm` | Override with a digest-pinned image that already carries CloakBrowser |
 | `Dockerfile.browser` | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | The repository to install from |
-| `Dockerfile.browser` | `CLOAKBROWSER_COMMIT` | *(empty)* | The revision. Empty means no browser in the image |
+| `Dockerfile.browser` | `CLOAKBROWSER_COMMIT` | *(empty)* (compose passes the commit it names) | The revision. Empty, as on a plain `docker build` without it, means no browser in the image |
 | `Dockerfile.browser` | `CLOAKBROWSER_INSTALL_CMD` | `python -m cloakbrowser install` | The command that fetches the browser binaries; it belongs to the pinned revision, so verify it when you change the commit |
 | `Dockerfile.browser` | `CLOAKBROWSER_HOME` | `/opt/cloakbrowser` | Where the browser is installed. The rootfs is read-only at runtime, so the entrypoint symlinks it into the container's `HOME` |
 | `Dockerfile.downloader` | `VERSION` | `dev` (compose passes `${DTK_IMAGE_TAG:-dev}`) | Stamped into the binary |
@@ -1017,7 +1066,7 @@ Read by Compose interpolation, so they belong in your shell or `docker/.env`.
 | `DTK_TRANSCRIBER_MODEL_PATH` | `./models/funasr-onnx` | Host directory holding `asr/`, `vad/` and `punc/`, mounted read-only. The default resolves against `docker/`, so give an absolute path |
 | `DTK_REDIS_MAXMEMORY` | `320mb` | Redis `maxmemory`. Keep it comfortably under the container's 512m limit |
 | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | Build argument for the browser image |
-| `CLOAKBROWSER_COMMIT` | *(empty)* | Build argument for the browser image |
+| `CLOAKBROWSER_COMMIT` | the revision `docker/compose.yml` names | Build argument for the browser image. Set it only to choose another revision on purpose: a full 40-character commit |
 
 Plus the two the containers require directly, which do live in the root `.env`:
 
@@ -1293,9 +1342,10 @@ first, or the port is already taken.
 
 The least effort is the [guided script](#installing-and-managing-it-with-the-script):
 `./dtkctl upgrade` in its directory. It asks GitHub for the latest release,
-pulls it, migrates and restarts — with the migration before the swap, so a
-failure leaves the old containers running — and writes the new version into
-`.env` itself. What follows is every step of that, by hand.
+checks out its tag, pulls it, backs up, migrates and restarts — writing the new
+version into `.env` only after the migrations, and putting the checkout and
+`.env` back if anything before the restart fails, so the old containers keep
+running. What follows is every step of that, by hand.
 
 **Back up first.** The archive is a logical export, not a volume snapshot, and restoring it needs
 the same `DTK_SECRET_KEY` — credentials are exported still encrypted.
@@ -1322,7 +1372,7 @@ Then upgrade:
 
 ```bash
 git pull
-export COMPOSE_ENV_FILES=.env    # so compose reads DTK_IMAGE_TAG and the browser pin from .env
+export COMPOSE_ENV_FILES=.env    # so compose reads DTK_IMAGE_TAG from .env
 docker compose -p dtk -f docker/compose.yml build              # built from source
 docker compose -p dtk -f docker/compose.yml pull api worker    # or: on the published images
 docker compose -p dtk -f docker/compose.yml up -d --wait
@@ -1331,7 +1381,10 @@ docker compose -p dtk -f docker/compose.yml up -d --wait
 On the published images with `DTK_IMAGE_TAG=latest`, nothing in `.env` changes:
 `latest` is the newest release. A pinned version or `sha-` build moves in `.env`
 before the pull, and that edit is the price of the pin; it is the one step
-`./dtkctl upgrade` takes off your hands.
+`./dtkctl upgrade` takes off your hands. A checkout the script made sits on a
+release's tag rather than on `main`, so there `git pull` has no branch to pull;
+move it with `git fetch origin tag v5.1.7 && git checkout --detach v5.1.7`
+instead, naming the release you are moving to.
 
 `migrate` runs on every start and Alembic is idempotent, so schema changes apply themselves. Named
 volumes survive rebuilds.
@@ -1345,13 +1398,18 @@ Three things to know:
 - **`build` and `pull` only reach the services in the active profiles.** To update the browser,
   downloader or transcriber image, repeat the profile flags - and pull `downloader` and
   `transcriber` by name on the published images, or they keep the old version beside a new API.
-  The browser image is never published, so it is rebuilt on every upgrade, which needs
-  `CLOAKBROWSER_COMMIT` - a build argument read through compose interpolation, which is why the
-  export above. Under a tag that does not change (`latest`, or a source build's `dev`) a skipped
-  rebuild leaves the old browser code running. Moving to a tag from before transcription means
+  The browser image is never published, so it is rebuilt on every upgrade, with the CloakBrowser
+  revision the new `docker/compose.yml` names; when that revision moved, the rebuild downloads a
+  new Chromium and takes several minutes. If your `.env` still has a `CLOAKBROWSER_COMMIT` line
+  copied from an older `.env.example`, delete it unless you chose that revision on purpose, or the
+  export above keeps the build on it while the checkout moves on. Under a tag that does not change
+  (`latest`, or a source build's `dev`) a skipped rebuild leaves the old browser code running. Moving to a tag from before transcription means
   turning it off first, because that tag has no transcriber image to pull.
 - **Migrations are forward-only from the CLI.** `dtk migrate` upgrades; there is no downgrade
-  command. Rolling back a release that changed the schema means restoring a backup taken before it.
+  command. Rolling back a release that changed the schema means a new install of the older
+  release with a backup taken before the upgrade restored into it, because a restore fills gaps and
+  does not revert ([Operations](./10-operations.md#upgrading-safely)). `./dtkctl upgrade` refuses
+  such a downgrade before it pulls anything.
 - **Never change `DTK_SECRET_KEY` as part of an upgrade.** Every stored cookie and proxy credential
   is encrypted with it. If it has to change, retire the affected identities and mint or import them
   again.

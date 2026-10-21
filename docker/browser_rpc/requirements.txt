@@ -23,7 +23,9 @@ socksio==1.0.0
 # broken it before (CloakBrowser 0.6.2 exists because 1.64 changed visibility
 # checks). These are the versions the 0.6.3 pin was verified with, the shared
 # ones (greenlet, cryptography, cffi, pycparser) at what uv.lock resolves for
-# the application image; move them together with CLOAKBROWSER_COMMIT.
+# the application image; move them together with the default
+# CLOAKBROWSER_COMMIT in docker/compose.yml, which is that pin:
+# verified-with: fbf005bc199920b592df17ac4d489324e29d56d8
 playwright==1.64.0
 greenlet==3.5.5
 pyee==14.0.0

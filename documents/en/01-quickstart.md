@@ -171,16 +171,14 @@ the box. Pick one:
 | Automatic minting | Start with `--profile browser` in step 4 | ~1.7 GB image, 2.57 GiB RAM warm, up to 4 CPUs, a longer build |
 | Manual cookies | Skip the profile; import a jar on the Identities page after step 6 | You supply and refresh the cookies; a logged-in jar is equivalent to the account password |
 
-If you choose the browser, note one thing that trips everyone up:
-`CLOAKBROWSER_COMMIT` is read at **build time**, and it is a compose
-*interpolation* variable — compose reads those from `docker/.env` or from your
-shell, **not** from the repository-root `.env`. Passing it on the command line
-is the reliable way. It is deliberately pinned to a commit rather than a tag
-because several GitHub organizations publish identically described
+If you choose the browser, which version of it goes into the image needs nothing
+from you: `docker/compose.yml` names the CloakBrowser revision this checkout was verified
+with, and the build installs that one. It is pinned to a commit rather than a
+tag because several GitHub organizations publish identically described
 `cloakbrowser` repositories, so a floating tag would not identify any particular
-piece of software. An image built with it empty contains no browser at all and
-says so on `/rpc/health`, rather than quietly minting synthetic identities that
-no platform accepts.
+piece of software. The pin moves with `git pull`, together with the browser's
+own dependencies; to build a different revision on purpose, see
+[the CloakBrowser pin](./02-installation.md#building-the-browser-image-the-cloakbrowser-pin).
 
 ## Step 4 — Start the stack
 
@@ -199,20 +197,13 @@ With the browser container as well:
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8 \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 docker compose -p dtk -f docker/compose.yml --profile browser ps
 ```
 
-That commit is CloakBrowser 0.6.3 / Chromium 146, the revision this repository
-has been verified against end to end; it is in `.env.example` for the same
-reason — as a reference value, not as a working configuration. Copying
-`.env.example` to the repository-root `.env` does **not** get the pin into the
-build, because compose interpolation does not read that file: pass it on the
-command line as above, put it in `docker/.env`, or feed the root file to Compose
-with `COMPOSE_ENV_FILES=.env`. Change it deliberately. `browser-rpc` has a
-60-second healthcheck `start_period`, so give it a minute before reading `ps` as
-a verdict.
+The build installs the CloakBrowser revision `docker/compose.yml` names, so
+there is no pin to copy into `.env`. `browser-rpc` has a 60-second healthcheck
+`start_period`, so give it a minute before reading `ps` as a verdict.
 
 ### Where the API is published
 
@@ -520,7 +511,7 @@ on the request path, so an instance without it is degraded, not unready.
 | `SETUP_TOKEN_INVALID` | The token expired, was spent, or was invalidated by five wrong attempts. `docker compose -p dtk -f docker/compose.yml restart api` prints a live one, or issues a new one if the old is gone. |
 | `503 IDENTITY_POOL_EXHAUSTED` | The pool has no usable identity. Mint one, or import a cookie jar. See step 3. |
 | A mint task fails `501 NOT_CONFIGURED` (the mint call itself returned `202`) | No browser container, and the platform is Douyin or TikTok — Bilibili mints without one. Start `--profile browser` and set `DTK_BROWSER_RPC_URL`, or import cookies instead. |
-| `browser-rpc` unhealthy, log says "not installed in this image" | Built without `CLOAKBROWSER_COMMIT`, which is read at build time from the shell, not from the root `.env`. |
+| `browser-rpc` unhealthy, log says "not installed in this image" | The image was built with a plain `docker build` and no `--build-arg CLOAKBROWSER_COMMIT=…`, or from an older checkout whose `docker/compose.yml` had no default for it. Rebuild it through Compose, as in step 4. |
 | Minting always times out | The proxy cannot reach the platform. Test the proxy on its own before blaming the browser. |
 | `RATE_LIMITED` on a correct password | The per-account login limit is a real lockout: five failures, fifteen minutes. Wait, or clear the counter — see [Troubleshooting](./14-troubleshooting.md). |
 

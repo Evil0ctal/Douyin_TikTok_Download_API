@@ -409,10 +409,12 @@ docker compose -p dtk -f docker/compose.yml exec api \
 docker compose -p dtk -f docker/compose.yml exec api \
   dtk backup list --dir /var/lib/dtk/backups
 
-# 2. 升级。用脚本装的，这一步就是全部：
+# 2. 升级。用脚本装的，这一步就是全部——它在迁移之前还会自己做一份备份：
 ./dtkctl upgrade
 #    手工：更新代码，然后带上你在用的 --profile 参数拉取（已发布镜像）
 #    或构建（源码），再重启。
+#    脚本装的代码停在 Release 的 tag 上而不是某个分支上，那里要用：
+#    git fetch origin tag v5.1.7 && git checkout --detach v5.1.7
 git pull
 export COMPOSE_ENV_FILES=.env
 docker compose -p dtk -f docker/compose.yml pull api worker   # 或者：build
@@ -429,10 +431,10 @@ docker compose -p dtk -f docker/compose.yml logs --tail 50 migrate
 升级之前值得知道的几点：
 
 - **不要改 `DTK_SECRET_KEY`。** 改了它，所有已存的 Cookie 罐和代理 URL 都无法解密，所有现有归档也都无法恢复。如果必须轮换，就退休受影响的身份，然后重新导入或重新铸造。
-- **脚本装的实例，版本号不用你改。** `./dtkctl upgrade` 是在新镜像已经到本机之后才把 `DTK_IMAGE_TAG` 写进 `.env` 的，绝不提前，所以拉取失败时它仍然指向正在跑的那个。手工部署的，`DTK_IMAGE_TAG=latest` 不用改；钉了版本的，拉之前先在 `.env` 里改掉。
-- **回滚靠 tag，不靠数据库。** 迁移只向前走，本文不提供降级路径。如果某个版本有问题，回到上一个版本——`./dtkctl upgrade 5.1.5`，或者手工改回旧的 pin——然后用第 1 步的备份恢复，恢复到空数据库里，因为恢复是补齐而不是回退。
+- **脚本装的实例，版本号不用你改。** `./dtkctl upgrade` 先把代码切到那个 Release 的 tag，等新镜像已经到本机、迁移也跑完了，才把 `DTK_IMAGE_TAG` 写进 `.env`，绝不提前。重启之前任何一步失败——或者按了 Ctrl-C——代码和 `.env` 都会放回原样，正在跑的版本照样在跑，它也会明说放回了。迁移之前，只要 API 跑着，它会用 `dtk backup create` 往备份卷里做一份备份；备份失败升级就停下，`./dtkctl upgrade 5.1.7 --no-backup` 可以跳过它。手工部署的，`DTK_IMAGE_TAG=latest` 不用改；钉了版本的，拉之前先在 `.env` 里改掉。
+- **回滚靠 tag，不靠数据库。** 迁移只向前走，本文不提供降级路径。如果某个版本有问题，回到上一个版本——`./dtkctl upgrade 5.1.5`，或者手工改回旧的 pin。这只在上一个版本认得数据库做过的每一次迁移时才行：`./dtkctl upgrade` 会先查，不认得的话在拉任何东西之前就拒绝。越过了这样一次迁移，回去的路就是新装一份上一个版本（`DTK_VERSION=5.1.5`），再把第 1 步那份在它运行时做的备份恢复进去——用同一个 `DTK_SECRET_KEY`，和[一次恢复演练](#一次恢复演练)里一样——因为恢复是补齐而不是回退。
 - **`build`、`pull` 和 `up` 只作用于当前激活 profile 里的服务。** 如果你的部署带了 `--profile browser`、`--profile downloader` 或 `--profile transcriber`，每条命令都要把 profile 参数重复带上，拉取时还要点名 `downloader` 和 `transcriber`。compose 读的是文件而不是正在运行的栈，不带参数时没有任何东西会更新 `browser-rpc`、`downloader` 和 `transcriber`：它们会继续跑旧镜像，而 `api` 和 `worker` 已经往前走了，并且不会有任何提示。完整的 profile 参数见[安装与部署](./02-installation.md)。
-- **浏览器镜像是刻意钉死的。** `CLOAKBROWSER_COMMIT` 是构建参数，和发布地址一样走 compose 插值：它从 `docker/.env` 或你的 shell 读取，而不是根目录的 `.env`，除非像上面那样用 `COMPOSE_ENV_FILES=.env` 让 compose 去读根目录那个文件。它精确指向某一个 revision；有好几个互不相关的仓库都发布着描述雷同的 "cloakbrowser" 项目，浮动 tag 并不能标识任何一份具体的软件。要改就有意识地改，改完重新验证签名。镜像本身每次升级都要重建，因为它的代码来自这份代码目录。
+- **浏览器镜像是刻意钉死的。** `CLOAKBROWSER_COMMIT` 是构建参数，`docker/compose.yml` 把它默认成这份代码的浏览器依赖验证时用的那个 revision，所以这个 pin 随 `git pull` 一起变；变了的话，重建浏览器镜像要下载新的 Chromium，得花上几分钟。它精确指向某一个 revision；有好几个互不相关的仓库都发布着描述雷同的 "cloakbrowser" 项目，浮动 tag 并不能标识任何一份具体的软件。要换别的就有意识地设，改完重新验证签名——它和发布地址一样走 compose 插值：从 `docker/.env` 或你的 shell 读取，而不是根目录的 `.env`，除非像上面那样用 `COMPOSE_ENV_FILES=.env` 让 compose 去读根目录那个文件。这样设的值不会跟着代码走：`./dtkctl upgrade` 会拿掉本项目自己写进 `.env` 的那种，对你自己选的给出警告；手工部署的，把从旧 `.env.example` 抄来的那一行删掉。镜像本身每次升级都要重建，因为它的代码来自这份代码目录。
 - **升级后留意版本漂移**：`/system` 上产出签名的 Chromium 主版本，和重放指纹的 wreq TLS profile 主版本必须一致。
 - **扩容靠加 worker，不靠改间隔**：`docker compose -p dtk -f docker/compose.yml up -d --scale worker=4`。
 

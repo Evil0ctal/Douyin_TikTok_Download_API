@@ -245,11 +245,10 @@ health = success_rate × (1 − risk_rate) × 0.5^consecutive_fails
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=<40 位 sha> \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
 
-这里有三件事必须同时成立，而且失败方式各不相同。容器要跑起来（profile）。要告诉 `api` 和 `worker` 它在哪里（`.env` 里的 `DTK_BROWSER_RPC_URL`）。镜像还必须是带着 `CLOAKBROWSER_COMMIT` 构建出来的——这个值在**构建时**读取，来自你的 shell 或 `docker/.env`，而不是仓库根目录的 `.env`；构建时没给它，镜像里根本不含浏览器：容器能起来、健康检查也过，但什么都铸造不出来。要用哪个 commit、以及为什么钉的是 commit 而不是 tag，见[安装](./02-installation.md)的「可选 profile」与「构建浏览器镜像：CloakBrowser 版本固定」两节。
+这里有两件事必须同时成立，而且失败方式各不相同。容器要跑起来（profile）。还要告诉 `api` 和 `worker` 它在哪里（`.env` 里的 `DTK_BROWSER_RPC_URL`）。镜像装哪个 CloakBrowser 版本由 `docker/compose.yml` 决定，所以用 Compose 构建时不用再设别的，镜像里就有浏览器。为什么钉的是 commit 而不是 tag、以及怎么换一个版本，见[安装](./02-installation.md#构建浏览器镜像cloakbrowser-版本固定)的「构建浏览器镜像：CloakBrowser 版本固定」一节。
 
 这些都没有的话，抖音和 TikTok 的池子里就只有你手动导入的身份——这是受支持的运行模式，不是错误。B 站照常铸造。
 

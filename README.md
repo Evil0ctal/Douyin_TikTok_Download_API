@@ -531,9 +531,11 @@ cd /opt/dtk           # or ~/dtk - wherever you installed it
 ./dtkctl upgrade      # the latest release; ./dtkctl upgrade 5.1.6 for a given one
 ```
 
-It updates the checkout, pulls the new images (or rebuilds them, on an install built
-from source), rebuilds the browser image, migrates, restarts, and writes the version it
-moved to into `.env` itself. There is nothing to edit by hand. An install from before
+It moves the checkout to the release's tag, pulls the new images (or rebuilds them, on an
+install built from source), rebuilds the browser image, takes a backup, migrates, and only
+then writes the version it moved to into `.env` and restarts. Anything that fails before the
+restart puts the checkout and `.env` back, and the old version keeps running. There is
+nothing to edit by hand. An install from before
 5.1.6 does not have `upgrade` yet; there, once, run `git pull && bash install/install.sh
 --upgrade` in the same directory, and from then on it is `./dtkctl upgrade`. Running
 `bash install.sh --manage` and picking 2 does the same from the menu.
@@ -554,7 +556,10 @@ docker compose -p dtk -f docker/compose.yml up -d
 
 With `DTK_IMAGE_TAG=latest` there is nothing to change first. A pinned version or
 `sha-` build is the one thing a pin costs: move it in `.env` before you pull, which is
-the step the script does for you. Building locally instead? Swap `pull` for `build`.
+the step the script does for you. A checkout the script made sits on a release tag, where
+`git pull` has no branch to pull: there, use
+`git fetch origin tag v5.1.7 && git checkout --detach v5.1.7`.
+Building locally instead? Swap `pull` for `build`.
 `migrate` runs on every start and Alembic is idempotent, so running it separately is
 only about getting the schema up before the containers switch over.
 
@@ -568,8 +573,10 @@ one keeps running the old code. Cached layers keep it short.
 
 To go back, `./dtkctl upgrade 5.1.5` with the script, or set `DTK_IMAGE_TAG` to the
 previous version or `sha-` by hand and `up -d` again. Migrations have no automatic
-downgrade — back the database up before upgrading, which is the only rollback that
-always works.
+downgrade, so the script refuses, before pulling anything, a release that lacks the
+database's latest migration; past one, the way back is a new install of the old version
+with a backup taken on it restored. Back the database up before upgrading — the script
+does — which is the only rollback that always works.
 
 
 ## 📖 Documentation

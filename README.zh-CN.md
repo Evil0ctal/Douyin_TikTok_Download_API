@@ -489,8 +489,9 @@ cd /opt/dtk           # 或 ~/dtk —— 你装在哪就是哪
 ./dtkctl upgrade      # 升到最新的 Release；./dtkctl upgrade 5.1.6 升到指定版本
 ```
 
-它会更新代码、拉新镜像（源码构建的安装则是重新构建）、重建浏览器镜像、跑迁移、重启，
-并且自己把升到的版本号写进 `.env`。不需要手动改任何东西。5.1.6 之前装的实例还没有
+它会把代码切到那个 Release 的 tag、拉新镜像（源码构建的安装则是重新构建）、重建浏览器镜像、
+做一份备份、跑迁移，这些都过了才把升到的版本号写进 `.env` 并重启。重启之前任何一步失败，代码和
+`.env` 都会放回原样，旧版本照样在跑。不需要手动改任何东西。5.1.6 之前装的实例还没有
 `upgrade`，那就在同一个目录里先跑一次 `git pull && bash install/install.zh.sh --upgrade`，
 之后就都是 `./dtkctl upgrade` 了。运行 `bash install.zh.sh --manage` 选 2，效果一样。
 
@@ -509,8 +510,9 @@ docker compose -p dtk -f docker/compose.yml up -d
 ```
 
 `DTK_IMAGE_TAG=latest` 的话不用先改任何东西。钉了版本号或 `sha-` 构建的，这就是钉住的
-代价：拉之前先在 `.env` 里把它改掉——脚本替你做的正是这一步。自己构建的话把 `pull` 换成
-`build`。`migrate` 每次启动都会跑，Alembic 是幂等的，所以单独跑那一步只是想在切换容器
+代价：拉之前先在 `.env` 里把它改掉——脚本替你做的正是这一步。脚本装的代码停在 Release 的 tag
+上，那里的 `git pull` 没有分支可拉：改用 `git fetch origin tag v5.1.7 && git checkout --detach v5.1.7`。
+自己构建的话把 `pull` 换成 `build`。`migrate` 每次启动都会跑，Alembic 是幂等的，所以单独跑那一步只是想在切换容器
 之前先把库升上去。
 
 **你的数据不会动。** 命名卷（`postgres-data`、`redis-data`、`media-data`）不随容器
@@ -520,7 +522,9 @@ docker compose -p dtk -f docker/compose.yml up -d
 或者本地构建的 `dev`——跑着的还是旧代码。有缓存，很快。
 
 想回退，用脚本装的就 `./dtkctl upgrade 5.1.5`，手工的就把 `DTK_IMAGE_TAG` 改回上一个
-版本号或 `sha-` 再 `up -d`。迁移不提供自动降级——升级前备份数据库，这是唯一稳妥的回退路径。
+版本号或 `sha-` 再 `up -d`。迁移不提供自动降级，所以缺了数据库最新那次迁移的 Release，脚本在拉任何东西
+之前就会拒绝；越过了那样一次迁移，回去的路是新装一份旧版本，再把在它上面做的备份恢复进去。升级前备份
+数据库——脚本会替你做——这是唯一稳妥的回退路径。
 
 
 ## 📖 文档

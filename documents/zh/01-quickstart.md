@@ -146,13 +146,11 @@ B 站是这一整步的例外。它的访客身份铸造不需要浏览器——
 | 自动铸造 | 第 4 步加上 `--profile browser` | 约 1.7 GB 镜像、预热后 2.57 GiB 内存、最多 4 核 CPU、构建更久 |
 | 手动 cookie | 跳过该 profile，第 6 步之后在「身份池」页面导入 | cookie 由你提供并负责续期；一份已登录的 cookie 等同于账号密码 |
 
-如果选浏览器，有一个所有人都会踩的坑：`CLOAKBROWSER_COMMIT` 是在**构建时**读取的，
-而且它是 compose 的*插值*变量——compose 从 `docker/.env` 或你的 shell 里读这类变量，
-**不会**读仓库根目录的 `.env`。在命令行上传入才是可靠做法。
-它刻意钉死到某个 commit 而不是 tag，因为 GitHub 上有多个组织发布了描述完全相同的
-`cloakbrowser` 仓库，浮动 tag 无法唯一确定是哪一份软件。
-如果构建时这个值为空，镜像里根本不含浏览器，并且会在 `/rpc/health` 上如实说明，
-而不是悄悄铸造出平台根本不认的合成身份。
+如果选浏览器，镜像里装哪个版本不用你操心：`docker/compose.yml` 里写着这份代码验证过的
+CloakBrowser 版本，构建时装的就是它。它钉死到某个 commit 而不是 tag，因为 GitHub 上有多个组织
+发布了描述完全相同的 `cloakbrowser` 仓库，浮动 tag 无法唯一确定是哪一份软件。
+这个 pin 随 `git pull` 和浏览器自己的依赖一起变；想有意识地换一个版本，见
+[CloakBrowser 版本固定](./02-installation.md#构建浏览器镜像cloakbrowser-版本固定)。
 
 ## 第 4 步 —— 启动服务
 
@@ -170,16 +168,11 @@ docker compose -p dtk -f docker/compose.yml up -d --wait --wait-timeout 300
 
 ```bash
 echo 'DTK_BROWSER_RPC_URL=http://browser-rpc:9000' >> .env
-CLOAKBROWSER_COMMIT=fbf005bc199920b592df17ac4d489324e29d56d8 \
-  docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
+docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 docker compose -p dtk -f docker/compose.yml --profile browser ps
 ```
 
-那个 commit 对应 CloakBrowser 0.6.3 / Chromium 146，是本仓库端到端验证过的版本；
-`.env.example` 里写它也是同样的理由——但那只是一个参考值，不是一份能直接生效的配置。
-把 `.env.example` 复制成仓库根目录的 `.env` **并不会**让这个 pin 进入构建，
-因为 compose 的插值不读那个文件：要么像上面那样写在命令行上，要么放进 `docker/.env`，
-要么用 `COMPOSE_ENV_FILES=.env` 把根目录文件喂给 Compose。要改就有意识地改。
+构建装的是 `docker/compose.yml` 指定的那个 CloakBrowser 版本，所以没有什么 pin 需要抄进 `.env`。
 `browser-rpc` 的健康检查 `start_period` 是 60 秒，所以别急着用 `ps` 的结果下结论，
 给它一分钟。
 
@@ -464,7 +457,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose
 | `SETUP_TOKEN_INVALID` | 令牌过期、已被用掉，或者因五次错误被作废。`docker compose -p dtk -f docker/compose.yml restart api` 会重新打印仍然有效的令牌，若旧的已失效则签发新的。 |
 | `503 IDENTITY_POOL_EXHAUSTED` | 身份池里没有可用身份。铸造一个，或导入一份 cookie。见第 3 步。 |
 | 铸造任务以 `501 NOT_CONFIGURED` 失败（mint 调用本身返回的是 `202`） | 没有浏览器容器，而平台是抖音或 TikTok——B 站不需要它。启动 `--profile browser` 并设置 `DTK_BROWSER_RPC_URL`，或者改用导入 cookie。 |
-| `browser-rpc` 不健康，日志说 "not installed in this image" | 构建时没传 `CLOAKBROWSER_COMMIT`——这个值在构建时从 shell 读取，不从根目录 `.env` 读。 |
+| `browser-rpc` 不健康，日志说 "not installed in this image" | 镜像是用裸的 `docker build` 构建的、没带 `--build-arg CLOAKBROWSER_COMMIT=…`，或者来自一份更早的代码——那时 `docker/compose.yml` 还没给它默认值。按第 4 步用 Compose 重新构建即可。 |
 | 铸造总是超时 | 代理连不上目标平台。先单独测代理，再怀疑浏览器。 |
 | 密码正确却返回 `RATE_LIMITED` | 按账号计数的登录限制是真的锁定：五次失败，锁十五分钟。等待，或者清掉计数器——见[故障排查](./14-troubleshooting.md)。 |
 

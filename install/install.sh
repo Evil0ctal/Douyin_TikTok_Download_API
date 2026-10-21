@@ -28,7 +28,9 @@ IFS=$'\n\t'
 
 # ---------------------------------------------------------------- constants --
 
-readonly REPO_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git"
+# DTK_REPO_URL points the clone at a mirror. Releases are found on the
+# checkout's own origin once there is one, so it stays the mirror after.
+readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
 readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/02-installation.md"
@@ -68,21 +70,23 @@ readonly TRANSCRIBER_IMAGE="evil0ctal/douyin_tiktok_download_api-transcriber"
 # Chinese script names itself, so an install made in Chinese stays in Chinese.
 readonly SCRIPT_NAME="install.sh"
 
-# The CloakBrowser revision the browser image installs - the same one
-# .env.example carries, verified end to end with this repository. It is a
-# build argument, and dtkctl points Compose interpolation at the root .env, so
-# that is where it goes. Before it was, every browser install this script made
-# built an image with no browser in it; its healthcheck reads that, so the
-# install died at `up --wait` with browser-rpc unhealthy.
-readonly CLOAKBROWSER_PIN="fbf005bc199920b592df17ac4d489324e29d56d8"
+# Every CloakBrowser commit this project ever wrote into an .env: 5.1.4 to
+# 5.1.6 wrote 0.6.3's at install, and .env.example - which manual installs
+# copy - carried 0.5.10's before that. A frozen copy kept an install on 0.5.10
+# after the checkout's requirements had moved to Playwright 1.64, so an upgrade
+# takes these out (settle_browser_pin). The list is closed: nothing writes the
+# default into .env any more, so a later pin never needs adding here.
+readonly CLOAKBROWSER_WRITTEN_PINS="f04c23da285b3b3d3cf10c8f9d282e7adc1d52ce fbf005bc199920b592df17ac4d489324e29d56d8"
 
 # Overridable for testing, so a trial run cannot touch a real `dtk` stack.
 # Validated because it is written into the generated dtkctl: anything that is
-# not a plain name would end up as shell syntax there.
+# not a plain name would end up as shell syntax there. Compose's own rule, not
+# a looser one: `MyDtk` passed here and failed at the first pull, blamed on the
+# registry.
 PROJECT="${DTK_PROJECT:-dtk}"
 case "$PROJECT" in
-  ''|*[!a-zA-Z0-9_-]*)
-    printf 'error: DTK_PROJECT must be letters, digits, dash or underscore.\n' >&2
+  ''|[!a-z0-9]*|*[!a-z0-9_-]*)
+    printf 'error: DTK_PROJECT must be lowercase letters, digits, dash or underscore, starting with a letter or digit.\n' >&2
     exit 1 ;;
 esac
 
@@ -122,22 +126,37 @@ CHECK_ONLY=0
 MANAGE_ONLY=0
 UPGRADE_ONLY=0
 UPGRADE_TARGET=""
+NO_BACKUP=0
 
 # Anything we create outside the install directory is registered here, so an
 # interrupt does not leave it behind.
 TMP_FILES=()
+# Set while an upgrade has moved the checkout but not yet swapped the stack:
+# leaving the script then - an error, Ctrl-C - puts the checkout and .env back
+# (undo_upgrade), so "nothing was changed" is true when it is said.
+UPGRADE_UNDO=""
+# Set once a password has been read with echo off. A Ctrl-C inside that read
+# left the terminal not echoing anything typed afterwards.
+SECRET_PROMPTED=0
 # It has to end in success. A script that runs off its end exits with the
 # status of the last command it ran, which is this trap; with nothing
 # registered, `[ -n "" ]` was that command, and every install that needed no
 # temporary file reported failure after printing "Done".
 cleanup() {
   local f
+  if [ -n "$UPGRADE_UNDO" ]; then undo_upgrade; fi
+  if [ "$SECRET_PROMPTED" = 1 ] && [ -n "$TTY_IN" ]; then stty echo <"$TTY_IN" 2>/dev/null || true; fi
   for f in "${TMP_FILES[@]:-}"; do
     if [ -n "$f" ]; then rm -f "$f"; fi
   done
   return 0
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+# INT and TERM end the script. They used to run cleanup and nothing else, and a
+# trap that returns lets the script carry on: Ctrl-C at "Enable the browser
+# container? [Y/n]" took the default and went on to a 6 GB build.
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # Read one line from the terminal. Returns empty on EOF rather than failing the
 # script, so a closed terminal falls through to the default.
@@ -174,6 +193,12 @@ ask_yes_no() {
 ask_value() {
   local prompt="$1" default="$2" validator="${3:-}" reply
   if [ "$ASSUME_YES" = 1 ] || [ -z "$TTY_IN" ]; then
+    # A preset is held to the same rule as a typed answer. Under --yes nobody
+    # is there to retype it, and a bad port or path used to surface only at
+    # the first `docker compose pull`, as a message about the registry.
+    if [ -n "$validator" ] && ! "$validator" "$default"; then
+      die "'$default' does not work for \"$prompt\", and there is nobody to ask. Change the preset and run this again."
+    fi
     printf '%s' "$default"
     return
   fi
@@ -187,6 +212,19 @@ ask_value() {
       return
     fi
   done
+}
+
+# One line as typed, with only the ends trimmed. ask_value takes every space
+# out, which suits a port or a path and mangled a setting: `GET /api/v1/x` was
+# stored as `GET/api/v1/x`, and the validator accepted it.
+ask_line() {
+  local prompt="$1" reply
+  [ -n "$TTY_IN" ] && [ "$ASSUME_YES" = 0 ] || return 0
+  printf '    %s ' "$prompt" >&2
+  reply="$(read_line)"
+  reply="${reply#"${reply%%[![:space:]]*}"}"
+  reply="${reply%"${reply##*[![:space:]]}"}"
+  printf '%s' "$reply"
 }
 
 valid_port() {
@@ -205,6 +243,17 @@ valid_path() {
     /|"") warn "That is not a directory this should install into."; return 1 ;;
     /*|~*|./*|../*) return 0 ;;
     *) warn "Use an absolute path, for example /opt/dtk."; return 1 ;;
+  esac
+}
+
+# A leading ~ expanded. It arrives literal from `read`, so this is a pattern
+# match on a character, not an attempt at expansion.
+# shellcheck disable=SC2088
+expand_tilde() {
+  case "$1" in
+    "~") printf '%s' "$HOME" ;;
+    "~/"*) printf '%s' "$HOME/${1#\~/}" ;;
+    *) printf '%s' "$1" ;;
   esac
 }
 
@@ -240,7 +289,10 @@ as_root() {
   if [ "$(id -u)" = "0" ]; then
     "$@"
   else
-    dim "sudo $*"
+    have sudo || die "This needs root, and sudo is not installed: $(printf '%q ' "$@")"
+    # %q, not "$*": with IFS set to newline and tab, "$*" printed each word of
+    # the command on a line of its own.
+    dim "sudo $(printf '%q ' "$@")"
     sudo "$@"
   fi
 }
@@ -339,6 +391,26 @@ detect_resources() {
     MEM_MIB=0
   fi
   case "$MEM_MIB" in ''|*[!0-9]*) MEM_MIB=0 ;; esac
+}
+
+# What the Docker daemon can hand out, which is what the ceilings have to fit.
+# On Docker Desktop, OrbStack or a remote DOCKER_HOST that is a VM, not this
+# host: a Mac with 16 cores in front of a 2-CPU VM wrote no override, and
+# browser-rpc asked for 4.0 CPUs, which Docker refuses outright.
+detect_docker_resources() {
+  local line cpus bytes mib
+  line="$(docker info --format '{{.NCPU}} {{.MemTotal}}' 2>/dev/null || true)"
+  cpus="${line%% *}"
+  bytes="${line##* }"
+  case "$cpus" in ''|*[!0-9]*) return 0 ;; esac
+  case "$bytes" in ''|*[!0-9]*) return 0 ;; esac
+  [ "$cpus" -gt 0 ] && [ "$bytes" -gt 0 ] || return 0
+  mib=$(( bytes / 1024 / 1024 ))
+  if [ "$UPGRADE_ONLY" = 0 ] && { [ "$cpus" != "$CPUS" ] || [ $(( mib - MEM_MIB )) -gt 256 ] || [ $(( MEM_MIB - mib )) -gt 256 ]; }; then
+    ok "Docker can use $cpus CPU and $(( mib / 1024 )).$(( (mib % 1024) * 10 / 1024 )) GiB here, so that is what the stack is sized for."
+  fi
+  CPUS="$cpus"
+  MEM_MIB="$mib"
 }
 
 # ------------------------------------------------------------------ docker --
@@ -581,6 +653,21 @@ set_env_value() {
   rm -f "$tmp"
 }
 
+# Replace KEY's line with a comment saying why it went, the same way as
+# set_env_value. A deleted line would leave somebody reading .env no trace of
+# what changed it.
+drop_env_value() {
+  local key="$1" note="$2" env_file="$INSTALL_DIR/.env" tmp
+  grep -q "^${key}=" "$env_file" 2>/dev/null || return 0
+  tmp="$(mktemp)" || die "Could not create a temporary file."
+  TMP_FILES+=("$tmp")
+  awk -v key="$key" -v note="$note" '
+    index($0, key "=") == 1 { if (!done) print "# " note; done = 1; next }
+    { print }' "$env_file" >"$tmp"
+  cat "$tmp" >"$env_file"
+  rm -f "$tmp"
+}
+
 # Add or remove one --profile flag on dtkctl's compose line, in place.
 set_ctl_profile() {
   local name="$1" state="$2" flag tmp
@@ -648,7 +735,8 @@ models_present() {
 # directory open only to its owner starts a transcriber that never turns
 # healthy, and the reason is only in that container's log.
 models_readable() {
-  [ -z "$(find "$1" \( -type d ! -perm -005 \) -o \( -type f ! -perm -004 \) 2>/dev/null | head -1)" ]
+  [ -z "$(find "$1" -maxdepth 0 ! -perm -005 2>/dev/null)" ] \
+    && [ -z "$(find "$1/asr" "$1/vad" "$1/punc" \( -type d ! -perm -005 \) -o \( -type f ! -perm -004 \) 2>/dev/null | head -1)" ]
 }
 
 model_repo_for() {
@@ -706,8 +794,15 @@ download_models() {
     fi
     mv -f "$tmp" "$root/$path"
   done
-  chmod -R a+rX "$root"
+  open_models "$root" || { warn "Could not make $root readable to the container."; return 1; }
   ok "All ten files verified in $root"
+}
+
+# Readable to the container's UID 10001: the directory itself, and the three
+# this script fills - never -R on the answer. "Model directory?" once took ~,
+# and `chmod -R a+rX ~` made a home directory, .ssh included, world-readable.
+open_models() {
+  chmod a+rx "$1" && chmod -R a+rX "$1/asr" "$1/vad" "$1/punc"
 }
 
 # A full commit and nothing else. A tag or a branch would move under the pin,
@@ -720,13 +815,61 @@ valid_commit() {
   [ "${#1}" -eq 40 ]
 }
 
-# Installs written before the pin existed have none, and their browser image
-# holds no browser. Filled in rather than overwritten: a pin somebody chose
-# deliberately stays theirs.
-ensure_browser_pin() {
-  if [ -z "$(env_value CLOAKBROWSER_COMMIT)" ]; then
-    set_env_value CLOAKBROWSER_COMMIT "$BROWSER_COMMIT"
-    ok "Pinned CloakBrowser to $BROWSER_COMMIT in .env."
+# The CloakBrowser commit this checkout builds when .env names none: the
+# default in its docker/compose.yml, which docker/browser_rpc/requirements.txt
+# was verified with. Read from the checkout rather than kept in this script,
+# because an upgrade runs one release's script against another release's tree,
+# and only the tree knows what it was verified with.
+compose_browser_pin() {
+  # Single quotes: the ${...} is compose's text being matched, not an expansion.
+  # shellcheck disable=SC2016
+  sed -n 's/^ *CLOAKBROWSER_COMMIT: \${CLOAKBROWSER_COMMIT:-\([0-9a-f]\{40\}\)}.*$/\1/p' \
+    "$INSTALL_DIR/docker/compose.yml" 2>/dev/null | head -n 1
+}
+
+# A release from before that default - 5.1.6 and older - builds no browser
+# without a commit in .env, and its .env.example names the one it expects.
+example_browser_pin() {
+  sed -n 's/^CLOAKBROWSER_COMMIT=\([0-9a-f]\{40\}\)$/\1/p' "$INSTALL_DIR/.env.example" 2>/dev/null | head -n 1
+}
+
+is_written_pin() {
+  case " $CLOAKBROWSER_WRITTEN_PINS " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+
+# A CloakBrowser revision in .env that this project wrote there, rather than
+# one somebody chose, comes out, so the build takes docker/compose.yml's - the
+# one the checkout's requirements were verified with. An install from
+# September kept 0.5.10 this way, and upgrading it would have built 0.5.10 on
+# Playwright 1.64, a pair nobody had run. A revision somebody chose stays: it
+# is theirs, but they are told it is not the verified one. Done whether or not
+# the browser is on, so turning it on later builds the right one.
+settle_browser_pin() {
+  local pin default legacy
+  pin="$(env_value CLOAKBROWSER_COMMIT)"
+  default="$(compose_browser_pin)"
+  if [ -z "$default" ]; then
+    legacy="$(example_browser_pin)"
+    [ -n "$legacy" ] || return 0
+    if [ -z "$pin" ] || { is_written_pin "$pin" && [ "$pin" != "$legacy" ]; }; then
+      set_env_value CLOAKBROWSER_COMMIT "$legacy"
+      ok "CLOAKBROWSER_COMMIT=${legacy:0:12} in .env: this release builds its browser from a commit named there."
+    fi
+    return 0
+  fi
+  [ -n "$pin" ] || return 0
+  if is_written_pin "$pin"; then
+    drop_env_value CLOAKBROWSER_COMMIT \
+      "CLOAKBROWSER_COMMIT=$pin taken out by install/$SCRIPT_NAME: unset, it follows docker/compose.yml."
+    ok "The browser image follows this checkout's CloakBrowser now (${default:0:12})."
+    if [ "$pin" != "$default" ]; then
+      info "It was on ${pin:0:12}, which an earlier version wrote into .env."
+    fi
+  elif [ "$pin" != "$default" ]; then
+    warn "CLOAKBROWSER_COMMIT in .env pins ${pin:0:12}; kept, since somebody chose it."
+    info "This checkout's browser dependencies were verified with ${default:0:12}."
+    info "Delete that line from .env to follow the checkout instead."
   fi
 }
 
@@ -737,6 +880,20 @@ valid_model_path() {
   case "$1" in
     *[!A-Za-z0-9._/~+-]*) warn "Use letters, digits and . _ - + / only in this path."; return 1 ;;
   esac
+  local dir
+  dir="$(absolute_path "$(expand_tilde "$1")")"
+  if [ -e "$dir" ] && [ ! -d "$dir" ]; then
+    warn "$dir exists and is not a directory."
+    return 1
+  fi
+  # The models go into asr/, vad/ and punc/ under it, which is the only part
+  # of it this script touches. A directory full of something else is somebody's
+  # directory - a home, /srv - rather than one for the models.
+  if [ -d "$dir" ] && [ ! -d "$dir/asr" ] && [ ! -d "$dir/vad" ] && [ ! -d "$dir/punc" ] \
+      && [ -n "$(ls -A "$dir" 2>/dev/null || true)" ]; then
+    warn "$dir already holds other files. Use a new or empty directory, such as $dir/funasr-onnx."
+    return 1
+  fi
   return 0
 }
 
@@ -747,30 +904,14 @@ choose_model_path() {
   dim "The models stay on this machine and are mounted read-only. A directory"
   dim "that already holds them is used as it is."
   MODEL_PATH="$(ask_value "Model directory?" "${MODEL_PATH:-$INSTALL_DIR/models/funasr-onnx}" valid_model_path)"
-  # An answer is validated as it is typed; a preset taken by --yes is not.
-  if ! valid_model_path "$MODEL_PATH"; then
-    WANT_TRANSCRIBER=0
-    return 0
-  fi
-  # The tilde arrives literal from `read`, as in choose_directory.
-  # shellcheck disable=SC2088
-  case "$MODEL_PATH" in
-    "~") MODEL_PATH="$HOME" ;;
-    "~/"*) MODEL_PATH="$HOME/${MODEL_PATH#\~/}" ;;
-  esac
-  MODEL_PATH="$(absolute_path "$MODEL_PATH")"
+  MODEL_PATH="$(absolute_path "$(expand_tilde "$MODEL_PATH")")"
 
-  if [ -e "$MODEL_PATH" ] && [ ! -d "$MODEL_PATH" ]; then
-    warn "$MODEL_PATH exists and is not a directory. Transcription stays off."
-    WANT_TRANSCRIBER=0
-    return 0
-  fi
   if models_present "$MODEL_PATH"; then
     ok "Found the models in $MODEL_PATH."
     if ! models_readable "$MODEL_PATH"; then
       warn "Some of them are closed to other users, and the container reads them as UID 10001."
-      if ask_yes_no "Make them readable (chmod -R a+rX; nothing becomes writable)?" "y"; then
-        chmod -R a+rX "$MODEL_PATH" || { warn "chmod failed. Transcription stays off."; WANT_TRANSCRIBER=0; }
+      if ask_yes_no "Make them readable (a+rX on it and its asr, vad and punc; nothing becomes writable)?" "y"; then
+        open_models "$MODEL_PATH" || { warn "chmod failed. Transcription stays off."; WANT_TRANSCRIBER=0; }
       else
         WANT_TRANSCRIBER=0
         dim "Transcription stays off until they are readable."
@@ -828,7 +969,14 @@ USE_PUBLISHED="${DTK_USE_PUBLISHED:-1}"
 WANT_TRANSCRIBER="${DTK_ENABLE_TRANSCRIBER:-0}"
 MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
 MODELS_TO_FETCH=0
-BROWSER_COMMIT="${CLOAKBROWSER_COMMIT:-$CLOAKBROWSER_PIN}"
+# Empty unless somebody chose a revision: then docker/compose.yml's applies.
+BROWSER_COMMIT="${CLOAKBROWSER_COMMIT:-}"
+# Read once, then taken out of the environment, along with the version this
+# script pins. Compose interpolation prefers the shell's value to .env's, and
+# every dtkctl this script runs inherits its environment: with DTK_BIND_HOST=
+# 0.0.0.0 in the shell, the answer "keep it on 127.0.0.1" went into .env and
+# the stack was published on 0.0.0.0 anyway.
+unset DTK_BIND_HOST DTK_BIND_PORT DTK_TRANSCRIBER_MODEL_PATH CLOAKBROWSER_COMMIT DTK_IMAGE_TAG
 
 banner() {
   printf '\n'
@@ -867,16 +1015,7 @@ choose_directory() {
   dim "The checkout, your .env and the control script live here. Media and the"
   dim "database live in Docker volumes, not here."
   INSTALL_DIR="$(ask_value "Install directory?" "$default_dir" valid_path)"
-
-  # Expand a leading ~ ourselves; it arrives literal from `read`.
-  # The tilde is a literal here: `read` does not expand it, so it arrives as a
-  # character and this is a pattern match, not an attempt at expansion.
-  # shellcheck disable=SC2088
-  case "$INSTALL_DIR" in
-    "~") INSTALL_DIR="$HOME" ;;
-    "~/"*) INSTALL_DIR="$HOME/${INSTALL_DIR#\~/}" ;;
-  esac
-  INSTALL_DIR="$(absolute_path "$INSTALL_DIR")"
+  INSTALL_DIR="$(absolute_path "$(expand_tilde "$INSTALL_DIR")")"
 
   case "$INSTALL_DIR" in
     ""|"/"|"/usr"|"/etc"|"/var"|"/bin"|"/sbin"|"/lib"|"/boot"|"/home"|"/root")
@@ -884,54 +1023,107 @@ choose_directory() {
   esac
 }
 
+# Volumes left by an install of the same name that this one would land on.
+# Compose names them after the project, so a new install starts against that
+# old database - with new passwords it does not know - and dies at the first
+# migration. It used to get that far: an install stopped with `down`, or one
+# whose directory was deleted, has no containers for anything to find.
+refuse_foreign_volumes() {
+  [ -f "$INSTALL_DIR/.env" ] && return 0
+  local volumes
+  volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null || true)"
+  [ -n "$volumes" ] || return 0
+  die "Docker already holds volumes for a project named '$PROJECT':
+$(printf '%s\n' "$volumes" | sed 's/^/      /')
+    They belong to an install that was stopped or removed without them, and
+    their database opens only with that install's .env, which $INSTALL_DIR does
+    not have. A new install would generate new passwords and fail against them.
+      - That install is still somewhere: run this script there with --manage,
+        or set DTK_INSTALL_DIR to it.
+      - Install alongside it under another name, in another directory:
+          DTK_PROJECT=${PROJECT}2 DTK_INSTALL_DIR=\$HOME/${PROJECT}2 bash install.sh
+      - Start over. This deletes that data for good:
+          docker volume rm $(printf '%s' "$volumes" | tr '\n' ' ')"
+}
+
 prepare_directory() {
   if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
     die "$INSTALL_DIR exists and is not a directory."
   fi
+  have git || die "git is not installed. Install it with $(git_install_hint), then run this again."
+
+  # The release being installed: its tag is checked out, and its version goes
+  # into .env as DTK_IMAGE_TAG. main runs ahead of releases, and a clone of it
+  # used to start with main's compose.yml around the last release's images.
+  resolve_target "${DTK_VERSION:-latest}"
 
   if [ -d "$INSTALL_DIR/.git" ]; then
     local origin
     origin="$(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || echo "")"
     case "$origin" in
-      *Douyin_TikTok_Download_API*)
-        ok "Existing install found at $INSTALL_DIR."
-        info "Your .env and your Docker volumes are left alone."
-        if ask_yes_no "Update the checkout to the latest main?" "y"; then
-          git -C "$INSTALL_DIR" fetch --quiet origin main
-          git -C "$INSTALL_DIR" checkout --quiet main 2>/dev/null || true
-          # --ff-only, never --hard: a reset would throw away edits somebody
-          # made on purpose, and this script has no business doing that.
-          git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main \
-            || warn "The checkout has local changes; leaving it as it is."
-        fi
-        return
-        ;;
-      *)
-        die "$INSTALL_DIR is a git checkout of something else ($origin).
+      *Douyin_TikTok_Download_API*) : ;;
+      *) die "$INSTALL_DIR is a git checkout of something else ($origin).
     Choose an empty directory." ;;
     esac
+    [ -f "$INSTALL_DIR/docker/compose.yml" ] \
+      || die "$INSTALL_DIR is a checkout of this project from before v5 (it has no docker/compose.yml).
+    v5 shares nothing with it. Choose an empty directory."
+    if [ -x "$INSTALL_DIR/dtkctl" ] && [ "$(project_of "$INSTALL_DIR/dtkctl")" != "$PROJECT" ]; then
+      die "$INSTALL_DIR is the install of project '$(project_of "$INSTALL_DIR/dtkctl")', not '$PROJECT'.
+    Its .env and dtkctl are that install's. Choose another directory: DTK_INSTALL_DIR=..."
+    fi
+    ok "Existing checkout found at $INSTALL_DIR."
+    info "Your .env and your Docker volumes are left alone."
+    if checkout_is_at "$RELEASE_REF"; then
+      ok "It is at $RELEASE_REF already."
+    elif ask_yes_no "Move it to $RELEASE_REF, the release being installed?" "y"; then
+      checkout_ref "$RELEASE_REF"
+      ok "Checked out $RELEASE_REF."
+    else
+      # Left where it is, the checkout would run $RELEASE_REF's images under
+      # another tree's compose.yml - the mismatch moving it is there to prevent.
+      die "Then this would run $RELEASE_REF's images on a checkout of something else. Nothing was changed.
+    To install another release, name it: DTK_VERSION=5.1.6 bash install.sh"
+    fi
+    return
   fi
 
   if [ -d "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null || true)" ]; then
     die "$INSTALL_DIR is not empty and is not an existing install. Choose another directory."
   fi
 
-  step "Fetching the source"
-  have git || die "git is not installed. Install it with $(git_install_hint), then run this again."
-
+  step "Fetching $RELEASE_REF"
   local parent
   parent="$(dirname "$INSTALL_DIR")"
-  if [ ! -d "$parent" ]; then
+  # As this user first: sudo for a parent somebody can create themselves left
+  # root-owned directories in their home.
+  if [ ! -d "$parent" ] && ! mkdir -p "$parent" 2>/dev/null; then
+    ask_yes_no "$parent does not exist and needs root to create. Create it with sudo?" "y" \
+      || die "Create $parent yourself, or choose another directory."
     as_root mkdir -p "$parent"
   fi
   if [ ! -w "$parent" ]; then
+    ask_yes_no "$parent is not writable. Create $INSTALL_DIR with sudo, owned by you?" "y" \
+      || die "Choose a directory you can write to."
     as_root mkdir -p "$INSTALL_DIR"
     as_root chown "$(id -u):$(id -g)" "$INSTALL_DIR"
   fi
 
-  git clone --quiet --depth 1 --branch main "$REPO_URL" "$INSTALL_DIR" \
-    || die "Could not clone $REPO_URL. Check the network, or a mirror if you are in mainland China: $DOCS_URL"
-  ok "Cloned into $INSTALL_DIR"
+  # All of main first, then the release on top of it. The installer of 5.1.6 -
+  # which is what `./dtkctl upgrade` runs until a newer release is checked out -
+  # moves the checkout by fast-forwarding it to origin/main before handing
+  # over, and that needs main's history between the release and its tip: a
+  # clone of the tag alone has no origin/main, and a --depth 1 clone of main
+  # has the tip without the path to it. Either way that step failed, and the
+  # upgrade carried on in the old tree. main's whole history is about 14 MB.
+  local said
+  if ! said="$(git clone --quiet --single-branch --branch main "$REPO_URL" "$INSTALL_DIR" 2>&1)"; then
+    die "Could not clone $REPO_URL:
+$(printf '%s\n' "$said" | sed 's/^/      /')
+    Check the network, or a mirror if you are in mainland China: $DOCS_URL"
+  fi
+  checkout_ref "$RELEASE_REF"
+  ok "Cloned $RELEASE_REF into $INSTALL_DIR"
 }
 
 ask_questions() {
@@ -971,11 +1163,25 @@ ask_questions() {
   # somebody saying so, not a default being taken on their behalf.
   [ "${DTK_ENABLE_BROWSER:-}" = "1" ] && browser_default="y"
   if ask_yes_no "Enable the browser container?" "$browser_default"; then WANT_BROWSER=1; else WANT_BROWSER=0; fi
+  # Checked with the browser off too: it is written into .env either way, and
+  # whoever turns the browser on later would meet it several minutes into a
+  # build that Docker rejects.
+  if [ -n "$BROWSER_COMMIT" ] && ! valid_commit "$BROWSER_COMMIT"; then
+    die "CLOAKBROWSER_COMMIT has to be a full 40-character commit, not '$BROWSER_COMMIT'."
+  fi
   if [ "$WANT_BROWSER" = 1 ]; then
-    valid_commit "$BROWSER_COMMIT" \
-      || die "CLOAKBROWSER_COMMIT has to be a full 40-character commit, not '$BROWSER_COMMIT'."
-    dim "It installs CloakBrowser at commit ${BROWSER_COMMIT:0:12}, the revision this"
-    dim "script was verified with. CLOAKBROWSER_COMMIT in .env changes it."
+    local verified
+    verified="$(compose_browser_pin)"
+    [ -n "$verified" ] || verified="$(example_browser_pin)"
+    if [ -z "$BROWSER_COMMIT" ]; then
+      dim "It installs CloakBrowser at commit ${verified:0:12}, the revision this"
+      dim "release was verified with, and follows the checkout when you upgrade."
+    else
+      dim "It installs CloakBrowser at commit ${BROWSER_COMMIT:0:12}, from CLOAKBROWSER_COMMIT."
+      if [ "$BROWSER_COMMIT" != "$verified" ]; then
+        warn "This release was verified with ${verified:0:12}. Yours goes in .env, and upgrades leave it."
+      fi
+    fi
   fi
 
   printf '\n'
@@ -1038,14 +1244,7 @@ write_env() {
   if [ -f "$env_file" ]; then
     ok "Keeping the existing .env — its secrets are what the database was built with."
     info "Delete it yourself if you want a fresh one, but the old volumes will not open."
-    # dtkctl is about to start the transcriber, and an .env from before it
-    # existed would leave the api without its address and it without a token.
-    if [ "$WANT_TRANSCRIBER" = 1 ]; then
-      write_transcriber_env
-    fi
-    if [ "$WANT_BROWSER" = 1 ]; then
-      ensure_browser_pin
-    fi
+    reconcile_env
     return
   fi
 
@@ -1095,19 +1294,69 @@ write_env() {
     printf '\n'
     printf 'DTK_BIND_HOST=%s\n' "$BIND_HOST"
     printf 'DTK_BIND_PORT=%s\n' "$BIND_PORT"
-    # Written whether or not the browser is on, so that turning it on later
-    # by hand builds an image with a browser in it.
-    printf 'CLOAKBROWSER_COMMIT=%s\n' "$BROWSER_COMMIT"
+    # Only a revision somebody chose. Left out, docker/compose.yml's default
+    # applies and moves with upgrades; written here, it would stay behind
+    # while the checkout's browser requirements moved on.
+    # A release from before that default gets its commit from settle_browser_pin below.
+    if [ -n "$BROWSER_COMMIT" ]; then
+      printf 'CLOAKBROWSER_COMMIT=%s\n' "$BROWSER_COMMIT"
+    elif [ -n "$(compose_browser_pin)" ]; then
+      printf '# CLOAKBROWSER_COMMIT= unset: the browser follows docker/compose.yml.\n'
+    fi
     if [ "$USE_PUBLISHED" = 1 ]; then
       printf 'DTK_IMAGE=evil0ctal/douyin_tiktok_download_api\n'
-      printf 'DTK_IMAGE_TAG=latest\n'
+      # The release that was checked out, not `latest`: that tag moves, and an
+      # install should be able to say which build it runs - the same reason
+      # an upgrade pins the version it moves to.
+      printf 'DTK_IMAGE_TAG=%s\n' "$RELEASE_TAG"
       printf 'DTK_DOWNLOADER_IMAGE=evil0ctal/douyin_tiktok_download_api-downloader\n'
       printf 'DTK_TRANSCRIBER_IMAGE=%s\n' "$TRANSCRIBER_IMAGE"
     fi
   } >"$env_file"
   umask "$old_umask"
   chmod 600 "$env_file"
+  # A release from before compose.yml had a default wants the commit here.
+  settle_browser_pin
   ok "Wrote $env_file (owner-readable only)."
+}
+
+# An .env from a run that stopped part-way, kept for its secrets, gets the
+# answers just given written over the lines they decide. It used to keep its
+# own while dtkctl took the new ones: the browser turned on with no address for
+# it, downloads on with no downloader URL, and a summary that said 127.0.0.1
+# over an .env that published on 0.0.0.0.
+reconcile_env() {
+  set_env_value DTK_BIND_HOST "$BIND_HOST"
+  set_env_value DTK_BIND_PORT "$BIND_PORT"
+  if [ "$WANT_BROWSER" = 1 ]; then
+    set_env_value DTK_BROWSER_RPC_URL "http://browser-rpc:9000"
+  else
+    set_env_value DTK_BROWSER_RPC_URL ""
+  fi
+  if [ "$WANT_DOWNLOADER" = 1 ]; then
+    set_env_value DTK_DOWNLOADER_URL "http://downloader:9100"
+    [ -n "$(env_value DTK_DOWNLOADER_TOKEN)" ] || set_env_value DTK_DOWNLOADER_TOKEN "$(random_hex 24)"
+  else
+    set_env_value DTK_DOWNLOADER_URL ""
+  fi
+  # dtkctl is about to start the transcriber, and an .env from before it
+  # existed would leave the api without its address and it without a token.
+  if [ "$WANT_TRANSCRIBER" = 1 ]; then
+    write_transcriber_env
+  else
+    set_env_value DTK_TRANSCRIBER_URL ""
+  fi
+  if [ "$USE_PUBLISHED" = 1 ]; then
+    set_env_value DTK_IMAGE evil0ctal/douyin_tiktok_download_api
+    set_env_value DTK_IMAGE_TAG "$RELEASE_TAG"
+    set_env_value DTK_DOWNLOADER_IMAGE evil0ctal/douyin_tiktok_download_api-downloader
+  else
+    set_env_value DTK_IMAGE ""
+    set_env_value DTK_DOWNLOADER_IMAGE ""
+    set_env_value DTK_TRANSCRIBER_IMAGE ""
+  fi
+  [ -z "$BROWSER_COMMIT" ] || set_env_value CLOAKBROWSER_COMMIT "$BROWSER_COMMIT"
+  settle_browser_pin
 }
 
 # Docker refuses to start a container asking for more CPUs than the host has -
@@ -1121,19 +1370,38 @@ write_host_override() {
   [ "$CPUS" -lt 4 ] && need_cpu=1
   [ "$MEM_MIB" -gt 0 ] && [ "$MEM_MIB" -lt 7800 ] && need_mem=1
 
+  local previous=""
+  if [ -f "$override" ]; then
+    previous="$(mktemp)" || die "Could not create a temporary file."
+    TMP_FILES+=("$previous")
+    cat "$override" >"$previous"
+  fi
+
   if [ "$need_cpu" = 0 ] && [ "$need_mem" = 0 ]; then
     rm -f "$override"
+    keep_edited_override "$previous" "$override"
     return
   fi
 
   step "Sizing for this machine"
-  local api_cpu browser_cpu
-  api_cpu="$CPUS"; [ "$api_cpu" -gt 2 ] && api_cpu=2
-  browser_cpu="$CPUS"; [ "$browser_cpu" -gt 4 ] && browser_cpu=4
-  # Leave at least half a core: a browser pinned to every core starves the API
-  # that has to answer while it mints.
-  if [ "$CPUS" -le 2 ]; then api_cpu="1.5"; browser_cpu="1.5"; fi
+  # Every service whose compose.yml ceiling is above what this host has, and
+  # never more than the host: Docker refuses a container asking for more CPUs
+  # than exist. A fixed 1.5 for the API on any host of two cores or fewer -
+  # and migrate and worker left at the 2.0 compose gives them - meant a
+  # one-core host could not run even the first migration.
+  # api_cpu is api and worker, full_cpu the ones compose gives 2.0 (migrate,
+  # transcriber).
+  local api_cpu full_cpu browser_cpu
+  case "$CPUS" in
+    1) api_cpu="1.0"; full_cpu="1.0"; browser_cpu="0.5" ;;
+    # Leave at least half a core: a browser pinned to every core starves the
+    # API that has to answer while it mints.
+    2) api_cpu="1.5"; full_cpu="2.0"; browser_cpu="1.5" ;;
+    3) api_cpu="2.0"; full_cpu="2.0"; browser_cpu="3.0" ;;
+    *) api_cpu="2.0"; full_cpu="2.0"; browser_cpu="4.0" ;;
+  esac
 
+  local redis_mib=$(( MEM_MIB / 12 )) app_mib=$(( MEM_MIB / 9 )) dl_mib=$(( MEM_MIB / 20 ))
   {
     printf '# Written by install/install.sh for this host: %s CPU, %s MiB RAM.\n' "$CPUS" "$MEM_MIB"
     printf '# docker/compose.yml is written for a 4 vCPU / 8 GiB machine. Its ceilings\n'
@@ -1145,25 +1413,53 @@ write_host_override() {
     printf '# Edit these freely. Delete the file to go back to the defaults.\n'
     printf 'services:\n'
     if [ "$need_mem" = 1 ]; then
+      # memswap_limit goes with every mem_limit whose service has one in
+      # compose.yml. Docker refuses a container whose memswap_limit is below
+      # its mem_limit, and the 512m api and worker inherit was below MEM/9 on
+      # every host between about 4.6 and 7.6 GiB.
       printf '  postgres:\n    mem_limit: %sm\n' "$(( MEM_MIB / 4 ))"
-      printf '  redis:\n    mem_limit: %sm\n' "$(( MEM_MIB / 12 ))"
-      printf '  api:\n    mem_limit: %sm\n    cpus: %s\n' "$(( MEM_MIB / 9 ))" "$api_cpu"
-      printf '  worker:\n    mem_limit: %sm\n' "$(( MEM_MIB / 9 ))"
+      printf '  redis:\n    mem_limit: %sm\n' "$redis_mib"
+      printf '  migrate:\n    cpus: %s\n' "$full_cpu"
+      printf '  api:\n    mem_limit: %sm\n    memswap_limit: %sm\n    cpus: %s\n' "$app_mib" "$app_mib" "$api_cpu"
+      printf '  worker:\n    mem_limit: %sm\n    memswap_limit: %sm\n    cpus: %s\n' "$app_mib" "$app_mib" "$api_cpu"
       printf '  browser-rpc:\n    mem_limit: %sm\n    cpus: %s\n' "$(( MEM_MIB / 3 ))" "$browser_cpu"
-      printf '  downloader:\n    mem_limit: %sm\n    cpus: 1.0\n' "$(( MEM_MIB / 20 ))"
+      printf '  downloader:\n    mem_limit: %sm\n    memswap_limit: %sm\n    cpus: 1.0\n' "$dl_mib" "$dl_mib"
       # Flat rather than a share of RAM: it needs what the models and one
       # decoded file need (0.9 GiB measured on a 3-minute clip; an hour of
       # audio adds about 230 MB) whatever the host. No swap, as in compose,
       # because inference that pages is slower than inference that fails.
-      printf '  transcriber:\n    mem_limit: 1536m\n    memswap_limit: 1536m\n'
+      printf '  transcriber:\n    mem_limit: 1536m\n    memswap_limit: 1536m\n    cpus: %s\n' "$full_cpu"
     else
+      printf '  migrate:\n    cpus: %s\n' "$full_cpu"
       printf '  api:\n    cpus: %s\n' "$api_cpu"
       printf '  worker:\n    cpus: %s\n' "$api_cpu"
       printf '  browser-rpc:\n    cpus: %s\n' "$browser_cpu"
       printf '  downloader:\n    cpus: 1.0\n'
+      printf '  transcriber:\n    cpus: %s\n' "$full_cpu"
     fi
   } >"$override"
   ok "Wrote compose.host.yml — ceilings scaled to $CPUS CPU and $MEM_MIB MiB."
+  keep_edited_override "$previous" "$override"
+
+  # Redis evicts at maxmemory and is killed at mem_limit, so the first has to
+  # sit well under the second. compose.yml's 320mb does under its 512m; under a
+  # limit scaled to a small host it did not, and Redis was OOM-killed - taking
+  # the task queue with it - where it should have evicted. A value somebody
+  # set stays.
+  if [ "$need_mem" = 1 ] && [ $(( redis_mib * 6 / 10 )) -lt 320 ] && [ -z "$(env_value DTK_REDIS_MAXMEMORY)" ]; then
+    set_env_value DTK_REDIS_MAXMEMORY "$(( redis_mib * 6 / 10 ))mb"
+    ok "Redis evicts at $(( redis_mib * 6 / 10 ))mb, under its ${redis_mib}m ceiling (DTK_REDIS_MAXMEMORY in .env)."
+  fi
+}
+
+# The file says "edit these freely", so a run that rewrites it keeps what was
+# there before when it differs, rather than dropping somebody's edits.
+keep_edited_override() {
+  local previous="$1" override="$2"
+  [ -n "$previous" ] && [ -s "$previous" ] || return 0
+  if [ -f "$override" ] && cmp -s "$previous" "$override"; then return 0; fi
+  cat "$previous" >"$override.old"
+  info "The compose.host.yml that was there is kept as compose.host.yml.old; carry over any edits from it."
 }
 
 # One entry point for every later command, because three arguments have to be
@@ -1184,8 +1480,8 @@ write_control_script() {
     printf '#   ./dtkctl restart api     restart one service\n'
     printf '#   ./dtkctl down            stop, keep the data\n'
     printf '#   ./dtkctl down -v         stop and delete the volumes. Irreversible.\n'
-    printf '#   ./dtkctl upgrade         to the latest release: pull, migrate, restart\n'
-    printf '#   ./dtkctl upgrade 5.1.6   to that release instead\n'
+    printf '#   ./dtkctl upgrade         to the latest release: back up, pull, migrate, restart\n'
+    printf '#   ./dtkctl upgrade 5.1.6   to that release instead (--no-backup skips the backup)\n'
     printf '#\n'
     printf '# The three things it carries that are easy to forget: the project name, the\n'
     printf '# host override file, and COMPOSE_ENV_FILES - without which compose looks for\n'
@@ -1193,17 +1489,28 @@ write_control_script() {
     printf '#\n'
     printf '# On published images the version is DTK_IMAGE_TAG in .env; upgrade writes it.\n'
     printf 'set -euo pipefail\n'
-    # Single quotes on purpose: these expand when dtkctl runs, not now.
+    # Single quotes on purpose: these expand when dtkctl runs, not now. The
+    # loop follows a symlink to dtkctl - one put on PATH - back to the install,
+    # where "$0" alone found neither docker/compose.yml nor the installer.
     # shellcheck disable=SC2016
-    printf 'cd "$(dirname "$0")"\n'
+    printf 'here="$0"\nwhile [ -L "$here" ]; do\n  link="$(readlink "$here")"\n'
+    # shellcheck disable=SC2016
+    printf '  case "$link" in /*) here="$link" ;; *) here="$(dirname "$here")/$link" ;; esac\ndone\n'
+    # shellcheck disable=SC2016
+    printf 'cd "$(dirname "$here")"\n'
     # Not a compose command, so it shadows nothing. Upgrading used to mean
     # editing DTK_IMAGE_TAG in .env by hand and then remembering the checkout,
     # the pull, the browser build and the migration, in that order. The
     # installer that came with the checkout knows them, and writes the tag.
     # shellcheck disable=SC2016
-    printf 'if [ "${1:-}" = upgrade ]; then\n'
+    printf 'if [ "${1:-}" = upgrade ]; then\n  shift\n'
+    # A release from before 5.1.6 has an installer without --upgrade. Said
+    # here, with what to run instead, rather than as "Unknown option".
+    printf '  if ! grep -q -- "--upgrade)" install/%s; then\n' "$SCRIPT_NAME"
+    printf '    printf "%%s\\n" "This release has no upgrade command of its own. Run the current installer:" "  curl -fsSL %s/install/%s -o install.sh && bash install.sh --upgrade" >&2\n' "$REPO_RAW" "$SCRIPT_NAME"
+    printf '    exit 1\n  fi\n'
     # shellcheck disable=SC2016
-    printf '  shift\n  DTK_PROJECT=%s DTK_INSTALL_DIR="$PWD" exec bash install/%s --upgrade "$@"\nfi\n' "$PROJECT" "$SCRIPT_NAME"
+    printf '  DTK_PROJECT=%s DTK_INSTALL_DIR="$PWD" exec bash install/%s --upgrade "$@"\nfi\n' "$PROJECT" "$SCRIPT_NAME"
     printf 'export COMPOSE_ENV_FILES=.env\n'
     printf 'exec docker compose -p %s %s' "$PROJECT" "$files"
     [ "$WANT_BROWSER" = 1 ] && printf ' --profile browser'
@@ -1213,6 +1520,17 @@ write_control_script() {
   } >"$ctl"
   chmod 755 "$ctl"
   ok "Wrote dtkctl — use it instead of raw docker compose."
+}
+
+# Compose's own reading of what was just written, before anything is pulled. A
+# project name, port or file it rejects used to surface at `pull`, under a
+# message blaming the registry.
+validate_compose() {
+  local problem
+  if ! problem="$("$CTL" config -q 2>&1)"; then
+    die "Compose rejects this install's configuration:
+$(printf '%s\n' "$problem" | sed 's/^/      /')"
+  fi
 }
 
 # The first compose command of an install creates its networks, and Docker
@@ -1345,25 +1663,42 @@ show_result() {
 
 CTL=""   # path to the dtkctl of the install being managed
 
+# The checkout this script came with, when the script is a file on disk.
+# Piped through `curl | bash` it has no directory, and the "." that stood in
+# for one made it the parent of wherever it was run.
+own_checkout() {
+  local src="${BASH_SOURCE[0]:-}"
+  [ -n "$src" ] && [ -f "$src" ] || return 1
+  (cd "$(dirname "$src")/.." 2>/dev/null && pwd)
+}
+
+# Whether DIR is an install this script may act on, and so run the dtkctl of,
+# without being told it is: a file called dtkctl in the directory somebody
+# happens to be in is not reason enough to execute it. It has to be a checkout
+# of this project, with its compose file, and a dtkctl owned by whoever runs
+# this - or root - that nobody else can write. DTK_INSTALL_DIR, and the
+# directory dtkctl passes for itself, are taken as said.
+is_install_dir() {
+  local dir="$1" origin
+  [ -n "$dir" ] && [ -d "$dir/.git" ] && [ -f "$dir/docker/compose.yml" ] && [ -x "$dir/dtkctl" ] || return 1
+  origin="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+  case "$origin" in *Douyin_TikTok_Download_API*) : ;; *) return 1 ;; esac
+  [ -n "$(find "$dir/dtkctl" -maxdepth 0 \( -user "$(id -u)" -o -user 0 \) ! -perm -020 ! -perm -002 2>/dev/null)" ]
+}
+
 # Where an existing deployment lives, asked of Docker rather than guessed.
-# Compose records the config file it was started from, and the install
-# directory is that file's grandparent.
+# Every container Compose makes is labelled with the config files it came
+# from, and the install directory is the first one's grandparent. Read from the
+# labels rather than `compose ls` through python3, which a host without python3
+# answered with nothing - and the script then installed over the existing one.
 find_existing_install() {
   local config dir
-  config="$(docker compose ls --all --format json 2>/dev/null | python3 -c "
-import sys, json
-try:
-    projects = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-for project in projects:
-    if project.get('Name') == '$PROJECT':
-        print(project.get('ConfigFiles', '').split(',')[0])
-        break
-" 2>/dev/null || true)"
+  config="$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT" \
+    --format '{{.Label "com.docker.compose.project.config_files"}}' 2>/dev/null | head -n 1 || true)"
+  config="${config%%,*}"
   [ -n "$config" ] || return 1
   dir="$(dirname "$(dirname "$config")")"
-  [ -f "$dir/docker/compose.yml" ] || return 1
+  is_install_dir "$dir" || return 1
   printf '%s' "$dir"
 }
 
@@ -1380,8 +1715,9 @@ load_install_state() {
   if grep -qF -- "--profile downloader" "$CTL"; then WANT_DOWNLOADER=1; fi
   if grep -qF -- "--profile transcriber" "$CTL"; then WANT_TRANSCRIBER=1; fi
   if [ -n "$(env_value DTK_IMAGE)" ]; then USE_PUBLISHED=1; fi
-  MODEL_PATH="$(env_value DTK_TRANSCRIBER_MODEL_PATH)"
-  [ -n "$MODEL_PATH" ] || MODEL_PATH="${DTK_TRANSCRIBER_MODEL_PATH:-}"
+  local recorded
+  recorded="$(env_value DTK_TRANSCRIBER_MODEL_PATH)"
+  [ -z "$recorded" ] || MODEL_PATH="$recorded"
 }
 
 # The version the running instance reports. The only one that counts: the
@@ -1390,48 +1726,188 @@ running_version() {
   "$CTL" exec -T api dtk --version 2>/dev/null | tr -d '\r' | awk 'NF{print $NF}' | tail -1
 }
 
+# A v5 release tag and nothing else: v5.1.6, not V4.1.3. The v4 branch still
+# cuts releases, under capital-V tags, and GitHub would call one of those the
+# latest; an upgrade that took it would have pulled a v4 image into a v5 stack.
+is_release_tag() {
+  printf '%s' "$1" | grep -Eq '^v([5-9]|[1-9][0-9]+)\.[0-9]+\.[0-9]+$'
+}
+
+# Where releases come from: the checkout's own origin once there is one, so a
+# mirror stays a mirror.
+origin_url() {
+  # Its own .git only: `git -C` on an empty directory inside some other work
+  # tree answers with that tree's origin.
+  if [ -d "$INSTALL_DIR/.git" ]; then
+    git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null && return 0
+  fi
+  printf '%s' "$REPO_URL"
+}
+
+# The highest release tag on the remote that starts with $1 (v5.1. for "5.1",
+# v for any). The fallback for latest_release, and how `5.1` finds 5.1.6.
+highest_release_tag() {
+  local prefix="${1:-v}" best="" tag
+  for tag in $(git ls-remote --tags --refs "$(origin_url)" "refs/tags/${prefix}*" 2>/dev/null \
+      | sed -n 's|^[0-9a-f]*[[:space:]]*refs/tags/||p'); do
+    is_release_tag "$tag" || continue
+    if [ -z "$best" ] || version_is_newer "$tag" "$best"; then best="$tag"; fi
+  done
+  printf '%s' "$best"
+}
+
+# The newest v5 release, as its tag. GitHub's "latest" when it is one - it is
+# what a release announcement points at, and it only moves once the images are
+# up - and otherwise, or when the API does not answer, the highest tag. No
+# python3: hosts without it (Alpine, CoreOS) got an empty answer here and so
+# never saw an upgrade. The JSON is read for its one field with sed.
 latest_release() {
-  curl -fsSL --proto '=https' --tlsv1.2 -m 10 \
+  local tag
+  tag="$(curl -fsSL --proto '=https' --tlsv1.2 -m 10 \
     "https://api.github.com/repos/Evil0ctal/Douyin_TikTok_Download_API/releases/latest" 2>/dev/null \
-    | python3 -c "
-import sys, json
-try:
-    print(json.load(sys.stdin).get('tag_name', ''))
-except Exception:
-    pass
-" 2>/dev/null || true
+    | sed -n 's/^ *"tag_name": *"\([^"]*\)".*$/\1/p' | head -n 1 || true)"
+  if is_release_tag "$tag"; then
+    printf '%s' "$tag"
+  else
+    highest_release_tag v
+  fi
 }
 
 # True when $1 is newer than $2. A pre-release suffix makes a version older
 # than the same numbers without one, so 5.1.0.dev0 is behind 5.1.0 - the same
-# rule web/src/lib/version.ts applies in the console.
+# rule web/src/lib/version.ts applies in the console. awk, not python3, for
+# the reason latest_release gives.
 version_is_newer() {
   [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 1
-  python3 - "$1" "$2" <<'PY' 2>/dev/null
-import re, sys
+  awk -v a="$1" -v b="$2" '
+    function parse(raw, out,    text, n, i, parts, rest) {
+      text = raw
+      sub(/^[ \t]+/, "", text); sub(/[ \t]+$/, "", text); sub(/^[vV]/, "", text)
+      if (!match(text, /^[0-9]+(\.[0-9]+)*/)) { out["n"] = 1; out[1] = 0; out["s"] = ""; return }
+      n = split(substr(text, 1, RLENGTH), parts, ".")
+      for (i = 1; i <= n; i++) out[i] = parts[i] + 0
+      out["n"] = n
+      rest = substr(text, RLENGTH + 1)
+      sub(/^[.\-_]/, "", rest)
+      out["s"] = rest
+    }
+    BEGIN {
+      parse(a, x); parse(b, y)
+      w = (x["n"] > y["n"]) ? x["n"] : y["n"]
+      for (i = 1; i <= w; i++) {
+        p = (i <= x["n"]) ? x[i] : 0
+        q = (i <= y["n"]) ? y[i] : 0
+        if (p != q) exit (p > q) ? 0 : 1
+      }
+      if (x["s"] == y["s"]) exit 1
+      if (x["s"] == "") exit 0
+      if (y["s"] == "") exit 1
+      exit (x["s"] > y["s"]) ? 0 : 1
+    }'
+}
 
-def parse(raw):
-    text = re.sub(r"^[vV]", "", raw.strip())
-    m = re.match(r"^(\d+(?:\.\d+)*)(.*)$", text)
-    if not m:
-        return ([0], "")
-    return ([int(p or 0) for p in m.group(1).split(".")],
-            re.sub(r"^[.\-_]", "", m.group(2)).strip())
+# The shapes resolve_target takes, checked as they are typed: a typo at the
+# menu's "Which version?" died inside resolve_target and ended the session.
+valid_target() {
+  case "$1" in
+    latest) return 0 ;;
+    sha-*) valid_commit "${1#sha-}" && return 0 ;;
+    *) printf '%s' "${1#v}" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' && return 0 ;;
+  esac
+  warn "A version like 5.1.6, a series like 5.1, latest, or sha-<40-character commit>."
+  return 1
+}
 
-a, b = parse(sys.argv[1]), parse(sys.argv[2])
-width = max(len(a[0]), len(b[0]))
-left = a[0] + [0] * (width - len(a[0]))
-right = b[0] + [0] * (width - len(b[0]))
-if left != right:
-    sys.exit(0 if left > right else 1)
-if a[1] == b[1]:
-    sys.exit(1)
-if not a[1]:
-    sys.exit(0)
-if not b[1]:
-    sys.exit(1)
-sys.exit(0 if a[1] > b[1] else 1)
-PY
+# What a target names, in the two forms an upgrade needs: RELEASE_TAG for
+# DTK_IMAGE_TAG (5.1.6, sha-<40>) and RELEASE_REF for the checkout (v5.1.6, the
+# commit). `latest` and `5.1` resolve to the release they mean, so .env is
+# pinned to a version rather than to a tag that moves.
+RELEASE_TAG=""
+RELEASE_REF=""
+resolve_target() {
+  local target="${1:-latest}" version
+  RELEASE_TAG=""
+  RELEASE_REF=""
+  case "$target" in
+    latest)
+      RELEASE_REF="$(latest_release)" ;;
+    sha-*)
+      valid_commit "${target#sha-}" \
+        || die "'$target' is not a build. A sha- tag carries the full 40-character commit."
+      RELEASE_TAG="$target"
+      RELEASE_REF="${target#sha-}"
+      return 0 ;;
+    *)
+      version="${target#v}"
+      if printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        RELEASE_REF="v$version"
+      elif printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+$'; then
+        RELEASE_REF="$(highest_release_tag "v$version.")"
+      else
+        die "'$target' is not a version. Name one like 5.1.6, a series like 5.1, latest, or sha-<40-character commit>."
+      fi ;;
+  esac
+  [ -n "$RELEASE_REF" ] || die "Could not find a release for '$target'. Check the network, or name the version: 5.1.6."
+  is_release_tag "$RELEASE_REF" || die "'$target' is not a v5 release."
+  RELEASE_TAG="${RELEASE_REF#v}"
+}
+
+# The checkout has to be the tree the images were built from. It used to
+# follow origin/main whatever was installed, so a release's images ran under
+# main's compose.yml, browser code and installer - work docker-publish.yml keeps
+# out of `latest` on purpose - and going back to an older release could not
+# work at all. A published install checks out its release's tag, detached. One
+# that builds from source starts on a release too, and its upgrades follow
+# main, because the checkout is what it builds.
+# Every failure stops here, before anything else has changed.
+checkout_ref() {
+  local ref="$1" dir="$INSTALL_DIR" origin
+  origin="$(origin_url)"
+  case "$ref" in
+    main)
+      git -C "$dir" fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main" \
+        || die "Could not fetch main from $origin. Nothing was changed."
+      if [ "$(git -C "$dir" symbolic-ref -q --short HEAD 2>/dev/null || true)" != main ]; then
+        if git -C "$dir" show-ref --verify --quiet refs/heads/main; then
+          git -C "$dir" checkout --quiet main 2>/dev/null || checkout_failed main
+        else
+          git -C "$dir" checkout --quiet -b main origin/main 2>/dev/null || checkout_failed main
+        fi
+      fi
+      git -C "$dir" merge --ff-only --quiet origin/main 2>/dev/null \
+        || die "main in $dir has commits that are not on $origin, so it cannot simply move forward.
+    Nothing was changed. See: git -C $dir log --oneline origin/main..main" ;;
+    # No --depth on these: in a full clone it would make the repository
+    # shallow, and cut the history the fast-forward above depends on.
+    v*)
+      git -C "$dir" fetch --quiet origin "+refs/tags/$ref:refs/tags/$ref" \
+        || die "Could not fetch $ref from $origin. Nothing was changed."
+      git -C "$dir" checkout --quiet --detach "refs/tags/$ref" 2>/dev/null || checkout_failed "$ref" ;;
+    *)
+      git -C "$dir" fetch --quiet origin "$ref" \
+        || die "Could not fetch commit $ref from $origin. Nothing was changed."
+      git -C "$dir" checkout --quiet --detach "$ref" 2>/dev/null || checkout_failed "$ref" ;;
+  esac
+  [ -f "$dir/docker/compose.yml" ] || die "$ref has no docker/compose.yml; it is not a v5 tree."
+}
+
+checkout_failed() {
+  die "The checkout in $INSTALL_DIR has local changes that $1 would overwrite:
+$(git -C "$INSTALL_DIR" status --short --untracked-files=no 2>/dev/null | sed 's/^/      /')
+    Nothing was changed. Move them into an override file - compose.host.yml is
+    one - or set them aside with: git -C $INSTALL_DIR stash"
+}
+
+# Whether the checkout already is what $1 names: a tag or a commit.
+checkout_is_at() {
+  local head want
+  head="$(git -C "$INSTALL_DIR" rev-parse -q --verify HEAD 2>/dev/null || true)"
+  case "$1" in
+    v*) want="$(git -C "$INSTALL_DIR" rev-parse -q --verify "refs/tags/$1^{commit}" 2>/dev/null || true)" ;;
+    main) return 1 ;;
+    *) want="$1" ;;
+  esac
+  [ -n "$head" ] && [ "$head" = "$want" ]
 }
 
 ask_choice() {
@@ -1443,19 +1919,24 @@ ask_choice() {
 
 # Read a password without echoing it, twice. The caller pipes it to a command
 # on stdin; it is never an argument, because argv is readable by every process
-# on the host.
+# on the host. Nothing typed, or the terminal gone, cancels (status 1): it used
+# to answer "Too short" and ask again, forever - on a closed terminal, as fast
+# as the loop could spin. Callers set SECRET_PROMPTED, so that a Ctrl-C in here
+# does not leave the terminal with echo off.
 read_password_twice() {
   local first second
+  [ -n "$TTY_IN" ] || return 1
   while true; do
-    printf '    New password (at least 8 characters): ' >&2
-    IFS= read -rs first <"$TTY_IN" || first=""
+    printf '    New password (at least 8 characters, empty to cancel): ' >&2
+    IFS= read -rs first <"$TTY_IN" || { printf '\n' >&2; return 1; }
     printf '\n' >&2
+    [ -n "$first" ] || return 1
     if [ "${#first}" -lt 8 ]; then
       warn "Too short."
       continue
     fi
     printf '    Again: ' >&2
-    IFS= read -rs second <"$TTY_IN" || second=""
+    IFS= read -rs second <"$TTY_IN" || { printf '\n' >&2; return 1; }
     printf '\n' >&2
     if [ "$first" != "$second" ]; then
       warn "They do not match."
@@ -1499,25 +1980,18 @@ show_status() {
   info "Disk used by Docker:"
   docker system df 2>/dev/null | sed 's/^/      /'
 
+  # "Up to date" only when that is known. It used to be the answer whenever a
+  # latest release could be read - with the API down, or ahead of the release.
   latest="$(latest_release)"
-  if [ -n "$latest" ] && [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
-    printf '\n'
+  [ -n "$latest" ] || return 0
+  printf '\n'
+  if [ -n "$installed" ] && version_is_newer "$latest" "$installed"; then
     warn "$latest is out; this instance is on $installed."
-  elif [ -n "$latest" ]; then
-    printf '\n'
+  elif [ "$installed" = "${latest#v}" ]; then
     ok "Up to date with the latest release ($latest)."
+  else
+    info "The latest release is $latest."
   fi
-}
-
-# A GitHub release is tagged `v5.0.1`; the image it produces is `5.0.1`.
-# docker/metadata-action's `{{version}}` strips the v, so pinning the release
-# tag verbatim asks Docker Hub for something that was never published.
-image_tag_for() {
-  local target="$1"
-  case "$target" in
-    v[0-9]*) printf '%s' "${target#v}" ;;
-    *) printf '%s' "$target" ;;
-  esac
 }
 
 # Run with the version being moved to, so a pull or build in the middle of an
@@ -1532,36 +2006,151 @@ with_target_tag() {
   fi
 }
 
-# $1 is the published tag to move to, or empty on an install that builds from
-# source, which follows the checkout instead.
+# What an upgrade moves to: UPGRADE_TO for DTK_IMAGE_TAG (5.1.7, sha-<40>;
+# empty on a source install) and UPGRADE_REF for the checkout (v5.1.7, the
+# commit, or main).
+UPGRADE_TO=""
+UPGRADE_REF=""
+# Where the checkout was, and a copy of .env as it was, for undo_upgrade.
+UNDO_SHA=""
+UNDO_BRANCH=""
+UNDO_ENV=""
+
+# From what somebody asked for - a version, a series, latest, a sha- build, or
+# nothing, which is the latest release - to what the upgrade moves to. An
+# install that builds from source follows main instead.
+plan_upgrade() {
+  if [ "$USE_PUBLISHED" = 0 ]; then
+    if [ -n "${1:-}" ]; then
+      die "This install builds its images from source, so it runs what the checkout holds
+    and there is no published version to choose. Run ./dtkctl upgrade on its own."
+    fi
+    UPGRADE_TO=""
+    UPGRADE_REF="main"
+    return 0
+  fi
+  resolve_target "${1:-latest}"
+  UPGRADE_TO="$RELEASE_TAG"
+  UPGRADE_REF="$RELEASE_REF"
+}
+
+# The checkout and .env back the way the upgrade found them. cleanup runs this
+# while UPGRADE_UNDO is set - from moving the checkout until the stack is
+# swapped - so an upgrade that stops in between, on an error or a Ctrl-C,
+# leaves the install as it was. "Nothing was changed" used to be said with the
+# checkout already moved to main and .env already pinned to the new version.
+undo_upgrade() {
+  UPGRADE_UNDO=""
+  if [ -n "$UNDO_ENV" ] && [ -f "$UNDO_ENV" ]; then
+    cat "$UNDO_ENV" >"$INSTALL_DIR/.env"
+    rm -f "$UNDO_ENV"
+  fi
+  if [ -n "$UNDO_SHA" ]; then
+    local moved=0
+    if [ -n "$UNDO_BRANCH" ]; then
+      git -C "$INSTALL_DIR" checkout --quiet "$UNDO_BRANCH" 2>/dev/null \
+        && git -C "$INSTALL_DIR" reset --quiet --keep "$UNDO_SHA" 2>/dev/null && moved=1
+    else
+      git -C "$INSTALL_DIR" checkout --quiet --detach "$UNDO_SHA" 2>/dev/null && moved=1
+    fi
+    if [ "$moved" = 0 ]; then
+      warn "Could not put the checkout back where it was. To do it by hand:"
+      dim "git -C $INSTALL_DIR checkout ${UNDO_BRANCH:-$UNDO_SHA}"
+      return 0
+    fi
+  fi
+  local where
+  where="$(git -C "$INSTALL_DIR" describe --tags --exact-match 2>/dev/null || true)"
+  warn "Put back: the checkout is at ${UNDO_BRANCH:-${where:-${UNDO_SHA:0:12}}} again and .env is as it was."
+  info "The version that was running is still running."
+}
+
+# Migrations only run forwards, so the moment before them is the one worth an
+# archive. Taken by the api that is running now - the old version - into the
+# backup volume. Nothing running means nothing to take it, which is said
+# rather than stopping an upgrade that may be what gets it running again.
+backup_before_upgrade() {
+  if [ "$NO_BACKUP" = 1 ]; then
+    info "No backup first (--no-backup)."
+    return 0
+  fi
+  if [ -z "$(running_version || true)" ]; then
+    warn "The API is not running, so there is no backup from before this upgrade."
+    return 0
+  fi
+  info "Backing up first, into the backup volume."
+  # Single quotes: DTK_BACKUP_DIR expands inside the container, not here.
+  # shellcheck disable=SC2016
+  if ! "$CTL" exec -T api sh -c 'dtk backup create -o "$DTK_BACKUP_DIR"'; then
+    die "The backup failed, so nothing was upgraded. Read its output above, or go
+    ahead without one: ./dtkctl upgrade ${UPGRADE_TO:+$UPGRADE_TO }--no-backup"
+  fi
+}
+
+# Migrations do not run backwards, so a release that does not know the
+# migration this database is at cannot run on it. Asked before anything is
+# pulled: the running api names the head it migrated to, and the tree just
+# checked out either has that migration or does not. Without this the answer
+# came at the migrate step, after the pull, the browser build and a backup.
+refuse_unknown_schema() {
+  local running="$1" head
+  head="$("$CTL" exec -T api dtk migrate --show 2>/dev/null | awk '/revision on disk/ {print $NF}' || true)"
+  case "$head" in ''|none) return 0 ;; esac
+  if ! ls "$INSTALL_DIR/src/dtk/db/migrations/versions/${head}_"*.py >/dev/null 2>&1; then
+    die "${UPGRADE_TO:-This checkout} cannot run on this database: it is at migration $head,
+    which ${UPGRADE_TO:-this checkout} does not have${running:+ - $running migrated it there}. Migrations do not
+    run backwards. The way back is a new install of ${UPGRADE_TO:-it} that keeps this .env - a
+    backup opens only with the DTK_SECRET_KEY it was made under - with a backup made on it restored."
+  fi
+}
+
+# The upgrade to UPGRADE_TO / UPGRADE_REF, in an order that is the point of it:
+# the checkout moves first and hands over to the installer that came with it;
+# then everything that can fail without touching the running stack - compose's
+# reading of the new tree, the pull, the browser build, the backup, the
+# migrations - with undo_upgrade armed; only then is the version pinned in .env
+# and the stack swapped. Migrations used to run after the pin, so an upgrade to
+# an older release failed there and left .env naming it.
 do_upgrade() {
-  UPGRADE_TO=""
-  [ -z "${1:-}" ] || UPGRADE_TO="$(image_tag_for "$1")"
-  step "Upgrading${UPGRADE_TO:+ to $UPGRADE_TO}"
-  info "Your data is untouched: the named volumes survive this."
-  printf '\n'
-
-  info "Updating the checkout."
-  git -C "$INSTALL_DIR" fetch --quiet origin main || warn "Could not fetch; using the checkout as it is."
-  git -C "$INSTALL_DIR" merge --ff-only --quiet origin/main 2>/dev/null \
-    || warn "The checkout has local changes; leaving it alone."
-
-  # The rest is the new version's to do. This copy of the script is whatever
-  # was on disk before the fetch, and it cannot know what the new compose file
-  # needs - a service added since, a step that moved - so it hands over to the
-  # one that came with the checkout. Once: the handover is marked.
-  if [ -z "${DTK_UPGRADE_HANDOVER:-}" ] && [ -f "$INSTALL_DIR/install/$SCRIPT_NAME" ]; then
-    info "Handing over to the installer that came with the new checkout."
-    DTK_UPGRADE_HANDOVER=1 DTK_PROJECT="$PROJECT" DTK_INSTALL_DIR="$INSTALL_DIR" \
-      exec bash "$INSTALL_DIR/install/$SCRIPT_NAME" --upgrade ${UPGRADE_TO:+"$UPGRADE_TO"}
+  local before
+  if [ -z "${DTK_UPGRADE_AT_TARGET:-}" ]; then
+    step "Upgrading${UPGRADE_TO:+ to $UPGRADE_TO}"
+    info "Your data stays in its volumes."
+    printf '\n'
+    UNDO_SHA="$(git -C "$INSTALL_DIR" rev-parse -q --verify HEAD 2>/dev/null || true)"
+    UNDO_BRANCH="$(git -C "$INSTALL_DIR" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+    info "Moving the checkout to $UPGRADE_REF."
+    checkout_ref "$UPGRADE_REF"
+    UPGRADE_UNDO=1
+    # The rest is the new tree's to do, so it is handed to the installer that
+    # came with that tree, which knows what its compose file needs. Only to one
+    # that speaks this handover: 5.1.6's would move the checkout to main again
+    # and 5.1.5's does not know --upgrade at all, so with those this one
+    # carries on itself. exec runs no EXIT trap; the next one owns the undo.
+    local next="$INSTALL_DIR/install/$SCRIPT_NAME"
+    if [ -f "$next" ] && grep -q 'DTK_UPGRADE_AT_TARGET' "$next"; then
+      local args=(--upgrade)
+      [ -z "$UPGRADE_TO" ] || args+=("$UPGRADE_TO")
+      [ "$NO_BACKUP" = 0 ] || args+=(--no-backup)
+      info "Handing over to the installer that came with $UPGRADE_REF."
+      DTK_UPGRADE_AT_TARGET=1 DTK_UPGRADE_HANDOVER=1 \
+        DTK_UPGRADE_UNDO_SHA="$UNDO_SHA" DTK_UPGRADE_UNDO_BRANCH="$UNDO_BRANCH" \
+        DTK_PROJECT="$PROJECT" DTK_INSTALL_DIR="$INSTALL_DIR" \
+        exec bash "$next" "${args[@]}"
+    fi
+  else
+    UNDO_SHA="${DTK_UPGRADE_UNDO_SHA:-}"
+    UNDO_BRANCH="${DTK_UPGRADE_UNDO_BRANCH:-}"
+    [ -z "$UNDO_SHA" ] || UPGRADE_UNDO=1
   fi
 
+  before="$(running_version || true)"
+  UNDO_ENV="$(mktemp "$INSTALL_DIR/.env.upgrade.XXXXXX")" || die "Could not create a temporary file in $INSTALL_DIR."
+  cat "$INSTALL_DIR/.env" >"$UNDO_ENV"
+  refuse_unknown_schema "$before"
+  with_target_tag validate_compose
+
   if [ "$USE_PUBLISHED" = 1 ]; then
-    # Pull BEFORE pinning. Writing the tag first and then failing to fetch it
-    # leaves the deployment pointing at an image that does not exist - the
-    # stack keeps running on what is already up, but the next `up -d` cannot
-    # start. The tag goes on the command for this pull only; .env is not
-    # touched until the image is known to be there.
     info "Pulling."
     local services=(api worker)
     [ "$WANT_DOWNLOADER" = 1 ] && services+=(downloader)
@@ -1571,7 +2160,7 @@ do_upgrade() {
       services+=(transcriber)
     fi
     if ! with_target_tag "$CTL" pull "${services[@]}"; then
-      die "Could not pull $UPGRADE_TO. Nothing was changed and the old version is still running.
+      die "Could not pull $UPGRADE_TO.
     Check the tag exists: https://hub.docker.com/r/evil0ctal/douyin_tiktok_download_api/tags
     With transcription on, a release from before it has no transcriber image;
     turn transcription off from the menu first to go back that far."
@@ -1585,41 +2174,61 @@ do_upgrade() {
     local builds=(api)
     [ "$WANT_DOWNLOADER" = 1 ] && builds+=(downloader)
     [ "$WANT_TRANSCRIBER" = 1 ] && builds+=(transcriber)
-    if ! "$CTL" build "${builds[@]}"; then
-      die "The images failed to build. The old containers are still up; nothing was swapped."
-    fi
+    "$CTL" build "${builds[@]}" || die "The images failed to build."
   fi
 
   # The browser image is built here, never pulled, so an upgrade rebuilds it
-  # against the new checkout - and an install from before the pin gets one
-  # with a browser in it for the first time. Before the tag is pinned, for the
-  # same reason as the pull.
+  # against the new checkout - with the CloakBrowser commit that tree names.
+  settle_browser_pin
   if [ "$WANT_BROWSER" = 1 ]; then
-    ensure_browser_pin
-    info "Building the browser image. Cached layers make this quick unless the pin changed."
-    if ! with_target_tag "$CTL" build browser-rpc; then
-      die "The browser image failed to build. Nothing was changed and the old version is still running."
-    fi
+    info "Building the browser image. Cached layers make this quick unless CloakBrowser"
+    info "moved, which downloads a new Chromium and takes several minutes."
+    with_target_tag "$CTL" build browser-rpc || die "The browser image failed to build."
   fi
 
-  # Pin the tag rather than following `latest`: an operator should be able to
-  # say which build is running, and to put it back.
-  if [ -n "$UPGRADE_TO" ] && grep -q '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env"; then
-    local tmp
-    tmp="$(mktemp)" || die "Could not create a temporary file."
-    TMP_FILES+=("$tmp")
-    sed "s|^DTK_IMAGE_TAG=.*|DTK_IMAGE_TAG=$UPGRADE_TO|" "$INSTALL_DIR/.env" >"$tmp"
-    cat "$tmp" >"$INSTALL_DIR/.env"
-    rm -f "$tmp"
-    ok "Pinned DTK_IMAGE_TAG=$UPGRADE_TO"
-  fi
-  # An install from before `./dtkctl upgrade` existed gets it now.
-  write_control_script
+  backup_before_upgrade
 
   info "Migrating."
-  "$CTL" run --rm migrate || die "Migrations failed. The old containers are still up; nothing was swapped."
+  # Against the postgres that is running, untouched, when there is one. `run`
+  # starts a service's dependencies the way `up` would, and recreates any whose
+  # configuration differs in the new tree: a rollback that was then refused
+  # still restarted the database on the way.
+  # ${deps[@]+...} because bash 3.2, macOS's, calls an empty array unbound
+  # under set -u.
+  local deps=()
+  if "$CTL" ps --status running --services 2>/dev/null | grep -qx postgres; then
+    deps=(--no-deps)
+  fi
+  if ! with_target_tag run_creating_networks "$CTL" run --rm ${deps[@]+"${deps[@]}"} migrate; then
+    case "$UPGRADE_TO" in
+      [0-9]*)
+        if [ -n "$before" ] && version_is_newer "$before" "$UPGRADE_TO"; then
+          die "$UPGRADE_TO cannot run on this database: $before has migrated it further,
+    and migrations do not run backwards. The way back to $UPGRADE_TO is a new
+    install of it that keeps this .env - a backup opens only with the
+    DTK_SECRET_KEY it was made under - with a backup made on $UPGRADE_TO restored."
+        fi ;;
+    esac
+    die "Migrations failed. Read the output above. The database may have taken some of
+    them; the backup made just before is the way back if it needs one."
+  fi
+
+  if [ -n "$UPGRADE_TO" ]; then
+    set_env_value DTK_IMAGE_TAG "$UPGRADE_TO"
+    ok "Pinned DTK_IMAGE_TAG=$UPGRADE_TO"
+  fi
+  # Given the upgrade command if it has none, and otherwise left alone.
+  # Rewritten on every upgrade, it lost whatever somebody had added to its
+  # compose line - an -f for their own override - and the stack came up
+  # without it.
+  if ! grep -q '= upgrade ]' "$CTL"; then
+    write_control_script
+  fi
+  UPGRADE_UNDO=""
+  rm -f "$UNDO_ENV"
+
   info "Restarting."
-  "$CTL" up -d --wait || die "The new version did not come up healthy. Try: $CTL logs api"
+  run_creating_networks "$CTL" up -d --wait || die "The new version did not come up healthy. Try: $CTL logs api"
   ok "Now on $(running_version || echo "${UPGRADE_TO:-the new checkout}")."
 }
 
@@ -1633,10 +2242,10 @@ install_to_upgrade() {
     printf '%s' "$DTK_INSTALL_DIR"
     return 0
   fi
-  here="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")/.." 2>/dev/null && pwd || true)"
-  if [ -n "$here" ] && [ -x "$here/dtkctl" ]; then
+  here="$(own_checkout || true)"
+  if is_install_dir "$here"; then
     printf '%s' "$here"
-  elif [ -x "$PWD/dtkctl" ]; then
+  elif is_install_dir "$PWD"; then
     printf '%s' "$PWD"
   else
     find_existing_install || true
@@ -1651,56 +2260,49 @@ project_of() {
 # What `./dtkctl upgrade [VERSION]` runs. Nothing is asked: the version is the
 # latest release unless one is named, the same default the menu offers.
 upgrade_unattended() {
-  if [ "$USE_PUBLISHED" = 0 ]; then
-    if [ -n "$UPGRADE_TARGET" ]; then
-      die "This install builds its images from source, so it runs what the checkout holds
-    and there is no published version to choose. Run ./dtkctl upgrade on its own."
+  # Handed over by the installer that moved the checkout here, which has
+  # already decided what this is an upgrade to.
+  if [ -n "${DTK_UPGRADE_AT_TARGET:-}" ]; then
+    UPGRADE_TO="$UPGRADE_TARGET"
+    UPGRADE_REF="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+    do_upgrade
+    return 0
+  fi
+  plan_upgrade "$UPGRADE_TARGET"
+  # 5.1.6's installer hands over too, after moving the checkout to main, with
+  # what to move to decided - "the same one again" included.
+  if [ -z "${DTK_UPGRADE_HANDOVER:-}" ] && [ -n "$UPGRADE_TO" ]; then
+    local installed
+    installed="$(running_version || true)"
+    # All three, not only the running version: an upgrade stopped half-way
+    # used to leave .env or the checkout on another version, and this said
+    # "nothing to do" to the run that would have put it right.
+    if [ "$installed" = "$UPGRADE_TO" ] && [ "$(env_value DTK_IMAGE_TAG)" = "$UPGRADE_TO" ] \
+        && checkout_is_at "$UPGRADE_REF"; then
+      ok "Already on $UPGRADE_TO. Nothing to do."
+      return 0
     fi
-    do_upgrade ""
-    return 0
+    case "$UPGRADE_TO" in
+      [0-9]*)
+        if [ -n "$installed" ] && version_is_newer "$installed" "$UPGRADE_TO"; then
+          warn "$UPGRADE_TO is older than the $installed that is running."
+          info "That works only if it knows every migration this database has had. If it does"
+          info "not, the upgrade stops at the migration step and puts everything back."
+        fi ;;
+    esac
   fi
-
-  # Handed over from an upgrade already under way: what to move to was
-  # decided before the checkout changed, including "the same one again".
-  if [ -n "${DTK_UPGRADE_HANDOVER:-}" ]; then
-    do_upgrade "$UPGRADE_TARGET"
-    return 0
-  fi
-
-  local target="$UPGRADE_TARGET" installed
-  if [ -z "$target" ]; then
-    target="$(latest_release)"
-    if [ -z "$target" ]; then
-      die "Could not ask GitHub which release is the latest. Name it instead:
-      ./dtkctl upgrade 5.1.6"
-    fi
-  fi
-  target="$(image_tag_for "$target")"
-  installed="$(running_version || true)"
-  if [ -n "$installed" ] && [ "$target" = "$installed" ]; then
-    ok "Already on $target. Nothing to do."
-    return 0
-  fi
-  # Only between two version numbers: `latest` or a sha- build has no order.
-  case "$target" in
-    [0-9]*)
-      if [ -n "$installed" ] && version_is_newer "$installed" "$target"; then
-        warn "$target is older than the $installed that is running."
-        info "Migrations do not run backwards. If the old version will not start on the"
-        info "newer schema, restore a backup taken while it was running."
-      fi ;;
-  esac
-  do_upgrade "$target"
+  do_upgrade
 }
 
 act_change_password() {
   step "Change a password"
-  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
+  "$CTL" exec -T -e COLUMNS=200 api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
   printf '\n'
   local who password
   who="$(ask_value "Which account?" "admin")"
   [ -n "$who" ] || return 0
-  password="$(read_password_twice)"
+  SECRET_PROMPTED=1
+  password="$(read_password_twice)" || { info "Cancelled."; return 0; }
   if printf '%s' "$password" | "$CTL" exec -T api dtk user passwd "$who" --stdin; then
     ok "Password changed for $who."
   else
@@ -1717,7 +2319,8 @@ act_add_admin() {
   local who password
   who="$(ask_value "New account name?" "")"
   [ -n "$who" ] || { warn "No name given."; return 0; }
-  password="$(read_password_twice)"
+  SECRET_PROMPTED=1
+  password="$(read_password_twice)" || { info "Cancelled."; return 0; }
   if printf '%s' "$password" | "$CTL" exec -T api dtk user create "$who" --role admin --stdin; then
     ok "Created $who as an administrator."
   else
@@ -1728,9 +2331,13 @@ act_add_admin() {
 
 act_list_users() {
   step "Accounts"
-  "$CTL" exec -T api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
+  "$CTL" exec -T -e COLUMNS=200 api dtk user list 2>/dev/null | sed 's/^/    /' || warn "Could not list accounts."
 }
 
+# Every `dtk ... list` below runs with COLUMNS=200. Without a terminal, rich
+# lays tables out at 80 columns and wraps a cell that does not fit - an
+# archive name came out as "dtk-backup-2026101" over "8T103850Z.tar.gz", and
+# that name is what the restore prompt asks for.
 act_backup() {
   step "Back up"
   dim "The archive lands in the backup volume, which survives a container rebuild."
@@ -1744,42 +2351,83 @@ act_backup() {
     printf '\n'
     # Single quotes: DTK_BACKUP_DIR expands inside the container, not here.
     # shellcheck disable=SC2016
-    "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' || true
+    "$CTL" exec -T -e COLUMNS=200 api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' || true
   else
     warn "The backup failed. Read the output above."
   fi
 }
 
+# What a restore does is fill in: rows the archive has and the database does
+# not are added, and nothing already there is overwritten. It cannot take an
+# instance back to an earlier state; into a new, empty install it restores the
+# whole archive. The prompt used to say it replaced the database, which it has
+# never done.
 act_restore() {
   step "Restore"
+  local listing archive
   # Single quotes: DTK_BACKUP_DIR expands inside the container, not here.
   # shellcheck disable=SC2016
-  "$CTL" exec -T api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null | sed 's/^/    /' \
-    || { warn "No archives found."; return 0; }
+  listing="$("$CTL" exec -T -e COLUMNS=200 api sh -c 'dtk backup list --dir "$DTK_BACKUP_DIR"' 2>/dev/null || true)"
+  if ! printf '%s' "$listing" | grep -q 'dtk-backup-'; then
+    warn "No archives in the backup volume."
+    return 0
+  fi
+  printf '%s\n' "$listing" | sed 's/^/    /'
   printf '\n'
-  warn "Restoring replaces the current database. What is in it now is gone."
-  local archive
-  archive="$(ask_value "Archive path (as listed above)?" "")"
+  dim "A restore adds what the archive has and this database lacks. Nothing already"
+  dim "here is overwritten, so it does not roll the instance back."
+  archive="$(ask_value "Archive (a name from the list, or a path in the container)?" "")"
   [ -n "$archive" ] || return 0
   confirm_word "restore" || { info "Cancelled."; return 0; }
-  "$CTL" exec -T api dtk backup restore "$archive" --yes || warn "The restore failed. Read the output above."
+  # The list prints names, and the CLI resolves a bare name against its own
+  # working directory, not the backup volume: answering with a name as the
+  # prompt asked failed with "no such file". The name is passed as an
+  # argument to sh, never spliced into the command.
+  # shellcheck disable=SC2016
+  "$CTL" exec -T api sh -c 'case "$1" in */*) p="$1" ;; *) p="$DTK_BACKUP_DIR/$1" ;; esac; exec dtk backup restore "$p" --yes' sh "$archive" \
+    || warn "The restore failed. Read the output above."
 }
 
 act_diagnose() {
   step "Self check"
-  "$CTL" exec -T api dtk diagnose 2>&1 | sed 's/^/    /' || warn "The self check could not run."
+  local status=0
+  "$CTL" exec -T api dtk diagnose 2>&1 | sed 's/^/    /' || status=$?
+  # 1 is the report saying something failed, which it has just printed.
+  case "$status" in
+    0) : ;;
+    1) warn "Some checks failed; the report above says which." ;;
+    *) warn "The self check could not run. Is the stack up? $CTL ps" ;;
+  esac
 }
 
+# Per service, so each gets its share. One --tail across the stack cut to 80
+# lines in total, which on a busy install were postgres, redis and worker, and
+# never a line from the api.
 act_logs() {
   step "Logs"
-  dim "Last 60 lines of each service. Follow them live with: $CTL logs -f api"
-  printf '\n'
-  "$CTL" logs --tail 60 2>&1 | tail -80
+  dim "The last 20 lines of each service. Follow one live with: $CTL logs -f api"
+  local service
+  for service in $("$CTL" ps --services 2>/dev/null || true); do
+    printf '\n'
+    info "$service"
+    "$CTL" logs --no-log-prefix --tail 20 "$service" 2>&1 | sed 's/^/      /' || true
+  done
 }
 
+# `up -d` first, which recreates whatever .env or the compose files changed
+# under - `restart` alone keeps a container's old environment - and then a
+# restart of the application services. Not postgres or redis, which a plain
+# `restart` took down along with everything else.
 act_restart() {
   step "Restart"
-  "$CTL" restart || warn "Restart failed."
+  run_creating_networks "$CTL" up -d --wait || { warn "The stack did not come up healthy. Try: $CTL logs"; return 0; }
+  local service apps=()
+  for service in $("$CTL" ps --services 2>/dev/null || true); do
+    case "$service" in postgres|redis) : ;; *) apps+=("$service") ;; esac
+  done
+  if [ "${#apps[@]}" -gt 0 ]; then
+    "$CTL" restart "${apps[@]}" || warn "Restart failed."
+  fi
   "$CTL" ps --format "table {{.Service}}\t{{.Status}}" 2>/dev/null || true
 }
 
@@ -1791,14 +2439,66 @@ act_setting() {
   local key value
   key="$(ask_value "Setting name (empty to list them all)?" "")"
   if [ -z "$key" ]; then
-    "$CTL" exec -T api dtk config list 2>&1 | sed 's/^/    /' | head -80
+    # All of it, and never `| head`: the list runs to hundreds of lines, head
+    # stopped reading at 80, and the SIGPIPE that sent the listing ended the
+    # whole script under pipefail, without a word.
+    "$CTL" exec -T -e COLUMNS=200 api dtk config list 2>&1 | sed 's/^/    /' || true
     return 0
   fi
   "$CTL" exec -T api dtk config get "$key" 2>&1 | sed 's/^/    /' || { warn "No such setting."; return 0; }
   printf '\n'
-  value="$(ask_value "New value (empty to leave it)?" "")"
+  value="$(ask_line "New value (empty to leave it)?")"
   [ -n "$value" ] || return 0
-  "$CTL" exec -T api dtk config set "$key" "$value" 2>&1 | sed 's/^/    /' || warn "Rejected. The validator says why above."
+  ask_yes_no "Set $key to that?" "n" || { info "Left as it was."; return 0; }
+  # The value on stdin, not argv: argv is in the host's process list for as
+  # long as `docker exec` runs, and some of these are credentials - the webhook
+  # secret, tokens inside notify.channels. --yes because it was just asked
+  # here: the CLI's own question for a sensitive key had no newline, so the
+  # sed below held it back and the menu looked hung.
+  if "$CTL" exec -T api dtk config set --help 2>/dev/null | grep -q -- '--stdin'; then
+    printf '%s\n' "$value" | "$CTL" exec -T api dtk config set "$key" --stdin --yes 2>&1 | sed 's/^/    /' \
+      || warn "Rejected. The validator says why above."
+  else
+    # A release from before --stdin. The value goes on argv, as it always
+    # did there; upgrading moves it to stdin.
+    "$CTL" exec -T api dtk config set "$key" "$value" --yes 2>&1 | sed 's/^/    /' \
+      || warn "Rejected. The validator says why above."
+  fi
+  unset value
+}
+
+# Images of this install that nothing uses, one "ref id" per line.
+stale_images() {
+  # In use means referenced by a container that exists, running or stopped -
+  # not "matches the tag in .env". The .env of a build-from-source install has
+  # no tag at all, and with that as the filter this offered to delete the image
+  # the stack was serving from. Docker would have refused while it was up, and
+  # obliged the moment it was down.
+  #
+  # Also kept: every image this install's configuration names, whether or not
+  # a container exists for it - a stack stopped with `down` has none, and its
+  # 6 GB browser image would otherwise go. And images this machine builds are
+  # only offered when Compose labelled them as built for this project: those
+  # names do not depend on the project, so another install's build looked like
+  # this one's. Published images are offered when nothing uses them; they can
+  # be pulled again.
+  local in_use configured
+  in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
+  configured="$("$CTL" config --images 2>/dev/null | sort -u || true)"
+  # IFS here is newline and tab, so `read ref id` needs telling that the two
+  # fields are separated by a space. Without it the whole line went into ref,
+  # nothing ever matched, and every image counted as unused.
+  docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
+    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app|dtk-downloader|dtk-transcriber)' \
+    | while IFS=' ' read -r ref id; do
+        printf '%s\n' "$in_use" | grep -qxF "$ref" && continue
+        printf '%s\n' "$configured" | grep -qxF "$ref" && continue
+        case "$ref" in
+          evil0ctal/*) : ;;
+          *) [ "$(docker image inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$id" 2>/dev/null || true)" = "$PROJECT" ] || continue ;;
+        esac
+        printf '%s %s\n' "$ref" "$id"
+      done || true
 }
 
 # Disk. The thing that actually grows here is images and build cache, not logs:
@@ -1819,37 +2519,28 @@ act_free_disk() {
   dim "file. What grows without a ceiling is old image tags and build cache."
   printf '\n'
 
-  # In use means referenced by a container that exists, running or stopped -
-  # not "matches the tag in .env". The .env of a build-from-source install has
-  # no tag at all, and with that as the filter this offered to delete the image
-  # the stack was serving from. Docker would have refused while it was up, and
-  # obliged the moment it was down.
-  local in_use images=""
-  in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null | sort -u || true)"
-  images="$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
-    | grep -E '^(evil0ctal/douyin_tiktok_download_api|dtk-browser-rpc|dtk-app|dtk-downloader|dtk-transcriber)' \
-    | while read -r ref id; do
-        printf '%s\n' "$in_use" | grep -qxF "$ref" || printf '%s %s\n' "$ref" "$id"
-      done || true)"
+  local images
+  images="$(stale_images)"
 
   if [ -n "$images" ]; then
-    info "Images from this project that are not the version in use:"
+    info "Images from this install that nothing uses:"
     printf '%s\n' "$images" | sed 's/^/      /'
     printf '\n'
     if ask_yes_no "Remove them?" "y"; then
-      printf '%s\n' "$images" | awk '{print $2}' | sort -u | while read -r id; do
-        docker rmi "$id" >/dev/null 2>&1 && info "removed $id" || true
+      printf '%s\n' "$images" | while IFS=' ' read -r ref id; do
+        docker rmi "$ref" >/dev/null 2>&1 && info "removed $ref" || true
       done
     fi
   else
-    ok "No stale images from this project."
+    ok "No unused images from this install."
   fi
 
   printf '\n'
   dim "Build cache speeds up rebuilding the browser image enormously - it is why"
   dim "a rebuild after a small change takes seconds. Clearing it costs that."
-  if ask_yes_no "Clear the build cache too?" "n"; then
-    docker builder prune -af 2>&1 | tail -2 | sed 's/^/    /'
+  dim "It is Docker's, shared by everything this machine builds, not only this install."
+  if ask_yes_no "Clear Docker's build cache for the whole machine?" "n"; then
+    docker builder prune -af 2>&1 | tail -2 | sed 's/^/    /' || true
   fi
 
   printf '\n'
@@ -1928,7 +2619,17 @@ act_transcription() {
   set_ctl_profile transcriber on
   info "Starting it, and recreating api and worker so they know where it is."
   if ! "$CTL" up -d --wait; then
-    warn "The stack did not come up healthy. The reason is usually in: $CTL logs transcriber"
+    # Switched back off rather than left on: an unhealthy transcriber fails
+    # every later `up -d --wait`, the last step of an upgrade included, and
+    # that one runs after the migrations.
+    warn "It did not come up healthy, so transcription goes back off. The reason is"
+    warn "usually in the transcriber's log:"
+    "$CTL" logs --no-log-prefix --tail 15 transcriber 2>&1 | sed 's/^/      /' || true
+    "$CTL" rm -sf transcriber >/dev/null 2>&1 || true
+    set_env_value DTK_TRANSCRIBER_URL ""
+    set_ctl_profile transcriber off
+    WANT_TRANSCRIBER=0
+    "$CTL" up -d --wait || warn "The stack did not come back healthy either. Try: $CTL logs"
     return 0
   fi
   ok "Transcription is on. Open a stored video in the console and choose Transcribe."
@@ -1936,6 +2637,7 @@ act_transcription() {
 
 # ----------------------------------------------------------------- menus --
 
+# Returns 0 once something was done - the caller then leaves - and 1 for Back.
 menu_uninstall() {
   while true; do
     step "Stop or remove"
@@ -1944,17 +2646,26 @@ menu_uninstall() {
     info "  3  As 2, and remove $INSTALL_DIR as well"
     info "  b  Back"
     case "$(ask_choice "Which?")" in
-      1) "$CTL" down --remove-orphans && ok "Stopped. Start it again with: $CTL up -d" ; return 0 ;;
+      # `stop`, not `down`: down removes the containers, and the containers'
+      # labels are how this script finds an install. After a down, the next
+      # run found nothing and set about installing over it.
+      1) "$CTL" stop && ok "Stopped. Start it again with: $CTL up -d" ; return 0 ;;
       2)
         warn "This deletes the database, the media volume and every backup in it."
+        dim "To keep the backups, copy them out first: $CTL cp api:/var/lib/dtk/backups ./backups"
         confirm_word "delete" || { info "Cancelled."; continue; }
-        "$CTL" down -v --remove-orphans && ok "Stopped and the volumes are gone."
+        "$CTL" down -v --remove-orphans || die "Removing the stack failed; see above. Nothing else was deleted."
+        ok "Stopped and the volumes are gone."
         return 0 ;;
       3)
         warn "This deletes the volumes AND $INSTALL_DIR, including your .env."
         warn "Without that .env the data could not be decrypted anyway."
+        dim "To keep the backups, copy them out first: $CTL cp api:/var/lib/dtk/backups ~/dtk-backups"
         confirm_word "delete" || { info "Cancelled."; continue; }
-        "$CTL" down -v --remove-orphans || true
+        # Stops here when that fails: removing the directory after a failed
+        # `down -v` left volumes and containers behind with the only .env
+        # that opens them gone.
+        "$CTL" down -v --remove-orphans || die "Removing the stack failed; see above. $INSTALL_DIR was left in place."
         # Guarded rather than trusting the variable: this is the one place the
         # script removes a tree, and an empty or silly value must not reach rm.
         case "$INSTALL_DIR" in
@@ -1964,7 +2675,7 @@ menu_uninstall() {
         [ -f "$INSTALL_DIR/docker/compose.yml" ] || die "$INSTALL_DIR does not look like an install; not removing it."
         rm -rf -- "$INSTALL_DIR" && ok "Removed $INSTALL_DIR."
         return 0 ;;
-      b|"") return 0 ;;
+      b|"") return 1 ;;
       *) warn "Pick 1, 2, 3 or b." ;;
     esac
   done
@@ -2032,35 +2743,37 @@ menu_existing() {
       1) show_status; pause_for_reader ;;
       2)
         local target current
-        current="$(grep '^DTK_IMAGE_TAG=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+        current="$(env_value DTK_IMAGE_TAG)"
         if [ "$USE_PUBLISHED" = 0 ]; then
           # Built from source, so it runs what the checkout holds. A tag typed
           # here used to be pulled from Docker Hub as dtk-app, which fails.
-          do_upgrade ""
+          plan_upgrade ""
+          do_upgrade
           pause_for_reader
           continue
         fi
         if [ -n "$upgrade_line" ]; then
-          target="$(ask_value "Which tag?" "$upgrade_line")"
+          target="$(ask_value "Which version?" "${upgrade_line#v}" valid_target)"
         else
           # No newer release does not mean nowhere to go. An instance pinned to
           # a sha- build - which is what the README tells you to do in
           # production - sits here permanently otherwise: `latest` follows
           # releases, and a release only appears when somebody cuts one. The
-          # same field takes an older tag, which is how you roll back.
-          dim "No newer release. You can still move to another published tag:"
-          dim "a sha-… build, or latest. Docker Hub lists what exists."
-          target="$(ask_value "Which tag?" "${current:-latest}")"
+          # same field takes an older version, which works as far back as the
+          # last one with no migration this database lacks.
+          dim "No newer release. You can still move to another published one: a"
+          dim "version such as 5.1.6, a sha-… build, or latest."
+          target="$(ask_value "Which version?" "${current:-latest}" valid_target)"
         fi
-        if [ -n "$target" ] && [ "$target" != "$current" ]; then
-          do_upgrade "$target"
-        elif [ -n "$target" ]; then
-          info "Already on $target. Re-pulling and restarting anyway."
-          do_upgrade "$target"
+        [ -n "$target" ] || continue
+        plan_upgrade "$target"
+        if [ "$UPGRADE_TO" = "$current" ]; then
+          info "Already on $UPGRADE_TO. Pulling, migrating and restarting anyway."
         fi
+        do_upgrade
         pause_for_reader ;;
       3) menu_manage ;;
-      4) menu_uninstall; return 0 ;;
+      4) if menu_uninstall; then return 0; fi ;;
       q|"") return 0 ;;
       *) warn "Pick 1, 2, 3, 4 or q." ;;
     esac
@@ -2081,7 +2794,11 @@ Usage: bash install.sh [options]
   --manage       Go straight to the menu for an install that already exists.
   --upgrade [VERSION]
                  Upgrade the install that already exists, asking nothing: to
-                 the latest release, or to VERSION. ./dtkctl upgrade runs this.
+                 the latest release, or to VERSION (5.1.6, 5.1, latest or
+                 sha-<commit>). ./dtkctl upgrade runs this. A backup is taken
+                 before the migrations, and a failure before the stack is
+                 swapped puts the checkout and .env back.
+  --no-backup    With --upgrade: skip that backup.
   --help, -h     This text.
 
 Run it with no options and it works out which job it is doing: it installs when
@@ -2091,6 +2808,9 @@ passwords, backups, settings, disk.
 Environment (each one presets an answer, so --yes becomes unattended):
   DTK_PROJECT            Compose project name. Default: dtk.
   DTK_INSTALL_DIR        Where to install. Default: /opt/dtk as root, ~/dtk otherwise.
+  DTK_REPO_URL           Where to clone from, for a mirror. Default: GitHub.
+  DTK_VERSION            The release to install: 5.1.6, 5.1, latest (default)
+                         or sha-<commit>. Its tag is what gets checked out.
   DTK_BIND_HOST          127.0.0.1 (default) or 0.0.0.0.
   DTK_BIND_PORT          Default: 8000.
   DTK_ENABLE_BROWSER     1 to build the browser container, 0 (default) not to.
@@ -2100,8 +2820,9 @@ Environment (each one presets an answer, so --yes becomes unattended):
   DTK_TRANSCRIBER_MODEL_PATH
                          Where its models are, or are to be downloaded to.
                          Default: <install directory>/models/funasr-onnx.
-  CLOAKBROWSER_COMMIT    The CloakBrowser commit the browser image installs.
-                         Default: $CLOAKBROWSER_PIN.
+  CLOAKBROWSER_COMMIT    Pins the CloakBrowser commit the browser image installs.
+                         Default: unset, which follows the release's
+                         docker/compose.yml and moves with upgrades.
   DTK_USE_PUBLISHED      1 (default) to pull images, 0 to build from source.
 EOF
 }
@@ -2112,15 +2833,18 @@ main() {
       -y|--yes)   ASSUME_YES=1 ;;
       --check)    CHECK_ONLY=1 ;;
       --manage)   MANAGE_ONLY=1 ;;
-      --upgrade)
-        UPGRADE_ONLY=1
-        # The version is optional, so only a next word that is not an option.
-        if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then
-          UPGRADE_TARGET="$2"
-          shift
-        fi ;;
+      --upgrade)  UPGRADE_ONLY=1 ;;
+      --no-backup) NO_BACKUP=1 ;;
       -h|--help)  usage; exit 0 ;;
-      *)          die "Unknown option: $1  (try --help)" ;;
+      -*)         die "Unknown option: $1  (try --help)" ;;
+      # The version --upgrade may take, wherever it comes: `upgrade 5.1.6
+      # --no-backup` and `upgrade --no-backup 5.1.6` are the same request.
+      *)
+        if [ "$UPGRADE_ONLY" = 1 ] && [ -z "$UPGRADE_TARGET" ]; then
+          UPGRADE_TARGET="$1"
+        else
+          die "Unexpected argument: $1  (try --help)"
+        fi ;;
     esac
     shift
   done
@@ -2158,6 +2882,7 @@ main() {
 
   ensure_docker_running
   check_compose || die "Compose v2 $COMPOSE_MIN or newer is required."
+  detect_docker_resources
 
   if [ "$UPGRADE_ONLY" = 1 ]; then
     INSTALL_DIR="$(install_to_upgrade)"
@@ -2174,28 +2899,59 @@ main() {
   fi
 
   # An install that is already here turns this into a management tool rather
-  # than an installer. Asked of Docker, so it is found wherever it was put -
-  # not only in the two directories this script would have suggested.
-  local found=""
-  if [ -z "${DTK_INSTALL_DIR:-}" ] && [ "$ASSUME_YES" = 0 ]; then
-    found="$(find_existing_install || true)"
-  elif [ "$MANAGE_ONLY" = 1 ]; then
-    found="${DTK_INSTALL_DIR:-$(find_existing_install || true)}"
+  # than an installer. Looked for every time - with --yes and with
+  # DTK_INSTALL_DIR too, which used to skip the search and install over it:
+  # in DTK_INSTALL_DIR, from the labels Docker put on its containers (so it is
+  # found wherever it was put), and in the directory this script would suggest.
+  # The suggested directory only counts when it holds this project: it is
+  # where DTK_PROJECT=dtk2 would otherwise find dtk's install and open its menu.
+  local found="" preset=""
+  if [ -n "${DTK_INSTALL_DIR:-}" ]; then
+    preset="$(absolute_path "$(expand_tilde "$DTK_INSTALL_DIR")")"
+    [ -x "$preset/dtkctl" ] && found="$preset"
   fi
-  if [ "$MANAGE_ONLY" = 1 ] && { [ -z "$found" ] || [ ! -x "$found/dtkctl" ]; }; then
+  if [ -z "$found" ] && [ -z "$preset" ]; then
+    # The checkout this script came with or the directory it runs in, when
+    # that is an install: `bash install/install.sh --manage` inside one manages
+    # that one, whatever its project is called - the hint this script prints
+    # for it said exactly that, and with a project other than dtk it found
+    # nothing.
+    local here
+    here="$(own_checkout || true)"
+    if is_install_dir "$here"; then
+      found="$here"
+    elif is_install_dir "$PWD"; then
+      found="$PWD"
+    fi
+  fi
+  [ -n "$found" ] || found="$(find_existing_install || true)"
+  if [ -z "$found" ] && [ -z "$preset" ]; then
+    local suggested="$HOME/dtk"
+    [ "$(id -u)" = "0" ] && suggested="/opt/dtk"
+    if is_install_dir "$suggested" && [ "$(project_of "$suggested/dtkctl")" = "$PROJECT" ]; then
+      found="$suggested"
+    fi
+  fi
+  if [ "$MANAGE_ONLY" = 1 ] && [ -z "$found" ]; then
     die "No install found for project '$PROJECT'.
     Run this script without --manage to create one, or set DTK_INSTALL_DIR
     to where it lives."
   fi
-  if [ -n "$found" ] && [ -x "$found/dtkctl" ]; then
+  if [ -n "$found" ]; then
     INSTALL_DIR="$found"
     CTL="$found/dtkctl"
+    PROJECT="$(project_of "$CTL")"
+    [ -n "$PROJECT" ] || die "Could not read the project name from $CTL."
     load_install_state
-    if [ -z "$TTY_IN" ]; then
-      warn "An install is already at $INSTALL_DIR."
-      info "Run this from a terminal to manage it, or use $CTL directly."
+    if [ -z "$TTY_IN" ] || { [ "$ASSUME_YES" = 1 ] && [ "$MANAGE_ONLY" = 0 ]; }; then
+      ok "An install is already at $INSTALL_DIR; nothing was changed."
+      info "Upgrade it with: $CTL upgrade"
+      info "Manage it from a terminal with: bash $INSTALL_DIR/install/$SCRIPT_NAME --manage"
       exit 0
     fi
+    # The menu asks for every decision. --yes would answer them unseen: "Remove
+    # them?" in Free disk space went ahead, while Restore quietly did nothing.
+    ASSUME_YES=0
     menu_existing
     exit 0
   fi
@@ -2209,6 +2965,7 @@ main() {
   fi
 
   choose_directory
+  refuse_foreign_volumes
   prepare_directory
   ask_questions
   fetch_models
@@ -2216,6 +2973,7 @@ main() {
   write_host_override
   write_control_script
   CTL="$INSTALL_DIR/dtkctl"
+  validate_compose
   bring_up
   show_result
 }
