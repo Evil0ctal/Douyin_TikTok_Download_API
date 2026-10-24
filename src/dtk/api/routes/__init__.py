@@ -43,6 +43,7 @@ from dtk.api.routes import (
     setup,
     system,
     tasks,
+    tiktok_rw,
     tools,
     transcriptions,
 )
@@ -73,6 +74,7 @@ def register_routes(app: FastAPI) -> None:
     """Mount every router and install the two application-level hooks."""
     for router in ROUTERS:
         app.include_router(router)
+    app.include_router(tiktok_rw.router, include_in_schema=False)
 
     # Replaces FastAPI's /openapi.json, /swagger and /redoc with ?lang= aware
     # versions (doc 14).
