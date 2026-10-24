@@ -16,7 +16,10 @@ import sys
 from collections.abc import MutableMapping
 from typing import Any, Final
 
-import structlog
+try:
+    import structlog  # type: ignore[import-not-found]
+except ImportError:
+    structlog = None  # type: ignore[assignment]
 
 #: Keys whose values are replaced wholesale.
 SENSITIVE_KEYS = frozenset(
@@ -39,9 +42,12 @@ SENSITIVE_KEYS = frozenset(
 )
 
 #: Signature and session parameters truncated inside URLs and free text.
+#: dtk.ops.masking and dtk.ops.diagnose keep their own copies. When Bilibili
+#: was added, all three still lacked its names (``SESSDATA`` among them), so
+#: tests/unit/test_bilibili_redaction.py now holds the three to them.
 _PARAM_RE = re.compile(
     r"\b(msToken|a_bogus|X-Bogus|X-Dynosaur|X-Gnarly|_signature|sessionid|sid_guard|odin_tt"
-    r"|uid_tt|ttwid)"
+    r"|uid_tt|ttwid|SESSDATA|bili_jct|buvid3|buvid4|w_rid)"
     r"=([^&\s;\"']{6,})",
     re.IGNORECASE,
 )
@@ -71,12 +77,38 @@ def redact(_logger: Any, _name: str, event: MutableMapping[str, Any]) -> Mutable
 QUIET_LOGGERS: Final[tuple[str, ...]] = ("httpx", "httpcore", "hpack")
 
 
+class _StdlibStructLogger:
+    def __init__(self, logger: logging.Logger) -> None:
+        self._log = logger
+
+    def _emit(self, level: int, event: str, **kw: Any) -> None:
+        extra_str = " ".join(f"{k}={v!r}" for k, v in kw.items())
+        self._log.log(level, f"{event} {extra_str}".strip())
+
+    def debug(self, event: str, **kw: Any) -> None:
+        self._emit(logging.DEBUG, event, **kw)
+
+    def info(self, event: str, **kw: Any) -> None:
+        self._emit(logging.INFO, event, **kw)
+
+    def warning(self, event: str, **kw: Any) -> None:
+        self._emit(logging.WARNING, event, **kw)
+
+    def error(self, event: str, **kw: Any) -> None:
+        self._emit(logging.ERROR, event, **kw)
+
+    def exception(self, event: str, **kw: Any) -> None:
+        self._log.exception(event)
+
+
 def configure(level: str = "info", json_output: bool = True) -> None:
     logging.basicConfig(
         format="%(message)s", stream=sys.stdout, level=getattr(logging, level.upper(), 20)
     )
     for name in QUIET_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+    if structlog is None:
+        return
     renderer: Any = (
         structlog.processors.JSONRenderer()
         if json_output
@@ -99,6 +131,8 @@ def configure(level: str = "info", json_output: bool = True) -> None:
 
 
 def get_logger(name: str) -> Any:
+    if structlog is None:
+        return _StdlibStructLogger(logging.getLogger(name))
     return structlog.get_logger(name)
 
 
