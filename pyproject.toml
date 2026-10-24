@@ -1,28 +1,28 @@
 [project]
 name = "dtk"
-version = "5.0.0.dev0"
-description = "Self-hosted Douyin / TikTok data API with an identity pool, scheduler, MCP and web console"
+version = "5.2.0"
+description = "Self-hosted Douyin / TikTok / Bilibili data API with an identity pool, scheduler, MCP and web console"
 requires-python = ">=3.12,<3.14"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Evil0ctal" }]
 
 dependencies = [
     "fastapi>=0.115",
-    "uvicorn[standard]>=0.32",
+    "uvicorn[standard]>=0.54.0",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
-    "sqlalchemy[asyncio]>=2.0.36",
+    "sqlalchemy[asyncio]>=2.1.1",
     "asyncpg>=0.30",
-    "alembic>=1.13",
-    "redis[hiredis]>=5.2",
-    "wreq>=0.12,<1.0",
-    "httpx>=0.28",
+    "alembic>=1.20.0",
+    "redis[hiredis]>=8.1.0",
+    "wreq>=0.12.3,<1.0",
+    "httpx[socks]>=0.28",
     "structlog>=24.4",
     "cryptography>=43.0",
     "argon2-cffi>=23.1",
     "typer>=0.12",
     "rich>=13.7",
-    "mcp>=1.1",
+    "mcp>=2.2.0",
     "python-multipart>=0.0.20",
 ]
 
@@ -31,7 +31,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "pytest-cov>=6.0",
-    "ruff>=0.9",
+    "ruff>=0.16.9",
     "mypy>=1.14",
     "types-redis",
 ]
