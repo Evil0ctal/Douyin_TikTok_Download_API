@@ -8,6 +8,11 @@ them to 90% coverage.
 
 from dtk.signing.native.abogus import ABogus
 from dtk.signing.native.signer import NativeSigner, native_signers
+from dtk.signing.native.ticket_guard import (
+    TicketGuardCredentials,
+    decrypt_ticket,
+    sign_ticket_guard,
+)
 from dtk.signing.native.tokens import (
     gen_false_ms_token,
     gen_ms_token,
@@ -22,7 +27,9 @@ from dtk.signing.native.xbogus import XBogus
 __all__ = [
     "ABogus",
     "NativeSigner",
+    "TicketGuardCredentials",
     "XBogus",
+    "decrypt_ticket",
     "gen_false_ms_token",
     "gen_ms_token",
     "gen_odin_tt",
@@ -31,4 +38,5 @@ __all__ = [
     "gen_ttwid",
     "gen_verify_fp",
     "native_signers",
+    "sign_ticket_guard",
 ]
