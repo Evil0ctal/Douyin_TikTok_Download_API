@@ -16,7 +16,10 @@ import sys
 from collections.abc import MutableMapping
 from typing import Any, Final
 
-import structlog
+try:
+    import structlog
+except ImportError:  # pragma: no cover - lightweight standalone fallback
+    structlog = None  # type: ignore[assignment]
 
 #: Keys whose values are replaced wholesale.
 SENSITIVE_KEYS = frozenset(
@@ -74,12 +77,39 @@ def redact(_logger: Any, _name: str, event: MutableMapping[str, Any]) -> Mutable
 QUIET_LOGGERS: Final[tuple[str, ...]] = ("httpx", "httpcore", "hpack")
 
 
+class _StdlibBoundLogger:
+    """Minimal structlog-compatible adapter backed by stdlib :mod:`logging`."""
+
+    def __init__(self, logger: logging.Logger) -> None:
+        self._logger = logger
+
+    def _fmt(self, event: str, kw: dict[str, Any]) -> str:
+        if not kw:
+            return str(event)
+        pairs = " ".join(f"{k}={v!r}" for k, v in kw.items())
+        return f"{event} {pairs}"
+
+    def debug(self, event: str, **kw: Any) -> None:
+        self._logger.debug(self._fmt(event, kw))
+
+    def info(self, event: str, **kw: Any) -> None:
+        self._logger.info(self._fmt(event, kw))
+
+    def warning(self, event: str, **kw: Any) -> None:
+        self._logger.warning(self._fmt(event, kw))
+
+    def error(self, event: str, **kw: Any) -> None:
+        self._logger.error(self._fmt(event, kw))
+
+
 def configure(level: str = "info", json_output: bool = True) -> None:
     logging.basicConfig(
         format="%(message)s", stream=sys.stdout, level=getattr(logging, level.upper(), 20)
     )
     for name in QUIET_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+    if structlog is None:
+        return
     renderer: Any = (
         structlog.processors.JSONRenderer()
         if json_output
@@ -102,6 +132,8 @@ def configure(level: str = "info", json_output: bool = True) -> None:
 
 
 def get_logger(name: str) -> Any:
+    if structlog is None:
+        return _StdlibBoundLogger(logging.getLogger(name))
     return structlog.get_logger(name)
 
 

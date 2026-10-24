@@ -11,10 +11,10 @@ Run directly without PostgreSQL or Redis:
 from __future__ import annotations
 
 import argparse
-import json
-import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
 from pathlib import Path
+import sys
 from typing import Any
 
 # Ensure local `src/` is importable when running directly from repository root
@@ -42,10 +42,7 @@ def _build_client_from_payload(payload: dict[str, Any]) -> TikTokReadWriteClient
         elif tg_raw.get("encrypt_ticket_b64"):
             tg_creds = TicketGuardCredentials.from_local_storage(
                 {"ec_privateKey": str(tg_raw.get("private_key_b64") or "")},
-                {
-                    "ts_sign": str(tg_raw.get("ts_sign") or ""),
-                    "encrypt_ticket": str(tg_raw.get("encrypt_ticket_b64") or ""),
-                },
+                {"ts_sign": str(tg_raw.get("ts_sign") or ""), "encrypt_ticket": str(tg_raw.get("encrypt_ticket_b64") or "")},
             )
     return TikTokReadWriteClient(
         payload.get("cookies") or {},
@@ -258,7 +255,7 @@ class _StdlibRWHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
-    def do_GET(self) -> None:
+    def do_GET(self) -> None:  # noqa: N802
         if self.path in ("/", "/health", "/docs"):
             self._send_json(
                 200,
@@ -272,7 +269,7 @@ class _StdlibRWHandler(BaseHTTPRequestHandler):
             return
         self._send_json(404, {"ok": False, "error": f"Not found: {self.path}"})
 
-    def do_POST(self) -> None:
+    def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else "{}"
         try:
@@ -292,9 +289,8 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        import uvicorn
         from fastapi import FastAPI
-
+        import uvicorn
         from dtk.api.routes.tiktok_rw import router as tiktok_rw_router
 
         app = FastAPI(
@@ -311,9 +307,7 @@ def main() -> None:
         uvicorn.run(app, host=args.host, port=args.port)
     except ImportError:
         srv = ThreadingHTTPServer((args.host, args.port), _StdlibRWHandler)
-        print(
-            f"TikTok Read/Write Standalone Server v{__version__} listening on http://{args.host}:{args.port}"
-        )
+        print(f"TikTok Read/Write Standalone Server v{__version__} listening on http://{args.host}:{args.port}")
         srv.serve_forever()
 
 

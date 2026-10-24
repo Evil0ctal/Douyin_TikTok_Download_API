@@ -18,17 +18,17 @@ Supported commands:
 from __future__ import annotations
 
 import base64
-import contextlib
-import json
-import ssl
-import time
-import urllib.parse
-import urllib.request
-import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+import json
+import random
+import ssl
+import time
 from typing import Any, Final
+import urllib.parse
+import urllib.request
+import uuid
 
 from dtk.signing.native import tiktok_sign
 
@@ -242,11 +242,7 @@ def _decode_streak_biz_ext(b64_str: str, my_uid: int = 0) -> dict[str, Any] | No
             if streak_days <= 0:
                 return None
             conv_id_bytes = fmap.get(5, [b""])[0]
-            conv_id = (
-                conv_id_bytes.decode("utf-8", errors="ignore")
-                if isinstance(conv_id_bytes, bytes)
-                else ""
-            )
+            conv_id = conv_id_bytes.decode("utf-8", errors="ignore") if isinstance(conv_id_bytes, bytes) else ""
             start_ts = int(fmap.get(2, [0])[0])
             last_ts = int(fmap.get(3, [0])[0])
             expire_ts = int(fmap.get(9, [0])[0])
@@ -258,7 +254,7 @@ def _decode_streak_biz_ext(b64_str: str, my_uid: int = 0) -> dict[str, Any] | No
                 if not isinstance(entry_bytes, bytes):
                     continue
                 try:
-                    ef = {k: v for k, _, v in parse_raw_fields(entry_bytes)}
+                    ef = dict((k, v) for k, _, v in parse_raw_fields(entry_bytes))
                     uid_val = int(ef.get(1, 0))
                     ts_val = int(ef.get(2, 0))
                     if my_uid and uid_val == my_uid:
@@ -340,8 +336,10 @@ def _parse_reaction_uids(prop_item_bytes: bytes) -> tuple[str, set[int]]:
                         if fn3 == 1 and wt3 == 0:
                             uids.add(int(val3))
                         elif fn3 == 4 and wt3 == 2:
-                            with contextlib.suppress(Exception):
+                            try:
                                 uids.add(int(val3.decode("utf-8").strip()))
+                            except Exception:
+                                pass
     return prop_key, uids
 
 
@@ -626,7 +624,7 @@ class TikTokIMClient:
                                 peer_uid = 0
                                 for rfn, rwt, rval in rec_fields:
                                     if rfn == 1 and rwt == 2 and isinstance(rval, bytes):
-                                        uf = {k: v for k, _, v in parse_raw_fields(rval)}
+                                        uf = dict((k, v) for k, _, v in parse_raw_fields(rval))
                                         u_id = int(uf.get(1, 0))
                                         u_ts = int(uf.get(2, 0))
                                         if self.my_uid and u_id == self.my_uid:
@@ -680,9 +678,7 @@ class TikTokIMClient:
                         },
                     )
                     try:
-                        with urllib.request.urlopen(
-                            req, context=self._ssl_ctx, timeout=12.0
-                        ) as resp:
+                        with urllib.request.urlopen(req, context=self._ssl_ctx, timeout=12.0) as resp:
                             payload = json.loads(resp.read().decode("utf-8", errors="replace"))
                             uid_map: dict[int, tuple[str, str]] = {}
                             for u in payload.get("users") or []:
@@ -706,9 +702,9 @@ class TikTokIMClient:
         pairs = [
             ("WebIdLastTime", str(int(time.time()) - 86400)),
             ("aid", "1988"),
-            ("app_language", "en-US"),
+            ("app_language", "ru-RU"),
             ("app_name", "tiktok_web"),
-            ("browser_language", "en-US"),
+            ("browser_language", "ru-RU"),
             ("browser_name", "Mozilla"),
             ("browser_online", "true"),
             ("browser_platform", "Win32"),
@@ -735,7 +731,7 @@ class TikTokIMClient:
             ("tz_name", "UTC"),
             ("user_is_login", "true"),
             ("verifyFp", self.verify_fp),
-            ("webcast_language", "en-US"),
+            ("webcast_language", "ru-RU"),
         ]
         q_str, _ = tiktok_sign.sign(
             pairs,
@@ -816,7 +812,11 @@ class TikTokIMClient:
         if not peer_uid or not self.my_uid:
             return 0
 
-        inner = encode_uint(1, 1) + encode_uint(2, peer_uid) + encode_uint(2, self.my_uid)
+        inner = (
+            encode_uint(1, 1)
+            + encode_uint(2, peer_uid)
+            + encode_uint(2, self.my_uid)
+        )
         pb_req = self._build_envelope(609, inner, inbox_type=0)
         resp_bytes = self._post_im("/v2/conversation/create", pb_req, sign_request=True)
         code, _desc, cmd_body = self._extract_response_body(resp_bytes, 609)
@@ -854,9 +854,7 @@ class TikTokIMClient:
             inner_parts.append(encode_uint(6, limit))
 
             pb_req = self._build_envelope(301, b"".join(inner_parts), inbox_type=0)
-            resp_bytes = self._post_im(
-                "/v1/message/get_by_conversation", pb_req, sign_request=False
-            )
+            resp_bytes = self._post_im("/v1/message/get_by_conversation", pb_req, sign_request=False)
             code, _desc, cmd_body = self._extract_response_body(resp_bytes, 301)
             if code == 0 and cmd_body:
                 for fn, wt, val in parse_raw_fields(cmd_body):
@@ -960,9 +958,7 @@ class TikTokIMClient:
             ("app_name", "tiktok_web"),
             ("device_platform", "web_pc"),
         ]
-        resp_bytes = self._post_im(
-            "/v1/message/send", pb_req, sign_request=True, query_pairs=query_pairs
-        )
+        resp_bytes = self._post_im("/v1/message/send", pb_req, sign_request=True, query_pairs=query_pairs)
         code, _desc, cmd_body = self._extract_response_body(resp_bytes, 100)
         if code == 0 and cmd_body:
             for fn, wt, val in parse_raw_fields(cmd_body):
@@ -1015,9 +1011,7 @@ class TikTokIMClient:
     def delete_stranger_conversations(self) -> bool:
         """Deletes all stranger / message-request conversations via ``/v1/stranger/delete_all_conversations`` (``cmd=1005``)."""
         pb_req = self._build_envelope(1005, b"", inbox_type=0)
-        resp_bytes = self._post_im(
-            "/v1/stranger/delete_all_conversations", pb_req, sign_request=True
-        )
+        resp_bytes = self._post_im("/v1/stranger/delete_all_conversations", pb_req, sign_request=True)
         code, _desc, _cmd_body = self._extract_response_body(resp_bytes, 1005)
         return code == 0
 
