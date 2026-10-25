@@ -435,6 +435,10 @@ npm config set registry https://registry.npmmirror.com
 git config --global http.https://github.com.proxy http://127.0.0.1:7890
 ```
 
+没有代理可用时，安装脚本自己也认一个镜像前缀：`DTK_GH_PROXY=https://<镜像>/ bash install.zh.sh`
+会把它同时加在克隆地址和 raw 文件地址前（`DTK_REPO_URL` 依然优先）。这个前缀经手脚本取回的
+全部代码，等于把信任交给它——公共镜像站请自行甄别，只放行本仓库的自建中转最干净。
+
 Docker 构建里的网络访问不走宿主机的 git 配置，代理要通过 build 参数传进去（`HTTP_PROXY` /
 `HTTPS_PROXY` 是 BuildKit 的预定义参数，Dockerfile 里不用声明）：
 

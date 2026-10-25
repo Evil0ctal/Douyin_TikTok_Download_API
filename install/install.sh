@@ -30,8 +30,16 @@ IFS=$'\n\t'
 
 # DTK_REPO_URL points the clone at a mirror. Releases are found on the
 # checkout's own origin once there is one, so it stays the mirror after.
-readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
-readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
+# DTK_GH_PROXY prefixes both GitHub addresses below with one mirror, none by
+# default. The prefix relays every file this script fetches, which puts the
+# whole install in its hands, so run one you trust: a self-hosted relay that
+# allows only this repository (a Cloudflare Worker, say) is the clean form.
+# A trailing slash is fine; with DTK_REPO_URL set, the clone stays with it.
+gh_proxy="${DTK_GH_PROXY:-}"
+while [ "$gh_proxy" != "${gh_proxy%/}" ]; do gh_proxy="${gh_proxy%/}"; done
+readonly GH_PROXY="${gh_proxy:+$gh_proxy/}"
+readonly REPO_URL="${DTK_REPO_URL:-${GH_PROXY}https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
+readonly REPO_RAW="${GH_PROXY}https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
 readonly COMPOSE_INSTALL_URL="https://docs.docker.com/compose/install/linux/"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/02-installation.md"
@@ -1153,7 +1161,7 @@ prepare_directory() {
   if ! said="$(git clone --quiet --single-branch --branch main "$REPO_URL" "$INSTALL_DIR" 2>&1)"; then
     die "Could not clone $REPO_URL:
 $(printf '%s\n' "$said" | sed 's/^/      /')
-    Check the network, or a mirror if you are in mainland China: $DOCS_URL"
+    Check the network, or set DTK_GH_PROXY to a mirror prefix (see --help) if GitHub is unreachable: $DOCS_URL"
   fi
   checkout_ref "$RELEASE_REF"
   ok "Cloned $RELEASE_REF into $INSTALL_DIR"
@@ -2842,6 +2850,9 @@ Environment (each one presets an answer, so --yes becomes unattended):
   DTK_PROJECT            Compose project name. Default: dtk.
   DTK_INSTALL_DIR        Where to install. Default: /opt/dtk as root, ~/dtk otherwise.
   DTK_REPO_URL           Where to clone from, for a mirror. Default: GitHub.
+  DTK_GH_PROXY           Mirror prefix for the clone and raw downloads, off
+                         by default. It relays all the code, so trust the
+                         mirror first; a self-hosted relay is the cleanest.
   DTK_VERSION            The release to install: 5.1.6, 5.1, latest (default)
                          or sha-<commit>. Its tag is what gets checked out.
   DTK_BIND_HOST          127.0.0.1 (default) or 0.0.0.0.

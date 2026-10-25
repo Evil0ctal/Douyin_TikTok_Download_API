@@ -283,6 +283,8 @@ into `.env`: `DTK_BIND_HOST`, `DTK_BIND_PORT`, `DTK_TRANSCRIBER_MODEL_PATH`,
 `latest` (the default) or `sha-<40-character commit>`. Its tag — a `sha-`
 build's commit — is what is checked out. `DTK_REPO_URL` clones from a mirror
 instead of GitHub; the release tags are then fetched from that mirror too.
+`DTK_GH_PROXY` prefixes one mirror onto both the clone and the raw downloads;
+see [Network preparation in mainland China](../documents/en/02-installation.md#network-preparation-in-mainland-china).
 
 Transcription takes two: `DTK_ENABLE_TRANSCRIBER=1` turns it on, and
 `DTK_TRANSCRIBER_MODEL_PATH` says where the models are or should go. With both
@@ -313,7 +315,8 @@ browser image also reaches GitHub, PyPI and a browser CDN. The transcription
 models come from ModelScope, which is usually fast from mainland China. Without
 a registry mirror the image pull usually times out and it looks like the
 project is broken. If GitHub itself is slow, `DTK_REPO_URL` clones from a mirror
-of this repository.
+of this repository, and `DTK_GH_PROXY` prefixes one mirror onto the clone and
+the raw downloads alike.
 [中国大陆的网络准备](../documents/zh/02-installation.md#中国大陆的网络准备) has
 the details.
 
@@ -544,6 +547,8 @@ DTK_INSTALL_DIR=/srv/dtk DTK_BIND_PORT=9000 DTK_ENABLE_BROWSER=1 \
 `DTK_VERSION` 指定装哪个 Release：`5.1.6`、`5.1`（5.1.x 里最新的）、`latest`（默认）
 或 `sha-<40 位 commit>`。检出的就是它的 tag（`sha-` 构建则是那个 commit）。
 `DTK_REPO_URL` 让它从镜像仓库而不是 GitHub 克隆；之后的 Release tag 也从那个镜像取。
+`DTK_GH_PROXY` 则给克隆和 raw 下载统一加一个镜像前缀，详见
+[中国大陆的网络准备](../documents/zh/02-installation.md#中国大陆的网络准备)。
 
 转写用两个：`DTK_ENABLE_TRANSCRIBER=1` 打开它，`DTK_TRANSCRIBER_MODEL_PATH` 指定模型在哪
 或该放哪。两个都设了再加 `--yes`，没有模型的目录会由那个带校验的下载填上。
@@ -569,5 +574,5 @@ Docker Compose **2.24 或更新** —— compose 文件用到了长格式的 `en
 先换源。安装过程要从 Docker Hub 拉镜像，构建浏览器镜像还要访问 GitHub、PyPI 和
 浏览器 CDN。转写模型来自 ModelScope，在大陆通常很快。没有镜像加速器的话，拉镜像那步
 通常会超时，看起来就像项目坏了。GitHub 本身慢的话，`DTK_REPO_URL` 可以让它从本仓库的
-镜像克隆。
+镜像克隆，`DTK_GH_PROXY` 还能给克隆和 raw 下载统一加一个镜像前缀。
 详见 [中国大陆的网络准备](../documents/zh/02-installation.md#中国大陆的网络准备)。

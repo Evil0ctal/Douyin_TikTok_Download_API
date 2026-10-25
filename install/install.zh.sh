@@ -28,8 +28,15 @@ IFS=$'\n\t'
 
 # DTK_REPO_URL 让克隆走一个镜像。有了代码目录之后，发布版本都从它自己的 origin 上找，
 # 所以之后也一直走那个镜像。
-readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
-readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
+# DTK_GH_PROXY 给下面两个 GitHub 地址统一加一个镜像前缀，默认不加。前缀替脚本转交
+# 全部代码和 raw 文件，等于整个安装都经它的手，所以只用你信得过的镜像：只放行本仓库
+# 的自建中转（比如 Cloudflare Workers）最干净。末尾带不带 / 都行；设了 DTK_REPO_URL
+# 时克隆地址以它为准。
+gh_proxy="${DTK_GH_PROXY:-}"
+while [ "$gh_proxy" != "${gh_proxy%/}" ]; do gh_proxy="${gh_proxy%/}"; done
+readonly GH_PROXY="${gh_proxy:+$gh_proxy/}"
+readonly REPO_URL="${DTK_REPO_URL:-${GH_PROXY}https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
+readonly REPO_RAW="${GH_PROXY}https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
 readonly COMPOSE_INSTALL_URL="https://docs.docker.com/compose/install/linux/"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md"
@@ -1113,7 +1120,7 @@ prepare_directory() {
   if ! said="$(git clone --quiet --single-branch --branch main "$REPO_URL" "$INSTALL_DIR" 2>&1)"; then
     die "克隆 $REPO_URL 失败：
 $(printf '%s\n' "$said" | sed 's/^/      /')
-    检查一下网络；在中国大陆多半要先换源：$DOCS_URL"
+    检查一下网络；GitHub 连不上时可用 DTK_GH_PROXY 加镜像前缀（见 --help）；在中国大陆多半要先换源：$DOCS_URL"
   fi
   checkout_ref "$RELEASE_REF"
   ok "已把 $RELEASE_REF 克隆到 $INSTALL_DIR"
@@ -2711,6 +2718,8 @@ usage() {
   DTK_PROJECT            Compose 项目名。默认：dtk。
   DTK_INSTALL_DIR        装到哪里。默认：root 是 /opt/dtk，否则 ~/dtk。
   DTK_REPO_URL           从哪里克隆，用于镜像源。默认：GitHub。
+  DTK_GH_PROXY           给克隆和 raw 下载统一加的镜像前缀，默认不加。它转交
+                         全部代码，只用信得过的镜像，自建中转最干净。
   DTK_VERSION            要安装的版本：5.1.6、5.1、latest（默认）或 sha-<commit>。
                          检出的就是它的 tag。
   DTK_BIND_HOST         127.0.0.1（默认）或 0.0.0.0。

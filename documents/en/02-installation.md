@@ -514,6 +514,12 @@ least intrusive fix is a proxy scoped to GitHub rather than a global one:
 git config --global http.https://github.com.proxy http://127.0.0.1:7890
 ```
 
+With no proxy to hand, the installer itself takes a mirror prefix:
+`DTK_GH_PROXY=https://<mirror>/ bash install.sh` puts it in front of both the
+clone and the raw downloads (`DTK_REPO_URL` still wins). The prefix relays all
+the code the installer fetches, which hands it your trust — vet any public
+mirror, and prefer a self-hosted relay that allows only this repository.
+
 Network access inside a Docker build does not read the host's git configuration; the proxy has to be
 passed as a build argument (`HTTP_PROXY` and `HTTPS_PROXY` are BuildKit predefined arguments, so the
 Dockerfile does not declare them):
