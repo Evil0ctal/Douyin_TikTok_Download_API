@@ -9,12 +9,12 @@ Combines:
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from datetime import datetime
 import json
 import time
-from typing import Any
 import urllib.request
+from collections.abc import Mapping, Sequence
+from datetime import datetime
+from typing import Any
 
 from dtk.platforms.tiktok.im_protobuf import (
     DEFAULT_DEVICE_ID,
@@ -27,7 +27,9 @@ from dtk.signing.native import tiktok_sign
 from dtk.signing.native.ticket_guard import TicketGuardCredentials, sign_ticket_guard
 
 
-def normalize_cookie_jar(cookies: str | Mapping[str, str] | Sequence[Mapping[str, Any]]) -> dict[str, str]:
+def normalize_cookie_jar(
+    cookies: str | Mapping[str, str] | Sequence[Mapping[str, Any]],
+) -> dict[str, str]:
     """Converts Netscape, Cookie header, JSON list, or dict cookies into a ``{name: value}`` map."""
     if isinstance(cookies, Mapping):
         return {str(k): str(v) for k, v in cookies.items()}
@@ -96,7 +98,9 @@ class TikTokReadWriteClient:
     def my_uid(self) -> int:
         return self.im.my_uid
 
-    def _base_web_params(self, extra: Sequence[tuple[str, str]] = (), *, from_page: str = "user") -> list[tuple[str, str]]:
+    def _base_web_params(
+        self, extra: Sequence[tuple[str, str]] = (), *, from_page: str = "user"
+    ) -> list[tuple[str, str]]:
         params: list[tuple[str, str]] = [
             ("WebIdLastTime", str(int(time.time()) - 86400)),
             ("aid", "1988"),
@@ -231,7 +235,12 @@ class TikTokReadWriteClient:
             raw = resp.text
             orcas_res = resp.headers.get("tt_orcas_res")
             guard_res = resp.headers.get("tt-ticket-guard-result")
-            if not raw.strip() and orcas_res == "1" and ms_token_override is None and method.upper() == "GET":
+            if (
+                not raw.strip()
+                and orcas_res == "1"
+                and ms_token_override is None
+                and method.upper() == "GET"
+            ):
                 return self._request_web_json(
                     method,
                     path,
@@ -287,7 +296,9 @@ class TikTokReadWriteClient:
                     "uid": uid,
                     "secUID": sec_uid,
                     "content_thumb": {"url_list": [thumb], "uri": thumb},
-                    "content_name": str(author.get("nickname") or author.get("uniqueId") or "TikTok"),
+                    "content_name": str(
+                        author.get("nickname") or author.get("uniqueId") or "TikTok"
+                    ),
                     "content_title": str(item.get("desc") or "")[:120],
                     "cover_url": {"url_list": [cover], "uri": cover},
                     "cover_width": int(video.get("width") or 1080),
@@ -296,19 +307,33 @@ class TikTokReadWriteClient:
             )
         return {"items": data.get("itemList") or [], "dm_video_cards": cards}
 
-    def get_liked_videos(self, sec_uid: str, *, count: int = 30, cursor: str = "0") -> dict[str, Any]:
-        params = self._base_web_params([("secUid", sec_uid), ("count", str(count)), ("cursor", cursor)])
+    def get_liked_videos(
+        self, sec_uid: str, *, count: int = 30, cursor: str = "0"
+    ) -> dict[str, Any]:
+        params = self._base_web_params(
+            [("secUid", sec_uid), ("count", str(count)), ("cursor", cursor)]
+        )
         return self._request_web_json("GET", "/api/favorite/item_list/", params)
 
-    def get_collected_videos(self, sec_uid: str, *, count: int = 30, cursor: str = "0") -> dict[str, Any]:
-        params = self._base_web_params([("secUid", sec_uid), ("count", str(count)), ("cursor", cursor)])
+    def get_collected_videos(
+        self, sec_uid: str, *, count: int = 30, cursor: str = "0"
+    ) -> dict[str, Any]:
+        params = self._base_web_params(
+            [("secUid", sec_uid), ("count", str(count)), ("cursor", cursor)]
+        )
         return self._request_web_json("GET", "/api/user/collect/item_list/", params)
 
-    def get_reposted_videos(self, sec_uid: str, *, count: int = 30, cursor: str = "0") -> dict[str, Any]:
-        params = self._base_web_params([("secUid", sec_uid), ("count", str(count)), ("cursor", cursor)])
+    def get_reposted_videos(
+        self, sec_uid: str, *, count: int = 30, cursor: str = "0"
+    ) -> dict[str, Any]:
+        params = self._base_web_params(
+            [("secUid", sec_uid), ("count", str(count)), ("cursor", cursor)]
+        )
         return self._request_web_json("GET", "/api/repost/item_list/", params)
 
-    def get_followers_list(self, sec_uid: str, *, count: int = 30, min_cursor: str = "0") -> dict[str, Any]:
+    def get_followers_list(
+        self, sec_uid: str, *, count: int = 30, min_cursor: str = "0"
+    ) -> dict[str, Any]:
         """Fetches an account's followers via ``GET /api/user/list/`` (``scene=67``)."""
         params = self._base_web_params(
             [
@@ -321,7 +346,9 @@ class TikTokReadWriteClient:
         )
         return self._request_web_json("GET", "/api/user/list/", params)
 
-    def get_following_list(self, sec_uid: str, *, count: int = 30, min_cursor: str = "0") -> dict[str, Any]:
+    def get_following_list(
+        self, sec_uid: str, *, count: int = 30, min_cursor: str = "0"
+    ) -> dict[str, Any]:
         """Fetches accounts an author follows via ``GET /api/user/list/`` (``scene=21``)."""
         params = self._base_web_params(
             [
@@ -334,7 +361,9 @@ class TikTokReadWriteClient:
         )
         return self._request_web_json("GET", "/api/user/list/", params)
 
-    def get_unfollowed_followers(self, *, count: int = 30, sec_uid: str | None = None) -> list[dict[str, str]]:
+    def get_unfollowed_followers(
+        self, *, count: int = 30, sec_uid: str | None = None
+    ) -> list[dict[str, str]]:
         """Returns followers who follow this account (``relation == 6`` or ``follower_status == 1, follow_status == 0``)."""
         unfollowed: dict[str, dict[str, str]] = {}
         if sec_uid:
@@ -362,7 +391,9 @@ class TikTokReadWriteClient:
         data = self._request_web_json("GET", "/api/notice/multi/", params)
         for nlist in data.get("notice_lists") or []:
             for item in nlist.get("notice_list") or []:
-                u = (item.get("follow") or {}).get("from_user") or (item.get("at") or {}).get("user")
+                u = (item.get("follow") or {}).get("from_user") or (item.get("at") or {}).get(
+                    "user"
+                )
                 if not isinstance(u, Mapping):
                     continue
                 uid = str(u.get("uid") or "")
@@ -479,7 +510,9 @@ class TikTokReadWriteClient:
         feed_cards: list[dict[str, Any]] = []
 
         now_local = datetime.now().astimezone()
-        today_start_ms = int(now_local.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        today_start_ms = int(
+            now_local.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000
+        )
 
         chat_reports: list[dict[str, Any]] = []
         total_liked = 0
@@ -512,7 +545,9 @@ class TikTokReadWriteClient:
                         total_liked += 1
 
             sent_today_im = any(
-                m.sender == self.my_uid and not m.is_system_message and m.create_time_ms >= today_start_ms
+                m.sender == self.my_uid
+                and not m.is_system_message
+                and m.create_time_ms >= today_start_ms
                 for m in msgs
             )
             already_maintained = streak.did_i_contribute_today() or sent_today_im
@@ -585,7 +620,7 @@ class TikTokReadWriteClient:
                         uncollected_ids.append(vid)
 
         if delete_all_messages:
-            conv_map = self.im.init_user_messages(max_pages=5)
+            self.im.init_user_messages(max_pages=5)
             for conv_id, short_id in list(self.im.conv_short_ids.items()):
                 msgs = self.im.get_conversation_messages(conv_id, limit=50)
                 max_idx = 0
@@ -612,6 +647,37 @@ class TikTokReadWriteClient:
             "deleted_messages_count": deleted_messages,
             "deleted_conversations_count": deleted_conversations,
         }
+
+    # ------------------------------------------------------------------
+    # TikTok Live-Streaming API
+    # ------------------------------------------------------------------
+
+    def get_live_room(self, unique_id: str) -> dict[str, Any]:
+        """Fetches a TikTok live room by ``@handle`` via ``GET /api-live/user/room/``."""
+        from dtk.platforms.tiktok.parser import parse_live_room
+
+        handle = unique_id.strip().lstrip("@")
+        params = self._base_web_params([("uniqueId", handle), ("sourceType", "54")])
+        payload = self._request_web_json("GET", "/api-live/user/room/", params)
+        try:
+            room_model = parse_live_room(payload, room_id=handle)
+            payload["parsed_room"] = room_model.model_dump(mode="json")
+        except Exception:
+            pass
+        return payload
+
+    def get_live_room_info(self, room_id: str) -> dict[str, Any]:
+        """Fetches a TikTok live room by numeric ``room_id`` via ``GET /webcast/room/info/``."""
+        params = self._base_web_params([("room_id", str(room_id).strip())])
+        return self._request_web_json("GET", "/webcast/room/info/", params)
+
+    def check_live_alive(self, room_ids: Sequence[str] | str) -> dict[str, Any]:
+        """Checks whether one or more TikTok ``room_ids`` are currently live."""
+        joined = (
+            room_ids if isinstance(room_ids, str) else ",".join(str(r).strip() for r in room_ids)
+        )
+        params = self._base_web_params([("room_ids", joined)])
+        return self._request_web_json("GET", "/webcast/room/check_alive/", params)
 
 
 __all__ = [

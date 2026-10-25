@@ -11,10 +11,10 @@ Run directly without PostgreSQL or Redis:
 from __future__ import annotations
 
 import argparse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-from pathlib import Path
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 
 # Ensure local `src/` is importable when running directly from repository root
@@ -42,7 +42,10 @@ def _build_client_from_payload(payload: dict[str, Any]) -> TikTokReadWriteClient
         elif tg_raw.get("encrypt_ticket_b64"):
             tg_creds = TicketGuardCredentials.from_local_storage(
                 {"ec_privateKey": str(tg_raw.get("private_key_b64") or "")},
-                {"ts_sign": str(tg_raw.get("ts_sign") or ""), "encrypt_ticket": str(tg_raw.get("encrypt_ticket_b64") or "")},
+                {
+                    "ts_sign": str(tg_raw.get("ts_sign") or ""),
+                    "encrypt_ticket": str(tg_raw.get("encrypt_ticket_b64") or ""),
+                },
             )
     return TikTokReadWriteClient(
         payload.get("cookies") or {},
@@ -218,6 +221,102 @@ def dispatch_rw_action(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             delete_all_messages=bool(payload.get("delete_all_messages", True)),
         )
 
+    if path == "/api/v1/tiktok/rw/live/room":
+        return client.get_live_room(str(payload["unique_id"]))
+
+    if path in ("/api/v1/tiktok/rw/live/room-by-id", "/api/v1/tiktok/rw/live/room-info"):
+        return client.get_live_room_info(str(payload["room_id"]))
+
+    if path == "/api/v1/tiktok/rw/live/check-alive":
+        return client.check_live_alive(payload["room_ids"])
+
+    if path.startswith("/api/v1/douyin/rw/"):
+        from dtk.platforms.douyin.read_write_client import (
+            DEFAULT_DOUYIN_UA,
+            DouyinReadWriteClient,
+        )
+
+        dy_client = DouyinReadWriteClient(
+            payload.get("cookies") or "",
+            user_agent=str(payload.get("user_agent") or DEFAULT_DOUYIN_UA),
+        )
+        if path == "/api/v1/douyin/rw/live/room":
+            return dy_client.get_live_room(
+                str(payload["web_rid"]),
+                room_id_str=str(payload.get("room_id_str") or ""),
+            )
+        if path == "/api/v1/douyin/rw/live/room-by-id":
+            return dy_client.get_live_room_by_room_id(
+                str(payload["room_id"]),
+                sec_user_id=str(payload.get("sec_user_id") or ""),
+            )
+        if path in ("/api/v1/douyin/rw/live/gift-rank", "/api/v1/douyin/rw/live/gift-ranking"):
+            return dy_client.get_live_gift_ranking(
+                str(payload["room_id"]),
+                rank_type=int(payload.get("rank_type", 30)),
+            )
+        if path == "/api/v1/douyin/rw/live/followed":
+            return dy_client.get_followed_live_rooms(
+                scene=str(payload.get("scene") or "aweme_pc_follow_top")
+            )
+        if path in ("/api/v1/douyin/rw/live/user-me", "/api/v1/douyin/rw/live/user-info"):
+            return dy_client.get_live_user_info()
+        if path == "/api/v1/douyin/rw/live/search":
+            return dy_client.search_live_rooms(
+                str(payload["keyword"]),
+                offset=int(payload.get("offset", 0)),
+                count=int(payload.get("count", 20)),
+            )
+        if path in ("/api/v1/douyin/rw/live/parse-url", "/api/v1/douyin/rw/live/extract-id"):
+            return dy_client.extract_webcast_id(
+                str(payload["url"]),
+                resolve_short_links=bool(payload.get("resolve_short_links", True)),
+            )
+        if path == "/api/v1/douyin/rw/video/digg":
+            return dy_client.digg_video(
+                str(payload["aweme_id"]),
+                like=bool(payload.get("like", True)),
+            )
+        if path == "/api/v1/douyin/rw/video/collect":
+            return dy_client.collect_video(
+                str(payload["aweme_id"]),
+                collect=bool(payload.get("collect", True)),
+            )
+        if path in ("/api/v1/douyin/rw/video/bookmarks", "/api/v1/douyin/rw/video/collected"):
+            return dy_client.get_collected_videos(
+                cursor=int(payload.get("cursor", 0)),
+                count=int(payload.get("count", 20)),
+            )
+        if path in ("/api/v1/douyin/rw/video/likes", "/api/v1/douyin/rw/video/liked"):
+            return dy_client.get_liked_videos(
+                str(payload["sec_user_id"]),
+                max_cursor=int(payload.get("max_cursor", 0)),
+                count=int(payload.get("count", 20)),
+            )
+        if path == "/api/v1/douyin/rw/comment/publish":
+            return dy_client.publish_comment(
+                str(payload["aweme_id"]),
+                str(payload["text"]),
+                reply_id=str(payload.get("reply_id") or ""),
+            )
+        if path == "/api/v1/douyin/rw/comment/delete":
+            return dy_client.delete_comment(
+                str(payload["cid"]),
+                aweme_id=str(payload.get("aweme_id") or ""),
+            )
+        if path == "/api/v1/douyin/rw/comment/digg":
+            return dy_client.digg_comment(
+                str(payload["cid"]),
+                str(payload["aweme_id"]),
+                like=bool(payload.get("like", True)),
+            )
+        if path in ("/api/v1/douyin/rw/social/follow", "/api/v1/douyin/rw/user/follow"):
+            return dy_client.follow_user(
+                str(payload["user_id"]),
+                str(payload["sec_user_id"]),
+                follow=bool(payload.get("follow", True)),
+            )
+
     raise KeyError(f"Unknown endpoint: {path}")
 
 
@@ -242,7 +341,24 @@ ROUTES_MANIFEST = [
     "POST /api/v1/tiktok/rw/social/follow-back",
     "POST /api/v1/tiktok/rw/feed/foryou",
     "POST /api/v1/tiktok/rw/account/cleanup",
+    "POST /api/v1/tiktok/rw/live/room",
+    "POST /api/v1/tiktok/rw/live/check-alive",
     "POST /api/v1/tiktok/rw/sign-ticket-guard",
+    "POST /api/v1/douyin/rw/live/room",
+    "POST /api/v1/douyin/rw/live/room-by-id",
+    "POST /api/v1/douyin/rw/live/gift-rank",
+    "POST /api/v1/douyin/rw/live/followed",
+    "POST /api/v1/douyin/rw/live/user-me",
+    "POST /api/v1/douyin/rw/live/search",
+    "POST /api/v1/douyin/rw/live/parse-url",
+    "POST /api/v1/douyin/rw/video/digg",
+    "POST /api/v1/douyin/rw/video/collect",
+    "POST /api/v1/douyin/rw/video/bookmarks",
+    "POST /api/v1/douyin/rw/video/likes",
+    "POST /api/v1/douyin/rw/comment/publish",
+    "POST /api/v1/douyin/rw/comment/delete",
+    "POST /api/v1/douyin/rw/comment/digg",
+    "POST /api/v1/douyin/rw/social/follow",
 ]
 
 
@@ -255,7 +371,7 @@ class _StdlibRWHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path in ("/", "/health", "/docs"):
             self._send_json(
                 200,
@@ -269,7 +385,7 @@ class _StdlibRWHandler(BaseHTTPRequestHandler):
             return
         self._send_json(404, {"ok": False, "error": f"Not found: {self.path}"})
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else "{}"
         try:
@@ -289,8 +405,10 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        from fastapi import FastAPI
         import uvicorn
+        from fastapi import FastAPI
+
+        from dtk.api.routes.douyin_rw import router as douyin_rw_router
         from dtk.api.routes.tiktok_rw import router as tiktok_rw_router
 
         app = FastAPI(
@@ -299,6 +417,7 @@ def main() -> None:
             docs_url="/docs",
         )
         app.include_router(tiktok_rw_router)
+        app.include_router(douyin_rw_router)
 
         @app.get("/health", tags=["system"])
         def health() -> dict[str, str]:
@@ -307,7 +426,9 @@ def main() -> None:
         uvicorn.run(app, host=args.host, port=args.port)
     except ImportError:
         srv = ThreadingHTTPServer((args.host, args.port), _StdlibRWHandler)
-        print(f"TikTok Read/Write Standalone Server v{__version__} listening on http://{args.host}:{args.port}")
+        print(
+            f"TikTok Read/Write Standalone Server v{__version__} listening on http://{args.host}:{args.port}"
+        )
         srv.serve_forever()
 
 

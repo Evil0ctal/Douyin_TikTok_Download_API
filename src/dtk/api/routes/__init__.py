@@ -37,6 +37,7 @@ from dtk.api.routes import (
     capabilities,
     content,
     discovery,
+    douyin_rw,
     downloads,
     ios,
     openapi,
@@ -75,6 +76,7 @@ def register_routes(app: FastAPI) -> None:
     for router in ROUTERS:
         app.include_router(router)
     app.include_router(tiktok_rw.router, include_in_schema=False)
+    app.include_router(douyin_rw.router, include_in_schema=False)
 
     # Replaces FastAPI's /openapi.json, /swagger and /redoc with ?lang= aware
     # versions (doc 14).

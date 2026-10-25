@@ -47,7 +47,9 @@ class TicketGuardSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    private_key_b64: str = Field(description="PKCS#8 DER/PEM private key in base64 from s_sdk_crypt_sdk.")
+    private_key_b64: str = Field(
+        description="PKCS#8 DER/PEM private key in base64 from s_sdk_crypt_sdk."
+    )
     ticket: str = Field(default="", description="Decrypted hex ticket (if already decrypted).")
     encrypt_ticket_b64: str = Field(
         default="",
@@ -104,17 +106,23 @@ class SignTicketGuardRequest(BaseModel):
 
 
 class MaintainStreaksRequest(BaseSessionRequest):
-    like_incoming: bool = Field(default=True, description="Automatically react ❤️ to unliked incoming messages.")
+    like_incoming: bool = Field(
+        default=True, description="Automatically react ❤️ to unliked incoming messages."
+    )
     send_video_if_needed: bool = Field(
         default=True,
         description="Send a fresh TikTok video card if no message was sent by us today.",
     )
-    force_send: bool = Field(default=False, description="Send a video card even if already maintained today.")
+    force_send: bool = Field(
+        default=False, description="Send a video card even if already maintained today."
+    )
     max_likes_per_chat: int = Field(default=10, ge=1, le=50)
 
 
 class ConversationMessagesRequest(BaseSessionRequest):
-    conversation_id: str = Field(description="Conversation ID, e.g. 0:1:1000000000000000001:1000000000000000002")
+    conversation_id: str = Field(
+        description="Conversation ID, e.g. 0:1:1000000000000000001:1000000000000000002"
+    )
     peer_uid: int | None = Field(default=None)
     limit: int = Field(default=25, ge=1, le=100)
 
@@ -160,7 +168,9 @@ class DiggVideoRequest(BaseSessionRequest):
 class CollectVideoRequest(BaseSessionRequest):
     item_id: str = Field(min_length=1, max_length=64, description="TikTok video ID.")
     sec_uid: str = Field(min_length=1, max_length=256, description="Account secUid.")
-    collect: bool = Field(default=True, description="True to bookmark (action=1), False to unbookmark (action=2).")
+    collect: bool = Field(
+        default=True, description="True to bookmark (action=1), False to unbookmark (action=2)."
+    )
 
 
 class PagedSecUidRequest(BaseSessionRequest):
@@ -172,7 +182,9 @@ class PagedSecUidRequest(BaseSessionRequest):
 class FollowUserRequest(BaseSessionRequest):
     user_id: str = Field(min_length=1, max_length=64)
     sec_user_id: str = Field(min_length=1, max_length=256)
-    follow: bool = Field(default=True, description="True to follow (type=1), False to unfollow (type=0).")
+    follow: bool = Field(
+        default=True, description="True to follow (type=1), False to unfollow (type=0)."
+    )
     from_type: str = Field(default="18")
 
 
@@ -196,7 +208,9 @@ class CleanupAccountRequest(BaseSessionRequest):
 # ---------------------------------------------------------------------------
 
 
-@router.post("/sign-ticket-guard", summary="Generate TikTok Web tt-ticket-guard ECDSA P-256 headers")
+@router.post(
+    "/sign-ticket-guard", summary="Generate TikTok Web tt-ticket-guard ECDSA P-256 headers"
+)
 async def route_sign_ticket_guard(request: Request, body: SignTicketGuardRequest) -> Any:
     creds = body.ticket_guard.to_credentials()
     headers = sign_ticket_guard(body.path, creds, timestamp=body.timestamp)
@@ -210,7 +224,9 @@ async def route_list_streaks(request: Request, body: BaseSessionRequest) -> Any:
     return ok(request, {"count": len(streaks), "streaks": [s.to_dict() for s in streaks]})
 
 
-@router.post("/streaks/maintain", summary="Auto-like incoming DMs and send video card to maintain streaks")
+@router.post(
+    "/streaks/maintain", summary="Auto-like incoming DMs and send video card to maintain streaks"
+)
 async def route_maintain_streaks(request: Request, body: MaintainStreaksRequest) -> Any:
     client = body.build_client()
     report = await asyncio.to_thread(
@@ -271,7 +287,10 @@ async def route_send_text(request: Request, body: SendTextRequest) -> Any:
     return ok(request, {"sent": server_msg_id > 0, "server_message_id": server_msg_id})
 
 
-@router.post("/im/send-video", summary="Send a native TikTok video card to a DM conversation (cmd=100, msg_type=8)")
+@router.post(
+    "/im/send-video",
+    summary="Send a native TikTok video card to a DM conversation (cmd=100, msg_type=8)",
+)
 async def route_send_video(request: Request, body: SendVideoCardRequest) -> Any:
     client = body.build_client()
     server_msg_id = await asyncio.to_thread(
@@ -332,21 +351,29 @@ async def route_digg_video(request: Request, body: DiggVideoRequest) -> Any:
 @router.post("/video/collect", summary="Bookmark or unbookmark a TikTok video (/api/item/collect/)")
 async def route_collect_video(request: Request, body: CollectVideoRequest) -> Any:
     client = body.build_client()
-    res = await asyncio.to_thread(client.collect_video, body.item_id, body.sec_uid, collect=body.collect)
+    res = await asyncio.to_thread(
+        client.collect_video, body.item_id, body.sec_uid, collect=body.collect
+    )
     return ok(request, res)
 
 
 @router.post("/video/likes", summary="Read an account's liked videos (/api/favorite/item_list/)")
 async def route_get_likes(request: Request, body: PagedSecUidRequest) -> Any:
     client = body.build_client()
-    res = await asyncio.to_thread(client.get_liked_videos, body.sec_uid, count=body.count, cursor=body.cursor)
+    res = await asyncio.to_thread(
+        client.get_liked_videos, body.sec_uid, count=body.count, cursor=body.cursor
+    )
     return ok(request, res)
 
 
-@router.post("/video/bookmarks", summary="Read an account's bookmarked videos (/api/user/collect/item_list/)")
+@router.post(
+    "/video/bookmarks", summary="Read an account's bookmarked videos (/api/user/collect/item_list/)"
+)
 async def route_get_bookmarks(request: Request, body: PagedSecUidRequest) -> Any:
     client = body.build_client()
-    res = await asyncio.to_thread(client.get_collected_videos, body.sec_uid, count=body.count, cursor=body.cursor)
+    res = await asyncio.to_thread(
+        client.get_collected_videos, body.sec_uid, count=body.count, cursor=body.cursor
+    )
     return ok(request, res)
 
 
@@ -363,17 +390,25 @@ async def route_follow_user(request: Request, body: FollowUserRequest) -> Any:
     return ok(request, res)
 
 
-@router.post("/social/followers/list", summary="Read an account's followers (/api/user/list/ scene=67)")
+@router.post(
+    "/social/followers/list", summary="Read an account's followers (/api/user/list/ scene=67)"
+)
 async def route_followers_list(request: Request, body: PagedSecUidRequest) -> Any:
     client = body.build_client()
-    res = await asyncio.to_thread(client.get_followers_list, body.sec_uid, count=body.count, min_cursor=body.cursor)
+    res = await asyncio.to_thread(
+        client.get_followers_list, body.sec_uid, count=body.count, min_cursor=body.cursor
+    )
     return ok(request, res)
 
 
-@router.post("/social/following/list", summary="Read accounts an author follows (/api/user/list/ scene=21)")
+@router.post(
+    "/social/following/list", summary="Read accounts an author follows (/api/user/list/ scene=21)"
+)
 async def route_following_list(request: Request, body: PagedSecUidRequest) -> Any:
     client = body.build_client()
-    res = await asyncio.to_thread(client.get_following_list, body.sec_uid, count=body.count, min_cursor=body.cursor)
+    res = await asyncio.to_thread(
+        client.get_following_list, body.sec_uid, count=body.count, min_cursor=body.cursor
+    )
     return ok(request, res)
 
 
@@ -398,7 +433,24 @@ async def route_foryou_feed(request: Request, body: ForYouFeedRequest) -> Any:
     return ok(request, res)
 
 
-@router.post("/account/cleanup", summary="Batch cleanup of liked videos, bookmarks, and DM conversations/messages")
+class TikTokLiveRoomRequest(BaseSessionRequest):
+    unique_id: str = Field(
+        min_length=1, max_length=100, description="TikTok @handle of the broadcaster."
+    )
+
+
+class TikTokLiveRoomByIdRequest(BaseSessionRequest):
+    room_id: str = Field(min_length=1, max_length=64, description="Numeric TikTok webcast room_id.")
+
+
+class TikTokCheckAliveRequest(BaseSessionRequest):
+    room_ids: list[str] | str = Field(description="One or more numeric TikTok room_ids to check.")
+
+
+@router.post(
+    "/account/cleanup",
+    summary="Batch cleanup of liked videos, bookmarks, and DM conversations/messages",
+)
 async def route_cleanup_account(request: Request, body: CleanupAccountRequest) -> Any:
     client = body.build_client()
     res = await asyncio.to_thread(
@@ -408,6 +460,36 @@ async def route_cleanup_account(request: Request, body: CleanupAccountRequest) -
         uncollect_all=body.uncollect_all,
         delete_all_messages=body.delete_all_messages,
     )
+    return ok(request, res)
+
+
+@router.post(
+    "/live/room",
+    summary="Fetch TikTok live room info and stream URLs by @handle (/api-live/user/room/)",
+)
+async def route_tiktok_live_room(request: Request, body: TikTokLiveRoomRequest) -> Any:
+    client = body.build_client()
+    res = await asyncio.to_thread(client.get_live_room, body.unique_id)
+    return ok(request, res)
+
+
+@router.post(
+    "/live/room-by-id",
+    summary="Fetch TikTok live room info by numeric room_id (/webcast/room/info/)",
+)
+@router.post("/live/room-info", include_in_schema=False)
+async def route_tiktok_live_room_by_id(request: Request, body: TikTokLiveRoomByIdRequest) -> Any:
+    client = body.build_client()
+    res = await asyncio.to_thread(client.get_live_room_info, body.room_id)
+    return ok(request, res)
+
+
+@router.post(
+    "/live/check-alive", summary="Check whether TikTok live room_ids are currently broadcasting"
+)
+async def route_tiktok_live_check_alive(request: Request, body: TikTokCheckAliveRequest) -> Any:
+    client = body.build_client()
+    res = await asyncio.to_thread(client.check_live_alive, body.room_ids)
     return ok(request, res)
 
 

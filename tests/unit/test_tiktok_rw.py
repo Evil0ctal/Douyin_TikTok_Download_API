@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import base64
 import json
+from typing import Any
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
+from dtk.platforms.douyin.read_write_client import (
+    DouyinReadWriteClient,
+    extract_douyin_live_streams,
+)
 from dtk.platforms.tiktok.im_protobuf import (
     encode_bytes,
     encode_kv,
@@ -16,7 +21,7 @@ from dtk.platforms.tiktok.im_protobuf import (
     parse_message_body,
     parse_spotlight_streaks,
 )
-from dtk.platforms.tiktok.read_write_client import normalize_cookie_jar
+from dtk.platforms.tiktok.read_write_client import TikTokReadWriteClient, normalize_cookie_jar
 from dtk.signing.native.ticket_guard import (
     TicketGuardCredentials,
     derive_ticket_guard_iv,
@@ -120,3 +125,164 @@ def test_normalize_cookie_jar() -> None:
     netscape = ".tiktok.com\tTRUE\t/\tTRUE\t1800000000\tsessionid\tabc123\n"
     jar = normalize_cookie_jar(netscape)
     assert jar.get("sessionid") == "abc123"
+
+
+def test_extract_douyin_live_streams_normalizes_room_payload() -> None:
+    room_obj = {
+        "id_str": "7388112233445566778",
+        "status": 2,
+        "title": "Test Live Room",
+        "stream_url": {
+            "default_resolution": "FULL_HD1",
+            "flv_pull_url": {
+                "FULL_HD1": "https://pull-flv.douyin.com/live/stream_hd.flv",
+                "SD1": "https://pull-flv.douyin.com/live/stream_sd.flv",
+            },
+            "hls_pull_url_map": {
+                "FULL_HD1": "https://pull-hls.douyin.com/live/stream_hd.m3u8",
+            },
+        },
+    }
+    streams = extract_douyin_live_streams(room_obj)
+    assert len(streams) == 3
+    assert {
+        "quality": "FULL_HD1",
+        "format": "flv",
+        "url": "https://pull-flv.douyin.com/live/stream_hd.flv",
+    } in streams
+    assert {
+        "quality": "FULL_HD1",
+        "format": "hls",
+        "url": "https://pull-hls.douyin.com/live/stream_hd.m3u8",
+    } in streams
+
+
+def test_douyin_extract_webcast_id_from_urls_and_digits() -> None:
+    client = DouyinReadWriteClient(cookies={"sessionid": "test123"})
+    res_direct = client.extract_webcast_id("https://live.douyin.com/8848123456")
+    assert res_direct["web_rid"] == "8848123456"
+    assert res_direct["room_id"] is None
+
+    res_reflow = client.extract_webcast_id(
+        "https://webcast.amemv.com/douyin/webcast/reflow/7388112233445566778?sec_user_id=MS4w"
+    )
+    assert res_reflow["web_rid"] is None
+    assert res_reflow["room_id"] == "7388112233445566778"
+
+    res_numeric = client.extract_webcast_id("9988776655")
+    assert res_numeric == {"web_rid": "9988776655", "room_id": None, "resolved_url": None}
+
+
+def test_douyin_rw_client_signing_and_live_methods() -> None:
+    client = DouyinReadWriteClient(
+        cookies={"sessionid": "dy_sess_123", "passport_csrf_token": "csrf_abc"}
+    )
+    captured: list[tuple[str, str, dict[str, Any]]] = []
+
+    def fake_request(
+        method: str,
+        url_base: str,
+        params: Any,
+        *,
+        body: bytes = b"",
+        sign_mode: str = "abogus",
+        referer: str = "",
+        origin: str = "",
+        use_secsdk_csrf: bool = False,
+        extra_headers: Any = None,
+    ) -> dict[str, Any]:
+        captured.append((method, url_base, dict(params)))
+        return {
+            "status_code": 0,
+            "data": {
+                "data": [
+                    {
+                        "id_str": "739900112233",
+                        "status": 2,
+                        "title": "Douyin Live",
+                        "owner": {"id_str": "1", "sec_uid": "sec_1", "nickname": "Host"},
+                        "stream_url": {
+                            "flv_pull_url": {"FULL_HD1": "https://example.com/live.flv"},
+                            "hls_pull_url_map": {"FULL_HD1": "https://example.com/live.m3u8"},
+                        },
+                    }
+                ]
+            },
+        }
+
+    client._request_json = fake_request  # type: ignore[method-assign]
+    live_res = client.get_live_room("8848123456")
+    assert live_res["parsed_room"]["is_live"] is True
+    assert live_res["parsed_room"]["room_id"] == "8848123456"
+    assert live_res["parsed_room"]["title"] == "Douyin Live"
+    assert captured[0][0] == "GET"
+    assert "webcast/room/web/enter" in captured[0][1]
+    assert captured[0][2]["web_rid"] == "8848123456"
+
+    digg_res = client.digg_video("730000111222333", like=True)
+    assert digg_res["status_code"] == 0
+    assert captured[1][0] == "POST"
+    assert "/aweme/v1/web/commit/item/digg/" in captured[1][1]
+
+    def fake_reflow_request(
+        method: str,
+        url_base: str,
+        params: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        captured.append((method, url_base, dict(params)))
+        return {
+            "status_code": 0,
+            "data": {
+                "room": {
+                    "id_str": "7388112233445566778",
+                    "status": 2,
+                    "title": "Reflow Room",
+                    "owner": {"web_rid": "8848123456", "nickname": "Host", "sec_uid": "sec_1"},
+                    "stream_url": {
+                        "flv_pull_url": {"FULL_HD1": "https://example.com/reflow.flv"},
+                    },
+                }
+            },
+        }
+
+    client._request_json = fake_reflow_request  # type: ignore[method-assign]
+    reflow_res = client.get_live_room_by_room_id("7388112233445566778")
+    assert reflow_res["parsed_room"]["is_live"] is True
+    assert reflow_res["parsed_room"]["room_id"] == "7388112233445566778"
+    assert reflow_res["parsed_room"]["web_rid"] == "8848123456"
+    assert len(reflow_res["parsed_room"]["streams"]) == 1
+
+
+def test_tiktok_rw_client_live_methods() -> None:
+    client = TikTokReadWriteClient(cookies={"sessionid": "tt_sess_123"})
+    calls: list[tuple[str, str, dict[str, Any]]] = []
+
+    def fake_request(
+        method: str,
+        path: str,
+        params: Any,
+        *,
+        body: bytes = b"",
+        use_ticket_guard: bool = False,
+        referer: str = "",
+        extra_headers: Any = None,
+    ) -> dict[str, Any]:
+        calls.append((method, path, dict(params)))
+        return {"status_code": 0, "data": [{"room_id": 7355667788, "alive": True}]}
+
+    client._request_web_json = fake_request  # type: ignore[method-assign]
+    room_res = client.get_live_room("@tiktok_creator")
+    assert room_res["status_code"] == 0
+    assert calls[0][1] == "/api-live/user/room/"
+    assert calls[0][2]["uniqueId"] == "tiktok_creator"
+
+    info_res = client.get_live_room_info("7355667788")
+    assert info_res["status_code"] == 0
+    assert calls[1][1] == "/webcast/room/info/"
+    assert calls[1][2]["room_id"] == "7355667788"
+
+    alive_res = client.check_live_alive(["7355667788", "7355667789"])
+    assert alive_res["status_code"] == 0
+    assert calls[2][1] == "/webcast/room/check_alive/"
+    assert calls[2][2]["room_ids"] == "7355667788,7355667789"
