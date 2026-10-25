@@ -1811,6 +1811,8 @@
       "setup": "First run",
       "system": "System",
       "ios": "iOS Shortcut",
+      "douyin-read-write": "Douyin read/write",
+      "tiktok-read-write": "TikTok read/write",
       "other": "Untagged"
     },
     "groupCount": "{count, plural, one {# endpoint} other {# endpoints}}",

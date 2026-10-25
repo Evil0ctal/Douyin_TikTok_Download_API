@@ -1811,6 +1811,8 @@
       "setup": "初始化",
       "system": "系统",
       "ios": "iOS 快捷指令",
+      "douyin-read-write": "抖音读写",
+      "tiktok-read-write": "TikTok 读写",
       "other": "未分类"
     },
     "groupCount": "{count} 个接口",
