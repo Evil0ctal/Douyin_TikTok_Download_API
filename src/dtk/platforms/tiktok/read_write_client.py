@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
 from datetime import datetime
@@ -27,24 +28,53 @@ from dtk.signing.native import tiktok_sign
 from dtk.signing.native.ticket_guard import TicketGuardCredentials, sign_ticket_guard
 
 
+def _sanitize_cookie_token(value: Any) -> str:
+    return str(value).replace("\r", "").replace("\n", "").replace("\x00", "").strip()
+
+
+def _safe_web_json_loads(raw: str, *, http_status: int = 200) -> dict[str, Any]:
+    text = raw.strip()
+    if not text:
+        return {}
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else {"data": parsed}
+    except json.JSONDecodeError:
+        return {
+            "status_code": -1,
+            "http_status": http_status,
+            "status_msg": "non_json_response",
+        }
+
+
 def normalize_cookie_jar(
     cookies: str | Mapping[str, str] | Sequence[Mapping[str, Any]],
 ) -> dict[str, str]:
     """Converts Netscape, Cookie header, JSON list, or dict cookies into a ``{name: value}`` map."""
     if isinstance(cookies, Mapping):
-        return {str(k): str(v) for k, v in cookies.items()}
+        return {
+            _sanitize_cookie_token(k): _sanitize_cookie_token(v)
+            for k, v in cookies.items()
+            if _sanitize_cookie_token(k)
+        }
     if isinstance(cookies, str):
         text = cookies.strip()
         if text.startswith(("{", "[")):
             try:
                 loaded = json.loads(text)
                 if isinstance(loaded, Mapping):
-                    return {str(k): str(v) for k, v in loaded.items()}
+                    return {
+                        _sanitize_cookie_token(k): _sanitize_cookie_token(v)
+                        for k, v in loaded.items()
+                        if _sanitize_cookie_token(k)
+                    }
                 if isinstance(loaded, Sequence):
                     return {
-                        str(c["name"]): str(c["value"])
+                        _sanitize_cookie_token(c["name"]): _sanitize_cookie_token(c["value"])
                         for c in loaded
-                        if isinstance(c, Mapping) and c.get("name") and c.get("value") is not None
+                        if isinstance(c, Mapping)
+                        and _sanitize_cookie_token(c.get("name", ""))
+                        and c.get("value") is not None
                     }
             except Exception:
                 pass
@@ -57,8 +87,10 @@ def normalize_cookie_jar(
                 parts = line.split("\t")
                 if len(parts) >= 7:
                     domain = parts[0].strip()
-                    key = parts[5].strip()
-                    val = parts[6].strip()
+                    key = _sanitize_cookie_token(parts[5])
+                    val = _sanitize_cookie_token(parts[6])
+                    if not key:
+                        continue
                     # Prefer domain-wide .tiktok.com msToken over host-only www.tiktok.com duplicates
                     if key == "msToken" and key in out and not domain.startswith("."):
                         continue
@@ -69,13 +101,16 @@ def normalize_cookie_jar(
             for pair in line.split(";"):
                 if "=" in pair:
                     k, v = pair.split("=", 1)
-                    if k.strip():
-                        out[k.strip()] = v.strip()
+                    clean_k = _sanitize_cookie_token(k)
+                    if clean_k:
+                        out[clean_k] = _sanitize_cookie_token(v)
         return out
     return {
-        str(c["name"]): str(c["value"])
+        _sanitize_cookie_token(c["name"]): _sanitize_cookie_token(c["value"])
         for c in cookies
-        if isinstance(c, Mapping) and c.get("name") and c.get("value") is not None
+        if isinstance(c, Mapping)
+        and _sanitize_cookie_token(c.get("name", ""))
+        and c.get("value") is not None
     }
 
 
@@ -250,7 +285,9 @@ class TikTokReadWriteClient:
                     use_secsdk_csrf=use_secsdk_csrf,
                     ms_token_override="",
                 )
-            data = json.loads(raw) if raw.strip() else {}
+            data = _safe_web_json_loads(
+                raw, http_status=int(getattr(resp, "status_code", 200))
+            )
             if isinstance(data, dict):
                 data["_guard_result"] = guard_res
                 data["_orcas_result"] = orcas_res
@@ -262,12 +299,19 @@ class TikTokReadWriteClient:
             headers=headers,
             method=method.upper(),
         )
-        with urllib.request.urlopen(req, context=self.im._ssl_ctx, timeout=15) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            data = json.loads(raw) if raw.strip() else {}
-            if isinstance(data, dict):
-                data["_guard_result"] = resp.headers.get("tt-ticket-guard-result")
-                data["_orcas_result"] = resp.headers.get("tt_orcas_res")
+        try:
+            with urllib.request.urlopen(req, context=self.im._ssl_ctx, timeout=15) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                data = _safe_web_json_loads(raw, http_status=int(getattr(resp, "status", 200)))
+                if isinstance(data, dict):
+                    data["_guard_result"] = resp.headers.get("tt-ticket-guard-result")
+                    data["_orcas_result"] = resp.headers.get("tt_orcas_res")
+                return data
+        except urllib.error.HTTPError as exc:
+            raw_err = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+            data = _safe_web_json_loads(raw_err, http_status=exc.code)
+            if not data:
+                data = {"status_code": -1, "http_status": exc.code, "status_msg": str(exc.reason)}
             return data
 
     # -----------------------------------------------------------------------
@@ -476,9 +520,11 @@ class TikTokReadWriteClient:
             use_secsdk_csrf=True,
         )
 
-    def follow_back_all_followers(self, *, max_follows: int = 15) -> dict[str, Any]:
+    def follow_back_all_followers(
+        self, *, max_follows: int = 15, sec_uid: str | None = None
+    ) -> dict[str, Any]:
         """Finds all followers not yet followed back and follows them."""
-        targets = self.get_unfollowed_followers()
+        targets = self.get_unfollowed_followers(sec_uid=sec_uid)
         results: list[dict[str, Any]] = []
         followed_count = 0
         for u in targets[:max_follows]:
@@ -594,12 +640,14 @@ class TikTokReadWriteClient:
         unlike_all: bool = True,
         uncollect_all: bool = True,
         delete_all_messages: bool = True,
+        preserve_streaks: bool = True,
     ) -> dict[str, Any]:
         """Performs a comprehensive cleanup of liked videos, collected bookmarks, and DM conversations/messages while preserving friends & streaks."""
         unliked_ids: list[str] = []
         uncollected_ids: list[str] = []
         deleted_messages = 0
         deleted_conversations = 0
+        protected_conv_ids: set[str] = set()
 
         if unlike_all and sec_uid:
             fav = self.get_liked_videos(sec_uid, count=30, cursor="0")
@@ -620,8 +668,12 @@ class TikTokReadWriteClient:
                         uncollected_ids.append(vid)
 
         if delete_all_messages:
+            if preserve_streaks:
+                protected_conv_ids = {s.conversation_id for s in self.im.get_active_streaks()}
             self.im.init_user_messages(max_pages=5)
             for conv_id, short_id in list(self.im.conv_short_ids.items()):
+                if conv_id in protected_conv_ids:
+                    continue
                 msgs = self.im.get_conversation_messages(conv_id, limit=50)
                 max_idx = 0
                 for m in msgs:
@@ -646,6 +698,7 @@ class TikTokReadWriteClient:
             "uncollected_videos": uncollected_ids,
             "deleted_messages_count": deleted_messages,
             "deleted_conversations_count": deleted_conversations,
+            "preserved_streak_conversations": sorted(protected_conv_ids),
         }
 
     # ------------------------------------------------------------------

@@ -286,3 +286,60 @@ def test_tiktok_rw_client_live_methods() -> None:
     assert alive_res["status_code"] == 0
     assert calls[2][1] == "/webcast/room/check_alive/"
     assert calls[2][2]["room_ids"] == "7355667788,7355667789"
+
+
+def test_normalize_cookie_jar_strips_crlf_and_null_bytes() -> None:
+    jar = normalize_cookie_jar(
+        {"sessionid\r\n": "abc123\r\nX-Injected: 1\x00", "msToken": "tok_ok"}
+    )
+    assert jar["sessionid"] == "abc123X-Injected: 1"
+    assert "\r" not in jar["sessionid"]
+    assert "\n" not in jar["sessionid"]
+    assert "\x00" not in jar["sessionid"]
+
+
+def test_douyin_extract_webcast_id_rejects_spoofed_domains() -> None:
+    client = DouyinReadWriteClient(cookies={"sessionid": "test123"})
+    spoof_live = client.extract_webcast_id("https://evillive.douyin.com/8848123456")
+    assert spoof_live["web_rid"] is None
+
+
+def test_tiktok_cleanup_account_preserves_streak_conversations() -> None:
+    from dtk.platforms.tiktok.im_protobuf import StreakChatInfo
+
+    client = TikTokReadWriteClient(cookies={"sessionid": "tt_sess_123"})
+    client.im.conv_short_ids = {
+        "0:1:100:200": 111,
+        "0:1:100:300": 222,
+    }
+    deleted_convs: list[str] = []
+
+    client.im.get_active_streaks = lambda: [  # type: ignore[method-assign]
+        StreakChatInfo(
+            conversation_id="0:1:100:200",
+            conversation_type=1,
+            streak_days=21,
+            username="streak_friend",
+            nickname="Streak Friend",
+            peer_uid=200,
+        )
+    ]
+    client.im.init_user_messages = lambda max_pages=5: {}  # type: ignore[method-assign]
+    client.im.get_conversation_messages = lambda conv_id, limit=50: []  # type: ignore[method-assign]
+    client.im.delete_stranger_conversations = lambda: 0  # type: ignore[method-assign]
+    client.im.delete_conversation = (  # type: ignore[method-assign]
+        lambda conversation_id, conversation_short_id, last_message_index=0: (
+            deleted_convs.append(conversation_id) or True
+        )
+    )
+
+    res = client.cleanup_account(
+        "sec_test",
+        unlike_all=False,
+        uncollect_all=False,
+        delete_all_messages=True,
+        preserve_streaks=True,
+    )
+    assert deleted_convs == ["0:1:100:300"]
+    assert res["preserved_streak_conversations"] == ["0:1:100:200"]
+

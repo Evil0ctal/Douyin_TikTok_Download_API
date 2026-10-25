@@ -188,8 +188,14 @@ class FollowUserRequest(BaseSessionRequest):
     from_type: str = Field(default="18")
 
 
+class UnfollowedFollowersRequest(BaseSessionRequest):
+    sec_uid: str = Field(default="", max_length=256)
+    count: int = Field(default=30, ge=1, le=50)
+
+
 class FollowBackRequest(BaseSessionRequest):
     max_follows: int = Field(default=15, ge=1, le=50)
+    sec_uid: str = Field(default="", max_length=256)
 
 
 class ForYouFeedRequest(BaseSessionRequest):
@@ -201,6 +207,7 @@ class CleanupAccountRequest(BaseSessionRequest):
     unlike_all: bool = Field(default=True)
     uncollect_all: bool = Field(default=True)
     delete_all_messages: bool = Field(default=True)
+    preserve_streaks: bool = Field(default=True)
 
 
 # ---------------------------------------------------------------------------
@@ -413,16 +420,24 @@ async def route_following_list(request: Request, body: PagedSecUidRequest) -> An
 
 
 @router.post("/social/followers/unfollowed", summary="List followers who are not yet followed back")
-async def route_unfollowed_followers(request: Request, body: BaseSessionRequest) -> Any:
+async def route_unfollowed_followers(request: Request, body: UnfollowedFollowersRequest) -> Any:
     client = body.build_client()
-    users = await asyncio.to_thread(client.get_unfollowed_followers)
+    users = await asyncio.to_thread(
+        client.get_unfollowed_followers,
+        count=body.count,
+        sec_uid=body.sec_uid or None,
+    )
     return ok(request, {"count": len(users), "followers": users})
 
 
 @router.post("/social/follow-back", summary="Automatically follow back all followers")
 async def route_follow_back(request: Request, body: FollowBackRequest) -> Any:
     client = body.build_client()
-    res = await asyncio.to_thread(client.follow_back_all_followers, max_follows=body.max_follows)
+    res = await asyncio.to_thread(
+        client.follow_back_all_followers,
+        max_follows=body.max_follows,
+        sec_uid=body.sec_uid or None,
+    )
     return ok(request, res)
 
 
@@ -459,6 +474,7 @@ async def route_cleanup_account(request: Request, body: CleanupAccountRequest) -
         unlike_all=body.unlike_all,
         uncollect_all=body.uncollect_all,
         delete_all_messages=body.delete_all_messages,
+        preserve_streaks=body.preserve_streaks,
     )
     return ok(request, res)
 

@@ -13,10 +13,11 @@ from __future__ import annotations
 import json
 import re
 import ssl
+import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
 
 from dtk.platforms.douyin.endpoints import DouyinAPIEndpoints
 from dtk.platforms.douyin.params import DEFAULT_PROFILE, base_params, live_room_params
@@ -34,6 +35,34 @@ DEFAULT_DOUYIN_UA: Final = DEFAULT_USER_AGENT
 
 _URL_EXTRACT_RE: Final = re.compile(r"https?://[^\s\"'<>]+")
 _LIVE_DOMAINS: Final = ("live.douyin.com", "webcast.amemv.com")
+_SHORT_LINK_HOSTS: Final = ("v.douyin.com", "www.iesdouyin.com")
+_ALLOWED_REDIRECT_HOSTS: Final = (
+    "live.douyin.com",
+    "webcast.amemv.com",
+    "www.douyin.com",
+    "www.iesdouyin.com",
+    "v.douyin.com",
+)
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        return None
+
+
+def _safe_json_loads(raw: str, *, http_status: int = 200) -> dict[str, Any]:
+    text = raw.strip()
+    if not text:
+        return {}
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else {"data": parsed}
+    except json.JSONDecodeError:
+        return {
+            "status_code": -1,
+            "http_status": http_status,
+            "status_msg": "non_json_response",
+        }
 
 
 def extract_douyin_live_streams(room_node: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -201,8 +230,7 @@ class DouyinReadWriteClient:
                 impersonate="chrome",
                 timeout=15,
             )
-            raw = resp.text
-            return json.loads(raw) if raw.strip() else {}
+            return _safe_json_loads(resp.text, http_status=int(getattr(resp, "status_code", 200)))
 
         req = urllib.request.Request(
             full_url,
@@ -210,9 +238,16 @@ class DouyinReadWriteClient:
             headers=headers,
             method=method.upper(),
         )
-        with urllib.request.urlopen(req, context=self._ssl_ctx, timeout=15) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            return json.loads(raw) if raw.strip() else {}
+        try:
+            with urllib.request.urlopen(req, context=self._ssl_ctx, timeout=15) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                return _safe_json_loads(raw, http_status=int(getattr(resp, "status", 200)))
+        except urllib.error.HTTPError as exc:
+            raw_err = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+            parsed_err = _safe_json_loads(raw_err, http_status=exc.code)
+            if not parsed_err:
+                return {"status_code": -1, "http_status": exc.code, "status_msg": str(exc.reason)}
+            return parsed_err
 
     # ------------------------------------------------------------------
     # Douyin Live-Streaming API
@@ -379,16 +414,41 @@ class DouyinReadWriteClient:
         target_url = match.group(0) if match else text
         parsed = urlparse(target_url)
 
-        if resolve_short_links and parsed.netloc.endswith("v.douyin.com"):
+        host = (parsed.hostname or "").lower()
+        if (
+            resolve_short_links
+            and parsed.scheme in ("http", "https")
+            and host in _SHORT_LINK_HOSTS
+        ):
             try:
                 req = urllib.request.Request(
                     target_url,
                     headers={"User-Agent": self.user_agent},
                     method="GET",
                 )
-                with urllib.request.urlopen(req, context=self._ssl_ctx, timeout=10) as resp:
-                    target_url = resp.geturl()
-                    parsed = urlparse(target_url)
+                opener = urllib.request.build_opener(
+                    urllib.request.HTTPSHandler(context=self._ssl_ctx),
+                    _NoRedirectHandler,
+                )
+                try:
+                    with opener.open(req, timeout=10) as resp:
+                        loc = resp.headers.get("Location") or resp.geturl()
+                except urllib.error.HTTPError as exc:
+                    loc = exc.headers.get("Location") or "" if exc.headers else ""
+                if loc:
+                    candidate_url = urljoin(target_url, loc)
+                    cand_parsed = urlparse(candidate_url)
+                    cand_host = (cand_parsed.hostname or "").lower()
+                    if (
+                        cand_parsed.scheme in ("http", "https")
+                        and (
+                            cand_host in _ALLOWED_REDIRECT_HOSTS
+                            or cand_host.endswith(".douyin.com")
+                            or cand_host.endswith(".amemv.com")
+                        )
+                    ):
+                        target_url = candidate_url
+                        parsed = cand_parsed
             except Exception:
                 pass
 
@@ -398,7 +458,8 @@ class DouyinReadWriteClient:
         web_rid: str | None = None
 
         parts = [p for p in parsed.path.split("/") if p]
-        if parsed.netloc.endswith("live.douyin.com") and parts:
+        final_host = (parsed.hostname or "").lower()
+        if final_host == "live.douyin.com" and parts:
             candidate = parts[-1]
             if candidate.isdigit():
                 web_rid = candidate
