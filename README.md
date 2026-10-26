@@ -237,7 +237,9 @@ Importing your own logged-in cookies widens what the rest can see, too.
 On Bilibili that matters most for comments: a guest is shown the three hottest and no
 more, so an imported login is what turns that into the full thread. On Douyin it decides
 an author's liked posts outright: a guest is shown none, public or not, so that list
-needs a logged-in identity in the pool.
+needs a logged-in identity in the pool. An imported login is used at your own risk:
+platforms rarely ban an account for reading data with it, but a ban cannot be ruled out
+([what to know before importing one](documents/en/06-identities-and-proxies.md#a-logged-in-jar-is-not-a-guest-identity)).
 
 The dashes are not gaps: a Douyin or TikTok post is never more than one video, so it has no
 parts to list.

@@ -148,6 +148,9 @@ project is explicit about it in the import dialog:
   `identity:manage` scope, and writes an audit line — but an administrator of
   your instance can use it.
 - **Use an account kept for this purpose, never your main one.**
+- **A ban is unlikely, not impossible.** Platforms rarely ban an account for
+  reading data with it, but it cannot be ruled out, and a login imported here
+  is used at your own risk.
 
 What the software does to keep any identity out of trouble, guest or not:
 

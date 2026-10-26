@@ -336,13 +336,14 @@
       "submit": "Store identity",
       "stored": "Identity imported.",
       "failed": "Import failed",
-      "acknowledge": "I understand this cookie set is equivalent to the account password.",
+      "acknowledge": "I understand this cookie set is equivalent to the account password, and that the account could be banned; I use it at my own risk.",
       "expiryNotice": "This session is expected to expire on {date}. A notification goes out before it does.",
       "risk": {
         "title": "This is a credential",
         "equivalence": "A logged-in cookie set is equivalent to the account password: whoever holds it can act as that account.",
         "storage": "It is stored encrypted and no endpoint ever returns it, but an administrator of this instance can use it.",
-        "dedicated": "Use an account kept for this purpose, never your main one."
+        "dedicated": "Use an account kept for this purpose, never your main one.",
+        "ban": "Platforms rarely ban an account for reading data with it, but a ban cannot be ruled out. Importing a login, and using what it is imported for, is at your own risk."
       },
       "format": "Format",
       "browser": "Browser",

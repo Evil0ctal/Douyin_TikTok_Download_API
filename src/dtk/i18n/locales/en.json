@@ -468,7 +468,7 @@
       },
       "identities_import": {
         "summary": "Import a logged-in cookie jar",
-        "description": "Detect the paste format, report what was understood, then store it."
+        "description": "Detect the paste format, report what was understood, then store it. A logged-in jar is the account itself: platforms rarely ban an account for reading data with it, but a ban cannot be ruled out, and importing one is at your own risk."
       },
       "identities_import_bundle": {
         "summary": "Import an export document",

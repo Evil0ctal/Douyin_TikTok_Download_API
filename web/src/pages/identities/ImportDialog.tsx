@@ -363,6 +363,7 @@ export function ImportDialog({
           <p className="u-xs u-secondary">{t('console:identity.import.risk.equivalence')}</p>
           <p className="u-xs u-secondary">{t('console:identity.import.risk.storage')}</p>
           <p className="u-xs u-secondary">{t('console:identity.import.risk.dedicated')}</p>
+          <p className="u-xs u-secondary">{t('console:identity.import.risk.ban')}</p>
         </div>
 
         {/* A file first, because restoring a pool is one action and pasting a

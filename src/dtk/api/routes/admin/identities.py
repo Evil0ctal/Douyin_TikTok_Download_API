@@ -832,6 +832,10 @@ async def import_identity(
     ``reserved`` stores the identity already out of rotation, so a login that
     was imported to serve the requests that name it is never handed to anything
     else - not even in the moment between storing it and reserving it.
+
+    A logged-in jar is the account itself. Platforms rarely ban an account for
+    reading data with it, but a ban cannot be ruled out, and importing one is
+    at the importer's own risk; the console says so before it stores one.
     """
     report = build_report(
         body.cookies,

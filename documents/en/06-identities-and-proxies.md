@@ -600,6 +600,10 @@ without reading.
   holds it can act as that account. It is stored encrypted and no endpoint
   returns it, but an administrator of this instance can use it.
 - **Use an account kept for this purpose, never your main one.**
+- **The account could be banned.** Platforms rarely ban an account for reading
+  data with it, but a ban cannot be ruled out. You import a login, and use the
+  features that need one, at your own risk; the checkbox is where the dialog
+  asks you to accept that.
 - The pool is instance-wide and its rows have no owner. Naming an identity in a
   request (`?identity=<uuid>`) is therefore gated on the operator role and the
   `admin` or `identity:manage` scope - a plain read key must not be able to

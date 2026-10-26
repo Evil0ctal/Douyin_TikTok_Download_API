@@ -468,7 +468,7 @@
       },
       "identities_import": {
         "summary": "导入已登录的 Cookie",
-        "description": "识别粘贴格式，报告解析结果，然后加密存储。"
+        "description": "识别粘贴格式，报告解析结果，然后加密存储。登录态 Cookie 就是账号本身：各平台一般不会因为读取数据而封号，但不排除封号的可能，导入它的后果和风险由你自行承担。"
       },
       "identities_import_bundle": {
         "summary": "导入身份文件",
