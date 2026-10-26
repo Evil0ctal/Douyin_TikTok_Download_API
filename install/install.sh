@@ -31,12 +31,26 @@ IFS=$'\n\t'
 # DTK_REPO_URL points the clone at a mirror. Releases are found on the
 # checkout's own origin once there is one, so it stays the mirror after.
 # DTK_GH_PROXY prefixes both GitHub addresses below with one mirror, none by
-# default. The prefix relays every file this script fetches, which puts the
-# whole install in its hands, so run one you trust: a self-hosted relay that
+# default. REPO_RAW is never fetched here, only printed in the download
+# commands a message suggests, so what the prefix moves is the clone - and
+# with DTK_REPO_URL set, the clone stays with that. Whatever relays the clone
+# hands over the whole install, so run one you trust: a self-hosted relay that
 # allows only this repository (a Cloudflare Worker, say) is the clean form.
-# A trailing slash is fine; with DTK_REPO_URL set, the clone stays with it.
+# A trailing slash is fine.
 gh_proxy="${DTK_GH_PROXY:-}"
 while [ "$gh_proxy" != "${gh_proxy%/}" ]; do gh_proxy="${gh_proxy%/}"; done
+# https, and nothing that is shell syntax: REPO_RAW is written into a
+# double-quoted string in the generated dtkctl, as DTK_PROJECT is below. A
+# prefix without a scheme used to get as far as git ("protocol
+# 'gh-proxy.com/https' is not supported"), and an http:// one cloned the
+# install in plain text, for anyone on the path to rewrite.
+if [ -n "$gh_proxy" ]; then
+  case "${gh_proxy#https://}" in
+    "$gh_proxy"|""|[![:alnum:]]*|*[![:alnum:]._~:/?=%+@-]*)
+      printf 'error: DTK_GH_PROXY must be an https:// address, like https://mirror.example/, of letters, digits and . _ ~ : / ? = %% + @ - only.\n' >&2
+      exit 1 ;;
+  esac
+fi
 readonly GH_PROXY="${gh_proxy:+$gh_proxy/}"
 readonly REPO_URL="${DTK_REPO_URL:-${GH_PROXY}https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
 readonly REPO_RAW="${GH_PROXY}https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"

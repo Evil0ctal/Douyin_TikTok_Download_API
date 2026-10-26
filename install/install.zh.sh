@@ -28,12 +28,24 @@ IFS=$'\n\t'
 
 # DTK_REPO_URL 让克隆走一个镜像。有了代码目录之后，发布版本都从它自己的 origin 上找，
 # 所以之后也一直走那个镜像。
-# DTK_GH_PROXY 给下面两个 GitHub 地址统一加一个镜像前缀，默认不加。前缀替脚本转交
-# 全部代码和 raw 文件，等于整个安装都经它的手，所以只用你信得过的镜像：只放行本仓库
-# 的自建中转（比如 Cloudflare Workers）最干净。末尾带不带 / 都行；设了 DTK_REPO_URL
-# 时克隆地址以它为准。
+# DTK_GH_PROXY 给下面两个 GitHub 地址统一加一个镜像前缀，默认不加。REPO_RAW 在这里
+# 从来不被下载，只出现在提示信息建议的下载命令里，所以前缀真正改变的是克隆地址——
+# 设了 DTK_REPO_URL 时克隆地址以它为准。经手克隆的一方等于经手整个安装，所以只用你
+# 信得过的镜像：只放行本仓库的自建中转（比如 Cloudflare Workers）最干净。
+# 末尾带不带 / 都行。
 gh_proxy="${DTK_GH_PROXY:-}"
 while [ "$gh_proxy" != "${gh_proxy%/}" ]; do gh_proxy="${gh_proxy%/}"; done
+# 只认 https，且不能带 shell 语法：REPO_RAW 会写进生成的 dtkctl 里一个双引号字符串，
+# 跟下面的 DTK_PROJECT 是同一个理由。不带协议的前缀以前一路走到 git 才报错
+# （"protocol 'gh-proxy.com/https' is not supported"），http:// 的则是明文克隆，
+# 路上谁都能改。
+if [ -n "$gh_proxy" ]; then
+  case "${gh_proxy#https://}" in
+    "$gh_proxy"|""|[![:alnum:]]*|*[![:alnum:]._~:/?=%+@-]*)
+      printf '错误：DTK_GH_PROXY 必须是 https:// 开头的地址，比如 https://mirror.example/，只能有字母、数字和 . _ ~ : / ? = %% + @ -。\n' >&2
+      exit 1 ;;
+  esac
+fi
 readonly GH_PROXY="${gh_proxy:+$gh_proxy/}"
 readonly REPO_URL="${DTK_REPO_URL:-${GH_PROXY}https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
 readonly REPO_RAW="${GH_PROXY}https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"

@@ -861,6 +861,53 @@ class TestInstallScripts:
         ]
         assert not offenders, "pipes remote code into a shell:\n" + "\n".join(offenders)
 
+    @staticmethod
+    def _help(script, prefix):
+        return subprocess.run(
+            ["bash", str(script), "--help"],
+            env={
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": "/nonexistent",
+                "DTK_GH_PROXY": prefix,
+            },
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+        )
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    @pytest.mark.parametrize(
+        "prefix",
+        [
+            "http://mirror.example/",
+            "mirror.example/",
+            "https://",
+            " https://mirror.example/",
+            "https://mirror.example/$(id)/",
+            'https://mirror.example/"/',
+        ],
+    )
+    def test_a_mirror_prefix_is_https_and_nothing_else(self, script, prefix):
+        """DTK_GH_PROXY carries the whole install, and lands in dtkctl.
+
+        Over plain http so does anybody on the path. Without a scheme it got as
+        far as git, as "protocol 'gh-proxy.com/https' is not supported". And
+        REPO_RAW, which it prefixes, is written into a double-quoted string in
+        the generated dtkctl, where a `$(` would run.
+        """
+        result = self._help(script, prefix)
+        assert result.returncode == 1, f"{script.name} took DTK_GH_PROXY={prefix!r}"
+        assert "DTK_GH_PROXY" in result.stderr
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    @pytest.mark.parametrize(
+        "prefix",
+        ["", "https://mirror.example", "https://mirror.example///", "https://m.example:8443/gh/"],
+    )
+    def test_an_https_mirror_prefix_is_taken(self, script, prefix):
+        result = self._help(script, prefix)
+        assert result.returncode == 0, result.stderr
+
     def test_the_browser_pin_is_one_value(self):
         """The CloakBrowser commit and the Playwright it needs move together.
 
