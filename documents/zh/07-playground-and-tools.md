@@ -67,7 +67,9 @@
 | 话题下的作品 | `GET` | `/api/v1/{platform}/hashtag/posts` | `{platform}.hashtag_posts` |
 | 搜索作品 | `GET` | `/api/v1/{platform}/search/posts` | `{platform}.search_posts` |
 | 搜索账号 | `GET` | `/api/v1/{platform}/search/users` | `{platform}.search_authors` |
-| 直播间 | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`；B 站直播间正在直播时还有 `bilibili.live_streams` |
+| 直播间 | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`；B 站直播间正在直播时还有 `bilibili.live_streams`；抖音和 TikTok 用 `live_id` 或抖音分享链接查时是 `{platform}.live_room_by_id` |
+| 直播间观众榜 | `GET` | `/api/v1/{platform}/live/ranking` | `douyin.live_ranking` |
+| 直播间是否在播 | `GET` | `/api/v1/{platform}/live/status` | `tiktok.live_status` |
 | 热榜 | `GET` | `/api/v1/{platform}/trending` | `{platform}.trending` |
 
 并不是每个平台都提供每一项。问一个平台不提供的那一项，会在 API 边界就被以 `UNSUPPORTED_CONTENT`（400）拒掉，并指明平台和能力：没有 request_id，失败面板也匹配不到同名的调度器接口。
@@ -115,7 +117,7 @@ B 站提供这十六项中的九项：作品详情、评论、评论回复、作
 | --- | --- | --- |
 | `cache.content_ttl` | 1800 秒（30 分钟） | 单个作品 |
 | `cache.author_ttl` | 900 秒（15 分钟） | 作者主页、音乐、话题 |
-| `cache.list_ttl` | 300 秒（5 分钟） | 所有分页接口，以及直播间 |
+| `cache.list_ttl` | 300 秒（5 分钟） | 所有分页接口，以及直播间、观众榜和是否在播 |
 
 校验优先在前端完成：必填项、二选一分组、数字与取值范围都会在发送之前检查，所以打错字不会有任何代价。
 

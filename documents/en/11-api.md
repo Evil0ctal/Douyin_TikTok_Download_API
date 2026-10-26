@@ -448,7 +448,7 @@ Two separate mechanisms make a repeated request cheap, and both are on by defaul
 | --- | --- | --- |
 | `cache.content_ttl` | 1800s (30 min) | One post |
 | `cache.author_ttl` | 900s (15 min) | An author profile, a sound, a hashtag |
-| `cache.list_ttl` | 300s (5 min) | Anything paged, and a live room |
+| `cache.list_ttl` | 300s (5 min) | Anything paged, and a live room, its audience ranking and whether it is on air |
 
 `meta.cached` tells you which answer you got. Entries expire on their own, and Redis is capped below its container limit so the cache cannot grow without bound.
 
@@ -541,7 +541,9 @@ See [Playground and tools](./07-playground-and-tools.md), which is the console's
 | `GET` | `/api/v1/{platform}/hashtag/posts` | `tiktok:read` | **TikTok only.** The posts under a hashtag, by `hashtag_id`. Paged |
 | `GET` | `/api/v1/{platform}/search/posts` | `{platform}:read` | TikTok and Bilibili. The posts a `keyword` finds. Paged — see below for what a guest gets |
 | `GET` | `/api/v1/{platform}/search/users` | `{platform}:read` | TikTok and Bilibili. The accounts a `keyword` finds. Paged, as above |
-| `GET` | `/api/v1/{platform}/live` | `{platform}:read` | One live room: `url` **or** `room_id`. Whether it is on, and its pull URLs while it is |
+| `GET` | `/api/v1/{platform}/live` | `{platform}:read` | One live room: `url`, `room_id` or, on Douyin and TikTok, `live_id`. Whether it is on, and its pull URLs while it is |
+| `GET` | `/api/v1/{platform}/live/ranking` | `douyin:read` | **Douyin only.** A broadcast's audience ranking, by `live_id`: up to 200 viewers, top first |
+| `GET` | `/api/v1/{platform}/live/status` | `tiktok:read` | **TikTok only.** Whether each of up to 100 broadcasts is on air, by `live_ids`, in one call |
 | `GET` | `/api/v1/{platform}/trending` | `{platform}:read` | Douyin and Bilibili. A trending board, whole: `board` is `hot`, `entertainment`, `society` or `challenge` on Douyin, `hot` on Bilibili |
 
 `/video` also takes `part` on Bilibili — see [A video's parts](#a-videos-parts).
@@ -558,6 +560,9 @@ These are measured per platform like everything else, and the differences are de
 - **Sounds and hashtags.** A sound's id is the `music.music_id` of any post that uses it; a hashtag's is in a Douyin hashtag link, and on TikTok `/hashtag` looks one up by `name` (a TikTok tag link carries only the name). `/hashtag/posts` takes the numeric id, so on TikTok look the name up first. Douyin answers the posts under a hashtag to a guest with an empty body — so did its own hashtag page in a browser that was not signed in — and that list is not offered on Douyin yet. A sound or a hashtag nobody has is `NOT_FOUND`.
 - **Related posts** is a recommendation, so the same call can answer differently a minute later, and all three platforms answer an id that names no post with a full batch of unrelated ones — `/video` is the call that says whether a post exists.
 - **Live rooms** are addressed the way their links address them: the number in `live.douyin.com/<n>`, the @handle in TikTok's `/@<handle>/live`, the number in `live.bilibili.com/<n>`. While a room is live the answer carries `viewer_count`, `started_at` where the platform states it, and `streams`, one per protocol (`flv` or `hls`) and quality in the platform's own quality names. Pull URLs are signed and expire within hours; this reads a room and records nothing, and the URLs go to your own player or recorder straight from the platform's CDN. On Bilibili the pull URLs are a second request, made only while the room is on, and its `viewer_count` is the "watched" figure it prints rather than who is in the room now.
+  - **A broadcast's own id.** On Douyin and TikTok a room that is on also answers with `live_id`, the platform's id for this broadcast: a new one each time the room goes on air. `/live?live_id=` asks for a room by it, and so does a Douyin app share link — `v.douyin.com/...` expands to a `webcast.amemv.com/douyin/webcast/reflow/<live_id>` link, which `/live`, `/parse`, `dtk fetch` and the MCP `parse_url` all answer. However the room was asked for, `room_id` in the answer is what its web link carries, so it can be asked for again after the broadcast ends. Bilibili numbers a room once and answers `live_id` with `UNSUPPORTED_CONTENT`.
+  - **Many rooms at once** (TikTok): `/live/status?live_ids=<a>,<b>,...` answers `{live_id, is_live}` for up to 100 broadcasts in the order asked, for one request. Poll it, and ask `/live` for the one that has just come on. A broadcast that has ended and one that never existed are both `is_live: false` — the platform does not tell them apart.
+  - **The audience ranking** (Douyin): `/live/ranking?live_id=` answers the list the room's page shows beside the stream, up to 200 viewers as `{rank, author}`, top first. A guest is told the order and not the scores behind it, so no score is returned. A viewer who chose not to be listed is still sent by the platform with their account; they are a place with a null `author` here, and so is a viewer the platform names to a guest only by a masked nickname.
 - **Trending** boards are lists of phrases, not posts: each line carries its `rank`, the heat the platform prints, and `web_url`, the platform's own page for it. Douyin's main board opens with a line pinned above the ranking, which has a `rank` and heat of `null`.
 
 `POST /api/v1/parse` answers music, hashtag and live links with the endpoints above.

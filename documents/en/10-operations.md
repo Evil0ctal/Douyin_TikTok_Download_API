@@ -449,8 +449,8 @@ Each `(identity, endpoint)` pair has a token bucket, and each identity serves **
 | Endpoint | Burst | Refill | Per identity |
 | --- | --- | --- | --- |
 | `*.content_detail`, `bilibili.content_streams` | 5 | 0.30/s | 18 requests/min |
-| `*.author_profile`, `*.related_posts`, `*.music_detail`, `*.hashtag_detail`, `*.live_room`, `*.trending`, `bilibili.live_streams` | 4 | 0.20/s | 12 requests/min |
-| `*.comments`, `*.comment_replies`, `*.mix_posts`, `*.author_mixes`, `*.music_posts`, `tiktok.hashtag_posts` | 3 | 0.15/s | 9 requests/min |
+| `*.author_profile`, `*.related_posts`, `*.music_detail`, `*.hashtag_detail`, `*.live_room`, `*.live_room_by_id`, `tiktok.live_status`, `*.trending`, `bilibili.live_streams` | 4 | 0.20/s | 12 requests/min |
+| `*.comments`, `*.comment_replies`, `*.mix_posts`, `*.author_mixes`, `*.music_posts`, `tiktok.hashtag_posts`, `douyin.live_ranking` | 3 | 0.15/s | 9 requests/min |
 | `douyin.author_posts`, `tiktok.author_posts`, `*.author_likes`, `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12/s | 7.2 requests/min |
 | `bilibili.author_posts`, `*.search_posts`, `*.search_authors` | 2 | 0.08/s | 4.8 requests/min |
 | `*.session_check` | 3 | 0.20/s | 12 requests/min |

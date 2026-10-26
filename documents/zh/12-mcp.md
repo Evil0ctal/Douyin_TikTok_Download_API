@@ -88,7 +88,7 @@ MCP 服务器跑在 **API 进程内部**。它不是 REST API 的包装层：RES
 | --- | --- | --- |
 | `url` | 是 | 一个抖音、TikTok 或 B 站链接，或者包含链接的分享文本。短链（`v.douyin.com`、`vm.tiktok.com`、`b23.tv`、`bili2233.cn`）由服务端跟随展开。 |
 
-手上是链接而不是 ID 时就从这里开始：它自己判断平台和资源类型。夹带链接的分享文案也能接受——取字符串里的第一个 URL。除了作品和作者主页，它也认音乐链接（抖音 `/music/<id>`、TikTok `/music/<标题>-<id>`）、话题链接（抖音 `/hashtag/<id>`、TikTok `/tag/<名称>`）和直播间链接（`live.douyin.com/<id>`、TikTok `/@<用户名>/live`、`live.bilibili.com/<id>`），返回与同名 REST 接口相同的内容——直播间正在直播时还带拉流地址。
+手上是链接而不是 ID 时就从这里开始：它自己判断平台和资源类型。夹带链接的分享文案也能接受——取字符串里的第一个 URL。除了作品和作者主页，它也认音乐链接（抖音 `/music/<id>`、TikTok `/music/<标题>-<id>`）、话题链接（抖音 `/hashtag/<id>`、TikTok `/tag/<名称>`）和直播间链接（`live.douyin.com/<id>`、抖音 App 分享出来的直播链接、TikTok `/@<用户名>/live`、`live.bilibili.com/<id>`），返回与同名 REST 接口相同的内容——直播间正在直播时还带拉流地址。
 
 返回 `status`、`task_id`、`platform`、`resource`、`url`（归类后的链接）和 `data`。
 

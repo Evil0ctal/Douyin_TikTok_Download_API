@@ -236,11 +236,12 @@ score = success_rate × (1 − risk_rate) × 0.5 ^ consecutive_fails
 | --- | --- | --- | --- |
 | `*.content_detail` | 5 | 0.30 | 1.0 |
 | `*.author_profile` | 4 | 0.20 | 1.2 |
-| `*.related_posts`、`*.live_room` | 4 | 0.20 | 1.2 |
-| `*.music_detail`、`*.hashtag_detail`、`douyin.trending` | 4 | 0.20 | 1.0 |
+| `*.related_posts`、`*.live_room`、`*.live_room_by_id` | 4 | 0.20 | 1.2 |
+| `*.music_detail`、`*.hashtag_detail`、`douyin.trending`、`tiktok.live_status` | 4 | 0.20 | 1.0 |
 | `*.author_posts` | 3 | 0.12 | 1.8 |
 | `*.author_likes` | 3 | 0.12 | 1.8 |
 | `*.comments`、`*.comment_replies` | 3 | 0.15 | 1.5 |
+| `douyin.live_ranking` | 3 | 0.15 | 1.2 |
 | `*.mix_posts`、`*.author_mixes`、`*.music_posts`、`tiktok.hashtag_posts` | 3 | 0.15 | 1.5 |
 | `tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12 | 1.8 |
 | `tiktok.search_posts`、`tiktok.search_authors` | 2 | 0.08 | 1.8 |
@@ -417,7 +418,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 | --- | --- | --- |
 | `cache.content_ttl` | 1800 秒 | 作品详情 |
 | `cache.author_ttl` | 900 秒 | 作者主页、音乐、话题 |
-| `cache.list_ttl` | 300 秒 | 作品列表、评论、回复、喜欢、合集、粉丝、关注、搜索结果、热榜、直播间 |
+| `cache.list_ttl` | 300 秒 | 作品列表、评论、回复、喜欢、合集、粉丝、关注、搜索结果、热榜、直播间、直播间观众榜与在播查询 |
 
 缓存命中不消耗任何身份额度，这使它成为身份池最便宜的保护。它仍然会作为一次请求被记录，并带上 `cache_hit` 标记——如果「日志」页面把它们略去，一个已经开始服务全部流量的缓存看起来就会像一个没人调用的端点。
 

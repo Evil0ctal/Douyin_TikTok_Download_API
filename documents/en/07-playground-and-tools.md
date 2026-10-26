@@ -97,7 +97,9 @@ until that answers, nothing is greyed.
 | Posts under a hashtag | `GET` | `/api/v1/{platform}/hashtag/posts` | `{platform}.hashtag_posts` |
 | Search posts | `GET` | `/api/v1/{platform}/search/posts` | `{platform}.search_posts` |
 | Search accounts | `GET` | `/api/v1/{platform}/search/users` | `{platform}.search_authors` |
-| Live room | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`, and `bilibili.live_streams` for a Bilibili room that is on |
+| Live room | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`, and `bilibili.live_streams` for a Bilibili room that is on; `{platform}.live_room_by_id` on Douyin and TikTok when asked by `live_id` or a Douyin share link |
+| Live room audience ranking | `GET` | `/api/v1/{platform}/live/ranking` | `douyin.live_ranking` |
+| Whether live rooms are on air | `GET` | `/api/v1/{platform}/live/status` | `tiktok.live_status` |
 | Trending board | `GET` | `/api/v1/{platform}/trending` | `{platform}.trending` |
 
 Not every platform serves every entry, and asking for one it does not serve is
@@ -212,7 +214,7 @@ answer's lifetime depends on what was asked for and is configurable:
 | --- | --- | --- |
 | `cache.content_ttl` | 1800 s (30 minutes) | one post |
 | `cache.author_ttl` | 900 s (15 minutes) | a profile, sound or hashtag |
-| `cache.list_ttl` | 300 s (5 minutes) | anything paged, and a live room |
+| `cache.list_ttl` | 300 s (5 minutes) | anything paged, and a live room, its audience ranking and whether it is on air |
 
 Validation is client-side first: required fields, one-of groups, numbers, and
 ranges are checked before anything is sent, so a typo costs nothing.

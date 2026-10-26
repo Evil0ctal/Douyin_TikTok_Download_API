@@ -12,7 +12,9 @@ is React. It fetches posts, authors, comments and mixes from Douyin and
 TikTok, and videos (part by part for one uploaded in several), uploaders,
 comments, public folders, seasons and the site's popular boards from
 Bilibili. Beside a post it reads the related posts on all three, sounds and
-hashtags on Douyin and TikTok, live rooms with their pull URLs on all three,
+hashtags on Douyin and TikTok, live rooms with their pull URLs on all three
+(also by a broadcast's own id or a Douyin app share link), a Douyin room's
+audience ranking, whether up to 100 TikTok rooms are on air in one call,
 trending boards on Douyin and Bilibili, and keyword search for posts and
 accounts on TikTok and Bilibili. It
 downloads video and image albums using the watermark-free stream the platform

@@ -89,7 +89,7 @@ The endpoint names in the third column are the same keys the scheduler, the circ
 | --- | --- | --- |
 | `url` | yes | A Douyin, TikTok or Bilibili link, or the share text containing one. Short links (`v.douyin.com`, `vm.tiktok.com`, `b23.tv`, `bili2233.cn`) are followed server-side. |
 
-The entry point to use when you have a link rather than an id: it works out the platform and the resource type itself. Share text with a link buried in it is accepted — the first URL in the string is used. Besides posts and profiles it answers a link to a sound (Douyin `/music/<id>`, TikTok `/music/<title>-<id>`), a hashtag (Douyin `/hashtag/<id>`, TikTok `/tag/<name>`) and a live room (`live.douyin.com/<id>`, TikTok `/@<handle>/live`, `live.bilibili.com/<id>`) with what the REST endpoints of the same name return — a live room with its pull URLs while it is on.
+The entry point to use when you have a link rather than an id: it works out the platform and the resource type itself. Share text with a link buried in it is accepted — the first URL in the string is used. Besides posts and profiles it answers a link to a sound (Douyin `/music/<id>`, TikTok `/music/<title>-<id>`), a hashtag (Douyin `/hashtag/<id>`, TikTok `/tag/<name>`) and a live room (`live.douyin.com/<id>`, a Douyin app share link to a broadcast, TikTok `/@<handle>/live`, `live.bilibili.com/<id>`) with what the REST endpoints of the same name return — a live room with its pull URLs while it is on.
 
 Returns `status`, `task_id`, `platform`, `resource`, `url` (the link after classification) and `data`.
 

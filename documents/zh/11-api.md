@@ -447,7 +447,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | --- | --- | --- |
 | `cache.content_ttl` | 1800 秒（30 分钟） | 单条作品 |
 | `cache.author_ttl` | 900 秒（15 分钟） | 作者资料、音乐、话题 |
-| `cache.list_ttl` | 300 秒（5 分钟） | 任何分页内容，以及直播间 |
+| `cache.list_ttl` | 300 秒（5 分钟） | 任何分页内容，以及直播间、观众榜和是否在播 |
 
 `meta.cached` 告诉你拿到的是哪一种。条目会自行过期，而且 Redis 的上限设在容器限制之下，所以缓存不会无限增长。
 
@@ -540,7 +540,9 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `GET` | `/api/v1/{platform}/hashtag/posts` | `tiktok:read` | **仅 TikTok。** 话题下的作品，按 `hashtag_id`。分页 |
 | `GET` | `/api/v1/{platform}/search/posts` | `{platform}:read` | TikTok 和 B 站。按 `keyword` 搜索作品。分页——游客能拿到什么见下文 |
 | `GET` | `/api/v1/{platform}/search/users` | `{platform}:read` | TikTok 和 B 站。按 `keyword` 搜索账号。分页，同上 |
-| `GET` | `/api/v1/{platform}/live` | `{platform}:read` | 一个直播间：`url` **或** `room_id`。是否在播，在播时附拉流地址 |
+| `GET` | `/api/v1/{platform}/live` | `{platform}:read` | 一个直播间：`url`、`room_id`，或在抖音和 TikTok 上用 `live_id`。是否在播，在播时附拉流地址 |
+| `GET` | `/api/v1/{platform}/live/ranking` | `douyin:read` | **仅限抖音。** 一场直播的观众榜，按 `live_id` 查：最多 200 位观众，从榜首开始 |
+| `GET` | `/api/v1/{platform}/live/status` | `tiktok:read` | **仅限 TikTok。** 一次查询最多 100 场直播是否在播，按 `live_ids` 查 |
 | `GET` | `/api/v1/{platform}/trending` | `{platform}:read` | 抖音和 B 站。整张热榜：抖音的 `board` 为 `hot`、`entertainment`、`society` 或 `challenge`，B 站只有 `hot` |
 
 B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)。
@@ -557,6 +559,9 @@ B 站上的 `/video` 还接受 `part`——见[视频的分 P](#视频的分-p)�
 - **音乐与话题。** 音乐 ID 就是任意使用它的作品里的 `music.music_id`；话题 ID 在抖音的话题链接里，TikTok 上 `/hashtag` 可以按 `name` 查（TikTok 的话题链接只带名称）。`/hashtag/posts` 只接受数字 ID，所以在 TikTok 上要先按名称查出来。抖音对游客身份返回的话题作品是空响应体——没登录的浏览器打开它自己的话题页也一样——所以抖音上暂未提供这个列表。不存在的音乐或话题返回 `NOT_FOUND`。
 - **相关推荐**是推荐结果，同一个请求一分钟后可能答得不一样；而且三个平台对不存在的作品 ID 都会返回一整批不相关的作品——作品存不存在，要用 `/video` 来判断。
 - **直播间**按它的链接来定位：`live.douyin.com/<n>` 里的数字、TikTok `/@<用户名>/live` 里的用户名、`live.bilibili.com/<n>` 里的数字。正在直播时，答复里有 `viewer_count`、平台给出时的 `started_at`，以及 `streams`：每种协议（`flv` 或 `hls`）、每档清晰度各一条，清晰度用平台自己的名称。拉流地址带签名，几小时内过期；这里只读取直播间，不做任何录制，地址交给你自己的播放器或录制工具，直接从平台 CDN 拉流。B 站的拉流地址是第二个请求，只在直播间正在直播时才发；它的 `viewer_count` 是它自己显示的「看过」人数，而不是此刻在线的人数。
+  - **一场直播自己的 ID。** 在抖音和 TikTok 上，正在直播的直播间还会返回 `live_id`，即平台给这一场直播的 ID：直播间每开播一次就换一个。`/live?live_id=` 可以按它来查；抖音 App 的分享链接也一样——`v.douyin.com/...` 展开后是 `webcast.amemv.com/douyin/webcast/reflow/<live_id>`，`/live`、`/parse`、`dtk fetch` 和 MCP 的 `parse_url` 都能处理。不论用哪种方式查，答复里的 `room_id` 都是直播间网页链接里带的那个，所以这场直播结束后还能接着查这个直播间。B 站的直播间只有一个编号，对 `live_id` 返回 `UNSUPPORTED_CONTENT`。
+  - **一次查多个直播间**（TikTok）：`/live/status?live_ids=<a>,<b>,...` 一次请求就能按请求顺序返回最多 100 场直播的 `{live_id, is_live}`。适合定时轮询，发现哪个刚开播，再用 `/live` 去查它。已结束的直播和根本不存在的直播都是 `is_live: false`——平台不区分这两者。
+  - **观众榜**（抖音）：`/live/ranking?live_id=` 返回直播间页面在画面旁边显示的那份榜单，最多 200 位观众，形如 `{rank, author}`，从榜首开始。游客拿得到名次，拿不到名次背后的分值，所以不返回分值。选择了不上榜的观众，平台照样会把账号发过来；这里只保留名次，`author` 为 null。平台只用打码昵称告诉游客的观众，`author` 也是 null。
 - **热榜**列的是词，不是作品：每一行带 `rank`、平台显示的热度，以及 `web_url`——平台自己的词条页面。抖音主榜开头有一行置顶，它的 `rank` 和热度都是 `null`。
 
 `POST /api/v1/parse` 会用上面这些接口回答音乐、话题和直播间链接。

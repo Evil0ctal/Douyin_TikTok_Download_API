@@ -383,7 +383,7 @@ TikTok 的搜索也是这样。2026-10-20 实测：
 
 登录身份的 TikTok 搜索还没有实测过，登录能多拿到多少目前不清楚。
 
-其余接口给游客的结果和给登录身份的一样。在抖音，这指单条作品、主页、评论及其翻页；TikTok 上除搜索以外的全部；在 B 站，则是除评论列表、以及评论回复第一页之后以外的一切——游客能拿到回复的第一页（最多 20 条），之后就什么都没有了，所以回复的翻页和评论一样需要登录。音乐、话题、合集、直播间、相关推荐和热榜，以及 B 站的搜索，只用游客实测过：游客拿到的是完整结果，所以也按同样的方式处理。
+其余接口给游客的结果和给登录身份的一样。在抖音，这指单条作品、主页、评论及其翻页；TikTok 上除搜索以外的全部；在 B 站，则是除评论列表、以及评论回复第一页之后以外的一切——游客能拿到回复的第一页（最多 20 条），之后就什么都没有了，所以回复的翻页和评论一样需要登录。音乐、话题、合集、直播间（按链接查、按场次查、一次查多个，以及抖音直播间的观众榜）、相关推荐和热榜，以及 B 站的搜索，只用游客实测过：游客拿到的是完整结果，所以也按同样的方式处理。游客唯一拿不到的，是观众榜上每个名次旁边的分值，所以分值对谁都不返回。
 
 这些接口由**游客优先**（`pool.<platform>.guests_first`）来分配，默认开启，按平台分别设置。游客身份铸造一个不花什么，一分钟就能补上；登录身份是某个人的账号，把它花在游客也能答得一模一样的请求上，只会让它在真正需要登录的接口上更早用坏。所以轮换先试游客——可用的游客，没有可用的就用降级的，因为游客失败了代价是再铸一个，登录身份失败了代价是那个账号——游客之后才轮到登录身份。
 
@@ -593,9 +593,10 @@ socks5://user:pass@host:port
 | --- | --- | --- | --- |
 | `douyin.content_detail`、`tiktok.content_detail` | 5 | 0.30 | 1.0 |
 | `douyin.author_profile`、`tiktok.author_profile` | 4 | 0.20 | 1.2 |
-| `douyin.related_posts`、`douyin.live_room` 及对应的 TikTok 接口 | 4 | 0.20 | 1.2 |
-| `douyin.music_detail`、`douyin.hashtag_detail`、`douyin.trending` 及 TikTok 的音乐详情和话题详情 | 4 | 0.20 | 1.0 |
+| `douyin.related_posts`、`douyin.live_room`、`douyin.live_room_by_id` 及对应的 TikTok 接口 | 4 | 0.20 | 1.2 |
+| `douyin.music_detail`、`douyin.hashtag_detail`、`douyin.trending`、TikTok 的音乐详情和话题详情及 `tiktok.live_status` | 4 | 0.20 | 1.0 |
 | `douyin.comments`、`douyin.comment_replies`、`douyin.mix_posts`、`douyin.author_mixes`、`douyin.music_posts`、对应的 TikTok 接口及 `tiktok.hashtag_posts` | 3 | 0.15 | 1.5 |
+| `douyin.live_ranking` | 3 | 0.15 | 1.2 |
 | `douyin.author_posts`、`douyin.author_likes` 及对应的 TikTok 接口 | 3 | 0.12 | 1.8 |
 | `tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12 | 1.8 |
 | `tiktok.search_posts`、`tiktok.search_authors` | 2 | 0.08 | 1.8 |

@@ -237,11 +237,12 @@ Each identity holds a separate budget for each endpoint. The quota is keyed on t
 | --- | --- | --- | --- |
 | `*.content_detail` | 5 | 0.30 | 1.0 |
 | `*.author_profile` | 4 | 0.20 | 1.2 |
-| `*.related_posts`, `*.live_room` | 4 | 0.20 | 1.2 |
-| `*.music_detail`, `*.hashtag_detail`, `douyin.trending` | 4 | 0.20 | 1.0 |
+| `*.related_posts`, `*.live_room`, `*.live_room_by_id` | 4 | 0.20 | 1.2 |
+| `*.music_detail`, `*.hashtag_detail`, `douyin.trending`, `tiktok.live_status` | 4 | 0.20 | 1.0 |
 | `*.author_posts` | 3 | 0.12 | 1.8 |
 | `*.author_likes` | 3 | 0.12 | 1.8 |
 | `*.comments`, `*.comment_replies` | 3 | 0.15 | 1.5 |
+| `douyin.live_ranking` | 3 | 0.15 | 1.2 |
 | `*.mix_posts`, `*.author_mixes`, `*.music_posts`, `tiktok.hashtag_posts` | 3 | 0.15 | 1.5 |
 | `tiktok.author_followers`, `tiktok.author_following` | 3 | 0.12 | 1.8 |
 | `tiktok.search_posts`, `tiktok.search_authors` | 2 | 0.08 | 1.8 |
@@ -418,7 +419,7 @@ Two separate mechanisms, both there to stop repeated questions costing repeated 
 | --- | --- | --- |
 | `cache.content_ttl` | 1800s | Content detail |
 | `cache.author_ttl` | 900s | Author profile, sound, hashtag |
-| `cache.list_ttl` | 300s | Posts, comments, replies, likes, mixes, followers, following, search results, trending boards, live rooms |
+| `cache.list_ttl` | 300s | Posts, comments, replies, likes, mixes, followers, following, search results, trending boards, live rooms, their audience rankings and on-air checks |
 
 A cache hit costs no identity quota, which makes it the cheapest protection the pool has. It is still logged as a request, with `cache_hit` set — a Logs page that omitted them would make a cache that has started serving everything look like an endpoint nobody is calling.
 

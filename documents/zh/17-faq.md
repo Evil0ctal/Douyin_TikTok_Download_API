@@ -187,8 +187,8 @@ HTTP 请求，就会拿到 `buvid3` 和 `buvid4`，而 B 站 Cookie 罐需要的
 | 接口 | 突发容量 | 补充速率 | 单身份持续速率 | 8 个身份持续速率 |
 | --- | --- | --- | --- | --- |
 | `*.content_detail`、`bilibili.content_streams` | 5 | 0.30/s | 3.3 秒一次 | 约 2.4/s |
-| `*.author_profile`、`*.related_posts`、`*.music_detail`、`*.hashtag_detail`、`*.live_room`、`*.trending`、`bilibili.live_streams` | 4 | 0.20/s | 5 秒一次 | 约 1.6/s |
-| `*.comments`、`*.comment_replies`、`*.mix_posts`、`*.author_mixes`、`*.music_posts`、`tiktok.hashtag_posts` | 3 | 0.15/s | 6.7 秒一次 | 约 1.2/s |
+| `*.author_profile`、`*.related_posts`、`*.music_detail`、`*.hashtag_detail`、`*.live_room`、`*.live_room_by_id`、`tiktok.live_status`、`*.trending`、`bilibili.live_streams` | 4 | 0.20/s | 5 秒一次 | 约 1.6/s |
+| `*.comments`、`*.comment_replies`、`*.mix_posts`、`*.author_mixes`、`*.music_posts`、`tiktok.hashtag_posts`、`douyin.live_ranking` | 3 | 0.15/s | 6.7 秒一次 | 约 1.2/s |
 | `douyin.author_posts`、`tiktok.author_posts`、`*.author_likes` | 3 | 0.12/s | 8.3 秒一次 | 约 1/s |
 | `tiktok.author_followers`、`tiktok.author_following` | 3 | 0.12/s | 8.3 秒一次 | 约 1/s |
 | `bilibili.author_posts`、`*.search_posts`、`*.search_authors` | 2 | 0.08/s | 12.5 秒一次 | 约 0.6/s |
