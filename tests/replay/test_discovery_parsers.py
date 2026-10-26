@@ -709,6 +709,32 @@ def test_a_broadcast_that_has_ended_has_no_streams() -> None:
         assert room.viewer_count is None, platform
 
 
+def test_tiktok_answers_for_each_broadcast_in_the_order_asked() -> None:
+    page = get_adapter("tiktok").parse_live_status(load("tiktok", "live_status"))
+
+    assert [(s.live_id, s.is_live) for s in page.items] == [
+        ("7400000000000000101", True),
+        ("7400000000000000102", True),
+        ("7400000000000000103", False),
+    ]
+    assert all(s.platform is Platform.TIKTOK for s in page.items)
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_a_status_without_its_flag_is_a_changed_answer_not_an_ended_room() -> None:
+    payload = load("tiktok", "live_status")
+    del payload["data"][0]["alive"]
+    with pytest.raises(UpstreamChanged):
+        get_adapter("tiktok").parse_live_status(payload)
+
+
+@pytest.mark.parametrize("platform", ["douyin", "bilibili"])
+def test_only_tiktok_answers_for_many_rooms(platform: str) -> None:
+    with pytest.raises(UnsupportedContent):
+        get_adapter(platform).parse_live_status({})
+
+
 def test_bilibili_has_no_broadcast_id_to_ask_by() -> None:
     with pytest.raises(UnsupportedContent):
         get_adapter("bilibili").parse_live_room_by_id({})

@@ -93,6 +93,8 @@ class Capability(StrEnum):
     #: The same room, by the broadcast's own id: what an app's share link
     #: carries, and the ``live_id`` a room answer hands back.
     LIVE_ROOM_BY_ID = "live_room_by_id"
+    #: Whether each of many broadcasts is on air, by their live_ids.
+    LIVE_STATUS = "live_status"
     #: A board of what people are searching for: words, not posts.
     TRENDING = "trending"
 
@@ -165,6 +167,8 @@ ROOM_ID: Final = "room_id"
 #: the room rather than one broadcast in it - and which, on Douyin, the
 #: platform calls ``web_rid``.
 LIVE_ID: Final = "live_id"
+#: Several of them, comma-separated, for the one call that takes a list.
+LIVE_IDS: Final = "live_ids"
 #: A :class:`dtk.core.types.TrendingBoard` value.
 BOARD: Final = "board"
 
@@ -261,6 +265,7 @@ _ID_PARAMS: Final[frozenset[str]] = frozenset(
         HASHTAG_ID,
         ROOM_ID,
         LIVE_ID,
+        LIVE_IDS,
     }
 )
 
@@ -344,6 +349,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         # room is asked for.
         Capability.LIVE_ROOM: {ROOM_ID: "unique_id"},
         Capability.LIVE_ROOM_BY_ID: {LIVE_ID: "room_id"},
+        Capability.LIVE_STATUS: {LIVE_IDS: "room_ids"},
     },
     # A Bilibili author is a numeric `mid`, the one id it has for a user; a
     # video is a bvid (an `av` number is accepted and converted by the
@@ -435,6 +441,7 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         # Whether a room is on changes by the minute; the shortest TTL there is.
         Capability.LIVE_ROOM: "cache.list_ttl",
         Capability.LIVE_ROOM_BY_ID: "cache.list_ttl",
+        Capability.LIVE_STATUS: "cache.list_ttl",
         Capability.TRENDING: "cache.list_ttl",
     }
 )
@@ -670,6 +677,8 @@ class EndpointDefinition:
                 )
             case Capability.LIVE_ROOM_BY_ID:
                 return adapter.parse_live_room_by_id(payload)
+            case Capability.LIVE_STATUS:
+                return adapter.parse_live_status(payload)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:
@@ -869,6 +878,7 @@ __all__ = [
     "HASHTAG_NAME",
     "KEYWORD",
     "LIVE_ID",
+    "LIVE_IDS",
     "MUSIC_ID",
     "OPTIONAL_CAPABILITIES",
     "P0_CAPABILITIES",

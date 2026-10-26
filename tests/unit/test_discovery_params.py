@@ -204,6 +204,34 @@ class TestLiveRooms:
         assert request["params"]["room_id"] == "7400000000000000101"
         assert request["params"]["aid"] == "1988"
 
+    def test_tiktok_asks_the_webcast_host_about_many_broadcasts(self) -> None:
+        request = get_adapter("tiktok").build_request(
+            "tiktok.live_status", room_ids=" 7400000000000000101, 7400000000000000102 "
+        )
+        assert request["url"] == "https://webcast.tiktok.com/webcast/room/check_alive/"
+        assert request["params"]["room_ids"] == "7400000000000000101,7400000000000000102"
+
+    def test_a_broadcast_named_twice_is_asked_about_once(self) -> None:
+        built = query("tiktok.live_status", room_ids="7400000000000000101,7400000000000000101")
+        assert built["room_ids"] == "7400000000000000101"
+
+    @pytest.mark.parametrize(
+        "room_ids",
+        [
+            "",
+            " , ",
+            "7400000000000000101,ventisfit",
+            ",".join(str(7400000000000000000 + n) for n in range(101)),
+        ],
+    )
+    def test_a_list_that_cannot_be_asked_about_is_refused(self, room_ids: str) -> None:
+        with pytest.raises(InvalidParam):
+            query("tiktok.live_status", room_ids=room_ids)
+
+    def test_a_hundred_broadcasts_is_one_call(self) -> None:
+        many = ",".join(str(7400000000000000000 + n) for n in range(100))
+        assert query("tiktok.live_status", room_ids=many)["room_ids"] == many
+
     @pytest.mark.parametrize("endpoint", ["douyin.live_room_by_id", "tiktok.live_room_by_id"])
     def test_a_broadcast_is_a_number(self, endpoint: str) -> None:
         with pytest.raises(InvalidParam) as caught:

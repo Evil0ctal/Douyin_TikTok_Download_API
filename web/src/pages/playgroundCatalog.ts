@@ -462,6 +462,18 @@ const LIVE_ID_PARAM: ParamDef = {
   platforms: ['douyin', 'tiktok'],
   placeholder: { douyin: '7300000000000000101', tiktok: '7400000000000000101', bilibili: '' },
 }
+const LIVE_IDS_PARAM: ParamDef = {
+  name: 'live_ids',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  required: true,
+  placeholder: {
+    douyin: '',
+    tiktok: '7400000000000000101,7400000000000000102',
+    bilibili: '',
+  },
+}
 const TRENDING_BOARD_PARAM: ParamDef = {
   name: 'board',
   kind: 'choice',
@@ -745,6 +757,15 @@ export const CATALOG: readonly EndpointDef[] = [
     operation: 'live_room',
     platformScoped: true,
     params: [LIVE_URL_PARAM, ROOM_ID_PARAM, LIVE_ID_PARAM, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'liveStatus',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/live/status`,
+    operation: 'live_status',
+    platformScoped: true,
+    platforms: ['tiktok'],
+    params: [LIVE_IDS_PARAM, ...ENVELOPE_PARAMS],
   },
   {
     id: 'trending',

@@ -109,6 +109,9 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("tiktok.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("tiktok.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("tiktok.live_room_by_id", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        # One call answers for up to a hundred rooms, so a poller spends one
+        # token where it would have spent a hundred on /live.
+        EndpointPolicy("tiktok.live_status", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("bilibili.session_check", capacity=3, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("bilibili.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),
         # Asked once per detail, by the fetch layer, for the file itself. Same

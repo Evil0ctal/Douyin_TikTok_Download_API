@@ -113,6 +113,15 @@ LIVE_ID_QUERY = Query(
     ),
 )
 
+LIVE_IDS_QUERY = Query(
+    min_length=1,
+    # A hundred 19-digit ids and their commas, with room to spare.
+    max_length=2400,
+    description=(
+        "The broadcasts to check, comma-separated: live_id values from /live, up to 100 at a time."
+    ),
+)
+
 TRENDING_BOARD_QUERY = Query(
     default=TrendingBoard.HOT,
     description=(
@@ -690,6 +699,64 @@ def _live_room_params(
         return {"room_id": room, "url": None}
     found = identifier(kind, ResourceKind.LIVE)
     return {"room_id": found, "url": None if found else kind.url}
+
+
+@router.get(
+    "/{platform}/live/status",
+    summary="Whether live rooms are on air",
+    openapi_extra={I18N_KEY: "live_status", **ASYNC_RESPONSES},
+)
+async def live_status(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    live_ids: str = LIVE_IDS_QUERY,
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """Whether each of up to 100 broadcasts is still on air, in one call.
+
+    For watching a list of rooms: ask this on a timer, and `/live` for the
+    one that has just come on. It costs one request however many are asked
+    about, where `/live` costs one each.
+
+    **Parameters**
+
+    - `platform` - `tiktok`. Douyin and Bilibili answer `UNSUPPORTED_CONTENT`.
+    - `live_ids` - the broadcasts, comma-separated: the `live_id` a `/live`
+      answer carries while its room is on. Repeats are asked about once.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      `/live`. A repeat inside `cache.list_ttl` (5 minutes by default) is
+      answered from the cache; pass `refresh` for a fresh answer.
+
+    **Returns**
+
+    One page with a `{live_id, is_live}` for each broadcast, in the order
+    asked. A broadcast that has ended and one that never existed are both
+    `is_live: false`: the platform does not tell the two apart.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.LIVE_STATUS)
+    # The builder holds the list to its rules - numbers only, a hundred at
+    # most - and asking it here makes a bad list a 400 rather than a failed
+    # task. Its answer is the list with repeats gone, so two spellings of one
+    # list coalesce on one task.
+    built = get_adapter(platform).endpoints[endpoint].build_params(room_ids=live_ids)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params={"live_ids": built["room_ids"], "include_raw": include_raw},
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
 
 
 @router.get(

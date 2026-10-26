@@ -21,6 +21,7 @@ from dtk.models import (
     ContentPart,
     Hashtag,
     LiveRoom,
+    LiveStatus,
     Mix,
     MusicDetail,
     Page,
@@ -174,6 +175,9 @@ class TikTokAdapter:
 
     def parse_live_room_by_id(self, payload: Mapping[str, Any]) -> LiveRoom:
         return parser.parse_live_room_by_id(payload)
+
+    def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
+        return parser.parse_live_status(payload)
 
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
         """No board registered: nothing measured answers a guest with one."""

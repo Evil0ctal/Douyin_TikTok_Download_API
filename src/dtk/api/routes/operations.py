@@ -94,6 +94,7 @@ class Operation(StrEnum):
     AUTHOR_MIXES = "author_mixes"
     LIVE_ROOM = "live_room"
     LIVE_ROOM_BY_ID = "live_room_by_id"
+    LIVE_STATUS = "live_status"
     TRENDING = "trending"
 
 

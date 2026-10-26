@@ -23,6 +23,7 @@ from dtk.models import (
     ContentPart,
     Hashtag,
     LiveRoom,
+    LiveStatus,
     Mix,
     MusicDetail,
     Page,
@@ -230,6 +231,13 @@ class DouyinAdapter:
 
     def parse_live_room_by_id(self, payload: Mapping[str, Any]) -> LiveRoom:
         return parser.parse_live_room_by_id(payload)
+
+    def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
+        """No call registered: nothing measured asks about many rooms at once."""
+        raise UnsupportedContent(
+            "Douyin has no way here to ask about many live rooms at once",
+            details={"platform": self.platform.value, "capability": "live_status"},
+        )
 
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
         return parser.parse_trending(payload)

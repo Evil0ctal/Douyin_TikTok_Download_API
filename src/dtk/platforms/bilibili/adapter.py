@@ -21,6 +21,7 @@ from dtk.models import (
     ContentPart,
     Hashtag,
     LiveRoom,
+    LiveStatus,
     Mix,
     MusicDetail,
     Page,
@@ -247,6 +248,13 @@ class BilibiliAdapter:
         raise UnsupportedContent(
             "a Bilibili live room has no id apart from its room number",
             details={"platform": self.platform.value, "capability": "live_room_by_id"},
+        )
+
+    def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
+        """No call registered: nothing measured asks about many rooms at once."""
+        raise UnsupportedContent(
+            "Bilibili has no way here to ask about many live rooms at once",
+            details={"platform": self.platform.value, "capability": "live_status"},
         )
 
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:

@@ -46,6 +46,7 @@ from dtk.models import (
     ContentPart,
     Hashtag,
     LiveRoom,
+    LiveStatus,
     Mix,
     MusicDetail,
     Page,
@@ -630,6 +631,10 @@ class PlatformAdapter(Protocol):
         """The same room, asked for by the broadcast's own id rather than by
         what its web link carries. A platform without such an id raises
         ``UnsupportedContent``."""
+        ...
+
+    def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
+        """Whether each broadcast asked about is still on air, as one page."""
         ...
 
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]: ...

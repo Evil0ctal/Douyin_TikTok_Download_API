@@ -111,6 +111,8 @@ TIKTOK_FIXTURE_NAMES: tuple[str, ...] = (
     "search_posts_end",
     "search_authors_page1",
     "author_mixes_none",
+    # Many broadcasts at once, which only TikTok has measured.
+    "live_status",
 )
 
 

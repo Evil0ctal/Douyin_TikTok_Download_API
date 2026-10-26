@@ -42,6 +42,7 @@ from dtk.models import (
     Hashtag,
     Image,
     LiveRoom,
+    LiveStatus,
     LiveStream,
     Media,
     Mix,
@@ -800,6 +801,31 @@ def parse_live_room_by_id(payload: Mapping[str, Any]) -> LiveRoom:
     )
 
 
+def parse_live_status(payload: Mapping[str, Any]) -> Page[LiveStatus]:
+    """Parse ``webcast.tiktok.com/webcast/room/check_alive/``.
+
+    ``data`` is a list with one ``{alive, room_id, room_id_str}`` per id asked,
+    in the order asked. ``room_id`` is a JSON number past the safe integer
+    range, so the id is read from ``room_id_str``. A broadcast nobody has is
+    ``alive: false`` like one that has ended: the platform does not tell the
+    two apart, and neither can this.
+    """
+    items = [
+        LiveStatus(platform=_PLATFORM, live_id=entry.id("room_id_str"), is_live=_alive(entry))
+        for entry in _guard(payload).children("data")
+    ]
+    return Page(items=items, cursor=None, has_more=False)
+
+
+def _alive(entry: Node) -> bool:
+    """``alive`` as the platform sent it. Absent is a changed answer, not a
+    "no": reading it as False would report every room off the day it moved."""
+    value = entry.present("alive")
+    if not isinstance(value, bool):
+        raise entry.missing("alive")
+    return value
+
+
 #: The ``status`` value on a collection node that means "anyone can open this".
 #:
 #: Measured 2026-09-13 on one account holding two folders it had set either
@@ -981,6 +1007,7 @@ __all__ = [
     "parse_hashtag_posts",
     "parse_live_room",
     "parse_live_room_by_id",
+    "parse_live_status",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

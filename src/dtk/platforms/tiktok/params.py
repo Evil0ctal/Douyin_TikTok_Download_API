@@ -672,6 +672,46 @@ def live_room_by_id_params(
     return {**base_params(profile), "room_id": broadcast}
 
 
+#: How many broadcasts one ``check_alive`` call asks about. The platform took
+#: 200 in one call on 2026-10-26 and answered each; the cap is ours, half
+#: that, to keep a query an ordinary URL length.
+MAX_LIVE_IDS: Final = 100
+
+
+def live_ids(value: str) -> tuple[str, ...]:
+    """A comma-separated list of broadcast ids, checked and with repeats gone.
+
+    Here rather than in the route alone so that every caller - REST, MCP, a
+    task replayed from the queue - is held to the same list.
+    """
+    seen: dict[str, None] = {}
+    for part in str(value).split(","):
+        text = part.strip()
+        if not text:
+            continue
+        if not text.isdigit():
+            raise InvalidParam(
+                "a TikTok broadcast id is a number",
+                details={"field": "live_ids", "value": text[:32]},
+            )
+        seen[text] = None
+    if not seen:
+        raise InvalidParam("name at least one broadcast", details={"field": "live_ids"})
+    if len(seen) > MAX_LIVE_IDS:
+        raise InvalidParam(
+            f"at most {MAX_LIVE_IDS} broadcasts at a time",
+            details={"field": "live_ids", "count": len(seen), "maximum": MAX_LIVE_IDS},
+        )
+    return tuple(seen)
+
+
+def live_status_params(
+    *, room_ids: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``webcast.tiktok.com/webcast/room/check_alive/``."""
+    return {**base_params(profile), "room_ids": ",".join(live_ids(room_ids))}
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

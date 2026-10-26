@@ -323,6 +323,19 @@ class LiveRoom(_Base):
     raw: dict | None = None
 
 
+class LiveStatus(_Base):
+    """Whether one broadcast is still on air, and nothing else about it.
+
+    The answer to asking about many broadcasts at once: a poller watching a
+    list of rooms asks this, and asks ``/live`` for the one that just came on.
+    """
+
+    platform: Platform
+    #: The broadcast asked about, as ``LiveRoom.live_id`` names it.
+    live_id: str
+    is_live: bool
+
+
 class MusicDetail(Music):
     """A sound on its own page: what a post's ``music`` names, and more.
 
@@ -395,6 +408,7 @@ __all__ = [
     "Hashtag",
     "Image",
     "LiveRoom",
+    "LiveStatus",
     "LiveStream",
     "Media",
     "Mix",
