@@ -732,6 +732,7 @@ def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -
     return LiveRoom(
         platform=_PLATFORM,
         room_id=room_id or room.id("id_str"),
+        live_id=room.id("id_str") if is_live else None,
         is_live=is_live,
         title=optional_str(room.get("title")),
         cover=image_from_url_list(room.get("cover")),
@@ -741,6 +742,62 @@ def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -
         author=author,
         streams=_live_streams(room) if is_live else [],
         raw=data.raw(),
+    )
+
+
+def _live_author(node: Node | None) -> Author | None:
+    """A broadcaster or a viewer as the live site describes one."""
+    sec_uid = optional_str(node.get("sec_uid")) if node else None
+    if node is None or sec_uid is None:
+        return None
+    return Author(
+        platform=_PLATFORM,
+        uid=sec_uid,
+        sec_uid=sec_uid,
+        unique_id=optional_str(node.get("display_id")),
+        nickname=node.text("nickname"),
+        avatar=image_from_url_list(node.get("avatar_thumb")),
+        web_url=author_web_url(sec_uid),
+    )
+
+
+def parse_live_room_by_id(payload: Mapping[str, Any]) -> LiveRoom:
+    """Parse ``webcast.amemv.com/webcast/room/reflow/info/``: ``data.room``.
+
+    The room a share link from the app names, by the broadcast's own id. The
+    answer carries the room's ``web_rid`` as ``owner.web_rid``, so ``room_id``
+    is the number ``/live`` and a live.douyin.com link take, as it is when the
+    room is asked for that way.
+
+    Two counts are not where :func:`parse_live_room` finds them. Here
+    ``room_view_stats`` counts who has watched - it prints "349K watched" -
+    and who is in the room now is ``user_count``: measured 2026-10-26 on one
+    room asked both ways, 16,109 here against 17,138 from ``web/enter``
+    minutes later, beside a ``display_value`` of 348,959. ``data.user`` is the
+    asking session, empty for a guest, and not the broadcaster, who is
+    ``room.owner``.
+
+    A room id nobody has is ``status_code: 10011``, "Request params error".
+    """
+    room = _guard(payload).child("data").child("room")
+    owner = room.opt_child("owner")
+    is_live = optional_int(room.get("status")) == _LIVE_STATUS_ON
+    web_rid = optional_id(owner.get("web_rid")) if owner else None
+    return LiveRoom(
+        platform=_PLATFORM,
+        # A room whose web_rid did not come back is still this room; its own
+        # id is the only name left for it.
+        room_id=web_rid or room.id("id_str"),
+        live_id=room.id("id_str") if is_live else None,
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=image_from_url_list(room.get("cover")),
+        web_url=live_web_url(web_rid) if web_rid else None,
+        viewer_count=optional_int(room.get("user_count")) if is_live else None,
+        like_count=optional_int(room.get("like_count")),
+        author=_live_author(owner),
+        streams=_live_streams(room) if is_live else [],
+        raw=room.raw(),
     )
 
 
@@ -887,6 +944,7 @@ __all__ = [
     "parse_content",
     "parse_hashtag_detail",
     "parse_live_room",
+    "parse_live_room_by_id",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

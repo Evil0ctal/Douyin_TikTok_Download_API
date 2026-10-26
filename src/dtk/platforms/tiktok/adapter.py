@@ -172,6 +172,9 @@ class TikTokAdapter:
     ) -> LiveRoom:
         return parser.parse_live_room(payload, room_id=room_id)
 
+    def parse_live_room_by_id(self, payload: Mapping[str, Any]) -> LiveRoom:
+        return parser.parse_live_room_by_id(payload)
+
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
         """No board registered: nothing measured answers a guest with one."""
         raise UnsupportedContent(

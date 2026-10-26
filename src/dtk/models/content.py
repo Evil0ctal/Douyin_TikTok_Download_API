@@ -301,6 +301,13 @@ class LiveRoom(_Base):
     #: (the number in a live.douyin.com link), the @handle on TikTok, and
     #: Bilibili's room number.
     room_id: str
+    #: The platform's own id for the broadcast on air, while there is one:
+    #: Douyin's and TikTok's ``room_id``, a new one each time the room goes
+    #: live. It is what an app's share link carries, what ``/live?live_id=``
+    #: and the other live reads take, and why it is not ``room_id`` above -
+    #: that one outlives the broadcast. Bilibili numbers a room once, so has
+    #: none.
+    live_id: str | None = None
     is_live: bool
     title: str | None = None
     cover: Image | None = None

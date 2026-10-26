@@ -589,8 +589,7 @@ class TaskWorker:
         hosts = extra_url_hosts(self._config())
         fetcher = parsing.egress_fetcher(self._egress, extra_hosts=hosts)
         if named:
-            completed = await parsing.complete(run.endpoint, run.params, fetcher, extra_hosts=hosts)
-            return run.endpoint, completed
+            return await parsing.complete(run.endpoint, run.params, fetcher, extra_hosts=hosts)
 
         endpoint, resolved = await parsing.plan(url, fetcher, extra_hosts=hosts)
         # Pass through anything the caller also set, such as include_raw.

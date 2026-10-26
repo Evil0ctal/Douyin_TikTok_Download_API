@@ -1574,6 +1574,7 @@
       "keyword": "What to search for, as you would type it into the platform's search box.",
       "liveUrl": "A link to the live room.",
       "room_id": "The number in the live room's link. Provide this or a link.",
+      "live_id": "The broadcast's own id: the live_id a room answer carries, or the number in a Douyin app share link. Provide this, a room or a link.",
       "trendingBoard": "Which board: hot (the default), entertainment, society or challenge. Bilibili has hot only."
     },
     "paramFor": {

@@ -99,6 +99,18 @@ class TestLiveRooms:
         """77 bytes, `code: 19002000` - when signed. Unsigned it is -352."""
         assert verdict(load("bilibili", "live_room_missing")) is Outcome.BUSINESS_ERROR
 
+    def test_a_broadcast_nobody_has_is_a_business_error(self) -> None:
+        """128 bytes on Douyin's reflow page and 126 on TikTok's webcast host,
+        both `status_code: 10011`, "Request params error" (2026-10-26)."""
+        for platform in ("douyin", "tiktok"):
+            assert verdict(load(platform, "live_room_by_id_missing")) is Outcome.BUSINESS_ERROR, (
+                platform
+            )
+
+    def test_a_broadcast_that_is_on_is_an_answer(self) -> None:
+        for platform in ("douyin", "tiktok"):
+            assert verdict(load(platform, "live_room_by_id_on")) is Outcome.OK, platform
+
     def test_an_ended_broadcast_is_an_answer(self) -> None:
         for platform in ("douyin", "tiktok", "bilibili"):
             assert verdict(load(platform, "live_room_off")) is Outcome.OK, platform

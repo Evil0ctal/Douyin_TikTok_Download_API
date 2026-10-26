@@ -50,7 +50,7 @@ from dtk.core.errors import InvalidParam
 from dtk.core.types import Platform, TrendingBoard
 from dtk.platforms import get_adapter
 from dtk.platforms.paging import max_page_size
-from dtk.urls import ResourceKind
+from dtk.urls import ResourceKind, UrlKind
 from dtk.worker import registry
 from dtk.worker.parsing import NAMED_BY_LINK
 
@@ -100,6 +100,16 @@ ROOM_ID_QUERY = Query(
     description=(
         "The room, as an alternative to url: the number in a live.douyin.com or "
         "live.bilibili.com link, or on TikTok the @handle of the account broadcasting."
+    ),
+)
+
+LIVE_ID_QUERY = Query(
+    default=None,
+    min_length=1,
+    max_length=_ID_MAX_LENGTH,
+    description=(
+        "Douyin and TikTok: the broadcast's own id, as an alternative to url and room_id - "
+        "the live_id a room answer carries, or the number in a Douyin app share link."
     ),
 )
 
@@ -585,6 +595,7 @@ async def live(
     platform: Platform = PLATFORM_PATH,
     url: str | None = URL_QUERY,
     room_id: str | None = ROOM_ID_QUERY,
+    live_id: str | None = LIVE_ID_QUERY,
     include_raw: bool = RAW_QUERY,
     wait: float | None = WAIT_QUERY,
     proxy: str | None = PROXY_QUERY,
@@ -595,9 +606,12 @@ async def live(
 ) -> Any:
     """One live room: whether it is broadcasting, and how to play it if it is.
 
-    Identify it by **either** `url` **or** `room_id`. A room is addressed the
-    way its link addresses it: Douyin's `live.douyin.com/<web_rid>`, TikTok's
-    `/@<handle>/live`, Bilibili's `live.bilibili.com/<room>`.
+    Identify it by **one** of `url`, `room_id` or `live_id`. A room is
+    addressed the way its link addresses it: Douyin's
+    `live.douyin.com/<web_rid>`, TikTok's `/@<handle>/live`, Bilibili's
+    `live.bilibili.com/<room>`. A Douyin app share link names the broadcast
+    instead, by its own id, and is answered the same way: so is `live_id`,
+    the id a room answer hands back while the room is on.
 
     This reads a room; it does not record one. The pull URLs it returns are
     signed and expire within hours, and they go to a player or a recorder of
@@ -609,6 +623,8 @@ async def live(
     - `url` - a link to the room.
     - `room_id` - the number in a Douyin or Bilibili live link, or the
       TikTok account's @handle.
+    - `live_id` - Douyin and TikTok: the broadcast's own id, a new one each
+      time the room goes on air. Bilibili numbers a room once and has none.
     - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
       `/video`. A repeat inside `cache.list_ttl` (5 minutes by default) is
       answered from the cache; pass `refresh` to see whether a room has just
@@ -617,30 +633,33 @@ async def live(
     **Returns**
 
     `room_id`, `is_live`, `title`, `cover`, `web_url`, the broadcaster as
-    `author`, and while the room is live `viewer_count`, `started_at` where
-    the platform states it, and `streams`: one entry per protocol (`flv` or
-    `hls`) and quality, in the platform's own quality names. Bilibili's
-    `viewer_count` is the "watched" figure it prints, not who is in the room
-    now. A room nobody has is `NOT_FOUND`.
+    `author`, and while the room is live `live_id`, `viewer_count`,
+    `started_at` where the platform states it, and `streams`: one entry per
+    protocol (`flv` or `hls`) and quality, in the platform's own quality
+    names. However the room was asked for, `room_id` is what its web link
+    carries. Bilibili's `viewer_count` is the "watched" figure it prints, not
+    who is in the room now. A room nobody has is `NOT_FOUND`.
     """
     authorize(principal, platform)
-    endpoint = supported(platform, Operation.LIVE_ROOM)
-    if not url and not room_id:
-        raise InvalidParam("provide either url or room_id", details={"fields": ["url", "room_id"]})
-    if room_id:
-        room = room_id.strip().lstrip("@").strip()
-        if platform not in _ROOMS_BY_HANDLE and not room.isdigit():
-            raise InvalidParam(
-                f"a {platform.value} live room is the number in its link",
-                details={"field": "room_id", "value": room[:_ID_MAX_LENGTH]},
-            )
-        if not room:
-            raise InvalidParam("room_id is empty", details={"field": "room_id"})
-        params: dict[str, Any] = {"room_id": room, "url": None}
+    if not url and not room_id and not live_id:
+        raise InvalidParam(
+            "provide one of url, room_id or live_id",
+            details={"fields": ["url", "room_id", "live_id"]},
+        )
+    # An id the caller names wins over a link, as on every other route.
+    kind = vet_url(str(url), expected=platform) if url and not room_id and not live_id else None
+    params: dict[str, Any]
+    if live_id:
+        endpoint = supported(platform, Operation.LIVE_ROOM_BY_ID)
+        params = {"live_id": _numeric_id(live_id, field="live_id"), "url": None}
+    elif kind is not None and kind.resource is ResourceKind.LIVE_ROOM:
+        # A reflow link names the broadcast, and the id is in the link, so it
+        # goes to the endpoint that takes one without a hop.
+        endpoint = supported(platform, Operation.LIVE_ROOM_BY_ID)
+        params = {"live_id": identifier(kind, ResourceKind.LIVE_ROOM), "url": None}
     else:
-        kind = vet_url(str(url), expected=platform)
-        found = identifier(kind, ResourceKind.LIVE)
-        params = {"room_id": found, "url": None if found else kind.url}
+        endpoint = supported(platform, Operation.LIVE_ROOM)
+        params = _live_room_params(platform, kind=kind, room_id=room_id)
     params["include_raw"] = include_raw
     return await operations.submit_and_wait(
         request,
@@ -653,6 +672,24 @@ async def live(
         explain=await resolve_explain(request, principal, explain),
         identity=await resolve_request_identity(request, principal, identity, platform=platform),
     )
+
+
+def _live_room_params(
+    platform: Platform, *, kind: UrlKind | None, room_id: str | None
+) -> dict[str, Any]:
+    """A room by its link or by what the link carries: ``/live`` as it was."""
+    if room_id or kind is None:
+        room = (room_id or "").strip().lstrip("@").strip()
+        if platform not in _ROOMS_BY_HANDLE and not room.isdigit():
+            raise InvalidParam(
+                f"a {platform.value} live room is the number in its link",
+                details={"field": "room_id", "value": room[:_ID_MAX_LENGTH]},
+            )
+        if not room:
+            raise InvalidParam("room_id is empty", details={"field": "room_id"})
+        return {"room_id": room, "url": None}
+    found = identifier(kind, ResourceKind.LIVE)
+    return {"room_id": found, "url": None if found else kind.url}
 
 
 @router.get(

@@ -1,0 +1,66 @@
+{
+  "data": {
+    "id": 7400000000000000101,
+    "id_str": "7400000000000000101",
+    "status": 2,
+    "title": "Synthetic live title",
+    "user_count": 249,
+    "like_count": 0,
+    "create_time": 1792537200,
+    "start_time": 0,
+    "finish_time": 1792537200,
+    "cover": {
+      "url_list": [
+        "https://p16-common-sign.example-cdn.invalid/synthetic-cover~tplv-tiktokx-cropcenter:720:720.webp"
+      ],
+      "uri": "720x720/synthetic-cover"
+    },
+    "owner": {
+      "id": 1000000000000000001,
+      "id_str": "1000000000000000001",
+      "sec_uid": "MS4wLjABAAAA_SYNTHETIC_TIKTOK_AUTHOR_0001",
+      "display_id": "synthetic.creator",
+      "nickname": "Synthetic Creator",
+      "verified": false,
+      "avatar_thumb": {
+        "url_list": [
+          "https://p16-common-sign.example-cdn.invalid/synthetic-avatar~tplv-tiktokx-cropcenter:100:100.webp"
+        ]
+      },
+      "avatar_large": {
+        "url_list": [
+          "https://p16-common-sign.example-cdn.invalid/synthetic-avatar~tplv-tiktokx-cropcenter:1080:1080.webp"
+        ]
+      }
+    },
+    "stats": {
+      "enter_count": 13250,
+      "follow_count": 47,
+      "like_count": 0,
+      "digg_count": 0
+    },
+    "stream_url": {
+      "default_resolution": "HD1",
+      "flv_pull_url": {
+        "HD1": "https://pull-f5-tt01.example-cdn.invalid/stage/stream-synthetic_hd.flv?expire=0"
+      },
+      "hls_pull_url": "https://pull-hls-f16-tt01.example-cdn.invalid/stage/stream-synthetic_hd/index.m3u8?expire=0",
+      "hls_pull_url_map": {},
+      "live_core_sdk_data": {
+        "pull_data": {
+          "options": {
+            "default_quality": {
+              "name": "HD",
+              "sdk_key": "hd"
+            }
+          },
+          "stream_data": "{\"common\":{\"session_id\":\"synthetic-session\"},\"data\":{\"hd\":{\"main\":{\"flv\":\"https://pull-f5-tt01.example-cdn.invalid/stage/stream-synthetic_hd.flv?expire=0\",\"hls\":\"https://pull-hls-f16-tt01.example-cdn.invalid/stage/stream-synthetic_hd/index.m3u8?expire=0\",\"cmaf\":\"\",\"dash\":\"\",\"lls\":\"\",\"tsl\":\"\",\"tile\":\"\",\"sdk_params\":\"{}\"}},\"ao\":{\"main\":{\"flv\":\"https://pull-f5-tt01.example-cdn.invalid/stage/stream-synthetic_ao.flv?expire=0&only_audio=1\",\"hls\":\"\",\"sdk_params\":\"{}\"}}}}"
+        }
+      }
+    }
+  },
+  "extra": {
+    "now": 1792540800000
+  },
+  "status_code": 0
+}

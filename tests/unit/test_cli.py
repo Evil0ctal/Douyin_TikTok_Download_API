@@ -958,6 +958,12 @@ class TestTargets:
                 {"room_id": "615171448842"},
             ),
             ("https://live.bilibili.com/545068", "bilibili.live_room", {"room_id": "545068"}),
+            # A share link from the app, once expanded: the broadcast, by its id.
+            (
+                "https://webcast.amemv.com/douyin/webcast/reflow/7318296342189919011",
+                "douyin.live_room_by_id",
+                {"live_id": "7318296342189919011"},
+            ),
             (
                 "https://www.tiktok.com/@ventisfit/live",
                 "tiktok.live_room",

@@ -88,6 +88,9 @@ _ENDPOINT_BY_RESOURCE: dict[ResourceKind, str] = {
     ResourceKind.MUSIC: "music_detail",
     ResourceKind.CHALLENGE: "hashtag_detail",
     ResourceKind.LIVE: "live_room",
+    # A reflow link, which is what a Douyin app share link expands to: it
+    # names the broadcast, not the room's web_rid.
+    ResourceKind.LIVE_ROOM: "live_room_by_id",
 }
 
 #: The kinds of link /parse turns into a call. `dtk fetch` reads it too, so the
@@ -124,6 +127,7 @@ _PARAM_BY_RESOURCE: dict[ResourceKind, str] = {
     # A TikTok /@handle/live link carries the handle, which is what its room
     # is asked by.
     ResourceKind.LIVE: "room_id",
+    ResourceKind.LIVE_ROOM: registry.LIVE_ID,
 }
 
 
@@ -356,7 +360,20 @@ _RESOURCE_BY_PARAM: Final[dict[str, ResourceKind]] = {
     registry.MUSIC_ID: ResourceKind.MUSIC,
     registry.HASHTAG_ID: ResourceKind.CHALLENGE,
     registry.ROOM_ID: ResourceKind.LIVE,
+    registry.LIVE_ID: ResourceKind.LIVE_ROOM,
     registry.AUTHOR_ID: ResourceKind.USER,
+}
+
+
+#: A link that turns out, once followed, to name what a sibling endpoint is
+#: asked by. ``/douyin/live?url=<v.douyin.com link>`` is the case: the route
+#: cannot know before the hop whether the share link opens a room by its
+#: web_rid or a broadcast by its own id, and an app's share link is the second
+#: - refusing it as "not a live room" would refuse the link the app hands out.
+_ANSWERED_BY_SIBLING: Final[
+    Mapping[tuple[registry.Capability, ResourceKind], registry.Capability]
+] = {
+    (registry.Capability.LIVE_ROOM, ResourceKind.LIVE_ROOM): registry.Capability.LIVE_ROOM_BY_ID,
 }
 
 
@@ -374,7 +391,7 @@ async def complete(
     fetcher: RedirectFetcher,
     *,
     extra_hosts: frozenset[str] = frozenset(),
-) -> dict[str, Any]:
+) -> tuple[str, dict[str, Any]]:
     """Fill in the id ``endpoint`` keys on from the link it was handed instead.
 
     The content routes accept ``url`` in place of an id, and a short link gives
@@ -389,12 +406,15 @@ async def complete(
 
     A caller's own id wins over the link, as it does at the route. A full link
     is identified without a request; only a short link costs one.
+
+    Returns the endpoint with the parameters, because the link can decide the
+    endpoint too: see ``_ANSWERED_BY_SIBLING``.
     """
     definition = registry.definition_for(endpoint)
     url = str(params.get("url") or "").strip()
     wanted = next((name for name in _RESOURCE_BY_PARAM if name in definition.accepts), None)
     if not url or wanted is None or _holds(params, wanted):
-        return dict(params)
+        return endpoint, dict(params)
 
     identified = await resolve(url, fetcher, max_hops=MAX_REDIRECTS, extra_hosts=extra_hosts)
     if identified.platform is not definition.platform:
@@ -407,6 +427,17 @@ async def complete(
             },
         )
     expected = _RESOURCE_BY_PARAM[wanted]
+    sibling = _ANSWERED_BY_SIBLING.get((definition.capability, identified.resource))
+    if sibling is not None and identified.resource_id:
+        other = registry.endpoint_name(definition.platform, sibling)
+        rest = {
+            key: value
+            for key, value in params.items()
+            if key != "url" and registry.ALIASES.get(key, key) != wanted
+        }
+        rest[_PARAM_BY_RESOURCE[identified.resource]] = identified.resource_id
+        log.info("parse.completed", endpoint=other, resource=identified.resource.value)
+        return other, rest
     if identified.resource is not expected:
         # Used to surface as the same "missing content_id", which told the
         # caller their id was wrong when it was the link that was.
@@ -441,7 +472,7 @@ async def complete(
     }
     filled[named or wanted] = identified.resource_id
     log.info("parse.completed", endpoint=endpoint, resource=identified.resource.value)
-    return filled
+    return endpoint, filled
 
 
 __all__ = [

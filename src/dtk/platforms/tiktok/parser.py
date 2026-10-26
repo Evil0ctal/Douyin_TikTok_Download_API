@@ -680,16 +680,16 @@ def live_web_url(unique_id: str) -> str:
     return f"{WEB_DOMAIN}/@{unique_id}/live"
 
 
-def _live_streams(room: Node) -> list[LiveStream]:
-    """The pull URLs, from ``streamData.pull_data.stream_data``.
+def _live_streams(pull: Node | None) -> list[LiveStream]:
+    """The pull URLs, from a ``pull_data.stream_data``.
 
     That field is a JSON document inside a string, keyed by quality (``origin``,
     ``hd``, ``sd``, ...), each with ``main.flv`` and ``main.hls``. A string
     that will not decode is a stream the page could not play either, and
-    gives no streams rather than failing the room.
+    gives no streams rather than failing the room. The web app's room answer
+    keeps it under ``streamData``, the webcast host's under
+    ``stream_url.live_core_sdk_data``; the document inside is the same.
     """
-    data = room.opt_child("streamData")
-    pull = data.opt_child("pull_data") if data else None
     text = pull.get("stream_data") if pull else None
     if not isinstance(text, str) or not text:
         return []
@@ -713,7 +713,11 @@ def _live_streams(room: Node) -> list[LiveStream]:
 
 
 def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -> LiveRoom:
-    """Parse ``/api-live/user/room/``: ``data.user`` and ``data.liveRoom``."""
+    """Parse ``/api-live/user/room/``: ``data.user`` and ``data.liveRoom``.
+
+    The broadcast's own id is the user's ``roomId``, not anything under
+    ``liveRoom``, whose ``streamId`` is the stream's.
+    """
     data = _guard(payload).child("data")
     user = data.child("user")
     room = data.child("liveRoom")
@@ -721,9 +725,11 @@ def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -
     is_live = optional_int(room.get("status")) == _LIVE_STATUS_ON
     stats = room.opt_child("liveRoomStats")
     handle = author.unique_id or room_id or ""
+    stream = room.opt_child("streamData")
     return LiveRoom(
         platform=_PLATFORM,
         room_id=handle,
+        live_id=optional_id(user.get("roomId")) if is_live else None,
         is_live=is_live,
         title=optional_str(room.get("title")),
         cover=image_from_urls(room.get("coverUrl"), room.get("squareCoverImg")),
@@ -731,8 +737,66 @@ def parse_live_room(payload: Mapping[str, Any], *, room_id: str | None = None) -
         viewer_count=optional_int(stats.get("userCount")) if stats and is_live else None,
         started_at=epoch_to_datetime(room.get("startTime")) if is_live else None,
         author=author,
-        streams=_live_streams(room) if is_live else [],
+        streams=_live_streams(stream.opt_child("pull_data") if stream else None) if is_live else [],
         raw=data.raw(),
+    )
+
+
+def _webcast_author(owner: Node) -> Author:
+    """The broadcaster as the webcast host describes one: snake_case, with
+    the @handle as ``display_id`` and the numeric id as ``id_str``."""
+    handle = optional_str(owner.get("display_id"))
+    return Author(
+        platform=_PLATFORM,
+        uid=owner.id("id_str"),
+        sec_uid=optional_str(owner.get("sec_uid")),
+        unique_id=handle,
+        nickname=owner.text("nickname"),
+        avatar=image_from_url_list(owner.get("avatar_large"))
+        or image_from_url_list(owner.get("avatar_thumb")),
+        web_url=author_web_url(handle) if handle else None,
+        verified=optional_bool(owner.get("verified")),
+    )
+
+
+def parse_live_room_by_id(payload: Mapping[str, Any]) -> LiveRoom:
+    """Parse ``webcast.tiktok.com/webcast/room/info/``: the room is ``data``.
+
+    The same room ``/api-live/user/room/`` describes, in the webcast host's own
+    spelling, so it is normalised onto the same model: ``room_id`` is still
+    the owner's @handle (``owner.display_id``), which is what a room is asked
+    for by again once this broadcast is over. Measured 2026-10-26 on one room
+    asked both ways: ``user_count`` here equalled ``liveRoomStats.userCount``
+    there, and ``create_time`` here equalled ``startTime`` there, so they are
+    the viewer count and the start. ``start_time`` beside it was 0.
+
+    A ``room_id`` nobody has is ``status_code: 10011``, "Request params error".
+    """
+    room = _guard(payload).child("data")
+    owner = room.opt_child("owner")
+    author = _webcast_author(owner) if owner is not None else None
+    is_live = optional_int(room.get("status")) == _LIVE_STATUS_ON
+    handle = author.unique_id if author is not None else None
+    stream = room.opt_child("stream_url")
+    sdk = stream.opt_child("live_core_sdk_data") if stream else None
+    return LiveRoom(
+        platform=_PLATFORM,
+        # A room whose owner's handle did not come back is still this room;
+        # its own id is the only name left for it.
+        room_id=handle or room.id("id_str"),
+        live_id=room.id("id_str") if is_live else None,
+        is_live=is_live,
+        title=optional_str(room.get("title")),
+        cover=image_from_url_list(room.get("cover")),
+        web_url=live_web_url(handle) if handle else None,
+        viewer_count=optional_int(room.get("user_count")) if is_live else None,
+        # No like_count: it was 0 on a room of 249 viewers, beside a
+        # stats.digg_count of 0, and the handle answer has no count to check
+        # either against (2026-10-26).
+        started_at=epoch_to_datetime(room.get("create_time")) if is_live else None,
+        author=author,
+        streams=_live_streams(sdk.opt_child("pull_data") if sdk else None) if is_live else [],
+        raw=room.raw(),
     )
 
 
@@ -916,6 +980,7 @@ __all__ = [
     "parse_hashtag_detail",
     "parse_hashtag_posts",
     "parse_live_room",
+    "parse_live_room_by_id",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

@@ -626,6 +626,12 @@ class PlatformAdapter(Protocol):
         answer does not repeat it: Douyin's never mentions the web_rid."""
         ...
 
+    def parse_live_room_by_id(self, payload: Mapping[str, Any]) -> LiveRoom:
+        """The same room, asked for by the broadcast's own id rather than by
+        what its web link carries. A platform without such an id raises
+        ``UnsupportedContent``."""
+        ...
+
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]: ...
 
     def parse_mix_posts(self, payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:

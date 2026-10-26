@@ -43,6 +43,10 @@ FIXTURE_NAMES: tuple[str, ...] = (
     "live_room_on",
     "live_room_off",
     "live_room_missing",
+    # The same rooms by the broadcast's own id: Douyin's reflow answer,
+    # TikTok's webcast host. Bilibili numbers a room once.
+    "live_room_by_id_on",
+    "live_room_by_id_missing",
 )
 
 #: Bilibili's set differs where the platform does. It has no image albums, and

@@ -661,6 +661,17 @@ def live_room_params(*, unique_id: str, profile: ClientProfile = DEFAULT_PROFILE
     return {**base_params(profile), "uniqueId": handle, "sourceType": LIVE_SOURCE_TYPE}
 
 
+def live_room_by_id_params(
+    *, room_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``webcast.tiktok.com/webcast/room/info/``: a live room by
+    the broadcast's own ``room_id``, the ``live_id`` a room answer carries."""
+    broadcast = str(room_id).strip()
+    if not broadcast.isdigit():
+        raise InvalidParam("a TikTok broadcast id is a number", details={"field": "live_id"})
+    return {**base_params(profile), "room_id": broadcast}
+
+
 #: ``scene`` selects which side of the follow graph ``/api/user/list/`` returns.
 #: The endpoint path is identical for both, so this value is the whole request.
 FOLLOWERS_SCENE: Final = "67"

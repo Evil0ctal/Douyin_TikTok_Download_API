@@ -29,6 +29,7 @@ from dtk.platforms.douyin.params import (
     comments_params,
     content_detail_params,
     hashtag_detail_params,
+    live_room_by_id_params,
     live_room_params,
     mix_posts_params,
     music_detail_params,
@@ -237,6 +238,7 @@ MUSIC_POSTS: Final = "douyin.music_posts"
 HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
 AUTHOR_MIXES: Final = "douyin.author_mixes"
 LIVE_ROOM: Final = "douyin.live_room"
+LIVE_ROOM_BY_ID: Final = "douyin.live_room_by_id"
 TRENDING: Final = "douyin.trending"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
@@ -446,6 +448,23 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="One live room: whether it is on, and how to play it",
     ),
     EndpointSpec(
+        name=LIVE_ROOM_BY_ID,
+        path=DouyinAPIEndpoints.LIVE_INFO_ROOM_ID,
+        required=("room_id",),
+        build=live_room_by_id_params,
+        risk_weight=1.2,
+        # The live site's headers, the ones it was measured with: the
+        # www.douyin.com Referer is no page of this host's either.
+        headers=(
+            ("Referer", f"{DouyinAPIEndpoints.LIVE_DOMAIN}/"),
+            ("Origin", DouyinAPIEndpoints.LIVE_DOMAIN),
+        ),
+        # Answers a guest with the room, its web_rid, its viewers and its pull
+        # URLs; a room_id nobody has is `status_code: 10011`, "Request params
+        # error" (2026-10-26).
+        summary="One live room, by the broadcast's own id",
+    ),
+    EndpointSpec(
         name=TRENDING,
         path=DouyinAPIEndpoints.DOUYIN_HOT_SEARCH,
         required=(),
@@ -489,6 +508,7 @@ __all__ = [
     "ENDPOINTS",
     "HASHTAG_DETAIL",
     "LIVE_ROOM",
+    "LIVE_ROOM_BY_ID",
     "MIX_POSTS",
     "MUSIC_DETAIL",
     "MUSIC_POSTS",

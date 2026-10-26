@@ -181,6 +181,35 @@ class TestLiveRooms:
         assert built["uniqueId"] == "ventisfit"
         assert built["sourceType"] == "54"
 
+    def test_douyin_asks_the_reflow_page_by_the_broadcast(self) -> None:
+        """The share page's own short list: no browser fields, app 1128."""
+        request = get_adapter("douyin").build_request(
+            "douyin.live_room_by_id", room_id="7300000000000000101"
+        )
+        assert request["url"] == "https://webcast.amemv.com/webcast/room/reflow/info/"
+        assert request["params"] == {
+            "type_id": "0",
+            "live_id": "1",
+            "room_id": "7300000000000000101",
+            "app_id": "1128",
+        }
+        assert request["headers"]["Referer"] == "https://live.douyin.com/"
+
+    def test_tiktok_asks_the_webcast_host_by_the_broadcast(self) -> None:
+        """www.tiktok.com answers /webcast/room/info/ with a 302."""
+        request = get_adapter("tiktok").build_request(
+            "tiktok.live_room_by_id", room_id="7400000000000000101"
+        )
+        assert request["url"] == "https://webcast.tiktok.com/webcast/room/info/"
+        assert request["params"]["room_id"] == "7400000000000000101"
+        assert request["params"]["aid"] == "1988"
+
+    @pytest.mark.parametrize("endpoint", ["douyin.live_room_by_id", "tiktok.live_room_by_id"])
+    def test_a_broadcast_is_a_number(self, endpoint: str) -> None:
+        with pytest.raises(InvalidParam) as caught:
+            query(endpoint, room_id="ventisfit")
+        assert caught.value.details["field"] == "live_id"
+
     def test_bilibili_follows_a_live_room_with_its_play_info(self) -> None:
         request = get_adapter("bilibili").build_request("bilibili.live_streams", room_id="173551")
         assert request["params"]["room_id"] == "173551"

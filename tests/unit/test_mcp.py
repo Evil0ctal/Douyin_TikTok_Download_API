@@ -568,6 +568,7 @@ class TestParseUrl:
         "link",
         [
             "https://live.douyin.com/123456789",
+            "https://webcast.amemv.com/douyin/webcast/reflow/7700000000000000101",
             "https://www.douyin.com/music/7661456186985761599",
             "https://www.tiktok.com/tag/hibachi",
             "https://live.bilibili.com/173551",

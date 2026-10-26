@@ -451,6 +451,17 @@ const ROOM_ID_PARAM: ParamDef = {
   placeholder: { douyin: '615171448842', tiktok: 'user', bilibili: '173551' },
   descriptions: { tiktok: 'playground.paramFor.tiktok.room_id' },
 }
+/** The broadcast's own id: what a Douyin app share link carries and what a
+ *  room answer hands back as live_id. Bilibili numbers a room once. */
+const LIVE_ID_PARAM: ParamDef = {
+  name: 'live_id',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  oneOf: 'target',
+  platforms: ['douyin', 'tiktok'],
+  placeholder: { douyin: '7300000000000000101', tiktok: '7400000000000000101', bilibili: '' },
+}
 const TRENDING_BOARD_PARAM: ParamDef = {
   name: 'board',
   kind: 'choice',
@@ -733,7 +744,7 @@ export const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/live`,
     operation: 'live_room',
     platformScoped: true,
-    params: [LIVE_URL_PARAM, ROOM_ID_PARAM, ...ENVELOPE_PARAMS],
+    params: [LIVE_URL_PARAM, ROOM_ID_PARAM, LIVE_ID_PARAM, ...ENVELOPE_PARAMS],
   },
   {
     id: 'trending',

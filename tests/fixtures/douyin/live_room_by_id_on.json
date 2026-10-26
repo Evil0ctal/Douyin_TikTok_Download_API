@@ -1,0 +1,74 @@
+{
+  "data": {
+    "room": {
+      "id": 7300000000000000101,
+      "id_str": "7300000000000000101",
+      "status": 2,
+      "title": "Synthetic live title",
+      "user_count": 16109,
+      "like_count": 101481,
+      "create_time": 1792537200,
+      "cover": {
+        "url_list": [
+          "https://p3-webcast.example-cdn.invalid/webcast-cover/synthetic-cover.image"
+        ]
+      },
+      "stats": {
+        "total_user": 208693,
+        "total_user_str": "10万+",
+        "user_count_str": "1万+",
+        "like_count": 0
+      },
+      "room_view_stats": {
+        "is_hidden": false,
+        "display_short": "34.9万",
+        "display_middle": "34.9万人看过",
+        "display_long": "34.9万人看过",
+        "display_value": 348959,
+        "display_type": 3
+      },
+      "owner": {
+        "id": 1000000000000000001,
+        "id_str": "1000000000000000001",
+        "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_AUTHOR_0001",
+        "nickname": "Synthetic Creator",
+        "display_id": "synthetic.creator",
+        "web_rid": "615171448842",
+        "avatar_thumb": {
+          "url_list": [
+            "https://p3.example-cdn.invalid/aweme/100x100/synthetic-author-01.jpeg"
+          ]
+        }
+      },
+      "stream_url": {
+        "default_resolution": "HD1",
+        "flv_pull_url": {
+          "FULL_HD1": "https://pull-flv-l11.example-cdn.invalid/stage/stream-synthetic_or4.flv?expire=0",
+          "HD1": "https://pull-flv-l11.example-cdn.invalid/stage/stream-synthetic_hd.flv?expire=0",
+          "SD1": "https://pull-flv-l11.example-cdn.invalid/stage/stream-synthetic_ld.flv?expire=0",
+          "SD2": "https://pull-flv-l11.example-cdn.invalid/stage/stream-synthetic_sd.flv?expire=0"
+        },
+        "hls_pull_url_map": {
+          "FULL_HD1": "https://pull-hls-l11.example-cdn.invalid/stage/stream-synthetic_or4.m3u8?expire=0",
+          "HD1": "https://pull-hls-l11.example-cdn.invalid/stage/stream-synthetic_hd.m3u8?expire=0",
+          "SD1": "https://pull-hls-l11.example-cdn.invalid/stage/stream-synthetic_ld.m3u8?expire=0",
+          "SD2": "https://pull-hls-l11.example-cdn.invalid/stage/stream-synthetic_sd.m3u8?expire=0"
+        },
+        "hls_pull_url": "https://pull-hls-l11.example-cdn.invalid/stage/stream-synthetic_hd.m3u8?expire=0",
+        "stream_orientation": 1
+      }
+    },
+    "user": {
+      "id": 0,
+      "short_id": 0,
+      "nickname": "",
+      "gender": 0,
+      "signature": "",
+      "level": 0
+    }
+  },
+  "extra": {
+    "now": 1792540800000
+  },
+  "status_code": 0
+}

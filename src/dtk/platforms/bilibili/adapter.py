@@ -242,6 +242,13 @@ class BilibiliAdapter:
     ) -> LiveRoom:
         return parser.parse_live_room(payload, room_id=room_id)
 
+    def parse_live_room_by_id(self, payload: Mapping[str, Any]) -> LiveRoom:
+        """A Bilibili room has one number, and ``parse_live_room`` reads it."""
+        raise UnsupportedContent(
+            "a Bilibili live room has no id apart from its room number",
+            details={"platform": self.platform.value, "capability": "live_room_by_id"},
+        )
+
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
         return parser.parse_trending(payload)
 

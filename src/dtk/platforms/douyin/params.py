@@ -466,6 +466,30 @@ def trending_params(
     }
 
 
+#: The app a share link's reflow page belongs to: Douyin's own, not the web
+#: site's 6383.
+REFLOW_APP_ID: Final = "1128"
+
+
+def live_room_by_id_params(
+    *, room_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``webcast.amemv.com/webcast/room/reflow/info/``.
+
+    The page an app's share link opens, which names the broadcast by its own
+    ``room_id`` - the one :func:`live_room_params` warns is not a web_rid.
+    This short list is all it needs: it answered a guest with the room on
+    2026-10-26 with no browser fields at all, the visitor values and the
+    signature being the signing layer's to add.
+    """
+    broadcast = str(room_id).strip()
+    if not broadcast.isdigit():
+        raise InvalidParam(
+            "a Douyin broadcast is the number in its share link", details={"field": "live_id"}
+        )
+    return {"type_id": "0", "live_id": "1", "room_id": broadcast, "app_id": REFLOW_APP_ID}
+
+
 def comments_params(
     *,
     aweme_id: str,

@@ -66,10 +66,11 @@ MAX_COUNT: Final = 50
 #: Recognized resource kinds this tool set has no endpoint for. A short link is
 #: absent on purpose: what it points at is unknown until it has been followed.
 #: A sound, a hashtag and a live room left this set when /parse learned to
-#: answer them; the tool set did not grow for it, parse_url just goes further.
+#: answer them, and a Douyin reflow link - a live room by its broadcast -
+#: when /parse learned that too; the tool set did not grow for either,
+#: parse_url just goes further.
 _UNFETCHABLE: Final[frozenset[ResourceKind]] = frozenset(
     {
-        ResourceKind.LIVE_ROOM,
         ResourceKind.MIX,
         ResourceKind.SEARCH,
     }

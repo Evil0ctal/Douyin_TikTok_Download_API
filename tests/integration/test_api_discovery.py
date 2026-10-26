@@ -363,6 +363,49 @@ async def test_a_room_that_cannot_be_one_is_refused_before_it_queues(
     assert error_code(response) == "INVALID_PARAM"
 
 
+@pytest.mark.parametrize("platform", ["douyin", "tiktok"])
+async def test_a_broadcast_is_asked_for_by_its_own_id(client: Any, platform: str) -> None:
+    await signed_in(client)
+    response = await client.get(
+        f"/api/v1/{platform}/live", params={"live_id": "7300000000000000101"}
+    )
+    row = await queued(response)
+    assert row.endpoint == f"{platform}.live_room_by_id"
+    assert row.params["live_id"] == "7300000000000000101"
+
+
+async def test_a_douyin_reflow_link_goes_to_the_broadcast_without_a_hop(client: Any) -> None:
+    """What an app share link expands to. The id is in the link, so the route
+    reads it rather than queueing the link for the worker to follow."""
+    await signed_in(client)
+    link = "https://webcast.amemv.com/douyin/webcast/reflow/7318296342189919011?u_code=x"
+    row = await queued(await client.get("/api/v1/douyin/live", params={"url": link}))
+    assert row.endpoint == "douyin.live_room_by_id"
+    assert row.params["live_id"] == "7318296342189919011"
+    assert row.params.get("url") is None
+
+
+async def test_an_id_wins_over_a_link(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/live",
+        params={"url": "https://live.douyin.com/615171448842", "live_id": "7300000000000000101"},
+    )
+    assert (await queued(response)).endpoint == "douyin.live_room_by_id"
+
+
+async def test_a_broadcast_id_is_a_number(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/tiktok/live", params={"live_id": "ventisfit"})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+async def test_bilibili_has_no_broadcast_id(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get("/api/v1/bilibili/live", params={"live_id": "173551"})
+    assert error_code(response) == "UNSUPPORTED_CONTENT"
+
+
 # --------------------------------------------------------------------------
 # Trending boards
 # --------------------------------------------------------------------------

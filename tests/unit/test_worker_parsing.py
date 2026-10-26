@@ -190,10 +190,10 @@ class TestCompletingANamedLink:
         return "https://www.tiktok.com/tag/2024" if "/t/" in url else None
 
     async def test_the_detail_gets_the_name(self):
-        filled = await parsing.complete(
+        endpoint, filled = await parsing.complete(
             "tiktok.hashtag_detail", {"url": "https://www.tiktok.com/t/ZTabcdef/"}, self.to_tag
         )
-        assert filled == {"name": "2024"}
+        assert (endpoint, filled) == ("tiktok.hashtag_detail", {"name": "2024"})
 
     async def test_the_list_by_number_refuses_it_by_name(self):
         with pytest.raises(InvalidParam) as caught:
@@ -201,6 +201,57 @@ class TestCompletingANamedLink:
                 "tiktok.hashtag_posts", {"url": "https://www.tiktok.com/t/ZTabcdef/"}, self.to_tag
             )
         assert caught.value.details["reason"] == "named_resource"
+
+
+def test_a_reflow_link_is_answered_with_the_broadcast_it_names():
+    """What a Douyin app share link expands to: the broadcast, by its own id,
+    which live.douyin.com/<web_rid> does not take."""
+    endpoint, params = to_call(
+        identify("https://webcast.amemv.com/douyin/webcast/reflow/7318296342189919011?u_code=x")
+    )
+    assert endpoint == "douyin.live_room_by_id"
+    assert params == {"live_id": "7318296342189919011"}
+
+
+class TestCompletingAShareLinkToALiveRoom:
+    """``/douyin/live?url=<v.douyin.com link>``: the route cannot tell before
+    the hop which of the two ways the link names its room."""
+
+    @staticmethod
+    async def to_reflow(url: str) -> str | None:
+        if "v.douyin.com" in url:
+            return "https://webcast.amemv.com/douyin/webcast/reflow/7318296342189919011"
+        return None
+
+    @staticmethod
+    async def to_room(url: str) -> str | None:
+        return "https://live.douyin.com/615171448842" if "v.douyin.com" in url else None
+
+    async def test_a_link_to_a_broadcast_moves_the_call_to_the_endpoint_that_takes_one(self):
+        endpoint, params = await parsing.complete(
+            "douyin.live_room",
+            {"room_id": None, "url": "https://v.douyin.com/AbCdEf1/", "include_raw": True},
+            self.to_reflow,
+        )
+        assert endpoint == "douyin.live_room_by_id"
+        assert params == {"live_id": "7318296342189919011", "include_raw": True}
+
+    async def test_a_link_to_a_room_stays_where_it_was_sent(self):
+        endpoint, params = await parsing.complete(
+            "douyin.live_room",
+            {"room_id": None, "url": "https://v.douyin.com/AbCdEf1/"},
+            self.to_room,
+        )
+        assert (endpoint, params) == ("douyin.live_room", {"room_id": "615171448842"})
+
+    async def test_another_endpoint_still_refuses_the_wrong_kind_of_link(self):
+        with pytest.raises(InvalidParam) as caught:
+            await parsing.complete(
+                "douyin.content_detail",
+                {"url": "https://v.douyin.com/AbCdEf1/"},
+                self.to_reflow,
+            )
+        assert caught.value.details["reason"] == "wrong_resource"
 
 
 def test_a_bilibili_folder_link_is_answered_with_its_videos():
@@ -234,6 +285,7 @@ def test_a_bilibili_folder_link_is_answered_with_its_videos():
         "https://live.douyin.com/615171448842",
         "https://www.tiktok.com/@ventisfit/live",
         "https://live.bilibili.com/173551",
+        "https://webcast.amemv.com/douyin/webcast/reflow/7318296342189919011",
     ],
 )
 def test_every_link_kind_lands_on_an_endpoint_that_exists(link: str):

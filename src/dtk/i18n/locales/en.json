@@ -700,7 +700,7 @@
       },
       "live_room": {
         "summary": "A live room",
-        "description": "One live room: whether it is broadcasting, its title, cover and broadcaster, and while it is live the viewer count and the pull URLs, one per protocol and quality. It reads a room and records nothing."
+        "description": "One live room: whether it is broadcasting, its title, cover and broadcaster, and while it is live the viewer count and the pull URLs, one per protocol and quality. Asked for by its link, by what the link carries, or on Douyin and TikTok by the broadcast's own live_id, which a Douyin app share link carries too. It reads a room and records nothing."
       },
       "trending": {
         "summary": "What people are searching for",
@@ -745,6 +745,7 @@
       "key_id": "The key to revoke.",
       "keyword": "What to search for, as you would type it into the platform's search box.",
       "kind": "Only entries of this kind.",
+      "live_id": "Douyin and TikTok: the broadcast's own id, as an alternative to url and room_id - the live_id a room answer carries, or the number in a Douyin app share link.",
       "lang": "Response language for human-readable text. One of en or zh; anything else falls back to en.",
       "limit": "Maximum rows to return.",
       "mine_only": "Only list keys you created, rather than everyone's.",
