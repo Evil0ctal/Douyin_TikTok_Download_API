@@ -1495,6 +1495,7 @@
       "searchPosts": "Search posts",
       "searchUsers": "Search accounts",
       "live": "Live room",
+      "liveRanking": "Live room audience ranking",
       "liveStatus": "Whether live rooms are on air",
       "trending": "Trending board"
     },
@@ -1577,6 +1578,7 @@
       "room_id": "The number in the live room's link. Provide this or a link.",
       "live_id": "The broadcast's own id: the live_id a room answer carries, or the number in a Douyin app share link. Provide this, a room or a link.",
       "live_ids": "The broadcasts to check, comma-separated: the live_id each room answer carries, up to 100.",
+      "rankingLiveId": "The broadcast: the live_id a live room answer carries while the room is on.",
       "trendingBoard": "Which board: hot (the default), entertainment, society or challenge. Bilibili has hot only."
     },
     "paramFor": {

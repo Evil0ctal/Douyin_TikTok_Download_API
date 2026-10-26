@@ -22,6 +22,7 @@ from dtk.models import (
     Hashtag,
     LiveRoom,
     LiveStatus,
+    LiveViewer,
     Mix,
     MusicDetail,
     Page,
@@ -178,6 +179,13 @@ class TikTokAdapter:
 
     def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
         return parser.parse_live_status(payload)
+
+    def parse_live_ranking(self, payload: Mapping[str, Any]) -> Page[LiveViewer]:
+        """No call registered: no audience ranking measured here."""
+        raise UnsupportedContent(
+            "TikTok has no live room ranking here",
+            details={"platform": self.platform.value, "capability": "live_ranking"},
+        )
 
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
         """No board registered: nothing measured answers a guest with one."""

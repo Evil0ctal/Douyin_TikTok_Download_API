@@ -735,6 +735,57 @@ def test_only_tiktok_answers_for_many_rooms(platform: str) -> None:
         get_adapter(platform).parse_live_status({})
 
 
+def test_a_douyin_ranking_is_its_places_in_order() -> None:
+    page = get_adapter("douyin").parse_live_ranking(load("douyin", "live_ranking"))
+
+    assert [viewer.rank for viewer in page.items] == [1, 2, 3, 4]
+    first = page.items[0].author
+    assert first is not None
+    assert first.sec_uid == "MS4wLjABAAAA_SYNTHETIC_DOUYIN_VIEWER_0001"
+    assert first.unique_id == "synthetic.viewer.a"
+    assert first.web_url == (
+        "https://www.douyin.com/user/MS4wLjABAAAA_SYNTHETIC_DOUYIN_VIEWER_0001"
+    )
+    assert page.has_more is False
+
+
+def test_a_viewer_who_chose_not_to_be_listed_is_a_place_without_a_name() -> None:
+    """The answer still carries their account; it is not passed on."""
+    payload = load("douyin", "live_ranking")
+    assert payload["data"]["ranks"][1]["user"]["sec_uid"]
+    page = get_adapter("douyin").parse_live_ranking(payload)
+    assert page.items[1].rank == 2
+    assert page.items[1].author is None
+    dumped = page.model_dump_json()
+    assert "VIEWER_0002" not in dumped
+    assert "synthetic.viewer.b" not in dumped
+
+
+def test_a_viewer_named_only_by_a_mask_is_nobody_to_ask_about() -> None:
+    page = get_adapter("douyin").parse_live_ranking(load("douyin", "live_ranking"))
+    assert page.items[3].rank == 4
+    assert page.items[3].author is None
+
+
+def test_a_ranking_place_that_is_not_one_is_a_changed_answer() -> None:
+    payload = load("douyin", "live_ranking")
+    payload["data"]["ranks"][0]["rank"] = 0
+    with pytest.raises(UpstreamChanged):
+        get_adapter("douyin").parse_live_ranking(payload)
+
+
+def test_an_empty_room_is_an_empty_ranking() -> None:
+    payload = load("douyin", "live_ranking")
+    payload["data"]["ranks"] = []
+    assert get_adapter("douyin").parse_live_ranking(payload).items == []
+
+
+@pytest.mark.parametrize("platform", ["tiktok", "bilibili"])
+def test_only_douyin_ranks_a_room(platform: str) -> None:
+    with pytest.raises(UnsupportedContent):
+        get_adapter(platform).parse_live_ranking({})
+
+
 def test_bilibili_has_no_broadcast_id_to_ask_by() -> None:
     with pytest.raises(UnsupportedContent):
         get_adapter("bilibili").parse_live_room_by_id({})

@@ -95,6 +95,8 @@ class Capability(StrEnum):
     LIVE_ROOM_BY_ID = "live_room_by_id"
     #: Whether each of many broadcasts is on air, by their live_ids.
     LIVE_STATUS = "live_status"
+    #: A broadcast's audience ranking: who is at the top of the room's list.
+    LIVE_RANKING = "live_ranking"
     #: A board of what people are searching for: words, not posts.
     TRENDING = "trending"
 
@@ -305,6 +307,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
         Capability.LIVE_ROOM: {ROOM_ID: "web_rid"},
         Capability.LIVE_ROOM_BY_ID: {LIVE_ID: "room_id"},
+        Capability.LIVE_RANKING: {LIVE_ID: "room_id"},
         Capability.TRENDING: {BOARD: "board"},
     },
     Platform.TIKTOK: {
@@ -442,6 +445,7 @@ _CACHE_TTL_KEYS: Final[Mapping[Capability, str]] = MappingProxyType(
         Capability.LIVE_ROOM: "cache.list_ttl",
         Capability.LIVE_ROOM_BY_ID: "cache.list_ttl",
         Capability.LIVE_STATUS: "cache.list_ttl",
+        Capability.LIVE_RANKING: "cache.list_ttl",
         Capability.TRENDING: "cache.list_ttl",
     }
 )
@@ -679,6 +683,8 @@ class EndpointDefinition:
                 return adapter.parse_live_room_by_id(payload)
             case Capability.LIVE_STATUS:
                 return adapter.parse_live_status(payload)
+            case Capability.LIVE_RANKING:
+                return adapter.parse_live_ranking(payload)
             case Capability.COLLECTION_DETAIL:
                 return adapter.parse_collection_detail(payload)
             case Capability.COMMENTS:

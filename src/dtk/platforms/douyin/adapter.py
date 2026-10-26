@@ -24,6 +24,7 @@ from dtk.models import (
     Hashtag,
     LiveRoom,
     LiveStatus,
+    LiveViewer,
     Mix,
     MusicDetail,
     Page,
@@ -238,6 +239,9 @@ class DouyinAdapter:
             "Douyin has no way here to ask about many live rooms at once",
             details={"platform": self.platform.value, "capability": "live_status"},
         )
+
+    def parse_live_ranking(self, payload: Mapping[str, Any]) -> Page[LiveViewer]:
+        return parser.parse_live_ranking(payload)
 
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]:
         return parser.parse_trending(payload)

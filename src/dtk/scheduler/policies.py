@@ -72,6 +72,9 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("douyin.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("douyin.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("douyin.live_room_by_id", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        # 1.2 MB for a full room's 200 viewers, so a slower bucket than the
+        # room's own.
+        EndpointPolicy("douyin.live_ranking", capacity=3, refill_per_sec=0.15, risk_weight=1.2),
         # The same board for everyone, cached; asked rarely, like Bilibili's.
         EndpointPolicy("douyin.trending", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
         EndpointPolicy("tiktok.content_detail", capacity=5, refill_per_sec=0.30, risk_weight=1.0),

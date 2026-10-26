@@ -232,6 +232,24 @@ class TestLiveRooms:
         many = ",".join(str(7400000000000000000 + n) for n in range(100))
         assert query("tiktok.live_status", room_ids=many)["room_ids"] == many
 
+    def test_douyin_asks_the_live_site_for_the_audience_list(self) -> None:
+        request = get_adapter("douyin").build_request(
+            "douyin.live_ranking", room_id="7300000000000000101"
+        )
+        assert request["url"] == "https://live.douyin.com/webcast/ranklist/audience/"
+        built = request["params"]
+        assert built["room_id"] == "7300000000000000101"
+        assert built["rank_type"] == "30"
+        # Without it the list stops at 100.
+        assert built["webcast_sdk_version"] == "2450"
+        assert built["app_name"] == "douyin_web"
+        assert "web_rid" not in built
+        assert request["headers"]["Referer"] == "https://live.douyin.com/"
+
+    def test_a_ranking_is_asked_for_by_a_number(self) -> None:
+        with pytest.raises(InvalidParam):
+            query("douyin.live_ranking", room_id="abc")
+
     @pytest.mark.parametrize("endpoint", ["douyin.live_room_by_id", "tiktok.live_room_by_id"])
     def test_a_broadcast_is_a_number(self, endpoint: str) -> None:
         with pytest.raises(InvalidParam) as caught:

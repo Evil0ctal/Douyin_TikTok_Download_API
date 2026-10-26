@@ -47,6 +47,7 @@ from dtk.models import (
     Hashtag,
     LiveRoom,
     LiveStatus,
+    LiveViewer,
     Mix,
     MusicDetail,
     Page,
@@ -635,6 +636,10 @@ class PlatformAdapter(Protocol):
 
     def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
         """Whether each broadcast asked about is still on air, as one page."""
+        ...
+
+    def parse_live_ranking(self, payload: Mapping[str, Any]) -> Page[LiveViewer]:
+        """A broadcast's audience ranking, top first, as one page."""
         ...
 
     def parse_trending(self, payload: Mapping[str, Any]) -> Page[TrendingTopic]: ...

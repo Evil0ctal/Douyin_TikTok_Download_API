@@ -43,6 +43,7 @@ from dtk.models import (
     Image,
     LiveRoom,
     LiveStream,
+    LiveViewer,
     Media,
     Mix,
     Music,
@@ -801,6 +802,48 @@ def parse_live_room_by_id(payload: Mapping[str, Any]) -> LiveRoom:
     )
 
 
+def parse_live_ranking(payload: Mapping[str, Any]) -> Page[LiveViewer]:
+    """Parse ``live.douyin.com/webcast/ranklist/audience/``: ``data.ranks``.
+
+    Up to 200 viewers, in the order the room's own list puts them, each a
+    ``rank`` and a ``user``. Measured 2026-10-26 on seven rooms as a guest:
+
+    - Every ``score`` was 0, and ``total`` beside the list 0 too, so the
+      order is given and what it is ordered by is not, and neither is put in
+      the answer as though it meant something.
+    - A viewer marked ``is_hidden`` - one who chose not to be listed - still
+      came back with their account. They are passed on as a place without
+      a viewer: the platform's choice to send them is not their choice.
+    - One room named all seven of its viewers to a guest only as a masked
+      nickname ("Li***"), an ``id_str`` of 111111 and no ``sec_uid``. That is
+      nobody this API could be asked about again, so no author either.
+
+    A broadcast nobody has is ``status_code: 10011``. ``has_more`` was false
+    on every room, the list being the room's top 200 rather than a page of it.
+    """
+    data = _guard(payload).child("data")
+    viewers = [
+        LiveViewer(
+            platform=_PLATFORM,
+            rank=_place(entry),
+            author=None
+            if optional_bool(entry.get("is_hidden"))
+            else _live_author(entry.opt_child("user")),
+        )
+        for entry in data.listed_children("ranks")
+    ]
+    return Page(items=viewers, cursor=None, has_more=False)
+
+
+def _place(entry: Node) -> int:
+    """A ranking place, from 1. Absent or 0 is a changed answer: a list with
+    a viewer in no place is not one the room's page could show."""
+    place = optional_positive_int(entry.get("rank"))
+    if place is None:
+        raise entry.missing("rank")
+    return place
+
+
 def hot_web_url(sentence_id: str) -> str:
     """The hot page's own page for one line, by its ``sentence_id``."""
     return f"{WEB_DOMAIN}/hot/{sentence_id}"
@@ -943,6 +986,7 @@ __all__ = [
     "parse_comments",
     "parse_content",
     "parse_hashtag_detail",
+    "parse_live_ranking",
     "parse_live_room",
     "parse_live_room_by_id",
     "parse_music_detail",

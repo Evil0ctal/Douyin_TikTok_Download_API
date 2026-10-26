@@ -336,6 +336,19 @@ class LiveStatus(_Base):
     is_live: bool
 
 
+class LiveViewer(_Base):
+    """One place on a live room's audience ranking: the list the room's own
+    page shows beside the stream, top first."""
+
+    platform: Platform
+    #: 1 for the top of the list.
+    rank: int
+    #: None for a viewer the platform does not name: one who chose to hide
+    #: from the list, whom the answer still describes and this does not pass
+    #: on, and one it gives a guest only as a masked nickname with no id.
+    author: Author | None = None
+
+
 class MusicDetail(Music):
     """A sound on its own page: what a post's ``music`` names, and more.
 
@@ -410,6 +423,7 @@ __all__ = [
     "LiveRoom",
     "LiveStatus",
     "LiveStream",
+    "LiveViewer",
     "Media",
     "Mix",
     "Music",

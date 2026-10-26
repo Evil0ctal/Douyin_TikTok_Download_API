@@ -462,6 +462,17 @@ const LIVE_ID_PARAM: ParamDef = {
   platforms: ['douyin', 'tiktok'],
   placeholder: { douyin: '7300000000000000101', tiktok: '7400000000000000101', bilibili: '' },
 }
+/** The same id, as the one thing a ranking is asked by. */
+const RANKING_LIVE_ID_PARAM: ParamDef = {
+  name: 'live_id',
+  kind: 'text',
+  where: 'query',
+  section: 'target',
+  required: true,
+  platforms: ['douyin'],
+  placeholder: { douyin: '7300000000000000101', tiktok: '', bilibili: '' },
+  descriptionKey: 'playground.param.rankingLiveId',
+}
 const LIVE_IDS_PARAM: ParamDef = {
   name: 'live_ids',
   kind: 'text',
@@ -757,6 +768,15 @@ export const CATALOG: readonly EndpointDef[] = [
     operation: 'live_room',
     platformScoped: true,
     params: [LIVE_URL_PARAM, ROOM_ID_PARAM, LIVE_ID_PARAM, ...ENVELOPE_PARAMS],
+  },
+  {
+    id: 'liveRanking',
+    method: 'GET',
+    path: (platform) => `${API_V1}/${platform}/live/ranking`,
+    operation: 'live_ranking',
+    platformScoped: true,
+    platforms: ['douyin'],
+    params: [RANKING_LIVE_ID_PARAM, ...ENVELOPE_PARAMS],
   },
   {
     id: 'liveStatus',

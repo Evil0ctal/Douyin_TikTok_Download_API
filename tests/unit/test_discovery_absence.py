@@ -107,6 +107,13 @@ class TestLiveRooms:
                 platform
             )
 
+    def test_a_ranking_for_a_broadcast_nobody_has_is_a_business_error(self) -> None:
+        """142 bytes, `status_code: 10011`, "the service is busy, try later"."""
+        assert verdict(load("douyin", "live_ranking_missing")) is Outcome.BUSINESS_ERROR
+
+    def test_a_ranking_is_an_answer(self) -> None:
+        assert verdict(load("douyin", "live_ranking")) is Outcome.OK
+
     def test_a_broadcast_that_is_on_is_an_answer(self) -> None:
         for platform in ("douyin", "tiktok"):
             assert verdict(load(platform, "live_room_by_id_on")) is Outcome.OK, platform

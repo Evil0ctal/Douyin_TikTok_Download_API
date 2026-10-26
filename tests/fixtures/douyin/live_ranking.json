@@ -1,0 +1,145 @@
+{
+  "data": {
+    "ranks": [
+      {
+        "user": {
+          "id": 1000000000000000101,
+          "id_str": "1000000000000000101",
+          "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_VIEWER_0001",
+          "nickname": "Synthetic Viewer 1",
+          "display_id": "synthetic.viewer.a",
+          "mystery_man": 1,
+          "web_rid": "",
+          "avatar_thumb": {
+            "url_list": [
+              "https://p3.example-cdn.invalid/aweme/100x100/synthetic-viewer-01.jpeg"
+            ]
+          },
+          "pay_grade": {
+            "level": 36
+          },
+          "follow_info": {
+            "following_count": 0,
+            "follower_count": 0,
+            "follow_status": 0
+          }
+        },
+        "score": 0,
+        "rank": 1,
+        "gap_description": "",
+        "delta": 0,
+        "first_gift": false,
+        "is_hidden": false,
+        "score_description": "",
+        "exactly_score": ""
+      },
+      {
+        "user": {
+          "id": 1000000000000000102,
+          "id_str": "1000000000000000102",
+          "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_VIEWER_0002",
+          "nickname": "Synthetic Viewer 2",
+          "display_id": "synthetic.viewer.b",
+          "mystery_man": 1,
+          "web_rid": "",
+          "avatar_thumb": {
+            "url_list": [
+              "https://p3.example-cdn.invalid/aweme/100x100/synthetic-viewer-02.jpeg"
+            ]
+          },
+          "pay_grade": {
+            "level": 36
+          },
+          "follow_info": {
+            "following_count": 0,
+            "follower_count": 0,
+            "follow_status": 0
+          }
+        },
+        "score": 0,
+        "rank": 2,
+        "gap_description": "",
+        "delta": 0,
+        "first_gift": false,
+        "is_hidden": true,
+        "score_description": "",
+        "exactly_score": ""
+      },
+      {
+        "user": {
+          "id": 1000000000000000103,
+          "id_str": "1000000000000000103",
+          "sec_uid": "MS4wLjABAAAA_SYNTHETIC_DOUYIN_VIEWER_0003",
+          "nickname": "Synthetic Viewer 3",
+          "display_id": "synthetic.viewer.c",
+          "mystery_man": 1,
+          "web_rid": "",
+          "avatar_thumb": {
+            "url_list": [
+              "https://p3.example-cdn.invalid/aweme/100x100/synthetic-viewer-03.jpeg"
+            ]
+          },
+          "pay_grade": {
+            "level": 36
+          },
+          "follow_info": {
+            "following_count": 0,
+            "follower_count": 0,
+            "follow_status": 0
+          }
+        },
+        "score": 0,
+        "rank": 3,
+        "gap_description": "",
+        "delta": 0,
+        "first_gift": false,
+        "is_hidden": false,
+        "score_description": "",
+        "exactly_score": ""
+      },
+      {
+        "user": {
+          "id": 111111,
+          "id_str": "111111",
+          "nickname": "张***",
+          "display_id": "",
+          "mystery_man": 1,
+          "desensitized_nickname": "",
+          "avatar_thumb": {
+            "url_list": [
+              "https://p3.example-cdn.invalid/aweme/100x100/masked-avatar.jpeg"
+            ]
+          }
+        },
+        "score": 0,
+        "rank": 4,
+        "gap_description": "",
+        "delta": 0,
+        "first_gift": false,
+        "is_hidden": false,
+        "score_description": "",
+        "exactly_score": ""
+      }
+    ],
+    "seats": [],
+    "self_info": {
+      "score": 0,
+      "rank": 0,
+      "gap_description": "",
+      "delta": 0,
+      "first_gift": false,
+      "is_hidden": false
+    },
+    "has_more": false,
+    "total": 0,
+    "currency": "",
+    "has_once_live": true,
+    "user_count_desc": "0",
+    "invisible_total": 0,
+    "label": ""
+  },
+  "extra": {
+    "now": 1792540800000
+  },
+  "status_code": 0
+}

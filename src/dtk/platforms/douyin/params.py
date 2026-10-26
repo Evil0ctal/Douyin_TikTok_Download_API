@@ -419,6 +419,16 @@ def live_room_params(*, web_rid: str, profile: ClientProfile = DEFAULT_PROFILE) 
             details={"field": "room_id"},
         )
     return {
+        **_live_site_params(profile),
+        "web_rid": rid,
+        "enter_source": "",
+        "is_need_double_stream": "false",
+    }
+
+
+def _live_site_params(profile: ClientProfile) -> dict[str, str]:
+    """What every call the live site's own page makes carries."""
+    return {
         "aid": AID,
         "app_name": "douyin_web",
         "live_id": "1",
@@ -432,9 +442,38 @@ def live_room_params(*, web_rid: str, profile: ClientProfile = DEFAULT_PROFILE) 
         "browser_platform": profile.browser_platform,
         "browser_name": profile.browser_name,
         "browser_version": profile.browser_version,
-        "web_rid": rid,
-        "enter_source": "",
-        "is_need_double_stream": "false",
+    }
+
+
+#: Which of a room's lists ``ranklist/audience`` answers with. 30 is the
+#: audience list beside the stream; 0 to 3 and 31 were refused with 10011 and
+#: 17 answered an empty list, on one room on 2026-10-26.
+AUDIENCE_RANK_TYPE: Final = "30"
+
+
+def live_ranking_params(
+    *, room_id: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``live.douyin.com/webcast/ranklist/audience/``.
+
+    The live site's own list, with the broadcast by its own ``room_id`` - the
+    ``live_id`` a room answer carries, not the web_rid. Measured on one room
+    on 2026-10-26: without ``webcast_sdk_version`` the list stops at 100
+    viewers instead of 200. Without ``anchor_id`` - the room's owner, which a
+    room answer would have to be asked for first - the top 20 were the same
+    and 199 of the 200, the list moving between the two calls.
+    """
+    broadcast = str(room_id).strip()
+    if not broadcast.isdigit():
+        raise InvalidParam(
+            "a Douyin broadcast is the number a room answer gives as live_id",
+            details={"field": "live_id"},
+        )
+    return {
+        **_live_site_params(profile),
+        "webcast_sdk_version": "2450",
+        "room_id": broadcast,
+        "rank_type": AUDIENCE_RANK_TYPE,
     }
 
 

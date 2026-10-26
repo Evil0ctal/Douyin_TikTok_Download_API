@@ -428,6 +428,32 @@ async def test_only_tiktok_checks_many_rooms(client: Any, platform: str) -> None
     assert error_code(response) == "UNSUPPORTED_CONTENT"
 
 
+async def test_a_douyin_ranking_queues_by_its_broadcast(client: Any) -> None:
+    await signed_in(client)
+    response = await client.get(
+        "/api/v1/douyin/live/ranking", params={"live_id": "7300000000000000101"}
+    )
+    row = await queued(response)
+    assert row.endpoint == "douyin.live_ranking"
+    assert row.params["live_id"] == "7300000000000000101"
+
+
+async def test_a_ranking_needs_a_broadcast_that_is_a_number(client: Any) -> None:
+    await signed_in(client)
+    assert error_code(await client.get("/api/v1/douyin/live/ranking")) == "INVALID_PARAM"
+    response = await client.get("/api/v1/douyin/live/ranking", params={"live_id": "615x"})
+    assert error_code(response) == "INVALID_PARAM"
+
+
+@pytest.mark.parametrize("platform", ["tiktok", "bilibili"])
+async def test_only_douyin_ranks_a_room(client: Any, platform: str) -> None:
+    await signed_in(client)
+    response = await client.get(
+        f"/api/v1/{platform}/live/ranking", params={"live_id": "7400000000000000101"}
+    )
+    assert error_code(response) == "UNSUPPORTED_CONTENT"
+
+
 async def test_bilibili_has_no_broadcast_id(client: Any) -> None:
     await signed_in(client)
     response = await client.get("/api/v1/bilibili/live", params={"live_id": "173551"})

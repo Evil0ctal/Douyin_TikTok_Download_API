@@ -29,6 +29,7 @@ from dtk.platforms.douyin.params import (
     comments_params,
     content_detail_params,
     hashtag_detail_params,
+    live_ranking_params,
     live_room_by_id_params,
     live_room_params,
     mix_posts_params,
@@ -239,6 +240,7 @@ HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
 AUTHOR_MIXES: Final = "douyin.author_mixes"
 LIVE_ROOM: Final = "douyin.live_room"
 LIVE_ROOM_BY_ID: Final = "douyin.live_room_by_id"
+LIVE_RANKING: Final = "douyin.live_ranking"
 TRENDING: Final = "douyin.trending"
 
 #: Sent on every Douyin request. Cookies and User-Agent are injected by the
@@ -465,6 +467,22 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="One live room, by the broadcast's own id",
     ),
     EndpointSpec(
+        name=LIVE_RANKING,
+        path=DouyinAPIEndpoints.LIVE_GIFT_RANK,
+        required=("room_id",),
+        build=live_ranking_params,
+        risk_weight=1.2,
+        headers=(
+            ("Referer", f"{DouyinAPIEndpoints.LIVE_DOMAIN}/"),
+            ("Origin", DouyinAPIEndpoints.LIVE_DOMAIN),
+        ),
+        # Answers a guest with up to 200 viewers in order, every score 0; a
+        # room_id nobody has is `status_code: 10011` (2026-10-26). Whether a
+        # signed-in account is told the scores was not measured, so a guest
+        # is not marked as getting less.
+        summary="A broadcast's audience ranking",
+    ),
+    EndpointSpec(
         name=TRENDING,
         path=DouyinAPIEndpoints.DOUYIN_HOT_SEARCH,
         required=(),
@@ -507,6 +525,7 @@ __all__ = [
     "DEFAULT_HEADERS",
     "ENDPOINTS",
     "HASHTAG_DETAIL",
+    "LIVE_RANKING",
     "LIVE_ROOM",
     "LIVE_ROOM_BY_ID",
     "MIX_POSTS",

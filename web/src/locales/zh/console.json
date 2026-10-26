@@ -1495,6 +1495,7 @@
       "searchPosts": "搜索作品",
       "searchUsers": "搜索账号",
       "live": "直播间",
+      "liveRanking": "直播间观众榜",
       "liveStatus": "直播间是否在播",
       "trending": "热榜"
     },
@@ -1577,6 +1578,7 @@
       "room_id": "直播间链接中的数字。与链接二选一。",
       "live_id": "本场直播自己的 ID：直播间信息里返回的 live_id，或抖音 App 分享链接里的那串数字。与直播间、链接三选一。",
       "live_ids": "要查询的直播，用英文逗号分隔：每个直播间信息里返回的 live_id，最多 100 个。",
+      "rankingLiveId": "要查询的那场直播：直播间正在直播时返回的 live_id。",
       "trendingBoard": "哪一个榜单：hot（默认）、entertainment（娱乐）、society（社会）或 challenge（挑战）。B 站只有 hot。"
     },
     "paramFor": {

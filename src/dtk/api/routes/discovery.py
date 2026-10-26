@@ -760,6 +760,64 @@ async def live_status(
 
 
 @router.get(
+    "/{platform}/live/ranking",
+    summary="A live room's audience ranking",
+    openapi_extra={I18N_KEY: "live_ranking", **ASYNC_RESPONSES},
+)
+async def live_ranking(
+    request: Request,
+    platform: Platform = PLATFORM_PATH,
+    live_id: str = Query(
+        min_length=1,
+        max_length=_ID_MAX_LENGTH,
+        description="The broadcast: the live_id a /live answer carries while its room is on.",
+    ),
+    include_raw: bool = RAW_QUERY,
+    wait: float | None = WAIT_QUERY,
+    proxy: str | None = PROXY_QUERY,
+    identity: str | None = IDENTITY_QUERY,
+    refresh: bool = REFRESH_QUERY,
+    explain: bool = EXPLAIN_QUERY,
+    principal: Principal = Depends(enforce_rate_limit),
+) -> Any:
+    """The audience ranking of one broadcast: the list beside the stream.
+
+    Up to 200 viewers, top first, in the order the room's own page lists
+    them. A guest is told the order and not the scores behind it, so none
+    are returned.
+
+    **Parameters**
+
+    - `platform` - `douyin`. TikTok and Bilibili answer `UNSUPPORTED_CONTENT`.
+    - `live_id` - the broadcast: the `live_id` a `/live` answer carries while
+      its room is on air.
+    - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
+      `/live`. A repeat inside `cache.list_ttl` (5 minutes by default) is
+      answered from the cache.
+
+    **Returns**
+
+    One page with a `{rank, author}` per place. `author` is null for a
+    viewer who chose not to be listed - the platform still sends their
+    account, and it is not passed on - and for one the platform names to a
+    guest only by a masked nickname. A broadcast nobody has is `NOT_FOUND`.
+    """
+    authorize(principal, platform)
+    endpoint = supported(platform, Operation.LIVE_RANKING)
+    return await operations.submit_and_wait(
+        request,
+        principal,
+        endpoint=endpoint,
+        params={"live_id": _numeric_id(live_id, field="live_id"), "include_raw": include_raw},
+        wait=resolve_wait(request, wait),
+        proxy=await resolve_request_proxy(request, proxy),
+        refresh=refresh,
+        explain=await resolve_explain(request, principal, explain),
+        identity=await resolve_request_identity(request, principal, identity, platform=platform),
+    )
+
+
+@router.get(
     "/{platform}/trending",
     summary="What people are searching for",
     openapi_extra={I18N_KEY: "trending", **ASYNC_RESPONSES},
