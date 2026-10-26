@@ -234,11 +234,7 @@ class DouyinAdapter:
         return parser.parse_live_room_by_id(payload)
 
     def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
-        """No call registered: nothing measured asks about many rooms at once."""
-        raise UnsupportedContent(
-            "Douyin has no way here to ask about many live rooms at once",
-            details={"platform": self.platform.value, "capability": "live_status"},
-        )
+        return parser.parse_live_status(payload)
 
     def parse_live_ranking(self, payload: Mapping[str, Any]) -> Page[LiveViewer]:
         return parser.parse_live_ranking(payload)

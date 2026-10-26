@@ -47,6 +47,7 @@ FIXTURE_NAMES: tuple[str, ...] = (
     # TikTok's webcast host. Bilibili numbers a room once.
     "live_room_by_id_on",
     "live_room_by_id_missing",
+    "live_status",
 )
 
 #: Bilibili's set differs where the platform does. It has no image albums, and
@@ -118,8 +119,6 @@ TIKTOK_FIXTURE_NAMES: tuple[str, ...] = (
     "search_posts_end",
     "search_authors_page1",
     "author_mixes_none",
-    # Many broadcasts at once, which only TikTok has measured.
-    "live_status",
 )
 
 

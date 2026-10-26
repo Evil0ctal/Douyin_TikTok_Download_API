@@ -709,30 +709,48 @@ def test_a_broadcast_that_has_ended_has_no_streams() -> None:
         assert room.viewer_count is None, platform
 
 
-def test_tiktok_answers_for_each_broadcast_in_the_order_asked() -> None:
-    page = get_adapter("tiktok").parse_live_status(load("tiktok", "live_status"))
+def test_douyin_and_tiktok_answer_for_each_broadcast_in_the_order_asked() -> None:
+    douyin = get_adapter("douyin").parse_live_status(load("douyin", "live_status"))
+    assert [(s.live_id, s.is_live) for s in douyin.items] == [
+        ("7300000000000000101", True),
+        ("7300000000000000102", False),
+        ("7300000000000000103", False),
+    ]
+    assert all(s.platform is Platform.DOUYIN for s in douyin.items)
+    assert douyin.has_more is False
+    assert douyin.cursor is None
 
-    assert [(s.live_id, s.is_live) for s in page.items] == [
+    tiktok = get_adapter("tiktok").parse_live_status(load("tiktok", "live_status"))
+    assert [(s.live_id, s.is_live) for s in tiktok.items] == [
         ("7400000000000000101", True),
         ("7400000000000000102", True),
         ("7400000000000000103", False),
     ]
-    assert all(s.platform is Platform.TIKTOK for s in page.items)
+    assert all(s.platform is Platform.TIKTOK for s in tiktok.items)
+    assert tiktok.has_more is False
+    assert tiktok.cursor is None
+
+
+def test_douyin_answers_an_ask_of_only_nonexistent_broadcasts_with_an_empty_page() -> None:
+    payload = load("douyin", "live_status")
+    payload["data"] = []
+    page = get_adapter("douyin").parse_live_status(payload)
+    assert page.items == []
     assert page.has_more is False
     assert page.cursor is None
 
 
-def test_a_status_without_its_flag_is_a_changed_answer_not_an_ended_room() -> None:
-    payload = load("tiktok", "live_status")
+@pytest.mark.parametrize("platform", ["douyin", "tiktok"])
+def test_a_status_without_its_flag_is_a_changed_answer_not_an_ended_room(platform: str) -> None:
+    payload = load(platform, "live_status")
     del payload["data"][0]["alive"]
     with pytest.raises(UpstreamChanged):
-        get_adapter("tiktok").parse_live_status(payload)
+        get_adapter(platform).parse_live_status(payload)
 
 
-@pytest.mark.parametrize("platform", ["douyin", "bilibili"])
-def test_only_tiktok_answers_for_many_rooms(platform: str) -> None:
+def test_bilibili_has_no_way_to_check_many_rooms() -> None:
     with pytest.raises(UnsupportedContent):
-        get_adapter(platform).parse_live_status({})
+        get_adapter("bilibili").parse_live_status({})
 
 
 def test_a_douyin_ranking_is_its_places_in_order() -> None:

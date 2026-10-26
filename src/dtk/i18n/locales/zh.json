@@ -708,7 +708,7 @@
       },
       "live_status": {
         "summary": "直播间是否在播",
-        "description": "一次查询最多 100 场直播是否仍在进行，按 /live 返回的 live_id 来查：每场一个 is_live，顺序与请求一致。仅限 TikTok。已结束的直播和不存在的直播都返回 false。"
+        "description": "一次查询最多 100 场直播是否仍在进行，按 /live 返回的 live_id 来查：每场一个 is_live，顺序与请求一致。支持抖音和 TikTok。已结束的直播返回 false；根本不存在的 ID 在 TikTok 上返回 false，在抖音上会被略去。"
       },
       "trending": {
         "summary": "热榜",

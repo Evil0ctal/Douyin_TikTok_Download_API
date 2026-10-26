@@ -32,6 +32,7 @@ from dtk.platforms.douyin.params import (
     live_ranking_params,
     live_room_by_id_params,
     live_room_params,
+    live_status_params,
     mix_posts_params,
     music_detail_params,
     music_posts_params,
@@ -173,6 +174,10 @@ class DouyinAPIEndpoints:
     # Live room info by room id
     LIVE_INFO_ROOM_ID: Final = f"{LIVE_DOMAIN2}/webcast/room/reflow/info/"
 
+    # Whether each of many broadcasts is on air. Lives on the webcast host,
+    # like reflow/info: live.douyin.com answers this path with a 404 (2026-10-26).
+    LIVE_CHECK_ALIVE: Final = f"{LIVE_DOMAIN2}/webcast/room/check_alive/"
+
     # Gift leaderboard of a live room
     LIVE_GIFT_RANK: Final = f"{LIVE_DOMAIN}/webcast/ranklist/audience/"
 
@@ -240,6 +245,7 @@ HASHTAG_DETAIL: Final = "douyin.hashtag_detail"
 AUTHOR_MIXES: Final = "douyin.author_mixes"
 LIVE_ROOM: Final = "douyin.live_room"
 LIVE_ROOM_BY_ID: Final = "douyin.live_room_by_id"
+LIVE_STATUS: Final = "douyin.live_status"
 LIVE_RANKING: Final = "douyin.live_ranking"
 TRENDING: Final = "douyin.trending"
 
@@ -467,6 +473,21 @@ ENDPOINTS: Final = EndpointTable.of(
         summary="One live room, by the broadcast's own id",
     ),
     EndpointSpec(
+        name=LIVE_STATUS,
+        path=DouyinAPIEndpoints.LIVE_CHECK_ALIVE,
+        required=("room_ids",),
+        build=live_status_params,
+        risk_weight=1.0,
+        headers=(
+            ("Referer", f"{DouyinAPIEndpoints.LIVE_DOMAIN}/"),
+            ("Origin", DouyinAPIEndpoints.LIVE_DOMAIN),
+        ),
+        # Answers a guest with `{alive, room_id}` for each broadcast that
+        # existed, in the order asked, and leaves out an id that never did
+        # (2026-10-26).
+        summary="Whether each of many broadcasts is on air",
+    ),
+    EndpointSpec(
         name=LIVE_RANKING,
         path=DouyinAPIEndpoints.LIVE_GIFT_RANK,
         required=("room_id",),
@@ -528,6 +549,7 @@ __all__ = [
     "LIVE_RANKING",
     "LIVE_ROOM",
     "LIVE_ROOM_BY_ID",
+    "LIVE_STATUS",
     "MIX_POSTS",
     "MUSIC_DETAIL",
     "MUSIC_POSTS",

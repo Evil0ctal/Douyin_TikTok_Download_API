@@ -42,6 +42,7 @@ from dtk.models import (
     Hashtag,
     Image,
     LiveRoom,
+    LiveStatus,
     LiveStream,
     LiveViewer,
     Media,
@@ -802,6 +803,33 @@ def parse_live_room_by_id(payload: Mapping[str, Any]) -> LiveRoom:
     )
 
 
+def parse_live_status(payload: Mapping[str, Any]) -> Page[LiveStatus]:
+    """Parse ``webcast.amemv.com/webcast/room/check_alive/``.
+
+    ``data`` is a list with one ``{alive, room_id}`` per broadcast that
+    existed, in the order asked. Unlike TikTok's answer there is no
+    ``room_id_str`` beside ``room_id`` - Python's JSON reader keeps every
+    digit of the 64-bit integer - and while a broadcast that has ended is
+    ``alive: false``, an id that was never a broadcast is left out of
+    ``data`` rather than returned as ``false`` (an ask of only nonexistent
+    ids answers ``data: []``, measured 2026-10-26).
+    """
+    items = [
+        LiveStatus(platform=_PLATFORM, live_id=entry.id("room_id"), is_live=_alive(entry))
+        for entry in _guard(payload).children("data")
+    ]
+    return Page(items=items, cursor=None, has_more=False)
+
+
+def _alive(entry: Node) -> bool:
+    """``alive`` as the platform sent it. Absent is a changed answer, not a
+    "no": reading it as False would report every room off the day it moved."""
+    value = entry.present("alive")
+    if not isinstance(value, bool):
+        raise entry.missing("alive")
+    return value
+
+
 def parse_live_ranking(payload: Mapping[str, Any]) -> Page[LiveViewer]:
     """Parse ``live.douyin.com/webcast/ranklist/audience/``: ``data.ranks``.
 
@@ -989,6 +1017,7 @@ __all__ = [
     "parse_live_ranking",
     "parse_live_room",
     "parse_live_room_by_id",
+    "parse_live_status",
     "parse_music_detail",
     "parse_music_posts",
     "parse_related_posts",

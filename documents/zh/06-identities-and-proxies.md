@@ -594,7 +594,7 @@ socks5://user:pass@host:port
 | `douyin.content_detail`、`tiktok.content_detail` | 5 | 0.30 | 1.0 |
 | `douyin.author_profile`、`tiktok.author_profile` | 4 | 0.20 | 1.2 |
 | `douyin.related_posts`、`douyin.live_room`、`douyin.live_room_by_id` 及对应的 TikTok 接口 | 4 | 0.20 | 1.2 |
-| `douyin.music_detail`、`douyin.hashtag_detail`、`douyin.trending`、TikTok 的音乐详情和话题详情及 `tiktok.live_status` | 4 | 0.20 | 1.0 |
+| `douyin.music_detail`、`douyin.hashtag_detail`、`douyin.live_status`、`douyin.trending` 及对应的 TikTok 接口 | 4 | 0.20 | 1.0 |
 | `douyin.comments`、`douyin.comment_replies`、`douyin.mix_posts`、`douyin.author_mixes`、`douyin.music_posts`、对应的 TikTok 接口及 `tiktok.hashtag_posts` | 3 | 0.15 | 1.5 |
 | `douyin.live_ranking` | 3 | 0.15 | 1.2 |
 | `douyin.author_posts`、`douyin.author_likes` 及对应的 TikTok 接口 | 3 | 0.12 | 1.8 |

@@ -72,6 +72,9 @@ _POLICIES: dict[str, EndpointPolicy] = {
         EndpointPolicy("douyin.author_mixes", capacity=3, refill_per_sec=0.15, risk_weight=1.5),
         EndpointPolicy("douyin.live_room", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
         EndpointPolicy("douyin.live_room_by_id", capacity=4, refill_per_sec=0.20, risk_weight=1.2),
+        # One call answers for up to a hundred rooms, so a poller spends one
+        # token where it would have spent a hundred on /live.
+        EndpointPolicy("douyin.live_status", capacity=4, refill_per_sec=0.20, risk_weight=1.0),
         # 1.2 MB for a full room's 200 viewers, so a slower bucket than the
         # room's own.
         EndpointPolicy("douyin.live_ranking", capacity=3, refill_per_sec=0.15, risk_weight=1.2),

@@ -1232,7 +1232,7 @@ refill lazily from elapsed time and idle ones expire after 24 hours.
 | `douyin.content_detail`, `tiktok.content_detail` | 5 | 0.30 | 1.0 |
 | `douyin.author_profile`, `tiktok.author_profile` | 4 | 0.20 | 1.2 |
 | `douyin.related_posts`, `douyin.live_room`, `douyin.live_room_by_id` and the TikTok equivalents | 4 | 0.20 | 1.2 |
-| `douyin.music_detail`, `douyin.hashtag_detail`, `douyin.trending`, TikTok's sound and hashtag detail and `tiktok.live_status` | 4 | 0.20 | 1.0 |
+| `douyin.music_detail`, `douyin.hashtag_detail`, `douyin.live_status`, `douyin.trending` and the TikTok equivalents | 4 | 0.20 | 1.0 |
 | `douyin.comments`, `douyin.comment_replies`, `douyin.mix_posts`, `douyin.author_mixes`, `douyin.music_posts`, the TikTok equivalents and `tiktok.hashtag_posts` | 3 | 0.15 | 1.5 |
 | `douyin.live_ranking` | 3 | 0.15 | 1.2 |
 | `douyin.author_posts`, `douyin.author_likes` and the TikTok equivalents | 3 | 0.12 | 1.8 |

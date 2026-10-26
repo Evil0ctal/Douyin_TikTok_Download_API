@@ -99,7 +99,7 @@ until that answers, nothing is greyed.
 | Search accounts | `GET` | `/api/v1/{platform}/search/users` | `{platform}.search_authors` |
 | Live room | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`, and `bilibili.live_streams` for a Bilibili room that is on; `{platform}.live_room_by_id` on Douyin and TikTok when asked by `live_id` or a Douyin share link |
 | Live room audience ranking | `GET` | `/api/v1/{platform}/live/ranking` | `douyin.live_ranking` |
-| Whether live rooms are on air | `GET` | `/api/v1/{platform}/live/status` | `tiktok.live_status` |
+| Whether live rooms are on air | `GET` | `/api/v1/{platform}/live/status` | `{platform}.live_status` |
 | Trending board | `GET` | `/api/v1/{platform}/trending` | `{platform}.trending` |
 
 Not every platform serves every entry, and asking for one it does not serve is

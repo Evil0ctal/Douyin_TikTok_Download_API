@@ -307,6 +307,7 @@ _ARGUMENTS: Final[Mapping[Platform, Mapping[Capability, Mapping[str, str]]]] = {
         Capability.AUTHOR_MIXES: {AUTHOR_ID: "sec_user_id", CURSOR: "cursor", COUNT: "count"},
         Capability.LIVE_ROOM: {ROOM_ID: "web_rid"},
         Capability.LIVE_ROOM_BY_ID: {LIVE_ID: "room_id"},
+        Capability.LIVE_STATUS: {LIVE_IDS: "room_ids"},
         Capability.LIVE_RANKING: {LIVE_ID: "room_id"},
         Capability.TRENDING: {BOARD: "board"},
     },

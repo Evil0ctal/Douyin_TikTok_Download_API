@@ -69,7 +69,7 @@
 | 搜索账号 | `GET` | `/api/v1/{platform}/search/users` | `{platform}.search_authors` |
 | 直播间 | `GET` | `/api/v1/{platform}/live` | `{platform}.live_room`；B 站直播间正在直播时还有 `bilibili.live_streams`；抖音和 TikTok 用 `live_id` 或抖音分享链接查时是 `{platform}.live_room_by_id` |
 | 直播间观众榜 | `GET` | `/api/v1/{platform}/live/ranking` | `douyin.live_ranking` |
-| 直播间是否在播 | `GET` | `/api/v1/{platform}/live/status` | `tiktok.live_status` |
+| 直播间是否在播 | `GET` | `/api/v1/{platform}/live/status` | `{platform}.live_status` |
 | 热榜 | `GET` | `/api/v1/{platform}/trending` | `{platform}.trending` |
 
 并不是每个平台都提供每一项。问一个平台不提供的那一项，会在 API 边界就被以 `UNSUPPORTED_CONTENT`（400）拒掉，并指明平台和能力：没有 request_id，失败面板也匹配不到同名的调度器接口。

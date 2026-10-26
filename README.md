@@ -227,7 +227,7 @@ illegal** — they are for making friends and talking about the work.
 | Keyword search: posts and accounts | ❌ | ✅ | ✅ |
 | A live room: whether it is on, and its pull URLs | ✅ | ✅ | ✅ |
 | A live room by its broadcast's own id, and Douyin app share links | ✅ | ✅ | — |
-| Whether many live rooms are on air, in one call | ❌ | ✅ | ❌ |
+| Whether many live rooms are on air, in one call | ✅ | ✅ | ❌ |
 | A live room's audience ranking | ✅ | ❌ | ❌ |
 | Trending boards | ✅ | ❌ | ✅ |
 
