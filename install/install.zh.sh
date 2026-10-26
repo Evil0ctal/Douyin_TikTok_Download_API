@@ -28,8 +28,28 @@ IFS=$'\n\t'
 
 # DTK_REPO_URL 让克隆走一个镜像。有了代码目录之后，发布版本都从它自己的 origin 上找，
 # 所以之后也一直走那个镜像。
-readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
-readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
+# DTK_GH_PROXY 给下面两个 GitHub 地址统一加一个镜像前缀，默认不加。REPO_RAW 在这里
+# 从来不被下载，只出现在提示信息建议的下载命令里，所以前缀真正改变的是克隆地址——
+# 设了 DTK_REPO_URL 时克隆地址以它为准。经手克隆的一方等于经手整个安装，所以只用你
+# 信得过的镜像：只放行本仓库的自建中转（比如 Cloudflare Workers）最干净。
+# 末尾带不带 / 都行。
+gh_proxy="${DTK_GH_PROXY:-}"
+while [ "$gh_proxy" != "${gh_proxy%/}" ]; do gh_proxy="${gh_proxy%/}"; done
+# 只认 https，且不能带 shell 语法：REPO_RAW 会写进生成的 dtkctl 里一个双引号字符串，
+# 跟下面的 DTK_PROJECT 是同一个理由。不带协议的前缀以前一路走到 git 才报错
+# （"protocol 'gh-proxy.com/https' is not supported"），http:// 的则是明文克隆，
+# 路上谁都能改。
+if [ -n "$gh_proxy" ]; then
+  case "${gh_proxy#https://}" in
+    "$gh_proxy"|""|[![:alnum:]]*|*[![:alnum:]._~:/?=%+@-]*)
+      printf '错误：DTK_GH_PROXY 必须是 https:// 开头的地址，比如 https://mirror.example/，只能有字母、数字和 . _ ~ : / ? = %% + @ -。\n' >&2
+      exit 1 ;;
+  esac
+fi
+readonly GH_PROXY="${gh_proxy:+$gh_proxy/}"
+readonly GITHUB_REPO_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git"
+readonly REPO_URL="${DTK_REPO_URL:-${GH_PROXY}${GITHUB_REPO_URL}}"
+readonly REPO_RAW="${GH_PROXY}https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
 readonly COMPOSE_INSTALL_URL="https://docs.docker.com/compose/install/linux/"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/02-installation.md"
@@ -1041,11 +1061,33 @@ $(printf '%s\n' "$volumes" | sed 's/^/      /')
           docker volume rm $(printf '%s' "$volumes" | tr '\n' ' ')"
 }
 
+# 除了 GitHub，换到任何地方都要先得到同意，而且要在从它取任何东西之前——resolve_target
+# 已经会去那里读发布版本的 tag。镜像经手全部代码——docker/compose.yml，也就决定了跑哪些
+# 镜像——以及这之后的每一次升级，而这里没法分辨它给的和 GitHub 上的是不是同一份。所以
+# 把话说全，直接回车什么都不改。--yes 时，设了那个变量就是回答，跟 DTK_ENABLE_BROWSER=1
+# 一样：是有人特意设的。
+confirm_mirror() {
+  [ "$REPO_URL" = "$GITHUB_REPO_URL" ] && return 0
+  local default="n"
+  [ "$ASSUME_YES" = 1 ] && default="y"
+  step "用镜像代替 GitHub"
+  warn "这次会从 ${REPO_URL} 克隆，而不是 GitHub。"
+  dim "装进来的一切都经它的手：代码、docker/compose.yml（也就决定了跑哪些镜像），"
+  dim "以及之后的每一次升级。这里没法分辨它给的和 GitHub 上的是不是同一份，被攻破的、"
+  dim "或者你不了解的人运营的镜像，可以换给你别的代码。只用你自己运营或信得过的镜像。"
+  dim "以后要切回 GitHub："
+  dim "  git -C $INSTALL_DIR remote set-url origin $GITHUB_REPO_URL"
+  ask_yes_no "从这个镜像克隆吗？" "$default" \
+    || die "什么都没改。不设 DTK_GH_PROXY 和 DTK_REPO_URL，就会从 GitHub 克隆。"
+}
+
 prepare_directory() {
   if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
     die "$INSTALL_DIR 已存在，而且不是目录。"
   fi
   have git || die "没有装 git。用 $(git_install_hint) 装上，然后再跑一次。"
+  # 只有克隆才用它：已有的代码目录从它自己的 origin 取，DTK_GH_PROXY 设成什么都不管用。
+  [ -d "$INSTALL_DIR/.git" ] || confirm_mirror
 
   # 要安装的那个版本：检出它的 tag，并把它的版本号作为 DTK_IMAGE_TAG 写进 .env。main
   # 跑在发布版本前面，以前克隆 main 的安装，一开始就是 main 的 compose.yml 套着上一个
@@ -1109,11 +1151,14 @@ prepare_directory() {
   # main 上从那个发布版本到最新提交之间的历史：只克隆 tag 就没有 origin/main，--depth 1
   # 克隆 main 又只有最新提交、没有通往它的那段历史。不管哪种，那一步都会失败，升级就在
   # 旧代码里接着跑了下去。main 的全部历史大约 14 MB。
-  local said
+  local said hint="检查一下网络；在中国大陆多半要先换源（DTK_GH_PROXY，见 --help）：$DOCS_URL"
+  # 镜像本身连不上时，再叫人去设一个镜像帮不上忙。
+  [ "$REPO_URL" = "$GITHUB_REPO_URL" ] \
+    || hint="这是一个镜像：确认它还在运行、并且转发本仓库；或者不设 DTK_GH_PROXY 和 DTK_REPO_URL，直接从 GitHub 克隆。"
   if ! said="$(git clone --quiet --single-branch --branch main "$REPO_URL" "$INSTALL_DIR" 2>&1)"; then
     die "克隆 $REPO_URL 失败：
 $(printf '%s\n' "$said" | sed 's/^/      /')
-    检查一下网络；在中国大陆多半要先换源：$DOCS_URL"
+    $hint"
   fi
   checkout_ref "$RELEASE_REF"
   ok "已把 $RELEASE_REF 克隆到 $INSTALL_DIR"
@@ -2711,6 +2756,8 @@ usage() {
   DTK_PROJECT            Compose 项目名。默认：dtk。
   DTK_INSTALL_DIR        装到哪里。默认：root 是 /opt/dtk，否则 ~/dtk。
   DTK_REPO_URL           从哪里克隆，用于镜像源。默认：GitHub。
+  DTK_GH_PROXY           加在克隆用的 GitHub 地址前的 https:// 镜像前缀，默认不加。
+                         这两个都等于把整个安装交给镜像，所以克隆之前会先问你。
   DTK_VERSION            要安装的版本：5.1.6、5.1、latest（默认）或 sha-<commit>。
                          检出的就是它的 tag。
   DTK_BIND_HOST         127.0.0.1（默认）或 0.0.0.0。

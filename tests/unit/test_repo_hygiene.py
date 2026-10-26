@@ -861,6 +861,119 @@ class TestInstallScripts:
         ]
         assert not offenders, "pipes remote code into a shell:\n" + "\n".join(offenders)
 
+    @staticmethod
+    def _function(script, name):
+        body = script.read_text(encoding="utf-8")
+        found = re.search(rf"^{name}\(\) \{{\n.*?^\}}$", body, flags=re.M | re.S)
+        assert found, f"{script.name} has no {name}"
+        return found.group(0)
+
+    @staticmethod
+    def _help(script, prefix):
+        return subprocess.run(
+            ["bash", str(script), "--help"],
+            env={
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": "/nonexistent",
+                "DTK_GH_PROXY": prefix,
+            },
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+        )
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    @pytest.mark.parametrize(
+        "prefix",
+        [
+            "http://mirror.example/",
+            "mirror.example/",
+            "https://",
+            " https://mirror.example/",
+            "https://mirror.example/$(id)/",
+            'https://mirror.example/"/',
+        ],
+    )
+    def test_a_mirror_prefix_is_https_and_nothing_else(self, script, prefix):
+        """DTK_GH_PROXY carries the whole install, and lands in dtkctl.
+
+        Over plain http so does anybody on the path. Without a scheme it got as
+        far as git, as "protocol 'gh-proxy.com/https' is not supported". And
+        REPO_RAW, which it prefixes, is written into a double-quoted string in
+        the generated dtkctl, where a `$(` would run.
+        """
+        result = self._help(script, prefix)
+        assert result.returncode == 1, f"{script.name} took DTK_GH_PROXY={prefix!r}"
+        assert "DTK_GH_PROXY" in result.stderr
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    @pytest.mark.parametrize(
+        "prefix",
+        ["", "https://mirror.example", "https://mirror.example///", "https://m.example:8443/gh/"],
+    )
+    def test_an_https_mirror_prefix_is_taken(self, script, prefix):
+        result = self._help(script, prefix)
+        assert result.returncode == 0, result.stderr
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    @pytest.mark.parametrize(
+        ("repo_url", "assume_yes", "typed", "goes_ahead"),
+        [
+            ("github", "0", "", True),
+            ("mirror", "1", "", True),
+            ("mirror", "0", "\n", False),
+            ("mirror", "0", "y\n", True),
+        ],
+        ids=["github-never-asks", "mirror-under-yes", "mirror-enter-stops", "mirror-agreed"],
+    )
+    def test_a_mirror_is_agreed_to_before_the_clone(
+        self, script, tmp_path, repo_url, assume_yes, typed, goes_ahead
+    ):
+        """GitHub is the default; anything else is said in full and asked.
+
+        A mirror hands over all of the code and every upgrade after it, so a
+        bare Enter stops rather than clones. Under --yes the variable that named
+        it is the answer, as DTK_ENABLE_BROWSER=1 is.
+        """
+        github = "https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git"
+        mirror = f"https://mirror.example/{github}"
+        answers = tmp_path / "tty"
+        answers.write_text(typed, encoding="utf-8")
+        functions = "\n".join(
+            self._function(script, name) for name in ("read_line", "ask_yes_no", "confirm_mirror")
+        )
+        prelude = (
+            "warn() { printf '%s\\n' \"$*\" >&2; }\ninfo() { printf '%s\\n' \"$*\"; }\n"
+            "dim() { printf '%s\\n' \"$*\"; }\nstep() { printf '%s\\n' \"$*\"; }\n"
+            "die() { printf '%s\\n' \"$*\" >&2; exit 1; }\n"
+        )
+        result = subprocess.run(
+            ["bash", "-c", f"set -euo pipefail\n{prelude}{functions}\nconfirm_mirror"],
+            env={
+                "PATH": os.environ.get("PATH", ""),
+                "GITHUB_REPO_URL": github,
+                "REPO_URL": github if repo_url == "github" else mirror,
+                "ASSUME_YES": assume_yes,
+                "TTY_IN": str(answers),
+                "INSTALL_DIR": "/opt/dtk",
+            },
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+        )
+        assert (result.returncode == 0) is goes_ahead, result.stdout + result.stderr
+        if repo_url == "github":
+            assert not result.stdout and not result.stderr, "asked about GitHub itself"
+        else:
+            assert mirror in result.stdout + result.stderr, "never said which mirror"
+
+    @pytest.mark.parametrize("script", SCRIPTS, ids=lambda p: p.name)
+    def test_a_mirror_is_agreed_to_before_anything_is_fetched_from_it(self, script):
+        # resolve_target already reads the release tags from the clone address.
+        body = self._function(script, "prepare_directory")
+        assert "confirm_mirror" in body, f"{script.name} clones without asking about a mirror"
+        assert body.index("confirm_mirror") < body.index("resolve_target") < body.index("git clone")
+
     def test_the_browser_pin_is_one_value(self):
         """The CloakBrowser commit and the Playwright it needs move together.
 

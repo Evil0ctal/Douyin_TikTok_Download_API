@@ -30,8 +30,31 @@ IFS=$'\n\t'
 
 # DTK_REPO_URL points the clone at a mirror. Releases are found on the
 # checkout's own origin once there is one, so it stays the mirror after.
-readonly REPO_URL="${DTK_REPO_URL:-https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git}"
-readonly REPO_RAW="https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
+# DTK_GH_PROXY prefixes both GitHub addresses below with one mirror, none by
+# default. REPO_RAW is never fetched here, only printed in the download
+# commands a message suggests, so what the prefix moves is the clone - and
+# with DTK_REPO_URL set, the clone stays with that. Whatever relays the clone
+# hands over the whole install, so run one you trust: a self-hosted relay that
+# allows only this repository (a Cloudflare Worker, say) is the clean form.
+# A trailing slash is fine.
+gh_proxy="${DTK_GH_PROXY:-}"
+while [ "$gh_proxy" != "${gh_proxy%/}" ]; do gh_proxy="${gh_proxy%/}"; done
+# https, and nothing that is shell syntax: REPO_RAW is written into a
+# double-quoted string in the generated dtkctl, as DTK_PROJECT is below. A
+# prefix without a scheme used to get as far as git ("protocol
+# 'gh-proxy.com/https' is not supported"), and an http:// one cloned the
+# install in plain text, for anyone on the path to rewrite.
+if [ -n "$gh_proxy" ]; then
+  case "${gh_proxy#https://}" in
+    "$gh_proxy"|""|[![:alnum:]]*|*[![:alnum:]._~:/?=%+@-]*)
+      printf 'error: DTK_GH_PROXY must be an https:// address, like https://mirror.example/, of letters, digits and . _ ~ : / ? = %% + @ - only.\n' >&2
+      exit 1 ;;
+  esac
+fi
+readonly GH_PROXY="${gh_proxy:+$gh_proxy/}"
+readonly GITHUB_REPO_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git"
+readonly REPO_URL="${DTK_REPO_URL:-${GH_PROXY}${GITHUB_REPO_URL}}"
+readonly REPO_RAW="${GH_PROXY}https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main"
 readonly DOCKER_INSTALL_URL="https://get.docker.com"
 readonly COMPOSE_INSTALL_URL="https://docs.docker.com/compose/install/linux/"
 readonly DOCS_URL="https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/en/02-installation.md"
@@ -1079,11 +1102,36 @@ $(printf '%s\n' "$volumes" | sed 's/^/      /')
           docker volume rm $(printf '%s' "$volumes" | tr '\n' ' ')"
 }
 
+# Anywhere but GitHub is agreed to before anything is fetched from it, and
+# resolve_target already reads the release tags there. A mirror hands over all
+# of the code - docker/compose.yml, and so which images run - and every upgrade
+# after this one, and nothing here can tell its copy from GitHub's. So it is
+# said in full, and a bare Enter changes nothing. Under --yes the variable that
+# named it is the answer, as DTK_ENABLE_BROWSER=1 is: somebody set it.
+confirm_mirror() {
+  [ "$REPO_URL" = "$GITHUB_REPO_URL" ] && return 0
+  local default="n"
+  [ "$ASSUME_YES" = 1 ] && default="y"
+  step "A mirror instead of GitHub"
+  warn "This would clone from $REPO_URL, not from GitHub."
+  dim "Everything installed comes through it: the code, docker/compose.yml and so"
+  dim "which images run, and every upgrade after this one. Nothing here can tell"
+  dim "its copy from GitHub's, so a mirror that is compromised, or run by someone"
+  dim "you do not know, can hand you other code. Use one you run or trust."
+  dim "To go back to GitHub later:"
+  dim "  git -C $INSTALL_DIR remote set-url origin $GITHUB_REPO_URL"
+  ask_yes_no "Clone from this mirror?" "$default" \
+    || die "Nothing was changed. Without DTK_GH_PROXY and DTK_REPO_URL, this clones from GitHub."
+}
+
 prepare_directory() {
   if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
     die "$INSTALL_DIR exists and is not a directory."
   fi
   have git || die "git is not installed. Install it with $(git_install_hint), then run this again."
+  # Only a clone uses it: an existing checkout fetches from its own origin,
+  # whatever DTK_GH_PROXY says.
+  [ -d "$INSTALL_DIR/.git" ] || confirm_mirror
 
   # The release being installed: its tag is checked out, and its version goes
   # into .env as DTK_IMAGE_TAG. main runs ahead of releases, and a clone of it
@@ -1149,11 +1197,14 @@ prepare_directory() {
   # clone of the tag alone has no origin/main, and a --depth 1 clone of main
   # has the tip without the path to it. Either way that step failed, and the
   # upgrade carried on in the old tree. main's whole history is about 14 MB.
-  local said
+  local said hint="Check the network, or a mirror if you are in mainland China (DTK_GH_PROXY, see --help): $DOCS_URL"
+  # A mirror that failed is not helped by the advice to set one.
+  [ "$REPO_URL" = "$GITHUB_REPO_URL" ] \
+    || hint="That is a mirror: check that it is up and relays this repository, or clone from GitHub without DTK_GH_PROXY and DTK_REPO_URL."
   if ! said="$(git clone --quiet --single-branch --branch main "$REPO_URL" "$INSTALL_DIR" 2>&1)"; then
     die "Could not clone $REPO_URL:
 $(printf '%s\n' "$said" | sed 's/^/      /')
-    Check the network, or a mirror if you are in mainland China: $DOCS_URL"
+    $hint"
   fi
   checkout_ref "$RELEASE_REF"
   ok "Cloned $RELEASE_REF into $INSTALL_DIR"
@@ -2842,6 +2893,9 @@ Environment (each one presets an answer, so --yes becomes unattended):
   DTK_PROJECT            Compose project name. Default: dtk.
   DTK_INSTALL_DIR        Where to install. Default: /opt/dtk as root, ~/dtk otherwise.
   DTK_REPO_URL           Where to clone from, for a mirror. Default: GitHub.
+  DTK_GH_PROXY           An https:// mirror prefix for the GitHub address it
+                         clones; off by default. Either one hands the mirror
+                         the whole install, so it asks before cloning.
   DTK_VERSION            The release to install: 5.1.6, 5.1, latest (default)
                          or sha-<commit>. Its tag is what gets checked out.
   DTK_BIND_HOST          127.0.0.1 (default) or 0.0.0.0.

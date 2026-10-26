@@ -274,7 +274,8 @@ install it), sizes the resource ceilings to the cores and memory Docker can use
 which address and port, the browser container, media downloads, offline
 transcription, published images or a build. It clones
 `main` and checks out the latest release's tag, detached — `DTK_VERSION` names
-another release, `DTK_REPO_URL` a mirror to clone from — and writes that version
+another release, `DTK_REPO_URL` or `DTK_GH_PROXY` a mirror to clone from, which
+[it asks about first](#cloning-from-a-mirror-and-what-it-risks) — and writes that version
 into `.env` as `DTK_IMAGE_TAG`, not `latest`. It will not start over the volumes
 of an earlier install with the same project name: their database opens only
 with that install's `.env`, so it stops and says what to do instead. Say yes to
@@ -514,6 +515,9 @@ least intrusive fix is a proxy scoped to GitHub rather than a global one:
 git config --global http.https://github.com.proxy http://127.0.0.1:7890
 ```
 
+With no proxy to hand, the installer can clone from a mirror instead; read
+[Cloning from a mirror, and what it risks](#cloning-from-a-mirror-and-what-it-risks) first.
+
 Network access inside a Docker build does not read the host's git configuration; the proxy has to be
 passed as a build argument (`HTTP_PROXY` and `HTTPS_PROXY` are BuildKit predefined arguments, so the
 Dockerfile does not declare them):
@@ -528,6 +532,49 @@ COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml build \
 `172.17.0.1` is the host as seen from the default bridge network. A common trap here: a proxy
 listening only on `127.0.0.1` is unreachable from inside the container — it has to listen on
 `0.0.0.0`, or at least on the docker0 address.
+
+### Cloning from a mirror, and what it risks
+
+With no proxy to hand, the installer can clone from a mirror of this repository instead. **GitHub is
+always the default**; read what switching hands over before you do it:
+
+- **The mirror hands you all of the code you install**, `docker/compose.yml` included, and so which
+  images run. Nothing in the installer can tell its copy from GitHub's: a mirror that is compromised,
+  or run by someone you do not know, can give you other code.
+- **Every upgrade after this one comes through it too.** After the clone the checkout's origin is the
+  mirror, and `dtkctl upgrade` keeps fetching from it; nothing switches back to GitHub by itself.
+- **Use a mirror you run or trust.** A self-hosted relay that allows only this repository (a
+  Cloudflare Worker, say) is the clean form; vet any public mirror yourself.
+
+There are two ways to name one. `DTK_GH_PROXY` is a prefix put in front of the GitHub address, and
+only an `https://` one is taken; `DTK_REPO_URL` is the whole clone address, and wins when both are
+set. The script itself has to come through the mirror too, and that download you prefix by hand:
+
+```bash
+curl -fsSL https://<mirror>/https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.sh -o install.sh
+less install.sh    # all the more for a script that came through a mirror
+DTK_GH_PROXY=https://<mirror>/ bash install.sh
+```
+
+Before the clone, the installer says all of this again and asks whether to clone from that mirror; a
+bare Enter is no, and nothing is changed. Under `--yes`, having set the variable is the answer.
+
+What it does not reach:
+
+- With the browser container on, its build installs CloakBrowser from GitHub (the `pip install`
+  above). That does not go through the prefix and still needs the build-time proxy, and a relay that
+  allows only this repository would refuse it anyway.
+- The latest release is looked up at `api.github.com` first. After 10 seconds without an answer the
+  installer reads the tags from the mirror instead, which is only slower.
+- Images come from Docker Hub, through the registry mirror set up above.
+
+On an install that already exists, `DTK_GH_PROXY` does nothing: it fetches from the checkout's
+origin. To move it to a mirror or back to GitHub, change that origin (moving to a mirror carries the
+risks above):
+
+```bash
+git -C /opt/dtk remote set-url origin https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+```
 
 ### Check it took
 

@@ -244,7 +244,8 @@ bash install.zh.sh
 **第一次跑**：它识别发行版、检查 Docker（没有就问你要不要装）、按 Docker 能用的核数和内存
 （在 Docker Desktop 或 OrbStack 上是虚拟机的）算出合适的资源上限，然后问你七个问题 —— 装哪、绑什么地址端口、要不要浏览器容器、
 要不要下载器、要不要离线转写、用已发布镜像还是源码构建。它克隆 `main`，再以分离状态检出最新 Release 的 tag
-—— `DTK_VERSION` 可以指定别的 Release，`DTK_REPO_URL` 可以指定从哪个镜像仓库克隆 —— 并把那个版本号作为
+—— `DTK_VERSION` 可以指定别的 Release，`DTK_REPO_URL` 或 `DTK_GH_PROXY` 可以指定从哪个镜像克隆，
+[克隆之前会先问你](#用镜像克隆以及它的风险) —— 并把那个版本号作为
 `DTK_IMAGE_TAG` 写进 `.env`，而不是 `latest`。同一个项目名下已经有旧安装留下的数据卷时，它不会在上面另起炉灶：
 那个数据库只有旧安装的 `.env` 打得开，所以它会停下来告诉你该怎么办。转写选了"要"，它还会问模型放在哪：
 目录里已经有模型就直接用；是空的，就问你要不要下载 —— 从 ModelScope 下约 500 MB，钉在
@@ -435,6 +436,8 @@ npm config set registry https://registry.npmmirror.com
 git config --global http.https://github.com.proxy http://127.0.0.1:7890
 ```
 
+没有代理可用时，安装脚本也可以改从镜像克隆，先读[用镜像克隆，以及它的风险](#用镜像克隆以及它的风险)。
+
 Docker 构建里的网络访问不走宿主机的 git 配置，代理要通过 build 参数传进去（`HTTP_PROXY` /
 `HTTPS_PROXY` 是 BuildKit 的预定义参数，Dockerfile 里不用声明）：
 
@@ -447,6 +450,44 @@ COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml build \
 
 `172.17.0.1` 是默认 bridge 网络里宿主机的地址。这里有个常见的坑：如果你的代理只监听 `127.0.0.1`，
 容器里是连不上它的——得让它监听 `0.0.0.0`，或者至少监听 docker0 那个地址。
+
+### 用镜像克隆，以及它的风险
+
+没有代理可用时，安装脚本也可以改从本仓库的镜像克隆。**默认始终是 GitHub 官方源**；换源之前，先看清楚它
+交出去的是什么：
+
+- **镜像经手你装的全部代码**，包括 `docker/compose.yml`，也就决定了跑哪些镜像。脚本没法分辨镜像给的和
+  GitHub 上的是不是同一份：被攻破的、或者你不了解的人运营的镜像，可以换给你别的代码。
+- **之后的每一次升级也经它的手。** 克隆之后代码目录的 origin 就是这个镜像，`dtkctl upgrade` 一直从它取，
+  不会自己切回 GitHub。
+- **只用你自己运营或信得过的镜像。** 只放行本仓库的自建中转（比如 Cloudflare Workers）最干净；公共镜像站
+  请自行甄别。
+
+有两种写法。`DTK_GH_PROXY` 是加在 GitHub 地址前的前缀，只接受 `https://` 开头的；`DTK_REPO_URL` 是完整的
+克隆地址，两个都设时以它为准。脚本本身也要经镜像下载，这一步的前缀得手动加：
+
+```bash
+curl -fsSL https://<镜像>/https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_API/main/install/install.zh.sh -o install.zh.sh
+less install.zh.sh    # 经镜像拿到的脚本，更要先读一遍
+DTK_GH_PROXY=https://<镜像>/ bash install.zh.sh
+```
+
+克隆之前，脚本会把上面这些再说一遍，问你是否从这个镜像克隆；直接回车就是不克隆，什么都不改。
+带 `--yes` 时，设了这个变量本身就算你的回答。
+
+它管不到这几处：
+
+- 开了浏览器容器时，构建要从 GitHub 安装 CloakBrowser（上面那条 `pip install`），不走这个前缀，
+  还是要靠构建时代理；只放行本仓库的中转也不会放行它。
+- 查最新 Release 时，脚本先问 `api.github.com`，10 秒没有回应就改从镜像读 tag，只是慢一些。
+- 镜像拉取走 Docker Hub，靠的是前面配的镜像加速器。
+
+对已经装好的实例设 `DTK_GH_PROXY` 不起作用，它从代码目录的 origin 取。要换到镜像或者切回 GitHub，
+就改这个 origin（换到镜像同样有上面的风险）：
+
+```bash
+git -C /opt/dtk remote set-url origin https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
+```
 
 ### 换完之后确认一遍
 
