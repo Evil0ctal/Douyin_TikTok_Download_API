@@ -237,7 +237,7 @@ score = success_rate × (1 − risk_rate) × 0.5 ^ consecutive_fails
 | `*.content_detail` | 5 | 0.30 | 1.0 |
 | `*.author_profile` | 4 | 0.20 | 1.2 |
 | `*.related_posts`、`*.live_room`、`*.live_room_by_id` | 4 | 0.20 | 1.2 |
-| `*.music_detail`、`*.hashtag_detail`、`douyin.trending`、`tiktok.live_status` | 4 | 0.20 | 1.0 |
+| `*.music_detail`、`*.hashtag_detail`、`*.live_status`、`douyin.trending` | 4 | 0.20 | 1.0 |
 | `*.author_posts` | 3 | 0.12 | 1.8 |
 | `*.author_likes` | 3 | 0.12 | 1.8 |
 | `*.comments`、`*.comment_replies` | 3 | 0.15 | 1.5 |

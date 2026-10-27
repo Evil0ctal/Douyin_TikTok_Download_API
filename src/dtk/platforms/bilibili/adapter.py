@@ -6,7 +6,7 @@ Binds the endpoint table to the parsers. Discovered by
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -251,7 +251,9 @@ class BilibiliAdapter:
             details={"platform": self.platform.value, "capability": "live_room_by_id"},
         )
 
-    def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
+    def parse_live_status(
+        self, payload: Mapping[str, Any], *, live_ids: Sequence[str] = ()
+    ) -> Page[LiveStatus]:
         """No call registered: nothing measured asks about many rooms at once."""
         raise UnsupportedContent(
             "Bilibili has no way here to ask about many live rooms at once",

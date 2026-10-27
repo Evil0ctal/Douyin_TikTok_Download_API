@@ -1,0 +1,11 @@
+{
+  "data": [
+    {"room_id": 7300000000000000101, "alive": true},
+    {"room_id": 7300000000000000102, "alive": false},
+    {"room_id": 7300000000000000103, "alive": false}
+  ],
+  "extra": {
+    "now": 1792540800000
+  },
+  "status_code": 0
+}

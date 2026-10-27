@@ -480,7 +480,7 @@ const LIVE_IDS_PARAM: ParamDef = {
   section: 'target',
   required: true,
   placeholder: {
-    douyin: '',
+    douyin: '7300000000000000101,7300000000000000102',
     tiktok: '7400000000000000101,7400000000000000102',
     bilibili: '',
   },
@@ -784,7 +784,7 @@ export const CATALOG: readonly EndpointDef[] = [
     path: (platform) => `${API_V1}/${platform}/live/status`,
     operation: 'live_status',
     platformScoped: true,
-    platforms: ['tiktok'],
+    platforms: ['douyin', 'tiktok'],
     params: [LIVE_IDS_PARAM, ...ENVELOPE_PARAMS],
   },
   {

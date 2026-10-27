@@ -400,30 +400,33 @@ async def test_a_broadcast_id_is_a_number(client: Any) -> None:
     assert error_code(response) == "INVALID_PARAM"
 
 
-async def test_many_broadcasts_are_one_task(client: Any) -> None:
+@pytest.mark.parametrize("platform", ["douyin", "tiktok"])
+async def test_many_broadcasts_are_one_task(client: Any, platform: str) -> None:
     await signed_in(client)
     response = await client.get(
-        "/api/v1/tiktok/live/status",
+        f"/api/v1/{platform}/live/status",
         params={"live_ids": "7400000000000000101, 7400000000000000102,7400000000000000101"},
     )
     row = await queued(response)
-    assert row.endpoint == "tiktok.live_status"
+    assert row.endpoint == f"{platform}.live_status"
     # Spaces and the repeat gone, so two spellings of one list share a task.
     assert row.params["live_ids"] == "7400000000000000101,7400000000000000102"
 
 
+@pytest.mark.parametrize("platform", ["douyin", "tiktok"])
 @pytest.mark.parametrize("live_ids", ["ventisfit", "7400000000000000101,,x"])
-async def test_a_status_list_that_cannot_be_one_is_refused(client: Any, live_ids: str) -> None:
+async def test_a_status_list_that_cannot_be_one_is_refused(
+    client: Any, platform: str, live_ids: str
+) -> None:
     await signed_in(client)
-    response = await client.get("/api/v1/tiktok/live/status", params={"live_ids": live_ids})
+    response = await client.get(f"/api/v1/{platform}/live/status", params={"live_ids": live_ids})
     assert error_code(response) == "INVALID_PARAM"
 
 
-@pytest.mark.parametrize("platform", ["douyin", "bilibili"])
-async def test_only_tiktok_checks_many_rooms(client: Any, platform: str) -> None:
+async def test_bilibili_has_no_way_to_check_many_rooms(client: Any) -> None:
     await signed_in(client)
     response = await client.get(
-        f"/api/v1/{platform}/live/status", params={"live_ids": "7300000000000000101"}
+        "/api/v1/bilibili/live/status", params={"live_ids": "7300000000000000101"}
     )
     assert error_code(response) == "UNSUPPORTED_CONTENT"
 

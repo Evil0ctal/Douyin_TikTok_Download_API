@@ -726,7 +726,7 @@ async def live_status(
 
     **Parameters**
 
-    - `platform` - `tiktok`. Douyin and Bilibili answer `UNSUPPORTED_CONTENT`.
+    - `platform` - `douyin` or `tiktok`. Bilibili answers `UNSUPPORTED_CONTENT`.
     - `live_ids` - the broadcasts, comma-separated: the `live_id` a `/live`
       answer carries while its room is on. Repeats are asked about once.
     - `include_raw`, `wait`, `proxy`, `identity`, `refresh`, `explain` - as on
@@ -736,8 +736,8 @@ async def live_status(
     **Returns**
 
     One page with a `{live_id, is_live}` for each broadcast, in the order
-    asked. A broadcast that has ended and one that never existed are both
-    `is_live: false`: the platform does not tell the two apart.
+    asked, so it pairs with the list by position. A broadcast that has ended
+    and an id that was never one are both `is_live: false`.
     """
     authorize(principal, platform)
     endpoint = supported(platform, Operation.LIVE_STATUS)

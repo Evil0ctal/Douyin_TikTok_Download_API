@@ -529,6 +529,46 @@ def live_room_by_id_params(
     return {"type_id": "0", "live_id": "1", "room_id": broadcast, "app_id": REFLOW_APP_ID}
 
 
+#: How many broadcasts one ``check_alive`` call asks about. ``webcast.amemv.com``
+#: took 200 in one call on 2026-10-26; the cap is ours, half that, to keep a
+#: query an ordinary URL length.
+MAX_LIVE_IDS: Final = 100
+
+
+def live_ids(value: str) -> tuple[str, ...]:
+    """A comma-separated list of broadcast ids, checked and with repeats gone.
+
+    Here rather than in the route alone so that every caller - REST, MCP, a
+    task replayed from the queue - is held to the same list.
+    """
+    seen: dict[str, None] = {}
+    for part in str(value).split(","):
+        text = part.strip()
+        if not text:
+            continue
+        if not text.isdigit():
+            raise InvalidParam(
+                "a Douyin broadcast id is a number",
+                details={"field": "live_ids", "value": text[:32]},
+            )
+        seen[text] = None
+    if not seen:
+        raise InvalidParam("name at least one broadcast", details={"field": "live_ids"})
+    if len(seen) > MAX_LIVE_IDS:
+        raise InvalidParam(
+            f"at most {MAX_LIVE_IDS} broadcasts at a time",
+            details={"field": "live_ids", "count": len(seen), "maximum": MAX_LIVE_IDS},
+        )
+    return tuple(seen)
+
+
+def live_status_params(
+    *, room_ids: str, profile: ClientProfile = DEFAULT_PROFILE
+) -> dict[str, str]:
+    """Parameters for ``webcast.amemv.com/webcast/room/check_alive/``."""
+    return {**_live_site_params(profile), "room_ids": ",".join(live_ids(room_ids))}
+
+
 def comments_params(
     *,
     aweme_id: str,

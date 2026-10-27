@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any, Final
 from urllib.parse import quote
@@ -801,7 +801,9 @@ def parse_live_room_by_id(payload: Mapping[str, Any]) -> LiveRoom:
     )
 
 
-def parse_live_status(payload: Mapping[str, Any]) -> Page[LiveStatus]:
+def parse_live_status(
+    payload: Mapping[str, Any], *, live_ids: Sequence[str] = ()
+) -> Page[LiveStatus]:
     """Parse ``webcast.tiktok.com/webcast/room/check_alive/``.
 
     ``data`` is a list with one ``{alive, room_id, room_id_str}`` per id asked,
@@ -809,10 +811,17 @@ def parse_live_status(payload: Mapping[str, Any]) -> Page[LiveStatus]:
     range, so the id is read from ``room_id_str``. A broadcast nobody has is
     ``alive: false`` like one that has ended: the platform does not tell the
     two apart, and neither can this.
+
+    The page still follows ``live_ids`` rather than ``data``: Douyin's answer
+    leaves out an id that never was a broadcast, and should this one start to,
+    the page keeps answering every id asked instead of coming back short.
     """
+    answered = {
+        entry.id("room_id_str"): _alive(entry) for entry in _guard(payload).children("data")
+    }
     items = [
-        LiveStatus(platform=_PLATFORM, live_id=entry.id("room_id_str"), is_live=_alive(entry))
-        for entry in _guard(payload).children("data")
+        LiveStatus(platform=_PLATFORM, live_id=live_id, is_live=answered.get(live_id, False))
+        for live_id in live_ids or answered
     ]
     return Page(items=items, cursor=None, has_more=False)
 

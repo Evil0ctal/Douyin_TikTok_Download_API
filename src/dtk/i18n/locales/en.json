@@ -708,7 +708,7 @@
       },
       "live_status": {
         "summary": "Whether live rooms are on air",
-        "description": "Whether each of up to 100 broadcasts is still on air, by the live_id /live hands back, in one call: one is_live apiece, in the order asked. TikTok only. A broadcast that has ended and one that never existed both answer false."
+        "description": "Whether each of up to 100 broadcasts is still on air, by the live_id /live hands back, in one call: one is_live apiece, in the order asked. Douyin and TikTok. A broadcast that has ended and an id that was never one both answer false."
       },
       "trending": {
         "summary": "What people are searching for",
