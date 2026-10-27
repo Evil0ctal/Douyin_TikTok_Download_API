@@ -477,7 +477,7 @@ docker compose -p dtk -f docker/compose.yml up -d
 | Web 控制台 | `/` | 身份池、调度器、资料库、下载、转写、日志、诊断 |
 | 接口文档 | `/docs` | 控制台内的 Swagger UI，中英双语 |
 | 裸接口文档 | `/swagger`、`/redoc` | 无需登录 |
-| REST API | `/api/v1/...` | 126 个操作 |
+| REST API | `/api/v1/...` | 128 个操作 |
 | MCP | `/mcp` | 与 REST 共用同一个 service 层，配置方法见控制台 `/mcp-guide` |
 | CLI | `dtk --help` | 同上 |
 
