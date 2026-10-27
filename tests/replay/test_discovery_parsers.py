@@ -731,13 +731,43 @@ def test_douyin_and_tiktok_answer_for_each_broadcast_in_the_order_asked() -> Non
     assert tiktok.cursor is None
 
 
-def test_douyin_answers_an_ask_of_only_nonexistent_broadcasts_with_an_empty_page() -> None:
+@pytest.mark.parametrize("platform", ["douyin", "tiktok"])
+def test_an_id_left_out_of_the_answer_is_off_air_in_its_own_place(platform: str) -> None:
+    # Douyin leaves out an id that was never a broadcast. Before it was put
+    # back the page came up one short, and a caller pairing it with its list
+    # by position gave every room after the gap its neighbour's answer.
+    adapter = get_adapter(platform)
+    payload = load(platform, "live_status")
+    full = [(s.live_id, s.is_live) for s in adapter.parse_live_status(payload).items]
+    asked = tuple(live_id for live_id, _ in full)
+    del payload["data"][0]  # on air in both fixtures, so a shift would show
+
+    page = adapter.parse_live_status(payload, live_ids=asked)
+
+    assert [(s.live_id, s.is_live) for s in page.items] == [(asked[0], False), *full[1:]]
+
+
+def test_douyin_answers_an_ask_of_only_nonexistent_broadcasts_off_air() -> None:
     payload = load("douyin", "live_status")
     payload["data"] = []
-    page = get_adapter("douyin").parse_live_status(payload)
-    assert page.items == []
+    asked = ("7300000000000000901", "7300000000000000902")
+    page = get_adapter("douyin").parse_live_status(payload, live_ids=asked)
+    assert [(s.live_id, s.is_live) for s in page.items] == [(a, False) for a in asked]
     assert page.has_more is False
     assert page.cursor is None
+
+
+def test_a_status_task_is_answered_for_its_list_as_the_request_sent_it() -> None:
+    payload = load("douyin", "live_status")
+    del payload["data"][0]
+    page = registry.definition_for("douyin.live_status").parse(
+        payload,
+        params={"live_ids": " 7300000000000000101, 7300000000000000102,,7300000000000000101"},
+    )
+    assert [(s.live_id, s.is_live) for s in page.items] == [
+        ("7300000000000000101", False),
+        ("7300000000000000102", False),
+    ]
 
 
 @pytest.mark.parametrize("platform", ["douyin", "tiktok"])

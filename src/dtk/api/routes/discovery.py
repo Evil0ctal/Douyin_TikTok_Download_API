@@ -736,8 +736,8 @@ async def live_status(
     **Returns**
 
     One page with a `{live_id, is_live}` for each broadcast, in the order
-    asked. A broadcast that has ended is `is_live: false`; an id that was
-    never a broadcast is `is_live: false` on TikTok and left out on Douyin.
+    asked, so it pairs with the list by position. A broadcast that has ended
+    and an id that was never one are both `is_live: false`.
     """
     authorize(principal, platform)
     endpoint = supported(platform, Operation.LIVE_STATUS)

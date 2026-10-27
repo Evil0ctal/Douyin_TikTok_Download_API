@@ -29,7 +29,7 @@ generating them needs an identity and, for ``msToken``, a network round trip.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from types import MappingProxyType
@@ -634,8 +634,14 @@ class PlatformAdapter(Protocol):
         ``UnsupportedContent``."""
         ...
 
-    def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
-        """Whether each broadcast asked about is still on air, as one page."""
+    def parse_live_status(
+        self, payload: Mapping[str, Any], *, live_ids: Sequence[str] = ()
+    ) -> Page[LiveStatus]:
+        """Whether each broadcast asked about is still on air, as one page.
+
+        ``live_ids`` is the list the request named, in its order. The page
+        answers each of them, ``false`` for one the platform's answer leaves
+        out, so a caller can pair its list with the page by position."""
         ...
 
     def parse_live_ranking(self, payload: Mapping[str, Any]) -> Page[LiveViewer]:

@@ -683,7 +683,7 @@ class EndpointDefinition:
             case Capability.LIVE_ROOM_BY_ID:
                 return adapter.parse_live_room_by_id(payload)
             case Capability.LIVE_STATUS:
-                return adapter.parse_live_status(payload)
+                return adapter.parse_live_status(payload, live_ids=_listed(canonical.get(LIVE_IDS)))
             case Capability.LIVE_RANKING:
                 return adapter.parse_live_ranking(payload)
             case Capability.COLLECTION_DETAIL:
@@ -730,6 +730,16 @@ class ResolvedCall:
 
 def _is_blank(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
+
+
+def _listed(value: Any) -> tuple[str, ...]:
+    """A comma-separated parameter as its builder sent it upstream: trimmed,
+    blanks and repeats gone, in order. Not checked here - a list the builder
+    refuses fails before there is any payload to parse."""
+    if value is None:
+        return ()
+    parts = (part.strip() for part in str(value).split(","))
+    return tuple(dict.fromkeys(part for part in parts if part))
 
 
 def _as_count(endpoint: str, value: Any) -> int:

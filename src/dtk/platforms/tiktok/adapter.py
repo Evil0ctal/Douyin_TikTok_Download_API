@@ -6,7 +6,7 @@ Binds the endpoint table to the parsers. Discovered by
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -177,8 +177,10 @@ class TikTokAdapter:
     def parse_live_room_by_id(self, payload: Mapping[str, Any]) -> LiveRoom:
         return parser.parse_live_room_by_id(payload)
 
-    def parse_live_status(self, payload: Mapping[str, Any]) -> Page[LiveStatus]:
-        return parser.parse_live_status(payload)
+    def parse_live_status(
+        self, payload: Mapping[str, Any], *, live_ids: Sequence[str] = ()
+    ) -> Page[LiveStatus]:
+        return parser.parse_live_status(payload, live_ids=live_ids)
 
     def parse_live_ranking(self, payload: Mapping[str, Any]) -> Page[LiveViewer]:
         """No call registered: no audience ranking measured here."""

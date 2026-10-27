@@ -47,6 +47,8 @@ FIXTURE_NAMES: tuple[str, ...] = (
     # TikTok's webcast host. Bilibili numbers a room once.
     "live_room_by_id_on",
     "live_room_by_id_missing",
+    # Many broadcasts at once, both on the webcast host. Bilibili has no such
+    # call.
     "live_status",
 )
 
