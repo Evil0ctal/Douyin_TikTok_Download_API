@@ -185,6 +185,20 @@ def _pool_override(value: Any) -> int:
     return number
 
 
+def _retire_streak(value: Any) -> int:
+    """0 (never) or a streak of at least two.
+
+    One would retire a guest for a single bad answer - a proxy that dropped
+    once, a request the platform happened to throttle - which is what the
+    cooldown is for. The maintenance job also never retires below
+    ``pool.max_fail_streak``, so a value under it acts as that.
+    """
+    number = int(value)
+    if number < 0 or number == 1:
+        raise ValueError("must be 0 (never) or a streak of 2 or more")
+    return number
+
+
 def _pool_platform_settings() -> list[SettingSpec]:
     """``pool.<platform>.min_size`` / ``target_size`` for every platform.
 
@@ -339,6 +353,15 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
             int,
             "Consecutive failures after which an identity stops counting towards "
             "the pool level, so the filler replaces it instead of counting it",
+        ),
+        SettingSpec(
+            "pool.retire_fail_streak",
+            10,
+            Scope.RUNTIME,
+            int,
+            "Consecutive failures after which a minted guest identity is retired "
+            "automatically, while its platform still has a usable one; 0 never retires",
+            validate=_retire_streak,
         ),
         *_pool_platform_settings(),
         *_pool_login_settings(),

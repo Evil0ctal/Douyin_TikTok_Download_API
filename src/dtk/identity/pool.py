@@ -600,6 +600,71 @@ class IdentityPool:
         await forget_identity(identity_id)
         log.info("identity.retired", identity_id=identity_id, reason=reason)
 
+    async def retire_burned(
+        self,
+        session: AsyncSession,
+        platform: Platform,
+        *,
+        streak: int,
+        max_fail_streak: int,
+        limit: int = 200,
+    ) -> int:
+        """Retire minted guests that have failed ``streak`` times in a row.
+
+        Nothing retired an identity on its own. One the platform had flagged
+        cooled, waited, was promoted back, was handed a request and failed
+        again, for ever: measured on the demo on 2026-11-02, 1273 of its 1288
+        live Douyin identities had failed three or more times in a row, 476 of
+        them ten or more, and still about 600 were used in a day. Every one of
+        those requests was a risk-control answer, and the endpoint's circuit
+        breaker counts them - so they tripped it for the users the healthy
+        identities could have served.
+
+        Only minted guests. A guest costs a mint to replace; a login is somebody's
+        account, and whether it is finished is its owner's call.
+
+        Only while the platform still has a usable identity. If none is, the
+        platform is refusing everyone and the streaks say nothing about any one
+        identity - the filler holds off minting into that, and retiring the
+        pool from under it would leave nothing to recover with.
+        """
+        if streak <= 0:
+            return 0
+        if await self.usable_count(session, platform, max_fail_streak=max_fail_streak) == 0:
+            return 0
+        burned = (
+            await session.execute(
+                select(IdentityRow.id, IdentityRow.consecutive_fails)
+                .where(
+                    IdentityRow.platform == platform.value,
+                    IdentityRow.state.in_(
+                        (
+                            IdentityState.ACTIVE.value,
+                            IdentityState.COOLING.value,
+                            IdentityState.DEGRADED.value,
+                        )
+                    ),
+                    IdentityRow.source == IdentitySource.MINTED.value,
+                    IdentityRow.authenticated.is_(False),
+                    IdentityRow.consecutive_fails >= streak,
+                )
+                .order_by(IdentityRow.consecutive_fails.desc())
+                .limit(limit)
+            )
+        ).all()
+        for identity_id, fails in burned:
+            await self.retire(
+                session, str(identity_id), f"auto: {fails} consecutive failures with no success"
+            )
+        if burned:
+            log.info(
+                "identity.burned_retired",
+                platform=platform.value,
+                retired=len(burned),
+                streak=streak,
+            )
+        return len(burned)
+
     async def counts(self, session: AsyncSession, platform: Platform) -> dict[str, int]:
         rows = await session.execute(
             select(IdentityRow.state, func.count())

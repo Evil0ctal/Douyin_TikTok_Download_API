@@ -63,7 +63,7 @@ reject that case instead of guessing.
 | `active` | Schedulable right now. | Minted, imported, a cooldown elapsed, or a manual reset. | A risk-control hit, or retirement. |
 | `cooling` | Resting off a risk-control hit. | `risk_control` outcome, with an exponential backoff. | The cooldown elapses (it is promoted on the next scheduling pass), or one successful request while cooling. |
 | `degraded` | Hit the cooldown ceiling. Used only when no active identity exists. | A cooldown computed at or above `sched.cooldown_max_seconds`. | The ceiling cooldown elapses - it returns to `active` with its streak intact, so its health score keeps it last in the ranking until it succeeds. |
-| `retired` | Dead. The cookie jar was wiped; the row is kept for its statistics. | You retired it, or its proxy was deleted. | Never. A retired identity cannot be reset, pinned or scheduled. |
+| `retired` | Dead. The cookie jar was wiped; the row is kept for its statistics. | You retired it, its proxy was deleted, or - a minted guest only - it failed `pool.retire_fail_streak` times in a row (see below). | Never. A retired identity cannot be reset, pinned or scheduled. |
 | `minting` | The schema's column default. The mint path never leaves an identity in it - it writes `active` as soon as a jar comes back - so you will not normally see a row in this state. | Nothing writes it today. | — |
 
 Outcomes are folded into the state after every request:
@@ -74,6 +74,21 @@ Outcomes are folded into the state after every request:
 | `business_error` (a deleted or private post) | **Nothing at all.** A missing video is a fact about the content, not about the identity. |
 | `network_error` | Streak incremented. No cooldown - the request never reached the platform. |
 | `risk_control` | Streak incremented, cooldown computed and applied, state set to `cooling` or `degraded`. |
+
+A cooldown ends, and an identity the platform has flagged comes back, is handed
+a request and fails again. Left alone that loop never ends, and every turn of it
+is a risk-control answer counted against the endpoint's circuit breaker. So the
+worker retires, every five minutes, the **minted guests** whose streak has
+reached `pool.retire_fail_streak` (10 by default; 0 turns it off), with the
+reason `auto: N consecutive failures with no success`. Two limits keep it from
+doing harm. It never touches an imported identity: a login is somebody's
+account, and whether it is finished is their call. And it retires nothing on a
+platform with no identity under `pool.max_fail_streak` left: when every identity
+is failing, the platform is refusing everyone, the streaks say nothing about any
+one identity, and the pool is kept for when the platform relents. The filler then
+mints replacements as usual. Measured on the demo on 2026-11-02, before this
+existed: 1273 of 1288 live Douyin identities had failed three or more times in a
+row and about 600 of them were still being used each day.
 
 The cooldown is `sched.cooldown_base_seconds x 2^(streak - 1) x risk_weight`,
 capped at `sched.cooldown_max_seconds`, where `risk_weight` comes from the

@@ -952,6 +952,105 @@ async def test_the_pool_level_query_runs_against_the_real_table(db_engine, redis
     assert result.reason == "disabled"
 
 
+async def _identity_with_streak(
+    pool: IdentityPool,
+    platform: Platform,
+    streak: int,
+    *,
+    source: IdentitySource = IdentitySource.MINTED,
+    authenticated: bool = False,
+) -> uuid.UUID:
+    async with session_scope() as session:
+        identity_id = await pool.add(
+            session,
+            platform=platform,
+            cookies={"ttwid": "abc"},
+            fingerprint=Fingerprint(browser_family=BrowserFamily.CHROME, browser_major=131),
+            source=source,
+            authenticated=authenticated,
+        )
+        row = _require(await session.get(Identity, identity_id), "the new identity")
+        row.consecutive_fails = streak
+    return identity_id
+
+
+async def _state_of(identity_id: uuid.UUID) -> str:
+    async with session_scope() as session:
+        return _require(await session.get(Identity, identity_id), "the identity").state
+
+
+async def test_a_guest_the_platform_keeps_refusing_is_retired(
+    db_engine, redis_client, cleanup_identities
+):
+    """The demo's pool on 2026-11-02: hundreds of guests at a streak of ten and
+    more, cooling and coming back for ever, and a few healthy ones beside them."""
+    cipher = Cipher(SECRET)
+    pool = IdentityPool(cipher)
+    healthy = await _identity_with_streak(pool, Platform.DOUYIN, 0)
+    probation = await _identity_with_streak(pool, Platform.DOUYIN, 5)
+    burned = await _identity_with_streak(pool, Platform.DOUYIN, 12)
+    login = await _identity_with_streak(
+        pool, Platform.DOUYIN, 12, source=IdentitySource.IMPORTED, authenticated=True
+    )
+    cleanup_identities.extend([healthy, probation, burned, login])
+
+    async with session_scope() as session:
+        retired = await pool.retire_burned(
+            session, Platform.DOUYIN, streak=10, max_fail_streak=3, limit=1000
+        )
+
+    assert retired >= 1
+    assert await _state_of(burned) == IdentityState.RETIRED.value
+    async with session_scope() as session:
+        row = _require(await session.get(Identity, burned), "the burned identity")
+        assert row.cookies_encrypted == b""
+        assert row.retire_reason == "auto: 12 consecutive failures with no success"
+    assert await _state_of(healthy) == IdentityState.ACTIVE.value
+    assert await _state_of(probation) == IdentityState.ACTIVE.value
+    # Somebody's account: theirs to give up on, not the worker's.
+    assert await _state_of(login) == IdentityState.ACTIVE.value
+
+
+async def test_nothing_is_retired_while_the_platform_refuses_everyone(
+    db_engine, redis_client, cleanup_identities
+):
+    cipher = Cipher(SECRET)
+    pool = IdentityPool(cipher)
+    async with session_scope() as session:
+        if await pool.usable_count(session, Platform.TIKTOK, max_fail_streak=3):
+            pytest.skip("another test left a usable TikTok identity behind")
+    burned = await _identity_with_streak(pool, Platform.TIKTOK, 15)
+    cleanup_identities.append(burned)
+
+    async with session_scope() as session:
+        retired = await pool.retire_burned(session, Platform.TIKTOK, streak=10, max_fail_streak=3)
+
+    assert retired == 0
+    assert await _state_of(burned) == IdentityState.ACTIVE.value
+
+
+async def test_the_maintenance_job_never_retires_below_the_usable_mark(
+    db_engine, redis_client, cleanup_identities
+):
+    """A retire streak under pool.max_fail_streak acts as that mark: an identity
+    still counted usable is not retired from under the level the filler holds."""
+    cipher = Cipher(SECRET)
+    pool = IdentityPool(cipher)
+    healthy = await _identity_with_streak(pool, Platform.BILIBILI, 0)
+    counted = await _identity_with_streak(pool, Platform.BILIBILI, 2)
+    cleanup_identities.extend([healthy, counted])
+
+    maintenance = Maintenance(
+        cipher=cipher,
+        config=Config({"pool.retire_fail_streak": 2, "pool.max_fail_streak": 3}),
+    )
+    report = MaintenanceReport()
+    await maintenance.retire_burned_identities(report)
+
+    assert await _state_of(counted) == IdentityState.ACTIVE.value
+    assert not report.errors
+
+
 async def test_identities_of_a_dead_proxy_recover_on_their_own(
     db_engine, redis_client, cleanup_identities, cleanup_proxies
 ):

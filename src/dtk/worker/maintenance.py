@@ -63,7 +63,7 @@ from dtk.core.db import get_engine, session_scope
 from dtk.core.errors import ErrorCode
 from dtk.core.logging import get_logger
 from dtk.core.redis import get_redis
-from dtk.core.types import IdentitySource, IdentityState, TaskState
+from dtk.core.types import IdentitySource, IdentityState, Platform, TaskState
 from dtk.db.base import affected
 from dtk.db.models import CONTINUOUS_AGGREGATES
 from dtk.db.models import Identity as IdentityRow
@@ -71,7 +71,7 @@ from dtk.db.models import MediaDownload as MediaDownloadRow
 from dtk.db.models import Task as TaskRow
 from dtk.db.models import Transcription as TranscriptionRow
 from dtk.identity.importing import session_expiry
-from dtk.identity.pool import purge_retired
+from dtk.identity.pool import IdentityPool, purge_retired
 from dtk.media import DownloaderClient, DownloaderUnavailable
 from dtk.ops import capacity, retention
 from dtk.services import downloads, tasks, transcriptions
@@ -118,6 +118,8 @@ class MaintenanceConfig:
 class MaintenanceReport:
     retention: retention.RetentionReport | None = None
     retired_identities_purged: int = 0
+    #: Minted guests retired for failing `pool.retire_fail_streak` times in a row.
+    burned_identities_retired: int = 0
     requeued_tasks: int = 0
     #: Tasks that were queued in the database but on no queue.
     requeued_orphans: int = 0
@@ -164,6 +166,7 @@ class Maintenance:
         report = MaintenanceReport()
         for name, job in (
             ("apply_retention", self.apply_retention),
+            ("retire_burned_identities", self.retire_burned_identities),
             ("purge_retired_identities", self.purge_retired_identities),
             ("requeue_stale_tasks", self.requeue_stale_tasks),
             ("requeue_orphaned_tasks", self.requeue_orphaned_tasks),
@@ -183,6 +186,7 @@ class Maintenance:
         log.info(
             "worker.maintenance.done",
             retired_identities_purged=report.retired_identities_purged,
+            burned_identities_retired=report.burned_identities_retired,
             requeued_tasks=report.requeued_tasks,
             requeued_orphans=report.requeued_orphans,
             aggregates_refreshed=len(report.aggregates_refreshed),
@@ -398,6 +402,28 @@ class Maintenance:
         """Re-apply the configured windows and evict aged task payloads."""
         async with self._session_factory() as session:
             report.retention = await retention.run_maintenance(session, self._config())
+
+    async def retire_burned_identities(self, report: MaintenanceReport) -> None:
+        """Retire the minted guests a platform keeps refusing.
+
+        See :meth:`IdentityPool.retire_burned` for which ones and why. Never
+        below ``pool.max_fail_streak``: an identity under it still counts as
+        usable, and retiring it would empty the level the filler is holding.
+        """
+        config = self._config()
+        streak = int(config.get("pool.retire_fail_streak"))
+        if streak <= 0:
+            return
+        max_fail_streak = max(1, int(config.get("pool.max_fail_streak")))
+        pool = IdentityPool(self._cipher)
+        async with self._session_factory() as session:
+            for platform in Platform:
+                report.burned_identities_retired += await pool.retire_burned(
+                    session,
+                    platform,
+                    streak=max(streak, max_fail_streak),
+                    max_fail_streak=max_fail_streak,
+                )
 
     async def purge_retired_identities(self, report: MaintenanceReport) -> None:
         """Bound the identities table.

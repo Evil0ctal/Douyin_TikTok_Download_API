@@ -93,6 +93,7 @@
         "min_size": "Low-water mark per platform. Dropping below it raises an alert and triggers minting.",
         "health_prior": "Assumed success rate for an identity with no history yet, between 0 and 1. It decides how eagerly a freshly minted identity is scheduled.",
         "max_fail_streak": "Consecutive failures after which an identity stops counting towards the pool level, so the filler mints a replacement instead of counting a session that serves nothing. The failure streak is used rather than the health score because the score is empty until there is traffic, and scoring a freshly minted identity as unusable would turn the low-water mark into a minting loop.",
+        "retire_fail_streak": "Consecutive failures after which a minted guest identity is retired on its own, its cookies wiped. Only while the platform still has an identity under pool.max_fail_streak - when every identity is failing, the platform is refusing everyone and none is retired. Imported identities, logins above all, are never retired automatically. Never below pool.max_fail_streak. 0 turns it off. Checked every five minutes.",
         "douyin": {
           "min_size": "Mint-below mark for Douyin only. -1 follows pool.min_size; 0 turns automatic minting off for Douyin, together with its pool_empty and pool_below_min alerts. Identities you import or mint by hand still work.",
           "target_size": "Top-up target for Douyin only. -1 follows pool.target_size. Values below this platform's mint-below mark are raised to it.",
