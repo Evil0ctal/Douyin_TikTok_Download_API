@@ -245,10 +245,17 @@ export default function Overview() {
     poll: POLL.slow,
   })
 
+  /**
+   * Viewer up, for the reason transcriptions gives below. This one was missed:
+   * the demo account's overview asked for it on every slow poll and was refused
+   * every time - 64 refusals in sixteen minutes of the demo's log, 2026-11-02.
+   */
+  const watchlistVisible = atLeast(role, 'viewer')
   const watchlist = useApiQuery<WatchlistTotals>({
     key: ['admin', 'watchlist', 'overview'],
     path: paths.watchlist.list,
     poll: POLL.slow,
+    enabled: watchlistVisible,
   })
 
   /**
@@ -624,20 +631,24 @@ export default function Overview() {
             </span>
           }
         />
-        <MetricTile
-          label={t('console:metric.watching')}
-          value={format.number(watchlist.data?.total ?? 0)}
-          loading={watchlist.isLoading}
-          tone={(watchlist.data?.stats?.failing ?? 0) > 0 ? 'warning' : undefined}
-          href={linkTo('/watchlist')}
-          footer={
-            <span className="u-xs u-muted">
-              {(watchlist.data?.stats?.failing ?? 0) > 0
-                ? t('console:metric.watchingFailing', { count: watchlist.data?.stats?.failing ?? 0 })
-                : t('console:metric.watchingHint')}
-            </span>
-          }
-        />
+        {watchlistVisible ? (
+          <MetricTile
+            label={t('console:metric.watching')}
+            value={format.number(watchlist.data?.total ?? 0)}
+            loading={watchlist.isLoading}
+            tone={(watchlist.data?.stats?.failing ?? 0) > 0 ? 'warning' : undefined}
+            href={linkTo('/watchlist')}
+            footer={
+              <span className="u-xs u-muted">
+                {(watchlist.data?.stats?.failing ?? 0) > 0
+                  ? t('console:metric.watchingFailing', {
+                      count: watchlist.data?.stats?.failing ?? 0,
+                    })
+                  : t('console:metric.watchingHint')}
+              </span>
+            }
+          />
+        ) : null}
         {transcriptionsVisible ? (
           <MetricTile
             label={t('console:overview.transcriptions')}
