@@ -37,6 +37,50 @@ terminal rather than from stdin, because with `curl | bash` stdin is the script
 itself. If there is no terminal at all it says so instead of quietly taking
 defaults.
 
+## Day to day: `dtkctl`
+
+The install directory - `/opt/dtk` for root, `~/dtk` otherwise; run the script
+again if you have lost it, and it will say where it is - holds a `dtkctl`. It
+is `docker compose` with the arguments already right: the project name, the
+compose files, the profiles you turned on, and `COMPOSE_ENV_FILES=.env`. Start,
+stop and look at the instance with it, not with a bare `docker compose`: without
+the project name a command reaches some other stack, and without
+`COMPOSE_ENV_FILES` Compose reads `docker/.env` and quietly fills in defaults -
+the stack comes up, on the wrong settings.
+
+```bash
+cd /opt/dtk                       # or wherever you installed it
+./dtkctl ps                       # what is running, and whether it is healthy
+./dtkctl up -d                    # start everything; also applies a changed .env
+./dtkctl restart api              # restart one service: api, worker, browser-rpc ...
+./dtkctl logs -f --tail 100 api   # follow one service's log
+./dtkctl stop                     # stop; containers and data stay
+./dtkctl down                     # remove the containers; the data volumes stay
+./dtkctl exec api dtk diagnose    # the six-step self-check
+./dtkctl upgrade                  # upgrade; see below
+```
+
+`./dtkctl down -v` deletes the data volumes as well, and that cannot be undone.
+
+After a reboot, or a restart of Docker itself, the containers come back on
+their own (`restart: unless-stopped`) - except the ones you stopped with
+`stop`. If they did not, `./dtkctl up -d` in the install directory brings them
+up. To call it from anywhere, link it onto your PATH
+(`ln -s /opt/dtk/dtkctl /usr/local/bin/dtkctl`): it follows the link back to its
+install.
+
+**Reaching it from another machine.** By default the console is published on
+`127.0.0.1:8000`, which only this machine can open: from a NAS's LAN or another
+computer, `http://<this machine>:8000` will not connect, and that is not the
+service being down. The installer's second question was about this. To change
+it afterwards, set `DTK_BIND_HOST` in `.env` - this machine's LAN address, such
+as `192.168.1.10`, to serve only that network, or `0.0.0.0` for every
+interface - and run `./dtkctl up -d`. The console and the API speak plain HTTP,
+so do not do this on a machine with a public address: keep `127.0.0.1` and put
+a reverse proxy with TLS in front instead. See
+[Ports and binding](../documents/en/02-installation.md#ports-and-binding) and
+[Behind a reverse proxy](../documents/en/02-installation.md#behind-a-reverse-proxy).
+
 ## Run it again to manage the instance
 
 The script works out which job it is doing. If there is already an install, it
@@ -207,7 +251,8 @@ any of them stops the script; it does not take the default and carry on.
 - Writes a `dtkctl` wrapper that carries the three arguments which have to be
   right every time — the project name, both compose files, and
   `COMPOSE_ENV_FILES`, without which Compose reads `docker/.env` and silently
-  interpolates defaults.
+  interpolates defaults. How to use it day to day is
+  [above](#day-to-day-dtkctl).
 - Runs Compose's own `config -q` check as soon as those files are written, so a
   project name or port Compose rejects is reported as that, not as a failed
   pull.
@@ -355,6 +400,40 @@ curl -fsSL https://raw.githubusercontent.com/Evil0ctal/Douyin_TikTok_Download_AP
 `curl | bash` 的时候标准输入就是脚本本身。如果压根没有终端，它会明说，而不是
 默默取默认值。
 
+## 日常管理：`dtkctl`
+
+安装目录里有一个 `dtkctl`。root 装在 `/opt/dtk`，否则在 `~/dtk`；忘了装在哪，就再跑一次
+安装脚本，它会找到并告诉你。它就是参数已经带好的 `docker compose`：项目名、compose 文件、
+你开的那几个 profile，以及 `COMPOSE_ENV_FILES=.env`。启停和查看都用它，别直接敲
+`docker compose`：少了项目名，命令会落到别的栈上；少了 `COMPOSE_ENV_FILES`，Compose 会去读
+`docker/.env`，悄悄用默认值插值 —— 栈照样起得来，用的却是错的配置。
+
+```bash
+cd /opt/dtk                       # 或者你的安装目录
+./dtkctl ps                       # 什么在跑、健不健康
+./dtkctl up -d                    # 启动全部；改了 .env 之后也用它让改动生效
+./dtkctl restart api              # 重启单个服务：api、worker、browser-rpc……
+./dtkctl logs -f --tail 100 api   # 跟踪某个服务的日志
+./dtkctl stop                     # 停掉，容器和数据都还在
+./dtkctl down                     # 删掉容器，数据卷保留
+./dtkctl exec api dtk diagnose    # 六步自检
+./dtkctl upgrade                  # 升级，见下文
+```
+
+`./dtkctl down -v` 会连数据卷一起删，不可恢复。
+
+机器重启、或者 Docker 本身重启之后，容器会自己起来（`restart: unless-stopped`）—— 用 `stop`
+停掉的除外。没起来，就在安装目录里 `./dtkctl up -d`。想在哪都能用，把它链接进 PATH
+（`ln -s /opt/dtk/dtkctl /usr/local/bin/dtkctl`），它会顺着链接找回自己的安装目录。
+
+**从别的机器访问。** 控制台默认只发布在 `127.0.0.1:8000`，只有这台机器自己打得开：在 NAS 的
+局域网里或另一台电脑上访问 `http://<这台机器>:8000` 是连不上的，这不代表服务没起来。安装时的
+第二个问题问的就是它。装好之后要改，就把 `.env` 里的 `DTK_BIND_HOST` 改掉 —— 只给局域网用就写
+这台机器的局域网地址，比如 `192.168.1.10`；写 `0.0.0.0` 则是所有网卡 —— 然后 `./dtkctl up -d`。
+控制台和 API 走的是明文 HTTP，所以有公网地址的机器别这么做：保持 `127.0.0.1`，在前面挂一个带 TLS
+的反向代理。见[端口与监听地址](../documents/zh/02-installation.md#端口与监听地址)和
+[放在反向代理后面](../documents/zh/02-installation.md#放在反向代理后面)。
+
 ## 再跑一次就是管理工具
 
 脚本自己判断该做哪件事。如果已经有一份安装，它打开菜单而不是重新安装。它会依次在
@@ -491,7 +570,7 @@ compose 那一行里加的东西不会丢。5.1.6 之前装的实例，要等第
 - 所有密钥用 `openssl rand` 生成，`.env` 在 `umask 077` 下写出，从不打印任何一个。
 - 生成一个 `dtkctl` 包装脚本，替你带上那三个每次都得对的参数 —— 项目名、两个
   compose 文件，以及 `COMPOSE_ENV_FILES`；没有最后这个，Compose 会去读
-  `docker/.env` 然后悄悄用默认值做插值。
+  `docker/.env` 然后悄悄用默认值做插值。日常怎么用它，见上面的[日常管理](#日常管理dtkctl)。
 - 这些文件一写完就跑一遍 Compose 自己的 `config -q` 检查，所以 Compose 不认的项目名
   或端口会按它本来的样子报出来，而不是变成一次拉取失败。
 - **要转写又没有模型时，替你下载。** 模型目录默认是安装目录下的
