@@ -47,6 +47,8 @@ Read once at process start by `BootstrapSettings` in `src/dtk/core/config.py`. A
 | --- | --- | --- |
 | `DTK_SECRET_KEY` | none — required, minimum 32 characters | Master key for credential encryption. The image ships no default, and every role refuses to start without it. Changing it makes already-stored cookies and proxy credentials undecryptable. |
 | `DTK_DATABASE_URL` | `postgresql+asyncpg://dtk:dtk@postgres:5432/dtk` | Postgres DSN. Must be the asyncpg driver. |
+| `DTK_DB_POOL_SIZE` | `5` | Database connections each process - the api, the worker - keeps open. |
+| `DTK_DB_MAX_OVERFLOW` | `5` | How many more each process may open under load; past that a request waits for a connection instead of failing. The two processes together, plus five for the CLI and TimescaleDB, must fit under Postgres' `max_connections`, which `docker/compose.yml` sets to 100; `dtk diagnose` warns when they do not. Until 5.1.9 the pools were a fixed 10 + 20, and on a host whose Postgres had tuned itself to 25 connections the instance answered "too many clients already" under load. |
 | `DTK_REDIS_URL` | `redis://redis:6379/0` | Redis URL. Queue, cache, token buckets and console sessions live here. |
 | `DTK_BIND_HOST` | `127.0.0.1` | Address the API binds to. The container overrides this to `0.0.0.0`; what limits exposure there is the published port. |
 | `DTK_BIND_PORT` | `8000` | Port the API binds to. |

@@ -104,6 +104,15 @@ services:
     mem_limit: 2g
     pids_limit: 256
     image: timescale/timescaledb-ha:pg17
+    # The image tunes itself to its memory limit the first time it initialises
+    # the data directory, and writes the result into postgresql.conf: under the
+    # 1g an installer gives a small host, that was `max_connections = 25`. The
+    # api and the worker could open more than that between them, and the demo
+    # answered "too many clients already" under load. Stated here, on the
+    # command line, it overrides the file - for a data directory initialised
+    # years ago as much as for a new one. A connection costs memory only while
+    # it is open; the pools (DTK_DB_POOL_SIZE) decide how many are.
+    command: ["postgres", "-c", "max_connections=100"]
     env_file:
       - path: ../.env
         required: false

@@ -98,7 +98,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: BootstrapSettings = app.state.settings
     configure(level=settings.log_level, json_output=settings.log_json)
 
-    init_engine(settings.database_url)
+    init_engine(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+    )
     init_redis(settings.redis_url)
     app.state.cipher = Cipher(settings.secret_key)
 

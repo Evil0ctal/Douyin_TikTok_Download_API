@@ -41,6 +41,12 @@ class BootstrapSettings(BaseSettings):
 
     secret_key: str = Field(default="", description="Master key for credential encryption")
     database_url: str = Field(default="postgresql+asyncpg://dtk:dtk@postgres:5432/dtk")
+    #: Connections each process keeps open, and how many more it may open under
+    #: load before a request waits for one instead. The api and the worker each
+    #: get this many; the diagnosis warns when the two together, plus room for
+    #: the CLI and TimescaleDB, exceed Postgres' `max_connections`.
+    db_pool_size: int = Field(default=5, ge=1)
+    db_max_overflow: int = Field(default=5, ge=0)
     redis_url: str = Field(default="redis://redis:6379/0")
     bind_host: str = "127.0.0.1"
     bind_port: int = 8000

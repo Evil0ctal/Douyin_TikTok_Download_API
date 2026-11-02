@@ -148,7 +148,11 @@ async def runtime(settings: BootstrapSettings) -> AsyncIterator[McpContext]:
     """
     from dtk.services.settings_store import load_config, start_watcher, stop_watcher
 
-    init_engine(settings.database_url)
+    init_engine(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+    )
     init_redis(settings.redis_url)
     holder = SimpleNamespace(state=SimpleNamespace(config=Config.defaults()))
     try:

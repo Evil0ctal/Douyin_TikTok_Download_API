@@ -43,6 +43,7 @@ from typing import Any, Final
 
 import httpx
 from redis.asyncio import Redis
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from dtk import __version__
@@ -54,7 +55,13 @@ from dtk.identity.minting.client import BrowserRpcClient
 from dtk.identity.minting.native import NATIVE_MINT_PLATFORMS
 from dtk.ops import sidecars
 from dtk.ops._sql import safe_execute, safe_scalar
-from dtk.ops.health import ComponentHealth, check_browser_rpc, check_postgres, check_redis
+from dtk.ops.health import (
+    POSTGRES,
+    ComponentHealth,
+    check_browser_rpc,
+    check_postgres,
+    check_redis,
+)
 from dtk.platforms.douyin.endpoints import DouyinAPIEndpoints
 from dtk.platforms.tiktok.endpoints import TikTokAPIEndpoints
 from dtk.signing.base import RequestSpec, StaticFingerprint
@@ -199,6 +206,7 @@ class StepCode(StrEnum):
     COMPONENTS_UNREACHABLE = "components_unreachable"
     COMPONENTS_BROWSER_RPC_DOWN = "components_browser_rpc_down"
     COMPONENTS_SIDECAR_DOWN = "components_sidecar_down"
+    COMPONENTS_DB_CONNECTIONS = "components_db_connections"
     COMPONENTS_OK = "components_ok"
 
     EGRESS_UNREACHABLE = "egress_unreachable"
@@ -245,6 +253,7 @@ ACTIONABLE_CODES: Final[frozenset[str]] = frozenset(
         StepCode.COMPONENTS_UNREACHABLE,
         StepCode.COMPONENTS_BROWSER_RPC_DOWN,
         StepCode.COMPONENTS_SIDECAR_DOWN,
+        StepCode.COMPONENTS_DB_CONNECTIONS,
         StepCode.EGRESS_UNREACHABLE,
         StepCode.EGRESS_PARTIAL,
         StepCode.PROXIES_NONE,
@@ -455,6 +464,10 @@ class DiagnoseContext:
     proxy_probe_url: str = DEFAULT_PROXY_PROBE_URL
     #: Low-water mark the pool step compares against; doc 10's pool.min_size.
     min_active: int = 3
+    #: The most connections the api and the worker can open between them
+    #: (:func:`dtk.core.db.connection_budget`). None skips the comparison with
+    #: Postgres' own limit.
+    connection_budget: int | None = None
 
 
 async def check_components(ctx: DiagnoseContext) -> StepResult:
@@ -517,7 +530,37 @@ async def check_components(ctx: DiagnoseContext) -> StepResult:
             args={"components": ", ".join(sidecars_down)},
             details=details,
         )
+    limit = await _max_connections(ctx.engine) if ctx.connection_budget is not None else None
+    if limit is not None and ctx.connection_budget is not None:
+        details[POSTGRES]["max_connections"] = limit
+        details[POSTGRES]["connection_budget"] = ctx.connection_budget
+        if ctx.connection_budget > limit:
+            # Everything answers today; this is the load at which it stops.
+            # Measured on the demo: pools of 10 + 20 against the 25 TimescaleDB
+            # tunes a 1 GB container to, and "too many clients already" as 500s.
+            return result(
+                StepStatus.WARN,
+                StepCode.COMPONENTS_DB_CONNECTIONS,
+                args={"budget": ctx.connection_budget, "max_connections": limit},
+                details=details,
+            )
     return result(StepStatus.PASS, StepCode.COMPONENTS_OK, details=details)
+
+
+async def _max_connections(engine: AsyncEngine | None) -> int | None:
+    """Postgres' ``max_connections``, or None when it cannot be read."""
+    if engine is None:
+        return None
+    try:
+        async with engine.connect() as connection:
+            value = await connection.scalar(text("SHOW max_connections"))
+    except Exception as exc:
+        log.debug("ops.diagnose.max_connections_unreadable", error=type(exc).__name__)
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 async def check_egress(ctx: DiagnoseContext) -> StepResult:

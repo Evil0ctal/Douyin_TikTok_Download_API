@@ -95,6 +95,10 @@ class OperationDeps:
     #: through a second pipeline would spend identities the scheduler is not
     #: accounting for.
     fetch: FetchService | None = None
+    #: The most database connections the api and the worker can hold between
+    #: them, from the settings this worker started with. The diagnosis compares
+    #: it with Postgres' own limit; see :func:`dtk.core.db.connection_budget`.
+    connection_budget: int | None = None
 
 
 #: One maintenance job. Takes its dependencies, a session scoped to this task,

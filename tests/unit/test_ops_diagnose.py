@@ -637,6 +637,86 @@ def test_the_sidecar_finding_reads_in_both_languages() -> None:
     assert chinese["action"]
 
 
+def max_connections_is(limit: int | None) -> Any:
+    async def read(_engine: Any) -> int | None:
+        return limit
+
+    return read
+
+
+@pytest.mark.usefixtures("core_components_up")
+async def test_pools_postgres_cannot_hold_are_a_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The demo's shape: 2 x (10 + 20) + 5 against the 25 TimescaleDB tuned to."""
+    monkeypatch.setattr(diagnose, "_max_connections", max_connections_is(25))
+
+    result = await diagnose.check_components(
+        DiagnoseContext(engine=object(), connection_budget=65)  # type: ignore[arg-type]
+    )
+
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.COMPONENTS_DB_CONNECTIONS
+    assert result.action_code is StepCode.COMPONENTS_DB_CONNECTIONS
+    assert result.args == {"budget": 65, "max_connections": 25}
+    assert result.details["postgres"]["max_connections"] == 25
+
+
+@pytest.mark.usefixtures("core_components_up")
+async def test_pools_that_fit_pass_and_say_both_numbers(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(diagnose, "_max_connections", max_connections_is(100))
+
+    result = await diagnose.check_components(
+        DiagnoseContext(engine=object(), connection_budget=25)  # type: ignore[arg-type]
+    )
+
+    assert result.status is StepStatus.PASS
+    assert result.details["postgres"]["connection_budget"] == 25
+    assert result.details["postgres"]["max_connections"] == 100
+
+
+@pytest.mark.usefixtures("core_components_up")
+async def test_without_a_budget_postgres_is_not_asked(monkeypatch: pytest.MonkeyPatch) -> None:
+    asked: list[Any] = []
+
+    async def read(engine: Any) -> int:
+        asked.append(engine)
+        return 1
+
+    monkeypatch.setattr(diagnose, "_max_connections", read)
+
+    result = await diagnose.check_components(DiagnoseContext(engine=object()))  # type: ignore[arg-type]
+
+    assert result.status is StepStatus.PASS
+    assert asked == []
+
+
+@pytest.mark.usefixtures("core_components_up")
+async def test_an_unreadable_limit_is_not_a_finding(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(diagnose, "_max_connections", max_connections_is(None))
+
+    result = await diagnose.check_components(
+        DiagnoseContext(engine=object(), connection_budget=500)  # type: ignore[arg-type]
+    )
+
+    assert result.status is StepStatus.PASS
+    assert "max_connections" not in result.details["postgres"]
+
+
+def test_the_connection_finding_reads_in_both_languages() -> None:
+    step = diagnose.StepResult(
+        number=1,
+        step="components",
+        status=StepStatus.WARN,
+        code=StepCode.COMPONENTS_DB_CONNECTIONS,
+        args={"budget": 65, "max_connections": 25},
+    )
+    english = step.as_dict(Language.EN)
+    chinese = step.as_dict(Language.ZH)
+    for rendered in (english, chinese):
+        assert "65" in rendered["reason"]
+        assert "25" in rendered["reason"]
+        assert "DTK_DB_POOL_SIZE" in rendered["action"]
+
+
 # --------------------------------------------------------------------------
 # which platform the end-to-end step uses
 # --------------------------------------------------------------------------

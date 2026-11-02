@@ -24,7 +24,7 @@ import httpx
 
 from dtk.core.config import BootstrapSettings, Config
 from dtk.core.crypto import Cipher
-from dtk.core.db import dispose_engine, init_engine, session_scope
+from dtk.core.db import connection_budget, dispose_engine, init_engine, session_scope
 from dtk.core.logging import configure, get_logger
 from dtk.core.redis import close_redis, get_redis, init_redis
 from dtk.core.types import Platform
@@ -305,6 +305,7 @@ async def build_runtime(
             downloader=downloader,
             transcriber=transcriber,
             fetch=fetch,
+            connection_budget=connection_budget(settings.db_pool_size, settings.db_max_overflow),
         ),
         session_factory=session_scope,
     )
@@ -366,7 +367,11 @@ async def _process_scope(
     settings: BootstrapSettings,
 ) -> AsyncIterator[Callable[[], Config]]:  # pragma: no cover - process wiring
     configure(level=settings.log_level, json_output=settings.log_json)
-    init_engine(settings.database_url)
+    init_engine(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+    )
     init_redis(settings.redis_url)
     from dtk.services.settings_store import load_config, start_watcher, stop_watcher
 

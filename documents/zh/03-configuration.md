@@ -46,6 +46,8 @@
 | --- | --- | --- |
 | `DTK_SECRET_KEY` | 无——必填，至少 32 个字符 | 凭证加密的主密钥。镜像不提供任何默认值，缺少它时每个角色都拒绝启动。更换它会让已存储的 cookie 与代理凭证无法解密。 |
 | `DTK_DATABASE_URL` | `postgresql+asyncpg://dtk:dtk@postgres:5432/dtk` | Postgres 连接串，必须使用 asyncpg 驱动。 |
+| `DTK_DB_POOL_SIZE` | `5` | 每个进程（api、worker）常驻的数据库连接数。 |
+| `DTK_DB_MAX_OVERFLOW` | `5` | 高负载时每个进程最多再多开的连接数；超过之后请求会排队等连接，而不是直接失败。两个进程合计再加上留给 CLI 和 TimescaleDB 的 5 个，必须小于 Postgres 的 `max_connections`（`docker/compose.yml` 设为 100）；超出时 `dtk diagnose` 会给出警告。5.1.9 及以前连接池固定为 10 + 20，在 Postgres 自动调成 25 个连接的机器上，高负载时实例会报 "too many clients already"。 |
 | `DTK_REDIS_URL` | `redis://redis:6379/0` | Redis 地址。队列、缓存、令牌桶与控制台会话都在这里。 |
 | `DTK_BIND_HOST` | `127.0.0.1` | API 监听地址。容器内会覆盖为 `0.0.0.0`，真正限制暴露面的是发布出去的端口。 |
 | `DTK_BIND_PORT` | `8000` | API 监听端口。 |

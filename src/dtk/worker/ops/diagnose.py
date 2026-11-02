@@ -126,6 +126,7 @@ async def run(
                 # download or a transcription would be handed to.
                 downloader=deps.downloader,
                 transcriber=deps.transcriber,
+                connection_budget=deps.connection_budget,
             )
         )
 

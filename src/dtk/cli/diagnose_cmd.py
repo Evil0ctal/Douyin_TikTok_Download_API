@@ -17,6 +17,7 @@ from typing import Annotated, Any
 import typer
 
 from dtk.cli import output, runtime
+from dtk.core.db import connection_budget
 from dtk.core.types import Platform
 from dtk.identity import BrowserRpcClient
 from dtk.identity.marks import strictest_min_size
@@ -102,6 +103,11 @@ def diagnose(
                 min_active=strictest_min_size(ctx.config),
                 downloader=downloader,
                 transcriber=transcriber,
+                # This command's own engine is a small one; the budget is what
+                # the api and the worker open, from the settings they share.
+                connection_budget=connection_budget(
+                    ctx.settings.db_pool_size, ctx.settings.db_max_overflow
+                ),
             )
             if proxy_probe_url:
                 diagnose_ctx.proxy_probe_url = proxy_probe_url
