@@ -7,9 +7,13 @@
 blank_issues_enabled: false
 
 contact_links:
-  - name: 💬 提问与讨论 / Questions and discussion
-    url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions
-    about: 用法、部署求助、想法交流。来回讨论的事情放 Discussions 比 issue 合适。/ Usage, deployment help, ideas. Discussions handles a back-and-forth better than an issue does.
+  - name: 💡 功能想法与反馈 / Feature ideas and feedback
+    url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/categories/ideas
+    about: 一个想法一个帖，大家可以投票；已经有人提过就去点 👍。/ One idea per discussion, open to votes; if it is there already, upvote it.
+
+  - name: 💬 用法与部署求助 / Usage and deployment help
+    url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/categories/q-a
+    about: 来回讨论的事情放 Discussions 比 issue 合适，Q&A 还能标出采纳的回答。/ Discussions handles a back-and-forth better than an issue, and Q&A can mark the answer that worked.
 
   - name: 🔧 先看故障排查 / Read Troubleshooting first
     url: https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/14-troubleshooting.md

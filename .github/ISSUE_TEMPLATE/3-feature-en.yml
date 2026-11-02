@@ -6,8 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        These are welcome. Two things up front to save a round trip:
+        These are welcome. A few things up front to save a round trip:
 
+        - **Still only an idea, and want to see whether others need it too?** Post it in the
+          [Ideas](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/categories/ideas)
+          category of Discussions, where people can vote. This template is for a request you can
+          already describe concretely.
         - **Describing the problem beats describing the solution.** Often something already does it
           and is only hard to find.
         - **Better still if you want to build it.**

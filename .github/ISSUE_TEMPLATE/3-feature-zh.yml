@@ -6,8 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        欢迎提。有两件事先说在前面，省得来回：
+        欢迎提。有几件事先说在前面，省得来回：
 
+        - **还只是个想法、想先看看别人要不要？** 发到 Discussions 的
+          [Ideas](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/discussions/categories/ideas)，
+          大家可以投票。这个模板适合已经能具体描述的需求。
         - **说清楚你想解决什么问题**，比直接给方案有用。很多时候现有的东西已经能做到，
           只是不好找。
         - **愿意自己动手就更好了。** [参与开发](https://github.com/Evil0ctal/Douyin_TikTok_Download_API/blob/main/documents/zh/16-contributing.md)
