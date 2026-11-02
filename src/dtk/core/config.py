@@ -230,6 +230,35 @@ def _pool_login_settings() -> list[SettingSpec]:
     ]
 
 
+def _pool_egress_settings() -> list[SettingSpec]:
+    """``pool.<platform>.direct_egress`` for every platform.
+
+    Whether this machine's own address counts as one more exit once proxies
+    are configured. Until 5.1.8 it did not: adding one proxy took a pool that
+    had been minting on the direct egress down to one identity per platform,
+    and the filler then skipped every minute, which the console drew as a row
+    of failures (#807). On, the direct egress holds one identity of the
+    platform like any proxy does, used once every proxy is taken.
+
+    Per platform because reachability is: a server in mainland China with a
+    proxy only for TikTok reaches Douyin directly and TikTok not at all, and a
+    direct TikTok mint there would fail and rest the browser - Douyin's minting
+    with it - every time it was tried.
+    """
+    return [
+        SettingSpec(
+            f"pool.{platform.value}.direct_egress",
+            True,
+            Scope.RUNTIME,
+            bool,
+            f"With proxies configured, also mint one {platform.value} identity on this "
+            "machine's own IP once every proxy has one; without proxies that IP is the "
+            "only exit and is always used",
+        )
+        for platform in Platform
+    ]
+
+
 def _watch_floor(value: Any) -> int:
     """A collection interval floor that is actually a floor.
 
@@ -313,6 +342,7 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         ),
         *_pool_platform_settings(),
         *_pool_login_settings(),
+        *_pool_egress_settings(),
         SettingSpec(
             "pool.health_prior",
             0.8,

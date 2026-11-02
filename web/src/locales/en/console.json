@@ -445,9 +445,10 @@
       "ok": "Minted",
       "allOk": "{count, plural, one {last # attempt succeeded} other {last # attempts all succeeded}}",
       "someFailed": "{failures} of the last {count} failed",
+      "skipped": "Refill paused since {since}: every exit already has one of this platform's identities",
       "reason": {
         "minted": "Minted",
-        "no_free_proxy": "Every proxy already has a live identity of this platform behind it; two behind one exit is the recombination the pool exists to prevent",
+        "no_free_proxy": "Every exit already has a live identity of this platform behind it: one per proxy, plus this machine's IP while the platform's direct_egress setting on the Scheduler page is on. Two behind one exit is the recombination the pool exists to prevent. For more identities, add proxies or lower the refill mark to the number of exits. It is waiting for a free exit, not a mint going wrong.",
         "proxy_not_found": "The proxy this mint was pinned to no longer exists",
         "proxy_undecryptable": "The chosen proxy's URL could not be decrypted, and minting on the direct egress would bind the identity to an exit it will never use",
         "rpc_unavailable": "The browser container did not answer",

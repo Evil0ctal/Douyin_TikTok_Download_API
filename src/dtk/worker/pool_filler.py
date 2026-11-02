@@ -69,6 +69,16 @@ SessionFactory = Callable[[], Any]
 _BROWSER: Final = "browser"
 _NATIVE: Final = "native"
 
+#: Reasons a sweep passes a platform over without an attempt. Recorded apart
+#: from the attempts (:func:`mint_log.skipped`); the other reasons
+#: :meth:`PoolFiller._pick_proxy` gives are a mint that could not go ahead.
+_SKIPS: Final = frozenset({"no_free_proxy"})
+
+#: How many sweeps a skip record outlives the last skip by. More than one,
+#: because the survey picks the neediest platform and may pass this one by for
+#: a tick or two while it is still stuck.
+_SKIP_SWEEPS: Final = 3
+
 
 @dataclass(frozen=True, slots=True)
 class FillerConfig:
@@ -177,6 +187,10 @@ class PoolFiller:
     def _route_platforms(self, route: str) -> tuple[Platform, ...]:
         """Every platform minted by ``route``: what one of its failures rests."""
         return tuple(platform for platform in Platform if self._route(platform) == route)
+
+    @property
+    def _skip_ttl(self) -> int:
+        return max(1, int(self._options.interval_seconds * _SKIP_SWEEPS))
 
     # -- one tick ----------------------------------------------------------
 
@@ -342,9 +356,14 @@ class PoolFiller:
             if reason is not None:
                 log.info("worker.mint.skipped", platform=platform.value, reason=reason)
                 # A skip is an outcome an operator has to be able to see. A
-                # pool that will not refill because every proxy is down looks
-                # exactly like one nobody asked to refill, otherwise.
-                await mint_log.finished(platform, ok=False, reason=reason)
+                # pool that will not refill because every proxy is taken looks
+                # exactly like one nobody asked to refill, otherwise. But it is
+                # not a failed attempt, and recorded as one it read as a pool
+                # failing twenty times in a row (#807).
+                if reason in _SKIPS:
+                    await mint_log.skipped(platform, reason=reason, ttl=self._skip_ttl)
+                else:
+                    await mint_log.finished(platform, ok=False, reason=reason)
                 return FillResult(platform=platform, reason=reason)
 
             proxy_url = None
@@ -467,9 +486,16 @@ class PoolFiller:
         """Choose an egress no live identity of this platform already uses.
 
         Two identities behind one exit address is the recombination doc 02
-        forbids, so when every proxy is taken this job waits rather than
+        forbids, so when every exit is taken this job waits rather than
         doubling up. A deployment with no proxies at all mints on the direct
         egress, which is what a user without proxies asked for.
+
+        With proxies, the direct egress is one more exit, tried after them and
+        held to one identity like each of them (``pool.<platform>.direct_egress``).
+        It used to drop out the moment a proxy was added, which made adding
+        one proxy shrink the pool to a single identity per platform (#807).
+        None for the proxy with no reason is how "mint on the direct egress"
+        is spelled.
 
         A named ``proxy_id`` overrides that search rather than being checked
         against it: the operator chose this exit deliberately, and a one-proxy
@@ -486,7 +512,13 @@ class PoolFiller:
             return free[0], None
         if not await proxies.list_all():
             return None, None
+        if self._direct_counts(platform) and await proxies.direct_unbound(platform):
+            return None, None
         return None, "no_free_proxy"
+
+    def _direct_counts(self, platform: Platform) -> bool:
+        """Whether the direct egress is an exit for ``platform`` beside the proxies."""
+        return bool(self._config().get(f"pool.{platform.value}.direct_egress"))
 
     def _decrypt(self, proxy: Any) -> str | None:
         if self._cipher is None:

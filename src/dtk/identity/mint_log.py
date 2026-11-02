@@ -47,6 +47,10 @@ RECENT_KEY: Final = "worker:mint:recent"
 #: that everything was resting when one route was, then cleared it when the
 #: other route minted.
 BACKOFF_PREFIX: Final = "worker:mint:backoff:"
+#: Set while the sweep keeps passing one platform over without trying, such as
+#: when every exit already carries one of its identities; the platform follows
+#: the prefix. Not an attempt, so not in :data:`RECENT_KEY` - see :func:`skipped`.
+SKIP_PREFIX: Final = "worker:mint:skip:"
 
 #: How many attempts to keep. Enough to show a pattern - a run of failures with
 #: one reason is a different story from an alternating one - and small enough
@@ -101,6 +105,9 @@ async def finished(
         redis = get_redis()
         pipe = redis.pipeline()
         pipe.delete(CURRENT_KEY)
+        # An attempt was made, so whatever was holding this platform back has
+        # let go of it.
+        pipe.delete(skip_key(platform))
         pipe.lpush(RECENT_KEY, json.dumps(entry))
         pipe.ltrim(RECENT_KEY, 0, KEEP - 1)
         pipe.expire(RECENT_KEY, RECENT_TTL)
@@ -111,6 +118,37 @@ async def finished(
 
 def backoff_key(platform: Platform) -> str:
     return f"{BACKOFF_PREFIX}{platform.value}"
+
+
+def skip_key(platform: Platform) -> str:
+    return f"{SKIP_PREFIX}{platform.value}"
+
+
+async def skipped(platform: Platform, *, reason: str, ttl: int) -> None:
+    """Record that the sweep passed ``platform`` over, and why.
+
+    Kept apart from the attempts on purpose. A skip repeats every tick for as
+    long as its cause lasts, and written into the attempt list it was drawn as
+    a row of failures - "20 of the last 20 failed" for a pool that had simply
+    run out of exits (#807) - while pushing the real attempts out of the window
+    within twenty minutes.
+
+    ``ttl`` should cover a few sweeps: the key's presence is the state, so it
+    lapses on its own once the sweep stops skipping, and :func:`finished`
+    clears it as soon as an attempt is made. ``since`` carries over from the
+    entry it replaces while the reason stays the same, so the console can say
+    for how long.
+    """
+    key = skip_key(platform)
+    try:
+        redis = get_redis()
+        previous = _decode(await redis.get(key))
+        now = _now()
+        since = previous.get("since") if previous and previous.get("reason") == reason else None
+        entry = {"reason": reason, "since": since or now, "at": now}
+        await redis.set(key, json.dumps(entry), ex=max(1, ttl))
+    except Exception as exc:  # pragma: no cover - a breadcrumb, never a failure
+        log.debug("mint_log.skip_unavailable", error=type(exc).__name__)
 
 
 async def backing_off(
@@ -164,13 +202,20 @@ async def snapshot() -> dict[str, Any]:
 
     ``backoffs`` is keyed by platform and holds only the platforms that are
     resting. ``backoff`` is the longest of them, for a reader written when
-    there was one shared backoff and nothing else.
+    there was one shared backoff and nothing else. ``skips`` is keyed the same
+    way and holds only the platforms the sweep is currently passing over.
 
     Returns empty structures rather than raising when Redis cannot answer: a
     status panel that disappears is better than a page that fails to load
     because the thing it reports on is down.
     """
-    empty: dict[str, Any] = {"current": None, "recent": [], "backoff": None, "backoffs": {}}
+    empty: dict[str, Any] = {
+        "current": None,
+        "recent": [],
+        "backoff": None,
+        "backoffs": {},
+        "skips": {},
+    }
     platforms = tuple(Platform)
     try:
         redis = get_redis()
@@ -179,21 +224,29 @@ async def snapshot() -> dict[str, Any]:
         pipe.lrange(RECENT_KEY, 0, KEEP - 1)
         for platform in platforms:
             pipe.get(backoff_key(platform))
-        current, recent, *resting = await pipe.execute()
+        for platform in platforms:
+            pipe.get(skip_key(platform))
+        current, recent, *per_platform = await pipe.execute()
     except Exception as exc:
         log.debug("mint_log.snapshot_unavailable", error=type(exc).__name__)
         return empty
 
-    backoffs = {
-        platform.value: entry
-        for platform, entry in zip(platforms, (_decode(raw) for raw in resting), strict=True)
-        if entry is not None
-    }
+    resting, skipping = per_platform[: len(platforms)], per_platform[len(platforms) :]
+    backoffs = _by_platform(platforms, resting)
     return {
         "current": _decode(current),
         "recent": [entry for entry in (_decode(raw) for raw in recent or []) if entry is not None],
         "backoff": max(backoffs.values(), key=lambda entry: str(entry.get("until")), default=None),
         "backoffs": backoffs,
+        "skips": _by_platform(platforms, skipping),
+    }
+
+
+def _by_platform(platforms: tuple[Platform, ...], raws: list[Any]) -> dict[str, dict[str, Any]]:
+    return {
+        platform.value: entry
+        for platform, entry in zip(platforms, (_decode(raw) for raw in raws), strict=True)
+        if entry is not None
     }
 
 
@@ -218,10 +271,13 @@ __all__ = [
     "KEEP",
     "RECENT_KEY",
     "RECENT_TTL",
+    "SKIP_PREFIX",
     "backing_off",
     "backoff_key",
     "finished",
     "recovered",
+    "skip_key",
+    "skipped",
     "snapshot",
     "started",
 ]

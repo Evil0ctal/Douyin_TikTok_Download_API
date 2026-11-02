@@ -16,6 +16,14 @@ import { POOL_KEY, type MintActivity, type PoolLevel, type PoolPlatform } from '
 const INHERIT = -1
 
 /**
+ * Reasons that are a sweep passing a platform over rather than an attempt.
+ * Workers before issue 807 wrote them into the attempt list as failures; such
+ * entries are left out of the bars instead of being drawn red until they age
+ * out a day later.
+ */
+const SKIP_REASONS: ReadonlySet<string> = new Set(['no_free_proxy'])
+
+/**
  * One platform's row as the operator is editing it.
  *
  * Numbers are held as text, not as numbers: an input the operator has emptied
@@ -536,10 +544,13 @@ function PlatformActivity({
   const { t } = useTranslation(['console', 'common'])
   const format = useFormatters()
 
-  const recent = activity.recent.filter((entry) => entry.platform === platform)
+  const recent = activity.recent.filter(
+    (entry) => entry.platform === platform && !SKIP_REASONS.has(entry.reason),
+  )
   const current = activity.current?.platform === platform ? activity.current : null
   const backoff = activity.backoffs?.[platform] ?? null
-  if (!canMint || (recent.length === 0 && !current && !backoff)) return null
+  const skip = activity.skips?.[platform] ?? null
+  if (!canMint || (recent.length === 0 && !current && !backoff && !skip)) return null
 
   const failures = recent.filter((entry) => !entry.ok).length
 
@@ -564,6 +575,17 @@ function PlatformActivity({
             // capped at an hour, so the day is never in doubt.
             when: format.time(backoff.until),
           })}
+        </span>
+      ) : skip ? (
+        // Not a failure and not drawn as one: the sweep looked and found no
+        // exit free, which is a state to explain rather than an alarm (issue 807).
+        <span
+          className={styles.skipped}
+          title={t(`console:identity.mintLog.reason.${skip.reason}`, {
+            defaultValue: skip.reason,
+          })}
+        >
+          {t('console:identity.mintLog.skipped', { since: format.time(skip.since) })}
         </span>
       ) : null}
 

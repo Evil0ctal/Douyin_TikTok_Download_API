@@ -245,6 +245,12 @@
   color: var(--caution);
 }
 
+/* Quieter than a backoff: nothing is failing, the sweep is waiting for an exit. */
+.skipped {
+  color: var(--neutral);
+  cursor: help;
+}
+
 .pulse {
   width: 8px;
   height: 8px;

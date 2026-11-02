@@ -1009,15 +1009,70 @@ async def test_minting_waits_rather_than_doubling_up_on_one_proxy() -> None:
     rpc = FakeRpc()
     pool = FakePool()
     proxy = SimpleNamespace(id=uuid.uuid4(), url_encrypted=b"x", country="DE", timezone=None)
-    # No unbound proxy, but proxies do exist: two identities behind one exit is
-    # the recombination doc 02 forbids.
-    session = FakeSession(scalars_results=[[], [proxy]])
+    # No unbound proxy, but proxies do exist, and the direct egress already
+    # carries an identity too: two identities behind one exit is the
+    # recombination doc 02 forbids.
+    session = FakeSession(scalars_results=[[], [proxy], [uuid.uuid4()]])
     filler = make_filler(rpc, pool, session=session)
 
     result = await filler.tick()
 
     assert result.reason == "no_free_proxy"
     assert rpc.mints == 0
+
+
+async def test_the_direct_egress_is_one_more_exit_once_the_proxies_are_taken() -> None:
+    """#807: adding one proxy used to shrink the pool to one identity a platform."""
+    rpc = FakeRpc()
+    pool = FakePool()
+    proxy = SimpleNamespace(id=uuid.uuid4(), url_encrypted=b"x", country="DE", timezone=None)
+    session = FakeSession(scalars_results=[[], [proxy], []])
+    filler = make_filler(rpc, pool, session=session)
+
+    result = await filler.tick()
+
+    assert result.minted is True
+    assert result.proxy_id is None
+    assert rpc.proxies == [None]
+    assert pool.added[0]["proxy_id"] is None
+    # Proxies first, then the direct egress, each checked for a live identity.
+    assert "proxy_id IS NULL" in session.statements[2]
+
+
+async def test_the_direct_egress_can_be_kept_out_per_platform() -> None:
+    """Off where this machine cannot reach the platform without a proxy."""
+    rpc = FakeRpc()
+    proxy = SimpleNamespace(id=uuid.uuid4(), url_encrypted=b"x", country="DE", timezone=None)
+    session = FakeSession(scalars_results=[[], [proxy], []])
+    filler = make_filler(
+        rpc,
+        FakePool(),
+        session=session,
+        config=Config({"pool.douyin.direct_egress": False}),
+        options={"platforms": (Platform.DOUYIN,)},
+    )
+
+    result = await filler.tick()
+
+    assert result.reason == "no_free_proxy"
+    assert rpc.mints == 0
+    assert len(session.statements) == 2
+
+
+async def test_without_proxies_the_switch_does_not_stop_direct_minting() -> None:
+    rpc = FakeRpc()
+    filler = make_filler(
+        rpc,
+        FakePool(),
+        session=FakeSession(scalars_results=[[], []]),
+        config=Config({"pool.douyin.direct_egress": False}),
+        options={"platforms": (Platform.DOUYIN,)},
+    )
+
+    result = await filler.tick()
+
+    assert result.minted is True
+    assert rpc.proxies == [None]
 
 
 async def test_minting_uses_a_free_proxy_and_its_geo() -> None:

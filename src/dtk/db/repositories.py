@@ -256,6 +256,23 @@ class ProxyRepository(Repository):
         )
         return (await self.session.scalars(stmt)).all()
 
+    async def direct_unbound(self, platform: Platform) -> bool:
+        """Whether the direct egress carries no live identity of ``platform``.
+
+        The same rule as :meth:`list_unbound`, for the exit that has no row.
+        An imported identity with no proxy sits on this exit too, so it counts.
+        """
+        stmt = (
+            select(Identity.id)
+            .where(
+                Identity.platform == platform.value,
+                Identity.proxy_id.is_(None),
+                Identity.state.not_in([IdentityState.RETIRED.value]),
+            )
+            .limit(1)
+        )
+        return not (await self.session.scalars(stmt)).all()
+
     async def set_health(
         self,
         proxy_id: uuid.UUID,

@@ -507,7 +507,7 @@ When a mint produces nothing, the task fails with a reason code:
 
 | Reason | What it means |
 | --- | --- |
-| `no_free_proxy` | Every proxy already has a live identity of this platform behind it. Two identities behind one exit is the recombination the pool exists to prevent, so the job waits rather than doubling up. Add a proxy. |
+| `no_free_proxy` | Every exit already has a live identity of this platform behind it: one per proxy, plus this machine's IP while `pool.<platform>.direct_egress` is on. Two identities behind one exit is the recombination the pool exists to prevent, so the job waits rather than doubling up. Add a proxy, or lower the refill mark to the number of exits. |
 | `proxy_not_found` | The proxy this mint was pinned to no longer exists. |
 | `proxy_undecryptable` | The proxy URL could not be decrypted (wrong `DTK_SECRET_KEY`). Minting direct instead would bind the identity to an exit it will never use. |
 | `rpc_unavailable` | The browser container did not answer. |
@@ -1099,17 +1099,32 @@ identities and they come back when it does.
 ## How identities and proxies are paired
 
 - The automatic mint job picks a **healthy** proxy that **no live identity of
-  that platform already uses**. The number of healthy, unused proxies is
-  therefore the ceiling on how many identities per platform automatic refill can
-  add; when every proxy is taken it reports `no_free_proxy` and waits rather than
-  doubling up. Retiring an identity frees its proxy again.
+  that platform already uses**. Once every proxy is taken, this machine's own IP
+  counts as one more exit: if no live identity of the platform sits on the
+  direct egress yet - an import made with "No proxy" counts - one is minted
+  there. The ceiling on how many identities per platform automatic refill can
+  add is therefore the number of healthy, unused proxies plus one; when every
+  exit is taken it reports `no_free_proxy` and waits rather than doubling up.
+  Retiring an identity frees its exit again.
+- Whether the machine's IP counts is decided per platform by
+  `pool.<platform>.direct_egress` (Scheduler page, on by default). Turn it off
+  for a platform this machine cannot reach directly - most often a server in
+  mainland China with a proxy only for TikTok: a TikTok mint on the direct
+  egress would keep failing, every failure puts automatic refill into backoff,
+  and the browser's backoff is shared by Douyin and TikTok. Up to 5.1.8 the
+  machine's IP dropped out as soon as one proxy was added, so a one-proxy
+  install refilled to a single identity per platform.
+- On the refill card, waiting for an exit to free up shows as a grey "refill
+  paused" line, and no longer counts among the recent failed mints.
 - A proxy you name explicitly (in the Mint dialog, `--proxy` on the CLI, or
   `proxy_id` in the API) overrides that search: you chose the exit deliberately,
   and a one-proxy install could otherwise never mint its second identity.
-- With no proxies configured at all, identities are minted on the direct egress.
+- With no proxies configured at all, identities are minted on the direct egress,
+  and the one-per-exit rule does not apply - there is no other exit to choose.
   That is what an install without proxies asked for. Leaving the proxy unset in
-  the Mint dialog runs the same search as the automatic job, so a mint goes
-  direct only in this case.
+  the Mint dialog runs the same search as the automatic job: with proxies
+  configured, a mint goes direct only when every proxy is taken and the direct
+  egress is free.
 - An imported jar takes the proxy you select in the import dialog. The default
   option, **No proxy - direct from this server**, means exactly that, for the
   identity's whole life; an import never searches for a proxy.

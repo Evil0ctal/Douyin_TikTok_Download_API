@@ -206,6 +206,14 @@ export interface MintBackoff {
   until: string
 }
 
+/** The sweep passing a platform over without an attempt, e.g. every exit taken. */
+export interface MintSkip {
+  reason: string
+  /** When this run of skips with the same reason began. */
+  since: string
+  at: string
+}
+
 export interface MintActivity {
   current: { platform: string; started_at: string } | null
   recent: MintAttempt[]
@@ -213,6 +221,8 @@ export interface MintActivity {
   backoff: MintBackoff | null
   /** Per platform, only the ones resting. */
   backoffs?: Partial<Record<Platform, MintBackoff>>
+  /** Per platform, only the ones being skipped. Absent from an older API. */
+  skips?: Partial<Record<Platform, MintSkip>>
 }
 
 export interface PoolLevel {
