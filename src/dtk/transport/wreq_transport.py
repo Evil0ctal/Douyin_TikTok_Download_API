@@ -385,7 +385,11 @@ class WreqTransport:
         try:
             response = await entry.client.request(method, spec.url, **kwargs)
             try:
-                body = await response.bytes()
+                # Copied into bytes here, once. wreq 0.13 hands back a
+                # read-only memoryview, which has no .decode() and which
+                # json.loads refuses - and every reader downstream, from the
+                # classifier to the parsers, was written against bytes.
+                body = bytes(await response.bytes())
             except BaseException:
                 # The response exists but its body failed mid-stream. wreq wants
                 # the response closed explicitly; skipping it holds the
@@ -536,8 +540,11 @@ def _headers_dict(headers: Any) -> dict[str, str]:
 
 
 def _as_text(value: Any) -> str:
-    if isinstance(value, bytes):
-        return value.decode("latin-1", errors="replace")
+    # memoryview since wreq 0.13, for header names and values as well as the
+    # body. str() of one is "<memory at 0x...>", which turned every header
+    # into a unique nonsense key - and let Set-Cookie past the filter above.
+    if isinstance(value, bytes | bytearray | memoryview):
+        return bytes(value).decode("latin-1", errors="replace")
     return str(value)
 
 

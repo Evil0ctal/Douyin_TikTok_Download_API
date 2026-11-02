@@ -119,6 +119,10 @@ class FakeStatus:
         return f"{self._code} OK"
 
 
+def _view(data: bytes) -> memoryview:
+    return memoryview(data).toreadonly()
+
+
 class FakeResponse:
     def __init__(
         self,
@@ -135,21 +139,29 @@ class FakeResponse:
         self._body = body
         self._body_error = body_error
         self._body_delay = body_delay
-        # wreq hands back a header map that iterates as (bytes, bytes) pairs.
+        # wreq hands back a header map that iterates as pairs of read-only
+        # memoryviews since 0.13 - bytes before it. The release notes name the
+        # body and not the headers; measured with 0.13.0, both changed.
         self.headers = [
-            *((k.encode(), v.encode()) for k, v in (headers or {}).items()),
-            *header_pairs,
+            (_view(name), _view(value))
+            for name, value in (
+                *((k.encode(), v.encode()) for k, v in (headers or {}).items()),
+                *header_pairs,
+            )
         ]
         self.url = url
         self.cookies = cookies
         self.closed = 0
 
-    async def bytes(self) -> bytes:
+    async def bytes(self) -> memoryview:
         if self._body_delay:
             await asyncio.sleep(self._body_delay)
         if self._body_error is not None:
             raise self._body_error
-        return self._body
+        # What wreq 0.13 returns, read-only and without a copy. This double
+        # returned bytes while 0.13 did not, which is how a transport that
+        # called .decode() on a memoryview passed every test here.
+        return _view(self._body)
 
     async def close(self) -> None:
         self.closed += 1
@@ -936,6 +948,19 @@ class TestRequestWiring:
         transport, _ = make_transport()
         with pytest.raises(InvalidParam):
             await transport.request(make_identity(), RequestSpec(url="https://x/a", method="FROB"))
+
+    async def test_the_body_is_bytes_whatever_wreq_hands_back(self) -> None:
+        """wreq 0.13 returns a memoryview; everything downstream decodes bytes."""
+        transport, factory = make_transport()
+        identity = make_identity()
+        await transport.request(identity, RequestSpec(url="https://x/a"))
+        factory.built[0].response = FakeResponse(body='{"desc": "café"}'.encode())
+
+        raw = await transport.request(identity, RequestSpec(url="https://x/a"))
+
+        assert type(raw.body) is bytes
+        assert raw.json() == {"desc": "café"}
+        assert raw.text == '{"desc": "café"}'
 
     async def test_response_is_adapted(self) -> None:
         transport, factory = make_transport()
