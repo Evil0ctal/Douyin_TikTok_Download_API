@@ -718,11 +718,11 @@ Bilibili does the same with a video's comments. Measured on 2026-10-18:
 | First page of `/api/v1/bilibili/video/comments` | The three hottest comments, and word that this is the last page | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
 | Any later page | Nothing - it was told the first page was the last | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once |
 
-TikTok does the same with its search. Measured on 2026-10-20:
+TikTok does the same with its search. Measured on 2026-10-20, and the post search again on 2026-11-02:
 
 | Request | What a guest gets | What dtk does |
 | --- | --- | --- |
-| First page of `/api/v1/tiktok/search/posts` | A thin page - one post for one keyword, eight for another - however many posts match | Uses a logged-in identity whenever rotation has one. With none, a guest answers, the result carries `meta.guest_fallback: true`, and that answer is not cached |
+| First page of `/api/v1/tiktok/search/posts` | Since 2026-11-02, nothing: `status_code: 2483`, "Please login your account first", for every keyword. On 2026-10-20 it was still a thin page | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once. Before 5.1.10 a guest was sent anyway, and its refusal came back as `NOT_FOUND` |
 | First page of `/api/v1/tiktok/search/users` | Ten accounts, and word that there are more | Guests first, like the endpoints below |
 | Any later page of either | No list at all | Logged-in identities only. With none, `IDENTITY_LOGIN_REQUIRED` (503) at once |
 

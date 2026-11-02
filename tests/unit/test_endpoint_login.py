@@ -68,8 +68,10 @@ def test_only_the_measured_tiktok_endpoints_ask_for_a_login():
     """Search is the one TikTok answer measured to shrink for a guest.
 
     On 2026-10-20 a guest got a thin first page of posts and an empty second
-    page of both posts and accounts. Nothing else about TikTok was measured
-    that way, so nothing else changes.
+    page of both posts and accounts. On 2026-11-02 the post search gave a guest
+    nothing at all - `status_code: 2483`, "Please login your account first" -
+    while the account search still answered one in full. Nothing else about
+    TikTok was measured that way, so nothing else changes.
     """
     specs = get_adapter(Platform.TIKTOK).endpoints.specs
     asks = {
@@ -79,6 +81,6 @@ def test_only_the_measured_tiktok_endpoints_ask_for_a_login():
     }
 
     assert asks == {
-        "tiktok.search_posts": (LoginNeed.PREFERRED, LoginNeed.REQUIRED),
+        "tiktok.search_posts": (LoginNeed.REQUIRED, LoginNeed.REQUIRED),
         "tiktok.search_authors": (LoginNeed.NONE, LoginNeed.REQUIRED),
     }

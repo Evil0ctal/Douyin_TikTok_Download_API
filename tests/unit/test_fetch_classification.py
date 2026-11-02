@@ -30,6 +30,7 @@ import pytest
 from dtk.core.errors import (
     DtkError,
     EndpointCircuitOpen,
+    IdentityLoginRequired,
     IdentityPoolExhausted,
     InvalidParam,
     NotFound,
@@ -320,6 +321,22 @@ class TestPipelineOutcomes:
         # The outcome and the 404 beside it say everything; a rule name here
         # would put a red badge on every deleted video in the console.
         assert rows(session)[0].error_code is None
+
+    async def test_a_login_wall_is_reported_as_one_not_as_a_missing_post(self):
+        """TikTok's 2483 for a guest's keyword search came back as NOT_FOUND."""
+        pool = FakePool(identity())
+        svc = service(
+            response(200, {"status_code": 2483, "status_msg": "Please login your account first"}),
+            pool=pool,
+        )
+        session = FakeSession()
+
+        with pytest.raises(IdentityLoginRequired) as excinfo:
+            await run_fetch(svc, session)
+
+        assert excinfo.value.details["endpoint"] == ENDPOINT
+        # Not the guest's fault: the identity keeps its standing.
+        assert pool.recorded == [Outcome.BUSINESS_ERROR]
 
     async def test_a_proxy_auth_failure_is_retried_on_another_identity(self):
         pool = FakePool(identity())

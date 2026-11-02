@@ -406,8 +406,12 @@ ENDPOINTS: Final = EndpointTable.of(
         # Measured 2026-10-20 with a guest: "dance" answered one post and
         # has_more 0, "cat" eight, and every second page - for those and for a
         # query that had said has_more 1 - came back with no list at all. So a
-        # guest is a thin first page and no paging.
-        login=LoginNeed.PREFERRED,
+        # guest was a thin first page and no paging. Measured again 2026-11-02:
+        # no page at all, `status_code: 2483` "Please login your account
+        # first" for every keyword tried, while `search_authors` still answered
+        # a guest in full. A login, then; the scheduler now says so before
+        # spending a request on a guest.
+        login=LoginNeed.REQUIRED,
         paging_login=LoginNeed.REQUIRED,
         summary="Posts matching a keyword",
     ),

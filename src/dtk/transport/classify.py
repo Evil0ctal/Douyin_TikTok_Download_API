@@ -170,6 +170,24 @@ BUSINESS_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
     }
 )
 
+#: Body-level status codes that mean "this request needs a signed-in identity".
+#: A business answer - the guest that met it did nothing wrong, it is the wrong
+#: kind of identity - but not "nothing is there", which is what the generic
+#: `envelope.nonzero` reading turned it into.
+LOGIN_STATUS_VALUES: Final[MappingProxyType[int, str]] = MappingProxyType(
+    {
+        # TikTok, `search_posts` with a guest, measured 2026-11-02: HTTP 200,
+        # 125 bytes, "Please login your account first". On 2026-10-20 a guest
+        # still had a thin first page; the caller was told the search target
+        # did not exist.
+        2483: "login required",
+    }
+)
+
+#: The rule that names a login wall. :mod:`dtk.services.fetch` answers it with
+#: IDENTITY_LOGIN_REQUIRED rather than NOT_FOUND.
+LOGIN_REQUIRED_RULE: Final = "envelope.login_required"
+
 #: Lowercased substrings that identify a challenge or verification interstitial.
 #: Kept tight on purpose: every false positive here cools a healthy identity.
 RISK_BODY_MARKERS: Final[tuple[str, ...]] = (
@@ -445,6 +463,13 @@ def _business_envelope_status(view: ResponseView) -> RuleResult:
     return False
 
 
+def _login_envelope_status(view: ResponseView) -> RuleResult:
+    status = view.envelope_status
+    if status is not None and status in LOGIN_STATUS_VALUES:
+        return f"{status}: {LOGIN_STATUS_VALUES[status]}"
+    return False
+
+
 def _challenge_marker(view: ResponseView) -> RuleResult:
     envelope_status = view.envelope_status
     if view.envelope is not None and envelope_status == 0:
@@ -686,6 +711,7 @@ DEFAULT_RULES: Final[tuple[ClassificationRule, ...]] = (
     ClassificationRule("http.network_status", Outcome.NETWORK_ERROR, _network_status),
     ClassificationRule("envelope.risk_code", Outcome.RISK_CONTROL, _risk_envelope_status),
     ClassificationRule("envelope.business_code", Outcome.BUSINESS_ERROR, _business_envelope_status),
+    ClassificationRule(LOGIN_REQUIRED_RULE, Outcome.BUSINESS_ERROR, _login_envelope_status),
     ClassificationRule("body.challenge_marker", Outcome.RISK_CONTROL, _challenge_marker),
     ClassificationRule("signature.refused", Outcome.RISK_CONTROL, _signature_refused),
     ClassificationRule("http.risk_status", Outcome.RISK_CONTROL, _risk_status),
@@ -808,6 +834,8 @@ __all__ = [
     "DEFAULT_RULES",
     "EMPTY_PAYLOAD_KEYS",
     "ENVELOPE_STATUS_KEYS",
+    "LOGIN_REQUIRED_RULE",
+    "LOGIN_STATUS_VALUES",
     "MARKER_SCAN_CHARS",
     "NETWORK_EXCEPTION_NAMES",
     "NETWORK_STATUS_CODES",

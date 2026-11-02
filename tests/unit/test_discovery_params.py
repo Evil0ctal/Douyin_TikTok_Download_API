@@ -128,7 +128,8 @@ class TestSearch:
 
         posts = get_adapter("tiktok").endpoints["tiktok.search_posts"]
         users = get_adapter("tiktok").endpoints["tiktok.search_authors"]
-        assert posts.login is LoginNeed.PREFERRED
+        # A guest's post search answers 2483 since 2026-11-02, first page included.
+        assert posts.login is LoginNeed.REQUIRED
         assert posts.login_for({"cursor": "12"}) is LoginNeed.REQUIRED
         assert users.login is LoginNeed.NONE
         assert users.login_for({"cursor": "10"}) is LoginNeed.REQUIRED

@@ -948,11 +948,15 @@ def _comment_page(
     parent_id: str | None,
 ) -> Page[Comment]:
     root = _guard(payload)
-    items = [
-        comment_from_node(item, content_id=content_id, parent_id=parent_id)
-        for item in root.children("comments")
-    ]
     has_more = optional_bool(root.present("has_more"))
+    # `comments: null` beside `has_more: 0` is a post with nothing anyone may
+    # read under it: none written, or the post hidden from all but its author.
+    # Measured 2026-11-02 on posts whose detail said `status_audit_self_see`;
+    # read as a changed schema it answered the demo's users with a 502 they
+    # retried. Only that shape - a page claiming more with no list is still a
+    # changed schema, or it would page for ever on nothing.
+    listed = root.listed_children("comments") if not has_more else root.children("comments")
+    items = [comment_from_node(item, content_id=content_id, parent_id=parent_id) for item in listed]
     # ``optional_id`` and not ``optional_str``: a page that claims more results
     # while handing back cursor 0 would send the paginator back to page one for
     # ever, which is a schema change, not a last page.

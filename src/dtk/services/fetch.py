@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dtk.core.errors import (
     DtkError,
+    IdentityLoginRequired,
     Internal,
     InvalidParam,
     NotFound,
@@ -67,7 +68,7 @@ from dtk.transport.base import (
     with_signed_cookies,
 )
 from dtk.transport.base import RequestSpec as TransportRequestSpec
-from dtk.transport.classify import Classification
+from dtk.transport.classify import LOGIN_REQUIRED_RULE, Classification
 from dtk.transport.emulation import UnsupportedFingerprint
 from dtk.transport.headers import build_headers
 
@@ -201,6 +202,8 @@ class _Attempt:
     outcome: Outcome
     payload: dict[str, Any] | None = None
     error_code: str | None = None
+    #: The classifier rule that decided :attr:`outcome`, where one did.
+    rule: str | None = None
     signer: str | None = None
     explain: Explanation | None = None
     #: Whether this attempt went out through a proxy; None if it never got as
@@ -328,6 +331,7 @@ class FetchService:
         explanation: Explanation | None = None
         outcome = Outcome.NETWORK_ERROR
         error_code: str | None = None
+        rule: str | None = None
         proxied: bool | None = None
         authenticated: bool | None = None
 
@@ -409,6 +413,7 @@ class FetchService:
             status = response.status
             classification, payload = self._classify(adapter, endpoint, response)
             outcome = classification.outcome
+            rule = classification.rule
             error_code = _error_code_for(classification, payload)
         except TransportFailure as exc:
             outcome = Outcome.NETWORK_ERROR
@@ -452,6 +457,7 @@ class FetchService:
             outcome=outcome,
             payload=payload,
             error_code=error_code,
+            rule=rule,
             signer=signer,
             explain=explanation,
             proxied=proxied,
@@ -608,6 +614,15 @@ class FetchService:
                     "the platform returned a risk-control response",
                     retry_after=self._cooldown_base,
                     details={"endpoint": endpoint},
+                )
+
+            if call.outcome is Outcome.BUSINESS_ERROR and call.rule == LOGIN_REQUIRED_RULE:
+                # The platform said who may ask, not that nothing is there. Read
+                # as NOT_FOUND it told a guest's keyword search that the search
+                # did not exist (TikTok's 2483, 2026-11-02).
+                raise IdentityLoginRequired(
+                    "the platform answered that this request needs a signed-in identity",
+                    details={"endpoint": endpoint, "authenticated": bool(call.authenticated)},
                 )
 
             if call.outcome is Outcome.BUSINESS_ERROR:

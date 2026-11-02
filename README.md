@@ -235,7 +235,8 @@ Douyin serves its follower and following lists only to a signed-in session, so t
 two endpoints are not registered at all: an endpoint that always returns an empty page
 is worth nothing. Search and the posts under a hashtag are the same story: Douyin refuses
 both to a guest, and no signed-in answer has been measured yet, so neither is offered there.
-On TikTok search answers a guest one thin page, so an imported login is what pages it.
+On TikTok the account search answers a guest, while the post search refuses one outright
+(measured 2026-11-02), so an imported login is what it takes.
 Importing your own logged-in cookies widens what the rest can see, too.
 On Bilibili that matters most for comments: a guest is shown the three hottest and no
 more, so an imported login is what turns that into the full thread. On Douyin it decides

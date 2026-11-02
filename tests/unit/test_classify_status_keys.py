@@ -82,3 +82,24 @@ def test_an_empty_envelope_with_no_payload_is_still_suspicious() -> None:
     verdict = classify({"status_code": 0})
     assert verdict.outcome is Outcome.RISK_CONTROL
     assert verdict.rule == "payload.bare_envelope"
+
+
+#: Captured 2026-11-02 from `tiktok.search_posts` on a guest identity: HTTP 200,
+#: 125 bytes. Read as an unknown nonzero envelope it became NOT_FOUND - "the
+#: requested resource does not exist" for a keyword search.
+TIKTOK_LOGIN_FIRST: dict[str, Any] = {
+    "status_code": 2483,
+    "status_msg": "Please login your account first",
+    "log_pb": {"impr_id": "20261102064430F6D47DC3F3C39100E64D"},
+}
+
+
+def test_a_platform_asking_for_a_login_is_named_as_such() -> None:
+    verdict = classify(TIKTOK_LOGIN_FIRST)
+    assert verdict.rule == "envelope.login_required"
+    assert "2483" in (verdict.detail or "")
+
+
+def test_a_login_wall_is_not_held_against_the_guest_that_met_it() -> None:
+    """The guest did nothing wrong; it is the wrong kind of identity."""
+    assert classify(TIKTOK_LOGIN_FIRST).outcome is Outcome.BUSINESS_ERROR

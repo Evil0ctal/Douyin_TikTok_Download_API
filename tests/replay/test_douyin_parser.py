@@ -661,6 +661,34 @@ def test_a_null_item_in_the_post_list_is_reported_not_skipped() -> None:
     assert excinfo.value.path == "aweme_list[1]"
 
 
+def test_a_post_with_no_visible_comments_is_an_empty_page() -> None:
+    """Measured 2026-11-02 on a post its author had made visible to themselves
+    only: the detail answered `filter_reason: status_audit_self_see`, the
+    comment list this. It was read as a changed schema - a 502 the demo's users
+    retried eleven times on one post."""
+    page = parser.parse_comments(
+        {
+            "status_code": 0,
+            "comments": None,
+            "has_more": 0,
+            "extra": {"now": 1793601868000, "fatal_item_ids": None, "scenes": None},
+            "log_pb": {"impr_id": "202611021444287A4FE48558C358000B6C"},
+            "comment_insert_bars": None,
+        }
+    )
+    assert page.items == []
+    assert page.has_more is False
+    assert page.cursor is None
+
+
+def test_no_comment_list_while_claiming_more_is_still_a_changed_schema() -> None:
+    """Only the empty shape is relaxed. A page that says there is more and
+    carries nothing would page for ever on nothing."""
+    with pytest.raises(UpstreamChanged) as excinfo:
+        parser.parse_comments({"status_code": 0, "comments": None, "has_more": 1, "cursor": 5})
+    assert excinfo.value.path == "comments"
+
+
 def test_a_null_comment_is_reported_not_skipped() -> None:
     payload = fixture("comments_with_replies")
     payload["comments"].append(None)
