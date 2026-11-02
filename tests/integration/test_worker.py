@@ -840,6 +840,55 @@ async def test_a_real_mint_leaves_a_trail_the_console_can_read(
     assert snapshot["recent"][0]["identity_id"] == str(result.identity_id)
 
 
+async def test_the_direct_egress_takes_one_identity_once_the_proxies_are_taken(
+    db_engine, redis_client, cleanup_identities, cleanup_proxies
+):
+    """#807 against the real tables: the proxy first, then the direct egress
+    once, then a skip - recorded as one, not as a failed attempt."""
+    from dtk.db.repositories import ProxyRepository
+
+    cipher = Cipher(SECRET)
+    pool = IdentityPool(cipher)
+    proxy_id = await _make_proxy(cipher)
+    cleanup_proxies.append(proxy_id)
+    async with session_scope() as session:
+        bound = await pool.add(
+            session,
+            platform=Platform.DOUYIN,
+            cookies={"ttwid": "abc"},
+            fingerprint=Fingerprint(browser_family=BrowserFamily.CHROME, browser_major=131),
+            source=IdentitySource.MINTED,
+            proxy_id=proxy_id,
+        )
+    cleanup_identities.append(bound)
+    async with session_scope() as session:
+        proxies = ProxyRepository(session)
+        if await proxies.list_unbound(Platform.DOUYIN) or not await proxies.direct_unbound(
+            Platform.DOUYIN
+        ):
+            pytest.skip("another test left a free proxy or a direct Douyin identity behind")
+    await redis_client.delete(MINT_LOCK_KEY, mint_log.RECENT_KEY)
+    await redis_client.delete(mint_log.skip_key(Platform.DOUYIN))
+
+    filler = PoolFiller(pool=pool, rpc=RecordingRpc(), cipher=cipher, config=Config.defaults())
+    first = await filler.top_up_once(Platform.DOUYIN)
+
+    assert first.minted is True
+    assert first.identity_id is not None
+    cleanup_identities.append(first.identity_id)
+    assert first.proxy_id is None
+    async with session_scope() as session:
+        row = _require(await session.get(Identity, first.identity_id), "the direct identity")
+        assert row.proxy_id is None
+
+    second = await filler.top_up_once(Platform.DOUYIN)
+
+    assert second.reason == "no_free_proxy"
+    snapshot = await mint_log.snapshot()
+    assert snapshot["skips"]["douyin"]["reason"] == "no_free_proxy"
+    assert [entry["reason"] for entry in snapshot["recent"]] == ["minted"]
+
+
 async def test_a_failing_mint_records_the_reason_and_the_backoff(db_engine, redis_client):
     """The case the panel exists for: nothing else in the system says this."""
     cipher = Cipher(SECRET)

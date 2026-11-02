@@ -130,4 +130,5 @@ async def test_an_empty_history_is_empty_not_missing(redis_client) -> None:
         "recent": [],
         "backoff": None,
         "backoffs": {},
+        "skips": {},
     }
