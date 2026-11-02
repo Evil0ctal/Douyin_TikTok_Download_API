@@ -223,11 +223,52 @@ def test_muted_audio_is_not_a_takedown() -> None:
 def test_a_stated_zero_like_total_is_not_turned_into_none() -> None:
     """0 likes received is a measurement; only an absent field is None."""
     payload = fixture("user_profile")
-    payload["userInfo"]["stats"]["heartCount"] = 0
-    payload["userInfo"]["stats"].pop("heart", None)
+    payload["userInfo"]["statsV2"]["heartCount"] = "0"
+    payload["userInfo"]["statsV2"].pop("heart", None)
     stats = parser.parse_author(payload).stats
     assert stats is not None
     assert stats.total_digg == 0
+
+
+def test_author_counters_prefer_stats_v2_over_stats() -> None:
+    """#804: ``stats`` sat in front of ``statsV2``, so the exact copy was never read.
+
+    The disagreement below is the kind posts and hashtags already showed when
+    measured: a numeric ``stats`` that is zero or rounded beside the string
+    ``statsV2`` that carries the real figure.
+    """
+    payload = fixture("user_profile")
+    payload["userInfo"]["stats"].update(
+        followerCount=128000, videoCount=0, heartCount=2147483647, heart=2147483647
+    )
+    payload["userInfo"]["statsV2"].update(
+        followerCount="128401", videoCount="214", heartCount="3894513", heart="3894513"
+    )
+    assert parser.parse_author(payload).stats == AuthorStats(
+        follower_count=128401,
+        following_count=42,
+        content_count=214,
+        total_digg=3894513,
+    )
+
+
+def test_author_counters_fall_back_to_stats_field_by_field() -> None:
+    """A counter ``statsV2`` does not state is still read from ``stats``."""
+    payload = fixture("user_profile")
+    del payload["userInfo"]["statsV2"]["followingCount"]
+    payload["userInfo"]["stats"]["followingCount"] = 43
+    stats = parser.parse_author(payload).stats
+    assert stats is not None
+    assert stats.following_count == 43
+    assert stats.follower_count == 128400
+
+    del payload["userInfo"]["statsV2"]
+    assert parser.parse_author(payload).stats == AuthorStats(
+        follower_count=128400,
+        following_count=43,
+        content_count=213,
+        total_digg=3894512,
+    )
 
 
 def test_private_video_parses_instead_of_raising() -> None:
@@ -866,6 +907,22 @@ def test_author_list_reads_the_user_and_stats_pair() -> None:
     assert [author.nickname for author in page.items] == ["Someone"]
     assert page.has_more is True
     assert page.cursor == "1788830136"
+
+
+def test_author_list_counters_prefer_stats_v2() -> None:
+    page = parser.parse_author_list(
+        {
+            "userList": [
+                {
+                    "user": {"id": "123", "uniqueId": "someone", "nickname": "Someone"},
+                    "stats": {"followerCount": 0, "followingCount": 3, "heartCount": 45},
+                    "statsV2": {"followerCount": "12", "heartCount": "46"},
+                }
+            ],
+            "hasMore": False,
+        }
+    )
+    assert page.items[0].stats == AuthorStats(follower_count=12, following_count=3, total_digg=46)
 
 
 def test_an_absent_user_list_is_an_empty_page_not_a_broken_payload() -> None:

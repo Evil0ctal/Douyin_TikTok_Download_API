@@ -130,16 +130,33 @@ def _first_stated(node: Node, *keys: str) -> int | None:
     return None
 
 
-def _web_author_stats(node: Node | None) -> AuthorStats | None:
-    if node is None:
+def _web_author_stats(*sources: Node | None) -> AuthorStats | None:
+    """Read an author's counters from the first source that states each one.
+
+    Callers pass ``statsV2`` first and ``stats`` second, field by field rather
+    than block by block. Choosing a whole block once - ``stats or statsV2`` -
+    meant the exact copy was never read whenever the numeric one was present,
+    which is always (#804); posts and hashtags had already been switched to
+    ``statsV2`` after it was measured to be the accurate one.
+    """
+    present = [node for node in sources if node is not None]
+    if not present:
         return None
+
+    def metric(*keys: str) -> int | None:
+        for node in present:
+            value = _first_stated(node, *keys)
+            if value is not None:
+                return value
+        return None
+
     stats = AuthorStats(
-        follower_count=optional_int(node.get("followerCount")),
-        following_count=optional_int(node.get("followingCount")),
-        content_count=optional_int(node.get("videoCount")),
+        follower_count=metric("followerCount"),
+        following_count=metric("followingCount"),
+        content_count=metric("videoCount"),
         # ``heartCount`` is likes received; ``diggCount`` is likes given. The
         # fallback is on absence, not on falsiness: a stated 0 is a measurement.
-        total_digg=_first_stated(node, "heartCount", "heart"),
+        total_digg=metric("heartCount", "heart"),
     )
     return None if stats == AuthorStats() else stats
 
@@ -148,9 +165,13 @@ def author_from_web_node(
     node: Node,
     *,
     stats: Node | None = None,
+    stats_v2: Node | None = None,
     include_raw: bool = False,
 ) -> Author:
-    """Build an :class:`Author` from the camelCase web user object."""
+    """Build an :class:`Author` from the camelCase web user object.
+
+    ``stats_v2`` is read before ``stats``, one counter at a time.
+    """
     unique_id = node.id("uniqueId")
     return Author(
         platform=_PLATFORM,
@@ -168,7 +189,7 @@ def author_from_web_node(
         ),
         web_url=author_web_url(unique_id),
         verified=optional_bool(node.get("verified")),
-        stats=_web_author_stats(stats),
+        stats=_web_author_stats(stats_v2, stats),
         raw=node.raw() if include_raw else None,
     )
 
@@ -371,7 +392,11 @@ def content_from_node(item: Node, *, fetched_at: datetime) -> Content:
     title, description = split_title(item.text("desc"))
 
     author_node = item.child("author")
-    author = author_from_web_node(author_node, stats=item.opt_child("authorStats"))
+    author = author_from_web_node(
+        author_node,
+        stats=item.opt_child("authorStats"),
+        stats_v2=item.opt_child("authorStatsV2"),
+    )
 
     # ``takeDown`` only: ``itemMute`` means the audio track was muted, which
     # happens to plenty of live posts. Folding it in here would both report a
@@ -432,7 +457,8 @@ def parse_author(payload: Mapping[str, Any]) -> Author:
     user_info = root.child("userInfo")
     return author_from_web_node(
         user_info.child("user"),
-        stats=user_info.opt_child("stats") or user_info.opt_child("statsV2"),
+        stats=user_info.opt_child("stats"),
+        stats_v2=user_info.opt_child("statsV2"),
         include_raw=True,
     )
 
@@ -460,7 +486,8 @@ def parse_author_list(payload: Mapping[str, Any]) -> Page[Author]:
     items = [
         author_from_web_node(
             entry.child("user"),
-            stats=entry.opt_child("stats") or entry.opt_child("statsV2"),
+            stats=entry.opt_child("stats"),
+            stats_v2=entry.opt_child("statsV2"),
         )
         for entry in entries
     ]
