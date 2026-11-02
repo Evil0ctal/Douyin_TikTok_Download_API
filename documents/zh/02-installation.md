@@ -479,6 +479,8 @@ DTK_GH_PROXY=https://<镜像>/ bash install.zh.sh
 
 - 开了浏览器容器时，构建要从 GitHub 安装 CloakBrowser（上面那条 `pip install`），不走这个前缀，
   还是要靠构建时代理；只放行本仓库的中转也不会放行它。
+- 浏览器镜像构建接着要下载 Chromium，地址是 `cloakbrowser.dev`，会跳转到 GitHub Release。这一步也不走
+  这个前缀：用构建时代理，或者见[浏览器二进制的下载镜像，以及它的风险](#浏览器二进制的下载镜像以及它的风险)。
 - 查最新 Release 时，脚本先问 `api.github.com`，10 秒没有回应就改从镜像读 tag，只是慢一些。
 - 镜像拉取走 Docker Hub，靠的是前面配的镜像加速器。
 
@@ -488,6 +490,38 @@ DTK_GH_PROXY=https://<镜像>/ bash install.zh.sh
 ```bash
 git -C /opt/dtk remote set-url origin https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 ```
+
+### 浏览器二进制的下载镜像，以及它的风险
+
+`pip install` 之后，构建会让 CloakBrowser 下载它的 Chromium：先找 `cloakbrowser.dev`，那里会跳转到
+GitHub Release。两处都连不上时，构建会停在这一行：
+
+```text
+Downloading from https://cloakbrowser.dev/chromium-v146.0.7680.177.5/cloakbrowser-linux-x64.tar.gz
+```
+
+首选还是[构建时代理](#github-与构建时代理)：下载照常走官方地址，签名照常校验。实在没有代理，可以在 `.env`
+里设 `CLOAKBROWSER_DOWNLOAD_MIRROR`，让这一步改从镜像下载。**设之前先读完它的代价：**
+
+- **签名校验会被关掉。** 走官方地址时，CloakBrowser 用写死在代码里的公钥校验发布清单 `SHA256SUMS` 的
+  Ed25519 签名，再用这份清单核对压缩包，哪一步不对都拒绝安装。换成镜像后，签名这一步整个跳过：压缩包
+  只和镜像自己给的 `SHA256SUMS` 比对，镜像不给就什么都不比。
+- **所以镜像想给你什么浏览器都行。** 被攻破的、或者你不了解的人运营的镜像，可以把 Chromium 和清单一起
+  换掉，构建照样成功。这个浏览器要执行每一次身份铸造，经手铸出来的每一份 Cookie，而且能自由访问网络。
+- **只用你自己运营或信得过的镜像。** 最稳妥的是自建：在一台能访问 GitHub 的机器上下载构建日志里那个
+  压缩包和同一个 Release 的 `SHA256SUMS`，放到你自己控制的 https 目录里——这样经手的只有你自己。
+
+值替换的是 `https://cloakbrowser.dev` 这一段，后面会接上 `/chromium-v<版本>/<压缩包>` 和
+`/chromium-v<版本>/SHA256SUMS`。用 GitHub 前缀镜像时，就是 Release 的下载路径前面加上前缀：
+
+```bash
+# 写在 .env 里
+CLOAKBROWSER_DOWNLOAD_MIRROR=https://<镜像>/https://github.com/CloakHQ/cloakbrowser/releases/download
+```
+
+只接受 `https://` 开头的地址。它只在构建时读取，改完要重新构建浏览器镜像（`./dtkctl build browser-rpc`），
+构建日志里会多一行 `with a mirror the release signature is NOT checked`，提醒这一次没有校验。安装脚本卡在
+这一步时 `.env` 已经写好了，加上这一行再跑一次脚本即可。
 
 ### 换完之后确认一遍
 

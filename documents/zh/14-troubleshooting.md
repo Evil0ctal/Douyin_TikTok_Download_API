@@ -85,6 +85,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | `UPSTREAM_UNREACHABLE`，或者加了代理却什么都没变 | [UPSTREAM_UNREACHABLE 和这台服务器连不上的平台](#upstream_unreachable-和这台服务器连不上的平台) |
 | `SIGNING_FAILED`，或者空响应且没有报错 | [签名错误与签名自检](#签名错误与签名自检) |
 | browser-rpc 挂了或者根本没启动 | [浏览器容器不可用](#浏览器容器不可用) |
+| 构建浏览器镜像卡在 `Downloading from https://cloakbrowser.dev/…` | [构建卡在下载 Chromium](#构建卡在下载-chromium) |
 | 下载失败，或者文件不在 | [下载失败或者文件不见了](#下载失败或者文件不见了) |
 | 下载进度只数文件、从不显示字节，或者 B 站下载以 `partial` 结束、视频是空的 | [进度只数文件，或者 B 站视频落地是空的](#进度只数文件或者-b-站视频落地是空的) |
 | 采集自己停了；收到 `CAPACITY_PAUSED` 告警 | [磁盘满了](#磁盘满了) |
@@ -834,6 +835,14 @@ docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
 
 构建装的是 `docker/compose.yml` 指定的那个 CloakBrowser 版本，别的都不用设。
+
+### 构建卡在下载 Chromium
+
+日志停在 `Downloading from https://cloakbrowser.dev/chromium-v…/cloakbrowser-linux-x64.tar.gz`：构建机连不上
+CloakBrowser 的下载地址，也连不上它跳转去的 GitHub Release，而 `DTK_GH_PROXY` 管不到这一步。给构建配代理
+（[GitHub 与构建时代理](./02-installation.md#github-与构建时代理)），或者在 `.env` 里设
+`CLOAKBROWSER_DOWNLOAD_MIRROR`。后者会关掉下载的签名校验，设之前先读
+[浏览器二进制的下载镜像，以及它的风险](./02-installation.md#浏览器二进制的下载镜像以及它的风险)。
 
 ### 它报告健康却铸造不出身份
 

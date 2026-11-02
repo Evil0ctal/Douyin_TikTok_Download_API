@@ -564,6 +564,9 @@ What it does not reach:
 - With the browser container on, its build installs CloakBrowser from GitHub (the `pip install`
   above). That does not go through the prefix and still needs the build-time proxy, and a relay that
   allows only this repository would refuse it anyway.
+- The browser build then downloads Chromium from `cloakbrowser.dev`, which redirects to a GitHub
+  release. That does not go through the prefix either: use the build-time proxy, or see
+  [A download mirror for the browser binary, and what it risks](#a-download-mirror-for-the-browser-binary-and-what-it-risks).
 - The latest release is looked up at `api.github.com` first. After 10 seconds without an answer the
   installer reads the tags from the mirror instead, which is only slower.
 - Images come from Docker Hub, through the registry mirror set up above.
@@ -575,6 +578,47 @@ risks above):
 ```bash
 git -C /opt/dtk remote set-url origin https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 ```
+
+### A download mirror for the browser binary, and what it risks
+
+After the `pip install`, the build has CloakBrowser download its Chromium: from `cloakbrowser.dev`
+first, which redirects to a GitHub release. When neither is reachable the build stops at this line:
+
+```text
+Downloading from https://cloakbrowser.dev/chromium-v146.0.7680.177.5/cloakbrowser-linux-x64.tar.gz
+```
+
+A [build-time proxy](#github-and-proxies-at-build-time) is still the first choice: the download goes
+to the official address and the signature is checked as usual. With no proxy at all,
+`CLOAKBROWSER_DOWNLOAD_MIRROR` in `.env` points this one step at a mirror. **Read what it costs
+first:**
+
+- **The signature check is switched off.** From the official address, CloakBrowser verifies the
+  Ed25519 signature on the release's `SHA256SUMS` against public keys built into its code, then
+  checks the archive against that list, and refuses to install if either step fails. With a mirror
+  the signature step is skipped entirely: the archive is compared with whatever `SHA256SUMS` the
+  mirror itself serves, and with nothing if it serves none.
+- **So a mirror can hand you any browser it likes.** A compromised mirror, or one run by someone you
+  do not know, can replace the Chromium and the list together and the build still succeeds. That
+  browser runs every identity mint, handles every cookie minted, and has open network access.
+- **Use only a mirror you run or trust.** The safest is your own: on a machine that can reach
+  GitHub, download the archive named in the build log and the same release's `SHA256SUMS`, and put
+  them in an https directory you control - then nobody else handles them.
+
+The value replaces the `https://cloakbrowser.dev` part; `/chromium-v<version>/<archive>` and
+`/chromium-v<version>/SHA256SUMS` are appended to it. With a GitHub prefix mirror it is the release
+download path with the prefix in front:
+
+```bash
+# in .env
+CLOAKBROWSER_DOWNLOAD_MIRROR=https://<mirror>/https://github.com/CloakHQ/cloakbrowser/releases/download
+```
+
+Only `https://` addresses are accepted. It is read at build time only, so rebuild the browser image
+after changing it (`./dtkctl build browser-rpc`); the build log then carries a line saying
+`with a mirror the release signature is NOT checked`, as a reminder that this build was not
+verified. If the installer stopped at this step, `.env` is already written: add the line and run
+the installer again.
 
 ### Check it took
 

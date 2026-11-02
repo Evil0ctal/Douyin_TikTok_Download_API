@@ -86,6 +86,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | `UPSTREAM_UNREACHABLE`, or a proxy was added and nothing changed | [UPSTREAM_UNREACHABLE, and a platform this server cannot reach](#upstream_unreachable-and-a-platform-this-server-cannot-reach) |
 | `SIGNING_FAILED`, or empty responses with no error | [Signature errors and the signing self-check](#signature-errors-and-the-signing-self-check) |
 | browser-rpc is down or was never started | [The browser container is unavailable](#the-browser-container-is-unavailable) |
+| Building the browser image hangs at `Downloading from https://cloakbrowser.dev/…` | [The build hangs downloading Chromium](#the-build-hangs-downloading-chromium) |
 | Downloads fail, or the files are not there | [Downloads fail or files are missing](#downloads-fail-or-files-are-missing) |
 | A download's progress counts files and never bytes, or a Bilibili download ends `partial` with an empty video | [Progress counts only files, or a Bilibili video lands empty](#progress-counts-only-files-or-a-bilibili-video-lands-empty) |
 | Collection stopped on its own; `CAPACITY_PAUSED` alert | [The disk is full](#the-disk-is-full) |
@@ -868,6 +869,16 @@ docker compose -p dtk -f docker/compose.yml --profile browser up -d --build
 ```
 
 The build installs the CloakBrowser revision `docker/compose.yml` names; nothing else needs setting.
+
+### The build hangs downloading Chromium
+
+The log stops at `Downloading from https://cloakbrowser.dev/chromium-v…/cloakbrowser-linux-x64.tar.gz`:
+the build host reaches neither CloakBrowser's download server nor the GitHub release it redirects
+to, and `DTK_GH_PROXY` does not cover this step. Give the build a proxy
+([GitHub, and proxies at build time](./02-installation.md#github-and-proxies-at-build-time)), or set
+`CLOAKBROWSER_DOWNLOAD_MIRROR` in `.env`. The latter switches off the download's signature check;
+read [A download mirror for the browser binary, and what it risks](./02-installation.md#a-download-mirror-for-the-browser-binary-and-what-it-risks)
+before setting it.
 
 ### It reports healthy but mints nothing
 

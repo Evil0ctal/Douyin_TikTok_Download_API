@@ -287,6 +287,10 @@ instead of GitHub; the release tags are then fetched from that mirror too.
 GitHub address. Either one is asked about before the clone: a mirror hands over
 the whole install and every upgrade after it. See
 [Cloning from a mirror, and what it risks](../documents/en/02-installation.md#cloning-from-a-mirror-and-what-it-risks).
+Neither reaches the Chromium the browser image downloads while it builds; that
+has its own switch, `CLOAKBROWSER_DOWNLOAD_MIRROR`, which turns the download's
+signature check off. See
+[A download mirror for the browser binary, and what it risks](../documents/en/02-installation.md#a-download-mirror-for-the-browser-binary-and-what-it-risks).
 
 Transcription takes two: `DTK_ENABLE_TRANSCRIBER=1` turns it on, and
 `DTK_TRANSCRIBER_MODEL_PATH` says where the models are or should go. With both
@@ -552,6 +556,9 @@ DTK_INSTALL_DIR=/srv/dtk DTK_BIND_PORT=9000 DTK_ENABLE_BROWSER=1 \
 `DTK_GH_PROXY` 效果一样，给的是加在 GitHub 地址前的 `https://` 前缀。镜像经手整个安装和之后的
 每一次升级，所以克隆之前会先问你，详见
 [用镜像克隆，以及它的风险](../documents/zh/02-installation.md#用镜像克隆以及它的风险)。
+这两个都管不到浏览器镜像构建时下载的 Chromium；那一步有自己的开关 `CLOAKBROWSER_DOWNLOAD_MIRROR`，
+而且设了它就不再校验下载的签名，见
+[浏览器二进制的下载镜像，以及它的风险](../documents/zh/02-installation.md#浏览器二进制的下载镜像以及它的风险)。
 
 转写用两个：`DTK_ENABLE_TRANSCRIBER=1` 打开它，`DTK_TRANSCRIBER_MODEL_PATH` 指定模型在哪
 或该放哪。两个都设了再加 `--yes`，没有模型的目录会由那个带校验的下载填上。

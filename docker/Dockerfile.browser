@@ -34,6 +34,21 @@ ARG CLOAKBROWSER_COMMIT=""
 # was written from the shape Playwright uses and had never been run.
 ARG CLOAKBROWSER_INSTALL_CMD="python -m cloakbrowser install"
 
+# Where the install command downloads Chromium from, when the build host cannot
+# reach cloakbrowser.dev or the GitHub release it redirects to (issue 803). Empty
+# by default, and it should stay empty wherever a build-time proxy works: with a
+# mirror, CloakBrowser no longer checks the Ed25519 signature on the release's
+# checksums - the pinned keys only vouch for its own servers - and trusts
+# whatever SHA256SUMS the mirror serves, or none at all. A mirror can therefore
+# hand over any binary it likes. documents/*/02-installation.md says so to the
+# operator; this is the switch they would be flipping.
+#
+# Deliberately not CloakBrowser's own name, CLOAKBROWSER_DOWNLOAD_URL: an ARG is
+# in the environment of every RUN below even when empty, and CloakBrowser reads
+# a set-but-empty CLOAKBROWSER_DOWNLOAD_URL as a base URL of "" rather than as
+# unset. It is exported under that name only when it has a value.
+ARG CLOAKBROWSER_DOWNLOAD_MIRROR=""
+
 # Where the browser is installed. CloakBrowser reads no environment variable of
 # its own - checked by grepping the package - so the only lever is HOME, which
 # is why the install and the runtime have to agree through the shim below.
@@ -105,6 +120,14 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.
 # The browser backend, pinned. Two separate steps so a failure names which one
 # went wrong: fetching the package, or fetching the browser it drives.
 RUN if [ -n "${CLOAKBROWSER_COMMIT}" ]; then \
+      if [ -n "${CLOAKBROWSER_DOWNLOAD_MIRROR}" ]; then \
+        case "${CLOAKBROWSER_DOWNLOAD_MIRROR}" in \
+          https://*) ;; \
+          *) echo "browser-rpc: CLOAKBROWSER_DOWNLOAD_MIRROR must be an https:// address" >&2; exit 1 ;; \
+        esac; \
+        echo "browser-rpc: downloading Chromium from ${CLOAKBROWSER_DOWNLOAD_MIRROR}; with a mirror the release signature is NOT checked" >&2; \
+        export CLOAKBROWSER_DOWNLOAD_URL="${CLOAKBROWSER_DOWNLOAD_MIRROR%/}"; \
+      fi; \
       pip install --no-cache-dir "cloakbrowser @ git+${CLOAKBROWSER_REPO}@${CLOAKBROWSER_COMMIT}" \
       && mkdir -p "${CLOAKBROWSER_HOME}" \
       && HOME="${CLOAKBROWSER_HOME}" sh -c "${CLOAKBROWSER_INSTALL_CMD}" \
