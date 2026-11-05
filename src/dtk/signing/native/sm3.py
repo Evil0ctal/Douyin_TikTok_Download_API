@@ -15,6 +15,9 @@ digests for real query strings. It is not carried over.
 
 from __future__ import annotations
 
+import struct
+from operator import xor
+
 _MASK = 0xFFFFFFFF
 
 #: SM3 initial vector.
@@ -51,13 +54,16 @@ def _gg(index: int, x: int, y: int, z: int) -> int:
 
 
 def _expand(block: bytes) -> tuple[list[int], list[int]]:
-    w = [int.from_bytes(block[i * 4 : i * 4 + 4], "big") for i in range(16)]
-    for i in range(16, 68):
-        x = w[i - 16] ^ w[i - 9] ^ _rotl(w[i - 3], 15)
-        x = x ^ _rotl(x, 15) ^ _rotl(x, 23)
-        w.append((x ^ _rotl(w[i - 13], 7) ^ w[i - 6]) & _MASK)
-    w1 = [(w[i] ^ w[i + 4]) & _MASK for i in range(64)]
-    return w, w1
+    w = [*struct.unpack(">16I", block), *[0] * 52]
+    mask = _MASK
+    for j in range(16, 68):
+        w3, w13 = w[j - 3], w[j - 13]
+        x = w[j - 16] ^ w[j - 9] ^ (((w3 << 15) | (w3 >> 17)) & mask)
+        # P1(x) = x ^ rotl(x, 15) ^ rotl(x, 23); the final mask drops overflow bits.
+        p1 = x ^ (x << 15) ^ (x >> 17) ^ (x << 23) ^ (x >> 9)
+        w[j] = (p1 ^ (w13 << 7) ^ (w13 >> 25) ^ w[j - 6]) & mask
+    # W'[j] = W[j] ^ W[j+4]; both words are already 32-bit.
+    return w, list(map(xor, w[:64], w[4:]))
 
 
 def _compress(state: tuple[int, ...], block: bytes) -> tuple[int, ...]:
