@@ -399,7 +399,7 @@ Every response — success or failure, REST or console — has the same four top
 
 `error.code` is a stable enum you can branch on; it is append-only and never renamed and never translated. `error.message` beside it is localized (`?lang=zh`) and must never be parsed. `meta.request_id` on a **finished result** — a `?wait=` call that completed, or the result of a polled task — is the id written to `request_log`, which is what makes a bug report actionable. On the `202` that acknowledges a submission it is only the HTTP correlation id (the same value as the `X-Request-ID` header), and it has no log row of its own: the worker that later runs the task generates its own fetch request id, and that is the one the Logs page holds.
 
-Some codes are marked non-retryable and are advertised as such, so an agent does not burn its budget looping on a permanent failure: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `CONTENT_PRIVATE`, `UPSTREAM_CHANGED`, `CANCELLED`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `NOT_CONFIGURED`, and the two setup codes. Full detail in the [REST API guide](./11-api.md) and [MCP and AI agents](./12-mcp.md).
+Some codes are marked non-retryable and are advertised as such, so an agent does not burn its budget looping on a permanent failure: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`, `NOT_FOUND`, `CONTENT_PRIVATE`, `MEDIA_WITHHELD`, `UPSTREAM_CHANGED`, `CANCELLED`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `NOT_CONFIGURED`, and the two setup codes. Full detail in the [REST API guide](./11-api.md) and [MCP and AI agents](./12-mcp.md).
 
 ### One row per request
 

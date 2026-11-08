@@ -29,7 +29,7 @@ from datetime import datetime
 from typing import Any, Final
 from urllib.parse import quote
 
-from dtk.core.errors import UpstreamRiskControl
+from dtk.core.errors import MediaWithheld, UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
 from dtk.models import (
     AlbumImage,
@@ -411,8 +411,16 @@ def content_from_node(item: Node, *, fetched_at: datetime, media_optional: bool 
 
     video = item.opt_child("video")
     # A taken-down or private post keeps its metadata but drops its media URLs.
-    require_media = not (media_optional or is_deleted or is_private)
-    media = _media(item, kind, video, image_post, require_media=require_media)
+    expect_media = not (media_optional or is_deleted or is_private)
+    if expect_media and _shop_video(item):
+        media = _media(item, kind, video, image_post, require_media=False)
+        if not (media.video or media.images):
+            raise MediaWithheld(
+                "TikTok's web API does not hand out the media of a TikTok Shop video",
+                details={"content_id": content_id, "reason": "shop_video"},
+            )
+    else:
+        media = _media(item, kind, video, image_post, require_media=expect_media)
 
     duration_ms = None
     if kind is ContentKind.VIDEO and video is not None:
@@ -504,7 +512,7 @@ def _has_media(content: Content) -> bool:
 
 
 def _shop_video(item: Node) -> bool:
-    """A TikTok Shop video, which a guest is sent without its media."""
+    """A TikTok Shop video, which the web API sends without its media."""
     return bool(optional_int(item.get("isECVideo")))
 
 
@@ -518,16 +526,17 @@ def _page_items(nodes: Sequence[Node], *, fetched_at: datetime) -> list[Content]
     post gone with it (#819, for an author's posts and for a search). Such a
     post now comes back with its metadata and no streams.
 
-    Which posts: measured 2026-11-08 with a guest on the account in #819, six
-    of eight came bare, every one of them ``isECVideo: 1``, and the two that
-    were not shop videos had all their streams. The detail endpoint withheld a
-    shop video's media from the same guest as well.
+    Which posts: measured 2026-11-08 on the account in #819, six of eight came
+    bare to a guest, every one of them ``isECVideo: 1``, and the two that were
+    not shop videos had all their streams. A signed-in account was sent the
+    same shop videos just as bare, here and on the detail endpoint, where such
+    a post is MEDIA_WITHHELD rather than a half-filled model.
 
     A page on which no post has media is still a schema change - a renamed
     field empties every post, not some - and raises the error the first post
-    would have raised alone. Posts that never carry media to a guest are not
-    counted either way: taken down, private, or a shop video, so that a
-    seller's page of nothing but shop videos is not read as one.
+    would have raised alone. Posts that never carry media are not counted
+    either way: taken down, private, or a shop video, so that a seller's page
+    of nothing but shop videos is not read as one.
     """
     items = [content_from_node(node, fetched_at=fetched_at, media_optional=True) for node in nodes]
     expected = [

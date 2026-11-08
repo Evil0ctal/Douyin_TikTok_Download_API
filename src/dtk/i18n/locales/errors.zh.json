@@ -6,6 +6,7 @@
   "FORBIDDEN_SCOPE": "当前凭据没有调用此接口的权限。`details` 里写明了它需要什么、以及你当前有什么。",
   "NOT_FOUND": "请求的资源不存在。",
   "CONTENT_PRIVATE": "该内容为私密或已被作者删除。",
+  "MEDIA_WITHHELD": "TikTok 不提供这个作品的媒体：它是 TikTok Shop 带货视频，网页接口对这类视频不给任何媒体地址，游客和已登录身份都一样。",
   "RATE_LIMITED": "请求过于频繁，请在 {retry_after} 秒后重试。",
   "IDENTITY_POOL_EXHAUSTED": "当前无可用身份，预计 {retry_after} 秒后恢复。",
   "IDENTITY_LOGIN_REQUIRED": "这个请求需要已登录的身份，当前没有可用的；请在身份池页面导入登录态 Cookie。",

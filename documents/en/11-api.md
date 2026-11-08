@@ -380,6 +380,7 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `UNAUTHENTICATED` | 401 | no | No credential, or one that was rejected |
 | `FORBIDDEN_SCOPE` | 403 | no | The credential is not permitted; `details` names both halves - `required_scopes` or `required_roles`, and `have_role` / `have_scopes` / `via` |
 | `CONTENT_PRIVATE` | 403 | no | Private, or removed by its author |
+| `MEDIA_WITHHELD` | 403 | no | The post is public but its media is not given out: a TikTok Shop video, which TikTok's web API sends with no media to any identity |
 | `NOT_FOUND` | 404 | no | No such resource |
 | `TASK_NOT_FOUND` | 404 | **yes** | No such task, or its result has expired. Retryable in the sense the flag means — but no retry brings an expired result back, so resubmit the work |
 | `METHOD_NOT_ALLOWED` | 405 | no | Wrong method for this path; the `Allow` header lists the right ones |
@@ -416,7 +417,7 @@ The `retryable` boolean appears on a **task's stored error** (`GET /api/v1/tasks
 Anything else can reasonably be treated as "log it and stop", but these four decisions have to be in your code:
 
 1. **Back off and retry**: `RATE_LIMITED`, `QUEUE_FULL`, `IDENTITY_POOL_EXHAUSTED`, `ENDPOINT_CIRCUIT_OPEN`, `UPSTREAM_RISK_CONTROL`, `SIGNING_FAILED`, `UPSTREAM_UNREACHABLE`, `INTERNAL`, `DOWNLOADER_UNAVAILABLE`, `TRANSCRIBER_UNAVAILABLE`. A run of `UPSTREAM_UNREACHABLE` will not clear by waiting if this server cannot reach the platform at all - see [Troubleshooting](./14-troubleshooting.md#upstream_unreachable-and-a-platform-this-server-cannot-reach). Honour `retry_after` where present; use exponential backoff where it is not.
-2. **Never retry the same request**: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `NOT_FOUND`, `CONTENT_PRIVATE`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `CANCELLED`, `NOT_CONFIGURED`, `UPSTREAM_CHANGED`, `IDENTITY_LOGIN_REQUIRED`. A loop on one of these burns identities to be told the same thing.
+2. **Never retry the same request**: `INVALID_URL`, `UNSUPPORTED_CONTENT`, `INVALID_PARAM`, `NOT_FOUND`, `CONTENT_PRIVATE`, `MEDIA_WITHHELD`, `METHOD_NOT_ALLOWED`, `UNSUPPORTED_MEDIA_TYPE`, `CANCELLED`, `NOT_CONFIGURED`, `UPSTREAM_CHANGED`, `IDENTITY_LOGIN_REQUIRED`. A loop on one of these burns identities to be told the same thing.
 3. **Fix the credential**: `UNAUTHENTICATED`, `FORBIDDEN_SCOPE`. `details` carries both sides: `required_scopes` or `required_roles` for what the endpoint wants, and `have_role`, `have_scopes` and `via` for what you sent. `via` is the one to read first — it says whether this caller is judged by its scopes (`api_key`) or by its role (`session`), and an administrator's key is still bounded by its scopes.
 4. **Resubmit the work**: `TASK_NOT_FOUND`. The result window has passed; the task id is dead.
 

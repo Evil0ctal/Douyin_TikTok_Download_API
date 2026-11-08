@@ -140,6 +140,7 @@ Read from `src/dtk/core/errors.py`. "Retryable" is what the code itself declares
 | `FORBIDDEN_SCOPE` | 403 | no | The credential is valid but lacks the scope or role this endpoint needs |
 | `NOT_FOUND` | 404 | no | The resource does not exist or is unavailable. For content, this is what a platform business error becomes |
 | `CONTENT_PRIVATE` | 403 | no | The content is private or was removed by its author |
+| `MEDIA_WITHHELD` | 403 | no | A TikTok Shop video: TikTok's web API gives out no media for it, to a guest or a signed-in account. Its details still parse; importing a login does not help |
 | `RATE_LIMITED` | 429 | yes | Abuse protection tripped. Also what a login lockout returns |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | yes | No identity could be leased in time |
 | `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - see below for [a Douyin author's posts](#an-authors-newest-posts-are-missing-or-the-next-page-will-not-load) and [Bilibili comments](#bilibili-comments-stop-after-three) |

@@ -19,6 +19,13 @@ class ErrorCode(StrEnum):
     FORBIDDEN_SCOPE = "FORBIDDEN_SCOPE"
     NOT_FOUND = "NOT_FOUND"
     CONTENT_PRIVATE = "CONTENT_PRIVATE"
+    #: The post is public and was read in full, but the platform did not hand
+    #: out its media. TikTok's web API sends a TikTok Shop video without a
+    #: single media address, to a guest and to a signed-in account alike
+    #: (measured 2026-11-08, #819). It used to surface as UPSTREAM_CHANGED,
+    #: which asks for a bug report about a field nobody renamed; no identity
+    #: and no retry gets the media.
+    MEDIA_WITHHELD = "MEDIA_WITHHELD"
     RATE_LIMITED = "RATE_LIMITED"
     IDENTITY_POOL_EXHAUSTED = "IDENTITY_POOL_EXHAUSTED"
     #: The request needs a signed-in identity - Douyin pages an author's posts
@@ -73,6 +80,7 @@ HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.FORBIDDEN_SCOPE: 403,
     ErrorCode.NOT_FOUND: 404,
     ErrorCode.CONTENT_PRIVATE: 403,
+    ErrorCode.MEDIA_WITHHELD: 403,
     ErrorCode.RATE_LIMITED: 429,
     ErrorCode.IDENTITY_POOL_EXHAUSTED: 503,
     ErrorCode.IDENTITY_LOGIN_REQUIRED: 503,
@@ -105,6 +113,7 @@ NON_RETRYABLE: frozenset[ErrorCode] = frozenset(
         ErrorCode.FORBIDDEN_SCOPE,
         ErrorCode.NOT_FOUND,
         ErrorCode.CONTENT_PRIVATE,
+        ErrorCode.MEDIA_WITHHELD,
         ErrorCode.UPSTREAM_CHANGED,
         ErrorCode.SETUP_ALREADY_DONE,
         ErrorCode.SETUP_TOKEN_INVALID,
@@ -169,6 +178,7 @@ Unauthenticated = _err("Unauthenticated", ErrorCode.UNAUTHENTICATED)
 ForbiddenScope = _err("ForbiddenScope", ErrorCode.FORBIDDEN_SCOPE)
 NotFound = _err("NotFound", ErrorCode.NOT_FOUND)
 ContentPrivate = _err("ContentPrivate", ErrorCode.CONTENT_PRIVATE)
+MediaWithheld = _err("MediaWithheld", ErrorCode.MEDIA_WITHHELD)
 RateLimited = _err("RateLimited", ErrorCode.RATE_LIMITED)
 IdentityPoolExhausted = _err("IdentityPoolExhausted", ErrorCode.IDENTITY_POOL_EXHAUSTED)
 IdentityLoginRequired = _err("IdentityLoginRequired", ErrorCode.IDENTITY_LOGIN_REQUIRED)
@@ -222,6 +232,7 @@ __all__ = [
     "Internal",
     "InvalidParam",
     "InvalidUrl",
+    "MediaWithheld",
     "NotConfigured",
     "NotFound",
     "QueueFull",

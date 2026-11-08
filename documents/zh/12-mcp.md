@@ -289,6 +289,7 @@ again. (error code ENDPOINT_CIRCUIT_OPEN)
 | `FORBIDDEN_SCOPE` | 这个 Key 没被授予该平台 | 不能 |
 | `NOT_FOUND` | 作品或作者不存在 | 不能 |
 | `CONTENT_PRIVATE` | 存在，但游客身份看不到 | 不能 |
+| `MEDIA_WITHHELD` | 作品读到了，但平台不给它的媒体（TikTok Shop 带货视频） | 不能 |
 | `UPSTREAM_CHANGED` | dtk 的解析器坏了，换个请求也绕不过去 | 不能——请提 issue |
 | `ENDPOINT_CIRCUIT_OPEN` | 该 endpoint 的熔断器已跳闸 | 能，等消息里说的时长 |
 | `IDENTITY_POOL_EXHAUSTED` | 当前没有可用身份 | 能——池子会自己补 |

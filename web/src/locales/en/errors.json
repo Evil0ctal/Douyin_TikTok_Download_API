@@ -3,6 +3,7 @@
   "code": {
     "CANCELLED": "The task was cancelled before it finished.",
     "CONTENT_PRIVATE": "This content is private or has been removed by its author.",
+    "MEDIA_WITHHELD": "TikTok does not give out this post's media: it is a TikTok Shop video.",
     "DOWNLOADER_UNAVAILABLE": "Downloader down",
     "TRANSCRIBER_UNAVAILABLE": "Transcription service unavailable",
     "ENDPOINT_CIRCUIT_OPEN": "This endpoint is paused after repeated failures.",
@@ -31,6 +32,7 @@
   "hint": {
     "CANCELLED": "Submit it again if you still want the result.",
     "CONTENT_PRIVATE": "Only the author can make this content public again.",
+    "MEDIA_WITHHELD": "No identity gets it, signed in or not, so retrying will not help. The post's details are still available.",
     "DOWNLOADER_UNAVAILABLE": "The media downloader is configured but did not answer, so nothing was deleted and the files are still on disk. Check the downloader container, then try again - or send media=false to remove the record and keep the files.",
     "TRANSCRIBER_UNAVAILABLE": "The transcription service is configured but did not answer. Check the transcriber container, then try again.",
     "ENDPOINT_CIRCUIT_OPEN": "Wait for the circuit to reopen, or use another endpoint.",

@@ -292,6 +292,7 @@ The retryability sentence is generated from the same table the REST layer uses, 
 | `FORBIDDEN_SCOPE` | This key was not granted that platform | No |
 | `NOT_FOUND` | The post or author does not exist | No |
 | `CONTENT_PRIVATE` | It exists but is not visible to a guest identity | No |
+| `MEDIA_WITHHELD` | The post was read, but the platform gives out no media for it (a TikTok Shop video) | No |
 | `UPSTREAM_CHANGED` | A parser bug in dtk, not something a different request works around | No — report it |
 | `ENDPOINT_CIRCUIT_OPEN` | The breaker tripped on this endpoint | Yes, after the stated delay |
 | `IDENTITY_POOL_EXHAUSTED` | No usable identity right now | Yes — the pool refills itself |

@@ -6,6 +6,7 @@
   "FORBIDDEN_SCOPE": "This credential is not permitted to use this endpoint. `details` says what it requires and what this credential holds.",
   "NOT_FOUND": "The requested resource does not exist.",
   "CONTENT_PRIVATE": "This content is private or has been removed by its author.",
+  "MEDIA_WITHHELD": "TikTok does not give out this post's media - it is a TikTok Shop video, and its web API sends those without any media, to guests and signed-in accounts alike.",
   "RATE_LIMITED": "Too many requests; retry in {retry_after} seconds.",
   "IDENTITY_POOL_EXHAUSTED": "No identity is available; the pool is expected to recover in {retry_after} seconds.",
   "IDENTITY_LOGIN_REQUIRED": "This request needs a signed-in identity and none is available; import a logged-in cookie on the identities page.",

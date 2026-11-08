@@ -3,6 +3,7 @@
   "code": {
     "CANCELLED": "任务在完成前已被取消。",
     "CONTENT_PRIVATE": "该内容为私密或已被作者删除。",
+    "MEDIA_WITHHELD": "TikTok 不提供这个作品的媒体：它是 TikTok Shop 带货视频。",
     "DOWNLOADER_UNAVAILABLE": "下载器无响应",
     "TRANSCRIBER_UNAVAILABLE": "转写服务无响应",
     "ENDPOINT_CIRCUIT_OPEN": "该接口因连续失败已临时熔断。",
@@ -31,6 +32,7 @@
   "hint": {
     "CANCELLED": "如果仍需要结果，请重新提交。",
     "CONTENT_PRIVATE": "只有作者本人可以重新公开该内容。",
+    "MEDIA_WITHHELD": "游客和已登录身份都拿不到，重试也没有用。作品的其他信息仍然可以获取。",
     "DOWNLOADER_UNAVAILABLE": "媒体下载器已配置但没有响应，因此本次没有删除任何内容，文件仍在磁盘上。请检查 downloader 容器后重试；也可以用 media=false 只删除记录、保留文件。",
     "TRANSCRIBER_UNAVAILABLE": "转写服务已配置但没有响应。请检查 transcriber 容器后重试。",
     "ENDPOINT_CIRCUIT_OPEN": "等待熔断恢复，或改用其它接口。",

@@ -142,6 +142,7 @@ export const ERROR_CODE_TONE: Record<ErrorCode, Tone> = {
   FORBIDDEN_SCOPE: 'caution',
   NOT_FOUND: 'muted',
   CONTENT_PRIVATE: 'muted',
+  MEDIA_WITHHELD: 'muted',
   RATE_LIMITED: 'warning',
   IDENTITY_POOL_EXHAUSTED: 'warning',
   IDENTITY_LOGIN_REQUIRED: 'warning',

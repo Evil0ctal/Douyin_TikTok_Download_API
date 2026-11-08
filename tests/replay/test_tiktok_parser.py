@@ -17,6 +17,7 @@ from dtk.core.errors import (
     DtkError,
     ErrorCode,
     InvalidParam,
+    MediaWithheld,
     UpstreamChanged,
     UpstreamRiskControl,
 )
@@ -219,6 +220,32 @@ def test_muted_audio_is_not_a_takedown() -> None:
     with pytest.raises(UpstreamChanged) as excinfo:
         parser.parse_content(payload, fetched_at=FETCHED_AT)
     assert excinfo.value.path == "itemInfo.itemStruct.video.playAddr"
+
+
+def test_a_shop_video_without_media_is_withheld_not_a_schema_change() -> None:
+    """The web API sends a TikTok Shop video bare, signed in or not (#819).
+
+    UPSTREAM_CHANGED asked for a bug report about a field nobody renamed, and a
+    download of the post failed with it.
+    """
+    payload = fixture("video_normal")
+    item = payload["itemInfo"]["itemStruct"]
+    item["isECVideo"] = 1
+    item["video"]["playAddr"] = ""
+    item["video"].pop("downloadAddr", None)
+    item["video"].pop("bitrateInfo", None)
+
+    with pytest.raises(MediaWithheld) as excinfo:
+        parser.parse_content(payload, fetched_at=FETCHED_AT)
+    assert excinfo.value.code is ErrorCode.MEDIA_WITHHELD
+    assert excinfo.value.details == {"content_id": NORMAL_ID, "reason": "shop_video"}
+
+
+def test_a_shop_video_that_does_carry_media_parses_as_usual() -> None:
+    payload = fixture("video_normal")
+    payload["itemInfo"]["itemStruct"]["isECVideo"] = 1
+    content = parser.parse_content(payload, fetched_at=FETCHED_AT)
+    assert content.media.video is not None
 
 
 def test_a_stated_zero_like_total_is_not_turned_into_none() -> None:

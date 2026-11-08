@@ -398,7 +398,7 @@ GET  /api/v1/tasks/{task_id}  -> 200 {"state": "done", "data": {...}}
 
 `error.code` 是一个稳定的枚举，可以拿来做分支判断；它只增不改、永不重命名、永不翻译。旁边的 `error.message` 是本地化的（`?lang=zh`），绝不能拿来解析。**已完成结果**上的 `meta.request_id`——`?wait=` 及时完成的那次调用，或者轮询任务取回的结果——才是写进 `request_log` 的那个 id，这也是 bug 报告能被跟进的原因。而确认提交的那个 `202` 上，它只是 HTTP 的关联 id（与 `X-Request-ID` 响应头同值），没有属于自己的日志行：真正执行这个任务的 worker 会另生成一个 fetch 请求 id，「日志」页面上留下的是后者。
 
-有一部分错误码被标记为不可重试并对外公布，这样 agent 不会在一个永久性失败上把预算烧光：`INVALID_URL`、`UNSUPPORTED_CONTENT`、`INVALID_PARAM`、`UNAUTHENTICATED`、`FORBIDDEN_SCOPE`、`NOT_FOUND`、`CONTENT_PRIVATE`、`UPSTREAM_CHANGED`、`CANCELLED`、`METHOD_NOT_ALLOWED`、`UNSUPPORTED_MEDIA_TYPE`、`NOT_CONFIGURED`，以及两个 setup 相关的码。完整说明见 [REST API 指南](./11-api.md)和 [MCP 与 AI 客户端](./12-mcp.md)。
+有一部分错误码被标记为不可重试并对外公布，这样 agent 不会在一个永久性失败上把预算烧光：`INVALID_URL`、`UNSUPPORTED_CONTENT`、`INVALID_PARAM`、`UNAUTHENTICATED`、`FORBIDDEN_SCOPE`、`NOT_FOUND`、`CONTENT_PRIVATE`、`MEDIA_WITHHELD`、`UPSTREAM_CHANGED`、`CANCELLED`、`METHOD_NOT_ALLOWED`、`UNSUPPORTED_MEDIA_TYPE`、`NOT_CONFIGURED`，以及两个 setup 相关的码。完整说明见 [REST API 指南](./11-api.md)和 [MCP 与 AI 客户端](./12-mcp.md)。
 
 ### 每个请求一行记录
 
