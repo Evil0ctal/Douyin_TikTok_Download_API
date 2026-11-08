@@ -411,6 +411,11 @@ ENDPOINTS: Final = EndpointTable.of(
         # first" for every keyword tried, while `search_authors` still answered
         # a guest in full. A login, then; the scheduler now says so before
         # spending a request on a guest.
+        #
+        # The empty second pages were not the guest's: a signed-in account got
+        # the same until the request named the search with `search_id`, the
+        # first page's `log_pb.impr_id` (2026-11-08). The cursor carries it -
+        # see `search_posts_params`.
         login=LoginNeed.REQUIRED,
         paging_login=LoginNeed.REQUIRED,
         summary="Posts matching a keyword",

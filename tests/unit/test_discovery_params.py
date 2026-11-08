@@ -111,6 +111,22 @@ class TestSearch:
         assert (users["cursor"], "offset" in users) == ("10", False)
         assert posts["search_source"] == users["search_source"] == "normal_search"
 
+    def test_a_tiktok_post_cursor_names_the_search_it_continues(self) -> None:
+        posts = query(
+            "tiktok.search_posts", keyword="cat", cursor="20:202611080633593073B049F50E489FCFC5"
+        )
+        assert (posts["offset"], posts["search_id"]) == ("20", "202611080633593073B049F50E489FCFC5")
+
+    def test_a_bare_offset_is_still_a_cursor(self) -> None:
+        """What the API handed out before the search id rode along with it."""
+        posts = query("tiktok.search_posts", keyword="cat", cursor="20")
+        assert (posts["offset"], "search_id" in posts) == ("20", False)
+
+    @pytest.mark.parametrize("cursor", ["abc", "20:", "20:not an id", "-5", "20:a&b=c"])
+    def test_a_cursor_this_api_never_issued_is_refused(self, cursor: str) -> None:
+        with pytest.raises(InvalidParam):
+            query("tiktok.search_posts", keyword="cat", cursor=cursor)
+
     def test_bilibili_names_the_tab_it_searches(self) -> None:
         posts = query("bilibili.search_posts", keyword="cat", cursor="2", count=20)
         users = query("bilibili.search_authors", keyword="cat")

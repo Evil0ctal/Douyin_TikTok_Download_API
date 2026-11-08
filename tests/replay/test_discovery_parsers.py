@@ -277,13 +277,27 @@ def test_douyin_does_not_offer_the_posts_under_a_hashtag() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_a_tiktok_post_search_is_ordinary_posts_paged_by_offset() -> None:
+def test_a_tiktok_post_search_is_ordinary_posts_paged_by_offset_and_search_id() -> None:
+    """The cursor carries the page's ``log_pb.impr_id`` beside the offset.
+
+    Page two is only handed out to a request naming the search it continues:
+    measured 2026-11-08, ``offset=20`` alone answered an empty list and
+    ``search_nil_info``; the same offset with ``search_id`` answered twenty
+    more posts and ``has_more: 1`` (the comment under #819).
+    """
     page = get_adapter("tiktok").parse_search_posts(
         load("tiktok", "search_posts_page1"), fetched_at=FETCHED_AT
     )
     assert [item.content_id for item in page.items] == RELATED_IDS["tiktok"]
-    assert page.cursor == "12"
+    assert page.cursor == "12:20261020000000000000000000000000000001"
     assert page.has_more is True
+
+
+def test_a_tiktok_search_page_without_an_impression_id_pages_by_offset_alone() -> None:
+    payload = load("tiktok", "search_posts_page1")
+    del payload["log_pb"]
+    page = get_adapter("tiktok").parse_search_posts(payload, fetched_at=FETCHED_AT)
+    assert page.cursor == "12"
 
 
 def test_a_tiktok_search_page_with_nothing_left_has_no_list() -> None:

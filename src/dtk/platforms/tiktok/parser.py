@@ -63,6 +63,7 @@ from dtk.platforms.common import (
     seconds_to_ms,
     split_title,
 )
+from dtk.platforms.tiktok.params import SEARCH_CURSOR
 
 _PLATFORM: Final = Platform.TIKTOK
 _NAME: Final = _PLATFORM.value
@@ -665,13 +666,25 @@ def parse_search_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
     The items are ordinary ``itemStruct`` objects; the envelope is snake_case
     - ``item_list``, ``has_more`` as 0 or 1, a numeric ``cursor`` - and drops
     ``item_list`` altogether on a page with nothing in it.
+
+    The cursor handed out is ``<offset>:<log_pb.impr_id>``: the next page is
+    only answered to a request naming the search it continues, see
+    :func:`~dtk.platforms.tiktok.params.search_posts_params`. An id that could
+    not be sent back as it stands is left off, and the offset goes alone.
     """
     root = _guard(payload)
     items = _page_items(root.listed_children("item_list"), fetched_at=fetched_at)
     has_more = optional_bool(root.get("has_more")) and bool(items)
-    cursor = optional_id(root.get("cursor")) if has_more else None
-    if has_more and cursor is None:
+    offset = optional_id(root.get("cursor")) if has_more else None
+    if has_more and offset is None:
         raise root.missing("cursor")
+    cursor = offset
+    log_pb = root.opt_child("log_pb")
+    search_id = optional_str(log_pb.get("impr_id")) if log_pb is not None else None
+    if offset is not None and search_id is not None:
+        candidate = f"{offset}:{search_id}"
+        if SEARCH_CURSOR.fullmatch(candidate):
+            cursor = candidate
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
