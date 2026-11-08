@@ -29,7 +29,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
-from dtk.core.errors import DtkError, Internal, InvalidParam, NotFound
+from dtk.core.errors import DtkError, Internal, InvalidParam, MediaWithheld, NotFound
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.db.models import ArchivedContent
@@ -294,6 +294,15 @@ async def _reparse(
             cache_ttl=0,
             ctx=FetchContext(),
         )
+    except MediaWithheld as exc:
+        # Final, unlike every failure below: the platform gives out no media
+        # for this post (a TikTok Shop video), so neither the archived row nor
+        # a retry can produce any. Swallowed with the rest, it came out as
+        # "retry the download" for an archived post and "not archived" for a
+        # new one - both wrong, and the first an instruction that never works.
+        await session.commit()
+        await downloads.fail(session, download.id, str(exc))
+        raise
     except Exception as exc:
         log.warning(
             "media.download.reparse_error",

@@ -1059,6 +1059,63 @@ async def test_a_download_that_cannot_be_fetched_ends_as_failed(api_app, db_engi
         assert settled.error == "nothing to fetch"
 
 
+@pytest.mark.parametrize("archived", [True, False])
+async def test_a_post_whose_media_is_withheld_fails_with_that_reason(
+    api_app, db_engine, redis_client, archived: bool
+):
+    """A TikTok Shop video: its detail parses to MEDIA_WITHHELD, every time.
+
+    The re-parse swallowed every error and fell back to the archived row, so an
+    archived post without its video failed as "retry the download" - which never
+    helps - and one never archived as "this instance has not archived that
+    post", which says nothing about why.
+    """
+    from dtk.core.config import Config
+    from dtk.core.errors import MediaWithheld
+    from dtk.worker.ops import OperationDeps, media_download
+
+    if archived:
+        # What a list leaves behind for a shop video: metadata and a cover.
+        await archive_a_post(media={"covers": [{"url": COVER}]})
+    async with session_scope() as session:
+        if archived:
+            row = (await session.scalars(select(ArchivedContent))).one()
+            download = await downloads.create(session, row)
+        else:
+            download = await downloads.create_pending(
+                session, platform="douyin", content_id=CONTENT_ID
+            )
+        download_id = download.id
+        await session.commit()
+
+    class WithheldFetch:
+        async def fetch(self, *_args: Any, **_kwargs: Any) -> Any:
+            raise MediaWithheld(
+                "the platform does not give out this post's media",
+                details={"content_id": CONTENT_ID, "reason": "shop_video"},
+            )
+
+    deps = OperationDeps(
+        config=Config.defaults,
+        cipher=object(),  # type: ignore[arg-type]
+        secret_key="unused",
+        pool=object(),  # type: ignore[arg-type]
+        transport=object(),  # type: ignore[arg-type]
+        signers=object(),  # type: ignore[arg-type]
+        downloader=SimpleNamespace(configured=True),  # type: ignore[arg-type]
+        fetch=WithheldFetch(),  # type: ignore[arg-type]
+    )
+    with pytest.raises(MediaWithheld):
+        async with session_scope() as session:
+            await media_download.run(deps, session, {"download_id": str(download_id)})
+
+    async with session_scope() as session:
+        settled = await session.get(MediaDownload, download_id)
+        assert settled is not None
+        assert settled.state == "failed"
+        assert settled.error == "the platform does not give out this post's media"
+
+
 # --------------------------------------------------------------------------
 # Not downloading the same post twice at once, or twice at all
 # --------------------------------------------------------------------------
