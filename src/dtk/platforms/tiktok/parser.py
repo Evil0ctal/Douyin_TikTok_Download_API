@@ -382,11 +382,11 @@ def _tags(item: Node) -> list[str]:
     return tags
 
 
-def content_from_node(item: Node, *, fetched_at: datetime) -> Content:
+def content_from_node(item: Node, *, fetched_at: datetime, media_optional: bool = False) -> Content:
     """Build a :class:`Content` from one ``itemStruct``.
 
     Shared by the detail endpoint and the post list, which return identical
-    objects.
+    objects. ``media_optional`` is for the lists, through :func:`_page_items`.
     """
     content_id = item.id("id")
     title, description = split_title(item.text("desc"))
@@ -411,7 +411,8 @@ def content_from_node(item: Node, *, fetched_at: datetime) -> Content:
 
     video = item.opt_child("video")
     # A taken-down or private post keeps its metadata but drops its media URLs.
-    media = _media(item, kind, video, image_post, require_media=not (is_deleted or is_private))
+    require_media = not (media_optional or is_deleted or is_private)
+    media = _media(item, kind, video, image_post, require_media=require_media)
 
     duration_ms = None
     if kind is ContentKind.VIDEO and video is not None:
@@ -498,10 +499,40 @@ def parse_author_list(payload: Mapping[str, Any]) -> Page[Author]:
     return Page(items=items, cursor=cursor, has_more=has_more)
 
 
+def _has_media(content: Content) -> bool:
+    return content.media.video is not None or bool(content.media.images)
+
+
+def _page_items(nodes: Sequence[Node], *, fetched_at: datetime) -> list[Content]:
+    """The posts of one list page, where one post's missing media is not fatal.
+
+    TikTok hands out the odd post with ``playAddr: ""`` and nothing beside it -
+    no ``downloadAddr``, no ``bitrateInfo`` - among posts that have all three.
+    Parsed strictly, as the detail endpoint parses, that one post failed the
+    page: HTTP 502, UPSTREAM_CHANGED asking for a report, and the other seven
+    posts gone with it (#819, for an author's posts and for a search). Such a
+    post now comes back with its metadata and no streams.
+
+    A page on which no post has media is still a schema change - a renamed
+    field empties every post, not one - and raises the error the first post
+    would have raised alone. Taken-down and private posts are not counted
+    either way: they never carry media.
+    """
+    items = [content_from_node(node, fetched_at=fetched_at, media_optional=True) for node in nodes]
+    expected = [
+        node
+        for node, content in zip(nodes, items, strict=True)
+        if not (content.is_deleted or content.is_private)
+    ]
+    if expected and not any(_has_media(content) for content in items):
+        content_from_node(expected[0], fetched_at=fetched_at)
+    return items
+
+
 def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/api/post/item_list/``."""
     root = _guard(payload)
-    items = [content_from_node(item, fetched_at=fetched_at) for item in root.children("itemList")]
+    items = _page_items(root.children("itemList"), fetched_at=fetched_at)
     has_more = optional_bool(root.present("hasMore"))
     cursor = optional_id(root.get("cursor")) if has_more else None
     if has_more and cursor is None:
@@ -512,7 +543,7 @@ def parse_author_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
 def parse_related_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> Page[Content]:
     """Parse ``/api/related/item_list/``: one batch, with ``cursor: -1``."""
     root = _guard(payload)
-    items = [content_from_node(item, fetched_at=fetched_at) for item in root.children("itemList")]
+    items = _page_items(root.children("itemList"), fetched_at=fetched_at)
     return Page(items=items, cursor=None, has_more=False)
 
 
@@ -616,9 +647,7 @@ def parse_search_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
     ``item_list`` altogether on a page with nothing in it.
     """
     root = _guard(payload)
-    items = [
-        content_from_node(item, fetched_at=fetched_at) for item in root.listed_children("item_list")
-    ]
+    items = _page_items(root.listed_children("item_list"), fetched_at=fetched_at)
     has_more = optional_bool(root.get("has_more")) and bool(items)
     cursor = optional_id(root.get("cursor")) if has_more else None
     if has_more and cursor is None:

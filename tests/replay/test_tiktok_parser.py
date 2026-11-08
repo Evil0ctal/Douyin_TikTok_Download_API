@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -360,6 +361,60 @@ def test_last_post_page_has_no_cursor() -> None:
     page = parser.parse_author_posts(payload, fetched_at=FETCHED_AT)
     assert page.has_more is False
     assert page.cursor is None
+
+
+def _strip_media(item: dict) -> None:
+    """What #819 captured: ``playAddr`` an empty string, nothing beside it."""
+    item["video"]["playAddr"] = ""
+    item["video"].pop("downloadAddr", None)
+    item["video"].pop("bitrateInfo", None)
+    item.pop("imagePost", None)
+
+
+@pytest.mark.parametrize(
+    ("parse", "name", "key"),
+    [
+        (parser.parse_author_posts, "user_posts_page1", "itemList"),
+        (parser.parse_search_posts, "search_posts_page1", "item_list"),
+    ],
+)
+def test_one_post_without_media_does_not_sink_its_page(parse: Any, name: str, key: str) -> None:
+    """#819: one post TikTok sends without a media address cost the whole page.
+
+    The item comes back with what it has - metadata, no streams - and the rest
+    of the page beside it. The detail endpoint stays strict.
+    """
+    payload = fixture(name)
+    _strip_media(payload[key][0])
+
+    page = parse(payload, fetched_at=FETCHED_AT)
+
+    assert [item.content_id for item in page.items] == [NORMAL_ID, ALBUM_ID]
+    bare, album = page.items
+    assert bare.media.video is None
+    assert bare.media.streams == []
+    assert bare.is_deleted is False
+    assert album.media.images
+
+
+@pytest.mark.parametrize(
+    ("parse", "name", "key"),
+    [
+        (parser.parse_author_posts, "user_posts_page1", "itemList"),
+        (parser.parse_search_posts, "search_posts_page1", "item_list"),
+    ],
+)
+def test_a_page_with_no_media_anywhere_is_still_a_schema_change(
+    parse: Any, name: str, key: str
+) -> None:
+    """Every post on the page without media is the field moving, not a few posts."""
+    payload = fixture(name)
+    for item in payload[key]:
+        _strip_media(item)
+
+    with pytest.raises(UpstreamChanged) as excinfo:
+        parse(payload, fetched_at=FETCHED_AT)
+    assert excinfo.value.path == f"{key}[0].video.playAddr"
 
 
 def test_empty_post_list_is_not_risk_control() -> None:
