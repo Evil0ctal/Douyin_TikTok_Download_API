@@ -315,7 +315,7 @@ wheels = [
 
 [[package]]
 name = "dtk"
-version = "5.1.10"
+version = "5.1.11"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
