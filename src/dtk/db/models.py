@@ -315,8 +315,18 @@ class Task(Base):
     state: Mapped[str] = mapped_column(Text, server_default=text(f"'{TaskState.QUEUED.value}'"))
     #: Evicted after ``retention.task_result_hours``; the row itself lives on so
     #: statistics survive. A later lookup then answers TASK_NOT_FOUND.
-    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=None)
-    error: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=None)
+    #:
+    #: ``none_as_null`` for the reason given on ``ArchivedAuthor.raw``. These two
+    #: were missed: eviction wrote the JSON literal ``null``, the eviction filter
+    #: asks ``IS NOT NULL``, and so every maintenance pass rewrote the same rows
+    #: again - 813k updates on a 291-row table before anyone noticed (#822).
+    #: Rows already holding JSON ``null`` still match once and are corrected.
+    result: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True, default=None
+    )
+    error: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True, default=None
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_UTC_NOW)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

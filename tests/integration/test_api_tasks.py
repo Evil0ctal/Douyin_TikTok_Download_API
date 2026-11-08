@@ -5,13 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from datetime import timedelta
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 
 from dtk.core.db import session_scope
 from dtk.core.redis import get_redis
 from dtk.core.types import TaskState
+from dtk.db.repositories import TaskRepository
 from dtk.services import tasks as task_service
 from tests.integration import test_api_support as support
 from tests.integration.test_api_support import (
@@ -31,8 +34,8 @@ pytestmark = pytest.mark.integration
 DOUYIN_VIDEO = "https://www.douyin.com/video/7123456789012345678"
 
 
-async def submit(client: Any) -> str:
-    response = await client.post("/api/v1/parse", json={"url": DOUYIN_VIDEO})
+async def submit(client: Any, url: str = DOUYIN_VIDEO) -> str:
+    response = await client.post("/api/v1/parse", json={"url": url})
     assert response.status_code == 202
     return str(envelope(response)["data"]["task_id"])
 
@@ -93,6 +96,35 @@ async def test_an_expired_result_reads_as_task_not_found(client: Any) -> None:
 
     response = await client.get(f"/api/v1/tasks/{task_id}")
     assert error_code(response) == "TASK_NOT_FOUND"
+
+
+async def test_retention_clears_a_finished_payload_once_and_then_leaves_it(client: Any) -> None:
+    """#822: blanking wrote the JSON literal null, which still answers IS NOT NULL.
+
+    So the same rows matched every maintenance pass, forever - 813k updates on a
+    291-row table - and every pass reported the same count as work done.
+    """
+    await signed_in(client)
+    done = await submit(client)
+    # A second link, or the submission coalesces onto the first task.
+    failed = await submit(client, "https://www.douyin.com/video/7123456789012345679")
+    async with session_scope() as session:
+        await task_service.finish(session, uuid.UUID(done), result={"data": {"x": 1}})
+        await task_service.finish(session, uuid.UUID(failed), error={"code": "UPSTREAM_CHANGED"})
+
+    passes = []
+    for _ in range(2):
+        async with session_scope() as session:
+            passes.append(await TaskRepository(session).purge_results(older_than=timedelta(-1)))
+    assert passes == [2, 0]
+
+    async with session_scope() as session:
+        sql_nulls = (
+            await session.execute(
+                text("SELECT count(*) FROM tasks WHERE result IS NULL AND error IS NULL")
+            )
+        ).scalar_one()
+    assert sql_nulls == 2
 
 
 async def test_tasks_require_authentication(client: Any) -> None:
