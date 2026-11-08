@@ -503,26 +503,37 @@ def _has_media(content: Content) -> bool:
     return content.media.video is not None or bool(content.media.images)
 
 
+def _shop_video(item: Node) -> bool:
+    """A TikTok Shop video, which a guest is sent without its media."""
+    return bool(optional_int(item.get("isECVideo")))
+
+
 def _page_items(nodes: Sequence[Node], *, fetched_at: datetime) -> list[Content]:
     """The posts of one list page, where one post's missing media is not fatal.
 
-    TikTok hands out the odd post with ``playAddr: ""`` and nothing beside it -
-    no ``downloadAddr``, no ``bitrateInfo`` - among posts that have all three.
-    Parsed strictly, as the detail endpoint parses, that one post failed the
-    page: HTTP 502, UPSTREAM_CHANGED asking for a report, and the other seven
-    posts gone with it (#819, for an author's posts and for a search). Such a
+    TikTok sends some posts with ``playAddr: ""`` and nothing beside it - no
+    ``downloadAddr``, no ``bitrateInfo`` - among posts that have all three.
+    Parsed strictly, as the detail endpoint parses, the first such post failed
+    the page: HTTP 502, UPSTREAM_CHANGED asking for a report, and every other
+    post gone with it (#819, for an author's posts and for a search). Such a
     post now comes back with its metadata and no streams.
 
+    Which posts: measured 2026-11-08 with a guest on the account in #819, six
+    of eight came bare, every one of them ``isECVideo: 1``, and the two that
+    were not shop videos had all their streams. The detail endpoint withheld a
+    shop video's media from the same guest as well.
+
     A page on which no post has media is still a schema change - a renamed
-    field empties every post, not one - and raises the error the first post
-    would have raised alone. Taken-down and private posts are not counted
-    either way: they never carry media.
+    field empties every post, not some - and raises the error the first post
+    would have raised alone. Posts that never carry media to a guest are not
+    counted either way: taken down, private, or a shop video, so that a
+    seller's page of nothing but shop videos is not read as one.
     """
     items = [content_from_node(node, fetched_at=fetched_at, media_optional=True) for node in nodes]
     expected = [
         node
         for node, content in zip(nodes, items, strict=True)
-        if not (content.is_deleted or content.is_private)
+        if not (content.is_deleted or content.is_private or _shop_video(node))
     ]
     if expected and not any(_has_media(content) for content in items):
         content_from_node(expected[0], fetched_at=fetched_at)

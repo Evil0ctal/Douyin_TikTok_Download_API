@@ -417,6 +417,19 @@ def test_a_page_with_no_media_anywhere_is_still_a_schema_change(
     assert excinfo.value.path == f"{key}[0].video.playAddr"
 
 
+def test_a_page_of_shop_videos_without_media_is_not_a_schema_change() -> None:
+    """A seller's page can be all shop videos, and a guest gets none of their media."""
+    payload = fixture("user_posts_page1")
+    for item in payload["itemList"]:
+        _strip_media(item)
+        item["isECVideo"] = 1
+
+    page = parser.parse_author_posts(payload, fetched_at=FETCHED_AT)
+
+    assert len(page.items) == 2
+    assert all(item.media.video is None for item in page.items)
+
+
 def test_empty_post_list_is_not_risk_control() -> None:
     payload = fixture("user_posts_page1")
     payload["itemList"] = []
