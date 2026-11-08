@@ -32,7 +32,15 @@ import { cn } from '@/lib/cn'
 import { asPlatform, libraryPostHref, patchParams } from '@/lib/contentLinks'
 import { API_V1, paths } from '@/lib/endpoints'
 import { POLL } from '@/lib/query'
-import { AVID, BVID, DIGITS, SEC_UID, TargetError, resolveLink } from '@/lib/targets'
+import {
+  AVID,
+  BVID,
+  DIGITS,
+  SEC_UID,
+  TargetError,
+  expandPostLink,
+  resolveLink,
+} from '@/lib/targets'
 import {
   DOWNLOAD_STATES,
   PAGE_CEILING,
@@ -217,6 +225,14 @@ const STORAGE_KEY = ['downloads', 'storage'] as const
  */
 function usesPlatformMenu(shape: TargetShape): boolean {
   return shape.kind === 'empty' || (shape.kind === 'bare' && shape.fixed === null)
+}
+
+/** What starting one post's download answers. */
+interface DownloadStarted {
+  download_id: string
+  skipped?: string[]
+  archived?: boolean
+  reused?: string | null
 }
 
 /** The request body for one post. */
@@ -571,16 +587,30 @@ export default function Downloads() {
    */
   const shape = shapeOf(target, active.wants === 'author')
 
-  const start = useApiMutation<
-    { download_id: string; skipped?: string[]; archived?: boolean; reused?: string | null },
-    void
-  >(
-    () =>
-      apiPost(
-        paths.downloads.create,
-        postRequest(shape, target, platform, skipExisting, part ? Number(part) : null),
-        { awaitTask: false },
-      ),
+  const start = useApiMutation<DownloadStarted, void>(
+    async () => {
+      const narrowed = part ? Number(part) : null
+      const send = (body: Record<string, unknown>) =>
+        apiPost<DownloadStarted>(paths.downloads.create, body, { awaitTask: false })
+      try {
+        return await send(postRequest(shape, target, platform, skipExisting, narrowed))
+      } catch (error) {
+        // The share sheet's text carries a short link, and the endpoint refuses
+        // one: it cannot know the post without following it. Asking the server
+        // first would cost every full link a round trip to learn nothing, so
+        // its refusal is the signal instead - see `expandPostLink`.
+        if (!isApiError(error) || error.details['needs_expansion'] !== true) throw error
+        let post: { platform: Platform; id: string }
+        try {
+          post = await expandPostLink(target.trim())
+        } catch (problem) {
+          if (!(problem instanceof TargetError)) throw problem
+          throw new Error(t('downloads.target.expected.video'), { cause: problem })
+        }
+        const resolved: TargetShape = { kind: 'bare', id: post.id, fixed: post.platform }
+        return await send(postRequest(resolved, target, platform, skipExisting, narrowed))
+      }
+    },
     {
       onSuccess: (result) => {
         setTarget('')

@@ -7,10 +7,11 @@
  *
  * A link is never fetched from here. It goes to /tools/parse-url, which runs
  * the same host allowlist as every other endpoint, so an unrecognised host
- * never becomes a request.
+ * never becomes a request; a short link goes on to /parse, whose task follows
+ * it through an identity.
  */
 
-import { apiGet } from './api'
+import { apiGet, apiPost } from './api'
 import { API_V1, paths } from './endpoints'
 import type { Platform } from './types'
 
@@ -60,6 +61,30 @@ export class TargetError extends Error {
 }
 
 /**
+ * The post a short link turns out to be.
+ *
+ * A short link names nothing until it is followed, and following it is a
+ * request that has to leave through an identity like any other - the parse
+ * task's job, not this module's. So the link is parsed and the post read off
+ * the answer: the two steps the batch tab takes for a pasted share text. The
+ * single-post form skipped them and handed the share text straight to the
+ * download endpoint, which refuses a short link, and the reader got a bare
+ * INVALID_PARAM from a form whose hint invites share text (issue 823).
+ *
+ * A profile's short link parses to an author, which is not a post.
+ */
+export async function expandPostLink(text: string): Promise<{ platform: Platform; id: string }> {
+  const content = await apiPost<{ platform?: string | null; content_id?: unknown }>(paths.parse, {
+    url: text,
+    include_raw: false,
+  })
+  if (!content?.platform || typeof content.content_id !== 'string') {
+    throw new TargetError('expectedVideo')
+  }
+  return { platform: content.platform as Platform, id: content.content_id }
+}
+
+/**
  * Turn a pasted link into a platform and the id the API keys on.
  *
  * One request beyond the parser, and only for a TikTok profile: its link names
@@ -73,7 +98,13 @@ export async function resolveLink(
   wanted: 'video' | 'user',
 ): Promise<{ platform: Platform; id: string }> {
   const kind = await apiGet<ParsedLink>(paths.tools.parseUrl, { params: { url: text } })
-  if (kind.needs_expansion) throw new TargetError('shortLink')
+  if (kind.needs_expansion) {
+    // Posts only. A profile's short link parses to an author, and reading the
+    // id the post list and the watchlist key on off that answer is not wired
+    // up, so an author link still has to be pasted in full.
+    if (wanted === 'video') return expandPostLink(text)
+    throw new TargetError('shortLink')
+  }
   if (!kind.allowed || !kind.platform || !kind.resource_id) throw new TargetError('unrecognised')
   if (kind.resource !== wanted) {
     throw new TargetError(wanted === 'user' ? 'expectedUser' : 'expectedVideo')

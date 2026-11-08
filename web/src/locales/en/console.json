@@ -2225,7 +2225,7 @@
     },
     "target": {
       "unrecognised": "That is not a link this instance recognises",
-      "shortLink": "That is a short link, which says nothing until it is opened. Open it and paste the full address, or use Many posts, which follows it.",
+      "shortLink": "That is a short link, which says nothing until it is opened. Open it and paste the profile's full address.",
       "expected": {
         "video": "That is a profile link. Paste a post link, or use \"Save this author's posts\".",
         "user": "That is a post link. Paste the author's profile link or their sec_user_id."
