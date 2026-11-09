@@ -419,9 +419,13 @@ Sources, most to least reliable:
 [Building the browser image: the CloakBrowser pin](#building-the-browser-image-the-cloakbrowser-pin).
 Its build reaches Debian's apt repositories, PyPI, GitHub (CloakBrowser installs as
 `pip install "cloakbrowser @ git+https://github.com/…"`) and then downloads a browser binary.
-**This is the most network-sensitive step in the whole install**, and most of what follows exists for
-it. If you do not need minted Douyin or TikTok identities yet, leave the `browser` profile off —
-importing your own cookies works without it, and Bilibili identities are minted without it anyway.
+**This is the most network-sensitive step in the whole install.** The build runs inside a container,
+where mirrors switched on the host do not reach: apt and PyPI are covered in
+[apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds), GitHub by a
+[build-time proxy](#github-and-proxies-at-build-time), and the browser binary in
+[A download mirror for the browser binary, and what it risks](#a-download-mirror-for-the-browser-binary-and-what-it-risks).
+If you do not need minted Douyin or TikTok identities yet, leave the `browser` profile off — importing
+your own cookies works without it, and Bilibili identities are minted without it anyway.
 
 ### System package mirrors
 
@@ -459,6 +463,10 @@ step stalls, either put apt behind a proxy (`sudo -E apt-get …` with `https_pr
 Docker route — pulling `timescale/timescaledb-ha:pg17` through an accelerator beats installing
 packages from packagecloud by a wide margin. That is one of the reasons Docker is the recommendation.
 
+All of this switches the host's sources. The system packages the browser image installs while it
+builds come from the image's own Debian sources, which have a switch of their own; see
+[apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds).
+
 ### Python, pip and uv
 
 Dependencies are managed with [uv](https://docs.astral.sh/uv/).
@@ -490,6 +498,9 @@ One that is easy to miss: `uv python install` downloads its interpreter from Git
 `UV_PYTHON_INSTALL_MIRROR`, or just use the system Python — this project wants `>=3.12,<3.14`, and
 Ubuntu 24.04 ships 3.12.
 
+These are all settings on the host, and `docker compose build` reads none of them. For a PyPI mirror
+inside an image build, see [apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds).
+
 ### Node and npm
 
 Only needed if you build the console or the application image yourself; pulling prebuilt images needs
@@ -502,6 +513,10 @@ npm config set registry https://registry.npmmirror.com
 `npm ci` pulls packages with native binaries such as esbuild and rollup. In current versions those
 ship as platform-specific npm packages, so switching the registry is enough — there is no separate
 binary mirror to configure.
+
+This, too, only reaches npm on the host. Building the application image in Docker does not read it,
+and that image has no mirror switch of its own; the end of
+[apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds) says why.
 
 While on the subject: the Go `downloader` service needs **no** `GOPROXY`. It has no third-party
 dependencies at all, only the standard library, so its build fetches no modules.
@@ -519,19 +534,25 @@ With no proxy to hand, the installer can clone from a mirror instead; read
 [Cloning from a mirror, and what it risks](#cloning-from-a-mirror-and-what-it-risks) first.
 
 Network access inside a Docker build does not read the host's git configuration; the proxy has to be
-passed as a build argument (`HTTP_PROXY` and `HTTPS_PROXY` are BuildKit predefined arguments, so the
-Dockerfile does not declare them):
+passed as a build argument. **Pass both spellings, upper and lower case**: apt reads only the
+lower-case `http_proxy`, and given only the upper-case pair it goes straight to Debian's servers as if
+no proxy were set. All four are BuildKit predefined arguments, so the Dockerfile does not declare them:
 
 ```bash
 COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml build \
   --build-arg HTTP_PROXY=http://172.17.0.1:7890 \
   --build-arg HTTPS_PROXY=http://172.17.0.1:7890 \
+  --build-arg http_proxy=http://172.17.0.1:7890 \
+  --build-arg https_proxy=http://172.17.0.1:7890 \
   browser-rpc
 ```
 
 `172.17.0.1` is the host as seen from the default bridge network. A common trap here: a proxy
 listening only on `127.0.0.1` is unreachable from inside the container — it has to listen on
 `0.0.0.0`, or at least on the docker0 address.
+
+With no proxy to hand, apt and PyPI inside the build can use mirrors instead; see
+[apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds).
 
 ### Cloning from a mirror, and what it risks
 
@@ -567,6 +588,8 @@ What it does not reach:
 - The browser build then downloads Chromium from `cloakbrowser.dev`, which redirects to a GitHub
   release. That does not go through the prefix either: use the build-time proxy, or see
   [A download mirror for the browser binary, and what it risks](#a-download-mirror-for-the-browser-binary-and-what-it-risks).
+- apt and PyPI inside the builds do not go through the prefix either; see
+  [apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds).
 - The latest release is looked up at `api.github.com` first. After 10 seconds without an answer the
   installer reads the tags from the mirror instead, which is only slower.
 - Images come from Docker Hub, through the registry mirror set up above.
@@ -578,6 +601,47 @@ risks above):
 ```bash
 git -C /opt/dtk remote set-url origin https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 ```
+
+### apt and PyPI mirrors for the image builds
+
+The browser image is always built on your own machine, and so is the transcriber image when you do
+not use the published one. The build runs inside a container, where the host's apt sources and
+`pip config` do not reach. With no build-time proxy, set these in `.env`:
+
+```bash
+# in .env
+APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
+PYPI_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+- `APT_MIRROR` is used by the browser image only; the transcriber installs no system packages. The
+  value is the mirror's base address, the one with `debian/` and `debian-security/` beneath it, which
+  is how every host in [System package mirrors](#system-package-mirrors) is laid out. `http://` and
+  `https://` both work.
+- `PYPI_MIRROR` is used by both images. The value is a simple index, such as any listed in
+  [Python, pip and uv](#python-pip-and-uv), and only an `https://` one is taken.
+
+The two are not trusted with the same thing:
+
+- **An apt mirror cannot change what you install.** apt checks Debian's signature against the keyring
+  already in the image, whoever serves the files, so a mirror can at worst make the install fail, not
+  install something else. That is why `http://` is fine: Debian's own default source is `http://`.
+- **A PyPI mirror can.** The browser and transcriber dependencies are pinned by version, not by hash,
+  so pip installs whatever the mirror serves. Use a large vendor's, a university's, or your own; this is
+  also why only `https://` is taken, since over plaintext anyone on the path could swap a package.
+
+They are read at build time only, so rebuild after changing them: `./dtkctl build browser-rpc`, and
+with transcription on, `./dtkctl build transcriber` as well. When a mirror is used, the build log
+carries a few `package-mirrors:` lines naming the address it switched to. A malformed value (no
+`http://` or `https://`, or characters an address does not have), or an image with no Debian source to
+replace, stops the build at that step with the reason, rather than going quietly on to the official
+servers. If the installer stopped at the apt or pip step, `.env` is already written: add the two lines
+and run the installer again.
+
+The application image has neither switch. Its Python dependencies are installed by
+`uv sync --frozen`, which downloads from the addresses recorded in `uv.lock` whatever index is
+configured, so a mirror setting there would change nothing. The recommended path pulls the published
+image and never builds it; to build it yourself, use a [build-time proxy](#github-and-proxies-at-build-time).
 
 ### A download mirror for the browser binary, and what it risks
 
@@ -630,6 +694,9 @@ time docker pull redis:8-alpine              # fast or not, this answers it
 pip config get global.index-url
 npm config get registry
 ```
+
+`APT_MIRROR` and `PYPI_MIRROR` live inside the build, so look in the build log instead: when they are
+in use it has a few `package-mirrors:` lines, each followed by the address switched to.
 
 If a step still fails after switching mirrors, run that step alone and read its own error before
 suspecting the project — everything listed here names the host it could not reach when it fails.
@@ -1063,6 +1130,9 @@ Build arguments, with the defaults the Dockerfiles declare:
 | `Dockerfile.browser` | `CLOAKBROWSER_COMMIT` | *(empty)* (compose passes the commit it names) | The revision. Empty, as on a plain `docker build` without it, means no browser in the image |
 | `Dockerfile.browser` | `CLOAKBROWSER_INSTALL_CMD` | `python -m cloakbrowser install` | The command that fetches the browser binaries; it belongs to the pinned revision, so verify it when you change the commit |
 | `Dockerfile.browser` | `CLOAKBROWSER_HOME` | `/opt/cloakbrowser` | Where the browser is installed. The rootfs is read-only at runtime, so the entrypoint symlinks it into the container's `HOME` |
+| `Dockerfile.browser` | `CLOAKBROWSER_DOWNLOAD_MIRROR` | *(empty)* (compose passes the value in `.env`) | A download mirror for Chromium. Setting it switches the signature check off; see [A download mirror for the browser binary, and what it risks](#a-download-mirror-for-the-browser-binary-and-what-it-risks) |
+| `Dockerfile.browser` | `APT_MIRROR` | *(empty)* (compose passes the value in `.env`) | The Debian mirror apt uses during the build; see [apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds) |
+| `Dockerfile.browser`, `Dockerfile.transcriber` | `PYPI_MIRROR` | *(empty)* (compose passes the value in `.env`) | The PyPI mirror pip uses during the build, `https://` only; same section |
 | `Dockerfile.downloader` | `VERSION` | `dev` (compose passes `${DTK_IMAGE_TAG:-dev}`) | Stamped into the binary |
 | `Dockerfile.transcriber` | `PYTHON_VERSION` | `3.12.8` | Base Python for the sidecar; its own dependencies are pinned in `docker/transcriber/requirements.txt` |
 
@@ -1080,8 +1150,9 @@ This trips up nearly everyone, so it is worth being explicit.
   file. It reads `docker/.env` or your shell. The variables it uses: `DTK_BIND_HOST`,
   `DTK_BIND_PORT` (the published address), `DTK_IMAGE`, `DTK_DOWNLOADER_IMAGE`,
   `DTK_TRANSCRIBER_IMAGE` and `DTK_IMAGE_TAG` (which images run), `DTK_TRANSCRIBER_MODEL_PATH` (the
-  model mount), `DTK_REDIS_MAXMEMORY` (the redis ceiling) and `CLOAKBROWSER_REPO` /
-  `CLOAKBROWSER_COMMIT` (build arguments). The model path is the one that fails quietly: written
+  model mount), `DTK_REDIS_MAXMEMORY` (the redis ceiling) and `CLOAKBROWSER_REPO`,
+  `CLOAKBROWSER_COMMIT`, `CLOAKBROWSER_DOWNLOAD_MIRROR`, `APT_MIRROR` and `PYPI_MIRROR` (build
+  arguments). The model path is the one that fails quietly: written
   only into the root `.env`, it is ignored, Docker mounts an empty `docker/models/funasr-onnx` in
   its place, and the transcriber comes up `degraded` with no models.
 
@@ -1158,6 +1229,9 @@ Read by Compose interpolation, so they belong in your shell or `docker/.env`.
 | `DTK_REDIS_MAXMEMORY` | `320mb` | Redis `maxmemory`. Keep it comfortably under the container's 512m limit |
 | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | Build argument for the browser image |
 | `CLOAKBROWSER_COMMIT` | the revision `docker/compose.yml` names | Build argument for the browser image. Set it only to choose another revision on purpose: a full 40-character commit |
+| `CLOAKBROWSER_DOWNLOAD_MIRROR` | *(unset)* | Build argument for the browser image: a download mirror for Chromium. Setting it switches the signature check off; see [A download mirror for the browser binary, and what it risks](#a-download-mirror-for-the-browser-binary-and-what-it-risks) |
+| `APT_MIRROR` | *(unset)* | Build argument for the browser image: a Debian apt mirror's base address; see [apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds) |
+| `PYPI_MIRROR` | *(unset)* | Build argument for the browser and transcriber images: a PyPI simple index, `https://` only; see [apt and PyPI mirrors for the image builds](#apt-and-pypi-mirrors-for-the-image-builds) |
 
 Plus the two the containers require directly, which do live in the root `.env`:
 

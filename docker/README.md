@@ -499,6 +499,16 @@ Nothing falls back to the fake backend on its own: a pool quietly filling with
 synthetic identities looks healthy right up to the moment every request comes
 back risk-controlled.
 
+A build host that cannot reach the official servers has three switches in
+`.env`, all empty by default and all passed through Compose as build arguments:
+`APT_MIRROR` and `PYPI_MIRROR`, which `docker/package-mirrors.sh` applies before
+the first `apt-get` and `pip install` (the transcriber image takes
+`PYPI_MIRROR` too), and `CLOAKBROWSER_DOWNLOAD_MIRROR` for Chromium. They are
+not equally safe - apt checks Debian's signature whoever serves it, pip and a
+Chromium mirror do not - and `documents/en/02-installation.md` says what each
+one is trusted with. A build-time proxy needs both spellings of the proxy
+arguments: apt reads only the lower-case `http_proxy`.
+
 ## Verifying
 
 ### What is verified offline, in CI

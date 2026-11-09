@@ -31,6 +31,14 @@ FROM python:${PYTHON_VERSION}-slim-bookworm
 # long transcription is still running.
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
+# A PyPI mirror for the pip step, for a build host that reaches PyPI slowly or
+# not at all (issue 817). Empty by default, and the published image is built
+# without one. docker/package-mirrors.sh applies it and says what it is
+# trusted with; it has to run before the first pip install to do anything.
+ARG PYPI_MIRROR=""
+COPY docker/package-mirrors.sh /tmp/package-mirrors.sh
+RUN sh /tmp/package-mirrors.sh && rm /tmp/package-mirrors.sh
+
 # Fixed numeric ownership keeps the runtime identity stable even though model
 # and media data arrive from host-managed mounts. There is no writable home
 # directory because this service has no reason to persist user state.

@@ -881,6 +881,18 @@ to, and `DTK_GH_PROXY` does not cover this step. Give the build a proxy
 read [A download mirror for the browser binary, and what it risks](./02-installation.md#a-download-mirror-for-the-browser-binary-and-what-it-risks)
 before setting it.
 
+### The build hangs at apt-get or pip install
+
+The log stops at `Connecting to deb.debian.org` or shows `Err:… http://deb.debian.org/…`, or pip
+keeps printing `Retrying (Retry(total=…)) after connection broken` and ends with
+`Could not find a version that satisfies the requirement`: the build host cannot reach Debian's or
+PyPI's own servers. Mirrors switched on the host do not reach into the build, and `DTK_GH_PROXY` does
+not cover this step. Give the build a proxy (both spellings, upper and lower case; see
+[GitHub, and proxies at build time](./02-installation.md#github-and-proxies-at-build-time)), or set
+`APT_MIRROR` / `PYPI_MIRROR` in `.env` and rebuild; see
+[apt and PyPI mirrors for the image builds](./02-installation.md#apt-and-pypi-mirrors-for-the-image-builds).
+A transcriber image built locally that stalls at pip takes the same fix.
+
 ### It reports healthy but mints nothing
 
 The service answers `/rpc/health` even when the browser backend failed to start — on purpose, so you get a reason instead of a restart loop. The compose healthcheck therefore reads the `status` field in the body rather than settling for a 200. The usual cause is an image with no browser in it: built with a plain `docker build` and no `--build-arg CLOAKBROWSER_COMMIT=…`, or from an older checkout whose `docker/compose.yml` had no default for it. Rebuilding through Compose with the command above fixes it.

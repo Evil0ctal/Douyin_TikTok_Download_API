@@ -351,8 +351,11 @@ docker info | grep -A3 "Registry Mirrors"   # 没打印出来就是没生效
 **注意 `browser-rpc` 镜像不发布**，只能本地构建（见
 [构建浏览器镜像：CloakBrowser 版本固定](#构建浏览器镜像cloakbrowser-版本固定)）。它的构建过程要访问 Debian
 的 apt 源、PyPI、GitHub（CloakBrowser 是用 `pip install "cloakbrowser @ git+https://github.com/…"` 装的），
-还要再下一个浏览器二进制。**这是整条链路上对网络最挑剔的一步**，下面几节多半是为它准备的。如果你暂时不需要自动铸造
-抖音或 TikTok 的身份，可以先不开 `browser` profile——导入自己的 Cookie 一样能跑，而 B 站身份本来就不靠它铸造。
+还要再下一个浏览器二进制。**这是整条链路上对网络最挑剔的一步。** 构建在容器里进行，宿主机上换的源管不到它：
+apt 和 PyPI 见[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像)，GitHub 靠
+[构建时代理](#github-与构建时代理)，浏览器二进制见[浏览器二进制的下载镜像，以及它的风险](#浏览器二进制的下载镜像以及它的风险)。
+如果你暂时不需要自动铸造抖音或 TikTok 的身份，可以先不开 `browser` profile——导入自己的 Cookie 一样能跑，而 B 站
+身份本来就不靠它铸造。
 
 ### 系统软件源
 
@@ -384,6 +387,9 @@ TimescaleDB 的包在 packagecloud.io 上，据我所知没有国内镜像。这
 （`sudo -E apt-get …` 配合 `https_proxy`），要么干脆走 Docker——`timescale/timescaledb-ha:pg17`
 从加速器拉，比从 packagecloud 一个个装包快得多。这也是我推荐 Docker 的理由之一。
 
+这里换的是宿主机的源。浏览器镜像构建时装的系统包走的是镜像里自己的 Debian 源，要另外换，见
+[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像)。
+
 ### Python、pip 和 uv
 
 项目用 [uv](https://docs.astral.sh/uv/) 管依赖。
@@ -413,6 +419,9 @@ pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 还有一个容易漏的：`uv python install` 下载的解释器来自 GitHub Releases，慢的话设 `UV_PYTHON_INSTALL_MIRROR`；
 或者直接用系统自带的 Python——本项目要求 `>=3.12,<3.14`，Ubuntu 24.04 自带的 3.12 就满足。
 
+上面这些都是宿主机上的设置，`docker compose build` 读不到。构建镜像时用的 PyPI 镜像见
+[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像)。
+
 ### Node 和 npm
 
 只有你要自己构建控制台、或者自己构建 app 镜像时才用得上；拉预构建镜像不需要 Node。
@@ -423,6 +432,9 @@ npm config set registry https://registry.npmmirror.com
 
 `npm ci` 会拉 esbuild、rollup 这类带原生二进制的包。它们在现在的版本里是以平台专属的 npm 包发布的，
 所以换 registry 就够了，不用再单独配二进制镜像地址。
+
+这条设置同样只对宿主机上的 npm 生效。在 Docker 里构建 app 镜像时读不到它，而 app 镜像也没有换源的构建参数，
+原因见[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像)末尾。
 
 顺带一提，`downloader` 那个 Go 服务**不需要** `GOPROXY`：它一个第三方依赖都没有，只用标准库，
 构建时不会去拉任何模块。
@@ -438,18 +450,24 @@ git config --global http.https://github.com.proxy http://127.0.0.1:7890
 
 没有代理可用时，安装脚本也可以改从镜像克隆，先读[用镜像克隆，以及它的风险](#用镜像克隆以及它的风险)。
 
-Docker 构建里的网络访问不走宿主机的 git 配置，代理要通过 build 参数传进去（`HTTP_PROXY` /
-`HTTPS_PROXY` 是 BuildKit 的预定义参数，Dockerfile 里不用声明）：
+Docker 构建里的网络访问不走宿主机的 git 配置，代理要通过 build 参数传进去。**大写、小写两套都要传**：
+apt 只认小写的 `http_proxy`，只传大写的话，apt 那一步照样直连 Debian 的源。这几个都是 BuildKit 的预定义参数，
+Dockerfile 里不用声明：
 
 ```bash
 COMPOSE_ENV_FILES=.env docker compose -p dtk -f docker/compose.yml build \
   --build-arg HTTP_PROXY=http://172.17.0.1:7890 \
   --build-arg HTTPS_PROXY=http://172.17.0.1:7890 \
+  --build-arg http_proxy=http://172.17.0.1:7890 \
+  --build-arg https_proxy=http://172.17.0.1:7890 \
   browser-rpc
 ```
 
 `172.17.0.1` 是默认 bridge 网络里宿主机的地址。这里有个常见的坑：如果你的代理只监听 `127.0.0.1`，
 容器里是连不上它的——得让它监听 `0.0.0.0`，或者至少监听 docker0 那个地址。
+
+没有代理可用时，构建里的 apt 和 PyPI 可以改用镜像，见
+[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像)。
 
 ### 用镜像克隆，以及它的风险
 
@@ -481,6 +499,7 @@ DTK_GH_PROXY=https://<镜像>/ bash install.zh.sh
   还是要靠构建时代理；只放行本仓库的中转也不会放行它。
 - 浏览器镜像构建接着要下载 Chromium，地址是 `cloakbrowser.dev`，会跳转到 GitHub Release。这一步也不走
   这个前缀：用构建时代理，或者见[浏览器二进制的下载镜像，以及它的风险](#浏览器二进制的下载镜像以及它的风险)。
+- 构建里的 apt 和 PyPI 也不走这个前缀，见[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像)。
 - 查最新 Release 时，脚本先问 `api.github.com`，10 秒没有回应就改从镜像读 tag，只是慢一些。
 - 镜像拉取走 Docker Hub，靠的是前面配的镜像加速器。
 
@@ -490,6 +509,37 @@ DTK_GH_PROXY=https://<镜像>/ bash install.zh.sh
 ```bash
 git -C /opt/dtk remote set-url origin https://github.com/Evil0ctal/Douyin_TikTok_Download_API.git
 ```
+
+### 构建镜像时的 apt 和 PyPI 镜像
+
+浏览器镜像总是在本机构建，转写镜像在不用已发布版本时也是。构建在容器里进行，宿主机上换过的 apt 源和
+`pip config` 都传不进去。没有构建代理时，在 `.env` 里设：
+
+```bash
+# 写在 .env 里
+APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
+PYPI_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+- `APT_MIRROR` 只有浏览器镜像用，转写镜像不装系统包。值是镜像站的根地址，它下面要有 `debian/` 和
+  `debian-security/`，[系统软件源](#系统软件源)里列的那几家都是这样。`http://` 和 `https://` 都行。
+- `PYPI_MIRROR` 两个镜像都用，值是 simple 索引的地址，[Python、pip 和 uv](#pythonpip-和-uv) 里列的那几个
+  都可以，只接受 `https://`。
+
+这两个镜像能经手的东西不一样：
+
+- **apt 镜像换不了包。** apt 用镜像里自带的 Debian 公钥校验签名，不管文件是谁给的，镜像最多让你装不上，
+  装不了别的东西。所以 `http://` 也没关系，Debian 自己默认的源就是 `http://`。
+- **PyPI 镜像能。** 浏览器和转写的依赖只锁了版本、没锁哈希，镜像给什么 pip 就装什么。用大厂、高校或者你自己的
+  镜像；只接受 `https://` 也是这个原因，明文的话路上任何人都能换包。
+
+它们只在构建时读取，改完要重新构建：`./dtkctl build browser-rpc`，开了转写再跑一次
+`./dtkctl build transcriber`。用上镜像时，构建日志里会出现几行 `package-mirrors:`，写明换成了哪个地址。
+值写错了（缺 `http://` 或 `https://`、带了奇怪的字符），或者镜像里根本没有可替换的 Debian 源，构建会在这一步
+报错停下，不会默默照旧去连官方源。安装脚本卡在 apt 或 pip 那步时 `.env` 已经写好了，加上这两行再跑一次脚本即可。
+
+app 镜像没有这两个开关：它的 Python 依赖由 `uv sync --frozen` 按 `uv.lock` 里记下的地址下载，换索引不起作用。
+走推荐路径、拉已发布的镜像就不用构建它；要自己构建，就用[构建时代理](#github-与构建时代理)。
 
 ### 浏览器二进制的下载镜像，以及它的风险
 
@@ -533,6 +583,9 @@ time docker pull redis:8-alpine              # 快不快，一试便知
 pip config get global.index-url
 npm config get registry
 ```
+
+构建时的 `APT_MIRROR` 和 `PYPI_MIRROR` 在宿主机上看不到，要看构建日志：用上了的话会有几行 `package-mirrors:`，
+后面跟着换成的地址。
 
 如果换完源某一步还是失败，先把那一步单独跑一遍看它自己的报错，再来怀疑项目——这一节列的每样东西，
 失败时都会说出是哪个域名连不上。
@@ -904,6 +957,9 @@ docker build -f docker/Dockerfile.browser \
 | `Dockerfile.browser` | `CLOAKBROWSER_COMMIT` | *(空)*（compose 传它指定的那个 commit） | 版本号。空的——裸 `docker build` 不带它时就是这样——意味着镜像里没有浏览器 |
 | `Dockerfile.browser` | `CLOAKBROWSER_INSTALL_CMD` | `python -m cloakbrowser install` | 拉取浏览器二进制的命令；它属于你固定的那个版本，所以换 commit 时要顺手核对 |
 | `Dockerfile.browser` | `CLOAKBROWSER_HOME` | `/opt/cloakbrowser` | 浏览器装在哪。运行时根文件系统只读，所以 entrypoint 会把它软链到容器的 `HOME` 下 |
+| `Dockerfile.browser` | `CLOAKBROWSER_DOWNLOAD_MIRROR` | *(空)*（compose 传 `.env` 里的值） | Chromium 的下载镜像。设了会关掉签名校验，见[浏览器二进制的下载镜像，以及它的风险](#浏览器二进制的下载镜像以及它的风险) |
+| `Dockerfile.browser` | `APT_MIRROR` | *(空)*（compose 传 `.env` 里的值） | 构建时 apt 用的 Debian 镜像，见[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像) |
+| `Dockerfile.browser`、`Dockerfile.transcriber` | `PYPI_MIRROR` | *(空)*（compose 传 `.env` 里的值） | 构建时 pip 用的 PyPI 镜像，只接受 `https://`，见同一节 |
 | `Dockerfile.downloader` | `VERSION` | `dev`（compose 传 `${DTK_IMAGE_TAG:-dev}`） | 烙进二进制里的版本号 |
 | `Dockerfile.transcriber` | `PYTHON_VERSION` | `3.12.8` | sidecar 的基础 Python；它自己的依赖钉在 `docker/transcriber/requirements.txt` 里 |
 
@@ -920,7 +976,8 @@ docker build -f docker/Dockerfile.browser \
   shell。它用到的变量有：`DTK_BIND_HOST`、`DTK_BIND_PORT`（发布地址），`DTK_IMAGE`、
   `DTK_DOWNLOADER_IMAGE`、`DTK_TRANSCRIBER_IMAGE` 和 `DTK_IMAGE_TAG`（跑哪些镜像），
   `DTK_TRANSCRIBER_MODEL_PATH`（模型挂载），`DTK_REDIS_MAXMEMORY`（redis 上限），以及
-  `CLOAKBROWSER_REPO` / `CLOAKBROWSER_COMMIT`（构建参数）。其中模型路径是会悄悄出错的那个：只写在根目录
+  `CLOAKBROWSER_REPO`、`CLOAKBROWSER_COMMIT`、`CLOAKBROWSER_DOWNLOAD_MIRROR`、`APT_MIRROR`、`PYPI_MIRROR`
+  （构建参数）。其中模型路径是会悄悄出错的那个：只写在根目录
   `.env` 里的话它会被忽略，Docker 改挂一个空的 `docker/models/funasr-onnx`，transcriber 起来就是没有模型的
   `degraded`。
 
@@ -995,6 +1052,9 @@ docker compose -p dtk -f docker/compose.yml config
 | `DTK_REDIS_MAXMEMORY` | `320mb` | Redis 的 `maxmemory`。保持明显低于容器的 512m 上限 |
 | `CLOAKBROWSER_REPO` | `https://github.com/CloakHQ/cloakbrowser` | 浏览器镜像的构建参数 |
 | `CLOAKBROWSER_COMMIT` | `docker/compose.yml` 指定的那个版本 | 浏览器镜像的构建参数。只在有意识地换版本时才设：必须是完整的 40 位 commit |
+| `CLOAKBROWSER_DOWNLOAD_MIRROR` | *(未设)* | 浏览器镜像的构建参数：Chromium 的下载镜像。设了会关掉签名校验，见[浏览器二进制的下载镜像，以及它的风险](#浏览器二进制的下载镜像以及它的风险) |
+| `APT_MIRROR` | *(未设)* | 浏览器镜像的构建参数：Debian apt 镜像的根地址，见[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像) |
+| `PYPI_MIRROR` | *(未设)* | 浏览器和转写镜像的构建参数：PyPI 的 simple 索引，只接受 `https://`，见[构建镜像时的 apt 和 PyPI 镜像](#构建镜像时的-apt-和-pypi-镜像) |
 
 另外还有两个容器直接需要、确实住在根目录 `.env` 里的变量：
 

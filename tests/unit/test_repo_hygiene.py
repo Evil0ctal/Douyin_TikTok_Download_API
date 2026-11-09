@@ -714,6 +714,79 @@ def test_the_heaviest_service_is_bounded_below_the_host() -> None:
     assert float(browser["cpus"]) <= 4.0
 
 
+def _dockerfile_lines(dockerfile: str) -> list[str]:
+    return (REPO / "docker" / dockerfile).read_text(encoding="utf-8").splitlines()
+
+
+def _declared_args(dockerfile: str) -> set[str]:
+    return {
+        match.group(1)
+        for line in _dockerfile_lines(dockerfile)
+        if (match := re.match(r"ARG ([A-Za-z_][A-Za-z0-9_]*)", line))
+    }
+
+
+def test_every_build_arg_compose_passes_is_declared_where_it_lands() -> None:
+    """Docker drops an undeclared build argument with one warning and builds on.
+
+    A misspelt or forgotten one therefore looks set in `.env` and changes
+    nothing - for a mirror, a build that still times out against the server
+    the operator believes they routed around.
+    """
+    import yaml
+
+    compose = yaml.safe_load(_compose_source())
+    for name, service in (compose.get("services") or {}).items():
+        build = service.get("build")
+        if not isinstance(build, dict):
+            continue
+        dockerfile = Path(build["dockerfile"]).name
+        declared = _declared_args(dockerfile)
+        for arg in build.get("args") or {}:
+            assert arg in declared, f"{name} passes {arg}, which {dockerfile} never declares"
+
+
+#: The images an install builds on its own machine, and the package mirrors each
+#: build reads from `.env` (issue 817). The app image is absent on purpose:
+#: `uv sync --frozen` downloads from the URLs uv.lock recorded whatever index is
+#: configured - checked against uv 0.9.18 with an unreachable index, which it
+#: never contacted - so a PyPI mirror there would be a switch that does nothing.
+#: That image is published; a mainland install pulls it through a registry mirror.
+LOCAL_BUILD_MIRRORS = {
+    "browser-rpc": ("Dockerfile.browser", ("APT_MIRROR", "PYPI_MIRROR")),
+    "transcriber": ("Dockerfile.transcriber", ("PYPI_MIRROR",)),
+}
+
+
+@pytest.mark.parametrize("service", sorted(LOCAL_BUILD_MIRRORS))
+def test_a_locally_built_image_reads_its_mirrors_from_env(service: str) -> None:
+    import yaml
+
+    dockerfile, mirrors = LOCAL_BUILD_MIRRORS[service]
+    args = yaml.safe_load(_compose_source())["services"][service]["build"].get("args") or {}
+    for mirror in mirrors:
+        # Unset means the official servers. Not `${X}`: compose warns about
+        # every unset variable, on every command, to every operator.
+        assert args.get(mirror) == f"${{{mirror}:-}}", f"{service} does not pass {mirror}"
+        assert mirror in _declared_args(dockerfile)
+
+
+@pytest.mark.parametrize("service", sorted(LOCAL_BUILD_MIRRORS))
+def test_the_mirrors_are_in_place_before_the_first_install(service: str) -> None:
+    """A mirror applied after `apt-get` or `pip install` has already run is no mirror."""
+    dockerfile, _ = LOCAL_BUILD_MIRRORS[service]
+    lines = _dockerfile_lines(dockerfile)
+    applied = [i for i, line in enumerate(lines) if "package-mirrors.sh" in line]
+    installs = [
+        i
+        for i, line in enumerate(lines)
+        if not line.lstrip().startswith("#") and re.search(r"apt-get|pip install", line)
+    ]
+    assert applied, f"{dockerfile} never runs docker/package-mirrors.sh"
+    assert installs, f"{dockerfile} installs nothing; drop it from LOCAL_BUILD_MIRRORS"
+    assert min(applied) < min(installs), f"{dockerfile} installs before it applies the mirrors"
+
+
 def test_the_integration_suite_clears_every_table() -> None:
     """A table missing from TABLES leaks rows between tests.
 

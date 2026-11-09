@@ -49,6 +49,13 @@ ARG CLOAKBROWSER_INSTALL_CMD="python -m cloakbrowser install"
 # unset. It is exported under that name only when it has a value.
 ARG CLOAKBROWSER_DOWNLOAD_MIRROR=""
 
+# Mirrors for the apt and pip steps below, for a build host that reaches
+# deb.debian.org or PyPI slowly or not at all (issue 817). Empty by default.
+# docker/package-mirrors.sh applies them and says what each one is trusted
+# with: apt checks Debian's signature whoever serves it, pip does not.
+ARG APT_MIRROR=""
+ARG PYPI_MIRROR=""
+
 # Where the browser is installed. CloakBrowser reads no environment variable of
 # its own - checked by grepping the package - so the only lever is HOME, which
 # is why the install and the runtime have to agree through the shim below.
@@ -75,6 +82,11 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
     HOME=/opt/browser-build \
     XDG_CACHE_HOME=/opt/browser-build/.cache
+
+# Before the first apt-get and pip install, which is the only place a mirror
+# does anything; tests/unit/test_repo_hygiene.py holds the order.
+COPY docker/package-mirrors.sh /tmp/package-mirrors.sh
+RUN sh /tmp/package-mirrors.sh && rm /tmp/package-mirrors.sh
 
 # Chromium's shared-library and font dependencies. The CJK fonts are not
 # cosmetic: a browser that cannot render the platform's own script measures text

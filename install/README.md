@@ -336,6 +336,9 @@ Neither reaches the Chromium the browser image downloads while it builds; that
 has its own switch, `CLOAKBROWSER_DOWNLOAD_MIRROR`, which turns the download's
 signature check off. See
 [A download mirror for the browser binary, and what it risks](../documents/en/02-installation.md#a-download-mirror-for-the-browser-binary-and-what-it-risks).
+Nor do they reach apt and PyPI inside the image builds; those take `APT_MIRROR`
+and `PYPI_MIRROR` in `.env`. See
+[apt and PyPI mirrors for the image builds](../documents/en/02-installation.md#apt-and-pypi-mirrors-for-the-image-builds).
 
 Transcription takes two: `DTK_ENABLE_TRANSCRIBER=1` turns it on, and
 `DTK_TRANSCRIBER_MODEL_PATH` says where the models are or should go. With both
@@ -362,12 +365,13 @@ problem with this project.
 ## Installing from mainland China
 
 Switch your mirrors first. The install pulls from Docker Hub, and building the
-browser image also reaches GitHub, PyPI and a browser CDN. The transcription
-models come from ModelScope, which is usually fast from mainland China. Without
-a registry mirror the image pull usually times out and it looks like the
-project is broken. If GitHub itself is slow, `DTK_REPO_URL` clones from a mirror
-of this repository, or `DTK_GH_PROXY` through a mirror prefix. GitHub stays the
-default, and a mirror is asked about first.
+browser image also reaches Debian's apt servers, GitHub, PyPI and a browser CDN.
+The transcription models come from ModelScope, which is usually fast from
+mainland China. Without a registry mirror the image pull usually times out and
+it looks like the project is broken. If GitHub itself is slow, `DTK_REPO_URL`
+clones from a mirror of this repository, or `DTK_GH_PROXY` through a mirror
+prefix. GitHub stays the default, and a mirror is asked about first. For apt and
+PyPI inside the browser build, set `APT_MIRROR` and `PYPI_MIRROR` in `.env`.
 [中国大陆的网络准备](../documents/zh/02-installation.md#中国大陆的网络准备) has
 the details.
 
@@ -638,6 +642,8 @@ DTK_INSTALL_DIR=/srv/dtk DTK_BIND_PORT=9000 DTK_ENABLE_BROWSER=1 \
 这两个都管不到浏览器镜像构建时下载的 Chromium；那一步有自己的开关 `CLOAKBROWSER_DOWNLOAD_MIRROR`，
 而且设了它就不再校验下载的签名，见
 [浏览器二进制的下载镜像，以及它的风险](../documents/zh/02-installation.md#浏览器二进制的下载镜像以及它的风险)。
+构建里的 apt 和 PyPI 它们也管不到，那两处在 `.env` 里用 `APT_MIRROR`、`PYPI_MIRROR` 换，见
+[构建镜像时的 apt 和 PyPI 镜像](../documents/zh/02-installation.md#构建镜像时的-apt-和-pypi-镜像)。
 
 转写用两个：`DTK_ENABLE_TRANSCRIBER=1` 打开它，`DTK_TRANSCRIBER_MODEL_PATH` 指定模型在哪
 或该放哪。两个都设了再加 `--yes`，没有模型的目录会由那个带校验的下载填上。
@@ -660,8 +666,9 @@ Docker Compose **2.24 或更新** —— compose 文件用到了长格式的 `en
 
 ## 在中国大陆安装
 
-先换源。安装过程要从 Docker Hub 拉镜像，构建浏览器镜像还要访问 GitHub、PyPI 和
-浏览器 CDN。转写模型来自 ModelScope，在大陆通常很快。没有镜像加速器的话，拉镜像那步
+先换源。安装过程要从 Docker Hub 拉镜像，构建浏览器镜像还要访问 Debian 的 apt 源、GitHub、
+PyPI 和浏览器 CDN。转写模型来自 ModelScope，在大陆通常很快。没有镜像加速器的话，拉镜像那步
 通常会超时，看起来就像项目坏了。GitHub 本身慢的话，`DTK_REPO_URL` 可以让它从本仓库的
 镜像克隆，`DTK_GH_PROXY` 则是给一个镜像前缀。默认仍是 GitHub，用镜像之前会先问你。
+浏览器镜像构建里的 apt 和 PyPI，在 `.env` 里设 `APT_MIRROR` 和 `PYPI_MIRROR`。
 详见 [中国大陆的网络准备](../documents/zh/02-installation.md#中国大陆的网络准备)。

@@ -386,6 +386,10 @@ services:
         # Empty unless set in .env: a mirror for the Chromium download, which
         # turns CloakBrowser's signature check off (see Dockerfile.browser).
         CLOAKBROWSER_DOWNLOAD_MIRROR: ${CLOAKBROWSER_DOWNLOAD_MIRROR:-}
+        # Empty unless set in .env: mirrors for the apt and pip steps
+        # (docker/package-mirrors.sh).
+        APT_MIRROR: ${APT_MIRROR:-}
+        PYPI_MIRROR: ${PYPI_MIRROR:-}
     # Same env file as the rest of the stack, for the same reason: every
     # DTK_BROWSER_* knob the README documents - the backend name above all - has
     # to be settable in one place. `environment:` wins over `env_file:`, so only
@@ -577,6 +581,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.transcriber
+      args:
+        # Empty unless set in .env: a mirror for the pip step
+        # (docker/package-mirrors.sh). The published image never has one.
+        PYPI_MIRROR: ${PYPI_MIRROR:-}
     env_file:
       - path: ../.env
         required: false

@@ -845,6 +845,15 @@ CloakBrowser 的下载地址，也连不上它跳转去的 GitHub Release，而 
 `CLOAKBROWSER_DOWNLOAD_MIRROR`。后者会关掉下载的签名校验，设之前先读
 [浏览器二进制的下载镜像，以及它的风险](./02-installation.md#浏览器二进制的下载镜像以及它的风险)。
 
+### 构建卡在 apt-get 或 pip install
+
+日志停在 `Connecting to deb.debian.org`、出现 `Err:… http://deb.debian.org/…`，或者 pip 反复打印
+`Retrying (Retry(total=…)) after connection broken`、最后报 `Could not find a version that satisfies the requirement`：
+构建机连不上 Debian 或 PyPI 的官方源。宿主机上换过的源进不了构建，`DTK_GH_PROXY` 也管不到这一步。给构建配代理
+（大写、小写两套都要传，见[GitHub 与构建时代理](./02-installation.md#github-与构建时代理)），或者在 `.env` 里设
+`APT_MIRROR` / `PYPI_MIRROR` 再重新构建，见[构建镜像时的 apt 和 PyPI 镜像](./02-installation.md#构建镜像时的-apt-和-pypi-镜像)。
+转写镜像在本地构建时卡在 pip，也是同样的办法。
+
 ### 它报告健康却铸造不出身份
 
 即使浏览器后端启动失败，这个服务照样会应答 `/rpc/health`——这是刻意的，为的是给你一个原因而不是一个重启循环。所以 compose 的健康检查读的是 body 里的 `status` 字段，而不是满足于一个 200。最常见的原因是镜像里根本没有浏览器：它是用裸的 `docker build` 构建的、没带 `--build-arg CLOAKBROWSER_COMMIT=…`，或者来自一份更早的代码——那时 `docker/compose.yml` 还没给它默认值。用上面那条命令经由 Compose 重新构建即可。
