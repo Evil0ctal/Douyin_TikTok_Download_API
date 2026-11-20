@@ -454,11 +454,17 @@ export function BatchParse({ skipExisting, onQueued }: BatchParseProps) {
         for (const [index, url] of group.entries()) {
           const item = items[index] ?? items.find((entry) => entry.url === url)
           const taskId = item?.task_id ?? null
+          // A link asked for again joins the earlier task, which may already
+          // be done - and the batch answer carries its state, not its result.
+          // Taken as terminal, the row was never polled: "Done", every column
+          // empty, and a preview that could not open. Any task id is polled
+          // at least once.
+          const submitted = item?.state ?? 'queued'
           created.push({
             id: nextRowId(),
             url,
             taskId,
-            state: taskId ? (item?.state ?? 'queued') : 'failed',
+            state: taskId ? (TERMINAL.has(submitted) ? 'running' : submitted) : 'failed',
             error: taskId
               ? null
               : {
@@ -1442,20 +1448,10 @@ function OffBrowserVideo({
   const { t } = useTranslation(['console'])
   // A status region: it replaces the player after the last mirror fails,
   // seconds after the drawer opened, and a screen reader should hear why.
+  // The reason first and the cover capped: most covers are portrait, and at
+  // full width one pushed the explanation below the drawer's first screen.
   return (
     <div className="u-stack-sm" role="status">
-      {cover ? (
-        <img
-          src={cover}
-          alt=""
-          style={{
-            width: '100%',
-            borderRadius: 'var(--radius)',
-            background: 'var(--bg-inset)',
-            border: '1px solid var(--border-subtle)',
-          }}
-        />
-      ) : null}
       <Banner tone="accent" icon={<InfoIcon size={14} />}>
         <p style={{ margin: 0 }}>{t(`parse.offBrowser.${reason}`)}</p>
         <div className="u-row" style={{ marginTop: 'var(--space-2)' }}>
@@ -1464,6 +1460,20 @@ function OffBrowserVideo({
           </Button>
         </div>
       </Banner>
+      {cover ? (
+        <img
+          src={cover}
+          alt=""
+          style={{
+            width: '100%',
+            maxHeight: '50vh',
+            objectFit: 'contain',
+            borderRadius: 'var(--radius)',
+            background: 'var(--bg-inset)',
+            border: '1px solid var(--border-subtle)',
+          }}
+        />
+      ) : null}
     </div>
   )
 }
