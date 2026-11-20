@@ -30,6 +30,7 @@ from dtk.signing.registry import (
     RiskRateSource,
     RiskSample,
     ShadowResult,
+    ShadowSkip,
     SignerRegistry,
     SlidingRiskWindow,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "RiskSample",
     "RpcSigner",
     "ShadowResult",
+    "ShadowSkip",
     "SignatureAlgorithm",
     "SignedParams",
     "Signer",

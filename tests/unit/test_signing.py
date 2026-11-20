@@ -112,6 +112,7 @@ from dtk.signing.registry import (
     ExactComparator,
     RegistryPolicy,
     RiskSample,
+    ShadowSkip,
     SignerRegistry,
     SigningMode,
     SlidingRiskWindow,
@@ -2420,6 +2421,7 @@ async def test_shadow_skips_when_nothing_is_comparable() -> None:
     # Named, so an operator reading the self-check knows which parameter went
     # unjudged. "every parameter skipped" was true and unactionable.
     assert result.detail == "nothing comparable (msToken)"
+    assert result.skip is ShadowSkip.NOTHING_COMPARABLE
     assert registry.native_enabled(Platform.DOUYIN) is True
 
 
@@ -2466,6 +2468,7 @@ async def test_a_broken_reference_says_so_rather_than_blaming_the_signer() -> No
     detail = result.detail or ""
     assert "a_bogus" in detail
     assert "not an a_bogus" in detail and "check the browser" in detail
+    assert result.skip is ShadowSkip.REFERENCE_UNUSABLE
     # Nothing about the reference is a verdict on the signer.
     assert registry.native_enabled(Platform.DOUYIN) is True
 
@@ -2477,9 +2480,17 @@ async def test_shadow_skips_when_the_parameters_do_not_overlap() -> None:
     assert await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT) is True
     result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
     assert result is not None and result.detail == "no comparable parameter"
+    assert result.skip is ShadowSkip.NOTHING_COMPARABLE
 
 
 async def test_shadow_skips_when_the_rpc_sample_fails() -> None:
+    """The browser failing to sign is a finding about the browser, and only that.
+
+    It used to be recorded as "sample failed: ..." - the same words a native
+    failure got - and the self-check read every skip as "the browser runs a
+    different version of the algorithm". In #830 the browser's page had left
+    tiktok.com; nothing about any algorithm had changed.
+    """
     native = FakeSigner(SIGNER_NATIVE)
     rpc = FakeSigner(SIGNER_BROWSER, fail=SigningFailed("browser down"))
     registry, _, _, _ = build_registry(native=native, rpc=rpc)
@@ -2487,8 +2498,47 @@ async def test_shadow_skips_when_the_rpc_sample_fails() -> None:
     result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
     assert result is not None
     assert result.compared is False
-    assert "browser down" in (result.detail or "")
+    assert result.skip is ShadowSkip.REFERENCE_FAILED
+    assert result.error == "browser down"
+    assert result.detail == "browser reference failed: browser down"
     assert registry.native_enabled(Platform.DOUYIN) is True
+
+
+async def test_a_native_failure_is_not_pinned_on_the_browser() -> None:
+    """The opposite finding: the signer serving traffic is the one that broke."""
+    native = FakeSigner(SIGNER_NATIVE, fail=SigningFailed("a_bogus could not be computed"))
+    rpc = FakeSigner(SIGNER_BROWSER)
+    registry, _, _, _ = build_registry(native=native, rpc=rpc)
+    assert await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT) is True
+    result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
+    assert result is not None and result.compared is False
+    assert result.skip is ShadowSkip.NATIVE_FAILED
+    assert result.error == "a_bogus could not be computed"
+    assert (result.detail or "").startswith("native signer failed: ")
+    # The browser was never asked: the sample stopped where it broke.
+    assert rpc.calls == 0
+
+
+async def test_a_native_failure_after_the_browser_signed_is_still_native() -> None:
+    """The second, bracketing native signature is the native side too."""
+    native = FakeSigner(SIGNER_NATIVE)
+    rpc = FakeSigner(SIGNER_BROWSER)
+    registry, _, _, _ = build_registry(native=native, rpc=rpc)
+
+    original = native.sign
+
+    async def fails_second_time(*args: Any, **kwargs: Any) -> SignedParams:
+        if native.calls >= 1:
+            native.calls += 1
+            raise SigningFailed("clock went backwards")
+        return await original(*args, **kwargs)
+
+    native.sign = fails_second_time  # type: ignore[method-assign]
+    await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT)
+    result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
+    assert result is not None
+    assert result.skip is ShadowSkip.NATIVE_FAILED
+    assert rpc.calls == 1
 
 
 async def test_shadow_without_an_rpc_signer_does_not_disable_native() -> None:
@@ -2496,7 +2546,18 @@ async def test_shadow_without_an_rpc_signer_does_not_disable_native() -> None:
     assert await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT) is True
     result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
     assert result is not None and result.compared is False
+    assert result.skip is ShadowSkip.NO_SECOND_SIGNER
     assert registry.native_enabled(Platform.DOUYIN) is True
+
+
+async def test_a_compared_sample_carries_no_skip() -> None:
+    native = FakeSigner(SIGNER_NATIVE, param="X-Bogus", value="same")
+    rpc = FakeSigner(SIGNER_BROWSER, param="X-Bogus", value="same")
+    registry, _, _, _ = build_registry(native=native, rpc=rpc)
+    assert await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT) is True
+    result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
+    assert result is not None and result.compared is True
+    assert result.skip is None and result.error is None
 
 
 async def test_operator_can_disable_and_re_enable_native() -> None:

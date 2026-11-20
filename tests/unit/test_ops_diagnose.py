@@ -18,10 +18,23 @@ import httpx
 import pytest
 
 from dtk.core.crypto import Cipher
+from dtk.core.errors import SigningFailed
 from dtk.core.types import Language, Platform
+from dtk.identity.minting.client import BrowserRpcClient
 from dtk.ops import diagnose
 from dtk.ops.diagnose import DiagnoseContext, StepCode, StepStatus, redact_value
 from dtk.ops.health import ComponentHealth
+from dtk.signing import (
+    SIGNER_BROWSER,
+    SIGNER_NATIVE,
+    RequestSpec,
+    RpcSigner,
+    SignatureAlgorithm,
+    SignedParams,
+    SignerHealth,
+    SignerRegistry,
+    native_signers,
+)
 
 SECRET = "c" * 48
 PROXY_ID = "22222222-2222-2222-2222-222222222222"
@@ -446,6 +459,172 @@ async def test_pool_step_passes_with_a_healthy_pool() -> None:
 async def test_signing_step_is_skipped_without_browser_rpc() -> None:
     result = await diagnose.check_signing(DiagnoseContext())
     assert result.status is StepStatus.SKIP
+
+
+class ProbeSigner:
+    """A signer the signing step can be pointed at: fixed answer, or a failure."""
+
+    def __init__(self, name: str, *, value: str = "same", fail: Exception | None = None) -> None:
+        self.name = name
+        self.value = value
+        self.fail = fail
+
+    async def sign(
+        self, spec: RequestSpec, identity_fingerprint: Any, session: Any = None
+    ) -> SignedParams:
+        if self.fail is not None:
+            raise self.fail
+        return SignedParams(
+            query=f"a=1&X-Bogus={self.value}",
+            params={"X-Bogus": self.value},
+            signer=self.name,
+            algorithm=SignatureAlgorithm.X_BOGUS,
+        )
+
+    async def health(self) -> SignerHealth:
+        return SignerHealth(signer=self.name, healthy=True)
+
+
+def signing_context(native: Any, rpc: Any) -> DiagnoseContext:
+    registry = SignerRegistry({Platform.DOUYIN: native, Platform.TIKTOK: native}, rpc)
+    return DiagnoseContext(rpc=BrowserRpcClient("http://rpc"), registry=registry)
+
+
+#: What browser-rpc answered in issue #830, in the shape it answers now: its
+#: warm TikTok page had left tiktok.com after a navigation failed.
+LEFT_TIKTOK = (
+    "both attempts, on two different pages through the same exit (direct), failed the "
+    "same way: could not warm a signing page for tiktok: the tiktok signing page is no "
+    "longer on tiktok.com (it is on chrome-error://chromewebdata)"
+)
+
+
+async def test_a_browser_that_could_not_sign_is_reported_as_the_browsers_failure() -> None:
+    """Issue #830, end to end through the real signers.
+
+    browser-rpc answered 502 with its reason in the body. The report said
+    "cannot compare native and browser signing for douyin, tiktok" and,
+    underneath, that "the browser reference implements a different version of
+    the algorithm" and the invariants should be re-derived - advice about a
+    bundle that had not moved, for a failure that was the browser's page.
+    """
+
+    def refusing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            502, json={"error": {"code": "backend_failed", "message": LEFT_TIKTOK}}
+        )
+
+    async with mock_client(refusing) as client:
+        registry = SignerRegistry(native_signers(), RpcSigner(client, "http://rpc"))
+        result = await diagnose.check_signing(
+            DiagnoseContext(rpc=BrowserRpcClient("http://rpc"), registry=registry)
+        )
+
+    # A warning, not a pass: nothing was compared, so nothing is known.
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.SIGNING_REFERENCE_FAILED
+    assert result.args["platforms"] == "douyin, tiktok"
+    assert result.args["error"] == f"browser-rpc failed (HTTP 502 backend_failed): {LEFT_TIKTOK}"
+    for language in (Language.EN, Language.ZH):
+        rendered = result.as_dict(language)
+        assert "chrome-error://chromewebdata" in rendered["reason"]
+        assert "browser-rpc" in rendered["action"]
+    english = result.as_dict(Language.EN)
+    assert "different version" not in english["action"]
+    assert "re-derive" not in english["action"]
+    assert "unaffected" in english["action"]
+
+
+async def test_a_native_signer_that_cannot_sign_fails_the_step() -> None:
+    """The serving path broke: a failure, and not one blamed on the browser."""
+    native = ProbeSigner(SIGNER_NATIVE, fail=SigningFailed("a_bogus could not be computed"))
+    result = await diagnose.check_signing(signing_context(native, ProbeSigner(SIGNER_BROWSER)))
+
+    assert result.status is StepStatus.FAIL
+    assert result.code is StepCode.SIGNING_NATIVE_FAILED
+    assert result.args["error"] == "a_bogus could not be computed"
+    assert "browser-rpc" not in result.reason
+
+
+async def test_a_native_failure_outranks_a_browser_failure() -> None:
+    class SplitNative(ProbeSigner):
+        async def sign(
+            self, spec: RequestSpec, identity_fingerprint: Any, session: Any = None
+        ) -> SignedParams:
+            if "tiktok" in spec.url:
+                raise SigningFailed("x-gnarly could not be computed")
+            return await super().sign(spec, identity_fingerprint, session)
+
+    rpc = ProbeSigner(SIGNER_BROWSER, fail=SigningFailed("browser-rpc unreachable: ConnectError"))
+    result = await diagnose.check_signing(signing_context(SplitNative(SIGNER_NATIVE), rpc))
+
+    assert result.code is StepCode.SIGNING_NATIVE_FAILED
+    assert result.args["platforms"] == "tiktok"
+    # The browser's failure on the other platform is still on the record.
+    assert "browser reference failed" in result.details["douyin"]
+
+
+async def test_different_browser_failures_are_each_named() -> None:
+    class PerPlatformRpc(ProbeSigner):
+        async def sign(
+            self, spec: RequestSpec, identity_fingerprint: Any, session: Any = None
+        ) -> SignedParams:
+            raise SigningFailed("page crashed" if "tiktok" in spec.url else "timed out")
+
+    result = await diagnose.check_signing(
+        signing_context(ProbeSigner(SIGNER_NATIVE), PerPlatformRpc(SIGNER_BROWSER))
+    )
+
+    assert result.code is StepCode.SIGNING_REFERENCE_FAILED
+    assert result.args["error"] == "douyin: timed out; tiktok: page crashed"
+
+
+async def test_nothing_comparable_is_a_warning_with_its_own_explanation() -> None:
+    class TokenOnly(ProbeSigner):
+        async def sign(
+            self, spec: RequestSpec, identity_fingerprint: Any, session: Any = None
+        ) -> SignedParams:
+            return SignedParams(
+                query="a=1&msToken=t",
+                params={"msToken": "t"},
+                signer=self.name,
+                algorithm=SignatureAlgorithm.X_BOGUS,
+            )
+
+    result = await diagnose.check_signing(
+        signing_context(TokenOnly(SIGNER_NATIVE), TokenOnly(SIGNER_BROWSER))
+    )
+
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.SIGNING_NOT_COMPARABLE
+    assert result.action is not None
+    assert "different version" not in result.action
+    assert "nothing comparable (msToken)" in result.details["douyin"]
+
+
+async def test_a_comparison_that_crashed_is_not_counted_as_agreement() -> None:
+    """With every platform's comparison raising, the step used to report a pass."""
+
+    class Exploding(SignerRegistry):
+        async def compare_shadow(self, *args: Any, **kwargs: Any) -> bool:
+            raise RuntimeError("boom")
+
+    registry = Exploding({}, ProbeSigner(SIGNER_BROWSER))
+    result = await diagnose.check_signing(
+        DiagnoseContext(rpc=BrowserRpcClient("http://rpc"), registry=registry)
+    )
+
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.SIGNING_NOT_COMPARABLE
+    assert "RuntimeError: boom" in result.details["tiktok"]
+
+
+async def test_agreement_on_every_platform_is_a_pass() -> None:
+    result = await diagnose.check_signing(
+        signing_context(ProbeSigner(SIGNER_NATIVE), ProbeSigner(SIGNER_BROWSER))
+    )
+    assert result.status is StepStatus.PASS
+    assert result.code is StepCode.SIGNING_OK
 
 
 async def test_smoke_step_is_skipped_without_a_link() -> None:

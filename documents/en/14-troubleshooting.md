@@ -809,10 +809,21 @@ Step 5 signs the same request twice — once with the native algorithm, once thr
 |---|---|---|
 | `signing_ok` | Native and browser signatures agree | Nothing |
 | `signing_mismatch` | The native algorithm has drifted from the platform's, for the named platforms | Those platforms now sign through browser-rpc. Open an issue with the report attached so the algorithm can be updated |
-| `signing_not_comparable` | The browser reference implements a *different version* of the algorithm, so a structural comparison says nothing either way | **Not a fault.** The native path is unaffected and still serves requests |
+| `signing_native_failed` | The native signer could not sign the probe request | A fault in dtk's port, on the path that serves traffic. Open an issue with the report attached |
+| `signing_reference_failed` | browser-rpc could not produce the reference signature; the finding quotes its reason | **Not a fault in the native signer**, which still serves requests. Fix browser-rpc (see below) and run the check again |
+| `signing_not_comparable` | Both signed, but nothing they share can be judged, or the comparison could not run; the details say which | **Not a fault.** The native path is unaffected and still serves requests |
 | `signing_no_browser_rpc` | browser-rpc is not configured, so there is no second signer | Set `DTK_BROWSER_RPC_URL` if you want this check. It is what detects a stale algorithm *before* the risk rate does |
 
-`signing_not_comparable` is the one most likely to be misread: "cannot compare" reads as a failure and is not one.
+`signing_not_comparable` and `signing_reference_failed` are the ones most likely to be misread: "cannot compare" reads as a failure of the signer and is not one.
+
+What `signing_reference_failed` quotes from browser-rpc, and what it means:
+
+| browser-rpc says | Meaning |
+|---|---|
+| `the tiktok signing page is no longer on tiktok.com (it is on chrome-error://…)` | The warm page loaded, then a navigation failed through its exit — `DTK_BROWSER_SIGN_PROXY_URL`, the identity's proxy, or this host. Check that exit can load the platform's site |
+| `both attempts, on two different pages through the same exit (…), failed the same way` | Not one stale page: whatever both pages shared failed, and the exit is the usual suspect |
+| `Target crashed` | Chromium died, almost always for lack of memory or `/tmp` space in the browser container |
+| `browser-rpc unreachable` | No answer at all: the container is down or `DTK_BROWSER_RPC_URL` points nowhere |
 
 ### Reproduce a signature by hand
 

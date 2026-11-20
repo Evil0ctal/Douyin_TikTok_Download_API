@@ -65,7 +65,7 @@ from dtk.ops.health import (
 from dtk.platforms.douyin.endpoints import DouyinAPIEndpoints
 from dtk.platforms.tiktok.endpoints import TikTokAPIEndpoints
 from dtk.signing.base import RequestSpec, StaticFingerprint
-from dtk.signing.registry import SignerRegistry
+from dtk.signing.registry import ShadowSkip, SignerRegistry
 
 log = get_logger(__name__)
 
@@ -229,6 +229,8 @@ class StepCode(StrEnum):
     SIGNING_NO_REGISTRY = "signing_no_registry"
     SIGNING_NO_BROWSER_RPC = "signing_no_browser_rpc"
     SIGNING_MISMATCH = "signing_mismatch"
+    SIGNING_NATIVE_FAILED = "signing_native_failed"
+    SIGNING_REFERENCE_FAILED = "signing_reference_failed"
     SIGNING_NOT_COMPARABLE = "signing_not_comparable"
     SIGNING_OK = "signing_ok"
 
@@ -263,6 +265,8 @@ ACTIONABLE_CODES: Final[frozenset[str]] = frozenset(
         StepCode.POOL_BELOW_MINIMUM,
         StepCode.SIGNING_NO_BROWSER_RPC,
         StepCode.SIGNING_MISMATCH,
+        StepCode.SIGNING_NATIVE_FAILED,
+        StepCode.SIGNING_REFERENCE_FAILED,
         # The sentence for this one was written and never wired up, so the step
         # showed a warning and the terse per-platform detail under it with
         # nothing saying what it meant or whether anything was broken. It is the
@@ -699,6 +703,12 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
     fingerprint = StaticFingerprint(user_agent=PROBE_USER_AGENT)
     details: dict[str, Any] = {}
     mismatched: list[str] = []
+    # Skips, by what they say. One bucket used to hold them all, under one
+    # sentence: "the browser reference implements a different version of the
+    # algorithm". In #830 the browser had failed to sign at all, and that
+    # sentence sent the reporter after a bundle that had not moved.
+    native_failed: dict[str, str] = {}
+    reference_failed: dict[str, str] = {}
     skipped: list[str] = []
     for platform, url in SIGNING_PROBE_URLS.items():
         spec = RequestSpec.get(url, params={"aweme_id": "0", "device_platform": "webapp"})
@@ -706,11 +716,21 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
             agreed = await ctx.registry.compare_shadow(spec, fingerprint, platform=platform)
         except Exception as exc:
             details[platform.value] = f"comparison failed: {type(exc).__name__}: {exc}"
+            # A comparison that never happened is a skip. Falling through to
+            # nothing at all let a step whose every platform crashed report
+            # "native and browser signatures agree".
+            skipped.append(platform.value)
             continue
         shadow = ctx.registry.shadow_result(platform, spec.endpoint)
         if shadow is not None and not shadow.compared:
             details[platform.value] = f"not compared: {shadow.detail}"
-            skipped.append(platform.value)
+            error = shadow.error or shadow.detail or ""
+            if shadow.skip is ShadowSkip.NATIVE_FAILED:
+                native_failed[platform.value] = error
+            elif shadow.skip in (ShadowSkip.REFERENCE_FAILED, ShadowSkip.REFERENCE_UNUSABLE):
+                reference_failed[platform.value] = error
+            else:
+                skipped.append(platform.value)
             continue
         details[platform.value] = (
             "match" if agreed else f"mismatch: {shadow.detail if shadow else ''}"
@@ -725,11 +745,31 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
             args={"platforms": ", ".join(mismatched)},
             details=details,
         )
+    if native_failed:
+        # The signer that serves requests could not sign a probe: a fault in
+        # the path traffic takes, which is a failure and not a note.
+        return result(
+            StepStatus.FAIL,
+            StepCode.SIGNING_NATIVE_FAILED,
+            args={"platforms": ", ".join(native_failed), "error": _one_error(native_failed)},
+            details=details,
+        )
+    # Every skip below is a warning, never a pass, and any skip at all - not
+    # only a total one. "native and browser signatures agree" is the overclaim
+    # this step exists to avoid: with one platform compared and one not, it
+    # reads as evidence about both, and the one it says nothing about is
+    # exactly the one an operator needs told.
+    if reference_failed:
+        return result(
+            StepStatus.WARN,
+            StepCode.SIGNING_REFERENCE_FAILED,
+            args={
+                "platforms": ", ".join(reference_failed),
+                "error": _one_error(reference_failed),
+            },
+            details=details,
+        )
     if skipped:
-        # Any skip at all, not only a total one. "native and browser signatures
-        # agree" is the overclaim this step exists to avoid: with one platform
-        # compared and one not, it reads as evidence about both, and the one it
-        # says nothing about is exactly the one an operator needs told.
         return result(
             StepStatus.WARN,
             StepCode.SIGNING_NOT_COMPARABLE,
@@ -737,6 +777,14 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
             details=details,
         )
     return result(StepStatus.PASS, StepCode.SIGNING_OK, details=details)
+
+
+def _one_error(errors: Mapping[str, str]) -> str:
+    """One line for the reason sentence: the error, or each platform's when they differ."""
+    distinct = set(errors.values())
+    if len(distinct) == 1:
+        return next(iter(distinct))
+    return "; ".join(f"{platform}: {error}" for platform, error in errors.items())
 
 
 async def check_smoke(ctx: DiagnoseContext) -> StepResult:

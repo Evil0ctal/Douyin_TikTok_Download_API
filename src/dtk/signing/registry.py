@@ -369,6 +369,38 @@ class RegistryPolicy:
     health_ttl_seconds: float = 30.0
 
 
+class ShadowSkip(StrEnum):
+    """Why a shadow sample compared nothing. Each one points somewhere else.
+
+    A typed value rather than prose, because the self-check has to act on it.
+    It used to read every skip as one state - "sample failed: ..." or "nothing
+    comparable" alike - and attach a single paragraph saying the browser ran a
+    different version of the algorithm. In #830 the browser had simply failed
+    to sign (its page had left tiktok.com), and the operator was told to
+    re-derive invariants from a bundle that had not moved. A native failure and
+    a reference failure are opposite findings: one is the path serving
+    traffic, the other the yardstick.
+    """
+
+    #: No native signer or no browser-rpc for this platform.
+    NO_SECOND_SIGNER = "no_second_signer"
+    #: The native signer raised on the sample: the serving path is at fault.
+    NATIVE_FAILED = "native_failed"
+    #: browser-rpc raised: nothing was compared, and nothing is known about native.
+    REFERENCE_FAILED = "reference_failed"
+    #: browser-rpc answered with something that is not a signature at all.
+    REFERENCE_UNUSABLE = "reference_unusable"
+    #: Both signed, and no parameter they share has a comparator that judges it.
+    NOTHING_COMPARABLE = "nothing_comparable"
+
+
+#: The words a failed sample's detail starts with, per side.
+_SAMPLE_FAILURE_PREFIX: Mapping[ShadowSkip, str] = {
+    ShadowSkip.NATIVE_FAILED: "native signer failed",
+    ShadowSkip.REFERENCE_FAILED: "browser reference failed",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class ShadowResult:
     """One shadow sample, kept for the console and for tests."""
@@ -380,6 +412,10 @@ class ShadowResult:
     detail: str | None = None
     verdicts: Mapping[str, Comparison] = field(default_factory=dict)
     at: float = 0.0
+    #: Set exactly when ``compared`` is False.
+    skip: ShadowSkip | None = None
+    #: The failing signer's own message, for the two failure skips.
+    error: str | None = None
 
 
 class SignerRegistry:
@@ -649,12 +685,20 @@ class SignerRegistry:
         native = self._native.get(key[0])
         rpc = self._rpc_for(key[0])
         if native is None or rpc is None:
-            return self._record_shadow(key, False, True, "no second signer to compare against")
+            return self._record_shadow(
+                key,
+                False,
+                True,
+                "no second signer to compare against",
+                skip=ShadowSkip.NO_SECOND_SIGNER,
+            )
 
         sample = self._shadow_spec(spec)
         detail: str | None = None
         verdicts: Mapping[str, Comparison] = {}
         for attempt in range(self.policy.shadow_retries + 1):
+            # Which side is signing, so a failure is pinned on the right one.
+            side = ShadowSkip.NATIVE_FAILED
             try:
                 # The remote call takes hundreds of milliseconds, and X-Bogus
                 # carries a whole-second timestamp. Bracketing it means the
@@ -665,23 +709,33 @@ class SignerRegistry:
                 # signs in a page loaded with this jar, and comparing against a
                 # signature taken in some other session would compare two
                 # different visitors and call the difference an algorithm drift.
+                side = ShadowSkip.REFERENCE_FAILED
                 remote_signed = await rpc.sign(sample, identity_fingerprint, session)
+                side = ShadowSkip.NATIVE_FAILED
                 after = await native.sign(sample, identity_fingerprint, session)
             except DtkError as exc:
-                return self._record_shadow(key, False, True, f"sample failed: {exc}")
+                return self._record_shadow(
+                    key,
+                    False,
+                    True,
+                    f"{_SAMPLE_FAILURE_PREFIX[side]}: {exc}",
+                    skip=side,
+                    error=str(exc),
+                )
 
             verdicts = self._compare((before, after), remote_signed)
             if not verdicts:
-                return self._record_shadow(key, False, True, "no comparable parameter")
+                return self._record_shadow(
+                    key, False, True, "no comparable parameter", skip=ShadowSkip.NOTHING_COMPARABLE
+                )
             if Comparison.MISMATCH not in verdicts.values():
                 if Comparison.MATCH not in verdicts.values():
                     # Naming them, and why. "every parameter skipped" was true
                     # and told an operator nothing they could act on: which
                     # parameters, and whether this is a rule of ours that has
                     # gone stale or a signature nobody claims to compare.
-                    return self._record_shadow(
-                        key, False, True, self._skip_reason(remote_signed, verdicts), verdicts
-                    )
+                    skip, reason = self._skip_reason(remote_signed, verdicts)
+                    return self._record_shadow(key, False, True, reason, verdicts, skip=skip)
                 return self._record_shadow(key, True, True, None, verdicts)
             detail = ", ".join(
                 name for name, verdict in verdicts.items() if verdict is Comparison.MISMATCH
@@ -704,7 +758,9 @@ class SignerRegistry:
         )
         return self._record_shadow(key, True, False, detail, verdicts)
 
-    def _skip_reason(self, remote: SignedParams, verdicts: Mapping[str, Comparison]) -> str:
+    def _skip_reason(
+        self, remote: SignedParams, verdicts: Mapping[str, Comparison]
+    ) -> tuple[ShadowSkip, str]:
         """Why nothing could be compared, in the words of the thing that skipped.
 
         The comparators return a verdict and not a reason, which is right for
@@ -729,12 +785,12 @@ class SignerRegistry:
             alphabet = getattr(comparator, "alphabet", "s4")
             problem = structure_error(value, alphabet=alphabet)
             if problem is not None:
-                return (
+                return ShadowSkip.REFERENCE_UNUSABLE, (
                     f"nothing comparable ({names}): browser-rpc returned a value that is "
                     f"not an a_bogus ({problem}), so the sample had no reference to compare "
                     "against - check the browser, not the native signer"
                 )
-        return f"nothing comparable ({names})"
+        return ShadowSkip.NOTHING_COMPARABLE, f"nothing comparable ({names})"
 
     def _compare(
         self, natives: tuple[SignedParams, ...], remote: SignedParams
@@ -787,6 +843,9 @@ class SignerRegistry:
         matched: bool,
         detail: str | None = None,
         verdicts: Mapping[str, Comparison] | None = None,
+        *,
+        skip: ShadowSkip | None = None,
+        error: str | None = None,
     ) -> bool:
         result = ShadowResult(
             platform=key[0],
@@ -796,11 +855,17 @@ class SignerRegistry:
             detail=detail,
             verdicts=dict(verdicts or {}),
             at=self._clock(),
+            skip=skip,
+            error=error,
         )
         self._last_shadow[key] = result
         if not compared:
             logger.info(
-                "signing.shadow.skipped", platform=key[0].value, endpoint=key[1], reason=detail
+                "signing.shadow.skipped",
+                platform=key[0].value,
+                endpoint=key[1],
+                skip=skip.value if skip else None,
+                reason=detail,
             )
         elif matched:
             logger.info("signing.shadow.match", platform=key[0].value, endpoint=key[1])
@@ -879,6 +944,7 @@ __all__ = [
     "RiskRateSource",
     "RiskSample",
     "ShadowResult",
+    "ShadowSkip",
     "SignatureComparator",
     "SignerRegistry",
     "SkipComparator",

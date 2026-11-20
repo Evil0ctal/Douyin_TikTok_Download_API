@@ -775,10 +775,21 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 |---|---|---|
 | `signing_ok` | 原生与浏览器签名一致 | 无需处理 |
 | `signing_mismatch` | 原生算法相对平台已经漂移，针对列出的平台 | 这些平台现在改走 browser-rpc 签名。带上报告开一个 issue，好把算法更新掉 |
-| `signing_not_comparable` | 浏览器参考实现的是算法的**另一个版本**，结构性比对说明不了任何问题 | **这不是故障。** 原生路径不受影响，仍然照常服务请求 |
+| `signing_native_failed` | 原生签名器无法为探测请求签名 | 这是 dtk 移植实现的缺陷，出在承载流量的那条路径上。带上报告开一个 issue |
+| `signing_reference_failed` | browser-rpc 没能产出参考签名，结论里引用了它给出的原因 | **不是原生签名器的故障**，它仍然照常服务请求。先修好 browser-rpc（见下表），再跑一次自检 |
+| `signing_not_comparable` | 两边都签了名，但共有的参数里没有可判定的，或者比对本身没能运行，详情里写明是哪一种 | **这不是故障。** 原生路径不受影响，仍然照常服务请求 |
 | `signing_no_browser_rpc` | 没配 browser-rpc，因此没有第二个签名器 | 想要这项检查就设 `DTK_BROWSER_RPC_URL`。它的价值在于抢在风控率之前发现算法过期 |
 
-`signing_not_comparable` 最容易被误读：「无法比对」读起来像失败，但它不是。
+`signing_not_comparable` 和 `signing_reference_failed` 最容易被误读：「无法比对」读起来像签名器坏了，但它不是。
+
+`signing_reference_failed` 引用的 browser-rpc 原话及其含义：
+
+| browser-rpc 的原话 | 含义 |
+|---|---|
+| `the tiktok signing page is no longer on tiktok.com (it is on chrome-error://…)` | 常驻页面加载完之后，经由它的出口（`DTK_BROWSER_SIGN_PROXY_URL`、身份自带的代理或本机）进行的一次跳转失败了。检查这个出口能否正常打开平台站点 |
+| `both attempts, on two different pages through the same exit (…), failed the same way` | 不是某一个页面过期：两个页面共有的东西出了问题，最常见的就是出口 |
+| `Target crashed` | Chromium 崩了，几乎总是浏览器容器的内存或 `/tmp` 空间不够 |
+| `browser-rpc unreachable` | 完全没有响应：容器没在运行，或者 `DTK_BROWSER_RPC_URL` 指错了地方 |
 
 ### 手工复现一个签名
 
