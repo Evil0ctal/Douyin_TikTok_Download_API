@@ -442,8 +442,10 @@ class TestSigningReadiness:
         # the platform moving - not the exit, which a review found the service
         # blaming for this (see TestARepeatedFailureNamesWhatThePagesShare).
         assert "did not load, or the platform changed how it signs" in message
-        assert "re-run the live analysis" in message
-        assert message.index("re-run the live analysis") < message.index("Its last answer")
+        assert "if this exit loads the site, open an issue" in message
+        assert message.index("open an issue") < message.index("Its last answer")
+        # Nothing an operator cannot follow: docs/ is not shipped.
+        assert "docs/design" not in message
         assert excinfo.value.suspect is Suspect.BUNDLE
         # Not kept warm: the context it opened is closed again.
         assert browser.closed == 1
@@ -919,6 +921,58 @@ class TestAFailedOpenLeavesNothingBehind:
         assert browser.closed == 1
         assert list(tmp_path.iterdir()) == []
 
+    async def test_a_close_that_hangs_does_not_hold_the_cancelled_open(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The cleanup is bounded: a browser too wedged to close must not keep
+        the cancelled open - and the caller's budget - waiting on it."""
+        monkeypatch.setattr(cloak, "CLOSE_TIMEOUT_SECONDS", 0.1)
+
+        class HangingPage(StubPage):
+            async def goto(self, url: str, **_: object) -> None:
+                await asyncio.sleep(10)
+
+        class WedgedContext(StubContext):
+            async def close(self) -> None:
+                self.closed += 1
+                await asyncio.sleep(10)
+
+        backend = self._backend(tmp_path)
+        browser = WedgedContext()
+        browser.pages.append(HangingPage())
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            Path(profile_dir).mkdir(parents=True)
+            return browser
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(
+                backend.open_signing_context(Platform.DOUYIN, FALLBACK_PROFILE), 0.05
+            )
+        assert loop.time() - started < 1.0
+        assert browser.closed == 1
+        assert list(tmp_path.iterdir()) == []
+
+    async def test_a_launch_cancelled_midway_removes_its_directory(self, tmp_path: Path) -> None:
+        """Cancellation is not an Exception: a handler that caught only those
+        left the profile of a launch the service gave up on."""
+        backend = self._backend(tmp_path)
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            Path(profile_dir).mkdir(parents=True)
+            await asyncio.sleep(10)
+            raise AssertionError("unreachable")
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(
+                backend.open_signing_context(Platform.DOUYIN, FALLBACK_PROFILE), 0.05
+            )
+        assert list(tmp_path.iterdir()) == []
+
     @pytest.mark.parametrize(
         ("error", "suspect"),
         [
@@ -954,3 +1008,24 @@ class TestAFailedOpenLeavesNothingBehind:
         assert excinfo.value.suspect is suspect
         assert browser.closed == 1
         assert list(tmp_path.iterdir()) == []
+
+
+class TestADeadBrowserIsNamedAsOne:
+    """Playwright says a page or its browser died in more than one way; a load
+    killed while goto waited said "Page crashed" and was put to the exit."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Page.goto: Target crashed",
+            "Page.goto: Page crashed",
+            "Page.goto: Navigation failed because page crashed!",
+            "Page.goto: Target page, context or browser has been closed",
+            "BrowserContext.new_page: Browser has been closed",
+        ],
+    )
+    def test_each_phrasing_implicates_the_browser(self, text: str) -> None:
+        assert cloak.suspect_of(RuntimeError(text)) is Suspect.BROWSER
+
+    def test_a_network_error_implicates_nothing_by_itself(self) -> None:
+        assert cloak.suspect_of(RuntimeError("Page.goto: net::ERR_CONNECTION_RESET")) is None

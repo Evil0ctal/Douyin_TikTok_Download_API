@@ -96,7 +96,7 @@ DTK_BIND_HOST=0.0.0.0 docker compose -p dtk -f docker/compose.yml up -d
 | `DTK_BROWSER_PROFILE_ROOT` | `/tmp/dtk-browser-profiles` | 浏览器 profile 的父目录。compose 固定为 `/profiles`，那是一块 tmpfs，因此一次性的铸造 profile 永远不落盘。 |
 | `DTK_BROWSER_WARM_CONTEXTS` | `1` | 每个平台常驻的热签名上下文数量。每个常驻上下文大约占容器 `/tmp` 的 300 MB，再乘以两个平台——这是内存预算，不是磁盘空间。 |
 | `DTK_BROWSER_WARM_REFRESH_SECONDS` | `1800` | 热上下文最多存活多久就重建。平台会不断更新自己的 JavaScript，页面放旧了就会用旧代码签名。 |
-| `DTK_BROWSER_PREWARM` | `true` | 启动时预热，让第一次签名不必承担冷启动。 |
+| `DTK_BROWSER_PREWARM` | `true` | 启动时预热，让第一次签名不必承担冷启动。预热在后台进行，设置了 `DTK_BROWSER_SIGN_PROXY_URL` 时经由它；某个平台的页面没能打开，会在 30 秒后重试，间隔逐次翻倍，最长 10 分钟——所以启动时签名代理不可用，等它恢复后也不需要重启。 |
 | `DTK_BROWSER_MAX_CONCURRENT_MINTS` | `2` | 最多同时铸造几个身份。 |
 | `DTK_BROWSER_MINT_TIMEOUT_SECONDS` | `75` | 单次铸造的服务端预算。 |
 | `DTK_BROWSER_SIGN_TIMEOUT_SECONDS` | `8` | 单次签名的服务端预算。 |

@@ -97,7 +97,7 @@ From `docker/browser_rpc/settings.py`. Set these in the root `.env`; compose pin
 | `DTK_BROWSER_PROFILE_ROOT` | `/tmp/dtk-browser-profiles` | Parent directory for browser profiles. Compose pins `/profiles`, which is a tmpfs, so a single-use mint profile never touches a disk. |
 | `DTK_BROWSER_WARM_CONTEXTS` | `1` | Warm signing contexts kept per platform. Each resident context costs roughly 300 MB of the container's `/tmp`, times two platforms — this is a RAM budget, not free space. |
 | `DTK_BROWSER_WARM_REFRESH_SECONDS` | `1800` | How old a warm context may get before it is rebuilt. The platforms ship new JavaScript regularly and a stale page signs with stale code. |
-| `DTK_BROWSER_PREWARM` | `true` | Prewarm at startup so the first signature does not pay for a cold page. |
+| `DTK_BROWSER_PREWARM` | `true` | Prewarm at startup so the first signature does not pay for a cold page. It runs in the background, through `DTK_BROWSER_SIGN_PROXY_URL` when that is set, and a platform whose page could not open is tried again after 30 seconds, doubling up to 10 minutes - so a signing proxy that was down at start needs no restart once it is back. |
 | `DTK_BROWSER_MAX_CONCURRENT_MINTS` | `2` | How many identities may be minted at once. |
 | `DTK_BROWSER_MINT_TIMEOUT_SECONDS` | `75` | Service-side budget for one mint. |
 | `DTK_BROWSER_SIGN_TIMEOUT_SECONDS` | `8` | Service-side budget for one signature. |

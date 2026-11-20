@@ -219,6 +219,26 @@ ERROR_EXCERPT_CHARS: Final = 300
 #: reported as "its renderer crashed", which nobody could find in the docs.
 TARGET_CRASHED: Final = "Target crashed"
 
+#: Every way the driver says a page or its browser died, as phrased by
+#: Playwright 1.64. A renderer killed while ``goto`` waits is "Page crashed"
+#: (``Page._didCrash``), not "Target crashed", which only the CDP crash error is
+#: rewritten to; a dead browser process is the closed-target default. Matching
+#: only the first blamed an OOM-killed page load on the exit (review of the
+#: #830 fix), which is the misattribution `Suspect` was added to stop.
+BROWSER_DEATH: Final = (
+    TARGET_CRASHED,
+    "Page crashed",
+    "Navigation failed because page crashed",
+    "Target page, context or browser has been closed",
+    "Browser has been closed",
+)
+
+
+def names_a_dead_browser(text: str) -> bool:
+    """Whether a driver message says the page or its browser died."""
+    return any(phrase in text for phrase in BROWSER_DEATH)
+
+
 #: What Playwright says when the document an evaluate ran in was replaced
 #: under it: the page was navigating. On its own it names a driver detail, and
 #: the page's URL can still be the platform's at that instant.
@@ -439,7 +459,7 @@ def suspect_of(error: object) -> Suspect | None:
     """What a driver error implicates, read from its text; None when it says nothing."""
     if isinstance(error, RpcError):
         return error.suspect
-    return Suspect.BROWSER if TARGET_CRASHED in str(error) else None
+    return Suspect.BROWSER if names_a_dead_browser(str(error)) else None
 
 
 def _page_url(page: Any) -> str | None:
@@ -516,7 +536,7 @@ class CloakSigningContext:
         briefly and the page asked again where it is.
         """
         detail = _excerpt(error)
-        if self._crashed or TARGET_CRASHED in detail:
+        if self._crashed or names_a_dead_browser(detail):
             return renderer_crashed(self._platform)
         navigating = NAVIGATING in detail
         where = (
@@ -587,11 +607,15 @@ class CloakSigningContext:
                 if isinstance(result, dict)
                 else "no result"
             )
+            # For whoever edits this file: re-run the live analysis in
+            # docs/design/04-transport-signing.md before touching the script.
+            # Not in the message, which an operator reads in a log or a 502
+            # body, where that path does not exist (docs/ is not shipped).
             raise BackendFailure(
                 f"the {self._platform.value} SDK produced no signature ({reason}). "
                 "Either the page had not finished loading its security bundle, or "
-                "the platform changed how it signs; re-run the live analysis in "
-                "docs/design/04-transport-signing.md before editing this file."
+                "the platform changed how it signs; if this exit loads the site, "
+                "open an issue."
             )
 
         signed = _string_fields(result.get("params"))
@@ -1048,9 +1072,8 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
             raise BackendFailure(
                 f"the {platform.value} signing page could not sign within {budget:.0f}s "
                 f"({attempts} probes): either its security bundle did not load, or the "
-                "platform changed how it signs - re-run the live analysis in "
-                "docs/design/04-transport-signing.md before editing this file. "
-                f"Its last answer: {last_answer}",
+                "platform changed how it signs - if this exit loads the site, open an "
+                f"issue. Its last answer: {last_answer}",
                 suspect=Suspect.BUNDLE,
             )
         await asyncio.sleep(delay)

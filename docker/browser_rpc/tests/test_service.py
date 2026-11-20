@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from browser_rpc import service as service_module
 from browser_rpc.backends.base import MintedProfile, MintPlan, SignPlan
 from browser_rpc.backends.fake import FakeBackend, FakeSigningContext
 from browser_rpc.errors import (
@@ -175,6 +176,7 @@ class TestMinting:
             probe=probe_returning(ExitInfo(ip="203.0.113.9", country="JP")),
         )
         await service.start()
+        await service.prewarmed()
         try:
             outcome = await service.mint(Platform.TIKTOK, "http://gate.example:8080", None)
         finally:
@@ -197,6 +199,7 @@ class TestMinting:
     async def test_profile_is_removed_after_a_failure(self, settings: Settings) -> None:
         service = BrowserRpcService(settings, FailingBackend())
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure):
                 await service.mint(Platform.DOUYIN, None, None)
@@ -209,6 +212,7 @@ class TestMinting:
     async def test_timeout_is_reported_not_hung(self, settings: Settings) -> None:
         service = BrowserRpcService(replace(settings, mint_timeout_seconds=0.05), SlowBackend())
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(OperationTimeout):
                 await service.mint(Platform.DOUYIN, None, None)
@@ -219,6 +223,7 @@ class TestMinting:
         backend = ConcurrencyBackend()
         service = BrowserRpcService(replace(settings, max_concurrent_mints=2), backend)
         await service.start()
+        await service.prewarmed()
         try:
             await asyncio.gather(*(service.mint(Platform.DOUYIN, None, None) for _ in range(6)))
         finally:
@@ -251,6 +256,7 @@ class TestSigning:
         backend = RecordingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             await service.sign(
                 Platform.DOUYIN,
@@ -275,6 +281,7 @@ class TestSigning:
         backend = CountingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             for _ in range(3):
                 await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
@@ -290,6 +297,7 @@ class TestSigning:
             replace(settings, warm_refresh_seconds=60.0), backend, clock=clock
         )
         await service.start()
+        await service.prewarmed()
         try:
             await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
             clock.advance(61)
@@ -304,6 +312,7 @@ class TestSigning:
         backend = FlakyBackend(heal_after=1)
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             signed = await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
         finally:
@@ -314,6 +323,7 @@ class TestSigning:
     async def test_gives_up_after_the_retry(self, settings: Settings) -> None:
         service = BrowserRpcService(settings, FlakyBackend(heal_after=99))
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure):
                 await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
@@ -329,6 +339,7 @@ class TestSigning:
             replace(settings, sign_proxy_url="http://user:secret@gate.example:8080"), backend
         )
         await service.start()
+        await service.prewarmed()
         try:
             await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
         finally:
@@ -342,6 +353,7 @@ class TestSigning:
         backend = CountingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
         finally:
@@ -357,6 +369,7 @@ class TestHealth:
     async def test_reports_warm_contexts_and_versions(self, settings: Settings) -> None:
         service = BrowserRpcService(replace(settings, prewarm=True), FakeBackend())
         await service.start()
+        await service.prewarmed()
         try:
             body = service.health()
         finally:
@@ -383,6 +396,7 @@ class TestHealth:
 
         service = BrowserRpcService(settings, DeadBackend())
         await service.start()
+        await service.prewarmed()
         body = service.health()
         assert body["status"] == "unavailable"
         assert "cloakbrowser" in body["error"]
@@ -409,6 +423,7 @@ class TestSigningInTheCallersOwnSession:
         backend = CountingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             signed = await service.sign(
                 Platform.DOUYIN,
@@ -428,6 +443,7 @@ class TestSigningInTheCallersOwnSession:
         backend = CountingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             first = await service.sign(
                 Platform.DOUYIN,
@@ -458,6 +474,7 @@ class TestSigningInTheCallersOwnSession:
         backend = CountingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             for _ in range(4):
                 await service.sign(
@@ -482,6 +499,7 @@ class TestSigningInTheCallersOwnSession:
         backend = CountingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             for exit_url in ("http://proxy-a:8080", "http://proxy-b:8080"):
                 await service.sign(
@@ -515,6 +533,7 @@ class TestSigningInTheCallersOwnSession:
         backend = CountingBackend()
         service = BrowserRpcService(replace(settings, warm_contexts=1), backend)
         await service.start()
+        await service.prewarmed()
         try:
             for name in ("a", "b", "a", "c"):
                 await service.sign(
@@ -537,6 +556,7 @@ class TestSigningInTheCallersOwnSession:
         backend = CountingBackend()
         service = BrowserRpcService(replace(settings, warm_contexts=2), backend)
         await service.start()
+        await service.prewarmed()
         try:
             await asyncio.gather(
                 *[
@@ -616,6 +636,7 @@ class TestOpeningFailuresAreRetried:
         backend = CrashesOnceBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             signed = await service.sign(
                 Platform.DOUYIN,
@@ -647,6 +668,7 @@ class TestOpeningFailuresAreRetried:
 
         service = BrowserRpcService(settings, DeadBackend())
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure, match="renderer keeps dying"):
                 await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
@@ -668,6 +690,7 @@ class TestOpeningFailuresAreRetried:
 
         service = BrowserRpcService(settings, DeadBackend())
         await service.start()
+        await service.prewarmed()
         try:
             for _ in range(3):
                 with pytest.raises(BackendFailure):
@@ -697,6 +720,7 @@ class TestAPageThatWentBadIsNeverReused:
         backend = RecordingBackend()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
             first = backend.contexts[0]
@@ -737,6 +761,7 @@ class TestAPageThatWentBadIsNeverReused:
         backend = AlwaysLeaves()
         service = BrowserRpcService(settings, backend)
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure) as excinfo:
                 await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
@@ -787,6 +812,7 @@ class TestAPageThatWentBadIsNeverReused:
             replace(settings, sign_proxy_url=sign_proxy), LeavesThroughItsExit()
         )
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure) as excinfo:
                 await service.sign(
@@ -817,6 +843,7 @@ class TestAPageThatWentBadIsNeverReused:
 
         service = BrowserRpcService(settings, DiesDifferently())
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure) as excinfo:
                 await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
@@ -857,8 +884,8 @@ class TestARepeatedFailureNamesWhatThePagesShare:
     NEVER_SIGNED = (
         "could not warm a signing page for tiktok: the tiktok signing page could not sign "
         "within 25s (15 probes): either its security bundle did not load, or the platform "
-        "changed how it signs - re-run the live analysis in docs/design/04-transport-signing.md "
-        "before editing this file. Its last answer: the SDK added nothing"
+        "changed how it signs - if this exit loads the site, open an issue. Its last answer: "
+        "the SDK added nothing"
     )
 
     @pytest.mark.parametrize(
@@ -879,6 +906,7 @@ class TestARepeatedFailureNamesWhatThePagesShare:
     ) -> None:
         service = BrowserRpcService(settings, _RepeatsItself("it went wrong", suspect))
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure) as excinfo:
                 await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
@@ -893,6 +921,7 @@ class TestARepeatedFailureNamesWhatThePagesShare:
         backend = _RepeatsItself(self.NEVER_SIGNED, Suspect.BUNDLE)
         service = BrowserRpcService(replace(settings, sign_proxy_url="http://gate:8080"), backend)
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(BackendFailure) as excinfo:
                 await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
@@ -902,6 +931,34 @@ class TestARepeatedFailureNamesWhatThePagesShare:
         assert message.startswith(self.NEVER_SIGNED)
         assert "the platform changed how it signs" in message
         assert "loading the same platform bundle through the same exit (sign_proxy)" in message
+
+    async def test_two_pages_that_fit_different_probe_counts_are_one_failure(
+        self, settings: Settings
+    ) -> None:
+        """The count of probes that fit in the budget differs by one between two
+        pages often enough that comparing whole messages dropped the note."""
+
+        class CountsDiffer(_RepeatsItself):
+            async def open_signing_context(self, *args: Any, **kwargs: Any) -> FakeSigningContext:
+                self.contexts_opened += 1
+                raise BackendFailure(
+                    self.message.replace("(15 probes)", f"({13 + self.contexts_opened} probes)"),
+                    suspect=self.suspect,
+                )
+
+        backend = CountsDiffer(self.NEVER_SIGNED, Suspect.BUNDLE)
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        await service.prewarmed()
+        try:
+            with pytest.raises(BackendFailure) as excinfo:
+                await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+        finally:
+            await service.close()
+        assert "(15 probes)" in excinfo.value.message
+        assert "loading the same platform bundle through the same exit (direct)" in (
+            excinfo.value.message
+        )
 
     async def test_an_open_that_hangs_is_put_to_the_exit(self, settings: Settings) -> None:
         class Hangs(CountingBackend):
@@ -917,6 +974,7 @@ class TestARepeatedFailureNamesWhatThePagesShare:
 
         service = BrowserRpcService(replace(settings, context_open_timeout_seconds=0.05), Hangs())
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(OperationTimeout) as excinfo:
                 await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
@@ -941,6 +999,7 @@ class TestARepeatedFailureNamesWhatThePagesShare:
         )
         service = BrowserRpcService(settings, _RepeatsItself(failure.message, failure.suspect))
         await service.start()
+        await service.prewarmed()
         try:
             with pytest.raises(RpcError) as excinfo:
                 await service.sign(
@@ -972,6 +1031,7 @@ class TestPrewarmGoesOutTheConfiguredExit:
             backend,
         )
         await service.start()
+        await service.prewarmed()
         try:
             assert backend.contexts_opened == len(Platform)
             assert all(
@@ -990,6 +1050,7 @@ class TestPrewarmGoesOutTheConfiguredExit:
         backend = CountingBackend()
         service = BrowserRpcService(replace(settings, prewarm=True), backend)
         await service.start()
+        await service.prewarmed()
         try:
             assert backend.context_proxies == [None] * len(Platform)
             await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
@@ -1007,6 +1068,7 @@ class TestPrewarmGoesOutTheConfiguredExit:
         )
         caplog.set_level("WARNING", logger="browser_rpc.service")
         await service.start()
+        await service.prewarmed()
         try:
             assert service.health()["status"] == "ok"
             assert service.health()["warm_contexts"] == 0
@@ -1035,7 +1097,74 @@ class TestPrewarmGoesOutTheConfiguredExit:
             replace(settings, prewarm=True, sign_proxy_url="http://127.0.0.1:9"), DeadExit()
         )
         await service.start()
+        await service.prewarmed()
         try:
             assert service.health()["warm_contexts"] == 0
         finally:
             await service.close()
+
+    async def test_a_proxy_that_comes_back_fills_the_pool_without_a_request(
+        self, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """dtk routes here only while /rpc/health shows a warm context, so the
+        request that would have filled an empty pool never came: a signing
+        proxy that was down at boot left browser-rpc unused after it recovered."""
+        monkeypatch.setattr(service_module, "PREWARM_RETRY_SECONDS", 0.01)
+        monkeypatch.setattr(service_module, "PREWARM_RETRY_MAX_SECONDS", 0.02)
+
+        class RecoveringExit(CountingBackend):
+            def __init__(self) -> None:
+                super().__init__()
+                self.refusals = 3
+
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                if self.refusals > 0:
+                    self.refusals -= 1
+                    raise BackendFailure("net::ERR_PROXY_CONNECTION_FAILED", suspect=Suspect.EXIT)
+                return await super().open_signing_context(platform, geo, proxy, cookies)
+
+        service = BrowserRpcService(
+            replace(settings, prewarm=True, sign_proxy_url="http://127.0.0.1:9"), RecoveringExit()
+        )
+        await service.start()
+        try:
+            for _ in range(200):
+                if service.health()["warm_contexts"] == len(Platform):
+                    break
+                await asyncio.sleep(0.01)
+            assert service.health()["warm_contexts"] == len(Platform)
+        finally:
+            await service.close()
+
+    async def test_the_service_answers_while_a_prewarm_hangs(self, settings: Settings) -> None:
+        """Prewarm used to be awaited before the port opened: an exit that
+        neither answered nor refused held /rpc/health and /rpc/mint shut."""
+        opened = asyncio.Event()
+
+        class HangingExit(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                opened.set()
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+
+        service = BrowserRpcService(replace(settings, prewarm=True), HangingExit())
+        await asyncio.wait_for(service.start(), timeout=1.0)
+        try:
+            await asyncio.wait_for(opened.wait(), timeout=1.0)
+            # Answered while the open is still in flight.
+            assert service.health()["status"] == "ok"
+        finally:
+            # Closing cancels the hung open rather than waiting it out.
+            await asyncio.wait_for(service.close(), timeout=2.0)

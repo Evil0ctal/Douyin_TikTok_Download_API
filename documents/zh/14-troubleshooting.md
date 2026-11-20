@@ -791,7 +791,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 | `could not load https://…` | 页面根本没能经由它的出口加载出来。后半句是 Chromium 自己的报错（`net::ERR_PROXY_CONNECTION_FAILED`、超时等） |
 | `could not sign within …s` | 页面一直停在平台上，但它的安全 bundle 始终没签出名：要么 bundle 没加载上，要么平台改了签名方式。如果这个出口能正常打开站点，那就是后者——请开一个 issue |
 | `…; both attempts failed this way, on two different pages …` | 不是某一个页面过期：换了新页面也是同样的失败。后半句写的是两个页面共有、且与这种失败对得上的东西——跳转失败写 `through the same exit`，始终签不出名写 `loading the same platform bundle`，崩溃写 `in the same browser container` |
-| `Target crashed`、`renderer crashed` | Chromium 崩了，几乎总是浏览器容器的内存或 `/tmp` 空间不够。browser-rpc 自己发现崩溃时写的是 `renderer crashed (Target crashed)`，`browser_rpc.warm.discarded` 日志行里也是这样 |
+| `Target crashed`、`Page crashed`、`renderer crashed`、`… has been closed` | Chromium 崩了，几乎总是浏览器容器的内存或 `/tmp` 空间不够。页面还在加载时被杀掉会写 `Page crashed`，浏览器进程本身死掉会写 `Target page, context or browser has been closed`。browser-rpc 自己发现崩溃时写的是 `renderer crashed (Target crashed)`，`browser_rpc.warm.discarded` 日志行里也是这样 |
 | `browser-rpc unreachable` | 完全没有响应：容器没在运行，或者 `DTK_BROWSER_RPC_URL` 指错了地方 |
 | `browser-rpc did not answer within …s` | browser-rpc 在运行，但它的两次尝试加起来超过了 `signing.rpc_timeout_seconds`，通常是出口卡住而不是直接拒绝。原因在它自己的日志里：找 `browser_rpc.sign.open_failed` |
 

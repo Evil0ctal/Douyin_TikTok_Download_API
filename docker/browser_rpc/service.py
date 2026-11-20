@@ -25,6 +25,7 @@ import asyncio
 import contextlib
 import hashlib
 import logging
+import re
 import shutil
 import tempfile
 import time
@@ -54,6 +55,7 @@ from browser_rpc.settings import Settings
 from browser_rpc.validation import (
     LANDING_URLS,
     Platform,
+    ProxyEndpoint,
     validate_proxy_url,
     validate_target_url,
 )
@@ -65,6 +67,15 @@ logger = logging.getLogger(__name__)
 #: configured. With DTK_BROWSER_SIGN_PROXY_URL set, the same caller's binding is
 #: that proxy's (see `binding_key`), and so is what prewarm builds.
 ANONYMOUS = "anonymous"
+
+#: How long a platform whose prewarm failed waits before it is tried again, and
+#: the ceiling the wait doubles up to. Retried at all because dtk routes to this
+#: service only while /rpc/health reports a warm context: a pool left empty by a
+#: signing proxy that was down at boot stayed empty after the proxy came back,
+#: since the request that would have filled it was never sent (review of the
+#: #830 fix).
+PREWARM_RETRY_SECONDS: float = 30.0
+PREWARM_RETRY_MAX_SECONDS: float = 600.0
 
 
 def binding_key(cookies: Mapping[str, str] | None, proxy_url: str | None) -> str:
@@ -148,6 +159,9 @@ class BrowserRpcService:
         self._backend = backend
         self._clock = clock
         self._probe = probe
+        self._prewarm_task: asyncio.Task[None] | None = None
+        #: Set once prewarm has tried every platform, whatever the outcome.
+        self._first_prewarm = asyncio.Event()
         self._started_at = clock()
         self._start_error: str | None = None
         self._running = False
@@ -174,10 +188,12 @@ class BrowserRpcService:
         except RpcError as exc:
             self._start_error = exc.message
             logger.error("browser_rpc.backend_unavailable error=%s", exc.message)
+            self._first_prewarm.set()
             return
         except Exception as exc:
             self._start_error = str(exc)
             logger.exception("browser_rpc.backend_start_failed")
+            self._first_prewarm.set()
             return
 
         self._running = True
@@ -188,7 +204,18 @@ class BrowserRpcService:
             self._settings.warm_contexts,
         )
         if self._settings.prewarm and self._settings.warm_contexts > 0:
-            await self._prewarm()
+            # In the background, so the service answers /rpc/health and
+            # /rpc/mint at once. Awaited here it held the port closed for as
+            # long as two opens could hang on an exit that neither answered nor
+            # refused - up to a minute and a half through a bad signing proxy,
+            # with minting blocked too although it never uses that proxy.
+            self._prewarm_task = asyncio.create_task(self._prewarm())
+        else:
+            self._first_prewarm.set()
+
+    async def prewarmed(self) -> None:
+        """Wait until prewarm has tried every platform once."""
+        await self._first_prewarm.wait()
 
     async def _prewarm(self) -> None:
         """Build one context per platform so the first signature is fast.
@@ -212,28 +239,78 @@ class BrowserRpcService:
         try:
             proxy = validate_proxy_url(exit_url)
         except RpcError as exc:
+            # A configuration error, not an outage: retrying cannot fix it.
             logger.warning("browser_rpc.prewarm_failed exit=%s error=%s", kind, exc.message)
+            self._first_prewarm.set()
             return
         binding = binding_key({}, exit_url)
-        for platform in Platform:
-            pool = self._pools[platform]
-            try:
-                slot = await self._open_slot(platform, binding, None, proxy)
-            except RpcError as exc:
-                # Not fatal: the pool fills lazily on the first request.
-                logger.warning(
-                    "browser_rpc.prewarm_failed platform=%s exit=%s error=%s",
-                    platform.value,
+        missing = list(Platform)
+        delay = PREWARM_RETRY_SECONDS
+        try:
+            while self._running:
+                missing = [
+                    platform
+                    for platform in missing
+                    if not await self._prewarm_one(platform, binding, proxy, kind)
+                ]
+                self._first_prewarm.set()
+                if not missing:
+                    return
+                logger.info(
+                    "browser_rpc.prewarm_retry platforms=%s exit=%s in_s=%.0f",
+                    ",".join(platform.value for platform in missing),
                     kind,
-                    exc.message,
+                    delay,
                 )
-                continue
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, PREWARM_RETRY_MAX_SECONDS)
+        finally:
+            self._first_prewarm.set()
+
+    async def _prewarm_one(
+        self, platform: Platform, binding: str, proxy: ProxyEndpoint | None, kind: str
+    ) -> bool:
+        """Open one prewarmed page for ``platform``; False when it should be retried.
+
+        Nothing is opened when a request has got there first - a page under the
+        same binding is already idle, or the pool is full - because what prewarm
+        is for has then already happened.
+        """
+        pool = self._pools[platform]
+        async with pool.cond:
+            if pool.live >= pool.capacity or any(s.binding == binding for s in pool.idle):
+                return True
+            pool.live += 1
+        try:
+            slot = await self._open_slot(platform, binding, None, proxy)
+        except RpcError as exc:
             async with pool.cond:
-                pool.live += 1
-                pool.idle.append(slot)
+                pool.live -= 1
+                pool.cond.notify_all()
+            logger.warning(
+                "browser_rpc.prewarm_failed platform=%s exit=%s error=%s",
+                platform.value,
+                kind,
+                exc.message,
+            )
+            return False
+        except BaseException:
+            async with pool.cond:
+                pool.live -= 1
+                pool.cond.notify_all()
+            raise
+        async with pool.cond:
+            pool.idle.append(slot)
+            pool.cond.notify_all()
+        return True
 
     async def close(self) -> None:
         self._running = False
+        if self._prewarm_task is not None:
+            self._prewarm_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._prewarm_task
+            self._prewarm_task = None
         for platform, pool in self._pools.items():
             async with pool.cond:
                 idle, pool.idle = pool.idle, []
@@ -644,7 +721,7 @@ def _final_error(failures: list[RpcError], exit_kind: str) -> RpcError:
     if not failures:
         return BackendFailure("signing produced no result")
     last = failures[-1]
-    if len(failures) > 1 and all(f.message == last.message for f in failures):
+    if len(failures) > 1 and all(_cause(f) == _cause(last) for f in failures):
         shared = _SHARED.get(last.suspect, "").format(exit=exit_kind)
         where = f"on two different pages {shared}" if shared else "on two different pages"
         return type(last)(
@@ -653,6 +730,21 @@ def _final_error(failures: list[RpcError], exit_kind: str) -> RpcError:
             suspect=last.suspect,
         )
     return last
+
+
+#: The one count a repeated failure's message carries that differs between two
+#: pages failing for the same reason.
+_PROBE_COUNT = re.compile(r"\(\d+ probes\)")
+
+
+def _cause(error: RpcError) -> tuple[type, Suspect | None, str]:
+    """What makes two failures the same failure, with the counts taken out.
+
+    Comparing whole messages dropped the note for the case it was written for:
+    a page that never signed reports how many probes fit in its budget, and two
+    pages often differ by one (review of the #830 fix).
+    """
+    return type(error), error.suspect, _PROBE_COUNT.sub("(# probes)", error.message)
 
 
 __all__ = ["ANONYMOUS", "BrowserRpcService", "MintOutcome", "WarmSlot", "binding_key"]
