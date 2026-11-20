@@ -45,6 +45,7 @@ from dtk.models import (
     LiveStatus,
     LiveStream,
     Media,
+    MediaAccess,
     Mix,
     Music,
     MusicDetail,
@@ -69,6 +70,13 @@ _PLATFORM: Final = Platform.TIKTOK
 _NAME: Final = _PLATFORM.value
 
 WEB_DOMAIN: Final = "https://www.tiktok.com"
+
+#: Covers and album slides are served to anyone who sends the Referer.
+ACCESS: Final = MediaAccess(referer=f"{WEB_DOMAIN}/")
+#: A video's links say `tk=tt_chain_token`: the CDN serves them only with the
+#: tt_chain_token cookie of the session that fetched them, and that cookie is
+#: an identity's, not the caller's (#831).
+VIDEO_ACCESS: Final = MediaAccess(referer=f"{WEB_DOMAIN}/", session_bound=True)
 
 #: Status codes seen on risk-control responses rather than on data.
 #:
@@ -376,7 +384,7 @@ def _media(
         images = _album_images(image_post) if image_post is not None else []
         if require_media and not images:
             raise item.missing("imagePost")
-        return Media(covers=covers, video=None, streams=[], images=images)
+        return Media(covers=covers, video=None, streams=[], images=images, access=ACCESS)
 
     main: VideoStream | None = None
     streams: list[VideoStream] = []
@@ -398,7 +406,8 @@ def _media(
         if video is None:
             raise item.missing("video")
         raise video.missing("playAddr")
-    return Media(covers=covers, video=main, streams=streams, images=[])
+    access = VIDEO_ACCESS if main is not None or streams else ACCESS
+    return Media(covers=covers, video=main, streams=streams, images=[], access=access)
 
 
 def _tags(item: Node) -> list[str]:

@@ -46,6 +46,7 @@ from dtk.models import (
     LiveStream,
     LiveViewer,
     Media,
+    MediaAccess,
     Mix,
     Music,
     MusicDetail,
@@ -72,6 +73,10 @@ _PLATFORM: Final = Platform.DOUYIN
 _NAME: Final = _PLATFORM.value
 
 WEB_DOMAIN: Final = "https://www.douyin.com"
+
+#: douyinvod.com answers 403 to a video request without this Referer (#829),
+#: which is the whole of what a caller fetching the links needs to know.
+ACCESS: Final = MediaAccess(referer=f"{WEB_DOMAIN}/")
 
 #: Status codes seen on risk-control responses rather than on data.
 #:
@@ -311,7 +316,7 @@ def _media(detail: Node, kind: ContentKind, *, require_media: bool) -> Media:
         images = _album_images(detail, require_media=require_media)
         if require_media and not images:
             raise detail.missing("images")
-        return Media(covers=covers, video=None, streams=[], images=images)
+        return Media(covers=covers, video=None, streams=[], images=images, access=ACCESS)
 
     main: VideoStream | None = None
     streams: list[VideoStream] = []
@@ -331,7 +336,7 @@ def _media(detail: Node, kind: ContentKind, *, require_media: bool) -> Media:
         if video is None:
             raise detail.missing("video")
         raise video.missing("play_addr")
-    return Media(covers=covers, video=main, streams=streams, images=[])
+    return Media(covers=covers, video=main, streams=streams, images=[], access=ACCESS)
 
 
 def _tags(detail: Node) -> list[str]:

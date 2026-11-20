@@ -456,6 +456,20 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 
 这两套机制也解释了为什么同一个请求的两种写法会合并：`?url=https://www.douyin.com/video/7123…` 和 `?aweme_id=7123…` 会被提取成同样的参数，拿到同一个任务 ID。
 
+## 直接使用媒体链接
+
+`media.video.url`、`media.streams[].url` 这些是平台自己签过名的 CDN 地址，不经过实例。拿去直接请求之前，有三件事要知道，每个作品的 `media.access` 会告诉你其中两件：
+
+```json
+"access": { "referer": "https://www.douyin.com/", "session_bound": false }
+```
+
+- **`referer`：CDN 要核对的 Referer。** 抖音的 `douyinvod.com` 不带 `Referer: https://www.douyin.com/` 一律 403。所以把链接贴进浏览器地址栏（不带 Referer）会 403，在自己网页里用 `<video>` 播放（带的是你自己站点的 Referer）也会 403。B 站同理，要带 `https://www.bilibili.com/`。
+- **`session_bound`：链接绑定了取到它的那个会话。** TikTok 视频链接里带着 `tk=tt_chain_token`，CDN 只在请求带上取链接那个会话的 `tt_chain_token` Cookie 时才给文件，其他人一律 403，带对 Referer 也没用。其中 `www.tiktok.com/aweme/v1/play/` 开头的几个镜像会跳转到一份不绑定会话的视频，但只在部分出口上是这样，在别的出口上跳到的是网页。这个 Cookie 属于实例身份池里的某个身份，不会交给调用方。这类作品请用 [`POST /api/v1/downloads`](./08-downloads-and-library.md) 存下来，下载器会带上它需要的东西。
+- **链接会过期。** 抖音链接路径里有一段十六进制的 Unix 时间戳，就是到期时间，签发后大约几个小时；TikTok 的在查询串的 `expire=` 里。过期之后换哪个域名、带什么头都是 403，重新解析一次（`?refresh=true`）拿新的。
+
+`/api/v1/downloads` 会自己处理这三件事：带上对应的 Referer，TikTok 作品先重新取一次详情再带着那个会话的 token 下载，存下来的链接过期了也会先重新解析。只想要文件的话，用它比自己拿链接省事。
+
 ## `?include_raw=`
 
 在归一化结果之外，附上平台自己那份未经处理的原始载荷。默认关闭，开之前值得先了解：

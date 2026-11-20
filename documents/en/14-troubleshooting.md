@@ -88,6 +88,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | browser-rpc is down or was never started | [The browser container is unavailable](#the-browser-container-is-unavailable) |
 | Building the browser image hangs at `Downloading from https://cloakbrowser.dev/…` | [The build hangs downloading Chromium](#the-build-hangs-downloading-chromium) |
 | Downloads fail, or the files are not there | [Downloads fail or files are missing](#downloads-fail-or-files-are-missing) |
+| Fetching `media.video.url` directly answers `403` | [A media link answers 403 when fetched directly](#a-media-link-answers-403-when-fetched-directly) |
 | A download's progress counts files and never bytes, or a Bilibili download ends `partial` with an empty video | [Progress counts only files, or a Bilibili video lands empty](#progress-counts-only-files-or-a-bilibili-video-lands-empty) |
 | Collection stopped on its own; `CAPACITY_PAUSED` alert | [The disk is full](#the-disk-is-full) |
 | A proxy is marked unhealthy | [Proxies fail their probe](#proxies-fail-their-probe) |
@@ -967,13 +968,41 @@ Two mechanisms delete media, and both announce themselves:
 
 The maintenance sweep runs every 300 seconds and settles downloads older than 7200 seconds that are still in a live state, marking them `failed` with *the worker never reported an outcome for this download*. Files that did land stay where they are. If it never settles, the worker is not running.
 
+### A TikTok video fails with a row of `answered 403`
+
+TikTok's video links are served only to the session that fetched them: the request that asked for them has to carry that session's own `device_id`, and the download has to carry the same session's `tt_chain_token` (see [A media link answers 403 when fetched directly](#a-media-link-answers-403-when-fetched-directly)). So the first time a TikTok identity is used, the instance opens TikTok's home page as that identity once and keeps the device id it states; and a TikTok download always fetches the post again and downloads with that identity's `tt_chain_token`. A reason reading `all N mirrors failed: … answered 403` means that did not work out:
+
+- The fresh fetch failed (an empty pool, risk control), so the download fell back to the archived links, which do not accept this session. Press **Retry** on the download's row on `/downloads` once the pool has recovered.
+- The identity's device id could not be read. The worker log has `fetch.device_id.unread`, and the page is asked again after an hour; if it never is, retire the identity and let the pool mint another.
+- The identity's jar has no `tt_chain_token`. The worker log's `media.download.bound_cookies` line shows an empty `carried`. Retire it as well.
+- The identity goes out through a proxy, the downloader goes direct, and the CDN also checks the exit address. Not measured so far; if you meet it, open an issue with those log lines.
+
+5.1.11 and earlier made up a device id for every request, so no session could open the CDN links it got, and a download depended on the `www.tiktok.com/aweme/v1/play/` mirrors further down the list. Those redirect - to an unbound copy of the video from some exits, to a web page from others. The old versions also reported only the last mirror's reason, so what you saw was `www.tiktok.com answered content-type "text/html…"` while the mirrors before it had all answered 403.
+
 ### The links expired before the transfer started
 
-Signed CDN links expire within hours. `media.mirror_max_age_seconds` (600) is how old an archived media link may be before a download re-parses the post to get fresh ones; `0` always re-parses.
+Signed CDN links expire within hours. `media.mirror_max_age_seconds` (600) is how old an archived media link may be before a download re-parses the post to get fresh ones; `0` always re-parses. A TikTok post ignores the setting and is re-parsed on every download, for the reason in the section above.
 
 ### The API will not serve me the file
 
 By design for the downloader: it is a sink, never a relay. The API mounts the media volume read-only and serves stored files to the console behind the `media:read` scope; the downloader itself never relays media to callers. See [Downloads, library and watchlist](./08-downloads-and-library.md).
+
+---
+
+## A media link answers 403 when fetched directly
+
+**Symptom.** `media.video.url` from a parse result, fetched directly - opened in a browser, with curl, in a `<video>` on your own page, from a client in another language - answers `403 Forbidden`.
+
+**What it means.** These are the platform's signed CDN URLs, and the CDNs check more than the signature. Each post's `media.access` says what is needed; the API guide's [Using media links directly](./11-api.md#using-media-links-directly) has the details:
+
+| Platform | Why the 403 | What to do |
+|---|---|---|
+| Douyin | No `Referer: https://www.douyin.com/`. A browser's address bar sends none, and a `<video>` on a web page sends your own site's, so both get a 403 | Send `media.access.referer` with the request. To play it in a page, have your backend relay it with that header |
+| Bilibili | The same, with `https://www.bilibili.com/` | The same |
+| TikTok | `media.access.session_bound` is `true`: the link carries `tk=tt_chain_token` and is served only to the session that fetched it | A caller cannot have that session's cookie; store the post with `POST /api/v1/downloads`. The mirrors starting `www.tiktok.com/aweme/v1/play/` work directly from some exits, with no promise |
+| Any | The link has expired. The hexadecimal segment in a Douyin path is its expiry as a Unix timestamp; TikTok's is `expire=` in the query string | Parse again with `?refresh=true` |
+
+`referrerpolicy="no-referrer"` does not help with Douyin any more: no Referer gets the same 403 as a wrong one.
 
 ---
 

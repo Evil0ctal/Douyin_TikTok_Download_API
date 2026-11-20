@@ -40,7 +40,7 @@ not try to "fix":
 | Field | What it is |
 | --- | --- |
 | `cookies` | The jar, stored as AES-GCM ciphertext bound to the identity's row id. No API response ever contains it except the audited reveal route. |
-| `fingerprint` | `browser_family`, `browser_major`, `user_agent`, `platform`, `screen`, `language`, `timezone`, and where the browser reported them, `hardware_concurrency` and `device_memory`. |
+| `fingerprint` | `browser_family`, `browser_major`, `user_agent`, `platform`, `screen`, `language`, `timezone`, and where the browser reported them, `hardware_concurrency` and `device_memory`. A TikTok identity also gains `device_id` the first time it is used: the device id TikTok issued its session, read off TikTok's home page and sent with every request after, see [Troubleshooting](./14-troubleshooting.md#a-tiktok-video-fails-with-a-row-of-answered-403). |
 | `proxy_id` | The exit this identity was minted or imported behind. `null` means the server's own egress. |
 | `authenticated` | True when the jar carried a session marker at import time. A statement about the paste, not about the account. |
 | `source` | `minted` (this instance produced it: a headless browser for Douyin and TikTok, one plain HTTP request for Bilibili) or `imported` (you pasted it). |

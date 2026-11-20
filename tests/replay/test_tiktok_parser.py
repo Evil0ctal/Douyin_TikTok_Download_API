@@ -125,6 +125,9 @@ def test_video_normal_every_field() -> None:
     assert media.video.format == "mp4"
     assert media.video.size_bytes is None
     assert media.video.watermark is False
+    # The video's links say tk=tt_chain_token: a caller cannot fetch them (#831).
+    assert media.access.session_bound is True
+    assert media.access.referer == "https://www.tiktok.com/"
 
     assert [(s.bitrate, s.format, s.size_bytes) for s in media.streams] == [
         (1043057, "h264", 2737510),
@@ -172,6 +175,8 @@ def test_photo_mode_album() -> None:
     assert content.duration_ms is None
     assert content.media.video is None
     assert content.media.streams == []
+    # Slides are on the image edges, which bind nothing to a session.
+    assert content.media.access.session_bound is False
     assert len(content.media.images) == 3
     assert content.media.images[0].url == (
         "https://p16-sign-va.example-cdn.invalid/obj/tos-useast-i-0068/"

@@ -50,6 +50,7 @@ from dtk.models import (
     LiveRoom,
     LiveStream,
     Media,
+    MediaAccess,
     Mix,
     Page,
     TrendingTopic,
@@ -71,6 +72,9 @@ _PLATFORM: Final = Platform.BILIBILI
 _NAME: Final = _PLATFORM.value
 
 WEB_DOMAIN: Final = "https://www.bilibili.com"
+
+#: The bilivideo.com edges refuse a stream request without this Referer.
+ACCESS: Final = MediaAccess(referer=f"{WEB_DOMAIN}/")
 SPACE_DOMAIN: Final = "https://space.bilibili.com"
 
 #: Where the fetch layer puts the ``playurl`` answer inside a detail payload.
@@ -297,7 +301,7 @@ def _video(
             share_count=optional_int(stat.get("share")),
             collect_count=optional_int(stat.get("favorite")),
         ),
-        media=Media(covers=[cover] if cover else [], video=stream),
+        media=Media(covers=[cover] if cover else [], video=stream, access=ACCESS),
         parts=parts or [],
         fetched_at=fetched_at,
         raw=node.raw(),
@@ -448,7 +452,7 @@ def _listed_video(
         duration_ms=duration_ms,
         author=author,
         stats=stats,
-        media=Media(covers=[cover] if cover else []),
+        media=Media(covers=[cover] if cover else [], access=ACCESS),
         fetched_at=fetched_at,
         raw=item.raw(),
     )
@@ -589,7 +593,7 @@ def parse_search_posts(payload: Mapping[str, Any], *, fetched_at: datetime) -> P
                     comment_count=optional_int(hit.get("review")),
                     collect_count=optional_int(hit.get("favorites")),
                 ),
-                media=Media(covers=[cover] if cover else []),
+                media=Media(covers=[cover] if cover else [], access=ACCESS),
                 tags=[tag for tag in (optional_str(hit.get("tag")) or "").split(",") if tag],
                 fetched_at=fetched_at,
                 raw=hit.raw(),

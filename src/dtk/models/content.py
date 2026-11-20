@@ -64,6 +64,31 @@ class AlbumImage(Image):
     video: VideoStream | None = None
 
 
+class MediaAccess(_Base):
+    """What a caller fetching the media links on its own has to send.
+
+    The links are the platforms' signed CDN URLs, and the CDNs check more than
+    the signature. ``/api/v1/downloads`` sends all of this itself; these fields
+    are for a caller that takes ``media.video.url`` and fetches it directly -
+    which until they existed met a 403 with nothing in the answer saying why
+    (#805, #829, #831).
+    """
+
+    #: The Referer the platform's CDN checks. Douyin's ``douyinvod.com``
+    #: answers 403 without ``https://www.douyin.com/`` (#829, 2026-11-17) - so
+    #: also to a browser opening the link from its address bar, and to a
+    #: ``<video>`` on any other site. ``None`` where none is needed.
+    referer: str | None = None
+    #: The video links are bound to the session that fetched them and refused
+    #: to every other. TikTok's carry ``tk=tt_chain_token``: its CDN serves them
+    #: only with that session's ``tt_chain_token`` cookie (#831), which belongs
+    #: to an identity in this instance's pool and is not given out. A caller
+    #: cannot rely on fetching them; ``/api/v1/downloads`` can. The
+    #: ``www.tiktok.com/aweme/v1/play/`` mirrors among them redirect to an
+    #: unbound copy from some exits and to a web page from others.
+    session_bound: bool = False
+
+
 class Media(_Base):
     #: Usually more than one: an animated cover plus a static fallback.
     covers: list[Image] = Field(default_factory=list)
@@ -73,6 +98,10 @@ class Media(_Base):
     streams: list[VideoStream] = Field(default_factory=list)
     #: Present when kind is IMAGE_ALBUM.
     images: list[AlbumImage] = Field(default_factory=list)
+    #: What fetching the links above directly takes. Set by each platform's
+    #: parser; the downloader's own copy of the same facts is
+    #: ``dtk.media.plan.REFERER`` and ``BOUND_COOKIES``, held equal by a test.
+    access: MediaAccess = Field(default_factory=MediaAccess)
 
 
 class Music(_Base):

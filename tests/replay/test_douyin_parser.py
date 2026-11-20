@@ -155,6 +155,9 @@ def test_video_normal_every_field() -> None:
     assert media.video.format == "mp4"
     assert media.video.size_bytes == 4183220
     assert media.video.watermark is False
+    # douyinvod.com answers 403 without it (#829), and a caller has to know.
+    assert media.access.referer == "https://www.douyin.com/"
+    assert media.access.session_bound is False
     assert media.video.bitrate is None
 
     assert [(s.bitrate, s.width, s.watermark) for s in media.streams] == [

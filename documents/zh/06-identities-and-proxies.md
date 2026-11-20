@@ -22,7 +22,7 @@
 | 字段 | 含义 |
 | --- | --- |
 | `cookies` | Cookie 罐，以 AES-GCM 密文存储，并与该行的 id 绑定。除了那条带审计的显示接口，任何 API 响应都不会包含它。 |
-| `fingerprint` | `browser_family`、`browser_major`、`user_agent`、`platform`、`screen`、`language`、`timezone`，以及浏览器上报了的话还有 `hardware_concurrency` 和 `device_memory`。 |
+| `fingerprint` | `browser_family`、`browser_major`、`user_agent`、`platform`、`screen`、`language`、`timezone`，以及浏览器上报了的话还有 `hardware_concurrency` 和 `device_memory`。TikTok 身份第一次被用到后还会多一个 `device_id`：TikTok 给这个会话的设备 id，从它的首页读出来，之后每次请求都带它，见[故障排查](./14-troubleshooting.md#tiktok-视频失败原因里是一串-answered-403)。 |
 | `proxy_id` | 该身份铸造或导入时所处的出口。`null` 表示走服务器自身的出口。 |
 | `authenticated` | 导入时 Cookie 中带有登录态标记则为 true。这是关于那次粘贴的事实，不是关于账号的事实。 |
 | `source` | `minted`（由本实例产生：抖音和 TikTok 由无头浏览器产生，B 站由一次普通 HTTP 请求产生）或 `imported`（你粘贴进来的）。 |

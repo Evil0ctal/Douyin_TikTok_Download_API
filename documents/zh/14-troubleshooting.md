@@ -87,6 +87,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk diagnose \
 | browser-rpc 挂了或者根本没启动 | [浏览器容器不可用](#浏览器容器不可用) |
 | 构建浏览器镜像卡在 `Downloading from https://cloakbrowser.dev/…` | [构建卡在下载 Chromium](#构建卡在下载-chromium) |
 | 下载失败，或者文件不在 | [下载失败或者文件不见了](#下载失败或者文件不见了) |
+| 拿 `media.video.url` 直接请求返回 `403` | [直接请求媒体链接返回 403](#直接请求媒体链接返回-403) |
 | 下载进度只数文件、从不显示字节，或者 B 站下载以 `partial` 结束、视频是空的 | [进度只数文件，或者 B 站视频落地是空的](#进度只数文件或者-b-站视频落地是空的) |
 | 采集自己停了；收到 `CAPACITY_PAUSED` 告警 | [磁盘满了](#磁盘满了) |
 | 某个代理被标成不健康 | [代理探测失败](#代理探测失败) |
@@ -928,13 +929,41 @@ docker compose -p dtk -f docker/compose.yml exec api dtk --version
 
 维护巡检每 300 秒跑一次，把创建超过 7200 秒仍处于活动状态的下载结算为 `failed`，错误信息是 *the worker never reported an outcome for this download*。已经落地的文件原地保留。如果它一直不被结算，说明 worker 没在跑。
 
+### TikTok 视频失败，原因里是一串 `answered 403`
+
+TikTok 的视频链接只给取到它的那个会话：取链接时请求里带的 `device_id` 必须是这个会话自己的，下载时还要带上同一个会话的 `tt_chain_token`（见[直接请求媒体链接返回 403](#直接请求媒体链接返回-403)）。所以每个 TikTok 身份第一次被用到时，实例会用它打开一次 TikTok 首页，读出它的 device id 存下来；下载 TikTok 作品时总会重新取一次详情，再带着那个身份的 `tt_chain_token` 去下载。原因里如果是 `all N mirrors failed: … answered 403`，说明这一步没走通：
+
+- 重新取详情失败了（身份池空、被风控），只能退回归档里的旧链接，而旧链接不认这次的会话。等池子恢复后在 `/downloads` 点**重试**。
+- 没读到那个身份的 device id。worker 日志里会有 `fetch.device_id.unread`，一小时后会再读一次；一直读不到的话，退役这个身份让池子重新铸造。
+- 那个身份的 jar 里没有 `tt_chain_token`。worker 日志里 `media.download.bound_cookies` 这一行的 `carried` 会是空的。同样退役它。
+- 身份走代理、下载器直连，而 CDN 同时核对出口 IP。目前还没有实测到这种情况，遇到了请带着这几行日志开 issue。
+
+5.1.11 及更早的版本每次请求都随机编一个 device id，拿到的 CDN 链接谁都打不开，下载全靠排在后面的 `www.tiktok.com/aweme/v1/play/` 镜像。那个地址会跳转：从有的出口跳到一份不绑定会话的视频，从有的出口跳到网页。旧版本还只报最后一个镜像的原因，于是看到的是 `www.tiktok.com answered content-type "text/html…"`，其实前面的镜像都是 403。
+
 ### 传输还没开始链接就过期了
 
-签名的 CDN 链接几小时内就会失效。`media.mirror_max_age_seconds`（600）规定归档里的媒体链接最多可以多旧，超过就重新解析作品拿新链接；`0` 表示总是重新解析。
+签名的 CDN 链接几小时内就会失效。`media.mirror_max_age_seconds`（600）规定归档里的媒体链接最多可以多旧，超过就重新解析作品拿新链接；`0` 表示总是重新解析。TikTok 作品不看这个设置，每次下载都重新解析，原因见上一节。
 
 ### API 不肯把文件给我
 
 这是下载器的设计：它只负责把字节落到磁盘上，不做中继。API 以只读方式挂载媒体卷，并在 `media:read` scope 后面把已存文件交给控制台；下载器本身从不向调用方中继媒体。见[下载、资料库与关注列表](./08-downloads-and-library.md)。
+
+---
+
+## 直接请求媒体链接返回 403
+
+**症状。** 解析结果里的 `media.video.url` 拿去直接请求（浏览器打开、curl、自己网页里的 `<video>`、别的语言的客户端），返回 `403 Forbidden`。
+
+**含义。** 这些是平台签过名的 CDN 地址，CDN 除了签名还核对别的东西。每个作品的 `media.access` 写明了要什么，详见 API 指南的[直接使用媒体链接](./11-api.md#直接使用媒体链接)：
+
+| 平台 | 403 的原因 | 怎么办 |
+|---|---|---|
+| 抖音 | 没带 `Referer: https://www.douyin.com/`。浏览器地址栏不带 Referer，网页里的 `<video>` 带的是你自己站点的，都会 403 | 请求时带上 `media.access.referer`。网页里播放的话，由你的后端带着这个头转发 |
+| B 站 | 同上，Referer 是 `https://www.bilibili.com/` | 同上 |
+| TikTok | `media.access.session_bound` 为 `true`：链接带 `tk=tt_chain_token`，只给取到它的那个会话 | 调用方拿不到那个会话的 Cookie，用 `POST /api/v1/downloads` 存下来。其中 `www.tiktok.com/aweme/v1/play/` 开头的镜像从有的出口能直接用，但不保证 |
+| 任意平台 | 链接过期了。抖音路径里那段十六进制数是到期的 Unix 时间戳；TikTok 看查询串里的 `expire=` | `?refresh=true` 重新解析 |
+
+`referrerpolicy="no-referrer"` 现在帮不了抖音：不带 Referer 和带错 Referer 一样是 403。
 
 ---
 
