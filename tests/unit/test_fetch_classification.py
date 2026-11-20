@@ -1304,3 +1304,44 @@ class TestAbsentWhenNull:
             "douyin.hashtag_detail",
             "douyin.music_detail",
         }
+
+
+class TestABrowserThatCannotSignThisIdentity:
+    """#832: browser-rpc refuses an identity whose User-Agent its page does not
+    run, and when native may not take the request either, the registry raises
+    the refusal. That is a fault on this side, not the platform judging the
+    identity, so nothing about the identity may change."""
+
+    async def test_the_identity_is_not_cooled_and_the_cause_survives(self) -> None:
+        from dtk.core.errors import SigningFailed
+        from dtk.signing.rpc import USER_AGENT_MISMATCH, is_user_agent_mismatch
+
+        async def refusing(
+            platform: Platform, spec: PlatformRequestSpec, sender: TransportIdentity
+        ):
+            raise SigningFailed(
+                "browser-rpc failed (HTTP 409)", details={"cause": USER_AGENT_MISMATCH}
+            )
+
+        pool = FakePool(identity())
+        scheduler = FakeScheduler()
+        transport = FakeTransport(response(200, {}))
+        svc = FetchService(
+            scheduler=scheduler,  # type: ignore[arg-type]
+            pool=pool,  # type: ignore[arg-type]
+            transport=transport,  # type: ignore[arg-type]
+            sign=refusing,
+            cooldown_base=60,
+        )
+        session = FakeSession()
+
+        with pytest.raises(SigningFailed) as excinfo:
+            await run_fetch(svc, session)
+
+        assert is_user_agent_mismatch(excinfo.value)
+        # Nothing went upstream, and what was recorded is the outcome that
+        # cools nothing and feeds no circuit.
+        assert transport.specs == []
+        assert set(pool.recorded) == {Outcome.BUSINESS_ERROR}
+        assert set(scheduler.released) == {Outcome.BUSINESS_ERROR}
+        assert {row.error_code for row in rows(session)} == {"SIGNING_FAILED"}

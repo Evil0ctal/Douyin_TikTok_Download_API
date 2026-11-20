@@ -572,9 +572,10 @@ class SignerRegistry:
         self._last_shadow: dict[EndpointKey, ShadowResult] = {}
         self._shadow_seen: dict[EndpointKey, float] = {}
         #: Identities already reported as ones browser-rpc cannot sign under,
-        #: with the digest of the User-Agent it refused: the log names each
-        #: once, because the operator's question is which ones they are.
-        self._foreign_agents: set[tuple[Platform, str | None, str]] = set()
+        #: with the digest of the User-Agent it refused and what became of the
+        #: request: the log names each once per outcome, because the operator's
+        #: questions are which ones they are and why one failed.
+        self._foreign_agents: set[tuple[Platform, str | None, str, str | None]] = set()
         #: Endpoints whose requests have already crossed to the native signer
         #: because browser-rpc refused an identity's User-Agent, so that
         #: crossing is announced once - see `_native_for_a_foreign_agent`.
@@ -673,8 +674,15 @@ class SignerRegistry:
         blocked = self._why_not_native(platform, protected=protected)
         identity_id = session.identity_id if session else None
         agent = hashlib.sha256(fingerprint.user_agent.encode()).hexdigest()[:10]
-        if (platform, identity_id, agent) not in self._foreign_agents:
-            self._foreign_agents.add((platform, identity_id, agent))
+        # Once per identity per outcome, not once per identity: the reason
+        # native may not take it - a protected endpoint, a jar that lost its
+        # token, fallback switched off, native disabled - changes between
+        # requests and at runtime, and the line is where an operator is sent to
+        # read it. Keyed without the outcome, an identity first served natively
+        # then failed in silence (review of the #832 fix).
+        seen = (platform, identity_id, agent, blocked)
+        if seen not in self._foreign_agents:
+            self._foreign_agents.add(seen)
             logger.warning(
                 "signing.rpc.user_agent_mismatch",
                 platform=platform.value,

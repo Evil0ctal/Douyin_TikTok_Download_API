@@ -3058,17 +3058,59 @@ async def test_an_identity_the_browser_cannot_sign_is_signed_natively() -> None:
     assert rpc.calls == 2 and native.calls == 2
 
 
-@pytest.mark.parametrize("why", ["fallback_disabled", "native_disabled", "not_a_ua_refusal"])
-async def test_the_native_signer_is_not_reached_for_otherwise(why: str) -> None:
+@pytest.mark.parametrize(
+    "why", ["fallback_disabled", "native_disabled", "no_native", "not_a_ua_refusal"]
+)
+async def test_the_native_signer_is_not_reached_for_otherwise(why: str, monkeypatch) -> None:
+    recorder = EventRecorder()
+    monkeypatch.setattr(registry_module, "logger", recorder)
     fail = SigningFailed("browser-rpc failed (HTTP 502)") if why == "not_a_ua_refusal" else None
     rpc = FakeSigner(SIGNER_BROWSER, fail=fail or ua_refusal())
     policy = RegistryPolicy(fallback_enabled=why != "fallback_disabled")
-    registry, native = tiktok_registry(rpc, policy=policy)
+    if why == "no_native":
+        registry = SignerRegistry({}, rpc, policy=replace(policy, mode="rpc"), clock=FakeClock())
+        native = FakeSigner(SIGNER_NATIVE, value="unused")
+    else:
+        registry, native = tiktok_registry(rpc, policy=policy)
     if why == "native_disabled":
         registry.disable_native(Platform.TIKTOK, reason="test")
-    with pytest.raises(SigningFailed):
+    with pytest.raises(SigningFailed) as excinfo:
         await registry.sign(TIKTOK_SPEC, FINGERPRINT, TIKTOK_SESSION)
     assert native.calls == 0
+    lines = [f for e, f in recorder.events if e == "warning:signing.rpc.user_agent_mismatch"]
+    if why == "not_a_ua_refusal":
+        assert not is_user_agent_mismatch(excinfo.value)
+        assert lines == []
+        return
+    # The cause the SIGNING_FAILED message renders from, and the line the
+    # troubleshooting guide sends the operator to, with the reason in it.
+    assert is_user_agent_mismatch(excinfo.value)
+    [line] = lines
+    assert line["signer"] is None and line["not_native"] == why
+
+
+async def test_a_ua_refusal_is_logged_again_when_its_outcome_changes(monkeypatch) -> None:
+    """#832 review: an identity first served natively, then failed because its
+    jar lost its token, used to fail in silence - the line was keyed on the
+    identity alone, and the operator is sent to it to read why."""
+    recorder = EventRecorder()
+    monkeypatch.setattr(registry_module, "logger", recorder)
+    rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
+    registry, _ = tiktok_registry(rpc)
+    tokenless = SigningSession(cookies={"ttwid": "w"}, identity_id=TIKTOK_SESSION.identity_id)
+
+    await registry.sign(TIKTOK_SPEC, FINGERPRINT, TIKTOK_SESSION)
+    await registry.sign(TIKTOK_SPEC, FINGERPRINT, TIKTOK_SESSION)
+    with pytest.raises(SigningFailed):
+        await registry.sign(TIKTOK_SPEC, FINGERPRINT, tokenless)
+    with pytest.raises(SigningFailed):
+        await registry.sign(TIKTOK_SPEC, FINGERPRINT, tokenless)
+
+    lines = [f for e, f in recorder.events if e == "warning:signing.rpc.user_agent_mismatch"]
+    assert [(line["signer"], line.get("not_native")) for line in lines] == [
+        (SIGNER_NATIVE, None),
+        (None, "protected"),
+    ]
 
 
 @pytest.mark.parametrize("mode", ["rpc", "auto"])
