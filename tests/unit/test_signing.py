@@ -1450,7 +1450,45 @@ async def test_rpc_signer_maps_transport_and_status_failures() -> None:
         return httpx.Response(503, json={})
 
     async with rpc_client(failing) as client:
-        with pytest.raises(SigningFailed):
+        with pytest.raises(SigningFailed, match=r"^browser-rpc failed \(HTTP 503\)$"):
+            await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
+
+
+async def test_a_refusal_carries_browser_rpcs_own_reason() -> None:
+    """A service that answered is not "unreachable", and its reason is the finding.
+
+    Issue #830: browser-rpc answered 502 with a body naming what was wrong, and
+    this client reported "browser-rpc unreachable: HTTPStatusError: Server
+    error '502 Bad Gateway'", which the self-check then dressed up as an
+    algorithm drift. The body is the evidence; only its first line is kept,
+    because a stack trace has no business in a report people paste in public.
+    """
+    reason = (
+        "the tiktok signing page is no longer on tiktok.com "
+        "(it is on chrome-error://chromewebdata): a navigation after it loaded failed"
+    )
+
+    def refusing(request: httpx.Request) -> httpx.Response:
+        body = {"error": {"code": "backend_failed", "message": f"{reason}\n    at eval (<x>:1:1)"}}
+        return httpx.Response(502, json=body)
+
+    async with rpc_client(refusing) as client:
+        with pytest.raises(SigningFailed) as excinfo:
+            await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+
+    message = str(excinfo.value)
+    assert message.startswith("browser-rpc failed (HTTP 502 backend_failed): ")
+    assert reason in message
+    assert "unreachable" not in message
+    assert "at eval" not in message
+
+
+async def test_a_refusal_without_a_json_body_still_names_its_status() -> None:
+    def proxy_page(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502, text="<html><body>Bad Gateway</body></html>")
+
+    async with rpc_client(proxy_page) as client:
+        with pytest.raises(SigningFailed, match=r"^browser-rpc failed \(HTTP 502\)$"):
             await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
 
 

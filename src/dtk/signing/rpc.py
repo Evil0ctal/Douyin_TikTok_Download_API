@@ -168,6 +168,20 @@ class RpcSigner:
             )
             response.raise_for_status()
             body = response.json()
+        except httpx.HTTPStatusError as exc:
+            # browser-rpc answered, and its body says why it could not sign.
+            # This branch used to fall into the one below and report a running
+            # service as "unreachable: 502 Bad Gateway", throwing away the one
+            # line that named the cause - in #830, a warm page that had left
+            # tiktok.com - and leaving the self-check to guess.
+            reason = _rpc_failure(exc.response)
+            logger.warning(
+                "signing.rpc.refused",
+                endpoint=spec.endpoint,
+                status=exc.response.status_code,
+                error=reason,
+            )
+            raise SigningFailed(reason) from exc
         except httpx.HTTPError as exc:
             # `str()` on a timeout is the empty string, so reporting only the
             # message logged `error=""` and said nothing at all. The class name
@@ -333,6 +347,34 @@ class RpcSigner:
             backend_version=str(body["backend_version"]) if body.get("backend_version") else None,
             uptime_seconds=float(uptime) if isinstance(uptime, int | float) else None,
         )
+
+
+#: How much of browser-rpc's own error message is carried into ours. Its
+#: messages are one sentence; a stack or an HTML error page is not, and neither
+#: belongs in a log line or a diagnostic report.
+RPC_ERROR_EXCERPT_CHARS = 300
+
+
+def _rpc_failure(response: httpx.Response) -> str:
+    """browser-rpc's own account of a failure: status, code and first line.
+
+    The service answers every failure with ``{"error": {"code", "message"}}``
+    (``browser_rpc.errors``). Anything else - a proxy's HTML 502, an empty body
+    - still yields the status, which is more than nothing.
+    """
+    head = f"HTTP {response.status_code}"
+    try:
+        error = response.json().get("error")
+    except (ValueError, AttributeError):
+        error = None
+    if not isinstance(error, dict):
+        return f"browser-rpc failed ({head})"
+    code = error.get("code")
+    if isinstance(code, str) and code:
+        head = f"{head} {code}"
+    lines = str(error.get("message") or "").strip().splitlines()
+    message = lines[0][:RPC_ERROR_EXCERPT_CHARS] if lines else ""
+    return f"browser-rpc failed ({head}): {message}" if message else f"browser-rpc failed ({head})"
 
 
 def _describe(exc: BaseException) -> str:
