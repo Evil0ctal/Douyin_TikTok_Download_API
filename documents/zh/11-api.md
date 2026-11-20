@@ -392,7 +392,7 @@ curl -sS "$DTK_BASE_URL/api/v1/parse?lang=zh" -X POST \
 | `INTERNAL` | 500 | **是** | 意料之外；报 bug 时请附上 `X-Request-ID` |
 | `UPSTREAM_RISK_CONTROL` | 502 | **是** | 平台判定该请求为自动化流量，相关身份进入冷却 |
 | `UPSTREAM_CHANGED` | 502 | 否 | 平台响应结构与解析器不再匹配，`details.path` 指出字段。请反馈 |
-| `SIGNING_FAILED` | 502 | **是** | 签名失败，算法可能已失效 |
+| `SIGNING_FAILED` | 502 | **是** | 签名失败，算法可能已失效。带 `details.cause: user_agent_mismatch` 时则不是：这个身份的 User-Agent 不是 browser-rpc 的，又没法原生签名——重试只有换到别的身份上才会成功；见[故障排查](./14-troubleshooting.md#api-和-worker-日志里的-browser-rpc-拒绝) |
 | `UPSTREAM_UNREACHABLE` | 502 | **是** | 每次尝试都在平台应答之前就在网络层失败了；`details.proxied` 说明最后一次有没有走代理。多半是这台机器的出网问题，不是平台 |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **是** | 没有可用身份；`retry_after` 是恢复时间的估计 |
 | `IDENTITY_LOGIN_REQUIRED` | 503 | 否 | 这个请求需要登录身份，而轮换里没有——抖音作者作品列表的后续页、B 站视频评论及回复的后续页，以及抖音作者喜欢列表的每一页。`details.cooling` 是正在冷却的登录身份数。靠导入一份来解决，重试没用；见[身份](./06-identities-and-proxies.md#哪些内容需要登录身份) |

@@ -14,6 +14,7 @@
   "UPSTREAM_RISK_CONTROL": "平台判定该请求为自动化流量，相关身份已进入冷却。",
   "UPSTREAM_CHANGED": "平台返回结构已变化，缺失字段：{path}，请反馈该问题。",
   "SIGNING_FAILED": "请求签名失败，签名算法可能已失效。",
+  "SIGNING_FAILED.user_agent_mismatch": "请求签名失败：browser-rpc 无法以这个身份的 User-Agent 签名，而这次请求又用不了原生签名。这个身份是在另一个浏览器下铸造或从另一个浏览器导入的；见故障排查里的 signing.rpc.user_agent_mismatch。",
   "UPSTREAM_UNREACHABLE": "本实例连不上平台；请检查这台机器的出网，以及配置的代理。",
   "TASK_NOT_FOUND": "任务不存在，或结果已过期。",
   "SETUP_ALREADY_DONE": "本实例已完成初始化。",

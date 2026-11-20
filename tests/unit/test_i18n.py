@@ -658,10 +658,39 @@ def test_translated_files_are_actually_translated():
 
 
 def test_error_locale_files_use_error_code_names_as_keys():
+    """Every code once, plus ``CODE.cause`` entries for a known code."""
     known = {code.value for code in ErrorCode}
     for language in SUPPORTED_LANGUAGES:
         path = LOCALES / f"errors.{language.value}.json"
-        assert set(json.loads(path.read_text(encoding="utf-8"))) == known, path
+        keys = set(json.loads(path.read_text(encoding="utf-8")))
+        assert {key for key in keys if "." not in key} == known, path
+        for key in keys - known:
+            code, _, cause = key.partition(".")
+            assert code in known and cause, (path, key)
+
+
+def test_a_cause_has_its_own_message_in_every_language():
+    """#832 review: a SIGNING_FAILED for a User-Agent browser-rpc cannot sign
+    under said "the signing algorithm may be out of date", which sends the
+    operator after the wrong thing."""
+    assert messages_module.missing_variants() == {}
+    for language in SUPPORTED_LANGUAGES:
+        generic = render(ErrorCode.SIGNING_FAILED, language)
+        specific = render(ErrorCode.SIGNING_FAILED, language, cause="user_agent_mismatch")
+        assert specific != generic, language
+        assert "User-Agent" in specific, language
+        # A cause with no message of its own keeps the code's.
+        assert render(ErrorCode.SIGNING_FAILED, language, cause="something_else") == generic
+
+
+def test_check_catalog_rejects_a_cause_one_language_lacks():
+    doctored = {
+        Language.EN: dict(messages_module.VARIANTS[Language.EN]),
+        Language.ZH: {},
+    }
+    with pytest.raises(IncompleteCatalog) as excinfo:
+        check_catalog(variants=doctored)
+    assert "SIGNING_FAILED.user_agent_mismatch" in str(excinfo.value)
 
 
 # --------------------------------------------------------------------------

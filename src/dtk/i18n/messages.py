@@ -31,6 +31,15 @@ from dtk.i18n.negotiate import SUPPORTED_LANGUAGES, coerce_language
 logger = get_logger(__name__)
 
 Catalog = Mapping[Language, Mapping[ErrorCode, str]]
+VariantCatalog = Mapping[Language, Mapping[tuple[ErrorCode, str], str]]
+
+#: Separates a code from a cause in a catalogue key: ``SIGNING_FAILED.user_agent_mismatch``
+#: is the message for a ``SIGNING_FAILED`` whose ``details.cause`` names that
+#: cause. A code's own message says what usually went wrong, and for a cause
+#: that is something else - a User-Agent browser-rpc cannot sign under, not an
+#: algorithm out of date (#832 review) - the code's sentence points the reader
+#: at the wrong thing. The code stays the contract; only the sentence changes.
+VARIANT_SEPARATOR = "."
 
 
 class IncompleteCatalog(RuntimeError):
@@ -48,6 +57,8 @@ def _load(language: Language) -> dict[ErrorCode, str]:
     document = load_locale_json_or_empty(_filename(language))
     templates: dict[ErrorCode, str] = {}
     for raw_code, template in document.items():
+        if VARIANT_SEPARATOR in raw_code:
+            continue
         try:
             code = ErrorCode(raw_code)
         except ValueError:
@@ -62,12 +73,38 @@ def _load(language: Language) -> dict[ErrorCode, str]:
     return templates
 
 
+def _load_variants(language: Language) -> dict[tuple[ErrorCode, str], str]:
+    """The ``CODE.cause`` entries of one language's catalogue."""
+    document = load_locale_json_or_empty(_filename(language))
+    variants: dict[tuple[ErrorCode, str], str] = {}
+    for key, template in document.items():
+        raw_code, separator, cause = key.partition(VARIANT_SEPARATOR)
+        if not separator:
+            continue
+        try:
+            code = ErrorCode(raw_code)
+        except ValueError:
+            logger.warning("i18n.errors.unknown_code", code=key, language=language.value)
+            continue
+        if not cause or not isinstance(template, str):
+            logger.warning("i18n.errors.invalid_template", code=key, language=language.value)
+            continue
+        variants[(code, cause)] = template
+    return variants
+
+
 def _load_all() -> dict[Language, dict[ErrorCode, str]]:
     return {language: _load(language) for language in SUPPORTED_LANGUAGES}
 
 
 #: Message templates, keyed by language and then by error code.
 MESSAGES: dict[Language, dict[ErrorCode, str]] = _load_all()
+
+#: Messages for one cause of a code, keyed by language and then by
+#: ``(code, cause)``; see `VARIANT_SEPARATOR`.
+VARIANTS: dict[Language, dict[tuple[ErrorCode, str], str]] = {
+    language: _load_variants(language) for language in SUPPORTED_LANGUAGES
+}
 
 
 def missing_translations(catalog: Catalog | None = None) -> dict[Language, tuple[ErrorCode, ...]]:
@@ -89,16 +126,38 @@ def _describe(gaps: Mapping[Language, tuple[ErrorCode, ...]]) -> str:
     )
 
 
-def check_catalog(catalog: Catalog | None = None) -> None:
+def missing_variants(
+    variants: VariantCatalog | None = None,
+) -> dict[Language, tuple[tuple[ErrorCode, str], ...]]:
+    """``(code, cause)`` messages some language has and another lacks."""
+    source = VARIANTS if variants is None else variants
+    every = {key for language in SUPPORTED_LANGUAGES for key in source.get(language, {})}
+    gaps: dict[Language, tuple[tuple[ErrorCode, str], ...]] = {}
+    for language in SUPPORTED_LANGUAGES:
+        absent = tuple(sorted(every - set(source.get(language, {}))))
+        if absent:
+            gaps[language] = absent
+    return gaps
+
+
+def check_catalog(catalog: Catalog | None = None, variants: VariantCatalog | None = None) -> None:
     """Raise :class:`IncompleteCatalog` unless every code has every language.
 
     The CI gate. Tests call this; the import path does not, because refusing to
-    start is a worse answer than serving one message in English.
+    start is a worse answer than serving one message in English. A cause's
+    message is held to the same rule: present in one language, present in all.
     """
     gaps = missing_translations(catalog)
-    if not gaps:
-        return
-    raise IncompleteCatalog(f"error message catalogue is incomplete -> {_describe(gaps)}")
+    if gaps:
+        raise IncompleteCatalog(f"error message catalogue is incomplete -> {_describe(gaps)}")
+    variant_gaps = missing_variants(variants)
+    if variant_gaps:
+        detail = "; ".join(
+            f"{language.value}: "
+            + ", ".join(f"{code.value}{VARIANT_SEPARATOR}{cause}" for code, cause in keys)
+            for language, keys in sorted(variant_gaps.items(), key=lambda item: item[0].value)
+        )
+        raise IncompleteCatalog(f"error message catalogue is incomplete -> {detail}")
 
 
 def _warn_on_gaps() -> None:
@@ -133,6 +192,13 @@ def render(
     all, which is still more useful to a bug report than an empty string.
     """
     lang = coerce_language(language) or DEFAULT_LANGUAGE
+    cause = args.get("cause")
+    if isinstance(cause, str) and cause:
+        variant = VARIANTS.get(lang, {}).get((code, cause)) or VARIANTS.get(
+            DEFAULT_LANGUAGE, {}
+        ).get((code, cause))
+        if variant is not None:
+            return interpolate(variant, args, lang, f"error.{code.value}.{cause}")
     text = MESSAGES.get(lang, {}).get(code)
     if text is None:
         text = MESSAGES.get(DEFAULT_LANGUAGE, {}).get(code)
@@ -152,10 +218,13 @@ _warn_on_gaps()
 
 __all__ = [
     "MESSAGES",
+    "VARIANTS",
     "Catalog",
     "IncompleteCatalog",
+    "VariantCatalog",
     "check_catalog",
     "missing_translations",
+    "missing_variants",
     "render",
     "render_error",
     "template",

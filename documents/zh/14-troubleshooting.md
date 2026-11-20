@@ -761,7 +761,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 
 | 症状 | 是什么 |
 |---|---|
-| `SIGNING_FAILED`（502） | 完全没有可用签名器，或者签名器抛错。最清楚，也最少见 |
+| `SIGNING_FAILED`（502） | 完全没有可用签名器，或者签名器抛错。最清楚，也最少见。它唯一会点名的原因是 `details.cause: user_agent_mismatch`：见 [api 和 worker 日志里的 browser-rpc 拒绝](#api-和-worker-日志里的-browser-rpc-拒绝) |
 | HTTP 200，body 为空或是空壳，带 `tt_orcas_res` 响应头 | TikTok 在拒绝一个签名没通过校验的请求。判为 `signature.rejected` |
 | HTTP 403，body 里有 `Blocked by ArgusSecurityPlugin …` | 抖音在拒绝一个缺失或覆盖不到位的签名。判为 `signature.refused`，body 里会带 `uifid not found`、`signature not found`、`sign invalid`、`sign expired` 之一 |
 
@@ -790,12 +790,20 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 | `the tiktok signing page is no longer on tiktok.com (it is on chrome-error://…)` | 常驻页面加载完之后，经由它的出口（`DTK_BROWSER_SIGN_PROXY_URL`、身份自带的代理或本机）进行的一次跳转失败了。检查这个出口能否正常打开平台站点 |
 | `could not load https://…` | 页面根本没能经由它的出口加载出来。后半句是 Chromium 自己的报错（`net::ERR_PROXY_CONNECTION_FAILED`、超时等） |
 | `could not sign within …s` | 页面一直停在平台上，但它的安全 bundle 始终没签出名：要么 bundle 没加载上，要么平台改了签名方式。如果这个出口能正常打开站点，那就是后者——请开一个 issue |
-| `the tiktok signing page could not seal a usable msToken within …s` | TikTok 页面能签名，但它的 SDK 一直没拿到可用的会话 token 来封进签名：`it seals one of 0 characters` 说明 TikTok 的应用接口始终没有经由页面所走的出口应答，`only the bootstrap token arrived` 说明应答了、但始终没发下完整的 token。载入了身份可用 token 的页面在此之前不会交出去，因为它在自己的 token 到来之前封出的最早几个签名被拒过。检查这个出口，和 mint 因同一个 token 失败时一样 |
-| `HTTP 409 user_agent_mismatch`：`this browser signs … requests as Chrome/146 on Windows and this identity's is …` | 不是故障。浏览器只能以它自己的 User-Agent 签名，而这个身份是在另一个浏览器下铸造的（更早的 browser-rpc 镜像），或是从你自己的浏览器导入的。它的请求改由原生签名（`signing.fallback_enabled` 关闭时除外），原生签名照样可用；如果希望浏览器也能为它签名，重新铸造这个身份 |
 | `…; both attempts failed this way, on two different pages …` | 不是某一个页面过期：换了新页面也是同样的失败。后半句写的是两个页面共有、且与这种失败对得上的东西——跳转失败写 `through the same exit`，始终签不出名写 `loading the same platform bundle`，崩溃写 `in the same browser container` |
 | `Target crashed`、`Page crashed`、`renderer crashed`、`… has been closed` | Chromium 崩了，几乎总是浏览器容器的内存或 `/tmp` 空间不够。页面还在加载时被杀掉会写 `Page crashed`，浏览器进程本身死掉会写 `Target page, context or browser has been closed`。browser-rpc 自己发现崩溃时写的是 `renderer crashed (Target crashed)`，`browser_rpc.warm.discarded` 日志行里也是这样 |
 | `browser-rpc unreachable` | 完全没有响应：容器没在运行，或者 `DTK_BROWSER_RPC_URL` 指错了地方 |
 | `browser-rpc did not answer within …s` | browser-rpc 在运行，但它的两次尝试加起来超过了 `signing.rpc_timeout_seconds`，通常是出口卡住而不是直接拒绝。原因在它自己的日志里：找 `browser_rpc.sign.open_failed` |
+
+### api 和 worker 日志里的 browser-rpc 拒绝
+
+第 5 步的参考签名是匿名签的，所以下面这些永远不会出现在自检里。它们由 api 和 worker 在服务请求时写出，表示 browser-rpc 拒绝了某一个身份的请求：
+
+| 日志行 | 含义 | 该做什么 |
+|---|---|---|
+| `signing.rpc.user_agent_mismatch`（WARNING，每个身份一次，带 `identity_id`） | browser-rpc 只能以它浏览器自己的 User-Agent 签名，而平台不会为这个身份的 UA 接受这样的签名：TikTok 上是任何不同的 UA，抖音上是写着另一种操作系统的 UA。这个身份是在更早的 browser-rpc 镜像下铸造的，或是从你的浏览器导入的。browser-rpc 拒绝为它签名（`409 user_agent_mismatch`），而不是签出一个平台必定拒绝的请求。带 `signer=native` 时，请求已改由原生签名，原生签名照样可用；`rpc` 模式下，每个接口第一次这样改道还会发出 `signing.fallback.engaged`，原因是 `browser-rpc cannot sign under this identity's User-Agent`。带 `not_native=…` 时则没有改道，请求失败了——见下一行 | 原生签名能服务它时，什么都不用做。铸造出来的身份可以退役、再铸造一个新的，新身份会带着当前浏览器的 User-Agent |
+| `SIGNING_FAILED`，带 `details.cause: user_agent_mismatch` | 同一种身份，而且也没法原生签名。上一行的 `not_native` 写明了原因：`fallback_disabled`（`signing.fallback_enabled` 关着）、`native_disabled`（出现 `signing_mismatch` 后 TikTok 的原生签名被停用了），或 `protected`（这个请求配这个 jar 只有浏览器能签：TikTok 上是 jar 里没有 `msToken`，不带 token 的原生签名被拒过；抖音上是受签名保护的接口，而 jar 里没有访客 ID）。这个身份不会进入冷却，所以会一直被派出去、一直失败 | 铸造出来的身份：退役它，再铸造一个。导入的身份（常常是登录态）：**不要为此退役它**——铸造出来的是游客，需要登录的请求随后会以 `IDENTITY_LOGIN_REQUIRED` 失败。改为从一个 User-Agent 与 browser-rpc 的 `/rpc/health` 里 `user_agent` 相同的浏览器重新导入它的 Cookie，或者把 `signing.fallback_enabled` 打开 |
+| `signing.rpc.refused` … `the tiktok signing page could not seal a usable msToken within …s` | 载入了这个身份 token 的 TikTok 页面能签名，但它的 SDK 一直没拿到自己可用的 token 来封进签名：`it seals one of 0 characters` 说明 TikTok 的应用接口始终没有经由页面所走的出口应答，`only the bootstrap token arrived` 说明应答了、但始终没发下完整的 token。这样的页面在自己的 token 到来之前不会交出去，因为在那之前，请求带的是身份 jar 里现有的 token 而不是页面新鲜的那个，而 TikTok 看的正是这个 token | 检查这个出口，和 mint 因同一个 token 失败时一样 |
 
 ### 手工复现一个签名
 

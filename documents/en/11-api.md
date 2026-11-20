@@ -393,7 +393,7 @@ Every failure is the same envelope with `success: false`. Branch on `error.code`
 | `INTERNAL` | 500 | **yes** | Unexpected; quote `X-Request-ID` in a bug report |
 | `UPSTREAM_RISK_CONTROL` | 502 | **yes** | The platform flagged the request; the identity is cooling down |
 | `UPSTREAM_CHANGED` | 502 | no | The platform's response no longer matches the parser; `details.path` names the field. Report it |
-| `SIGNING_FAILED` | 502 | **yes** | Signing failed; the algorithm may be out of date |
+| `SIGNING_FAILED` | 502 | **yes** | Signing failed; the algorithm may be out of date. `details.cause: user_agent_mismatch` says otherwise: the identity's User-Agent is not browser-rpc's, and it could not be signed natively - a retry succeeds only if it is served by another identity; see [Troubleshooting](./14-troubleshooting.md#browser-rpc-refusals-in-the-api-and-worker-logs) |
 | `UPSTREAM_UNREACHABLE` | 502 | **yes** | Every attempt failed on the network before the platform answered; `details.proxied` says whether the last one went through a proxy. Usually this host's egress, not the platform |
 | `IDENTITY_POOL_EXHAUSTED` | 503 | **yes** | No identity free; `retry_after` estimates the recovery |
 | `IDENTITY_LOGIN_REQUIRED` | 503 | no | The request needs a logged-in identity and rotation has none - later pages of a Douyin author's posts, or of a Bilibili video's comments or replies, and every page of a Douyin author's likes. `details.cooling` counts the logged-in ones cooling down. Fixed by importing one, not by retrying; see [Identities](./06-identities-and-proxies.md#what-needs-a-logged-in-identity) |
