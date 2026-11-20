@@ -105,6 +105,15 @@ async def run(
         checked += 1
         if failure:
             errors.append(failure)
+            # A failed check ends its transaction too, not the next check that
+            # succeeds. The request's bookkeeping has written - and so locked -
+            # the identity's row, and it stayed locked through the pause and
+            # every check after it, up to the end of the sweep. Measured with a
+            # 2s pause (#832): another request on that identity waited 2.1s,
+            # 4.0s when every check failed, 10.0s across six failing checks.
+            # Meanwhile the cooldown the refusal had earned was invisible to
+            # other sessions, so the scheduler went on handing it out.
+            await session.commit()
             if halt:
                 # An open circuit is an endpoint-level fact: every remaining
                 # post would get the same answer without a request being made,

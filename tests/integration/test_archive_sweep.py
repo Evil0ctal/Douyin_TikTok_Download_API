@@ -13,9 +13,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from sqlalchemy import select, update
+from sqlalchemy.exc import DBAPIError
 
 from dtk.core.config import Config
-from dtk.core.db import session_scope
+from dtk.core.db import get_engine, session_scope
 from dtk.core.errors import ContentPrivate, NotFound, UpstreamRiskControl
 from dtk.core.types import ContentKind, Platform
 from dtk.db.models import ArchivedContent
@@ -335,3 +337,59 @@ class TestCircuit:
 
         assert result["checked"] == 3
         assert result["detail"] == ""
+
+
+class TestAFailedCheckEndsItsTransaction:
+    async def test_a_failed_check_holds_no_row_into_the_next(
+        self, api_app, db_engine, redis_client, monkeypatch
+    ):
+        """Issue #832: a failed check used to stay open until a check succeeded.
+
+        A refused request's bookkeeping writes the identity's row in the
+        sweep's own session, and only the success path committed, so the row
+        stayed locked through the pause and every later check: measured, a
+        request on that identity waited for the rest of the sweep. Here the
+        first check writes a row and is refused, as that request would; the
+        second asks, from another connection, whether the row is still held.
+        """
+        first, second = "7000000000000000301", "7000000000000000302"
+        await seed(first, checked_days_ago=None)
+        await seed(second, checked_days_ago=None)
+        held: list[bool] = []
+
+        class Bookkeeping(StubFetch):
+            async def fetch(self, session, platform, endpoint, params, *, parse, **kwargs):
+                if not self.asked:
+                    self.asked.append(str(params.get("content_id")))
+                    # Stands in for record_outcome's UPDATE on the identity.
+                    await session.execute(
+                        update(ArchivedContent)
+                        .where(ArchivedContent.content_id == self.asked[0])
+                        .values(title="written by the refused request")
+                    )
+                    raise UpstreamRiskControl("blocked")
+                async with get_engine().connect() as other:
+                    try:
+                        await other.execute(
+                            select(ArchivedContent.content_id)
+                            .where(ArchivedContent.content_id == self.asked[0])
+                            .with_for_update(nowait=True)
+                        )
+                        held.append(False)
+                    except DBAPIError as exc:
+                        # 55P03, lock_not_available; anything else is a broken test.
+                        if getattr(exc.orig, "sqlstate", None) != "55P03":
+                            raise
+                        held.append(True)
+                    await other.rollback()
+                return await super().fetch(session, platform, endpoint, params, parse=parse)
+
+        fetch = Bookkeeping({})
+        monkeypatch.setattr(archive_sweep.registry, "resolve", _resolver(), raising=True)
+        async with session_scope() as session:
+            result = await archive_sweep.run(deps(fetch), session, {})
+
+        assert result["checked"] == 2
+        assert len(result["errors"]) == 1
+        assert held == [False], "the refused check's row was still locked by the sweep"
+        assert set(fetch.asked) == {first, second}
