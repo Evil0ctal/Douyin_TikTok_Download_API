@@ -65,6 +65,16 @@ HEALTH_PATH = "/rpc/health"
 #: of the browser: the registry signs such an identity natively (#832).
 USER_AGENT_MISMATCH: Final = "user_agent_mismatch"
 
+#: The platforms that refuse a request whose User-Agent is not, byte for byte,
+#: the one its signature sealed - browser-rpc's ``UA_BOUND_PLATFORMS``. TikTok:
+#: one digit of the Chrome version is enough (measured 2026-09-07 and
+#: 2026-11-20). Douyin is not one of them: on 2026-11-20 it answered a page's
+#: signature for identities on Chrome/145, /130 and Edge/146, and refused it
+#: only for a query naming another operating system - which browser-rpc
+#: refuses to sign (409) - so a Douyin answer naming the page's own,
+#: different User-Agent is used as it is.
+UA_BOUND_PLATFORMS: Final[frozenset[Platform]] = frozenset({Platform.TIKTOK})
+
 
 def is_user_agent_mismatch(error: BaseException) -> bool:
     """Whether ``error`` says browser-rpc cannot sign under this identity's User-Agent."""
@@ -186,17 +196,26 @@ class RpcSigner:
             # line that named the cause - in #830, a warm page that had left
             # tiktok.com - and leaving the self-check to guess.
             reason = _rpc_failure(exc.response)
+            cause = _rpc_error_code(exc.response)
+            if cause == USER_AGENT_MISMATCH:
+                # Not the browser failing, and not this module's to report:
+                # the registry decides what happens to the request, and logs
+                # it with the identity it concerns. At WARNING here it was a
+                # second line per request under the name a browser-rpc outage
+                # uses (#832 review).
+                logger.debug(
+                    "signing.rpc.user_agent_refused",
+                    endpoint=spec.endpoint,
+                    identity_id=session.identity_id if session else None,
+                )
+                raise SigningFailed(reason, details={"cause": cause}) from exc
             logger.warning(
                 "signing.rpc.refused",
                 endpoint=spec.endpoint,
                 status=exc.response.status_code,
                 error=reason,
             )
-            cause = _rpc_error_code(exc.response)
-            raise SigningFailed(
-                reason,
-                details={"cause": cause} if cause == USER_AGENT_MISMATCH else None,
-            ) from exc
+            raise SigningFailed(reason) from exc
         except httpx.HTTPError as exc:
             # `str()` on a timeout is the empty string, so reporting only the
             # message logged `error=""` and said nothing at all. The class name
@@ -233,9 +252,11 @@ class RpcSigner:
         # This never fired until #832: browser-rpc echoed the request's own UA
         # back while its page signed under another. It now answers with the
         # page's, and refuses a mismatch itself; this stays for a service from
-        # before that, which would never say so.
+        # before that, which would never say so. Only where the platform binds
+        # the whole string: a Douyin page now honestly names its own UA, and
+        # Douyin accepts its signature under another browser or version.
         wanted_ua = identity_fingerprint.user_agent
-        if signed_ua and wanted_ua and signed_ua != wanted_ua:
+        if platform in UA_BOUND_PLATFORMS and signed_ua and wanted_ua and signed_ua != wanted_ua:
             raise SigningFailed(
                 "browser-rpc signed under a different User-Agent than this "
                 "identity uses; the platform validates the two byte for byte",
@@ -471,4 +492,11 @@ def _describe(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
-__all__ = ["HEALTH_PATH", "SIGN_PATH", "USER_AGENT_MISMATCH", "RpcSigner", "is_user_agent_mismatch"]
+__all__ = [
+    "HEALTH_PATH",
+    "SIGN_PATH",
+    "UA_BOUND_PLATFORMS",
+    "USER_AGENT_MISMATCH",
+    "RpcSigner",
+    "is_user_agent_mismatch",
+]

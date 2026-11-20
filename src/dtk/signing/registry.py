@@ -571,9 +571,14 @@ class SignerRegistry:
         self._health: tuple[float, SignerHealth] | None = None
         self._last_shadow: dict[EndpointKey, ShadowResult] = {}
         self._shadow_seen: dict[EndpointKey, float] = {}
-        #: (platform, identity User-Agent digest) pairs already reported as
-        #: ones browser-rpc cannot sign under, so the log says it once.
-        self._foreign_agents: set[tuple[Platform, str]] = set()
+        #: Identities already reported as ones browser-rpc cannot sign under,
+        #: with the digest of the User-Agent it refused: the log names each
+        #: once, because the operator's question is which ones they are.
+        self._foreign_agents: set[tuple[Platform, str | None, str]] = set()
+        #: Endpoints whose requests have already crossed to the native signer
+        #: because browser-rpc refused an identity's User-Agent, so that
+        #: crossing is announced once - see `_native_for_a_foreign_agent`.
+        self._foreign_agent_crossings: set[EndpointKey] = set()
 
     @property
     def policy(self) -> RegistryPolicy:
@@ -593,16 +598,16 @@ class SignerRegistry:
     ) -> SignedParams:
         """Sign ``spec``, choosing the signer per the rules in the module docstring."""
         key = self._key(spec, platform, endpoint)
-        signer = await self._select(
-            key,
-            signed_by_platform(key[0], spec.url, session.cookies if session else None),
-        )
+        protected = signed_by_platform(key[0], spec.url, session.cookies if session else None)
+        signer = await self._select(key, protected)
         rpc = self._rpc_for(key[0])
         try:
             return await signer.sign(spec, identity_fingerprint, session)
         except DtkError as exc:
             if signer is rpc:
-                native = self._native_for_a_foreign_agent(key, exc, identity_fingerprint)
+                native = self._native_for_a_foreign_agent(
+                    key, exc, identity_fingerprint, session, protected=protected
+                )
                 if native is None:
                     raise
                 return await native.sign(spec, identity_fingerprint, session)
@@ -623,42 +628,105 @@ class SignerRegistry:
                 raise
 
     def _native_for_a_foreign_agent(
-        self, key: EndpointKey, error: DtkError, fingerprint: SigningFingerprint
+        self,
+        key: EndpointKey,
+        error: DtkError,
+        fingerprint: SigningFingerprint,
+        session: SigningSession | None,
+        *,
+        protected: bool,
     ) -> Signer | None:
         """The native signer, when browser-rpc refused this identity's User-Agent.
 
-        Issue #832. browser-rpc's page signs under its own User-Agent, and both
-        platforms seal it, so an identity minted under another browser - an
-        older CloakBrowser, or imported from the user's own - can never be
-        signed there; it now says so instead of handing back a signature
-        TikTok refuses as risk control. The native signer seals the identity's
-        own User-Agent, which was measured to work (2026-11-20, Chrome 145
-        sealed and sent: a full profile). So that is who signs it - when the
-        policy lets the other signer be used and native is not disabled.
+        Issue #832. browser-rpc's page signs under its own User-Agent. TikTok
+        refuses a request whose header names another, and Douyin a browser
+        signature for a query naming another operating system, so such an
+        identity - minted under an older CloakBrowser, or imported from the
+        user's own browser - can never be signed there; browser-rpc now says
+        so instead of handing back a signature the platform refuses as risk
+        control. The native signer seals the identity's own User-Agent, which
+        was measured to work (2026-11-20: TikTok, Chrome 145 sealed and sent, a
+        full profile; Douyin, a macOS identity, 3/3). So that is who signs it -
+        when the policy lets the other signer be used and native is not
+        disabled.
+
+        And when native can cover the request at all. A ``protected`` one was
+        sent to the browser because only a browser can make its signature - a
+        TikTok jar with no msToken, a Douyin sign-protected endpoint and a jar
+        with no visitor id - and a native signature for it would come back as a
+        platform refusal (TikTok with no msToken: 0/2 natively on 2026-11-20,
+        where the same jar with its token answered 2/2): classified as risk
+        control, which cools and degrades an identity for a cause on this side.
+        The refusal is raised instead, as what it is - a signing failure that
+        cools nothing and names its cause.
 
         Not a browser outage: rpc is not marked unhealthy and nothing reaches
-        the risk window. Logged once per platform and User-Agent.
+        the risk window. Each identity is logged once, by id, so the operator
+        can find the ones to replace; and in ``rpc`` mode, where native is the
+        signer the operator chose against, the crossing is announced once per
+        endpoint like every other.
         """
+        if not is_user_agent_mismatch(error):
+            return None
         platform = key[0]
         native = self._native.get(platform)
-        if (
-            not is_user_agent_mismatch(error)
-            or not self.policy.fallback_enabled
-            or native is None
-            or platform in self._native_disabled
-        ):
-            return None
+        blocked = self._why_not_native(platform, protected=protected)
+        identity_id = session.identity_id if session else None
         agent = hashlib.sha256(fingerprint.user_agent.encode()).hexdigest()[:10]
-        if (platform, agent) not in self._foreign_agents:
-            self._foreign_agents.add((platform, agent))
+        if (platform, identity_id, agent) not in self._foreign_agents:
+            self._foreign_agents.add((platform, identity_id, agent))
             logger.warning(
                 "signing.rpc.user_agent_mismatch",
                 platform=platform.value,
                 endpoint=key[1],
+                identity_id=identity_id,
                 user_agent_sha=agent,
+                signer=native.name if native is not None and blocked is None else None,
+                **({"not_native": blocked} if blocked else {}),
                 detail=str(error),
             )
+        if blocked is not None or native is None:
+            return None
+        if self.policy.mode == "rpc" and key not in self._foreign_agent_crossings:
+            # Not through `_cross`: the next request on this endpoint may be an
+            # identity the browser can sign, `_prefer` would then release the
+            # endpoint, and a pool mixing the two would alert on every other
+            # request.
+            self._foreign_agent_crossings.add(key)
+            why = "browser-rpc cannot sign under this identity's User-Agent"
+            logger.warning(
+                "signing.fallback.engaged",
+                platform=platform.value,
+                endpoint=key[1],
+                signer=native.name,
+                reason=why,
+            )
+            self._alert(
+                "signing.fallback.engaged",
+                {
+                    "platform": platform.value,
+                    "endpoint": key[1],
+                    "signer": native.name,
+                    "reason": why,
+                },
+            )
         return native
+
+    def _why_not_native(self, platform: Platform, *, protected: bool) -> str | None:
+        """Why the native signer may not take a request browser-rpc refused; None if it may.
+
+        Named rather than just answered, because the request then fails and
+        the log line has to tell the operator which of these to change.
+        """
+        if protected:
+            return "protected"
+        if not self.policy.fallback_enabled:
+            return "fallback_disabled"
+        if platform not in self._native:
+            return "no_native"
+        if platform in self._native_disabled:
+            return "native_disabled"
+        return None
 
     def _rpc_for(self, platform: Platform) -> Signer | None:
         """browser-rpc, if it can sign for ``platform`` at all.
@@ -883,8 +951,9 @@ class SignerRegistry:
                 # for none. Its page never signed under another - it runs one,
                 # whatever the request names - and the comparators judge only
                 # what the UA does not reach. It now refuses to be asked for
-                # another (#832), and the self-check probes with a fixed
-                # Chrome 130 that no page runs.
+                # one the platform would not accept (#832) - on TikTok any but
+                # its own - and the self-check probes with a fixed Chrome 130
+                # that no page runs.
                 side = ShadowSkip.REFERENCE_FAILED
                 remote_signed = await rpc.sign(sample, _any_agent(identity_fingerprint), session)
                 side = ShadowSkip.NATIVE_FAILED

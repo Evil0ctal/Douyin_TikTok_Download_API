@@ -43,6 +43,8 @@ import pytest
 from dtk.core.config import RUNTIME_SETTINGS
 from dtk.core.errors import SigningFailed, UpstreamChanged
 from dtk.core.types import Outcome, Platform
+from dtk.signing import registry as registry_module
+from dtk.signing import rpc as rpc_module
 from dtk.signing.base import (
     SIGNER_BROWSER,
     SIGNER_NATIVE,
@@ -2950,6 +2952,30 @@ async def test_a_user_agent_refusal_is_told_apart_from_a_broken_browser() -> Non
     assert not is_user_agent_mismatch(excinfo.value)
 
 
+async def test_a_user_agent_refusal_is_not_logged_as_a_browser_failure(monkeypatch) -> None:
+    """#832 review: at WARNING under `signing.rpc.refused` - the name a
+    browser-rpc outage uses - it was a second line per request on every
+    foreign identity. The registry logs it, once per identity, by id."""
+    recorder = EventRecorder()
+    monkeypatch.setattr(rpc_module, "logger", recorder)
+
+    def refusing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(409, json=UA_MISMATCH_BODY)
+
+    async with rpc_client(refusing) as client:
+        with pytest.raises(SigningFailed):
+            await RpcSigner(client, "http://rpc").sign(
+                TIKTOK_SPEC, FINGERPRINT, SigningSession(identity_id="identity-a")
+            )
+
+    assert recorder.events == [
+        (
+            "debug:signing.rpc.user_agent_refused",
+            {"endpoint": TIKTOK_SPEC.endpoint, "identity_id": "identity-a"},
+        )
+    ]
+
+
 async def test_a_signature_under_another_user_agent_is_refused_here() -> None:
     """The guard's first test: it could not fire while browser-rpc echoed the
     request's own User-Agent back (#832); against a service from before the
@@ -2972,8 +2998,49 @@ async def test_a_signature_under_another_user_agent_is_refused_here() -> None:
         assert await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
 
 
+class EventRecorder:
+    """Stands in for a module's logger and keeps the events it was given."""
+
+    def __init__(self) -> None:
+        self.events: list[tuple[str, dict[str, Any]]] = []
+
+    def __getattr__(self, level: str) -> Callable[..., None]:
+        def record(event: str, **fields: Any) -> None:
+            self.events.append((f"{level}:{event}", fields))
+
+        return record
+
+
 def ua_refusal() -> SigningFailed:
     return SigningFailed("browser-rpc failed (HTTP 409)", details={"cause": USER_AGENT_MISMATCH})
+
+
+#: A TikTok jar holding a token, so the native signer can cover its requests.
+TIKTOK_SESSION = SigningSession(
+    cookies={MS_TOKEN_PARAM: "t" * 152, "ttwid": "w"}, identity_id="identity-a"
+)
+
+
+def tiktok_registry(
+    rpc: FakeSigner,
+    *,
+    mode: SigningMode = "rpc",
+    policy: RegistryPolicy | None = None,
+    native: FakeSigner | None = None,
+    alerts: list[tuple[str, Mapping[str, object]]] | None = None,
+) -> tuple[SignerRegistry, FakeSigner]:
+    """`build_registry` for TikTok, the platform whose UA browser-rpc binds."""
+    native = native or FakeSigner(SIGNER_NATIVE, value="native-sig")
+    registry = SignerRegistry(
+        {Platform.TIKTOK: native},
+        rpc,
+        policy=replace(policy or RegistryPolicy(), mode=mode),
+        clock=FakeClock(),
+        on_alert=(lambda event, context: alerts.append((event, context)))
+        if alerts is not None
+        else None,
+    )
+    return registry, native
 
 
 async def test_an_identity_the_browser_cannot_sign_is_signed_natively() -> None:
@@ -2984,9 +3051,10 @@ async def test_an_identity_the_browser_cannot_sign_is_signed_natively() -> None:
     signature could only seal its own and be refused as risk control.
     """
     rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
-    registry, native, _, _ = build_registry(rpc=rpc, mode="rpc")
-    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
-    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+    registry, native = tiktok_registry(rpc)
+    for _ in range(2):
+        signed = await registry.sign(TIKTOK_SPEC, FINGERPRINT, TIKTOK_SESSION)
+        assert signed.signer == SIGNER_NATIVE
     assert rpc.calls == 2 and native.calls == 2
 
 
@@ -2995,12 +3063,138 @@ async def test_the_native_signer_is_not_reached_for_otherwise(why: str) -> None:
     fail = SigningFailed("browser-rpc failed (HTTP 502)") if why == "not_a_ua_refusal" else None
     rpc = FakeSigner(SIGNER_BROWSER, fail=fail or ua_refusal())
     policy = RegistryPolicy(fallback_enabled=why != "fallback_disabled")
-    registry, native, _, _ = build_registry(rpc=rpc, mode="rpc", policy=policy)
+    registry, native = tiktok_registry(rpc, policy=policy)
     if why == "native_disabled":
-        registry.disable_native(Platform.DOUYIN, reason="test")
+        registry.disable_native(Platform.TIKTOK, reason="test")
     with pytest.raises(SigningFailed):
-        await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+        await registry.sign(TIKTOK_SPEC, FINGERPRINT, TIKTOK_SESSION)
     assert native.calls == 0
+
+
+@pytest.mark.parametrize("mode", ["rpc", "auto"])
+async def test_a_request_only_a_browser_can_sign_is_not_handed_to_native(
+    mode: SigningMode, monkeypatch
+) -> None:
+    """#832 review. A TikTok jar with no msToken is sent to the browser because
+    the native signer cannot cover it: signed natively it was refused 2/2 live
+    on 2026-11-20, where the same jar with its token answered 2/2. Handing it
+    to native on a User-Agent refusal turned a dtk-side cause into a platform
+    refusal - risk control, which cools and degrades the identity. The refusal
+    is raised instead: a signing failure, with its cause."""
+    recorder = EventRecorder()
+    monkeypatch.setattr(registry_module, "logger", recorder)
+    rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
+    registry, native = tiktok_registry(rpc, mode=mode)
+    tokenless = SigningSession(cookies={"ttwid": "w"}, identity_id="identity-b")
+
+    with pytest.raises(SigningFailed) as excinfo:
+        await registry.sign(TIKTOK_SPEC, FINGERPRINT, tokenless)
+
+    assert is_user_agent_mismatch(excinfo.value)
+    assert rpc.calls == 1 and native.calls == 0
+    # The request fails, so the line that names the identity says why native
+    # did not take it.
+    [line] = [f for e, f in recorder.events if e == "warning:signing.rpc.user_agent_mismatch"]
+    assert line["identity_id"] == "identity-b"
+    assert line["signer"] is None and line["not_native"] == "protected"
+
+
+async def test_a_ua_refusal_is_logged_once_per_identity_by_id(monkeypatch) -> None:
+    """#832 review: the operator's question is which identities the browser
+    cannot sign, so the line names each one - once, not per request."""
+    recorder = EventRecorder()
+    monkeypatch.setattr(registry_module, "logger", recorder)
+    rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
+    registry, _ = tiktok_registry(rpc)
+    other = replace(TIKTOK_SESSION, identity_id="identity-c")
+
+    for session in (TIKTOK_SESSION, TIKTOK_SESSION, other, TIKTOK_SESSION):
+        await registry.sign(TIKTOK_SPEC, FINGERPRINT, session)
+
+    named = [
+        fields["identity_id"]
+        for event, fields in recorder.events
+        if event == "warning:signing.rpc.user_agent_mismatch"
+    ]
+    assert named == ["identity-a", "identity-c"]
+
+
+async def test_crossing_to_native_on_a_ua_refusal_is_announced_once(monkeypatch) -> None:
+    """#832 review. In rpc mode native is the signer the operator chose
+    against, and every crossing to it is alerted, once per endpoint - this one
+    too. Not through `_cross`, whose release on the next browser-signed
+    request would re-alert on every other request of a mixed pool."""
+    alerts: list[tuple[str, Mapping[str, object]]] = []
+    refused = SigningFailed("browser-rpc failed (HTTP 409)", details={"cause": USER_AGENT_MISMATCH})
+
+    class MixedPool(FakeSigner):
+        """Refuses identity-a's User-Agent, signs everybody else."""
+
+        async def sign(
+            self,
+            spec: RequestSpec,
+            identity_fingerprint: SigningFingerprint,
+            session: SigningSession | None = None,
+        ) -> SignedParams:
+            self.fail = refused if session and session.identity_id == "identity-a" else None
+            return await super().sign(spec, identity_fingerprint, session)
+
+    rpc = MixedPool(SIGNER_BROWSER)
+    registry, _ = tiktok_registry(rpc, alerts=alerts)
+    other = replace(TIKTOK_SESSION, identity_id="identity-d")
+
+    signers = [
+        (await registry.sign(TIKTOK_SPEC, FINGERPRINT, session)).signer
+        for session in (TIKTOK_SESSION, other, TIKTOK_SESSION, other)
+    ]
+
+    assert signers == [SIGNER_NATIVE, SIGNER_BROWSER, SIGNER_NATIVE, SIGNER_BROWSER]
+    assert alerts == [
+        (
+            "signing.fallback.engaged",
+            {
+                "platform": "tiktok",
+                "endpoint": TIKTOK_SPEC.endpoint,
+                "signer": SIGNER_NATIVE,
+                "reason": "browser-rpc cannot sign under this identity's User-Agent",
+            },
+        )
+    ]
+
+
+async def test_in_auto_mode_native_on_a_ua_refusal_is_no_crossing() -> None:
+    """In auto mode native is the preferred signer; signing with it is not a
+    fallback to announce."""
+    alerts: list[tuple[str, Mapping[str, object]]] = []
+    rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
+    registry, _ = tiktok_registry(rpc, mode="auto", alerts=alerts)
+    # At risk, so auto crosses to the browser for a jar native could sign.
+    for _ in range(30):
+        registry.observe(Platform.TIKTOK, TIKTOK_SPEC.endpoint, Outcome.RISK_CONTROL)
+
+    signed = await registry.sign(TIKTOK_SPEC, FINGERPRINT, TIKTOK_SESSION)
+
+    assert signed.signer == SIGNER_NATIVE and rpc.calls == 1
+    assert [context["signer"] for _, context in alerts] == [SIGNER_BROWSER]
+
+
+async def test_a_douyin_signature_under_the_pages_own_user_agent_is_used() -> None:
+    """#832 review. Douyin accepted a page's signature for identities on other
+    Chrome majors and Edge (measured 2026-11-20), and browser-rpc refuses the
+    one case it did not - another operating system - itself. So an answer that
+    honestly names the page's own, different User-Agent is used, not refused
+    on this side as it is for TikTok."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"params": {"a_bogus": "AB", "msToken": "m"}, "user_agent": UA_EDGE122}
+        )
+
+    async with rpc_client(handler) as client:
+        signed = await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
+
+    assert signed.signer == SIGNER_BROWSER
+    assert "a_bogus=AB" in signed.query
 
 
 async def test_a_native_failure_is_not_hidden_behind_a_ua_refusal() -> None:
@@ -3008,9 +3202,9 @@ async def test_a_native_failure_is_not_hidden_behind_a_ua_refusal() -> None:
     native signer's error is the one that says what is wrong."""
     native = FakeSigner(SIGNER_NATIVE, fail=SigningFailed("algorithm blew up"))
     rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
-    registry, _, _, _ = build_registry(native=native, rpc=rpc, mode="native")
+    registry, _ = tiktok_registry(rpc, native=native, mode="native")
     with pytest.raises(SigningFailed, match="blew up"):
-        await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+        await registry.sign(TIKTOK_SPEC, FINGERPRINT, TIKTOK_SESSION)
     assert rpc.calls == 1
 
 
