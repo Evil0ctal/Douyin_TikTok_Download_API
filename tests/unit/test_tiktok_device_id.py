@@ -307,10 +307,19 @@ class TestThePagesCookies:
         assert pool.identity.cookies["msToken"] == self.USABLE
         assert transport.senders[-1].cookies["msToken"] == self.USABLE
 
-    async def test_a_page_that_stated_no_id_teaches_nothing(self) -> None:
-        """A login wall or a challenge sets cookies too."""
+    async def test_a_page_that_stated_no_id_still_sets_its_cookies(self) -> None:
+        """Kept the way any answer's are; the id is asked for again later."""
         pool = self.pool()
-        transport = Transport(_html(200, "<html>a wall</html>", {"ttwid": "wall"}))
+        transport = Transport(_html(200, "<html>no state</html>", {"ttwid": "rotated"}))
+        await fetch_detail(tiktok_service(pool, transport))
+
+        assert pool.remembered == []
+        assert pool.absorbed == [(IDENTITY_ID, ("ttwid",))]
+        assert transport.senders[-1].cookies["ttwid"] == "rotated"
+
+    async def test_a_page_that_never_answered_sets_nothing(self) -> None:
+        pool = self.pool()
+        transport = Transport(_html(502, "bad gateway", {"ttwid": "gateway"}))
         await fetch_detail(tiktok_service(pool, transport))
 
         assert pool.absorbed == []

@@ -1,13 +1,18 @@
 """Which cookies a platform's response may change in an identity's jar.
 
 A browser keeps whatever a response sets, and for most cookies so does the
-pool: a rotated ``odin_tt`` or ``ttwid`` is the platform keeping its own
-session current, and replaying the value it replaced is what an abandoned tab
-looks like. Until 2026-11 nothing was kept at all - the transport had a hook
-for it that was never wired - and identities worked anyway, because rotation is
-not invalidation (docs/design/02-identity-pool.md measured a 386-minute-old jar
-still answering). Keeping them is about looking like the visitor the jar
-claims to be, not about a jar that has stopped working.
+pool. Until 2026-11 nothing was kept at all - the transport had a hook for it
+that was never wired - on the strength of a 386-minute-old jar still answering
+(docs/design/02-identity-pool.md). Age was the wrong axis. Measured on
+2026-11-20, a TikTok msToken has a use budget: a guest jar replaying its minted
+token answered about 22 author_profile calls and was then refused on almost
+every one (signature.rejected, tt_orcas_res: 1), and still five minutes later.
+The API sets a fresh 152-character token on most answers, refusals included;
+a jar that kept them answered 40 of 40, and the spent one recovered on its very
+next call once it adopted the token its own refusal carried. Older tokens stay
+valid after a newer one is issued, so two requests racing on one identity lose
+nothing by keeping different ones. That spent token is what issue 830's
+rejections were.
 
 What is refused, and why each one:
 

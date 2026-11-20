@@ -84,13 +84,19 @@ MAX_TRANSPORT_ATTEMPTS = 3
 #: one request an hour per identity, not one per call.
 DEVICE_ID_RETRY_SECONDS = 3600.0
 
-#: The outcomes whose Set-Cookie an identity keeps: a response the platform
-#: served as itself, an answer about missing content included. A refusal is
-#: left out on purpose - what a challenge or a risk page plants describes a
-#: visitor being turned away, and it is no reason to change a jar that the
-#: next request may well find working. A login wall is filed as a business
-#: error (TikTok's 2483) and is left out for the same reason, by its rule.
-_SERVED: frozenset[Outcome] = frozenset({Outcome.OK, Outcome.BUSINESS_ERROR})
+#: Responses whose Set-Cookie an identity keeps: every one the platform
+#: answered, refusals included, as a browser would. Not a transport failure or
+#: a 5xx, where there is no answer from the platform to keep.
+#:
+#: Refusals were left out at first, on the theory that a risk page describes a
+#: visitor being turned away. Measured on 2026-11-20 it is the other way round
+#: on TikTok: each msToken carries a use budget (about 22 author_profile calls
+#: on a guest), the API sets a fresh one on most answers, and the refusal that
+#: spends the last of a budget - signature.rejected, an empty 200 with
+#: tt_orcas_res: 1 - carries a fresh one too. A jar that adopted it answered
+#: again on its next call; one that kept replaying its minted token was dead
+#: for good. That replayed token was #830's rejections.
+_KEEPS_NOTHING: frozenset[Outcome] = frozenset({Outcome.NETWORK_ERROR})
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,8 +438,8 @@ class FetchService:
             outcome = classification.outcome
             rule = classification.rule
             error_code = _error_code_for(classification, payload)
-            if outcome in _SERVED and rule != LOGIN_REQUIRED_RULE:
-                await self._keep_cookies(session, identity.id, response, sealed=signed.cookies)
+            if outcome not in _KEEPS_NOTHING:
+                await self._keep_cookies(session, identity, response, sealed=signed.cookies)
         except TransportFailure as exc:
             outcome = Outcome.NETWORK_ERROR
             error_code = "transport_failure"
@@ -511,6 +517,7 @@ class FetchService:
             proxy_url=identity.proxy_url,
         )
         device_id: str | None = None
+        response: RawResponse | None = None
         try:
             response = await self._transport.request(
                 sender,
@@ -529,6 +536,18 @@ class FetchService:
                 identity_id=identity.id,
                 error=type(exc.cause).__name__ if exc.cause else str(exc)[:120],
             )
+        if response is not None and response.status < 500:
+            # The page is an answer like any other, and the call that follows
+            # goes out with what it set, as a browser's next request would.
+            kept = await self._keep_cookies(session, identity, response)
+            if kept:
+                identity = replace(
+                    identity,
+                    cookies={
+                        **identity.cookies,
+                        **{name: response.set_cookies[name] for name in kept},
+                    },
+                )
         if not device_id:
             self._device_id_retry_at[identity.id] = now + DEVICE_ID_RETRY_SECONDS
             log.info("fetch.device_id.unread", identity_id=identity.id)
@@ -536,20 +555,12 @@ class FetchService:
         self._device_id_retry_at.pop(identity.id, None)
         await self._pool.remember_device_id(session, identity.id, device_id)
         log.info("fetch.device_id.learned", identity_id=identity.id)
-        # Only from a page that stated the id: a login wall or a challenge page
-        # sets cookies too, and those describe a visitor being turned away.
-        kept = await self._keep_cookies(session, identity.id, response)
-        cookies = {**identity.cookies, **{name: response.set_cookies[name] for name in kept}}
-        return replace(
-            identity,
-            cookies=cookies,
-            fingerprint=replace(identity.fingerprint, device_id=device_id),
-        )
+        return replace(identity, fingerprint=replace(identity.fingerprint, device_id=device_id))
 
     async def _keep_cookies(
         self,
         session: AsyncSession,
-        identity_id: str,
+        identity: LiveIdentity,
         response: RawResponse,
         *,
         sealed: Mapping[str, str] | None = None,
@@ -566,19 +577,24 @@ class FetchService:
         writing it into the jar would have the next natively signed request
         carry another session's token: on TikTok the one case worse than
         sending none.
+
+        A value the request already carried is not offered at all: the pool
+        reads the row under a lock to write it, and a platform re-sending what
+        the jar holds - TikTok's home page does it with tt_chain_token on every
+        load - is not worth one.
         """
         offered = {
             name: value
             for name, value in response.set_cookies.items()
-            if name not in (sealed or {})
+            if name not in (sealed or {}) and identity.cookies.get(name) != value
         }
         if not offered:
             return ()
         try:
-            return await self._pool.absorb_cookies(session, identity_id, offered)
+            return await self._pool.absorb_cookies(session, identity.id, offered)
         except Exception as exc:
             log.error(
-                "fetch.cookies.keep_failed", identity_id=identity_id, error=type(exc).__name__
+                "fetch.cookies.keep_failed", identity_id=identity.id, error=type(exc).__name__
             )
             return ()
 

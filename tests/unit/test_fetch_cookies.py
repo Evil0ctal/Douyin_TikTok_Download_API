@@ -3,8 +3,9 @@
 The transport only reports them (``RawResponse.set_cookies``); keeping them is
 the pipeline's job, in the request's own session, because a session of the
 transport's own would wait on the row lock this request's transaction already
-holds. These tests hold which responses are learned from and that keeping a
-cookie can never cost the response it arrived on.
+holds. These tests hold which responses are learned from - every one the
+platform answered, as a browser would - and that keeping a cookie can never
+cost the response it arrived on.
 """
 
 from __future__ import annotations
@@ -15,7 +16,12 @@ from typing import Any
 
 import pytest
 
-from dtk.core.errors import IdentityLoginRequired, NotFound, UpstreamRiskControl
+from dtk.core.errors import (
+    IdentityLoginRequired,
+    NotFound,
+    UpstreamRiskControl,
+    UpstreamUnreachable,
+)
 from dtk.core.types import Outcome
 from dtk.services import fetch as fetch_module
 from dtk.services.fetch import FetchService
@@ -80,14 +86,33 @@ class TestWhichResponsesTeachTheJar:
         assert pool.recorded == [Outcome.BUSINESS_ERROR]
         assert pool.absorbed == [(IDENTITY_ID, ROTATED)]
 
-    async def test_a_refusal_teaches_nothing(self) -> None:
-        """What a risk page plants describes a visitor being turned away."""
+    async def test_a_refusal_s_cookies_are_kept_too(self) -> None:
+        """Measured on TikTok: the refusal that spends an msToken's budget
+        carries the fresh token that ends it; a jar that refused it stayed dead."""
         pool = KeepingPool()
         with pytest.raises(UpstreamRiskControl):
             await run_fetch(service(answer(403, {}), pool=pool), FakeSession())
 
         assert pool.recorded[0] is Outcome.RISK_CONTROL
+        assert pool.absorbed == [(IDENTITY_ID, ROTATED)]
+
+    async def test_no_answer_from_the_platform_keeps_nothing(self) -> None:
+        """A 5xx is a gateway or an outage speaking, not the platform."""
+        pool = KeepingPool()
+        with pytest.raises(UpstreamUnreachable):
+            await run_fetch(service(answer(503, {}), pool=pool), FakeSession())
+
+        assert set(pool.recorded) == {Outcome.NETWORK_ERROR}
         assert pool.absorbed == []
+
+    async def test_a_value_the_request_already_carried_is_not_offered(self) -> None:
+        """TikTok's home page re-sends tt_chain_token on every load; writing it
+        back would take a row lock for nothing."""
+        pool = KeepingPool()
+        resent = answer(200, load("douyin", "video_normal"), {"ttwid": "x", "odin_tt": "new"})
+        await run_fetch(service(resent, pool=pool), FakeSession())
+
+        assert pool.absorbed == [(IDENTITY_ID, {"odin_tt": "new"})]
 
     async def test_a_response_that_set_nothing_costs_no_call(self) -> None:
         pool = KeepingPool()
@@ -135,16 +160,16 @@ class TestKeepingNeverCostsTheResponse:
 
 
 class TestALoginWall:
-    async def test_teaches_nothing_although_it_is_filed_as_a_business_error(self) -> None:
-        """TikTok's 2483 is not the platform serving this visitor; what it sets
-        describes one being turned away."""
+    async def test_is_an_answer_like_any_other(self) -> None:
+        """TikTok's 2483 is filed as a business error; a browser would keep
+        what it sets, and so does the pool."""
         pool = KeepingPool()
         wall = answer(200, {"status_code": 2483, "status_msg": "Please login your account first"})
         with pytest.raises(IdentityLoginRequired):
             await run_fetch(service(wall, pool=pool), FakeSession())
 
         assert pool.recorded == [Outcome.BUSINESS_ERROR]
-        assert pool.absorbed == []
+        assert pool.absorbed == [(IDENTITY_ID, ROTATED)]
 
 
 class TestASignersSessionIsNotTheIdentitys:
