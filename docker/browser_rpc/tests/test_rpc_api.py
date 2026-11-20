@@ -13,6 +13,7 @@ import importlib.util
 
 import httpx
 import pytest
+from browser_rpc.backends.fake import FAKE_USER_AGENT
 from browser_rpc.validation import Platform
 
 DOUYIN_URL = "https://www.douyin.com/aweme/v1/web/aweme/detail/"
@@ -71,13 +72,41 @@ class TestSignEndpoint:
                 "url": DOUYIN_URL,
                 "query": "aweme_id=7&device_platform=webapp",
                 "params": {"aweme_id": "7", "device_platform": "webapp"},
-                "user_agent": "Mozilla/5.0",
+                "user_agent": FAKE_USER_AGENT,
             },
         )
         assert response.status_code == 200
         body = response.json()
         assert body["params"]["a_bogus"]
         assert body["params"]["ms_token"]
+        assert body["user_agent"] == FAKE_USER_AGENT
+
+    async def test_a_user_agent_the_page_does_not_run_is_refused(
+        self, client: httpx.AsyncClient
+    ) -> None:
+        """Issue #832: the page signs under its own UA whatever it is asked.
+
+        The answer used to echo the request's own UA back as the one signed
+        under, so the caller's check compared its UA with itself. A signature
+        sealing another UA is refused by TikTok; the refusal comes here instead,
+        as a conflict the caller can act on rather than a browser failure.
+        """
+        foreign = FAKE_USER_AGENT.replace("Chrome/149", "Chrome/148")
+        response = await client.post(
+            "/rpc/sign",
+            json={
+                "platform": "tiktok",
+                "url": "https://www.tiktok.com/api/user/detail/",
+                "query": "uniqueId=tiktok",
+                "user_agent": foreign,
+            },
+        )
+        assert response.status_code == 409
+        error = response.json()["error"]
+        assert error["code"] == "user_agent_mismatch"
+        assert "as Chrome/149 on Windows" in error["message"]
+        assert "is Chrome/148 on Windows" in error["message"]
+        assert "sign it natively, or re-mint the identity" in error["message"]
 
     async def test_a_body_is_signed_and_said_to_be(self, client: httpx.AsyncClient) -> None:
         """`body_signed` is how a caller tells this build from one before bodies.
@@ -190,6 +219,7 @@ class TestHealthEndpoint:
         assert body["status"] == "ok"
         assert body["backend"] == "fake"
         assert body["chromium_major"]
+        assert body["user_agent"] == FAKE_USER_AGENT
         assert "warm_contexts" in body
         assert body["uptime"] >= 0
 
@@ -228,7 +258,7 @@ class TestClientContract:
             client, "http://browser-rpc", platform=dtk_types.Platform.DOUYIN
         )
         spec = dtk_signing_base.RequestSpec.get(DOUYIN_URL, params={"aweme_id": "7"})
-        fingerprint = dtk_signing_base.StaticFingerprint(user_agent="Mozilla/5.0")
+        fingerprint = dtk_signing_base.StaticFingerprint(user_agent=FAKE_USER_AGENT)
 
         signed = await signer.sign(spec, fingerprint)
 

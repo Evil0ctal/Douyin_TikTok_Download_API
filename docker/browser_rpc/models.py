@@ -105,7 +105,8 @@ class SignResponse(BaseModel):
     enough for the API to return an 18-byte empty body, and changing it back
     restores the data. So the caller must send the request under exactly the UA
     the signature was computed with, and returning it here is what lets the
-    caller check rather than assume.
+    caller check rather than assume. It is the signing page's own; a request
+    naming another is refused with 409 ``user_agent_mismatch`` instead (#832).
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -125,13 +126,15 @@ class HealthResponse(BaseModel):
     treats zero warm contexts as unhealthy. `BrowserRpcClient.health` reads
     `warm_contexts`, `chromium_major` and `backend_version`; the console shows
     `chromium_major` beside the wreq profile version so the version drift from
-    doc 04 stays visible.
+    doc 04 stays visible. `user_agent` is the string every signature from this
+    browser carries, None until a page has reported it.
     """
 
     status: str
     backend: str
     backend_version: str
     chromium_major: int | None = None
+    user_agent: str | None = None
     warm_contexts: int = 0
     uptime: float = 0.0
     backend_pin: str | None = None

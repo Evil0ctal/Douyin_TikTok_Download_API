@@ -5,7 +5,8 @@ non-2xx reply as "browser-rpc is unavailable" and degrade: minting stops and the
 pool falls back to imported cookies, signing falls back to the native algorithm.
 The status code therefore does not change what the caller does - it changes what
 the operator reads in the logs, which is why each failure mode gets its own code
-instead of a blanket 500.
+instead of a blanket 500. One exception: `UserAgentMismatch` is not this service
+failing, and `dtk.signing.registry` signs natively when it sees one.
 """
 
 from __future__ import annotations
@@ -80,6 +81,21 @@ class BackendFailure(RpcError):
     code = "backend_failed"
 
 
+class UserAgentMismatch(RpcError):
+    """The caller's identity runs a User-Agent this browser's pages do not.
+
+    A conflict between the caller and this browser, not a failure of either:
+    the page signs under its own ``navigator.userAgent`` whatever it is asked,
+    both platforms seal that string into the signature, and TikTok refused the
+    request when the header named another one (#832, measured 2026-11-20). So
+    it is refused before a page is spent on it, and never retried on a second
+    page that would answer the same.
+    """
+
+    status_code = 409
+    code = "user_agent_mismatch"
+
+
 class OperationTimeout(RpcError):
     """The browser did not finish inside the service-side budget.
 
@@ -103,4 +119,5 @@ __all__ = [
     "OperationTimeout",
     "RpcError",
     "Suspect",
+    "UserAgentMismatch",
 ]

@@ -14,8 +14,8 @@ from typing import Any
 
 import pytest
 from browser_rpc import service as service_module
-from browser_rpc.backends.base import MintedProfile, MintPlan, SignPlan
-from browser_rpc.backends.fake import FakeBackend, FakeSigningContext
+from browser_rpc.backends.base import BackendInfo, MintedProfile, MintPlan, SignPlan
+from browser_rpc.backends.fake import FAKE_USER_AGENT, FakeBackend, FakeSigningContext
 from browser_rpc.errors import (
     BackendFailure,
     BackendUnavailable,
@@ -23,9 +23,10 @@ from browser_rpc.errors import (
     OperationTimeout,
     RpcError,
     Suspect,
+    UserAgentMismatch,
 )
 from browser_rpc.geo import ExitInfo, GeoProfile
-from browser_rpc.service import ANONYMOUS, BrowserRpcService, binding_key
+from browser_rpc.service import ANONYMOUS, BrowserRpcService, binding_key, describe_agent
 from browser_rpc.settings import Settings
 from browser_rpc.validation import Platform, ProxyEndpoint
 
@@ -1168,3 +1169,113 @@ class TestPrewarmGoesOutTheConfiguredExit:
         finally:
             # Closing cancels the hung open rather than waiting it out.
             await asyncio.wait_for(service.close(), timeout=2.0)
+
+
+TIKTOK_URL = "https://www.tiktok.com/api/user/detail/"
+FOREIGN_AGENT = FAKE_USER_AGENT.replace("Chrome/149", "Chrome/145")
+
+
+class UnreportedAgentBackend(CountingBackend):
+    """A backend that has not read a page's User-Agent yet, as before its first open."""
+
+    def info(self) -> BackendInfo:
+        return replace(super().info(), user_agent=None)
+
+
+class TestAPageSignsUnderItsOwnUserAgent:
+    """Issue #832: a signature carries the page's User-Agent, whatever was asked.
+
+    The page never applied the one in the request, and the answer echoed the
+    request's own back as the one signed under - so dtk compared its UA with
+    itself and sent the request under it, and TikTok refused it (measured
+    2026-11-20: sealed Chrome 146, sent 145, 54 bytes and tt_orcas_res=1). That
+    reached dtk as risk control and cooled an identity with nothing wrong with
+    it. The service now refuses such a request, and says why.
+    """
+
+    async def test_a_known_foreign_agent_is_refused_before_a_page_opens(
+        self, settings: Settings
+    ) -> None:
+        """Refused before the identity's jar is loaded under a UA not its own."""
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            with pytest.raises(UserAgentMismatch) as excinfo:
+                await service.sign(
+                    Platform.TIKTOK,
+                    TIKTOK_URL,
+                    "uniqueId=tiktok",
+                    user_agent=FOREIGN_AGENT,
+                    cookies={"msToken": "m", "ttwid": "t"},
+                )
+        finally:
+            await service.close()
+        assert backend.contexts_opened == 0
+        assert excinfo.value.status_code == 409
+        assert "as Chrome/149 on Windows and this identity's is Chrome/145 on Windows" in str(
+            excinfo.value
+        )
+
+    async def test_a_page_found_to_run_another_agent_is_kept_and_not_retried(
+        self, settings: Settings
+    ) -> None:
+        """The page is healthy and stays warm; a second page would answer the same."""
+        backend = UnreportedAgentBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        jar = {"msToken": "m", "ttwid": "t"}
+        try:
+            with pytest.raises(UserAgentMismatch):
+                await service.sign(
+                    Platform.TIKTOK, TIKTOK_URL, "a=1", user_agent=FOREIGN_AGENT, cookies=jar
+                )
+            assert backend.contexts_opened == 1
+            pool = service._pools[Platform.TIKTOK]
+            assert pool.live == 1
+            assert len(pool.idle) == 1 and not pool.idle[0].context.problem
+            # The same identity under the page's own UA signs on that page.
+            await service.sign(
+                Platform.TIKTOK, TIKTOK_URL, "a=1", user_agent=FAKE_USER_AGENT, cookies=jar
+            )
+            assert backend.contexts_opened == 1
+        finally:
+            await service.close()
+
+    async def test_the_pages_agent_and_no_agent_at_all_are_signed(
+        self, service: BrowserRpcService
+    ) -> None:
+        assert await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1", user_agent=FAKE_USER_AGENT)
+        assert await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1", user_agent=None)
+        assert await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1", user_agent="")
+
+    async def test_the_agent_reported_is_the_pages_own(self, service: BrowserRpcService) -> None:
+        await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+        assert service.signing_user_agent() == FAKE_USER_AGENT
+        assert service.health()["user_agent"] == FAKE_USER_AGENT
+
+    @pytest.mark.parametrize(
+        ("agent", "described"),
+        [
+            (FAKE_USER_AGENT, "Chrome/149 on Windows"),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+                "Chrome/145 on macOS",
+            ),
+            (
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36",
+                "Chrome/146 on Android",
+            ),
+            (
+                "Mozilla/5.0 (X11; Linux x86_64; rv:151.0) Gecko/20100101 Firefox/151.0",
+                "Firefox/151 on Linux",
+            ),
+            ("Mozilla/5.0", "an unrecognised browser"),
+        ],
+    )
+    def test_a_user_agent_is_described_by_what_a_person_compares(
+        self, agent: str, described: str
+    ) -> None:
+        assert describe_agent(agent) == described

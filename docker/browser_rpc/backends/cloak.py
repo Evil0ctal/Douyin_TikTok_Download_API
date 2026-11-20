@@ -481,11 +481,17 @@ class CloakSigningContext:
     """A warm page holding the platform's signing JavaScript in memory."""
 
     def __init__(
-        self, platform: Platform, context: Any, page: Any, profile_dir: str | None = None
+        self,
+        platform: Platform,
+        context: Any,
+        page: Any,
+        profile_dir: str | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self._platform = platform
         self._context = context
         self._page = page
+        self._user_agent = user_agent
         #: Removed on close. A warm context owns its directory exclusively, so
         #: leaving it behind would slowly fill the profile tmpfs across the
         #: rebuild every 30 minutes.
@@ -502,6 +508,10 @@ class CloakSigningContext:
     @property
     def platform(self) -> Platform:
         return self._platform
+
+    @property
+    def user_agent(self) -> str | None:
+        return self._user_agent
 
     @property
     def problem(self) -> str | None:
@@ -586,11 +596,14 @@ class CloakSigningContext:
         if self._crashed:
             raise renderer_crashed(self._platform)
 
+        # No User-Agent in here. One used to be sent and `SIGN_SCRIPT` never
+        # read it: the page signs under its own `navigator.userAgent` whatever
+        # the plan says, which is why the service refuses a plan naming another
+        # one before it gets this far (#832).
         payload = {
             "url": plan.url,
             "query": plan.query,
             "method": plan.method or "GET",
-            "userAgent": plan.user_agent or "",
             "body": plan.body,
             "contentType": plan.content_type,
             "domain": platform_domain(self._platform),
@@ -669,6 +682,7 @@ class CloakBackend:
         self._driver: Any = None
         self._version: str | None = None
         self._chromium_major: int | None = None
+        self._user_agent: str | None = None
 
     # -- lifecycle --------------------------------------------------------
 
@@ -723,6 +737,7 @@ class CloakBackend:
             version=self._version,
             chromium_major=self._chromium_major,
             pin=self._settings.backend_pin,
+            user_agent=self._user_agent,
         )
 
     # -- contexts ---------------------------------------------------------
@@ -859,6 +874,8 @@ class CloakBackend:
             major = browser_major_of(user_agent)
             if major is not None:
                 self._chromium_major = major
+            if user_agent:
+                self._user_agent = user_agent
             return MintedProfile(
                 cookies=cookies,
                 user_agent=user_agent,
@@ -931,9 +948,14 @@ class CloakBackend:
                 ) from exc
             await _await_sdk(page, platform, self._settings.sdk_ready_timeout_seconds)
             fingerprint = await self._read_fingerprint(page)
-            major = browser_major_of(fingerprint.get("userAgent"))
+            # Kept whole now, not just its major: it is the User-Agent every
+            # signature from this page carries (#832).
+            user_agent = fingerprint.get("userAgent")
+            major = browser_major_of(user_agent)
             if major is not None:
                 self._chromium_major = major
+            if user_agent:
+                self._user_agent = user_agent
             await _send_to_background(context, page, platform)
         except BaseException as exc:
             # BaseException, so a service-side timeout - which cancels this
@@ -944,7 +966,7 @@ class CloakBackend:
             if not isinstance(exc, Exception):
                 raise
             raise _warm_failure(platform, exc) from exc
-        return CloakSigningContext(platform, context, page, profile_dir)
+        return CloakSigningContext(platform, context, page, profile_dir, user_agent)
 
 
 async def _send_to_background(context: Any, page: Any, platform: Platform) -> None:

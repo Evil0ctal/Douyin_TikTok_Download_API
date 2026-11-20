@@ -49,6 +49,7 @@ from browser_rpc.errors import (
     OperationTimeout,
     RpcError,
     Suspect,
+    UserAgentMismatch,
 )
 from browser_rpc.geo import GeoProfile
 from browser_rpc.settings import Settings
@@ -334,6 +335,10 @@ class BrowserRpcService:
             "backend": info.name,
             "backend_version": info.version or info.pin or info.name,
             "chromium_major": info.chromium_major,
+            # The whole string, not just the major above: a caller holding an
+            # identity minted elsewhere can see before asking that this browser
+            # cannot sign for it (#832).
+            "user_agent": info.user_agent,
             "warm_contexts": warm,
             "uptime": round(self._clock() - self._started_at, 3),
         }
@@ -419,21 +424,22 @@ class BrowserRpcService:
 
     # -- signing ----------------------------------------------------------
 
-    def user_agent_for(self, platform: Platform, requested: str | None) -> str:
-        """The User-Agent a signature for this platform was computed under.
+    def signing_user_agent(self) -> str:
+        """The User-Agent this service's signatures are computed under.
 
         Returned to the caller because TikTok binds the signature to the exact
         UA string - a one-digit Chrome version change is enough for the API to
         answer with an empty body - so the caller has to send under precisely
         this value rather than under whatever it believes the identity uses.
+
+        The page's own, as the backend read it. This used to echo whatever the
+        request asked for, and fall back to a `_warm` attribute that no longer
+        existed, while the page signed under its own string regardless: the
+        caller compared its UA with itself, and its check could never fire
+        (#832). An empty string means no page has said yet, which is honest
+        where a plausible default would not be.
         """
-        if requested:
-            return requested
-        # Fall back to whatever the warm context reports. An empty string is
-        # honest here: the caller can then see that no UA was pinned, rather
-        # than being handed a plausible-looking default it never signed under.
-        slot = getattr(self, "_warm", {}).get(platform) if hasattr(self, "_warm") else None
-        return str(getattr(slot, "user_agent", "") or "")
+        return self._backend.info().user_agent or ""
 
     async def sign(
         self,
@@ -484,6 +490,10 @@ class BrowserRpcService:
         # half of the story the operator could not see in #830, where both
         # attempts failed the same way because both went out the same way.
         exit_kind = _exit_kind(proxy_url, exit_url)
+        # Before any page is opened or rebound when the browser's User-Agent is
+        # already known: refusing then also keeps this identity's jar from
+        # being loaded on the platform under a User-Agent that is not its own.
+        _refuse_a_foreign_agent(platform, user_agent, self._backend.info().user_agent, identity_id)
         failures: list[RpcError] = []
         # Two attempts: a warm page that has been up for a while is the most
         # common failure, and it is fixed by throwing it away.
@@ -507,6 +517,17 @@ class BrowserRpcService:
                     exc.message,
                 )
                 continue
+            try:
+                _refuse_a_foreign_agent(platform, user_agent, slot.context.user_agent, identity_id)
+            except UserAgentMismatch:
+                # Nothing is wrong with the page or its binding, so it stays
+                # warm; and no second attempt, which would open a page in the
+                # same browser and be refused the same way. #832's own patch
+                # refused one step later, inside the page's sign, where a
+                # failure throws a healthy page away, pays for a cold one that
+                # fails alike, and answers 502 blaming the browser.
+                await self._release_slot(platform, slot)
+                raise
             try:
                 signed = await self._with_timeout(
                     slot.context.sign(plan),
@@ -677,6 +698,62 @@ class BrowserRpcService:
             return await asyncio.wait_for(awaitable, timeout)
         except TimeoutError as exc:
             raise OperationTimeout(f"{what} exceeded {timeout:g}s", suspect=suspect) from exc
+
+
+#: What a User-Agent claims, by the parts a person compares: the browser and
+#: its major, and the system. The systems are tried in order, because an
+#: Android string also says Linux and an iPhone one also says Mac OS X.
+_AGENT_BROWSER = re.compile(r"(Firefox|Chrome|Version)/(\d+)")
+_AGENT_SYSTEMS: tuple[tuple[str, str], ...] = (
+    ("Windows", "Windows"),
+    ("Android", "Android"),
+    ("iPhone", "iOS"),
+    ("iPad", "iOS"),
+    ("Mac OS X", "macOS"),
+    ("CrOS", "ChromeOS"),
+    ("Linux", "Linux"),
+)
+
+
+def describe_agent(agent: str) -> str:
+    """'Chrome/146 on Windows': what a User-Agent claims, without the rest of it."""
+    match = _AGENT_BROWSER.search(agent)
+    if match is None:
+        browser = "an unrecognised browser"
+    else:
+        name = "Safari" if match.group(1) == "Version" else match.group(1)
+        browser = f"{name}/{match.group(2)}"
+    system = next((name for marker, name in _AGENT_SYSTEMS if marker in agent), None)
+    return f"{browser} on {system}" if system else browser
+
+
+def _refuse_a_foreign_agent(
+    platform: Platform, wanted: str | None, page_agent: str | None, identity_id: str | None
+) -> None:
+    """Raise `UserAgentMismatch` when the caller's UA is not the one the page signs under.
+
+    Nothing to compare when either side is unknown: a caller that names no
+    User-Agent takes the page's, and a page that did not report one cannot
+    be held to it.
+    """
+    if not wanted or not page_agent or wanted == page_agent:
+        return
+    page, theirs = describe_agent(page_agent), describe_agent(wanted)
+    logger.info(
+        "browser_rpc.sign.user_agent_mismatch platform=%s identity=%s page=%s requested=%s",
+        platform.value,
+        _short(identity_id),
+        page,
+        theirs,
+    )
+    other = (
+        f"this identity's is {theirs}" if theirs != page else f"this identity's is another {theirs}"
+    )
+    raise UserAgentMismatch(
+        f"this browser signs {platform.value} requests as {page} and {other}: the platform "
+        "seals the User-Agent into the signature, so one taken here would be refused for this "
+        "identity - sign it natively, or re-mint the identity under this browser"
+    )
 
 
 def _short(identity_id: str | None) -> str:

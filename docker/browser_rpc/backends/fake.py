@@ -43,6 +43,9 @@ USER_AGENT_TEMPLATE = (
     "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
 )
 
+#: The User-Agent a fake page runs under, as a real page runs under its binary's.
+FAKE_USER_AGENT = USER_AGENT_TEMPLATE.format(major=FAKE_CHROMIUM_MAJOR)
+
 #: The cookie names each platform actually sets on a guest session; the pool's
 #: import validation looks for these, so the fake has to produce them.
 COOKIE_NAMES: Mapping[Platform, tuple[str, ...]] = {
@@ -76,11 +79,20 @@ class FakeSigningContext:
     """
 
     def __init__(
-        self, platform: Platform, geo: GeoProfile, cookies: Mapping[str, str] | None = None
+        self,
+        platform: Platform,
+        geo: GeoProfile,
+        cookies: Mapping[str, str] | None = None,
+        user_agent: str = FAKE_USER_AGENT,
     ) -> None:
         self._platform = platform
         self._geo = geo
         self._closed = False
+        #: The page's own, and what `sign` hashes - never the plan's. This fake
+        #: used to sign over the User-Agent the plan named, honouring a
+        #: request the real page ignores, which is why no test could see the
+        #: service echo a UA no signature was taken under (#832).
+        self._user_agent = user_agent
         #: Frozen at open time on purpose. See the class docstring.
         self.cookies: Mapping[str, str] = dict(cookies or {})
         #: Set by a test to model a page that has gone bad while idle, the way
@@ -99,6 +111,10 @@ class FakeSigningContext:
         return self._closed
 
     @property
+    def user_agent(self) -> str:
+        return self._user_agent
+
+    @property
     def problem(self) -> str | None:
         if self._closed:
             return "it is closed"
@@ -115,7 +131,7 @@ class FakeSigningContext:
         field = SIGNATURE_FIELDS[self._platform]
         # The body is hashed like the real a_bogus hashes it, so a test can see
         # whether it reached the page; a GET's signature is what it always was.
-        covered = (plan.query, plan.user_agent or "") + ((plan.body,) if plan.body else ())
+        covered = (plan.query, self._user_agent) + ((plan.body,) if plan.body else ())
         signature = _digest("sign", self._platform.value, *covered)
         signed = {
             field: signature,
@@ -137,6 +153,7 @@ class FakeBackend:
 
     def __init__(self, chromium_major: int = FAKE_CHROMIUM_MAJOR) -> None:
         self._chromium_major = chromium_major
+        self._user_agent = USER_AGENT_TEMPLATE.format(major=chromium_major)
         self._started = False
         #: Every profile directory ever handed to `mint`. The service asserts
         #: single use; this is what makes that assertion observable.
@@ -158,6 +175,7 @@ class FakeBackend:
             version=f"fake-{self._chromium_major}",
             chromium_major=self._chromium_major,
             pin=None,
+            user_agent=self._user_agent,
         )
 
     async def mint(self, plan: MintPlan) -> MintedProfile:
@@ -177,7 +195,7 @@ class FakeBackend:
         }
         return MintedProfile(
             cookies=cookies,
-            user_agent=USER_AGENT_TEMPLATE.format(major=self._chromium_major),
+            user_agent=self._user_agent,
             browser_family="chrome",
             browser_major=self._chromium_major,
             navigator_platform="Win32",
@@ -200,7 +218,7 @@ class FakeBackend:
     ) -> SigningContext:
         if not self._started:
             raise BackendFailure("backend is not started")
-        return FakeSigningContext(platform, geo, cookies)
+        return FakeSigningContext(platform, geo, cookies, self._user_agent)
 
 
 def build(settings: object) -> FakeBackend:
@@ -208,4 +226,11 @@ def build(settings: object) -> FakeBackend:
     return FakeBackend()
 
 
-__all__ = ["BACKEND_NAME", "FAKE_CHROMIUM_MAJOR", "FakeBackend", "FakeSigningContext", "build"]
+__all__ = [
+    "BACKEND_NAME",
+    "FAKE_CHROMIUM_MAJOR",
+    "FAKE_USER_AGENT",
+    "FakeBackend",
+    "FakeSigningContext",
+    "build",
+]
