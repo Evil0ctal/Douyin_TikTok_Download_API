@@ -52,6 +52,7 @@ from dtk.core.types import LoginNeed, Outcome, Platform
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import RequestLog
 from dtk.identity.pool import IdentityPool, LiveIdentity
+from dtk.identity.rotation import rotate
 from dtk.ops.masking import mask_url
 from dtk.platforms import PlatformAdapter, get_adapter
 from dtk.platforms.base import RequestSpec as PlatformRequestSpec
@@ -347,6 +348,9 @@ class FetchService:
             raise
 
         proxy_id: uuid.UUID | None = None
+        #: What the identity's device page set, carried by this call and kept
+        #: with its answer - see `_with_device_id` for why not before it.
+        carried: dict[str, str] = {}
         payload: dict[str, Any] | None = None
         status: int | None = None
         signer: str | None = None
@@ -378,7 +382,7 @@ class FetchService:
                 outcome = Outcome.NETWORK_ERROR
                 error_code = "identity_gone"
                 return _Attempt(lease=lease, outcome=outcome, error_code=error_code)
-            identity = await self._with_device_id(session, adapter, identity)
+            identity, carried = await self._with_device_id(session, adapter, identity)
             proxy_id = await _proxy_id_of(session, identity.id)
             proxied = identity.proxy_url is not None
             authenticated = identity.authenticated
@@ -439,7 +443,10 @@ class FetchService:
             rule = classification.rule
             error_code = _error_code_for(classification, payload)
             if outcome not in _KEEPS_NOTHING:
-                await self._keep_cookies(session, identity, response, sealed=signed.cookies)
+                await self._keep_cookies(
+                    session, identity, response, sealed=signed.cookies, carried=carried
+                )
+                carried = {}
         except TransportFailure as exc:
             outcome = Outcome.NETWORK_ERROR
             error_code = "transport_failure"
@@ -454,6 +461,11 @@ class FetchService:
             error_code = exc.code.value
             raise
         finally:
+            if carried:
+                # The call kept nothing of its own - no answer, or it raised
+                # before one - but the device page did answer, and what it set
+                # is kept the way any answer's is.
+                await self._absorb(session, lease.identity_id, carried)
             await self._scheduler.release(lease, outcome)
             await self._pool.record_outcome(
                 session,
@@ -491,7 +503,7 @@ class FetchService:
 
     async def _with_device_id(
         self, session: AsyncSession, adapter: PlatformAdapter, identity: LiveIdentity
-    ) -> LiveIdentity:
+    ) -> tuple[LiveIdentity, dict[str, str]]:
         """``identity``, carrying the device id its platform issued its session.
 
         Read once per identity, as that identity - its own jar, exit and TLS
@@ -502,13 +514,22 @@ class FetchService:
         A failure leaves the identity as it was, and its requests go out with
         a made-up id as they always did; the page is asked again after
         :data:`DEVICE_ID_RETRY_SECONDS`, not on every call.
+
+        Also returns the cookies the page set that the jar would keep. The call
+        that follows carries them, as a browser's next request would, but they
+        are written with that call's own answer rather than here: writing locks
+        the identity's row until the caller commits, and the call is a signing
+        and an upstream round trip. Written here, as 5.1.12 did, every other
+        request on the identity waited for both whenever the page set a cookie
+        the jar did not hold - 1.9-2.0s of a 2.0s call, measured on Postgres
+        for #832, against 0.07s written with the answer.
         """
         page_url = adapter.device_id_page()
         if page_url is None or identity.fingerprint.device_id:
-            return identity
+            return identity, {}
         now = time.monotonic()
         if self._device_id_retry_at.get(identity.id, 0.0) > now:
-            return identity
+            return identity, {}
         sender = TransportIdentity(
             id=identity.id,
             platform=identity.platform,
@@ -536,26 +557,35 @@ class FetchService:
                 identity_id=identity.id,
                 error=type(exc.cause).__name__ if exc.cause else str(exc)[:120],
             )
+        carried: dict[str, str] = {}
         if response is not None and response.status < 500:
             # The page is an answer like any other, and the call that follows
-            # goes out with what it set, as a browser's next request would.
-            kept = await self._keep_cookies(session, identity, response)
-            if kept:
-                identity = replace(
-                    identity,
-                    cookies={
-                        **identity.cookies,
-                        **{name: response.set_cookies[name] for name in kept},
-                    },
-                )
+            # goes out with what it set, as a browser's next request would. The
+            # same rules the pool writes by decide what that is, so the call
+            # never carries a value the jar would then refuse.
+            rotation = rotate(
+                identity.platform,
+                identity.cookies,
+                {
+                    name: value
+                    for name, value in response.set_cookies.items()
+                    if identity.cookies.get(name) != value
+                },
+            )
+            if rotation.changed:
+                carried = {name: rotation.jar[name] for name in rotation.changed}
+                identity = replace(identity, cookies=rotation.jar)
         if not device_id:
             self._device_id_retry_at[identity.id] = now + DEVICE_ID_RETRY_SECONDS
             log.info("fetch.device_id.unread", identity_id=identity.id)
-            return identity
+            return identity, carried
         self._device_id_retry_at.pop(identity.id, None)
         await self._pool.remember_device_id(session, identity.id, device_id)
         log.info("fetch.device_id.learned", identity_id=identity.id)
-        return replace(identity, fingerprint=replace(identity.fingerprint, device_id=device_id))
+        return (
+            replace(identity, fingerprint=replace(identity.fingerprint, device_id=device_id)),
+            carried,
+        )
 
     async def _keep_cookies(
         self,
@@ -564,6 +594,7 @@ class FetchService:
         response: RawResponse,
         *,
         sealed: Mapping[str, str] | None = None,
+        carried: Mapping[str, str] | None = None,
     ) -> tuple[str, ...]:
         """Keep what the platform set on ``response`` in the identity's jar.
 
@@ -582,19 +613,40 @@ class FetchService:
         reads the row under a lock to write it, and a platform re-sending what
         the jar holds - TikTok's home page does it with tt_chain_token on every
         load - is not worth one.
+
+        ``carried`` is what the identity's device page set before this request
+        (see `_with_device_id`), written here in the same lock; the response's
+        own value wins where both set a name.
         """
         offered = {
-            name: value
-            for name, value in response.set_cookies.items()
-            if name not in (sealed or {}) and identity.cookies.get(name) != value
+            **(carried or {}),
+            **{
+                name: value
+                for name, value in response.set_cookies.items()
+                if name not in (sealed or {}) and identity.cookies.get(name) != value
+            },
         }
+        return await self._absorb(session, identity.id, offered)
+
+    async def _absorb(
+        self, session: AsyncSession, identity_id: str, offered: Mapping[str, str]
+    ) -> tuple[str, ...]:
+        """`IdentityPool.absorb_cookies`, never at the cost of the response."""
         if not offered:
             return ()
         try:
-            return await self._pool.absorb_cookies(session, identity.id, offered)
+            return await self._pool.absorb_cookies(session, identity_id, offered)
         except Exception as exc:
+            # A database error here has already aborted the transaction, and
+            # the bookkeeping that follows fails on it with "current transaction
+            # is aborted"; the SQLSTATE is the only place the cause - a deadlock,
+            # say - is still named.
+            sqlstate = getattr(getattr(exc, "orig", None), "sqlstate", None)
             log.error(
-                "fetch.cookies.keep_failed", identity_id=identity.id, error=type(exc).__name__
+                "fetch.cookies.keep_failed",
+                identity_id=identity_id,
+                error=type(exc).__name__,
+                **({"sqlstate": sqlstate} if sqlstate else {}),
             )
             return ()
 

@@ -20,6 +20,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import pytest
 
+from dtk.core.errors import DtkError
 from dtk.core.types import BrowserFamily, Platform
 from dtk.identity.pool import LiveIdentity, _fingerprint_from_json, _fingerprint_to_json
 from dtk.identity.rotation import rotate
@@ -316,6 +317,55 @@ class TestThePagesCookies:
         assert pool.remembered == []
         assert pool.absorbed == [(IDENTITY_ID, ("ttwid",))]
         assert transport.senders[-1].cookies["ttwid"] == "rotated"
+
+    async def test_they_are_written_with_the_calls_answer_not_before_it(self) -> None:
+        """Issue #832: writing them takes the identity's row lock until commit.
+
+        Written straight off the page, the lock was held across signing and
+        the upstream round trip, and every other request on the identity
+        waited for both - 1.9-2.0s of a 2.0s call, measured on Postgres. The
+        call still carries them; they are written once, with its answer.
+        """
+        pool = self.pool()
+        transport = Transport(_html(200, page(), {"ttwid": "rotated"}))
+        order: list[str] = []
+        request, absorb = transport.request, pool.absorb_cookies
+
+        async def watched_request(identity: Any, spec: Any, timeout: float | None = None):
+            response = await request(identity, spec, timeout)
+            order.append("page" if spec.url == tiktok_parser.DEVICE_ID_PAGE else "call")
+            return response
+
+        async def watched_absorb(session: Any, identity_id: str, offered: Mapping[str, str]):
+            order.append("write")
+            return await absorb(session, identity_id, offered)
+
+        transport.request = watched_request  # type: ignore[method-assign]
+        pool.absorb_cookies = watched_absorb  # type: ignore[method-assign]
+        await fetch_detail(tiktok_service(pool, transport))
+
+        assert order == ["page", "call", "write"]
+        assert pool.absorbed == [(IDENTITY_ID, ("ttwid",))]
+        assert transport.senders[-1].cookies["ttwid"] == "rotated"
+
+    async def test_they_are_kept_when_the_call_itself_keeps_nothing(self) -> None:
+        """The page answered even when the call did not: what it set is kept."""
+        pool = self.pool()
+        transport = Transport(_html(200, page(), {"ttwid": "rotated"}))
+        request = transport.request
+
+        async def failing_call(identity: Any, spec: Any, timeout: float | None = None):
+            if spec.url == tiktok_parser.DEVICE_ID_PAGE:
+                return await request(identity, spec, timeout)
+            raise TransportFailure("refused", identity_id=IDENTITY_ID, url="x", elapsed_ms=1)
+
+        transport.request = failing_call  # type: ignore[method-assign]
+        with pytest.raises(DtkError):
+            await fetch_detail(tiktok_service(pool, transport))
+
+        # Under the lease's id, which this fake scheduler does not share with
+        # the fake pool's identity; in the service the two are one.
+        assert pool.absorbed[0][1] == ("ttwid",)
 
     async def test_a_page_that_never_answered_sets_nothing(self) -> None:
         pool = self.pool()

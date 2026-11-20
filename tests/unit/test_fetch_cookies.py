@@ -158,6 +158,34 @@ class TestKeepingNeverCostsTheResponse:
         # policy may quote the value it choked on.
         assert "rotated" not in repr(recorder.events)
 
+    async def test_a_database_error_names_its_sqlstate(self, monkeypatch) -> None:
+        """Issue #832: a deadlock here aborts the transaction, and the
+        bookkeeping after it then fails as "current transaction is aborted".
+        The SQLSTATE in this line is the only place the cause is still named."""
+
+        class Deadlock(Exception):
+            def __init__(self) -> None:
+                super().__init__("deadlock detected")
+                self.orig = type("Driver", (), {"sqlstate": "40P01"})()
+
+        class DeadlockedPool(KeepingPool):
+            async def absorb_cookies(self, *_: Any, **__: Any) -> tuple[str, ...]:
+                raise Deadlock()
+
+        recorder = Recorder()
+        monkeypatch.setattr(fetch_module, "log", recorder)
+        pool = DeadlockedPool()
+        await run_fetch(
+            service(answer(200, load("douyin", "video_normal")), pool=pool), FakeSession()
+        )
+
+        failures = [
+            fields
+            for event, fields in recorder.events
+            if event == "error:fetch.cookies.keep_failed"
+        ]
+        assert failures == [{"identity_id": IDENTITY_ID, "error": "Deadlock", "sqlstate": "40P01"}]
+
 
 class TestALoginWall:
     async def test_is_an_answer_like_any_other(self) -> None:
