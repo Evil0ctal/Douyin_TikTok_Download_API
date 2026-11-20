@@ -105,8 +105,11 @@ class SignResponse(BaseModel):
     enough for the API to return an 18-byte empty body, and changing it back
     restores the data. So the caller must send the request under exactly the UA
     the signature was computed with, and returning it here is what lets the
-    caller check rather than assume. It is the signing page's own; a request
-    naming another is refused with 409 ``user_agent_mismatch`` instead (#832).
+    caller check rather than assume. It is the signing page's own; a TikTok
+    request naming another is refused with 409 ``user_agent_mismatch`` instead
+    (#832), and so is a Douyin one naming another operating system. Douyin
+    accepts the page's signature under any other browser or version, so it is
+    signed under the page's, and this says which.
     """
 
     model_config = ConfigDict(extra="ignore")

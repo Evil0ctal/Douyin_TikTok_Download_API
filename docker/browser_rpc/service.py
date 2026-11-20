@@ -700,10 +700,36 @@ class BrowserRpcService:
             raise OperationTimeout(f"{what} exceeded {timeout:g}s", suspect=suspect) from exc
 
 
+#: The platforms that refuse a request whose User-Agent is not, byte for byte,
+#: the one its signature sealed. TikTok: one digit of the Chrome version is
+#: enough for an empty body (measured 2026-09-07, again 2026-11-20).
+UA_BOUND_PLATFORMS: frozenset[Platform] = frozenset({Platform.TIKTOK})
+
+#: The platforms that refuse a browser signature for a request naming another
+#: operating system than the page's. Douyin, measured on 2026-11-20 against
+#: /aweme/v1/web/aweme/detail/ with a page running Chrome/146 on Windows, three
+#: tries each: an identity on Chrome/145, /130 or Edge/146 on Windows answered,
+#: and so did a header naming macOS over a query naming Windows; a query naming
+#: macOS - which dtk builds from a macOS identity's User-Agent - was refused
+#: with 403 "Blocked by ArgusSecurityPlugin", under either header, while the
+#: native signer answered for the same identity. Refusing every Douyin
+#: identity whose string differs, as this first did, sent ones the browser
+#: signs fine to the native signer (#832 review); signing every one, as before,
+#: handed a macOS identity a signature Douyin refuses.
+SYSTEM_BOUND_PLATFORMS: frozenset[Platform] = frozenset({Platform.DOUYIN})
+
 #: What a User-Agent claims, by the parts a person compares: the browser and
 #: its major, and the system. The systems are tried in order, because an
-#: Android string also says Linux and an iPhone one also says Mac OS X.
-_AGENT_BROWSER = re.compile(r"(Firefox|Chrome|Version)/(\d+)")
+#: Android string also says Linux and an iPhone one also says Mac OS X; the
+#: browsers too, because Edge and Opera also say Chrome, and every Chromium
+#: says Safari.
+_AGENT_BROWSERS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bEdg[AeiOS]*/(\d+)"), "Edge"),
+    (re.compile(r"\bOPR/(\d+)"), "Opera"),
+    (re.compile(r"\bFirefox/(\d+)"), "Firefox"),
+    (re.compile(r"\bChrome/(\d+)"), "Chrome"),
+    (re.compile(r"\bVersion/(\d+)"), "Safari"),
+)
 _AGENT_SYSTEMS: tuple[tuple[str, str], ...] = (
     ("Windows", "Windows"),
     ("Android", "Android"),
@@ -717,26 +743,47 @@ _AGENT_SYSTEMS: tuple[tuple[str, str], ...] = (
 
 def describe_agent(agent: str) -> str:
     """'Chrome/146 on Windows': what a User-Agent claims, without the rest of it."""
-    match = _AGENT_BROWSER.search(agent)
-    if match is None:
-        browser = "an unrecognised browser"
-    else:
-        name = "Safari" if match.group(1) == "Version" else match.group(1)
-        browser = f"{name}/{match.group(2)}"
-    system = next((name for marker, name in _AGENT_SYSTEMS if marker in agent), None)
+    browser = next(
+        (
+            f"{name}/{match.group(1)}"
+            for pattern, name in _AGENT_BROWSERS
+            if (match := pattern.search(agent)) is not None
+        ),
+        "an unrecognised browser",
+    )
+    system = agent_system(agent)
     return f"{browser} on {system}" if system else browser
+
+
+def agent_system(agent: str) -> str | None:
+    """The operating system a User-Agent names, or None when it names none."""
+    return next((name for marker, name in _AGENT_SYSTEMS if marker in agent), None)
+
+
+def _is_foreign(platform: Platform, wanted: str, page_agent: str) -> bool:
+    """Whether a signature from a page running ``page_agent`` fails for ``wanted``."""
+    if platform in UA_BOUND_PLATFORMS:
+        return wanted != page_agent
+    if platform in SYSTEM_BOUND_PLATFORMS:
+        theirs, ours = agent_system(wanted), agent_system(page_agent)
+        # A User-Agent naming no system cannot be held to one: dtk then
+        # builds the query with its default, Windows, like the page's.
+        return theirs is not None and ours is not None and theirs != ours
+    return False
 
 
 def _refuse_a_foreign_agent(
     platform: Platform, wanted: str | None, page_agent: str | None, identity_id: str | None
 ) -> None:
-    """Raise `UserAgentMismatch` when the caller's UA is not the one the page signs under.
+    """Raise `UserAgentMismatch` when the page's signature would fail for the caller's UA.
 
-    Nothing to compare when either side is unknown: a caller that names no
-    User-Agent takes the page's, and a page that did not report one cannot
-    be held to it.
+    How much has to agree is the platform's: the whole string on TikTok
+    (`UA_BOUND_PLATFORMS`), the operating system on Douyin
+    (`SYSTEM_BOUND_PLATFORMS`). Nothing to compare when one side is unknown:
+    a caller that names no User-Agent takes the page's, and a page that did
+    not report one cannot be held to it.
     """
-    if not wanted or not page_agent or wanted == page_agent:
+    if not wanted or not page_agent or not _is_foreign(platform, wanted, page_agent):
         return
     page, theirs = describe_agent(page_agent), describe_agent(wanted)
     logger.info(
@@ -746,14 +793,30 @@ def _refuse_a_foreign_agent(
         page,
         theirs,
     )
+    # Two strings that read alike still differ somewhere - a build number, a
+    # brand token this summary does not name - and "Chrome/146 and Chrome/146"
+    # would leave the operator nothing to look for.
     other = (
-        f"this identity's is {theirs}" if theirs != page else f"this identity's is another {theirs}"
+        f"this identity's is {theirs}"
+        if theirs != page
+        else f"this identity's is a different {theirs} string (sha256 {_agent_sha(wanted)}, "
+        f"this browser's {_agent_sha(page_agent)})"
+    )
+    rule = (
+        "refuses a request whose User-Agent is not the one its signature sealed"
+        if platform in UA_BOUND_PLATFORMS
+        else "refuses a browser signature for a request naming another operating system"
     )
     raise UserAgentMismatch(
         f"this browser signs {platform.value} requests as {page} and {other}: the platform "
-        "seals the User-Agent into the signature, so one taken here would be refused for this "
-        "identity - sign it natively, or re-mint the identity under this browser"
+        f"{rule}, so one taken here would be refused for this identity - dtk signs it "
+        "natively where it may"
     )
+
+
+def _agent_sha(agent: str) -> str:
+    """A short digest of a User-Agent, to tell two that read alike apart in a log."""
+    return hashlib.sha256(agent.encode()).hexdigest()[:10]
 
 
 def _short(identity_id: str | None) -> str:

@@ -1242,6 +1242,75 @@ class TestAPageSignsUnderItsOwnUserAgent:
         finally:
             await service.close()
 
+    async def test_a_douyin_identity_on_another_version_is_signed(self, settings: Settings) -> None:
+        """#832 review: Douyin answered the page's signature for identities on
+        other Chrome majors and Edge (measured 2026-11-20), so only another
+        operating system is refused there."""
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            signed = await service.sign(
+                Platform.DOUYIN,
+                "https://www.douyin.com/aweme/v1/web/aweme/detail/",
+                "aweme_id=7",
+                user_agent=FOREIGN_AGENT,
+                cookies={"s_v_web_id": "v", "ttwid": "t"},
+            )
+        finally:
+            await service.close()
+        assert signed["a_bogus"]
+        assert backend.contexts_opened == 1
+
+    async def test_a_douyin_identity_on_another_system_is_refused(self, settings: Settings) -> None:
+        """A query naming macOS, signed on a Windows page, was refused 403
+        "Blocked by ArgusSecurityPlugin" 11 of 11 under either header
+        (measured 2026-11-20); the native signer answered for the same
+        identity 3 of 3."""
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        mac = (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+        )
+        try:
+            with pytest.raises(UserAgentMismatch) as excinfo:
+                await service.sign(
+                    Platform.DOUYIN,
+                    "https://www.douyin.com/aweme/v1/web/aweme/detail/",
+                    "aweme_id=7",
+                    user_agent=mac,
+                    cookies={"s_v_web_id": "v", "ttwid": "t"},
+                )
+        finally:
+            await service.close()
+        assert backend.contexts_opened == 0
+        assert "as Chrome/149 on Windows and this identity's is Chrome/149 on macOS" in str(
+            excinfo.value
+        )
+
+    async def test_two_agents_that_read_alike_are_told_apart(self, settings: Settings) -> None:
+        """An Edge or a rebuilt Chrome on the same major reads like the page's
+        own; the refusal then names digests instead of "Chrome/149 and
+        Chrome/149"."""
+        backend = CountingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            with pytest.raises(UserAgentMismatch) as excinfo:
+                await service.sign(
+                    Platform.TIKTOK,
+                    TIKTOK_URL,
+                    "a=1",
+                    user_agent=FAKE_USER_AGENT.replace("149.0.0.0", "149.0.7000.12"),
+                )
+        finally:
+            await service.close()
+        message = str(excinfo.value)
+        assert "is a different Chrome/149 on Windows string (sha256 " in message
+        assert "this browser's " in message
+
     async def test_the_pages_agent_and_no_agent_at_all_are_signed(
         self, service: BrowserRpcService
     ) -> None:
@@ -1273,6 +1342,26 @@ class TestAPageSignsUnderItsOwnUserAgent:
                 "Firefox/151 on Linux",
             ),
             ("Mozilla/5.0", "an unrecognised browser"),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0",
+                "Edge/146 on Windows",
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/131.0.0.0",
+                "Opera/131 on Windows",
+            ),
+            (
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/146.0.0.0 Mobile Safari/537.36 EdgA/146.0.0.0",
+                "Edge/146 on Android",
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+                "(KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+                "Safari/17 on macOS",
+            ),
         ],
     )
     def test_a_user_agent_is_described_by_what_a_person_compares(

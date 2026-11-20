@@ -599,8 +599,8 @@ class CloakSigningContext:
 
         # No User-Agent in here. One used to be sent and `SIGN_SCRIPT` never
         # read it: the page signs under its own `navigator.userAgent` whatever
-        # the plan says, which is why the service refuses a plan naming another
-        # one before it gets this far (#832).
+        # the plan says, which is why the service refuses a plan naming one the
+        # platform would not accept before it gets this far (#832).
         payload = {
             "url": plan.url,
             "query": plan.query,

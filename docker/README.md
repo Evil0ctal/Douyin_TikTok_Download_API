@@ -399,12 +399,24 @@ GET  /rpc/health  → {status, backend, backend_version, chromium_major,
 ```
 
 A signature carries the signing page's own User-Agent, whatever the request
-names: the page runs under its browser binary's `navigator.userAgent`, and both
-platforms seal it into the signature. So `/rpc/sign` answers with that string,
-and refuses a `user_agent` other than it with `409 user_agent_mismatch` - an
-identity minted under another browser, or imported - instead of signing a
-request the platform will refuse. dtk then signs that identity natively.
+names: the page runs under its browser binary's `navigator.userAgent`, and
+`/rpc/sign` answers with that string. A `user_agent` the platform would not
+accept that signature for - an identity minted under another browser, or
+imported - is refused with `409 user_agent_mismatch` instead of being signed,
+and dtk then signs that identity natively where its settings allow. On TikTok
+that is any other string: it refuses a request whose User-Agent is not the
+one its signature sealed. On Douyin it is one naming another operating
+system: measured on 2026-11-20, Douyin accepted the page's signature for
+identities on other Chrome majors and on Edge, and refused it for a query
+naming macOS, which dtk builds from a macOS identity's User-Agent.
 `/rpc/health` reports the string once a page has opened.
+
+Upgrade browser-rpc together with api and worker - they share
+`DTK_IMAGE_TAG`, and `dtkctl upgrade` moves them together. An api/worker from
+5.1.12 or earlier against this browser-rpc reads the 409 as a browser failure:
+its self-check's TikTok step reports `signing_reference_failed`, and TikTok
+identities minted under another browser fail with `SIGNING_FAILED` instead of
+being signed natively.
 
 The clients are `dtk.identity.minting.client.BrowserRpcClient` and
 `dtk.signing.rpc.RpcSigner`; `docker/browser_rpc/tests/test_rpc_api.py` drives
@@ -610,7 +622,7 @@ procedure follows `docs/design/16-salvage-and-debug.md`.
            signer = RpcSigner(c, 'http://browser-rpc:9000')
            spec = RequestSpec.get('https://www.douyin.com/aweme/v1/web/aweme/detail/',
                                   params={'aweme_id': '7'})
-           # Empty takes the page's own User-Agent; any other string is refused.
+           # Empty takes the page's own User-Agent, which every platform accepts.
            print(await signer.sign(spec, StaticFingerprint(user_agent='')))
    asyncio.run(main())"
    ```

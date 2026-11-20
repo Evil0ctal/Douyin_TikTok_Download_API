@@ -86,10 +86,11 @@ class UserAgentMismatch(RpcError):
 
     A conflict between the caller and this browser, not a failure of either:
     the page signs under its own ``navigator.userAgent`` whatever it is asked,
-    both platforms seal that string into the signature, and TikTok refused the
-    request when the header named another one (#832, measured 2026-11-20). So
-    it is refused before a page is spent on it, and never retried on a second
-    page that would answer the same.
+    and TikTok refuses a request whose header names another one (#832,
+    measured 2026-11-20). So it is refused before a page is spent on it, and
+    never retried on a second page that would answer the same. On Douyin only
+    a different operating system is refused, which is all Douyin was measured
+    to refuse - see `browser_rpc.service.SYSTEM_BOUND_PLATFORMS`.
     """
 
     status_code = 409

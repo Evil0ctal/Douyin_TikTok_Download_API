@@ -107,7 +107,39 @@ class TestSignEndpoint:
         assert error["code"] == "user_agent_mismatch"
         assert "as Chrome/149 on Windows" in error["message"]
         assert "is Chrome/148 on Windows" in error["message"]
-        assert "sign it natively, or re-mint the identity" in error["message"]
+        assert "dtk signs it natively where it may" in error["message"]
+
+    async def test_douyin_is_refused_only_another_operating_system(
+        self, client: httpx.AsyncClient
+    ) -> None:
+        """#832 review, measured 2026-11-20: Douyin accepted the page's
+        signature for an identity on another Chrome major, and refused it for
+        one on macOS. The answer names the page's own UA either way."""
+
+        async def sign(agent: str) -> httpx.Response:
+            return await client.post(
+                "/rpc/sign",
+                json={
+                    "platform": "douyin",
+                    "url": DOUYIN_URL,
+                    "query": "aweme_id=7",
+                    "user_agent": agent,
+                },
+            )
+
+        older = await sign(FAKE_USER_AGENT.replace("Chrome/149", "Chrome/130"))
+        assert older.status_code == 200
+        assert older.json()["params"]["a_bogus"]
+        assert older.json()["user_agent"] == FAKE_USER_AGENT
+
+        mac = await sign(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+        )
+        assert mac.status_code == 409
+        message = mac.json()["error"]["message"]
+        assert "is Chrome/149 on macOS" in message
+        assert "naming another operating system" in message
 
     async def test_a_body_is_signed_and_said_to_be(self, client: httpx.AsyncClient) -> None:
         """`body_signed` is how a caller tells this build from one before bodies.
@@ -259,7 +291,9 @@ class TestClientContract:
             client, "http://browser-rpc", platform=dtk_types.Platform.DOUYIN
         )
         spec = dtk_signing_base.RequestSpec.get(DOUYIN_URL, params={"aweme_id": "7"})
-        fingerprint = dtk_signing_base.StaticFingerprint(user_agent=FAKE_USER_AGENT)
+        # Not the page's own User-Agent, on purpose: Douyin does not bind it,
+        # and neither side may refuse a Douyin identity for it (#832 review).
+        fingerprint = dtk_signing_base.StaticFingerprint(user_agent="Mozilla/5.0")
 
         signed = await signer.sign(spec, fingerprint)
 
