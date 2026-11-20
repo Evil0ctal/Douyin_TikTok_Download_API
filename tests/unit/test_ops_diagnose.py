@@ -27,6 +27,7 @@ from dtk.ops.health import ComponentHealth
 from dtk.signing import (
     SIGNER_BROWSER,
     SIGNER_NATIVE,
+    Comparison,
     RequestSpec,
     RpcSigner,
     SignatureAlgorithm,
@@ -641,22 +642,29 @@ async def test_tiktoks_constant_x_bogus_is_not_agreement() -> None:
 class BuildSigner(ProbeSigner):
     """Answers with an X-Dynosaur that names one webmssdk build."""
 
-    def __init__(self, name: str, build: tiktok_sign.SdkBuild) -> None:
+    def __init__(self, name: str, build: tiktok_sign.SdkBuild, x_bogus: str = "1") -> None:
         super().__init__(name)
         payload = tiktok_sign.dynosaur_payload(
             "aid=1988", "UA", timestamp=1_700_000_000, nonce=7, build=build
         )
         self.token = tiktok_sign.seal(payload, tuple(range(1, 13)))
+        self.x_bogus = x_bogus
 
     async def sign(
         self, spec: RequestSpec, identity_fingerprint: Any, session: Any = None
     ) -> SignedParams:
         return SignedParams(
-            query=f"aid=1988&X-Dynosaur={self.token}&X-Bogus=1",
-            params={"X-Dynosaur": self.token, "X-Bogus": "1"},
+            query=f"aid=1988&X-Dynosaur={self.token}&X-Bogus={self.x_bogus}",
+            params={"X-Dynosaur": self.token, "X-Bogus": self.x_bogus},
             signer=self.name,
             algorithm=SignatureAlgorithm.X_BOGUS,
         )
+
+
+def tiktok_shadow(registry: SignerRegistry) -> Any:
+    url = diagnose.SIGNING_PROBE_URLS[Platform.TIKTOK]
+    spec = RequestSpec.get(url, params={"aweme_id": "0", "device_platform": "webapp"})
+    return registry.shadow_result(Platform.TIKTOK, spec.endpoint)
 
 
 async def test_a_build_the_platform_moved_past_is_a_warning_that_names_both() -> None:
@@ -683,7 +691,7 @@ async def test_a_build_the_platform_moved_past_is_a_warning_that_names_both() ->
         assert rendered["action"]
 
 
-async def test_the_same_build_on_both_sides_is_a_pass() -> None:
+async def test_the_same_build_on_both_sides_matches_on_the_build_not_the_marker() -> None:
     registry = SignerRegistry(
         {Platform.TIKTOK: BuildSigner(SIGNER_NATIVE, tiktok_sign.CURRENT_BUILD)},
         BuildSigner(SIGNER_BROWSER, tiktok_sign.CURRENT_BUILD),
@@ -693,6 +701,35 @@ async def test_the_same_build_on_both_sides_is_a_pass() -> None:
     )
     # Douyin has no native signer here, which is its own skip; TikTok matched.
     assert result.details["tiktok"] == "match"
+    # And matched on the build its X-Dynosaur names. The constant X-Bogus "1"
+    # on both sides is what used to produce this "match" on its own.
+    assert tiktok_shadow(registry).verdicts == {
+        "X-Dynosaur": Comparison.MATCH,
+        "X-Bogus": Comparison.SKIPPED,
+    }
+
+
+async def test_a_mismatch_beside_a_drift_is_a_mismatch() -> None:
+    """A build bump is when another parameter changes beside it. The sample
+    then switches the native signer off, and the step must say so rather than
+    file it as a drift that "keeps serving"."""
+    old = tiktok_sign.SdkBuild("5.3.2", "2.0.0.561", 0xC46CE353)
+    registry = SignerRegistry(
+        {Platform.TIKTOK: BuildSigner(SIGNER_NATIVE, old)},
+        BuildSigner(SIGNER_BROWSER, tiktok_sign.CURRENT_BUILD, x_bogus="DFSzswVOabcdefgh"),
+    )
+    result = await diagnose.check_signing(
+        DiagnoseContext(rpc=BrowserRpcClient("http://rpc"), registry=registry)
+    )
+
+    assert tiktok_shadow(registry).verdicts == {
+        "X-Dynosaur": Comparison.DRIFT,
+        "X-Bogus": Comparison.MISMATCH,
+    }
+    assert registry.native_enabled(Platform.TIKTOK) is False
+    assert result.status is StepStatus.FAIL
+    assert result.code is StepCode.SIGNING_MISMATCH
+    assert result.args["platforms"] == "tiktok"
 
 
 async def test_agreement_on_every_platform_is_a_pass() -> None:

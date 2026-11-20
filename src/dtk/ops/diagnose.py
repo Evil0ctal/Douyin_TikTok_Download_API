@@ -735,10 +735,15 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
             else:
                 skipped.append(platform.value)
             continue
-        if shadow is not None and Comparison.DRIFT in shadow.verdicts.values():
+        if agreed and shadow is not None and Comparison.DRIFT in shadow.verdicts.values():
             # Compared, and the browser signs as another build of the SDK: the
             # native signer still serves (and is not switched off for this),
             # but it is stamping a build the platform no longer ships.
+            #
+            # Only when the sample agreed otherwise. A build bump is exactly
+            # when another parameter changes beside it, and a sample with a
+            # mismatch has already switched the native signer off: filing it
+            # here said "keeps serving" about a signer that had just stopped.
             drifted[platform.value] = shadow.detail or ""
             details[platform.value] = f"build drift: {shadow.detail}"
             continue

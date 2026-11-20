@@ -989,7 +989,9 @@ class SignerRegistry:
                 skip=skip.value if skip else None,
                 reason=detail,
             )
-        elif matched:
+        elif matched and Comparison.DRIFT not in result.verdicts.values():
+            # A drift has already been logged, at error level, by the caller;
+            # a "match" line after it read as the sample having been fine.
             logger.info("signing.shadow.match", platform=key[0].value, endpoint=key[1])
         return matched
 

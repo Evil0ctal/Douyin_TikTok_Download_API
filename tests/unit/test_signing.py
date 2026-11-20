@@ -1532,6 +1532,25 @@ async def test_an_overlong_reason_is_cut_at_a_word_and_says_so() -> None:
     assert kept.endswith("...")
     # Whole words only: what precedes the marker is one of the words sent.
     assert kept.removesuffix("...").split(" ")[-1] in words.split(" ")
+    # And at the LAST word that fits, not somewhere well short of it.
+    assert len(kept) > RPC_ERROR_EXCERPT_CHARS - len("word000 ") - len("...")
+
+
+async def test_an_overlong_reason_that_is_not_prose_is_cut_where_it_is() -> None:
+    """A word boundary far back would throw most of the message away."""
+    blob = "Page.evaluate: " + "x" * 700
+
+    def refusing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502, json={"error": {"code": "backend_failed", "message": blob}})
+
+    async with rpc_client(refusing) as client:
+        with pytest.raises(SigningFailed) as excinfo:
+            await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+
+    kept = str(excinfo.value).removeprefix("browser-rpc failed (HTTP 502 backend_failed): ")
+    assert len(kept) == RPC_ERROR_EXCERPT_CHARS
+    assert kept.startswith("Page.evaluate: x")
+    assert kept.endswith("x...")
 
 
 @pytest.mark.parametrize(
@@ -3792,6 +3811,27 @@ class TestTikTokShadowVerdicts:
                     )
                 ),
                 Comparison.MATCH,
+            ),
+            # An unsettled page excuses the state hash only: its versions must
+            # still be ours, or a newer build sealed before it settled passes.
+            (
+                dynosaur_of(
+                    replace(
+                        tiktok_sign.CURRENT_BUILD,
+                        scm_version="2.0.0.570",
+                        vm_state_hash=tiktok_sign.UNSETTLED_STATE_HASH,
+                    )
+                ),
+                Comparison.DRIFT,
+            ),
+            # Each version on its own counts.
+            (
+                dynosaur_of(replace(tiktok_sign.CURRENT_BUILD, sdk_version="5.3.4")),
+                Comparison.DRIFT,
+            ),
+            (
+                dynosaur_of(replace(tiktok_sign.CURRENT_BUILD, scm_version="2.0.0.570")),
+                Comparison.DRIFT,
             ),
             # Not an envelope at all: the reference failed, nothing is judged.
             ("1", Comparison.SKIPPED),
