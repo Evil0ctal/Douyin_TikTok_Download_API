@@ -79,6 +79,7 @@ from dtk.signing.base import (
     SignerHealth,
     SigningFingerprint,
     SigningSession,
+    StaticFingerprint,
     endpoint_of,
     platform_of,
 )
@@ -268,6 +269,16 @@ class SdkBuildComparator:
             f"the browser signs as {describe_build(read_build(remote))}, "
             f"the native signer as {describe_build(read_build(native))}"
         )
+
+
+def _any_agent(fingerprint: SigningFingerprint) -> StaticFingerprint:
+    """``fingerprint`` naming no User-Agent: browser-rpc then signs under its page's."""
+    return StaticFingerprint(
+        user_agent="",
+        browser_platform=fingerprint.browser_platform,
+        screen_width=fingerprint.screen_width,
+        screen_height=fingerprint.screen_height,
+    )
 
 
 def same_build(ours: SdkBuild, theirs: SdkBuild) -> bool:
@@ -867,8 +878,15 @@ class SignerRegistry:
                 # signs in a page loaded with this jar, and comparing against a
                 # signature taken in some other session would compare two
                 # different visitors and call the difference an algorithm drift.
+                #
+                # But under the browser's own User-Agent, asked for by asking
+                # for none. Its page never signed under another - it runs one,
+                # whatever the request names - and the comparators judge only
+                # what the UA does not reach. It now refuses to be asked for
+                # another (#832), and the self-check probes with a fixed
+                # Chrome 130 that no page runs.
                 side = ShadowSkip.REFERENCE_FAILED
-                remote_signed = await rpc.sign(sample, identity_fingerprint, session)
+                remote_signed = await rpc.sign(sample, _any_agent(identity_fingerprint), session)
                 side = ShadowSkip.NATIVE_FAILED
                 after = await native.sign(sample, identity_fingerprint, session)
             except DtkError as exc:

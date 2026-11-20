@@ -2430,10 +2430,14 @@ async def test_shadow_bracket_absorbs_a_real_x_bogus_second_boundary(
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
-        # The browser signs during the round trip, after the clock has ticked.
+        # The browser signs during the round trip, after the clock has ticked,
+        # and under its page's own User-Agent - here the probe's - whatever
+        # the request names (#832).
         return httpx.Response(
             200,
-            json={"x_bogus": XBogus(body["user_agent"]).sign(body["query"], timestamp=1700000001)},
+            json={
+                "x_bogus": XBogus(FINGERPRINT.user_agent).sign(body["query"], timestamp=1700000001)
+            },
         )
 
     async with rpc_client(handler) as client:
@@ -2461,7 +2465,11 @@ async def test_shadow_agrees_with_a_browser_running_the_same_x_bogus() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
-        return httpx.Response(200, json={"x_bogus": XBogus(body["user_agent"]).sign(body["query"])})
+        # Under the page's own User-Agent, whatever the request names (#832);
+        # a page running the probe's, so the two can agree byte for byte.
+        return httpx.Response(
+            200, json={"x_bogus": XBogus(FINGERPRINT.user_agent).sign(body["query"])}
+        )
 
     async with rpc_client(handler) as client:
         registry = SignerRegistry(
@@ -3004,6 +3012,40 @@ async def test_a_native_failure_is_not_hidden_behind_a_ua_refusal() -> None:
     with pytest.raises(SigningFailed, match="blew up"):
         await registry.sign(DOUYIN_SPEC, FINGERPRINT)
     assert rpc.calls == 1
+
+
+class AgentBoundBrowser(FakeSigner):
+    """browser-rpc as it is now: it refuses a User-Agent its page does not run."""
+
+    def __init__(self) -> None:
+        super().__init__(SIGNER_BROWSER, value="native-sig")
+        self.agents: list[str] = []
+
+    async def sign(
+        self,
+        spec: RequestSpec,
+        identity_fingerprint: SigningFingerprint,
+        session: SigningSession | None = None,
+    ) -> SignedParams:
+        self.agents.append(identity_fingerprint.user_agent)
+        if identity_fingerprint.user_agent:
+            raise ua_refusal()
+        return await super().sign(spec, identity_fingerprint, session)
+
+
+async def test_the_shadow_reference_is_taken_under_the_browsers_own_user_agent() -> None:
+    """Issue #832. The browser never signed under any other: its page runs one,
+    whatever it is asked, which the comparators were built around. It now
+    refuses to be asked for another, and the self-check probes with a fixed
+    Chrome 130 no page runs - so asking for it would fail every sample."""
+    rpc = AgentBoundBrowser()
+    registry, native, _, _ = build_registry(rpc=rpc)
+    assert await registry.compare_shadow(DOUYIN_SPEC, FINGERPRINT) is True
+
+    result = registry.shadow_result(Platform.DOUYIN, DOUYIN_SPEC.endpoint)
+    assert result is not None and result.skip is not ShadowSkip.REFERENCE_FAILED
+    assert rpc.agents == [""]
+    assert native.calls == 2
 
 
 async def test_shadow_skips_a_parameter_with_no_comparator() -> None:
