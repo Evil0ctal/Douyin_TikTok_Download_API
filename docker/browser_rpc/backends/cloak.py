@@ -264,8 +264,9 @@ CLOSE_TIMEOUT_SECONDS: Final = 5.0
 #: and the short first value produces signatures the platform refuses. Douyin has
 #: no equivalent - its signing inputs are present as soon as the jar is.
 #:
-#: It is also what a signing page has to seal before it counts as ready - see
-#: `_await_sdk` - because the token a page seals is the one its request carries.
+#: It is also what a signing page loaded with such a token has to seal before
+#: it counts as ready - see `_await_sdk` - because the token a page seals is the
+#: one its request carries.
 SESSION_COOKIE_MINIMUMS: Final[Mapping[Platform, tuple[str, int]]] = MappingProxyType(
     {Platform.TIKTOK: ("msToken", 144)}
 )
@@ -946,7 +947,12 @@ class CloakBackend:
                     f"could not load {page_url}: {_excerpt(exc)}",
                     suspect=suspect_of(exc) or Suspect.EXIT,
                 ) from exc
-            await _await_sdk(page, platform, self._settings.sdk_ready_timeout_seconds)
+            await _await_sdk(
+                page,
+                platform,
+                self._settings.sdk_ready_timeout_seconds,
+                expect_token=_holds_session_token(platform, cookies),
+            )
             fingerprint = await self._read_fingerprint(page)
             # Kept whole now, not just its major: it is the User-Agent every
             # signature from this page carries (#832).
@@ -996,7 +1002,9 @@ async def _send_to_background(context: Any, page: Any, platform: Platform) -> No
         logger.warning("backend.cloak.background_failed platform=%s error=%s", platform.value, exc)
 
 
-async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
+async def _await_sdk(
+    page: Any, platform: Platform, budget: float, *, expect_token: bool = False
+) -> None:
     """Block until the page can actually sign, by asking it to; raise if it never does.
 
     The probe is a real signature over a throwaway query, which is the only
@@ -1018,17 +1026,23 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
     the probe's last answer - which keeps what the old reasoning wanted - and it
     reaches the service as a failed open, whose retry opens a fresh page.
 
-    On TikTok a probe that signs is not yet enough: the msToken it sealed has
-    to be the usable one (`SESSION_COOKIE_MINIMUMS`). Issue #832, measured on
-    2026-11-20: a page bound to a jar holding a 152-character token seals an
-    EMPTY msToken for its first 0.1-1.4s - longer through the service, at least
-    4s on two of four rebinds - because the SDK seals from its own storage, which
-    is still empty; a page whose jar has none seals the 128-character bootstrap
-    token for seconds. The SDK is not settled then either, and signatures taken
-    in the first 0.3s were refused even with the jar's live token in the
-    Cookie header, 4 of 4. This answered "ready" on the first probe that
-    signed, so the first caller after every rebind got exactly those. A probe
-    that seals no msToken at all is judged as before.
+    On a page loaded with a jar that holds a usable msToken (``expect_token``)
+    a probe that signs is not yet enough: the msToken it seals has to be
+    usable too (`SESSION_COOKIE_MINIMUMS`). Issue #832, measured on 2026-11-20:
+    such a page seals an EMPTY msToken for its first 0.1-1.4s - longer through
+    the service, at least 4s on two of four rebinds - because the SDK seals
+    from its own storage, which is still empty. The SDK is not settled then
+    either, and signatures taken in the first 0.3s were refused even with the
+    jar's live token in the Cookie header, 4 of 4. This answered "ready" on the
+    first probe that signed, so the first caller after every rebind got
+    exactly those. Held to it, six such pages sealed a 152-character token
+    within 0.8-3.5s. A probe that seals no msToken at all is judged as before.
+
+    Not for any other page. An anonymous one (prewarm's, the self-check's
+    reference) and one for a jar with no token each sealed only the
+    128-character bootstrap token for the whole 25s, once, and holding them to
+    it turns what they always answered at once into a 25s failure - which
+    nothing measured says is the better outcome for them.
     """
     domain = platform_domain(platform)
     probe = {
@@ -1084,7 +1098,9 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
             consecutive_errors = 0
             params = result.get("params") if isinstance(result, dict) else None
             sealed_short = (
-                _short_session_token(platform, params) if isinstance(params, dict) else None
+                _short_session_token(platform, params)
+                if expect_token and isinstance(params, dict)
+                else None
             )
             if params and sealed_short is None:
                 logger.info(
@@ -1198,6 +1214,15 @@ def _session_cookie_shortfall(
             "through this exit"
         )
     return f"{shortfall}; only the bootstrap token arrived and the SDK never replaced it"
+
+
+def _holds_session_token(platform: Platform, cookies: Mapping[str, str] | None) -> bool:
+    """Whether a jar carries the platform's session token at a usable length."""
+    minimum = SESSION_COOKIE_MINIMUMS.get(platform)
+    if minimum is None:
+        return False
+    name, length = minimum
+    return len((cookies or {}).get(name) or "") >= length
 
 
 def _short_session_token(platform: Platform, params: Mapping[str, Any]) -> int | None:

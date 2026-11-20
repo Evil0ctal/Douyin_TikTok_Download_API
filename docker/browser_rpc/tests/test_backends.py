@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
+from typing import Final
 
 import pytest
 from browser_rpc.backends import build_backend, cloak
@@ -141,6 +143,9 @@ class StubContext:
         page = StubPage()
         self.pages.append(page)
         return page
+
+    async def add_cookies(self, cookies: list[dict[str, str]]) -> None:
+        self.cookies_added = cookies
 
     async def close(self) -> None:
         self.closed += 1
@@ -483,12 +488,33 @@ class TestATikTokPageIsReadyWhenItsTokenIs:
 
     _backend = staticmethod(TestSigningReadiness._backend)
 
+    #: An identity's jar: the pages a request is signed in are loaded with one.
+    JAR: Final = MappingProxyType({"ttwid": "t", "msToken": "j" * 152})
+
     async def test_the_page_is_handed_over_once_its_token_is_usable(self, tmp_path: Path) -> None:
         page = SealingPage(["", "", "t" * 128, "t" * 152])
         context = await self._backend(tmp_path, page).open_signing_context(
-            Platform.TIKTOK, FALLBACK_PROFILE
+            Platform.TIKTOK, FALLBACK_PROFILE, cookies=self.JAR
         )
         assert page.probes == 4
+        await context.close()
+
+    @pytest.mark.parametrize(
+        "jar",
+        [None, {"ttwid": "t"}, {"ttwid": "t", "msToken": "b" * 128}],
+        ids=["anonymous", "no-token", "bootstrap-token"],
+    )
+    async def test_a_page_for_a_jar_with_no_usable_token_is_judged_as_before(
+        self, tmp_path: Path, jar: dict[str, str] | None
+    ) -> None:
+        """Measured: an anonymous page and one for a jar with no token each
+        sealed only the bootstrap token for the whole 25s, while every page for
+        a jar holding a usable one sealed its own within 0.8-3.5s."""
+        page = SealingPage(["t" * 128])
+        context = await self._backend(tmp_path, page).open_signing_context(
+            Platform.TIKTOK, FALLBACK_PROFILE, cookies=jar
+        )
+        assert page.probes == 1
         await context.close()
 
     async def test_a_page_that_seals_no_token_at_all_is_judged_as_before(
@@ -497,7 +523,7 @@ class TestATikTokPageIsReadyWhenItsTokenIs:
         """Absence is not a short token: an SDK that stopped appending one still signs."""
         page = SealingPage([None])
         context = await self._backend(tmp_path, page).open_signing_context(
-            Platform.TIKTOK, FALLBACK_PROFILE
+            Platform.TIKTOK, FALLBACK_PROFILE, cookies=self.JAR
         )
         assert page.probes == 1
         await context.close()
@@ -505,7 +531,7 @@ class TestATikTokPageIsReadyWhenItsTokenIs:
     async def test_douyin_has_no_token_to_wait_for(self, tmp_path: Path) -> None:
         page = SealingPage([""])
         context = await self._backend(tmp_path, page).open_signing_context(
-            Platform.DOUYIN, FALLBACK_PROFILE
+            Platform.DOUYIN, FALLBACK_PROFILE, cookies={"ttwid": "t", "s_v_web_id": "v"}
         )
         assert page.probes == 1
         await context.close()
@@ -530,7 +556,7 @@ class TestATikTokPageIsReadyWhenItsTokenIs:
 
         backend._launch_context = launch  # type: ignore[method-assign]
         with pytest.raises(BackendFailure) as excinfo:
-            await backend.open_signing_context(Platform.TIKTOK, FALLBACK_PROFILE)
+            await backend.open_signing_context(Platform.TIKTOK, FALLBACK_PROFILE, cookies=self.JAR)
         message = str(excinfo.value)
         assert "could not seal a usable msToken within 2s (" in message
         assert f"it seals one of {len(token)} characters" in message
