@@ -263,6 +263,9 @@ CLOSE_TIMEOUT_SECONDS: Final = 5.0
 #: ``(name, minimum length)``. Only TikTok has one: its ``msToken`` arrives twice,
 #: and the short first value produces signatures the platform refuses. Douyin has
 #: no equivalent - its signing inputs are present as soon as the jar is.
+#:
+#: It is also what a signing page has to seal before it counts as ready - see
+#: `_await_sdk` - because the token a page seals is the one its request carries.
 SESSION_COOKIE_MINIMUMS: Final[Mapping[Platform, tuple[str, int]]] = MappingProxyType(
     {Platform.TIKTOK: ("msToken", 144)}
 )
@@ -992,6 +995,18 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
     "the platform changed how it signs". So the failure is raised here, carrying
     the probe's last answer - which keeps what the old reasoning wanted - and it
     reaches the service as a failed open, whose retry opens a fresh page.
+
+    On TikTok a probe that signs is not yet enough: the msToken it sealed has
+    to be the usable one (`SESSION_COOKIE_MINIMUMS`). Issue #832, measured on
+    2026-11-20: a page bound to a jar holding a 152-character token seals an
+    EMPTY msToken for its first 0.1-1.4s - longer through the service, at least
+    4s on two of four rebinds - because the SDK seals from its own storage, which
+    is still empty; a page whose jar has none seals the 128-character bootstrap
+    token for seconds. The SDK is not settled then either, and signatures taken
+    in the first 0.3s were refused even with the jar's live token in the
+    Cookie header, 4 of 4. This answered "ready" on the first probe that
+    signed, so the first caller after every rebind got exactly those. A probe
+    that seals no msToken at all is judged as before.
     """
     domain = platform_domain(platform)
     probe = {
@@ -1005,6 +1020,9 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
     delay = READY_POLL_SECONDS
     attempts = 0
     last_answer = "no probe answered"
+    #: The length of the msToken the last probe sealed when that was all that
+    #: kept the page from being ready; None while no probe has signed.
+    sealed_short: int | None = None
     # A page whose target has crashed answers every probe with an exception and
     # will never recover, so waiting out the whole budget only delays the retry
     # that could still succeed. Consecutive, because one failure can just be a
@@ -1042,7 +1060,11 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
                 ) from exc
         else:
             consecutive_errors = 0
-            if isinstance(result, dict) and result.get("params"):
+            params = result.get("params") if isinstance(result, dict) else None
+            sealed_short = (
+                _short_session_token(platform, params) if isinstance(params, dict) else None
+            )
+            if params and sealed_short is None:
                 logger.info(
                     "backend.cloak.sdk_ready platform=%s after=%.1fs probes=%d",
                     platform.value,
@@ -1061,11 +1083,14 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
             )
         if time.monotonic() >= deadline:
             logger.warning(
-                "backend.cloak.sdk_never_ready platform=%s waited=%.0fs probes=%d",
+                "backend.cloak.sdk_never_ready platform=%s waited=%.0fs probes=%d sealed_token=%s",
                 platform.value,
                 budget,
                 attempts,
+                "-" if sealed_short is None else sealed_short,
             )
+            if sealed_short is not None:
+                raise _unusable_sealed_token(platform, sealed_short, budget, attempts)
             # Not the exit's fault by default, and the wording must not make it
             # so. A page that stays on the platform and never signs is either
             # one whose bundle never arrived or one whose bundle no longer
@@ -1151,6 +1176,53 @@ def _session_cookie_shortfall(
             "through this exit"
         )
     return f"{shortfall}; only the bootstrap token arrived and the SDK never replaced it"
+
+
+def _short_session_token(platform: Platform, params: Mapping[str, Any]) -> int | None:
+    """The length of a sealed session token too short to use; None when it is fine.
+
+    None as well when the platform has no such token or the signature sealed
+    none at all: absence is not a short token, and a page whose SDK stopped
+    appending one should keep signing rather than never be ready.
+    """
+    minimum = SESSION_COOKIE_MINIMUMS.get(platform)
+    if minimum is None:
+        return None
+    name, length = minimum
+    value = params.get(name)
+    if value is None:
+        return None
+    held = len(str(value))
+    return held if held < length else None
+
+
+def _unusable_sealed_token(
+    platform: Platform, held: int, budget: float, attempts: int
+) -> BackendFailure:
+    """The failure for a page that signs but never seals a usable session token.
+
+    Worded like `_session_cookie_shortfall`, because it is the same token
+    failing to arrive: none at all means the platform's app never answered
+    through this exit, a short one that the bootstrap value was never replaced.
+    The probe count is in the "(N probes)" shape the service strips when it
+    compares two attempts' failures.
+    """
+    name, length = SESSION_COOKIE_MINIMUMS[platform]
+    head = (
+        f"the {platform.value} signing page could not seal a usable {name} within "
+        f"{budget:.0f}s ({attempts} probes): it seals one of {held} characters, and the "
+        f"usable token is at least {length}"
+    )
+    if held == 0:
+        return BackendFailure(
+            f"{head}. None has arrived, and it comes on an app API response, so nothing of "
+            "the platform's app answered through this exit",
+            suspect=Suspect.EXIT,
+        )
+    return BackendFailure(
+        f"{head}; only the bootstrap token arrived and the SDK never replaced it",
+        suspect=Suspect.BUNDLE,
+    )
 
 
 def cookie_payload(platform: Platform, cookies: Mapping[str, str] | None) -> list[dict[str, str]]:

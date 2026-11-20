@@ -451,6 +451,95 @@ class TestSigningReadiness:
         assert browser.closed == 1
 
 
+class SealingPage(StubPage):
+    """A TikTok page whose SDK seals the msToken it holds at each probe, in turn."""
+
+    def __init__(self, tokens: list[str | None]) -> None:
+        super().__init__()
+        self.tokens = tokens
+        self.probes = 0
+
+    async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+        if "__dtkSign" not in script:
+            return {"userAgent": CHROME_UA, "platform": "Win32"}
+        token = self.tokens[min(self.probes, len(self.tokens) - 1)]
+        self.probes += 1
+        params: dict[str, str] = {"X-Dynosaur": "DYN", "X-Bogus": "1", "X-Gnarly": "GNA"}
+        if token is not None:
+            params["msToken"] = token
+        return {"params": params}
+
+
+class TestATikTokPageIsReadyWhenItsTokenIs:
+    """Issue #832: a page that signs is not ready while the msToken it seals is not.
+
+    Measured 2026-11-20: a page bound to a jar holding a 152-character token
+    sealed an empty msToken for its first 0.1-1.4s, longer through the service;
+    a page whose jar had none sealed the 128-character bootstrap token for
+    seconds. Signatures from the first 0.3s were refused even with the jar's
+    live token in the Cookie header, 4 of 4, and readiness answered yes on the
+    first probe that signed - so the first caller after every rebind got one.
+    """
+
+    _backend = staticmethod(TestSigningReadiness._backend)
+
+    async def test_the_page_is_handed_over_once_its_token_is_usable(self, tmp_path: Path) -> None:
+        page = SealingPage(["", "", "t" * 128, "t" * 152])
+        context = await self._backend(tmp_path, page).open_signing_context(
+            Platform.TIKTOK, FALLBACK_PROFILE
+        )
+        assert page.probes == 4
+        await context.close()
+
+    async def test_a_page_that_seals_no_token_at_all_is_judged_as_before(
+        self, tmp_path: Path
+    ) -> None:
+        """Absence is not a short token: an SDK that stopped appending one still signs."""
+        page = SealingPage([None])
+        context = await self._backend(tmp_path, page).open_signing_context(
+            Platform.TIKTOK, FALLBACK_PROFILE
+        )
+        assert page.probes == 1
+        await context.close()
+
+    async def test_douyin_has_no_token_to_wait_for(self, tmp_path: Path) -> None:
+        page = SealingPage([""])
+        context = await self._backend(tmp_path, page).open_signing_context(
+            Platform.DOUYIN, FALLBACK_PROFILE
+        )
+        assert page.probes == 1
+        await context.close()
+
+    @pytest.mark.parametrize(
+        ("token", "says", "suspect"),
+        [
+            ("", "nothing of the platform's app answered through this exit", Suspect.EXIT),
+            ("t" * 128, "only the bootstrap token arrived", Suspect.BUNDLE),
+        ],
+    )
+    async def test_a_token_that_never_matures_is_not_handed_out(
+        self, tmp_path: Path, token: str, says: str, suspect: Suspect
+    ) -> None:
+        browser = StubContext()
+        backend = self._backend(tmp_path, SealingPage([token]))
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            Path(profile_dir).mkdir(parents=True, exist_ok=True)
+            browser.pages.append(SealingPage([token]))
+            return browser
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        with pytest.raises(BackendFailure) as excinfo:
+            await backend.open_signing_context(Platform.TIKTOK, FALLBACK_PROFILE)
+        message = str(excinfo.value)
+        assert "could not seal a usable msToken within 2s (" in message
+        assert f"it seals one of {len(token)} characters" in message
+        assert "at least 144" in message
+        assert says in message
+        assert excinfo.value.suspect is suspect
+        assert browser.closed == 1
+
+
 class LeavingPage(StubPage):
     """A platform page that a failed navigation carries to chrome-error://.
 
