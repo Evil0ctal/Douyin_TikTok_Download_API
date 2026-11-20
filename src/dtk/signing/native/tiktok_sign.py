@@ -11,7 +11,9 @@ TikTok the way :mod:`dtk.signing.native.websign` serves Douyin.
 
 Where it came from
 ------------------
-Source: ``webmssdk 2.0.0.561`` from ``lf16-tiktok-web.tiktokcdn-us.com``.
+Source: ``webmssdk 2.0.0.561`` from ``lf16-tiktok-web.tiktokcdn-us.com``; the
+build constants follow 2.0.0.569, in which nothing else measured had moved
+(see :data:`SDK_VERSION`).
 Same shape as Douyin's protection - a bytecode VM whose *interpreter* is
 ordinary JavaScript, so the string table decodes without executing anything -
 but unlike Douyin there is no salt to recover: the signature is an encrypted
@@ -89,6 +91,7 @@ import hashlib
 import random
 import time
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Final
 
 from dtk.signing.base import encode_browser_query
@@ -131,14 +134,24 @@ CHACHA_INIT: Final = (1196819126, 600974999, 3863347763, 1451689750)
 FNV_OFFSET: Final = 2166136260
 FNV_PRIME: Final = 16777619
 
-#: Version strings the payload carries, from bundle 2.0.0.561. They are DATA,
+#: Version strings the payload carries, from bundle 2.0.0.569. They are DATA,
 #: not decoration: 2.0.0.514 carried "5.3.1"/"2.0.0.514" and a different field
 #: set, so a bundle bump invalidates this port. The redo recipe is in
 #: docs/design/17-signature-reversing.md - refetch the SDK, diff the string
 #: table for the scmVersion literal, re-run the Node oracle, diff the decoded
 #: field table.
-SDK_VERSION: Final = "5.3.2"
-SCM_VERSION: Final = "2.0.0.561"
+#:
+#: 2.0.0.561 -> 2.0.0.569 (live from 2026-11, "5.3.2" -> "5.3.3") changed these
+#: two strings and `VM_STATE_HASH`, and nothing else that was measured: the
+#: envelope constants are in both bundles, and a capture from the new one
+#: carries the same 25 X-Dynosaur keys. On 2026-11-20 TikTok still accepted the
+#: old strings - and made-up ones, "9.9.9" included - on item_list and
+#: user/detail, so a stale pair is a fingerprint tell rather than an outage, and
+#: the shadow comparison cannot see it (X-Bogus, its only TikTok verdict, is "1"
+#: on both sides). That is why the bump is checked against a capture in the
+#: tests instead.
+SDK_VERSION: Final = "5.3.3"
+SCM_VERSION: Final = "2.0.0.569"
 
 #: Environment fingerprint the payload reports, taken from a real browser.
 #:
@@ -155,18 +168,52 @@ SCM_VERSION: Final = "2.0.0.561"
 #: environment placeholders below, the home-page ``PAGE`` and ``sequence`` 1 all
 #: left as they were. The harness, not the port, was what disagreed with the
 #: browser: measure these against a live capture, never against a stub.
+#:
+#: What the server checks has narrowed since. Measured on 2026-11-20 against
+#: item_list with bundle 2.0.0.569: env_code is not checked at all (1 and 65
+#: both pass), and ub_code is refused at exactly 14 (0, 2, ... 12 all pass).
+#: 14 is what a page reports before any user input, which is why a capture from
+#: a page nobody touched - browser-rpc's included - must never be where these
+#: two are taken from: browser-rpc's own item_list signatures are refused for it.
 ENV_CODE: Final = 65
 UB_CODE: Final = 8
 
-#: X-Dynosaur field 0x38. Constant across bundles 2.0.0.514 and 2.0.0.561 and
-#: across every environment perturbation tried (UA, screen, location, canvas
-#: present/absent), so it is a property of the SDK build rather than of the
-#: machine. It is :func:`hash_state` of an md5 the SDK computes internally; the
-#: md5's input never reaches ``TextEncoder`` or ``charCodeAt``, so it was not
-#: recovered. Pinning the observed value is therefore what the port can honestly
-#: do - and the value being environment-independent is exactly what makes that
-#: safe.
-VM_STATE_HASH: Final = 0xC46CE353
+#: X-Dynosaur field 0x38: :func:`hash_state` of an md5 the SDK computes
+#: internally. The md5's input never reaches ``TextEncoder`` or ``charCodeAt``,
+#: so it was not recovered, and pinning the observed value is what the port can
+#: honestly do.
+#:
+#: It is per BUILD, not per machine. It was the same across 2.0.0.514 and
+#: 2.0.0.561 (0xC46CE353), which an earlier version of this comment read as
+#: "constant across bundles"; 2.0.0.569 changed it to 0xF3237B02. Within one
+#: build it held across every environment perturbation tried (UA, screen,
+#: location, canvas present/absent) and between a real Chrome 157 on macOS and
+#: browser-rpc's Chromium 146 on Linux. A page that has only just loaded seals
+#: hash_state("") = 0x811C9DC4 here instead - six signatures in a fresh
+#: browser-rpc page's first seconds all did, and the same page minutes later
+#: sealed 0xF3237B02 - so a capture taken to re-pin this must come from a page
+#: that has settled.
+VM_STATE_HASH: Final = 0xF3237B02
+
+
+@dataclass(frozen=True, slots=True)
+class SdkBuild:
+    """The three values a webmssdk build stamps into every signature.
+
+    Grouped because they move together, on a bundle bump and only then. A
+    parameter rather than a module constant read in place, so the Node vectors
+    in the tests - generated by 2.0.0.561 and still the proof of the algorithm -
+    can be reproduced under the build that produced them while the module ships
+    the current one; the same split ``env_code``/``ub_code`` already make.
+    """
+
+    sdk_version: str
+    scm_version: str
+    vm_state_hash: int
+
+
+#: The build this module signs as.
+CURRENT_BUILD: Final = SdkBuild(SDK_VERSION, SCM_VERSION, VM_STATE_HASH)
 
 #: Canvas fingerprint. ``-1`` means "no canvas", which is what a page without a
 #: 2d context reports. Giving the harness a working ``getContext('2d')`` made the
@@ -448,6 +495,7 @@ def dynosaur_payload(
     sequence: int = CALL_SEQUENCE_START,
     env_code: int = ENV_CODE,
     ub_code: int = UB_CODE,
+    build: SdkBuild = CURRENT_BUILD,
 ) -> bytes:
     """The environment report, 25 TLV fields with keys 0x20..0x38 ascending.
 
@@ -467,21 +515,21 @@ def dynosaur_payload(
         0x27: encode_field(str(timestamp), ENCODER_A),
         0x28: encode_field(WEBGL_HASH, ENCODER_A),
         0x29: encode_field("0", ENCODER_A),
-        0x2A: encode_field(SDK_VERSION, ENCODER_A),
+        0x2A: encode_field(build.sdk_version, ENCODER_A),
         0x2B: _be(hash_state(""), 4),
         0x2C: encode_field(CANVAS_HASH, ENCODER_A),
         0x2D: encode_field("0", ENCODER_A),
         0x2E: _be(hash_state(query), 4),
         0x2F: encode_field(str(sequence), ENCODER_A),
         0x30: _be(hash_state(user_agent), 4),
-        0x31: encode_field(SCM_VERSION, ENCODER_A),
+        0x31: encode_field(build.scm_version, ENCODER_A),
         0x32: encode_field(COMPONENT_VERSION, ENCODER_A),
         0x33: encode_field(DEVICE_HASH, ENCODER_A),
         0x34: encode_field(str(nonce), ENCODER_A),
         0x35: encode_field(PAGE, ENCODER_A),
         0x36: encode_field(str(ub_code), ENCODER_A),
         0x37: encode_field("0", ENCODER_A),
-        0x38: _be(VM_STATE_HASH, 4),
+        0x38: _be(build.vm_state_hash, 4),
         # Placeholder while the checksum below is computed over every field.
         # Any one-character string works, because byte 1 of a one-character
         # field is the constant pad byte; the SDK uses "0" and so do we.
@@ -505,6 +553,7 @@ def gnarly_fields(
     sequence: int = CALL_SEQUENCE_START,
     env_code: int = ENV_CODE,
     ub_code: int = UB_CODE,
+    build: SdkBuild = CURRENT_BUILD,
 ) -> dict[int, bytes]:
     """The request seal, as a field table. 16 entries; 0x07 is absent.
 
@@ -531,8 +580,8 @@ def gnarly_fields(
         timestamp,
         0,
         nonce,
-        SDK_VERSION,
-        SCM_VERSION,
+        build.sdk_version,
+        build.scm_version,
         CALL_SEQUENCE_START,
         sequence,
         sequence,
@@ -550,8 +599,8 @@ def gnarly_fields(
         0x05: agent_md5.encode("ascii"),
         0x06: _be(timestamp, 4),
         0x08: _be(nonce, 4),
-        0x09: SDK_VERSION.encode("ascii"),
-        0x0A: SCM_VERSION.encode("ascii"),
+        0x09: build.sdk_version.encode("ascii"),
+        0x0A: build.scm_version.encode("ascii"),
         0x0B: _be(CALL_SEQUENCE_START, 2),
         0x0C: _be(sequence, 2),
         0x0D: _be(sequence, 2),
@@ -573,6 +622,7 @@ def gnarly_payload(
     order: Sequence[int] | None = None,
     env_code: int = ENV_CODE,
     ub_code: int = UB_CODE,
+    build: SdkBuild = CURRENT_BUILD,
 ) -> bytes:
     """:func:`gnarly_fields`, packed behind the one-byte field count."""
     fields = gnarly_fields(
@@ -585,6 +635,7 @@ def gnarly_payload(
         sequence=sequence,
         env_code=env_code,
         ub_code=ub_code,
+        build=build,
     )
     return pack_payload(fields, order, lead_count=True)
 
@@ -687,6 +738,7 @@ __all__ = [
     "BOGUS_PARAM",
     "BOGUS_VALUE",
     "CALL_SEQUENCE_START",
+    "CURRENT_BUILD",
     "DYNOSAUR_PARAM",
     "ENCODER_A",
     "ENCODER_B",
@@ -696,6 +748,7 @@ __all__ = [
     "SCM_VERSION",
     "SDK_VERSION",
     "UB_CODE",
+    "SdkBuild",
     "decode_field",
     "dynosaur_payload",
     "encode_field",

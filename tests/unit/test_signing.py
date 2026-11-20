@@ -2916,6 +2916,31 @@ TIKTOK_UA_LINUX = (
 HARNESS_ENV_CODE: Final = 129
 HARNESS_UB_CODE: Final = 14
 
+#: The build the Node harness ran, which the vectors carry inside their seals.
+#: The module has moved on to 2.0.0.569; these stay, because what they prove -
+#: the algorithm - did not move with it. Pinned to a real 561 capture below, so
+#: this is a fact about that bundle and not a number copied from the old port.
+HARNESS_BUILD: Final = tiktok_sign.SdkBuild("5.3.2", "2.0.0.561", 0xC46CE353)
+
+#: A 2.0.0.569 X-Dynosaur from browser-rpc's own page (CloakBrowser 0.6.3,
+#: Chromium 146, 2026-11-20), and the synthetic item_list query it covers.
+#: Taken from an anonymous page - no jar, so no session value in it - that had
+#: been open for minutes: a page in its first seconds seals hash_state("")
+#: where the build's state hash belongs. Inline like the 561 capture further
+#: down, because the fixture scrubber rightly refuses opaque strings it cannot
+#: prove harmless.
+BUILD_569_QUERY: Final = (
+    "aid=1988&count=30&cursor=0&device_platform=web_pc&secUid=dtk-fixture-placeholder"
+)
+BUILD_569_CAPTURE: Final = (
+    "MFlTM1WsF2bo2RDltsOApwywtAvbbX/nACR85nFo7PYJa/OQllo68vjLGA9MS8dXheXrNFROGWqt"
+    "Yjv4s/EVo9EV8SXM0L9ROQpe2vRXBtedI4dF5aQIAXcQyXgNLgaV3ttBVBcyXP8489fz1s7mOYWm"
+    "8ceEcljU9aLbW3DWzzlisvV8LzUr0zOPbbkXvVmSyvg5zkxbEyaIGxTR/8x3/EyYPvG199apJcDc"
+    "koXJt4U8ZyywcWTnsY/6kMHPZJ0Aq8U/SVG8l/f2DsJEijkr69t3XsfU673aLLFNSgI7TsQFmJih"
+    "REuN5fbCDUgDB4Nlm5Tts/aUqlLcyf4Y9gbS93lCUEd/-HZP2aaJbHoLsz9ulQCsNdy8nD1N6jrt"
+    "VBzAKw-umfFsW5Uo5MD3UGyHkmMwkZ82DqlM5pMuObEAXwDxuhHjePDdPAT2xQxVOQEoHsfnLZ=="
+)
+
 TIKTOK_VECTORS: list[dict[str, object]] = [
     {
         "query": "aid=1988&count=10",
@@ -3288,6 +3313,7 @@ class TestTikTokSignature:
             sequence=cast(int, vector["sequence"]),
             env_code=HARNESS_ENV_CODE,
             ub_code=HARNESS_UB_CODE,
+            build=HARNESS_BUILD,
         )
         return tiktok_sign.seal(payload, cast("Sequence[int]", vector["dynosaur_key"]))
 
@@ -3310,6 +3336,7 @@ class TestTikTokSignature:
             order=cast("Sequence[int]", vector["gnarly_order"]),
             env_code=HARNESS_ENV_CODE,
             ub_code=HARNESS_UB_CODE,
+            build=HARNESS_BUILD,
         )
         return tiktok_sign.seal(payload, cast("Sequence[int]", vector["gnarly_key"]))
 
@@ -3346,10 +3373,42 @@ class TestTikTokSignature:
 
         assert int(decode(fields[0x26], tiktok_sign.ENCODER_A)) == tiktok_sign.ENV_CODE
         assert int(decode(fields[0x36], tiktok_sign.ENCODER_A)) == tiktok_sign.UB_CODE
-        # The same capture pins the three version-ish constants beside them.
+        # It used to pin the build constants beside them as well. It is a 2.0.0.561
+        # capture, so now it pins the harness's build instead - the one the
+        # vectors above were sealed under - and the shipped build is pinned by
+        # the 2.0.0.569 capture in the next test. One capture cannot do both:
+        # the 569 one reports ub_code 14, which item_list refuses.
+        assert decode(fields[0x2A], tiktok_sign.ENCODER_A) == HARNESS_BUILD.sdk_version
+        assert decode(fields[0x31], tiktok_sign.ENCODER_A) == HARNESS_BUILD.scm_version
+        assert int.from_bytes(fields[0x38], "big") == HARNESS_BUILD.vm_state_hash
+
+    def test_the_shipped_build_matches_a_2_0_0_569_capture(self) -> None:
+        """The bundle moved under a port that kept working, and only a capture says so.
+
+        tiktok.com began serving webmssdk 2.0.0.569 while this module still
+        stamped 2.0.0.561 into every signature. TikTok accepted it - it accepted
+        "9.9.9" too, on 2026-11-20 - and the shadow comparison reported "match",
+        because its only TikTok verdict is X-Bogus, the constant "1" on both
+        sides. So nothing at runtime notices a stale build; this does.
+        """
+        token = BUILD_569_CAPTURE
+        payload, _ = tiktok_sign.unseal(token)
+        fields = tiktok_sign.unpack_payload(payload)
+        decode = tiktok_sign.decode_field
+
         assert decode(fields[0x2A], tiktok_sign.ENCODER_A) == tiktok_sign.SDK_VERSION
         assert decode(fields[0x31], tiktok_sign.ENCODER_A) == tiktok_sign.SCM_VERSION
         assert int.from_bytes(fields[0x38], "big") == tiktok_sign.VM_STATE_HASH
+        # Over the query it says it covers, so it is that request's signature.
+        query = BUILD_569_QUERY
+        assert int.from_bytes(fields[0x2E], "big") == tiktok_sign.hash_state(query)
+        # The same field table as the port emits: what moved was data, not shape.
+        ours = tiktok_sign.unpack_payload(
+            tiktok_sign.dynosaur_payload(query, "UA", timestamp=1, nonce=1)
+        )
+        assert sorted(fields) == sorted(ours)
+        # And not where the two codes come from: a page nobody touched says 14.
+        assert decode(fields[0x36], tiktok_sign.ENCODER_A) == "14" != str(tiktok_sign.UB_CODE)
 
     def test_unseal_recovers_what_seal_produced(self) -> None:
         """The envelope is invertible, which is what makes the capture readable."""
@@ -3497,9 +3556,16 @@ class TestTikTokSignature:
         assert first != again
 
     def test_the_versions_it_reports_are_the_bundle_it_was_read_from(self) -> None:
-        """A bundle bump changes these, and a stale port looks like an outage."""
-        assert tiktok_sign.SDK_VERSION == "5.3.2"
-        assert tiktok_sign.SCM_VERSION == "2.0.0.561"
+        """A bundle bump changes these, and nothing at runtime notices a stale one."""
+        assert tiktok_sign.SDK_VERSION == "5.3.3"
+        assert tiktok_sign.SCM_VERSION == "2.0.0.569"
+        assert tiktok_sign.VM_STATE_HASH == 0xF3237B02
+        build = tiktok_sign.CURRENT_BUILD
+        assert (build.sdk_version, build.scm_version, build.vm_state_hash) == (
+            "5.3.3",
+            "2.0.0.569",
+            0xF3237B02,
+        )
 
     def test_the_url_state_hash_matches_the_sdks(self) -> None:
         """FNV-1a with an extra ``* 33``; three payload fields depend on it."""
