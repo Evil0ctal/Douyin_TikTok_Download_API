@@ -1692,6 +1692,13 @@
     "downloadBlockedTitle": "The browser could not fetch the file",
     "downloadBlockedBody": "All {count} mirrors refused a cross-origin read, which is CORS or hotlink protection rather than a broken link. The first mirror was opened in a new tab: save it from there, or enable the optional server-side download proxy.",
     "downloadNote": "A blocked download rarely means a dead file. Open the link and save it from the new tab instead.",
+    "offBrowser": {
+      "bound": "None of this video's links played here. TikTok ties them to the session that fetched them, and a browser cannot send that session's token. Save it to this instance; it plays in the download list below once it lands.",
+      "refused": "None of this video's links played in the browser: the platform refused them, or they have expired. Save it to this instance; it plays in the download list below once it lands.",
+      "save": "Save to this instance",
+      "saveHint": "Fetched by this instance, which sends what the platform asks for.",
+      "saveHintBound": "Fetched by this instance: TikTok ties the link to the session that found it."
+    },
     "queue": {
       "action": "{count, plural, =0 {Save to this instance} one {Save 1 to this instance} other {Save # to this instance}}",
       "one": "Save",
