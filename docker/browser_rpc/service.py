@@ -103,6 +103,10 @@ class WarmSlot:
     #: query that contradicts the cookies the request will carry.
     binding: str = ""
     generation: int = 0
+    #: Signatures this page has produced, for the log line that explains why
+    #: it was thrown away: a page that failed on its first use and one that
+    #: failed after a thousand point at different causes.
+    signs: int = 0
 
 
 @dataclass(slots=True)
@@ -371,7 +375,11 @@ class BrowserRpcService:
             content_type=content_type,
         )
 
-        last_error: RpcError | None = None
+        # Which exit the page loads through, by kind and never by address: the
+        # half of the story the operator could not see in #830, where both
+        # attempts failed the same way because both went out the same way.
+        exit_kind = "identity_proxy" if proxy_url else ("sign_proxy" if exit_url else "direct")
+        failures: list[RpcError] = []
         # Two attempts: a warm page that has been up for a while is the most
         # common failure, and it is fixed by throwing it away.
         for attempt in (1, 2):
@@ -383,11 +391,14 @@ class BrowserRpcService:
                 # pressure that is the common failure, not the rare one.
                 slot = await self._acquire_slot(platform, binding, jar, proxy, identity_id)
             except RpcError as exc:
-                last_error = exc
+                failures.append(exc)
                 logger.warning(
-                    "browser_rpc.sign.open_failed platform=%s attempt=%d error=%s",
+                    "browser_rpc.sign.open_failed platform=%s attempt=%d exit=%s identity=%s "
+                    "error=%s",
                     platform.value,
                     attempt,
+                    exit_kind,
+                    _short(identity_id),
                     exc.message,
                 )
                 continue
@@ -398,17 +409,22 @@ class BrowserRpcService:
                     f"signing for {platform.value}",
                 )
             except RpcError as exc:
-                last_error = exc
+                failures.append(exc)
                 await self._discard_slot(platform, slot)
                 logger.warning(
-                    "browser_rpc.sign.attempt_failed platform=%s attempt=%d error=%s",
+                    "browser_rpc.sign.attempt_failed platform=%s attempt=%d exit=%s identity=%s "
+                    "slot_age_s=%.0f slot_signs=%d error=%s",
                     platform.value,
                     attempt,
+                    exit_kind,
+                    _short(identity_id),
+                    self._clock() - slot.created_at,
+                    slot.signs,
                     exc.message,
                 )
                 continue
             except Exception as exc:
-                last_error = BackendFailure(f"signing failed: {exc}")
+                failures.append(BackendFailure(f"signing failed: {exc}"))
                 await self._discard_slot(platform, slot)
                 logger.exception("browser_rpc.sign.crashed platform=%s", platform.value)
                 continue
@@ -416,14 +432,15 @@ class BrowserRpcService:
             if not signed:
                 # A page that answers with nothing has lost its signing code;
                 # keeping it warm would only produce the same empty answer.
-                last_error = BackendFailure("the signing page returned no signature")
+                failures.append(BackendFailure("the signing page returned no signature"))
                 await self._discard_slot(platform, slot)
                 continue
 
+            slot.signs += 1
             await self._release_slot(platform, slot)
             return signed
 
-        raise last_error or BackendFailure("signing produced no result")
+        raise _final_error(failures, exit_kind)
 
     async def _acquire_slot(
         self,
@@ -448,10 +465,24 @@ class BrowserRpcService:
                 hit = next((s for s in pool.idle if s.binding == binding), None)
                 if hit is not None:
                     pool.idle.remove(hit)
-                    if not self._is_stale(hit):
+                    problem = hit.context.problem
+                    if problem is None and not self._is_stale(hit):
                         return hit
                     # Its credit passes to the replacement we are about to open.
-                    logger.info("browser_rpc.warm.refresh platform=%s", platform.value)
+                    if problem is not None:
+                        # A page that went bad while it sat idle - crashed, or
+                        # carried off the platform by a navigation that failed
+                        # after load. Handing it out cost the caller its first
+                        # attempt in #830, to learn what was already known.
+                        logger.warning(
+                            "browser_rpc.warm.discarded platform=%s reason=%s age_s=%.0f signs=%d",
+                            platform.value,
+                            problem,
+                            self._clock() - hit.created_at,
+                            hit.signs,
+                        )
+                    else:
+                        logger.info("browser_rpc.warm.refresh platform=%s", platform.value)
                     evicted = hit
                 elif pool.live < pool.capacity:
                     pool.live += 1
@@ -541,6 +572,28 @@ class BrowserRpcService:
 def _short(identity_id: str | None) -> str:
     """An identity id abbreviated for a log line, never the cookies behind it."""
     return (identity_id or "-")[:8]
+
+
+def _final_error(failures: list[RpcError], exit_kind: str) -> RpcError:
+    """The error a signature that failed twice reports.
+
+    The last failure, as before - except when both attempts failed with the same
+    message. They ran on two different pages, so the same answer twice is not a
+    page that went stale: it is something both pages shared, and the only thing
+    they always share is the exit they load through. Saying so is the
+    difference between "restart the browser" and "look at the proxy", which the
+    reporter of #830 could not tell from two identical log lines.
+    """
+    if not failures:
+        return BackendFailure("signing produced no result")
+    last = failures[-1]
+    if len(failures) > 1 and all(f.message == last.message for f in failures):
+        return type(last)(
+            f"both attempts, on two different pages through the same exit ({exit_kind}), "
+            f"failed the same way: {last.message}",
+            detail=last.detail,
+        )
+    return last
 
 
 __all__ = ["ANONYMOUS", "BrowserRpcService", "MintOutcome", "WarmSlot", "binding_key"]

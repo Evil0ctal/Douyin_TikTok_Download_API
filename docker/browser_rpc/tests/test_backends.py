@@ -9,20 +9,23 @@ snippet table covering every platform.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from browser_rpc.backends import build_backend
+from browser_rpc.backends import build_backend, cloak
 from browser_rpc.backends.base import MintPlan, SignPlan
 from browser_rpc.backends.cloak import (
     CAPTURE_INIT_SCRIPT,
+    PAGE_LEFT_PLATFORM,
     QUIET_MEDIA_SCRIPT,
     SIGN_SCRIPT,
     CloakBackend,
     CloakSigningContext,
     browser_family_of,
     browser_major_of,
+    off_platform,
     proxy_settings,
 )
 from browser_rpc.backends.fake import FakeBackend
@@ -395,19 +398,23 @@ class TestSigningReadiness:
                 return {"error": "the SDK did not dispatch a request"}
 
         page = DeadSdkPage()
-        context = await self._backend(tmp_path, page).open_signing_context(
-            Platform.DOUYIN, FALLBACK_PROFILE
-        )
-        await context.close()
+        with pytest.raises(BackendFailure):
+            await self._backend(tmp_path, page).open_signing_context(
+                Platform.DOUYIN, FALLBACK_PROFILE
+            )
         # 2s of budget: flat 0.25s polling would be 8, backing off is far fewer.
         assert page.probes <= 6, f"{page.probes} probes in a 2s budget is hammering"
         assert page.probes >= 2, "it gave up without really waiting"
 
-    async def test_a_page_that_never_signs_is_still_returned(self, tmp_path: Path) -> None:
-        """The budget must end in a legible signing error, not a hung caller.
+    async def test_a_page_that_never_signs_is_not_handed_out(self, tmp_path: Path) -> None:
+        """The budget ends in a failed open that carries the SDK's own answer.
 
-        Failing the open would report "opening a context timed out", which says
-        less than the SDK's own message about why it produced nothing.
+        This used to return the page anyway, reasoning that the caller's
+        signature would then fail with the SDK's message, which says more than
+        "opening a context timed out". The message half of that was right and
+        is kept - the probe's last answer is in the error. The other half put a
+        page that could not sign into the pool, where every attempt paid a full
+        open to rediscover it (#830).
         """
 
         class DeadSdkPage(StubPage):
@@ -416,11 +423,268 @@ class TestSigningReadiness:
                     return {"userAgent": CHROME_UA, "platform": "Win32"}
                 return {"error": "the SDK did not dispatch a request"}
 
-        context = await self._backend(tmp_path, DeadSdkPage()).open_signing_context(
-            Platform.DOUYIN, FALLBACK_PROFILE
+        browser = StubContext()
+        browser.pages.append(DeadSdkPage())
+        backend = self._backend(tmp_path, DeadSdkPage())
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            # This test's own context, so it can see the page being closed.
+            Path(profile_dir).mkdir(parents=True, exist_ok=True)
+            return browser
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        with pytest.raises(BackendFailure) as excinfo:
+            await backend.open_signing_context(Platform.DOUYIN, FALLBACK_PROFILE)
+        message = str(excinfo.value)
+        assert "could not sign within 2s" in message
+        assert "the SDK did not dispatch a request" in message
+        # Not kept warm: the context it opened is closed again.
+        assert browser.closed == 1
+
+
+class LeavingPage(StubPage):
+    """A platform page that a failed navigation carries to chrome-error://.
+
+    Modelled on issue #830 as reproduced in a real CloakBrowser: the document
+    loads, a navigation after load fails through the exit, and the page lands
+    on chrome-error://chromewebdata/. The capture shim is reinstalled there -
+    init scripts run on every document - so the old script got past its guard
+    and died on `new URL(..., location.origin)`, where the origin is "null".
+    """
+
+    INVALID_BASE = "Page.evaluate: TypeError: Failed to construct 'URL': Invalid base URL"
+
+    def __init__(self, leave_after: int = 0) -> None:
+        super().__init__()
+        self.leave_after = leave_after
+        self.probes = 0
+
+    async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+        if "__dtkSign" not in script:
+            return {"userAgent": CHROME_UA, "platform": "Win32"}
+        self.probes += 1
+        if self.probes > self.leave_after:
+            self.url = "chrome-error://chromewebdata/"
+            raise RuntimeError(f"{self.INVALID_BASE}\n    at eval (<anonymous>:27:18)")
+        return {"params": {"X-Gnarly": "stub"}}
+
+
+class TestAPageThatLeftThePlatform:
+    """Issue #830: "Invalid base URL" from a page that was not on TikTok any more.
+
+    The page had left tiktok.com and nothing noticed: the readiness probe
+    logged three exceptions and handed it out, the service's two attempts each
+    signed on such a page, and the caller read a JavaScript TypeError that
+    named neither the page's state nor the exit that put it there.
+    """
+
+    @staticmethod
+    def _backend(tmp_path: Path, page: StubPage) -> tuple[CloakBackend, StubContext]:
+        backend = CloakBackend(
+            replace(
+                Settings(backend="cloak"),
+                profile_root=str(tmp_path),
+                sdk_ready_timeout_seconds=2.0,
+            )
         )
-        assert context is not None
-        await context.close()
+        browser = StubContext()
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            Path(profile_dir).mkdir(parents=True, exist_ok=True)
+            browser.pages.append(page)
+            return browser
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        return backend, browser
+
+    @staticmethod
+    def _plan() -> SignPlan:
+        return SignPlan(
+            platform=Platform.TIKTOK,
+            url="https://www.tiktok.com/api/item/detail/",
+            query="itemId=7&aid=1988",
+            params={},
+        )
+
+    def test_the_script_never_resolves_against_the_pages_own_origin(self) -> None:
+        # The target is absolute and is all the parameters are read from; the
+        # page's origin is "null" on exactly the pages this went wrong on.
+        assert "location.origin" not in SIGN_SCRIPT
+        assert "new URL(state.url, input.url)" in SIGN_SCRIPT
+        assert PAGE_LEFT_PLATFORM in SIGN_SCRIPT
+
+    @pytest.mark.parametrize(
+        ("platform", "url", "where"),
+        [
+            (Platform.TIKTOK, "https://www.tiktok.com/", None),
+            (Platform.TIKTOK, "https://www.tiktok.com/explore?lang=en", None),
+            (Platform.DOUYIN, "https://www.douyin.com/?recommend=1", None),
+            (Platform.TIKTOK, "chrome-error://chromewebdata/", "chrome-error://chromewebdata"),
+            (Platform.TIKTOK, "about:blank", "about:blank"),
+            (Platform.TIKTOK, "data:text/html,<p>a whole document</p>", "data:"),
+            (Platform.TIKTOK, "https://www.douyin.com/", "https://www.douyin.com"),
+            (Platform.TIKTOK, "https://nottiktok.com/", "https://nottiktok.com"),
+            # Only scheme and host are ever reported: a path or query on a
+            # platform page can carry the identity's tokens.
+            (Platform.TIKTOK, "https://verify.example/?msToken=SECRET", "https://verify.example"),
+            (Platform.TIKTOK, None, None),
+        ],
+    )
+    def test_where_a_page_is(self, platform: Platform, url: str | None, where: str | None) -> None:
+        assert off_platform(platform, url) == where
+
+    async def test_a_warm_page_on_an_error_page_says_where_it_is(self) -> None:
+        page = LeavingPage()
+        page.url = "chrome-error://chromewebdata/"
+        context = CloakSigningContext(Platform.TIKTOK, StubContext(), page)
+
+        assert context.problem == "it left tiktok.com for chrome-error://chromewebdata"
+        with pytest.raises(BackendFailure) as excinfo:
+            await context.sign(self._plan())
+        message = str(excinfo.value)
+        assert "no longer on tiktok.com" in message
+        assert "chrome-error://chromewebdata" in message
+        assert "Invalid base URL" not in message
+        # Named from the driver's own record; nothing ran in the dead page.
+        assert page.probes == 0
+
+    async def test_the_script_names_the_page_when_the_driver_has_not_caught_up(self) -> None:
+        class StillLooksFine(StubPage):
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                return {"error": PAGE_LEFT_PLATFORM, "at": "about:"}
+
+        page = StillLooksFine()
+        page.url = "https://www.tiktok.com/"
+        context = CloakSigningContext(Platform.TIKTOK, StubContext(), page)
+
+        with pytest.raises(BackendFailure, match=r"no longer on tiktok\.com \(it is on about:\)"):
+            await context.sign(self._plan())
+
+    async def test_a_crashed_renderer_is_a_problem_before_anyone_signs(self) -> None:
+        class EventedPage(StubPage):
+            def __init__(self) -> None:
+                super().__init__()
+                self.listeners: dict[str, object] = {}
+
+            def on(self, event: str, handler: object) -> None:
+                self.listeners[event] = handler
+
+        page = EventedPage()
+        page.url = "https://www.tiktok.com/"
+        context = CloakSigningContext(Platform.TIKTOK, StubContext(), page)
+        assert context.problem is None
+
+        crashed = page.listeners["crash"]
+        assert callable(crashed)
+        crashed(page)
+        assert context.problem == "its renderer crashed"
+        with pytest.raises(BackendFailure, match="renderer crashed"):
+            await context.sign(self._plan())
+
+    async def test_a_page_that_leaves_while_warming_up_is_not_handed_out(
+        self, tmp_path: Path
+    ) -> None:
+        """The exact shape reproduced in CloakBrowser, and the open now fails.
+
+        Before: three probe exceptions, `ready_page_gone`, and the page went
+        into the pool after 1.3s. Now the open fails at the first probe that
+        finds the page gone, with where it went - which the service treats as
+        a failed open and answers with a fresh page.
+        """
+        page = LeavingPage(leave_after=0)
+        backend, browser = self._backend(tmp_path, page)
+
+        with pytest.raises(BackendFailure) as excinfo:
+            await backend.open_signing_context(Platform.TIKTOK, FALLBACK_PROFILE)
+        message = str(excinfo.value)
+        assert message.startswith("could not warm a signing page for tiktok")
+        assert "no longer on tiktok.com (it is on chrome-error://chromewebdata)" in message
+        assert "Invalid base URL" not in message
+        assert page.probes == 1, "it kept probing a page that had already gone"
+        assert browser.closed == 1
+
+    async def test_a_page_that_stops_answering_on_the_platform_says_so(
+        self, tmp_path: Path
+    ) -> None:
+        class CrashedPage(StubPage):
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                if "__dtkSign" not in script:
+                    return {"userAgent": CHROME_UA, "platform": "Win32"}
+                raise RuntimeError("Page.evaluate: Target crashed\n    at <anonymous>")
+
+        backend, browser = self._backend(tmp_path, CrashedPage())
+        with pytest.raises(BackendFailure) as excinfo:
+            await backend.open_signing_context(Platform.TIKTOK, FALLBACK_PROFILE)
+        message = str(excinfo.value)
+        assert "stopped answering" in message
+        assert "Page.evaluate: Target crashed" in message
+        # The first line is the finding; the JavaScript stack is noise.
+        assert "<anonymous>" not in message
+        assert browser.closed == 1
+
+
+class TestAMintWhoseLandingPageLeft:
+    """The same state at mint time read "msToken is 0 characters after 15s".
+
+    That reads as impatience and was an exit that could not keep a TikTok page
+    on tiktok.com: the first msToken arrives on an app API response, so no
+    token at all means none of the app answered.
+    """
+
+    class JarContext(StubContext):
+        def __init__(self, cookies: list[dict[str, str]]) -> None:
+            super().__init__()
+            self.jar = cookies
+
+        async def cookies(self) -> list[dict[str, str]]:
+            return self.jar
+
+    @staticmethod
+    def _plan(tmp_path: Path) -> MintPlan:
+        return MintPlan(
+            platform=Platform.TIKTOK,
+            landing_url="https://www.tiktok.com/",
+            profile_dir=str(tmp_path / "mint"),
+            geo=FALLBACK_PROFILE,
+        )
+
+    async def test_a_page_that_left_ends_the_wait_and_says_where_it_went(
+        self, tmp_path: Path
+    ) -> None:
+        backend = CloakBackend(Settings(backend="cloak"))
+        page = StubPage()
+        page.url = "chrome-error://chromewebdata/"
+        context = self.JarContext([{"name": "ttwid", "value": "x"}])
+
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(BackendFailure) as excinfo:
+            await backend._await_session_cookie(context, self._plan(tmp_path), page)
+        assert asyncio.get_running_loop().time() - started < 1.0, "it waited out the budget"
+        message = str(excinfo.value)
+        assert "msToken is 0 characters" in message
+        assert "left tiktok.com for chrome-error://chromewebdata" in message
+
+    @pytest.mark.parametrize(
+        ("token", "says"),
+        [
+            ("", "nothing of the platform's app answered"),
+            ("t" * 128, "only the bootstrap token arrived"),
+        ],
+    )
+    async def test_how_short_the_token_fell_says_what_to_look_at(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, token: str, says: str
+    ) -> None:
+        monkeypatch.setattr(cloak, "SESSION_COOKIE_WAIT_SECONDS", 0.0)
+        backend = CloakBackend(Settings(backend="cloak"))
+        page = StubPage()
+        page.url = "https://www.tiktok.com/"
+        jar = [{"name": "msToken", "value": token}] if token else []
+
+        with pytest.raises(BackendFailure) as excinfo:
+            await backend._await_session_cookie(self.JarContext(jar), self._plan(tmp_path), page)
+        message = str(excinfo.value)
+        assert f"msToken is {len(token)} characters after 0s" in message
+        assert says in message
 
 
 class TestTheSdkUrlIsTheWholeAnswer:

@@ -46,6 +46,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Any, Final
+from urllib.parse import urlsplit
 
 from browser_rpc.backends.base import (
     BackendInfo,
@@ -199,6 +200,19 @@ READY_POLL_GROWTH: float = 1.6
 #: Consecutive probe exceptions that mean the page is gone rather than slow.
 READY_MAX_CONSECUTIVE_ERRORS: int = 3
 
+#: The error `SIGN_SCRIPT` answers with when the page it runs in is no longer on
+#: the platform. A wire value between the script and `CloakSigningContext`.
+PAGE_LEFT_PLATFORM: Final = "page_left_platform"
+
+#: Schemes a signing page can be on and still be the platform's page. Every
+#: other one - about:blank, chrome-error://chromewebdata/, data: - has an opaque
+#: origin, and none of them holds the SDK.
+PAGE_SCHEMES: Final = frozenset({"http", "https"})
+
+#: How much of a browser error reaches a message. Playwright appends a
+#: JavaScript stack after the first line, and the first line is the finding.
+ERROR_EXCERPT_CHARS: Final = 300
+
 #: The session cookie a mint must come home with, per platform, as
 #: ``(name, minimum length)``. Only TikTok has one: its ``msToken`` arrives twice,
 #: and the short first value produces signatures the platform refuses. Douyin has
@@ -220,10 +234,30 @@ SESSION_COOKIE_POLL_SECONDS: Final = 0.5
 #: msToken and a vestigial one-character X-Bogus. Those sets have changed before
 #: and will change again, and a table of expected names would silently drop
 #: whatever was added next.
+#:
+#: A page that has left the platform says so instead of signing. Issue #830: a
+#: warm TikTok page whose navigation after load failed sat on
+#: chrome-error://chromewebdata/, and the shim was still there - init scripts
+#: run on every document, error pages and about:blank included - so the guard
+#: below passed and the script died resolving the captured URL against
+#: `location.origin`, which on an opaque origin is the string "null". Every
+#: signature from that page came back as "TypeError: Failed to construct 'URL':
+#: Invalid base URL", on both of the service's attempts. The captured URL is
+#: now resolved against the target, which is absolute and is all the
+#: parameters were ever read from; and the page's whereabouts are checked
+#: first, so the error names where the page went rather than a JavaScript
+#: detail of what failed there.
 SIGN_SCRIPT = """
 async (input) => {
   const state = window.__dtkSign;
   if (!state) return { error: 'capture shim not installed' };
+
+  const host = location.hostname;
+  const onPlatform = (location.protocol === 'https:' || location.protocol === 'http:')
+    && (!input.domain || host === input.domain || host.endsWith('.' + input.domain));
+  if (!onPlatform) {
+    return { error: 'page_left_platform', at: host ? `${location.protocol}//${host}` : location.protocol };
+  }
 
   const target = input.query ? `${input.url}?${input.query}` : input.url;
   const before = new Set([...new URL(target).searchParams.keys()]);
@@ -247,7 +281,7 @@ async (input) => {
   }
 
   if (!state.url) return { error: 'the SDK did not dispatch a request' };
-  const signed = new URL(state.url, location.origin);
+  const signed = new URL(state.url, input.url);
   const added = {};
   for (const [k, v] of signed.searchParams) {
     if (!before.has(k)) added[k] = v;
@@ -318,6 +352,62 @@ def proxy_settings(proxy: ProxyEndpoint | None) -> dict[str, str] | None:
     return settings
 
 
+def platform_domain(platform: Platform) -> str:
+    """The domain a platform's signing page has to stay on.
+
+    The cookie domain rather than every domain the platform owns, because the
+    page is only worth anything while it holds the jar, and the jar is
+    installed on this domain: a Douyin page that ended up on iesdouyin.com would
+    sign without the cookies the request will carry.
+    """
+    return COOKIE_DOMAINS[platform].lstrip(".")
+
+
+def off_platform(platform: Platform, url: str | None) -> str | None:
+    """Where a page is when that is not on its platform; None when it is.
+
+    The answer is scheme and host only - "chrome-error://chromewebdata",
+    "about:blank" - never a path or a query, which on a platform page can carry
+    the identity's tokens. An unknown URL is not evidence of anything and
+    answers None.
+    """
+    if not url:
+        return None
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    host = (parts.hostname or "").lower().rstrip(".")
+    domain = platform_domain(platform)
+    if scheme in PAGE_SCHEMES and (host == domain or host.endswith("." + domain)):
+        return None
+    if host:
+        return f"{scheme}://{host}"
+    # about:blank has no host and its "path" is the whole point; a data: URL's
+    # path is a document, so only about: gets one.
+    return f"about:{parts.path}"[:32] if scheme == "about" else f"{scheme}:"
+
+
+def left_platform_message(platform: Platform, where: str) -> str:
+    """What to say about a signing page found somewhere other than its platform."""
+    return (
+        f"the {platform.value} signing page is no longer on {platform_domain(platform)} "
+        f"(it is on {where}): a navigation after it loaded failed or was blocked - "
+        "look at the exit it loads through (DTK_BROWSER_SIGN_PROXY_URL, the "
+        "identity's proxy, or this host)"
+    )
+
+
+def _page_url(page: Any) -> str | None:
+    """The page's current URL, read without running anything in it."""
+    url = getattr(page, "url", None)
+    return url if isinstance(url, str) else None
+
+
+def _excerpt(error: object) -> str:
+    """The first line of a browser error, bounded."""
+    lines = str(error).strip().splitlines()
+    return (lines[0] if lines else type(error).__name__)[:ERROR_EXCERPT_CHARS]
+
+
 class CloakSigningContext:
     """A warm page holding the platform's signing JavaScript in memory."""
 
@@ -332,10 +422,39 @@ class CloakSigningContext:
         #: rebuild every 30 minutes.
         self._profile_dir = profile_dir
         self._closed = False
+        self._crashed = False
+        # A dead renderer leaves the page object behind, and every evaluate on
+        # it answers "Target crashed" from then on. Hearing about it here is
+        # what lets the service drop the page before a caller's attempt is
+        # spent finding out. Stub pages in the tests have no events.
+        with contextlib.suppress(AttributeError):
+            page.on("crash", self._on_crash)
 
     @property
     def platform(self) -> Platform:
         return self._platform
+
+    @property
+    def problem(self) -> str | None:
+        """Why this page cannot sign any more, or None while it still can.
+
+        Read without evaluating anything in the page: the service asks before
+        it hands a warm page out, and asking must not cost a probe.
+        """
+        if self._closed:
+            return "it is closed"
+        if self._crashed:
+            return "its renderer crashed"
+        is_closed = getattr(self._page, "is_closed", None)
+        if callable(is_closed) and is_closed():
+            return "its page was closed"
+        where = off_platform(self._platform, _page_url(self._page))
+        if where is not None:
+            return f"it left {platform_domain(self._platform)} for {where}"
+        return None
+
+    def _on_crash(self, *_: object) -> None:
+        self._crashed = True
 
     async def sign(self, plan: SignPlan) -> dict[str, str]:
         """Ask the page's own SDK to sign one request and return what it added.
@@ -348,6 +467,11 @@ class CloakSigningContext:
         """
         if self._closed:
             raise BackendFailure("signing context is closed")
+        where = off_platform(self._platform, _page_url(self._page))
+        if where is not None:
+            raise BackendFailure(left_platform_message(self._platform, where))
+        if self._crashed:
+            raise BackendFailure(f"the {self._platform.value} signing page's renderer crashed")
 
         payload = {
             "url": plan.url,
@@ -356,12 +480,19 @@ class CloakSigningContext:
             "userAgent": plan.user_agent or "",
             "body": plan.body,
             "contentType": plan.content_type,
+            "domain": platform_domain(self._platform),
         }
         try:
             result = await self._page.evaluate(SIGN_SCRIPT, payload)
         except Exception as exc:
-            raise BackendFailure(f"signing script failed: {exc}") from exc
+            raise BackendFailure(f"signing script failed: {_excerpt(exc)}") from exc
 
+        if isinstance(result, dict) and result.get("error") == PAGE_LEFT_PLATFORM:
+            # The script's own reading of `location`, for the case the URL the
+            # driver last reported had not caught up with.
+            raise BackendFailure(
+                left_platform_message(self._platform, str(result.get("at") or "unknown")[:64])
+            )
         if not isinstance(result, dict) or result.get("error"):
             reason = (
                 (result or {}).get("error", "no result")
@@ -532,7 +663,9 @@ class CloakBackend:
             raise BackendFailure(f"could not read the page fingerprint: {exc}") from exc
         return _string_fields(values)
 
-    async def _await_session_cookie(self, context: Any, plan: MintPlan) -> dict[str, str]:
+    async def _await_session_cookie(
+        self, context: Any, plan: MintPlan, page: Any = None
+    ) -> dict[str, str]:
         """Read the jar once the platform's session token is the usable one.
 
         The flat wait above is enough for the guest cookies, but not always for
@@ -547,6 +680,11 @@ class CloakBackend:
         apart, so an identity minted too early is a permanently broken pool entry
         that reports as a signing failure. Failing the mint is the cheaper
         outcome, and the caller already retries.
+
+        A landing page that has left the platform ends the wait at once: no
+        token can arrive on chrome-error://, and the 15 seconds spent finding
+        that out used to end in "msToken is 0 characters", which reads as a
+        timing problem and is an exit problem (issue #830).
         """
         minimum = SESSION_COOKIE_MINIMUMS.get(plan.platform)
         deadline = time.monotonic() + SESSION_COOKIE_WAIT_SECONDS
@@ -554,14 +692,15 @@ class CloakBackend:
         if minimum is None:
             return cookies
         name, length = minimum
-        while len(cookies.get(name, "")) < length and time.monotonic() < deadline:
+        where = off_platform(plan.platform, _page_url(page))
+        while len(cookies.get(name, "")) < length and where is None and time.monotonic() < deadline:
             await asyncio.sleep(SESSION_COOKIE_POLL_SECONDS)
             cookies = await _collect_cookies(context)
+            where = off_platform(plan.platform, _page_url(page))
         held = len(cookies.get(name, ""))
         if held < length:
             raise BackendFailure(
-                f"{plan.platform.value} {name} is {held} characters after "
-                f"{SESSION_COOKIE_WAIT_SECONDS:.0f}s; the usable token is at least {length}"
+                _session_cookie_shortfall(plan.platform, name, held, length, where)
             )
         return cookies
 
@@ -587,7 +726,7 @@ class CloakBackend:
                 raise BackendFailure(f"could not load {plan.landing_url}: {exc}") from exc
 
             fingerprint = await self._read_fingerprint(page)
-            cookies = await self._await_session_cookie(context, plan)
+            cookies = await self._await_session_cookie(context, plan, page)
             if not cookies:
                 raise BackendFailure(
                     f"{plan.platform.value} set no cookies; the exit is most likely blocked"
@@ -695,22 +834,39 @@ async def _send_to_background(context: Any, page: Any, platform: Platform) -> No
 
 
 async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
-    """Block until the page can actually sign, by asking it to.
+    """Block until the page can actually sign, by asking it to; raise if it never does.
 
     The probe is a real signature over a throwaway query, which is the only
     question whose answer is not a proxy for the one that matters. It costs no
     upstream request - the capture shim aborts the fetch before it leaves the
     browser - so polling it is cheap.
 
-    Not fatal on timeout. A context that still cannot sign is returned anyway,
-    and the caller's own signature then fails with the SDK's message, which says
-    more about what is wrong than "opening a context timed out" would.
+    Fatal, and it was not always. This used to log and return when the budget
+    ran out or the page stopped answering, on the reasoning that the caller's
+    own signature would then fail with the SDK's message, which says more than
+    "opening a context timed out". The point about the message was right and the
+    conclusion was not. Issue #830: a TikTok page that left tiktok.com for
+    chrome-error:// after loading answered every probe with an exception, was
+    handed out after 1.3s anyway, and every signature from it failed with a
+    JavaScript TypeError that named nothing the operator could act on - on both
+    of the service's attempts, each of which paid for a full open first. A
+    rate-limit page that never grew an SDK went out the same way and failed as
+    "the platform changed how it signs". So the failure is raised here, carrying
+    the probe's last answer - which keeps what the old reasoning wanted - and it
+    reaches the service as a failed open, whose retry opens a fresh page.
     """
-    probe = {"url": READY_PROBE_URLS[platform], "query": "dtk_ready=1", "method": "GET"}
+    domain = platform_domain(platform)
+    probe = {
+        "url": READY_PROBE_URLS[platform],
+        "query": "dtk_ready=1",
+        "method": "GET",
+        "domain": domain,
+    }
     deadline = time.monotonic() + budget
     started = time.monotonic()
     delay = READY_POLL_SECONDS
     attempts = 0
+    last_answer = "no probe answered"
     # A page whose target has crashed answers every probe with an exception and
     # will never recover, so waiting out the whole budget only delays the retry
     # that could still succeed. Consecutive, because one failure can just be a
@@ -718,8 +874,34 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
     consecutive_errors = 0
     while True:
         attempts += 1
+        # Before the probe and from the driver's own record, so a page that has
+        # already gone is named without running anything in it.
+        where = off_platform(platform, _page_url(page))
+        if where is not None:
+            _log_left(platform, where, started, attempts)
+            raise BackendFailure(left_platform_message(platform, where))
         try:
             result = await page.evaluate(SIGN_SCRIPT, probe)
+        except Exception as exc:  # a navigation mid-poll, or a crashed target
+            consecutive_errors += 1
+            last_answer = _excerpt(exc)
+            logger.debug("backend.cloak.ready_probe_failed error=%s", last_answer)
+            if consecutive_errors >= READY_MAX_CONSECUTIVE_ERRORS:
+                elapsed = time.monotonic() - started
+                logger.warning(
+                    "backend.cloak.ready_page_gone platform=%s after=%.1fs probes=%d",
+                    platform.value,
+                    elapsed,
+                    attempts,
+                )
+                where = off_platform(platform, _page_url(page))
+                if where is not None:
+                    raise BackendFailure(left_platform_message(platform, where)) from exc
+                raise BackendFailure(
+                    f"the {platform.value} signing page stopped answering after "
+                    f"{elapsed:.1f}s and {attempts} probes: {last_answer}"
+                ) from exc
+        else:
             consecutive_errors = 0
             if isinstance(result, dict) and result.get("params"):
                 logger.info(
@@ -729,17 +911,15 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
                     attempts,
                 )
                 return
-        except Exception as exc:  # a navigation mid-poll, or a crashed target
-            consecutive_errors += 1
-            logger.debug("backend.cloak.ready_probe_failed error=%s", exc)
-            if consecutive_errors >= READY_MAX_CONSECUTIVE_ERRORS:
-                logger.warning(
-                    "backend.cloak.ready_page_gone platform=%s after=%.1fs probes=%d",
-                    platform.value,
-                    time.monotonic() - started,
-                    attempts,
-                )
-                return
+            if isinstance(result, dict) and result.get("error") == PAGE_LEFT_PLATFORM:
+                where = str(result.get("at") or "unknown")[:64]
+                _log_left(platform, where, started, attempts)
+                raise BackendFailure(left_platform_message(platform, where))
+            last_answer = (
+                str(result.get("error"))[:ERROR_EXCERPT_CHARS]
+                if isinstance(result, dict) and result.get("error")
+                else "no result"
+            )
         if time.monotonic() >= deadline:
             logger.warning(
                 "backend.cloak.sdk_never_ready platform=%s waited=%.0fs probes=%d",
@@ -747,9 +927,53 @@ async def _await_sdk(page: Any, platform: Platform, budget: float) -> None:
                 budget,
                 attempts,
             )
-            return
+            raise BackendFailure(
+                f"the {platform.value} signing page could not sign within {budget:.0f}s "
+                f"({attempts} probes); its last answer: {last_answer}"
+            )
         await asyncio.sleep(delay)
         delay = min(delay * READY_POLL_GROWTH, READY_POLL_MAX_SECONDS)
+
+
+def _log_left(platform: Platform, where: str, started: float, attempts: int) -> None:
+    logger.warning(
+        "backend.cloak.page_left_platform platform=%s at=%s after=%.1fs probes=%d",
+        platform.value,
+        where,
+        time.monotonic() - started,
+        attempts,
+    )
+
+
+def _session_cookie_shortfall(
+    platform: Platform, name: str, held: int, length: int, where: str | None
+) -> str:
+    """Why a mint came home without a usable session token, by how short it fell.
+
+    The three cases point at different things. Zero means nothing of the
+    platform's app answered at all - measured on a healthy TikTok load, the
+    first token arrives about 1.9s in on an app API response, not on the HTML
+    document - so the exit is the suspect. A short token means the app answered
+    and the SDK had not replaced its bootstrap value yet. A page somewhere else
+    entirely says where it went.
+    """
+    if where is not None:
+        return (
+            f"{platform.value} {name} is {held} characters: the landing page left "
+            f"{platform_domain(platform)} for {where} before the platform's app answered - "
+            "look at the exit this mint goes through"
+        )
+    shortfall = (
+        f"{platform.value} {name} is {held} characters after "
+        f"{SESSION_COOKIE_WAIT_SECONDS:.0f}s; the usable token is at least {length}"
+    )
+    if held == 0:
+        return (
+            f"{shortfall}. None arrived at all, and the first one comes on an app API "
+            "response rather than on the page, so nothing of the platform's app answered "
+            "through this exit"
+        )
+    return f"{shortfall}; only the bootstrap token arrived and the SDK never replaced it"
 
 
 def cookie_payload(platform: Platform, cookies: Mapping[str, str] | None) -> list[dict[str, str]]:
@@ -821,11 +1045,15 @@ __all__ = [
     "BACKEND_NAME",
     "CAPTURE_INIT_SCRIPT",
     "CHROMIUM_ARGS",
+    "PAGE_LEFT_PLATFORM",
     "SIGN_SCRIPT",
     "CloakBackend",
     "CloakSigningContext",
     "browser_family_of",
     "browser_major_of",
     "build",
+    "left_platform_message",
+    "off_platform",
+    "platform_domain",
     "proxy_settings",
 ]

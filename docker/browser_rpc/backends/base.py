@@ -110,6 +110,16 @@ class SigningContext(Protocol):
     @property
     def platform(self) -> Platform: ...
 
+    @property
+    def problem(self) -> str | None:
+        """Why this page can no longer sign, or None while it still can.
+
+        Cheap and side-effect free: the service asks before handing a warm page
+        out, so that a page already known to be dead - crashed, or carried off
+        the platform by a navigation that failed after it loaded - is rebuilt
+        instead of costing a caller an attempt to rediscover it (issue #830).
+        """
+
     async def sign(self, plan: SignPlan) -> dict[str, str]:
         """Return signature fields, e.g. {"a_bogus": ..., "ms_token": ...}.
 

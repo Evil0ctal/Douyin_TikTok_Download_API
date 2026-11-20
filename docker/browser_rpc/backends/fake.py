@@ -83,6 +83,10 @@ class FakeSigningContext:
         self._closed = False
         #: Frozen at open time on purpose. See the class docstring.
         self.cookies: Mapping[str, str] = dict(cookies or {})
+        #: Set by a test to model a page that has gone bad while idle, the way
+        #: a real one does when a navigation after load carries it off the
+        #: platform. A context with one refuses to sign, as the real one does.
+        self.broken: str | None = None
 
     @property
     def platform(self) -> Platform:
@@ -92,9 +96,17 @@ class FakeSigningContext:
     def closed(self) -> bool:
         return self._closed
 
+    @property
+    def problem(self) -> str | None:
+        if self._closed:
+            return "it is closed"
+        return self.broken
+
     async def sign(self, plan: SignPlan) -> dict[str, str]:
         if self._closed:
             raise BackendFailure("signing context is closed")
+        if self.broken:
+            raise BackendFailure(f"the {self._platform.value} signing page {self.broken}")
         field = SIGNATURE_FIELDS[self._platform]
         # The body is hashed like the real a_bogus hashes it, so a test can see
         # whether it reached the page; a GET's signature is what it always was.

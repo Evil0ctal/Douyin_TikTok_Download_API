@@ -673,3 +673,134 @@ class TestOpeningFailuresAreRetried:
             assert service._pools[Platform.DOUYIN].live == 0
         finally:
             await service.close()
+
+
+TIKTOK_URL = "https://www.tiktok.com/api/item/detail/"
+
+
+class TestAPageThatWentBadIsNeverReused:
+    """Issue #830, at the service: a dead page must cost nobody an attempt.
+
+    A warm TikTok page that a failed navigation had carried to chrome-error://
+    answered every signature with "Invalid base URL". Each of the two attempts
+    paid for a page and then failed, and the reporter read two identical lines
+    with nothing saying whether the page or the exit was at fault.
+    """
+
+    LEFT = "it left tiktok.com for chrome-error://chromewebdata"
+
+    async def test_a_page_that_went_bad_while_idle_is_rebuilt_not_handed_out(
+        self, settings: Settings, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        backend = RecordingBackend()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+            first = backend.contexts[0]
+            first.broken = self.LEFT
+            caplog.set_level("INFO", logger="browser_rpc.service")
+            signed = await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+        finally:
+            await service.close()
+
+        assert signed
+        assert len(backend.contexts) == 2
+        assert first.closed
+        # It never reached the caller: the bad page was not asked to sign again.
+        assert len(first.plans) == 1
+        assert backend.contexts[1].plans
+        # The reason it was dropped is the line an operator looks for.
+        lines = [record.getMessage() for record in caplog.records]
+        discarded = [line for line in lines if "warm.discarded" in line]
+        assert len(discarded) == 1 and self.LEFT in discarded[0]
+        assert not any("attempt_failed" in line for line in lines)
+
+    async def test_the_retry_signs_on_a_new_page_not_the_one_that_failed(
+        self, settings: Settings
+    ) -> None:
+        class AlwaysLeaves(RecordingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                context = await super().open_signing_context(platform, geo, proxy, cookies)
+                context.broken = TestAPageThatWentBadIsNeverReused.LEFT
+                return context
+
+        backend = AlwaysLeaves()
+        service = BrowserRpcService(settings, backend)
+        await service.start()
+        try:
+            with pytest.raises(BackendFailure) as excinfo:
+                await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+            assert service._pools[Platform.TIKTOK].live == 0
+        finally:
+            await service.close()
+
+        first, second = backend.contexts
+        assert first is not second and first.closed and second.closed
+        # Two pages failing alike share only the exit, and the error says so.
+        message = excinfo.value.message
+        assert message.startswith("both attempts, on two different pages through the same exit")
+        assert "(direct)" in message
+        assert self.LEFT in message
+
+    @pytest.mark.parametrize(
+        ("sign_proxy", "identity_proxy", "kind"),
+        [
+            (None, None, "direct"),
+            ("http://gate.example:8080", None, "sign_proxy"),
+            ("http://gate.example:8080", "http://user:pw@exit.example:3128", "identity_proxy"),
+        ],
+    )
+    async def test_the_exit_is_named_by_kind_never_by_address(
+        self,
+        settings: Settings,
+        sign_proxy: str | None,
+        identity_proxy: str | None,
+        kind: str,
+    ) -> None:
+        service = BrowserRpcService(
+            replace(settings, sign_proxy_url=sign_proxy), FlakyBackend(heal_after=99)
+        )
+        await service.start()
+        try:
+            with pytest.raises(BackendFailure) as excinfo:
+                await service.sign(
+                    Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"}, proxy_url=identity_proxy
+                )
+        finally:
+            await service.close()
+        message = excinfo.value.message
+        assert f"through the same exit ({kind})" in message
+        for secret in ("gate.example", "exit.example", "pw@"):
+            assert secret not in message
+
+    async def test_two_different_failures_report_the_last_as_it_was(
+        self, settings: Settings
+    ) -> None:
+        """Only a repeated failure is evidence about the exit; two unlike ones are not."""
+
+        class DiesDifferently(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                self.contexts_opened += 1
+                raise BackendFailure(f"failure number {self.contexts_opened}")
+
+        service = BrowserRpcService(settings, DiesDifferently())
+        await service.start()
+        try:
+            with pytest.raises(BackendFailure) as excinfo:
+                await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
+        finally:
+            await service.close()
+        assert excinfo.value.message == "failure number 2"
