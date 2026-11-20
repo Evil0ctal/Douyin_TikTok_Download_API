@@ -79,6 +79,37 @@ WEB_DOMAIN: Final = "https://www.tiktok.com"
 #: cool down a healthy identity every time somebody looks up a deleted video.
 RISK_STATUS_CODES: Final[frozenset[int]] = frozenset({10000, 10101})
 
+#: Where a session's device id is read: any page of the web app states it, and
+#: the home page is the one a visitor opens first.
+DEVICE_ID_PAGE: Final = f"{WEB_DOMAIN}/"
+
+#: The page's own state, embedded for the client to pick up.
+_REHYDRATION: Final = re.compile(
+    r'<script[^>]*id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>', re.S
+)
+
+
+def read_device_id(page: str) -> str | None:
+    """The device id a web app page states for the session that opened it.
+
+    ``webapp.app-context.wid``: what TikTok's own client sends as ``device_id``.
+    It follows the session's tt_chain_token - the same 19 digits on every page,
+    a different number for every identity (measured 2026-11-20) - and the video
+    links the API hands out open only for that pair (#831).
+    """
+    match = _REHYDRATION.search(page)
+    if match is None:
+        return None
+    try:
+        state = json.loads(match.group(1))
+    except ValueError:
+        return None
+    scope = state.get("__DEFAULT_SCOPE__") if isinstance(state, dict) else None
+    context = scope.get("webapp.app-context") if isinstance(scope, dict) else None
+    wid = context.get("wid") if isinstance(context, dict) else None
+    text = str(wid) if isinstance(wid, str | int) else ""
+    return text if text.isdigit() else None
+
 
 def detect_risk_control(payload: Mapping[str, Any]) -> str | None:
     """Name the risk-control signature in ``payload``, or ``None``."""

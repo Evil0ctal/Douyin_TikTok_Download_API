@@ -1282,3 +1282,34 @@ async def test_retention_never_deletes_a_task_that_has_not_finished(db_engine, r
     async with session_scope() as session:
         assert await session.get(Task, queued_id) is not None
         assert await session.get(Task, done_id) is None
+
+
+async def test_a_device_id_is_kept_beside_the_fingerprint_it_belongs_to(
+    db_engine, redis_client, cleanup_identities
+):
+    """#831: TikTok's links open only for the device id their session was
+    issued, so once read it has to come back on every later load - and leave
+    the rest of the fingerprint as it was."""
+    pool = IdentityPool(Cipher(SECRET))
+    async with session_scope() as session:
+        identity_id = await pool.add(
+            session,
+            platform=Platform.TIKTOK,
+            cookies={"tt_chain_token": "chain"},
+            fingerprint=Fingerprint(
+                browser_family=BrowserFamily.CHROME, browser_major=146, screen="1920x1080"
+            ),
+            source=IdentitySource.MINTED,
+        )
+    cleanup_identities.append(identity_id)
+
+    async with session_scope() as session:
+        await pool.remember_device_id(session, str(identity_id), "7311111111111111111")
+        await session.commit()
+
+    async with session_scope() as session:
+        loaded = await pool.load(session, str(identity_id))
+    assert loaded is not None
+    assert loaded.fingerprint.device_id == "7311111111111111111"
+    assert loaded.fingerprint.screen == "1920x1080"
+    assert loaded.fingerprint.browser_major == 146

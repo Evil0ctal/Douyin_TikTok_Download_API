@@ -100,6 +100,12 @@ class Fingerprint:
     #: and Safari, which is why it is optional rather than defaulted: a value
     #: invented for a browser that does not report one is a contradiction.
     device_memory: int | None = None
+    #: The device id the platform issued this session - TikTok's ``wid``, read
+    #: off one of its own pages - which the query sends back as ``device_id``.
+    #: TikTok binds a video link to it and the session's tt_chain_token
+    #: together: asked with any other device id, the API answered with links no
+    #: cookie would open (#831, measured 2026-11-20). None until it is read.
+    device_id: str | None = None
 
     @property
     def emulatable(self) -> bool:

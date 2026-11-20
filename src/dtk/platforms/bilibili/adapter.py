@@ -59,6 +59,13 @@ class BilibiliAdapter:
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:
         return parser.detect_risk_control(payload)
 
+    def device_id_page(self) -> str | None:
+        """Nothing this platform serves was found to depend on a device id."""
+        return None
+
+    def read_device_id(self, page: str) -> str | None:
+        return None
+
     def follow_up(
         self,
         endpoint: str,

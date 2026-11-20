@@ -59,6 +59,12 @@ class TikTokAdapter:
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:
         return parser.detect_risk_control(payload)
 
+    def device_id_page(self) -> str | None:
+        return parser.DEVICE_ID_PAGE
+
+    def read_device_id(self, page: str) -> str | None:
+        return parser.read_device_id(page)
+
     def follow_up(
         self,
         endpoint: str,

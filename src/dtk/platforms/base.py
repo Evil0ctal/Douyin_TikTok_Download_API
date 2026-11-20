@@ -111,6 +111,10 @@ class ClientProfile:
     language: str = "en"
     timezone: str = "America/Los_Angeles"
     region: str = "US"
+    #: The device id the platform issued the identity's session, when it has
+    #: been read (``Fingerprint.device_id``). A platform that sends one and has
+    #: none to send makes one up, as it always did.
+    device_id: str | None = None
 
     def with_fingerprint(self, source: ProfileSource) -> ClientProfile:
         """This profile, with every field the identity actually determines replaced.
@@ -143,6 +147,7 @@ class ClientProfile:
             cpu_core_num=_positive(getattr(source, "hardware_concurrency", None))
             or self.cpu_core_num,
             device_memory=_positive(getattr(source, "device_memory", None)) or self.device_memory,
+            device_id=getattr(source, "device_id", None) or self.device_id,
         )
 
 
@@ -527,6 +532,19 @@ class PlatformAdapter(Protocol):
 
     def detect_risk_control(self, payload: Mapping[str, Any]) -> str | None:
         """Name the risk-control signature in ``payload``, or ``None``."""
+        ...
+
+    def device_id_page(self) -> str | None:
+        """A page of the platform's that states the session's device id, or ``None``.
+
+        For a platform that ties what it serves to the device id a session was
+        issued (TikTok, #831). The fetch service reads it once per identity,
+        as that identity, and keeps the answer in the identity's fingerprint.
+        """
+        ...
+
+    def read_device_id(self, page: str) -> str | None:
+        """The device id stated in :meth:`device_id_page`'s HTML, or ``None``."""
         ...
 
     def follow_up(

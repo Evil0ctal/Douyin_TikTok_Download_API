@@ -123,13 +123,14 @@ COVER_FORMAT: Final = "2"
 #: not have to be a real one: a random 19-digit number works exactly as well as
 #: the one the browser had been issued.
 #:
-#: It is generated per call rather than per identity, which is a compromise
-#: worth naming: a real device id is stable for the life of a browser, so an
-#: identity whose device changes every request is not perfectly plausible. The
-#: alternative available at this layer - one value shared by every identity -
-#: would be worse, because it would link them to each other. Making it properly
-#: per-identity needs the identity to reach the parameter builder, which it does
-#: not today.
+#: Any 19 digits get data, but not media anyone can play. TikTok binds a video
+#: link to the device id it was asked with and the session's tt_chain_token
+#: together, so a made-up id hands back links that answer 403 to every cookie
+#: there is (#831, measured 2026-11-20: the session's own id opened them, an
+#: unrelated one did not). An identity's real id - TikTok's `wid`, which the
+#: fetch service reads once off a page and keeps in the fingerprint - is sent
+#: whenever it is known. A random one is the fallback for an identity whose id
+#: has not been read yet, and for a caller that builds a request without one.
 DEVICE_ID_DIGITS: Final = 19
 
 
@@ -154,7 +155,7 @@ def base_params(profile: ClientProfile = DEFAULT_PROFILE) -> dict[str, str]:
         "browser_version": profile.browser_version,
         "channel": CHANNEL,
         "cookie_enabled": "true",
-        "device_id": _device_id(),
+        "device_id": profile.device_id or _device_id(),
         "device_platform": "web_pc",
         "focus_state": "true",
         "from_page": "user",

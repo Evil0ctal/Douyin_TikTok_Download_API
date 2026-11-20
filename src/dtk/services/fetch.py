@@ -30,7 +30,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Protocol, cast
 from urllib.parse import urlencode
@@ -51,7 +51,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import LoginNeed, Outcome, Platform
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import RequestLog
-from dtk.identity.pool import IdentityPool
+from dtk.identity.pool import IdentityPool, LiveIdentity
 from dtk.ops.masking import mask_url
 from dtk.platforms import PlatformAdapter, get_adapter
 from dtk.platforms.base import RequestSpec as PlatformRequestSpec
@@ -78,6 +78,11 @@ log = get_logger(__name__)
 #: failures before giving up. Small on purpose: if three separate egresses
 #: cannot reach the platform, the problem is not the identity.
 MAX_TRANSPORT_ATTEMPTS = 3
+
+#: How long an identity whose device id could not be read goes before the page
+#: is asked again. Long enough that a page the platform will not serve costs
+#: one request an hour per identity, not one per call.
+DEVICE_ID_RETRY_SECONDS = 3600.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,6 +292,9 @@ class FetchService:
         self._cooldown_base = cooldown_base
         self._cooldown_max = cooldown_max
         self._timeout = request_timeout
+        #: Identities whose device id could not be read, and when to try again.
+        #: In memory only: losing it on restart costs one extra page request.
+        self._device_id_retry_at: dict[str, float] = {}
 
     # -- one upstream call -------------------------------------------------
 
@@ -356,6 +364,7 @@ class FetchService:
                 outcome = Outcome.NETWORK_ERROR
                 error_code = "identity_gone"
                 return _Attempt(lease=lease, outcome=outcome, error_code=error_code)
+            identity = await self._with_device_id(session, adapter, identity)
             proxy_id = await _proxy_id_of(session, identity.id)
             proxied = identity.proxy_url is not None
             authenticated = identity.authenticated
@@ -463,6 +472,61 @@ class FetchService:
             proxied=proxied,
             authenticated=authenticated,
         )
+
+    async def _with_device_id(
+        self, session: AsyncSession, adapter: PlatformAdapter, identity: LiveIdentity
+    ) -> LiveIdentity:
+        """``identity``, carrying the device id its platform issued its session.
+
+        Read once per identity, as that identity - its own jar, exit and TLS
+        profile - from a page that states it, and kept in the fingerprint. The
+        page is not scheduled or logged as a call: it is part of being a
+        visitor at all, the request a browser makes before any API call.
+
+        A failure leaves the identity as it was, and its requests go out with
+        a made-up id as they always did; the page is asked again after
+        :data:`DEVICE_ID_RETRY_SECONDS`, not on every call.
+        """
+        page_url = adapter.device_id_page()
+        if page_url is None or identity.fingerprint.device_id:
+            return identity
+        now = time.monotonic()
+        if self._device_id_retry_at.get(identity.id, 0.0) > now:
+            return identity
+        sender = TransportIdentity(
+            id=identity.id,
+            platform=identity.platform,
+            cookies=identity.cookies,
+            fingerprint=identity.fingerprint,
+            proxy_url=identity.proxy_url,
+        )
+        device_id: str | None = None
+        try:
+            response = await self._transport.request(
+                sender,
+                TransportRequestSpec(
+                    url=page_url,
+                    headers={"Accept": "text/html,application/xhtml+xml"},
+                    endpoint=f"{identity.platform.value}.device_id",
+                ),
+                self._timeout,
+            )
+            if response.status == 200:
+                device_id = adapter.read_device_id(_text_of(response.body))
+        except TransportFailure as exc:
+            log.info(
+                "fetch.device_id.unreachable",
+                identity_id=identity.id,
+                error=type(exc.cause).__name__ if exc.cause else str(exc)[:120],
+            )
+        if not device_id:
+            self._device_id_retry_at[identity.id] = now + DEVICE_ID_RETRY_SECONDS
+            log.info("fetch.device_id.unread", identity_id=identity.id)
+            return identity
+        self._device_id_retry_at.pop(identity.id, None)
+        await self._pool.remember_device_id(session, identity.id, device_id)
+        log.info("fetch.device_id.learned", identity_id=identity.id)
+        return replace(identity, fingerprint=replace(identity.fingerprint, device_id=device_id))
 
     def _classify(
         self, adapter: PlatformAdapter, endpoint: str, response: RawResponse
@@ -878,6 +942,12 @@ def _follow_up_error(endpoint: str, outcome: Outcome, cooldown: int) -> DtkError
 
 def _elapsed_ms(started: float) -> int:
     return int((time.monotonic() - started) * 1000)
+
+
+def _text_of(body: Any) -> str:
+    if isinstance(body, bytes | bytearray | memoryview):
+        return bytes(body).decode("utf-8", errors="replace")
+    return str(body or "")
 
 
 def _reject_reason(exc: DtkError) -> str | None:

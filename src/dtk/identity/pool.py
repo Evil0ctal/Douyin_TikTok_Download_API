@@ -159,6 +159,7 @@ def _fingerprint_from_json(data: dict) -> Fingerprint:
         # rather than claiming a machine nobody measured.
         hardware_concurrency=data.get("hardware_concurrency"),
         device_memory=data.get("device_memory"),
+        device_id=data.get("device_id"),
     )
 
 
@@ -173,6 +174,7 @@ def _fingerprint_to_json(fp: Fingerprint) -> dict:
         "timezone": fp.timezone,
         "hardware_concurrency": fp.hardware_concurrency,
         "device_memory": fp.device_memory,
+        "device_id": fp.device_id,
     }
 
 
@@ -575,6 +577,20 @@ class IdentityPool:
             "identity.reset", identity_id=identity_id, from_state=before, cleared_streak=streak
         )
         return IdentityState(row.state)
+
+    async def remember_device_id(
+        self, session: AsyncSession, identity_id: str, device_id: str
+    ) -> None:
+        """Keep the device id the platform issued this identity's session.
+
+        Written into the fingerprint, which is where every request builder
+        already reads the identity's browser facts from, so no call path has to
+        be taught to look somewhere new.
+        """
+        row = await session.get(IdentityRow, uuid.UUID(identity_id))
+        if row is None:
+            return
+        row.fingerprint = {**(row.fingerprint or {}), "device_id": device_id}
 
     async def retire(self, session: AsyncSession, identity_id: str, reason: str) -> None:
         """Retire an identity and wipe its credential immediately.
