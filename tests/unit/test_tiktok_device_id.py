@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Mapping
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit
@@ -20,6 +22,7 @@ import pytest
 
 from dtk.core.types import BrowserFamily, Platform
 from dtk.identity.pool import LiveIdentity, _fingerprint_from_json, _fingerprint_to_json
+from dtk.identity.rotation import rotate
 from dtk.platforms.base import RequestSpec as PlatformRequestSpec
 from dtk.platforms.douyin import params as douyin_params
 from dtk.platforms.tiktok import parser as tiktok_parser
@@ -101,6 +104,7 @@ class Pool:
             authenticated=False,
         )
         self.remembered: list[tuple[str, str]] = []
+        self.absorbed: list[tuple[str, tuple[str, ...]]] = []
 
     async def load(self, _session: Any, _identity_id: str, **_: Any) -> LiveIdentity:
         return self.identity
@@ -112,6 +116,16 @@ class Pool:
         self.identity = replace(
             self.identity, fingerprint=replace(self.identity.fingerprint, device_id=device_id)
         )
+
+    async def absorb_cookies(
+        self, _session: Any, identity_id: str, offered: Mapping[str, str]
+    ) -> tuple[str, ...]:
+        from dataclasses import replace
+
+        rotation = rotate(Platform.TIKTOK, self.identity.cookies, offered)
+        self.absorbed.append((identity_id, rotation.changed))
+        self.identity = replace(self.identity, cookies=rotation.jar)
+        return rotation.changed
 
     async def record_outcome(self, *_: Any, **__: Any) -> None: ...
 
@@ -156,13 +170,14 @@ def _json(status: int, payload: Any) -> RawResponse:
     )
 
 
-def _html(status: int, body: str) -> RawResponse:
+def _html(status: int, body: str, cookies: Mapping[str, str] | None = None) -> RawResponse:
     return RawResponse(
         status=status,
         headers={"content-type": "text/html"},
         body=body.encode(),
         final_url=tiktok_parser.DEVICE_ID_PAGE,
         elapsed_ms=5,
+        set_cookies=dict(cookies or {}),
     )
 
 
@@ -259,3 +274,44 @@ class TestTheFetchService:
         )
         await run_fetch(svc, FakeSession())
         assert len(transport.specs) == 1
+
+
+class TestThePagesCookies:
+    """The page is read as the identity, and it sets cookies like any page."""
+
+    USABLE = "u" * 152
+
+    def pool(self) -> Pool:
+        pool = Pool(fingerprint())
+        pool.identity = replace(
+            pool.identity, cookies={**pool.identity.cookies, "msToken": self.USABLE}
+        )
+        return pool
+
+    async def test_they_are_kept_and_sent_with_the_call_that_follows(self) -> None:
+        pool = self.pool()
+        transport = Transport(_html(200, page(), {"ttwid": "rotated"}))
+        await fetch_detail(tiktok_service(pool, transport))
+
+        assert pool.absorbed == [(IDENTITY_ID, ("ttwid",))]
+        api_call = transport.senders[-1]
+        assert api_call.cookies["ttwid"] == "rotated"
+
+    async def test_its_bootstrap_token_never_replaces_the_usable_one(self) -> None:
+        """The HTML document sets a 128-character msToken before the SDK swaps
+        in the real one; keeping it would break the identity on its first use."""
+        pool = self.pool()
+        transport = Transport(_html(200, page(), {"msToken": "b" * 128}))
+        await fetch_detail(tiktok_service(pool, transport))
+
+        assert pool.identity.cookies["msToken"] == self.USABLE
+        assert transport.senders[-1].cookies["msToken"] == self.USABLE
+
+    async def test_a_page_that_stated_no_id_teaches_nothing(self) -> None:
+        """A login wall or a challenge sets cookies too."""
+        pool = self.pool()
+        transport = Transport(_html(200, "<html>a wall</html>", {"ttwid": "wall"}))
+        await fetch_detail(tiktok_service(pool, transport))
+
+        assert pool.absorbed == []
+        assert transport.senders[-1].cookies["ttwid"] == "x"

@@ -148,6 +148,17 @@ class RawResponse:
     body: bytes = b""
     final_url: str = ""
     elapsed_ms: int = 0
+    #: Cookies the platform set on this response and did not delete, by name.
+    #:
+    #: Handed back rather than written anywhere by the transport, because the
+    #: transport has no database session and the one it could open would wait on
+    #: the caller's: the request's own transaction has already written the
+    #: identity's row (its device id, its last use) and holds that row until it
+    #: commits, after this response is returned. A sink with a session of its
+    #: own was the first design; it was never wired, and wiring it would have
+    #: deadlocked on exactly that row. Kept out of ``repr`` because the values
+    #: are credentials.
+    set_cookies: Mapping[str, str] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         if any(name != name.lower() for name in self.headers):
@@ -321,17 +332,6 @@ def with_signed_cookies(
     return replace(identity, cookies={**identity.cookies, **cookies})
 
 
-class CookieSink(Protocol):
-    """Receives cookies the platform set during a request.
-
-    The transport does not persist anything itself: it has no database session
-    and no encryption key. Rotating `ttwid` or `msToken` values have to reach the
-    identity record or the next request replays a stale jar.
-    """
-
-    async def __call__(self, identity_id: str, cookies: Mapping[str, str]) -> None: ...
-
-
 class Transport(Protocol):
     """The thin interface the rest of the system sees."""
 
@@ -359,7 +359,6 @@ __all__ = [
     "DEFAULT_CHARSET",
     "MAX_TIMEOUT_SECONDS",
     "REDACTED_PROXY",
-    "CookieSink",
     "Fingerprint",
     "IdentityLike",
     "RawResponse",

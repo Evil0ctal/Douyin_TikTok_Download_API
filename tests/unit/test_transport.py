@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Mapping
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar
 
 import pytest
@@ -101,9 +101,18 @@ def make_identity(
 
 
 class FakeCookie:
-    def __init__(self, name: str, value: str) -> None:
+    def __init__(
+        self,
+        name: str,
+        value: str,
+        *,
+        max_age: timedelta | None = None,
+        expires: datetime | None = None,
+    ) -> None:
         self.name = name
         self.value = value
+        self.max_age = max_age
+        self.expires = expires
 
 
 class FakeStatus:
@@ -193,14 +202,6 @@ class RecordingFactory:
         client = FakeClient(options)
         self.built.append(client)
         return client
-
-
-class RecordingSink:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, dict[str, str]]] = []
-
-    async def __call__(self, identity_id: str, cookies: Mapping[str, str]) -> None:
-        self.calls.append((identity_id, dict(cookies)))
 
 
 def make_transport(**kwargs: Any) -> tuple[WreqTransport, RecordingFactory]:
@@ -982,41 +983,71 @@ class TestRequestWiring:
         assert raw.elapsed_ms >= 0
         assert transport.classify(raw).outcome is Outcome.BUSINESS_ERROR
 
-    async def test_set_cookies_go_back_to_the_pool(self) -> None:
-        sink = RecordingSink()
-        transport, factory = make_transport(cookie_sink=sink)
+    async def test_set_cookies_come_back_on_the_response(self) -> None:
+        transport, factory = make_transport()
         identity = make_identity(cookies={"ttwid": "old"})
         await transport.request(identity, RequestSpec(url="https://x/a"))
         factory.built[0].response = FakeResponse(
             cookies=(FakeCookie("ttwid", "rotated"), FakeCookie("msToken", "fresh"))
         )
 
+        raw = await transport.request(identity, RequestSpec(url="https://x/a"))
+
+        assert raw.set_cookies == {"ttwid": "rotated", "msToken": "fresh"}
+        # The identity the caller holds is not changed behind its back: keeping
+        # them is the caller's decision, in the caller's session.
+        assert identity.cookies == {"ttwid": "old"}
+
+    @pytest.mark.parametrize(
+        "deletion",
+        [
+            FakeCookie("sessionid", ""),
+            FakeCookie("sessionid", "x", max_age=timedelta(0)),
+            FakeCookie("sessionid", "x", expires=datetime(2001, 1, 1, tzinfo=UTC)),
+            FakeCookie("sessionid", "x", expires=datetime(2001, 1, 1)),
+        ],
+        ids=["empty", "max-age-0", "expired", "expired-naive"],
+    )
+    async def test_a_deletion_is_not_a_value(self, deletion: FakeCookie) -> None:
+        transport, factory = make_transport()
+        identity = make_identity()
         await transport.request(identity, RequestSpec(url="https://x/a"))
+        factory.built[0].response = FakeResponse(cookies=(deletion, FakeCookie("odin_tt", "new")))
 
-        assert sink.calls == [("id-1", {"ttwid": "rotated", "msToken": "fresh"})]
+        raw = await transport.request(identity, RequestSpec(url="https://x/a"))
 
-    async def test_a_failing_sink_does_not_lose_the_response(self) -> None:
-        async def broken_sink(identity_id: str, cookies: Mapping[str, str]) -> None:
-            raise RuntimeError("database is down")
+        assert raw.set_cookies == {"odin_tt": "new"}
 
-        transport, factory = make_transport(cookie_sink=broken_sink)
+    async def test_a_cookie_that_lives_on_is_kept(self) -> None:
+        transport, factory = make_transport()
         identity = make_identity()
         await transport.request(identity, RequestSpec(url="https://x/a"))
         factory.built[0].response = FakeResponse(
-            body=b'{"status_code": 0, "aweme_detail": {"aweme_id": "7"}}',
-            cookies=(FakeCookie("ttwid", "rotated"),),
+            cookies=(
+                FakeCookie("odin_tt", "a", max_age=timedelta(days=365)),
+                FakeCookie("ttwid", "b", expires=datetime(2099, 1, 1, tzinfo=UTC)),
+            )
         )
 
         raw = await transport.request(identity, RequestSpec(url="https://x/a"))
 
-        assert transport.classify(raw).outcome is Outcome.OK
+        assert raw.set_cookies == {"odin_tt": "a", "ttwid": "b"}
 
-    async def test_no_cookies_no_sink_call(self) -> None:
-        sink = RecordingSink()
-        transport, _ = make_transport(cookie_sink=sink)
-        await transport.request(make_identity(), RequestSpec(url="https://x/a"))
+    async def test_no_cookies_is_an_empty_mapping(self) -> None:
+        transport, _ = make_transport()
+        raw = await transport.request(make_identity(), RequestSpec(url="https://x/a"))
 
-        assert sink.calls == []
+        assert raw.set_cookies == {}
+
+    async def test_the_values_stay_out_of_the_repr(self) -> None:
+        transport, factory = make_transport()
+        identity = make_identity()
+        await transport.request(identity, RequestSpec(url="https://x/a"))
+        factory.built[0].response = FakeResponse(cookies=(FakeCookie("sessionid", "s3cret"),))
+
+        raw = await transport.request(identity, RequestSpec(url="https://x/a"))
+
+        assert "s3cret" not in repr(raw)
 
     async def test_network_failure_raises_and_classifies(self) -> None:
         transport, factory = make_transport()

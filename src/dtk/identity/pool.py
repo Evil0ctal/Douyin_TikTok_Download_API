@@ -10,7 +10,7 @@ docs/design/02-identity-pool.md.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Final
@@ -31,6 +31,7 @@ from dtk.core.types import (
 from dtk.db.models import Identity as IdentityRow
 from dtk.db.models import IdentityEvent
 from dtk.identity.importing import to_cookie_header
+from dtk.identity.rotation import rotate
 from dtk.scheduler.health import HealthInput, cooldown_seconds
 from dtk.scheduler.leases import forget_identity
 from dtk.scheduler.scheduler import Candidate
@@ -136,6 +137,16 @@ class LiveIdentity:
     @property
     def cookie_header(self) -> str:
         return to_cookie_header(self.cookies)
+
+
+def _jar_of(header: str) -> dict[str, str]:
+    """The stored ``name=value; ...`` header back as a mapping."""
+    cookies: dict[str, str] = {}
+    for chunk in header.split(";"):
+        name, sep, value = chunk.partition("=")
+        if sep:
+            cookies[name.strip()] = value.strip()
+    return cookies
 
 
 def _fingerprint_from_json(data: dict) -> Fingerprint:
@@ -251,12 +262,7 @@ class IdentityPool:
         row = await session.get(IdentityRow, uuid.UUID(identity_id))
         if row is None or row.state == IdentityState.RETIRED.value:
             return None
-        header = self._cipher.decrypt(row.cookies_encrypted, aad=str(row.id))
-        cookies = {}
-        for chunk in header.split(";"):
-            name, sep, value = chunk.partition("=")
-            if sep:
-                cookies[name.strip()] = value.strip()
+        cookies = _jar_of(self._cipher.decrypt(row.cookies_encrypted, aad=str(row.id)))
         return LiveIdentity(
             id=str(row.id),
             platform=Platform(row.platform),
@@ -591,6 +597,60 @@ class IdentityPool:
         if row is None:
             return
         row.fingerprint = {**(row.fingerprint or {}), "device_id": device_id}
+
+    async def absorb_cookies(
+        self, session: AsyncSession, identity_id: str, offered: Mapping[str, str]
+    ) -> tuple[str, ...]:
+        """Keep the cookies a response set, by the rules in `dtk.identity.rotation`.
+
+        In the caller's session, never one of its own: a transaction that has
+        already used this identity once - a retry, the next page, a follow-up -
+        holds its row from that request's bookkeeping until it commits, and a
+        second session would wait on that lock while its own caller waits for
+        it (the reason `RawResponse.set_cookies` exists).
+
+        The row is read again from the database, under a row lock, rather than
+        taken from the session. The copy a request loaded can be the whole
+        request old - on a TikTok identity's first call the device id makes it
+        dirty, which keeps it pinned in the session - and a retire committed
+        meanwhile has wiped the credential that copy still holds. Writing it
+        back gave a retired identity its cookies again; found in review, before
+        release. The lock is the one `record_outcome` takes a moment later in
+        the same transaction, and it also means two requests on one identity no
+        longer undo each other's rotation. Pending changes to the row are
+        flushed first, so the device id is not lost to the refresh.
+
+        Returns the names that changed.
+        """
+        if not offered:
+            return ()
+        row = await session.get(
+            IdentityRow, uuid.UUID(identity_id), with_for_update=True, populate_existing=True
+        )
+        if row is None or row.state == IdentityState.RETIRED.value or not row.cookies_encrypted:
+            return ()
+        platform = Platform(row.platform)
+        jar = _jar_of(self._cipher.decrypt(row.cookies_encrypted, aad=str(row.id)))
+        rotation = rotate(platform, jar, offered)
+        if rotation.refused:
+            log.info(
+                "identity.cookies.refused",
+                identity_id=identity_id,
+                platform=platform.value,
+                names=list(rotation.refused),
+            )
+        if not rotation.changed:
+            return ()
+        row.cookies_encrypted = self._cipher.encrypt(
+            to_cookie_header(rotation.jar), aad=str(row.id)
+        )
+        log.info(
+            "identity.cookies.rotated",
+            identity_id=identity_id,
+            platform=platform.value,
+            names=list(rotation.changed),
+        )
+        return rotation.changed
 
     async def retire(self, session: AsyncSession, identity_id: str, reason: str) -> None:
         """Retire an identity and wipe its credential immediately.

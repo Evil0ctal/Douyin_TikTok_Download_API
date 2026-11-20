@@ -1313,3 +1313,137 @@ async def test_a_device_id_is_kept_beside_the_fingerprint_it_belongs_to(
     assert loaded.fingerprint.device_id == "7311111111111111111"
     assert loaded.fingerprint.screen == "1920x1080"
     assert loaded.fingerprint.browser_major == 146
+
+
+async def test_rotated_cookies_are_kept_encrypted_and_read_back(
+    db_engine, redis_client, cleanup_identities
+):
+    """What a response sets reaches the next load of the identity, in the
+    caller's own transaction, and a bootstrap msToken never replaces the
+    session's usable one."""
+    pool = IdentityPool(Cipher(SECRET))
+    usable = "u" * 152
+    async with session_scope() as session:
+        identity_id = await pool.add(
+            session,
+            platform=Platform.TIKTOK,
+            cookies={"msToken": usable, "odin_tt": "old", "tt_chain_token": "chain"},
+            fingerprint=Fingerprint(browser_family=BrowserFamily.CHROME, browser_major=146),
+            source=IdentitySource.MINTED,
+        )
+    cleanup_identities.append(identity_id)
+
+    async with session_scope() as session:
+        # Loaded first, as a request does, so the row is already in the
+        # session's identity map when the response comes back.
+        await pool.load(session, str(identity_id))
+        changed = await pool.absorb_cookies(
+            session,
+            str(identity_id),
+            {"odin_tt": "rotated", "msToken": "b" * 128, "tt_chain_token": "chain"},
+        )
+        await session.commit()
+
+    assert changed == ("odin_tt",)
+    async with session_scope() as session:
+        loaded = await pool.load(session, str(identity_id))
+        row = await session.get(Identity, identity_id)
+    assert loaded is not None
+    assert loaded.cookies == {"msToken": usable, "odin_tt": "rotated", "tt_chain_token": "chain"}
+    assert row is not None and b"rotated" not in row.cookies_encrypted
+
+
+async def test_a_retired_identity_learns_no_cookies(db_engine, redis_client, cleanup_identities):
+    """Retiring wipes the credential; a response read after it must not put one back."""
+    pool = IdentityPool(Cipher(SECRET))
+    async with session_scope() as session:
+        identity_id = await pool.add(
+            session,
+            platform=Platform.DOUYIN,
+            cookies={"ttwid": "t"},
+            fingerprint=Fingerprint(browser_family=BrowserFamily.CHROME, browser_major=146),
+            source=IdentitySource.MINTED,
+        )
+    cleanup_identities.append(identity_id)
+
+    async with session_scope() as session:
+        await pool.retire(session, str(identity_id), "test")
+        changed = await pool.absorb_cookies(session, str(identity_id), {"ttwid": "late"})
+        await session.commit()
+
+    assert changed == ()
+    async with session_scope() as session:
+        row = await session.get(Identity, identity_id)
+    assert row is not None and row.cookies_encrypted == b""
+
+
+@pytest.mark.parametrize("first_tiktok_call", [False, True], ids=["known-device", "first-call"])
+async def test_a_retire_that_lands_mid_request_is_not_undone(
+    db_engine, redis_client, cleanup_identities, first_tiktok_call
+):
+    """Found in review: the request held a copy of the row from before the
+    retire, and writing the rotated jar back gave a retired identity its
+    cookies again. On a TikTok identity's first call the device id makes that
+    copy dirty, which pins it in the session for the whole request."""
+    pool = IdentityPool(Cipher(SECRET))
+    async with session_scope() as session:
+        identity_id = await pool.add(
+            session,
+            platform=Platform.TIKTOK,
+            cookies={"sessionid": "a-login", "odin_tt": "old"},
+            fingerprint=Fingerprint(browser_family=BrowserFamily.CHROME, browser_major=146),
+            source=IdentitySource.IMPORTED,
+            authenticated=True,
+        )
+    cleanup_identities.append(identity_id)
+
+    async with session_scope() as request:
+        await pool.load(request, str(identity_id))
+        if first_tiktok_call:
+            await pool.remember_device_id(request, str(identity_id), "7311111111111111111")
+        # An operator retires it while the request is on the wire.
+        async with session_scope() as console:
+            await pool.retire(console, str(identity_id), "retired from the console")
+            await console.commit()
+        changed = await pool.absorb_cookies(request, str(identity_id), {"odin_tt": "rotated"})
+        await pool.record_outcome(
+            request, str(identity_id), Outcome.OK, cooldown_base=60, cooldown_max=600
+        )
+        await request.commit()
+
+    assert changed == ()
+    async with session_scope() as session:
+        row = await session.get(Identity, identity_id)
+    assert row is not None
+    assert row.state == IdentityState.RETIRED.value
+    assert row.cookies_encrypted == b""
+
+
+async def test_the_device_id_survives_the_fresh_read(db_engine, redis_client, cleanup_identities):
+    """absorb_cookies re-reads the row from the database; the device id the
+    same request remembered a moment earlier must be flushed, not refreshed
+    away."""
+    pool = IdentityPool(Cipher(SECRET))
+    async with session_scope() as session:
+        identity_id = await pool.add(
+            session,
+            platform=Platform.TIKTOK,
+            cookies={"odin_tt": "old"},
+            fingerprint=Fingerprint(browser_family=BrowserFamily.CHROME, browser_major=146),
+            source=IdentitySource.MINTED,
+        )
+    cleanup_identities.append(identity_id)
+
+    async with session_scope() as request:
+        await pool.load(request, str(identity_id))
+        await pool.remember_device_id(request, str(identity_id), "7311111111111111111")
+        assert await pool.absorb_cookies(request, str(identity_id), {"odin_tt": "new"}) == (
+            "odin_tt",
+        )
+        await request.commit()
+
+    async with session_scope() as session:
+        loaded = await pool.load(session, str(identity_id))
+    assert loaded is not None
+    assert loaded.fingerprint.device_id == "7311111111111111111"
+    assert loaded.cookies == {"odin_tt": "new"}

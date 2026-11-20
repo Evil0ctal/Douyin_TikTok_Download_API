@@ -10,9 +10,9 @@ a stronger signal than either of them requesting too often
 The client carries what is fixed for the identity's lifetime - emulation profile
 and proxy - and each request carries what is not: cookies, fingerprint headers,
 timeout. The client's own cookie store stays off; cookies come from the identity
-record and go back through `CookieSink`, because a jar living inside a client
-would accumulate rotated `ttwid` values that never reach the database and vanish
-on eviction.
+record and go back on `RawResponse.set_cookies` for the caller to persist,
+because a jar living inside a client would accumulate rotated values that never
+reach the database and vanish on eviction.
 
 Network calls are the only seam: `client_factory` builds the client, so every
 behaviour here - caching, eviction, header and cookie wiring - is exercised
@@ -30,7 +30,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol, cast
 
 import wreq
@@ -39,7 +39,6 @@ from dtk.core.errors import InvalidParam
 from dtk.core.logging import get_logger
 from dtk.transport.base import (
     MAX_TIMEOUT_SECONDS,
-    CookieSink,
     IdentityLike,
     RawResponse,
     RequestSpec,
@@ -179,7 +178,6 @@ class WreqTransport:
     def __init__(
         self,
         *,
-        cookie_sink: CookieSink | None = None,
         default_timeout: float = DEFAULT_TIMEOUT_SECONDS,
         connect_timeout: float = DEFAULT_CONNECT_TIMEOUT_SECONDS,
         pool_idle_timeout: float = DEFAULT_POOL_IDLE_SECONDS,
@@ -189,7 +187,6 @@ class WreqTransport:
     ) -> None:
         if max_clients < 1:
             raise InvalidParam("max_clients must be at least 1")
-        self._cookie_sink = cookie_sink
         self._default_timeout = default_timeout
         self._connect_timeout = connect_timeout
         self._pool_idle_timeout = pool_idle_timeout
@@ -428,8 +425,8 @@ class WreqTransport:
             body=body,
             final_url=str(getattr(response, "url", spec.url)),
             elapsed_ms=elapsed_ms,
+            set_cookies=_response_cookies(response),
         )
-        await self._write_back_cookies(identity.id, response)
         log.info(
             "transport.request.done",
             identity_id=identity.id,
@@ -440,31 +437,6 @@ class WreqTransport:
             emulation=entry.options.emulation_name,
         )
         return raw
-
-    async def _write_back_cookies(self, identity_id: str, response: Any) -> None:
-        """Hand rotated cookies to the pool.
-
-        A failing sink is logged, not raised: the response has already cost this
-        identity a slot in its rate budget, and throwing it away over a database
-        hiccup is the more expensive mistake. Rotation is not invalidation - the
-        previous jar keeps working - so the error only has to be visible.
-        """
-        if self._cookie_sink is None:
-            return
-        cookies = _response_cookies(response)
-        if not cookies:
-            return
-        try:
-            await self._cookie_sink(identity_id, cookies)
-        except Exception as exc:
-            log.error(
-                "transport.cookie.write_failed",
-                identity_id=identity_id,
-                count=len(cookies),
-                error=str(exc),
-            )
-            return
-        log.info("transport.cookie.updated", identity_id=identity_id, count=len(cookies))
 
 
 async def _close_response(response: Any) -> None:
@@ -549,17 +521,38 @@ def _as_text(value: Any) -> str:
 
 
 def _response_cookies(response: Any) -> dict[str, str]:
-    """Cookies the platform set on this response, as a plain mapping."""
+    """Cookies the platform set on this response, as a plain mapping.
+
+    A deletion is left out rather than reported as an empty value: a response
+    clears a cookie with an empty value, ``Max-Age=0`` or an ``Expires`` in the
+    past, and none of those is a value anybody should store or send.
+    """
     raw = getattr(response, "cookies", None)
     cookies: dict[str, str] = {}
     if not raw:
         return cookies
+    now = datetime.now(UTC)
     for cookie in raw:
         name = getattr(cookie, "name", None)
         value = getattr(cookie, "value", None)
-        if name and value is not None:
-            cookies[_as_text(name)] = _as_text(value)
+        if not name or value is None or _deletes(cookie, now):
+            continue
+        text = _as_text(value)
+        if text:
+            cookies[_as_text(name)] = text
     return cookies
+
+
+def _deletes(cookie: Any, now: datetime) -> bool:
+    """Whether this Set-Cookie removes the cookie instead of setting it."""
+    max_age = getattr(cookie, "max_age", None)
+    if isinstance(max_age, timedelta) and max_age <= timedelta(0):
+        return True
+    expires = getattr(cookie, "expires", None)
+    if isinstance(expires, datetime):
+        moment = expires if expires.tzinfo else expires.replace(tzinfo=UTC)
+        return moment <= now
+    return False
 
 
 __all__ = [

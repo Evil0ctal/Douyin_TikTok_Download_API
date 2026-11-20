@@ -6,7 +6,6 @@ Nothing above this package imports wreq. See docs/design/04-transport-signing.md
 from __future__ import annotations
 
 from dtk.transport.base import (
-    CookieSink,
     Fingerprint,
     IdentityLike,
     RawResponse,
@@ -52,7 +51,6 @@ __all__ = [
     "Classifier",
     "ClientFactory",
     "ClientOptions",
-    "CookieSink",
     "DriftBand",
     "EmulationProfile",
     "EmulationUnavailable",
