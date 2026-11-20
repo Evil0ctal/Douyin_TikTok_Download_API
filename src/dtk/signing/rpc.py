@@ -281,8 +281,12 @@ class RpcSigner:
         for field, value in body.items():
             # An empty value stays, where the page put it. TikTok's page seals
             # `msToken=` with nothing after it while its SDK has no token yet,
-            # and X-Gnarly hashes the query with that pair in it; dropping it
-            # here sent a query the seal does not describe (#832).
+            # and X-Gnarly hashes the query with that pair in it, so the query
+            # sent now matches the one sealed (#832). For fidelity only: it was
+            # not shown to change TikTok's answer. Replayed under the same seal
+            # on 2026-11-20, the query without the pair answered 8/8 (and 7/7)
+            # and with it 8/8, both with the jar's live msToken in the Cookie
+            # header; what decided the outcome was that token being live.
             if value is None:
                 continue
             # Legacy snake_case aliases from older service builds.
@@ -332,10 +336,10 @@ class RpcSigner:
         # Except when the page sealed an empty one: then nothing is overridden
         # and the Cookie header carries the jar's own token. #832 proposed an
         # empty msToken cookie for that case, and on 2026-11-20
-        # /api/user/detail/ refused it 0/3, refused no msToken cookie 0/3, and
-        # answered when the jar's live token rode along. An override would
-        # also count as sealed, and the pool would then not keep the token
-        # TikTok rotates in its answer.
+        # /api/user/detail/ refused it 0/3 and 0/8, refused no msToken cookie
+        # 0/3, and answered 8/8 when the jar's live token rode along - and
+        # refused that too when the jar's token was stale. The token in the
+        # Cookie header is what TikTok judged, not the query's shape.
         token = added.get(MS_TOKEN_PARAM)
         return SignedParams(
             query="&".join(parts),

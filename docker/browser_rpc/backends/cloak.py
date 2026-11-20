@@ -645,8 +645,11 @@ class CloakSigningContext:
         # SDK has no token of its own yet, and X-Gnarly's query hash covers
         # that `&msToken=`. This used to go through the copier the fingerprint
         # uses, which drops an empty value as "not reported", so the request
-        # went out without the pair its seal names - the same misdescription
-        # as the forgery below, in the other direction.
+        # went out without the pair its seal names. Kept now for fidelity: it
+        # was not shown to change TikTok's answer - replayed under one seal on
+        # 2026-11-20, the query with and without the pair answered alike, 8/8
+        # each, and what decided the outcome was whether the msToken in the
+        # Cookie header was live.
         #
         # There used to be a "helpful" fallback that appended the page's msToken
         # cookie when the SDK had not put one in the query. It is a signature
@@ -1031,18 +1034,33 @@ async def _await_sdk(
     usable too (`SESSION_COOKIE_MINIMUMS`). Issue #832, measured on 2026-11-20:
     such a page seals an EMPTY msToken for its first 0.1-1.4s - longer through
     the service, at least 4s on two of four rebinds - because the SDK seals
-    from its own storage, which is still empty. The SDK is not settled then
-    either, and signatures taken in the first 0.3s were refused even with the
-    jar's live token in the Cookie header, 4 of 4. This answered "ready" on the
-    first probe that signed, so the first caller after every rebind got
-    exactly those. Held to it, six such pages sealed a 152-character token
-    within 0.8-3.5s. A probe that seals no msToken at all is judged as before.
+    from its own storage, which is still empty. This answered "ready" on the
+    first probe that signed, so the first caller after every rebind got one of
+    those, and its request went out with whatever msToken the jar held: an
+    empty seal overrides nothing. Held to it, six such pages sealed a
+    152-character token within 0.8-3.5s, and the request then carries the
+    page's fresh token in its Cookie header (`dtk.signing.rpc`), whatever state
+    the jar's own token is in.
+
+    That, and not the empty seal, is what the gate buys. The token in the
+    Cookie header is what TikTok judges: replayed under one empty seal, the
+    jar's live token answered 8/8 and a stale one was refused; the 4/4
+    refusals first measured on such early signatures, with what was taken for
+    a live jar token, were not reproduced. A probe that seals no msToken at
+    all is judged as before.
 
     Not for any other page. An anonymous one (prewarm's, the self-check's
     reference) and one for a jar with no token each sealed only the
     128-character bootstrap token for the whole 25s, once, and holding them to
     it turns what they always answered at once into a 25s failure - which
-    nothing measured says is the better outcome for them.
+    nothing measured says is the better outcome for them. The cost is known:
+    the first request after a rebind for a jar with no token is refused - 0/6
+    in the #832 review, in every query and cookie variant - as it was before
+    the gate, and puts the identity in cooldown; the same page signed about 60s
+    later sealed a 152-character token and answered 2/2. A short bounded wait
+    would not reach that, and a 60s one would hold every such rebind past the
+    caller's signing budget. Such a jar is a mint that did not finish, and
+    the remedy is the one for that.
     """
     domain = platform_domain(platform)
     probe = {

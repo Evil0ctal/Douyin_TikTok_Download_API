@@ -609,6 +609,17 @@ class FetchService:
         carry another session's token: on TikTok the one case worse than
         sending none.
 
+        So an identity signed only by browser-rpc keeps the msToken it last
+        used natively (#832 review), and that is by design. A TikTok page with
+        a usable token always seals its own now, so the jar's is never sent and
+        is not spent: a token is spent by use, not by age (a 386-minute-old one
+        answered; docs/design/02-identity-pool.md). Keeping the answer's would
+        also change the jar on every call, and browser-rpc binds a page to the
+        whole jar, so every browser-signed call would rebind its page - 2.2s
+        against 12ms measured, before the readiness wait. If the jar's token
+        is spent by the time native signs it, the refusal carries a fresh one,
+        which is kept, and the identity's next call answers (4/4, doc 02).
+
         A value the request already carried is not offered at all: the pool
         reads the row under a lock to write it, and a platform re-sending what
         the jar holds - TikTok's home page does it with tt_chain_token on every

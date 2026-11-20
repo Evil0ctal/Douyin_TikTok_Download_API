@@ -225,3 +225,35 @@ class TestASignersSessionIsNotTheIdentitys:
         await run_fetch(svc, FakeSession())
 
         assert pool.absorbed == [(IDENTITY_ID, {"ttwid": "t"})]
+
+    async def test_a_reply_to_the_jars_own_token_is_kept(self) -> None:
+        """A browser signature that sealed no token of its own overrides
+        nothing: the request carried the jar's msToken, and the token the
+        platform rotates in its answer is the identity's to keep.
+
+        The pair with the test above is the whole rule for #832: under the
+        page's override the jar's token is neither sent nor spent, and keeping
+        the reply would change the jar - and so browser-rpc's binding - on
+        every call.
+        """
+
+        async def empty_seal(platform, spec, sender):
+            return SignedParams(
+                query="msToken=&X-Gnarly=g",
+                params={"msToken": "", "X-Gnarly": "g"},
+                signer=SIGNER_BROWSER,
+                cookies={},
+            )
+
+        pool = KeepingPool()
+        svc = FetchService(
+            scheduler=FakeScheduler(),  # type: ignore[arg-type]
+            pool=pool,  # type: ignore[arg-type]
+            transport=FakeTransport(
+                answer(200, load("douyin", "video_normal"), {"msToken": "m" * 150, "ttwid": "t"})
+            ),  # type: ignore[arg-type]
+            sign=empty_seal,
+        )
+        await run_fetch(svc, FakeSession())
+
+        assert pool.absorbed == [(IDENTITY_ID, {"msToken": "m" * 150, "ttwid": "t"})]
