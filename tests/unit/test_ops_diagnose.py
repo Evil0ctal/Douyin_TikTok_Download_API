@@ -493,9 +493,11 @@ def signing_context(native: Any, rpc: Any) -> DiagnoseContext:
 #: What browser-rpc answered in issue #830, in the shape it answers now: its
 #: warm TikTok page had left tiktok.com after a navigation failed.
 LEFT_TIKTOK = (
-    "both attempts, on two different pages through the same exit (direct), failed the "
-    "same way: could not warm a signing page for tiktok: the tiktok signing page is no "
-    "longer on tiktok.com (it is on chrome-error://chromewebdata)"
+    "could not warm a signing page for tiktok: the tiktok signing page is no longer on "
+    "tiktok.com (it is on chrome-error://chromewebdata): a navigation after it loaded failed "
+    "or was blocked - look at the exit it loads through (DTK_BROWSER_SIGN_PROXY_URL, the "
+    "identity's proxy, or this host); both attempts failed this way, on two different pages "
+    "through the same exit (direct)"
 )
 
 

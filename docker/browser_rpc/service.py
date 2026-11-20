@@ -42,7 +42,13 @@ from browser_rpc.backends.base import (
     SigningContext,
     SignPlan,
 )
-from browser_rpc.errors import BackendFailure, BackendUnavailable, OperationTimeout, RpcError
+from browser_rpc.errors import (
+    BackendFailure,
+    BackendUnavailable,
+    OperationTimeout,
+    RpcError,
+    Suspect,
+)
 from browser_rpc.geo import GeoProfile
 from browser_rpc.settings import Settings
 from browser_rpc.validation import (
@@ -54,8 +60,10 @@ from browser_rpc.validation import (
 
 logger = logging.getLogger(__name__)
 
-#: The binding of a context that carries no identity: what prewarm builds, and
-#: what a caller sending no cookies asks for.
+#: The binding of a context that carries no identity and loads through no
+#: proxy: what a caller sending no cookies asks for when no signing proxy is
+#: configured. With DTK_BROWSER_SIGN_PROXY_URL set, the same caller's binding is
+#: that proxy's (see `binding_key`), and so is what prewarm builds.
 ANONYMOUS = "anonymous"
 
 
@@ -185,19 +193,39 @@ class BrowserRpcService:
     async def _prewarm(self) -> None:
         """Build one context per platform so the first signature is fast.
 
-        Prewarmed slots are unbound: no identity is known at startup. The first
+        Prewarmed slots carry no identity: none is known at startup. The first
         signature for a real identity therefore pays a rebind, and what prewarm
         buys is not that signature but the proof - visible on /rpc/health as a
         non-zero `warm_contexts` - that this deployment can open a page at all.
+
+        Through the exit an identity-less signature would use, which is the
+        signing proxy when one is set. Prewarm used to open its pages directly
+        whatever the configuration said, under the binding no request with a
+        signing proxy ever asks for: the pages went unused, the host's own
+        address reached both platforms at every start against the operator's
+        wishes, and /rpc/health reported two warm contexts while a dead signing
+        proxy failed every signature (the review of #830's fix, with the proxy
+        pointed at a closed port).
         """
+        exit_url = self._settings.sign_proxy_url
+        kind = _exit_kind(None, exit_url)
+        try:
+            proxy = validate_proxy_url(exit_url)
+        except RpcError as exc:
+            logger.warning("browser_rpc.prewarm_failed exit=%s error=%s", kind, exc.message)
+            return
+        binding = binding_key({}, exit_url)
         for platform in Platform:
             pool = self._pools[platform]
             try:
-                slot = await self._open_slot(platform, ANONYMOUS, None, None)
+                slot = await self._open_slot(platform, binding, None, proxy)
             except RpcError as exc:
                 # Not fatal: the pool fills lazily on the first request.
                 logger.warning(
-                    "browser_rpc.prewarm_failed platform=%s error=%s", platform.value, exc.message
+                    "browser_rpc.prewarm_failed platform=%s exit=%s error=%s",
+                    platform.value,
+                    kind,
+                    exc.message,
                 )
                 continue
             async with pool.cond:
@@ -378,7 +406,7 @@ class BrowserRpcService:
         # Which exit the page loads through, by kind and never by address: the
         # half of the story the operator could not see in #830, where both
         # attempts failed the same way because both went out the same way.
-        exit_kind = "identity_proxy" if proxy_url else ("sign_proxy" if exit_url else "direct")
+        exit_kind = _exit_kind(proxy_url, exit_url)
         failures: list[RpcError] = []
         # Two attempts: a warm page that has been up for a while is the most
         # common failure, and it is fixed by throwing it away.
@@ -536,6 +564,9 @@ class BrowserRpcService:
             self._backend.open_signing_context(platform, geo_profile, proxy, cookies),
             self._settings.context_open_timeout_seconds,
             f"opening a signing context for {platform.value}",
+            # An open that hangs is almost always a navigation waiting on an
+            # exit that neither answers nor refuses.
+            suspect=Suspect.EXIT,
         )
         return WarmSlot(context=context, created_at=self._clock(), binding=binding)
 
@@ -562,11 +593,13 @@ class BrowserRpcService:
     # -- helpers ----------------------------------------------------------
 
     @staticmethod
-    async def _with_timeout(awaitable: Any, timeout: float, what: str) -> Any:
+    async def _with_timeout(
+        awaitable: Any, timeout: float, what: str, *, suspect: Suspect | None = None
+    ) -> Any:
         try:
             return await asyncio.wait_for(awaitable, timeout)
         except TimeoutError as exc:
-            raise OperationTimeout(f"{what} exceeded {timeout:g}s") from exc
+            raise OperationTimeout(f"{what} exceeded {timeout:g}s", suspect=suspect) from exc
 
 
 def _short(identity_id: str | None) -> str:
@@ -574,24 +607,50 @@ def _short(identity_id: str | None) -> str:
     return (identity_id or "-")[:8]
 
 
+def _exit_kind(identity_proxy: str | None, exit_url: str | None) -> str:
+    """Which exit a page loads through, by kind and never by address."""
+    if identity_proxy:
+        return "identity_proxy"
+    return "sign_proxy" if exit_url else "direct"
+
+
+#: What two pages that failed alike share, per suspect, as the note says it.
+#: The exit is named only where the failure implicates it: both pages also load
+#: the same platform bundle in the same browser, and a note that blamed the exit
+#: for everything sent operators to their proxy when the platform had stopped
+#: signing.
+_SHARED: dict[Suspect | None, str] = {
+    Suspect.EXIT: "through the same exit ({exit})",
+    Suspect.BUNDLE: "loading the same platform bundle through the same exit ({exit})",
+    Suspect.BROWSER: "in the same browser container",
+    None: "",
+}
+
+
 def _final_error(failures: list[RpcError], exit_kind: str) -> RpcError:
     """The error a signature that failed twice reports.
 
     The last failure, as before - except when both attempts failed with the same
     message. They ran on two different pages, so the same answer twice is not a
-    page that went stale: it is something both pages shared, and the only thing
-    they always share is the exit they load through. Saying so is the
-    difference between "restart the browser" and "look at the proxy", which the
-    reporter of #830 could not tell from two identical log lines.
+    page that went stale but something both pages share, and the note says
+    what that is for this kind of failure (`Suspect`). That is the difference
+    between "restart the browser" and "look at the proxy", which the reporter of
+    #830 could not tell from two identical log lines.
+
+    The cause comes first and the note last. dtk keeps only the head of this
+    message, and when the note led, the cut fell in the middle of the #830
+    sentence's remedy - the list of exits to check.
     """
     if not failures:
         return BackendFailure("signing produced no result")
     last = failures[-1]
     if len(failures) > 1 and all(f.message == last.message for f in failures):
+        shared = _SHARED.get(last.suspect, "").format(exit=exit_kind)
+        where = f"on two different pages {shared}" if shared else "on two different pages"
         return type(last)(
-            f"both attempts, on two different pages through the same exit ({exit_kind}), "
-            f"failed the same way: {last.message}",
+            f"{last.message}; both attempts failed this way, {where}",
             detail=last.detail,
+            suspect=last.suspect,
         )
     return last
 

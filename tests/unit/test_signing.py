@@ -117,7 +117,7 @@ from dtk.signing.registry import (
     SigningMode,
     SlidingRiskWindow,
 )
-from dtk.signing.rpc import RpcSigner
+from dtk.signing.rpc import RPC_ERROR_EXCERPT_CHARS, RpcSigner
 
 # --------------------------------------------------------------------------
 # shared inputs
@@ -1482,6 +1482,74 @@ async def test_a_refusal_carries_browser_rpcs_own_reason() -> None:
     assert reason in message
     assert "unreachable" not in message
     assert "at eval" not in message
+
+
+#: browser-rpc's answer for issue #830 through an identity's proxy, exactly as
+#: its service composes it now: the cause, the remedy, then the note on a
+#: failure both attempts shared. 379 characters.
+COMPOSED_830 = (
+    "could not warm a signing page for tiktok: the tiktok signing page is no longer on "
+    "tiktok.com (it is on chrome-error://chromewebdata): a navigation after it loaded failed "
+    "or was blocked - look at the exit it loads through (DTK_BROWSER_SIGN_PROXY_URL, the "
+    "identity's proxy, or this host); both attempts failed this way, on two different pages "
+    "through the same exit (identity_proxy)"
+)
+
+
+async def test_the_830_sentence_reaches_dtk_whole() -> None:
+    """At 300 characters the cut fell in the remedy: "look at the exit it lo".
+
+    So the list of exits to check reached neither the API error, nor the
+    signing.rpc.refused line, nor the self-check's reason.
+    """
+
+    def refusing(request: httpx.Request) -> httpx.Response:
+        body = {"error": {"code": "backend_failed", "message": COMPOSED_830}}
+        return httpx.Response(502, json=body)
+
+    async with rpc_client(refusing) as client:
+        with pytest.raises(SigningFailed) as excinfo:
+            await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+
+    assert str(excinfo.value) == f"browser-rpc failed (HTTP 502 backend_failed): {COMPOSED_830}"
+    assert "DTK_BROWSER_SIGN_PROXY_URL" in str(excinfo.value)
+
+
+async def test_an_overlong_reason_is_cut_at_a_word_and_says_so() -> None:
+    words = " ".join(f"word{index:03d}" for index in range(200))
+
+    def refusing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502, json={"error": {"code": "backend_failed", "message": words}})
+
+    async with rpc_client(refusing) as client:
+        with pytest.raises(SigningFailed) as excinfo:
+            await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+
+    kept = str(excinfo.value).removeprefix("browser-rpc failed (HTTP 502 backend_failed): ")
+    assert len(kept) <= RPC_ERROR_EXCERPT_CHARS
+    assert kept.endswith("...")
+    # Whole words only: what precedes the marker is one of the words sent.
+    assert kept.removesuffix("...").split(" ")[-1] in words.split(" ")
+
+
+@pytest.mark.parametrize(
+    ("error", "says"),
+    [
+        (httpx.ConnectError("refused"), "browser-rpc unreachable: ConnectError: refused"),
+        (httpx.ConnectTimeout(""), "browser-rpc unreachable: ConnectTimeout"),
+        # Up, and still working on its two attempts when this client gave up:
+        # "unreachable" sent operators to a container that was fine.
+        (httpx.ReadTimeout(""), "browser-rpc did not answer within 10s: ReadTimeout"),
+    ],
+)
+async def test_no_answer_says_which_kind_of_none(error: httpx.HTTPError, says: str) -> None:
+    def silent(request: httpx.Request) -> httpx.Response:
+        raise error
+
+    async with rpc_client(silent) as client:
+        with pytest.raises(SigningFailed) as excinfo:
+            await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
+    assert str(excinfo.value) == says
 
 
 async def test_a_refusal_without_a_json_body_still_names_its_status() -> None:

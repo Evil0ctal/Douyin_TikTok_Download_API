@@ -10,6 +10,29 @@ instead of a blanket 500.
 
 from __future__ import annotations
 
+from enum import StrEnum
+
+
+class Suspect(StrEnum):
+    """What two pages that failed the same way have in common, by the failure's shape.
+
+    The service opens a fresh page for its second attempt, so the same failure
+    twice is evidence about something the two pages share. They share more than
+    one thing - the exit they load through, the platform's bundle they load, the
+    browser they run in - and which of those a failure implicates depends on
+    the failure. Naming the exit for all of them sent an operator to the proxy
+    when the platform had stopped signing (the review of #830's fix).
+    """
+
+    #: A navigation failed, or the page left the platform: what the page loaded
+    #: through is in question.
+    EXIT = "exit"
+    #: The platform's SDK loaded and never signed, or never loaded: the bundle,
+    #: or the exit it is fetched through.
+    BUNDLE = "bundle"
+    #: The renderer died: memory or /tmp in the browser container.
+    BROWSER = "browser"
+
 
 class RpcError(Exception):
     """Base for every failure that has a defined HTTP shape."""
@@ -17,10 +40,15 @@ class RpcError(Exception):
     status_code: int = 500
     code: str = "internal"
 
-    def __init__(self, message: str, *, detail: str | None = None) -> None:
+    def __init__(
+        self, message: str, *, detail: str | None = None, suspect: Suspect | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.detail = detail
+        #: Never sent on the wire; it only decides how the service words a
+        #: failure that repeated. None when the shape points nowhere in particular.
+        self.suspect = suspect
 
     def as_body(self) -> dict[str, object]:
         body: dict[str, object] = {"error": {"code": self.code, "message": self.message}}
@@ -74,4 +102,5 @@ __all__ = [
     "InvalidRequest",
     "OperationTimeout",
     "RpcError",
+    "Suspect",
 ]

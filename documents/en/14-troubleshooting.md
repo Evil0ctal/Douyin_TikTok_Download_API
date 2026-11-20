@@ -821,9 +821,12 @@ What `signing_reference_failed` quotes from browser-rpc, and what it means:
 | browser-rpc says | Meaning |
 |---|---|
 | `the tiktok signing page is no longer on tiktok.com (it is on chrome-error://…)` | The warm page loaded, then a navigation failed through its exit — `DTK_BROWSER_SIGN_PROXY_URL`, the identity's proxy, or this host. Check that exit can load the platform's site |
-| `both attempts, on two different pages through the same exit (…), failed the same way` | Not one stale page: whatever both pages shared failed, and the exit is the usual suspect |
-| `Target crashed` | Chromium died, almost always for lack of memory or `/tmp` space in the browser container |
+| `could not load https://…` | The page never loaded through its exit. The rest of the line is Chromium's own error (`net::ERR_PROXY_CONNECTION_FAILED`, a timeout, …) |
+| `could not sign within …s` | The page stayed on the platform and its security bundle never signed: either the bundle did not load, or the platform changed how it signs. If the exit loads the site fine, it is the second — open an issue |
+| `…; both attempts failed this way, on two different pages …` | Not one stale page: the same failure on a fresh page. The note names what the two pages shared that fits the failure — `through the same exit` for a navigation, `loading the same platform bundle` for a page that never signed, `in the same browser container` for a crash |
+| `Target crashed`, `renderer crashed` | Chromium died, almost always for lack of memory or `/tmp` space in the browser container. browser-rpc writes `renderer crashed (Target crashed)` when it notices a crash itself, including in `browser_rpc.warm.discarded` log lines |
 | `browser-rpc unreachable` | No answer at all: the container is down or `DTK_BROWSER_RPC_URL` points nowhere |
+| `browser-rpc did not answer within …s` | browser-rpc is up, but its two attempts took longer than `signing.rpc_timeout_seconds` — usually an exit that hangs rather than refuses. Its own log has the reason: look for `browser_rpc.sign.open_failed` |
 
 ### Reproduce a signature by hand
 
@@ -910,6 +913,8 @@ A transcriber image built locally that stalls at pip takes the same fix.
 The service answers `/rpc/health` even when the browser backend failed to start — on purpose, so you get a reason instead of a restart loop. The compose healthcheck therefore reads the `status` field in the body rather than settling for a 200. The usual cause is an image with no browser in it: built with a plain `docker build` and no `--build-arg CLOAKBROWSER_COMMIT=…`, or from an older checkout whose `docker/compose.yml` had no default for it. Rebuilding through Compose with the command above fixes it.
 
 ### Chromium crashes with "Target crashed", and it reads like a platform block
+
+browser-rpc reports a crash it noticed on its own as `renderer crashed (Target crashed)`; a page that crashed while idle is dropped with a `browser_rpc.warm.discarded … reason=its renderer crashed (Target crashed)` line. If the container itself restarts or `docker inspect` shows `OOMKilled`, the container's memory limit is what ran out, not `/tmp`.
 
 The driver passes `--disable-dev-shm-usage`, so every renderer's shared memory lands in the container's `/tmp` tmpfs, not `/dev/shm`. Each resident context holds roughly 290 MB of deleted-but-open files — invisible to `du`, visible to `df`. The tmpfs is sized 3 GB for that reason. The rough ceiling is `300M × DTK_BROWSER_WARM_CONTEXTS × 2 platforms`, plus a mint in flight. If you raised `DTK_BROWSER_WARM_CONTEXTS`, raise the tmpfs with it — and remember it is RAM, not free disk.
 

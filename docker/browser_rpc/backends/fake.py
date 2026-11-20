@@ -25,7 +25,7 @@ from browser_rpc.backends.base import (
     SigningContext,
     SignPlan,
 )
-from browser_rpc.errors import BackendFailure
+from browser_rpc.errors import BackendFailure, Suspect
 from browser_rpc.geo import GeoProfile
 from browser_rpc.validation import Platform, ProxyEndpoint
 
@@ -87,6 +87,8 @@ class FakeSigningContext:
         #: a real one does when a navigation after load carries it off the
         #: platform. A context with one refuses to sign, as the real one does.
         self.broken: str | None = None
+        #: What that refusal implicates, as the real backend would say it.
+        self.broken_suspect: Suspect | None = None
 
     @property
     def platform(self) -> Platform:
@@ -106,7 +108,10 @@ class FakeSigningContext:
         if self._closed:
             raise BackendFailure("signing context is closed")
         if self.broken:
-            raise BackendFailure(f"the {self._platform.value} signing page {self.broken}")
+            raise BackendFailure(
+                f"the {self._platform.value} signing page {self.broken}",
+                suspect=self.broken_suspect,
+            )
         field = SIGNATURE_FIELDS[self._platform]
         # The body is hashed like the real a_bogus hashes it, so a test can see
         # whether it reached the page; a GET's signature is what it always was.

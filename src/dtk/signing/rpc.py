@@ -193,7 +193,7 @@ class RpcSigner:
                 error=_describe(exc),
                 timeout=self.timeout,
             )
-            raise SigningFailed(f"browser-rpc unreachable: {_describe(exc)}") from exc
+            raise SigningFailed(_no_answer(exc, self.timeout)) from exc
         except ValueError as exc:
             logger.warning("signing.rpc.malformed", endpoint=spec.endpoint, error=str(exc))
             raise SigningFailed("browser-rpc returned a non-JSON body") from exc
@@ -352,7 +352,15 @@ class RpcSigner:
 #: How much of browser-rpc's own error message is carried into ours. Its
 #: messages are one sentence; a stack or an HTML error page is not, and neither
 #: belongs in a log line or a diagnostic report.
-RPC_ERROR_EXCERPT_CHARS = 300
+#:
+#: It was 300, which is shorter than the sentence #830 itself produces: with the
+#: service's prefixes that is 376-384 characters, and the cut fell inside its
+#: remedy - "look at the exit it lo" - so the list of exits to check reached
+#: neither the API error, nor the log line, nor the self-check. 600 holds every
+#: sentence browser-rpc composes around a short quote. Where it quotes a long
+#: driver error it puts the remedy before the quote, so a cut drops the quote's
+#: tail; and a cut ends on a word and says so.
+RPC_ERROR_EXCERPT_CHARS = 600
 
 
 def _rpc_failure(response: httpx.Response) -> str:
@@ -373,8 +381,34 @@ def _rpc_failure(response: httpx.Response) -> str:
     if isinstance(code, str) and code:
         head = f"{head} {code}"
     lines = str(error.get("message") or "").strip().splitlines()
-    message = lines[0][:RPC_ERROR_EXCERPT_CHARS] if lines else ""
+    message = _clip(lines[0], RPC_ERROR_EXCERPT_CHARS) if lines else ""
     return f"browser-rpc failed ({head}): {message}" if message else f"browser-rpc failed ({head})"
+
+
+def _clip(text: str, limit: int) -> str:
+    """At most ``limit`` characters, cut at a word and marked as cut."""
+    if len(text) <= limit:
+        return text
+    head = text[: limit - 3]
+    space = head.rfind(" ")
+    # A message with no space in its last stretch is not prose; cut it where it is.
+    if space > limit // 2:
+        head = head[:space]
+    return f"{head.rstrip()}..."
+
+
+def _no_answer(error: httpx.HTTPError, timeout: float) -> str:
+    """What a call that got no reply at all says, by why there was none.
+
+    Everything here used to read "browser-rpc unreachable", and a ReadTimeout is
+    not that: the service was up and still working when this client stopped
+    waiting - with a bad exit, its two attempts can outlast
+    signing.rpc_timeout_seconds - so "the container is down" sent the operator
+    to a container that was fine. Its own log has the open_failed lines.
+    """
+    if isinstance(error, httpx.ReadTimeout):
+        return f"browser-rpc did not answer within {timeout:g}s: {_describe(error)}"
+    return f"browser-rpc unreachable: {_describe(error)}"
 
 
 def _describe(exc: BaseException) -> str:

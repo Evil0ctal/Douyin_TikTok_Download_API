@@ -1088,7 +1088,7 @@
       "signing_no_browser_rpc": "配置 DTK_BROWSER_RPC_URL 即可启用影子比对，在风控率上升之前就发现失效的签名算法。",
       "signing_mismatch": "原生算法已经和平台的实现产生偏差。这些平台目前改由 browser-rpc 签名；请附上这份报告提交 issue，以便更新算法。",
       "signing_native_failed": "纯算签名器正是承载请求的那一个。修复之前，这些平台的请求在 browser-rpc 可用时改由它签名，不可用时直接失败。这是 dtk 移植实现的缺陷，与你的部署无关：请附上这份报告提交 issue。",
-      "signing_reference_failed": "这条结论与纯算签名器无关，它不受影响，仍在正常提供服务；出问题的是用来对照的浏览器，它没能产出签名。请查看 browser-rpc 的日志（./dtkctl logs --tail 200 browser-rpc），找同一分钟内的 browser_rpc.sign 与 backend.cloak 行。出现 \"no longer on tiktok.com\" 或 \"no longer on douyin.com\"，说明常驻页面经由它的出口（DTK_BROWSER_SIGN_PROXY_URL、身份自带的代理或本机）进行的一次跳转失败了；出现 \"Target crashed\"，说明浏览器容器的内存或 /tmp 不够用。处理好之后再运行一次自检。",
+      "signing_reference_failed": "这条结论与纯算签名器无关，它不受影响，仍在正常提供服务；出问题的是用来对照的浏览器，它没能产出签名。请查看 browser-rpc 的日志（./dtkctl logs --tail 200 browser-rpc），找同一分钟内的 browser_rpc.sign、browser_rpc.warm 与 backend.cloak 行。出现 \"no longer on tiktok.com\" 或 \"no longer on douyin.com\"，说明常驻页面经由它的出口（DTK_BROWSER_SIGN_PROXY_URL、身份自带的代理或本机）进行的一次跳转失败了；出现 \"Target crashed\" 或 \"renderer crashed\"，说明浏览器容器的内存或 /tmp 不够用；出现 \"could not sign within\"，说明平台的安全 bundle 在页面里始终没能签出名，要么它没加载上，要么平台改了签名方式；出现 \"did not answer within\"，说明 dtk 停止等待时 browser-rpc 还在重试，原因在它自己的日志里。处理好之后再运行一次自检。",
       "smoke_failed": "请先看上面失败的步骤；冒烟测试失败通常是代理、身份池或签名环节的连带结果，而不是它本身的问题。",
       "step_crashed": "这是 dtk 的缺陷。请附上这份报告反馈给我们。",
       "signing_not_comparable": "这些平台本次没有任何可判定的内容：两个签名器共有的参数都没有对应的比较器，或者共有的只是与算法无关的单身份取值，又或者比对本身没能运行，具体见详情。这既不说明纯算有问题，也不说明它没问题；纯算路径不受影响，仍在正常提供服务。"

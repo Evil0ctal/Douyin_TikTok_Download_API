@@ -787,9 +787,12 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 | browser-rpc 的原话 | 含义 |
 |---|---|
 | `the tiktok signing page is no longer on tiktok.com (it is on chrome-error://…)` | 常驻页面加载完之后，经由它的出口（`DTK_BROWSER_SIGN_PROXY_URL`、身份自带的代理或本机）进行的一次跳转失败了。检查这个出口能否正常打开平台站点 |
-| `both attempts, on two different pages through the same exit (…), failed the same way` | 不是某一个页面过期：两个页面共有的东西出了问题，最常见的就是出口 |
-| `Target crashed` | Chromium 崩了，几乎总是浏览器容器的内存或 `/tmp` 空间不够 |
+| `could not load https://…` | 页面根本没能经由它的出口加载出来。后半句是 Chromium 自己的报错（`net::ERR_PROXY_CONNECTION_FAILED`、超时等） |
+| `could not sign within …s` | 页面一直停在平台上，但它的安全 bundle 始终没签出名：要么 bundle 没加载上，要么平台改了签名方式。如果这个出口能正常打开站点，那就是后者——请开一个 issue |
+| `…; both attempts failed this way, on two different pages …` | 不是某一个页面过期：换了新页面也是同样的失败。后半句写的是两个页面共有、且与这种失败对得上的东西——跳转失败写 `through the same exit`，始终签不出名写 `loading the same platform bundle`，崩溃写 `in the same browser container` |
+| `Target crashed`、`renderer crashed` | Chromium 崩了，几乎总是浏览器容器的内存或 `/tmp` 空间不够。browser-rpc 自己发现崩溃时写的是 `renderer crashed (Target crashed)`，`browser_rpc.warm.discarded` 日志行里也是这样 |
 | `browser-rpc unreachable` | 完全没有响应：容器没在运行，或者 `DTK_BROWSER_RPC_URL` 指错了地方 |
+| `browser-rpc did not answer within …s` | browser-rpc 在运行，但它的两次尝试加起来超过了 `signing.rpc_timeout_seconds`，通常是出口卡住而不是直接拒绝。原因在它自己的日志里：找 `browser_rpc.sign.open_failed` |
 
 ### 手工复现一个签名
 
@@ -871,6 +874,8 @@ CloakBrowser 的下载地址，也连不上它跳转去的 GitHub Release，而 
 即使浏览器后端启动失败，这个服务照样会应答 `/rpc/health`——这是刻意的，为的是给你一个原因而不是一个重启循环。所以 compose 的健康检查读的是 body 里的 `status` 字段，而不是满足于一个 200。最常见的原因是镜像里根本没有浏览器：它是用裸的 `docker build` 构建的、没带 `--build-arg CLOAKBROWSER_COMMIT=…`，或者来自一份更早的代码——那时 `docker/compose.yml` 还没给它默认值。用上面那条命令经由 Compose 重新构建即可。
 
 ### Chromium 崩溃 报错 Target crashed 看起来像被平台封了
+
+browser-rpc 自己发现的崩溃会写成 `renderer crashed (Target crashed)`；空闲时崩掉的页面会被丢弃，并留下一行 `browser_rpc.warm.discarded … reason=its renderer crashed (Target crashed)`。如果容器本身重启了，或者 `docker inspect` 显示 `OOMKilled`，用完的是容器的内存上限，而不是 `/tmp`。
 
 驱动自己带了 `--disable-dev-shm-usage`，所以每个渲染进程的共享内存落在容器的 `/tmp` tmpfs 上，而不是 `/dev/shm`。每个常驻上下文占着大约 290 MB 的「已删除但仍打开」的文件——`du` 看不见，`df` 看得见。tmpfs 因此被设成 3 GB。粗略的上限是 `300M × DTK_BROWSER_WARM_CONTEXTS × 2 个平台`，再加上一次进行中的铸造。如果你调大了 `DTK_BROWSER_WARM_CONTEXTS`，就把 tmpfs 一起调大——并且记住那是内存预算，不是空闲磁盘。
 

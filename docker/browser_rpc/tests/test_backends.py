@@ -29,7 +29,7 @@ from browser_rpc.backends.cloak import (
     proxy_settings,
 )
 from browser_rpc.backends.fake import FakeBackend
-from browser_rpc.errors import BackendFailure, BackendUnavailable, ConfigError
+from browser_rpc.errors import BackendFailure, BackendUnavailable, ConfigError, Suspect
 from browser_rpc.geo import FALLBACK_PROFILE
 from browser_rpc.settings import Settings
 from browser_rpc.validation import Platform, ProxyEndpoint
@@ -438,6 +438,13 @@ class TestSigningReadiness:
         message = str(excinfo.value)
         assert "could not sign within 2s" in message
         assert "the SDK did not dispatch a request" in message
+        # Both of the things it can mean, and the remedy for the one that is
+        # the platform moving - not the exit, which a review found the service
+        # blaming for this (see TestARepeatedFailureNamesWhatThePagesShare).
+        assert "did not load, or the platform changed how it signs" in message
+        assert "re-run the live analysis" in message
+        assert message.index("re-run the live analysis") < message.index("Its last answer")
+        assert excinfo.value.suspect is Suspect.BUNDLE
         # Not kept warm: the context it opened is closed again.
         assert browser.closed == 1
 
@@ -577,9 +584,11 @@ class TestAPageThatLeftThePlatform:
         crashed = page.listeners["crash"]
         assert callable(crashed)
         crashed(page)
-        assert context.problem == "its renderer crashed"
-        with pytest.raises(BackendFailure, match="renderer crashed"):
+        # The phrase the troubleshooting guide tells operators to search for.
+        assert context.problem == "its renderer crashed (Target crashed)"
+        with pytest.raises(BackendFailure, match=r"renderer crashed \(Target crashed\)") as exc:
             await context.sign(self._plan())
+        assert exc.value.suspect is Suspect.BROWSER
 
     async def test_a_page_that_leaves_while_warming_up_is_not_handed_out(
         self, tmp_path: Path
@@ -747,3 +756,201 @@ class TestTheSdkUrlIsTheWholeAnswer:
         )
         assert "msToken" not in signed
         assert signed == sdk
+
+
+class NavigatingPage(StubPage):
+    """A page whose document is replaced while a signature is running in it.
+
+    The driver reports the new URL a moment after the old document is torn
+    down, so the precheck in `sign` reads the platform's address and lets the
+    script run; the evaluate then dies with "Execution context was destroyed".
+    Seen in dtk-sig2 after a reload through a failing exit, on both platforms.
+    """
+
+    DESTROYED = (
+        "Page.evaluate: Execution context was destroyed, most likely because of a navigation"
+    )
+
+    def __init__(self, lands_on: str, after: float = 0.1) -> None:
+        super().__init__()
+        self.url = "https://www.tiktok.com/"
+        self.lands_on = lands_on
+        self.after = after
+
+    async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+        # The driver hears about the new document a little after the old
+        # context is gone, which is the window this models.
+        asyncio.get_running_loop().call_later(self.after, setattr, self, "url", self.lands_on)
+        raise RuntimeError(f"{self.DESTROYED}\n    at <anonymous>")
+
+
+class TestASignatureThatMeetsANavigation:
+    """The precheck reads a URL that lags; a failed evaluate asks the page again."""
+
+    PLAN = SignPlan(
+        platform=Platform.TIKTOK,
+        url="https://www.tiktok.com/api/item/detail/",
+        query="itemId=7&aid=1988",
+        params={},
+    )
+
+    async def test_a_page_that_lands_off_the_platform_is_named(self) -> None:
+        page = NavigatingPage("chrome-error://chromewebdata/")
+        context = CloakSigningContext(Platform.TIKTOK, StubContext(), page)
+        assert context.problem is None, "the driver has not caught up yet"
+
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        with pytest.raises(BackendFailure) as excinfo:
+            await context.sign(self.PLAN)
+        message = str(excinfo.value)
+        assert "no longer on tiktok.com (it is on chrome-error://chromewebdata)" in message
+        assert "Execution context was destroyed" not in message
+        assert excinfo.value.suspect is Suspect.EXIT
+        # It stopped watching as soon as the driver said where the page went.
+        assert loop.time() - started < cloak.NAVIGATION_SETTLE_SECONDS
+
+    async def test_a_page_that_stays_on_the_platform_says_it_was_navigating(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(cloak, "NAVIGATION_SETTLE_SECONDS", 0.2)
+        page = NavigatingPage("https://www.tiktok.com/foryou")
+        context = CloakSigningContext(Platform.TIKTOK, StubContext(), page)
+
+        with pytest.raises(BackendFailure) as excinfo:
+            await context.sign(self.PLAN)
+        message = str(excinfo.value)
+        assert message.startswith("the tiktok signing page was navigating when it was asked")
+        assert "still on tiktok.com" in message
+        assert "signing script failed" not in message
+        # Within the platform it is not evidence about the exit.
+        assert excinfo.value.suspect is None
+
+    async def test_a_page_already_gone_is_named_without_waiting(self) -> None:
+        class OldDriverPage(StubPage):
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                self.url = "about:blank"
+                raise RuntimeError(NavigatingPage.DESTROYED)
+
+        page = OldDriverPage()
+        page.url = "https://www.tiktok.com/"
+        with pytest.raises(
+            BackendFailure, match=r"no longer on tiktok\.com \(it is on about:blank\)"
+        ):
+            await CloakSigningContext(Platform.TIKTOK, StubContext(), page).sign(self.PLAN)
+
+    async def test_a_crash_mid_signature_is_named_as_one(self) -> None:
+        class Crashes(StubPage):
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                raise RuntimeError("Page.evaluate: Target crashed\n    at <anonymous>")
+
+        page = Crashes()
+        page.url = "https://www.tiktok.com/"
+        with pytest.raises(BackendFailure) as excinfo:
+            await CloakSigningContext(Platform.TIKTOK, StubContext(), page).sign(self.PLAN)
+        assert str(excinfo.value) == ("the tiktok signing page's renderer crashed (Target crashed)")
+        assert excinfo.value.suspect is Suspect.BROWSER
+
+    async def test_any_other_script_failure_is_reported_as_before(self) -> None:
+        class Throws(StubPage):
+            async def evaluate(self, script: str, *_: object) -> dict[str, object]:
+                raise RuntimeError("Page.evaluate: ReferenceError: x is not defined\n  at y")
+
+        page = Throws()
+        page.url = "https://www.tiktok.com/"
+        with pytest.raises(BackendFailure) as excinfo:
+            await CloakSigningContext(Platform.TIKTOK, StubContext(), page).sign(self.PLAN)
+        assert str(excinfo.value) == (
+            "signing script failed: Page.evaluate: ReferenceError: x is not defined"
+        )
+        assert excinfo.value.suspect is None
+
+
+class TestAFailedOpenLeavesNothingBehind:
+    """Every warm profile is 13-16 MiB on a 1g tmpfs; a failed open must not keep one."""
+
+    @staticmethod
+    def _backend(tmp_path: Path) -> CloakBackend:
+        return CloakBackend(
+            replace(
+                Settings(backend="cloak"),
+                profile_root=str(tmp_path),
+                sdk_ready_timeout_seconds=1.0,
+            )
+        )
+
+    async def test_a_launch_that_fails_removes_the_directory_it_created(
+        self, tmp_path: Path
+    ) -> None:
+        backend = self._backend(tmp_path)
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            # What Chromium does: the directory exists before the launch fails.
+            Path(profile_dir).mkdir(parents=True)
+            raise BackendFailure("could not open a browser context: Target page has been closed")
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        with pytest.raises(BackendFailure):
+            await backend.open_signing_context(Platform.DOUYIN, FALLBACK_PROFILE)
+        assert list(tmp_path.iterdir()) == []
+
+    async def test_an_open_cancelled_by_the_service_closes_its_browser(
+        self, tmp_path: Path
+    ) -> None:
+        """The service's budget cancels the open; it used to skip the cleanup entirely."""
+
+        class HangingPage(StubPage):
+            async def goto(self, url: str, **_: object) -> None:
+                await asyncio.sleep(10)
+
+        backend = self._backend(tmp_path)
+        browser = StubContext()
+        browser.pages.append(HangingPage())
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            Path(profile_dir).mkdir(parents=True)
+            return browser
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(
+                backend.open_signing_context(Platform.DOUYIN, FALLBACK_PROFILE), 0.05
+            )
+        assert browser.closed == 1
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.parametrize(
+        ("error", "suspect"),
+        [
+            (
+                "Page.goto: net::ERR_PROXY_CONNECTION_FAILED at https://www.douyin.com/",
+                Suspect.EXIT,
+            ),
+            ("Page.goto: Target crashed", Suspect.BROWSER),
+        ],
+    )
+    async def test_a_page_that_never_loaded_says_so(
+        self, tmp_path: Path, error: str, suspect: Suspect
+    ) -> None:
+        class Unreachable(StubPage):
+            async def goto(self, url: str, **_: object) -> None:
+                raise RuntimeError(f"{error}\nCall log:\n  - navigating to {url}")
+
+        backend = self._backend(tmp_path)
+        browser = StubContext()
+        browser.pages.append(Unreachable())
+
+        async def launch(profile_dir: str, *_: object, **__: object) -> StubContext:
+            Path(profile_dir).mkdir(parents=True)
+            return browser
+
+        backend._launch_context = launch  # type: ignore[method-assign]
+        with pytest.raises(BackendFailure) as excinfo:
+            await backend.open_signing_context(Platform.DOUYIN, FALLBACK_PROFILE)
+        assert str(excinfo.value) == (
+            f"could not warm a signing page for douyin: could not load "
+            f"https://www.douyin.com/: {error}"
+        )
+        assert excinfo.value.suspect is suspect
+        assert browser.closed == 1
+        assert list(tmp_path.iterdir()) == []

@@ -20,6 +20,8 @@ from browser_rpc.errors import (
     BackendUnavailable,
     InvalidRequest,
     OperationTimeout,
+    RpcError,
+    Suspect,
 )
 from browser_rpc.geo import ExitInfo, GeoProfile
 from browser_rpc.service import ANONYMOUS, BrowserRpcService, binding_key
@@ -729,6 +731,7 @@ class TestAPageThatWentBadIsNeverReused:
             ) -> FakeSigningContext:
                 context = await super().open_signing_context(platform, geo, proxy, cookies)
                 context.broken = TestAPageThatWentBadIsNeverReused.LEFT
+                context.broken_suspect = Suspect.EXIT
                 return context
 
         backend = AlwaysLeaves()
@@ -743,11 +746,14 @@ class TestAPageThatWentBadIsNeverReused:
 
         first, second = backend.contexts
         assert first is not second and first.closed and second.closed
-        # Two pages failing alike share only the exit, and the error says so.
+        # A page that left the platform, twice on two pages: the exit, named.
+        # The cause leads and the note trails, so a reader that keeps only the
+        # head of the message keeps the cause.
         message = excinfo.value.message
-        assert message.startswith("both attempts, on two different pages through the same exit")
-        assert "(direct)" in message
-        assert self.LEFT in message
+        assert message.startswith(f"the tiktok signing page {self.LEFT}")
+        assert message.endswith(
+            "; both attempts failed this way, on two different pages through the same exit (direct)"
+        )
 
     @pytest.mark.parametrize(
         ("sign_proxy", "identity_proxy", "kind"),
@@ -764,8 +770,21 @@ class TestAPageThatWentBadIsNeverReused:
         identity_proxy: str | None,
         kind: str,
     ) -> None:
+        class LeavesThroughItsExit(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                context = await super().open_signing_context(platform, geo, proxy, cookies)
+                context.broken = "left douyin.com for chrome-error://chromewebdata"
+                context.broken_suspect = Suspect.EXIT
+                return context
+
         service = BrowserRpcService(
-            replace(settings, sign_proxy_url=sign_proxy), FlakyBackend(heal_after=99)
+            replace(settings, sign_proxy_url=sign_proxy), LeavesThroughItsExit()
         )
         await service.start()
         try:
@@ -804,3 +823,219 @@ class TestAPageThatWentBadIsNeverReused:
         finally:
             await service.close()
         assert excinfo.value.message == "failure number 2"
+
+
+class _RepeatsItself(CountingBackend):
+    """Every open fails with the same message and the same suspect."""
+
+    def __init__(self, message: str, suspect: Suspect | None) -> None:
+        super().__init__()
+        self.message = message
+        self.suspect = suspect
+
+    async def open_signing_context(
+        self,
+        platform: Platform,
+        geo: GeoProfile,
+        proxy: ProxyEndpoint | None = None,
+        cookies: Mapping[str, str] | None = None,
+    ) -> FakeSigningContext:
+        self.contexts_opened += 1
+        raise BackendFailure(self.message, suspect=self.suspect)
+
+
+class TestARepeatedFailureNamesWhatThePagesShare:
+    """Two pages failing alike share an exit, a platform bundle and a browser.
+
+    The note used to name the exit for every repeated failure - "the only thing
+    they always share" - and a platform whose SDK stopped signing came out as
+    "both attempts ... through the same exit (direct) failed the same way: ...
+    could not sign within 25s", which the troubleshooting guide answered with
+    "the exit is the usual suspect". The bundle had moved; the proxy was fine.
+    """
+
+    NEVER_SIGNED = (
+        "could not warm a signing page for tiktok: the tiktok signing page could not sign "
+        "within 25s (15 probes): either its security bundle did not load, or the platform "
+        "changed how it signs - re-run the live analysis in docs/design/04-transport-signing.md "
+        "before editing this file. Its last answer: the SDK added nothing"
+    )
+
+    @pytest.mark.parametrize(
+        ("suspect", "note"),
+        [
+            (Suspect.EXIT, "on two different pages through the same exit (direct)"),
+            (
+                Suspect.BUNDLE,
+                "on two different pages loading the same platform bundle through the same "
+                "exit (direct)",
+            ),
+            (Suspect.BROWSER, "on two different pages in the same browser container"),
+            (None, "on two different pages"),
+        ],
+    )
+    async def test_the_note_fits_the_failure(
+        self, settings: Settings, suspect: Suspect | None, note: str
+    ) -> None:
+        service = BrowserRpcService(settings, _RepeatsItself("it went wrong", suspect))
+        await service.start()
+        try:
+            with pytest.raises(BackendFailure) as excinfo:
+                await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+        finally:
+            await service.close()
+        assert excinfo.value.message == f"it went wrong; both attempts failed this way, {note}"
+        assert excinfo.value.suspect is suspect
+
+    async def test_an_sdk_that_never_signs_is_not_pinned_on_the_proxy(
+        self, settings: Settings
+    ) -> None:
+        backend = _RepeatsItself(self.NEVER_SIGNED, Suspect.BUNDLE)
+        service = BrowserRpcService(replace(settings, sign_proxy_url="http://gate:8080"), backend)
+        await service.start()
+        try:
+            with pytest.raises(BackendFailure) as excinfo:
+                await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+        finally:
+            await service.close()
+        message = excinfo.value.message
+        assert message.startswith(self.NEVER_SIGNED)
+        assert "the platform changed how it signs" in message
+        assert "loading the same platform bundle through the same exit (sign_proxy)" in message
+
+    async def test_an_open_that_hangs_is_put_to_the_exit(self, settings: Settings) -> None:
+        class Hangs(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                await asyncio.sleep(5)
+                raise AssertionError("the budget should have ended this")
+
+        service = BrowserRpcService(replace(settings, context_open_timeout_seconds=0.05), Hangs())
+        await service.start()
+        try:
+            with pytest.raises(OperationTimeout) as excinfo:
+                await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+        finally:
+            await service.close()
+        assert excinfo.value.message == (
+            "opening a signing context for tiktok exceeded 0.05s; both attempts failed this "
+            "way, on two different pages through the same exit (direct)"
+        )
+
+    async def test_the_830_message_fits_what_dtk_keeps(self, settings: Settings) -> None:
+        """dtk keeps the first 600 characters (`dtk.signing.rpc.RPC_ERROR_EXCERPT_CHARS`).
+
+        At 300 it cut the #830 sentence inside its remedy, "look at the exit it
+        lo", so the list of exits to check reached neither the API error, nor
+        the log line, nor the self-check. Composed here from the real parts.
+        """
+        from browser_rpc.backends.cloak import _warm_failure, left_platform
+
+        failure = _warm_failure(
+            Platform.TIKTOK, left_platform(Platform.TIKTOK, "chrome-error://chromewebdata")
+        )
+        service = BrowserRpcService(settings, _RepeatsItself(failure.message, failure.suspect))
+        await service.start()
+        try:
+            with pytest.raises(RpcError) as excinfo:
+                await service.sign(
+                    Platform.TIKTOK, TIKTOK_URL, "a=1", proxy_url="http://user:pw@exit.example:1"
+                )
+        finally:
+            await service.close()
+        message = excinfo.value.message
+        assert len(message) <= 600
+        assert message.index("DTK_BROWSER_SIGN_PROXY_URL") < message.index("both attempts")
+        assert message.endswith("through the same exit (identity_proxy)")
+
+
+class TestPrewarmGoesOutTheConfiguredExit:
+    """Prewarm opened its pages directly, under a binding no request asked for.
+
+    With DTK_BROWSER_SIGN_PROXY_URL set, an identity-less signature binds to
+    that proxy, so the prewarmed pages were never used; the host's own address
+    still reached both platforms at every start; and /rpc/health said two warm
+    contexts while a dead signing proxy failed every signature.
+    """
+
+    async def test_prewarm_loads_through_the_signing_proxy_and_is_used(
+        self, settings: Settings
+    ) -> None:
+        backend = CountingBackend()
+        service = BrowserRpcService(
+            replace(settings, prewarm=True, sign_proxy_url="http://user:secret@gate.example:8080"),
+            backend,
+        )
+        await service.start()
+        try:
+            assert backend.contexts_opened == len(Platform)
+            assert all(
+                proxy is not None and proxy.server == "http://gate.example:8080"
+                for proxy in backend.context_proxies
+            )
+            await service.sign(Platform.DOUYIN, DOUYIN_URL, "a=1", {"a": "1"})
+            # The prewarmed page served it: nothing new was opened.
+            assert backend.contexts_opened == len(Platform)
+        finally:
+            await service.close()
+
+    async def test_without_a_signing_proxy_prewarm_stays_direct_and_is_used(
+        self, settings: Settings
+    ) -> None:
+        backend = CountingBackend()
+        service = BrowserRpcService(replace(settings, prewarm=True), backend)
+        await service.start()
+        try:
+            assert backend.context_proxies == [None] * len(Platform)
+            await service.sign(Platform.TIKTOK, TIKTOK_URL, "a=1")
+            assert backend.contexts_opened == len(Platform)
+            assert service._pools[Platform.TIKTOK].idle[0].binding == ANONYMOUS
+        finally:
+            await service.close()
+
+    async def test_a_signing_proxy_prewarm_cannot_use_is_reported_not_raised(
+        self, settings: Settings, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        backend = CountingBackend()
+        service = BrowserRpcService(
+            replace(settings, prewarm=True, sign_proxy_url="ftp://gate.example:21"), backend
+        )
+        caplog.set_level("WARNING", logger="browser_rpc.service")
+        await service.start()
+        try:
+            assert service.health()["status"] == "ok"
+            assert service.health()["warm_contexts"] == 0
+        finally:
+            await service.close()
+        assert backend.contexts_opened == 0
+        lines = [record.getMessage() for record in caplog.records]
+        assert any("prewarm_failed exit=sign_proxy" in line for line in lines)
+
+    async def test_a_dead_signing_proxy_shows_on_health(self, settings: Settings) -> None:
+        """The prewarm failure is measured through the exit actually in use."""
+
+        class DeadExit(CountingBackend):
+            async def open_signing_context(
+                self,
+                platform: Platform,
+                geo: GeoProfile,
+                proxy: ProxyEndpoint | None = None,
+                cookies: Mapping[str, str] | None = None,
+            ) -> FakeSigningContext:
+                if proxy is not None:
+                    raise BackendFailure("net::ERR_PROXY_CONNECTION_FAILED", suspect=Suspect.EXIT)
+                return await super().open_signing_context(platform, geo, proxy, cookies)
+
+        service = BrowserRpcService(
+            replace(settings, prewarm=True, sign_proxy_url="http://127.0.0.1:9"), DeadExit()
+        )
+        await service.start()
+        try:
+            assert service.health()["warm_contexts"] == 0
+        finally:
+            await service.close()
