@@ -412,11 +412,18 @@ naming macOS, which dtk builds from a macOS identity's User-Agent.
 `/rpc/health` reports the string once a page has opened.
 
 Upgrade browser-rpc together with api and worker - they share
-`DTK_IMAGE_TAG`, and `dtkctl upgrade` moves them together. An api/worker from
-5.1.12 or earlier against this browser-rpc reads the 409 as a browser failure:
-its self-check's TikTok step reports `signing_reference_failed`, and TikTok
+`DTK_IMAGE_TAG`, and `dtkctl upgrade` moves them together; nothing checks the
+pairing at run time. An api/worker from 5.1.12 or earlier against this
+browser-rpc fails on both platforms: its self-check asks for references under
+a fixed User-Agent, so both of its signing steps report
+`signing_reference_failed`; it reads a 409 as a browser failure, so TikTok
 identities minted under another browser fail with `SIGNING_FAILED` instead of
-being signed natively.
+being signed natively; and it refuses any answer whose User-Agent differs
+from the one it asked for, so Douyin identities on any other User-Agent string
+fail too, although this service signed them. The other way round, this
+api/worker against a browser-rpc from 5.1.12 or earlier gets back the
+User-Agent it asked for rather than the page's, which is the #832 behaviour:
+TikTok refuses those signatures as risk control.
 
 The clients are `dtk.identity.minting.client.BrowserRpcClient` and
 `dtk.signing.rpc.RpcSigner`; `docker/browser_rpc/tests/test_rpc_api.py` drives

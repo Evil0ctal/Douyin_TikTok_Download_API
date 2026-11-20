@@ -346,3 +346,44 @@ class TestPlatformParity:
         # Bilibili signs natively and must never reach browser-rpc, and
         # comparing with the whole enum failed from the day it was added.
         assert {p.value for p in Platform} == {p.value for p in dtk_signing_base.RPC_PLATFORMS}
+
+
+#: User-Agents across every row of dtk's system table, and some it has no row for.
+_SYSTEM_SAMPLES = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0",
+    "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 Chrome/109.0.0.0",
+    "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 Chrome/49.0.0.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/145.0.0.0",
+    "Mozilla/5.0 (Macintosh; PPC) Gecko/20100101 Firefox/3.6",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/145.0.0.0",
+    "Mozilla/5.0 (X11; FreeBSD amd64) AppleWebKit/537.36 Chrome/145.0.0.0",
+    "Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 Chrome/145.0.0.0",
+    "Mozilla/5.0 (X11; SunOS i86pc) Gecko/20100101 Firefox/91.0",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/145.0.0.0 Mobile",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0",
+    "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0",
+    "Mozilla/5.0",
+    "",
+)
+
+
+@requires_dtk
+@pytest.mark.parametrize("agent", _SYSTEM_SAMPLES)
+def test_douyin_is_judged_on_the_system_dtk_writes_into_the_query(agent: str) -> None:
+    """browser-rpc reads the system from the User-Agent; dtk writes one into the
+    query from the same string; Douyin compares the query's with the page's. The
+    two readings had drifted - X11, SunOS and a bare Macintosh read as no system
+    here and as Linux, Sun OS and Mac OS there - and the page signed queries it
+    should have refused (review of the #832 fix)."""
+    from browser_rpc.service import _is_foreign, agent_system
+
+    from dtk.platforms.base import operating_system
+
+    names = {"macOS": "Mac OS X"}
+    ours = agent_system(agent) or "Windows"
+    dtk_reading = operating_system(agent)
+    dtk_system = dtk_reading[0] if dtk_reading else "Windows"
+    assert names.get(ours, ours) == dtk_system
+
+    windows_page = _SYSTEM_SAMPLES[0]
+    assert _is_foreign(Platform.DOUYIN, agent, windows_page) is (dtk_system != "Windows")

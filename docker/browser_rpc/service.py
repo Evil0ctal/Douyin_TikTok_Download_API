@@ -730,15 +730,27 @@ _AGENT_BROWSERS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bChrome/(\d+)"), "Chrome"),
     (re.compile(r"\bVersion/(\d+)"), "Safari"),
 )
-_AGENT_SYSTEMS: tuple[tuple[str, str], ...] = (
-    ("Windows", "Windows"),
-    ("Android", "Android"),
-    ("iPhone", "iOS"),
-    ("iPad", "iOS"),
-    ("Mac OS X", "macOS"),
-    ("CrOS", "ChromeOS"),
-    ("Linux", "Linux"),
+#:
+#: The systems mirror dtk's own detector - `dtk.platforms.base._OS_TABLE`, same
+#: markers, same order - because what Douyin judges is the system dtk writes
+#: into the query, not the one a person would read off the string. A table of
+#: our own missed X11, SunOS and a bare Macintosh and signed, under a Windows
+#: page, for a query naming Linux: the refusal measured 0/11 (review of the
+#: #832 fix). ChromeOS says "X11; CrOS", so it is Linux here as there. A
+#: contract test in tests/test_rpc_api.py holds the two tables equal.
+_AGENT_SYSTEMS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("Windows",), "Windows"),
+    (("Android",), "Android"),
+    (("SunOS",), "Sun OS"),
+    (("iPhone", "iPad", "iPod"), "iOS"),
+    (("Mac OS X",), "macOS"),
+    (("MacPPC", "MacIntel", "Mac_PowerPC", "Macintosh"), "Mac OS"),
+    (("Linux", "X11"), "Linux"),
 )
+
+#: What dtk writes into the query for a User-Agent naming none of the above
+#: (`ClientProfile.os_name`'s default).
+_QUERY_DEFAULT_SYSTEM = "Windows"
 
 
 def describe_agent(agent: str) -> str:
@@ -757,7 +769,10 @@ def describe_agent(agent: str) -> str:
 
 def agent_system(agent: str) -> str | None:
     """The operating system a User-Agent names, or None when it names none."""
-    return next((name for marker, name in _AGENT_SYSTEMS if marker in agent), None)
+    return next(
+        (name for markers, name in _AGENT_SYSTEMS if any(marker in agent for marker in markers)),
+        None,
+    )
 
 
 def _is_foreign(platform: Platform, wanted: str, page_agent: str) -> bool:
@@ -765,10 +780,14 @@ def _is_foreign(platform: Platform, wanted: str, page_agent: str) -> bool:
     if platform in UA_BOUND_PLATFORMS:
         return wanted != page_agent
     if platform in SYSTEM_BOUND_PLATFORMS:
-        theirs, ours = agent_system(wanted), agent_system(page_agent)
-        # A User-Agent naming no system cannot be held to one: dtk then
-        # builds the query with its default, Windows, like the page's.
-        return theirs is not None and ours is not None and theirs != ours
+        # The caller's side is the system dtk will write into the query, which
+        # for a User-Agent naming none is its default, Windows - not "unknown":
+        # a page on another system refuses that query as it would any other.
+        # The page's side is what it runs; a page whose string names no system
+        # cannot be held to one.
+        theirs = agent_system(wanted) or _QUERY_DEFAULT_SYSTEM
+        ours = agent_system(page_agent)
+        return ours is not None and theirs != ours
     return False
 
 
