@@ -759,6 +759,38 @@ class TestTheSdkUrlIsTheWholeAnswer:
         assert "msToken" not in signed
         assert signed == sdk
 
+    async def test_an_empty_value_the_sdk_sealed_is_kept(self) -> None:
+        """Nothing taken away either: X-Gnarly hashes `&msToken=` when it is empty.
+
+        Issue #832. A TikTok page seals an empty msToken while its SDK has no
+        token yet, and the empty pair used to be dropped here as "not
+        reported", so the request carried a query its seal did not describe.
+        """
+        sdk = {"X-Dynosaur": "DYN", "msToken": "", "X-Bogus": "1", "X-Gnarly": "GNA"}
+        context = CloakSigningContext(Platform.TIKTOK, StubContext(), self.SdkPage(sdk))
+        signed = await context.sign(
+            SignPlan(
+                platform=Platform.TIKTOK,
+                url="https://www.tiktok.com/api/user/detail/",
+                query="uniqueId=tiktok",
+                params={},
+            )
+        )
+        assert signed == sdk
+        assert list(signed) == list(sdk), "the order is the order the SDK appended"
+
+    async def test_a_page_that_added_only_empty_values_added_nothing(self) -> None:
+        context = CloakSigningContext(Platform.TIKTOK, StubContext(), self.SdkPage({"msToken": ""}))
+        with pytest.raises(BackendFailure, match="added no parameters"):
+            await context.sign(
+                SignPlan(
+                    platform=Platform.TIKTOK,
+                    url="https://www.tiktok.com/api/user/detail/",
+                    query="uniqueId=tiktok",
+                    params={},
+                )
+            )
+
 
 class NavigatingPage(StubPage):
     """A page whose document is replaced while a signature is running in it.

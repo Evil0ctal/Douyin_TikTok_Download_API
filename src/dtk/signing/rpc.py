@@ -258,7 +258,11 @@ class RpcSigner:
         added: dict[str, str] = {}
 
         for field, value in body.items():
-            if value in (None, ""):
+            # An empty value stays, where the page put it. TikTok's page seals
+            # `msToken=` with nothing after it while its SDK has no token yet,
+            # and X-Gnarly hashes the query with that pair in it; dropping it
+            # here sent a query the seal does not describe (#832).
+            if value is None:
                 continue
             # Legacy snake_case aliases from older service builds.
             param = PASSTHROUGH_FIELDS.get(field, field)
@@ -283,8 +287,9 @@ class RpcSigner:
             algorithm = SignatureAlgorithm.A_BOGUS
         # Carriers, not signatures. A response holding only these has told us
         # which identity to present but not how to prove the request, and the
-        # platform will answer with an empty body - better to say so here.
-        if not added or all(k in NON_SIGNATURE_PARAMS for k in added):
+        # platform will answer with an empty body - better to say so here. An
+        # empty value proves nothing either, now that one is kept.
+        if not any(v for k, v in added.items() if k not in NON_SIGNATURE_PARAMS):
             raise SigningFailed(
                 f"browser-rpc returned no signature parameter, only {sorted(added) or 'nothing'}"
             )
@@ -302,6 +307,14 @@ class RpcSigner:
         # token in the query, so the query cannot follow the jar; the cookie
         # follows the query instead. The native signer has no such gap: it
         # seals the jar's own token.
+        #
+        # Except when the page sealed an empty one: then nothing is overridden
+        # and the Cookie header carries the jar's own token. #832 proposed an
+        # empty msToken cookie for that case, and on 2026-11-20
+        # /api/user/detail/ refused it 0/3, refused no msToken cookie 0/3, and
+        # answered when the jar's live token rode along. An override would
+        # also count as sealed, and the pool would then not keep the token
+        # TikTok rotates in its answer.
         token = added.get(MS_TOKEN_PARAM)
         return SignedParams(
             query="&".join(parts),

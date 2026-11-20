@@ -1416,6 +1416,39 @@ async def test_rpc_signer_names_the_ms_token_its_page_sealed() -> None:
     assert dict(signed.cookies) == {MS_TOKEN_PARAM: "PAGE-TOKEN"}
 
 
+async def test_an_empty_ms_token_the_page_sealed_stays_in_the_query() -> None:
+    """Issue #832: X-Gnarly hashes `&msToken=` even when the value is empty.
+
+    A page with no token of its own yet seals the empty pair, and this client
+    used to drop it, sending a query its seal did not describe. The Cookie
+    header keeps the jar's own token: on 2026-11-20 TikTok refused an empty
+    msToken cookie 0/3 and no msToken cookie 0/3, so there is no override.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"X-Dynosaur": "DYN", "msToken": "", "X-Bogus": "1", "X-Gnarly": "GNA"}
+        )
+
+    session = SigningSession(cookies={MS_TOKEN_PARAM: "JAR-TOKEN", "ttwid": "t"})
+    async with rpc_client(handler) as client:
+        signed = await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT, session)
+
+    assert signed.query.endswith(f"&X-Dynosaur=DYN&{MS_TOKEN_PARAM}=&X-Bogus=1&X-Gnarly=GNA")
+    assert dict(signed.cookies) == {}
+
+
+async def test_an_empty_signature_is_still_no_signature() -> None:
+    """Keeping empty values must not turn an empty a_bogus into a proof."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"a_bogus": "", "ms_token": "abc"})
+
+    async with rpc_client(handler) as client:
+        with pytest.raises(SigningFailed, match="no signature"):
+            await RpcSigner(client, "http://rpc").sign(DOUYIN_SPEC, FINGERPRINT)
+
+
 async def test_a_signature_over_the_jar_names_no_cookie() -> None:
     """Nothing to override when no page token was sealed, and never natively:
     the native signer seals the jar's own token."""

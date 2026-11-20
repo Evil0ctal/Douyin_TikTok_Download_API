@@ -618,10 +618,18 @@ class CloakSigningContext:
                 "open an issue."
             )
 
-        signed = _string_fields(result.get("params"))
-        if not signed:
+        signed = _signed_fields(result.get("params"))
+        if not any(signed.values()):
             raise BackendFailure(f"the {self._platform.value} SDK added no parameters")
-        # NOTHING is added here. What the SDK put in the URL is the whole answer.
+        # NOTHING is added here, and nothing taken away. What the SDK put in the
+        # URL is the whole answer, empty values included.
+        #
+        # Issue #832: a TikTok page seals `msToken=` with no value while its
+        # SDK has no token of its own yet, and X-Gnarly's query hash covers
+        # that `&msToken=`. This used to go through the copier the fingerprint
+        # uses, which drops an empty value as "not reported", so the request
+        # went out without the pair its seal names - the same misdescription
+        # as the forgery below, in the other direction.
         #
         # There used to be a "helpful" fallback that appended the page's msToken
         # cookie when the SDK had not put one in the query. It is a signature
@@ -1195,13 +1203,33 @@ def _as_int(value: str | None) -> int | None:
 
 
 def _string_fields(value: Any) -> dict[str, str]:
-    """Keep the non-empty string fields of a JavaScript result object."""
+    """Keep the non-empty string fields of a JavaScript result object.
+
+    For what a page reports about itself, where an empty value means it did
+    not say. Never for what an SDK signed - see `_signed_fields`.
+    """
     if not isinstance(value, dict):
         return {}
     return {
         str(key): str(item)
         for key, item in value.items()
         if item is not None and str(item).strip() != ""
+    }
+
+
+def _signed_fields(value: Any) -> dict[str, str]:
+    """The parameters an SDK appended, exactly as appended, empty values included.
+
+    An empty value is still a parameter: the signature covers ``name=`` like
+    any other pair (#832). Only an undefined one is dropped, which a URL
+    cannot carry anyway.
+    """
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): str(item)
+        for key, item in value.items()
+        if item is not None and not isinstance(item, dict | list)
     }
 
 
