@@ -112,10 +112,12 @@ from dtk.signing.registry import (
     ExactComparator,
     RegistryPolicy,
     RiskSample,
+    SdkBuildComparator,
     ShadowSkip,
     SignerRegistry,
     SigningMode,
     SlidingRiskWindow,
+    XBogusComparator,
 )
 from dtk.signing.rpc import RPC_ERROR_EXCERPT_CHARS, RpcSigner
 
@@ -3456,8 +3458,9 @@ class TestTikTokSignature:
         tiktok.com began serving webmssdk 2.0.0.569 while this module still
         stamped 2.0.0.561 into every signature. TikTok accepted it - it accepted
         "9.9.9" too, on 2026-11-20 - and the shadow comparison reported "match",
-        because its only TikTok verdict is X-Bogus, the constant "1" on both
-        sides. So nothing at runtime notices a stale build; this does.
+        because its only TikTok verdict was X-Bogus, the constant "1" on both
+        sides. It compares the build now (TestTikTokShadowVerdicts), against a
+        browser; this pins the shipped build against a capture.
         """
         token = BUILD_569_CAPTURE
         payload, _ = tiktok_sign.unseal(token)
@@ -3736,3 +3739,113 @@ class TestNativeSignerOnTikTok:
     async def test_it_no_longer_computes_a_sixteen_character_x_bogus(self):
         signed = await self._sign({"aid": "1988"})
         assert signed.params["X-Bogus"] == "1"
+
+
+# --------------------------------------------------------------------------
+# registry: what a TikTok shadow sample can judge
+# --------------------------------------------------------------------------
+
+
+def dynosaur_of(build: tiktok_sign.SdkBuild) -> str:
+    """A real X-Dynosaur that names ``build``, sealed under a fixed key."""
+    payload = tiktok_sign.dynosaur_payload(
+        BUILD_569_QUERY, "UA", timestamp=1_700_000_000, nonce=7, build=build
+    )
+    return tiktok_sign.seal(payload, tuple(range(1, 13)))
+
+
+class TestTikTokShadowVerdicts:
+    """TikTok's only verdict was X-Bogus, the constant "1" on both sides.
+
+    So the self-check passed TikTok as "native and browser signatures agree"
+    while the native signer stamped a webmssdk build tiktok.com had stopped
+    serving. X-Dynosaur names its build, and that is what both signers can be
+    held to.
+    """
+
+    def test_the_build_reads_out_of_a_real_capture(self) -> None:
+        assert tiktok_sign.read_build(BUILD_569_CAPTURE) == tiktok_sign.CURRENT_BUILD
+        assert tiktok_sign.read_build(dynosaur_of(HARNESS_BUILD)) == HARNESS_BUILD
+
+    def test_the_vestigial_x_bogus_is_not_a_verdict(self) -> None:
+        assert XBogusComparator().compare("1", "1") is Comparison.SKIPPED
+        # The platform computing a real one again is a change worth seeing.
+        assert XBogusComparator().compare("1", "DFSzswVOAATANH89") is Comparison.MISMATCH
+        assert XBogusComparator().compare("DFSz", "DFSz") is Comparison.MATCH
+
+    @pytest.mark.parametrize(
+        ("remote", "verdict"),
+        [
+            (BUILD_569_CAPTURE, Comparison.MATCH),
+            (dynosaur_of(tiktok_sign.CURRENT_BUILD), Comparison.MATCH),
+            (dynosaur_of(HARNESS_BUILD), Comparison.DRIFT),
+            (
+                dynosaur_of(replace(tiktok_sign.CURRENT_BUILD, vm_state_hash=0x12345678)),
+                Comparison.DRIFT,
+            ),
+            # A page in its first seconds seals hash_state("") there.
+            (
+                dynosaur_of(
+                    replace(
+                        tiktok_sign.CURRENT_BUILD,
+                        vm_state_hash=tiktok_sign.UNSETTLED_STATE_HASH,
+                    )
+                ),
+                Comparison.MATCH,
+            ),
+            # Not an envelope at all: the reference failed, nothing is judged.
+            ("1", Comparison.SKIPPED),
+        ],
+    )
+    def test_the_build_comparator(self, remote: str, verdict: Comparison) -> None:
+        native = dynosaur_of(tiktok_sign.CURRENT_BUILD)
+        assert SdkBuildComparator().compare(native, remote) is verdict
+
+    def test_a_native_value_its_own_reader_rejects_is_a_mismatch(self) -> None:
+        assert SdkBuildComparator().compare("1", BUILD_569_CAPTURE) is Comparison.MISMATCH
+
+    @staticmethod
+    def _browser_answering(dynosaur: str) -> Callable[[httpx.Request], httpx.Response]:
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content)
+            params = {
+                "X-Dynosaur": dynosaur,
+                "msToken": body["params"].get("msToken", ""),
+                "X-Bogus": "1",
+                "X-Gnarly": "GNARLY",
+            }
+            return httpx.Response(200, json=params)
+
+        return handler
+
+    async def test_a_drifted_build_is_reported_and_never_switches(self) -> None:
+        handler = self._browser_answering(dynosaur_of(HARNESS_BUILD))
+        async with rpc_client(handler) as client:
+            registry = SignerRegistry(native_signers(), RpcSigner(client, "http://rpc"))
+            assert await registry.compare_shadow(TIKTOK_SPEC, FINGERPRINT) is True
+
+        result = registry.shadow_result(Platform.TIKTOK, TIKTOK_SPEC.endpoint)
+        assert result is not None
+        assert (result.compared, result.matched) == (True, True)
+        assert result.verdicts["X-Dynosaur"] is Comparison.DRIFT
+        assert result.verdicts["X-Bogus"] is Comparison.SKIPPED
+        assert result.detail == (
+            "X-Dynosaur: the browser signs as webmssdk 2.0.0.561 (sdkVersion 5.3.2, "
+            "state 0xC46CE353), the native signer as webmssdk 2.0.0.569 (sdkVersion 5.3.3, "
+            "state 0xF3237B02)"
+        )
+        # Reported, not acted on: browser-rpc's own item_list signatures are
+        # refused, so a switch would turn a stale stamp into an outage.
+        assert registry.native_enabled(Platform.TIKTOK) is True
+
+    async def test_the_same_build_is_a_real_match(self) -> None:
+        handler = self._browser_answering(BUILD_569_CAPTURE)
+        async with rpc_client(handler) as client:
+            registry = SignerRegistry(native_signers(), RpcSigner(client, "http://rpc"))
+            assert await registry.compare_shadow(TIKTOK_SPEC, FINGERPRINT) is True
+
+        result = registry.shadow_result(Platform.TIKTOK, TIKTOK_SPEC.endpoint)
+        assert result is not None
+        assert (result.compared, result.matched, result.detail) == (True, True, None)
+        assert result.verdicts["X-Dynosaur"] is Comparison.MATCH
+        assert result.verdicts["X-Bogus"] is Comparison.SKIPPED

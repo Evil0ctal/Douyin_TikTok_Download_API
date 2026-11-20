@@ -65,7 +65,7 @@ from dtk.ops.health import (
 from dtk.platforms.douyin.endpoints import DouyinAPIEndpoints
 from dtk.platforms.tiktok.endpoints import TikTokAPIEndpoints
 from dtk.signing.base import RequestSpec, StaticFingerprint
-from dtk.signing.registry import ShadowSkip, SignerRegistry
+from dtk.signing.registry import Comparison, ShadowSkip, SignerRegistry
 
 log = get_logger(__name__)
 
@@ -231,6 +231,7 @@ class StepCode(StrEnum):
     SIGNING_MISMATCH = "signing_mismatch"
     SIGNING_NATIVE_FAILED = "signing_native_failed"
     SIGNING_REFERENCE_FAILED = "signing_reference_failed"
+    SIGNING_BUILD_DRIFT = "signing_build_drift"
     SIGNING_NOT_COMPARABLE = "signing_not_comparable"
     SIGNING_OK = "signing_ok"
 
@@ -267,6 +268,7 @@ ACTIONABLE_CODES: Final[frozenset[str]] = frozenset(
         StepCode.SIGNING_MISMATCH,
         StepCode.SIGNING_NATIVE_FAILED,
         StepCode.SIGNING_REFERENCE_FAILED,
+        StepCode.SIGNING_BUILD_DRIFT,
         # The sentence for this one was written and never wired up, so the step
         # showed a warning and the terse per-platform detail under it with
         # nothing saying what it meant or whether anything was broken. It is the
@@ -709,6 +711,7 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
     # sentence sent the reporter after a bundle that had not moved.
     native_failed: dict[str, str] = {}
     reference_failed: dict[str, str] = {}
+    drifted: dict[str, str] = {}
     skipped: list[str] = []
     for platform, url in SIGNING_PROBE_URLS.items():
         spec = RequestSpec.get(url, params={"aweme_id": "0", "device_platform": "webapp"})
@@ -732,6 +735,13 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
             else:
                 skipped.append(platform.value)
             continue
+        if shadow is not None and Comparison.DRIFT in shadow.verdicts.values():
+            # Compared, and the browser signs as another build of the SDK: the
+            # native signer still serves (and is not switched off for this),
+            # but it is stamping a build the platform no longer ships.
+            drifted[platform.value] = shadow.detail or ""
+            details[platform.value] = f"build drift: {shadow.detail}"
+            continue
         details[platform.value] = (
             "match" if agreed else f"mismatch: {shadow.detail if shadow else ''}"
         )
@@ -752,6 +762,15 @@ async def check_signing(ctx: DiagnoseContext) -> StepResult:
             StepStatus.FAIL,
             StepCode.SIGNING_NATIVE_FAILED,
             args={"platforms": ", ".join(native_failed), "error": _one_error(native_failed)},
+            details=details,
+        )
+    if drifted:
+        # Ahead of the reference failures: it is a finding about dtk itself,
+        # and the one an operator can only fix by updating it.
+        return result(
+            StepStatus.WARN,
+            StepCode.SIGNING_BUILD_DRIFT,
+            args={"platforms": ", ".join(drifted), "drift": _one_error(drifted)},
             details=details,
         )
     # Every skip below is a warning, never a pass, and any skip at all - not

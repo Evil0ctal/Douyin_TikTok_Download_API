@@ -35,6 +35,7 @@ from dtk.signing import (
     SignerRegistry,
     native_signers,
 )
+from dtk.signing.native import tiktok_sign
 
 SECRET = "c" * 48
 PROXY_ID = "22222222-2222-2222-2222-222222222222"
@@ -619,6 +620,79 @@ async def test_a_comparison_that_crashed_is_not_counted_as_agreement() -> None:
     assert result.status is StepStatus.WARN
     assert result.code is StepCode.SIGNING_NOT_COMPARABLE
     assert "RuntimeError: boom" in result.details["tiktok"]
+
+
+async def test_tiktoks_constant_x_bogus_is_not_agreement() -> None:
+    """Both signers send X-Bogus "1" on TikTok; equal constants prove nothing.
+
+    It was TikTok's only verdict, so this step passed TikTok as "native and
+    browser signatures agree" through a webmssdk bump the native signer had
+    not followed.
+    """
+    marker = ProbeSigner(SIGNER_NATIVE, value="1")
+    result = await diagnose.check_signing(
+        signing_context(marker, ProbeSigner(SIGNER_BROWSER, value="1"))
+    )
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.SIGNING_NOT_COMPARABLE
+    assert "nothing comparable (X-Bogus)" in result.details["tiktok"]
+
+
+class BuildSigner(ProbeSigner):
+    """Answers with an X-Dynosaur that names one webmssdk build."""
+
+    def __init__(self, name: str, build: tiktok_sign.SdkBuild) -> None:
+        super().__init__(name)
+        payload = tiktok_sign.dynosaur_payload(
+            "aid=1988", "UA", timestamp=1_700_000_000, nonce=7, build=build
+        )
+        self.token = tiktok_sign.seal(payload, tuple(range(1, 13)))
+
+    async def sign(
+        self, spec: RequestSpec, identity_fingerprint: Any, session: Any = None
+    ) -> SignedParams:
+        return SignedParams(
+            query=f"aid=1988&X-Dynosaur={self.token}&X-Bogus=1",
+            params={"X-Dynosaur": self.token, "X-Bogus": "1"},
+            signer=self.name,
+            algorithm=SignatureAlgorithm.X_BOGUS,
+        )
+
+
+async def test_a_build_the_platform_moved_past_is_a_warning_that_names_both() -> None:
+    old = tiktok_sign.SdkBuild("5.3.2", "2.0.0.561", 0xC46CE353)
+    registry = SignerRegistry(
+        {Platform.TIKTOK: BuildSigner(SIGNER_NATIVE, old)},
+        BuildSigner(SIGNER_BROWSER, tiktok_sign.CURRENT_BUILD),
+    )
+    result = await diagnose.check_signing(
+        DiagnoseContext(rpc=BrowserRpcClient("http://rpc"), registry=registry)
+    )
+
+    assert result.status is StepStatus.WARN
+    assert result.code is StepCode.SIGNING_BUILD_DRIFT
+    assert result.args["platforms"] == "tiktok"
+    assert "the browser signs as webmssdk 2.0.0.569" in result.args["drift"]
+    assert "the native signer as webmssdk 2.0.0.561" in result.args["drift"]
+    assert result.details["tiktok"].startswith("build drift: X-Dynosaur: ")
+    # Reported, never switched on.
+    assert registry.native_enabled(Platform.TIKTOK) is True
+    for language in (Language.EN, Language.ZH):
+        rendered = result.as_dict(language)
+        assert "2.0.0.569" in rendered["reason"]
+        assert rendered["action"]
+
+
+async def test_the_same_build_on_both_sides_is_a_pass() -> None:
+    registry = SignerRegistry(
+        {Platform.TIKTOK: BuildSigner(SIGNER_NATIVE, tiktok_sign.CURRENT_BUILD)},
+        BuildSigner(SIGNER_BROWSER, tiktok_sign.CURRENT_BUILD),
+    )
+    result = await diagnose.check_signing(
+        DiagnoseContext(rpc=BrowserRpcClient("http://rpc"), registry=registry)
+    )
+    # Douyin has no native signer here, which is its own skip; TikTok matched.
+    assert result.details["tiktok"] == "match"
 
 
 async def test_agreement_on_every_platform_is_a_pass() -> None:

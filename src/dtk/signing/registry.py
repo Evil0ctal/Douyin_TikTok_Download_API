@@ -42,6 +42,14 @@ produce a permanent switch on the first sample:
   browser behind browser-rpc has its own.
 * **msToken** is per-identity. Not compared - and pinned before sampling, see
   :data:`SHADOW_MS_TOKEN`, so both signers sign the same bytes.
+* **X-Dynosaur** seals a per-call key and clock, so no two agree byte for byte,
+  but it names the webmssdk build that signed it, and both sides must name the
+  one tiktok.com serves. A different build is :attr:`Comparison.DRIFT`:
+  reported, never switched on - see :class:`SdkBuildComparator`.
+* TikTok's **X-Bogus** is the constant ``1`` on both sides and is not compared;
+  until X-Dynosaur was, a match on it was TikTok's only verdict, and the
+  self-check reported "native and browser signatures agree" on the strength of
+  a constant.
 
 A sample where nothing was comparable is reported as "not compared" rather than
 as a match; :meth:`SignerRegistry.compare_shadow` still returns ``True`` there,
@@ -74,6 +82,12 @@ from dtk.signing.base import (
     platform_of,
 )
 from dtk.signing.native.abogus import is_decode_problem, structure_error
+from dtk.signing.native.tiktok_sign import (
+    DYNOSAUR_PARAM,
+    UNSETTLED_STATE_HASH,
+    SdkBuild,
+    read_build,
+)
 from dtk.signing.protection import requires_browser_signature as signed_by_platform
 
 logger = get_logger(__name__)
@@ -99,6 +113,14 @@ class Comparison(StrEnum):
     MATCH = "match"
     MISMATCH = "mismatch"
     SKIPPED = "skipped"
+    #: The same algorithm, stamped as a different build of the platform's SDK.
+    #: Reported and never acted on: a MISMATCH moves the platform onto
+    #: browser-rpc, and for TikTok that is the wrong answer to a build bump -
+    #: tiktok.com accepted the previous build's signatures (and invented ones)
+    #: when it was measured, while browser-rpc's own item_list signatures are
+    #: refused for their ub_code. Switching would trade a fingerprint tell for
+    #: an outage.
+    DRIFT = "drift"
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +200,86 @@ class SkipComparator:
 
     def compare(self, native: str, remote: str) -> Comparison:
         return Comparison.SKIPPED
+
+
+class XBogusComparator(ExactComparator):
+    """Exact, except where X-Bogus is TikTok's vestigial one-character marker.
+
+    On TikTok's HTTP requests X-Bogus is the literal ``1`` from both signers, so
+    an exact comparison of it always agreed and said nothing about either. It
+    was TikTok's only verdict, and the self-check passed TikTok as "native and
+    browser signatures agree" through the 2.0.0.561 -> 569 bundle bump that
+    neither side's X-Bogus could see. A real X-Bogus against the marker is
+    still a mismatch: the platform computing it again is a change worth seeing.
+    """
+
+    def compare(self, native: str, remote: str) -> Comparison:
+        if native == remote and len(native) <= 1:
+            return Comparison.SKIPPED
+        return super().compare(native, remote)
+
+
+class SdkBuildComparator:
+    """X-Dynosaur: do both signers stamp the same webmssdk build?
+
+    The seal carries a per-call key, a clock and a nonce, so two X-Dynosaurs of
+    one request never agree byte for byte - but the payload names the build that
+    produced it, and the browser's names the build tiktok.com is serving right
+    now. That is the drift that happened unseen: the page moved to 2.0.0.569
+    while the native signer kept stamping 2.0.0.561, and nothing at runtime
+    noticed (see :data:`dtk.signing.native.tiktok_sign.SDK_VERSION`).
+
+    A build that differs is :attr:`Comparison.DRIFT`, not a mismatch; the enum
+    says why. A browser page in its first seconds seals the empty-string state
+    hash where the build's belongs, so that one value is not held against us.
+    """
+
+    def compare(self, native: str, remote: str) -> Comparison:
+        try:
+            ours = read_build(native)
+        except ValueError as exc:
+            # Ours, generated and read back by the same module: a value we
+            # cannot read is a fault in this process, as with A-Bogus.
+            logger.error(
+                "signing.shadow.x_dynosaur_native_malformed",
+                problem=str(exc),
+                detail="the native signer produced an X-Dynosaur its own reader rejects",
+            )
+            return Comparison.MISMATCH
+        try:
+            theirs = read_build(remote)
+        except ValueError as exc:
+            # A browser-rpc that returned garbage, or an envelope TikTok has
+            # changed; this cannot tell which, so it judges nothing.
+            logger.warning(
+                "signing.shadow.x_dynosaur_remote_unusable",
+                problem=str(exc),
+                detail="browser-rpc returned a value this envelope does not open",
+            )
+            return Comparison.SKIPPED
+        return Comparison.MATCH if same_build(ours, theirs) else Comparison.DRIFT
+
+    @staticmethod
+    def explain(native: str, remote: str) -> str:
+        """The two builds, for the record of a drift. Version strings only."""
+        return (
+            f"the browser signs as {describe_build(read_build(remote))}, "
+            f"the native signer as {describe_build(read_build(native))}"
+        )
+
+
+def same_build(ours: SdkBuild, theirs: SdkBuild) -> bool:
+    """Whether two builds agree, not counting a page that had not settled."""
+    if (ours.sdk_version, ours.scm_version) != (theirs.sdk_version, theirs.scm_version):
+        return False
+    return theirs.vm_state_hash in (ours.vm_state_hash, UNSETTLED_STATE_HASH)
+
+
+def describe_build(build: SdkBuild) -> str:
+    return (
+        f"webmssdk {build.scm_version} (sdkVersion {build.sdk_version}, "
+        f"state 0x{build.vm_state_hash:08X})"
+    )
 
 
 class ABogusComparator:
@@ -307,8 +409,9 @@ class ABogusComparator:
 #: anything either signer computes.
 DEFAULT_COMPARATORS: Mapping[str, SignatureComparator] = {
     SignatureAlgorithm.A_BOGUS.value: ABogusComparator(),
-    SignatureAlgorithm.X_BOGUS.value: ExactComparator(),
+    SignatureAlgorithm.X_BOGUS.value: XBogusComparator(),
     SignatureAlgorithm.SIGNATURE.value: SkipComparator(),
+    DYNOSAUR_PARAM: SdkBuildComparator(),
     "msToken": SkipComparator(),
 }
 
@@ -729,6 +832,12 @@ class SignerRegistry:
                     key, False, True, "no comparable parameter", skip=ShadowSkip.NOTHING_COMPARABLE
                 )
             if Comparison.MISMATCH not in verdicts.values():
+                drift = self._drift(before, remote_signed, verdicts)
+                if drift is not None:
+                    logger.error(
+                        "signing.shadow.drift", platform=key[0].value, endpoint=key[1], detail=drift
+                    )
+                    return self._record_shadow(key, True, True, drift, verdicts)
                 if Comparison.MATCH not in verdicts.values():
                     # Naming them, and why. "every parameter skipped" was true
                     # and told an operator nothing they could act on: which
@@ -757,6 +866,19 @@ class SignerRegistry:
             {"platform": key[0].value, "endpoint": key[1], "parameters": detail},
         )
         return self._record_shadow(key, True, False, detail, verdicts)
+
+    def _drift(
+        self, native: SignedParams, remote: SignedParams, verdicts: Mapping[str, Comparison]
+    ) -> str | None:
+        """What drifted, in the comparators' own words; None when nothing did."""
+        found: list[str] = []
+        for name, verdict in verdicts.items():
+            if verdict is not Comparison.DRIFT:
+                continue
+            explain = getattr(self._comparators.get(name), "explain", None)
+            said = explain(native.params[name], remote.params[name]) if explain else None
+            found.append(f"{name}: {said}" if said else name)
+        return "; ".join(found) if found else None
 
     def _skip_reason(
         self, remote: SignedParams, verdicts: Mapping[str, Comparison]
@@ -943,10 +1065,12 @@ __all__ = [
     "RegistryPolicy",
     "RiskRateSource",
     "RiskSample",
+    "SdkBuildComparator",
     "ShadowResult",
     "ShadowSkip",
     "SignatureComparator",
     "SignerRegistry",
     "SkipComparator",
     "SlidingRiskWindow",
+    "XBogusComparator",
 ]

@@ -777,6 +777,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 | `signing_mismatch` | 原生算法相对平台已经漂移，针对列出的平台 | 这些平台现在改走 browser-rpc 签名。带上报告开一个 issue，好把算法更新掉 |
 | `signing_native_failed` | 原生签名器无法为探测请求签名 | 这是 dtk 移植实现的缺陷，出在承载流量的那条路径上。带上报告开一个 issue |
 | `signing_reference_failed` | browser-rpc 没能产出参考签名，结论里引用了它给出的原因 | **不是原生签名器的故障**，它仍然照常服务请求。先修好 browser-rpc（见下表），再跑一次自检 |
+| `signing_build_drift` | 两边都签了名，但浏览器签名里写的平台 SDK 版本与原生签名不同（TikTok 的 `X-Dynosaur` 带着它），结论里写明了两个版本 | 原生签名器继续服务，而且有意不被停用：上次实测时平台仍接受旧版本，切换的代价比旧版本本身更大。请升级 dtk；如果最新版本仍按旧版本签名，带上报告开一个 issue |
 | `signing_not_comparable` | 两边都签了名，但共有的参数里没有可判定的，或者比对本身没能运行，详情里写明是哪一种 | **这不是故障。** 原生路径不受影响，仍然照常服务请求 |
 | `signing_no_browser_rpc` | 没配 browser-rpc，因此没有第二个签名器 | 想要这项检查就设 `DTK_BROWSER_RPC_URL`。它的价值在于抢在风控率之前发现算法过期 |
 

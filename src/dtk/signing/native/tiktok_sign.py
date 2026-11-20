@@ -146,10 +146,11 @@ FNV_PRIME: Final = 16777619
 #: envelope constants are in both bundles, and a capture from the new one
 #: carries the same 25 X-Dynosaur keys. On 2026-11-20 TikTok still accepted the
 #: old strings - and made-up ones, "9.9.9" included - on item_list and
-#: user/detail, so a stale pair is a fingerprint tell rather than an outage, and
-#: the shadow comparison cannot see it (X-Bogus, its only TikTok verdict, is "1"
-#: on both sides). That is why the bump is checked against a capture in the
-#: tests instead.
+#: user/detail, so a stale pair is a fingerprint tell rather than an outage. The
+#: shadow comparison could not see it then - X-Bogus, its only TikTok verdict,
+#: is "1" on both sides - so the bump is pinned against a capture in the tests;
+#: it now reads the build out of both sides' X-Dynosaur (:func:`read_build`)
+#: and reports a difference as drift.
 SDK_VERSION: Final = "5.3.3"
 SCM_VERSION: Final = "2.0.0.569"
 
@@ -486,6 +487,41 @@ def decode_field(raw: bytes, config: tuple[int, int, int | None, int, int]) -> s
     return "".join(out)
 
 
+#: X-Dynosaur fields that carry the build, as (sdk version, scm version, state hash).
+BUILD_FIELDS: Final = (0x2A, 0x31, 0x38)
+
+#: What 0x38 holds in a page whose VM has not settled yet: :func:`hash_state` of
+#: nothing, which is the FNV offset basis itself. Not a build - see
+#: :data:`VM_STATE_HASH` - so a reader comparing builds must not count it as one.
+UNSETTLED_STATE_HASH: Final = FNV_OFFSET
+
+
+def read_build(dynosaur: str) -> SdkBuild:
+    """The build an ``X-Dynosaur`` says signed it.
+
+    The three fields are plain data in the payload, so any signature - ours, or
+    one the platform's own page produced - names its build once unsealed. That
+    makes this the one thing about a TikTok signature two independent signers
+    can be held to: the seals carry per-call keys and clocks and never agree
+    byte for byte, but both must stamp the build tiktok.com serves.
+
+    Raises ValueError for anything that is not an X-Dynosaur of this envelope.
+    """
+    payload, _ = unseal(dynosaur)
+    fields = unpack_payload(payload)
+    sdk, scm, state = (fields.get(key) for key in BUILD_FIELDS)
+    if not sdk or not scm or state is None or len(state) != 4:
+        raise ValueError("the payload carries no build fields")
+    try:
+        return SdkBuild(
+            decode_field(sdk, ENCODER_A),
+            decode_field(scm, ENCODER_A),
+            int.from_bytes(state, "big"),
+        )
+    except IndexError as exc:
+        raise ValueError("a build field is shorter than its own length byte") from exc
+
+
 def dynosaur_payload(
     query: str,
     user_agent: str,
@@ -737,6 +773,7 @@ __all__ = [
     "ALPHABET",
     "BOGUS_PARAM",
     "BOGUS_VALUE",
+    "BUILD_FIELDS",
     "CALL_SEQUENCE_START",
     "CURRENT_BUILD",
     "DYNOSAUR_PARAM",
@@ -748,6 +785,7 @@ __all__ = [
     "SCM_VERSION",
     "SDK_VERSION",
     "UB_CODE",
+    "UNSETTLED_STATE_HASH",
     "SdkBuild",
     "decode_field",
     "dynosaur_payload",
@@ -760,6 +798,7 @@ __all__ = [
     "mix_state",
     "pack_payload",
     "pick_ms_token",
+    "read_build",
     "seal",
     "sign",
     "unpack_payload",
