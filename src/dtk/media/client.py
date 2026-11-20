@@ -7,10 +7,12 @@ works exactly as before, so an unreachable service raises one specific
 exception that callers turn into a clear message rather than a 500.
 
 Nothing sensitive crosses this boundary. The sidecar receives mirrors, a
-per-platform host allowlist and a byte ceiling; it never receives a cookie, the
-master key, a database address or a caller's ``?proxy=``. That is a property of
-what this module sends, so it is worth checking here rather than trusting the
-other side to ignore what it is given.
+per-platform host allowlist and a byte ceiling; it never receives a login, the
+master key, a database address or a caller's ``?proxy=``. The one cookie it may
+receive is the anonymous token a CDN binds its links to, listed in
+:data:`dtk.media.plan.BOUND_COOKIES` and refused by name on the other side for
+anything else. That is a property of what this module sends, so it is worth
+checking here rather than trusting the other side to ignore what it is given.
 """
 
 from __future__ import annotations

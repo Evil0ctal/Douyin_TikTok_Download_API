@@ -33,7 +33,7 @@ docker compose -p dtk -f docker/compose.yml --profile downloader up -d --build
 
 没有设置 `DTK_DOWNLOADER_URL` 时，`POST /api/v1/downloads` 会返回 `501` 与 `NOT_CONFIGURED`，消息是 *"this instance has no media downloader; start the downloader compose profile and set DTK_DOWNLOADER_URL"*。「下载」页面顶部会显示同样的提示卡片，页面本身仍可作为此前已存内容的只读索引使用。
 
-sidecar 是整个栈里唯一会去连接任意 CDN 主机的容器，所以它被刻意做成了最「空」的一个：`scratch` 镜像里只有一个静态编译的 Go 二进制，没有 shell、没有包管理器，根文件系统只读，丢弃全部 capabilities，`no-new-privileges`，并且只有一个可写路径。它只接在 `edge` 网络上——没有任何通往 Postgres 或 Redis 的路由——而且即便共享的 env 文件里带着这些值，Compose 也会把它的 `DTK_SECRET_KEY`、`DTK_DATABASE_URL`、`DTK_REDIS_URL` 置空。它从来拿不到 Cookie、代理、API Key 或数据库地址；它收到的只有一份镜像 URL 列表、对应平台的主机白名单，和一个字节上限。
+sidecar 是整个栈里唯一会去连接任意 CDN 主机的容器，所以它被刻意做成了最「空」的一个：`scratch` 镜像里只有一个静态编译的 Go 二进制，没有 shell、没有包管理器，根文件系统只读，丢弃全部 capabilities，`no-new-privileges`，并且只有一个可写路径。它只接在 `edge` 网络上——没有任何通往 Postgres 或 Redis 的路由——而且即便共享的 env 文件里带着这些值，Compose 也会把它的 `DTK_SECRET_KEY`、`DTK_DATABASE_URL`、`DTK_REDIS_URL` 置空。它从来拿不到登录凭据、代理、API Key 或数据库地址；它收到的只有一份镜像 URL 列表、对应平台的主机白名单，和一个字节上限。TikTok 多一样：一个 `tt_chain_token` Cookie。TikTok 的 CDN 只把视频给取到链接的那个会话，所以下载 TikTok 作品时总会重新取一次详情，把那个身份的这一个 token 交给下载器，jar 里的其他东西一概不给。这个 token 是匿名的，只发给 `tiktok.com` 下的主机，不写盘、不出现在任务列表和日志里。
 
 它自己的参数，全部从 `.env` 读取：
 

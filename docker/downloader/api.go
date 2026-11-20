@@ -37,6 +37,7 @@ type submitRequest struct {
 	Domains   []string        `json:"domains"`
 	UserAgent string          `json:"user_agent"`
 	Referer   string          `json:"referer"`
+	Cookies   []cookieSpec    `json:"cookies"`
 	Meta      json.RawMessage `json:"meta,omitempty"`
 	Items     []struct {
 		Name     string   `json:"name"`
@@ -222,6 +223,9 @@ func buildJob(body submitRequest) (*job, error) {
 	if len(body.Items) == 0 {
 		return nil, errors.New("a job needs at least one item")
 	}
+	if err := validateCookies(body.Platform, body.Domains, body.Cookies); err != nil {
+		return nil, err
+	}
 	items := make([]*item, 0, len(body.Items))
 	for _, source := range body.Items {
 		if !safeSegment(source.Name) {
@@ -250,6 +254,7 @@ func buildJob(body submitRequest) (*job, error) {
 		Domains:   body.Domains,
 		UserAgent: body.UserAgent,
 		Referer:   body.Referer,
+		Cookies:   body.Cookies,
 		State:     stateQueued,
 		Items:     items,
 		CreatedAt: time.Now().UTC(),

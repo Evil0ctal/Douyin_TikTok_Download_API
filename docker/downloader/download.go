@@ -14,8 +14,10 @@ package main
 //     never be mistaken for an archive.
 //  3. The name is ours. CDN-supplied filenames arrive from the same place the
 //     bytes do and have no business deciding where those bytes land.
-//  4. No credentials, ever. This process holds no cookies and no master key; a
-//     mirror that needs a login is a mirror this job fails on.
+//  4. No credentials, ever. This process holds no login and no master key; a
+//     mirror that needs a login is a mirror this job fails on. The single
+//     exception is an anonymous cookie a CDN binds its links to, and
+//     cookies.go says how narrow it is.
 
 import (
 	"context"
@@ -59,6 +61,9 @@ type transferSpec struct {
 	Dest      string
 	UserAgent string
 	Referer   string
+	// Validated at submission; see cookies.go. Each one goes only to hosts
+	// inside its own domain.
+	Cookies []cookieSpec
 	// Optional. Told when a mirror starts and after every write.
 	Progress progress
 }
@@ -108,9 +113,9 @@ func (f *fetcher) close() {
 }
 
 // client builds an HTTP client whose redirect policy is bound to one job's
-// allowlist. The transport - and so the connection pool and the dial guard -
-// is shared; only the policy varies.
-func (f *fetcher) client(domains []string) *http.Client {
+// allowlist and cookies. The transport - and so the connection pool and the
+// dial guard - is shared; only the policy varies.
+func (f *fetcher) client(spec transferSpec) *http.Client {
 	return &http.Client{
 		Transport: f.transport,
 		Timeout:   f.timeout,
@@ -121,7 +126,17 @@ func (f *fetcher) client(domains []string) *http.Client {
 			// Every hop is re-validated, not just the first. A redirect is an
 			// instruction from the far end, and an allowlist checked once is
 			// an allowlist a 302 walks straight out of.
-			return checkTarget(req.URL, domains)
+			if err := checkTarget(req.URL, spec.Domains); err != nil {
+				return err
+			}
+			// net/http has already copied the first request's Cookie onto
+			// this hop by its own rule, which follows the first host rather
+			// than the cookie's domain. Decided again here, by the domain.
+			req.Header.Del("Cookie")
+			if header := cookieHeader(req.URL.Hostname(), spec.Cookies); header != "" {
+				req.Header.Set("Cookie", header)
+			}
+			return nil
 		},
 	}
 }
@@ -150,7 +165,7 @@ func (f *fetcher) fetch(ctx context.Context, spec transferSpec) (transferResult,
 	if len(spec.Mirrors) == 0 {
 		return transferResult{}, errors.New("no mirror survived the allowlist")
 	}
-	var lastErr error
+	failures := make([]error, 0, len(spec.Mirrors))
 	for _, mirror := range spec.Mirrors {
 		result, err := f.fetchOne(ctx, spec, mirror)
 		if err == nil {
@@ -159,9 +174,40 @@ func (f *fetcher) fetch(ctx context.Context, spec transferSpec) (transferResult,
 		if ctx.Err() != nil {
 			return transferResult{}, ctx.Err()
 		}
-		lastErr = err
+		failures = append(failures, err)
 	}
-	return transferResult{}, lastErr
+	return transferResult{}, everyMirrorFailed(failures)
+}
+
+// everyMirrorFailed says why each mirror failed, not only the last one.
+//
+// It used to be the last one alone. A TikTok video lists its CDN links first
+// and a www.tiktok.com page last; the CDN links answered 403 and the page
+// answered HTML, and the job reported only "www.tiktok.com answered
+// content-type text/html". That sent the reader of #831 after the wrong host
+// while the 403s - the actual answer - went unsaid. Identical reasons are
+// folded into one with a count, so a dozen mirrors on one edge stay readable.
+func everyMirrorFailed(failures []error) error {
+	if len(failures) == 1 {
+		return failures[0]
+	}
+	counts := make(map[string]int, len(failures))
+	order := make([]string, 0, len(failures))
+	for _, failure := range failures {
+		reason := failure.Error()
+		if counts[reason] == 0 {
+			order = append(order, reason)
+		}
+		counts[reason]++
+	}
+	reasons := make([]string, 0, len(order))
+	for _, reason := range order {
+		if n := counts[reason]; n > 1 {
+			reason = fmt.Sprintf("%s (%d mirrors)", reason, n)
+		}
+		reasons = append(reasons, reason)
+	}
+	return fmt.Errorf("all %d mirrors failed: %s", len(failures), strings.Join(reasons, "; "))
 }
 
 func (f *fetcher) fetchOne(ctx context.Context, spec transferSpec, mirror string) (transferResult, error) {
@@ -178,7 +224,7 @@ func (f *fetcher) fetchOne(ctx context.Context, spec transferSpec, mirror string
 	if err != nil {
 		return transferResult{}, err
 	}
-	response, err := f.client(spec.Domains).Do(request)
+	response, err := f.client(spec).Do(request)
 	if err != nil {
 		return transferResult{}, fmt.Errorf("%s: %w", host, err)
 	}
@@ -226,6 +272,9 @@ func newRequest(ctx context.Context, spec transferSpec, target *url.URL) (*http.
 	if spec.Referer != "" {
 		request.Header.Set("Referer", spec.Referer)
 	}
+	if header := cookieHeader(target.Hostname(), spec.Cookies); header != "" {
+		request.Header.Set("Cookie", header)
+	}
 	return request, nil
 }
 
@@ -259,7 +308,7 @@ func (f *fetcher) resume(ctx context.Context, spec transferSpec, target *url.URL
 	} else if modified := first.Header.Get("Last-Modified"); modified != "" {
 		request.Header.Set("If-Range", modified)
 	}
-	response, err := f.client(spec.Domains).Do(request)
+	response, err := f.client(spec).Do(request)
 	if err != nil {
 		return nil, err
 	}

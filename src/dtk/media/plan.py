@@ -17,6 +17,7 @@ object key, not a title, and half of them have no extension at all.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Final
 from urllib.parse import urlsplit
@@ -62,6 +63,48 @@ REFERER: Final[dict[Platform, str]] = {
     Platform.TIKTOK: "https://www.tiktok.com/",
     Platform.BILIBILI: "https://www.bilibili.com/",
 }
+
+
+@dataclass(frozen=True, slots=True)
+class BoundCookie:
+    """A cookie a platform's CDN binds its media links to, and where it goes."""
+
+    name: str
+    #: The cookie's own domain. The downloader sends it to hosts inside this
+    #: one only, the way a browser would.
+    domain: str
+
+
+#: The only cookies a download job may carry, per platform.
+#:
+#: TikTok's video links say ``tk=tt_chain_token``: its CDN serves them only to
+#: a request carrying the tt_chain_token of the session that asked for them,
+#: and answers 403 to everyone else (#831). That holds only for links asked for
+#: with the session's own device id - see ``dtk.platforms.tiktok.params`` - and
+#: with that pair the first mirror lands; without the cookie the download falls
+#: back to a www.tiktok.com mirror whose redirect depends on the exit. The
+#: token is anonymous - any visitor is given one - and it is the whole of what
+#: is sent: never the jar, never a login. The Go side keeps the same list
+#: (``boundCookies`` in docker/downloader/cookies.go) and refuses any other
+#: name, so a mistake here fails the job rather than shipping a credential.
+BOUND_COOKIES: Final[dict[Platform, tuple[BoundCookie, ...]]] = {
+    Platform.TIKTOK: (BoundCookie("tt_chain_token", "tiktok.com"),),
+}
+
+
+def bound_cookies(platform: Platform, jar: Mapping[str, str]) -> list[dict[str, str]]:
+    """The cookies a job for ``platform`` carries, taken from one identity's jar.
+
+    Empty for a platform whose links are not bound to a session, and for a jar
+    that lacks the token - the job then goes out without it and fails as it
+    always did, with the CDN's 403 in the reason.
+    """
+    return [
+        {"name": cookie.name, "value": jar[cookie.name], "domain": cookie.domain}
+        for cookie in BOUND_COOKIES.get(platform, ())
+        if jar.get(cookie.name)
+    ]
+
 
 #: A desktop Chrome string. The CDNs are not signing on it, but an obviously
 #: automated agent is answered differently by some edges, and this costs
@@ -337,6 +380,7 @@ def sidecar(row: Any, plan: Plan) -> dict[str, Any]:
 
 
 __all__ = [
+    "BOUND_COOKIES",
     "EXPORT_PREFIX",
     "IMAGE_ACCEPT",
     "IMAGE_MAX_BYTES",
@@ -345,8 +389,10 @@ __all__ = [
     "REFERER",
     "USER_AGENT",
     "VIDEO_ACCEPT",
+    "BoundCookie",
     "Plan",
     "PlannedItem",
+    "bound_cookies",
     "build",
     "export_name",
     "sidecar",

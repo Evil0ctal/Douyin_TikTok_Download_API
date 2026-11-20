@@ -63,21 +63,23 @@ type item struct {
 
 // job is one content key's media, as submitted by the main service.
 type job struct {
-	ID         string     `json:"id"`
-	Platform   string     `json:"platform"`
-	AuthorUID  string     `json:"author_uid"`
-	ContentID  string     `json:"content_id"`
-	Directory  string     `json:"directory"`
-	State      jobState   `json:"state"`
-	Items      []*item    `json:"items"`
-	Domains    []string   `json:"-"`
-	UserAgent  string     `json:"-"`
-	Referer    string     `json:"-"`
-	BytesTotal int64      `json:"bytes_total"`
-	Error      string     `json:"error,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	StartedAt  *time.Time `json:"started_at,omitempty"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	ID        string   `json:"id"`
+	Platform  string   `json:"platform"`
+	AuthorUID string   `json:"author_uid"`
+	ContentID string   `json:"content_id"`
+	Directory string   `json:"directory"`
+	State     jobState `json:"state"`
+	Items     []*item  `json:"items"`
+	Domains   []string `json:"-"`
+	UserAgent string   `json:"-"`
+	Referer   string   `json:"-"`
+	// Never serialized: a job listing is not a place a cookie may appear.
+	Cookies    []cookieSpec `json:"-"`
+	BytesTotal int64        `json:"bytes_total"`
+	Error      string       `json:"error,omitempty"`
+	CreatedAt  time.Time    `json:"created_at"`
+	StartedAt  *time.Time   `json:"started_at,omitempty"`
+	FinishedAt *time.Time   `json:"finished_at,omitempty"`
 
 	cancel context.CancelFunc
 }
@@ -297,6 +299,7 @@ func (m *manager) run(parent context.Context, current *job) {
 	domains := current.Domains
 	userAgent := current.UserAgent
 	referer := current.Referer
+	cookies := current.Cookies
 	m.mu.Unlock()
 
 	directory, err := safeJoin(m.root, current.Platform, current.AuthorUID, current.ContentID)
@@ -313,7 +316,7 @@ func (m *manager) run(parent context.Context, current *job) {
 			defer group.Done()
 			slots <- struct{}{}
 			defer func() { <-slots }()
-			m.fetchItem(ctx, current, directory, domains, userAgent, referer)
+			m.fetchItem(ctx, current, directory, domains, userAgent, referer, cookies)
 		}(target)
 	}
 	group.Wait()
@@ -325,7 +328,7 @@ func (m *manager) run(parent context.Context, current *job) {
 	m.settle(current)
 }
 
-func (m *manager) fetchItem(ctx context.Context, target *item, directory string, domains []string, userAgent, referer string) {
+func (m *manager) fetchItem(ctx context.Context, target *item, directory string, domains []string, userAgent, referer string, cookies []cookieSpec) {
 	destination, err := safeJoin(directory, target.Name)
 	if err != nil {
 		m.recordItem(target, "failed", 0, "", "", err.Error())
@@ -339,6 +342,7 @@ func (m *manager) fetchItem(ctx context.Context, target *item, directory string,
 		Dest:      destination,
 		UserAgent: userAgent,
 		Referer:   referer,
+		Cookies:   cookies,
 		Progress:  itemProgress{manager: m, target: target},
 	})
 	if err != nil {

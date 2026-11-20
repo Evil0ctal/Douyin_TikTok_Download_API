@@ -132,19 +132,40 @@ def job_payload(
     download: MediaDownload,
     row: ArchivedContent,
     plan: planner.Plan,
+    *,
+    cookies: Sequence[Mapping[str, str]] = (),
 ) -> dict[str, Any]:
     """The submission the sidecar receives.
 
-    Note what is not in it: no cookie, no proxy, no key, no database address.
-    The sidecar is given mirrors, the host allowlist it may reach for this one
-    platform, and a ceiling. Sending the union of both platforms' domains would
-    make "a Douyin post reaching a TikTok CDN" indistinguishable from a normal
-    job, so the allowlist is narrowed to the platform the post came from.
+    Note what is not in it: no proxy, no key, no database address, and no
+    cookie but the ones :data:`dtk.media.plan.BOUND_COOKIES` names - for TikTok
+    the single anonymous token its CDN binds a video link to. The sidecar is
+    given mirrors, the host allowlist it may reach for this one platform, and a
+    ceiling. Sending the union of both platforms' domains would make "a Douyin
+    post reaching a TikTok CDN" indistinguishable from a normal job, so the
+    allowlist is narrowed to the platform the post came from.
     """
     platform = Platform(row.platform)
     meta = planner.sidecar(row, plan)
     if download.part:
         meta["part"] = download.part
+    payload = _payload(download, row, plan, platform, meta)
+    allowed = {cookie.name for cookie in planner.BOUND_COOKIES.get(platform, ())}
+    carried = [dict(cookie) for cookie in cookies if cookie.get("name") in allowed]
+    # Absent rather than empty when there is none, so a Douyin job reads
+    # exactly as it did before TikTok needed this.
+    if carried:
+        payload["cookies"] = carried
+    return payload
+
+
+def _payload(
+    download: MediaDownload,
+    row: ArchivedContent,
+    plan: planner.Plan,
+    platform: Platform,
+    meta: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "id": download.id.hex,
         "platform": row.platform,

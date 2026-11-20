@@ -11,7 +11,8 @@ Three modules, in the order a download passes through them:
 The contract with that sidecar is the point of the split: it is a sink, not a
 relay. It receives mirrors this instance resolved from its own archive, never a
 caller's URL, and it never streams bytes back to an API caller. It holds no
-cookie, no master key and no database address.
+login, no master key and no database address - only, for TikTok, the anonymous
+token its CDN binds a video link to (``plan.BOUND_COOKIES``).
 """
 
 from dtk.media.client import (

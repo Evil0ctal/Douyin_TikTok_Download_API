@@ -324,8 +324,12 @@ Bilibili post point the downloader at anyone's bytes. The rest of
 The downloader sidecar closes the rebinding window that a name check cannot: it
 refuses at dial time any address that is not publicly routable, so a CDN name
 that resolves to `127.0.0.1` a moment after validation still fails. It also
-never receives a cookie, the master key, a database address or a caller's
-`?proxy=` — it gets mirrors, an allowlist and a byte ceiling.
+never receives a login, the master key, a database address or a caller's
+`?proxy=` — it gets mirrors, an allowlist and a byte ceiling. The one cookie it
+can be given is TikTok's `tt_chain_token`, because TikTok's CDN serves a video
+link only together with the token of the session that fetched it. That token
+is anonymous and names no account; the sidecar refuses any other cookie name,
+sends it only to `tiktok.com` hosts, and never writes, lists or logs it.
 
 ### Task callbacks
 

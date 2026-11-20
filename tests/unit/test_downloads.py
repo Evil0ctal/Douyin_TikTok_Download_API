@@ -20,6 +20,7 @@ from sqlalchemy.dialects import postgresql
 
 from dtk.core.types import Platform
 from dtk.db.models import MediaDownload
+from dtk.media import plan as planner
 from dtk.services import downloads
 
 MB = 1024 * 1024
@@ -156,6 +157,74 @@ class TestJobPayload:
         flat = str(payload)
         for forbidden in ("cookie", "Cookie", "secret", "proxy", "postgresql"):
             assert forbidden not in flat
+
+    def test_a_tiktok_job_carries_the_chain_token_and_nothing_else(self):
+        """#831: the CDN serves a video only with the fetching session's
+        tt_chain_token. Whatever else the jar holds stays on this side."""
+        content = self._tiktok_post()
+        download = SimpleNamespace(id=uuid.uuid4(), part=None)
+        plan = downloads.plan_for(content, max_file_bytes=MB)
+        jar = {"tt_chain_token": "chain-value", "sessionid": "login-value", "msToken": "m"}
+        payload = downloads.job_payload(
+            download, content, plan, cookies=planner.bound_cookies(Platform.TIKTOK, jar)
+        )
+
+        assert payload["cookies"] == [
+            {"name": "tt_chain_token", "value": "chain-value", "domain": "tiktok.com"}
+        ]
+        flat = str(payload)
+        assert "login-value" not in flat
+        assert "msToken" not in flat
+
+    def test_a_name_off_the_list_is_dropped_even_if_handed_in(self):
+        content = self._tiktok_post()
+        download = SimpleNamespace(id=uuid.uuid4(), part=None)
+        plan = downloads.plan_for(content, max_file_bytes=MB)
+        payload = downloads.job_payload(
+            download,
+            content,
+            plan,
+            cookies=[{"name": "sessionid", "value": "login-value", "domain": "tiktok.com"}],
+        )
+        assert "cookies" not in payload
+
+    def test_a_douyin_job_carries_no_cookie_whatever_it_is_handed(self):
+        content = SimpleNamespace(**{**vars(self._tiktok_post()), "platform": "douyin"})
+        content.media = {"video": {"url": "https://v9-v2-mps-cdn.douyinvod.com/x/v.mp4"}}
+        download = SimpleNamespace(id=uuid.uuid4(), part=None)
+        plan = downloads.plan_for(content, max_file_bytes=MB)
+        payload = downloads.job_payload(
+            download,
+            content,
+            plan,
+            cookies=[{"name": "tt_chain_token", "value": "chain-value", "domain": "tiktok.com"}],
+        )
+        assert "cookies" not in payload
+
+    def test_a_jar_without_the_token_sends_the_job_without_one(self):
+        assert planner.bound_cookies(Platform.TIKTOK, {"msToken": "m"}) == []
+        assert planner.bound_cookies(Platform.DOUYIN, {"tt_chain_token": "t"}) == []
+
+    @staticmethod
+    def _tiktok_post() -> SimpleNamespace:
+        return SimpleNamespace(
+            platform="tiktok",
+            content_id="7100000000000000001",
+            kind="video",
+            web_url="https://www.tiktok.com/@a/video/7100000000000000001",
+            title="t",
+            description="d",
+            platform_created_at=None,
+            duration_ms=1000,
+            author_uid="6900000000000000001",
+            author_nickname="n",
+            music_id=None,
+            music_title=None,
+            tags=[],
+            location=None,
+            last_seen_at=datetime.now(UTC),
+            media={"video": {"url": "https://v16-webapp-prime.us.tiktok.com/x?tk=tt_chain_token"}},
+        )
 
     def test_the_directory_is_relative_never_absolute(self):
         # The path inside the container is not the path on the host; storing an

@@ -1116,6 +1116,143 @@ async def test_a_post_whose_media_is_withheld_fails_with_that_reason(
         assert settled.error == "the platform does not give out this post's media"
 
 
+async def test_a_tiktok_download_refetches_and_carries_only_that_identity_s_chain_token(
+    api_app, db_engine, redis_client
+):
+    """#831: a TikTok video link is served only with the tt_chain_token of the
+    session that fetched it.
+
+    So the archived links are not used however fresh they are - nobody recorded
+    which identity fetched them - and the job carries the token of the identity
+    that fetched them now, read after the fetch, and nothing else from its jar.
+    """
+    import json
+
+    from dtk.core.config import Config
+    from dtk.worker.ops import OperationDeps, media_download
+    from tests.replay.support import load
+
+    content_id = "7100000000000000001"
+    now = datetime.now(UTC)
+    async with session_scope() as session:
+        session.add(
+            ArchivedContent(
+                platform="tiktok",
+                content_id=content_id,
+                kind="video",
+                web_url=f"https://www.tiktok.com/@a/video/{content_id}",
+                title="a post",
+                description="a post",
+                author_uid="6900000000000000001",
+                author_nickname="someone",
+                tags=[],
+                media={"video": {"url": "https://v16-webapp-prime.tiktok.com/archived"}},
+                first_seen_at=now,
+                last_seen_at=now,
+            )
+        )
+        await session.commit()
+    async with session_scope() as session:
+        row = (await session.scalars(select(ArchivedContent))).one()
+        download = await downloads.create(session, row)
+        download_id = download.id
+        await session.commit()
+
+    fetched: list[str] = []
+    loaded: list[str] = []
+    submitted: list[dict[str, Any]] = []
+
+    class Fetch:
+        async def fetch(self, *_args: Any, parse: Any, **_kwargs: Any) -> Any:
+            fetched.append("detail")
+            # The fixture's hosts are deliberately unroutable; these are the
+            # hosts the allowlist knows.
+            raw = json.dumps(load("tiktok", "video_normal"))
+            parse(json.loads(raw.replace("example-cdn.invalid", "tiktok.com")))
+            return SimpleNamespace(identity_id="identity-that-fetched")
+
+    class Pool:
+        async def load(self, _session: Any, identity_id: str, **_kwargs: Any) -> Any:
+            loaded.append(identity_id)
+            return SimpleNamespace(
+                cookies={"tt_chain_token": "chain-value", "sessionid": "login-value"}
+            )
+
+    class Downloader:
+        configured = True
+
+        async def submit(self, payload: dict[str, Any]) -> None:
+            submitted.append(payload)
+
+        async def job(self, _job_id: str) -> dict[str, Any]:
+            return {"state": "done", "bytes_total": 0, "items": []}
+
+    deps = OperationDeps(
+        config=Config.defaults,
+        cipher=object(),  # type: ignore[arg-type]
+        secret_key="unused",
+        pool=Pool(),  # type: ignore[arg-type]
+        transport=object(),  # type: ignore[arg-type]
+        signers=object(),  # type: ignore[arg-type]
+        downloader=Downloader(),  # type: ignore[arg-type]
+        fetch=Fetch(),  # type: ignore[arg-type]
+    )
+    async with session_scope() as session:
+        await media_download.run(deps, session, {"download_id": str(download_id)})
+
+    assert fetched == ["detail"], "fresh archived TikTok links were used as they were"
+    assert loaded == ["identity-that-fetched"]
+    (payload,) = submitted
+    assert payload["cookies"] == [
+        {"name": "tt_chain_token", "value": "chain-value", "domain": "tiktok.com"}
+    ]
+    assert "login-value" not in json.dumps(payload)
+    # Planned from what was just fetched, not from the archived link.
+    assert all("archived" not in url for item in payload["items"] for url in item["mirrors"])
+
+
+async def test_a_fresh_douyin_post_is_not_refetched_and_carries_no_cookie(
+    api_app, db_engine, redis_client
+):
+    from dtk.core.config import Config
+    from dtk.worker.ops import OperationDeps, media_download
+
+    await archive_a_post()
+    async with session_scope() as session:
+        row = (await session.scalars(select(ArchivedContent))).one()
+        download = await downloads.create(session, row)
+        download_id = download.id
+        await session.commit()
+
+    submitted: list[dict[str, Any]] = []
+
+    class Downloader:
+        configured = True
+
+        async def submit(self, payload: dict[str, Any]) -> None:
+            submitted.append(payload)
+
+        async def job(self, _job_id: str) -> dict[str, Any]:
+            return {"state": "done", "bytes_total": 0, "items": []}
+
+    deps = OperationDeps(
+        config=Config.defaults,
+        cipher=object(),  # type: ignore[arg-type]
+        secret_key="unused",
+        pool=object(),  # type: ignore[arg-type]
+        transport=object(),  # type: ignore[arg-type]
+        signers=object(),  # type: ignore[arg-type]
+        downloader=Downloader(),  # type: ignore[arg-type]
+        fetch=None,
+    )
+    async with session_scope() as session:
+        await media_download.run(deps, session, {"download_id": str(download_id)})
+
+    (payload,) = submitted
+    assert "cookies" not in payload
+    assert payload["referer"] == "https://www.douyin.com/"
+
+
 # --------------------------------------------------------------------------
 # Not downloading the same post twice at once, or twice at all
 # --------------------------------------------------------------------------

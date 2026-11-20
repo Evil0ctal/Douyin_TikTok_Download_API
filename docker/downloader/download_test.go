@@ -154,6 +154,55 @@ func TestFetchFailsOverToTheNextMirror(t *testing.T) {
 	}
 }
 
+func TestFetchReportsEveryMirrorsFailure(t *testing.T) {
+	// The shape of #831: the CDN links refuse, and the last mirror is a web
+	// page. Reporting only the page hid the refusals that were the answer.
+	refused := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer refused.Close()
+	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte("<html></html>"))
+	}))
+	defer page.Close()
+
+	_, err := localFetcher(t).fetch(context.Background(), transferSpec{
+		Mirrors:  []string{refused.URL + "/a", refused.URL + "/b", page.URL},
+		Domains:  []string{hostOf(t, refused.URL)},
+		Accept:   []string{"video/"},
+		MaxBytes: 1 << 20,
+		Dest:     filepath.Join(t.TempDir(), "video.mp4"),
+	})
+	if err == nil {
+		t.Fatal("expected every mirror to fail")
+	}
+	message := err.Error()
+	for _, want := range []string{"all 3 mirrors failed", "answered 403 (2 mirrors)", "content-type"} {
+		if !strings.Contains(message, want) {
+			t.Errorf("error %q does not say %q", message, want)
+		}
+	}
+}
+
+func TestFetchKeepsALoneMirrorsFailureAsItWas(t *testing.T) {
+	refused := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer refused.Close()
+
+	_, err := localFetcher(t).fetch(context.Background(), transferSpec{
+		Mirrors:  []string{refused.URL},
+		Domains:  []string{hostOf(t, refused.URL)},
+		Accept:   []string{"image/"},
+		MaxBytes: 1 << 20,
+		Dest:     filepath.Join(t.TempDir(), "cover.jpg"),
+	})
+	if err == nil || err.Error() != hostOf(t, refused.URL)+" answered 403" {
+		t.Fatalf("error = %v, want the mirror's own reason", err)
+	}
+}
+
 func TestFetchRefusesRedirectOffTheAllowlist(t *testing.T) {
 	// The 302 out of the allowlist is the SSRF that a host check performed once
 	// would miss entirely.

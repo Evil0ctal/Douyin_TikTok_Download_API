@@ -17,7 +17,10 @@ What this module never does:
 
 * accept a URL from a caller - it takes a ``download_id``, reads the archive,
   and every mirror is checked against the media allowlist before a job exists;
-* hand the sidecar a cookie, a proxy, a key or a database address;
+* hand the sidecar a proxy, a key, a database address or a cookie - with one
+  exception, the anonymous token a platform's CDN binds its links to
+  (:data:`dtk.media.plan.BOUND_COOKIES`), taken from the identity whose fetch
+  produced those links and from no other;
 * delete anything. Eviction is the maintenance sweep's, and it is separate.
 """
 
@@ -26,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 
@@ -34,6 +38,7 @@ from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.db.models import ArchivedContent
 from dtk.media import DownloaderBusy, DownloaderUnavailable
+from dtk.media import plan as planner
 from dtk.services import archive, downloads
 from dtk.services.fetch import FetchContext
 from dtk.worker import registry
@@ -53,6 +58,20 @@ POLL_INTERVAL_SECONDS: Final = 2.0
 #: Ceiling on one job. Long: a 250 MB video over a slow link is a legitimate
 #: half hour. What bounds a runaway is the per-file byte ceiling, not this.
 POLL_TIMEOUT_SECONDS: Final = 3600.0
+
+
+@dataclass(frozen=True, slots=True)
+class _Source:
+    """The row a job is planned from, and the identity that fetched it.
+
+    The identity is known only when this job fetched the row itself. A row read
+    back from the archive was fetched by some earlier request on some identity
+    nobody recorded, which is why a platform whose links are bound to a session
+    is never planned from one.
+    """
+
+    row: ArchivedContent | None
+    identity_id: str | None = None
 
 
 async def run(
@@ -76,11 +95,12 @@ async def run(
         await downloads.fail(session, download_id, "media downloads are disabled")
         raise InvalidParam("media downloads are disabled")
 
-    row = (
+    source = (
         await _part_content(deps, session, download)
         if download.part
         else await _content(deps, session, download, config)
     )
+    row = source.row
     if row is None:
         await downloads.fail(session, download_id, "this instance has not archived that post")
         raise NotFound(
@@ -127,7 +147,8 @@ async def run(
     await downloads.mark_running(session, download_id)
     await session.commit()
 
-    payload = downloads.job_payload(download, row, plan)
+    cookies = await _bound_cookies(deps, session, Platform(row.platform), source.identity_id)
+    payload = downloads.job_payload(download, row, plan, cookies=cookies)
     try:
         await client.submit(payload)
     except DownloaderBusy as exc:
@@ -179,8 +200,14 @@ async def _content(
     session: AsyncSession,
     download: Any,
     config: Any,
-) -> ArchivedContent | None:
-    """The archive row: fetched if we have never seen it, refreshed if stale."""
+) -> _Source:
+    """The archive row: fetched if we have never seen it, refreshed if stale.
+
+    Always fetched for a platform whose links are bound to a session. However
+    fresh the archived links are, they belong to whichever identity fetched
+    them, and the CDN refuses them to every other session - so they can only
+    be used together with the identity that fetches them now.
+    """
     row = await archive.get(session, download.platform, download.content_id)
     if row is None:
         # Never archived. Fetch it now rather than refusing - a downloader that
@@ -190,11 +217,12 @@ async def _content(
         # obeys the scheduler, and writes a request_log row.
         return await _reparse(deps, session, download)
     max_age = int(config.get("media.mirror_max_age_seconds"))
-    if not downloads.mirrors_are_stale(row, max_age_seconds=max_age):
-        return row
+    bound = Platform(download.platform) in planner.BOUND_COOKIES
+    if not bound and not downloads.mirrors_are_stale(row, max_age_seconds=max_age):
+        return _Source(row)
 
     refreshed = await _reparse(deps, session, download)
-    if refreshed is not None:
+    if refreshed.row is not None:
         return refreshed
     # A re-parse that failed is not fatal: the stored mirrors may still work,
     # and finding out costs one request that the operator already asked for.
@@ -203,12 +231,10 @@ async def _content(
         platform=download.platform,
         action="using the archived mirrors",
     )
-    return row
+    return _Source(row)
 
 
-async def _part_content(
-    deps: OperationDeps, session: AsyncSession, download: Any
-) -> ArchivedContent | None:
+async def _part_content(deps: OperationDeps, session: AsyncSession, download: Any) -> _Source:
     """One later part of a video, fetched for its own file and never archived.
 
     The archive holds the post with its first part's file: that is what the
@@ -223,7 +249,7 @@ async def _part_content(
     """
     fetch = deps.fetch
     if fetch is None:
-        return None
+        return _Source(None)
     config = deps.config()
     parsed: list[Any] = []
     try:
@@ -238,7 +264,7 @@ async def _part_content(
             parsed.append(model)
             return model
 
-        await fetch.fetch(
+        result = await fetch.fetch(
             session,
             call.platform,
             call.endpoint,
@@ -252,15 +278,14 @@ async def _part_content(
         await downloads.fail(session, download.id, str(exc))
         raise
     if not parsed:
-        return None
+        return _Source(None)
     await session.commit()
     content = parsed[-1]
-    return ArchivedContent(**archive.content_row(content, now=datetime.now(UTC), store_raw=False))
+    row = ArchivedContent(**archive.content_row(content, now=datetime.now(UTC), store_raw=False))
+    return _Source(row, result.identity_id)
 
 
-async def _reparse(
-    deps: OperationDeps, session: AsyncSession, download: Any
-) -> ArchivedContent | None:
+async def _reparse(deps: OperationDeps, session: AsyncSession, download: Any) -> _Source:
     """Fetch the post again so the mirrors are fresh, and re-archive it.
 
     Uses the same FetchService the ordinary read path uses, so this spends an
@@ -270,7 +295,7 @@ async def _reparse(
     """
     fetch = deps.fetch
     if fetch is None:
-        return None
+        return _Source(None)
 
     config = deps.config()
     parsed: list[Any] = []
@@ -285,7 +310,7 @@ async def _reparse(
             parsed.append(model)
             return model
 
-        await fetch.fetch(
+        result = await fetch.fetch(
             session,
             call.platform,
             call.endpoint,
@@ -309,16 +334,53 @@ async def _reparse(
             platform=download.platform,
             error=f"{type(exc).__name__}: {exc}"[:200],
         )
-        return None
+        return _Source(None)
 
     if not parsed:
-        return None
+        return _Source(None)
     # cache_ttl is 0 above on purpose: a cache hit returns the stored dict
     # without invoking the parser, so there would be no model to archive and
     # the mirrors would be exactly as old as the ones being replaced.
     await archive.record(session, (parsed[-1],), store_raw=bool(config.get("archive.store_raw")))
     await session.commit()
-    return await archive.get(session, download.platform, download.content_id)
+    # Read from the database, not from the session. `_content` loaded this row
+    # before deciding it was stale, the upsert above is a Core statement the
+    # session does not see, and sessions here do not expire on commit - so a
+    # plain get handed back the row as it was before the re-parse, and a stale
+    # download was planned from exactly the expired links it had just replaced
+    # (found writing the test for #831).
+    row = await session.get(
+        ArchivedContent, (download.platform, download.content_id), populate_existing=True
+    )
+    return _Source(row, result.identity_id)
+
+
+async def _bound_cookies(
+    deps: OperationDeps,
+    session: AsyncSession,
+    platform: Platform,
+    identity_id: str | None,
+) -> list[dict[str, str]]:
+    """The cookies the platform's CDN binds this fetch's links to.
+
+    Read from the identity's record after the fetch, not before it: a token the
+    platform rotated in its reply has already been written back there, and
+    the links in that reply are bound to the new one.
+    """
+    if platform not in planner.BOUND_COOKIES:
+        return []
+    live = await deps.pool.load(session, identity_id) if identity_id else None
+    cookies = planner.bound_cookies(platform, live.cookies) if live is not None else []
+    # Whether it was carried, never what it was. Without it the job is sent
+    # anyway: a 403 from the CDN in the item's reason says more than a refusal
+    # here would.
+    log.info(
+        "media.download.bound_cookies",
+        platform=platform.value,
+        identity_id=identity_id,
+        carried=[cookie["name"] for cookie in cookies],
+    )
+    return cookies
 
 
 async def _await_job(client: Any, job_id: str) -> dict[str, Any] | None:
