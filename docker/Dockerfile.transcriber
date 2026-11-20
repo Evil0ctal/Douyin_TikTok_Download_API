@@ -56,7 +56,12 @@ RUN pip install --no-cache-dir --no-compile --only-binary=imageio-ffmpeg \
  && rm /tmp/requirements.txt
 
 WORKDIR /app
+# COPY keeps the mode the file has in the checkout, and a host with umask 077
+# checks it out 0600: owned by root, unreadable by uid 10001 below (#827).
+# A RUN rather than COPY --chmod, which the classic builder does not know and
+# this file - unlike the others - does not pin a BuildKit syntax for.
 COPY docker/transcriber/app.py /app/app.py
+RUN chmod 0444 /app/app.py
 
 # Drop root before importing model libraries or accepting media paths. Compose
 # also removes Linux capabilities and enables no-new-privileges, but the image

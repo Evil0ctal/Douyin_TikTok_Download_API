@@ -166,10 +166,15 @@ ENV HOME=/tmp \
 COPY docker/browser_rpc /srv/browser_rpc
 COPY --chmod=0555 docker/browser-entrypoint.sh /usr/local/bin/browser-entrypoint
 
+# COPY keeps the modes the files have in the checkout, and a host with umask
+# 077 or 027 checks them out unreadable to anyone but their owner. Owned by
+# root here, the service - which runs as dtk - could not import its own code
+# (#827). Read and traverse for everyone, write for nobody but root.
 RUN groupadd --system --gid "${DTK_GID}" dtk \
  && useradd --system --uid "${DTK_UID}" --gid "${DTK_GID}" \
             --home-dir /srv --shell /usr/sbin/nologin dtk \
- && chown -R root:root /srv
+ && chown -R root:root /srv \
+ && chmod -R a+rX,go-w /srv/browser_rpc
 
 # Profile parent, owned by the runtime user. Compose mounts a tmpfs over it so
 # single-use mint profiles never reach a disk; creating it here keeps a plain
