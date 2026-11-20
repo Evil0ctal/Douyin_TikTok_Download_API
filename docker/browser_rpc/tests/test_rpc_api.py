@@ -27,6 +27,7 @@ _HAS_DTK = importlib.util.find_spec("dtk") is not None
 requires_dtk = pytest.mark.skipif(not _HAS_DTK, reason="dtk is not installed")
 
 if _HAS_DTK:
+    from dtk.core import errors as dtk_errors
     from dtk.core import types as dtk_types
     from dtk.identity.minting import client as dtk_client
     from dtk.signing import base as dtk_signing_base
@@ -267,6 +268,24 @@ class TestClientContract:
         assert "aweme_id=7" in signed.query
         assert "a_bogus=" in signed.query
         assert "msToken=" in signed.query
+
+    async def test_rpc_signer_reads_a_user_agent_refusal_as_one(
+        self, client: httpx.AsyncClient
+    ) -> None:
+        """The registry signs natively on exactly this refusal (#832), so the
+        code it keys on has to survive the wire in both directions."""
+        signer = dtk_signing.RpcSigner(
+            client, "http://browser-rpc", platform=dtk_types.Platform.TIKTOK
+        )
+        spec = dtk_signing_base.RequestSpec.get(
+            "https://www.tiktok.com/api/user/detail/", params={"uniqueId": "tiktok"}
+        )
+        foreign = FAKE_USER_AGENT.replace("Chrome/149", "Chrome/145")
+        fingerprint = dtk_signing_base.StaticFingerprint(user_agent=foreign)
+
+        with pytest.raises(dtk_errors.SigningFailed) as excinfo:
+            await signer.sign(spec, fingerprint)
+        assert dtk_signing.is_user_agent_mismatch(excinfo.value)
 
     async def test_rpc_signer_health_matches_warm_contexts(self, client: httpx.AsyncClient) -> None:
         signer = dtk_signing.RpcSigner(client, "http://browser-rpc")

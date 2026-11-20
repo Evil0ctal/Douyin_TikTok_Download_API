@@ -58,6 +58,7 @@ because absence of evidence must never disable the native path.
 
 from __future__ import annotations
 
+import hashlib
 import time
 from collections import deque
 from collections.abc import Callable, Iterable, Mapping, MutableMapping
@@ -89,6 +90,7 @@ from dtk.signing.native.tiktok_sign import (
     read_build,
 )
 from dtk.signing.protection import requires_browser_signature as signed_by_platform
+from dtk.signing.rpc import is_user_agent_mismatch
 
 logger = get_logger(__name__)
 
@@ -558,6 +560,9 @@ class SignerRegistry:
         self._health: tuple[float, SignerHealth] | None = None
         self._last_shadow: dict[EndpointKey, ShadowResult] = {}
         self._shadow_seen: dict[EndpointKey, float] = {}
+        #: (platform, identity User-Agent digest) pairs already reported as
+        #: ones browser-rpc cannot sign under, so the log says it once.
+        self._foreign_agents: set[tuple[Platform, str]] = set()
 
     @property
     def policy(self) -> RegistryPolicy:
@@ -585,14 +590,64 @@ class SignerRegistry:
         try:
             return await signer.sign(spec, identity_fingerprint, session)
         except DtkError as exc:
-            if signer is rpc or rpc is None:
+            if signer is rpc:
+                native = self._native_for_a_foreign_agent(key, exc, identity_fingerprint)
+                if native is None:
+                    raise
+                return await native.sign(spec, identity_fingerprint, session)
+            if rpc is None:
                 raise
             logger.warning(
                 "signing.native.error", endpoint=key[1], platform=key[0].value, error=str(exc)
             )
             if not await self._rpc_healthy():
                 raise
-            return await rpc.sign(spec, identity_fingerprint, session)
+            try:
+                return await rpc.sign(spec, identity_fingerprint, session)
+            except DtkError as rpc_exc:
+                # The browser cannot sign for this identity at all, so the
+                # native signer's failure is the one that says what is wrong.
+                if is_user_agent_mismatch(rpc_exc):
+                    raise exc from rpc_exc
+                raise
+
+    def _native_for_a_foreign_agent(
+        self, key: EndpointKey, error: DtkError, fingerprint: SigningFingerprint
+    ) -> Signer | None:
+        """The native signer, when browser-rpc refused this identity's User-Agent.
+
+        Issue #832. browser-rpc's page signs under its own User-Agent, and both
+        platforms seal it, so an identity minted under another browser - an
+        older CloakBrowser, or imported from the user's own - can never be
+        signed there; it now says so instead of handing back a signature
+        TikTok refuses as risk control. The native signer seals the identity's
+        own User-Agent, which was measured to work (2026-11-20, Chrome 145
+        sealed and sent: a full profile). So that is who signs it - when the
+        policy lets the other signer be used and native is not disabled.
+
+        Not a browser outage: rpc is not marked unhealthy and nothing reaches
+        the risk window. Logged once per platform and User-Agent.
+        """
+        platform = key[0]
+        native = self._native.get(platform)
+        if (
+            not is_user_agent_mismatch(error)
+            or not self.policy.fallback_enabled
+            or native is None
+            or platform in self._native_disabled
+        ):
+            return None
+        agent = hashlib.sha256(fingerprint.user_agent.encode()).hexdigest()[:10]
+        if (platform, agent) not in self._foreign_agents:
+            self._foreign_agents.add((platform, agent))
+            logger.warning(
+                "signing.rpc.user_agent_mismatch",
+                platform=platform.value,
+                endpoint=key[1],
+                user_agent_sha=agent,
+                detail=str(error),
+            )
+        return native
 
     def _rpc_for(self, platform: Platform) -> Signer | None:
         """browser-rpc, if it can sign for ``platform`` at all.

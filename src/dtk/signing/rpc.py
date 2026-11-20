@@ -34,12 +34,12 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, Final
 from urllib.parse import quote
 
 import httpx
 
-from dtk.core.errors import SigningFailed
+from dtk.core.errors import DtkError, SigningFailed
 from dtk.core.logging import get_logger
 from dtk.core.types import Platform
 from dtk.signing.base import (
@@ -59,6 +59,17 @@ logger = get_logger(__name__)
 
 SIGN_PATH = "/rpc/sign"
 HEALTH_PATH = "/rpc/health"
+
+#: browser-rpc's error code, and the `SigningFailed` cause, for an identity
+#: whose User-Agent is not the one the signing page runs under. Not a failure
+#: of the browser: the registry signs such an identity natively (#832).
+USER_AGENT_MISMATCH: Final = "user_agent_mismatch"
+
+
+def is_user_agent_mismatch(error: BaseException) -> bool:
+    """Whether ``error`` says browser-rpc cannot sign under this identity's User-Agent."""
+    return isinstance(error, DtkError) and error.details.get("cause") == USER_AGENT_MISMATCH
+
 
 #: Response field to the query parameter it becomes, most specific first. The
 #: first match decides which algorithm the response is reported as.
@@ -181,7 +192,11 @@ class RpcSigner:
                 status=exc.response.status_code,
                 error=reason,
             )
-            raise SigningFailed(reason) from exc
+            cause = _rpc_error_code(exc.response)
+            raise SigningFailed(
+                reason,
+                details={"cause": cause} if cause == USER_AGENT_MISMATCH else None,
+            ) from exc
         except httpx.HTTPError as exc:
             # `str()` on a timeout is the empty string, so reporting only the
             # message logged `error=""` and said nothing at all. The class name
@@ -214,11 +229,17 @@ class RpcSigner:
         # browser signed under a different UA than this identity will send, the
         # request is already lost - so fail here, where the reason is legible,
         # rather than at the platform, where it looks like rate limiting.
+        #
+        # This never fired until #832: browser-rpc echoed the request's own UA
+        # back while its page signed under another. It now answers with the
+        # page's, and refuses a mismatch itself; this stays for a service from
+        # before that, which would never say so.
         wanted_ua = identity_fingerprint.user_agent
         if signed_ua and wanted_ua and signed_ua != wanted_ua:
             raise SigningFailed(
                 "browser-rpc signed under a different User-Agent than this "
-                "identity uses; the platform validates the two byte for byte"
+                "identity uses; the platform validates the two byte for byte",
+                details={"cause": USER_AGENT_MISMATCH},
             )
         # A service from before request bodies drops the field without a word
         # and signs an empty one, so the request would go out carrying a body
@@ -376,6 +397,16 @@ class RpcSigner:
 RPC_ERROR_EXCERPT_CHARS = 600
 
 
+def _rpc_error_code(response: httpx.Response) -> str | None:
+    """The ``code`` of browser-rpc's ``{"error": {...}}`` answer, if it sent one."""
+    try:
+        error = response.json().get("error")
+    except (ValueError, AttributeError):
+        return None
+    code = error.get("code") if isinstance(error, dict) else None
+    return code if isinstance(code, str) and code else None
+
+
 def _rpc_failure(response: httpx.Response) -> str:
     """browser-rpc's own account of a failure: status, code and first line.
 
@@ -436,4 +467,4 @@ def _describe(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
-__all__ = ["HEALTH_PATH", "SIGN_PATH", "RpcSigner"]
+__all__ = ["HEALTH_PATH", "SIGN_PATH", "USER_AGENT_MISMATCH", "RpcSigner", "is_user_agent_mismatch"]

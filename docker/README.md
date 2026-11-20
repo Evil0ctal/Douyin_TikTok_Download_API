@@ -395,8 +395,16 @@ POST /rpc/mint    {platform, proxy_url, geo_hint}
 POST /rpc/sign    {platform, url, query, params, user_agent}
                 → {a_bogus | x_bogus | signature, ms_token}
 GET  /rpc/health  → {status, backend, backend_version, chromium_major,
-                     warm_contexts, uptime}
+                     user_agent, warm_contexts, uptime}
 ```
+
+A signature carries the signing page's own User-Agent, whatever the request
+names: the page runs under its browser binary's `navigator.userAgent`, and both
+platforms seal it into the signature. So `/rpc/sign` answers with that string,
+and refuses a `user_agent` other than it with `409 user_agent_mismatch` - an
+identity minted under another browser, or imported - instead of signing a
+request the platform will refuse. dtk then signs that identity natively.
+`/rpc/health` reports the string once a page has opened.
 
 The clients are `dtk.identity.minting.client.BrowserRpcClient` and
 `dtk.signing.rpc.RpcSigner`; `docker/browser_rpc/tests/test_rpc_api.py` drives
@@ -602,7 +610,8 @@ procedure follows `docs/design/16-salvage-and-debug.md`.
            signer = RpcSigner(c, 'http://browser-rpc:9000')
            spec = RequestSpec.get('https://www.douyin.com/aweme/v1/web/aweme/detail/',
                                   params={'aweme_id': '7'})
-           print(await signer.sign(spec, StaticFingerprint(user_agent='Mozilla/5.0')))
+           # Empty takes the page's own User-Agent; any other string is refused.
+           print(await signer.sign(spec, StaticFingerprint(user_agent='')))
    asyncio.run(main())"
    ```
 

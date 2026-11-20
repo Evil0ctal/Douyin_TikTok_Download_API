@@ -119,7 +119,12 @@ from dtk.signing.registry import (
     SlidingRiskWindow,
     XBogusComparator,
 )
-from dtk.signing.rpc import RPC_ERROR_EXCERPT_CHARS, RpcSigner
+from dtk.signing.rpc import (
+    RPC_ERROR_EXCERPT_CHARS,
+    USER_AGENT_MISMATCH,
+    RpcSigner,
+    is_user_agent_mismatch,
+)
 
 # --------------------------------------------------------------------------
 # shared inputs
@@ -2899,6 +2904,106 @@ async def test_registry_reraises_when_the_fallback_is_also_unavailable() -> None
     with pytest.raises(SigningFailed, match="blew up"):
         await registry.sign(DOUYIN_SPEC, FINGERPRINT)
     assert rpc.calls == 0
+
+
+#: browser-rpc's answer to an identity whose User-Agent its page does not run.
+UA_MISMATCH_BODY = {
+    "error": {
+        "code": USER_AGENT_MISMATCH,
+        "message": "this browser signs tiktok requests as Chrome/146 on Windows and this "
+        "identity's is Chrome/145 on Windows: the platform seals the User-Agent into the "
+        "signature",
+    }
+}
+
+
+async def test_a_user_agent_refusal_is_told_apart_from_a_broken_browser() -> None:
+    """Issue #832: browser-rpc now refuses a User-Agent its page does not run, with 409.
+
+    The registry acts on that one refusal - it signs the identity natively - so
+    it has to be recognisable; every other refusal stays what it was.
+    """
+
+    def refusing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(409, json=UA_MISMATCH_BODY)
+
+    async with rpc_client(refusing) as client:
+        with pytest.raises(SigningFailed) as excinfo:
+            await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+    assert is_user_agent_mismatch(excinfo.value)
+    assert str(excinfo.value).startswith("browser-rpc failed (HTTP 409 user_agent_mismatch): ")
+
+    def failing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502, json={"error": {"code": "backend_failed", "message": "x"}})
+
+    async with rpc_client(failing) as client:
+        with pytest.raises(SigningFailed) as excinfo:
+            await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+    assert not is_user_agent_mismatch(excinfo.value)
+
+
+async def test_a_signature_under_another_user_agent_is_refused_here() -> None:
+    """The guard's first test: it could not fire while browser-rpc echoed the
+    request's own User-Agent back (#832); against a service from before the
+    refusal, an honest answer naming another UA is still caught here."""
+
+    def answering(agent: str) -> Callable[[httpx.Request], httpx.Response]:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, json={"params": {"X-Bogus": "1", "X-Gnarly": "GNA"}, "user_agent": agent}
+            )
+
+        return handler
+
+    async with rpc_client(answering(UA_EDGE122)) as client:
+        with pytest.raises(SigningFailed, match="different User-Agent") as excinfo:
+            await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+    assert is_user_agent_mismatch(excinfo.value)
+
+    async with rpc_client(answering(FINGERPRINT.user_agent)) as client:
+        assert await RpcSigner(client, "http://rpc").sign(TIKTOK_SPEC, FINGERPRINT)
+
+
+def ua_refusal() -> SigningFailed:
+    return SigningFailed("browser-rpc failed (HTTP 409)", details={"cause": USER_AGENT_MISMATCH})
+
+
+async def test_an_identity_the_browser_cannot_sign_is_signed_natively() -> None:
+    """Issue #832: in rpc mode, a refused User-Agent goes to the native signer.
+
+    The native signer seals the identity's own User-Agent, measured to work
+    (Chrome 145 sealed and sent: a full profile), where the browser's
+    signature could only seal its own and be refused as risk control.
+    """
+    rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
+    registry, native, _, _ = build_registry(rpc=rpc, mode="rpc")
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+    assert (await registry.sign(DOUYIN_SPEC, FINGERPRINT)).signer == SIGNER_NATIVE
+    assert rpc.calls == 2 and native.calls == 2
+
+
+@pytest.mark.parametrize("why", ["fallback_disabled", "native_disabled", "not_a_ua_refusal"])
+async def test_the_native_signer_is_not_reached_for_otherwise(why: str) -> None:
+    fail = SigningFailed("browser-rpc failed (HTTP 502)") if why == "not_a_ua_refusal" else None
+    rpc = FakeSigner(SIGNER_BROWSER, fail=fail or ua_refusal())
+    policy = RegistryPolicy(fallback_enabled=why != "fallback_disabled")
+    registry, native, _, _ = build_registry(rpc=rpc, mode="rpc", policy=policy)
+    if why == "native_disabled":
+        registry.disable_native(Platform.DOUYIN, reason="test")
+    with pytest.raises(SigningFailed):
+        await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+    assert native.calls == 0
+
+
+async def test_a_native_failure_is_not_hidden_behind_a_ua_refusal() -> None:
+    """Native raised, and the browser cannot sign this identity at all: the
+    native signer's error is the one that says what is wrong."""
+    native = FakeSigner(SIGNER_NATIVE, fail=SigningFailed("algorithm blew up"))
+    rpc = FakeSigner(SIGNER_BROWSER, fail=ua_refusal())
+    registry, _, _, _ = build_registry(native=native, rpc=rpc, mode="native")
+    with pytest.raises(SigningFailed, match="blew up"):
+        await registry.sign(DOUYIN_SPEC, FINGERPRINT)
+    assert rpc.calls == 1
 
 
 async def test_shadow_skips_a_parameter_with_no_comparator() -> None:

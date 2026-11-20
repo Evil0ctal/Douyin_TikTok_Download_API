@@ -791,6 +791,7 @@ docker compose -p dtk -f docker/compose.yml exec api dtk fetch --raw \
 | `could not load https://…` | 页面根本没能经由它的出口加载出来。后半句是 Chromium 自己的报错（`net::ERR_PROXY_CONNECTION_FAILED`、超时等） |
 | `could not sign within …s` | 页面一直停在平台上，但它的安全 bundle 始终没签出名：要么 bundle 没加载上，要么平台改了签名方式。如果这个出口能正常打开站点，那就是后者——请开一个 issue |
 | `the tiktok signing page could not seal a usable msToken within …s` | TikTok 页面能签名，但它的 SDK 一直没拿到可用的会话 token 来封进签名：`it seals one of 0 characters` 说明 TikTok 的应用接口始终没有经由页面所走的出口应答，`only the bootstrap token arrived` 说明应答了、但始终没发下完整的 token。在此之前页面不会交出去，因为封着空 token 或 bootstrap token 的签名会被拒。检查这个出口，和 mint 因同一个 token 失败时一样 |
+| `HTTP 409 user_agent_mismatch`：`this browser signs … requests as Chrome/146 on Windows and this identity's is …` | 不是故障。浏览器只能以它自己的 User-Agent 签名，而这个身份是在另一个浏览器下铸造的（更早的 browser-rpc 镜像），或是从你自己的浏览器导入的。它的请求改由原生签名（`signing.fallback_enabled` 关闭时除外），原生签名照样可用；如果希望浏览器也能为它签名，重新铸造这个身份 |
 | `…; both attempts failed this way, on two different pages …` | 不是某一个页面过期：换了新页面也是同样的失败。后半句写的是两个页面共有、且与这种失败对得上的东西——跳转失败写 `through the same exit`，始终签不出名写 `loading the same platform bundle`，崩溃写 `in the same browser container` |
 | `Target crashed`、`Page crashed`、`renderer crashed`、`… has been closed` | Chromium 崩了，几乎总是浏览器容器的内存或 `/tmp` 空间不够。页面还在加载时被杀掉会写 `Page crashed`，浏览器进程本身死掉会写 `Target page, context or browser has been closed`。browser-rpc 自己发现崩溃时写的是 `renderer crashed (Target crashed)`，`browser_rpc.warm.discarded` 日志行里也是这样 |
 | `browser-rpc unreachable` | 完全没有响应：容器没在运行，或者 `DTK_BROWSER_RPC_URL` 指错了地方 |
